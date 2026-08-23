@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Services\DeviceManagement\ConnectorContractValidator;
 use App\Services\DeviceManagement\ConnectorDnsResolver;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\DeviceProviderDiagnosticsService;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 use Tests\TestCase;
 
 class DeviceProviderDiagnosticsServiceTest extends TestCase
@@ -86,6 +88,55 @@ class DeviceProviderDiagnosticsServiceTest extends TestCase
         Http::assertSentCount(1);
         Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
             && $request->url() === 'http://127.0.0.1:9441/v1/health');
+    }
+
+    public function test_meshcentral_runtime_capabilities_match_the_deployable_connector(): void
+    {
+        $settings = app(DeviceManagementSettings::class);
+        $settings->saveDeployment([
+            'mode' => 'port',
+            'base_domain' => 'rail-time.test',
+        ]);
+        $settings->saveProvider('meshcentral', [
+            'enabled' => true,
+            'adapter_port' => 9442,
+            'token' => self::TOKEN,
+            'webhook_secret' => self::WEBHOOK_SECRET,
+        ]);
+        Http::fake([
+            'http://127.0.0.1:9442/v1/health' => Http::response([
+                'healthy' => true,
+                'status' => 'operational',
+                'contract_version' => '1.0.0',
+                'connector_version' => '1.0.0',
+                'provider' => 'meshcentral',
+                'capabilities' => [
+                    'platforms' => ['windows', 'macos', 'linux'],
+                    'inventory' => false,
+                    'enrollment' => false,
+                    'remote_support' => true,
+                    'unattended_remote_support' => true,
+                    'commands' => ['execute_script', 'collect_diagnostics'],
+                    'readiness_checks' => ['remote_support'],
+                ],
+                'upstream' => [
+                    'reachable' => true,
+                    'authenticated' => true,
+                    'status' => 'connected',
+                    'api_version' => '1.2.5',
+                ],
+            ]),
+        ]);
+
+        $result = app(DeviceProviderDiagnosticsService::class)->probe('meshcentral');
+
+        $this->assertTrue($result['contract_valid']);
+        $this->assertTrue($result['healthy']);
+        $this->assertSame('healthy', $result['status']);
+        $runtimeCapabilities = $settings->providerRuntime('meshcentral')['capabilities'];
+        $this->assertFalse($runtimeCapabilities['enrollment']);
+        $this->assertSame(['execute_script', 'collect_diagnostics'], $runtimeCapabilities['commands']);
+        Http::assertSentCount(1);
     }
 
     public function test_missing_credentials_do_not_send_any_request(): void
@@ -264,6 +315,83 @@ class DeviceProviderDiagnosticsServiceTest extends TestCase
             'oversized-private-secret',
             json_encode($oversized, JSON_THROW_ON_ERROR),
         );
+    }
+
+    public function test_health_contract_rejects_permissive_types_duplicates_and_unknown_fields(): void
+    {
+        $this->configureProvider('subdomain', true);
+        $payloads = [];
+
+        $extra = $this->healthResponse();
+        $extra['unexpected'] = true;
+        $payloads[] = $extra;
+
+        $stringBoolean = $this->healthResponse();
+        $stringBoolean['healthy'] = 'true';
+        $payloads[] = $stringBoolean;
+
+        $duplicate = $this->healthResponse();
+        $duplicate['capabilities']['platforms'][] = 'windows';
+        $payloads[] = $duplicate;
+
+        $unknownUpstream = $this->healthResponse();
+        $unknownUpstream['upstream']['unexpected'] = 'value';
+        $payloads[] = $unknownUpstream;
+
+        $responses = Http::sequence();
+        foreach ($payloads as $payload) {
+            $responses->push($payload);
+        }
+        Http::fake(['https://openuem.rail-time.test/v1/health' => $responses]);
+
+        foreach ($payloads as $index => $payload) {
+            $result = app(DeviceProviderDiagnosticsService::class)->probe('openuem');
+            $this->assertSame('contract_invalid', $result['status'], "Invalid contract variant {$index} was not rejected at the contract boundary.");
+            $this->assertFalse($result['healthy']);
+        }
+    }
+
+    public function test_openapi_connector_version_is_a_bounded_string_and_probe_does_not_auto_enable_commands(): void
+    {
+        $this->configureProvider('subdomain', true);
+        Http::fake([
+            'https://openuem.rail-time.test/v1/health' => Http::response($this->healthResponse([
+                'connector_version' => 'build-main',
+            ])),
+        ]);
+
+        $result = app(DeviceProviderDiagnosticsService::class)->probe('openuem');
+        $settings = app(DeviceManagementSettings::class);
+
+        $this->assertSame('healthy', $result['status']);
+        $this->assertSame('build-main', $result['details']['connector_version']);
+        $this->assertFalse($settings->productionCommandsEnabled(fresh: true));
+
+        $settings->setProductionCommandsEnabled(true);
+        $this->assertTrue($settings->productionCommandsEnabled(fresh: true));
+    }
+
+    public function test_enrollment_and_command_responses_require_exact_runtime_types(): void
+    {
+        $validEnrollment = ['status' => 'ready', 'steps' => ['Profil installieren']];
+        $validCommand = ['accepted' => true, 'completed' => false];
+        $this->assertSame($validEnrollment, ConnectorContractValidator::enrollmentResponse($validEnrollment));
+        $this->assertSame($validCommand, ConnectorContractValidator::commandResponse($validCommand));
+
+        foreach ([
+            fn (): array => ConnectorContractValidator::enrollmentResponse(['steps' => ['x']]),
+            fn (): array => ConnectorContractValidator::enrollmentResponse(['status' => 'ready', 'steps' => ['x'], 'limited_management' => 'false']),
+            fn (): array => ConnectorContractValidator::commandResponse(['accepted' => true]),
+            fn (): array => ConnectorContractValidator::commandResponse(['accepted' => 'true', 'completed' => false]),
+            fn (): array => ConnectorContractValidator::commandResponse(['accepted' => true, 'completed' => false, 'extra' => true]),
+        ] as $invalidResponse) {
+            try {
+                $invalidResponse();
+                $this->fail('A response outside the OpenAPI contract must be rejected.');
+            } catch (RuntimeException) {
+                $this->addToAssertionCount(1);
+            }
+        }
     }
 
     private function configureProvider(string $mode, bool $enabled): void

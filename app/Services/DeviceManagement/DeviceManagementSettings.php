@@ -3,6 +3,7 @@
 namespace App\Services\DeviceManagement;
 
 use App\Models\Setting;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -29,6 +30,8 @@ final class DeviceManagementSettings
     public const SECRET_MIN_LENGTH = 32;
 
     public const SECRET_MAX_LENGTH = 512;
+
+    public const PROVIDER_DIAGNOSTIC_MAX_AGE_MINUTES = 15;
 
     private const SECRET_PREFIX = 'enc:v1:';
 
@@ -128,6 +131,13 @@ final class DeviceManagementSettings
             $invalidatedProviders = $topologyChanged
                 ? $this->invalidateExternalProviderCredentials($current, $changed)
                 : [];
+            if ($topologyChanged) {
+                $current['provider_diagnostics'] = [];
+                if ($nextRuntime['production_commands_enabled']) {
+                    $current['runtime']['production_commands_enabled'] = false;
+                    $changed[] = 'runtime.production_commands_enabled';
+                }
+            }
 
             $this->assertDeploymentTargetSafety($current);
             $this->assertAllActiveEndpointsUnique($current);
@@ -279,6 +289,18 @@ final class DeviceManagementSettings
                 $this->providerComparable($next),
                 "providers.{$provider}.",
             );
+            if ($provider !== 'simulation' && ($changed !== [] || $tokenChanged || $webhookSecretChanged)) {
+                $current['provider_diagnostics'] = is_array($current['provider_diagnostics'] ?? null)
+                    ? $current['provider_diagnostics']
+                    : [];
+                unset($current['provider_diagnostics'][$provider]);
+                $runtime = $this->runtimeFrom($current);
+                if ($runtime['production_commands_enabled']) {
+                    $runtime['production_commands_enabled'] = false;
+                    $current['runtime'] = $runtime;
+                    $changed[] = 'runtime.production_commands_enabled';
+                }
+            }
             $this->persist($current);
             $this->audit('device-provider.settings-updated', $changed, [
                 'provider' => $provider,
@@ -303,18 +325,122 @@ final class DeviceManagementSettings
         );
     }
 
+    /**
+     * Commands, enrollment preparation and identity synchronization share one
+     * fail-closed mutation gate. The stored switch alone is never sufficient:
+     * the exact provider configuration must still have fresh, healthy evidence
+     * when the side effect is about to be requested.
+     */
+    public function productionMutationsEnabledFor(string $provider): bool
+    {
+        $provider = $this->normalizeProviderKey($provider);
+        if ($provider === 'simulation' || ! $this->productionCommandsEnabled(fresh: true)) {
+            return false;
+        }
+
+        $stored = $this->stored(true);
+        if ($this->storageFailed) {
+            return false;
+        }
+
+        $providerRuntime = $this->providerRuntime($provider);
+        $evidence = data_get($stored, "provider_diagnostics.{$provider}");
+        $evidence = is_array($evidence) ? $evidence : [];
+
+        return $this->providerHasExternalMutations($providerRuntime)
+            && $this->diagnosticAllowsProductionMutations($provider, $providerRuntime, $evidence);
+    }
+
     public function setProductionCommandsEnabled(bool $enabled): void
     {
         DB::transaction(function () use ($enabled): void {
             $current = $this->lockedStoredForWrite();
             $runtime = $this->runtimeFrom($current);
             $previous = $runtime['production_commands_enabled'];
+
+            if ($enabled) {
+                $providers = collect($this->allProviderRuntime(fresh: true))
+                    ->reject(fn (array $provider, string $key): bool => $key === 'simulation')
+                    ->filter(fn (array $provider): bool => $this->providerHasExternalMutations($provider));
+
+                if ($providers->isEmpty()) {
+                    throw new InvalidArgumentException('Es ist kein aktiver externer Connector mit Geräteaktionen konfiguriert.');
+                }
+
+                $diagnostics = is_array($current['provider_diagnostics'] ?? null)
+                    ? $current['provider_diagnostics']
+                    : [];
+                foreach ($providers as $provider => $providerRuntime) {
+                    $evidence = is_array($diagnostics[$provider] ?? null) ? $diagnostics[$provider] : [];
+                    if (! $this->diagnosticAllowsProductionMutations($provider, $providerRuntime, $evidence)) {
+                        throw new InvalidArgumentException("Der Connector '{$provider}' benötigt einen aktuellen erfolgreichen Funktionstest.");
+                    }
+                }
+            }
+
             $runtime['production_commands_enabled'] = $enabled;
             $current['runtime'] = $runtime;
 
             $changed = $previous === $enabled ? [] : ['runtime.production_commands_enabled'];
             $this->persist($current);
             $this->audit('device-settings.kill-switch-updated', $changed);
+        });
+    }
+
+    /**
+     * Persist only server-derived, secret-free evidence for the production gate.
+     * A successful probe deliberately never changes the global kill switch.
+     *
+     * @param  array<string, mixed>  $result
+     */
+    public function recordProviderDiagnostic(string $provider, array $result, string $fingerprint): void
+    {
+        $provider = $this->normalizeProviderKey($provider);
+        if ($provider === 'simulation') {
+            return;
+        }
+
+        DB::transaction(function () use ($provider, $result, $fingerprint): void {
+            $current = $this->lockedStoredForWrite();
+            $runtimeProviders = $this->allProviderRuntime(fresh: true);
+            $providerRuntime = $runtimeProviders[$provider] ?? null;
+            if (! is_array($providerRuntime)) {
+                throw new InvalidArgumentException('Unbekannter Geräteprovider.');
+            }
+
+            $currentFingerprint = $this->providerFingerprint($provider);
+            if ($fingerprint === '' || ! hash_equals($currentFingerprint, $fingerprint)) {
+                throw new InvalidArgumentException('Die Provider-Konfiguration wurde während des Funktionstests geändert.');
+            }
+
+            $current['provider_diagnostics'] = is_array($current['provider_diagnostics'] ?? null)
+                ? $current['provider_diagnostics']
+                : [];
+            $current['provider_diagnostics'][$provider] = [
+                'checked_at' => CarbonImmutable::now()->toIso8601String(),
+                'healthy' => ($result['healthy'] ?? null) === true,
+                'authenticated' => ($result['authenticated'] ?? null) === true,
+                'contract_valid' => ($result['contract_valid'] ?? null) === true,
+                'upstream_reachable' => data_get($result, 'contract.upstream_reachable') === true,
+                'upstream_authenticated' => data_get($result, 'contract.upstream_authenticated') === true,
+                'status' => is_string($result['status'] ?? null) ? mb_substr($result['status'], 0, 80) : 'invalid',
+                'fingerprint' => $currentFingerprint,
+            ];
+
+            $runtime = $this->runtimeFrom($current);
+            $mutationProvider = $this->providerHasExternalMutations($providerRuntime);
+            if ($runtime['production_commands_enabled']
+                && $mutationProvider
+                && ! $this->diagnosticAllowsProductionMutations(
+                    $provider,
+                    $providerRuntime,
+                    $current['provider_diagnostics'][$provider],
+                )) {
+                $runtime['production_commands_enabled'] = false;
+                $current['runtime'] = $runtime;
+            }
+
+            $this->persist($current);
         });
     }
 
@@ -477,6 +603,74 @@ final class DeviceManagementSettings
             'webhook_secret' => $runtime['webhook_secret'] === '' ? '' : hash('sha256', $runtime['webhook_secret']),
             'remote_url_template' => $runtime['remote_url_template'],
             'mobile_commands_enabled' => $runtime['mobile_commands_enabled'],
+            // A deployment that changes allowed paths or capabilities must
+            // earn fresh connector evidence before external mutations resume.
+            'paths' => $runtime['paths'],
+            'capabilities' => $runtime['capabilities'],
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
+
+    /** @param array<string, mixed> $providerRuntime
+     * @param  array<string, mixed>  $evidence
+     */
+    private function diagnosticAllowsProductionMutations(string $provider, array $providerRuntime, array $evidence): bool
+    {
+        if ($provider === 'simulation'
+            || ! (bool) ($providerRuntime['enabled'] ?? false)
+            || ($evidence['healthy'] ?? null) !== true
+            || ($evidence['authenticated'] ?? null) !== true
+            || ($evidence['contract_valid'] ?? null) !== true
+            || ($evidence['upstream_reachable'] ?? null) !== true
+            || ($evidence['upstream_authenticated'] ?? null) !== true
+            || ($evidence['status'] ?? null) !== 'healthy') {
+            return false;
+        }
+
+        $recordedFingerprint = $evidence['fingerprint'] ?? null;
+        if (! is_string($recordedFingerprint)
+            || ! hash_equals($this->fingerprintFromRuntime($providerRuntime), $recordedFingerprint)) {
+            return false;
+        }
+
+        try {
+            $checkedAt = CarbonImmutable::parse((string) ($evidence['checked_at'] ?? ''));
+        } catch (Throwable) {
+            return false;
+        }
+        $now = CarbonImmutable::now();
+
+        return ! $checkedAt->greaterThan($now->addSeconds(30))
+            && ! $checkedAt->lessThan($now->subMinutes(self::PROVIDER_DIAGNOSTIC_MAX_AGE_MINUTES));
+    }
+
+    /** @param array<string, mixed> $providerRuntime */
+    private function providerHasExternalMutations(array $providerRuntime): bool
+    {
+        if (! (bool) ($providerRuntime['enabled'] ?? false)) {
+            return false;
+        }
+
+        $commands = data_get($providerRuntime, 'capabilities.commands');
+
+        return (is_array($commands) && $commands !== [])
+            || data_get($providerRuntime, 'capabilities.enrollment') === true
+            || filled(data_get($providerRuntime, 'paths.identity_sync'));
+    }
+
+    /** @param array<string, mixed> $runtime */
+    private function fingerprintFromRuntime(array $runtime): string
+    {
+        return hash('sha256', json_encode([
+            'key' => $runtime['key'],
+            'enabled' => $runtime['enabled'],
+            'effective_url' => $runtime['effective_url'],
+            'timeout' => $runtime['timeout'],
+            'token' => $runtime['token'] === '' ? '' : hash('sha256', $runtime['token']),
+            'webhook_secret' => $runtime['webhook_secret'] === '' ? '' : hash('sha256', $runtime['webhook_secret']),
+            'remote_url_template' => $runtime['remote_url_template'],
+            'mobile_commands_enabled' => $runtime['mobile_commands_enabled'],
+            'paths' => $runtime['paths'],
+            'capabilities' => $runtime['capabilities'],
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     }
 

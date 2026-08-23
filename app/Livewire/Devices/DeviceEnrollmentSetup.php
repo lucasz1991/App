@@ -21,7 +21,12 @@ class DeviceEnrollmentSetup extends Component
 
     public function mount(string $token, DeviceEnrollmentService $enrollments): void
     {
-        $claim = $enrollments->claim($token, auth()->user());
+        $sessionKey = 'device-enrollment.claims.'.hash('sha256', $token);
+        $claimedPublicId = session()->get($sessionKey);
+        $claim = is_string($claimedPublicId) && $claimedPublicId !== ''
+            ? $enrollments->resumeClaimed($claimedPublicId, auth()->user())
+            : $enrollments->claim($token, auth()->user());
+        session()->put($sessionKey, $claim->enrollment->public_id);
         $this->enrollmentPublicId = $claim->enrollment->public_id;
         $this->steps = $claim->instructions->steps;
         $this->enrollmentUrl = $claim->instructions->enrollmentUrl;

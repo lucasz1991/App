@@ -1573,7 +1573,7 @@ test('shared LMZ shell exposes the resolved mail profile and removes unsafe clas
     assert.equal(classesToggle.hidden, false);
 }));
 
-test('mail chrome turns the vendor panels into one accessible right-side inspector dock', () => coreWithDom(`
+test('mail chrome separates vendor panels into accessible left navigation and right inspector docks', () => coreWithDom(`
     <div id="root">
         <div class="lmz-builder__topbar">
             <div class="lmz-builder__actions"><button data-lmz-action="save">Save</button></div>
@@ -1603,6 +1603,8 @@ test('mail chrome turns the vendor panels into one accessible right-side inspect
     </div>
 `, async ({ document }) => {
     const root = document.querySelector('#root');
+    let compactViewport = false;
+    document.defaultView.matchMedia = () => ({ get matches() { return compactViewport; } });
     const state = { left: null, right: null };
     const render = (group) => {
         root.querySelectorAll(`[data-lmz-panel-group="${group}"]`).forEach((toggle) => {
@@ -1639,33 +1641,61 @@ test('mail chrome turns the vendor panels into one accessible right-side inspect
     const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail', layout: 'elementor' });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const dock = root.querySelector('[data-rt-lmz-control-dock]');
-    const tabButtons = [...dock.querySelectorAll('[role="tab"]')];
+    const navigation = root.querySelector('[data-rt-lmz-control-dock][data-rt-lmz-side="left"]');
+    const inspector = root.querySelector('[data-rt-lmz-control-dock][data-rt-lmz-side="right"]');
+    const main = root.querySelector('.lmz-builder__main');
+    const navigationTabs = [...navigation.querySelectorAll('[role="tab"]')];
+    const inspectorTabs = [...inspector.querySelectorAll('[role="tab"]')];
     assert.equal(chrome.layout, 'elementor');
     assert.equal(root.dataset.rtLmzLayout, 'elementor');
-    assert.equal(dock.parentElement, root.querySelector('.lmz-builder__viewport'));
-    assert.equal(dock.nextElementSibling, root.querySelector('.lmz-builder__main'));
-    assert.equal(dock.dataset.rtLmzSide, 'right');
-    assert.equal(dock.getAttribute('aria-label'), 'Editor-Einstellungen');
+    assert.equal(navigation.parentElement, root.querySelector('.lmz-builder__viewport'));
+    assert.equal(navigation.nextElementSibling, main);
+    assert.equal(main.nextElementSibling, inspector);
+    assert.equal(navigation.getAttribute('aria-label'), 'Editor-Navigation');
+    assert.equal(inspector.getAttribute('aria-label'), 'Editor-Einstellungen');
     assert.equal(root.querySelector('[data-rt-lmz-mode-indicator]').parentElement.className, 'rt-lmz-control-dock__header');
-    assert.deepEqual(tabButtons.slice(0, 4).map((button) => button.textContent), ['Bausteine', 'Ebenen', 'Eigenschaften', 'Stile']);
-    assert.equal(dock.querySelector('.rt-lmz-control-dock__panels [data-lmz-popover="left"]') !== null, true);
-    assert.equal(dock.querySelector('.rt-lmz-control-dock__footer .lmz-builder__meta') !== null, true);
+    assert.deepEqual(navigationTabs.map((button) => button.textContent), ['Bausteine', 'Ebenen']);
+    assert.deepEqual(inspectorTabs.map((button) => button.textContent), ['Eigenschaften', 'Stile', 'Klassen']);
+    assert.equal(navigation.querySelector('.rt-lmz-control-dock__panels [data-lmz-popover="left"]') !== null, true);
+    assert.equal(navigation.querySelector('[data-lmz-popover="right"]'), null);
+    assert.equal(inspector.querySelector('.rt-lmz-control-dock__panels [data-lmz-popover="right"]') !== null, true);
+    assert.equal(inspector.querySelector('[data-lmz-popover="left"]'), null);
+    assert.equal(inspector.querySelector('.rt-lmz-control-dock__footer .lmz-builder__meta') !== null, true);
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="left:blocks"]').getAttribute('aria-selected'), 'true');
     assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-selected'), 'true');
     assert.equal(root.querySelector('[data-lmz-popover-panel="right:traits"]').getAttribute('role'), 'tabpanel');
-    assert.equal(root.querySelectorAll('[data-lmz-popover].is-open').length, 1);
+    assert.equal(root.querySelectorAll('[data-lmz-popover].is-open').length, 2);
 
     root.querySelector('[data-lmz-panel-toggle="left:layers"]').click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(root.querySelector('[data-lmz-panel-toggle="left:layers"]').getAttribute('aria-selected'), 'true');
-    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-selected'), 'false');
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-selected'), 'true');
+    assert.equal(root.querySelectorAll('[data-lmz-popover].is-open').length, 2);
+
+    const layers = root.querySelector('[data-lmz-panel-toggle="left:layers"]');
+    const blocks = root.querySelector('[data-lmz-panel-toggle="left:blocks"]');
+    const arrowRight = new document.defaultView.Event('keydown', { bubbles: true, cancelable: true });
+    Object.defineProperty(arrowRight, 'key', { value: 'ArrowRight' });
+    layers.dispatchEvent(arrowRight);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(blocks.getAttribute('aria-selected'), 'true');
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-selected'), 'true');
+
+    compactViewport = true;
+    root.querySelector('[data-lmz-panel-toggle="right:styles"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(blocks.getAttribute('aria-selected'), 'false');
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:styles"]').getAttribute('aria-selected'), 'true');
     assert.equal(root.querySelectorAll('[data-lmz-popover].is-open').length, 1);
 
     chrome.destroy();
-    assert.equal(root.querySelector('[data-rt-lmz-control-dock]'), null);
+    assert.equal(root.querySelectorAll('[data-rt-lmz-control-dock]').length, 0);
     assert.equal(root.hasAttribute('data-rt-lmz-layout'), false);
     assert.equal(root.querySelector('.lmz-builder__topbar > .lmz-builder__panel-actions--left') !== null, true);
+    assert.equal(root.querySelector('.lmz-builder__topbar > .lmz-builder__panel-actions--right') !== null, true);
+    assert.equal(root.querySelector('.lmz-builder__topbar > .lmz-builder__meta') !== null, true);
     assert.equal(root.querySelector('.lmz-builder__viewport > [data-lmz-popover="left"]') !== null, true);
+    assert.equal(root.querySelector('.lmz-builder__viewport > [data-lmz-popover="right"]') !== null, true);
     assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"] .lmz-builder__action-label').textContent, 'Eigenschaften');
     assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('role'), null);
     assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-haspopup'), 'dialog');
@@ -2444,6 +2474,9 @@ test('shared LMZ shell styles real layer rows, grouped inline actions and respon
     assert.match(css, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmzbjs-trt-trait textarea[\s\S]*?font-size:\s*1rem;/);
     assert.match(css, /data-page-builder-shell-toolbar[\s\S]*?margin-inline-end:\s*24\.5rem;/);
     assert.match(css, /data-rt-lmz-layout='elementor'[\s\S]*?data-rt-lmz-mode='mail'[\s\S]*?data-lmz-action='save'[\s\S]*?display:\s*none\s*!important/);
+    assert.match(css, /grid-template-columns:\s*clamp\(16rem, 18vw, 19rem\)\s*minmax\(0, 1fr\)\s*clamp\(18rem, 20vw, 22rem\)/);
+    assert.match(css, /rt-lmz-control-dock--navigation[\s\S]*?grid-column:\s*1;[\s\S]*?rt-lmz-control-dock--inspector[\s\S]*?grid-column:\s*3;/);
+    assert.match(css, /data-rt-lmz-has-context-actions='false'[\s\S]*?rt-lmz-control-dock--inspector\s*\{\s*display:\s*none;/);
 });
 
 test('shared LMZ closes vendor auto-styles after selection but preserves explicit style intent', () => coreWithDom(`

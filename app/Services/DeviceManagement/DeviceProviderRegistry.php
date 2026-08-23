@@ -78,7 +78,7 @@ final class DeviceProviderRegistry
         // The kill switch is deliberately read uncached immediately before a
         // command is accepted or dispatched. A queued job therefore observes
         // an emergency shutdown without requiring a worker restart.
-        $commandsEnabled = $this->settings->productionCommandsEnabled(fresh: true);
+        $commandsEnabled = $this->settings->productionMutationsEnabledFor($provider);
 
         return $this->get($provider)->enabled() && $commandsEnabled;
     }

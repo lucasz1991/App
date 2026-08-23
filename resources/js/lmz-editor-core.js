@@ -1850,8 +1850,8 @@ function restoreNodePosition(position) {
 }
 
 /**
- * Baut aus den bereits vom Vendor verdrahteten Bedienelementen ein dauerhaftes
- * Elementor-artiges Kontroll-Dock. Die Knoten werden bewusst nur umgehaengt:
+ * Baut aus den bereits vom Vendor verdrahteten Bedienelementen zwei dauerhafte
+ * Elementor-artige Kontroll-Docks. Die Knoten werden bewusst nur umgehaengt:
  * GrapesJS-Manager, Listener und Mounts bleiben dadurch dieselben Instanzen.
  */
 function installElementorEditorLayout({ root, modeIndicator }) {
@@ -1874,36 +1874,43 @@ function installElementorEditorLayout({ root, modeIndicator }) {
     const popoverPositions = [leftPopover, rightPopover].map(captureNodePosition).filter(Boolean);
     const rightActionOrder = [...(rightActions?.children || [])];
 
-    const dock = document_.createElement('aside');
-    dock.className = 'rt-lmz-control-dock';
-    dock.dataset.rtLmzControlDock = '';
-    dock.dataset.rtLmzSide = 'right';
-    dock.setAttribute('aria-label', 'Editor-Einstellungen');
-    const header = document_.createElement('header');
-    header.className = 'rt-lmz-control-dock__header';
-    const tabs = document_.createElement('div');
-    tabs.className = 'rt-lmz-control-dock__tabs';
-    tabs.setAttribute('role', 'tablist');
-    tabs.setAttribute('aria-label', 'Editor-Bereiche');
-    const panels = document_.createElement('div');
-    panels.className = 'rt-lmz-control-dock__panels';
-    const footer = document_.createElement('footer');
-    footer.className = 'rt-lmz-control-dock__footer';
-    dock.append(header, tabs, panels, footer);
+    const createDock = ({ side, label, modifier }) => {
+        const dock = document_.createElement('aside');
+        dock.className = `rt-lmz-control-dock rt-lmz-control-dock--${modifier}`;
+        dock.dataset.rtLmzControlDock = '';
+        dock.dataset.rtLmzSide = side;
+        dock.setAttribute('aria-label', label);
+        const header = document_.createElement('header');
+        header.className = 'rt-lmz-control-dock__header';
+        const tabs = document_.createElement('div');
+        tabs.className = 'rt-lmz-control-dock__tabs';
+        tabs.setAttribute('role', 'tablist');
+        tabs.setAttribute('aria-label', label);
+        const panels = document_.createElement('div');
+        panels.className = 'rt-lmz-control-dock__panels';
+        const footer = document_.createElement('footer');
+        footer.className = 'rt-lmz-control-dock__footer';
+        dock.append(header, tabs, panels, footer);
+        return { dock, header, tabs, panels, footer };
+    };
+    const navigation = createDock({ side: 'left', label: 'Editor-Navigation', modifier: 'navigation' });
+    const inspector = createDock({ side: 'right', label: 'Editor-Einstellungen', modifier: 'inspector' });
+    const docks = [navigation, inspector];
 
-    if (modeIndicator) header.append(modeIndicator);
-    if (leftActions) tabs.append(leftActions);
+    if (modeIndicator) navigation.header.append(modeIndicator);
+    if (leftActions) navigation.tabs.append(leftActions);
     if (rightActions) {
         // Die Bedienreihenfolge folgt dem Arbeitsfluss: Inhalt vor Gestaltung.
         const traits = rightActions.querySelector('[data-lmz-panel-toggle="right:traits"]');
         const styles = rightActions.querySelector('[data-lmz-panel-toggle="right:styles"]');
         if (traits && styles) rightActions.insertBefore(traits, styles);
-        tabs.append(rightActions);
+        inspector.tabs.append(rightActions);
     }
-    if (leftPopover) panels.append(leftPopover);
-    if (rightPopover) panels.append(rightPopover);
-    if (meta) footer.append(meta);
-    viewport.insertBefore(dock, main);
+    if (leftPopover) navigation.panels.append(leftPopover);
+    if (rightPopover) inspector.panels.append(rightPopover);
+    if (meta) inspector.footer.append(meta);
+    viewport.insertBefore(navigation.dock, main);
+    viewport.insertBefore(inspector.dock, main.nextSibling);
     root.dataset.rtLmzLayout = 'elementor';
 
     const labels = Object.freeze({
@@ -1913,7 +1920,8 @@ function installElementorEditorLayout({ root, modeIndicator }) {
         'right:styles': 'Stile',
         'right:classes': 'Klassen',
     });
-    const toggles = [...tabs.querySelectorAll('[data-lmz-panel-toggle]')];
+    const tabLists = docks.map(({ tabs }) => tabs);
+    const toggles = tabLists.flatMap((tabs) => [...tabs.querySelectorAll('[data-lmz-panel-toggle]')]);
     const tabSnapshots = toggles.map((toggle) => ({
         toggle,
         role: toggle.getAttribute('role'),
@@ -1949,31 +1957,40 @@ function installElementorEditorLayout({ root, modeIndicator }) {
         panel.setAttribute('aria-labelledby', toggle.id);
     });
 
-    const availableTabs = () => toggles.filter((toggle) => (
-        !toggle.hidden
+    const panelGroups = [...new Set(toggles.map((toggle) => toggle.dataset.lmzPanelGroup).filter(Boolean))];
+    const availableTabs = (group) => toggles.filter((toggle) => (
+        toggle.dataset.lmzPanelGroup === group
+        && !toggle.hidden
         && !toggle.inert
         && toggle.getAttribute('aria-disabled') !== 'true'
     ));
     const syncTabs = () => {
-        const available = availableTabs();
-        const selected = available.find((toggle) => toggle.getAttribute('aria-expanded') === 'true') || available[0] || null;
-        toggles.forEach((toggle) => {
-            const active = toggle === selected && toggle.getAttribute('aria-expanded') === 'true';
-            toggle.setAttribute('aria-selected', active ? 'true' : 'false');
-            toggle.setAttribute('tabindex', toggle === selected ? '0' : '-1');
-            const controlled = toggle.getAttribute('aria-controls');
-            const panel = controlled ? document_.getElementById(controlled) : null;
-            panel?.setAttribute('aria-hidden', active && panel.classList.contains('is-active') ? 'false' : 'true');
+        panelGroups.forEach((group) => {
+            const groupToggles = toggles.filter((toggle) => toggle.dataset.lmzPanelGroup === group);
+            const available = availableTabs(group);
+            const selected = available.find((toggle) => toggle.getAttribute('aria-expanded') === 'true') || available[0] || null;
+            groupToggles.forEach((toggle) => {
+                const active = toggle === selected && toggle.getAttribute('aria-expanded') === 'true';
+                toggle.setAttribute('aria-selected', active ? 'true' : 'false');
+                toggle.setAttribute('tabindex', toggle === selected ? '0' : '-1');
+                const controlled = toggle.getAttribute('aria-controls');
+                const panel = controlled ? document_.getElementById(controlled) : null;
+                panel?.setAttribute('aria-hidden', active && panel.classList.contains('is-active') ? 'false' : 'true');
+            });
         });
     };
+    const compactViewport = document_.defaultView?.matchMedia?.('(max-width: 1099.98px)') || null;
+    const usesOverlayDrawers = () => compactViewport?.matches === true;
     const closeOtherPanelGroups = (targetGroup) => {
-        [...panels.querySelectorAll('[data-lmz-popover].is-open')].forEach((popover) => {
+        if (!usesOverlayDrawers()) return;
+        [...root.querySelectorAll('[data-lmz-popover].is-open')].forEach((popover) => {
             if (popover.dataset.lmzPopover !== targetGroup) closeVendorPopover(root, popover);
         });
     };
     const closeOppositePanelBeforeOpen = (event) => {
         const toggle = event.target?.closest?.('[data-lmz-panel-toggle]');
-        if (!toggle || !tabs.contains(toggle) || toggle.getAttribute('aria-expanded') === 'true') return;
+        const tabList = event.currentTarget;
+        if (!toggle || !tabList.contains(toggle) || toggle.getAttribute('aria-expanded') === 'true') return;
         closeOtherPanelGroups(toggle.dataset.lmzPanelGroup);
     };
     const enforceSinglePanelAfterOpen = (event) => {
@@ -1988,7 +2005,7 @@ function installElementorEditorLayout({ root, modeIndicator }) {
     const handleTabKeys = (event) => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         const current = event.target?.closest?.('[role="tab"]');
-        const available = availableTabs();
+        const available = availableTabs(current?.dataset.lmzPanelGroup);
         const index = available.indexOf(current);
         if (index < 0 || available.length === 0) return;
         event.preventDefault();
@@ -1999,9 +2016,11 @@ function installElementorEditorLayout({ root, modeIndicator }) {
         available[nextIndex].click?.();
         available[nextIndex].focus?.();
     };
-    tabs.addEventListener('click', closeOppositePanelBeforeOpen, true);
-    tabs.addEventListener('click', scheduleTabSync);
-    tabs.addEventListener('keydown', handleTabKeys);
+    tabLists.forEach((tabs) => {
+        tabs.addEventListener('click', closeOppositePanelBeforeOpen, true);
+        tabs.addEventListener('click', scheduleTabSync);
+        tabs.addEventListener('keydown', handleTabKeys);
+    });
     toggles.forEach((toggle) => toggle.addEventListener('click', enforceSinglePanelAfterOpen));
     root.addEventListener('pointerdown', scheduleTabSync);
     const MutationObserverClass = document_.defaultView?.MutationObserver || globalThis.MutationObserver;
@@ -2014,9 +2033,9 @@ function installElementorEditorLayout({ root, modeIndicator }) {
         attributeFilter: ['aria-expanded', 'hidden', 'class'],
     });
 
-    const firstTab = availableTabs().find((toggle) => toggle.dataset.lmzPanelToggle === 'left:blocks')
-        || availableTabs()[0];
-    if (!toggles.some((toggle) => toggle.getAttribute('aria-expanded') === 'true')) firstTab?.click?.();
+    const leftTabs = availableTabs('left');
+    const firstTab = leftTabs.find((toggle) => toggle.dataset.lmzPanelToggle === 'left:blocks') || leftTabs[0];
+    if (!leftTabs.some((toggle) => toggle.getAttribute('aria-expanded') === 'true')) firstTab?.click?.();
     syncTabs();
 
     return {
@@ -2033,9 +2052,11 @@ function installElementorEditorLayout({ root, modeIndicator }) {
         },
         destroy() {
             observer?.disconnect?.();
-            tabs.removeEventListener('click', closeOppositePanelBeforeOpen, true);
-            tabs.removeEventListener('click', scheduleTabSync);
-            tabs.removeEventListener('keydown', handleTabKeys);
+            tabLists.forEach((tabs) => {
+                tabs.removeEventListener('click', closeOppositePanelBeforeOpen, true);
+                tabs.removeEventListener('click', scheduleTabSync);
+                tabs.removeEventListener('keydown', handleTabKeys);
+            });
             toggles.forEach((toggle) => toggle.removeEventListener('click', enforceSinglePanelAfterOpen));
             root.removeEventListener('pointerdown', scheduleTabSync);
             tabSnapshots.forEach(({ toggle, role, ariaSelected, ariaControls, ariaHaspopup, tabindex, id, label }) => {
@@ -2059,7 +2080,7 @@ function installElementorEditorLayout({ root, modeIndicator }) {
             rightActionOrder.forEach((button) => rightActions?.append(button));
             [...popoverPositions].reverse().forEach(restoreNodePosition);
             [...toolbarPositions].reverse().forEach(restoreNodePosition);
-            dock.remove();
+            docks.forEach(({ dock }) => dock.remove());
             if (previousLayout === null) delete root.dataset.rtLmzLayout;
             else root.setAttribute('data-rt-lmz-layout', previousLayout);
         },

@@ -56,6 +56,14 @@ Homestead.json
 !/tests/Feature/DeviceManagementSettingsTest.php
 !/tests/Feature/AdminSettingsOverviewAndSuperadminTest.php
 !/tests/Feature/DeviceProviderDiagnosticsServiceTest.php
+!/tests/Feature/DeviceIdentityPreparationTest.php
+!/tests/Feature/DeviceProviderLinkTest.php
+!/tests/Feature/DeviceIdentityConnectorTest.php
+!/tests/Feature/DeviceProviderWebhookHardeningTest.php
+!/tests/Feature/DeviceProviderIdentifierTest.php
+!/tests/Feature/DeviceReadinessHardeningTest.php
+!/tests/Feature/DeviceProviderLinkManagementTest.php
+!/tests/Feature/DeviceCommandAssignmentBindingTest.php
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/call-recording-gate.test.js
@@ -78,6 +86,10 @@ Homestead.json
 /railtime
 
 /storage/pail
+/services/device-connectors/meshcentral/config.json
+/services/device-connectors/meshcentral/secrets/
+/services/device-connectors/meshcentral/state/
+/services/device-connectors/meshcentral/tmp/
 .env.backup
 .env.production
 .phpactor.json

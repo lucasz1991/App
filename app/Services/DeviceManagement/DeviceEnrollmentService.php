@@ -4,7 +4,9 @@ namespace App\Services\DeviceManagement;
 
 use App\Enums\DeviceEnrollmentStatus;
 use App\Models\Device;
+use App\Models\DeviceAssignment;
 use App\Models\DeviceEnrollment;
+use App\Models\DeviceProviderLink;
 use App\Models\User;
 use App\Services\DeviceManagement\Data\EnrollmentClaim;
 use App\Services\DeviceManagement\Data\EnrollmentInvitation;
@@ -19,6 +21,7 @@ final class DeviceEnrollmentService
     public function __construct(
         private readonly DeviceProviderRegistry $providers,
         private readonly DeviceManagementSettings $settings,
+        private readonly DeviceEnrollmentModeCatalog $modes,
     ) {}
 
     public function invite(
@@ -52,12 +55,43 @@ final class DeviceEnrollmentService
         if (! preg_match('/^[a-z0-9_-]{2,40}$/', $mode)) {
             throw ValidationException::withMessages(['mode' => 'Die Registrierungsart ist ungültig.']);
         }
+        $mode = strtolower(trim($mode));
+        $this->modes->assertSupported($device, $providerKey, $mode);
 
         $ttl = min(10080, max(15, $ttlMinutes ?? $this->settings->enrollmentTtlMinutes()));
         $plainToken = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
 
         $enrollment = DB::transaction(function () use ($device, $assignee, $providerKey, $mode, $creator, $ttl, $plainToken): DeviceEnrollment {
-            Device::query()->whereKey($device->getKey())->lockForUpdate()->firstOrFail();
+            $lockedDevice = Device::query()->whereKey($device->getKey())->lockForUpdate()->firstOrFail();
+
+            $currentPrimaryProvider = strtolower(trim((string) $lockedDevice->primary_provider));
+            $linkRole = $currentPrimaryProvider === '' || $currentPrimaryProvider === $providerKey
+                ? DeviceProviderLink::ROLE_PRIMARY
+                : DeviceProviderLink::ROLE_SUPPORT;
+            if ($currentPrimaryProvider === '') {
+                $lockedDevice->forceFill([
+                    'primary_provider' => $providerKey,
+                    'updated_by' => $creator->getKey(),
+                ])->save();
+            }
+            $providerLink = $lockedDevice->ensureProviderLink($providerKey, $linkRole);
+            if ($providerLink->status === DeviceProviderLink::STATUS_DISABLED) {
+                throw ValidationException::withMessages([
+                    'provider' => 'Die Provider-Verknüpfung dieses Geräts ist deaktiviert.',
+                ]);
+            }
+
+            $assignment = DeviceAssignment::query()
+                ->where('device_id', $device->getKey())
+                ->where('user_id', $assignee->getKey())
+                ->active()
+                ->lockForUpdate()
+                ->first();
+            if (! $assignment) {
+                throw ValidationException::withMessages([
+                    'assignee' => 'Die Einladung muss an die aktuelle aktive Gerätezuweisung gebunden sein.',
+                ]);
+            }
 
             DeviceEnrollment::query()
                 ->where('device_id', $device->getKey())
@@ -75,12 +109,16 @@ final class DeviceEnrollmentService
             $enrollment = new DeviceEnrollment([
                 'device_id' => $device->getKey(),
                 'user_id' => $assignee->getKey(),
+                'device_assignment_id' => $assignment->getKey(),
                 'provider' => $providerKey,
                 'mode' => $mode,
                 'status' => DeviceEnrollmentStatus::Invited,
                 'invited_at' => now(),
                 'expires_at' => now()->addMinutes($ttl),
                 'created_by' => $creator->getKey(),
+                'metadata' => [
+                    'limited_management' => $this->modes->isLimited($device, $providerKey, $mode),
+                ],
             ]);
             $enrollment->setPlainToken($plainToken)->save();
 
@@ -92,7 +130,9 @@ final class DeviceEnrollmentService
                     'enrollment_id' => (string) $enrollment->public_id,
                     'device_id' => (string) $device->public_id,
                     'assignee_id' => (int) $assignee->getKey(),
+                    'device_assignment_id' => (int) $assignment->getKey(),
                     'provider' => $providerKey,
+                    'provider_link_id' => (int) $providerLink->getKey(),
                     'expires_at' => $enrollment->expires_at?->toIso8601String(),
                 ])
                 ->log('Geräteregistrierung eingeladen');
@@ -128,35 +168,46 @@ final class DeviceEnrollmentService
             }
 
             if (! $enrollment
-                || ! in_array($enrollment->status, [DeviceEnrollmentStatus::Invited, DeviceEnrollmentStatus::Claimed], true)
+                || $enrollment->status !== DeviceEnrollmentStatus::Invited
                 || $enrollment->revoked_at !== null
                 || ! $enrollment->expires_at
                 || $enrollment->expires_at->isPast()
-                || (int) $enrollment->user_id !== (int) $actor->getKey()) {
+                || (int) $enrollment->user_id !== (int) $actor->getKey()
+                || ! $enrollment->device_assignment_id) {
                 return null;
             }
 
-            // Nach dem ersten Claim ist der Vorgang fest an diesen
-            // authentifizierten Mitarbeiter gebunden. Ein Reload darf die
-            // idempotente Connector-Anforderung wiederholen, ohne ein neues
-            // Enrollment zu erzeugen oder den Token fuer Dritte zu oeffnen.
-            if ($enrollment->status === DeviceEnrollmentStatus::Invited) {
-                $enrollment->forceFill([
-                    'status' => DeviceEnrollmentStatus::Claimed,
-                    'claimed_at' => now(),
-                ])->save();
-
-                activity('device-management')
-                    ->performedOn($enrollment)
-                    ->causedBy($actor)
-                    ->event('device-enrollment.claimed')
-                    ->withProperties([
-                        'enrollment_id' => (string) $enrollment->public_id,
-                        'device_id' => (string) $enrollment->device?->public_id,
-                        'provider' => (string) $enrollment->provider,
-                    ])
-                    ->log('Geräteregistrierung angenommen');
+            $assignmentIsCurrent = DeviceAssignment::query()
+                ->whereKey($enrollment->device_assignment_id)
+                ->where('device_id', $enrollment->device_id)
+                ->where('user_id', $actor->getKey())
+                ->active()
+                ->lockForUpdate()
+                ->exists();
+            if (! $assignmentIsCurrent) {
+                return null;
             }
+
+            // Rotate the stored hash in the same transaction as the state
+            // transition. The clear invitation token cannot locate or claim
+            // the row a second time, even for the same authenticated user.
+            $enrollment->forceFill([
+                'status' => DeviceEnrollmentStatus::Claimed,
+                'claimed_at' => now(),
+                'token_hash' => hash('sha256', random_bytes(32)),
+            ])->save();
+
+            activity('device-management')
+                ->performedOn($enrollment)
+                ->causedBy($actor)
+                ->event('device-enrollment.claimed')
+                ->withProperties([
+                    'enrollment_id' => (string) $enrollment->public_id,
+                    'device_id' => (string) $enrollment->device?->public_id,
+                    'device_assignment_id' => (int) $enrollment->device_assignment_id,
+                    'provider' => (string) $enrollment->provider,
+                ])
+                ->log('Geräteregistrierung angenommen');
 
             return $enrollment;
         });
@@ -170,22 +221,72 @@ final class DeviceEnrollmentService
         return new EnrollmentClaim($enrollment, $this->instructionsForClaimed($enrollment, $actor));
     }
 
-    public function instructionsForClaimed(DeviceEnrollment $enrollment, User $actor): EnrollmentResult
+    /**
+     * Resume a successfully claimed enrollment by its non-secret public ID.
+     * Callers must keep that ID in the authenticated browser session; the
+     * original invitation token intentionally remains unusable.
+     */
+    public function resumeClaimed(string $publicId, User $actor): EnrollmentClaim
     {
-        $enrollment = DeviceEnrollment::query()->with('device')->findOrFail($enrollment->getKey());
-        if ($enrollment->status !== DeviceEnrollmentStatus::Claimed
-            || (int) $enrollment->user_id !== (int) $actor->getKey()
-            || $enrollment->revoked_at !== null
-            || ! $enrollment->expires_at
-            || $enrollment->expires_at->isPast()) {
+        $enrollment = DeviceEnrollment::query()
+            ->where('public_id', $publicId)
+            ->first();
+        if (! $enrollment) {
             throw $this->invalidToken();
         }
 
-        $provider = $this->providers->get((string) $enrollment->provider);
+        return new EnrollmentClaim($enrollment, $this->instructionsForClaimed($enrollment, $actor));
+    }
 
-        // Retrying this authenticated method never reuses or reveals the clear
-        // invitation token. The connector must de-duplicate enrollment_id.
-        return $provider->enrollment($enrollment, $enrollment->device);
+    public function instructionsForClaimed(DeviceEnrollment $enrollment, User $actor): EnrollmentResult
+    {
+        return DB::transaction(function () use ($enrollment, $actor): EnrollmentResult {
+            // Device, enrollment and assignment remain locked across the
+            // bounded connector request. Reassignment uses the same device
+            // lock and therefore cannot revoke this handover between the last
+            // authorization check and creation of an external invite.
+            $enrollment = DeviceEnrollment::query()
+                ->whereKey($enrollment->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+            $device = Device::query()->whereKey($enrollment->device_id)->lockForUpdate()->firstOrFail();
+            $assignment = DeviceAssignment::query()
+                ->whereKey($enrollment->device_assignment_id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($enrollment->status !== DeviceEnrollmentStatus::Claimed
+                || (int) $enrollment->user_id !== (int) $actor->getKey()
+                || ! $assignment
+                || (int) $assignment->device_id !== (int) $enrollment->device_id
+                || (int) $assignment->user_id !== (int) $actor->getKey()
+                || $assignment->status !== DeviceAssignment::STATUS_ACTIVE
+                || $assignment->returned_at !== null
+                || $enrollment->revoked_at !== null
+                || ! $enrollment->expires_at
+                || $enrollment->expires_at->isPast()) {
+                throw $this->invalidToken();
+            }
+
+            $provider = $this->providers->get((string) $enrollment->provider, fresh: true);
+
+            // Retrying never reuses or reveals the clear invitation token.
+            // The connector de-duplicates enrollment_id while the device lock
+            // keeps the assignment context stable for this bounded request.
+            $result = $provider->enrollment($enrollment, $device);
+            $metadata = is_array($enrollment->metadata) ? $enrollment->metadata : [];
+            $enrollment->forceFill([
+                'metadata' => array_merge($metadata, [
+                    // A provider may narrow management, never upgrade a mode
+                    // that RailTime classifies as limited.
+                    'limited_management' => (bool) ($metadata['limited_management'] ?? false)
+                        || $result->limitedManagement
+                        || $this->modes->isLimited($device, (string) $enrollment->provider, (string) $enrollment->mode),
+                ]),
+            ])->save();
+
+            return $result;
+        }, 3);
     }
 
     private function invalidToken(): ValidationException

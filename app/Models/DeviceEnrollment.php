@@ -15,6 +15,7 @@ class DeviceEnrollment extends Model
     protected $fillable = [
         'device_id',
         'user_id',
+        'device_assignment_id',
         'provider',
         'mode',
         'status',
@@ -52,6 +53,11 @@ class DeviceEnrollment extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function assignment(): BelongsTo
+    {
+        return $this->belongsTo(DeviceAssignment::class, 'device_assignment_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -75,7 +81,6 @@ class DeviceEnrollment extends Model
         return $query
             ->whereIn('status', [
                 DeviceEnrollmentStatus::Invited->value,
-                DeviceEnrollmentStatus::Claimed->value,
             ])
             ->where('expires_at', '>', now())
             ->whereNull('revoked_at');

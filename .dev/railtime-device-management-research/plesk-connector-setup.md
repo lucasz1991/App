@@ -45,8 +45,49 @@ keine unbekannten Ports. Die Standardwerte sind sichere Vorschläge; ein grüner
 Health-Test belegt Erreichbarkeit und Vertragskompatibilität, nicht automatisch
 die vollständige Produktionsreife aller Geräteaktionen.
 
+## Umgesetzter MeshCentral-Connector
+
+Der erste separat deploybare Adapter liegt unter
+[`services/device-connectors/meshcentral`](../../services/device-connectors/meshcentral/README.md).
+Er implementiert den Vertrag `1.0.0` auf dem vorbelegten privaten Port `9442`
+und pinnt die offiziell ausgelieferte `meshctrl.js` auf MeshCentral `1.2.5`.
+Seine Laufzeit benötigt keine Environment-Variablen:
+
+- Betriebswerte kommen aus einer JSON-Datei,
+- Bearer-Token, RailTime-HMAC-Secret und MeshCentral-Loginkey kommen aus
+  einzelnen geschützten Dateien,
+- RailTime verwaltet die korrespondierenden Connectorwerte weiterhin
+  verschlüsselt unter **Einstellungen → Geräte-Setup**,
+- RailTime und Connector müssen jeweils denselben Bearer- und HMAC-Wert
+  besitzen; RailTime überträgt diese Werte nicht automatisch in das Dateisystem
+  des Plesk-Hosts.
+
+Die offizielle `meshctrl.js` 1.2.5 deaktiviert die Zertifikatsprüfung für ihren
+WebSocket. Der RailTime-Adapter kompensiert diese Upstream-Eigenschaft, indem er
+für `meshcentral.url` ausschließlich `wss://127.0.0.1` beziehungsweise
+`wss://[::1]` auf demselben Plesk-Host akzeptiert. Die von Geräten erreichbare
+MeshCentral-Adresse bleibt eine getrennte, gültig zertifizierte
+`https://support.<domain>`-URL. Für Docker ist daher Host-Network oder alternativ
+ein direkt auf dem Plesk-Host gestarteter Node-22-systemd-Service vorgesehen.
+
+Der genaue Docker-/systemd-Start, Mounts, Dateirechte, Secret-Erzeugung und die
+RailTime-Zuordnung sind in der Connector-README dokumentiert. Der Connector
+bietet ausschließlich belegte MeshCentral-Fähigkeiten an: DeviceInfo, Remote-
+Support für eine bereits aktiv gebundene native Node-ID sowie geprüfte
+PS1/BAT/CMD/SH-Artefakte über HMAC-Download, SHA-256, Upload und RunCommand mit
+Erfolgsmarker. `POST /v1/enrollments` und `restart` werden fail-closed
+abgelehnt. Freie Requestoptionen, Kennwörter, Lock, Wipe und vermeintliche
+MDM-Funktionen sind ausgeschlossen.
+
+Der MeshAgent wird separat über das freigegebene UEM/MDM oder administrativ
+kontrolliert installiert. Danach wird die in MeshCentral geprüfte native
+Node-ID als Support-Link mit dem bereits inventarisierten RailTime-Gerät
+verbunden. Ein generischer Gruppeninvite gilt nicht als RailTime-Enrollment
+und erzeugt keine `enrollment.completed`-Quittung.
+
 ## Plesk-Referenzen
 
 - [Docker-Ports an Loopback binden und per Proxy Rule veröffentlichen](https://docs.plesk.com/en-US/obsidian/administrator-guide/plesk-administration/using-docker.75823/)
 - [nginx in Plesk an einen lokalen Anwendungsport weiterleiten](https://support.plesk.com/hc/en-us/articles/12388464421143-How-to-pass-requests-from-a-Plesk-hosted-domain-to-the-application-listening-on-a-local-port)
 - [Subdomains mit SSL It! absichern](https://docs.plesk.com/en-US/obsidian/customer-guide/websites-and-domains/securing-connections-with-ssltls-certificates/securing-connections-with-the-ssl-it%21-extension.65160/)
+- [MeshCentral 1.2.5 (fixierter Upstream)](https://github.com/Ylianst/MeshCentral/releases/tag/1.2.5)

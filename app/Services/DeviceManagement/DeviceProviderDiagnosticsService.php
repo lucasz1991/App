@@ -20,21 +20,6 @@ final class DeviceProviderDiagnosticsService
 
     private const TIMEOUT_SECONDS = 5;
 
-    /** @var list<string> */
-    private const BOOLEAN_CAPABILITIES = [
-        'inventory',
-        'enrollment',
-        'remote_support',
-        'unattended_remote_support',
-    ];
-
-    /** @var list<string> */
-    private const LIST_CAPABILITIES = [
-        'platforms',
-        'commands',
-        'readiness_checks',
-    ];
-
     public function __construct(
         private readonly DeviceManagementSettings $settings,
         private readonly ConnectorNetworkGuard $networkGuard,
@@ -70,6 +55,7 @@ final class DeviceProviderDiagnosticsService
 
         try {
             $runtime = $this->settings->providerRuntime($provider);
+            $result['config']['fingerprint'] = $this->settings->providerFingerprint($provider);
         } catch (Throwable) {
             return $this->withStatus($result, 'invalid_configuration');
         }
@@ -157,24 +143,15 @@ final class DeviceProviderDiagnosticsService
             return $this->withStatus($result, 'invalid_response');
         }
 
-        if (! is_bool($payload['healthy'] ?? null)
-            || ! is_string($payload['status'] ?? null)
-            || trim($payload['status']) === ''
-            || mb_strlen($payload['status']) > 80
-            || ! is_array($payload['capabilities'] ?? null)
-            || array_is_list($payload['capabilities'])
-            || ! is_array($payload['upstream'] ?? null)
-            || array_is_list($payload['upstream'])) {
+        try {
+            $payload = ConnectorContractValidator::healthResponse($payload);
+        } catch (Throwable) {
             return $this->withStatus($result, 'contract_invalid');
         }
 
-        $reportedVersion = $this->validatedVersion($payload['contract_version'] ?? null);
-        $connectorVersion = $this->validatedVersion($payload['connector_version'] ?? null);
-        $reportedProvider = null;
-        if (is_string($payload['provider'] ?? null)
-            && preg_match('/^[a-z0-9_-]{2,64}$/', $payload['provider']) === 1) {
-            $reportedProvider = $payload['provider'];
-        }
+        $reportedVersion = $payload['contract_version'];
+        $connectorVersion = $payload['connector_version'];
+        $reportedProvider = $payload['provider'];
         $upstream = $payload['upstream'];
         $expectedCapabilities = is_array($runtime['capabilities'] ?? null)
             ? $runtime['capabilities']
@@ -188,15 +165,8 @@ final class DeviceProviderDiagnosticsService
             return $this->withStatus($result, 'provider_mismatch');
         }
 
-        if ($reportedVersion === null
-            || (int) explode('.', $reportedVersion, 2)[0] !== self::CONTRACT_MAJOR
-            || $connectorVersion === null
-            || ! is_bool($upstream['reachable'] ?? null)
-            || ! is_bool($upstream['authenticated'] ?? null)
-            || ! is_string($upstream['status'] ?? null)
-            || trim($upstream['status']) === ''
-            || mb_strlen($upstream['status']) > 80
-            || ! $this->capabilitiesAreCompatible($payload['capabilities'], $expectedCapabilities)) {
+        if ((int) explode('.', $reportedVersion, 2)[0] !== self::CONTRACT_MAJOR
+            || ! ConnectorContractValidator::capabilitiesAreCompatible($payload['capabilities'], $expectedCapabilities)) {
             return $this->withStatus($result, 'contract_invalid');
         }
 
@@ -294,6 +264,23 @@ final class DeviceProviderDiagnosticsService
             'upstream_authenticated' => (bool) $result['contract']['upstream_authenticated'],
         ];
 
+        $fingerprint = is_string($result['config']['fingerprint'] ?? null)
+            ? $result['config']['fingerprint']
+            : '';
+        unset($result['config']['fingerprint']);
+        if ((string) $result['config']['provider'] !== 'unknown' && $fingerprint !== '') {
+            try {
+                $this->settings->recordProviderDiagnostic(
+                    (string) $result['config']['provider'],
+                    $result,
+                    $fingerprint,
+                );
+            } catch (Throwable) {
+                // The probe remains useful as a read-only diagnostic. A failed
+                // evidence write can never open the production command gate.
+            }
+        }
+
         return $result;
     }
 
@@ -362,78 +349,6 @@ final class DeviceProviderDiagnosticsService
         }
 
         return $body;
-    }
-
-    /**
-     * The adapter may expose additional abilities, but it must truthfully
-     * report every code-owned capability that RailTime relies on. Database
-     * values can therefore never manufacture a capability, and a health probe
-     * cannot become green while a required platform or action is missing.
-     *
-     * @param  array<string, mixed>  $reported
-     * @param  array<string, mixed>  $expected
-     */
-    private function capabilitiesAreCompatible(array $reported, array $expected): bool
-    {
-        foreach (self::BOOLEAN_CAPABILITIES as $key) {
-            if (! is_bool($reported[$key] ?? null)) {
-                return false;
-            }
-            if (($expected[$key] ?? false) === true && $reported[$key] !== true) {
-                return false;
-            }
-        }
-
-        foreach (self::LIST_CAPABILITIES as $key) {
-            $reportedValues = $this->validatedCapabilityList($reported[$key] ?? null);
-            $expectedValues = $this->validatedCapabilityList($expected[$key] ?? null);
-            if ($reportedValues === null || $expectedValues === null) {
-                return false;
-            }
-            if (array_diff($expectedValues, $reportedValues) !== []) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /** @return list<string>|null */
-    private function validatedCapabilityList(mixed $values): ?array
-    {
-        if (! is_array($values) || ! array_is_list($values) || count($values) > 64) {
-            return null;
-        }
-
-        $normalized = [];
-        foreach ($values as $value) {
-            if (! is_string($value)) {
-                return null;
-            }
-
-            $value = strtolower(trim($value));
-            if ($value === '' || mb_strlen($value) > 80 || ! preg_match('/^[a-z0-9_-]+$/', $value)) {
-                return null;
-            }
-            $normalized[] = $value;
-        }
-
-        return array_values(array_unique($normalized));
-    }
-
-    private function validatedVersion(mixed $version): ?string
-    {
-        if (! is_string($version)) {
-            return null;
-        }
-
-        $version = trim($version);
-        if (strlen($version) > 32
-            || ! preg_match('/^[0-9]+(?:\.[0-9]+){0,2}(?:[-+][0-9A-Za-z.-]+)?$/', $version)) {
-            return null;
-        }
-
-        return $version;
     }
 
     private function elapsedMilliseconds(int $startedAt): int

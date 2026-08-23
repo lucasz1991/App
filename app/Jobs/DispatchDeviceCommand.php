@@ -4,6 +4,9 @@ namespace App\Jobs;
 
 use App\Enums\DeviceCommandStatus;
 use App\Enums\DeviceCommandType;
+use App\Models\Device;
+use App\Models\DeviceAccountAssignment;
+use App\Models\DeviceAssignment;
 use App\Models\DeviceCommand;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\DeviceProviderRegistry;
@@ -56,7 +59,7 @@ final class DispatchDeviceCommand implements ShouldQueue
         // already queued when operations were disabled must remain queued and
         // must not look as though it reached an external connector.
         $preflight = DeviceCommand::query()
-            ->select(['id', 'provider', 'status'])
+            ->select(['id', 'device_id', 'provider', 'status'])
             ->find($this->commandId);
         if (! $preflight || in_array($preflight->status, [
             DeviceCommandStatus::Succeeded,
@@ -70,11 +73,32 @@ final class DispatchDeviceCommand implements ShouldQueue
         if (! in_array($preflight->status, [DeviceCommandStatus::Queued, DeviceCommandStatus::Dispatched], true)) {
             throw new RuntimeException('Der Gerätebefehl ist nicht versandbereit.');
         }
+        if ((int) $preflight->device_id !== $this->deviceId) {
+            throw new RuntimeException('Der Gerätebefehl gehört nicht zum angegebenen Gerät.');
+        }
         if (! $providers->commandsEnabledFor((string) $preflight->provider)) {
             throw new RuntimeException('Der Gerätebefehl wurde durch den globalen Kill-Switch gestoppt.');
         }
 
         $command = DB::transaction(function (): ?DeviceCommand {
+            // Shared lock order for every handover-sensitive path:
+            // device -> active assignments -> command. Once this transaction
+            // changes queued to dispatched, reassignment fails closed until
+            // the external operation has reached a terminal state.
+            $device = Device::withTrashed()
+                ->whereKey($this->deviceId)
+                ->lockForUpdate()
+                ->first();
+            if (! $device) {
+                return null;
+            }
+            $activeAssignments = DeviceAssignment::query()
+                ->where('device_id', $device->getKey())
+                ->active()
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
             $locked = DeviceCommand::query()
                 ->with('device')
                 ->lockForUpdate()
@@ -90,8 +114,31 @@ final class DispatchDeviceCommand implements ShouldQueue
                 return null;
             }
 
+            if ((int) $locked->device_id !== (int) $device->getKey()) {
+                throw new RuntimeException('Der Gerätebefehl gehört nicht zum gesperrten Gerät.');
+            }
+
             if (! in_array($locked->status, [DeviceCommandStatus::Queued, DeviceCommandStatus::Dispatched], true)) {
                 throw new RuntimeException('Der Gerätebefehl ist nicht versandbereit.');
+            }
+            $activeAssignment = $activeAssignments->count() === 1
+                ? $activeAssignments->first()
+                : null;
+            $assignmentMatches = $activeAssignments->count() <= 1
+                && ($locked->device_assignment_id === null
+                    ? $activeAssignment === null
+                    : ($activeAssignment !== null
+                        && (int) $locked->device_assignment_id === (int) $activeAssignment->getKey()));
+            if ($device->trashed() || ! $assignmentMatches) {
+                $this->cancelStaleCommand($locked, 'Die Gerätezuweisung hat sich vor dem externen Versand geändert.');
+
+                return null;
+            }
+            if ($locked->type === DeviceCommandType::ApplyProfile
+                && ! $this->profilePayloadIsCurrent($locked, $activeAssignment)) {
+                $this->cancelStaleCommand($locked, 'Das Kontenprofil gehört nicht mehr zur aktuellen Geräteübergabe.');
+
+                return null;
             }
             if ($locked->type === DeviceCommandType::Wipe
                 && (! $locked->approved_by || (int) $locked->approved_by === (int) $locked->requested_by)) {
@@ -172,6 +219,84 @@ final class DispatchDeviceCommand implements ShouldQueue
                 ])
                 ->log($result->completed ? 'Gerätebefehl abgeschlossen' : 'Gerätebefehl vom Connector angenommen');
         });
+    }
+
+    private function profilePayloadIsCurrent(
+        DeviceCommand $command,
+        ?DeviceAssignment $activeAssignment,
+    ): bool {
+        if (! $activeAssignment) {
+            return false;
+        }
+
+        $profiles = $command->payload['profiles'] ?? null;
+        if (! is_array($profiles) || ! array_is_list($profiles) || $profiles === [] || count($profiles) > 30) {
+            return false;
+        }
+
+        $ids = collect($profiles)
+            ->map(fn (mixed $profile): int => is_array($profile)
+                && (is_int($profile['assignment_id'] ?? null)
+                    || (is_string($profile['assignment_id'] ?? null) && ctype_digit($profile['assignment_id'])))
+                    ? (int) $profile['assignment_id']
+                    : 0)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values();
+        if ($ids->count() !== count($profiles)) {
+            return false;
+        }
+
+        $assignments = DeviceAccountAssignment::query()
+            ->with(['provisioningProfile', 'identityAccount'])
+            ->where('device_id', $command->device_id)
+            ->where('user_id', $activeAssignment->user_id)
+            ->where('desired_state', 'assigned')
+            ->whereIn('status', ['pending', 'pending_provider', 'queued', 'error'])
+            ->whereIn('id', $ids)
+            ->get()
+            ->keyBy('id');
+        if ($assignments->count() !== $ids->count()) {
+            return false;
+        }
+
+        $expected = $ids->map(function (int $id) use ($assignments): array {
+            $assignment = $assignments->get($id);
+            $identityProvider = $assignment->identityAccount?->provider;
+
+            return [
+                'assignment_id' => $assignment->id,
+                'profile_public_id' => $assignment->provisioningProfile?->public_id,
+                'profile_version' => $assignment->provisioningProfile?->version,
+                'identity_provider' => $identityProvider instanceof \BackedEnum
+                    ? $identityProvider->value
+                    : $identityProvider,
+                'principal' => $assignment->identityAccount?->principal,
+            ];
+        })->values()->all();
+
+        return $command->payload === ['profiles' => $expected];
+    }
+
+    private function cancelStaleCommand(DeviceCommand $command, string $reason): void
+    {
+        $command->forceFill([
+            'status' => DeviceCommandStatus::Cancelled,
+            'completed_at' => now(),
+            'error' => $reason,
+        ])->save();
+
+        activity('device-management')
+            ->performedOn($command)
+            ->causedBy($command->requester)
+            ->event('device-command.cancelled-stale-assignment')
+            ->withProperties([
+                'command_id' => (string) $command->public_id,
+                'device_id' => (string) $command->device?->public_id,
+                'provider' => (string) $command->provider,
+                'type' => $command->type->value,
+            ])
+            ->log('Gerätebefehl wegen geänderter Zuweisung abgebrochen');
     }
 
     public function failed(?Throwable $exception): void

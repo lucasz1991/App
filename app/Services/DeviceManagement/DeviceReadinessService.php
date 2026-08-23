@@ -5,6 +5,7 @@ namespace App\Services\DeviceManagement;
 use App\Enums\DeviceComplianceStatus;
 use App\Enums\DeviceManagementStatus;
 use App\Models\Device;
+use App\Models\DeviceProvisioningProfile;
 use App\Models\DeviceReadinessCheck;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -15,6 +16,9 @@ class DeviceReadinessService
 
     /** @var array<string, string> */
     public const REQUIRED_CHECKS = [
+        'asset' => 'Inventarnummer plausibel',
+        'serial_number' => 'Seriennummer plausibel',
+        'location' => 'Standort dokumentiert',
         'assignment' => 'Mitarbeiter zugewiesen',
         'enrollment' => 'Gerät eingeschrieben',
         'provider_sync' => 'Aktuelle Provider-Synchronisierung',
@@ -44,13 +48,41 @@ class DeviceReadinessService
         ]);
 
         $assignment = $device->activeAssignment;
-        $this->record($device, 'assignment', $assignment ? 'passed' : 'blocked', 'railtime', [
+        $this->record(
+            $device,
+            'asset',
+            $this->plausibleInventoryValue($device->asset_tag) ? 'passed' : 'blocked',
+            'railtime',
+            ['present' => filled($device->asset_tag)],
+        );
+        $this->record(
+            $device,
+            'serial_number',
+            $this->plausibleInventoryValue($device->serial_number) ? 'passed' : 'blocked',
+            'railtime',
+            ['present' => filled($device->serial_number)],
+        );
+        $this->record(
+            $device,
+            'location',
+            $this->plausibleInventoryValue($device->declared_location) ? 'passed' : 'blocked',
+            'railtime',
+            ['present' => filled($device->declared_location)],
+        );
+
+        $activeEmployeeAssigned = $assignment
+            && $assignment->user
+            && (bool) $assignment->user->status;
+        $this->record($device, 'assignment', $activeEmployeeAssigned ? 'passed' : 'blocked', 'railtime', [
             'assignment_id' => $assignment?->id,
             'user_id' => $assignment?->user_id,
+            'employee_active' => $assignment?->user ? (bool) $assignment->user->status : false,
         ]);
 
-        $hasCompletedEnrollment = $device->enrollments->contains(
-            fn ($enrollment): bool => $enrollment->status->value === 'completed',
+        $hasCompletedEnrollment = $assignment && $device->enrollments->contains(
+            fn ($enrollment): bool => $enrollment->status->value === 'completed'
+                && (int) $enrollment->device_assignment_id === (int) $assignment->id
+                && (int) $enrollment->user_id === (int) $assignment->user_id,
         );
         $managed = in_array($device->management_status, [
             DeviceManagementStatus::Managed,
@@ -87,30 +119,67 @@ class DeviceReadinessService
             ))->count(),
         ]);
 
-        $profileAssignments = $device->accountAssignments;
-        $profilesPassed = $profileAssignments->isNotEmpty()
-            && $profileAssignments->every(fn ($profile): bool => in_array($profile->status, ['applied', 'ready'], true));
+        $profileAssignments = $device->accountAssignments->filter(
+            fn ($profile): bool => $assignment
+                && (int) $profile->user_id === (int) $assignment->user_id
+                && $profile->desired_state === 'assigned',
+        );
+        $identityProviders = $identities
+            ->filter(fn ($identity): bool => $identity->lifecycle_status === 'active')
+            ->map(fn ($identity): string => $identity->provider instanceof \BackedEnum
+                ? (string) $identity->provider->value
+                : (string) $identity->provider)
+            ->unique()
+            ->values();
+        $requiredProfiles = DeviceProvisioningProfile::query()
+            ->active()
+            ->where('version', DeviceProvisioningProfileCatalog::VERSION)
+            ->get()
+            ->filter(fn (DeviceProvisioningProfile $profile): bool => $identityProviders->contains((string) $profile->provider)
+                && in_array($device->platform->value, $profile->platforms ?? [], true)
+                && (($profile->configuration['required'] ?? false) === true));
+        $assignmentsByProfile = $profileAssignments->keyBy('device_provisioning_profile_id');
+        $missingProfileIds = $requiredProfiles
+            ->filter(function (DeviceProvisioningProfile $profile) use ($assignmentsByProfile): bool {
+                $profileAssignment = $assignmentsByProfile->get($profile->id);
+
+                return ! $profileAssignment || ! in_array($profileAssignment->status, ['applied', 'ready'], true);
+            })
+            ->pluck('public_id')
+            ->values();
+        $profilesPassed = $requiredProfiles->isNotEmpty() && $missingProfileIds->isEmpty();
         $this->record($device, 'profiles', $profilesPassed ? 'passed' : 'pending', 'provider', [
+            'required_profile_count' => $requiredProfiles->count(),
             'profile_count' => $profileAssignments->count(),
             'applied_count' => $profileAssignments->filter(fn ($profile): bool => in_array(
                 $profile->status,
                 ['applied', 'ready'],
                 true,
             ))->count(),
+            'missing_profile_ids' => $missingProfileIds->all(),
         ]);
 
         $this->ensureTechnicalChecks($device);
+        $this->expireTechnicalEvidence($device, $maxAgeHours);
 
-        $complianceStatus = match ($device->compliance_status) {
-            DeviceComplianceStatus::Compliant => 'passed',
-            DeviceComplianceStatus::Warning => 'warning',
-            DeviceComplianceStatus::NonCompliant => 'blocked',
-            DeviceComplianceStatus::Exempt => 'not_applicable',
-            default => 'unknown',
-        };
-        $this->record($device, 'compliance', $complianceStatus, 'provider', [
-            'compliance_status' => $device->compliance_status->value,
-        ]);
+        $existingCompliance = $device->readinessChecks->firstWhere('check_key', 'compliance');
+        $providerEvidenceIsFresh = $device->compliance_status === DeviceComplianceStatus::Unknown
+            && $existingCompliance
+            && ! in_array($existingCompliance->source, ['railtime', 'provider'], true)
+            && $existingCompliance->checked_at
+            && $existingCompliance->checked_at->gte(now()->subHours($maxAgeHours));
+        if (! $providerEvidenceIsFresh) {
+            $complianceStatus = match ($device->compliance_status) {
+                DeviceComplianceStatus::Compliant => 'passed',
+                DeviceComplianceStatus::Warning => 'warning',
+                DeviceComplianceStatus::NonCompliant => 'blocked',
+                DeviceComplianceStatus::Exempt => 'not_applicable',
+                default => 'unknown',
+            };
+            $this->record($device, 'compliance', $complianceStatus, 'provider', [
+                'compliance_status' => $device->compliance_status->value,
+            ]);
+        }
 
         $checks = $device->readinessChecks()->get();
 
@@ -130,7 +199,10 @@ class DeviceReadinessService
 
     public function isReady(Device $device): bool
     {
-        $checks = $device->readinessChecks()->get();
+        // Re-evaluate time-sensitive checks (especially provider_sync) at the
+        // decision boundary. A once-passed receipt must not stay green after
+        // its configured freshness window elapsed.
+        $checks = $this->refresh($device->fresh());
 
         return $this->checksAreReady($checks);
     }
@@ -167,6 +239,47 @@ class DeviceReadinessService
         if (! $device->readinessChecks()->where('check_key', 'remote_support')->exists()) {
             $this->record($device, 'remote_support', 'unknown', 'remote_provider', []);
         }
+    }
+
+    /**
+     * Provider receipts are observations, not permanent facts. A device that
+     * was reachable in the lab must not remain handover-ready indefinitely
+     * after its network, certificate or support-agent evidence has expired.
+     */
+    private function expireTechnicalEvidence(Device $device, int $maxAgeHours): void
+    {
+        $expired = DeviceReadinessCheck::query()
+            ->where('device_id', $device->getKey())
+            ->whereIn('check_key', ['network', 'certificate', 'remote_support'])
+            ->whereIn('status', ['passed', 'warning'])
+            ->where('source', '!=', 'railtime')
+            ->whereNotNull('checked_at')
+            ->where('checked_at', '<', now()->subHours($maxAgeHours))
+            ->get();
+
+        foreach ($expired as $check) {
+            $evidence = is_array($check->evidence) ? $check->evidence : [];
+            $check->forceFill([
+                'status' => 'stale',
+                'evidence' => [
+                    ...$evidence,
+                    'stale_after_hours' => $maxAgeHours,
+                ],
+                // Intentionally preserve checked_at as the timestamp of the
+                // last real provider observation.
+            ])->save();
+        }
+    }
+
+    private function plausibleInventoryValue(mixed $value): bool
+    {
+        $normalized = mb_strtolower(trim((string) $value));
+
+        return mb_strlen($normalized) >= 3
+            && ! in_array($normalized, [
+                '-', '--', 'n/a', 'na', 'none', 'null', 'unknown',
+                'unbekannt', 'offen', 'tbd', 'todo',
+            ], true);
     }
 
     /** @param array<string, mixed> $evidence */

@@ -8,11 +8,11 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Reverse dependency order for rollback and interrupted-install recovery.
+     * Tables owned by this base migration in reverse dependency order.
      *
      * @var list<string>
      */
-    private const DEVICE_TABLES = [
+    private const BASE_DEVICE_TABLES = [
         'device_commands',
         'device_artifacts',
         'device_readiness_checks',
@@ -22,6 +22,29 @@ return new class extends Migration
         'device_provisioning_profiles',
         'employee_identity_accounts',
         'devices',
+    ];
+
+    /**
+     * Tables owned by later migrations in reverse dependency order.
+     *
+     * These may only be removed while recovering a completely empty,
+     * interrupted installation. A targeted rollback of this base migration
+     * must never delete them.
+     *
+     * @var list<string>
+     */
+    private const LATER_DEVICE_TABLES = [
+        // Reserved for the provider webhook idempotency migration.
+        'device_provider_events',
+        // Added by the identity connector outbox migration. This child table
+        // references devices, assignments and users and therefore has to be
+        // removed before an intentionally empty interrupted base install can
+        // be rebuilt.
+        'device_identity_syncs',
+        // Added by the normalized multi-provider migration. Keeping it in the
+        // recovery order prevents its FK from blocking an intentionally empty
+        // interrupted-install cleanup when this base migration is re-run.
+        'device_provider_links',
     ];
 
     public function up(): void
@@ -42,7 +65,10 @@ return new class extends Migration
             $table->string('management_status', 32)->default('unmanaged')->index();
             $table->string('compliance_status', 32)->default('unknown')->index();
             $table->string('primary_provider', 64)->nullable()->index();
-            $table->string('primary_provider_device_id', 128)->nullable();
+            // Provider identifiers use the connector contract's 191-character
+            // ceiling. The compatibility mirror must not be narrower than the
+            // normalized device_provider_links.external_device_id column.
+            $table->string('primary_provider_device_id', 191)->nullable();
             $table->string('manufacturer', 100)->nullable();
             $table->string('model', 150)->nullable();
             $table->string('os_version', 100)->nullable();
@@ -218,6 +244,10 @@ return new class extends Migration
             $table->id();
             $table->uuid('public_id')->unique();
             $table->foreignId('device_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('device_assignment_id')
+                ->nullable()
+                ->constrained('device_assignments', 'id', 'dev_cmd_assignment_fk')
+                ->restrictOnDelete();
             $table->string('provider', 64)->index();
             $table->string('type', 64)->index();
             $table->string('status', 32)->default('pending_approval')->index();
@@ -237,19 +267,37 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['device_id', 'status'], 'device_command_device_status_index');
+            $table->index(['device_assignment_id', 'status'], 'dev_cmd_assignment_status_idx');
             $table->index(['provider', 'provider_job_id'], 'device_command_provider_job_index');
         });
     }
 
     public function down(): void
     {
-        $this->dropDeviceTables();
+        $remainingLaterTables = array_values(array_filter(
+            self::LATER_DEVICE_TABLES,
+            static fn (string $table): bool => Schema::hasTable($table),
+        ));
+
+        if ($remainingLaterTables !== []) {
+            throw new RuntimeException(sprintf(
+                'Die Geräte-Basismigration kann nicht zurückgerollt werden, solange nachgelagerte Tabellen existieren (%s). Bitte zuerst deren Migrationen in umgekehrter Reihenfolge zurückrollen.',
+                implode(', ', $remainingLaterTables),
+            ));
+        }
+
+        $this->dropTables(self::BASE_DEVICE_TABLES);
     }
 
     private function recoverInterruptedEmptyInstallation(): void
     {
+        $recoveryTables = [
+            ...self::LATER_DEVICE_TABLES,
+            ...self::BASE_DEVICE_TABLES,
+        ];
+
         $existingTables = array_values(array_filter(
-            self::DEVICE_TABLES,
+            $recoveryTables,
             static fn (string $table): bool => Schema::hasTable($table),
         ));
 
@@ -269,13 +317,21 @@ return new class extends Migration
             ));
         }
 
-        $this->dropDeviceTables();
+        $this->dropTables($recoveryTables);
     }
 
-    private function dropDeviceTables(): void
+    /**
+     * @param  list<string>  $tables
+     */
+    private function dropTables(array $tables): void
     {
-        foreach (self::DEVICE_TABLES as $table) {
-            Schema::dropIfExists($table);
+        Schema::disableForeignKeyConstraints();
+        try {
+            foreach ($tables as $table) {
+                Schema::dropIfExists($table);
+            }
+        } finally {
+            Schema::enableForeignKeyConstraints();
         }
     }
 };

@@ -74,7 +74,7 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.doesNotMatch(css, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
     assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width:\s*150% !important;\s*max-width:\s*none !important;\s*margin-left:\s*0 !important;/);
     const phone = css.slice(css.indexOf('@media only screen and (max-width: 480px)'));
-    assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width:\s*175% !important;[\s\S]*?margin-left:\s*0 !important;/);
+    assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width:\s*175% !important;[\s\S]*?margin-left:\s*-8% !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]*?width:\s*200% !important;\s*max-width:\s*none !important;\s*margin-left:\s*-100% !important;/);
 });
 

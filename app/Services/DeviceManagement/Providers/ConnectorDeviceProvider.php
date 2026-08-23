@@ -8,6 +8,8 @@ use App\Models\Device;
 use App\Models\DeviceArtifact;
 use App\Models\DeviceCommand;
 use App\Models\DeviceEnrollment;
+use App\Models\DeviceProviderLink;
+use App\Services\DeviceManagement\ConnectorContractValidator;
 use App\Services\DeviceManagement\ConnectorHttpClient;
 use App\Services\DeviceManagement\Contracts\DeviceProviderInterface;
 use App\Services\DeviceManagement\Data\CommandResult;
@@ -69,9 +71,19 @@ final class ConnectorDeviceProvider implements DeviceProviderInterface
             $this->path('health'),
         );
 
-        $healthy = filter_var($response['healthy'] ?? false, FILTER_VALIDATE_BOOL);
-        $status = mb_substr(trim((string) ($response['status'] ?? ($healthy ? 'healthy' : 'unhealthy'))), 0, 80);
-        $details = SafeProviderData::summary(is_array($response['details'] ?? null) ? $response['details'] : $response);
+        $response = ConnectorContractValidator::healthResponse($response);
+        $upstream = $response['upstream'];
+        if ($response['provider'] !== $this->providerKey
+            || (int) explode('.', $response['contract_version'], 2)[0] !== 1
+            || ! ConnectorContractValidator::capabilitiesAreCompatible($response['capabilities'], $this->capabilities())) {
+            throw new RuntimeException("Der Connector '{$this->providerKey}' meldete einen inkompatiblen Vertrag.");
+        }
+
+        $healthy = $response['healthy'] === true
+            && $upstream['reachable'] === true
+            && $upstream['authenticated'] === true;
+        $status = $response['status'];
+        $details = SafeProviderData::summary(is_array($response['details'] ?? null) ? $response['details'] : []);
 
         return new HealthResult($healthy, $status, $details);
     }
@@ -79,6 +91,9 @@ final class ConnectorDeviceProvider implements DeviceProviderInterface
     public function enrollment(DeviceEnrollment $enrollment, Device $device): EnrollmentResult
     {
         $this->assertEnabled();
+        if (! $this->settings->productionMutationsEnabledFor($this->providerKey)) {
+            throw new RuntimeException('Externe Registrierungen sind bis zu einem aktuellen Funktionstest und der ausdrücklichen Produktionsfreigabe gesperrt.');
+        }
         if ($enrollment->status !== DeviceEnrollmentStatus::Claimed || ! $enrollment->claimed_at) {
             throw new RuntimeException('Enrollment-Anweisungen werden erst nach einem atomischen Claim ausgegeben.');
         }
@@ -101,56 +116,67 @@ final class ConnectorDeviceProvider implements DeviceProviderInterface
             [
                 'enrollment_id' => (string) $enrollment->public_id,
                 'device_id' => (string) $device->public_id,
-                'provider_device_id' => $this->limitedString($device->primary_provider_device_id, 191),
+                'provider_device_id' => $this->limitedString(
+                    $device->providerDeviceIdFor($this->providerKey),
+                    191,
+                ),
                 'platform' => $platform,
                 'mode' => $this->limitedString($enrollment->mode, 40),
                 'expires_at' => $enrollment->expires_at?->toIso8601String(),
             ],
         );
-
-        $steps = [];
-        foreach (is_array($response['steps'] ?? null) ? $response['steps'] : [] as $step) {
-            if (is_string($step) && trim($step) !== '') {
-                $steps[] = mb_substr(trim($step), 0, 500);
-            }
-            if (count($steps) >= 12) {
-                break;
-            }
-        }
-
-        if ($steps === []) {
-            throw new RuntimeException("Der Connector '{$this->providerKey}' lieferte keine Enrollment-Schritte.");
-        }
+        $response = ConnectorContractValidator::enrollmentResponse($response);
 
         return new EnrollmentResult(
-            status: mb_substr(trim((string) ($response['status'] ?? 'ready')), 0, 80),
-            steps: $steps,
+            status: $response['status'],
+            steps: $response['steps'],
             enrollmentUrl: $this->safeExternalUrl($response['enrollment_url'] ?? null),
-            expiresAt: $this->limitedString($response['expires_at'] ?? null, 40),
-            limitedManagement: filter_var($response['limited_management'] ?? false, FILTER_VALIDATE_BOOL),
-            message: $this->limitedString($response['message'] ?? null, 500),
+            expiresAt: $response['expires_at'] ?? null,
+            limitedManagement: $response['limited_management'] ?? false,
+            message: $response['message'] ?? null,
         );
     }
 
     public function dispatch(DeviceCommand $command, Device $device): CommandResult
     {
         $this->assertEnabled();
-        if (! $this->settings->productionCommandsEnabled(fresh: true)) {
+        if (! $this->settings->productionMutationsEnabledFor($this->providerKey)) {
             throw new RuntimeException('Externe Gerätebefehle sind durch den globalen Kill-Switch deaktiviert.');
         }
         if (! $this->supportsCommand($command->type)) {
             throw new RuntimeException("Der Provider '{$this->providerKey}' unterstützt diesen Befehl nicht.");
+        }
+        $providerLink = $device->providerLinkFor($this->providerKey);
+        if (! $providerLink
+            || $providerLink->status !== DeviceProviderLink::STATUS_ACTIVE
+            || blank($providerLink->external_device_id)) {
+            throw new RuntimeException('Das Gerät besitzt keine aktive, belegte Provider-Verknüpfung für diesen Befehl.');
+        }
+
+        $options = is_array($command->payload) ? $command->payload : [];
+        foreach (['artifact_public_id', 'artifact_sha256', 'artifact_kind'] as $artifactOption) {
+            unset($options[$artifactOption]);
+        }
+        if ($this->providerKey === 'meshcentral') {
+            // The concrete MeshCentral contract deliberately accepts no free
+            // options. Artifact metadata travels in the dedicated, signed
+            // ArtifactReference below.
+            $options = [];
         }
 
         $payload = [
             'command_id' => (string) $command->public_id,
             'correlation_id' => (string) $command->correlation_id,
             'device_id' => (string) $device->public_id,
-            'provider_device_id' => $this->limitedString($device->primary_provider_device_id, 191),
+            'provider_device_id' => $this->limitedString(
+                $providerLink->external_device_id,
+                191,
+            ),
             'command' => $command->type->value,
-            // The encrypted payload is intentional command input. The
-            // service layer has already rejected secret-like fields.
-            'options' => is_array($command->payload) ? $command->payload : [],
+            // JSON [] violates the OpenAPI `object` contract. An empty map is
+            // encoded explicitly as {}, while non-empty, validated command
+            // input remains an associative object.
+            'options' => $options === [] ? new \stdClass : $options,
         ];
 
         if (is_array($command->payload) && filled($command->payload['artifact_public_id'] ?? null)) {
@@ -185,17 +211,17 @@ final class ConnectorDeviceProvider implements DeviceProviderInterface
             $this->path('command'),
             $payload,
         );
+        $response = ConnectorContractValidator::commandResponse($response);
 
-        $accepted = filter_var($response['accepted'] ?? false, FILTER_VALIDATE_BOOL);
-        if (! $accepted) {
+        if ($response['accepted'] !== true) {
             throw new RuntimeException("Der Connector '{$this->providerKey}' hat den Befehl abgelehnt.");
         }
 
         return new CommandResult(
             accepted: true,
-            completed: filter_var($response['completed'] ?? false, FILTER_VALIDATE_BOOL),
-            providerJobId: $this->limitedString($response['provider_job_id'] ?? null, 191),
-            message: $this->limitedString($response['message'] ?? null, 500),
+            completed: $response['completed'],
+            providerJobId: $response['provider_job_id'] ?? null,
+            message: $response['message'] ?? null,
             details: SafeProviderData::summary(is_array($response['details'] ?? null) ? $response['details'] : []),
         );
     }
@@ -206,6 +232,12 @@ final class ConnectorDeviceProvider implements DeviceProviderInterface
         if (! ($this->capabilities()['remote_support'] ?? false)) {
             return null;
         }
+        $providerLink = $device->providerLinkFor($this->providerKey);
+        if (! $providerLink
+            || $providerLink->status !== DeviceProviderLink::STATUS_ACTIVE
+            || blank($providerLink->external_device_id)) {
+            return null;
+        }
 
         $template = trim((string) ($this->configuration['remote_url_template'] ?? ''));
         if ($template === '') {
@@ -214,7 +246,7 @@ final class ConnectorDeviceProvider implements DeviceProviderInterface
 
         $url = strtr($template, [
             '{device_id}' => rawurlencode((string) $device->public_id),
-            '{provider_device_id}' => rawurlencode((string) ($device->primary_provider_device_id ?? '')),
+            '{provider_device_id}' => rawurlencode((string) $providerLink->external_device_id),
         ]);
 
         return $this->safeExternalUrl($url);

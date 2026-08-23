@@ -159,6 +159,7 @@ class DeviceManagementSettingsTest extends TestCase
         $this->assertFalse($firstReader->productionCommandsEnabled());
 
         $secondWriter = new DeviceManagementSettings;
+        $this->configureHealthyCommandProvider($secondWriter);
         $secondWriter->setProductionCommandsEnabled(true);
 
         $this->assertFalse($firstReader->productionCommandsEnabled());
@@ -170,6 +171,7 @@ class DeviceManagementSettingsTest extends TestCase
 
     public function test_stale_service_snapshot_cannot_reenable_emergency_kill_switch_during_an_unrelated_save(): void
     {
+        $this->configureHealthyCommandProvider($this->settings);
         $this->settings->setProductionCommandsEnabled(true);
 
         $staleWriter = new DeviceManagementSettings;
@@ -364,6 +366,7 @@ class DeviceManagementSettingsTest extends TestCase
             'token' => str_repeat('a', 32),
             'webhook_secret' => str_repeat('b', 32),
         ]);
+        $this->recordHealthyDiagnostic($this->settings, 'openuem');
         $this->settings->setProductionCommandsEnabled(true);
 
         $stored = (array) Setting::getValueUncached(DeviceManagementSettings::GROUP, DeviceManagementSettings::KEY);
@@ -476,6 +479,37 @@ class DeviceManagementSettingsTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_production_gate_requires_explicit_activation_after_a_recent_healthy_probe(): void
+    {
+        $this->settings->saveProvider('openuem', [
+            'enabled' => true,
+            'token' => str_repeat('a', 32),
+            'webhook_secret' => str_repeat('b', 32),
+        ]);
+
+        try {
+            $this->settings->setProductionCommandsEnabled(true);
+            $this->fail('Production commands must remain closed without health evidence.');
+        } catch (InvalidArgumentException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->recordHealthyDiagnostic($this->settings, 'openuem');
+        $this->assertFalse($this->settings->productionCommandsEnabled(fresh: true));
+
+        $this->settings->setProductionCommandsEnabled(true);
+        $this->assertTrue($this->settings->productionCommandsEnabled(fresh: true));
+        $this->assertTrue($this->settings->productionMutationsEnabledFor('openuem'));
+
+        $this->travel(16)->minutes();
+        $this->assertTrue($this->settings->productionCommandsEnabled(fresh: true));
+        $this->assertFalse($this->settings->productionMutationsEnabledFor('openuem'));
+        $this->travelBack();
+
+        $this->settings->saveProvider('openuem', ['enabled' => true, 'timeout' => 9]);
+        $this->assertFalse($this->settings->productionCommandsEnabled(fresh: true));
+    }
+
     /** @param list<string> $addresses */
     private function useResolvedAddresses(array $addresses): void
     {
@@ -490,5 +524,29 @@ class DeviceManagementSettingsTest extends TestCase
                 return $this->addresses;
             }
         });
+    }
+
+    private function configureHealthyCommandProvider(DeviceManagementSettings $settings): void
+    {
+        $settings->saveProvider('openuem', [
+            'enabled' => true,
+            'token' => str_repeat('a', 32),
+            'webhook_secret' => str_repeat('b', 32),
+        ]);
+        $this->recordHealthyDiagnostic($settings, 'openuem');
+    }
+
+    private function recordHealthyDiagnostic(DeviceManagementSettings $settings, string $provider): void
+    {
+        $settings->recordProviderDiagnostic($provider, [
+            'status' => 'healthy',
+            'healthy' => true,
+            'authenticated' => true,
+            'contract_valid' => true,
+            'contract' => [
+                'upstream_reachable' => true,
+                'upstream_authenticated' => true,
+            ],
+        ], $settings->providerFingerprint($provider, fresh: true));
     }
 }

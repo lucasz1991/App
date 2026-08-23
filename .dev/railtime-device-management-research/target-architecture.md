@@ -32,16 +32,44 @@ RailTime spiegelt nur die für die Oberfläche nötigen Zustände. Recovery Keys
 Mailbox-Inhalte, Passwörter, private Schlüssel und vollständige Rohinventare
 bleiben im zuständigen Backend.
 
+### Mehrprovider-Zuordnung je Gerät
+
+Ein RailTime-Gerät besitzt nicht nur eine globale technische ID. Die normalisierte
+Tabelle `device_provider_links` hält pro Provider genau eine Verknüpfung mit
+eigener `external_device_id`, Rolle (`primary` oder `support`), Status sowie
+`last_seen_at`/`last_synced_at`. So kann beispielsweise OpenUEM das primäre
+Desktop-Management und MeshCentral parallel den Fernsupport übernehmen. Die
+alten Felder `devices.primary_provider` und
+`devices.primary_provider_device_id` bleiben als rückwärtskompatibler Spiegel
+des Primary-Links erhalten; Connector-Aufrufe lesen vorrangig den passenden
+Provider-Link. Links enthalten ausdrücklich keine Tokens, Passwörter oder
+sonstigen Zugangsdaten.
+
+Eine signierte `enrollment.completed`- oder `device.seen`-Quittung darf eine
+optionale, streng validierte `provider_device_id` nur an einen bereits für das
+bekannte RailTime-Gerät deklarierten Link binden. Webhooks erzeugen niemals
+stillschweigend neue Geräte oder Provider-Verknüpfungen.
+
+Für MeshCentral gilt strenger: Der Connector meldet `enrollment=false`, weil
+ein nativer Gruppeninvite weder assignment-/gerätegebunden noch exakt einzeln
+widerrufbar ist. Der MeshAgent wird separat vorinstalliert; ein Administrator
+prüft die native Node-ID in MeshCentral und bindet sie als aktiven Support-Link
+an das bereits inventarisierte RailTime-Gerät. Daraus wird keine automatische
+`enrollment.completed`-Quittung abgeleitet. Ohne diesen aktiven Link bleiben
+Remote-Support, Diagnose und Skriptausführung geschlossen.
+
 ## Connector-Vertrag
 
 Weil die freien Tools sehr unterschiedliche oder teils nicht stabil
 dokumentierte Schnittstellen besitzen, sprechen RailTime-Jobs einen engen
 Connector-Vertrag:
 
-- `GET /health` – Version, Verbindung, bekannte Fähigkeiten.
-- `POST /enrollments` – kurzlebige, geräte-/mitarbeitergebundene Anleitung.
-- `POST /devices/{externalId}/commands` – whitelisted Aktion mit
-  Korrelations-ID; keine freie URL-/Shell-Interpolation.
+- `GET /v1/health` – Version, Verbindung, bekannte Fähigkeiten.
+- `POST /v1/enrollments` – falls der konkrete Provider diese sichere Fähigkeit
+  meldet: kurzlebige, geräte-/mitarbeitergebundene Anleitung. Der
+  MeshCentral-Connector lehnt diesen Endpunkt mit `409` ab.
+- `POST /v1/commands` – whitelisted Aktion mit Korrelations-ID, RailTime-ID und
+  der providerspezifischen externen Geräte-ID; keine freie URL-/Shell-Interpolation.
 - `POST /events` zurück an RailTime – HMAC-signiert, zeitbegrenzt und
   idempotent.
 
@@ -61,4 +89,3 @@ wird. Die UI zeigt ausschließlich die vom Connector gemeldeten Fähigkeiten.
 - HMAC-Webhook über Zeitstempel plus Rohbody; maximales Zeitfenster fünf
   Minuten.
 - Vollständiger fachlicher Audit ohne Secrets oder rohe Kommandopayloads.
-

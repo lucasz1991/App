@@ -52,7 +52,7 @@
         </section>
 
         @php
-            $activeFilterCount = collect([$locationFilter, $lifecycleFilter, $platformFilter, $complianceFilter])
+            $activeFilterCount = collect([$locationFilter, $lifecycleFilter, $platformFilter, $formFactorFilter, $complianceFilter])
                 ->filter(fn ($value) => $value !== '')
                 ->count();
         @endphp
@@ -126,6 +126,12 @@
                                 <select wire:model.live="platformFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
                                     <option value="">Alle Plattformen</option>
                                     @foreach(\App\Enums\DevicePlatform::cases() as $platform)<option value="{{ $platform->value }}">{{ ucfirst($platform->value) }}</option>@endforeach
+                                </select>
+                            </label>
+                            <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
+                                Gerätetyp
+                                <select wire:model.live="formFactorFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                                    <option value="">Alle Gerätetypen</option><option value="laptop">Laptop</option><option value="desktop">Desktop</option><option value="phone">Smartphone</option><option value="tablet">Tablet</option><option value="other">Sonstiges</option>
                                 </select>
                             </label>
                             <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
@@ -268,7 +274,15 @@
                 $selectedCommandProvider = $compatibleProviders->firstWhere('key', $commandProvider);
                 $availableCommandTypes = $selectedCommandProvider['capabilities']['commands'] ?? [];
                 $selectedCommandsEnabled = (bool) ($selectedCommandProvider['commands_enabled'] ?? false);
-                $remoteSupportProviders = $compatibleProviders->filter(fn($provider) => ($provider['capabilities']['remote_support'] ?? false) && $provider['remote_url_available']);
+                $providerLinksByKey = $selectedDevice->providerLinks->keyBy('provider');
+                $remoteSupportProviders = $compatibleProviders->filter(function($provider) use ($providerLinksByKey) {
+                    $link = $providerLinksByKey->get($provider['key']);
+
+                    return ($provider['capabilities']['remote_support'] ?? false)
+                        && $provider['remote_url_available']
+                        && $link?->status === \App\Models\DeviceProviderLink::STATUS_ACTIVE
+                        && filled($link?->external_device_id);
+                });
             @endphp
             <section class="rounded-2xl border border-rt-red/20 bg-white p-4 shadow-rt-lg dark:border-rt-red/35 dark:bg-rt-dark-surface" x-data="{ tab: 'overview' }" aria-labelledby="device-detail-title">
                 <div class="flex flex-wrap items-start justify-between gap-3 border-b border-rt-border/70 pb-4 dark:border-rt-dark-border">
@@ -359,6 +373,40 @@
                             @endcan
                         </div>
                         <div class="rounded-xl border border-rt-border p-4 text-sm dark:border-rt-dark-border"><p class="font-semibold text-rt-text dark:text-white">Standortschutz</p><p class="mt-2 leading-6 text-rt-muted dark:text-rt-dark-muted">Angezeigt wird der deklarierte Arbeits-/Lagerstandort. Eine permanente Live-Ortung ist nicht Voraussetzung und wird nicht aus der Mitarbeiter-App abgeleitet.</p></div>
+                        <div class="rounded-xl border border-rt-border p-4 dark:border-rt-dark-border" data-device-provider-links>
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <h3 class="font-semibold text-rt-text dark:text-white">Provider-Verknüpfungen</h3>
+                                    <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Jeder Provider behält seine eigene native Geräte-ID.</p>
+                                </div>
+                                @can('devices.manage')
+                                    <button type="button" wire:click="openProviderLink" class="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-rt-border px-3 text-xs font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:text-white dark:hover:bg-rt-dark-surface-muted" aria-haspopup="dialog" aria-controls="device-provider-link-modal">
+                                        <i data-feather="link" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                        Verknüpfen
+                                    </button>
+                                @endcan
+                            </div>
+                            <div class="mt-3 space-y-2">
+                                @forelse($selectedDevice->providerLinks as $providerLink)
+                                    <div class="rounded-xl bg-rt-surface-muted px-3 py-2.5 dark:bg-rt-dark-surface-muted">
+                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                            <p class="text-sm font-semibold text-rt-text dark:text-white">{{ $providerCards->firstWhere('key', $providerLink->provider)['label'] ?? $providerLink->provider }}</p>
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="rounded-full bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-rt-muted ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border">{{ $providerLink->role === 'primary' ? 'Primär' : 'Support' }}</span>
+                                                <span @class([
+                                                    'rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide',
+                                                    'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' => $providerLink->status === 'active',
+                                                    'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' => $providerLink->status !== 'active',
+                                                ])>{{ $providerLink->status }}</span>
+                                            </div>
+                                        </div>
+                                        <p class="mt-1 break-all font-mono text-[11px] leading-5 text-rt-muted dark:text-rt-dark-muted">{{ $providerLink->external_device_id ?: 'Noch keine externe Geräte-ID' }}</p>
+                                    </div>
+                                @empty
+                                    <p class="rounded-xl bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900 dark:bg-amber-950/35 dark:text-amber-200">Noch kein technisches Backend ist mit diesem Gerät verknüpft.</p>
+                                @endforelse
+                            </div>
+                        </div>
                         @can('devices.support')
                             @if($remoteSupportProviders->isNotEmpty())
                                 <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/30">
@@ -380,11 +428,18 @@
                         <h3 class="font-semibold text-rt-text dark:text-white">Bestehendes Gerät aus der Ferne registrieren</h3>
                         <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Der Mitarbeiter erhält einen persönlichen, auth-gebundenen Einmal-Link. Bei Bestandsmobilgeräten ist zunächst eine eingeschränkte Verwaltung möglich; Full Device Owner/Supervision benötigt meist einen geplanten Reset.</p>
                         <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                            <label class="text-sm font-medium text-rt-text dark:text-white">Provider<select wire:model="enrollmentProvider" @disabled(! auth()->user()->can('devices.enrollment.manage')) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"><option value="">Nicht verfügbar</option>@foreach($compatibleProviders as $provider)@if($provider['capabilities']['enrollment'] ?? false)<option value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>@endif @endforeach</select></label>
-                            <label class="text-sm font-medium text-rt-text dark:text-white">Modus<select wire:model="enrollmentMode" @disabled(! auth()->user()->can('devices.enrollment.manage')) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"><option value="agent">Agent</option><option value="work_profile">Android-Arbeitsprofil</option><option value="profile">Apple-Profil</option><option value="ade">Apple ADE (Neugerät/Reset)</option><option value="fully_managed">Android Fully Managed (Reset)</option></select></label>
+                            <label class="text-sm font-medium text-rt-text dark:text-white">Provider<select wire:model.live="enrollmentProvider" @disabled(! auth()->user()->can('devices.enrollment.manage')) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"><option value="">Nicht verfügbar</option>@foreach($compatibleProviders as $provider)@if(in_array($provider['key'], $enrollmentProviderKeys, true))<option value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>@endif @endforeach</select></label>
+                            <label class="text-sm font-medium text-rt-text dark:text-white">Modus<select wire:model="enrollmentMode" @disabled(! auth()->user()->can('devices.enrollment.manage') || $enrollmentModeOptions === []) class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"><option value="">Nicht verfügbar</option>@foreach($enrollmentModeOptions as $mode)<option value="{{ $mode['value'] }}">{{ $mode['label'] }}{{ $mode['requires_reset'] ? ' · Reset nötig' : '' }}{{ $mode['limited_management'] ? ' · eingeschränkt' : '' }}</option>@endforeach</select></label>
                         </div>
                         @error('enrollmentProvider')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
-                        @can('devices.enrollment.manage')<button type="button" wire:click="createEnrollment" @disabled(!$activeAssignment || !$enrollmentProvider) class="mt-4 min-h-11 w-full rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Persönliche Einrichtungs-E-Mail senden</button>@endcan
+                        @error('enrollmentMode')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
+                        @if(($selectedEnrollmentMode = collect($enrollmentModeOptions)->firstWhere('value', $enrollmentMode)))
+                            <div class="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-xs leading-5 text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">
+                                <p class="font-semibold">{{ $selectedEnrollmentMode['limited_management'] ? 'Eingeschränkte Verwaltung' : 'Vollständiger Modus' }}{{ $selectedEnrollmentMode['requires_reset'] ? ' · geplante Neueinrichtung erforderlich' : '' }}</p>
+                                <p class="mt-1">{{ $selectedEnrollmentMode['description'] }}</p>
+                            </div>
+                        @endif
+                        @can('devices.enrollment.manage')<button type="button" wire:click="createEnrollment" @disabled(!$activeAssignment || !$enrollmentProvider || !$enrollmentMode) class="mt-4 min-h-11 w-full rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Persönliche Einrichtungs-E-Mail senden</button>@endcan
                         <div class="mt-4 space-y-2">
                             @forelse($selectedDevice->enrollments->take(4) as $enrollment)
                                 <div class="flex items-center justify-between gap-3 rounded-lg bg-rt-surface-muted px-3 py-2 text-sm dark:bg-rt-dark-surface-muted"><span>{{ $enrollment->provider }} · {{ str_replace('_',' ',$enrollment->mode) }}</span><span class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $enrollment->status->value }} · {{ $enrollment->expires_at?->format('d.m. H:i') }}</span></div>
@@ -460,4 +515,5 @@
     </div>
 
     @include('livewire.devices.partials.device-capture-modal')
+    @include('livewire.devices.partials.provider-link-modal', ['compatibleProviders' => $compatibleProviders ?? collect()])
 </x-ui.page>

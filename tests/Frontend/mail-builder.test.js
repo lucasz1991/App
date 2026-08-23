@@ -1547,6 +1547,6 @@ test('signature source uses a fixed schema 25 pixel frame with a Classic Outlook
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]*?width: 100% !important;/);
     assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][^}]+width: 150% !important; max-width: none !important; margin-left: 0 !important/);
     const phone = css.slice(css.indexOf('@media only screen and (max-width: 480px)'));
-    assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width: 175% !important;[\s\S]*?margin-left: 0 !important;/);
+    assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width: 175% !important;[\s\S]*?margin-left: -8% !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][^}]+width: 200% !important; max-width: none !important; margin-left: -100% !important/);
 });

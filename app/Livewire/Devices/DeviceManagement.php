@@ -13,11 +13,13 @@ use App\Notifications\DeviceEnrollmentInvitation;
 use App\Services\DeviceManagement\DeviceAccountPreparationService;
 use App\Services\DeviceManagement\DeviceArtifactService;
 use App\Services\DeviceManagement\DeviceCommandService;
+use App\Services\DeviceManagement\DeviceEnrollmentModeCatalog;
 use App\Services\DeviceManagement\DeviceEnrollmentService;
 use App\Services\DeviceManagement\DeviceInventoryImportService;
 use App\Services\DeviceManagement\DeviceInventoryService;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\DeviceProviderRegistry;
+use App\Services\DeviceManagement\DeviceProviderLinkService;
 use App\Services\DeviceManagement\DeviceReadinessService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
@@ -42,6 +44,8 @@ class DeviceManagement extends Component
 
     public string $platformFilter = '';
 
+    public string $formFactorFilter = '';
+
     public string $lifecycleFilter = '';
 
     public string $complianceFilter = '';
@@ -56,7 +60,16 @@ class DeviceManagement extends Component
 
     public bool $showProviderReadiness = false;
 
+    public bool $showProviderLinkForm = false;
+
     public string $captureMode = 'manual';
+
+    /** @var array{provider:string,role:string,external_device_id:string} */
+    public array $providerLinkForm = [
+        'provider' => '',
+        'role' => 'support',
+        'external_device_id' => '',
+    ];
 
     /** @var array<string, mixed> */
     public array $deviceForm = [
@@ -121,6 +134,11 @@ class DeviceManagement extends Component
         $this->resetPage();
     }
 
+    public function updatedFormFactorFilter(): void
+    {
+        $this->resetPage();
+    }
+
     public function updatedLifecycleFilter(): void
     {
         $this->resetPage();
@@ -155,11 +173,79 @@ class DeviceManagement extends Component
         $this->showProviderReadiness = false;
     }
 
+    public function openProviderLink(): void
+    {
+        Gate::authorize('devices.manage');
+        $device = $this->selectedDeviceOrFail();
+        $registry = app(DeviceProviderRegistry::class);
+        $settings = app(DeviceManagementSettings::class);
+        $platform = $device->platform instanceof DevicePlatform
+            ? $device->platform->value
+            : (string) $device->platform;
+        $compatible = collect(array_keys($settings->providerCatalog()))
+            ->reject(fn (string $key): bool => $key === 'simulation')
+            ->filter(function (string $key) use ($registry, $platform): bool {
+                try {
+                    $provider = $registry->get($key);
+
+                    return $provider->enabled() && $provider->supportsPlatform($platform);
+                } catch (Throwable) {
+                    return false;
+                }
+            })
+            ->values();
+        $providerKey = (string) ($compatible->first(fn (string $key): bool => $key === 'meshcentral')
+            ?? $compatible->first()
+            ?? '');
+        $existing = $providerKey !== '' ? $device->providerLinkFor($providerKey) : null;
+
+        $this->providerLinkForm = [
+            'provider' => $providerKey,
+            'role' => $existing?->role
+                ?? ($providerKey === strtolower((string) $device->primary_provider) ? 'primary' : 'support'),
+            'external_device_id' => (string) ($existing?->external_device_id ?? ''),
+        ];
+        $this->resetValidation(['providerLinkForm.provider', 'providerLinkForm.role', 'providerLinkForm.external_device_id']);
+        $this->showProviderLinkForm = true;
+    }
+
+    public function closeProviderLink(): void
+    {
+        $this->showProviderLinkForm = false;
+        $this->providerLinkForm = ['provider' => '', 'role' => 'support', 'external_device_id' => ''];
+        $this->resetValidation(['providerLinkForm.provider', 'providerLinkForm.role', 'providerLinkForm.external_device_id']);
+    }
+
+    public function saveProviderLink(DeviceProviderLinkService $links): void
+    {
+        Gate::authorize('devices.manage');
+
+        try {
+            $links->link(
+                $this->selectedDeviceOrFail(),
+                (string) ($this->providerLinkForm['provider'] ?? ''),
+                (string) ($this->providerLinkForm['role'] ?? ''),
+                (string) ($this->providerLinkForm['external_device_id'] ?? ''),
+                auth()->user(),
+            );
+        } catch (ValidationException $exception) {
+            $mapped = [];
+            foreach ($exception->errors() as $field => $messages) {
+                $mapped['providerLinkForm.'.$field] = $messages;
+            }
+
+            throw ValidationException::withMessages($mapped);
+        }
+
+        $this->closeProviderLink();
+        $this->dispatch('swal:toast', type: 'success', text: 'Provider-Geräte-ID wurde nachvollziehbar verknüpft.');
+    }
+
     public function clearFilters(): void
     {
         Gate::authorize('devices.view');
 
-        $this->reset(['search', 'platformFilter', 'lifecycleFilter', 'complianceFilter', 'locationFilter']);
+        $this->reset(['search', 'platformFilter', 'formFactorFilter', 'lifecycleFilter', 'complianceFilter', 'locationFilter']);
         $this->resetPage();
     }
 
@@ -176,6 +262,20 @@ class DeviceManagement extends Component
         if (! in_array($this->commandType, $commands, true)) {
             $this->commandType = (string) ($commands[0] ?? '');
         }
+    }
+
+    public function updatedEnrollmentProvider(): void
+    {
+        if (! $this->selectedDevicePublicId) {
+            $this->enrollmentMode = '';
+
+            return;
+        }
+
+        $device = $this->selectedDeviceOrFail();
+        $this->enrollmentMode = app(DeviceEnrollmentModeCatalog::class)
+            ->defaultFor($device, $this->enrollmentProvider) ?? '';
+        $this->resetValidation(['enrollmentProvider', 'enrollmentMode']);
     }
 
     public function openCreate(string $mode = 'manual'): void
@@ -285,6 +385,7 @@ class DeviceManagement extends Component
         $this->selectedDevicePublicId = null;
         $this->assignmentUserId = null;
         $this->artifactUpload = null;
+        $this->showProviderLinkForm = false;
         $this->resetValidation();
     }
 
@@ -342,13 +443,26 @@ class DeviceManagement extends Component
             'enrollmentMode' => ['required', Rule::in(['agent', 'work_profile', 'profile', 'ade', 'fully_managed'])],
         ]);
 
-        $invitation = $enrollments->invite(
-            $device,
-            $assignment->user,
-            $this->enrollmentProvider,
-            $this->enrollmentMode,
-            auth()->user(),
-        );
+        try {
+            $invitation = $enrollments->invite(
+                $device,
+                $assignment->user,
+                $this->enrollmentProvider,
+                $this->enrollmentMode,
+                auth()->user(),
+            );
+        } catch (ValidationException $exception) {
+            $messages = [];
+            foreach ($exception->errors() as $field => $fieldMessages) {
+                $messages[match ($field) {
+                    'mode' => 'enrollmentMode',
+                    'provider', 'assignee' => 'enrollmentProvider',
+                    default => $field,
+                }] = $fieldMessages;
+            }
+
+            throw ValidationException::withMessages($messages);
+        }
         $invitation->enrollment->loadMissing('device');
         $assignment->user->notify(new DeviceEnrollmentInvitation(
             $invitation->enrollment,
@@ -556,8 +670,11 @@ class DeviceManagement extends Component
         return redirect()->away($url);
     }
 
-    public function render(DeviceProviderRegistry $providers, DeviceManagementSettings $settings)
-    {
+    public function render(
+        DeviceProviderRegistry $providers,
+        DeviceManagementSettings $settings,
+        DeviceEnrollmentModeCatalog $enrollmentModes,
+    ) {
         Gate::authorize('devices.view');
 
         $devices = $this->deviceQuery()->paginate(min(max($this->perPage, 5), 100));
@@ -568,6 +685,7 @@ class DeviceManagement extends Component
             'accountAssignments.provisioningProfile',
             'enrollments.user:id,name,email',
             'readinessChecks',
+            'providerLinks',
         ];
         if (Gate::allows('devices.commands.execute')) {
             $selectedDeviceRelations = array_merge($selectedDeviceRelations, [
@@ -598,10 +716,21 @@ class DeviceManagement extends Component
                 'capabilities' => $provider->capabilities(),
                 'commands_enabled' => $provider->enabled() && ($key === 'simulation'
                     ? app()->environment(['local', 'testing'])
-                    : $productionCommandsEnabled),
+                    : $providers->commandsEnabledFor($key)),
                 'remote_url_available' => filled($runtime['remote_url_template'] ?? null),
             ];
         })->values();
+
+        $enrollmentModeOptions = $selectedDevice && $this->enrollmentProvider !== ''
+            ? $enrollmentModes->optionsFor($selectedDevice, $this->enrollmentProvider)
+            : [];
+        $enrollmentProviderKeys = $selectedDevice
+            ? $providerCards
+                ->filter(fn (array $provider): bool => (bool) ($provider['capabilities']['enrollment'] ?? false)
+                    && $enrollmentModes->optionsFor($selectedDevice, $provider['key']) !== [])
+                ->pluck('key')
+                ->all()
+            : [];
 
         $locations = Device::query()
             ->whereNotNull('declared_location')
@@ -626,6 +755,8 @@ class DeviceManagement extends Component
             'selectedDevice' => $selectedDevice,
             'providerCards' => $providerCards,
             'productionCommandsEnabled' => $productionCommandsEnabled,
+            'enrollmentModeOptions' => $enrollmentModeOptions,
+            'enrollmentProviderKeys' => $enrollmentProviderKeys,
             'employees' => User::query()
                 ->where('status', true)
                 ->whereIn('role', ['admin', 'staff'])
@@ -665,6 +796,7 @@ class DeviceManagement extends Component
                 });
             })
             ->when($this->platformFilter !== '', fn (Builder $query) => $query->where('platform', $this->platformFilter))
+            ->when($this->formFactorFilter !== '', fn (Builder $query) => $query->where('form_factor', $this->formFactorFilter))
             ->when($this->lifecycleFilter !== '', fn (Builder $query) => $query->where('lifecycle_status', $this->lifecycleFilter))
             ->when($this->complianceFilter !== '', fn (Builder $query) => $query->where('compliance_status', $this->complianceFilter))
             ->when($this->locationFilter !== '', fn (Builder $query) => $query->where('declared_location', $this->locationFilter))
@@ -685,6 +817,7 @@ class DeviceManagement extends Component
             : (string) $device->platform;
         $registry = app(DeviceProviderRegistry::class);
         $settings = app(DeviceManagementSettings::class);
+        $modeCatalog = app(DeviceEnrollmentModeCatalog::class);
         $compatible = collect($settings->providerCatalog())
             ->map(fn (array $definition, string $key): array => [
                 'key' => $key,
@@ -693,15 +826,14 @@ class DeviceManagement extends Component
             ->filter(fn (array $entry): bool => $entry['provider']->enabled()
                 && $entry['provider']->supportsPlatform($platform));
 
-        $enrollment = $compatible->first(fn (array $entry): bool => (bool) ($entry['provider']->capabilities()['enrollment'] ?? false));
+        $enrollment = $compatible->first(fn (array $entry): bool => (bool) ($entry['provider']->capabilities()['enrollment'] ?? false)
+            && $modeCatalog->optionsFor($device, $entry['key']) !== []);
         $command = $compatible->first(fn (array $entry): bool => ($entry['provider']->capabilities()['commands'] ?? []) !== []);
         $this->enrollmentProvider = (string) ($enrollment['key'] ?? '');
         $this->commandProvider = (string) ($command['key'] ?? '');
         $this->updatedCommandProvider();
-        $this->enrollmentMode = match ($platform) {
-            'android' => 'work_profile',
-            'ios', 'ipados' => 'profile',
-            default => 'agent',
-        };
+        $this->enrollmentMode = $this->enrollmentProvider !== ''
+            ? ($modeCatalog->defaultFor($device, $this->enrollmentProvider) ?? '')
+            : '';
     }
 }

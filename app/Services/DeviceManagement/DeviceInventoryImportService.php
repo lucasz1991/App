@@ -29,6 +29,8 @@ class DeviceInventoryImportService
         'modell' => 'model', 'model' => 'model',
         'betriebssystem' => 'os_version', 'os_version' => 'os_version',
         'standort' => 'declared_location', 'location' => 'declared_location', 'declared_location' => 'declared_location',
+        'provider' => 'primary_provider', 'primary_provider' => 'primary_provider', 'primärprovider' => 'primary_provider', 'primaerprovider' => 'primary_provider',
+        'provider_geräte_id' => 'primary_provider_device_id', 'provider_geraete_id' => 'primary_provider_device_id', 'provider_device_id' => 'primary_provider_device_id', 'primary_provider_device_id' => 'primary_provider_device_id',
         'mitarbeiter' => 'employee_email', 'mitarbeiter_email' => 'employee_email', 'mitarbeiter_e-mail' => 'employee_email', 'employee_email' => 'employee_email',
     ];
 
@@ -67,6 +69,8 @@ class DeviceInventoryImportService
                 'model' => ['nullable', 'string', 'max:150'],
                 'os_version' => ['nullable', 'string', 'max:100'],
                 'declared_location' => ['nullable', 'string', 'max:191'],
+                'primary_provider' => ['nullable', 'required_with:primary_provider_device_id', 'string', 'regex:/^[a-z0-9_-]{2,64}$/'],
+                'primary_provider_device_id' => ['nullable', 'string', 'max:191', 'regex:/\A[A-Za-z0-9._:@$+=\/-]+\z/'],
                 'employee_email' => ['nullable', 'email', 'max:191'],
             ]);
             if ($validator->fails() || (blank($row['asset_tag']) && blank($row['serial_number']))) {
@@ -120,7 +124,18 @@ class DeviceInventoryImportService
                             'inventoryImport' => 'Ein Gerät der CSV ist ausgemustert/gelöscht und muss bewusst wiederhergestellt werden.',
                         ]);
                     }
+                    $providerWasExplicitlyChanged = array_key_exists('primary_provider', $attributes)
+                        && strtolower(trim((string) $device->primary_provider))
+                            !== strtolower(trim((string) $attributes['primary_provider']));
+                    if ($providerWasExplicitlyChanged
+                        && ! array_key_exists('primary_provider_device_id', $attributes)) {
+                        // Never reinterpret the previous provider's external
+                        // identifier as an ID in the newly selected system.
+                        $attributes['primary_provider_device_id'] = null;
+                    }
+
                     $device->fill($attributes + ['updated_by' => $actor->id])->save();
+                    $device->syncPrimaryProviderLink();
                     $summary['updated']++;
                 } else {
                     $device = Device::query()->create([
@@ -131,6 +146,7 @@ class DeviceInventoryImportService
                         'created_by' => $actor->id,
                         'updated_by' => $actor->id,
                     ]);
+                    $device->syncPrimaryProviderLink();
                     $summary['created']++;
                 }
 
@@ -189,7 +205,7 @@ class DeviceInventoryImportService
             }, $rawHeaders);
             if (in_array(null, $headers, true) || count(array_unique($headers)) !== count($headers)) {
                 throw ValidationException::withMessages([
-                    'inventoryImport' => 'Die CSV enthält unbekannte oder doppelte Spalten. Unterstützt: Inventarnummer, Seriennummer, Gerätename, Hostname, Plattform, Gerätetyp, Eigentum, Hersteller, Modell, Betriebssystem, Standort, Mitarbeiter_E-Mail.',
+                    'inventoryImport' => 'Die CSV enthält unbekannte oder doppelte Spalten. Unterstützt: Inventarnummer, Seriennummer, Gerätename, Hostname, Plattform, Gerätetyp, Eigentum, Hersteller, Modell, Betriebssystem, Standort, Provider, Provider_Device_ID, Mitarbeiter_E-Mail.',
                 ]);
             }
 
@@ -212,6 +228,9 @@ class DeviceInventoryImportService
                     'manufacturer' => '', 'model' => '', 'os_version' => '',
                     'declared_location' => '', 'employee_email' => '',
                 ];
+                if (array_key_exists('primary_provider', $row)) {
+                    $row['primary_provider'] = strtolower(trim($row['primary_provider']));
+                }
                 $rows[] = $row;
             }
 

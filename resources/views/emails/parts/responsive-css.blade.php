@@ -341,14 +341,14 @@ img.rt-logo { width: 150px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
 img.rt-logo { width: 138px !important; }
 
-/* Auf Telefonbreite ist der Zug 75 Prozent groesser als der Viewport. Sein
-   sichtbares Motiv endet dadurch knapp ausserhalb der rechten Kante: Die Lok
-   bleibt praesent, der lange Zug faehrt bewusst nicht vollstaendig ein. */
+/* Auf Telefonbreite ist der Zug 75 Prozent groesser als der Viewport. Der
+   gemessene Versatz haelt die Lok vollstaendig innerhalb der rechten Kante;
+   nur die langen Wagen bleiben links bewusst angeschnitten. */
 .rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-sign-train,
 .rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-train-idle-image {
   width: 175% !important;
   max-width: none !important;
-  margin-left: 0 !important;
+  margin-left: -8% !important;
 }
 
 

@@ -1,6 +1,6 @@
 # RailTime Geräteverwaltung
 
-Stand: 17. August 2026
+Stand: 23. August 2026
 
 Dieser Ordner dokumentiert die recherchierte Zielarchitektur, den Rollout der
 bereits deutschlandweit ausgegebenen Geräte und die Umsetzung in der
@@ -12,6 +12,47 @@ RailTime wird die fachliche Control Plane für Inventar, virtuelles Lager,
 Mitarbeiterzuordnung, Enrollment, Kontovorbereitung, Freigaben und Audit. Die
 technischen Aktionen werden capability-basiert an austauschbare Geräte- und
 Remote-Support-Backends delegiert.
+
+## Implementierter Stand in RailTime
+
+Der fachliche RailTime-Control-Plane-Scope ist im Anwendungscode umgesetzt und
+lokal testbar. Dazu gehören:
+
+- Gerätebestand, virtuelles Lager, Standorte, Lebenszyklus und historische
+  Mitarbeiterzuordnungen,
+- providerbezogene Geräteverknüpfungen, damit beispielsweise OpenUEM als
+  primäres Inventar-Backend und MeshCentral als Support-Backend dasselbe
+  RailTime-Gerät adressieren können,
+- an eine konkrete aktive Mitarbeiterzuordnung gebundene Enrollment-
+  Einladungen; Rückgabe oder Neuzuweisung widerruft die alte Einladung und
+  zugehörige noch nicht ausgeführte Vorbereitungsschritte,
+- versionierte Pflichtprofile und eine evidenzbasierte Readiness-Auswertung
+  für Enrollment, Identität, Profile, Provider-Synchronisation, Compliance und
+  Remote-Support,
+- eine persistente, idempotente Identity-Sync-Outbox für serverseitige
+  Connector-Aufträge. Sie überträgt nur fachliche Referenzen und Statusdaten,
+  niemals Mitarbeiterpasswörter, OAuth-Tokens oder Recovery Codes,
+- Queue-Kommandos, Artefakte, Audit, Vier-Augen-Freigabe für Wipe sowie der
+  zentrale Mutations-Kill-Switch,
+- Datenbankgestützte Provider-Einstellungen im RailTime-Einstellungsbereich
+  einschließlich Diagnosefunktionen; für die RailTime-Anbindung werden keine
+  zusätzlichen `DEVICE_*`-Umgebungsvariablen benötigt,
+- ein striktes Produktions-Gate: Mutierende Kommandos an einen externen
+  Provider werden nur nach einem aktuellen erfolgreichen Verbindungstest mit
+  unverändertem Ziel-, Secret- und Capability-Fingerprint freigegeben. Eine
+  geänderte Konfiguration oder ein roter Health-Check entzieht die Freigabe,
+- ein deploybarer MeshCentral-Connector für Health, bereits per nativer Node-ID
+  gebundenen Remote-Support, freigegebene Skripte/Artefakte und Diagnose.
+  Generische Mesh-Enrollment-Links und Neustarts werden fail-closed abgelehnt,
+  weil weder Gerätebindung/Einzelwiderruf noch Abschluss belegbar sind.
+  Zugangsdaten liegen nicht in
+  dieser Dokumentation und gehören ausschließlich in den geschützten
+  Connectorbetrieb.
+
+Dieser Stand ist **keine Produktionsfreigabe für die reale Geräteflotte**. Der
+RailTime-Code und der Connector-Vertrag sind vorbereitet; ein echter
+End-to-End-Test auf dem vorgesehenen Plesk-Server und mit ausgewiesenen
+Laborgeräten ist noch nicht erfolgt.
 
 ## Warum kein einzelnes kostenloses UEM gewählt wurde
 
@@ -32,6 +73,35 @@ Audit und Account-Bootstrapping produktionsreif abdeckt. Deshalb gilt:
 - Identität: Microsoft Entra ist führend; Google Workspace/Cloud Identity und
   Apple Business werden föderiert. RailTime speichert niemals Passwörter oder
   Mitarbeiter-Login-Tokens.
+
+## Noch offene externe Gates (NO-GO für Produktion)
+
+- Plesk, der reale MeshCentral-Dienst und mindestens ein ausgewiesenes
+  Laborgerät je freizugebendem Zielmodus müssen end-to-end getestet werden.
+- MeshAgents müssen vorab über ein qualifiziertes MDM/UEM oder administrativ
+  kontrolliert installiert und anschließend mit der geprüften nativen Node-ID
+  über `Gerät > Provider-Verknüpfungen > Verknüpfen` als aktiver Support-Link
+  zum inventarisierten RailTime-Gerät gebunden werden. Abweichende bestehende
+  IDs werden nicht still überschrieben; direkte DB-Eingriffe sind kein
+  Produktionsweg.
+  MeshCentral meldet kein RailTime-Enrollment und keine automatische
+  Completion.
+- Native Connector-Adapter für OpenUEM, Headwind und NanoMDM sind noch nicht
+  implementiert. Bis dahin dürfen deren Fähigkeiten nicht als produktiv
+  verfügbar angezeigt oder freigeschaltet werden.
+- Apple benötigt reale Apple-Business-, APNs-, ADE-, Apps-&-Books- und SCEP-
+  Einrichtung einschließlich Zertifikats- und Erneuerungsbetrieb.
+- Entra/Graph, Google Admin und gegebenenfalls Apple-Föderation benötigen
+  freigegebene Mandanten, Serviceidentitäten und minimale externe
+  Berechtigungen. Diese Credentials werden nicht in RailTime-Dokumenten oder
+  im Quellcode hinterlegt.
+- Android Full Management benötigt die Auswahl und Qualifizierung eines
+  geeigneten EMM. Headwind Community allein belegt den geforderten
+  Gesamtumfang nicht.
+
+Bis diese Gates mit Providerbelegen abgeschlossen sind, bleiben externe
+Mutationen abgeschaltet. Simulation und lokale Vertragstests ersetzen keinen
+Test am echten Gerät.
 
 ## Dokumente
 

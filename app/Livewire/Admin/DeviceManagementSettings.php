@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Services\DeviceManagement\DeviceIdentitySyncService;
 use App\Services\DeviceManagement\DeviceManagementSettings as DeviceManagementSettingsService;
 use App\Services\DeviceManagement\DeviceProviderDiagnosticsService;
 use Illuminate\Support\Arr;
@@ -316,17 +317,23 @@ class DeviceManagementSettings extends Component
         $this->runSettingsMutation(
             fn (): mixed => app(DeviceManagementSettingsService::class)->setProductionCommandsEnabled($enabled),
             'runtime.production_commands_enabled',
-            'Der globale Befehls-Schalter kann mit der aktuellen Gerätekonfiguration nicht geändert werden.',
-            'Der globale Befehls-Schalter konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.',
+            'Die Produktionsfreigabe benötigt für jeden aktiven Connector mit Enrollment, Konto-Synchronisation oder Gerätebefehlen einen höchstens 15 Minuten alten, vollständig erfolgreichen Funktionstest. Ein Test aktiviert den Schalter niemals automatisch.',
+            'Der globale Aktions-Schalter konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.',
         );
+
+        $releasedIdentitySyncs = $enabled
+            ? app(DeviceIdentitySyncService::class)
+                ->releaseGateBlocked(auth()->user())
+            : 0;
 
         $this->reloadForm();
         $this->dispatch(
             'swal:toast',
             type: $enabled ? 'warning' : 'success',
             text: $enabled
-                ? 'Externe Gerätebefehle wurden freigeschaltet.'
-                : 'Externe Gerätebefehle wurden durch den globalen Schutzschalter deaktiviert.',
+                ? 'Externe Geräteaktionen und Konto-Synchronisationen wurden freigeschaltet.'
+                    .($releasedIdentitySyncs > 0 ? " {$releasedIdentitySyncs} wartende Kontoaufträge wurden eingereiht." : '')
+                : 'Externe Geräteaktionen und Konto-Synchronisationen wurden durch den globalen Schutzschalter deaktiviert.',
         );
     }
 

@@ -138,14 +138,15 @@ return [
             'capabilities' => [
                 'platforms' => ['windows', 'macos', 'linux'],
                 'inventory' => false,
-                'enrollment' => true,
+                // MeshCentral group invites cannot be correlated to one
+                // RailTime assignment or revoked with exact TTL semantics.
+                // Existing agents are bound manually by their native Node-ID.
+                'enrollment' => false,
                 'remote_support' => true,
                 'unattended_remote_support' => true,
                 'commands' => [
-                    $command(DeviceCommandType::Restart),
                     $command(DeviceCommandType::ExecuteScript),
                     $command(DeviceCommandType::CollectDiagnostics),
-                    $command(DeviceCommandType::StartRemoteSupport),
                 ],
                 'readiness_checks' => ['remote_support'],
             ],
@@ -230,6 +231,7 @@ return [
                 'health' => '/v1/health',
                 'enrollment' => '/v1/enrollments-disabled',
                 'command' => '/v1/commands-disabled',
+                'identity_sync' => '/v1/identity-sync',
             ],
             'remote_url_template' => '',
             'capabilities' => [

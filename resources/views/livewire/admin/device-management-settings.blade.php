@@ -579,7 +579,7 @@
     <x-admin.settings-accordion-section
         section="device-safety"
         :label="$isGerman ? 'Produktionsschutz' : 'Production safety'"
-        :description="$isGerman ? 'Externe Gerätebefehle bleiben unabhängig von Providerzugängen standardmäßig blockiert.' : 'External device commands remain blocked by default, independently of provider credentials.'"
+        :description="$isGerman ? 'Enrollment, Konto-Synchronisationen und Gerätebefehle bleiben unabhängig von Providerzugängen standardmäßig blockiert.' : 'Enrollment, identity synchronization and device commands remain blocked by default, independently of provider credentials.'"
         icon="fad fa-shield-alt"
         data-anim="fade-up"
         data-anim-delay="0.16"
@@ -593,7 +593,7 @@
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
                             <h3 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">
-                                {{ $isGerman ? 'Globaler Befehls-Schalter' : 'Global command switch' }}
+                                {{ $isGerman ? 'Globaler Aktions-Schalter' : 'Global action switch' }}
                             </h3>
                             <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $commandsEnabled ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/25' : 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/25' }}">
                                 {{ $commandsEnabled ? ($isGerman ? 'Befehle freigegeben' : 'Commands enabled') : ($isGerman ? 'Sicher blockiert' : 'Safely blocked') }}
@@ -610,8 +610,8 @@
                     type="button"
                     wire:click="setProductionCommandsEnabled({{ $commandsEnabled ? 'false' : 'true' }})"
                     wire:confirm="{{ $commandsEnabled
-                        ? ($isGerman ? 'Externe Gerätebefehle jetzt global blockieren?' : 'Block external device commands globally now?')
-                        : ($isGerman ? 'Externe Gerätebefehle wirklich global freigeben? Provider, Laborgeräte und Rollback müssen zuvor geprüft sein.' : 'Enable external device commands globally? Providers, lab devices and rollback must be verified first.') }}"
+                        ? ($isGerman ? 'Externe Geräteaktionen und Konto-Synchronisationen jetzt global blockieren?' : 'Block external device actions and identity synchronization globally now?')
+                        : ($isGerman ? 'Externe Geräteaktionen und Konto-Synchronisationen wirklich global freigeben? Provider, Laborgeräte und Rollback müssen zuvor geprüft sein.' : 'Enable external device actions and identity synchronization globally? Providers, lab devices and rollback must be verified first.') }}"
                     wire:loading.attr="disabled"
                     wire:target="setProductionCommandsEnabled"
                     class="rt-ui-button min-h-11 w-full shrink-0 {{ $commandsEnabled ? 'rt-ui-button-secondary' : 'bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-rose-500' }} lg:w-auto"

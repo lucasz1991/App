@@ -27,6 +27,19 @@ class Kernel extends ConsoleKernel
         $schedule->job(new PurgeExpiredCallRecordings)
             ->dailyAt('02:15')
             ->withoutOverlapping();
+
+        // Read-only probes keep the short-lived production evidence current.
+        // A failed or changed connector closes the mutation gate; this task
+        // never enables it and never sends a device/account mutation.
+        $schedule->command('devices:probe-providers')
+            ->everyFiveMinutes()
+            ->withoutOverlapping();
+
+        // Durable Identity-Outbox rows can outlive a queue outage. Recovery
+        // only runs behind the same fresh production gate as normal dispatch.
+        $schedule->command('devices:recover-identity-outbox')
+            ->everyFiveMinutes()
+            ->withoutOverlapping();
     }
 
     /**

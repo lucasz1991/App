@@ -18,6 +18,7 @@ class DeviceAccountPreparationService
         private readonly DeviceProvisioningProfileCatalog $profiles,
         private readonly DeviceReadinessService $readiness,
         private readonly DeviceManagementSettings $settings,
+        private readonly DeviceIdentitySyncService $identitySyncs,
     ) {}
 
     /**
@@ -37,6 +38,12 @@ class DeviceAccountPreparationService
     ): array {
         Gate::forUser($actor)->authorize('devices.accounts.manage');
 
+        if (! $employee->isActive()) {
+            throw ValidationException::withMessages([
+                'employee' => 'Konten koennen nur fuer aktive Mitarbeiter vorbereitet werden.',
+            ]);
+        }
+
         $activeUserId = $device->activeAssignment()->value('user_id');
         if ((int) $activeUserId !== (int) $employee->id) {
             throw ValidationException::withMessages([
@@ -52,18 +59,36 @@ class DeviceAccountPreparationService
             ->values();
 
         $assignments = DB::transaction(function () use ($device, $employee, $actor, $normalized): array {
+            $lockedDevice = Device::query()->lockForUpdate()->findOrFail($device->getKey());
+            $activeUserId = $lockedDevice->activeAssignment()->value('user_id');
+            if ((int) $activeUserId !== (int) $employee->id || ! $employee->fresh()?->isActive()) {
+                throw ValidationException::withMessages([
+                    'employee' => 'Die aktive Mitarbeiterzuweisung hat sich geaendert. Bitte die Ansicht neu laden.',
+                ]);
+            }
+
             $catalog = $this->profiles->ensurePersisted($actor);
             $result = [];
 
             foreach ($normalized as $provider) {
                 $principal = $this->principalFor($employee, $provider);
-                $identity = EmployeeIdentityAccount::query()->updateOrCreate(
-                    [
+                $identity = EmployeeIdentityAccount::query()
+                    ->where('provider', $provider->value)
+                    ->where('principal', $principal)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($identity && (int) $identity->user_id !== (int) $employee->id) {
+                    throw ValidationException::withMessages([
+                        'employee' => "Die Identitaet {$principal} ist bereits einem anderen Mitarbeiter zugeordnet.",
+                    ]);
+                }
+
+                if (! $identity) {
+                    $identity = EmployeeIdentityAccount::query()->create([
+                        'user_id' => $employee->id,
                         'provider' => $provider->value,
                         'principal' => $principal,
-                    ],
-                    [
-                        'user_id' => $employee->id,
                         'email' => $principal,
                         'lifecycle_status' => 'active',
                         // Der echte Provider muss Existenz und Lizenz belegen.
@@ -72,8 +97,17 @@ class DeviceAccountPreparationService
                         'metadata' => [
                             'source' => 'railtime_desired_state',
                         ],
-                    ],
-                );
+                    ]);
+                } else {
+                    // A repeated preparation must not erase evidence already
+                    // returned by the identity provider (external id, license
+                    // and provisioning state). Only the local desired-state
+                    // ownership fields are refreshed.
+                    $identity->forceFill([
+                        'email' => $principal,
+                        'lifecycle_status' => 'active',
+                    ])->save();
+                }
 
                 foreach ($catalog as $profile) {
                     if ($profile->provider !== $provider->value
@@ -81,7 +115,7 @@ class DeviceAccountPreparationService
                         continue;
                     }
 
-                    $result[] = DeviceAccountAssignment::query()->updateOrCreate(
+                    $assignment = DeviceAccountAssignment::query()->firstOrCreate(
                         [
                             'device_id' => $device->id,
                             'employee_identity_account_id' => $identity->id,
@@ -98,8 +132,50 @@ class DeviceAccountPreparationService
                             'error_message' => null,
                         ],
                     );
+
+                    if ((int) $assignment->user_id !== (int) $employee->id) {
+                        throw ValidationException::withMessages([
+                            'employee' => 'Ein vorhandenes Geraeteprofil gehoert noch zu einer anderen Mitarbeiterzuweisung.',
+                        ]);
+                    }
+
+                    // The unique row is historical across handovers. If this
+                    // employee receives the same device again, explicitly
+                    // reactivate a previously revoked desired state instead of
+                    // leaving firstOrCreate's old values inert. Current
+                    // applied/ready evidence is preserved on ordinary repeats.
+                    if ($assignment->desired_state !== 'assigned' || $assignment->status === 'revoked') {
+                        $assignment->forceFill([
+                            'user_id' => $employee->id,
+                            'desired_state' => 'assigned',
+                            'status' => 'pending_provider',
+                            'requested_at' => now(),
+                            'configured_at' => null,
+                            'last_attempted_at' => null,
+                            'error_code' => null,
+                            'error_message' => null,
+                        ])->save();
+                    }
+
+                    $result[] = $assignment;
                 }
             }
+
+            $accountAssignmentIds = collect($result)
+                ->map(fn (DeviceAccountAssignment $assignment): int => (int) $assignment->getKey())
+                ->unique()
+                ->values()
+                ->all();
+
+            // The desired-state rows and their durable outbox entry are one
+            // business transaction. Only the queue transport is deferred by
+            // DeviceIdentitySyncService until the outermost commit succeeds.
+            $this->identitySyncs->queuePrepared(
+                (int) $lockedDevice->getKey(),
+                (int) $employee->getKey(),
+                (int) $actor->getKey(),
+                $accountAssignmentIds,
+            );
 
             return $result;
         });

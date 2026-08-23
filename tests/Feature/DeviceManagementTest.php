@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Testing\TestResponse;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use RuntimeException;
@@ -70,6 +71,8 @@ class DeviceManagementTest extends TestCase
         $this->assertTrue(Schema::hasTable('devices'));
         $this->assertTrue(Schema::hasTable('device_account_assignments'));
         $this->assertTrue(Schema::hasTable('device_commands'));
+        $this->assertFalse(Schema::hasTable('device_provider_links'));
+        $this->assertFalse(Schema::hasTable('device_identity_syncs'));
     }
 
     public function test_device_migration_never_deletes_an_interrupted_installation_with_data(): void
@@ -90,6 +93,104 @@ class DeviceManagementTest extends TestCase
         $this->assertDatabaseHas('devices', [
             'public_id' => '8beef463-b375-4bca-8dd5-5cc46a6cbab4',
         ]);
+    }
+
+    public function test_device_migration_never_deletes_a_populated_later_table_during_recovery(): void
+    {
+        $deviceId = DB::table('devices')->insertGetId([
+            'public_id' => '1ee06bb4-b9b6-4be7-8e1d-41e0c92e2934',
+        ]);
+
+        DB::table('device_provider_links')->insert([
+            'device_id' => $deviceId,
+            'provider' => 'meshcentral',
+            'external_device_id' => 'node-recovery-guard',
+            'role' => 'support',
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_08_17_070000_create_device_management_tables.php');
+
+        try {
+            $migration->up();
+            $this->fail('A populated later migration table must never be dropped during recovery.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('device_provider_links', $exception->getMessage());
+        }
+
+        $this->assertTrue(Schema::hasTable('devices'));
+        $this->assertTrue(Schema::hasTable('device_provider_links'));
+        $this->assertDatabaseHas('device_provider_links', [
+            'provider' => 'meshcentral',
+            'external_device_id' => 'node-recovery-guard',
+        ]);
+    }
+
+    public function test_targeted_base_rollback_fails_closed_while_later_tables_exist(): void
+    {
+        $deviceId = DB::table('devices')->insertGetId([
+            'public_id' => 'e081cf59-54ca-471a-b5c0-bf803a3f7929',
+        ]);
+
+        DB::table('device_provider_links')->insert([
+            'device_id' => $deviceId,
+            'provider' => 'meshcentral',
+            'external_device_id' => 'node-rollback-guard',
+            'role' => 'support',
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_08_17_070000_create_device_management_tables.php');
+
+        try {
+            $migration->down();
+            $this->fail('The base migration must not remove tables owned by later migrations.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('nachgelagerte Tabellen', $exception->getMessage());
+            $this->assertStringContainsString('device_provider_links', $exception->getMessage());
+            $this->assertStringContainsString('device_identity_syncs', $exception->getMessage());
+        }
+
+        $this->assertTrue(Schema::hasTable('devices'));
+        $this->assertTrue(Schema::hasTable('device_provider_links'));
+        $this->assertTrue(Schema::hasTable('device_identity_syncs'));
+        $this->assertDatabaseHas('devices', [
+            'public_id' => 'e081cf59-54ca-471a-b5c0-bf803a3f7929',
+        ]);
+        $this->assertDatabaseHas('device_provider_links', [
+            'external_device_id' => 'node-rollback-guard',
+        ]);
+    }
+
+    public function test_base_migration_rolls_back_after_later_migrations_are_reversed(): void
+    {
+        $identityLeaseMigration = require database_path('migrations/2026_08_23_000600_add_queue_lease_to_device_identity_syncs_table.php');
+        $commandBindingMigration = require database_path('migrations/2026_08_23_000500_bind_device_commands_to_assignments.php');
+        $providerEventMigration = require database_path('migrations/2026_08_23_000400_create_device_provider_events.php');
+        $identityMigration = require database_path('migrations/2026_08_23_000300_create_device_identity_syncs_table.php');
+        $providerLinkMigration = require database_path('migrations/2026_08_23_000200_create_device_provider_links.php');
+        $enrollmentBindingMigration = require database_path('migrations/2026_08_23_000100_bind_device_enrollments_to_assignments.php');
+        $baseMigration = require database_path('migrations/2026_08_17_070000_create_device_management_tables.php');
+
+        $identityLeaseMigration->down();
+        $commandBindingMigration->down();
+        $providerEventMigration->down();
+        $identityMigration->down();
+        $providerLinkMigration->down();
+        $enrollmentBindingMigration->down();
+        $baseMigration->down();
+
+        $this->assertFalse(Schema::hasTable('device_identity_syncs'));
+        $this->assertFalse(Schema::hasTable('device_provider_events'));
+        $this->assertFalse(Schema::hasTable('device_provider_links'));
+        $this->assertFalse(Schema::hasTable('device_commands'));
+        $this->assertFalse(Schema::hasTable('device_assignments'));
+        $this->assertFalse(Schema::hasTable('devices'));
+        $this->assertTrue(Schema::hasTable('users'));
     }
 
     public function test_device_permissions_are_fail_closed_for_normal_staff_and_available_to_admin(): void
@@ -227,6 +328,7 @@ class DeviceManagementTest extends TestCase
 
         $raw = DB::table('device_enrollments')->where('id', $invitation->enrollment->id)->first();
         $this->assertSame(hash('sha256', $invitation->plainToken), $raw->token_hash);
+        $this->assertSame($device->activeAssignment()->value('id'), $raw->device_assignment_id);
         $this->assertStringNotContainsString($invitation->plainToken, json_encode($raw, JSON_THROW_ON_ERROR));
 
         try {
@@ -237,10 +339,196 @@ class DeviceManagementTest extends TestCase
         }
 
         $claim = app(DeviceEnrollmentService::class)->claim($invitation->plainToken, $employee);
-        $reload = app(DeviceEnrollmentService::class)->claim($invitation->plainToken, $employee);
+        try {
+            app(DeviceEnrollmentService::class)->claim($invitation->plainToken, $employee);
+            $this->fail('A clear enrollment token must be unusable after its first atomic claim.');
+        } catch (ValidationException) {
+            $this->assertTrue(true);
+        }
+        $reload = app(DeviceEnrollmentService::class)->resumeClaimed($claim->enrollment->public_id, $employee);
         $this->assertSame($invitation->enrollment->public_id, $claim->enrollment->public_id);
         $this->assertSame($claim->enrollment->public_id, $reload->enrollment->public_id);
         $this->assertSame('claimed', DeviceEnrollment::find($invitation->enrollment->id)->status->value);
+        $this->assertNotSame(hash('sha256', $invitation->plainToken), DB::table('device_enrollments')->where('id', $invitation->enrollment->id)->value('token_hash'));
+    }
+
+    public function test_claimed_enrollment_setup_refreshes_via_session_without_reusing_the_token(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $device = $this->device($admin, $employee);
+        $invitation = app(DeviceEnrollmentService::class)->invite(
+            $device,
+            $employee,
+            'simulation',
+            'agent',
+            $admin,
+            60,
+        );
+        $url = route('devices.enrollment', ['token' => $invitation->plainToken]);
+
+        $this->actingAs($employee)->get($url)->assertOk()->assertSee('Einrichtungsschritte');
+        $this->get($url)->assertOk()->assertSee('Einrichtungsschritte');
+
+        $this->assertSame('claimed', $invitation->enrollment->fresh()->status->value);
+        $this->assertNotSame(
+            hash('sha256', $invitation->plainToken),
+            DB::table('device_enrollments')->where('id', $invitation->enrollment->id)->value('token_hash'),
+        );
+    }
+
+    public function test_reassignment_revokes_user_context_and_rejects_stale_profile_commands(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $successor = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $device = $this->device($admin, $employee);
+        $profiles = app(DeviceAccountPreparationService::class)->prepare(
+            $device,
+            $employee,
+            $admin,
+            [AccountProvider::Microsoft365],
+        );
+        $invitation = app(DeviceEnrollmentService::class)->invite(
+            $device,
+            $employee,
+            'simulation',
+            'agent',
+            $admin,
+            60,
+        );
+        $queued = DeviceCommand::query()->create([
+            'device_id' => $device->id,
+            'provider' => 'simulation',
+            'type' => DeviceCommandType::ApplyProfile,
+            'status' => DeviceCommandStatus::Queued,
+            'is_destructive' => false,
+            'justification' => 'Altes Mitarbeiterprofil wartet vor der Neuzuweisung.',
+            'payload' => ['profiles' => [['assignment_id' => $profiles[0]->id]]],
+            'correlation_id' => 'stale-profile-before-reassignment',
+            'requested_by' => $admin->id,
+            'requested_at' => now(),
+        ]);
+
+        app(DeviceInventoryService::class)->assign($device, $successor, $admin);
+
+        $this->assertSame($successor->id, $device->fresh()->activeAssignment()->value('user_id'));
+        $this->assertDatabaseHas('device_enrollments', [
+            'id' => $invitation->enrollment->id,
+            'status' => 'revoked',
+        ]);
+        $this->assertDatabaseHas('device_account_assignments', [
+            'id' => $profiles[0]->id,
+            'desired_state' => 'unassigned',
+            'status' => 'revoked',
+        ]);
+        $this->assertSame(DeviceCommandStatus::Cancelled, $queued->fresh()->status);
+
+        try {
+            app(DeviceEnrollmentService::class)->claim($invitation->plainToken, $employee);
+            $this->fail('A revoked handover invitation must not remain claimable.');
+        } catch (ValidationException) {
+            $this->assertTrue(true);
+        }
+
+        $this->expectException(ValidationException::class);
+        app(DeviceCommandService::class)->request(
+            $device->fresh(),
+            'simulation',
+            DeviceCommandType::ApplyProfile,
+            $admin,
+            'Das alte Profil darf nach Mitarbeiterwechsel nicht mehr laufen.',
+            ['profiles' => [['assignment_id' => $profiles[0]->id, 'principal' => $employee->email]]],
+        );
+    }
+
+    public function test_enrollment_mode_matrix_rejects_incompatible_ownership_and_drives_the_ui(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $device = app(DeviceInventoryService::class)->create([
+            'asset_tag' => 'RT-BYOD-ANDROID-1',
+            'serial_number' => 'BYOD-ANDROID-1',
+            'display_name' => 'Android BYOD',
+            'form_factor' => 'phone',
+            'platform' => 'android',
+            'ownership' => 'byod',
+            'primary_provider' => 'simulation',
+        ], $admin);
+        app(DeviceInventoryService::class)->assign($device, $employee, $admin);
+
+        try {
+            app(DeviceEnrollmentService::class)->invite(
+                $device,
+                $employee,
+                'simulation',
+                'fully_managed',
+                $admin,
+            );
+            $this->fail('BYOD must never be offered a fully managed reset enrollment.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('mode', $exception->errors());
+        }
+
+        Livewire::actingAs($admin)
+            ->test(DeviceManagement::class)
+            ->call('selectDevice', $device->public_id)
+            ->assertSet('enrollmentProvider', 'simulation')
+            ->assertSet('enrollmentMode', 'agent')
+            ->assertSee('Agent installieren')
+            ->assertSee('Android-Arbeitsprofil')
+            ->assertDontSee('Android vollständig verwaltet');
+    }
+
+    public function test_limited_enrollment_and_heartbeat_update_truthful_readiness(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $device = app(DeviceInventoryService::class)->create([
+            'asset_tag' => 'RT-LIMITED-ANDROID-1',
+            'serial_number' => 'LIMITED-ANDROID-1',
+            'display_name' => 'Android Arbeitsprofil',
+            'form_factor' => 'phone',
+            'platform' => 'android',
+            'ownership' => 'byod',
+            'primary_provider' => 'simulation',
+        ], $admin);
+        app(DeviceInventoryService::class)->assign($device, $employee, $admin);
+        $invitation = app(DeviceEnrollmentService::class)->invite(
+            $device,
+            $employee,
+            'simulation',
+            'work_profile',
+            $admin,
+        );
+        app(DeviceEnrollmentService::class)->claim($invitation->plainToken, $employee);
+
+        $this->postSignedDeviceWebhook([
+            'event_id' => 'evt-enrollment-limited-1',
+            'event_type' => 'enrollment.completed',
+            'enrollment_id' => $invitation->enrollment->public_id,
+        ])->assertOk();
+
+        $this->assertSame('limited', $device->fresh()->management_status->value);
+        $this->assertDatabaseHas('device_readiness_checks', [
+            'device_id' => $device->id,
+            'check_key' => 'enrollment',
+            'status' => 'passed',
+            'source' => 'provider_receipt',
+        ]);
+
+        $this->postSignedDeviceWebhook([
+            'event_id' => 'evt-device-seen-1',
+            'event_type' => 'device.seen',
+            'device_id' => $device->public_id,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('device_readiness_checks', [
+            'device_id' => $device->id,
+            'check_key' => 'provider_sync',
+            'status' => 'passed',
+            'source' => 'simulation',
+        ]);
     }
 
     public function test_commands_are_capability_checked_and_wipe_requires_a_different_admin(): void
@@ -333,6 +621,42 @@ class DeviceManagementTest extends TestCase
         );
         $this->assertSame(DeviceCommandStatus::Succeeded, $command->fresh()->status);
 
+        try {
+            app(DeviceCommandService::class)->request(
+                $device,
+                'simulation',
+                DeviceCommandType::InstallSoftware,
+                $admin,
+                'Ein Skript darf nicht als Softwarepaket ausgeführt werden.',
+                [
+                    'artifact_public_id' => $artifact->public_id,
+                    'artifact_sha256' => $artifact->sha256,
+                    'artifact_kind' => $artifact->kind,
+                ],
+            );
+            $this->fail('Artifact kind must be enforced in the service layer.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('payload', $exception->errors());
+        }
+
+        try {
+            app(DeviceCommandService::class)->request(
+                $device,
+                'simulation',
+                DeviceCommandType::ExecuteScript,
+                $admin,
+                'Ein veränderter Hash darf nicht in die Queue gelangen.',
+                [
+                    'artifact_public_id' => $artifact->public_id,
+                    'artifact_sha256' => str_repeat('0', 64),
+                    'artifact_kind' => $artifact->kind,
+                ],
+            );
+            $this->fail('Artifact integrity must be enforced before queueing.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('payload', $exception->errors());
+        }
+
         $this->expectException(ValidationException::class);
         app(DeviceCommandService::class)->request(
             $device,
@@ -363,6 +687,16 @@ class DeviceManagementTest extends TestCase
             'token' => str_repeat('t', 32),
             'webhook_secret' => $webhookSecret,
         ]);
+        $settings->recordProviderDiagnostic('openuem', [
+            'status' => 'healthy',
+            'healthy' => true,
+            'authenticated' => true,
+            'contract_valid' => true,
+            'contract' => [
+                'upstream_reachable' => true,
+                'upstream_authenticated' => true,
+            ],
+        ], $settings->providerFingerprint('openuem', fresh: true));
         $settings->setProductionCommandsEnabled(true);
 
         DeviceCommand::query()->create([
@@ -503,12 +837,14 @@ class DeviceManagementTest extends TestCase
             ->assertSet('showProviderReadiness', false)
             ->set('search', 'Notebook')
             ->set('platformFilter', 'windows')
+            ->set('formFactorFilter', 'laptop')
             ->set('lifecycleFilter', 'inventory')
             ->set('complianceFilter', 'warning')
             ->set('locationFilter', 'Köln Hbf')
             ->call('clearFilters')
             ->assertSet('search', '')
             ->assertSet('platformFilter', '')
+            ->assertSet('formFactorFilter', '')
             ->assertSet('lifecycleFilter', '')
             ->assertSet('complianceFilter', '')
             ->assertSet('locationFilter', '');
@@ -560,6 +896,11 @@ class DeviceManagementTest extends TestCase
             'device_management.providers.meshcentral.remote_url_template',
             'https://support.rail-time.test/device/{device_id}',
         );
+        $device->ensureProviderLink(
+            'meshcentral',
+            \App\Models\DeviceProviderLink::ROLE_SUPPORT,
+            'node/railtime.example/AbC_0123456789@$+=.remote-support-01',
+        );
 
         Livewire::actingAs($admin)
             ->test(DeviceManagement::class)
@@ -598,5 +939,22 @@ class DeviceManagementTest extends TestCase
         app(DeviceInventoryService::class)->assign($device, $employee, $admin);
 
         return $device->fresh();
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function postSignedDeviceWebhook(array $payload): TestResponse
+    {
+        $raw = json_encode($payload, JSON_THROW_ON_ERROR);
+        $timestamp = (string) now()->timestamp;
+        $signature = hash_hmac('sha256', $timestamp.'.'.$raw, 'test-device-webhook-secret');
+
+        return $this->postJson(
+            route('api.device-management.providers.events', ['provider' => 'simulation']),
+            $payload,
+            [
+                'X-RailTime-Timestamp' => $timestamp,
+                'X-RailTime-Signature' => 'sha256='.$signature,
+            ],
+        );
     }
 }

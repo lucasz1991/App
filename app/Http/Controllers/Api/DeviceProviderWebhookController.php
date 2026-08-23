@@ -8,10 +8,16 @@ use App\Enums\DeviceManagementStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Device;
 use App\Models\DeviceAccountAssignment;
+use App\Models\DeviceAssignment;
 use App\Models\DeviceCommand;
 use App\Models\DeviceEnrollment;
+use App\Models\DeviceIdentitySync;
+use App\Models\DeviceProviderEvent;
+use App\Models\DeviceProviderLink;
 use App\Models\DeviceReadinessCheck;
 use App\Models\EmployeeIdentityAccount;
+use App\Models\User;
+use App\Services\DeviceManagement\DeviceEnrollmentModeCatalog;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\DeviceProviderRegistry;
 use App\Services\DeviceManagement\DeviceReadinessService;
@@ -24,6 +30,8 @@ use JsonException;
 
 final class DeviceProviderWebhookController extends Controller
 {
+    public function __construct(private readonly DeviceEnrollmentModeCatalog $enrollmentModes) {}
+
     public function __invoke(
         Request $request,
         string $provider,
@@ -83,21 +91,77 @@ final class DeviceProviderWebhookController extends Controller
             return response()->json(['message' => 'Webhook-Schema ungültig.'], 422);
         }
 
-        $handled = match ($eventType) {
-            'command.running', 'command.succeeded', 'command.failed' => $this->handleCommand($provider, $eventId, $eventType, $payload),
-            'enrollment.completed' => $this->handleEnrollment($provider, $payload),
-            'device.seen' => $this->handleDeviceSeen($provider, $payload),
-            'readiness.updated' => $this->handleReadiness($provider, $providerDriver->capabilities(), $payload),
-            'identity.updated' => $this->handleIdentity($provider, $payload),
-            'profiles.applied' => $this->handleProfilesApplied($provider, $providerDriver->capabilities(), $payload),
-            default => false,
-        };
+        $payloadHash = hash('sha256', $rawBody);
+        try {
+            $duplicate = DB::transaction(function () use (
+                $provider,
+                $providerDriver,
+                $eventId,
+                $eventType,
+                $payload,
+                $payloadHash,
+            ): bool {
+                $event = DeviceProviderEvent::query()->firstOrCreate(
+                    ['provider' => $provider, 'event_id' => $eventId],
+                    [
+                        'event_type' => $eventType,
+                        'payload_hash' => $payloadHash,
+                        'status' => DeviceProviderEvent::STATUS_PROCESSING,
+                    ],
+                );
 
-        if (! $handled) {
+                if (! $event->wasRecentlyCreated) {
+                    $event = DeviceProviderEvent::query()
+                        ->whereKey($event->getKey())
+                        ->lockForUpdate()
+                        ->firstOrFail();
+                    if (! hash_equals((string) $event->payload_hash, $payloadHash)
+                        || ! hash_equals((string) $event->event_type, $eventType)) {
+                        throw new DeviceProviderEventCollision;
+                    }
+                    if ($event->status !== DeviceProviderEvent::STATUS_ACCEPTED) {
+                        throw new DeviceProviderEventInProgress;
+                    }
+
+                    // No handler, audit logger or readiness writer is called on
+                    // an identical retry. Its original evidence timestamps stay
+                    // immutable.
+                    return true;
+                }
+
+                $handled = match ($eventType) {
+                    'command.running', 'command.succeeded', 'command.failed' => $this->handleCommand($provider, $eventId, $eventType, $payload),
+                    'enrollment.completed' => $this->handleEnrollment($provider, $payload),
+                    'device.seen' => $this->handleDeviceSeen($provider, $payload),
+                    'readiness.updated' => $this->handleReadiness($provider, $providerDriver->capabilities(), $payload),
+                    'identity.updated' => $this->handleIdentity($provider, $eventId, $payload),
+                    'profiles.applied' => $this->handleProfilesApplied($provider, $providerDriver->capabilities(), $payload),
+                    default => false,
+                };
+                if (! $handled) {
+                    throw new InvalidDeviceProviderEvent;
+                }
+
+                $event->forceFill([
+                    'status' => DeviceProviderEvent::STATUS_ACCEPTED,
+                    'accepted_at' => now(),
+                ])->save();
+
+                return false;
+            }, 3);
+        } catch (DeviceProviderEventCollision) {
+            return response()->json([
+                'message' => 'Die event_id wurde bereits mit einem anderen Payload verwendet.',
+            ], 409);
+        } catch (InvalidDeviceProviderEvent) {
             return response()->json(['message' => 'Ereignis nicht gefunden oder nicht unterstützt.'], 422);
         }
 
-        return response()->json(['accepted' => true, 'event_id' => $eventId]);
+        return response()->json([
+            'accepted' => true,
+            'event_id' => $eventId,
+            'duplicate' => $duplicate,
+        ]);
     }
 
     /** @param array<string, mixed> $payload */
@@ -192,12 +256,14 @@ final class DeviceProviderWebhookController extends Controller
     private function handleEnrollment(string $provider, array $payload): bool
     {
         $enrollmentId = $this->boundedIdentifier($payload['enrollment_id'] ?? null, 64);
-        if ($enrollmentId === null) {
+        $providerDeviceId = $this->optionalProviderDeviceId($payload);
+        if ($enrollmentId === null || $providerDeviceId === false) {
             return false;
         }
 
-        return DB::transaction(function () use ($provider, $enrollmentId): bool {
+        return DB::transaction(function () use ($provider, $enrollmentId, $payload, $providerDeviceId): bool {
             $enrollment = DeviceEnrollment::query()
+                ->with('device')
                 ->where('public_id', $enrollmentId)
                 ->where('provider', $provider)
                 ->lockForUpdate()
@@ -205,21 +271,71 @@ final class DeviceProviderWebhookController extends Controller
             if (! $enrollment) {
                 return false;
             }
-            if ($enrollment->status === DeviceEnrollmentStatus::Completed) {
-                return true;
+
+            if (! in_array($enrollment->status, [DeviceEnrollmentStatus::Claimed, DeviceEnrollmentStatus::Completed], true)) {
+                return false;
             }
-            if ($enrollment->status !== DeviceEnrollmentStatus::Claimed) {
+
+            $activeAssignmentId = $enrollment->device?->activeAssignment()->value('id');
+            if (! $enrollment->device
+                || ! $enrollment->device_assignment_id
+                || (int) $activeAssignmentId !== (int) $enrollment->device_assignment_id) {
+                return false;
+            }
+
+            $reportedLimited = filter_var(
+                $payload['limited_management'] ?? false,
+                FILTER_VALIDATE_BOOL,
+                FILTER_NULL_ON_FAILURE,
+            );
+            if ($reportedLimited === null) {
+                return false;
+            }
+            $metadata = is_array($enrollment->metadata) ? $enrollment->metadata : [];
+            $limited = (bool) ($metadata['limited_management'] ?? false)
+                || $reportedLimited
+                || $this->enrollmentModes->isLimited(
+                    $enrollment->device,
+                    $provider,
+                    (string) $enrollment->mode,
+                );
+
+            $providerLink = $this->bindExistingProviderLink(
+                $enrollment->device,
+                $provider,
+                $providerDeviceId,
+            );
+            if (! $providerLink) {
                 return false;
             }
 
             $enrollment->forceFill([
                 'status' => DeviceEnrollmentStatus::Completed,
-                'completed_at' => now(),
+                'completed_at' => $enrollment->completed_at ?: now(),
+                'metadata' => array_merge($metadata, ['limited_management' => $limited]),
             ])->save();
             $enrollment->device()->update([
-                'management_status' => DeviceManagementStatus::Managed->value,
+                'management_status' => $limited
+                    ? DeviceManagementStatus::Limited->value
+                    : DeviceManagementStatus::Managed->value,
                 'last_synced_at' => now(),
             ]);
+            DeviceReadinessCheck::query()->updateOrCreate(
+                ['device_id' => $enrollment->device_id, 'check_key' => 'enrollment'],
+                [
+                    'label' => DeviceReadinessService::REQUIRED_CHECKS['enrollment'],
+                    'status' => 'passed',
+                    'source' => 'provider_receipt',
+                    'evidence' => [
+                        'provider' => $provider,
+                        'mode' => (string) $enrollment->mode,
+                        'limited_management' => $limited,
+                        'device_assignment_id' => (int) $enrollment->device_assignment_id,
+                        'provider_link_id' => (int) $providerLink->getKey(),
+                    ],
+                    'checked_at' => now(),
+                ],
+            );
 
             activity('device-management')
                 ->performedOn($enrollment)
@@ -228,6 +344,8 @@ final class DeviceProviderWebhookController extends Controller
                     'enrollment_id' => (string) $enrollment->public_id,
                     'device_id' => (string) $enrollment->device?->public_id,
                     'provider' => $provider,
+                    'provider_link_id' => (int) $providerLink->getKey(),
+                    'limited_management' => $limited,
                 ])
                 ->log('Geräteregistrierung durch Connector abgeschlossen');
 
@@ -239,19 +357,55 @@ final class DeviceProviderWebhookController extends Controller
     private function handleDeviceSeen(string $provider, array $payload): bool
     {
         $deviceId = $this->boundedIdentifier($payload['device_id'] ?? null, 64);
-        if ($deviceId === null) {
+        $providerDeviceId = $this->optionalProviderDeviceId($payload);
+        if ($deviceId === null || $providerDeviceId === false) {
             return false;
         }
 
         // Deliberately mirror only the heartbeat. Raw inventories, coordinates,
         // recovery keys and account data from provider payloads are discarded.
-        return Device::query()
-            ->where('public_id', $deviceId)
-            ->where('primary_provider', $provider)
-            ->update([
-                'last_seen_at' => now(),
-                'last_synced_at' => now(),
-            ]) === 1;
+        return DB::transaction(function () use ($deviceId, $provider, $providerDeviceId): bool {
+            $device = Device::query()
+                ->where('public_id', $deviceId)
+                ->lockForUpdate()
+                ->first();
+            if (! $device) {
+                return false;
+            }
+
+            $seenAt = now();
+            $providerLink = $this->bindExistingProviderLink(
+                $device,
+                $provider,
+                $providerDeviceId,
+                $seenAt,
+            );
+            if (! $providerLink) {
+                return false;
+            }
+
+            $device->forceFill([
+                'last_seen_at' => $seenAt,
+                'last_synced_at' => $seenAt,
+            ])->save();
+            if ($providerLink->role === DeviceProviderLink::ROLE_PRIMARY) {
+                DeviceReadinessCheck::query()->updateOrCreate(
+                    ['device_id' => $device->id, 'check_key' => 'provider_sync'],
+                    [
+                        'label' => DeviceReadinessService::REQUIRED_CHECKS['provider_sync'],
+                        'status' => 'passed',
+                        'source' => $provider,
+                        'evidence' => [
+                            'last_seen_at' => $seenAt->toIso8601String(),
+                            'provider_link_id' => (int) $providerLink->getKey(),
+                        ],
+                        'checked_at' => $seenAt,
+                    ],
+                );
+            }
+
+            return true;
+        });
     }
 
     /**
@@ -271,11 +425,11 @@ final class DeviceProviderWebhookController extends Controller
             return false;
         }
 
-        // Der primäre MDM-Connector darf nur seine eigenen Geräte belegen.
-        // MeshCentral ist bewusst ein sekundärer Desktop-Supportkanal und darf
-        // ausschließlich den in seinen Capabilities erlaubten Supportcheck
-        // liefern.
-        if ($provider !== 'meshcentral' && $device->primary_provider !== $provider) {
+        $providerLink = $device->providerLinks()
+            ->forProvider($provider)
+            ->available()
+            ->first();
+        if (! $providerLink) {
             return false;
         }
 
@@ -291,7 +445,7 @@ final class DeviceProviderWebhookController extends Controller
         $allowedStatuses = ['passed', 'warning', 'blocked', 'unknown', 'pending', 'not_applicable', 'stale'];
         $accepted = 0;
 
-        DB::transaction(function () use ($checks, $device, $provider, $allowedKeys, $allowedStatuses, &$accepted): void {
+        DB::transaction(function () use ($checks, $device, $provider, $providerLink, $allowedKeys, $allowedStatuses, &$accepted): void {
             foreach ($checks as $check) {
                 if (! is_array($check) || count($check) > 5) {
                     continue;
@@ -319,6 +473,10 @@ final class DeviceProviderWebhookController extends Controller
 
             if ($accepted > 0) {
                 $device->forceFill(['last_synced_at' => now()])->save();
+                $providerLink->forceFill([
+                    'status' => DeviceProviderLink::STATUS_ACTIVE,
+                    'last_synced_at' => now(),
+                ])->save();
             }
         });
 
@@ -340,104 +498,252 @@ final class DeviceProviderWebhookController extends Controller
     }
 
     /** @param array<string, mixed> $payload */
-    private function handleIdentity(string $provider, array $payload): bool
+    private function handleIdentity(string $provider, string $eventId, array $payload): bool
     {
         if ($provider !== 'identity') {
             return false;
         }
 
+        $syncId = $this->boundedIdentifier($payload['sync_id'] ?? null, 64);
+        $correlationId = $this->boundedIdentifier($payload['correlation_id'] ?? null, 64);
+        $assignmentId = $this->boundedIdentifier($payload['assignment_id'] ?? null, 20);
         $deviceId = $this->boundedIdentifier($payload['device_id'] ?? null, 64);
         $accounts = $payload['accounts'] ?? null;
-        if ($deviceId === null || ! is_array($accounts) || ! array_is_list($accounts) || count($accounts) > 4) {
-            return false;
-        }
-
-        $device = Device::query()->with('activeAssignment')->where('public_id', $deviceId)->first();
-        $userId = $device?->activeAssignment?->user_id;
-        if (! $device || ! $userId) {
+        if ($syncId === null
+            || $correlationId === null
+            || $assignmentId === null
+            || ! ctype_digit($assignmentId)
+            || (int) $assignmentId < 1
+            || $deviceId === null
+            || ! is_array($accounts)
+            || ! array_is_list($accounts)
+            || count($accounts) < 1
+            || count($accounts) > 4) {
             return false;
         }
 
         $allowedProviders = ['microsoft_365', 'google_workspace', 'apple_managed'];
         $allowedProvisioning = ['pending_provider', 'applied', 'ready', 'error', 'revoked'];
         $allowedLicenses = ['unknown', 'assigned', 'active', 'not_required', 'missing', 'error'];
-        $updated = 0;
-        $allSignedIn = true;
+        $allowedAccountKeys = ['provider', 'external_id', 'provisioning_status', 'license_status', 'signed_in'];
 
-        DB::transaction(function () use ($accounts, $userId, $allowedProviders, $allowedProvisioning, $allowedLicenses, &$updated, &$allSignedIn): void {
+        return DB::transaction(function () use (
+            $syncId,
+            $correlationId,
+            $assignmentId,
+            $deviceId,
+            $eventId,
+            $accounts,
+            $allowedProviders,
+            $allowedProvisioning,
+            $allowedLicenses,
+            $allowedAccountKeys,
+        ): bool {
+            $sync = DeviceIdentitySync::query()
+                ->where('public_id', $syncId)
+                ->where('correlation_id', $correlationId)
+                ->lockForUpdate()
+                ->first();
+            if (! $sync
+                || ! $sync->user_id
+                || (int) $sync->device_assignment_id !== (int) $assignmentId
+                || ! in_array($sync->status, [
+                    DeviceIdentitySync::STATUS_DISPATCHED,
+                    DeviceIdentitySync::STATUS_ACCEPTED,
+                    DeviceIdentitySync::STATUS_COMPLETED,
+                ], true)) {
+                return false;
+            }
+
+            $currentResult = is_array($sync->result) ? $sync->result : [];
+            if (filled($currentResult['receipt_event_id'] ?? null)) {
+                return false;
+            }
+
+            $device = Device::query()
+                ->whereKey($sync->device_id)
+                ->where('public_id', $deviceId)
+                ->lockForUpdate()
+                ->first();
+            $assignment = DeviceAssignment::query()
+                ->active()
+                ->whereKey($sync->device_assignment_id)
+                ->where('device_id', $sync->device_id)
+                ->where('user_id', $sync->user_id)
+                ->lockForUpdate()
+                ->first();
+            $user = User::query()->whereKey($sync->user_id)->lockForUpdate()->first();
+            if (! $device || ! $assignment || $user?->isActive() !== true) {
+                return false;
+            }
+
+            $accountAssignmentIds = collect($sync->account_assignment_ids)
+                ->filter(fn (mixed $id): bool => is_int($id) || (is_string($id) && ctype_digit($id)))
+                ->map(fn (int|string $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0)
+                ->unique()
+                ->values();
+            if ($accountAssignmentIds->isEmpty()
+                || $accountAssignmentIds->count() !== count((array) $sync->account_assignment_ids)) {
+                return false;
+            }
+
+            $accountAssignments = DeviceAccountAssignment::query()
+                ->whereIn('id', $accountAssignmentIds)
+                ->where('device_id', $device->id)
+                ->where('user_id', $user->id)
+                ->where('desired_state', 'assigned')
+                ->where('status', '!=', 'revoked')
+                ->lockForUpdate()
+                ->get();
+            if ($accountAssignments->count() !== $accountAssignmentIds->count()
+                || $accountAssignments->contains(fn (DeviceAccountAssignment $line): bool => ! $line->employee_identity_account_id)) {
+                return false;
+            }
+
+            $identityIds = $accountAssignments
+                ->pluck('employee_identity_account_id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->values();
+            $identities = EmployeeIdentityAccount::query()
+                ->whereIn('id', $identityIds)
+                ->where('user_id', $user->id)
+                ->where('lifecycle_status', 'active')
+                ->lockForUpdate()
+                ->get();
+            if ($identities->count() !== $identityIds->count()) {
+                return false;
+            }
+
+            /** @var array<string, EmployeeIdentityAccount> $expectedByProvider */
+            $expectedByProvider = [];
+            foreach ($identities as $identity) {
+                $identityProvider = $identity->provider instanceof \BackedEnum
+                    ? (string) $identity->provider->value
+                    : (string) $identity->provider;
+                if (! in_array($identityProvider, $allowedProviders, true)
+                    || isset($expectedByProvider[$identityProvider])) {
+                    return false;
+                }
+                $expectedByProvider[$identityProvider] = $identity;
+            }
+            if ($expectedByProvider === [] || count($expectedByProvider) !== count($accounts)) {
+                return false;
+            }
+
+            /** @var array<string, array{identity: EmployeeIdentityAccount, external_id: ?string, provisioning_status: string, license_status: string, signed_in: bool}> $receiptByProvider */
+            $receiptByProvider = [];
             foreach ($accounts as $account) {
-                if (! is_array($account) || count($account) > 7) {
-                    continue;
+                if (! is_array($account)
+                    || array_is_list($account)
+                    || array_diff(array_keys($account), $allowedAccountKeys) !== []
+                    || ! array_key_exists('signed_in', $account)
+                    || ! is_bool($account['signed_in'])) {
+                    return false;
                 }
                 $accountProvider = $this->boundedIdentifier($account['provider'] ?? null, 40);
                 $provisioning = $this->boundedIdentifier($account['provisioning_status'] ?? null, 32);
                 $license = $this->boundedIdentifier($account['license_status'] ?? null, 32);
-                if (! in_array($accountProvider, $allowedProviders, true)
+                if ($accountProvider === null
+                    || ! in_array($accountProvider, $allowedProviders, true)
                     || ! in_array($provisioning, $allowedProvisioning, true)
-                    || ! in_array($license, $allowedLicenses, true)) {
-                    continue;
+                    || ! in_array($license, $allowedLicenses, true)
+                    || ! isset($expectedByProvider[$accountProvider])
+                    || isset($receiptByProvider[$accountProvider])) {
+                    return false;
                 }
 
-                $identity = EmployeeIdentityAccount::query()
-                    ->where('user_id', $userId)
-                    ->where('provider', $accountProvider)
-                    ->lockForUpdate()
-                    ->first();
-                if (! $identity) {
-                    continue;
+                $externalId = null;
+                if (array_key_exists('external_id', $account) && $account['external_id'] !== null) {
+                    $externalId = $this->boundedIdentifier($account['external_id'], 191);
+                    if ($externalId === null
+                        || EmployeeIdentityAccount::query()
+                            ->where('provider', $accountProvider)
+                            ->where('external_id', $externalId)
+                            ->whereKeyNot($expectedByProvider[$accountProvider]->getKey())
+                            ->exists()) {
+                        return false;
+                    }
                 }
 
-                $externalId = $this->boundedIdentifier($account['external_id'] ?? null, 191);
-                $identity->forceFill([
-                    'external_id' => $externalId ?: $identity->external_id,
+                $receiptByProvider[$accountProvider] = [
+                    'identity' => $expectedByProvider[$accountProvider],
+                    'external_id' => $externalId,
                     'provisioning_status' => $provisioning,
                     'license_status' => $license,
+                    'signed_in' => $account['signed_in'],
+                ];
+            }
+            if (count($receiptByProvider) !== count($expectedByProvider)) {
+                return false;
+            }
+
+            $allSignedIn = true;
+            foreach ($receiptByProvider as $receipt) {
+                $identity = $receipt['identity'];
+                $identity->forceFill([
+                    'external_id' => $receipt['external_id'] ?: $identity->external_id,
+                    'provisioning_status' => $receipt['provisioning_status'],
+                    'license_status' => $receipt['license_status'],
                     'last_synced_at' => now(),
                 ])->save();
-                $updated++;
-                $allSignedIn = $allSignedIn && filter_var($account['signed_in'] ?? false, FILTER_VALIDATE_BOOL);
+                $allSignedIn = $allSignedIn && $receipt['signed_in'];
             }
-        });
 
-        if ($updated === 0) {
-            return false;
-        }
-
-        $identities = EmployeeIdentityAccount::query()->where('user_id', $userId)->get();
-        $identitiesReady = $identities->isNotEmpty() && $identities->every(
-            fn (EmployeeIdentityAccount $identity): bool => $identity->lifecycle_status === 'active'
-                && in_array($identity->provisioning_status, ['applied', 'ready'], true)
-                && in_array($identity->license_status, ['assigned', 'active', 'not_required'], true),
-        );
-
-        foreach ([
-            'identity' => $identitiesReady ? 'passed' : 'pending',
-            'user_sign_in' => ($identitiesReady && $allSignedIn) ? 'passed' : 'pending',
-        ] as $key => $status) {
-            DeviceReadinessCheck::query()->updateOrCreate(
-                ['device_id' => $device->id, 'check_key' => $key],
-                [
-                    'label' => DeviceReadinessService::REQUIRED_CHECKS[$key],
-                    'status' => $status,
-                    'source' => 'identity',
-                    'evidence' => ['account_count' => $updated, 'signed_in' => $allSignedIn],
-                    'checked_at' => now(),
-                ],
+            $identitiesReady = collect($receiptByProvider)->every(
+                fn (array $receipt): bool => in_array($receipt['provisioning_status'], ['applied', 'ready'], true)
+                    && in_array($receipt['license_status'], ['assigned', 'active', 'not_required'], true),
             );
-        }
 
-        activity('device-management')
-            ->performedOn($device)
-            ->event('device-identity.updated')
-            ->withProperties([
-                'device_id' => (string) $device->public_id,
-                'account_count' => $updated,
-                'ready' => $identitiesReady,
-                'signed_in' => $allSignedIn,
-            ])
-            ->log('Identitätsbereitschaft durch Connector belegt');
+            foreach ([
+                'identity' => $identitiesReady ? 'passed' : 'pending',
+                'user_sign_in' => ($identitiesReady && $allSignedIn) ? 'passed' : 'pending',
+            ] as $key => $status) {
+                DeviceReadinessCheck::query()->updateOrCreate(
+                    ['device_id' => $device->id, 'check_key' => $key],
+                    [
+                        'label' => DeviceReadinessService::REQUIRED_CHECKS[$key],
+                        'status' => $status,
+                        'source' => 'identity',
+                        'evidence' => [
+                            'sync_id' => (string) $sync->public_id,
+                            'assignment_id' => (int) $assignment->id,
+                            'account_count' => count($receiptByProvider),
+                            'signed_in' => $allSignedIn,
+                        ],
+                        'checked_at' => now(),
+                    ],
+                );
+            }
 
-        return true;
+            $sync->forceFill([
+                'status' => DeviceIdentitySync::STATUS_COMPLETED,
+                'completed_at' => now(),
+                'result' => array_merge($currentResult, [
+                    'receipt_event_id' => $eventId,
+                    'receipt_account_count' => count($receiptByProvider),
+                    'receipt_signed_in' => $allSignedIn,
+                ]),
+                'error_code' => null,
+                'error_message' => null,
+            ])->save();
+
+            activity('device-management')
+                ->performedOn($device)
+                ->event('device-identity.updated')
+                ->withProperties([
+                    'device_id' => (string) $device->public_id,
+                    'sync_id' => (string) $sync->public_id,
+                    'assignment_id' => (int) $assignment->id,
+                    'account_count' => count($receiptByProvider),
+                    'ready' => $identitiesReady,
+                    'signed_in' => $allSignedIn,
+                ])
+                ->log('Identitätsbereitschaft durch Connector belegt');
+
+            return true;
+        });
     }
 
     /**
@@ -466,16 +772,25 @@ final class DeviceProviderWebhookController extends Controller
             return false;
         }
 
-        $device = Device::query()
-            ->where('public_id', $deviceId)
-            ->where('primary_provider', $provider)
+        $device = Device::query()->where('public_id', $deviceId)->first();
+        $providerLink = $device?->providerLinks()
+            ->forProvider($provider)
+            ->available()
             ->first();
-        if (! $device) {
+        if (! $device || ! $providerLink) {
+            return false;
+        }
+
+        $activeUserId = $device->activeAssignment()->value('user_id');
+        if (! $activeUserId) {
             return false;
         }
 
         $updated = DeviceAccountAssignment::query()
             ->where('device_id', $device->id)
+            ->where('user_id', $activeUserId)
+            ->where('desired_state', 'assigned')
+            ->where('status', '!=', 'revoked')
             ->whereIn('id', $ids)
             ->update([
                 'status' => 'applied',
@@ -490,6 +805,8 @@ final class DeviceProviderWebhookController extends Controller
 
         $allApplied = ! DeviceAccountAssignment::query()
             ->where('device_id', $device->id)
+            ->where('user_id', $activeUserId)
+            ->where('desired_state', 'assigned')
             ->whereNotIn('status', ['applied', 'ready'])
             ->exists();
         DeviceReadinessCheck::query()->updateOrCreate(
@@ -502,6 +819,12 @@ final class DeviceProviderWebhookController extends Controller
                 'checked_at' => now(),
             ],
         );
+        $syncedAt = now();
+        $providerLink->forceFill([
+            'status' => DeviceProviderLink::STATUS_ACTIVE,
+            'last_synced_at' => $syncedAt,
+        ])->save();
+        $device->forceFill(['last_synced_at' => $syncedAt])->save();
 
         activity('device-management')
             ->performedOn($device)
@@ -517,6 +840,79 @@ final class DeviceProviderWebhookController extends Controller
         return true;
     }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return string|null|false False means the explicitly supplied value was invalid.
+     */
+    private function optionalProviderDeviceId(array $payload): string|null|false
+    {
+        if (! array_key_exists('provider_device_id', $payload) || $payload['provider_device_id'] === null) {
+            return null;
+        }
+
+        return $this->boundedIdentifier($payload['provider_device_id'], 191) ?? false;
+    }
+
+    /**
+     * Bind only an already-declared link. A webhook is never allowed to create
+     * a provider relationship for an unknown or merely guessed RailTime device.
+     */
+    private function bindExistingProviderLink(
+        Device $device,
+        string $provider,
+        ?string $providerDeviceId,
+        ?\DateTimeInterface $seenAt = null,
+    ): ?DeviceProviderLink {
+        $link = DeviceProviderLink::query()
+            ->where('device_id', $device->getKey())
+            ->where('provider', $provider)
+            ->lockForUpdate()
+            ->first();
+        if (! $link || $link->status === DeviceProviderLink::STATUS_DISABLED) {
+            return null;
+        }
+
+        if ($providerDeviceId !== null) {
+            if (filled($link->external_device_id)
+                && ! hash_equals((string) $link->external_device_id, $providerDeviceId)) {
+                return null;
+            }
+            if (DeviceProviderLink::query()
+                ->where('provider', $provider)
+                ->where('external_device_id', $providerDeviceId)
+                ->whereKeyNot($link->getKey())
+                ->exists()) {
+                return null;
+            }
+
+            $legacyProvider = strtolower(trim((string) $device->primary_provider));
+            $legacyId = trim((string) $device->primary_provider_device_id);
+            if ($link->role === DeviceProviderLink::ROLE_PRIMARY
+                && (($legacyProvider !== '' && $legacyProvider !== $provider)
+                    || ($legacyId !== '' && ! hash_equals($legacyId, $providerDeviceId)))) {
+                return null;
+            }
+
+            $link->external_device_id = $providerDeviceId;
+            if ($link->role === DeviceProviderLink::ROLE_PRIMARY) {
+                $device->forceFill([
+                    'primary_provider' => $provider,
+                    // Both the normalized link and compatibility mirror now
+                    // use the connector contract's 191-character width.
+                    'primary_provider_device_id' => $providerDeviceId,
+                ])->save();
+            }
+        }
+
+        $link->forceFill([
+            'status' => DeviceProviderLink::STATUS_ACTIVE,
+            'last_seen_at' => $seenAt ?: $link->last_seen_at,
+            'last_synced_at' => now(),
+        ])->save();
+
+        return $link;
+    }
+
     private function boundedIdentifier(mixed $value, int $maximum): ?string
     {
         if (! is_string($value) || trim($value) === '') {
@@ -524,10 +920,16 @@ final class DeviceProviderWebhookController extends Controller
         }
 
         $value = trim($value);
-        if (mb_strlen($value) > $maximum || ! preg_match('/^[A-Za-z0-9._:-]+$/', $value)) {
+        if (mb_strlen($value) > $maximum || ! preg_match('/\A[A-Za-z0-9._:@$+=\/-]+\z/', $value)) {
             return null;
         }
 
         return $value;
     }
 }
+
+final class InvalidDeviceProviderEvent extends \RuntimeException {}
+
+final class DeviceProviderEventCollision extends \RuntimeException {}
+
+final class DeviceProviderEventInProgress extends \RuntimeException {}

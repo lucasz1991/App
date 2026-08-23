@@ -15,6 +15,7 @@ class DeviceCommand extends Model
 
     protected $fillable = [
         'device_id',
+        'device_assignment_id',
         'provider',
         'type',
         'status',
@@ -53,6 +54,11 @@ class DeviceCommand extends Model
     public function device(): BelongsTo
     {
         return $this->belongsTo(Device::class);
+    }
+
+    public function assignment(): BelongsTo
+    {
+        return $this->belongsTo(DeviceAssignment::class, 'device_assignment_id');
     }
 
     public function requester(): BelongsTo

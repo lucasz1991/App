@@ -195,7 +195,7 @@ test('editor and delivery enlarge the default train progressively while keeping 
     assert.doesNotMatch(responsiveCss, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
     assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]+?width: 150% !important; max-width: none !important; margin-left: 0 !important;/);
     const phone = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 480px)'));
-    assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]+?width: 175% !important;[\s\S]+?margin-left: 0 !important;/);
+    assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]+?width: 175% !important;[\s\S]+?margin-left: -8% !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]+?width: 200% !important; max-width: none !important; margin-left: -100% !important;/);
     assert.match(responsiveCss, /rt-train-idle-reveal/);
 });
