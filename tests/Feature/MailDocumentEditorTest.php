@@ -140,6 +140,61 @@ class MailDocumentEditorTest extends TestCase
         return trim(app(EmailHtmlSanitizer::class)->assertClean(trim($html))->html);
     }
 
+    /** Baut den echten Schema-24-IMG-Stand ohne Layer-position nach. */
+    private function legacySchema24Signature(string $canonical, string $overlap = '-7.3611%'): string
+    {
+        $canonicalLayerStyle = 'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"';
+        $legacy = str_replace(
+            '<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">',
+            '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">',
+            $canonical,
+            $stageCount,
+        );
+        $legacy = str_replace(
+            $canonicalLayerStyle,
+            'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:'.$overlap.';overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            $legacy,
+            $layerCount,
+        );
+        $legacy = preg_replace(
+            '~<table class="rt-sign-train-frame"[^>]*>\s*<tr>\s*<td class="rt-sign-train-slot"[^>]*>\s*~i',
+            '',
+            $legacy,
+            1,
+            $frameOpenCount,
+        );
+        $legacy = preg_replace(
+            '~\s*</td>\s*</tr>\s*</table>\s*(?=</div>)~i',
+            '',
+            $legacy,
+            1,
+            $frameCloseCount,
+        );
+        $legacy = str_replace(
+            '<table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">',
+            '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">',
+            (string) $legacy,
+            $contentFrameCount,
+        );
+        $legacy = str_replace(
+            'text-decoration:none;vertical-align:bottom;mso-hide:all;',
+            'text-decoration:none;vertical-align:top;mso-hide:all;',
+            $legacy,
+            $imageAlignmentCount,
+        );
+
+        $this->assertSame([1, 1, 1, 1, 1, 1], [
+            $stageCount,
+            $layerCount,
+            $frameOpenCount,
+            $frameCloseCount,
+            $contentFrameCount,
+            $imageAlignmentCount,
+        ]);
+
+        return $legacy;
+    }
+
     /** @return list<array<string, int|string>> */
     private function portableSystemMedia(MailDocumentKind $kind): array
     {
@@ -450,63 +505,11 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringContainsString('class="rt-sign-content-frame" role="presentation" width="100%" height="200"', $canonical);
         $this->assertSame($canonical, SignatureTrainCarrier::normalize($canonical));
 
-        $legacySchema24 = function (string $overlap) use ($canonical, $canonicalLayerStyle): string {
-            $legacy = str_replace(
-                '<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">',
-                '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">',
-                $canonical,
-                $stageCount,
-            );
-            $legacy = str_replace(
-                $canonicalLayerStyle,
-                'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:'.$overlap.';overflow:hidden;font-size:0;line-height:0;text-align:left;"',
-                $legacy,
-                $layerCount,
-            );
-            $legacy = preg_replace(
-                '~<table class="rt-sign-train-frame"[^>]*>\s*<tr>\s*<td class="rt-sign-train-slot"[^>]*>\s*~i',
-                '',
-                $legacy,
-                1,
-                $frameOpenCount,
-            );
-            $legacy = preg_replace(
-                '~\s*</td>\s*</tr>\s*</table>\s*(?=</div>)~i',
-                '',
-                $legacy,
-                1,
-                $frameCloseCount,
-            );
-            $legacy = str_replace(
-                '<table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">',
-                '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">',
-                $legacy,
-                $contentFrameCount,
-            );
-            $legacy = str_replace(
-                'text-decoration:none;vertical-align:bottom;mso-hide:all;',
-                'text-decoration:none;vertical-align:top;mso-hide:all;',
-                $legacy,
-                $imageAlignmentCount,
-            );
-            $this->assertIsString($legacy);
-            $this->assertSame([1, 1, 1, 1, 1, 1], [
-                $stageCount,
-                $layerCount,
-                $frameOpenCount,
-                $frameCloseCount,
-                $contentFrameCount,
-                $imageAlignmentCount,
-            ]);
-
-            return $legacy;
-        };
-
         foreach ([
             'prozentualer Schema-24-Overlap' => '-7.3611%',
             'individueller alter Pixel-Overlap' => '-72px',
         ] as $label => $legacyOverlap) {
-            $legacy = $legacySchema24($legacyOverlap);
+            $legacy = $this->legacySchema24Signature($canonical, $legacyOverlap);
             SignatureDocumentContract::assertRuntimeValid($legacy);
             $normalized = SignatureTrainCarrier::normalize($legacy);
             SignatureDocumentContract::assertValid($normalized);
@@ -1484,9 +1487,24 @@ HTML;
         $this->seedDocuments();
         $template = $this->document(MailDocumentKind::Template);
         $signature = $this->document(MailDocumentKind::Signature);
+        $legacySignatureHtml = $this->legacySchema24Signature((string) $signature->html);
+        $legacySignatureBuilderData = $signature->builder_data;
+        data_set($legacySignatureBuilderData, 'pages.0.component', $legacySignatureHtml);
+        data_set($legacySignatureBuilderData, 'railtime.schema', 24);
+        $signature->forceFill([
+            'builder_data' => $legacySignatureBuilderData,
+            'html' => $legacySignatureHtml,
+            'content_hash' => MailDocument::contentHashFor(
+                $legacySignatureBuilderData,
+                $legacySignatureHtml,
+                (string) $signature->css,
+            ),
+        ])->save();
+        $signature->refresh();
         $originalTemplateBuilderData = $template->builder_data;
         $originalSignatureBuilderData = $signature->builder_data;
         $originalSignatureHtml = (string) $signature->html;
+        $repairedSignatureHtml = SignatureTrainCarrier::normalize($originalSignatureHtml);
 
         $response = $this->actingAs($this->admin())
             ->get(route('admin.mail-documents.editor'))
@@ -1576,12 +1594,22 @@ HTML;
         // und Dokumenthuelle im Payload. CSS und Builderprojekt muessen
         // daneben unverkuerzt ankommen.
         $this->assertSame((string) $template->html, data_get($config, 'documents.template.html'));
-        $this->assertSame((string) $signature->html, data_get($config, 'documents.signature.html'));
+        $this->assertSame($repairedSignatureHtml, data_get($config, 'documents.signature.html'));
         $this->assertSame((string) $template->css, data_get($config, 'documents.template.css'));
         $this->assertSame((string) $signature->css, data_get($config, 'documents.signature.css'));
         $this->assertSame($originalTemplateBuilderData, data_get($config, 'documents.template.builderData'));
-        $this->assertSame($originalSignatureBuilderData, data_get($config, 'documents.signature.builderData'));
+        $this->assertSame(
+            SignatureDocumentContract::SCHEMA,
+            data_get($config, 'documents.signature.builderData.railtime.schema'),
+        );
+        $this->assertSame(
+            $repairedSignatureHtml,
+            data_get($config, 'documents.signature.builderData.pages.0.component'),
+        );
+        $this->assertTrue((bool) data_get($config, 'documents.signature.autoRepaired'));
+        $this->assertFalse((bool) data_get($config, 'documents.template.autoRepaired'));
         $this->assertSame($originalTemplateBuilderData, $template->fresh()->builder_data);
+        $this->assertSame($originalSignatureBuilderData, $signature->fresh()->builder_data);
         $this->assertSame($originalSignatureHtml, (string) $signature->fresh()->html);
     }
 
@@ -1735,6 +1763,25 @@ HTML;
         $this->seedDocuments();
         $document = $this->document(MailDocumentKind::Signature);
         $admin = $this->admin();
+        $legacyHtml = $this->legacySchema24Signature((string) $document->html);
+        $legacyBuilderData = $document->builder_data;
+        data_set($legacyBuilderData, 'pages.0.component', $legacyHtml);
+        data_set($legacyBuilderData, 'railtime.schema', 24);
+
+        $this->actingAs($admin)
+            ->putJson(route('admin.mail-documents.update', $document), [
+                'builder_data' => $legacyBuilderData,
+                'html' => $legacyHtml,
+                'css' => (string) $document->css,
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertOk()
+            ->assertJsonPath('document.builder_data.railtime.schema', SignatureDocumentContract::SCHEMA);
+
+        $document = $document->fresh();
+        SignatureDocumentContract::assertValid((string) $document->html);
+        $this->assertStringContainsString('margin-bottom:-200px;', (string) $document->html);
+        $this->assertStringNotContainsString('margin-bottom:-7.3611%;', (string) $document->html);
         $withPreviewAttribute = preg_replace(
             '/<td class="rt-sign-cell"/',
             '<td data-rt-mail-preview-train="TRAIN_SRC" class="rt-sign-cell"',
@@ -1814,6 +1861,37 @@ HTML;
         $admin = $this->admin();
         $validHtml = (string) $document->html;
         $validBuilderData = $document->builder_data;
+        $legacyHtml = $this->legacySchema24Signature($validHtml);
+        $legacyBuilderData = $validBuilderData;
+        data_set($legacyBuilderData, 'pages.0.component', $legacyHtml);
+        data_set($legacyBuilderData, 'railtime.schema', 24);
+        $document->forceFill([
+            'builder_data' => $legacyBuilderData,
+            'html' => $legacyHtml,
+            'content_hash' => MailDocument::contentHashFor($legacyBuilderData, $legacyHtml, ''),
+        ])->save();
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.publish', $document), [
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertOk()
+            ->assertJsonPath('document.builder_data.railtime.schema', SignatureDocumentContract::SCHEMA);
+
+        $document->refresh();
+        SignatureDocumentContract::assertValid((string) $document->published_html);
+        $this->assertStringContainsString('margin-bottom:-200px;', (string) $document->published_html);
+        $document->forceFill([
+            'builder_data' => $validBuilderData,
+            'html' => $validHtml,
+            'css' => '',
+            'content_hash' => MailDocument::contentHashFor($validBuilderData, $validHtml, ''),
+            'published_html' => null,
+            'published_css' => null,
+            'published_at' => null,
+            'status' => MailDocumentStatus::Draft,
+        ])->save();
+
         $attacks = [
             'preview attribut' => preg_replace(
                 '/<td class="rt-sign-cell"/',

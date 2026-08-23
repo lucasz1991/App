@@ -15,10 +15,10 @@ use App\Notifications\MailDocumentTestNotification;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\EmailHtmlReport;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\MailDocumentAutoRepair;
 use App\Support\Mail\MailDocumentVersionStore;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureDocumentContract;
-use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\TemplateDocumentContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,9 +38,9 @@ use Illuminate\Validation\ValidationException;
  *     Gespeichert wird genau das, was spaeter ausgeliefert wird — sonst
  *     passt der Hash nicht zum Inhalt und der naechste Speichervorgang
  *     scheitert ohne erkennbaren Grund.
- *  2. Beanstandungen gehen an den Bearbeiter zurueck. Beim Speichern als
- *     Bericht (es wurde bereinigt), beim Veroeffentlichen als Fehler — was
- *     an echte Empfaenger geht, wird nicht stillschweigend repariert.
+ *  2. Eindeutig erkannte RailTime-Altvertraege werden vor jedem Pfad auf den
+ *     aktuellen Vertrag gehoben. Alles Mehrdeutige geht an den Bearbeiter
+ *     zurueck: beim Speichern als Bericht, beim Veroeffentlichen als Fehler.
  */
 final class MailDocumentController extends Controller
 {
@@ -63,7 +63,7 @@ final class MailDocumentController extends Controller
             (string) $validated['css'],
             (array) $validated['media'],
         );
-        $html = $this->normalizeImportedSignature($kind, $html);
+        $html = MailDocumentAutoRepair::repairHtml($kind, $html);
         $this->assertEditableCssSource($css);
 
         $prototype = new MailDocument(['kind' => $kind->value]);
@@ -157,7 +157,7 @@ final class MailDocumentController extends Controller
             (string) $validated['css'],
             (array) ($validated['portable_media'] ?? []),
         );
-        $html = $this->normalizeImportedSignature($document->kind, $html);
+        $html = MailDocumentAutoRepair::repairHtml($document->kind, $html);
         $this->assertEditableCssSource($css);
         $this->assertDocumentStructure($document, $html, $css);
         $htmlReport = $this->assertCleanHtml($sanitizer, $html);
@@ -353,17 +353,21 @@ final class MailDocumentController extends Controller
                 ]);
             }
 
-            // Struktur- und Reservierungsvertraege gelten bereits fuer die
-            // eingereichte Quelle. Der Sanitizer darf einen zusaetzlichen
-            // style-Block oder Zugtoken nicht still entfernen und dadurch
-            // aus einem verbotenen Entwurf scheinbar einen gueltigen machen.
+            // Vor der Strukturpruefung werden nur exakt bekannte Altvertraege
+            // repariert. Der Sanitizer darf einen zusaetzlichen style-Block
+            // oder Zugtoken nicht still entfernen und dadurch aus einem
+            // verbotenen Entwurf scheinbar einen gueltigen machen.
+            $html = MailDocumentAutoRepair::repairHtml(
+                $locked->kind,
+                (string) $validated['html'],
+            );
             $this->assertEditableCssSource((string) $validated['css']);
             $this->assertDocumentStructure(
                 $locked,
-                (string) $validated['html'],
+                $html,
                 (string) $validated['css'],
             );
-            $htmlReport = $sanitizer->clean((string) $validated['html']);
+            $htmlReport = $sanitizer->clean($html);
             $cssReport = $this->cleanStyleSheet($sanitizer, (string) $validated['css']);
             $this->assertDocumentStructure($locked, $htmlReport->html, $cssReport->html);
             $builderData = $this->syncBuilderData(
@@ -425,7 +429,7 @@ final class MailDocumentController extends Controller
                 ]);
             }
 
-            $html = (string) $locked->html;
+            $html = MailDocumentAutoRepair::repairHtml($locked->kind, (string) $locked->html);
 
             if (trim($html) === '') {
                 throw ValidationException::withMessages([
@@ -433,9 +437,9 @@ final class MailDocumentController extends Controller
                 ]);
             }
 
-            // Streng statt bereinigend: der Bearbeiter soll sehen, was nicht
-            // durchgeht, statt eine stillschweigend beschnittene Fassung an
-            // echte Empfaenger zu schicken.
+            // Nach der verlustfreien Vertragsmigration bleibt die Freigabe
+            // streng: unbekannte Inhalte werden niemals still beschnitten
+            // und an echte Empfaenger geschickt.
             $this->assertEditableCssSource((string) $locked->css);
             $this->assertDocumentStructure($locked, $html, (string) $locked->css);
             $htmlReport = $this->assertCleanHtml($sanitizer, $html);
@@ -515,7 +519,8 @@ final class MailDocumentController extends Controller
                 throw ValidationException::withMessages(['version' => 'Diese Version ist bereits der aktuelle Entwurf.']);
             }
 
-            $htmlReport = $this->assertCleanHtml($sanitizer, (string) $version->html);
+            $versionHtml = MailDocumentAutoRepair::repairHtml($locked->kind, (string) $version->html);
+            $htmlReport = $this->assertCleanHtml($sanitizer, $versionHtml);
             $cssReport = $this->cleanStyleSheet($sanitizer, (string) $version->css);
             if ($cssReport->hasViolations()) {
                 throw ValidationException::withMessages(['css' => $cssReport->violationMessages()]);
@@ -564,7 +569,8 @@ final class MailDocumentController extends Controller
             ]);
         }
 
-        $html = $this->assertCleanHtml($sanitizer, (string) $document->html)->html;
+        $repairedHtml = MailDocumentAutoRepair::repairHtml($document->kind, (string) $document->html);
+        $html = $this->assertCleanHtml($sanitizer, $repairedHtml)->html;
         $cssReport = $this->cleanStyleSheet($sanitizer, (string) $document->css);
         if ($cssReport->hasViolations()) {
             throw ValidationException::withMessages(['css' => $cssReport->violationMessages()]);
@@ -660,27 +666,6 @@ final class MailDocumentController extends Controller
     }
 
     /**
-     * Nur die beiden ausdruecklichen Importpfade duerfen bekannte alte
-     * Signaturvertraege in das aktuelle Schema heben. Normale Saves und
-     * Freigaben bleiben strikt und koennen dadurch keinen manipulierten
-     * Zwischenstand stillschweigend reparieren.
-     */
-    private function normalizeImportedSignature(MailDocumentKind $kind, string $html): string
-    {
-        if ($kind !== MailDocumentKind::Signature) {
-            return $html;
-        }
-
-        try {
-            return SignatureTrainCarrier::normalize($html);
-        } catch (\RuntimeException) {
-            // Die autoritative Strukturpruefung unten liefert weiterhin die
-            // konkrete, nutzerlesbare Validierungsmeldung des Originaltexts.
-            return $html;
-        }
-    }
-
-    /**
      * Das Builder-Projekt ist kein zweiter, ungepruefter HTML-Speicher.
      *
      * GrapesJS laedt component beim naechsten Aufruf wieder in den Editor.
@@ -693,33 +678,12 @@ final class MailDocumentController extends Controller
      */
     private function syncBuilderData(MailDocument $document, array $builderData, string $html): array
     {
-        $pageName = data_get($builderData, 'pages.0.name', $document->kind->label());
-        if (! is_string($pageName) || trim($pageName) === '') {
-            $pageName = $document->kind->label();
-        }
-
-        $metadata = is_array($builderData['railtime'] ?? null)
-            ? $builderData['railtime']
-            : [];
-        $schema = $metadata['schema'] ?? null;
-
-        $railtime = ['document' => $document->kind->value];
-        if ($document->kind === MailDocumentKind::Signature) {
-            // Der Serververtrag ist autoritativ. Ein importiertes Bundle
-            // enthaelt absichtlich keine vertrauenswuerdigen Builderdaten.
-            $railtime['schema'] = SignatureDocumentContract::SCHEMA;
-        } elseif (is_int($schema) && $schema > 0 && $schema <= 1000) {
-            $railtime['schema'] = $schema;
-        }
-
-        return [
-            'pages' => [[
-                'name' => mb_substr(trim($pageName), 0, 80),
-                'component' => $html,
-            ]],
-            'styles' => [],
-            'railtime' => $railtime,
-        ];
+        return MailDocumentAutoRepair::synchronizeBuilderData(
+            $document->kind,
+            $builderData,
+            $html,
+            $document->kind->label(),
+        );
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Livewire\Admin;
 use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
 use App\Support\EmailTemplateBuilder;
+use App\Support\Mail\MailDocumentAutoRepair;
 use App\Support\Mail\PortableMediaCatalog;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -126,18 +127,28 @@ class MailDocumentEditor extends Component
         }
 
         foreach ($documents as $key => $document) {
+            $source = MailDocumentAutoRepair::editorSource(
+                $document->kind,
+                $document->builder_data ?: [],
+                (string) $document->html,
+                $document->kind->label(),
+            );
             $payload[$key] = [
                 'id' => $document->public_id,
                 'label' => $document->kind->label(),
-                'builderData' => $document->builder_data ?: [],
+                'builderData' => $source['builderData'],
                 // Der Template-Serializer editiert nur den <body> und baut
                 // die geschuetzte Dokumenthuelle beim Speichern aus dieser
                 // serverautoritativen Fassung wieder auf. Ohne `html` waere
                 // die Baseline beim ersten Save leer; der Browser erzeugte
                 // daraus zwar <html>/<head>/<body>, aber ohne den kanonischen
                 // Style- und Markenvertrag.
-                'html' => (string) $document->html,
+                'html' => $source['html'],
                 'css' => (string) $document->css,
+                // Nur eine transiente Projektion: Ein GET veraendert weder
+                // Entwurf noch Version. Der naechste ausdrueckliche Save
+                // uebernimmt den reparierten RailTime-Vertrag.
+                'autoRepaired' => $source['repaired'],
                 'contentHash' => (string) $document->content_hash,
                 'version' => (int) $document->version,
                 'status' => $document->status->value,

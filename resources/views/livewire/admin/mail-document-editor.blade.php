@@ -653,6 +653,9 @@
                     const setMessage = (text) => {
                         if (messageNode) messageNode.textContent = text;
                     };
+                    if (document_.autoRepaired) {
+                        setMessage('Ein bekannter Signatur-Altstand wurde für den Editor sicher repariert. Beim nächsten Speichern wird Schema 25 übernommen.');
+                    }
 
                     const setActionsBusy = (busy) => {
                         const restoreButton = queryVersionControl('[data-mail-document-version-restore]');
@@ -977,7 +980,14 @@
                     const currentCanonicalSource = () => {
                         const editor = instance?.editor;
                         if (!editor?.getProjectData || !editor?.getHtml || !editor?.getCss) {
-                            throw new Error('Der Editor ist noch nicht vollständig geladen.');
+                            // Die Code-/Export-/Import-Werkzeuge liegen bewusst
+                            // ausserhalb der Leinwand. Damit kann ein defekter
+                            // Altentwurf auch dann durch ein gueltiges Bundle
+                            // ersetzt werden, wenn GrapesJS nicht startet.
+                            return assertPortableSource({
+                                html: String(document_.html || ''),
+                                css: String(document_.css || ''),
+                            }, { enforceLimit: false });
                         }
 
                         const outgoing = runtimeBridge.serializeForSave({
@@ -1004,9 +1014,6 @@
 
                     const importProjectFor = ({ html, css }) => {
                         const editor = instance?.editor;
-                        if (!editor?.Parser?.parseCss) {
-                            throw new Error('Der Editor ist noch nicht vollständig geladen.');
-                        }
 
                         const existingMetadata = document_.builderData?.railtime;
                         const railtime = { document: config.currentDocument };
@@ -1020,7 +1027,7 @@
                             railtime.schema = existingMetadata.schema;
                         }
 
-                        return runtimeBridge.projectFor({
+                        const portableProject = {
                             html,
                             css,
                             builderData: {
@@ -1031,7 +1038,13 @@
                                 styles: [],
                                 railtime,
                             },
-                        }, (candidateCss) => editor.Parser.parseCss(candidateCss) || [], {
+                        };
+
+                        if (!editor?.Parser?.parseCss) {
+                            return portableProject.builderData;
+                        }
+
+                        return runtimeBridge.projectFor(portableProject, (candidateCss) => editor.Parser.parseCss(candidateCss) || [], {
                             kind: config.currentDocument,
                             environment: window,
                         });
@@ -1041,6 +1054,19 @@
                         const editor = instance?.editor;
                         const checked = assertPortableSource(source);
                         const project = importProjectFor(checked);
+
+                        // Im Recovery-Modus bleibt die Quelle bis zur
+                        // serverautoritativen Normalisierung unveraendert.
+                        // Der Save-Endpunkt synchronisiert danach HTML,
+                        // Builderdaten und Schema als eine Einheit.
+                        if (!editor) {
+                            return {
+                                project,
+                                html: checked.html,
+                                css: checked.css,
+                            };
+                        }
+
                         const canvasHtml = project?.pages?.[0]?.component;
                         if (typeof canvasHtml !== 'string' || canvasHtml.trim() === '') {
                             throw new Error('Aus dem importierten Code konnte kein bearbeitbares Mailprojekt erstellt werden.');
@@ -1493,10 +1519,6 @@
                     };
 
                     const applyCodeAsDraft = async () => {
-                        if (!instance?.editor?.loadProjectData) {
-                            throw new Error('Der Editor ist noch nicht vollständig geladen.');
-                        }
-
                         const source = assertPortableSource({
                             html: codeHtml?.value || '',
                             css: codeCss?.value || '',
@@ -1507,6 +1529,27 @@
                         // Leinwand und danach durch den normalen Save-Request.
                         setMessage('Code wird serverseitig geprüft …');
                         const validated = await validateSourceOnServer(source, pendingPortableMedia);
+                        if (!instance?.editor?.loadProjectData) {
+                            setMessage('Reparierter Entwurf wird gespeichert …');
+                            const payload = await request(document_.endpoints.update, 'PUT', {
+                                builder_data: validated.draft.builderData,
+                                html: validated.draft.html,
+                                css: validated.draft.css,
+                                expected_hash: document_.contentHash || '',
+                            });
+                            applyDocumentState(payload.document);
+                            showFindings(payload.report || validated.report);
+                            pendingPortableMedia = [];
+
+                            const message = 'Der reparierte Entwurf wurde gespeichert. Der Editor wird neu geladen.';
+                            setMessage(message);
+                            toast('success', message, 'Import abgeschlossen');
+                            codeDialog?.close('saved');
+                            window.setTimeout(() => window.location.reload(), 250);
+
+                            return;
+                        }
+
                         const editor = instance.editor;
                         const previousProject = structuredClone(editor.getProjectData());
                         const previousBaselineHtml = activeBaselineHtml;
@@ -1596,13 +1639,6 @@
 
                     bindToolControl('[data-mail-code-import]', (event) => {
                         const importButton = event.currentTarget;
-                        if (!instance) {
-                            const error = new Error('Der Editor ist noch nicht vollständig geladen.');
-                            const surfaced = showRequestError(error, 'Import nicht möglich');
-                            toast('error', surfaced.message, 'Import nicht möglich');
-                            return;
-                        }
-
                         codeDialogOpener = importButton;
                         importFile?.click();
                     });
@@ -1791,11 +1827,19 @@
                     boot().catch((error) => {
                         if (destroyed) return;
 
+                        try {
+                            instance?.destroy?.();
+                        } catch (_) {
+                            // Die Recovery-Werkzeuge bleiben auch dann aktiv,
+                            // wenn eine halbfertige Builderinstanz sich nicht
+                            // mehr vollstaendig abbauen laesst.
+                        }
+                        instance = null;
                         root.innerHTML = '';
                         const notice = window.document.createElement('div');
                         notice.className = 'rt-mail-editor-error';
                         notice.setAttribute('role', 'alert');
-                        notice.textContent = `Editor konnte nicht geladen werden: ${error.message}`;
+                        notice.textContent = `Editor konnte nicht geladen werden: ${error.message} Ein JSON-, HTML- oder CSS-Import bleibt über „Werkzeuge“ verfügbar.`;
                         root.appendChild(notice);
                         toast('error', error.message, 'E-Mail-Editor nicht verfügbar');
                     });

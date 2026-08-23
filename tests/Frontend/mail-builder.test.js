@@ -199,26 +199,43 @@ test('signature project gets a valid editor-only table and a reversible train im
 
 test('schema 22 train overlaps migrate deterministically to the schema 25 pixel frame', () => {
     const legacyTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
+    const schema24Train = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
     const legacyStage = (train) => canonicalSignatureStage('Inhalt').replace(canonicalTrain, train);
+    const schema24Stage = '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
+        + schema24Train
+        + '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tbody><tr><td>Inhalt</td></tr></tbody></table>'
+        + '</div>';
     const variants = [
         {
             label: 'without overlap',
             stage: legacyStage(legacyTrain.replace('margin-bottom:-150px;', '')),
+            schema: 22,
         },
         {
             label: 'custom overlap',
             stage: legacyStage(legacyTrain.replace('margin-bottom:-150px;', 'margin-bottom:-72px;')),
+            schema: 22,
+        },
+        {
+            label: 'authentic schema 24 without position',
+            stage: schema24Stage,
+            schema: 24,
+        },
+        {
+            label: 'stale schema 25 metadata with repairable schema 24 markup',
+            stage: schema24Stage,
+            schema: 25,
         },
     ];
 
-    variants.forEach(({ label, stage }) => {
+    variants.forEach(({ label, stage, schema }) => {
         const original = `<tr><td class="rt-sign-cell">${stage}</td></tr>`
             + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
         const project = projectForMailDocument({
             builderData: {
                 pages: [{ component: original }],
                 styles: [],
-                railtime: { document: 'signature', schema: 22 },
+                railtime: { document: 'signature', schema },
             },
             css: '',
         }, () => [], { kind: 'signature', environment: { DOMParser } });

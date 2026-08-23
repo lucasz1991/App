@@ -1559,21 +1559,42 @@ function assertLegacyFlowSignatureTrainLayer(layer, image) {
     ], 'Das Zugbild');
 
     const geometry = signatureTrainGeometry(layer);
-    assertInlineStyles(layer, {
-        position: 'relative',
-        left: '0',
-        right: 'auto',
-        top: 'auto',
-        bottom: 'auto',
-        width: '100%',
-        'max-width': '1815px',
-        margin: geometry.layerMargin,
-        overflow: 'hidden',
-        'z-index': '0',
-        'font-size': '0',
-        'line-height': '0',
-        'text-align': 'left',
-    }, 'Der Zug-Layer', { exact: true, optional: ['margin-bottom'] });
+    try {
+        // Schema 24 besass absichtlich keine position-Angabe. Dieser exakte
+        // Vertrag muss vor den kurzlebigen relative-/absolute-Varianten
+        // erkannt werden, sonst meldet ein gueltiger Altstand irrefuehrend
+        // eine fehlende kanonische Position und blockiert den Editorstart.
+        assertInlineStyles(layer, {
+            display: 'block',
+            width: '100%',
+            'max-width': '1815px',
+            margin: geometry.layerMargin,
+            overflow: 'hidden',
+            'font-size': '0',
+            'line-height': '0',
+            'text-align': 'left',
+        }, 'Der Zug-Layer', { exact: true, optional: ['margin-bottom'] });
+    } catch (schema24Error) {
+        try {
+            assertInlineStyles(layer, {
+                position: 'relative',
+                left: '0',
+                right: 'auto',
+                top: 'auto',
+                bottom: 'auto',
+                width: '100%',
+                'max-width': '1815px',
+                margin: geometry.layerMargin,
+                overflow: 'hidden',
+                'z-index': '0',
+                'font-size': '0',
+                'line-height': '0',
+                'text-align': 'left',
+            }, 'Der Zug-Layer', { exact: true, optional: ['margin-bottom'] });
+        } catch {
+            throw schema24Error;
+        }
+    }
     assertInlineStyles(image, {
         position: 'static',
         left: 'auto',
@@ -1877,8 +1898,12 @@ function projectLegacySignatureTrainLayer(wrapper, rows) {
     assertOptionalSignatureBackground(structure.carrier);
     try {
         assertLegacyFlowSignatureTrainLayer(layer, image);
-    } catch {
-        assertLegacyAbsoluteSignatureTrainLayer(layer, image);
+    } catch (flowError) {
+        try {
+            assertLegacyAbsoluteSignatureTrainLayer(layer, image);
+        } catch {
+            throw flowError;
+        }
     }
 
     const legacyOverlap = inlineStyleDeclaration(String(layer.getAttribute('style') || ''), 'margin-bottom')
@@ -1901,9 +1926,7 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         wrapper?.querySelectorAll?.('td.rt-sign-cell[data-rt-train-background]') || [],
     );
     if (backgroundCarriers.length > 0) {
-        if (declaredSchema === 19 || declaredSchema === 21 || declaredSchema === 22 || declaredSchema === 23
-            || declaredSchema === MAIL_SIGNATURE_SCHEMA
-            || backgroundCarriers.length !== 1
+        if (backgroundCarriers.length !== 1
             || backgroundCarriers[0].getAttribute('data-rt-train-background') !== '1') {
             throw new Error('Die Signatur besitzt keinen eindeutigen Schema-20-Zughintergrund.');
         }
@@ -1928,17 +1951,24 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         );
         applyCanonicalSignatureStageGeometry(structure);
     } else {
-        if (declaredSchema === 20) {
-            throw new Error('Der deklarierte Schema-20-Zughintergrund fehlt.');
-        }
-        if ([19, 21, 22, 23, 24, undefined].includes(declaredSchema)) {
-            try {
-                assertCanonicalSignatureTrainImage(wrapper, rows);
-            } catch {
-                projectLegacySignatureTrainLayer(wrapper, rows);
-            }
-        } else {
+        let canonicalError = null;
+        try {
             assertCanonicalSignatureTrainImage(wrapper, rows);
+        } catch (error) {
+            canonicalError = error;
+            try {
+                projectLegacySignatureTrainLayer(wrapper, rows);
+            } catch (legacyError) {
+                // Bei als aktuell deklarierten Quellen beschreibt die erste
+                // Meldung den tatsaechlich verletzten Schema-25-Vertrag. Eine
+                // nachgeschaltete Legacy-Pruefung darf sie nicht wieder durch
+                // die irrefuehrende position-Meldung verdecken.
+                if (declaredSchema === MAIL_SIGNATURE_SCHEMA && canonicalError instanceof Error) {
+                    throw canonicalError;
+                }
+
+                throw legacyError;
+            }
         }
     }
 
