@@ -1787,7 +1787,7 @@ HTML;
         $prepare->invoke($controller, '<img src="'.$source.'" alt="">', '', [$entry]);
     }
 
-    public function test_codeimport_prueft_die_v12_und_v13_medienvertraege_aus_dem_kandidaten_html(): void
+    public function test_codeimport_prueft_die_v12_bis_v14_medienvertraege_aus_dem_kandidaten_html(): void
     {
         Storage::fake('public');
         $this->seedDocuments();
@@ -1796,6 +1796,7 @@ HTML;
         foreach ([
             SignatureArtifactVersion::V12 => 'zug-dampf-v12-dark.png',
             SignatureArtifactVersion::V13 => 'zug-dampf-v13-dark.png',
+            SignatureArtifactVersion::V14 => 'zug-dampf-v13-dark.png',
         ] as $version => $missingAsset) {
             $builderData = $document->builder_data ?: [];
             $html = preg_replace(
@@ -1836,7 +1837,7 @@ HTML;
         }
     }
 
-    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v13_marker(): void
+    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v14_marker(): void
     {
         $canonical = $this->canonicalMailDocumentHtml(MailDocumentKind::Signature);
         $v7 = str_replace(
@@ -1932,18 +1933,31 @@ HTML;
             MailDocumentKind::Signature,
             $v13,
         ));
+        $v14 = str_replace(
+            SignatureArtifactVersion::V13,
+            SignatureArtifactVersion::V14,
+            $v13,
+            $v14MarkerCount,
+        );
+        $this->assertSame(1, $v14MarkerCount);
+        $this->assertSame(SignatureArtifactVersion::V14, SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $v14,
+        ));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V8));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V9));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V10));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V11));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V12));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V13));
+        $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V14));
         $this->assertFalse(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V7));
         $this->assertFalse(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V11));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V12));
         $this->assertFalse(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V13));
         $this->assertFalse(SignatureArtifactVersion::usesSmokeSafeArrivalTrain(SignatureArtifactVersion::V12));
         $this->assertTrue(SignatureArtifactVersion::usesSmokeSafeArrivalTrain(SignatureArtifactVersion::V13));
+        $this->assertTrue(SignatureArtifactVersion::usesSmokeSafeArrivalTrain(SignatureArtifactVersion::V14));
         $this->assertSame(
             PortableMediaCatalog::requiredSystemAssetIds(
                 MailDocumentKind::Signature,
@@ -2007,10 +2021,29 @@ HTML;
             ),
         );
 
+        $v14Assets = PortableMediaCatalog::requiredSystemAssetIds(
+            MailDocumentKind::Signature,
+            SignatureArtifactVersion::V14,
+        );
+        $this->assertSame($v13Assets, $v14Assets);
+        $this->assertArrayHasKey(
+            SignatureArtifactVersion::V14,
+            PortableMediaCatalog::requiredSystemAssetContracts(MailDocumentKind::Signature),
+        );
+        $this->assertStringContainsString(
+            '/zug-dampf-v13-light.gif',
+            EmailTemplateBuilder::signatureTrainUrl(
+                'light',
+                animated: true,
+                artifactVersion: SignatureArtifactVersion::V14,
+            ),
+        );
+
         foreach ([
             SignatureArtifactVersion::V11 => $v11,
             SignatureArtifactVersion::V12 => $v12,
             SignatureArtifactVersion::V13 => $v13,
+            SignatureArtifactVersion::V14 => $v14,
         ] as $version => $versionHtml) {
             $companyHtml = MailSignature::forCompany(
                 playbackNonce: $version.'-density-company',
@@ -2046,7 +2079,7 @@ HTML;
         $baseHtml = (string) $document->html;
         $baseBuilderData = $document->builder_data ?: [];
 
-        foreach ([SignatureArtifactVersion::V12, SignatureArtifactVersion::V13] as $index => $version) {
+        foreach ([SignatureArtifactVersion::V12, SignatureArtifactVersion::V13, SignatureArtifactVersion::V14] as $index => $version) {
             $html = preg_replace(
                 '/^<tr>/',
                 '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.$version.'">',

@@ -98,6 +98,20 @@ tr[data-rt-artifact-version="v12"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v13"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v13"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v13"] .rt-sign-content-frame { height: 190px !important; }
+/* V14 zieht die Breitbuehne bis knapp an die 171-px-Zugdatei heran. Zug-Layer
+   und Inhalt bleiben durch dieselbe feste Hoehe und negative Pixel-Margin
+   deckungsgleich, statt zwei aufeinanderfolgende Bereiche zu bilden. */
+tr[data-rt-artifact-version="v14"] .rt-sign-stage,
+tr[data-rt-artifact-version="v14"] .rt-sign-train-layer {
+  height: 175px !important;
+  max-height: 175px !important;
+}
+tr[data-rt-artifact-version="v14"] .rt-sign-train-layer {
+  margin-bottom: -175px !important;
+}
+tr[data-rt-artifact-version="v14"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v14"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v14"] .rt-sign-content-frame { height: 175px !important; }
 tr[data-rt-signature-density="compact"] .rt-sign-stage,
 tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
   height: 145px !important;
@@ -109,6 +123,16 @@ tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
 tr[data-rt-signature-density="compact"] .rt-sign-train-frame,
 tr[data-rt-signature-density="compact"] .rt-sign-train-slot,
 tr[data-rt-signature-density="compact"] .rt-sign-content-frame { height: 145px !important; }
+/* Bei der maximalen 1815-px-Breite waere das 108,67-Prozent-Motiv hoeher als
+   die kompakte 145-px-Buehne und wuerde unten beschnitten. V14 begrenzt nur
+   dieses Desktop-Systemprofil auf 94 Prozent; die spaeteren Mobilregeln sind
+   spezifischer und vergroessern es dort weiterhin auf 150 beziehungsweise 175 Prozent. */
+tr[data-rt-artifact-version="v14"][data-rt-signature-density="compact"] .rt-sign-train,
+tr[data-rt-artifact-version="v14"][data-rt-signature-density="compact"] .rt-sign-train-mso {
+  width: 94% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+}
 .rt-sign-train,
 .rt-sign-train-mso {
   position: static !important;
@@ -370,20 +394,23 @@ tr[data-rt-artifact-version="v11"] .rt-sign-train-layer[data-rt-layer-mobile="st
   max-width: none !important;
   margin-left: 0 !important;
 }
-/* Vollstaendige V11-Kontakte behalten bei gestapeltem Layout 296 px. Das
+/* Vollstaendige V11-bis-V14-Kontakte behalten bei gestapeltem Layout 296 px. Das
    kompakte Systemprofil benoetigt nach der Kontaktbereinigung nur 215 px. */
 tr[data-rt-artifact-version="v11"] .rt-sign-stage,
 tr[data-rt-artifact-version="v12"] .rt-sign-stage,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-layer,
 tr[data-rt-artifact-version="v13"] .rt-sign-stage,
 tr[data-rt-artifact-version="v13"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v14"] .rt-sign-stage,
+tr[data-rt-artifact-version="v14"] .rt-sign-train-layer,
 tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
   height: 296px !important;
   max-height: 296px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-train-layer,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-layer,
-tr[data-rt-artifact-version="v13"] .rt-sign-train-layer {
+tr[data-rt-artifact-version="v13"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v14"] .rt-sign-train-layer {
   margin-bottom: -296px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-train-frame,
@@ -394,7 +421,10 @@ tr[data-rt-artifact-version="v12"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v12"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v13"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v13"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v13"] .rt-sign-content-frame { height: 296px !important; }
+tr[data-rt-artifact-version="v13"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v14"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v14"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v14"] .rt-sign-content-frame { height: 296px !important; }
 tr[data-rt-signature-density="compact"] .rt-sign-stage,
 tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
   height: 215px !important;
@@ -459,20 +489,23 @@ tr[data-rt-artifact-version="v10"] .rt-sign-train-layer {
 tr[data-rt-artifact-version="v10"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v10"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v10"] .rt-sign-content-frame { height: 270px !important; }
-/* V11 bis V13: 264 px sichern die vollstaendige Personensignatur. Das serverseitig
+/* V11 bis V14: 264 px sichern die vollstaendige Personensignatur. Das serverseitig
    markierte Systemprofil reduziert die leere Telefonreserve auf 190 px. */
 tr[data-rt-artifact-version="v11"] .rt-sign-stage,
 tr[data-rt-artifact-version="v12"] .rt-sign-stage,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-layer,
 tr[data-rt-artifact-version="v13"] .rt-sign-stage,
 tr[data-rt-artifact-version="v13"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v14"] .rt-sign-stage,
+tr[data-rt-artifact-version="v14"] .rt-sign-train-layer,
 tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
   height: 264px !important;
   max-height: 264px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-train-layer,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-layer,
-tr[data-rt-artifact-version="v13"] .rt-sign-train-layer {
+tr[data-rt-artifact-version="v13"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v14"] .rt-sign-train-layer {
   margin-bottom: -264px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-train-frame,
@@ -483,7 +516,10 @@ tr[data-rt-artifact-version="v12"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v12"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v13"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v13"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v13"] .rt-sign-content-frame { height: 264px !important; }
+tr[data-rt-artifact-version="v13"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v14"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v14"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v14"] .rt-sign-content-frame { height: 264px !important; }
 tr[data-rt-signature-density="compact"] .rt-sign-stage,
 tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
   height: 190px !important;
@@ -529,6 +565,14 @@ tr[data-rt-artifact-version="v13"] .rt-sign-train-layer[data-rt-layer-mobile="st
   width: 135% !important;
   max-width: none !important;
   margin-left: -15.75% !important;
+}
+/* V14 vergroessert das Telefonmotiv deutlich. Da das Ankunftsbild bei 60 %
+   seiner Leinwand endet, ergeben 175 % Breite minus 40 % linken Beschnitt
+   weiterhin exakt 65 % der Signaturbreite. */
+tr[data-rt-artifact-version="v14"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
+  width: 175% !important;
+  max-width: none !important;
+  margin-left: -40% !important;
 }
 
 
@@ -578,16 +622,18 @@ tr[data-rt-artifact-version="v10"] .rt-sign-identity .rt-contact {
 tr[data-rt-artifact-version="v10"] .rt-company-contact {
   margin-top: 8px !important;
 }
-/* V11 bis V13 geben der Wortmarke unter der roten Linie etwas mehr Luft. Die uebrigen
+/* V11 bis V14 geben der Wortmarke unter der roten Linie etwas mehr Luft. Die uebrigen
    kompakten Abstaende bleiben bewusst identisch zu V10. */
 tr[data-rt-artifact-version="v11"] .rt-sign-content,
 tr[data-rt-artifact-version="v12"] .rt-sign-content,
-tr[data-rt-artifact-version="v13"] .rt-sign-content {
+tr[data-rt-artifact-version="v13"] .rt-sign-content,
+tr[data-rt-artifact-version="v14"] .rt-sign-content {
   padding-top: 14px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-logo,
 tr[data-rt-artifact-version="v12"] .rt-sign-logo,
-tr[data-rt-artifact-version="v13"] .rt-sign-logo {
+tr[data-rt-artifact-version="v13"] .rt-sign-logo,
+tr[data-rt-artifact-version="v14"] .rt-sign-logo {
   padding-bottom: 8px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-top-row > .rt-sign-identity,
@@ -595,17 +641,21 @@ tr[data-rt-artifact-version="v11"] .rt-sign-company,
 tr[data-rt-artifact-version="v12"] .rt-sign-top-row > .rt-sign-identity,
 tr[data-rt-artifact-version="v12"] .rt-sign-company,
 tr[data-rt-artifact-version="v13"] .rt-sign-top-row > .rt-sign-identity,
-tr[data-rt-artifact-version="v13"] .rt-sign-company {
+tr[data-rt-artifact-version="v13"] .rt-sign-company,
+tr[data-rt-artifact-version="v14"] .rt-sign-top-row > .rt-sign-identity,
+tr[data-rt-artifact-version="v14"] .rt-sign-company {
   padding-top: 6px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-identity .rt-contact,
 tr[data-rt-artifact-version="v12"] .rt-sign-identity .rt-contact,
-tr[data-rt-artifact-version="v13"] .rt-sign-identity .rt-contact {
+tr[data-rt-artifact-version="v13"] .rt-sign-identity .rt-contact,
+tr[data-rt-artifact-version="v14"] .rt-sign-identity .rt-contact {
   margin-top: 6px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-company-contact,
 tr[data-rt-artifact-version="v12"] .rt-company-contact,
-tr[data-rt-artifact-version="v13"] .rt-company-contact {
+tr[data-rt-artifact-version="v13"] .rt-company-contact,
+tr[data-rt-artifact-version="v14"] .rt-company-contact {
   margin-top: 8px !important;
 }
 }
