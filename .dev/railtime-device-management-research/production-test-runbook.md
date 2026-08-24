@@ -76,8 +76,10 @@ folgende Gates bestehen:
    kein `DevicePower` gestartet werden.
 6. Einen separat per MDM/UEM oder kontrolliertem Adminvorgang installierten
    Laboragenten anhand seiner in MeshCentral geprüften nativen Node-ID über
+   die mit `devices.manage` geschützte UI
    `Gerät > Provider-Verknüpfungen > Verknüpfen` als aktiven Support-Link zum
-   eindeutigen RailTime-Gerät binden. Keine
+   eindeutigen RailTime-Gerät binden. Die Service-Schicht prüft dieselbe
+   Berechtigung und ersetzt eine abweichende vorhandene ID nicht still. Keine
    automatische Enrollment-Completion eintragen.
 7. `DeviceInfo` liefert nur die datensparsame Diagnosezusammenfassung. Rohes
    Hardware-/Netzwerkinventar wird nicht in RailTime gespiegelt.

@@ -18,8 +18,8 @@ use App\Services\DeviceManagement\DeviceEnrollmentService;
 use App\Services\DeviceManagement\DeviceInventoryImportService;
 use App\Services\DeviceManagement\DeviceInventoryService;
 use App\Services\DeviceManagement\DeviceManagementSettings;
-use App\Services\DeviceManagement\DeviceProviderRegistry;
 use App\Services\DeviceManagement\DeviceProviderLinkService;
+use App\Services\DeviceManagement\DeviceProviderRegistry;
 use App\Services\DeviceManagement\DeviceReadinessService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
@@ -705,7 +705,7 @@ class DeviceManagement extends Component
             : null;
 
         $productionCommandsEnabled = $settings->productionCommandsEnabled();
-        $providerCards = collect($settings->providerCatalog())->map(function (array $config, string $key) use ($productionCommandsEnabled, $providers, $settings): array {
+        $providerCards = collect($settings->providerCatalog())->map(function (array $config, string $key) use ($providers, $settings): array {
             $provider = $providers->get($key);
             $runtime = $settings->providerRuntime($key);
 

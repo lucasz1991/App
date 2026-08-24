@@ -22,7 +22,10 @@ lokal testbar. Dazu gehören:
   Mitarbeiterzuordnungen,
 - providerbezogene Geräteverknüpfungen, damit beispielsweise OpenUEM als
   primäres Inventar-Backend und MeshCentral als Support-Backend dasselbe
-  RailTime-Gerät adressieren können,
+  RailTime-Gerät adressieren können. Die Verknüpfungs-UI unter
+  `Gerät > Provider-Verknüpfungen > Verknüpfen` ist durch `devices.manage`
+  geschützt; der Service prüft dieselbe Berechtigung und ersetzt eine
+  abweichende bestehende ID niemals still,
 - an eine konkrete aktive Mitarbeiterzuordnung gebundene Enrollment-
   Einladungen; Rückgabe oder Neuzuweisung widerruft die alte Einladung und
   zugehörige noch nicht ausgeführte Vorbereitungsschritte,

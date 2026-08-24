@@ -10,6 +10,7 @@ use App\Livewire\Devices\DeviceManagement;
 use App\Models\Device;
 use App\Models\DeviceCommand;
 use App\Models\DeviceEnrollment;
+use App\Models\DeviceProviderLink;
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceAccountPreparationService;
 use App\Services\DeviceManagement\DeviceArtifactService;
@@ -898,7 +899,7 @@ class DeviceManagementTest extends TestCase
         );
         $device->ensureProviderLink(
             'meshcentral',
-            \App\Models\DeviceProviderLink::ROLE_SUPPORT,
+            DeviceProviderLink::ROLE_SUPPORT,
             'node/railtime.example/AbC_0123456789@$+=.remote-support-01',
         );
 
