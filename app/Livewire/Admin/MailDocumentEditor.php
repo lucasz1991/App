@@ -223,6 +223,17 @@ class MailDocumentEditor extends Component
             // weder private FilePool-URLs noch Vorschau-Data-URIs in einen
             // gespeicherten Mailentwurf.
             'portableMedia' => $this->portableMediaAssets($documents),
+            // Import und Direkt-Reexport waehlen den Pflichtbestand anhand
+            // des Kandidaten-HTMLs. Die bisherige required-Markierung der
+            // geoeffneten v7 durfte ein korrektes v8-Bundle nicht blockieren.
+            'portableMediaRequirements' => [
+                MailDocumentKind::Template->value => PortableMediaCatalog::requiredSystemAssetContracts(
+                    MailDocumentKind::Template,
+                ),
+                MailDocumentKind::Signature->value => PortableMediaCatalog::requiredSystemAssetContracts(
+                    MailDocumentKind::Signature,
+                ),
+            ],
             // Nur fuer das isolierte Editor-iframe: Die gespeicherten
             // {{...}}-Tokens bleiben unangetastet, waehrend Logo, Zug und
             // Kontakticons in Hell und Dunkel trotzdem real dargestellt

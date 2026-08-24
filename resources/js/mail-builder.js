@@ -91,6 +91,38 @@ const MAIL_SIGNATURE_CONTACT_MARKERS = Object.freeze({
 });
 
 /**
+ * Bestimmt den Medienvertrag aus dem zu importierenden/exportierenden HTML.
+ * Die PHP-Konfiguration liefert die Dateilisten; JavaScript entscheidet nur
+ * zwischen dem alten v7-Fallback und dem expliziten v8-Marker.
+ *
+ * @param {object} requirements
+ * @param {string} kind
+ * @param {string} html
+ * @returns {string[]}
+ */
+export function resolvePortableMediaRequirementIds(requirements, kind, html) {
+    const normalizedKind = String(kind || '').trim().toLowerCase();
+    const contracts = requirements?.[normalizedKind];
+    const contract = normalizedKind === 'signature'
+        && /\bdata-rt-artifact-version\s*=\s*(["'])v8\1/i.test(String(html || ''))
+        ? 'v8'
+        : (normalizedKind === 'signature' ? 'v7' : 'default');
+    const ids = contracts?.[contract];
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+        throw new Error('Der serverseitige Medienvertrag ist nicht vollständig konfiguriert.');
+    }
+
+    const normalized = ids.map((id) => String(id || '').trim());
+    if (normalized.some((id) => !/^[A-Za-z0-9._-]+\.(?:gif|png|jpe?g|webp)$/i.test(id))
+        || new Set(normalized).size !== normalized.length) {
+        throw new Error('Der serverseitige Medienvertrag enthält ungültige oder doppelte Kennungen.');
+    }
+
+    return normalized;
+}
+
+/**
  * Dieser Dokumenteditor ist absichtlich fest an das Mailprofil gebunden.
  * Das Profil darf hier nicht zur Laufzeit auf Marketing umgeschaltet werden,
  * weil bereits das Oeffnen sonst nicht portable Styles freischalten koennte.

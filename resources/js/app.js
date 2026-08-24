@@ -73,6 +73,7 @@ import {
     createMailNavigationController,
     projectForMailDocument,
     rehydrateAuthoritativeMailProject,
+    resolvePortableMediaRequirementIds,
     serializeMailDocumentForSave,
 } from './mail-builder';
 import {
@@ -661,6 +662,7 @@ window.RailTimeMailBuilder = {
     createNavigationController: createMailNavigationController,
     projectFor: projectForMailDocument,
     rehydrateAuthoritative: rehydrateAuthoritativeMailProject,
+    resolvePortableMediaRequirementIds,
     serializeForSave: serializeMailDocumentForSave,
     normalizeCompatibilityManifest: normalizeMailCompatibilityManifest,
     normalizeCompatibilityReport: normalizeMailCompatibilityReport,

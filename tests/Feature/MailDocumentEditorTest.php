@@ -202,8 +202,10 @@ class MailDocumentEditorTest extends TestCase
     }
 
     /** @return list<array<string, int|string>> */
-    private function portableSystemMedia(MailDocumentKind $kind): array
-    {
+    private function portableSystemMedia(
+        MailDocumentKind $kind,
+        ?string $artifactVersion = null,
+    ): array {
         return array_map(static function (string $id): array {
             $path = public_path('mail-assets/'.$id);
             $binary = (string) file_get_contents($path);
@@ -218,7 +220,7 @@ class MailDocumentEditorTest extends TestCase
                 'sha256' => hash('sha256', $binary),
                 'data' => base64_encode($binary),
             ];
-        }, PortableMediaCatalog::requiredSystemAssetIds($kind));
+        }, PortableMediaCatalog::requiredSystemAssetIds($kind, $artifactVersion));
     }
 
     /**
@@ -1564,6 +1566,14 @@ HTML;
 
         $portableMedia = data_get($config, 'portableMedia');
         $this->assertIsArray($portableMedia);
+        $this->assertSame(
+            PortableMediaCatalog::requiredSystemAssetContracts(MailDocumentKind::Template),
+            data_get($config, 'portableMediaRequirements.template'),
+        );
+        $this->assertSame(
+            PortableMediaCatalog::requiredSystemAssetContracts(MailDocumentKind::Signature),
+            data_get($config, 'portableMediaRequirements.signature'),
+        );
         $expectedPortableIds = array_map(
             static fn (string $path): string => basename($path),
             glob(public_path('mail-assets/*.{gif,png,jpg,jpeg,webp}'), GLOB_BRACE) ?: [],
@@ -1684,6 +1694,53 @@ HTML;
         $entry['sha256'] = str_repeat('0', 64);
         $this->expectException(ValidationException::class);
         $prepare->invoke($controller, '<img src="'.$source.'" alt="">', '', [$entry]);
+    }
+
+    public function test_codeimport_prueft_den_v8_medienvertrag_aus_dem_kandidaten_html(): void
+    {
+        Storage::fake('public');
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $builderData = $document->builder_data ?: [];
+
+        $v8 = preg_replace(
+            '/^<tr>/',
+            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V8.'">',
+            (string) $document->html,
+            1,
+            $markerCount,
+        );
+        $this->assertIsString($v8);
+        $this->assertSame(1, $markerCount);
+        data_set($builderData, 'pages.0.component', $v8);
+        $media = $this->portableSystemMedia(
+            MailDocumentKind::Signature,
+            SignatureArtifactVersion::V8,
+        );
+        $payload = [
+            'builder_data' => $builderData,
+            'html' => $v8,
+            'css' => (string) $document->css,
+            'expected_hash' => $document->content_hash,
+            'portable_media' => $media,
+        ];
+
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.mail-documents.validate-code', $document), $payload)
+            ->assertOk()
+            ->assertJsonPath('compatibility.status', 'pass');
+
+        $payload['portable_media'] = array_values(array_filter(
+            $media,
+            static fn (array $entry): bool => ($entry['id'] ?? '') !== 'zug-dampf-v8-dark.png',
+        ));
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.mail-documents.validate-code', $document), $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('portable_media')
+            ->assertJsonFragment([
+                'Im Bundle fehlen erforderliche Medien: zug-dampf-v8-dark.png.',
+            ]);
     }
 
     public function test_signatur_artefaktversion_erkennt_v7_fallback_und_v8_marker(): void

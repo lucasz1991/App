@@ -817,11 +817,13 @@
                         const removed = (report?.findings || []).some((finding) => finding.severity === 'violation');
                         const explicitTitle = typeof report?.title === 'string' ? report.title.trim() : '';
                         if (findingsTitle) {
-                            findingsTitle.textContent = compatibilityBlocksPublication
-                                ? 'Veröffentlichung durch Kompatibilitätsregeln blockiert'
-                                : (explicitTitle || (removed
-                                    ? 'Die Prüfung hat Inhalte entfernt'
-                                    : 'Hinweise der Sicherheits- und Kompatibilitätsprüfung'));
+                            findingsTitle.textContent = explicitTitle || (
+                                compatibility !== undefined && compatibilityBlocksPublication
+                                    ? 'Veröffentlichung durch Kompatibilitätsregeln blockiert'
+                                    : (removed
+                                        ? 'Die Prüfung hat Inhalte entfernt'
+                                        : 'Hinweise der Sicherheits- und Kompatibilitätsprüfung')
+                            );
                         }
 
                         messages.forEach((message) => {
@@ -1269,11 +1271,27 @@
                         });
                     };
 
-                    const exportPortableMedia = async () => {
+                    const requiredPortableMediaIds = (source) => {
+                        if (typeof runtimeBridge.resolvePortableMediaRequirementIds !== 'function') {
+                            throw new Error('Die versionsabhängige Medienprüfung ist nicht verfügbar. Bitte Seite neu laden.');
+                        }
+
+                        return runtimeBridge.resolvePortableMediaRequirementIds(
+                            config.portableMediaRequirements || {},
+                            config.currentDocument,
+                            source?.html || '',
+                        );
+                    };
+
+                    const exportPortableMedia = async (source) => {
                         const exported = [];
                         let totalBytes = 0;
+                        const requiredIds = new Set(requiredPortableMediaIds(source));
 
-                        for (const asset of portableMediaCatalog().filter((entry) => entry.included)) {
+                        for (const asset of portableMediaCatalog().filter((entry) => (
+                            requiredIds.has(entry.id)
+                            || (entry.included && entry.id.startsWith('mail-imports/'))
+                        ))) {
                             const response = await fetch(asset.source, {
                                 credentials: 'same-origin',
                                 cache: 'no-store',
@@ -1305,7 +1323,7 @@
                         kind: config.currentDocument,
                         html: source.html,
                         css: source.css,
-                        media: await exportPortableMedia(),
+                        media: await exportPortableMedia(source),
                     });
 
                     const downloadPortableBundle = async (source) => {
@@ -1360,7 +1378,7 @@
 
                         const catalog = portableMediaCatalog();
                         const knownIds = new Set(catalog.map((asset) => asset.id));
-                        const requiredIds = catalog.filter((asset) => asset.required).map((asset) => asset.id);
+                        const requiredIds = requiredPortableMediaIds(source);
                         const seenIds = new Set();
                         const seenSources = new Set();
                         let totalBytes = 0;
@@ -1673,12 +1691,16 @@
                                 || Array.isArray(validated.compatibility?.findings)) {
                                 showFindings(validated.report, validated.compatibility);
                             }
+                            const reloadForPortableMedia = pendingPortableMedia.length > 0;
                             pendingPortableMedia = [];
 
                             const message = 'Code geprüft und als Entwurf gespeichert. Die veröffentlichte Fassung bleibt unverändert.';
                             setMessage(message);
                             toast('success', message, 'Import abgeschlossen');
                             codeDialog?.close('saved');
+                            if (reloadForPortableMedia) {
+                                window.setTimeout(() => window.location.reload(), 250);
+                            }
                         } catch (error) {
                             activeBaselineHtml = String(document_.html || previousBaselineHtml);
 

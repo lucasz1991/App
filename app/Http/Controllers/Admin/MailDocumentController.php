@@ -21,6 +21,7 @@ use App\Support\Mail\EmailHtmlReport;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentAutoRepair;
 use App\Support\Mail\MailDocumentVersionStore;
+use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
@@ -64,6 +65,12 @@ final class MailDocumentController extends Controller
         $actor = $this->mailAdmin($request);
         $validated = $request->validated();
         $kind = MailDocumentKind::from((string) $validated['kind']);
+        $this->assertPortableMediaComplete(
+            $kind,
+            (string) $validated['html'],
+            (array) $validated['media'],
+            'media',
+        );
 
         [$html, $css, $portableFiles] = $this->preparePortableMedia(
             (string) $validated['html'],
@@ -167,10 +174,18 @@ final class MailDocumentController extends Controller
             ]);
         }
 
+        $portableMedia = (array) ($validated['portable_media'] ?? []);
+        if ($portableMedia !== []) {
+            $this->assertPortableMediaComplete(
+                $document->kind,
+                (string) $validated['html'],
+                $portableMedia,
+            );
+        }
         [$html, $css, $portableFiles] = $this->preparePortableMedia(
             (string) $validated['html'],
             (string) $validated['css'],
-            (array) ($validated['portable_media'] ?? []),
+            $portableMedia,
         );
         $html = MailDocumentAutoRepair::repairHtml($document->kind, $html);
         $this->assertEditableCssSource($css);
@@ -209,6 +224,46 @@ final class MailDocumentController extends Controller
             'report' => $this->reportPayload($htmlReport, $cssReport),
             'compatibility' => $compatibility->toArray(),
         ]);
+    }
+
+    /**
+     * Der Browser bietet nur eine schnelle Vorpruefung. Der Server bestimmt
+     * den Pflichtbestand erneut aus dem Kandidaten-HTML, damit ein direkter
+     * Request weder Medien auslassen noch v7/v8 miteinander vermischen kann.
+     *
+     * @param  list<array<string, mixed>>  $media
+     */
+    private function assertPortableMediaComplete(
+        MailDocumentKind $kind,
+        string $html,
+        array $media,
+        string $field = 'portable_media',
+    ): void {
+        $ids = array_values(array_filter(array_map(
+            static fn ($entry): string => is_array($entry)
+                ? trim((string) ($entry['id'] ?? ''))
+                : '',
+            $media,
+        ), static fn (string $id): bool => $id !== ''));
+        $counts = array_count_values($ids);
+        if (array_filter($counts, static fn (int $count): bool => $count !== 1) !== []) {
+            throw ValidationException::withMessages([
+                $field => 'Jede Medienkennung darf nur einmal vorkommen.',
+            ]);
+        }
+
+        $missing = array_values(array_diff(
+            PortableMediaCatalog::requiredSystemAssetIds(
+                $kind,
+                SignatureArtifactVersion::detect($kind, $html),
+            ),
+            array_keys($counts),
+        ));
+        if ($missing !== []) {
+            throw ValidationException::withMessages([
+                $field => 'Im Bundle fehlen erforderliche Medien: '.implode(', ', $missing).'.',
+            ]);
+        }
     }
 
     /**

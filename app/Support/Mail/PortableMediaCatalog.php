@@ -7,6 +7,37 @@ use App\Enums\MailDocumentKind;
 /** Verbindliche Systemmedien der portablen Maildokument-Bundles. */
 final class PortableMediaCatalog
 {
+    /**
+     * Vom Browser verwendete, serverautoritative Medienvertraege.
+     *
+     * Der aktuell geoeffnete Entwurf darf nicht bestimmen, welche Medien ein
+     * neu ausgewaehltes Bundle benoetigt: gerade beim Wechsel von v7 auf v8
+     * unterscheiden sich die Zug- und Idle-Dateien absichtlich.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function requiredSystemAssetContracts(MailDocumentKind|string $kind): array
+    {
+        $kind = is_string($kind) ? MailDocumentKind::tryFrom($kind) : $kind;
+
+        return match ($kind) {
+            MailDocumentKind::Signature => [
+                SignatureArtifactVersion::V7 => self::requiredSystemAssetIds(
+                    MailDocumentKind::Signature,
+                    SignatureArtifactVersion::V7,
+                ),
+                SignatureArtifactVersion::V8 => self::requiredSystemAssetIds(
+                    MailDocumentKind::Signature,
+                    SignatureArtifactVersion::V8,
+                ),
+            ],
+            MailDocumentKind::Template => [
+                'default' => self::requiredSystemAssetIds(MailDocumentKind::Template),
+            ],
+            default => ['default' => []],
+        };
+    }
+
     /** @return list<string> */
     public static function requiredSystemAssetIds(
         MailDocumentKind|string $kind,

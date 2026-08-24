@@ -19,6 +19,7 @@ import {
     rehydrateAuthoritativeMailProject,
     restartMailCanvasAnimations,
     resolveMailPreviewDevice,
+    resolvePortableMediaRequirementIds,
     serializeMailDocumentForSave,
     serializeMailProjectStyles,
     synchronizeMailSignatureFixedGeometry,
@@ -32,6 +33,39 @@ const canonicalSignatureStage = (content = '') => '<div class="rt-sign-stage" st
     + '<table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">'
     + `<tbody><tr><td>${content}</td></tr></tbody></table>`
     + '</div>';
+
+test('portable media requirements follow the imported signature instead of the open draft', () => {
+    const requirements = {
+        signature: {
+            v7: ['common.png', 'zug-dampf-light.gif', 'zug-dampf-idle-light.gif'],
+            v8: ['common.png', 'zug-dampf-v8-light.gif'],
+        },
+        template: {
+            default: ['icon-rt-light.gif'],
+        },
+    };
+
+    assert.deepEqual(
+        resolvePortableMediaRequirementIds(requirements, 'signature', '<tr><td>v7</td></tr>'),
+        requirements.signature.v7,
+    );
+    assert.deepEqual(
+        resolvePortableMediaRequirementIds(
+            requirements,
+            'signature',
+            '<tr data-rt-artifact-version="v8"><td>v8</td></tr>',
+        ),
+        requirements.signature.v8,
+    );
+    assert.deepEqual(
+        resolvePortableMediaRequirementIds(requirements, 'template', '<table></table>'),
+        requirements.template.default,
+    );
+    assert.throws(
+        () => resolvePortableMediaRequirementIds({}, 'signature', '<tr></tr>'),
+        /Medienvertrag ist nicht vollständig konfiguriert/,
+    );
+});
 
 test('LMZ traits and mail protection do not recurse through component updates', () => {
     const lmzBuilderSource = readFileSync(
@@ -1457,10 +1491,14 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /const MAIL_SOURCE_VERSION = 2/);
     assert.match(mailView, /const MAX_SOURCE_BYTES = 1024 \* 1024/);
     assert.match(mailView, /const MAX_BUNDLE_BYTES = 16 \* 1024 \* 1024/);
-    assert.match(mailView, /format: MAIL_SOURCE_FORMAT,[\s\S]*?version: MAIL_SOURCE_VERSION,[\s\S]*?kind: config\.currentDocument,[\s\S]*?html: source\.html,[\s\S]*?css: source\.css,[\s\S]*?media: await exportPortableMedia\(\)/);
+    assert.match(mailView, /format: MAIL_SOURCE_FORMAT,[\s\S]*?version: MAIL_SOURCE_VERSION,[\s\S]*?kind: config\.currentDocument,[\s\S]*?html: source\.html,[\s\S]*?css: source\.css,[\s\S]*?media: await exportPortableMedia\(source\)/);
     assert.match(mailView, /crypto\.subtle\.digest\('SHA-256'/);
     assert.match(mailView, /portable_media: portableMedia/);
     assert.match(mailView, /requiredIds\.some\(\(id\) => !seenIds\.has\(id\)\)/);
+    assert.match(mailView, /resolvePortableMediaRequirementIds[\s\S]*?config\.portableMediaRequirements[\s\S]*?source\?\.html/);
+    assert.match(mailView, /const requiredIds = requiredPortableMediaIds\(source\)/);
+    assert.doesNotMatch(mailView, /const requiredIds = catalog\.filter\(\(asset\) => asset\.required\)/);
+    assert.match(mailView, /explicitTitle \|\| \([\s\S]*?compatibility !== undefined && compatibilityBlocksPublication/);
     assert.match(mailView, /\^mail-imports\\\/\(\[a-f0-9\]\{64\}\)\\\.\(gif\|png\|jpg\|webp\)\$/);
     assert.match(mailView, /Das Bundle enthält nicht den vollständigen Medienbestand dieses Dokuments/);
     assert.match(mailView, /validateSourceOnServer\(source, pendingPortableMedia\)[\s\S]*?runtimeBridge\.projectFor[\s\S]*?editor\.loadProjectData[\s\S]*?saveCurrentDraft\(\)/);
