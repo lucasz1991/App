@@ -387,4 +387,26 @@ tr.rt-stack > td + td { padding-top: 10px !important; }
 /* Die allgemeine Telefonverdichtung darf am unteren Zug-Carrier keinen
    neuen Leerraum vor dem Pflichtangaben-Footer einfuehren. */
 .rt-sign-content { padding-top: 0 !important; padding-bottom: 15px !important; }
+/* V9 behaelt unter der roten Oberkante einen kleinen, mail-sicheren
+   Innenabstand. Gleichzeitig werden die Abstaende zwischen Wortmarke,
+   Person und Firmendaten etwas verdichtet, damit die feste 280-px-Buehne
+   und die bei 65 Prozent endende Zugposition unveraendert bleiben. */
+tr[data-rt-artifact-version="v9"] .rt-sign-content {
+  padding-top: 10px !important;
+}
+tr[data-rt-artifact-version="v9"] .rt-sign-logo {
+  padding-bottom: 10px !important;
+}
+tr[data-rt-artifact-version="v9"] .rt-sign-top-row > .rt-sign-identity {
+  padding-top: 8px !important;
+}
+tr[data-rt-artifact-version="v9"] .rt-sign-company {
+  padding-top: 8px !important;
+}
+tr[data-rt-artifact-version="v9"] .rt-sign-identity .rt-contact {
+  margin-top: 8px !important;
+}
+tr[data-rt-artifact-version="v9"] .rt-company-contact {
+  margin-top: 10px !important;
+}
 }

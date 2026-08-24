@@ -150,6 +150,13 @@ test('all delivered mail outputs keep the train-first flow overlap and a Classic
     assert.match(carrier, /'padding:18px 36px 20px;' => 'padding:0 36px 15px;'/);
     assert.match(carrier, /' valign="bottom"'/);
     assert.match(responsiveCss, /\.rt-sign-content \{ padding-top: 0 !important; padding-bottom: 15px !important; \}/);
+    const phoneCss = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 480px)'));
+    assert.match(phoneCss, /tr\[data-rt-artifact-version="v9"\] \.rt-sign-content\s*\{\s*padding-top:\s*10px !important;/);
+    assert.match(phoneCss, /tr\[data-rt-artifact-version="v9"\] \.rt-sign-logo\s*\{\s*padding-bottom:\s*10px !important;/);
+    assert.match(phoneCss, /tr\[data-rt-artifact-version="v9"\] \.rt-sign-top-row > \.rt-sign-identity\s*\{\s*padding-top:\s*8px !important;/);
+    assert.match(phoneCss, /tr\[data-rt-artifact-version="v9"\] \.rt-sign-company\s*\{\s*padding-top:\s*8px !important;/);
+    assert.match(phoneCss, /tr\[data-rt-artifact-version="v9"\] \.rt-sign-identity \.rt-contact\s*\{\s*margin-top:\s*8px !important;/);
+    assert.match(phoneCss, /tr\[data-rt-artifact-version="v9"\] \.rt-company-contact\s*\{\s*margin-top:\s*10px !important;/);
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
     assert.doesNotMatch(responsiveCss, /\.rt-sign-cell\.rt-sign-train-background/);
     assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position:\s*center center !important;[\s\S]+?background-size:\s*100% 100% !important;/);
