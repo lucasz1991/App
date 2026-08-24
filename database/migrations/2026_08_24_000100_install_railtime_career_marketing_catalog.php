@@ -48,8 +48,8 @@ return new class extends Migration
                 ->first();
 
             // Frische Datenbanken besitzen während der Migration noch keinen
-            // Administrator. Der idempotente MarketingStudioSeeder ergänzt
-            // die fehlenden Vorlagen, sobald ein Administrator existiert.
+            // Administrator. Der DatabaseSeeder ruft nach dem Admin-Seeding
+            // den idempotenten MarketingStudioSeeder auf.
             if (! $actor instanceof User) {
                 return;
             }

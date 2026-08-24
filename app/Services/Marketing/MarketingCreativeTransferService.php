@@ -11,6 +11,7 @@ use App\Models\MarketingCreativeVariant;
 use App\Models\User;
 use App\Support\MarketingBrandAssets;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -24,6 +25,8 @@ final class MarketingCreativeTransferService
     public const FORMAT = 'railtime-marketing-creative';
 
     public const VERSION = 1;
+
+    private const MAX_BUNDLE_BYTES = 32 * 1024 * 1024;
 
     private const MAX_BUNDLE_MEDIA_BYTES = 30 * 1024 * 1024;
 
@@ -82,6 +85,11 @@ final class MarketingCreativeTransferService
 
             $serialized = $this->json($definition);
             $fileIds = $this->files->referencedFileIds(...$this->stringValues($definition));
+            if (count($fileIds) > self::MAX_MEDIA_COUNT) {
+                throw ValidationException::withMessages([
+                    'creative' => 'Das Motiv verwendet zu viele Bilder für ein portables Paket.',
+                ]);
+            }
             $lockedFiles = $this->files->lockFilesForUpdate($fileIds)->keyBy('id');
             $mediaById = [];
             $fileTokens = [];
@@ -153,14 +161,35 @@ final class MarketingCreativeTransferService
             );
 
             ksort($mediaById);
+            if (count($mediaById) > self::MAX_MEDIA_COUNT
+                || array_sum(array_map(
+                    static fn (array $medium): int => strlen((string) $medium['data']),
+                    $mediaById,
+                )) > self::MAX_BUNDLE_MEDIA_BYTES) {
+                throw ValidationException::withMessages([
+                    'creative' => 'Die eingebetteten Bilder sind für ein portables Motivpaket zu groß.',
+                ]);
+            }
 
-            return [
+            $bundle = [
                 'format' => self::FORMAT,
                 'version' => self::VERSION,
                 'creative' => $definition,
                 'media' => array_values($mediaById),
             ];
+            if (strlen($this->json($bundle)) > self::MAX_BUNDLE_BYTES) {
+                throw ValidationException::withMessages([
+                    'creative' => 'Das Motivpaket ist größer als 32 MiB und kann nicht portabel exportiert werden.',
+                ]);
+            }
+
+            return $bundle;
         });
+    }
+
+    public function exportJson(MarketingCreative $creative): string
+    {
+        return $this->json($this->export($creative));
     }
 
     /**
@@ -241,10 +270,16 @@ final class MarketingCreativeTransferService
         } catch (Throwable $exception) {
             foreach ($storedPaths as $path) {
                 try {
-                    Storage::disk('private')->delete($path);
-                } catch (Throwable) {
-                    // Der ursprüngliche Fehler bleibt maßgeblich; verwaiste
-                    // Importblobs werden zusätzlich über das Fehlerlog sichtbar.
+                    if (! Storage::disk('private')->delete($path)) {
+                        Log::error('Marketing-Importblob konnte nach einem Rollback nicht entfernt werden.', [
+                            'path' => $path,
+                        ]);
+                    }
+                } catch (Throwable $cleanupException) {
+                    Log::error('Marketing-Importblob konnte nach einem Rollback nicht entfernt werden.', [
+                        'path' => $path,
+                        'exception' => $cleanupException,
+                    ]);
                 }
             }
 
@@ -261,6 +296,18 @@ final class MarketingCreativeTransferService
      */
     private function validatedBundle(array $bundle): array
     {
+        $unexpectedKeys = array_diff(array_keys($bundle), ['format', 'version', 'creative', 'media']);
+        if ($unexpectedKeys !== []) {
+            throw ValidationException::withMessages([
+                'bundle' => 'Das Motivpaket enthält unbekannte Transportfelder.',
+            ]);
+        }
+        if (strlen($this->json($bundle)) > self::MAX_BUNDLE_BYTES) {
+            throw ValidationException::withMessages([
+                'bundle' => 'Das Motivpaket ist größer als 32 MiB.',
+            ]);
+        }
+
         $maxBytes = max(1, (int) config('marketing.assets.max_kilobytes', 8192)) * 1024;
         $maxEncodedBytes = (int) ceil($maxBytes / 3) * 4 + 4;
         $formats = array_map(
@@ -273,7 +320,6 @@ final class MarketingCreativeTransferService
             'creative' => ['required', 'array:'.implode(',', ['type', 'title', 'shared_content', 'variants'])],
             'creative.type' => ['required', Rule::enum(MarketingCreativeType::class)],
             'creative.title' => ['required', 'string', 'max:160'],
-            'creative.shared_content' => ['present', 'array', 'max:160'],
             'creative.variants' => ['required', 'array:'.implode(',', $formats), 'size:'.count($formats)],
             'media' => ['present', 'array', 'max:'.self::MAX_MEDIA_COUNT],
             'media.*' => ['required', 'array:id,name,source,mime_type,bytes,width,height,sha256,data'],
@@ -293,12 +339,21 @@ final class MarketingCreativeTransferService
             $rules['creative.variants.'.$format.'.html'] = ['required', 'string', 'max:2000000'];
             $rules['creative.variants.'.$format.'.css'] = ['present', 'string', 'max:1000000'];
         }
+        $rules = array_merge($rules, MarketingSharedContentSchema::rules('creative.shared_content'));
 
-        $validated = Validator::make($bundle, $rules, [
+        $validator = Validator::make($bundle, $rules, [
             'format.in' => 'Die Datei ist kein RailTime-Marketing-Motivpaket.',
             'version.in' => 'Diese Version des Motivpakets wird nicht unterstützt.',
             'creative.variants.size' => 'Ein Motivpaket muss Story, Post und Web vollständig enthalten.',
-        ])->validate();
+        ]);
+        $validator->after(static function (\Illuminate\Validation\Validator $validator) use ($bundle): void {
+            MarketingSharedContentSchema::addSizeError(
+                $validator,
+                data_get($bundle, 'creative.shared_content', []),
+                'creative.shared_content',
+            );
+        });
+        $validated = $validator->validate();
 
         $creativeJson = $this->json($validated['creative']);
         if (strlen($creativeJson) > 8 * 1024 * 1024) {

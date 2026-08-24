@@ -118,14 +118,18 @@ final class MarketingStudioService
                 ]);
             }
 
-            $sharedContent = is_array($definition['shared_content'] ?? null)
-                ? $definition['shared_content']
-                : [];
+            $sharedContent = MarketingSharedContentSchema::validate(
+                is_array($definition['shared_content'] ?? null)
+                    ? $definition['shared_content']
+                    : [],
+            );
             $sourceTemplateKey = data_get($sharedContent, 'template_key');
+            unset($sharedContent['template_key'], $sharedContent['seed_version'], $sharedContent['import_source_template_key']);
+            $importSourceTemplateKey = null;
             if (is_string($sourceTemplateKey) && trim($sourceTemplateKey) !== '') {
-                $sharedContent['import_source_template_key'] = mb_substr(trim($sourceTemplateKey), 0, 190);
+                $importSourceTemplateKey = mb_substr(trim($sourceTemplateKey), 0, 190);
+                $sharedContent['import_source_template_key'] = $importSourceTemplateKey;
             }
-            unset($sharedContent['template_key'], $sharedContent['seed_version']);
 
             $creative = MarketingCreative::query()->create([
                 'type' => $type,
@@ -184,7 +188,7 @@ final class MarketingStudioService
                 ->withProperties([
                     'format' => 'railtime-marketing-creative',
                     'version' => 1,
-                    'source_template_key' => is_string($sourceTemplateKey) ? $sourceTemplateKey : null,
+                    'source_template_key' => $importSourceTemplateKey,
                 ])
                 ->log('marketing_creative_imported');
 

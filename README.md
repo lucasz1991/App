@@ -63,6 +63,11 @@ Administratoren erstellen unter **Management → Marketing** eigenständige Job-
 und Informationsmotive. Der aus der RailTime-Joomla-Komponente übernommene LMZ
 Page Builder bearbeitet Story (`1080 × 1920`), Social Post (`1080 × 1080`) und
 Web (`1200 × 630`) als getrennte Layouts mit gemeinsamen Inhaltsfeldern.
+Gespeicherte Motive lassen sich als portables RailTime-JSON-Paket mit allen
+drei Formaten und den darin verwendeten Bildern exportieren. Ein Import prüft
+Schema, Bildtyp, Abmessungen und Prüfsummen serverseitig und legt das Paket
+immer als neuen, ungeprüften Entwurf an; Freigaben und interne Datenbank-IDs
+werden nie übernommen.
 Entwürfe erhalten beim PNG-Export ein sichtbares Wasserzeichen; eine Änderung
 setzt eine bestehende Freigabe zurück. Uploads und gerenderte Dateien liegen auf
 dem privaten Dateisystem und werden ausschließlich über geschützte Adminrouten
@@ -224,8 +229,15 @@ aktiv; `MARKETING_CHROME_NO_SANDBOX=true` ist nur für eine nachweislich isolier
 Serverumgebung vorgesehen. Fehlende Browserkonfiguration markiert ausschließlich
 den betroffenen Render als fehlgeschlagen und verwirft weder Motiv noch Layout.
 
-Die ersten RailTime-Marketingmotive für **Wagenmeister (m/w/d)** und den
-**Wagenmeister-Service** werden bewusst separat und idempotent eingespielt:
+Der RailTime-Startkatalog enthält Unternehmens-, Wagenmeister- und
+Deutschlandnetz-Motive sowie die drei Karriere-Motive **Wagenmeister**,
+**Triebfahrzeugführer** und **Arbeitszugführer**, jeweils als Story, Post und
+Webformat. Auf bestehenden Installationen ergänzt die Migration vom
+24.08.2026 die drei Karriere-Motive, sofern bereits ein Administrator besteht.
+Bei einer frischen Installation ohne Administrator wird der vollständige
+Katalog durch den `DatabaseSeeder` direkt nach dem Admin- und Team-Seeding
+ergänzt. Für ein bestehendes System kann der idempotente Kataloglauf bei Bedarf
+auch einzeln wiederholt werden:
 
 ```bash
 php artisan db:seed --class=MarketingStudioSeeder --force

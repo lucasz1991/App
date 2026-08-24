@@ -10,7 +10,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use JsonException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class MarketingCreativeTransferController extends Controller
@@ -22,16 +21,7 @@ final class MarketingCreativeTransferController extends Controller
     ): StreamedResponse {
         abort_unless($request->user()?->isAdmin(), 403);
 
-        try {
-            $json = json_encode(
-                $transfer->export($creative),
-                JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-            );
-        } catch (JsonException) {
-            throw ValidationException::withMessages([
-                'creative' => 'Das Motiv konnte nicht als JSON-Paket serialisiert werden.',
-            ]);
-        }
+        $json = $transfer->exportJson($creative);
 
         $slug = Str::slug((string) $creative->title) ?: 'marketing-motiv';
 
