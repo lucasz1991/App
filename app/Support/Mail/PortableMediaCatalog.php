@@ -38,6 +38,10 @@ final class PortableMediaCatalog
                     MailDocumentKind::Signature,
                     SignatureArtifactVersion::V10,
                 ),
+                SignatureArtifactVersion::V11 => self::requiredSystemAssetIds(
+                    MailDocumentKind::Signature,
+                    SignatureArtifactVersion::V11,
+                ),
             ],
             MailDocumentKind::Template => [
                 'default' => self::requiredSystemAssetIds(MailDocumentKind::Template),

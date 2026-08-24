@@ -71,6 +71,32 @@
   font-size: 0 !important;
   line-height: 0 !important;
 }
+/* V11 behaelt fuer vollstaendige Personensignaturen eine sichere Reserve.
+   Systemmails erhalten nach dem Entfernen leerer Kontaktzeilen serverseitig
+   das kompakte Dichteprofil. Zug und Inhalt teilen weiterhin exakt dieselbe
+   feste Pixelhoehe. */
+tr[data-rt-artifact-version="v11"] .rt-sign-stage,
+tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
+  height: 190px !important;
+  max-height: 190px !important;
+}
+tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
+  margin-bottom: -190px !important;
+}
+tr[data-rt-artifact-version="v11"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v11"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v11"] .rt-sign-content-frame { height: 190px !important; }
+tr[data-rt-signature-density="compact"] .rt-sign-stage,
+tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
+  height: 145px !important;
+  max-height: 145px !important;
+}
+tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
+  margin-bottom: -145px !important;
+}
+tr[data-rt-signature-density="compact"] .rt-sign-train-frame,
+tr[data-rt-signature-density="compact"] .rt-sign-train-slot,
+tr[data-rt-signature-density="compact"] .rt-sign-content-frame { height: 145px !important; }
 .rt-sign-train,
 .rt-sign-train-mso {
   position: static !important;
@@ -323,14 +349,39 @@ img.rt-logo { width: 150px !important; }
 /* V8/V9: Das sichtbare Ende des auf 60 % animierten Motivs steht bei 65 %
    der Signaturbreite (60 % von 150 % minus 25 % Versatz). */
 .rt-sign-train-layer[data-rt-layer-mobile="stop65"][data-rt-layer-size] .rt-sign-train { width: 150% !important; max-width: none !important; margin-left: -25% !important; }
-/* V10: Das Motiv beginnt ohne negativen Versatz exakt an der linken
+/* V10/V11: Das Motiv beginnt ohne negativen Versatz exakt an der linken
    Signaturkante. 108,67 % bilden den sichtbaren Motivabschluss bei ca. 65 %
    ab, ohne dass die Lok rechts aus dem Ausschnitt fahren kann. */
-tr[data-rt-artifact-version="v10"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
+tr[data-rt-artifact-version="v10"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train,
+tr[data-rt-artifact-version="v11"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
   width: 108.67% !important;
   max-width: none !important;
   margin-left: 0 !important;
 }
+/* Vollstaendige V11-Kontakte behalten bei gestapeltem Layout 296 px. Das
+   kompakte Systemprofil benoetigt nach der Kontaktbereinigung nur 215 px. */
+tr[data-rt-artifact-version="v11"] .rt-sign-stage,
+tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
+  height: 296px !important;
+  max-height: 296px !important;
+}
+tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
+  margin-bottom: -296px !important;
+}
+tr[data-rt-artifact-version="v11"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v11"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v11"] .rt-sign-content-frame { height: 296px !important; }
+tr[data-rt-signature-density="compact"] .rt-sign-stage,
+tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
+  height: 215px !important;
+  max-height: 215px !important;
+}
+tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
+  margin-bottom: -215px !important;
+}
+tr[data-rt-signature-density="compact"] .rt-sign-train-frame,
+tr[data-rt-signature-density="compact"] .rt-sign-train-slot,
+tr[data-rt-signature-density="compact"] .rt-sign-content-frame { height: 215px !important; }
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
@@ -384,6 +435,30 @@ tr[data-rt-artifact-version="v10"] .rt-sign-train-layer {
 tr[data-rt-artifact-version="v10"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v10"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v10"] .rt-sign-content-frame { height: 270px !important; }
+/* V11: 264 px sichern die vollstaendige Personensignatur. Das serverseitig
+   markierte Systemprofil reduziert die leere Telefonreserve auf 190 px. */
+tr[data-rt-artifact-version="v11"] .rt-sign-stage,
+tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
+  height: 264px !important;
+  max-height: 264px !important;
+}
+tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
+  margin-bottom: -264px !important;
+}
+tr[data-rt-artifact-version="v11"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v11"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v11"] .rt-sign-content-frame { height: 264px !important; }
+tr[data-rt-signature-density="compact"] .rt-sign-stage,
+tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
+  height: 190px !important;
+  max-height: 190px !important;
+}
+tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
+  margin-bottom: -190px !important;
+}
+tr[data-rt-signature-density="compact"] .rt-sign-train-frame,
+tr[data-rt-signature-density="compact"] .rt-sign-train-slot,
+tr[data-rt-signature-density="compact"] .rt-sign-content-frame { height: 190px !important; }
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
@@ -405,7 +480,8 @@ img.rt-logo { width: 138px !important; }
   max-width: none !important;
   margin-left: -40% !important;
 }
-tr[data-rt-artifact-version="v10"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
+tr[data-rt-artifact-version="v10"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train,
+tr[data-rt-artifact-version="v11"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
   width: 108.67% !important;
   max-width: none !important;
   margin-left: 0 !important;
@@ -456,6 +532,24 @@ tr[data-rt-artifact-version="v10"] .rt-sign-identity .rt-contact {
   margin-top: 6px !important;
 }
 tr[data-rt-artifact-version="v10"] .rt-company-contact {
+  margin-top: 8px !important;
+}
+/* V11 gibt der Wortmarke unter der roten Linie etwas mehr Luft. Die uebrigen
+   kompakten Abstaende bleiben bewusst identisch zu V10. */
+tr[data-rt-artifact-version="v11"] .rt-sign-content {
+  padding-top: 14px !important;
+}
+tr[data-rt-artifact-version="v11"] .rt-sign-logo {
+  padding-bottom: 8px !important;
+}
+tr[data-rt-artifact-version="v11"] .rt-sign-top-row > .rt-sign-identity,
+tr[data-rt-artifact-version="v11"] .rt-sign-company {
+  padding-top: 6px !important;
+}
+tr[data-rt-artifact-version="v11"] .rt-sign-identity .rt-contact {
+  margin-top: 6px !important;
+}
+tr[data-rt-artifact-version="v11"] .rt-company-contact {
   margin-top: 8px !important;
 }
 }

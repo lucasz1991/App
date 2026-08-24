@@ -59,6 +59,7 @@ final class CssSemantic
         'data-rt-layer-size',
         'data-rt-layer-mobile',
         'data-rt-artifact-version',
+        'data-rt-signature-density',
     ];
 
     /**

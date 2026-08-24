@@ -8,8 +8,18 @@
     :show-back="false"
     content-class="space-y-5"
     data-marketing-creatives
+    x-data="{ importOpen: @js($errors->has('bundle')) }"
 >
     <x-slot:actions>
+        <button
+            type="button"
+            x-on:click="importOpen = true; $nextTick(() => $refs.bundleInput?.focus())"
+            aria-label="Motivpaket importieren"
+            class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:border-rt-red/40 hover:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text"
+        >
+            <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
+            <span class="hidden sm:inline">Importieren</span>
+        </button>
         <button
             type="button"
             wire:click="create('info')"
@@ -31,6 +41,13 @@
             <span class="hidden sm:inline">Job-Motiv</span>
         </button>
     </x-slot:actions>
+
+    @if (session('marketing_import_success'))
+        <div class="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200" role="status">
+            <i data-feather="check-circle" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
+            <p>{{ session('marketing_import_success') }}</p>
+        </div>
+    @endif
 
     <x-ui.surface.card padding="p-4 sm:p-5" data-marketing-media-source>
         <form wire:submit="saveMediaFolder" class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
@@ -157,6 +174,10 @@
                         $typeValue = $creative->type instanceof \BackedEnum ? $creative->type->value : (string) $creative->type;
                         $statusValue = $creative->status instanceof \BackedEnum ? $creative->status->value : (string) $creative->status;
                         $statusLabel = ['draft' => 'Entwurf', 'approved' => 'Freigegeben', 'archived' => 'Archiviert'][$statusValue] ?? $statusValue;
+                        $preferredPreviewFormat = data_get($creative->shared_content, 'preferred_preview_format', 'post');
+                        if (! array_key_exists($preferredPreviewFormat, $previewFormats)) {
+                            $preferredPreviewFormat = 'post';
+                        }
                         $creativePreviewSources = collect($previewFormats)->mapWithKeys(
                             fn (array $preview, string $format): array => [$format => array_merge($preview, [
                                 'url' => route('admin.marketing.creatives.preview', [$creative, $format]),
@@ -175,10 +196,10 @@
                             :description="($typeValue === 'job' ? 'Jobmotiv' : 'Informationsmotiv').' · zuletzt geändert '.$creative->updated_at?->diffForHumans()"
                             :status="$statusLabel"
                             :sources="$creativePreviewSources"
-                            default-source="post"
+                            :default-source="$preferredPreviewFormat"
                             :edit-url="route('admin.marketing.creatives.editor', [
                                 'creative' => $creative,
-                                'format' => 'post',
+                                'format' => $preferredPreviewFormat,
                                 'open' => 1,
                             ])"
                             :edit-label="$statusValue === 'archived' ? 'Im Vollbild ansehen' : 'Im Vollbild bearbeiten'"
@@ -218,6 +239,14 @@
                                 <i data-feather="copy" class="h-4 w-4" aria-hidden="true"></i>
                                 Duplizieren
                             </button>
+                            <a
+                                href="{{ route('admin.marketing.creatives.export', $creative) }}"
+                                class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-muted transition hover:border-rt-red/30 hover:text-rt-red dark:border-rt-dark-border dark:text-rt-dark-muted"
+                                title="Editierbares Motivpaket mit Bildern exportieren"
+                            >
+                                <i data-feather="download-cloud" class="h-4 w-4" aria-hidden="true"></i>
+                                Exportieren
+                            </a>
                             @if ($statusValue === 'draft')
                                 <button type="button" wire:click="approve('{{ $creative->public_id }}')" wire:confirm="Dieses Motiv ohne Entwurfs-Wasserzeichen freigeben?" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-200 px-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/10">
                                     <i data-feather="check-circle" class="h-4 w-4" aria-hidden="true"></i>
@@ -252,5 +281,69 @@
                 <div class="mt-5">{{ $creatives->links() }}</div>
             @endif
         @endif
+    </div>
+
+    <div
+        x-cloak
+        x-show="importOpen"
+        x-transition.opacity
+        x-on:keydown.escape.window="importOpen = false"
+        class="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="marketing-import-title"
+    >
+        <button type="button" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xl" x-on:click="importOpen = false" aria-label="Importdialog schließen"></button>
+
+        <section
+            x-show="importOpen"
+            x-transition
+            x-trap.inert.noscroll="importOpen"
+            class="relative w-full max-w-xl overflow-hidden rounded-3xl border border-white/15 bg-white shadow-2xl dark:bg-[#0b1118]"
+        >
+            <header class="flex items-start gap-4 border-b border-rt-border px-5 py-5 dark:border-rt-dark-border sm:px-6">
+                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rt-red dark:bg-rose-500/10 dark:text-rose-300">
+                    <i data-feather="package" class="h-5 w-5" aria-hidden="true"></i>
+                </span>
+                <div class="min-w-0 flex-1">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-rt-red">Portabler Entwurf</p>
+                    <h2 id="marketing-import-title" class="mt-1 text-xl font-semibold text-rt-text dark:text-white">Motivpaket importieren</h2>
+                    <p class="mt-1 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Story, Post, Web und verwendete Bilder werden gemeinsam geprüft. Der Import wird immer als neuer, ungeprüfter Entwurf angelegt.</p>
+                </div>
+                <button type="button" x-on:click="importOpen = false" class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-rt-soft transition hover:bg-rt-surface-muted hover:text-rt-text dark:hover:bg-white/5 dark:hover:text-white" aria-label="Schließen">
+                    <i data-feather="x" class="h-5 w-5" aria-hidden="true"></i>
+                </button>
+            </header>
+
+            <form method="POST" action="{{ route('admin.marketing.creatives.import') }}" enctype="multipart/form-data" class="p-5 sm:p-6">
+                @csrf
+                <label class="group flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-rt-border bg-rt-surface-muted px-6 py-8 text-center transition hover:border-rt-red/45 hover:bg-rose-50/60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:hover:bg-rose-500/5">
+                    <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-rt-red shadow-rt-xs dark:bg-white/5">
+                        <i data-feather="file-plus" class="h-6 w-6" aria-hidden="true"></i>
+                    </span>
+                    <strong class="mt-4 text-base text-rt-text dark:text-white">RailTime-Motivpaket auswählen</strong>
+                    <span class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">JSON · maximal 32 MiB</span>
+                    <input x-ref="bundleInput" type="file" name="bundle" accept=".json,application/json" required class="mt-5 block w-full max-w-sm text-sm text-rt-muted file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-rt-red file:px-4 file:font-semibold file:text-white hover:file:bg-rt-red-dark dark:text-rt-dark-muted">
+                </label>
+
+                @error('bundle')
+                    <p class="mt-3 flex items-start gap-2 text-sm font-semibold text-rt-red" role="alert">
+                        <i data-feather="alert-circle" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
+                        {{ $message }}
+                    </p>
+                @enderror
+
+                <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button type="button" x-on:click="importOpen = false" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-muted transition hover:text-rt-text dark:border-rt-dark-border dark:text-rt-dark-muted dark:hover:text-white">
+                        <i data-feather="x" class="h-4 w-4" aria-hidden="true"></i>
+                        Abbrechen
+                    </button>
+                    <button type="submit" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-5 text-sm font-semibold text-white transition hover:bg-rt-red-dark">
+                        <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
+                        Prüfen &amp; importieren
+                    </button>
+                </div>
+            </form>
+        </section>
     </div>
 </x-ui.page>

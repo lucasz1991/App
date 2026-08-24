@@ -32,6 +32,9 @@ final class MarketingStudioService
         MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE => MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE,
         MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER => MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER,
         MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK => MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK,
+        MarketingTemplateFactory::CAREER_JOB_WAGENMEISTER => MarketingTemplateFactory::CAREER_JOB_WAGENMEISTER,
+        MarketingTemplateFactory::CAREER_JOB_TRIEBFAHRZEUGFUEHRER => MarketingTemplateFactory::CAREER_JOB_TRIEBFAHRZEUGFUEHRER,
+        MarketingTemplateFactory::CAREER_JOB_ARBEITSZUGFUEHRER => MarketingTemplateFactory::CAREER_JOB_ARBEITSZUGFUEHRER,
     ];
 
     public function __construct(
@@ -83,6 +86,107 @@ final class MarketingStudioService
                     'version' => 1,
                 ]);
             }
+
+            return $creative->load('variants');
+        });
+    }
+
+    /**
+     * Creates a new, unapproved creative from a fully validated portable
+     * definition. Transport identities and catalogue identities are never
+     * trusted: an import is always a local draft with fresh model IDs,
+     * versions and content hashes.
+     *
+     * @param  array{
+     *     type:string,
+     *     title:string,
+     *     shared_content:array<string,mixed>,
+     *     variants:array<string,array{builder_data:array<string,mixed>,html:string,css:string}>
+     * }  $definition
+     */
+    public function createFromPortableDefinition(array $definition, User $actor): MarketingCreative
+    {
+        abort_unless($actor->isAdmin(), 403);
+
+        return DB::transaction(function () use ($definition, $actor): MarketingCreative {
+            $this->files->lockSourceSelection();
+
+            $type = MarketingCreativeType::tryFrom((string) ($definition['type'] ?? ''));
+            if (! $type) {
+                throw ValidationException::withMessages([
+                    'creative.type' => 'Der Motivtyp des Importpakets ist ungültig.',
+                ]);
+            }
+
+            $sharedContent = is_array($definition['shared_content'] ?? null)
+                ? $definition['shared_content']
+                : [];
+            $sourceTemplateKey = data_get($sharedContent, 'template_key');
+            if (is_string($sourceTemplateKey) && trim($sourceTemplateKey) !== '') {
+                $sharedContent['import_source_template_key'] = mb_substr(trim($sourceTemplateKey), 0, 190);
+            }
+            unset($sharedContent['template_key'], $sharedContent['seed_version']);
+
+            $creative = MarketingCreative::query()->create([
+                'type' => $type,
+                'status' => MarketingCreativeStatus::Draft,
+                'title' => mb_substr(trim((string) ($definition['title'] ?? 'Importiertes Motiv')), 0, 160),
+                'shared_content' => $sharedContent,
+                'approved_by' => null,
+                'approved_at' => null,
+                'approval_dependency_hash' => null,
+                'created_by' => $actor->id,
+                'updated_by' => $actor->id,
+            ]);
+
+            foreach (MarketingCreativeFormat::cases() as $format) {
+                $transport = data_get($definition, 'variants.'.$format->value);
+                if (! is_array($transport)) {
+                    throw ValidationException::withMessages([
+                        'creative.variants.'.$format->value => 'Im Importpaket fehlt das Format '.ucfirst($format->value).'.',
+                    ]);
+                }
+
+                $html = $this->sanitizer->html($this->binder->bindHtml(
+                    (string) ($transport['html'] ?? ''),
+                    $sharedContent,
+                ));
+                $css = $this->sanitizer->css((string) ($transport['css'] ?? ''));
+                if ($html === '') {
+                    throw ValidationException::withMessages([
+                        'creative.variants.'.$format->value.'.html' => 'Das importierte Motiv ist nach der Sicherheitsprüfung leer.',
+                    ]);
+                }
+                $this->assertOfficialBrandLockup($html, $css);
+
+                $builderData = is_array($transport['builder_data'] ?? null)
+                    ? $transport['builder_data']
+                    : [];
+                if (is_array($builderData['railtime'] ?? null)) {
+                    unset($builderData['railtime']['template'], $builderData['railtime']['design_preset']);
+                }
+                $builderData = $this->binder->syncBuilderData($builderData, $html);
+                $this->renderAssets->lockReferencesForUpdate($html, $css);
+
+                $creative->variants()->create([
+                    'format' => $format,
+                    'builder_data' => $builderData,
+                    'html' => $html,
+                    'css' => $css,
+                    'content_hash' => $this->contentHash($builderData, $html, $css),
+                    'version' => 1,
+                ]);
+            }
+
+            activity('marketing')
+                ->causedBy($actor)
+                ->performedOn($creative)
+                ->withProperties([
+                    'format' => 'railtime-marketing-creative',
+                    'version' => 1,
+                    'source_template_key' => is_string($sourceTemplateKey) ? $sourceTemplateKey : null,
+                ])
+                ->log('marketing_creative_imported');
 
             return $creative->load('variants');
         });

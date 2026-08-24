@@ -383,7 +383,7 @@ class MailSignature
     }
 
     /**
-     * V8 bis V10 sind fachlich markierte Signaturstaende und besitzen eigene
+     * V8 bis V11 sind fachlich markierte Signaturstaende und besitzen eigene
      * Haupt-/Standbilder ohne nachlaufenden Idle-Rauch. Die Auswahl geschieht
      * am tatsächlich gerenderten HTML statt am Importdateinamen, damit
      * Vorschau, Systemmail, Download und Testmail dieselbe Bildidentität sehen.
@@ -428,7 +428,7 @@ class MailSignature
             );
         }
 
-        // V8 bis V10 enthalten nach der Einfahrt keine Smoke-Idle-Sequenz und duerfen
+        // V8 bis V11 enthalten nach der Einfahrt keine Smoke-Idle-Sequenz und duerfen
         // nicht durch das alte, zeitversetzt eingeblendete Overlay ergaenzt werden.
         $values['TRAIN_IDLE_SRC'] = '';
 
@@ -471,12 +471,60 @@ class MailSignature
             $html,
             $this->contactRowValues($values),
         ));
+        $html = $this->applyRuntimeDensityProfile($documentHtml, $html);
 
         return $this->finalizeTrainRendering(
             $html,
             $outlookFallbackSource,
             (string) ($values['TRAIN_IDLE_SRC'] ?? ''),
         );
+    }
+
+    /**
+     * V11 darf die kuerzere Firmenbuehne erst nach dem Entfernen leerer
+     * Kontaktzeilen erhalten. Der editierbare Vollvertrag bleibt dadurch
+     * hoch genug fuer persoenliche Signaturen, waehrend Systemmails nicht
+     * dieselbe ungenutzte Reserve mitschleppen.
+     *
+     * Das Attribut wird serverseitig normalisiert: Ein importierter Entwurf
+     * kann die kompakte Geometrie nicht eigenmaechtig fuer Personensignaturen
+     * erzwingen.
+     */
+    private function applyRuntimeDensityProfile(string $documentHtml, string $renderedHtml): string
+    {
+        // Fremde beziehungsweise gespeicherte Dichteangaben sind nie
+        // autoritativ. Erst der aktuelle Renderkontext darf sie setzen.
+        $renderedHtml = preg_replace(
+            '/\s+data-rt-signature-density\s*=\s*(["\']).*?\1/i',
+            '',
+            $renderedHtml,
+        ) ?? $renderedHtml;
+
+        if ($this->user !== null
+            || SignatureArtifactVersion::detect(MailDocumentKind::Signature, $documentHtml)
+                !== SignatureArtifactVersion::V11) {
+            return $renderedHtml;
+        }
+
+        $applied = false;
+        $normalized = preg_replace_callback(
+            '/<tr\b[^>]*>/i',
+            static function (array $match) use (&$applied): string {
+                $tag = $match[0];
+                if ($applied
+                    || preg_match('/\bdata-rt-artifact-version\s*=\s*(["\'])v11\1/i', $tag) !== 1) {
+                    return $tag;
+                }
+
+                $tag = substr($tag, 0, -1).' data-rt-signature-density="compact">';
+                $applied = true;
+
+                return $tag;
+            },
+            $renderedHtml,
+        );
+
+        return is_string($normalized) ? $normalized : $renderedHtml;
     }
 
     /**

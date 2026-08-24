@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\MailDocumentController;
 use App\Http\Controllers\Admin\MarketingCreativeController;
+use App\Http\Controllers\Admin\MarketingCreativeTransferController;
 use App\Http\Controllers\Admin\MarketingFileController;
 use App\Http\Controllers\Admin\MarketingRenderController;
 use App\Http\Controllers\Admin\MarketingVariantController;
@@ -291,6 +292,9 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
             Route::post('/marketing/motive', [MarketingCreativeController::class, 'store'])
                 ->middleware('throttle:30,1')
                 ->name('marketing.creatives.store');
+            Route::post('/marketing/motive/importieren', [MarketingCreativeTransferController::class, 'import'])
+                ->middleware('throttle:10,1')
+                ->name('marketing.creatives.import');
             Route::get('/marketing/motive/{creative}/bearbeiten', MarketingCreativeEditor::class)
                 ->whereUuid('creative')
                 ->name('marketing.creatives.editor');
@@ -311,6 +315,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
                 ->whereUuid('creative')
                 ->middleware('throttle:30,1')
                 ->name('marketing.creatives.duplicate');
+            Route::get('/marketing/motive/{creative}/exportieren', [MarketingCreativeTransferController::class, 'export'])
+                ->whereUuid('creative')
+                ->middleware('throttle:30,1')
+                ->name('marketing.creatives.export');
             Route::post('/marketing/motive/{creative}/freigeben', [MarketingCreativeController::class, 'approve'])
                 ->whereUuid('creative')
                 ->middleware('throttle:30,1')

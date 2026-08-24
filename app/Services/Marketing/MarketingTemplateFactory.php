@@ -21,11 +21,22 @@ final class MarketingTemplateFactory
 
     public const PREMIUM_GERMANY_NETWORK = 'railtime_2026_deutschland_netzwerk';
 
+    public const CAREER_JOB_WAGENMEISTER = 'railtime_2026_karriere_wagenmeister_story';
+
+    public const CAREER_JOB_TRIEBFAHRZEUGFUEHRER = 'railtime_2026_karriere_triebfahrzeugfuehrer_story';
+
+    public const CAREER_JOB_ARBEITSZUGFUEHRER = 'railtime_2026_karriere_arbeitszugfuehrer_story';
+
     public const SEED_VERSION = 3;
 
     public const PREMIUM_SEED_VERSION = 4;
 
-    public function __construct(private readonly MarketingPremiumTemplateCatalog $premium) {}
+    public const CAREER_SEED_VERSION = 5;
+
+    public function __construct(
+        private readonly MarketingPremiumTemplateCatalog $premium,
+        private readonly MarketingCareerTemplateCatalog $career,
+    ) {}
 
     /** @return list<array{title:string,shared_content:array<string,mixed>,variants:array<string,array{builder_data:array<string,mixed>,html:string,css:string}>}> */
     public function starterDefinitions(): array
@@ -34,6 +45,9 @@ final class MarketingTemplateFactory
             $this->definitionByKey(self::PREMIUM_COMPANY_PROFILE),
             $this->definitionByKey(self::PREMIUM_JOB_WAGENMEISTER),
             $this->definitionByKey(self::PREMIUM_GERMANY_NETWORK),
+            $this->definitionByKey(self::CAREER_JOB_WAGENMEISTER),
+            $this->definitionByKey(self::CAREER_JOB_TRIEBFAHRZEUGFUEHRER),
+            $this->definitionByKey(self::CAREER_JOB_ARBEITSZUGFUEHRER),
         ];
     }
 
@@ -54,7 +68,11 @@ final class MarketingTemplateFactory
     public function typeForKey(string $templateKey): MarketingCreativeType
     {
         return match ($templateKey) {
-            self::JOB_WAGENMEISTER, self::PREMIUM_JOB_WAGENMEISTER => MarketingCreativeType::Job,
+            self::JOB_WAGENMEISTER,
+            self::PREMIUM_JOB_WAGENMEISTER,
+            self::CAREER_JOB_WAGENMEISTER,
+            self::CAREER_JOB_TRIEBFAHRZEUGFUEHRER,
+            self::CAREER_JOB_ARBEITSZUGFUEHRER => MarketingCreativeType::Job,
             self::INFO_WAGENMEISTER_ROLE,
             self::INFO_GERMANY_NETWORK,
             self::PREMIUM_COMPANY_PROFILE,
@@ -65,6 +83,10 @@ final class MarketingTemplateFactory
 
     public function hasTemplateKey(string $templateKey): bool
     {
+        if ($this->career->hasTemplateKey($templateKey)) {
+            return true;
+        }
+
         return in_array($templateKey, [
             self::JOB_WAGENMEISTER,
             self::INFO_WAGENMEISTER_ROLE,
@@ -78,6 +100,10 @@ final class MarketingTemplateFactory
     /** @return array{title:string,shared_content:array<string,mixed>,variants:array<string,array{builder_data:array<string,mixed>,html:string,css:string}>} */
     public function definitionByKey(string $templateKey): array
     {
+        if ($this->career->hasTemplateKey($templateKey)) {
+            return $this->career->definitionByKey($templateKey);
+        }
+
         if ($this->premium->hasTemplateKey($templateKey)) {
             return $this->premium->definitionByKey($templateKey);
         }

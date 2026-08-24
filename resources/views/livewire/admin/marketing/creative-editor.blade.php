@@ -25,6 +25,14 @@
     data-marketing-studio
 >
     <x-slot:actions>
+        <a
+            href="{{ route('admin.marketing.creatives.export', $creativeRecord) }}"
+            class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3 text-xs font-semibold text-rt-muted transition hover:border-rt-red/35 hover:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted"
+            title="Den zuletzt gespeicherten Stand mit Story, Post, Web und Bildern exportieren"
+        >
+            <i data-feather="download-cloud" class="h-4 w-4" aria-hidden="true"></i>
+            JSON-Paket
+        </a>
         <span
             data-marketing-creative-status
             data-status="{{ $statusValue }}"
@@ -192,8 +200,8 @@
 
                 <fieldset class="space-y-3">
                     <legend class="rt-marketing-fieldset-title">Vorteile</legend>
-                    @foreach (array_pad($list($shared, 'benefits'), 4, '') as $index => $benefit)
-                        @if ($index < 4)
+                    @foreach (array_pad($list($shared, 'benefits'), 8, '') as $index => $benefit)
+                        @if ($index < 8)
                             <label class="rt-marketing-field">
                                 <span>Vorteil {{ $index + 1 }}</span>
                                 <textarea name="shared_content[benefits][]" rows="2" maxlength="220" data-marketing-list-bind="benefits">{{ $benefit }}</textarea>

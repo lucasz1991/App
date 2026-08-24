@@ -79,7 +79,13 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-content-frame,\s*tr\[data-rt-artifact-version="v9"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-artifact-version="v10"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*280px !important;/s);
     assert.match(phone, /data-rt-layer-mobile="stop65"\]\[data-rt-layer-size\][\s\S]*?width:\s*175% !important;[\s\S]*?margin-left:\s*-40% !important;/);
     assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-artifact-version="v10"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*270px !important;/s);
-    assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width:\s*108\.67% !important;[^}]*margin-left:\s*0 !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-artifact-version="v11"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*190px !important;/s);
+    assert.match(css, /tr\[data-rt-signature-density="compact"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-signature-density="compact"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*145px !important;/s);
+    assert.match(mobile, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-artifact-version="v11"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*296px !important;/s);
+    assert.match(mobile, /tr\[data-rt-signature-density="compact"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-signature-density="compact"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*215px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-artifact-version="v11"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*264px !important;/s);
+    assert.match(phone, /tr\[data-rt-signature-density="compact"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-signature-density="compact"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*190px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width:\s*108\.67% !important;[^}]*margin-left:\s*0 !important;/s);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]*?width:\s*200% !important;\s*max-width:\s*none !important;\s*margin-left:\s*-100% !important;/);
 });
 
