@@ -8,12 +8,15 @@ use App\Enums\MailDocumentKind;
 final class PortableMediaCatalog
 {
     /** @return list<string> */
-    public static function requiredSystemAssetIds(MailDocumentKind|string $kind): array
+    public static function requiredSystemAssetIds(
+        MailDocumentKind|string $kind,
+        ?string $artifactVersion = null,
+    ): array
     {
         $kind = is_string($kind) ? MailDocumentKind::tryFrom($kind) : $kind;
 
         return match ($kind) {
-            MailDocumentKind::Signature => [
+            MailDocumentKind::Signature => array_merge([
                 'contact-email.png',
                 'contact-location.png',
                 'contact-mobile.png',
@@ -23,13 +26,19 @@ final class PortableMediaCatalog
                 'wortmarke-signature-light.png',
                 'wortmarke-mail-dark.gif',
                 'wortmarke-mail-dark.png',
-                'zug-dampf-light.gif',
-                'zug-dampf-light.png',
-                'zug-dampf-dark.gif',
-                'zug-dampf-dark.png',
-                'zug-dampf-idle-light.gif',
-                'zug-dampf-idle-dark.gif',
-            ],
+            ], $artifactVersion === SignatureArtifactVersion::V8
+                ? [
+                    'zug-dampf-v8-light.gif',
+                    'zug-dampf-v8-light.png',
+                    'zug-dampf-v8-dark.gif',
+                    'zug-dampf-v8-dark.png',
+                ]
+                : [
+                    'zug-dampf-light.gif',
+                    'zug-dampf-light.png',
+                    'zug-dampf-dark.gif',
+                    'zug-dampf-dark.png',
+                ]),
             MailDocumentKind::Template => [
                 'icon-rt-light.gif',
                 'icon-rt-light.png',

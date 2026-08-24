@@ -893,6 +893,10 @@ test('protected mail layers keep the regular train image visible and structural'
         trainLayer.state.traits.map((trait) => trait.label),
         ['Desktop-Ausschnitt', 'Zugbreite', 'Mobil-Ausschnitt'],
     );
+    assert.deepEqual(
+        trainLayer.state.traits[2].options.map((option) => option.id),
+        ['left', 'center', 'train', 'stop65', 'right'],
+    );
     assert.equal(markCell.state['custom-name'], 'RT-Zeichen (geschützt)');
     assert.equal(applicationRow.state['custom-name'], 'Anwendungsinhalt (geschützt)');
     [markRow, carrier, ordinary].forEach((editableComponent) => {
@@ -1014,6 +1018,9 @@ test('train layer editor maps presets onto the fixed schema 25 pixel contract', 
         assert.equal(imageState.margin, geometry[1]);
     }
     attributes['data-rt-layer-size'] = '125';
+    attributes['data-rt-layer-mobile'] = 'stop65';
+    synchronizeMailTrainLayerAlignment(component);
+    assert.equal(attributes['data-rt-layer-mobile'], 'stop65');
     state['margin-bottom'] = '-72px';
     attributes['data-rt-layer-align'] = 'calc(1px)';
     attributes['data-rt-layer-mobile'] = 'calc(1px)';
@@ -1546,7 +1553,11 @@ test('signature source uses a fixed schema 25 pixel frame with a Classic Outlook
     const mobile = css.slice(css.indexOf('@media only screen and (max-width: 860px)'));
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]*?width: 100% !important;/);
     assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][^}]+width: 150% !important; max-width: none !important; margin-left: 0 !important/);
+    assert.match(mobile, /data-rt-layer-mobile="stop65"\]\[data-rt-layer-size\][^}]+width: 150% !important; max-width: none !important; margin-left: -25% !important/);
     const phone = css.slice(css.indexOf('@media only screen and (max-width: 480px)'));
     assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width: 175% !important;[\s\S]*?margin-left: -8% !important;/);
+    assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-stage\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-train-layer\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;[^}]*margin-bottom: -280px !important;/s);
+    assert.match(phone, /data-rt-layer-mobile="stop65"\]\[data-rt-layer-size\][^}]+width: 175% !important;[^}]+margin-left: -40% !important/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][^}]+width: 200% !important; max-width: none !important; margin-left: -100% !important/);
 });

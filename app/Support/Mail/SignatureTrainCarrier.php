@@ -32,6 +32,7 @@ final class SignatureTrainCarrier
         'left',
         'center',
         'train',
+        'stop65',
         'right',
     ];
 

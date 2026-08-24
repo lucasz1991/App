@@ -7,6 +7,7 @@ use App\Models\MailDocument;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\MailDocumentAutoRepair;
 use App\Support\Mail\PortableMediaCatalog;
+use App\Support\Mail\SignatureArtifactVersion;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -98,6 +99,10 @@ class MailDocumentEditor extends Component
     {
         $payload = [];
         $contactIconUrls = EmailTemplateBuilder::contactIconUrls();
+        $signatureDocument = $documents[MailDocumentKind::Signature->value] ?? null;
+        $signatureArtifactVersion = $signatureDocument instanceof MailDocument
+            ? SignatureArtifactVersion::detect($signatureDocument->kind, (string) $signatureDocument->html)
+            : null;
         $mailAssets = [
             ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-signature-light.gif'), 'name' => 'RailTime Wortmarke hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 504, 'height' => 86, 'category' => 'RailTime Marke'],
             ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-mail-dark.gif'), 'name' => 'RailTime Wortmarke dunkel', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 618, 'height' => 105, 'category' => 'RailTime Marke'],
@@ -205,12 +210,20 @@ class MailDocumentEditor extends Component
                 'light' => [
                     'logo' => EmailTemplateBuilder::mailAssetUrl('wortmarke-signature-light.gif'),
                     'mark' => EmailTemplateBuilder::mailAssetUrl('icon-rt-light.gif'),
-                    'train' => EmailTemplateBuilder::mailAssetUrl('zug-dampf-light.gif'),
+                    'train' => EmailTemplateBuilder::signatureTrainUrl(
+                        'light',
+                        animated: true,
+                        artifactVersion: $signatureArtifactVersion,
+                    ),
                 ],
                 'dark' => [
                     'logo' => EmailTemplateBuilder::mailAssetUrl('wortmarke-mail-dark.gif'),
                     'mark' => EmailTemplateBuilder::mailAssetUrl('icon-rt-dark.gif'),
-                    'train' => EmailTemplateBuilder::mailAssetUrl('zug-dampf-dark.gif'),
+                    'train' => EmailTemplateBuilder::signatureTrainUrl(
+                        'dark',
+                        animated: true,
+                        artifactVersion: $signatureArtifactVersion,
+                    ),
                 ],
                 'icons' => [
                     'location' => $contactIconUrls['ICON_LOCATION_SRC'] ?? '',
@@ -246,8 +259,12 @@ class MailDocumentEditor extends Component
      */
     private function portableMediaAssets(array $documents): array
     {
+        $activeDocument = $documents[$this->kind] ?? null;
+        $artifactVersion = $activeDocument instanceof MailDocument
+            ? SignatureArtifactVersion::detect($activeDocument->kind, (string) $activeDocument->html)
+            : null;
         $includedSystemAssets = array_fill_keys(
-            PortableMediaCatalog::requiredSystemAssetIds($this->kind),
+            PortableMediaCatalog::requiredSystemAssetIds($this->kind, $artifactVersion),
             true,
         );
         $assets = array_map(

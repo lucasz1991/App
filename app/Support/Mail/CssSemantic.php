@@ -58,6 +58,7 @@ final class CssSemantic
         'data-rt-layer-align',
         'data-rt-layer-size',
         'data-rt-layer-mobile',
+        'data-rt-artifact-version',
     ];
 
     /**

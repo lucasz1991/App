@@ -6,6 +6,7 @@ use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
+use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\TemplateDocumentContract;
 use Illuminate\Contracts\Support\Htmlable;
@@ -694,11 +695,13 @@ class EmailTemplateBuilder
      * Zug als verlinkte Adresse. $animated waehlt das GIF, sonst das
      * Standbild.
      */
-    public static function signatureTrainUrl(string $theme, bool $animated = false): string
+    public static function signatureTrainUrl(
+        string $theme,
+        bool $animated = false,
+        ?string $artifactVersion = null,
+    ): string
     {
-        $variant = $theme === 'dark' ? 'dark' : 'light';
-
-        return self::mailAssetUrl("zug-dampf-{$variant}.".($animated ? 'gif' : 'png'));
+        return self::mailAssetUrl(self::signatureTrainFilename($theme, $animated, $artifactVersion));
     }
 
     /**
@@ -706,9 +709,9 @@ class EmailTemplateBuilder
      * nicht als Word-/MSO-Flow-Fallback, weil Word dadurch erneut eine eigene
      * Bildhoehe vor dem Rechtstext erzeugen wuerde.
      */
-    public static function signatureTrainStillUrl(string $theme): string
+    public static function signatureTrainStillUrl(string $theme, ?string $artifactVersion = null): string
     {
-        return self::signatureTrainUrl($theme, false);
+        return self::signatureTrainUrl($theme, false, $artifactVersion);
     }
 
     /**
@@ -948,17 +951,39 @@ class EmailTemplateBuilder
         string $theme,
         bool $animated = false,
         ?string $playbackNonce = null,
+        ?string $artifactVersion = null,
     ): string {
-        $variant = $theme === 'dark' ? 'dark' : 'light';
-        $extension = $animated ? 'gif' : 'png';
         $mime = $animated ? 'image/gif' : 'image/png';
-        $binary = file_get_contents(self::masterPath("assets/zug-dampf-{$variant}.{$extension}"));
+        $filename = self::signatureTrainFilename($theme, $animated, $artifactVersion);
+        $binary = file_get_contents(self::masterPath('assets/'.$filename));
 
         if ($animated && $playbackNonce !== null) {
             $binary = self::withGifPlaybackNonce($binary, $playbackNonce);
         }
 
         return "data:{$mime};base64,".base64_encode($binary);
+    }
+
+    private static function signatureTrainFilename(
+        string $theme,
+        bool $animated,
+        ?string $artifactVersion = null,
+    ): string {
+        $variant = $theme === 'dark' ? 'dark' : 'light';
+        $stem = $artifactVersion === SignatureArtifactVersion::V8
+            ? 'zug-dampf-v8'
+            : 'zug-dampf';
+
+        return $stem.'-'.$variant.'.'.($animated ? 'gif' : 'png');
+    }
+
+    private static function activeSignatureArtifactVersion(): ?string
+    {
+        $document = self::runtimeDocument(MailDocumentKind::Signature);
+
+        return $document === null
+            ? null
+            : SignatureArtifactVersion::detect(MailDocumentKind::Signature, $document);
     }
 
     protected function buildSignature(string $master, string $logo): string
@@ -1005,6 +1030,7 @@ class EmailTemplateBuilder
     protected function buildOutlookPackage(string $theme, string $slug): string
     {
         $variant = $theme === 'dark' ? 'dunkel' : 'hell';
+        $artifactVersion = self::activeSignatureArtifactVersion();
         $signatureName = "RailTime-Signatur-{$variant}-{$slug}";
         $assetFolder = "{$signatureName}_files";
         $html = $this->buildOutlookSignatureHtml($theme, $assetFolder);
@@ -1038,10 +1064,10 @@ class EmailTemplateBuilder
                 'Outlook-klassisch-installieren.cmd' => $installer,
                 'RailTime-Outlook-Installer.ps1' => $installerScript,
                 "{$assetFolder}/zug-dampf.gif" => file_get_contents(
-                    self::masterPath('assets/zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.gif')
+                    self::masterPath('assets/'.self::signatureTrainFilename($theme, true, $artifactVersion))
                 ),
                 "{$assetFolder}/zug-dampf.png" => file_get_contents(
-                    self::masterPath('assets/zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.png')
+                    self::masterPath('assets/'.self::signatureTrainFilename($theme, false, $artifactVersion))
                 ),
                 "{$assetFolder}/logo.gif" => file_get_contents(
                     self::masterPath('assets/'.$this->emailLogoAsset($theme))
@@ -1119,8 +1145,9 @@ class EmailTemplateBuilder
      * Die Classic-Payload verwendet absichtlich lokale Begleitdateien. Beim
      * Einfuegen in eine cloudgespeicherte Signatur waeren file:-Quellen aber
      * nach dem Schliessen des Browsers unbrauchbar. Diese Fassung rendert
-     * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Hauptzug,
-     * Idle-Rauch und das bedingte Outlook-Standbild bleiben echte IMG.
+     * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Hauptzug und
+     * das bedingte Outlook-Standbild bleiben echte IMG. v8 besitzt bewusst
+     * kein zusaetzliches Idle-Rauchbild.
      */
     protected function buildOutlookBrowserCopySignatureHtml(string $theme): string
     {
@@ -1143,6 +1170,7 @@ class EmailTemplateBuilder
         $html = $this->substitute($html, $this->escapeForHtml($this->profileValues()));
 
         $variant = $theme === 'dark' ? 'dark' : 'light';
+        $artifactVersion = self::activeSignatureArtifactVersion();
         $logoAsset = $this->emailLogoAsset($theme);
         $markAsset = self::emailMarkAsset($theme);
         $remoteSources = array_merge([
@@ -1150,9 +1178,11 @@ class EmailTemplateBuilder
             'LOGO_STILL_SRC' => self::httpsMailAssetUrl(str_replace('.gif', '.png', $logoAsset)),
             'ICON_RT_SRC' => self::httpsMailAssetUrl($markAsset),
             'ICON_RT_STILL_SRC' => self::httpsMailAssetUrl(str_replace('.gif', '.png', $markAsset)),
-            'TRAIN_SRC' => self::httpsMailAssetUrl("zug-dampf-{$variant}.gif"),
-            'TRAIN_STILL_SRC' => self::httpsMailAssetUrl("zug-dampf-{$variant}.png"),
-            'TRAIN_IDLE_SRC' => self::httpsMailAssetUrl("zug-dampf-idle-{$variant}.gif"),
+            'TRAIN_SRC' => self::forceHttpsUrl(self::signatureTrainUrl($theme, true, $artifactVersion)),
+            'TRAIN_STILL_SRC' => self::forceHttpsUrl(self::signatureTrainStillUrl($theme, $artifactVersion)),
+            'TRAIN_IDLE_SRC' => $artifactVersion === SignatureArtifactVersion::V8
+                ? ''
+                : self::httpsMailAssetUrl("zug-dampf-idle-{$variant}.gif"),
         ], array_map(
             static fn (string $source): string => self::forceHttpsUrl($source),
             self::contactIconUrls(),
@@ -1202,9 +1232,9 @@ class EmailTemplateBuilder
 
     /**
      * Prueft die eigenstaendige New-Outlook-/Web-Kopierfassung nach der
-     * Runtime-Projektion. Hauptzug, Idle-Rauch und Outlook-Standbild muessen
-     * dort als echte IMG mit absoluten HTTPS-Quellen vorliegen. Das Hauptbild
-     * bleibt wie im Versand im normalen Flow; CSS darf keine GIF-Datei laden.
+     * Runtime-Projektion. Hauptzug und Outlook-Standbild muessen dort als echte
+     * IMG mit absoluten HTTPS-Quellen vorliegen. Ein erwarteter Idle-Rauch muss
+     * ebenfalls ein IMG sein; v8 erwartet und erlaubt ihn dagegen nicht.
      */
     private static function validateBrowserCopyTrainImages(
         string $html,
@@ -1213,7 +1243,9 @@ class EmailTemplateBuilder
         string $expectedMsoSource,
     ): string {
         $expectedTrainSource = self::forceHttpsUrl($expectedTrainSource);
-        $expectedIdleSource = self::forceHttpsUrl($expectedIdleSource);
+        $expectedIdleSource = trim($expectedIdleSource) === ''
+            ? ''
+            : self::forceHttpsUrl($expectedIdleSource);
         $expectedMsoSource = self::forceHttpsUrl($expectedMsoSource);
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);

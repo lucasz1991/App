@@ -18,6 +18,7 @@ use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentAutoRepair;
 use App\Support\Mail\MailDocumentVersionStore;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
+use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\TemplateDocumentContract;
 use Illuminate\Http\JsonResponse;
@@ -576,19 +577,33 @@ final class MailDocumentController extends Controller
             throw ValidationException::withMessages(['css' => $cssReport->violationMessages()]);
         }
         $this->assertDocumentStructure($document, $html, $cssReport->html);
+        $artifactVersion = SignatureArtifactVersion::detect($document->kind, $html);
+        $shortHash = substr(strtolower((string) $document->content_hash), 0, 12);
         $snapshots->useSnapshot($document->kind, $html, $cssReport->html);
 
         try {
             Notification::route('mail', $recipient)->notify(
-                new MailDocumentTestNotification($document->kind, (int) $document->version),
+                new MailDocumentTestNotification(
+                    $document->kind,
+                    (int) $document->version,
+                    $artifactVersion,
+                    (string) $document->content_hash,
+                ),
             );
         } finally {
             $snapshots->forget($document->kind);
         }
 
+        $identity = 'Layout '.($artifactVersion ?? 'nicht gekennzeichnet')
+            .' · Dokumentversion '.(int) $document->version
+            .' · Prüfung '.$shortHash;
+
         return response()->json([
-            'message' => 'Testmail wurde an '.$recipient.' gesendet.',
+            'message' => 'Testmail ('.$identity.') wurde an '.$recipient.' gesendet.',
             'recipient' => $recipient,
+            'layout_version' => $artifactVersion,
+            'document_version' => (int) $document->version,
+            'content_hash' => (string) $document->content_hash,
         ]);
     }
 

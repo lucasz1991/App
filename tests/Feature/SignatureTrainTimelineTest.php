@@ -438,6 +438,80 @@ class SignatureTrainTimelineTest extends TestCase
         }
     }
 
+    public function test_v8_train_assets_hold_the_arrival_frame_without_idle_smoke(): void
+    {
+        foreach (['light', 'dark'] as $theme) {
+            $filename = "zug-dampf-v8-{$theme}.gif";
+            $resource = file_get_contents(resource_path('mail-templates/assets/'.$filename));
+            $public = file_get_contents(public_path('mail-assets/'.$filename));
+
+            $this->assertIsString($resource);
+            $this->assertIsString($public);
+            $this->assertSame($resource, $public, "{$filename}: Ressourcen- und Public-Datei unterscheiden sich.");
+            $this->assertStringNotContainsString('NETSCAPE2.0', $resource, "{$filename}: Die Zugfahrt darf nicht loopen.");
+            $this->assertStringNotContainsString('ANIMEXTS1.0', $resource, "{$filename}: Alternativer Loop-Block gefunden.");
+
+            $gif = $this->parseGif($resource);
+            $this->assertSame(2160, $gif['width']);
+            $this->assertSame(159, $gif['height']);
+            $this->assertCount(72, $gif['frames']);
+            $this->assertSame(1300, array_sum(array_column($gif['frames'], 'delayCs')));
+
+            $elapsed = 0;
+            $arrivalFrame = null;
+            foreach ($gif['frames'] as $index => $frame) {
+                if ($elapsed === 735) {
+                    $arrivalFrame = $index;
+                    break;
+                }
+                $elapsed += $frame['delayCs'];
+            }
+            $this->assertSame(52, $arrivalFrame, "{$filename}: Ankunft muss exakt bei 7,35 s beginnen.");
+
+            $arrival = $gif['frames'][$arrivalFrame];
+            $arrivalPixels = $this->decodeLzw(
+                $arrival['imageData'],
+                $arrival['minimumCodeSize'],
+                $gif['width'] * $gif['height'],
+            );
+
+            foreach (range($arrivalFrame, count($gif['frames']) - 1) as $index) {
+                $frame = $gif['frames'][$index];
+                $pixels = $this->decodeLzw(
+                    $frame['imageData'],
+                    $frame['minimumCodeSize'],
+                    $gif['width'] * $gif['height'],
+                );
+
+                $this->assertSame(
+                    $arrivalPixels,
+                    $pixels,
+                    "{$filename}: Frame {$index} erzeugt nach der Einfahrt erneut Rauch oder Bewegung.",
+                );
+                $this->assertSame(
+                    0,
+                    $this->countInkInRegion(
+                        $pixels,
+                        $frame['transparentIndex'],
+                        $gif['width'],
+                        (int) floor($gif['width'] * 0.53),
+                        0,
+                        (int) ceil($gif['width'] * 0.61),
+                        (int) floor($gif['height'] * 0.55),
+                    ),
+                    "{$filename}: Frame {$index} enthaelt nach der Einfahrt Idle-Rauch.",
+                );
+            }
+
+            $pngResource = resource_path("mail-templates/assets/zug-dampf-v8-{$theme}.png");
+            $pngPublic = public_path("mail-assets/zug-dampf-v8-{$theme}.png");
+            $this->assertSame(file_get_contents($pngResource), file_get_contents($pngPublic));
+            $size = getimagesize($pngResource);
+            $this->assertIsArray($size);
+            $this->assertSame([2160, 159], [$size[0], $size[1]]);
+        }
+    }
+
     public function test_outlook_arrival_is_the_exact_three_to_one_derivative_of_the_main_frame(): void
     {
         foreach (['light', 'dark'] as $theme) {
@@ -573,8 +647,11 @@ class SignatureTrainTimelineTest extends TestCase
         $this->assertStringContainsString('const oben = OUTLOOK_HOEHE - zielHoehe;', $generator);
         $this->assertStringContainsString('const WARTE_S = Number(process.env.RT_WARTE || 0.35);', $generator);
         $this->assertStringContainsString('const ENDE_HALT_S = Number(process.env.RT_ENDE_HALT || 1.65);', $generator);
+        $this->assertStringContainsString("const AUSGABEKENNUNG = process.env.RT_AUSGABEKENNUNG || '';", $generator);
+        $this->assertStringContainsString("const OHNE_IDLE = process.env.RT_OHNE_IDLE === '1';", $generator);
         $this->assertStringContainsString('function idleWolkenBei(t) {', $generator);
         $this->assertStringContainsString('if (t <= FAHRT_ENDE_S) return [];', $generator);
+        $this->assertStringContainsString('if (!OHNE_IDLE) {', $generator);
         $this->assertStringContainsString('sichtbar.push(...idleWolkenBei(t));', $generator);
         $this->assertStringContainsString("zx.globalCompositeOperation = 'destination-out';", $generator);
         $this->assertStringContainsString('hx.fillStyle = a.markenFarbe;', $generator);

@@ -7,13 +7,16 @@ use App\Enums\MailDocumentStatus;
 use App\Http\Controllers\Admin\MailDocumentController;
 use App\Livewire\Admin\MailDocumentEditor;
 use App\Models\MailDocument;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Notifications\MailDocumentTestNotification;
 use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\PortableMediaCatalog;
+use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\MailSignature;
@@ -21,6 +24,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Mail\Markdown;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -1677,6 +1681,119 @@ HTML;
         $entry['sha256'] = str_repeat('0', 64);
         $this->expectException(ValidationException::class);
         $prepare->invoke($controller, '<img src="'.$source.'" alt="">', '', [$entry]);
+    }
+
+    public function test_signatur_artefaktversion_erkennt_v7_fallback_und_v8_marker(): void
+    {
+        $canonical = $this->canonicalMailDocumentHtml(MailDocumentKind::Signature);
+        $v7 = str_replace(
+            'data-rt-layer-align="center"',
+            'data-rt-layer-align="left"',
+            $canonical,
+            $alignmentCount,
+        );
+        $v7 = str_replace(
+            'data-rt-layer-mobile="train"',
+            'data-rt-layer-mobile="left"',
+            $v7,
+            $mobileCount,
+        );
+
+        $this->assertSame([1, 1], [$alignmentCount, $mobileCount]);
+        $this->assertSame(SignatureArtifactVersion::V7, SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $v7,
+        ));
+
+        $v8 = preg_replace(
+            '/^<tr>/',
+            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V8.'">',
+            $canonical,
+            1,
+            $markerCount,
+        );
+
+        $this->assertIsString($v8);
+        $this->assertSame(1, $markerCount);
+        $this->assertSame(SignatureArtifactVersion::V8, SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $v8,
+        ));
+        $this->assertNull(SignatureArtifactVersion::detect(
+            MailDocumentKind::Template,
+            $v8,
+        ));
+    }
+
+    public function test_testmail_zeigt_artefakt_dokumentversion_und_pruefkennung_in_mail_und_json(): void
+    {
+        $this->seedDocuments();
+        $admin = $this->admin();
+        $recipient = 'mail-layout-test@rail-time.test';
+        Setting::setValue('mails', 'admin_email', $recipient);
+
+        $document = $this->document(MailDocumentKind::Signature);
+        $html = preg_replace(
+            '/^<tr>/',
+            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V8.'">',
+            (string) $document->html,
+            1,
+            $markerCount,
+        );
+        $this->assertIsString($html);
+        $this->assertSame(1, $markerCount);
+
+        $builderData = $document->builder_data ?: [];
+        data_set($builderData, 'pages.0.component', $html);
+        $documentVersion = 27;
+        $contentHash = MailDocument::contentHashFor($builderData, $html, (string) $document->css);
+        $document->forceFill([
+            'builder_data' => $builderData,
+            'html' => $html,
+            'content_hash' => $contentHash,
+            'version' => $documentVersion,
+        ])->save();
+
+        Notification::fake();
+
+        $response = $this->actingAs($admin)->postJson(
+            route('admin.mail-documents.test-mail', $document),
+            ['expected_hash' => $contentHash],
+        );
+
+        $shortHash = substr($contentHash, 0, 12);
+        $response->assertOk()
+            ->assertJsonPath('recipient', $recipient)
+            ->assertJsonPath('layout_version', SignatureArtifactVersion::V8)
+            ->assertJsonPath('document_version', $documentVersion)
+            ->assertJsonPath('content_hash', $contentHash);
+        $this->assertStringContainsString('Layout v8', (string) $response->json('message'));
+        $this->assertStringContainsString('Dokumentversion '.$documentVersion, (string) $response->json('message'));
+        $this->assertStringContainsString('Prüfung '.$shortHash, (string) $response->json('message'));
+
+        Notification::assertSentOnDemand(
+            MailDocumentTestNotification::class,
+            function (MailDocumentTestNotification $notification, array $channels, object $notifiable) use (
+                $contentHash,
+                $documentVersion,
+                $recipient,
+                $shortHash,
+            ): bool {
+                $mail = $notification->toMail($notifiable);
+                $expectedSubject = '[TEST] '.MailDocumentKind::Signature->label()
+                    .' · Layout v8'
+                    .' · Dokumentversion '.$documentVersion
+                    .' · Prüfung '.$shortHash;
+
+                return $channels === ['mail']
+                    && $notifiable->routeNotificationFor('mail') === $recipient
+                    && $mail->subject === $expectedSubject
+                    && in_array('Verwendete Layoutversion: v8.', $mail->introLines, true)
+                    && in_array('Gespeicherte Dokumentversion: '.$documentVersion.'.', $mail->introLines, true)
+                    && in_array('Prüfkennung: '.$shortHash.'.', $mail->introLines, true)
+                    && strlen($contentHash) === 64;
+            },
+        );
     }
 
     public function test_speichern_verlangt_den_aktuellen_fingerabdruck(): void

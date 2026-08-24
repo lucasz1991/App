@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\Mail\CssSemantic;
+use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use Illuminate\Support\Facades\View;
@@ -276,6 +277,19 @@ class MailSignature
     public function render(array $layout = [], array $overrides = []): string
     {
         $values = $this->values($overrides);
+
+        // Vor der MailDocument-Migration bleibt der bestehende Bootstrapweg
+        // verwendbar. In einer migrierten Installation erzwingt
+        // runtimeDocument dagegen eine echte Veröffentlichung.
+        $published = EmailTemplateBuilder::runtimeDocument(
+            MailDocumentKind::Signature,
+            requirePublished: $this->remoteAssets,
+        );
+
+        if ($published !== null) {
+            $values = $this->applyArtifactTrainValues($published, $values);
+        }
+
         $tokenizedTrainCarrier = $this->usesTokenizedTrainCarrier($values, $layout);
         $explicitTrainSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
         $singleTrainSource = $explicitTrainSource !== ''
@@ -291,13 +305,6 @@ class MailSignature
                 ?? ''
         ));
 
-        // Vor der MailDocument-Migration bleibt der bestehende Bootstrapweg
-        // verwendbar. In einer migrierten Installation erzwingt
-        // runtimeDocument dagegen eine echte Veröffentlichung.
-        $published = EmailTemplateBuilder::runtimeDocument(
-            MailDocumentKind::Signature,
-            requirePublished: $this->remoteAssets,
-        );
         if ($published === null) {
             $viewValues = $values;
             if ($tokenizedTrainCarrier) {
@@ -351,7 +358,7 @@ class MailSignature
      */
     public function renderDocument(string $documentHtml, array $layout = [], array $overrides = []): string
     {
-        $values = $this->values($overrides);
+        $values = $this->applyArtifactTrainValues($documentHtml, $this->values($overrides));
         $explicitTrainSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
         $singleTrainSource = $explicitTrainSource !== ''
             ? $explicitTrainSource
@@ -373,6 +380,56 @@ class MailSignature
             $singleTrainLayout,
             $outlookFallbackSource,
         );
+    }
+
+    /**
+     * v8 ist ein fachlich markierter Signaturstand und besitzt eigene
+     * Haupt-/Standbilder ohne nachlaufenden Idle-Rauch. Die Auswahl geschieht
+     * am tatsächlich gerenderten HTML statt am Importdateinamen, damit
+     * Vorschau, Systemmail, Download und Testmail dieselbe Bildidentität sehen.
+     *
+     * @param  array<string, string>  $values
+     * @return array<string, string>
+     */
+    private function applyArtifactTrainValues(string $documentHtml, array $values): array
+    {
+        if (SignatureArtifactVersion::detect(MailDocumentKind::Signature, $documentHtml)
+            !== SignatureArtifactVersion::V8) {
+            return $values;
+        }
+
+        $animated = ! $this->staticAssets && $this->animated;
+        if ($this->remoteAssets) {
+            $values['TRAIN_SRC'] = $this->withRemotePlaybackNonce(
+                EmailTemplateBuilder::signatureTrainUrl(
+                    $this->theme,
+                    $animated,
+                    SignatureArtifactVersion::V8,
+                ),
+            );
+            $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainStillUrl(
+                $this->theme,
+                SignatureArtifactVersion::V8,
+            );
+        } else {
+            $values['TRAIN_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
+                $this->theme,
+                $animated,
+                $this->playbackNonce,
+                SignatureArtifactVersion::V8,
+            );
+            $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
+                $this->theme,
+                animated: false,
+                artifactVersion: SignatureArtifactVersion::V8,
+            );
+        }
+
+        // v8 enthaelt nach der Einfahrt keine Smoke-Idle-Sequenz und darf auch
+        // nicht durch das alte, zeitversetzt eingeblendete Overlay ergaenzt werden.
+        $values['TRAIN_IDLE_SRC'] = '';
+
+        return $values;
     }
 
     /**

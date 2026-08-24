@@ -1477,7 +1477,7 @@ function signatureTrainGeometry(layer) {
     const size = MAIL_SIGNATURE_TRAIN_SIZES[sizeName];
     if (!['left', 'center', 'right'].includes(alignment)
         || !size
-        || !['left', 'center', 'train', 'right'].includes(mobileCrop)) {
+        || !['left', 'center', 'train', 'stop65', 'right'].includes(mobileCrop)) {
         throw new Error('Der Zug-Layer besitzt keine erlaubte mail-sichere Geometrie.');
     }
     const layerMargin = {
@@ -2538,7 +2538,7 @@ export function synchronizeMailTrainLayerAlignment(component) {
     const sizeName = ['100', '125', '150', '200'].includes(String(attributes['data-rt-layer-size']))
         ? String(attributes['data-rt-layer-size'])
         : '125';
-    const mobileCrop = ['left', 'center', 'train', 'right'].includes(attributes['data-rt-layer-mobile'])
+    const mobileCrop = ['left', 'center', 'train', 'stop65', 'right'].includes(attributes['data-rt-layer-mobile'])
         ? attributes['data-rt-layer-mobile']
         : 'train';
     const size = {
@@ -2872,6 +2872,7 @@ export function protectMailSystemComponents(editor) {
                             { id: 'left', name: 'Links' },
                             { id: 'center', name: 'Mittig' },
                             { id: 'train', name: 'Groß · mobil angeschnitten' },
+                            { id: 'stop65', name: 'Groß · Halt bei 65 %' },
                             { id: 'right', name: 'Rechts' },
                         ],
                     },

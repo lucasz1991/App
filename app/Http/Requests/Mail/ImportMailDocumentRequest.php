@@ -4,6 +4,7 @@ namespace App\Http\Requests\Mail;
 
 use App\Enums\MailDocumentKind;
 use App\Support\Mail\PortableMediaCatalog;
+use App\Support\Mail\SignatureArtifactVersion;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -80,7 +81,10 @@ final class ImportMailDocumentRequest extends FormRequest
                 }
 
                 $missing = array_values(array_diff(
-                    PortableMediaCatalog::requiredSystemAssetIds($kind),
+                    PortableMediaCatalog::requiredSystemAssetIds(
+                        $kind,
+                        SignatureArtifactVersion::detect($kind, (string) $this->input('html')),
+                    ),
                     array_keys($counts),
                 ));
                 if ($missing !== []) {

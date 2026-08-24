@@ -5,6 +5,13 @@
  *   zug-dampf-{light,dark}.gif        Einfahrt plus Idle-Rauch, einmalig
  *   zug-dampf-{light,dark}.png        Ruhelage als Standbild, 1,5x, mit Alpha
  *
+ * Eine optionale Ausgabekennung erzeugt parallele Medien, ohne die
+ * kanonischen Dateien anzutasten. RT_OHNE_IDLE=1 unterdrueckt nur den
+ * stationaeren Rauch nach der Einfahrt; Timeline und End-Hold bleiben
+ * unveraendert. Beispiel fuer v8:
+ *
+ *   RT_AUSGABEKENNUNG=v8- RT_OHNE_IDLE=1 node tools/render-zug-einfahrt.mjs
+ *
  * WARUM NEU GERENDERT STATT GEPATCHT
  * Drei Anforderungen zusammen liessen sich am fertigen GIF nicht mehr
  * erfuellen: kein eigener Hintergrund, hoehere Aufloesung und ein
@@ -51,6 +58,12 @@ const OUTLOOK_BREITE = 720;
 const OUTLOOK_HOEHE = 75;
 const OFFIZIELLES_RT_ICON = 'public/rt-brand/rt-logo.svg';
 const ZUG_GRAU = '#737d89';
+const AUSGABEKENNUNG = process.env.RT_AUSGABEKENNUNG || '';
+const OHNE_IDLE = process.env.RT_OHNE_IDLE === '1';
+
+if (!/^(?:[a-z0-9]+-)?$/.test(AUSGABEKENNUNG)) {
+    throw new Error('RT_AUSGABEKENNUNG muss leer sein oder aus Kleinbuchstaben/Ziffern mit abschliessendem Bindestrich bestehen.');
+}
 
 // --- Leinwand ---------------------------------------------------------
 const BREITE = Number(process.env.RT_BREITE || 1440);
@@ -616,7 +629,9 @@ for (const v of VARIANTEN) {
             const z = wolkeBei(w, t, SCHORNSTEIN_X + (xBeiGeburt - RUHE_X));
             if (z && z.alpha > 0.004 && z.x > -60 && z.x < BREITE + 60) sichtbar.push(z);
         }
-        sichtbar.push(...idleWolkenBei(t));
+        if (!OHNE_IDLE) {
+            sichtbar.push(...idleWolkenBei(t));
+        }
 
         const rgba = await zeichne({
             breite: BREITE, hoehe: HOEHE, skala: SKALA,
@@ -662,10 +677,10 @@ for (const v of VARIANTEN) {
 
     encoder.finish();
     const gif = Buffer.from(encoder.bytes());
-    writeFileSync(`${ASSETS}/zug-dampf-${v.key}.gif`, gif);
+    writeFileSync(`${ASSETS}/zug-dampf-${AUSGABEKENNUNG}${v.key}.gif`, gif);
     outlookEncoder.finish();
     const outlookGif = Buffer.from(outlookEncoder.bytes());
-    writeFileSync(`${ASSETS}/zug-dampf-outlook-${v.key}.gif`, outlookGif);
+    writeFileSync(`${ASSETS}/zug-dampf-outlook-${AUSGABEKENNUNG}${v.key}.gif`, outlookGif);
 
     // --- Standbild: EXAKT das letzte Einzelbild -------------------------
     // Es liegt als Netz hinter dem GIF (siehe signature.blade.php). Waere
@@ -676,17 +691,17 @@ for (const v of VARIANTEN) {
     const stillPng = new PNG({ width: BREITE * SKALA, height: HOEHE * SKALA });
     stillPng.data.set(stillRoh);
     const stillBytes = PNG.sync.write(stillPng, { deflateLevel: 9 });
-    writeFileSync(`${ASSETS}/zug-dampf-${v.key}.png`, stillBytes);
+    writeFileSync(`${ASSETS}/zug-dampf-${AUSGABEKENNUNG}${v.key}.png`, stillBytes);
     console.log(`  ${v.key}: Standbild ${(stillBytes.length / 1024).toFixed(1)} kB (deckungsgleich mit dem letzten Einzelbild)`);
 
-    console.log(`  ${v.key}: GIF ${(gif.length / 1024).toFixed(1)} kB (${BREITE * SKALA}x${HOEHE * SKALA}, Zug ${Math.round(ZUG_MASSSTAB * 100)} %, Endkante ${Math.round(ZIEL_RECHTS * 100)} %, Idle ab ${FAHRT_ENDE_S.toFixed(1)} s)`);
+    console.log(`  ${v.key}: GIF ${(gif.length / 1024).toFixed(1)} kB (${BREITE * SKALA}x${HOEHE * SKALA}, Zug ${Math.round(ZUG_MASSSTAB * 100)} %, Endkante ${Math.round(ZIEL_RECHTS * 100)} %, ${OHNE_IDLE ? 'ohne Idle-Rauch' : `Idle ab ${FAHRT_ENDE_S.toFixed(1)} s`})`);
     console.log(`  ${v.key}: Outlook ${(outlookGif.length / 1024).toFixed(1)} kB (${OUTLOOK_BREITE}x${OUTLOOK_HOEHE}, gleiche Timeline)`);
 }
 
 await browser.close();
 
 for (const v of VARIANTEN) {
-    for (const name of [`zug-dampf-${v.key}.gif`, `zug-dampf-${v.key}.png`]) {
+    for (const name of [`zug-dampf-${AUSGABEKENNUNG}${v.key}.gif`, `zug-dampf-${AUSGABEKENNUNG}${v.key}.png`]) {
         copyFileSync(`${ASSETS}/${name}`, `${OEFFENTLICH}/${name}`);
     }
 }
