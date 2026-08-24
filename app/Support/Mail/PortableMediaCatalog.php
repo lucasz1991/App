@@ -54,6 +54,10 @@ final class PortableMediaCatalog
                     MailDocumentKind::Signature,
                     SignatureArtifactVersion::V14,
                 ),
+                SignatureArtifactVersion::V15 => self::requiredSystemAssetIds(
+                    MailDocumentKind::Signature,
+                    SignatureArtifactVersion::V15,
+                ),
             ],
             MailDocumentKind::Template => [
                 'default' => self::requiredSystemAssetIds(MailDocumentKind::Template),
@@ -76,11 +80,26 @@ final class PortableMediaCatalog
                 'contact-mobile.png',
                 'contact-phone.png',
                 'contact-web.png',
-                'wortmarke-signature-light.gif',
-                'wortmarke-signature-light.png',
-                'wortmarke-mail-dark.gif',
-                'wortmarke-mail-dark.png',
-            ], SignatureArtifactVersion::usesSmokeSafeArrivalTrain($artifactVersion)
+            ], SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)
+                ? [
+                    'wortmarke-signature-v15-light.gif',
+                    'wortmarke-signature-v15-light.png',
+                    'wortmarke-mail-v15-dark.gif',
+                    'wortmarke-mail-v15-dark.png',
+                ]
+                : [
+                    'wortmarke-signature-light.gif',
+                    'wortmarke-signature-light.png',
+                    'wortmarke-mail-dark.gif',
+                    'wortmarke-mail-dark.png',
+                ], SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)
+                ? [
+                    'zug-dampf-v15-light.gif',
+                    'zug-dampf-v15-light.png',
+                    'zug-dampf-v15-dark.gif',
+                    'zug-dampf-v15-dark.png',
+                ]
+                : (SignatureArtifactVersion::usesSmokeSafeArrivalTrain($artifactVersion)
                 ? [
                     'zug-dampf-v13-light.gif',
                     'zug-dampf-v13-light.png',
@@ -108,7 +127,7 @@ final class PortableMediaCatalog
                     'zug-dampf-dark.png',
                     'zug-dampf-idle-light.gif',
                     'zug-dampf-idle-dark.gif',
-                ]))),
+                ])))),
             MailDocumentKind::Template => [
                 'icon-rt-light.gif',
                 'icon-rt-light.png',

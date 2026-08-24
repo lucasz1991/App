@@ -141,7 +141,6 @@ class CreativesIndex extends Component
         abort_unless(auth()->user()?->isAdmin(), 403);
 
         $creatives = MarketingCreative::query()
-            ->with('variants')
             ->when($this->search !== '', function (Builder $query): void {
                 $query->where('title', 'like', '%'.trim($this->search).'%');
             })
@@ -161,9 +160,9 @@ class CreativesIndex extends Component
         $selectedFolderNode = collect($folderTree)->first(
             fn (array $folder): bool => (bool) ($folder['selected'] ?? false)
         );
-        $assetLibrary = $mediaSourceInvalid
-            ? ['assets' => [], 'total' => 0, 'limit' => 0, 'truncated' => false]
-            : $media->editorAssetLibrary();
+        $assetSummary = $mediaSourceInvalid
+            ? ['total' => 0, 'visible' => 0, 'limit' => 0, 'truncated' => false]
+            : $media->editorAssetSummary($folderTree);
 
         return view('livewire.admin.marketing.creatives-index', [
             'creatives' => $creatives,
@@ -183,9 +182,9 @@ class CreativesIndex extends Component
             'mediaSourcePath' => $mediaSourceInvalid
                 ? 'Ausgewählter Ordner nicht mehr verfügbar'
                 : ($selectedFolderNode['path'] ?? 'Firmendateien / Grundverzeichnis'),
-            'mediaAssetCount' => $assetLibrary['total'],
-            'mediaAssetVisibleCount' => count($assetLibrary['assets']),
-            'mediaAssetTruncated' => $assetLibrary['truncated'],
+            'mediaAssetCount' => $assetSummary['total'],
+            'mediaAssetVisibleCount' => $assetSummary['visible'],
+            'mediaAssetTruncated' => $assetSummary['truncated'],
             'mediaFilesUrl' => route(
                 'admin.files',
                 $selectedFolder && ! $mediaSourceInvalid ? ['folder' => $selectedFolder->getKey()] : [],

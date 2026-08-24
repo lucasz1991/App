@@ -7,6 +7,7 @@
     'defaultSource' => null,
     'status' => null,
     'replayable' => false,
+    'deferred' => false,
     'loadingOverlay' => true,
 ])
 
@@ -44,7 +45,8 @@
     // Alpine mit "illegal character U+0040" abbrechen. Nur bereits fertige,
     // datenfreie Alpine-Ausdruecke an die Unterkomponente weiterreichen.
     $frameLoadExpression = $loadingOverlay ? 'frameLoaded($event)' : 'void 0';
-    $frameClassExpression = $replayable && $loadingOverlay
+    $waitForFrame = $loadingOverlay && ($replayable || $deferred);
+    $frameClassExpression = $waitForFrame
         ? "!frameReady ? 'opacity-0' : 'opacity-100'"
         : "'opacity-100'";
 @endphp
@@ -53,6 +55,7 @@
     padding="p-0"
     {{ $attributes->class('overflow-hidden') }}
     data-page-builder-preview-card
+    data-page-builder-preview-deferred="{{ $deferred ? 'true' : 'false' }}"
 >
     <div
         class="flex h-full min-h-0 flex-col"
@@ -63,16 +66,18 @@
             scale: 1,
             resizeObserver: null,
             playbackId: 1,
-            frameReady: @js(! $replayable || ! $loadingOverlay),
+            shouldLoad: @js(! $deferred),
+            frameReady: @js(! $waitForFrame),
             reducedMotion: false,
             readyTimer: null,
             motionMedia: null,
             motionListener: null,
+            intersectionObserver: null,
             get active() {
                 return this.sources.find((source) => source.key === this.activeKey) || this.sources[0] || null;
             },
             get activeUrl() {
-                if (!this.active?.url) return 'about:blank';
+                if (!this.shouldLoad || !this.active?.url) return 'about:blank';
                 if (!@js((bool) $replayable)) return this.active.url;
                 const url = new URL(this.active.url, window.location.href);
                 if (this.reducedMotion) {
@@ -88,11 +93,13 @@
             },
             choose(key) {
                 this.activeKey = key;
+                this.shouldLoad = true;
+                this.intersectionObserver?.disconnect();
+                if (@js((bool) $waitForFrame)) {
+                    window.clearTimeout(this.readyTimer);
+                    this.frameReady = false;
+                }
                 if (@js((bool) $replayable)) {
-                    if (@js((bool) $loadingOverlay)) {
-                        window.clearTimeout(this.readyTimer);
-                        this.frameReady = false;
-                    }
                     if (!this.reducedMotion) this.playbackId++;
                 }
                 this.$nextTick(() => this.measure());
@@ -106,7 +113,7 @@
                 this.playbackId++;
             },
             frameLoaded(event) {
-                if (!@js((bool) ($replayable && $loadingOverlay))) return;
+                if (!@js((bool) $waitForFrame)) return;
                 const frame = event?.currentTarget;
                 const loadedSrc = frame?.getAttribute?.('src') || '';
                 if (!loadedSrc || loadedSrc === 'about:blank') return;
@@ -140,12 +147,24 @@
                 this.$nextTick(() => {
                     this.resizeObserver?.observe(this.$refs.viewport);
                     this.measure();
+                    if (!@js((bool) $deferred) || this.shouldLoad) return;
+                    if (typeof IntersectionObserver !== 'function') {
+                        this.shouldLoad = true;
+                        return;
+                    }
+                    this.intersectionObserver = new IntersectionObserver((entries) => {
+                        if (!entries.some((entry) => entry.isIntersecting)) return;
+                        this.shouldLoad = true;
+                        this.intersectionObserver?.disconnect();
+                    }, { rootMargin: '360px 0px' });
+                    this.intersectionObserver.observe(this.$refs.viewport);
                 });
             },
             destroy() {
                 window.clearTimeout(this.readyTimer);
                 this.motionMedia?.removeEventListener?.('change', this.motionListener);
                 this.resizeObserver?.disconnect();
+                this.intersectionObserver?.disconnect();
             },
         }"
     >
@@ -208,7 +227,7 @@
             data-page-builder-preview-viewport
         >
             @if ($previewSources !== [])
-                @if ($replayable && $loadingOverlay)
+                @if ($waitForFrame)
                     <div
                         x-show="!frameReady"
                         x-transition.opacity
@@ -219,12 +238,12 @@
                     >
                         <span class="flex items-center gap-2">
                             <i class="far fa-spinner-third animate-spin text-rt-accent" aria-hidden="true"></i>
-                            Animierte Vorschau wird vorbereitet …
+                            {{ $replayable ? 'Animierte Vorschau wird vorbereitet …' : 'Vorschau wird geladen …' }}
                         </span>
                     </div>
                 @endif
                 <x-ui.preview.frame
-                    :src="$replayable ? 'about:blank' : $initialSource['url']"
+                    :src="($replayable || $deferred) ? 'about:blank' : $initialSource['url']"
                     x-bind:src="activeUrl"
                     x-on:load="{{ $frameLoadExpression }}"
                     :title="'Vorschau: '.$title.' – '.$initialSource['label']"

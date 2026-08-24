@@ -108,6 +108,26 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('@js(', $mailHtml);
     }
 
+    public function test_deferred_preview_card_loads_only_near_the_viewport(): void
+    {
+        $html = Blade::render(
+            '<x-ui.page-builder.preview-card title="Motiv" :sources="$sources" :deferred="true" />',
+            ['sources' => ['story' => [
+                'label' => 'Story',
+                'url' => '/preview/story',
+                'width' => 1080,
+                'height' => 1920,
+            ]]],
+        );
+
+        $this->assertStringContainsString('data-page-builder-preview-deferred="true"', $html);
+        $this->assertStringContainsString('src="about:blank"', $html);
+        $this->assertStringContainsString('shouldLoad: false', $html);
+        $this->assertStringContainsString("typeof IntersectionObserver !== 'function'", $html);
+        $this->assertStringContainsString("rootMargin: '360px 0px'", $html);
+        $this->assertStringContainsString('Vorschau wird geladen', $html);
+    }
+
     public function test_marketing_preview_is_admin_only_sandbox_ready_and_network_free(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -330,14 +350,18 @@ class PageBuilderPreviewTest extends TestCase
 
         foreach ([
             'data-page-builder-preview-card',
+            'data-page-builder-preview-deferred="true"',
             'data-page-builder-preview-frame',
             'sandbox=""',
+            'src="about:blank"',
+            'wire:target="search,type,status"',
             route('admin.marketing.creatives.preview', [$creative, 'story']),
             route('admin.marketing.creatives.preview', [$creative, 'post']),
             route('admin.marketing.creatives.preview', [$creative, 'web']),
         ] as $needle) {
             $this->assertTrue(str_contains($html, $needle), 'Marketing-Seite enthält nicht: '.$needle);
         }
+
     }
 
     public function test_email_source_page_renders_two_admin_preview_cards(): void

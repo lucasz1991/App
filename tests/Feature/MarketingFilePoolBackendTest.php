@@ -134,6 +134,27 @@ class MarketingFilePoolBackendTest extends TestCase
         $this->assertFalse($library['assets'][0]['animated']);
     }
 
+    public function test_motive_index_uses_metadata_summary_without_opening_private_blobs(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $pool = FilePool::company();
+        $pool->files()->create([
+            'user_id' => $admin->id,
+            'name' => 'nur-metadaten.png',
+            'path' => 'uploads/files/nicht-vorhanden.png',
+            'disk' => 'private',
+            'mime_type' => 'image/png',
+            'size' => 68,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.marketing.creatives.index'))
+            ->assertOk()
+            ->assertSee('1 Bild im Editor verfügbar');
+
+        $this->assertFalse(Storage::disk('private')->exists('uploads/files/nicht-vorhanden.png'));
+    }
+
     public function test_editor_library_exposes_verified_gif_metadata_for_opaque_file_routes(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

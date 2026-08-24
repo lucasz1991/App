@@ -838,11 +838,22 @@ class EmailTemplateBuilder
     }
 
     /** Der Schriftzug OHNE das RT-Zeichen — siehe MailSignature::values(). */
-    protected function emailLogoAsset(string $theme): string
+    public static function signatureLogoAsset(string $theme, ?string $artifactVersion = null): string
     {
+        if (SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)) {
+            return $theme === 'dark'
+                ? 'wortmarke-mail-v15-dark.gif'
+                : 'wortmarke-signature-v15-light.gif';
+        }
+
         return $theme === 'dark'
             ? 'wortmarke-mail-dark.gif'
             : 'wortmarke-signature-light.gif';
+    }
+
+    protected function emailLogoAsset(string $theme, ?string $artifactVersion = null): string
+    {
+        return self::signatureLogoAsset($theme, $artifactVersion);
     }
 
     protected function buildEmailHtml(
@@ -893,7 +904,8 @@ class EmailTemplateBuilder
             playbackNonce: $playbackNonce,
             staticAssets: $staticAnimations,
         );
-        $logoAsset = $this->emailLogoAsset($theme);
+        $artifactVersion = self::activeSignatureArtifactVersion();
+        $logoAsset = $this->emailLogoAsset($theme, $artifactVersion);
         if ($staticAnimations) {
             $logoAsset = str_replace('.gif', '.png', $logoAsset);
         }
@@ -973,13 +985,15 @@ class EmailTemplateBuilder
         ?string $artifactVersion = null,
     ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
-        $stem = SignatureArtifactVersion::usesSmokeSafeArrivalTrain($artifactVersion)
+        $stem = SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)
+            ? 'zug-dampf-v15'
+            : (SignatureArtifactVersion::usesSmokeSafeArrivalTrain($artifactVersion)
             ? 'zug-dampf-v13'
             : (SignatureArtifactVersion::usesOptimizedArrivalTrain($artifactVersion)
                 ? 'zug-dampf-v12'
                 : (SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)
                     ? 'zug-dampf-v8'
-                    : 'zug-dampf'));
+                    : 'zug-dampf')));
 
         return $stem.'-'.$variant.'.'.($animated ? 'gif' : 'png');
     }
@@ -1006,6 +1020,8 @@ class EmailTemplateBuilder
         // ohne Akzentlinie, weil die Signaturdatei ihre eigene traegt.
         // Hier faehrt der Zug ein (animierte Fassung).
         $signature = MailSignature::forUser($this->user, $theme, animated: true);
+        $artifactVersion = self::activeSignatureArtifactVersion();
+        $logo = $this->emailLogoAsset($theme, $artifactVersion);
         $signatureOverrides = ['LOGO_SRC' => self::inlineImage($logo, 'image/gif')];
         $html = $this->substitute($html, [
             'SIGNATURE_BLOCK' => $this->signatureBlock(
@@ -1077,7 +1093,7 @@ class EmailTemplateBuilder
                     self::masterPath('assets/'.self::signatureTrainFilename($theme, false, $artifactVersion))
                 ),
                 "{$assetFolder}/logo.gif" => file_get_contents(
-                    self::masterPath('assets/'.$this->emailLogoAsset($theme))
+                    self::masterPath('assets/'.$this->emailLogoAsset($theme, $artifactVersion))
                 ),
             ];
 
@@ -1178,7 +1194,7 @@ class EmailTemplateBuilder
 
         $variant = $theme === 'dark' ? 'dark' : 'light';
         $artifactVersion = self::activeSignatureArtifactVersion();
-        $logoAsset = $this->emailLogoAsset($theme);
+        $logoAsset = $this->emailLogoAsset($theme, $artifactVersion);
         $markAsset = self::emailMarkAsset($theme);
         $remoteSources = array_merge([
             'LOGO_SRC' => self::httpsMailAssetUrl($logoAsset),
@@ -1870,7 +1886,7 @@ TEXT;
             rtrim($html, "\r\n"),
         ];
 
-        $logoAsset = $this->emailLogoAsset($theme);
+        $logoAsset = $this->emailLogoAsset($theme, $artifactVersion);
         $logoStillAsset = str_replace('.gif', '.png', $logoAsset);
         $markAsset = self::emailMarkAsset($theme);
         $trainAsset = self::signatureTrainFilename($theme, true, $artifactVersion);

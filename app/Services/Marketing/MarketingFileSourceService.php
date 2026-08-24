@@ -86,25 +86,50 @@ final class MarketingFileSourceService
     {
         $pool = $this->sourcePool();
         $selected = $this->selectedFolderId(true);
-
-        return FileFolder::query()
+        $folders = FileFolder::query()
             ->where('file_pool_id', $pool->id)
             ->orderBy('name')
-            ->get()
-            ->map(function (FileFolder $folder) use ($pool, $selected): ?array {
-                $chain = $this->folderChain($folder, $pool);
-                if ($chain === null) {
-                    return null;
+            ->get();
+        $foldersById = $folders->keyBy(fn (FileFolder $folder): int => (int) $folder->id);
+
+        return $folders
+            ->map(function (FileFolder $folder) use ($foldersById, $pool, $selected): ?array {
+                $chain = collect();
+                $visited = [];
+                $current = $folder;
+
+                for ($depth = 0; $depth < self::MAX_FOLDER_DEPTH; $depth++) {
+                    $id = (int) $current->id;
+                    if ((int) $current->file_pool_id !== (int) $pool->id
+                        || isset($visited[$id])
+                        || ! $current->isWithinVisibilityWindow()
+                        || $current->isExpiredForDeletion()) {
+                        return null;
+                    }
+
+                    $visited[$id] = true;
+                    $chain->prepend($current);
+
+                    if ($current->parent_id === null) {
+                        return [
+                            'id' => (int) $folder->id,
+                            'parent_id' => $folder->parent_id ? (int) $folder->parent_id : null,
+                            'name' => (string) $folder->name,
+                            'path' => $chain->pluck('name')->implode(' / '),
+                            'depth' => max(0, $chain->count() - 1),
+                            'selected' => (int) $selected === (int) $folder->id,
+                        ];
+                    }
+
+                    $parent = $foldersById->get((int) $current->parent_id);
+                    if (! $parent instanceof FileFolder) {
+                        return null;
+                    }
+
+                    $current = $parent;
                 }
 
-                return [
-                    'id' => (int) $folder->id,
-                    'parent_id' => $folder->parent_id ? (int) $folder->parent_id : null,
-                    'name' => (string) $folder->name,
-                    'path' => $chain->pluck('name')->implode(' / '),
-                    'depth' => max(0, $chain->count() - 1),
-                    'selected' => (int) $selected === (int) $folder->id,
-                ];
+                return null;
             })
             ->filter()
             ->sortBy(fn (array $folder): string => mb_strtolower($folder['path']))
@@ -230,6 +255,95 @@ final class MarketingFileSourceService
     public function editorAssetCount(): int
     {
         return $this->editorAssetLibrary()['total'];
+    }
+
+    /**
+     * Cheap index-page summary. Unlike editorAssetLibrary(), this method never
+     * opens private blobs, decodes images or calculates hashes. The editor
+     * still performs the complete byte-level validation when it is opened.
+     *
+     * @param  list<array{id: int, parent_id: ?int, name: string, path: string, depth: int, selected: bool}>|null  $folderTree
+     * @return array{total: int, visible: int, limit: int, truncated: bool}
+     */
+    public function editorAssetSummary(?array $folderTree = null): array
+    {
+        if ($this->hasInvalidSelection()) {
+            return ['total' => 0, 'visible' => 0, 'limit' => 0, 'truncated' => false];
+        }
+
+        $limit = max(1, min(1000, (int) config('marketing.assets.editor_limit', 500)));
+        $maxBytes = max(1, (int) config('marketing.assets.max_kilobytes', 8192)) * 1024;
+        $selected = $this->selectedFolderId(true);
+        $folders = $folderTree ?? $this->folderTree();
+        $validFolderIds = array_values(array_unique(array_map(
+            static fn (array $folder): int => (int) $folder['id'],
+            $folders,
+        )));
+
+        if ($selected !== null) {
+            $children = [];
+            foreach ($folders as $folder) {
+                $parentId = isset($folder['parent_id']) ? (int) $folder['parent_id'] : 0;
+                $children[$parentId][] = (int) $folder['id'];
+            }
+
+            $validFolderIds = [];
+            $pending = [$selected];
+            while ($pending !== []) {
+                $folderId = array_pop($pending);
+                if (! is_int($folderId) || in_array($folderId, $validFolderIds, true)) {
+                    continue;
+                }
+
+                $validFolderIds[] = $folderId;
+                foreach ($children[$folderId] ?? [] as $childId) {
+                    $pending[] = $childId;
+                }
+            }
+        }
+
+        $pool = $this->sourcePool();
+        $today = now()->startOfDay();
+        $now = now();
+        $query = File::query()
+            ->where('fileable_type', $pool->getMorphClass())
+            ->where('fileable_id', $pool->id)
+            ->where('disk', 'private')
+            ->whereIn('mime_type', array_keys(self::ALLOWED_MIME_TYPES))
+            ->where(function ($query) use ($maxBytes): void {
+                $query->whereNull('size')
+                    ->orWhereBetween('size', [1, $maxBytes]);
+            })
+            ->where(function ($query) use ($today): void {
+                $query->whereNull('visible_from')
+                    ->orWhere('visible_from', '<=', $today);
+            })
+            ->where(function ($query) use ($now): void {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>=', $now);
+            });
+
+        if ($selected === null) {
+            $query->where(function ($query) use ($validFolderIds): void {
+                $query->whereNull('folder_id');
+                if ($validFolderIds !== []) {
+                    $query->orWhereIn('folder_id', $validFolderIds);
+                }
+            });
+        } elseif ($validFolderIds === []) {
+            $query->whereRaw('1 = 0');
+        } else {
+            $query->whereIn('folder_id', $validFolderIds);
+        }
+
+        $total = $query->count();
+
+        return [
+            'total' => $total,
+            'visible' => min($total, $limit),
+            'limit' => $limit,
+            'truncated' => $total > $limit,
+        ];
     }
 
     /**

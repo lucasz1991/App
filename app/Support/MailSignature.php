@@ -67,17 +67,11 @@ class MailSignature
         bool $remoteAssets = true,
         bool $staticAssets = false,
     ): self {
-        // Ein einmal abgespieltes, remote verlinktes GIF darf nicht die
-        // Bildidentitaet einer anderen Systemmail teilen. Der Nonce entsteht
-        // genau einmal pro Signaturinstanz: innerhalb EINER Mail bleiben alle
-        // Verweise identisch, zwei unabhaengige Mails erhalten getrennte
-        // Playback-URLs. Ob dieselbe bereits geladene Mail beim erneuten Oeffnen
-        // wirklich neu startet, bleibt eine Entscheidung des jeweiligen
-        // Mailclient-/Proxy-Caches.
-        if ($animated && $remoteAssets && ! $staticAssets && $playbackNonce === null) {
-            $playbackNonce = bin2hex(random_bytes(18));
-        }
-
+        // Produktive Systemmails teilen absichtlich die stabile, ueber ?v=
+        // versionierte Asset-URL. Eine zusaetzliche Zufalls-URL pro Nachricht
+        // verhindert Client-/Proxy-Caching und verstaerkt gerade beim ersten
+        // Oeffnen das kalte Bild-Layout. Nur explizite Vorschauaufrufer setzen
+        // weiterhin einen Playback-Nonce.
         return new self(null, $theme, $animated, $playbackNonce, $remoteAssets, $staticAssets);
     }
 
@@ -287,7 +281,7 @@ class MailSignature
         );
 
         if ($published !== null) {
-            $values = $this->applyArtifactTrainValues($published, $values);
+            $values = $this->applyArtifactTrainValues($published, $values, $overrides);
         }
 
         $tokenizedTrainCarrier = $this->usesTokenizedTrainCarrier($values, $layout);
@@ -358,7 +352,7 @@ class MailSignature
      */
     public function renderDocument(string $documentHtml, array $layout = [], array $overrides = []): string
     {
-        $values = $this->applyArtifactTrainValues($documentHtml, $this->values($overrides));
+        $values = $this->applyArtifactTrainValues($documentHtml, $this->values($overrides), $overrides);
         $explicitTrainSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
         $singleTrainSource = $explicitTrainSource !== ''
             ? $explicitTrainSource
@@ -383,15 +377,16 @@ class MailSignature
     }
 
     /**
-     * V8 bis V14 sind fachlich markierte Signaturstaende und besitzen eigene
+     * V8 bis V15 sind fachlich markierte Signaturstaende und besitzen eigene
      * Haupt-/Standbilder ohne separates nachlaufendes Idle-Overlay. Die Auswahl geschieht
      * am tatsächlich gerenderten HTML statt am Importdateinamen, damit
      * Vorschau, Systemmail, Download und Testmail dieselbe Bildidentität sehen.
      *
      * @param  array<string, string>  $values
+     * @param  array<string, string>  $overrides
      * @return array<string, string>
      */
-    private function applyArtifactTrainValues(string $documentHtml, array $values): array
+    private function applyArtifactTrainValues(string $documentHtml, array $values, array $overrides = []): array
     {
         $artifactVersion = SignatureArtifactVersion::detect(
             MailDocumentKind::Signature,
@@ -399,6 +394,28 @@ class MailSignature
         );
         if (! SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)) {
             return $values;
+        }
+
+        if (SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)) {
+            $logoAsset = EmailTemplateBuilder::signatureLogoAsset($this->theme, $artifactVersion);
+            if ($this->staticAssets) {
+                $logoAsset = str_replace('.gif', '.png', $logoAsset);
+            }
+            $logoStill = str_replace('.gif', '.png', $logoAsset);
+            if (! array_key_exists('LOGO_SRC', $overrides)) {
+                $values['LOGO_SRC'] = $this->remoteAssets
+                    ? EmailTemplateBuilder::mailAssetUrl($logoAsset)
+                    : EmailTemplateBuilder::inlineImage(
+                        $logoAsset,
+                        str_ends_with($logoAsset, '.gif') ? 'image/gif' : 'image/png',
+                        $this->playbackNonce,
+                    );
+            }
+            if (! array_key_exists('LOGO_STILL_SRC', $overrides)) {
+                $values['LOGO_STILL_SRC'] = $this->remoteAssets
+                    ? EmailTemplateBuilder::mailAssetUrl($logoStill)
+                    : EmailTemplateBuilder::inlineImage($logoStill, 'image/png');
+            }
         }
 
         $animated = ! $this->staticAssets && $this->animated;
@@ -428,7 +445,7 @@ class MailSignature
             );
         }
 
-        // V8 bis V14 enthalten ihren vollstaendigen Ankunftsstand bereits im
+        // V8 bis V15 enthalten ihren vollstaendigen Ankunftsstand bereits im
         // Haupt-GIF und duerfen nicht durch das alte, zeitversetzt eingeblendete
         // Idle-Overlay ergaenzt werden.
         $values['TRAIN_IDLE_SRC'] = '';
@@ -482,7 +499,7 @@ class MailSignature
     }
 
     /**
-     * V11 bis V14 duerfen die kuerzere Firmenbuehne erst nach dem Entfernen leerer
+     * V11 bis V15 duerfen die kuerzere Firmenbuehne erst nach dem Entfernen leerer
      * Kontaktzeilen erhalten. Der editierbare Vollvertrag bleibt dadurch
      * hoch genug fuer persoenliche Signaturen, waehrend Systemmails nicht
      * dieselbe ungenutzte Reserve mitschleppen.
@@ -503,7 +520,7 @@ class MailSignature
 
         $artifactVersion = SignatureArtifactVersion::detect(MailDocumentKind::Signature, $documentHtml);
         if ($this->user !== null
-            || ! in_array($artifactVersion, [SignatureArtifactVersion::V11, SignatureArtifactVersion::V12, SignatureArtifactVersion::V13, SignatureArtifactVersion::V14], true)) {
+            || ! in_array($artifactVersion, [SignatureArtifactVersion::V11, SignatureArtifactVersion::V12, SignatureArtifactVersion::V13, SignatureArtifactVersion::V14, SignatureArtifactVersion::V15], true)) {
             return $renderedHtml;
         }
 

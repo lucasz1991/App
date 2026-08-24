@@ -154,11 +154,22 @@
         </div>
     </x-ui.surface.card>
 
-    <div wire:loading.delay class="w-full rounded-xl border border-rt-border bg-rt-surface p-5 text-sm text-rt-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted" role="status">
-        Motive werden aktualisiert …
+    <div
+        wire:loading.delay.shorter
+        wire:target="search,type,status"
+        style="display: none;"
+        class="w-fit rounded-full border border-rt-border bg-rt-surface px-3 py-2 text-xs font-semibold text-rt-muted shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted"
+        role="status"
+        aria-live="polite"
+        data-marketing-filter-progress
+    >
+        <span class="inline-flex items-center gap-2">
+            <i class="far fa-spinner-third animate-spin text-rt-red" aria-hidden="true"></i>
+            Motive werden aktualisiert …
+        </span>
     </div>
 
-    <div wire:loading.remove>
+    <div>
         @if ($creatives->isEmpty())
             <x-ui.surface.card padding="p-8 sm:p-12" class="text-center">
                 <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rt-red dark:bg-rose-500/10 dark:text-rose-300">
@@ -197,6 +208,7 @@
                             :status="$statusLabel"
                             :sources="$creativePreviewSources"
                             :default-source="$preferredPreviewFormat"
+                            :deferred="true"
                             :edit-url="route('admin.marketing.creatives.editor', [
                                 'creative' => $creative,
                                 'format' => $preferredPreviewFormat,

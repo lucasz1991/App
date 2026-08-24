@@ -172,9 +172,11 @@
                                     data-mail-document-version-trigger
                                     title="Gespeicherte Version auswählen"
                                 >
-                                    <i data-feather="history" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                    <i data-feather="clock" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
                                     <span data-mail-document-version-trigger-label class="max-w-40 truncate">Versionen</span>
-                                    <i data-feather="chevron-down" class="h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"></i>
+                                    <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true">
+                                        <i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                    </span>
                                 </x-ui.buttons.button-basic>
                             </x-slot:trigger>
 
@@ -230,7 +232,9 @@
                                 >
                                     <i data-feather="more-horizontal" class="h-4 w-4" aria-hidden="true"></i>
                                     <span>Werkzeuge</span>
-                                    <i data-feather="chevron-down" class="h-3.5 w-3.5 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"></i>
+                                    <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true">
+                                        <i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                    </span>
                                 </x-ui.buttons.button-basic>
                             </x-slot:trigger>
 

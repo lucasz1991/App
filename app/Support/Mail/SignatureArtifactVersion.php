@@ -34,13 +34,15 @@ final class SignatureArtifactVersion
 
     public const V14 = 'v14';
 
+    public const V15 = 'v15';
+
     /**
-     * V8 bis V14 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
+     * V8 bis V15 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
      * endet im Ankunftsbild und benoetigt deshalb kein separates Idle-Overlay.
      */
     public static function usesArrivalHoldTrain(?string $version): bool
     {
-        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14], true);
+        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15], true);
     }
 
     /** V12 verwendet die optimierte, sofort sichtbare Zugdatei. */
@@ -53,6 +55,18 @@ final class SignatureArtifactVersion
     public static function usesSmokeSafeArrivalTrain(?string $version): bool
     {
         return in_array($version, [self::V13, self::V14], true);
+    }
+
+    /** V15 besitzt eigene, kleinere Zug- und Wortmarkenmedien. */
+    public static function usesOptimizedMailAssets(?string $version): bool
+    {
+        return $version === self::V15;
+    }
+
+    /** V15 darf den Inhalt auch bei ignorierter negativer Margin nie abschneiden. */
+    public static function usesFailOpenStage(?string $version): bool
+    {
+        return $version === self::V15;
     }
 
     public static function detect(MailDocumentKind|string $kind, string $html): ?string
