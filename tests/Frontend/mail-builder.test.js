@@ -1516,7 +1516,7 @@ test('preview controller writes logical frame variables and cleans listeners', (
     assert.equal(cssProperties['--rt-mail-logical-width'], '820px');
 
     handlers.get('canvas:frame:load')?.();
-    assert.equal(changes.at(-1).device, 'mobile');
+    assert.equal(changes.at(-1).device, 'tablet');
 
     controller.destroy();
     assert.equal(handlers.size, 0);
