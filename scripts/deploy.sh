@@ -102,6 +102,15 @@ step "PHP-Abhaengigkeiten"
 ok "composer install"
 
 # ---------------------------------------------------------------------------
+step "E-Mail-Kompatibilitaetskatalog"
+# Der Editor und jede Veroeffentlichung arbeiten fail-closed. Deshalb wird der
+# reale, versionierte Katalog vor Frontend-Build, Wartungsmodus und Migrationen
+# ueber denselben Loader wie im Webprozess geprueft. Ein unvollstaendiger
+# Checkout kann die laufende Vorversion so nicht erst im Editor blockieren.
+"$PHP_BIN" artisan mail:compatibility-catalog:check --no-interaction
+ok "Kompatibilitaetskatalog erreichbar und gueltig"
+
+# ---------------------------------------------------------------------------
 step "Frontend bauen"
 if [ ! -d node_modules ] || [ package-lock.json -nt node_modules ]; then
     npm ci --no-audit --no-fund

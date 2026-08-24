@@ -58,7 +58,7 @@ final class EmailCompatibilityContractTest extends TestCase
         self::assertSame([], $catalog->builderManifestForJs()['controls']);
     }
 
-    public function test_real_catalog_uses_the_canonical_quoted_utf8_crlf_dialect(): void
+    public function test_real_catalog_uses_the_canonical_quoted_utf8_dialect(): void
     {
         $path = dirname(__DIR__, 4).DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'data'
             .DIRECTORY_SEPARATOR.'email-html-compatibility-rules.csv';
@@ -66,15 +66,28 @@ final class EmailCompatibilityContractTest extends TestCase
         self::assertIsString($contents);
         self::assertFalse(str_starts_with($contents, "\xEF\xBB\xBF"));
         self::assertTrue(mb_check_encoding($contents, 'UTF-8'));
-        self::assertSame(0, preg_match('/(?<!\r)\n|\r(?!\n)/', $contents));
-        self::assertTrue(str_ends_with($contents, "\r\n"));
+        $hasCrLf = str_contains($contents, "\r\n");
+        $hasBareLf = preg_match('/(?<!\r)\n/', $contents) === 1;
+        self::assertSame(0, preg_match('/\r(?!\n)/', $contents));
+        self::assertFalse($hasCrLf && $hasBareLf);
 
-        $lines = explode("\r\n", substr($contents, 0, -2));
+        $normalized = str_replace("\r\n", "\n", $contents);
+        self::assertStringNotContainsString("\r", $normalized);
+        self::assertTrue(str_ends_with($normalized, "\n"));
+
+        $lines = explode("\n", substr($normalized, 0, -1));
         $field = '"(?:[^"]|"")*"';
         $recordPattern = '/^'.$field.'(?:,'.$field.'){'.(count(EmailCompatibilityCatalog::HEADER) - 1).'}$/D';
         foreach ($lines as $lineNumber => $line) {
             self::assertSame(1, preg_match($recordPattern, $line), 'Nicht kanonisch gequotete CSV-Zeile '.($lineNumber + 1));
         }
+
+        $attributes = file_get_contents(dirname(__DIR__, 4).DIRECTORY_SEPARATOR.'.gitattributes');
+        self::assertIsString($attributes);
+        self::assertMatchesRegularExpression(
+            '/^resources\/data\/email-html-compatibility-rules\.csv text eol=lf$/m',
+            $attributes,
+        );
 
         $catalog = new EmailCompatibilityCatalog($path);
         self::assertCount(1908, $catalog->rows());
@@ -82,6 +95,60 @@ final class EmailCompatibilityContractTest extends TestCase
         self::assertSame(EmailCompatibilityCatalog::HEADER, array_keys($catalog->rows()[0]));
         self::assertContains('official_vendor', array_column($catalog->rows(), 'source_type'));
         self::assertContains('original_client_test', array_column($catalog->rows(), 'source_type'));
+    }
+
+    public function test_catalog_accepts_consistent_lf_and_crlf_but_rejects_mixed_endings(): void
+    {
+        $row = $this->row('EMAIL-EOL-001', 'layout_table_role', 'all');
+        $crlfPath = $this->writeCatalog([$row], 'crlf.csv');
+        $crlf = file_get_contents($crlfPath);
+        self::assertIsString($crlf);
+        self::assertSame('1.0.0', (new EmailCompatibilityCatalog($crlfPath))->catalogVersion());
+
+        $lfPath = $this->temporaryDirectory.DIRECTORY_SEPARATOR.'lf.csv';
+        file_put_contents($lfPath, str_replace("\r\n", "\n", $crlf));
+        self::assertSame('1.0.0', (new EmailCompatibilityCatalog($lfPath))->catalogVersion());
+
+        $mixedPath = $this->temporaryDirectory.DIRECTORY_SEPARATOR.'mixed.csv';
+        file_put_contents($mixedPath, preg_replace('/\r\n/', "\n", $crlf, 1));
+
+        try {
+            (new EmailCompatibilityCatalog($mixedPath))->rows();
+            self::fail('Gemischte LF-/CRLF-Zeilenenden muessen fehlschlagen.');
+        } catch (EmailCompatibilityCatalogException $exception) {
+            self::assertSame('catalog_line_endings', $exception->errorCode);
+        }
+
+        $bareCrPath = $this->temporaryDirectory.DIRECTORY_SEPARATOR.'bare-cr.csv';
+        file_put_contents($bareCrPath, preg_replace('/\r\n/', "\r", $crlf, 1));
+
+        try {
+            (new EmailCompatibilityCatalog($bareCrPath))->rows();
+            self::fail('Einzelne CR-Zeilenenden muessen fehlschlagen.');
+        } catch (EmailCompatibilityCatalogException $exception) {
+            self::assertSame('catalog_line_endings', $exception->errorCode);
+        }
+    }
+
+    public function test_deployment_checks_the_real_catalog_before_maintenance_and_migrations(): void
+    {
+        $deploy = file_get_contents(
+            dirname(__DIR__, 4).DIRECTORY_SEPARATOR.'scripts'.DIRECTORY_SEPARATOR.'deploy.sh',
+        );
+        self::assertIsString($deploy);
+
+        $composer = strpos($deploy, '"$COMPOSER_BIN" install --no-dev');
+        $catalogCheck = strpos($deploy, 'artisan mail:compatibility-catalog:check --no-interaction');
+        $maintenance = strpos($deploy, 'artisan down --render=');
+        $migration = strpos($deploy, 'artisan migrate --force');
+
+        self::assertNotFalse($composer);
+        self::assertNotFalse($catalogCheck);
+        self::assertNotFalse($maintenance);
+        self::assertNotFalse($migration);
+        self::assertTrue($composer < $catalogCheck);
+        self::assertTrue($catalogCheck < $maintenance);
+        self::assertTrue($catalogCheck < $migration);
     }
 
     public function test_catalog_fails_closed_with_structured_errors(): void

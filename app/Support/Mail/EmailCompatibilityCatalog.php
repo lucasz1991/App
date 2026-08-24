@@ -586,9 +586,21 @@ final class EmailCompatibilityCatalog implements JsonSerializable
         if (str_contains($contents, "\0")) {
             throw $this->error('catalog_nul_byte', 'Der Katalog enthaelt ein unzulaessiges NUL-Byte.');
         }
-        if (preg_match('/(?<!\r)\n|\r(?!\n)/', $contents) === 1) {
-            throw $this->error('catalog_line_endings', 'Der Katalog muss durchgehend CRLF-Zeilenenden verwenden.');
+        $hasCrLf = str_contains($contents, "\r\n");
+        $hasBareLf = preg_match('/(?<!\r)\n/', $contents) === 1;
+        $hasBareCr = preg_match('/\r(?!\n)/', $contents) === 1;
+        if ($hasBareCr || ($hasCrLf && $hasBareLf)) {
+            throw $this->error(
+                'catalog_line_endings',
+                'Der Katalog muss durchgehend einheitliche LF- oder CRLF-Zeilenenden verwenden.',
+            );
         }
+
+        // Git speichert Textdateien kanonisch mit LF, bestehende Windows-
+        // Checkouts koennen dieselbe Datei durch core.autocrlf als CRLF
+        // liefern. Ab hier arbeitet der Parser auf einer einzigen internen
+        // Darstellung; gemischte oder einzelne CR wurden oben abgewiesen.
+        $contents = str_replace("\r\n", "\n", $contents);
 
         $stream = fopen('php://temp', 'r+b');
         if ($stream === false) {

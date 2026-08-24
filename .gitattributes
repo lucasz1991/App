@@ -1,0 +1,4 @@
+# Der versionierte E-Mail-Katalog bleibt in Git und auf jedem Zielsystem
+# deterministisch. Der Loader akzeptiert zusaetzlich konsistentes CRLF fuer
+# bestehende Windows-Checkouts, aber keine gemischten Zeilenenden.
+resources/data/email-html-compatibility-rules.csv text eol=lf
