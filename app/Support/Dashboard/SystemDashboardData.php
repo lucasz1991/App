@@ -190,7 +190,7 @@ class SystemDashboardData
                 $bytes = (int) DB::scalar(
                     'SELECT COALESCE(SUM(data_length + index_length), 0) FROM information_schema.tables WHERE table_schema = DATABASE()'
                 );
-                $databaseLabel = 'MySQL · ' . static::formatBytes($bytes);
+                $databaseLabel = 'MySQL · '.static::formatBytes($bytes);
             }
         } catch (\Throwable) {
             // Das Dashboard bleibt auch bei fehlender DB-Metrik erreichbar.
@@ -200,8 +200,8 @@ class SystemDashboardData
             $pendingJobs = DB::table('jobs')->count();
             $failedJobs = DB::table('failed_jobs')->count();
             $queueLabel = __('app.jobs_pending', ['count' => $pendingJobs])
-                . ' · '
-                . __('app.jobs_failed', ['count' => $failedJobs]);
+                .' · '
+                .__('app.jobs_failed', ['count' => $failedJobs]);
         } catch (\Throwable) {
             $queueLabel = '—';
         }
@@ -215,16 +215,16 @@ class SystemDashboardData
         }
 
         return [
-            'appVersion' => config('app.name') . (config('app.version') ? ' v' . config('app.version') : ''),
+            'appVersion' => config('app.name').(config('app.version') ? ' v'.config('app.version') : ''),
             'environment' => app()->environment(),
             'debug' => (bool) config('app.debug'),
             'php' => PHP_VERSION,
             'developer' => 'Lucas M. Zacharias',
             'database' => $databaseLabel,
             'queue' => $queueLabel,
-            'storage' => trans_choice('app.files_count', File::query()->count()) . ' · ' . static::formatBytes((int) File::query()->sum('size')),
+            'storage' => trans_choice('app.files_count', File::query()->count()).' · '.static::formatBytes((int) File::query()->sum('size')),
             'disk' => ($diskFree && $diskTotal)
-                ? static::formatBytes((int) $diskFree) . ' / ' . static::formatBytes((int) $diskTotal)
+                ? static::formatBytes((int) $diskFree).' / '.static::formatBytes((int) $diskTotal)
                 : '—',
             'lastActivityAt' => $lastActivityAt ? Carbon::parse($lastActivityAt) : null,
         ];
@@ -233,17 +233,17 @@ class SystemDashboardData
     public static function formatBytes(int $bytes): string
     {
         if ($bytes >= 1073741824) {
-            return number_format($bytes / 1073741824, 1, ',', '.') . ' GB';
+            return number_format($bytes / 1073741824, 1, ',', '.').' GB';
         }
 
         if ($bytes >= 1048576) {
-            return number_format($bytes / 1048576, 1, ',', '.') . ' MB';
+            return number_format($bytes / 1048576, 1, ',', '.').' MB';
         }
 
         if ($bytes >= 1024) {
-            return number_format($bytes / 1024, 1, ',', '.') . ' KB';
+            return number_format($bytes / 1024, 1, ',', '.').' KB';
         }
 
-        return $bytes . ' B';
+        return $bytes.' B';
     }
 }
