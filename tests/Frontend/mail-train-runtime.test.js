@@ -103,6 +103,7 @@ test('all delivered mail outputs keep the train-first flow overlap and a Classic
     assert.doesNotMatch(previewService, /SignatureTrainCarrier::projectAsImage\(/);
     assert.match(builder, /function validateBrowserCopyTrainImages/);
     assert.match(builder, /SignatureTrainCarrier::assertRuntimeImages\(/);
+    assert.match(builder, /SignatureArtifactVersion::usesOptimizedArrivalTrain\(\$artifactVersion\)[\s\S]*?\? 'zug-dampf-v12'/);
     assert.doesNotMatch(
         builder.slice(
             builder.indexOf('function validateBrowserCopyTrainImages'),
@@ -157,8 +158,8 @@ test('all delivered mail outputs keep the train-first flow overlap and a Classic
     assert.match(phoneCss, /tr\[data-rt-artifact-version="v9"\] \.rt-sign-company\s*\{\s*padding-top:\s*8px !important;/);
     assert.match(phoneCss, /tr\[data-rt-artifact-version="v9"\] \.rt-sign-identity \.rt-contact\s*\{\s*margin-top:\s*8px !important;/);
     assert.match(phoneCss, /tr\[data-rt-artifact-version="v9"\] \.rt-company-contact\s*\{\s*margin-top:\s*10px !important;/);
-    assert.match(phoneCss, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-content\s*\{\s*padding-top:\s*14px !important;/);
-    assert.match(phoneCss, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-logo\s*\{\s*padding-bottom:\s*8px !important;/);
+    assert.match(phoneCss, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-content\s*\{\s*padding-top:\s*14px !important;/);
+    assert.match(phoneCss, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-logo,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-logo\s*\{\s*padding-bottom:\s*8px !important;/);
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
     assert.doesNotMatch(responsiveCss, /\.rt-sign-cell\.rt-sign-train-background/);
     assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position:\s*center center !important;[\s\S]+?background-size:\s*100% 100% !important;/);
@@ -209,13 +210,14 @@ test('editor and delivery enlarge the default train progressively while keeping 
     assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v9"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\s*\{[^}]*height:\s*280px !important;[^}]*margin-bottom:\s*-280px !important;/s);
     assert.match(phone, /data-rt-layer-mobile="stop65"\]\[data-rt-layer-size\][\s\S]+?width: 175% !important;[\s\S]+?margin-left: -40% !important;/);
     assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\s*\{[^}]*height: 270px !important;[^}]*max-height: 270px !important;/s);
-    assert.match(responsiveCss, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 190px !important;[^}]*max-height: 190px !important;/s);
+    assert.match(responsiveCss, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 190px !important;[^}]*max-height: 190px !important;/s);
     assert.match(responsiveCss, /tr\[data-rt-signature-density="compact"\] \.rt-sign-stage,\s*tr\[data-rt-signature-density="compact"\] \.rt-sign-train-layer\s*\{[^}]*height: 145px !important;[^}]*max-height: 145px !important;/s);
-    assert.match(mobile, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 296px !important;[^}]*max-height: 296px !important;/s);
+    assert.match(mobile, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 296px !important;[^}]*max-height: 296px !important;/s);
     assert.match(mobile, /tr\[data-rt-signature-density="compact"\] \.rt-sign-stage,\s*tr\[data-rt-signature-density="compact"\] \.rt-sign-train-layer\s*\{[^}]*height: 215px !important;[^}]*max-height: 215px !important;/s);
-    assert.match(phone, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 264px !important;[^}]*max-height: 264px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 264px !important;[^}]*max-height: 264px !important;/s);
     assert.match(phone, /tr\[data-rt-signature-density="compact"\] \.rt-sign-stage,\s*tr\[data-rt-signature-density="compact"\] \.rt-sign-train-layer\s*\{[^}]*height: 190px !important;[^}]*max-height: 190px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 108\.67% !important;[^}]*margin-left: 0 !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 135% !important;[^}]*margin-left: -15\.75% !important;/s);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]+?width: 200% !important; max-width: none !important; margin-left: -100% !important;/);
     assert.match(responsiveCss, /rt-train-idle-reveal/);
 });
