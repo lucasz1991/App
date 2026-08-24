@@ -867,7 +867,7 @@
                             button.setAttribute('aria-pressed', String(button.dataset.mailThemeButton === selectedTheme));
                         });
                         instance?.setTheme?.(selectedTheme);
-                        if (selectedDegradationMode !== 'normal') {
+                        if (selectedDegradationMode !== 'normal' && selectedViewMode === 'edit') {
                             instance?.setDegradationMode?.(selectedDegradationMode);
                         }
                     };
@@ -910,7 +910,7 @@
                             button.setAttribute('aria-pressed', String(button.dataset.mailPreviewDevice === selectedDevice));
                         });
                         instance?.setPreviewDevice?.(selectedDevice);
-                        if (selectedDegradationMode !== 'normal') {
+                        if (selectedDegradationMode !== 'normal' && selectedViewMode === 'edit') {
                             instance?.setDegradationMode?.(selectedDegradationMode);
                         }
                         updatePreviewStatus(instance?.getPreviewGeometry?.());

@@ -1501,7 +1501,7 @@ HTML;
             ->assertSee('pageBuilderOpen: true', escape: false);
     }
 
-    public function test_versandvorschau_kompiliert_den_ungespeicherten_kandidaten_ohne_dokumentmutation(): void
+    public function test_versandvorschau_kompiliert_ungespeicherte_template_und_signaturkandidaten_ohne_dokumentmutation(): void
     {
         $this->createCanonicalMailDocuments(published: true);
         $template = $this->document(MailDocumentKind::Template);
@@ -1558,6 +1558,22 @@ HTML;
         $this->assertStringNotContainsString('Sicher abgestimmt.', $compiled);
         $this->assertStringNotContainsString('<script', strtolower($compiled));
         $this->assertSame(strlen($compiled), $response->json('preview.html_bytes'));
+
+        $signature = $this->document(MailDocumentKind::Signature);
+        $signatureCss = '.rt-sign-name{letter-spacing:0;}';
+        $signatureResponse = $this->actingAs($this->admin())
+            ->postJson(route('admin.mail-documents.delivery-preview', $signature), [
+                'builder_data' => $signature->builder_data,
+                'html' => (string) $signature->html,
+                'css' => $signatureCss,
+                'expected_hash' => (string) $signature->content_hash,
+            ])
+            ->assertOk()
+            ->assertJsonPath('preview.rendering', 'compiled-system-mail');
+        $compiledSignature = (string) $signatureResponse->json('preview.html');
+        $this->assertStringContainsString('data-rt-mail-document-css="signature"', $compiledSignature);
+        $this->assertStringContainsString($signatureCss, $compiledSignature);
+
         $this->assertSame($before, $snapshot());
         $this->assertSame($versionCount, MailDocumentVersion::query()->count());
     }

@@ -917,7 +917,10 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
     }
 }
 
-@media (max-width: 1099.98px) {
+/* Auch auf normalen Desktopbreiten benoetigt der erweiterte Mail-Pruefstand
+   eine eigene Werkzeugzeile. So ueberlagern Dokumentwahl, Versandansicht,
+   Ganzpixelbreite und Freigabe einander niemals. */
+@media (max-width: 2199.98px) {
     .rt-mail-studio-toolbar {
         grid-template-columns: minmax(0, 1fr) auto auto;
         align-items: center;

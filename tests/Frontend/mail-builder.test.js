@@ -1648,19 +1648,20 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(css, /grid-template-columns:\s*minmax\(16rem, 0\.85fr\) minmax\(22rem, 1fr\) minmax\(17rem, 0\.85fr\)/);
     const compactDesktop = css.slice(
         css.indexOf('@media (min-width: 1100px) and (max-width: 1599.98px)'),
-        css.indexOf('@media (max-width: 1099.98px)'),
+        css.indexOf('@media (max-width: 2199.98px)'),
     );
     assert.match(compactDesktop, /\.rt-mail-studio-toolbar__preview[\s\S]*?overflow:\s*hidden/);
     assert.match(compactDesktop, /\.rt-mail-studio-toolbar__actions[\s\S]*?overflow:\s*hidden/);
     assert.match(compactDesktop, /\.rt-mail-preview-toggle > button > span[\s\S]*?clip:\s*rect\(0, 0, 0, 0\)/);
 
-    const tablet = css.slice(
-        css.indexOf('@media (max-width: 1099.98px)'),
+    const stackedToolbar = css.slice(
+        css.indexOf('@media (max-width: 2199.98px)'),
         css.indexOf('@media (max-width: 899.98px)'),
     );
-    assert.match(tablet, /grid-template-columns:\s*minmax\(0, 1fr\) auto auto/);
-    assert.match(tablet, /\.rt-mail-studio-toolbar__preview[\s\S]*?grid-column:\s*1 \/ -1[\s\S]*?grid-row:\s*2/);
-    assert.match(tablet, /\.rt-mail-studio-toolbar__actions\s*\{[\s\S]*?display:\s*contents/);
+    assert.match(stackedToolbar, /grid-template-columns:\s*minmax\(0, 1fr\) auto auto/);
+    assert.match(stackedToolbar, /\.rt-mail-studio-toolbar__preview[\s\S]*?grid-column:\s*1 \/ -1[\s\S]*?grid-row:\s*2/);
+    assert.match(stackedToolbar, /\.rt-mail-studio-toolbar__preview[\s\S]*?overflow-x:\s*auto/);
+    assert.match(stackedToolbar, /\.rt-mail-studio-toolbar__actions\s*\{[\s\S]*?display:\s*contents/);
 
     const mobile = css.slice(css.indexOf('@media (max-width: 639.98px)'));
     assert.match(mobile, /\.rt-mail-preview-toggle > button span/);
