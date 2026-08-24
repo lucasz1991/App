@@ -142,6 +142,9 @@ final class MarketingCreativeTransferTest extends TestCase
         $closedResponse
             ->assertOk()
             ->assertSee('x-data="{ importOpen: false }"', false)
+            ->assertSee('x-show.important="importOpen"', false)
+            ->assertDontSee('x-show="importOpen"', false)
+            ->assertSee('x-on:click.self="importOpen = false"', false)
             ->assertDontSee('@js(', false);
 
         $invalidUpload = UploadedFile::fake()->createWithContent(
@@ -156,6 +159,9 @@ final class MarketingCreativeTransferTest extends TestCase
         $openResponse
             ->assertOk()
             ->assertSee('x-data="{ importOpen: true }"', false)
+            ->assertSee('x-show.important="importOpen"', false)
+            ->assertDontSee('x-show="importOpen"', false)
+            ->assertSee('x-on:click.self="importOpen = false"', false)
             ->assertSee('Die Datei enthält kein gültiges JSON-Motivpaket.')
             ->assertDontSee('@js(', false);
     }

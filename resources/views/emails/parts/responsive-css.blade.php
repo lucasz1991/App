@@ -112,6 +112,29 @@ tr[data-rt-artifact-version="v14"] .rt-sign-train-layer {
 tr[data-rt-artifact-version="v14"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v14"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v14"] .rt-sign-content-frame { height: 175px !important; }
+/* V15 behaelt die deckungsgleiche 175-px-Innengeometrie, laesst die aeussere
+   Buehne aber bewusst wachsen. Ignoriert Outlook beim kalten Bild-Layout die
+   negative Margin, bleibt der Inhalt dadurch unter dem Zug sichtbar. */
+tr[data-rt-artifact-version="v15"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 175px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v15"] .rt-sign-train-layer {
+  position: relative !important;
+  z-index: 0 !important;
+  height: 175px !important;
+  max-height: 175px !important;
+  margin-bottom: -175px !important;
+}
+tr[data-rt-artifact-version="v15"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v15"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v15"] .rt-sign-content-frame { height: 175px !important; }
+tr[data-rt-artifact-version="v15"] .rt-sign-content-frame {
+  position: relative !important;
+  z-index: 1 !important;
+}
 tr[data-rt-signature-density="compact"] .rt-sign-stage,
 tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
   height: 145px !important;
@@ -123,12 +146,20 @@ tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
 tr[data-rt-signature-density="compact"] .rt-sign-train-frame,
 tr[data-rt-signature-density="compact"] .rt-sign-train-slot,
 tr[data-rt-signature-density="compact"] .rt-sign-content-frame { height: 145px !important; }
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 145px !important;
+  overflow: visible !important;
+}
 /* Bei der maximalen 1815-px-Breite waere das 108,67-Prozent-Motiv hoeher als
    die kompakte 145-px-Buehne und wuerde unten beschnitten. V14 begrenzt nur
    dieses Desktop-Systemprofil auf 94 Prozent; die spaeteren Mobilregeln sind
    spezifischer und vergroessern es dort weiterhin auf 150 beziehungsweise 175 Prozent. */
 tr[data-rt-artifact-version="v14"][data-rt-signature-density="compact"] .rt-sign-train,
-tr[data-rt-artifact-version="v14"][data-rt-signature-density="compact"] .rt-sign-train-mso {
+tr[data-rt-artifact-version="v14"][data-rt-signature-density="compact"] .rt-sign-train-mso,
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train,
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-mso {
   width: 94% !important;
   max-width: none !important;
   margin-left: 0 !important;
@@ -436,6 +467,34 @@ tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
 tr[data-rt-signature-density="compact"] .rt-sign-train-frame,
 tr[data-rt-signature-density="compact"] .rt-sign-train-slot,
 tr[data-rt-signature-density="compact"] .rt-sign-content-frame { height: 215px !important; }
+tr[data-rt-artifact-version="v15"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 296px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v15"] .rt-sign-train-layer {
+  height: 296px !important;
+  max-height: 296px !important;
+  margin-bottom: -296px !important;
+}
+tr[data-rt-artifact-version="v15"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v15"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v15"] .rt-sign-content-frame { height: 296px !important; }
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 215px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-layer {
+  height: 215px !important;
+  max-height: 215px !important;
+  margin-bottom: -215px !important;
+}
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-content-frame { height: 215px !important; }
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
@@ -531,6 +590,34 @@ tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
 tr[data-rt-signature-density="compact"] .rt-sign-train-frame,
 tr[data-rt-signature-density="compact"] .rt-sign-train-slot,
 tr[data-rt-signature-density="compact"] .rt-sign-content-frame { height: 190px !important; }
+tr[data-rt-artifact-version="v15"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 264px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v15"] .rt-sign-train-layer {
+  height: 264px !important;
+  max-height: 264px !important;
+  margin-bottom: -264px !important;
+}
+tr[data-rt-artifact-version="v15"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v15"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v15"] .rt-sign-content-frame { height: 264px !important; }
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 190px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-layer {
+  height: 190px !important;
+  max-height: 190px !important;
+  margin-bottom: -190px !important;
+}
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-content-frame { height: 190px !important; }
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
@@ -569,7 +656,8 @@ tr[data-rt-artifact-version="v13"] .rt-sign-train-layer[data-rt-layer-mobile="st
 /* V14 vergroessert das Telefonmotiv deutlich. Da das Ankunftsbild bei 60 %
    seiner Leinwand endet, ergeben 175 % Breite minus 40 % linken Beschnitt
    weiterhin exakt 65 % der Signaturbreite. */
-tr[data-rt-artifact-version="v14"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
+tr[data-rt-artifact-version="v14"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train,
+tr[data-rt-artifact-version="v15"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
   width: 175% !important;
   max-width: none !important;
   margin-left: -40% !important;
@@ -627,13 +715,15 @@ tr[data-rt-artifact-version="v10"] .rt-company-contact {
 tr[data-rt-artifact-version="v11"] .rt-sign-content,
 tr[data-rt-artifact-version="v12"] .rt-sign-content,
 tr[data-rt-artifact-version="v13"] .rt-sign-content,
-tr[data-rt-artifact-version="v14"] .rt-sign-content {
+tr[data-rt-artifact-version="v14"] .rt-sign-content,
+tr[data-rt-artifact-version="v15"] .rt-sign-content {
   padding-top: 14px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-logo,
 tr[data-rt-artifact-version="v12"] .rt-sign-logo,
 tr[data-rt-artifact-version="v13"] .rt-sign-logo,
-tr[data-rt-artifact-version="v14"] .rt-sign-logo {
+tr[data-rt-artifact-version="v14"] .rt-sign-logo,
+tr[data-rt-artifact-version="v15"] .rt-sign-logo {
   padding-bottom: 8px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-top-row > .rt-sign-identity,
@@ -643,19 +733,23 @@ tr[data-rt-artifact-version="v12"] .rt-sign-company,
 tr[data-rt-artifact-version="v13"] .rt-sign-top-row > .rt-sign-identity,
 tr[data-rt-artifact-version="v13"] .rt-sign-company,
 tr[data-rt-artifact-version="v14"] .rt-sign-top-row > .rt-sign-identity,
-tr[data-rt-artifact-version="v14"] .rt-sign-company {
+tr[data-rt-artifact-version="v14"] .rt-sign-company,
+tr[data-rt-artifact-version="v15"] .rt-sign-top-row > .rt-sign-identity,
+tr[data-rt-artifact-version="v15"] .rt-sign-company {
   padding-top: 6px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-identity .rt-contact,
 tr[data-rt-artifact-version="v12"] .rt-sign-identity .rt-contact,
 tr[data-rt-artifact-version="v13"] .rt-sign-identity .rt-contact,
-tr[data-rt-artifact-version="v14"] .rt-sign-identity .rt-contact {
+tr[data-rt-artifact-version="v14"] .rt-sign-identity .rt-contact,
+tr[data-rt-artifact-version="v15"] .rt-sign-identity .rt-contact {
   margin-top: 6px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-company-contact,
 tr[data-rt-artifact-version="v12"] .rt-company-contact,
 tr[data-rt-artifact-version="v13"] .rt-company-contact,
-tr[data-rt-artifact-version="v14"] .rt-company-contact {
+tr[data-rt-artifact-version="v14"] .rt-company-contact,
+tr[data-rt-artifact-version="v15"] .rt-company-contact {
   margin-top: 8px !important;
 }
 }

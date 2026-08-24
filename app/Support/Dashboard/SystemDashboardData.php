@@ -115,8 +115,7 @@ class SystemDashboardData
      *
      * @return array{
      *     userGrowth: array{labels: array<int, string>, totals: array<int, int>, registrations: array<int, int>},
-     *     activity: array{labels: array<int, string>, values: array<int, int>},
-     *     status: array{labels: array<int, string>, values: array<int, int>}
+     *     activity: array{labels: array<int, string>, values: array<int, int>}
      * }
      */
     public function charts(): array
@@ -157,9 +156,6 @@ class SystemDashboardData
             $activity[] = (int) ($activityByDay[$key] ?? 0);
         }
 
-        $activeUsers = User::query()->where('status', true)->count();
-        $inactiveUsers = User::query()->where('status', false)->count();
-
         return [
             'userGrowth' => [
                 'labels' => $days->map(fn (Carbon $day) => $day->translatedFormat('d. M'))->all(),
@@ -169,10 +165,6 @@ class SystemDashboardData
             'activity' => [
                 'labels' => $days->map(fn (Carbon $day) => $day->translatedFormat('d. M'))->all(),
                 'values' => $activity,
-            ],
-            'status' => [
-                'labels' => [__('app.active_users'), __('app.inactive_users')],
-                'values' => [$activeUsers, $inactiveUsers],
             ],
         ];
     }

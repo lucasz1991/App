@@ -18,6 +18,11 @@ class Dashboard extends Component
      */
     public int $totalTeams = 0;
 
+    /** @var array<string, mixed> */
+    public array $system = [];
+
+    public bool $systemLoaded = false;
+
     public function mount(SystemDashboardData $dashboardData): void
     {
         $this->totalTeams = $dashboardData->teamCount();
@@ -38,8 +43,29 @@ class Dashboard extends Component
             'workforce' => $this->workforceSnapshot(),
             'operationalModules' => $previewCatalog->dashboard(),
             'canViewSystemData' => $canViewSystemData,
-            'system' => $canViewSystemData ? $dashboardData->system() : null,
+            'system' => $this->systemLoaded ? $this->system : null,
+            'systemLoaded' => $this->systemLoaded,
         ])->layout('layouts.master', ['area' => 'admin']);
+    }
+
+    /**
+     * Load protected diagnostics only when the administrator opens the panel.
+     */
+    public function loadSystemData(SystemDashboardData $dashboardData): void
+    {
+        $user = auth()->user();
+        abort_unless($user?->isAdmin() && $user->canViewSystemDashboard(), 403);
+
+        if ($this->systemLoaded) {
+            return;
+        }
+
+        $system = $dashboardData->system();
+        $system['lastActivity'] = $system['lastActivityAt']?->diffForHumans() ?? '—';
+        unset($system['lastActivityAt']);
+
+        $this->system = $system;
+        $this->systemLoaded = true;
     }
 
     /**
@@ -60,9 +86,14 @@ class Dashboard extends Component
      */
     private function workforceSnapshot(): array
     {
-        $employees = User::query()->where('role', 'staff');
-        $total = (clone $employees)->count();
-        $active = (clone $employees)->where('status', true)->count();
+        $snapshot = User::query()
+            ->where('role', 'staff')
+            ->selectRaw('COUNT(*) as aggregate_total')
+            ->selectRaw('COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) as aggregate_active', [1])
+            ->first();
+
+        $total = (int) ($snapshot?->aggregate_total ?? 0);
+        $active = (int) ($snapshot?->aggregate_active ?? 0);
         $inactive = max(0, $total - $active);
 
         return [
@@ -71,7 +102,7 @@ class Dashboard extends Component
             'inactive' => $inactive,
             'activeRate' => $total > 0 ? (int) round(($active / $total) * 100) : 0,
             'status' => [
-                'labels' => [__('app.active_users'), __('app.inactive_users')],
+                'labels' => [__('app.enabled_accounts'), __('app.disabled_accounts')],
                 'values' => [$active, $inactive],
             ],
         ];

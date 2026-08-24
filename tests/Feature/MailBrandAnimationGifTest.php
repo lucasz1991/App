@@ -141,6 +141,134 @@ class MailBrandAnimationGifTest extends TestCase
     }
 
     /**
+     * @return array<string, array{0: string, 1: string, 2: int, 3: int}>
+     */
+    public static function v15BrandAnimations(): array
+    {
+        return [
+            'V15 signature wordmark light' => [
+                'wortmarke-signature-v15-light.gif',
+                'wortmarke-signature-v15-light.png',
+                150_454,
+                24_237,
+            ],
+            'V15 mail wordmark dark' => [
+                'wortmarke-mail-v15-dark.gif',
+                'wortmarke-mail-v15-dark.png',
+                147_044,
+                22_484,
+            ],
+        ];
+    }
+
+    #[DataProvider('v15BrandAnimations')]
+    public function test_v15_brand_assets_keep_the_optimized_single_run_contract(
+        string $gifFilename,
+        string $pngFilename,
+        int $maximumGifBytes,
+        int $maximumPngBytes,
+    ): void {
+        $gifResourcePath = resource_path('mail-templates/assets/'.$gifFilename);
+        $gifPublicPath = public_path('mail-assets/'.$gifFilename);
+        $gifResource = file_get_contents($gifResourcePath);
+        $gifPublic = file_get_contents($gifPublicPath);
+
+        $this->assertIsString($gifResource);
+        $this->assertIsString($gifPublic);
+        $this->assertSame($gifResource, $gifPublic, "{$gifFilename}: Ressourcen- und Public-Datei unterscheiden sich.");
+        $this->assertLessThanOrEqual($maximumGifBytes, strlen($gifResource), "{$gifFilename}: V15-GIF ist groesser als die freigegebene Fassung.");
+        $this->assertStringNotContainsString('NETSCAPE2.0', $gifResource, "{$gifFilename}: Die Wortmarke darf nicht loopen.");
+        $this->assertStringNotContainsString('ANIMEXTS1.0', $gifResource, "{$gifFilename}: Alternativer Loop-Block gefunden.");
+
+        $gif = $this->parseGif($gifResource);
+        $this->assertSame('GIF89a', $gif['signature']);
+        $this->assertSame(400, $gif['width']);
+        $this->assertSame(68, $gif['height']);
+        $this->assertCount(40, $gif['frames']);
+
+        $delays = array_column($gif['frames'], 'delayCs');
+        $delayCounts = array_count_values($delays);
+        ksort($delayCounts);
+        $this->assertSame(
+            [6 => 36, 12 => 2, 18 => 1, 222 => 1],
+            $delayCounts,
+            "{$gifFilename}: Die optimierte V15-Timeline ist abgewichen.",
+        );
+        $this->assertSame(480, array_sum($delays), "{$gifFilename}: V15 muss exakt 4,8 s dauern.");
+        $this->assertSame(222, $delays[39], "{$gifFilename}: Die fertige Wortmarke muss im letzten Frame sichtbar gehalten werden.");
+
+        $firstInk = null;
+        $lastInk = null;
+        foreach ($gif['frames'] as $index => $frame) {
+            $this->assertTrue($frame['transparent'], "{$gifFilename}: Frame {$index} muss transparent sein.");
+            $this->assertSame(
+                $index === 39 ? 1 : 2,
+                $frame['disposal'],
+                "{$gifFilename}: Frame {$index} hat die falsche Entsorgungsmethode.",
+            );
+            $this->assertGreaterThan(0, $frame['width'], "{$gifFilename}: Frame {$index} besitzt keine Breite.");
+            $this->assertGreaterThan(0, $frame['height'], "{$gifFilename}: Frame {$index} besitzt keine Hoehe.");
+            $this->assertLessThanOrEqual(
+                $gif['width'],
+                $frame['left'] + $frame['width'],
+                "{$gifFilename}: Frame {$index} ragt rechts aus dem Canvas.",
+            );
+            $this->assertLessThanOrEqual(
+                $gif['height'],
+                $frame['top'] + $frame['height'],
+                "{$gifFilename}: Frame {$index} ragt unten aus dem Canvas.",
+            );
+
+            $pixels = $this->decodeLzw(
+                $frame['imageData'],
+                $frame['minimumCodeSize'],
+                $frame['width'] * $frame['height'],
+            );
+            $this->assertSame($frame['width'] * $frame['height'], strlen($pixels), "{$gifFilename}: Frame {$index} ist unvollstaendig.");
+            $ink = $this->countInkPixels($pixels, $frame['transparentIndex']);
+            if ($index === 0) {
+                $firstInk = $ink;
+            }
+            if ($index === 39) {
+                $lastInk = $ink;
+            }
+        }
+        $this->assertSame(0, $firstInk, "{$gifFilename}: Die Animation muss aus einem leeren Canvas beginnen.");
+        $this->assertIsInt($lastInk);
+        $this->assertGreaterThan((int) floor($gif['width'] * $gif['height'] * 0.03), $lastInk, "{$gifFilename}: Im End-Hold fehlt die fertige Wortmarke.");
+
+        $pngResourcePath = resource_path('mail-templates/assets/'.$pngFilename);
+        $pngPublicPath = public_path('mail-assets/'.$pngFilename);
+        $pngResource = file_get_contents($pngResourcePath);
+        $pngPublic = file_get_contents($pngPublicPath);
+
+        $this->assertIsString($pngResource);
+        $this->assertIsString($pngPublic);
+        $this->assertSame($pngResource, $pngPublic, "{$pngFilename}: Ressourcen- und Public-Datei unterscheiden sich.");
+        $this->assertLessThanOrEqual($maximumPngBytes, strlen($pngResource), "{$pngFilename}: V15-PNG ist groesser als die freigegebene Fassung.");
+        $pngSize = getimagesize($pngResourcePath);
+        $this->assertIsArray($pngSize);
+        $this->assertSame([400, 68], [$pngSize[0], $pngSize[1]]);
+
+        $png = imagecreatefrompng($pngResourcePath);
+        $this->assertInstanceOf(\GdImage::class, $png);
+        $visiblePixels = 0;
+        $transparentPixels = 0;
+        for ($y = 0; $y < imagesy($png); $y++) {
+            for ($x = 0; $x < imagesx($png); $x++) {
+                if (((imagecolorat($png, $x, $y) >> 24) & 0x7F) < 127) {
+                    $visiblePixels++;
+                } else {
+                    $transparentPixels++;
+                }
+            }
+        }
+        imagedestroy($png);
+        $this->assertGreaterThan((int) floor(400 * 68 * 0.03), $visiblePixels, "{$pngFilename}: Das finale PNG enthaelt keine vollstaendige Wortmarke.");
+        $this->assertGreaterThan(0, $transparentPixels, "{$pngFilename}: Der transparente Hintergrund des finalen PNG fehlt.");
+    }
+
+    /**
      * @return array{
      *     signature: string,
      *     width: int,

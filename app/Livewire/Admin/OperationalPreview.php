@@ -20,7 +20,9 @@ class OperationalPreview extends Component
     public function render(OperationalPreviewCatalog $catalog)
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
-        $allModules = $catalog->all();
+        // Module navigation needs labels and icons only. Dashboard metrics are
+        // intentionally not queried on every operational workspace render.
+        $allModules = $catalog->definitions();
         $moduleData = $allModules[$this->module] ?? null;
         abort_unless($moduleData, 404);
 

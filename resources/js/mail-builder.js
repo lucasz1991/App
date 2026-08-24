@@ -55,10 +55,12 @@ const MAIL_TEMPLATE_APPLICATION_START = `<!-- ${MAIL_TEMPLATE_APPLICATION_START_
 const MAIL_TEMPLATE_APPLICATION_END = `<!-- ${MAIL_TEMPLATE_APPLICATION_END_NAME} -->`;
 const MAIL_TEMPLATE_APPLICATION_PLACEHOLDER = '{{APPLICATION_CONTENT}}';
 const MAIL_PREVIEW_TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
-export const MAIL_SIGNATURE_SCHEMA = 25;
+export const MAIL_SIGNATURE_SCHEMA = 26;
 const MAIL_SIGNATURE_FIXED_HEIGHT = '200px';
 const MAIL_SIGNATURE_FIXED_HEIGHT_ATTRIBUTE = '200';
 const MAIL_SIGNATURE_TRAIN_OVERLAP = '-200px';
+const MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT = '61';
+const MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE = 'data-rt-artifact-version';
 const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
 const MAIL_SIGNATURE_MAIN_MARKER = `<!-- ${MAIL_SIGNATURE_MAIN_MARKER_NAME} -->`;
 const MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE = 'data-rt-mail-contact-marker';
@@ -1378,8 +1380,9 @@ function removeInlineStyleDeclaration(style, property) {
  * Schema 19 (Flow-IMG ohne Ueberlappung), Schema 20 (CSS-Background),
  * Schema 21/22 (fruehere Flow-Reihenfolgen), Schema 23 (absoluter Layer)
  * und Schema 24 (proportionale Ueberlappung) werden nur bei exakt erkannter
- * Altstruktur in Schema 25 projiziert. Prozentwerte werden dabei bewusst
- * nicht in Pixel umgerechnet: die neue Geometrie ist immer exakt 200px hoch.
+ * Altstruktur in den markerabhaengigen Schema-26-Vertrag projiziert.
+ * V14 und aelter behalten die feste 200-px-Buehne; nur V15 erhaelt die
+ * fail-open Aussenbuehne. Prozentwerte werden bewusst nicht umgerechnet.
  * Mischformen oder frei manipulierte Layer bleiben harte Fehler.
  */
 const MAIL_SIGNATURE_BASE_BACKGROUND = Object.freeze({
@@ -1464,37 +1467,63 @@ function assertSignatureBaseStructure(wrapper, rows) {
     return { carrier, stage, stageElements, contentTable };
 }
 
-function assertCanonicalSignatureStage(structure) {
+function usesFailOpenSignatureStage(rows) {
+    return String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '')
+        .trim()
+        .toLowerCase() === 'v15';
+}
+
+function assertCanonicalSignatureStage(structure, failOpenStage = false) {
     const { stage, contentTable } = structure;
     assertExactElementAttributes(stage, ['class', 'style'], 'Die Signatur-Buehne');
-    assertInlineStyles(stage, {
-        position: 'relative',
-        height: MAIL_SIGNATURE_FIXED_HEIGHT,
-        'max-height': MAIL_SIGNATURE_FIXED_HEIGHT,
-        overflow: 'hidden',
-    }, 'Die Signatur-Buehne', { exact: true });
+    assertInlineStyles(
+        stage,
+        failOpenStage
+            ? {
+                position: 'relative',
+                height: 'auto',
+                'min-height': MAIL_SIGNATURE_FIXED_HEIGHT,
+                overflow: 'visible',
+            }
+            : {
+                position: 'relative',
+                height: MAIL_SIGNATURE_FIXED_HEIGHT,
+                'max-height': MAIL_SIGNATURE_FIXED_HEIGHT,
+                overflow: 'hidden',
+            },
+        'Die Signatur-Buehne',
+        { exact: true },
+    );
 
     if (elementClassNames(contentTable).join(' ') !== 'rt-sign-content-frame'
         || contentTable.getAttribute('height') !== MAIL_SIGNATURE_FIXED_HEIGHT_ATTRIBUTE) {
         throw new Error('Der Signatur-Inhaltsrahmen benoetigt die feste Pixelhoehe von 200px.');
     }
-    assertInlineStyles(contentTable, {
-        width: '100%',
-        height: MAIL_SIGNATURE_FIXED_HEIGHT,
-        'border-collapse': 'collapse',
-    }, 'Der Signatur-Inhaltsrahmen', { exact: true });
+    assertInlineStyles(
+        contentTable,
+        {
+            ...(failOpenStage ? { position: 'relative', 'z-index': '1' } : {}),
+            width: '100%',
+            height: MAIL_SIGNATURE_FIXED_HEIGHT,
+            'border-collapse': 'collapse',
+        },
+        'Der Signatur-Inhaltsrahmen',
+        { exact: true },
+    );
 }
 
-function applyCanonicalSignatureStageGeometry(structure) {
+function applyCanonicalSignatureStageGeometry(structure, failOpenStage = false) {
     structure.stage.setAttribute(
         'style',
-        `position:relative;height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-height:${MAIL_SIGNATURE_FIXED_HEIGHT};overflow:hidden;`,
+        failOpenStage
+            ? `position:relative;height:auto;min-height:${MAIL_SIGNATURE_FIXED_HEIGHT};overflow:visible;`
+            : `position:relative;height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-height:${MAIL_SIGNATURE_FIXED_HEIGHT};overflow:hidden;`,
     );
     structure.contentTable.setAttribute('class', 'rt-sign-content-frame');
     structure.contentTable.setAttribute('height', MAIL_SIGNATURE_FIXED_HEIGHT_ATTRIBUTE);
     structure.contentTable.setAttribute(
         'style',
-        `width:100%;height:${MAIL_SIGNATURE_FIXED_HEIGHT};border-collapse:collapse;`,
+        `${failOpenStage ? 'position:relative;z-index:1;' : ''}width:100%;height:${MAIL_SIGNATURE_FIXED_HEIGHT};border-collapse:collapse;`,
     );
 }
 
@@ -1726,7 +1755,7 @@ function assertLegacyAbsoluteSignatureTrainLayer(layer, image) {
     }, 'Das Zugbild', { exact: true });
 }
 
-function assertCanonicalSignatureTrainLayer(layer, image) {
+function assertCanonicalSignatureTrainLayer(layer, image, failOpenStage = false) {
     const frame = layer?.firstElementChild;
     const frameBody = frame?.tBodies?.[0] || frame?.querySelector?.(':scope > tbody');
     const frameRows = Array.from(frameBody?.children || []);
@@ -1738,6 +1767,9 @@ function assertCanonicalSignatureTrainLayer(layer, image) {
         || image.getAttribute('data-rt-train') !== ''
         || image.getAttribute('src') !== '{{TRAIN_SRC}}'
         || image.getAttribute('width') !== '720'
+        || (failOpenStage
+            ? image.getAttribute('height') !== MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT
+            : image.hasAttribute('height'))
         || image.getAttribute('alt') !== ''
         || layer.children.length !== 1
         || frame?.tagName !== 'TABLE'
@@ -1780,12 +1812,14 @@ function assertCanonicalSignatureTrainLayer(layer, image) {
         'data-rt-train',
         'src',
         'width',
+        ...(failOpenStage ? ['height'] : []),
         'alt',
         'style',
     ], 'Das Zugbild');
 
     const geometry = signatureTrainGeometry(layer);
     assertInlineStyles(layer, {
+        ...(failOpenStage ? { position: 'relative', 'z-index': '0' } : {}),
         display: 'block',
         width: '100%',
         height: MAIL_SIGNATURE_FIXED_HEIGHT,
@@ -1844,7 +1878,11 @@ function assertCanonicalSignatureTrainLayer(layer, image) {
     return { frame, slot };
 }
 
-function assertCanonicalSignatureTrainImage(wrapper, rows) {
+function assertCanonicalSignatureTrainImage(
+    wrapper,
+    rows,
+    failOpenStage = usesFailOpenSignatureStage(rows),
+) {
     const structure = assertSignatureBaseStructure(wrapper, rows);
     const layers = Array.from(wrapper.querySelectorAll(
         'div[data-rt-layer-train], div.rt-sign-train-layer',
@@ -1865,20 +1903,20 @@ function assertCanonicalSignatureTrainImage(wrapper, rows) {
         throw new Error('Die Signatur benoetigt genau einen IMG-Zug direkt vor ihrem Inhaltsblock.');
     }
     assertOptionalSignatureBackground(structure.carrier);
-    assertCanonicalSignatureTrainLayer(layer, image);
-    assertCanonicalSignatureStage(structure);
+    assertCanonicalSignatureTrainLayer(layer, image, failOpenStage);
+    assertCanonicalSignatureStage(structure, failOpenStage);
 
     return { ...structure, layer, image, overlap: MAIL_SIGNATURE_TRAIN_OVERLAP };
 }
 
-function createCanonicalSignatureTrainLayer(document_) {
+function createCanonicalSignatureTrainLayer(document_, failOpenStage = false) {
     const layer = document_.createElement('div');
     layer.setAttribute('class', 'rt-sign-train-layer');
     layer.setAttribute('data-rt-layer-train', '');
     layer.setAttribute('data-rt-layer-align', 'center');
     layer.setAttribute('data-rt-layer-size', '125');
     layer.setAttribute('data-rt-layer-mobile', 'train');
-    layer.setAttribute('style', `display:block;width:100%;height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-width:1815px;margin:0 auto;margin-bottom:${MAIL_SIGNATURE_TRAIN_OVERLAP};overflow:hidden;font-size:0;line-height:0;text-align:left;`);
+    layer.setAttribute('style', `${failOpenStage ? 'position:relative;z-index:0;' : ''}display:block;width:100%;height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-width:1815px;margin:0 auto;margin-bottom:${MAIL_SIGNATURE_TRAIN_OVERLAP};overflow:hidden;font-size:0;line-height:0;text-align:left;`);
 
     const frame = document_.createElement('table');
     frame.setAttribute('class', 'rt-sign-train-frame');
@@ -1902,6 +1940,7 @@ function createCanonicalSignatureTrainLayer(document_) {
     image.setAttribute('data-rt-train', '');
     image.setAttribute('src', '{{TRAIN_SRC}}');
     image.setAttribute('width', '720');
+    if (failOpenStage) image.setAttribute('height', MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT);
     image.setAttribute('alt', '');
     image.setAttribute('style', 'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:125%;max-width:none;height:auto;margin:0 0 0 -12.5%;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;');
     slot.append(image);
@@ -1913,19 +1952,21 @@ function createCanonicalSignatureTrainLayer(document_) {
     return layer;
 }
 
-function applyCanonicalSignatureTrainGeometry(layer, image) {
+function applyCanonicalSignatureTrainGeometry(layer, image, failOpenStage = false) {
     const geometry = signatureTrainGeometry(layer);
-    const canonical = createCanonicalSignatureTrainLayer(layer.ownerDocument);
+    const canonical = createCanonicalSignatureTrainLayer(layer.ownerDocument, failOpenStage);
     const frame = canonical.firstElementChild;
     const slot = frame?.querySelector('td.rt-sign-train-slot');
     slot?.replaceChildren(image);
     layer.replaceChildren(frame);
-    layer.setAttribute('style', `display:block;width:100%;height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-width:1815px;margin:${geometry.layerMargin};margin-bottom:${MAIL_SIGNATURE_TRAIN_OVERLAP};overflow:hidden;font-size:0;line-height:0;text-align:left;`);
+    layer.setAttribute('style', `${failOpenStage ? 'position:relative;z-index:0;' : ''}display:block;width:100%;height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-width:1815px;margin:${geometry.layerMargin};margin-bottom:${MAIL_SIGNATURE_TRAIN_OVERLAP};overflow:hidden;font-size:0;line-height:0;text-align:left;`);
     image.setAttribute('width', '720');
+    if (failOpenStage) image.setAttribute('height', MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT);
+    else image.removeAttribute('height');
     image.setAttribute('style', `position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:${geometry.size.width};max-width:none;height:auto;margin:${geometry.imageMargin};border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;`);
 }
 
-function projectLegacySignatureTrainLayer(wrapper, rows) {
+function projectLegacySignatureTrainLayer(wrapper, rows, failOpenStage = false) {
     const structure = assertSignatureBaseStructure(wrapper, rows);
     const layers = Array.from(wrapper.querySelectorAll(
         'div[data-rt-layer-train], div.rt-sign-train-layer',
@@ -1959,15 +2000,16 @@ function projectLegacySignatureTrainLayer(wrapper, rows) {
         || inlineStyleDeclaration(String(structure.contentTable.getAttribute('style') || ''), 'margin-bottom');
     if (legacyOverlap) assertLegacyMailSafeTrainOverlap(legacyOverlap);
     if (contentFirst) structure.stage.insertBefore(layer, structure.contentTable);
-    applyCanonicalSignatureTrainGeometry(layer, image);
-    applyCanonicalSignatureStageGeometry(structure);
+    applyCanonicalSignatureTrainGeometry(layer, image, failOpenStage);
+    applyCanonicalSignatureStageGeometry(structure, failOpenStage);
 
-    return assertCanonicalSignatureTrainImage(wrapper, rows);
+    return assertCanonicalSignatureTrainImage(wrapper, rows, failOpenStage);
 }
 
 function projectSignatureTrainImage(wrapper, rows, project) {
     const declaredSchema = project?.railtime?.schema;
-    if (Number.isInteger(declaredSchema) && ![19, 20, 21, 22, 23, 24, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
+    const failOpenStage = usesFailOpenSignatureStage(rows);
+    if (Number.isInteger(declaredSchema) && ![19, 20, 21, 22, 23, 24, 25, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
         throw new Error('Die Signatur besitzt einen nicht unterstuetzten Zugvertrag.');
     }
 
@@ -1995,28 +2037,43 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         structure.carrier.setAttribute('style', projectedStyle);
         structure.carrier.removeAttribute('data-rt-train-background');
         structure.stage.insertBefore(
-            createCanonicalSignatureTrainLayer(wrapper.ownerDocument),
+            createCanonicalSignatureTrainLayer(wrapper.ownerDocument, failOpenStage),
             structure.contentTable,
         );
-        applyCanonicalSignatureStageGeometry(structure);
+        applyCanonicalSignatureStageGeometry(structure, failOpenStage);
     } else {
         let canonicalError = null;
         try {
-            assertCanonicalSignatureTrainImage(wrapper, rows);
+            assertCanonicalSignatureTrainImage(wrapper, rows, failOpenStage);
         } catch (error) {
             canonicalError = error;
-            try {
-                projectLegacySignatureTrainLayer(wrapper, rows);
-            } catch (legacyError) {
-                // Bei als aktuell deklarierten Quellen beschreibt die erste
-                // Meldung den tatsaechlich verletzten Schema-25-Vertrag. Eine
-                // nachgeschaltete Legacy-Pruefung darf sie nicht wieder durch
-                // die irrefuehrende position-Meldung verdecken.
-                if (declaredSchema === MAIL_SIGNATURE_SCHEMA && canonicalError instanceof Error) {
-                    throw canonicalError;
+            let migratedFixedV15 = false;
+            if (failOpenStage) {
+                try {
+                    const fixedStage = assertCanonicalSignatureTrainImage(wrapper, rows, false);
+                    applyCanonicalSignatureTrainGeometry(fixedStage.layer, fixedStage.image, true);
+                    applyCanonicalSignatureStageGeometry(fixedStage, true);
+                    assertCanonicalSignatureTrainImage(wrapper, rows, true);
+                    migratedFixedV15 = true;
+                } catch {
+                    // Andere bekannte Altformen laufen durch denselben streng
+                    // validierten Projektionspfad wie bisher.
                 }
+            }
+            if (!migratedFixedV15) {
+                try {
+                    projectLegacySignatureTrainLayer(wrapper, rows, failOpenStage);
+                } catch (legacyError) {
+                    // Bei als aktuell deklarierten Quellen beschreibt die erste
+                    // Meldung den tatsaechlich verletzten Schema-26-Vertrag. Eine
+                    // nachgeschaltete Legacy-Pruefung darf sie nicht wieder durch
+                    // die irrefuehrende position-Meldung verdecken.
+                    if (declaredSchema === MAIL_SIGNATURE_SCHEMA && canonicalError instanceof Error) {
+                        throw canonicalError;
+                    }
 
-                throw legacyError;
+                    throw legacyError;
+                }
             }
         }
     }
@@ -2501,6 +2558,17 @@ function componentClasses(component) {
     return String(attributes.class || '').split(/\s+/).filter(Boolean);
 }
 
+function componentUsesFailOpenSignatureStage(component) {
+    for (let current = component; current; current = current?.parent?.()) {
+        const attributes = current?.getAttributes?.() || current?.get?.('attributes') || {};
+        if (String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').trim().toLowerCase() === 'v15') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function enforceComponentStyle(component, expected) {
     const current = component?.getStyle?.() || {};
     const expectedKeys = new Set(Object.keys(expected));
@@ -2529,15 +2597,28 @@ function enforceComponentAttributes(component, expected) {
     return true;
 }
 
-export function synchronizeMailSignatureFixedGeometry(component) {
+export function synchronizeMailSignatureFixedGeometry(
+    component,
+    failOpenStage = componentUsesFailOpenSignatureStage(component),
+) {
     const classes = componentClasses(component);
     if (classes.includes('rt-sign-stage')) {
-        return enforceComponentStyle(component, {
-            position: 'relative',
-            height: MAIL_SIGNATURE_FIXED_HEIGHT,
-            'max-height': MAIL_SIGNATURE_FIXED_HEIGHT,
-            overflow: 'hidden',
-        });
+        return enforceComponentStyle(
+            component,
+            failOpenStage
+                ? {
+                    position: 'relative',
+                    height: 'auto',
+                    'min-height': MAIL_SIGNATURE_FIXED_HEIGHT,
+                    overflow: 'visible',
+                }
+                : {
+                    position: 'relative',
+                    height: MAIL_SIGNATURE_FIXED_HEIGHT,
+                    'max-height': MAIL_SIGNATURE_FIXED_HEIGHT,
+                    overflow: 'hidden',
+                },
+        );
     }
     if (classes.includes('rt-sign-train-frame')) {
         const attributesChanged = enforceComponentAttributes(component, {
@@ -2573,6 +2654,7 @@ export function synchronizeMailSignatureFixedGeometry(component) {
             height: MAIL_SIGNATURE_FIXED_HEIGHT_ATTRIBUTE,
         });
         return enforceComponentStyle(component, {
+            ...(failOpenStage ? { position: 'relative', 'z-index': '1' } : {}),
             width: '100%',
             height: MAIL_SIGNATURE_FIXED_HEIGHT,
             'border-collapse': 'collapse',
@@ -2588,6 +2670,7 @@ export function synchronizeMailTrainLayerAlignment(component) {
     if (!classes.includes('rt-sign-train-layer') || attributes['data-rt-layer-train'] === undefined) {
         return false;
     }
+    const failOpenStage = componentUsesFailOpenSignatureStage(component);
 
     const alignment = ['left', 'center', 'right'].includes(attributes['data-rt-layer-align'])
         ? attributes['data-rt-layer-align']
@@ -2629,6 +2712,7 @@ export function synchronizeMailTrainLayerAlignment(component) {
         }
     }
     const layerChanged = enforceComponentStyle(component, {
+        ...(failOpenStage ? { position: 'relative', 'z-index': '0' } : {}),
         display: 'block',
         width: '100%',
         height: MAIL_SIGNATURE_FIXED_HEIGHT,
@@ -2655,13 +2739,16 @@ export function synchronizeMailTrainLayerAlignment(component) {
         return componentClasses(child).includes('rt-sign-train')
             && childAttributes['data-rt-train'] !== undefined;
     });
-    const frameChanged = frame ? synchronizeMailSignatureFixedGeometry(frame) : false;
-    const slotChanged = slot ? synchronizeMailSignatureFixedGeometry(slot) : false;
+    const frameChanged = frame ? synchronizeMailSignatureFixedGeometry(frame, failOpenStage) : false;
+    const slotChanged = slot ? synchronizeMailSignatureFixedGeometry(slot, failOpenStage) : false;
     let imageChanged = false;
     if (image) {
         const imageAttributes = image.getAttributes?.() || image.get?.('attributes') || {};
         const imageStyle = image.getStyle?.() || {};
         imageChanged = String(imageAttributes.width || '') !== '720'
+            || (failOpenStage
+                ? String(imageAttributes.height || '') !== MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT
+                : Object.prototype.hasOwnProperty.call(imageAttributes, 'height'))
             || imageStyle.position !== 'static'
             || imageStyle.left !== 'auto'
             || imageStyle.right !== 'auto'
@@ -2673,9 +2760,15 @@ export function synchronizeMailTrainLayerAlignment(component) {
             || imageStyle.margin !== imageMargin;
         if (imageChanged) {
             if (typeof image.addAttributes === 'function') {
-                image.addAttributes({ width: '720' }, { silent: true });
+                image.addAttributes({
+                    width: '720',
+                    ...(failOpenStage ? { height: MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT } : {}),
+                }, { silent: true });
+                if (!failOpenStage) image.removeAttributes?.('height', { silent: true });
             } else {
                 imageAttributes.width = '720';
+                if (failOpenStage) imageAttributes.height = MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT;
+                else delete imageAttributes.height;
             }
             image.setStyle?.({
                 ...imageStyle,

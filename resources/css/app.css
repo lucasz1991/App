@@ -1188,6 +1188,111 @@ body[data-mode="dark"] .rt-admin-chart:empty {
     }
 }
 
+/*
+ * Admin command board (2026-08): Die produktiven Module bilden bewusst kein
+ * gleichfoermiges Kartenraster. Auftraege bleiben als Leitkarte doppelhoch;
+ * die vier weiteren Ziele liegen als kompakte Aktionsfelder daneben.
+ */
+.rt-admin-command-strip {
+    min-height: 3.5rem;
+}
+
+.rt-admin-module-bento,
+.rt-admin-split-grid {
+    min-width: 0;
+}
+
+.rt-admin-module-tile {
+    transform: translate3d(0, 0, 0);
+    box-shadow: 0 16px 34px -30px rgba(15, 23, 42, 0.62);
+}
+
+.rt-admin-module-tile[data-dashboard-focus-variant='featured'] {
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 24px 48px -30px rgba(15, 23, 42, 0.74);
+}
+
+.rt-admin-system-bar {
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.92),
+        0 14px 32px -30px rgba(15, 23, 42, 0.52);
+}
+
+html.dark .rt-admin-system-bar,
+body[data-mode='dark'] .rt-admin-system-bar {
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 16px 34px -28px rgba(0, 0, 0, 0.9);
+}
+
+@media (min-width: 1024px) {
+    .rt-admin-module-bento {
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    }
+
+    .rt-admin-module-tile-orders,
+    .rt-admin-module-tile-shifts {
+        grid-column: span 3 / span 3 !important;
+    }
+
+    .rt-admin-module-tile-wagons,
+    .rt-admin-module-tile-calendar,
+    .rt-admin-module-tile-customers {
+        grid-column: span 2 / span 2 !important;
+    }
+}
+
+@media (min-width: 1280px) {
+    .rt-admin-module-bento,
+    .rt-admin-split-grid {
+        grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    }
+
+    .rt-admin-module-bento {
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+    }
+
+    .rt-admin-module-tile-orders {
+        grid-column: 1 / span 5 !important;
+        grid-row: 1 / span 2 !important;
+    }
+
+    .rt-admin-module-tile-shifts {
+        grid-column: 6 / span 4 !important;
+        grid-row: 1 !important;
+    }
+
+    .rt-admin-module-tile-wagons {
+        grid-column: 10 / span 3 !important;
+        grid-row: 1 !important;
+    }
+
+    .rt-admin-module-tile-calendar {
+        grid-column: 6 / span 4 !important;
+        grid-row: 2 !important;
+    }
+
+    .rt-admin-module-tile-customers {
+        grid-column: 10 / span 3 !important;
+        grid-row: 2 !important;
+    }
+
+    .rt-admin-span-5 {
+        grid-column: span 5 / span 5 !important;
+    }
+
+    .rt-admin-span-7 {
+        grid-column: span 7 / span 7 !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-admin-module-tile {
+        transition-duration: 0.01ms;
+    }
+}
+
 .dark [data-admin-dashboard] .text-rt-red,
 .dark .rt-operational-page .text-rt-red {
     color: #ff7189;

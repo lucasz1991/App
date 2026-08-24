@@ -420,29 +420,37 @@ class MailSignature
 
         $animated = ! $this->staticAssets && $this->animated;
         if ($this->remoteAssets) {
-            $values['TRAIN_SRC'] = $this->withRemotePlaybackNonce(
-                EmailTemplateBuilder::signatureTrainUrl(
+            if (! array_key_exists('TRAIN_SRC', $overrides)) {
+                $values['TRAIN_SRC'] = $this->withRemotePlaybackNonce(
+                    EmailTemplateBuilder::signatureTrainUrl(
+                        $this->theme,
+                        $animated,
+                        $artifactVersion,
+                    ),
+                );
+            }
+            if (! array_key_exists('TRAIN_STILL_SRC', $overrides)) {
+                $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainStillUrl(
+                    $this->theme,
+                    $artifactVersion,
+                );
+            }
+        } else {
+            if (! array_key_exists('TRAIN_SRC', $overrides)) {
+                $values['TRAIN_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
                     $this->theme,
                     $animated,
+                    $this->playbackNonce,
                     $artifactVersion,
-                ),
-            );
-            $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainStillUrl(
-                $this->theme,
-                $artifactVersion,
-            );
-        } else {
-            $values['TRAIN_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
-                $this->theme,
-                $animated,
-                $this->playbackNonce,
-                $artifactVersion,
-            );
-            $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
-                $this->theme,
-                animated: false,
-                artifactVersion: $artifactVersion,
-            );
+                );
+            }
+            if (! array_key_exists('TRAIN_STILL_SRC', $overrides)) {
+                $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
+                    $this->theme,
+                    animated: false,
+                    artifactVersion: $artifactVersion,
+                );
+            }
         }
 
         // V8 bis V15 enthalten ihren vollstaendigen Ankunftsstand bereits im

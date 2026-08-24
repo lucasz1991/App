@@ -1304,12 +1304,24 @@ class EmailTemplateBuilder
             '//*[contains(concat(" ", normalize-space(@class), " "), " rt-sign-stage ")]',
         );
         $stage = $stages !== false ? $stages->item(0) : null;
+        $stageStyle = $stage instanceof \DOMElement
+            ? strtolower($stage->getAttribute('style'))
+            : '';
+        $artifactVersion = SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $html,
+        );
+        $hasSafeStageGeometry = SignatureArtifactVersion::usesFailOpenStage($artifactVersion)
+            ? str_contains($stageStyle, 'height:auto')
+                && str_contains($stageStyle, 'min-height:200px')
+                && str_contains($stageStyle, 'overflow:visible')
+            : str_contains($stageStyle, 'overflow:hidden');
         if ($stages === false
             || $stages->length !== 1
             || ! $stage instanceof \DOMElement
             || ! $stage->parentNode?->isSameNode($carrier)
-            || ! str_contains(strtolower($stage->getAttribute('style')), 'position:relative')
-            || ! str_contains(strtolower($stage->getAttribute('style')), 'overflow:hidden')) {
+            || ! str_contains($stageStyle, 'position:relative')
+            || ! $hasSafeStageGeometry) {
             throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine sichere Zug-Buehne.');
         }
 

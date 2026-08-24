@@ -57,6 +57,7 @@ Homestead.json
 !/tests/Feature/DeviceManagementTest.php
 !/tests/Feature/DeviceManagementSettingsTest.php
 !/tests/Feature/AdminSettingsOverviewAndSuperadminTest.php
+!/tests/Feature/AdminDashboardCommandBoardTest.php
 !/tests/Feature/DeviceProviderDiagnosticsServiceTest.php
 !/tests/Feature/DeviceIdentityPreparationTest.php
 !/tests/Feature/DeviceProviderLinkTest.php

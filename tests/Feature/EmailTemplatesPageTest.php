@@ -10,6 +10,7 @@ use App\Models\UserProfile;
 use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\MailSignature;
@@ -727,6 +728,164 @@ class EmailTemplatesPageTest extends TestCase
         }
     }
 
+    public function test_published_v15_signature_drives_eml_and_outlook_exports_with_optimized_fail_open_assets(): void
+    {
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        $this->createCanonicalMailDocuments();
+
+        $signature = MailDocument::query()
+            ->where('kind', MailDocumentKind::Signature->value)
+            ->firstOrFail();
+        $markedHtml = preg_replace(
+            '/^<tr>/',
+            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V15.'">',
+            (string) $signature->published_html,
+            1,
+            $markerCount,
+        );
+        $this->assertIsString($markedHtml);
+        $this->assertSame(1, $markerCount);
+
+        $v15Html = SignatureTrainCarrier::normalize($markedHtml);
+        SignatureDocumentContract::assertValid($v15Html);
+        $builderData = $signature->builder_data ?: [];
+        data_set($builderData, 'pages.0.component', $v15Html);
+        data_set($builderData, 'railtime.schema', SignatureDocumentContract::SCHEMA);
+        $signature->forceFill([
+            'builder_data' => $builderData,
+            'html' => $v15Html,
+            'published_html' => $v15Html,
+            'content_hash' => MailDocument::contentHashFor($builderData, $v15Html, ''),
+            'version' => 15,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+        $builder = new EmailTemplateBuilder($user);
+        $themes = [
+            'light' => [
+                'eml' => 'vorlage-eml',
+                'outlook' => 'signatur-outlook-hell',
+                'variant' => 'hell',
+                'logo' => 'wortmarke-signature-v15-light',
+            ],
+            'dark' => [
+                'eml' => 'vorlage-dunkel-eml',
+                'outlook' => 'signatur-outlook-dunkel',
+                'variant' => 'dunkel',
+                'logo' => 'wortmarke-mail-v15-dark',
+            ],
+        ];
+
+        foreach ($themes as $theme => $assets) {
+            $train = "zug-dampf-v15-{$theme}";
+            $eml = $builder->build($assets['eml'])['content'];
+
+            foreach ([
+                'railtime-logo' => $assets['logo'].'.gif',
+                'railtime-logo-still' => $assets['logo'].'.png',
+                'railtime-train' => $train.'.gif',
+                'railtime-train-still' => $train.'.png',
+            ] as $contentId => $filename) {
+                $this->assertStringContainsString("Content-ID: <{$contentId}>", $eml);
+                $this->assertStringContainsString(
+                    "Content-Disposition: inline; filename=\"{$filename}\"",
+                    $eml,
+                );
+                $this->assertSame(
+                    file_get_contents(resource_path('mail-templates/assets/'.$filename)),
+                    $this->decodeEmlInlineAttachment($eml, $contentId),
+                    $filename,
+                );
+            }
+            $this->assertStringNotContainsString('Content-ID: <railtime-train-idle>', $eml);
+            $this->assertStringNotContainsString('zug-dampf-idle-', $eml);
+
+            $emlHtml = $this->decodeEmlHtmlPart($eml);
+            SignatureTrainCarrier::assertRuntimeImages(
+                $emlHtml,
+                'cid:railtime-train',
+                expectedIdleSource: '',
+                expectedMsoSource: 'cid:railtime-train-still',
+            );
+            $this->assertStringContainsString(
+                'data-rt-artifact-version="v15"',
+                $emlHtml,
+            );
+            $this->assertStringContainsString(
+                'class="rt-sign-stage" style="position:relative;height:auto;min-height:200px;overflow:visible;"',
+                $emlHtml,
+            );
+            $this->assertStringContainsString('width="720" height="61" alt=""', $emlHtml);
+            $this->assertStringContainsString(
+                'class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="position:relative;z-index:1;',
+                $emlHtml,
+            );
+            $this->assertStringNotContainsString('data-rt-train-idle', $emlHtml);
+
+            $zipPath = tempnam(sys_get_temp_dir(), 'railtime-v15-outlook-');
+            $this->assertNotFalse($zipPath);
+            file_put_contents($zipPath, $builder->build($assets['outlook'])['content']);
+            $zip = new ZipArchive;
+            $this->assertTrue($zip->open($zipPath));
+
+            try {
+                $signatureName = "RailTime-Signatur-{$assets['variant']}-mara-beispiel";
+                $assetFolder = "{$signatureName}_files";
+                $this->assertSame(
+                    file_get_contents(resource_path('mail-templates/assets/'.$train.'.gif')),
+                    $zip->getFromName("{$assetFolder}/zug-dampf.gif"),
+                );
+                $this->assertSame(
+                    file_get_contents(resource_path('mail-templates/assets/'.$train.'.png')),
+                    $zip->getFromName("{$assetFolder}/zug-dampf.png"),
+                );
+                $this->assertSame(
+                    file_get_contents(resource_path('mail-templates/assets/'.$assets['logo'].'.gif')),
+                    $zip->getFromName("{$assetFolder}/logo.gif"),
+                );
+
+                $outlookHtml = $zip->getFromName("{$signatureName}.htm");
+                $this->assertIsString($outlookHtml);
+                SignatureTrainCarrier::assertRuntimeImages(
+                    $outlookHtml,
+                    "{$assetFolder}/zug-dampf.gif",
+                    expectedIdleSource: '',
+                    expectedMsoSource: "{$assetFolder}/zug-dampf.png",
+                );
+                $this->assertStringContainsString('data-rt-artifact-version="v15"', $outlookHtml);
+                $this->assertStringContainsString(
+                    'class="rt-sign-stage" style="position:relative;height:auto;min-height:200px;overflow:visible;"',
+                    $outlookHtml,
+                );
+                $this->assertStringContainsString('width="720" height="61" alt=""', $outlookHtml);
+                $this->assertStringNotContainsString('data-rt-train-idle', $outlookHtml);
+
+                $readme = $zip->getFromName('README-Outlook.html');
+                $this->assertIsString($readme);
+                preg_match('/\bsrcdoc="([^"]*)"/s', $readme, $srcdocMatch);
+                $this->assertArrayHasKey(1, $srcdocMatch);
+                $copyHtml = html_entity_decode($srcdocMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                SignatureTrainCarrier::assertRuntimeImages(
+                    $copyHtml,
+                    expectedIdleSource: '',
+                );
+                $this->assertStringContainsString('data-rt-artifact-version="v15"', $copyHtml);
+                $this->assertStringContainsString('/mail-assets/'.$train.'.gif', $copyHtml);
+                $this->assertStringContainsString('/mail-assets/'.$train.'.png', $copyHtml);
+                $this->assertStringContainsString('/mail-assets/'.$assets['logo'].'.gif', $copyHtml);
+                $this->assertStringContainsString(
+                    'class="rt-sign-stage" style="position:relative;height:auto;min-height:200px;overflow:visible;"',
+                    $copyHtml,
+                );
+                $this->assertStringNotContainsString('data-rt-train-idle', $copyHtml);
+            } finally {
+                $zip->close();
+                unlink($zipPath);
+            }
+        }
+    }
+
     public function test_only_the_steam_train_is_public_and_the_old_motif_query_is_ignored(): void
     {
         $vector = resource_path('mail-templates/assets/zug-dampf.svg');
@@ -886,6 +1045,23 @@ class EmailTemplatesPageTest extends TestCase
         );
 
         return (string) base64_decode((string) preg_replace('/\s+/', '', $matches[1] ?? ''), true);
+    }
+
+    private function decodeEmlInlineAttachment(string $eml, string $contentId): string
+    {
+        preg_match(
+            '/Content-ID: <'.preg_quote($contentId, '/').'>\r\n'
+                .'Content-Disposition: inline; filename="[^"]+"\r\n\r\n'
+                .'(.*?)\r\n--=_rt_rel_/s',
+            $eml,
+            $matches,
+        );
+
+        $this->assertArrayHasKey(1, $matches, "CID {$contentId} besitzt keinen decodierbaren MIME-Inhalt.");
+        $binary = base64_decode((string) preg_replace('/\s+/', '', $matches[1]), true);
+        $this->assertIsString($binary, "CID {$contentId} ist nicht gueltig base64-kodiert.");
+
+        return $binary;
     }
 
     public function test_light_and_dark_html_are_distinct_static_palettes_with_embedded_contact_icons(): void

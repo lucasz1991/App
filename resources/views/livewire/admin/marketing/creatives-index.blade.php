@@ -297,18 +297,19 @@
 
     <div
         x-cloak
-        x-show="importOpen"
+        x-show.important="importOpen"
         x-transition.opacity
+        x-on:click.self="importOpen = false"
         x-on:keydown.escape.window="importOpen = false"
         class="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6"
         role="dialog"
         aria-modal="true"
         aria-labelledby="marketing-import-title"
     >
-        <button type="button" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xl" x-on:click="importOpen = false" aria-label="Importdialog schließen"></button>
+        <div class="pointer-events-none absolute inset-0 bg-slate-950/70 backdrop-blur-xl" aria-hidden="true"></div>
 
         <section
-            x-show="importOpen"
+            x-show.important="importOpen"
             x-transition
             x-trap.inert.noscroll="importOpen"
             class="relative w-full max-w-xl overflow-hidden rounded-3xl border border-white/15 bg-white shadow-2xl dark:bg-[#0b1118]"

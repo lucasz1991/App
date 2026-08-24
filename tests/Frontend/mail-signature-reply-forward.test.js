@@ -82,14 +82,21 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.match(css, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-artifact-version="v13"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*190px !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v14"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-artifact-version="v14"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*175px !important;/s);
     assert.match(css, /tr\[data-rt-signature-density="compact"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-signature-density="compact"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*145px !important;/s);
-    assert.match(css, /tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso\s*\{[^}]*width:\s*94% !important;[^}]*margin-left:\s*0 !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso\s*\{[^}]*width:\s*94% !important;[^}]*margin-left:\s*0 !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-stage\s*\{[^}]*height:\s*auto !important;[^}]*max-height:\s*none !important;[^}]*min-height:\s*175px !important;[^}]*overflow:\s*visible !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-train-layer\s*\{[^}]*position:\s*relative !important;[^}]*z-index:\s*0 !important;[^}]*height:\s*175px !important;[^}]*margin-bottom:\s*-175px !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-content-frame\s*\{[^}]*position:\s*relative !important;[^}]*z-index:\s*1 !important;/s);
     assert.match(mobile, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-artifact-version="v14"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*296px !important;/s);
     assert.match(mobile, /tr\[data-rt-signature-density="compact"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-signature-density="compact"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*215px !important;/s);
+    assert.match(mobile, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-stage\s*\{[^}]*height:\s*auto !important;[^}]*min-height:\s*296px !important;[^}]*overflow:\s*visible !important;/s);
+    assert.match(mobile, /tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-stage\s*\{[^}]*height:\s*auto !important;[^}]*min-height:\s*215px !important;[^}]*overflow:\s*visible !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-artifact-version="v14"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*264px !important;/s);
     assert.match(phone, /tr\[data-rt-signature-density="compact"\] \.rt-sign-train-frame,[\s\S]*?tr\[data-rt-signature-density="compact"\] \.rt-sign-content-frame\s*\{[^}]*height:\s*190px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-stage\s*\{[^}]*height:\s*auto !important;[^}]*min-height:\s*264px !important;[^}]*overflow:\s*visible !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-stage\s*\{[^}]*height:\s*auto !important;[^}]*min-height:\s*190px !important;[^}]*overflow:\s*visible !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width:\s*108\.67% !important;[^}]*margin-left:\s*0 !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width:\s*135% !important;[^}]*margin-left:\s*-15\.75% !important;/s);
-    assert.match(phone, /tr\[data-rt-artifact-version="v14"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width:\s*175% !important;[^}]*margin-left:\s*-40% !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v14"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v15"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width:\s*175% !important;[^}]*margin-left:\s*-40% !important;/s);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]*?width:\s*200% !important;\s*max-width:\s*none !important;\s*margin-left:\s*-100% !important;/);
 });
 
@@ -119,6 +126,8 @@ test('delivery keeps the fixed train pixel frame and its MSO fallback inside the
     assert.doesNotMatch(runtime, /data-rt-train-main-(?:image|layer)/);
     assert.doesNotMatch(runtime, /projectPublishedTrainAsRuntimeImage/);
     assert.match(runtime, /usesTokenizedTrainCarrier/);
+    assert.match(runtime, /SignatureArtifactVersion::usesOptimizedMailAssets\(\$artifactVersion\)/);
+    assert.match(runtime, /\$values\['TRAIN_IDLE_SRC'\] = '';/);
     assert.match(runtime, /SignatureTrainCarrier::projectAsImage\(/);
     assert.doesNotMatch(runtime, /SignatureTrainCarrier::projectAsRuntimeBackground\(/);
     assert.equal(occurrences(runtime, /SignatureTrainCarrier::withMsoFallback\(/g), 1);
@@ -134,8 +143,14 @@ test('delivery keeps the fixed train pixel frame and its MSO fallback inside the
     assert.match(msoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">/);
-    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="display:block;[^"\r\n]*height:200px;max-height:200px;[^"\r\n]*margin-bottom:-200px;/);
+    assert.match(carrier, /\$layerPosition = \$failOpenStage \? 'position:relative;z-index:0;' : '';/);
+    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="'\.\$layerPosition\.'display:block;[^"\r\n]*height:200px;max-height:200px;[^"\r\n]*margin-bottom:-200px;/);
+    assert.match(carrier, /\$imageHeight = \$failOpenStage \? ' height="61"' : '';/);
+    assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"'\.\$imageHeight\.' alt=""/);
+    assert.match(carrier, /canonicalStageStartMarkup\(bool \$failOpenStage\)[\s\S]*?height:auto;min-height:200px;overflow:visible;/);
+    assert.match(carrier, /canonicalContentFrameStartMarkup\(bool \$failOpenStage = false\)[\s\S]*?position:relative;z-index:1;/);
     assert.match(msoFallback, /substr_replace\(\$html, \$fallback, \$slots\[0\]\['endOffset'\] \+ 1, 0\)/);
+    assert.match(msoFallback, /\$fallbackHeight = self::usesFailOpenStage\(\$html\) \? ' height="61"' : '';/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"[^>]*style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;/);
     assert.match(preview, /MailSignature::forCompany\(/);
     assert.match(preview, /->renderDocument\(/);
