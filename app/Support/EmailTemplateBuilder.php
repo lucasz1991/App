@@ -476,7 +476,12 @@ class EmailTemplateBuilder
             .'font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:27px;'
             .'color:'.$values['TEXT_SECONDARY'].';text-align:left;">'
             .$trusted
-            .'</td></tr>';
+            .'</td></tr>'
+            // Eigene Tabellenzeile statt CSS-Margin: Outlook/Word respektiert
+            // den Abstand zur roten Signaturkante dadurch ebenso wie Webmail.
+            .'<tr><td height="14" bgcolor="'.$values['SURFACE_BG'].'" '
+            .'style="height:14px;background:'.$values['SURFACE_BG'].';font-size:0;line-height:0;'
+            .'mso-line-height-rule:exactly;">&nbsp;</td></tr>';
         $html = str_replace($slot, $applicationRow, $html);
 
         return self::embedPublishedCss(
@@ -968,9 +973,11 @@ class EmailTemplateBuilder
         ?string $artifactVersion = null,
     ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
-        $stem = SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)
-            ? 'zug-dampf-v8'
-            : 'zug-dampf';
+        $stem = SignatureArtifactVersion::usesOptimizedArrivalTrain($artifactVersion)
+            ? 'zug-dampf-v12'
+            : (SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)
+                ? 'zug-dampf-v8'
+                : 'zug-dampf');
 
         return $stem.'-'.$variant.'.'.($animated ? 'gif' : 'png');
     }

@@ -6,6 +6,13 @@ AddType application/manifest+json .webmanifest
         Header set Pragma "no-cache"
         Header set Expires "0"
     </Files>
+
+    # Versionierte Mailbilder duerfen beim erneuten Oeffnen derselben Mail aus
+    # dem Client-/Proxy-Cache kommen. Der Dateiname wird bei jeder Revision
+    # geaendert; damit bleibt ein langes Caching ohne veraltete Darstellung sicher.
+    <FilesMatch "^(zug-dampf-v12-(light|dark)\.(gif|png))$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
 </IfModule>
 
 <IfModule mod_rewrite.c>

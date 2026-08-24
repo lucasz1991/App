@@ -60,6 +60,8 @@ const OFFIZIELLES_RT_ICON = 'public/rt-brand/rt-logo.svg';
 const ZUG_GRAU = '#737d89';
 const AUSGABEKENNUNG = process.env.RT_AUSGABEKENNUNG || '';
 const OHNE_IDLE = process.env.RT_OHNE_IDLE === '1';
+const KOMPAKTER_END_HALT = OHNE_IDLE && process.env.RT_KOMPAKTER_END_HALT !== '0';
+const OUTLOOK_AUSGABE = process.env.RT_OUTLOOK !== '0';
 
 if (!/^(?:[a-z0-9]+-)?$/.test(AUSGABEKENNUNG)) {
     throw new Error('RT_AUSGABEKENNUNG muss leer sein oder aus Kleinbuchstaben/Ziffern mit abschliessendem Bindestrich bestehen.');
@@ -68,6 +70,10 @@ if (!/^(?:[a-z0-9]+-)?$/.test(AUSGABEKENNUNG)) {
 // --- Leinwand ---------------------------------------------------------
 const BREITE = Number(process.env.RT_BREITE || 1440);
 const SKALA = Number(process.env.RT_SKALA || 1.5);                     // 2160 x 159 echte Bildpunkte
+
+if (!Number.isFinite(BREITE) || BREITE <= 0 || !Number.isFinite(SKALA) || SKALA <= 0) {
+    throw new Error('RT_BREITE und RT_SKALA muessen positive Zahlen sein.');
+}
 
 // --- Zug --------------------------------------------------------------
 // Das Motiv ist 2053 : 151 breit zu hoch. Der Faktor sagt, wie viel
@@ -122,6 +128,12 @@ const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 1.31);
 // Die Leinwand bleibt gleich hoch. Nur das Motiv selbst wird um zehn
 // Prozent kleiner und weiterhin sauber am Boden ausgerichtet.
 const HOEHE = Math.round(BASIS_ZUG_HOEHE * KOPFRAUM);
+// Nicht-ganzzahlige Retina-Faktoren wie 1,4 werden einmalig auf echte
+// Pixel gerundet. Canvas, GIF und PNG verwenden danach garantiert dieselben
+// Dimensionen; andernfalls koennten die Bibliotheken 2015,999... Pixel
+// unterschiedlich abrunden und das Standbild waere nicht mehr deckungsgleich.
+const PIXEL_BREITE = Math.round(BREITE * SKALA);
+const PIXEL_HOEHE = Math.round(HOEHE * SKALA);
 const ZIEL_RECHTS = Number(process.env.RT_ZIEL_RECHTS || 0.60);
 const RUHE_RECHTS = BREITE * ZIEL_RECHTS;
 const RUHE_X = RUHE_RECHTS - ZUG_BREITE;
@@ -158,8 +170,19 @@ const MARKEN_TRENNFUGE_CSS_PX = 2.0;
 const MARKEN_UEBERABTASTUNG = 4;
 
 // --- Zeiten (vertraglich, siehe EmailTemplatesPageTest) ---------------
-const BILDER = Number(process.env.RT_BILDER || 72);
-const ERSTES_CS = 30;
+const GEPLANTE_BILDER = Number(process.env.RT_BILDER || 72);
+const ERSTES_CS = Number(process.env.RT_ERSTES_CS || 30);
+const RAUCH_TOP_FADE = Number(process.env.RT_RAUCH_TOP_FADE || 0);
+
+if (!Number.isInteger(GEPLANTE_BILDER) || GEPLANTE_BILDER < 3) {
+    throw new Error('RT_BILDER muss eine ganze Zahl ab 3 sein.');
+}
+if (!Number.isInteger(ERSTES_CS) || ERSTES_CS < 1) {
+    throw new Error('RT_ERSTES_CS muss eine positive ganze Zahl sein.');
+}
+if (!Number.isFinite(RAUCH_TOP_FADE) || RAUCH_TOP_FADE < 0) {
+    throw new Error('RT_RAUCH_TOP_FADE muss eine nichtnegative Zahl sein.');
+}
 // SIEBEN SEKUNDEN bis zum Stillstand. Danach bleibt das letzte Einzelbild
 // an exakt 60 Prozent der Leinwand stehen.
 const FAHRT_S = 7.0;
@@ -222,8 +245,11 @@ const VARIANTEN = [
  */
 function verzoegerungen() {
     const fahrtAnteil = FAHRT_ENDE_S / GESAMT_S;
-    const fahrtBilder = Math.max(2, Math.round(BILDER * 0.72));
-    const restBilder = BILDER - fahrtBilder;
+    const fahrtBilder = Math.max(2, Math.round(GEPLANTE_BILDER * 0.72));
+    // Ohne Idle-Rauch sind alle Bilder nach FAHRT_ENDE_S pixelidentisch.
+    // Ein einziges lang angezeigtes Schlussbild bewahrt die 13-s-Timeline
+    // und den finalen Hold, ohne denselben Vollframe vielfach zu speichern.
+    const restBilder = KOMPAKTER_END_HALT ? 1 : GEPLANTE_BILDER - fahrtBilder;
 
     const fahrtCs = Math.round(SUMME_CS * fahrtAnteil);
     const restCs = SUMME_CS - fahrtCs;
@@ -407,24 +433,48 @@ await page.evaluate((zugMarkup, iconMarkup) => {
 async function zeichne(auftrag) {
     const roh = await page.evaluate((a) => {
         const c = document.createElement('canvas');
-        c.width = a.breite * a.skala;
-        c.height = a.hoehe * a.skala;
+        c.width = a.pixelBreite;
+        c.height = a.pixelHoehe;
         const x = c.getContext('2d');
-        x.scale(a.skala, a.skala);
+        x.scale(a.pixelBreite / a.breite, a.pixelHoehe / a.hoehe);
 
         x.fillStyle = a.grund;
         x.fillRect(0, 0, a.breite, a.hoehe);
 
+        const rauchLayer = document.createElement('canvas');
+        rauchLayer.width = c.width;
+        rauchLayer.height = c.height;
+        const rx = rauchLayer.getContext('2d');
+        rx.scale(a.pixelBreite / a.breite, a.pixelHoehe / a.hoehe);
+
         for (const w of a.wolken) {
-            const g = x.createRadialGradient(w.x, w.y, 0, w.x, w.y, w.r);
+            const g = rx.createRadialGradient(w.x, w.y, 0, w.x, w.y, w.r);
             g.addColorStop(0, `rgba(${a.rauch}, ${w.alpha})`);
             g.addColorStop(0.55, `rgba(${a.rauch}, ${w.alpha * 0.45})`);
             g.addColorStop(1, `rgba(${a.rauch}, 0)`);
-            x.fillStyle = g;
-            x.beginPath();
-            x.arc(w.x, w.y, w.r, 0, Math.PI * 2);
-            x.fill();
+            rx.fillStyle = g;
+            rx.beginPath();
+            rx.arc(w.x, w.y, w.r, 0, Math.PI * 2);
+            rx.fill();
         }
+
+        if (a.rauchTopFade > 0) {
+            // Der Rauch bleibt in seiner natuerlichen Bahn, wird aber auf
+            // einem eigenen Layer an der oberen Bildkante weich ausgeblendet.
+            // Alpha ist bei y=0 exakt null, damit weder GIF noch PNG dort eine
+            // abgeschnittene Rauchkante erzeugen koennen.
+            rx.globalCompositeOperation = 'destination-in';
+            const topFade = rx.createLinearGradient(0, 0, 0, a.rauchTopFade);
+            topFade.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            topFade.addColorStop(1, 'rgba(0, 0, 0, 1)');
+            rx.fillStyle = topFade;
+            rx.fillRect(0, 0, a.breite, a.rauchTopFade);
+            rx.fillStyle = 'rgba(0, 0, 0, 1)';
+            rx.fillRect(0, a.rauchTopFade, a.breite, a.hoehe - a.rauchTopFade);
+            rx.globalCompositeOperation = 'source-over';
+        }
+
+        x.drawImage(rauchLayer, 0, 0, a.breite, a.hoehe);
 
         // Zug und Monogramm entstehen zuerst gemeinsam auf einem transparenten
         // Layer. Der Layer wird spaeter genau EINMAL mit 30 Prozent
@@ -434,7 +484,7 @@ async function zeichne(auftrag) {
         zugLayer.width = c.width;
         zugLayer.height = c.height;
         const zx = zugLayer.getContext('2d');
-        zx.scale(a.skala, a.skala);
+        zx.scale(a.pixelBreite / a.breite, a.pixelHoehe / a.hoehe);
 
         // Angehaengte Waggons ZUERST: jede Kopie wird auf den Bereich links
         // der vorigen beschnitten, damit ihre eigene Lok nicht mitgezeichnet
@@ -576,8 +626,8 @@ function aufTabelle(rgba, tabelle) {
  * Breite verkleinert und in der 75-px-Leinwand unten ausgerichtet.
  */
 function skaliereFuerOutlook(rgba, grund) {
-    const quelleBreite = BREITE * SKALA;
-    const quelleHoehe = HOEHE * SKALA;
+    const quelleBreite = PIXEL_BREITE;
+    const quelleHoehe = PIXEL_HOEHE;
     const faktor = Math.min(OUTLOOK_BREITE / quelleBreite, OUTLOOK_HOEHE / quelleHoehe);
     const zielBreite = Math.round(quelleBreite * faktor);
     const zielHoehe = Math.round(quelleHoehe * faktor);
@@ -616,10 +666,10 @@ for (const v of VARIANTEN) {
     const tinte = v.key === 'dark' ? [216, 221, 228] : [115, 125, 137];
     const tabelle = farbtabelle(v.grund, tinte);
     const encoder = GIFEncoder();
-    const outlookEncoder = GIFEncoder();
+    const outlookEncoder = OUTLOOK_AUSGABE ? GIFEncoder() : null;
     let letztesBild = null;
 
-    for (let i = 0; i < BILDER; i += 1) {
+    for (let i = 0; i < cs.length; i += 1) {
         const t = zeiten[i];
         const zugX = mische(START_X, RUHE_X, easeOut((t - WARTE_S) / FAHRT_S));
 
@@ -635,8 +685,9 @@ for (const v of VARIANTEN) {
 
         const rgba = await zeichne({
             breite: BREITE, hoehe: HOEHE, skala: SKALA,
+            pixelBreite: PIXEL_BREITE, pixelHoehe: PIXEL_HOEHE,
             grund: `rgb(${v.grund.join(',')})`, rauch: v.rauch,
-            deckkraft: v.deckkraft, wolken: sichtbar,
+            deckkraft: v.deckkraft, wolken: sichtbar, rauchTopFade: RAUCH_TOP_FADE,
             zugX, zugY: ZUG_Y, zugBreite: ZUG_BREITE, zugHoehe: ZUG_HOEHE,
             wagenteil: WAGENTEIL, anhaenge: ANHAENGE,
             markenFarbe: ZUG_GRAU,
@@ -650,7 +701,7 @@ for (const v of VARIANTEN) {
 
         letztesBild = rgba;
 
-        encoder.writeFrame(aufTabelle(rgba, tabelle), BREITE * SKALA, HOEHE * SKALA, {
+        encoder.writeFrame(aufTabelle(rgba, tabelle), PIXEL_BREITE, PIXEL_HOEHE, {
             palette: i === 0 ? tabelle : undefined,
             delay: cs[i] * 10,
             transparent: DURCHSICHTIG,
@@ -658,29 +709,34 @@ for (const v of VARIANTEN) {
             // 2 = raeumen. Mit durchsichtigen Punkten muss jedes Bild vor
             // dem naechsten weg, sonst schmiert der fahrende Zug. Nur das
             // LETZTE bleibt stehen.
-            dispose: DURCHSICHTIG && i !== BILDER - 1 ? 2 : 1,
+            dispose: DURCHSICHTIG && i !== cs.length - 1 ? 2 : 1,
             repeat: -1,
         });
 
-        const outlookRgba = skaliereFuerOutlook(rgba, v.grund);
-        outlookEncoder.writeFrame(aufTabelle(outlookRgba, tabelle), OUTLOOK_BREITE, OUTLOOK_HOEHE, {
-            palette: i === 0 ? tabelle : undefined,
-            delay: cs[i] * 10,
-            transparent: true,
-            transparentIndex: 0,
-            dispose: i !== BILDER - 1 ? 2 : 1,
-            repeat: -1,
-        });
+        if (outlookEncoder) {
+            const outlookRgba = skaliereFuerOutlook(rgba, v.grund);
+            outlookEncoder.writeFrame(aufTabelle(outlookRgba, tabelle), OUTLOOK_BREITE, OUTLOOK_HOEHE, {
+                palette: i === 0 ? tabelle : undefined,
+                delay: cs[i] * 10,
+                transparent: true,
+                transparentIndex: 0,
+                dispose: i !== cs.length - 1 ? 2 : 1,
+                repeat: -1,
+            });
+        }
 
-        if (i % 16 === 0) process.stdout.write(`  ${v.key}: Bild ${i + 1}/${BILDER}\r`);
+        if (i % 16 === 0) process.stdout.write(`  ${v.key}: Bild ${i + 1}/${cs.length}\r`);
     }
 
     encoder.finish();
     const gif = Buffer.from(encoder.bytes());
     writeFileSync(`${ASSETS}/zug-dampf-${AUSGABEKENNUNG}${v.key}.gif`, gif);
-    outlookEncoder.finish();
-    const outlookGif = Buffer.from(outlookEncoder.bytes());
-    writeFileSync(`${ASSETS}/zug-dampf-outlook-${AUSGABEKENNUNG}${v.key}.gif`, outlookGif);
+    let outlookGif = null;
+    if (outlookEncoder) {
+        outlookEncoder.finish();
+        outlookGif = Buffer.from(outlookEncoder.bytes());
+        writeFileSync(`${ASSETS}/zug-dampf-outlook-${AUSGABEKENNUNG}${v.key}.gif`, outlookGif);
+    }
 
     // --- Standbild: EXAKT das letzte Einzelbild -------------------------
     // Es liegt als Netz hinter dem GIF (siehe signature.blade.php). Waere
@@ -688,14 +744,16 @@ for (const v of VARIANTEN) {
     // Moment, in dem das GIF seine Flaeche doch raeumt. Gleiches Bild,
     // kein Sprung.
     const stillRoh = letztesBild;
-    const stillPng = new PNG({ width: BREITE * SKALA, height: HOEHE * SKALA });
+    const stillPng = new PNG({ width: PIXEL_BREITE, height: PIXEL_HOEHE });
     stillPng.data.set(stillRoh);
     const stillBytes = PNG.sync.write(stillPng, { deflateLevel: 9 });
     writeFileSync(`${ASSETS}/zug-dampf-${AUSGABEKENNUNG}${v.key}.png`, stillBytes);
     console.log(`  ${v.key}: Standbild ${(stillBytes.length / 1024).toFixed(1)} kB (deckungsgleich mit dem letzten Einzelbild)`);
 
-    console.log(`  ${v.key}: GIF ${(gif.length / 1024).toFixed(1)} kB (${BREITE * SKALA}x${HOEHE * SKALA}, Zug ${Math.round(ZUG_MASSSTAB * 100)} %, Endkante ${Math.round(ZIEL_RECHTS * 100)} %, ${OHNE_IDLE ? 'ohne Idle-Rauch' : `Idle ab ${FAHRT_ENDE_S.toFixed(1)} s`})`);
-    console.log(`  ${v.key}: Outlook ${(outlookGif.length / 1024).toFixed(1)} kB (${OUTLOOK_BREITE}x${OUTLOOK_HOEHE}, gleiche Timeline)`);
+    console.log(`  ${v.key}: GIF ${(gif.length / 1024).toFixed(1)} kB (${PIXEL_BREITE}x${PIXEL_HOEHE}, Zug ${Math.round(ZUG_MASSSTAB * 100)} %, Endkante ${Math.round(ZIEL_RECHTS * 100)} %, ${OHNE_IDLE ? 'ohne Idle-Rauch' : `Idle ab ${FAHRT_ENDE_S.toFixed(1)} s`})`);
+    if (outlookGif) {
+        console.log(`  ${v.key}: Outlook ${(outlookGif.length / 1024).toFixed(1)} kB (${OUTLOOK_BREITE}x${OUTLOOK_HOEHE}, gleiche Timeline)`);
+    }
 }
 
 await browser.close();
