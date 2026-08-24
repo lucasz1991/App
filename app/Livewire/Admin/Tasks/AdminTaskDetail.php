@@ -274,7 +274,7 @@ class AdminTaskDetail extends Component
     }
 
     /**
-     * Ã–ffnet das generische Signature-Modal (wie im Teilnehmer-Flow) :contentReference[oaicite:3]{index=3}
+     * Öffnet das generische Signature-Modal (wie im Teilnehmer-Flow).
      */
     protected function openTrainerSignatureForm($reportBook): void
     {

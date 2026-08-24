@@ -1,6 +1,10 @@
 @php
     $quickGridStyle = 'grid-template-columns: 3.5rem 4rem 4rem 5rem 5rem 3.5rem 7rem 5rem 5rem 5rem 6rem 6rem 6rem 6rem 6rem 6rem 6rem 5rem 6rem 9rem 9rem 12rem 3rem;';
     $quickHeaderClass = 'flex min-h-11 items-center border-b border-r border-rt-border px-2 text-[10px] font-bold uppercase tracking-[0.06em] text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted';
+    $quickGridAriaLabel = static fn (string $fieldLabel): string =>
+        ((string) \Illuminate\Support\Js::from(__('app.row')))
+        ." + ' ' + (index + 1) + ', ' + "
+        .((string) \Illuminate\Support\Js::from($fieldLabel));
 @endphp
 
 <section class="rt-wagon-sheet-shell hidden h-full min-h-0 flex-col overflow-hidden rounded-xl lg:flex" aria-labelledby="wagon-sheet-title">
@@ -299,16 +303,16 @@
                         </div>
                         <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.category" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.category'))" class="{{ $sheetInput }}"></div>
 
-                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.axlesEmpty" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.axles_empty'))" class="{{ $sheetInput }}" /></div>
-                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.axlesLoaded" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.axles_loaded'))" class="{{ $sheetInput }}" /></div>
-                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.length" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.length_m'))" class="{{ $sheetInput }}" /></div>
-                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.wagonWeight" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.wagon_weight_t'))" class="{{ $sheetInput }}" /></div>
-                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.loadWeight" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.load_weight_t'))" class="{{ $sheetInput }}" /></div>
+                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.axlesEmpty" :x-bind:aria-label="$quickGridAriaLabel(__('app.axles_empty'))" class="{{ $sheetInput }}" /></div>
+                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.axlesLoaded" :x-bind:aria-label="$quickGridAriaLabel(__('app.axles_loaded'))" class="{{ $sheetInput }}" /></div>
+                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.length" :x-bind:aria-label="$quickGridAriaLabel(__('app.length_m'))" class="{{ $sheetInput }}" /></div>
+                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.wagonWeight" :x-bind:aria-label="$quickGridAriaLabel(__('app.wagon_weight_t'))" class="{{ $sheetInput }}" /></div>
+                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.loadWeight" :x-bind:aria-label="$quickGridAriaLabel(__('app.load_weight_t'))" class="{{ $sheetInput }}" /></div>
                         <div role="cell" class="flex items-center px-2 text-sm font-bold tabular-nums" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.total_weight'))"><span x-text="formatNumber(totalWeight(wagon))"></span>&nbsp;t</div>
-                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.maxSpeed" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.maximum_speed'))" class="{{ $sheetInput }}" /></div>
+                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.maxSpeed" :x-bind:aria-label="$quickGridAriaLabel(__('app.maximum_speed'))" class="{{ $sheetInput }}" /></div>
 
-                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.brakeG" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.brake_weight_g'))" class="{{ $sheetInput }}" /></div>
-                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.brakeP" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.brake_weight_p'))" class="{{ $sheetInput }}" /></div>
+                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.brakeG" :x-bind:aria-label="$quickGridAriaLabel(__('app.brake_weight_g'))" class="{{ $sheetInput }}" /></div>
+                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.brakeP" :x-bind:aria-label="$quickGridAriaLabel(__('app.brake_weight_p'))" class="{{ $sheetInput }}" /></div>
                         <div role="cell" class="p-1">
                             <button
                                 type="button"
@@ -332,7 +336,7 @@
                                 class="h-5 w-5 rounded border-rt-border text-rt-accent focus:ring-rt-accent/35 dark:border-rt-dark-border"
                             >
                         </div>
-                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.1" :decimals="1" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.parkingBrake" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.parking_brake_kn'))" class="{{ $sheetInput }}" /></div>
+                        <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.1" :decimals="1" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.parkingBrake" :x-bind:aria-label="$quickGridAriaLabel(__('app.parking_brake_kn'))" class="{{ $sheetInput }}" /></div>
 
                         <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.shippingStation" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.shipping_station'))" class="{{ $sheetInput }}"></div>
                         <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.destinationStation" x-bind:aria-label="@js(__('app.row')) + ' ' + (index + 1) + ', ' + @js(__('app.destination_station'))" class="{{ $sheetInput }}"></div>

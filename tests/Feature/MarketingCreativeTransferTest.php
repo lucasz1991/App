@@ -132,6 +132,34 @@ final class MarketingCreativeTransferTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_import_dialog_alpine_state_is_compiled_for_closed_and_validation_error_renders(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $closedResponse = $this->actingAs($admin)
+            ->get(route('admin.marketing.creatives.index'));
+
+        $closedResponse
+            ->assertOk()
+            ->assertSee('x-data="{ importOpen: false }"', false)
+            ->assertDontSee('@js(', false);
+
+        $invalidUpload = UploadedFile::fake()->createWithContent(
+            'ungueltiges-motiv.json',
+            '{kein-json',
+        );
+        $openResponse = $this->actingAs($admin)
+            ->followingRedirects()
+            ->from(route('admin.marketing.creatives.index'))
+            ->post(route('admin.marketing.creatives.import'), ['bundle' => $invalidUpload]);
+
+        $openResponse
+            ->assertOk()
+            ->assertSee('x-data="{ importOpen: true }"', false)
+            ->assertSee('Die Datei enthält kein gültiges JSON-Motivpaket.')
+            ->assertDontSee('@js(', false);
+    }
+
     public function test_import_route_creates_a_draft_and_rejects_a_tampered_media_hash(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

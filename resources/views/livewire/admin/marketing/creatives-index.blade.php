@@ -8,7 +8,7 @@
     :show-back="false"
     content-class="space-y-5"
     data-marketing-creatives
-    x-data="{ importOpen: @js($errors->has('bundle')) }"
+    :x-data="$errors->has('bundle') ? '{ importOpen: true }' : '{ importOpen: false }'"
 >
     <x-slot:actions>
         <button

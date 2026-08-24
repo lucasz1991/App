@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use JsonException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class MarketingCreativeTransferController extends Controller

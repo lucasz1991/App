@@ -550,18 +550,23 @@ class SignatureTrainTimelineTest extends TestCase
             $gif = $this->parseGif($resource);
             $this->assertSame(2016, $gif['width']);
             $this->assertSame(171, $gif['height']);
-            $this->assertCount(48, $gif['frames']);
+            $this->assertCount(37, $gif['frames']);
 
             $delays = array_column($gif['frames'], 'delayCs');
             $this->assertSame(1300, array_sum($delays), "{$filename}: V13 muss exakt 13,0 s dauern.");
             $this->assertSame(5, $delays[0], "{$filename}: Das Startbild muss nach 50 ms wechseln.");
-            $this->assertSame(200, $delays[47], "{$filename}: Der finale Rauchstand muss 2,0 s stehen bleiben.");
+            $this->assertSame(600, $delays[36], "{$filename}: Der rauchfreie Endstand muss 6,0 s stehen bleiben.");
 
             $maxSmokeRows = 0;
+            $drivingSmokeFrames = 0;
+            $holdFrames = 0;
+            $elapsedCs = 0;
+            $frameStarts = [];
             foreach ($gif['frames'] as $index => $frame) {
+                $frameStarts[] = $elapsedCs;
                 $this->assertTrue($frame['transparent'], "{$filename}: Frame {$index} muss transparent sein.");
                 $this->assertSame(
-                    $index === 47 ? 1 : 2,
+                    $index === 36 ? 1 : 2,
                     $frame['disposal'],
                     "{$filename}: Frame {$index} hat die falsche Entsorgungsmethode.",
                 );
@@ -607,12 +612,34 @@ class SignatureTrainTimelineTest extends TestCase
                     }
                 }
                 $maxSmokeRows = max($maxSmokeRows, $smokeRows);
-                if ($index < 38) {
-                    $this->assertSame(0, $smokeRows, "{$filename}: Rauch beginnt vor der Ankunft in Frame {$index}.");
+                if ($elapsedCs < 700) {
+                    if ($smokeRows > 0) {
+                        $drivingSmokeFrames++;
+                        $this->assertLessThanOrEqual(
+                            700,
+                            $elapsedCs + $frame['delayCs'],
+                            "{$filename}: Rauchframe {$index} reicht in den Stillstand hinein.",
+                        );
+                    }
                 } else {
-                    $this->assertGreaterThan(0, $smokeRows, "{$filename}: Rauch fehlt nach der Ankunft in Frame {$index}.");
+                    $holdFrames++;
+                    $this->assertSame(0, $smokeRows, "{$filename}: Frame {$index} enthaelt nach der Einfahrt noch Rauch.");
                 }
+
+                if ($index === 36) {
+                    $this->assertGreaterThan(
+                        0,
+                        $this->countInk($pixels, $frame['transparentIndex']),
+                        "{$filename}: Der rauchfreie Endstand darf nicht leer sein.",
+                    );
+                }
+
+                $elapsedCs += $frame['delayCs'];
             }
+            $this->assertContains(700, $frameStarts, "{$filename}: Der rauchfreie Stillstand muss exakt nach 7,0 s beginnen.");
+            $this->assertSame(1300, $elapsedCs, "{$filename}: Die ausgewertete Timeline muss exakt 13,0 s dauern.");
+            $this->assertGreaterThanOrEqual(12, $drivingSmokeFrames, "{$filename}: Waehrend der Fahrt ist zu wenig Rauch sichtbar.");
+            $this->assertGreaterThan(0, $holdFrames, "{$filename}: Ein rauchfreier End-Hold fehlt.");
             $this->assertGreaterThanOrEqual(24, $maxSmokeRows, "{$filename}: Der Rauch besitzt keine erkennbare mehrzeilige Wolkenform.");
 
             $pngResource = resource_path("mail-templates/assets/zug-dampf-v13-{$theme}.png");
@@ -624,7 +651,7 @@ class SignatureTrainTimelineTest extends TestCase
 
             $image = imagecreatefrompng($pngResource);
             $this->assertInstanceOf(\GdImage::class, $image);
-            for ($y = 0; $y < 16; $y++) {
+            for ($y = 0; $y < 80; $y++) {
                 $transparentRow = true;
                 for ($x = 0; $x < imagesx($image); $x++) {
                     if (((imagecolorat($image, $x, $y) >> 24) & 0x7F) !== 127) {
@@ -632,18 +659,21 @@ class SignatureTrainTimelineTest extends TestCase
                         break;
                     }
                 }
-                $this->assertTrue($transparentRow, "{$filename}: PNG belegt die Rauch-Sicherheitszone in Zeile {$y}.");
+                $this->assertTrue($transparentRow, "{$filename}: PNG-Standbild enthaelt noch Rauch in Zeile {$y}.");
             }
-            $pngSmokeRows = 0;
-            for ($y = 16; $y < 80; $y++) {
+            $pngContainsTrain = false;
+            for ($y = 80; $y < imagesy($image); $y++) {
                 for ($x = 0; $x < imagesx($image); $x++) {
                     if (((imagecolorat($image, $x, $y) >> 24) & 0x7F) < 127) {
-                        $pngSmokeRows++;
+                        $pngContainsTrain = true;
                         break;
                     }
                 }
+                if ($pngContainsTrain) {
+                    break;
+                }
             }
-            $this->assertGreaterThanOrEqual(24, $pngSmokeRows, "{$filename}: PNG-Standbild besitzt keine erkennbare Rauchwolke.");
+            $this->assertTrue($pngContainsTrain, "{$filename}: PNG-Standbild enthaelt keinen Zug.");
             imagedestroy($image);
         }
     }

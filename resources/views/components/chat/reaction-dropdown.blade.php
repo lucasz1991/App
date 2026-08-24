@@ -17,6 +17,12 @@
         'emoji' => $emoji,
         'count' => $count,
     ]);
+    $reactionAction = sprintf(
+        '%s(%d, %s)',
+        $reactMethod,
+        (int) $messageId,
+        (string) \Illuminate\Support\Js::from($emoji),
+    );
 @endphp
 
 <x-ui.dropdown.anchor-dropdown
@@ -59,7 +65,7 @@
                     <span>{{ __('app.chat_remove_reaction') }}</span>
                 </x-ui.dropdown.dropdown-link>
             @else
-                <x-ui.dropdown.dropdown-link wire:click="{{ $reactMethod }}({{ (int) $messageId }}, @js($emoji))">
+                <x-ui.dropdown.dropdown-link :wire:click="$reactionAction">
                     <span class="rt-chat-option-icon"><span aria-hidden="true">{{ $emoji }}</span></span>
                     <span>{{ $hasReaction ? __('app.chat_change_to_reaction', ['emoji' => $emoji]) : __('app.chat_react_with', ['emoji' => $emoji]) }}</span>
                 </x-ui.dropdown.dropdown-link>

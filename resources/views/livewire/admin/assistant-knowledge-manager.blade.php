@@ -548,7 +548,8 @@
                         wire:model="entrySummary"
                         rows="3"
                         maxlength="1000"
-                        @if ($entryBaseline) required aria-required="true" @else aria-required="false" @endif
+                        :required="$entryBaseline"
+                        :aria-required="$entryBaseline ? 'true' : 'false'"
                         :aria-invalid="$errors->has('entrySummary') ? 'true' : 'false'"
                         aria-describedby="knowledge-entry-summary-help{{ $errors->has('entrySummary') ? ' entrysummary-error' : '' }}"
                         class="mt-1"

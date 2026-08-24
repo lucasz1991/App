@@ -11,6 +11,7 @@ use App\Services\Marketing\MarketingFileSourceService;
 use App\Services\Marketing\MarketingStudioService;
 use App\Support\MarketingFileSourceSettings;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -84,6 +85,35 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         $this->assertStringNotContainsString('onUpload:', $adapter);
         $this->assertFileDoesNotExist(resource_path('views/livewire/admin/marketing/assets-index.blade.php'));
         $this->assertFileDoesNotExist(app_path('Livewire/Admin/Marketing/AssetsIndex.php'));
+    }
+
+    public function test_blade_directives_do_not_leak_from_component_attributes_into_browser_markup(): void
+    {
+        $views = [
+            'livewire/admin/marketing/creatives-index.blade.php',
+            'components/chat/reaction-dropdown.blade.php',
+            'livewire/operations/partials/wagon-sheet-grid.blade.php',
+        ];
+
+        foreach ($views as $view) {
+            $source = file_get_contents(resource_path('views/'.$view));
+
+            $this->assertIsString($source, $view);
+            $this->assertStringNotContainsString('@js(', Blade::compileString($source), $view);
+        }
+    }
+
+    public function test_knowledge_summary_textarea_is_compiled_as_a_blade_component(): void
+    {
+        $view = 'livewire/admin/assistant-knowledge-manager.blade.php';
+        $source = file_get_contents(resource_path('views/'.$view));
+
+        $this->assertIsString($source);
+        $this->assertStringNotContainsString(
+            '<x-ui.forms.textarea',
+            Blade::compileString($source),
+            $view,
+        );
     }
 
     public function test_real_admin_pages_render_file_pool_images_while_staff_is_denied(): void
