@@ -1126,8 +1126,9 @@ const MOTION_CONTROL_SELECTORS = [
 /**
  * Style-Manager des E-Mail-Modus.
  *
- * Enthaelt ausschliesslich Eigenschaften, die in den funktionierenden
- * RailTime-Vorlagen vorkommen und die ein Mailclient zuverlaessig umsetzt.
+ * Enthaelt die SAFE-Eigenschaften der funktionierenden RailTime-Vorlagen
+ * sowie eine ausdruecklich als progressiv markierte Rundung mit eckigem
+ * Tabellen-/Farb-Fallback.
  * Nicht dabei und auch nicht nachtraeglich ergaenzen:
  *   - float/clear, flex-*, grid-*        zerlegen jedes Tabellenlayout
  *   - position/z-index                   in der Signatur noetig, dort aber
@@ -1184,20 +1185,22 @@ export const MAIL_STYLE_SECTORS = Object.freeze([
         // ebenfalls durchgaengig 'background:<Farbe>'.
         properties: [
             { property: 'background', name: 'Hintergrund', type: 'color' },
-            { extend: 'opacity' },
         ],
     }),
     Object.freeze({
         id: 'rt-mail-border',
         name: 'Rahmen',
         open: false,
-        buildProps: [
+        properties: [
             'border',
             'border-top',
             'border-right',
             'border-bottom',
             'border-left',
-            'border-radius',
+            {
+                extend: 'border-radius',
+                name: 'Ecken (progressiv, eckiger Fallback)',
+            },
         ],
     }),
     Object.freeze({
@@ -1220,7 +1223,6 @@ export const MAIL_STYLE_SECTORS = Object.freeze([
             'vertical-align',
             'border-collapse',
             'direction',
-            'overflow',
         ],
     }),
 ]);

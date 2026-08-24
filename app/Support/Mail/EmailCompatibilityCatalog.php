@@ -455,6 +455,12 @@ final class EmailCompatibilityCatalog implements JsonSerializable
 
         foreach ($this->activeRuleGroups() as $group) {
             $rule = $group['definition'];
+            // Der Pagebuilder ist per Vertrag SAFE-by-default. Nur Regeln,
+            // die davon abweichen, muessen als progressive oder getrennte
+            // Steuerelemente in die Browserkonfiguration gelangen.
+            if ($rule['compatibility_level'] === 'SAFE') {
+                continue;
+            }
             $supportStatus = 'NOT_APPLICABLE';
             foreach ($group['profiles'] as $profile) {
                 $candidate = $profile['support_status'];

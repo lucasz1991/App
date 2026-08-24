@@ -14,6 +14,8 @@ use App\Notifications\MailDocumentTestNotification;
 use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\CssSemantic;
+use App\Support\Mail\EmailCompatibilityAuditor;
+use App\Support\Mail\EmailCompatibilityCatalog;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\SignatureArtifactVersion;
@@ -312,6 +314,7 @@ class MailDocumentEditorTest extends TestCase
         $response->assertCreated()
             ->assertJsonPath('document.kind', MailDocumentKind::Signature->value)
             ->assertJsonPath('document.status', MailDocumentStatus::Draft->value)
+            ->assertJsonPath('compatibility.catalog_version', '1.0.0')
             ->assertJsonPath('redirect', route('admin.mail-documents.editor', [
                 'dokument' => MailDocumentKind::Signature->value,
                 'open' => 1,
@@ -1764,12 +1767,14 @@ HTML;
         $shortHash = substr($contentHash, 0, 12);
         $response->assertOk()
             ->assertJsonPath('recipient', $recipient)
+            ->assertJsonPath('compatibility.catalog_version', '1.0.0')
             ->assertJsonPath('layout_version', SignatureArtifactVersion::V8)
             ->assertJsonPath('document_version', $documentVersion)
             ->assertJsonPath('content_hash', $contentHash);
         $this->assertStringContainsString('Layout v8', (string) $response->json('message'));
         $this->assertStringContainsString('Dokumentversion '.$documentVersion, (string) $response->json('message'));
         $this->assertStringContainsString('Prüfung '.$shortHash, (string) $response->json('message'));
+        $this->assertGreaterThan(strlen($html), $response->json('compatibility.html_bytes'));
 
         Notification::assertSentOnDemand(
             MailDocumentTestNotification::class,
@@ -1873,6 +1878,39 @@ HTML;
         $this->assertSame($saved->css, $response->json('document.css'));
         $this->assertFalse($response->json('report.clean'));
         $this->assertNotEmpty($response->json('report.messages'));
+        $this->assertSame('1.0.0', $response->json('compatibility.catalog_version'));
+        $this->assertContains($response->json('compatibility.status'), ['pass', 'warn']);
+    }
+
+    public function test_fehlender_kompatibilitaetskatalog_erlaubt_entwurf_aber_blockiert_freigabe(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Template);
+        $missingPath = storage_path('framework/testing/missing-email-catalog-'.bin2hex(random_bytes(8)).'.csv');
+        $catalog = new EmailCompatibilityCatalog($missingPath);
+        $this->app->instance(EmailCompatibilityCatalog::class, $catalog);
+        $this->app->instance(EmailCompatibilityAuditor::class, new EmailCompatibilityAuditor($catalog));
+
+        $saved = $this->actingAs($this->admin())
+            ->putJson(route('admin.mail-documents.update', $document), [
+                'builder_data' => $document->builder_data,
+                'html' => $document->html,
+                'css' => (string) $document->css,
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertOk()
+            ->assertJsonPath('compatibility.catalog_version', 'unavailable')
+            ->assertJsonPath('compatibility.status', 'block')
+            ->assertJsonPath('compatibility.findings.0.diagnostic_code', 'EMAIL_CATALOG_UNAVAILABLE');
+
+        $this->postJson(route('admin.mail-documents.publish', $document), [
+            'expected_hash' => $saved->json('document.content_hash'),
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('compatibility');
+
+        $fresh = $document->fresh();
+        $this->assertSame(MailDocumentStatus::Draft, $fresh->status);
+        $this->assertNull($fresh->published_html);
     }
 
     public function test_signatursave_entfernt_editorattribute_und_verlangt_die_kanonische_zugquelle(): void
@@ -3369,6 +3407,7 @@ HTML;
                 'expected_hash' => $document->content_hash,
             ])
             ->assertOk()
+            ->assertJsonPath('compatibility.catalog_version', '1.0.0')
             ->assertJsonPath('document.status', MailDocumentStatus::Published->value)
             ->assertJsonPath('document.has_unpublished_changes', false);
 

@@ -12,6 +12,7 @@ use App\Models\MailDocumentVersion;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\MailDocumentTestNotification;
+use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\EmailCompatibilityAuditor;
 use App\Support\Mail\EmailCompatibilityCatalogException;
@@ -31,6 +32,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -446,7 +448,7 @@ final class MailDocumentController extends Controller
             'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
         ]);
 
-        [$published, $htmlReport, $cssReport, $compatibility] = DB::transaction(function () use ($document, $actor, $sanitizer, $compatibilityAuditor, $validated, $versions): array {
+        [$published, $htmlReport, $cssReport, $compatibility] = DB::transaction(function () use ($document, $actor, $sanitizer, $compatibilityAuditor, $publishedDocuments, $validated, $versions): array {
             $locked = $this->lock($document);
 
             // Auch die Freigabe ist ein Schreibvorgang. Ohne denselben
@@ -484,11 +486,20 @@ final class MailDocumentController extends Controller
             }
 
             $this->assertDocumentStructure($locked, $htmlReport->html, $cssReport->html);
-            $compatibility = $this->auditCompatibility(
+            $sourceCompatibility = $this->auditCompatibility(
                 $compatibilityAuditor,
                 $locked->kind,
                 $htmlReport->html,
                 $cssReport->html,
+            );
+            $this->assertCompatibilityPublishable($sourceCompatibility);
+            $compatibility = $this->auditFinalCompatibility(
+                $compatibilityAuditor,
+                $publishedDocuments,
+                $locked->kind,
+                $htmlReport->html,
+                $cssReport->html,
+                $sourceCompatibility,
             );
             $this->assertCompatibilityPublishable($compatibility);
 
@@ -615,11 +626,20 @@ final class MailDocumentController extends Controller
             throw ValidationException::withMessages(['css' => $cssReport->violationMessages()]);
         }
         $this->assertDocumentStructure($document, $html, $cssReport->html);
-        $compatibility = $this->auditCompatibility(
+        $sourceCompatibility = $this->auditCompatibility(
             $compatibilityAuditor,
             $document->kind,
             $html,
             $cssReport->html,
+        );
+        $this->assertCompatibilityPublishable($sourceCompatibility);
+        $compatibility = $this->auditFinalCompatibility(
+            $compatibilityAuditor,
+            $snapshots,
+            $document->kind,
+            $html,
+            $cssReport->html,
+            $sourceCompatibility,
         );
         $this->assertCompatibilityPublishable($compatibility);
         $artifactVersion = SignatureArtifactVersion::detect($document->kind, $html);
@@ -899,6 +919,80 @@ final class MailDocumentController extends Controller
                 strlen($html),
                 strlen($css),
             );
+        }
+    }
+
+    /**
+     * Veroeffentlichung und Testmail messen nicht nur das Builder-Fragment,
+     * sondern eine final zusammengesetzte, personalisierte Systemmail. Der
+     * request-lokale Snapshot verbindet dabei exakt den Kandidaten mit dem
+     * jeweils anderen aktuellen Baustein, ohne einen bestehenden Abzug zu
+     * migrieren oder dauerhaft umzuschreiben.
+     */
+    private function auditFinalCompatibility(
+        EmailCompatibilityAuditor $auditor,
+        PublishedMailDocumentSnapshotStore $snapshots,
+        MailDocumentKind $candidateKind,
+        string $candidateHtml,
+        string $candidateCss,
+        EmailCompatibilityReport $fallback,
+    ): EmailCompatibilityReport {
+        $documents = [];
+        foreach (MailDocumentKind::cases() as $kind) {
+            if ($kind === $candidateKind) {
+                $documents[$kind->value] = ['html' => $candidateHtml, 'css' => $candidateCss];
+
+                continue;
+            }
+
+            $document = MailDocument::query()->where('kind', $kind->value)->first();
+            if (! $document instanceof MailDocument) {
+                return $fallback;
+            }
+
+            $publishedHtml = trim((string) $document->published_html);
+            $documents[$kind->value] = [
+                'html' => $publishedHtml !== '' ? $publishedHtml : (string) $document->html,
+                'css' => $publishedHtml !== '' ? (string) $document->published_css : (string) $document->css,
+            ];
+        }
+
+        foreach (MailDocumentKind::cases() as $kind) {
+            $snapshot = $documents[$kind->value];
+            if (trim($snapshot['html']) === '') {
+                return $fallback;
+            }
+        }
+
+        foreach (MailDocumentKind::cases() as $kind) {
+            $snapshot = $documents[$kind->value];
+            $snapshots->useSnapshot($kind, $snapshot['html'], $snapshot['css']);
+        }
+
+        try {
+            $finalHtml = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString(
+                '<p style="margin:0 0 16px;">RailTime Kompatibilitätsprüfung</p>'
+                .'<p style="margin:0;"><a href="https://rail-time.de/">RailTime öffnen</a></p>',
+            ));
+        } catch (\Throwable $exception) {
+            throw ValidationException::withMessages([
+                'compatibility' => 'Die finale Systemmail konnte nicht kompiliert werden: '.$exception->getMessage(),
+            ]);
+        } finally {
+            foreach (MailDocumentKind::cases() as $kind) {
+                $snapshots->forget($kind);
+            }
+        }
+
+        try {
+            return $auditor->audit($finalHtml, '', [
+                'document_kind' => 'system_mail',
+                'plain_text' => "RailTime Kompatibilitätsprüfung\nhttps://rail-time.de/",
+                'trusted_system_css' => true,
+                'allow_template_tokens' => false,
+            ]);
+        } catch (EmailCompatibilityCatalogException $exception) {
+            return EmailCompatibilityReport::unavailable($exception, strlen($finalHtml));
         }
     }
 

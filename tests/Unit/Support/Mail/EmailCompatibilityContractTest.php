@@ -55,6 +55,33 @@ final class EmailCompatibilityContractTest extends TestCase
         self::assertArrayNotHasKey('validator_config_json', $manifest['rules'][0]);
         self::assertArrayNotHasKey('valid_example', $manifest['rules'][0]);
         self::assertArrayNotHasKey('source_url', $manifest['rules'][0]);
+        self::assertSame([], $catalog->builderManifestForJs()['controls']);
+    }
+
+    public function test_real_catalog_uses_the_canonical_quoted_utf8_crlf_dialect(): void
+    {
+        $path = dirname(__DIR__, 4).DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'data'
+            .DIRECTORY_SEPARATOR.'email-html-compatibility-rules.csv';
+        $contents = file_get_contents($path);
+        self::assertIsString($contents);
+        self::assertFalse(str_starts_with($contents, "\xEF\xBB\xBF"));
+        self::assertTrue(mb_check_encoding($contents, 'UTF-8'));
+        self::assertSame(0, preg_match('/(?<!\r)\n|\r(?!\n)/', $contents));
+        self::assertTrue(str_ends_with($contents, "\r\n"));
+
+        $lines = explode("\r\n", substr($contents, 0, -2));
+        $field = '"(?:[^"]|"")*"';
+        $recordPattern = '/^'.$field.'(?:,'.$field.'){'.(count(EmailCompatibilityCatalog::HEADER) - 1).'}$/D';
+        foreach ($lines as $lineNumber => $line) {
+            self::assertSame(1, preg_match($recordPattern, $line), 'Nicht kanonisch gequotete CSV-Zeile '.($lineNumber + 1));
+        }
+
+        $catalog = new EmailCompatibilityCatalog($path);
+        self::assertCount(1908, $catalog->rows());
+        self::assertCount(78, $catalog->activeRuleGroups());
+        self::assertSame(EmailCompatibilityCatalog::HEADER, array_keys($catalog->rows()[0]));
+        self::assertContains('official_vendor', array_column($catalog->rows(), 'source_type'));
+        self::assertContains('original_client_test', array_column($catalog->rows(), 'source_type'));
     }
 
     public function test_catalog_fails_closed_with_structured_errors(): void
@@ -161,6 +188,64 @@ final class EmailCompatibilityContractTest extends TestCase
         $styleWarning = $auditor->audit('<p>x</p>', str_repeat('a', EmailCompatibilityAuditor::STYLE_WARN_BYTES));
         self::assertSame('warn', $styleWarning->status());
         self::assertContains('EMAIL_SIZE_STYLE_WARN', array_column($styleWarning->findings, 'diagnostic_code'));
+    }
+
+    public function test_full_document_rules_do_not_treat_signature_fragments_as_broken_documents(): void
+    {
+        $row = $this->row('EMAIL-DOC-001', 'doctype_lang', 'all', 'BLOCK');
+        $row['match_target'] = 'full_document';
+        $row['validator_config_json'] = '{"require_doctype":true,"require_lang":true}';
+        $catalog = new EmailCompatibilityCatalog($this->writeCatalog([$row]));
+        $auditor = new EmailCompatibilityAuditor($catalog);
+
+        $fragment = $auditor->audit(
+            '<table role="presentation"><tr><td>Signatur</td></tr></table>',
+            '',
+            ['document_kind' => 'signature'],
+        );
+        self::assertSame('pass', $fragment->status());
+
+        $document = $auditor->audit(
+            '<!doctype html><html><head></head><body>Mail</body></html>',
+            '',
+            ['document_kind' => 'template'],
+        );
+        self::assertSame('block', $document->status());
+        self::assertSame('EMAIL-DOC-001', $document->findings[0]['rule_id']);
+    }
+
+    public function test_real_catalog_handlers_accept_safe_markup_and_report_forbidden_builder_techniques(): void
+    {
+        $path = dirname(__DIR__, 4).DIRECTORY_SEPARATOR.'resources'.DIRECTORY_SEPARATOR.'data'
+            .DIRECTORY_SEPARATOR.'email-html-compatibility-rules.csv';
+        $auditor = new EmailCompatibilityAuditor(new EmailCompatibilityCatalog($path));
+        $safe = '<!doctype html><html lang="de"><head><meta charset="UTF-8">'
+            .'<meta name="viewport" content="width=device-width, initial-scale=1"></head><body>'
+            .'<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">'
+            .'<tr><td><a href="https://rail-time.de/">RailTime</a></td></tr></table></body></html>';
+
+        self::assertSame('pass', $auditor->audit($safe, '', ['document_kind' => 'template'])->status());
+
+        $unsafe = str_replace(
+            '</body>',
+            '<form><input></form><table><tr><td><a href="/relativ">'
+                .'<img src="https://rail-time.de/bild.png" alt=""></a></td></tr></table></body>',
+            $safe,
+        );
+        $report = $auditor->audit(
+            $unsafe,
+            '.layout{display:flex}',
+            ['document_kind' => 'template', 'trusted_system_css' => false],
+        );
+        $ruleIds = array_column($report->findings, 'rule_id');
+
+        self::assertSame('block', $report->status());
+        self::assertContains('EMAIL-SECURITY-001', $ruleIds);
+        self::assertContains('EMAIL-LAYOUT-001', $ruleIds);
+        self::assertContains('EMAIL-LAYOUT-004', $ruleIds);
+        self::assertContains('EMAIL-LINK-001', $ruleIds);
+        self::assertContains('EMAIL-IMAGE-001', $ruleIds);
+        self::assertContains('EMAIL-IMAGE-002', $ruleIds);
     }
 
     /** @return array<string, string> */

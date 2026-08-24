@@ -1087,6 +1087,12 @@ test('fixed signature geometry resets stage and content frame directly to pixels
 });
 
 test('mail editor no longer offers misleading train background controls', () => {
+    const exposedProperties = MAIL_STYLE_SECTORS.flatMap((sector) => [
+        ...(sector.buildProps || []),
+        ...(sector.properties || []).map((property) => (
+            typeof property === 'string' ? property : (property.property || property.extend)
+        )),
+    ]);
     assert.equal(MAIL_STYLE_SECTORS.some((item) => item.id === 'rt-mail-train-background'), false);
     assert.equal(MAIL_STYLE_SECTORS.some((item) => item.buildProps?.includes('position')), false);
     assert.equal(MAIL_STYLE_SECTORS.some((item) => item.buildProps?.includes('z-index')), false);
@@ -1095,6 +1101,14 @@ test('mail editor no longer offers misleading train background controls', () => 
     assert.equal(spacingSector?.buildProps?.includes('margin'), true);
     assert.equal(spacingSector?.buildProps?.some((property) => /^padding-/.test(property)), false);
     assert.equal(spacingSector?.buildProps?.some((property) => /^margin-/.test(property)), false);
+    assert.equal(exposedProperties.includes('opacity'), false);
+    assert.equal(exposedProperties.includes('overflow'), false);
+    assert.equal(exposedProperties.includes('flex'), false);
+    assert.equal(exposedProperties.includes('grid'), false);
+    const progressiveRadius = MAIL_STYLE_SECTORS
+        .flatMap((sector) => sector.properties || [])
+        .find((property) => typeof property === 'object' && property.extend === 'border-radius');
+    assert.match(progressiveRadius?.name || '', /progressiv.*Fallback/i);
     assert.equal(MAIL_EDITOR_MODE.id, 'mail');
     assert.equal(MAIL_EDITOR_MODE.contentModel, 'email');
     assert.equal(MAIL_EDITOR_MODE.styleStrategy, 'inline');
@@ -1432,6 +1446,14 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /data-mail-editor-mode="mail"/);
     assert.match(mailView, /LMZ Page Builder wird im Mailmodus geladen/);
     assert.match(mailView, /data-mail-code-dialog/);
+    assert.match(mailView, /data-mail-degradation-mode/);
+    assert.match(mailView, /Bilder aus/);
+    assert.match(mailView, /Head-CSS aus/);
+    assert.match(mailView, /Gesamtes CSS aus/);
+    assert.match(mailView, /keine Mailclient-Emulation/);
+    assert.match(mailView, /instance\?\.setDegradationMode\?\.\(selectedDegradationMode\)/);
+    assert.match(mailView, /compatibilityBlocksPublication/);
+    assert.match(mailView, /showFindings\(payload\.report, payload\.compatibility\)/);
     assert.match(mailView, /const MAIL_SOURCE_VERSION = 2/);
     assert.match(mailView, /const MAX_SOURCE_BYTES = 1024 \* 1024/);
     assert.match(mailView, /const MAX_BUNDLE_BYTES = 16 \* 1024 \* 1024/);
@@ -1458,6 +1480,8 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailCss, /\.rt-mail-studio\s*\{[\s\S]*?overflow:\s*hidden;/);
     assert.match(mailCss, /\.rt-mail-code-dialog\s*\{/);
     assert.match(mailCss, /\.rt-mail-code-dialog::backdrop/);
+    assert.match(mailCss, /\.rt-mail-degradation-preview\s*\{/);
+    assert.match(mailCss, /data-mail-degradation-active/);
     assert.doesNotMatch(mailCss, /min-height:\s*42rem/);
     assert.match(shellCss, /font-family:\s*'Plus Jakarta Sans Variable'/);
     assert.match(shellCss, /html\[data-rt-pagebuilder-assist-open='true'\]/);
