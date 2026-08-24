@@ -1636,11 +1636,12 @@ HTML;
             $this->assertStringContainsString('tr.rt-stack > td', $responsiveCss);
         }
 
-        // V10 bis V13 besitzen eigene mobile Geometrievertraege; V11 bis V13
+        // V10 bis V14 besitzen eigene mobile Geometrievertraege; V11 bis V14
         // trennen zusaetzlich die sichere Vollfassung vom kompakten
-        // Systemprofil. Da die Vorschau-CSS fuer Hell und Dunkel enthalten
-        // ist, bleibt der realistische Deckel dennoch deutlich unter 136 KiB.
-        $this->assertLessThan(139_264, strlen((string) $match[1]));
+        // Systemprofil. V14 ergaenzt ausserdem einen expliziten, fail-closed
+        // Medienvertrag. Trotz doppelter Vorschau-CSS fuer Hell und Dunkel
+        // bleibt die komplette Editor-Konfiguration unter 144 KiB.
+        $this->assertLessThan(147_456, strlen((string) $match[1]));
 
         $mailAssets = data_get($config, 'mailAssets');
         $this->assertIsArray($mailAssets);
