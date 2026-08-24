@@ -34,7 +34,6 @@ class Dashboard extends Component
         return view('livewire.admin.dashboard', [
             'recentUsers' => $dashboardData->recentUsers(),
             'recentActivity' => $dashboardData->recentActivity(),
-            'operations' => $dashboardData->operations(),
             'charts' => $dashboardData->charts(),
             'workforce' => $this->workforceSnapshot(),
             'operationalModules' => $previewCatalog->dashboard(),

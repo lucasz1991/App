@@ -197,11 +197,13 @@ class SystemDashboardData
         }
 
         try {
-            $queueLabel = __('app.jobs_pending', ['count' => DB::table('jobs')->count()]);
+            $pendingJobs = DB::table('jobs')->count();
             $failedJobs = DB::table('failed_jobs')->count();
+            $queueLabel = __('app.jobs_pending', ['count' => $pendingJobs])
+                . ' · '
+                . __('app.jobs_failed', ['count' => $failedJobs]);
         } catch (\Throwable) {
             $queueLabel = '—';
-            $failedJobs = 0;
         }
 
         $diskFree = @disk_free_space(storage_path());
@@ -220,7 +222,6 @@ class SystemDashboardData
             'developer' => 'Lucas M. Zacharias',
             'database' => $databaseLabel,
             'queue' => $queueLabel,
-            'failedJobs' => $failedJobs,
             'storage' => trans_choice('app.files_count', File::query()->count()) . ' · ' . static::formatBytes((int) File::query()->sum('size')),
             'disk' => ($diskFree && $diskTotal)
                 ? static::formatBytes((int) $diskFree) . ' / ' . static::formatBytes((int) $diskTotal)

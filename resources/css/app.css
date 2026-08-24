@@ -970,79 +970,7 @@ body[data-mode="dark"] .rt-swal-toast.swal2-toast .rt-swal-toast__close:hover { 
     }
 }
 
-/* Admin Command Center: eigenstaendige RailTime-Strecke, dezentes Raster und
-   GPU-beschleunigte Signallauf-Animation. */
-.rt-admin-hero {
-    isolation: isolate;
-    border: 1px solid rgba(203, 213, 225, 0.78);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.92),
-        0 22px 52px -38px rgba(15, 23, 42, 0.52);
-}
-
-.rt-admin-hero::before {
-    position: absolute;
-    inset: 0;
-    z-index: -2;
-    content: '';
-    background:
-        radial-gradient(circle at 82% 12%, rgba(228, 0, 43, 0.12), transparent 27%),
-        radial-gradient(circle at 10% 120%, rgba(255, 255, 255, 0.98), transparent 40%),
-        linear-gradient(145deg, #f9fbfd 0%, #eef3f8 100%);
-}
-
-.dark .rt-admin-hero::before {
-    background:
-        radial-gradient(circle at 78% 18%, rgba(228, 0, 43, 0.2), transparent 28%),
-        radial-gradient(circle at 12% 112%, rgba(71, 85, 105, 0.2), transparent 38%),
-        #080d16;
-}
-
-.dark .rt-admin-hero {
-    border-color: rgba(51, 65, 85, 0.92);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.05),
-        0 24px 56px -38px rgba(0, 0, 0, 0.92);
-}
-
-.rt-admin-hero::after {
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    content: '';
-    opacity: 0.42;
-    background-image:
-        linear-gradient(#d7e0ea 1px, transparent 1px),
-        linear-gradient(90deg, #d7e0ea 1px, transparent 1px);
-    background-size: 42px 42px;
-    mask-image: linear-gradient(to left, black, transparent 78%);
-}
-
-.dark .rt-admin-hero::after {
-    opacity: 0.3;
-    background-image:
-        linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
-}
-
-.rt-admin-route-bed { stroke: #cfd9e4; }
-.dark .rt-admin-route-bed { stroke: #202733; }
-.rt-admin-signal-neutral { fill: #182435; }
-.dark .rt-admin-signal-neutral { fill: #ffffff; }
-.rt-admin-route-end { fill: #637188; }
-.dark .rt-admin-route-end { fill: #cbd5e1; }
-
-.rt-admin-route-line {
-    stroke-dasharray: 14 16;
-    animation: rt-admin-route 7s linear infinite;
-}
-
-.rt-admin-signal {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: rt-admin-signal 2.4s cubic-bezier(0.32, 0.72, 0, 1) infinite;
-}
-
+/* Gemeinsame Oberflaeche des verdichteten Admin-Dashboards. */
 .rt-admin-panel {
     min-width: 0;
     background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
@@ -1265,77 +1193,9 @@ body[data-mode="dark"] .rt-admin-chart:empty {
     color: #ff7189;
 }
 
-.dark .rt-admin-hero-badge,
-.dark .rt-admin-hero-secondary,
-.dark .rt-admin-chart-total {
-    color: #edf2f8;
-    background: #182435;
-    border-color: #475569;
-}
-
-.dark .rt-admin-hero-secondary:hover {
-    color: #ffffff;
-    background: #223249;
-    border-color: #637188;
-}
-
-html.dark [data-admin-dashboard] .rt-admin-hero-secondary,
-body[data-mode="dark"] [data-admin-dashboard] .rt-admin-hero-secondary {
-    color: #edf2f8 !important;
-    background-color: #182435 !important;
-    border-color: #475569 !important;
-}
-
-html.dark [data-admin-dashboard] .rt-admin-hero-badge,
-body[data-mode="dark"] [data-admin-dashboard] .rt-admin-hero-badge {
-    color: #edf2f8 !important;
-    background-color: #182435 !important;
-    border-color: #475569 !important;
-}
-
-html.dark [data-admin-dashboard] .rt-admin-hero-copy,
-body[data-mode="dark"] [data-admin-dashboard] .rt-admin-hero-copy {
-    color: #aeb9c9 !important;
-}
-
-html.dark [data-admin-dashboard] .rt-admin-hero-secondary:hover,
-body[data-mode="dark"] [data-admin-dashboard] .rt-admin-hero-secondary:hover {
-    color: #ffffff !important;
-    background-color: #223249 !important;
-    border-color: #637188 !important;
-}
-
-.dark .rt-admin-hero-copy {
-    color: #aeb9c9;
-}
-
-.dark .rt-admin-live-card {
-    color: #edf2f8;
-    background: #111a27;
-    border-color: #475569;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.04),
-        0 20px 44px -32px rgba(0, 0, 0, 0.95);
-}
-
-/* Dashboard theme lock: both signals are maintained by the master layout.
-   The important background values prevent late vendor/card rules from
-   producing white surfaces with already-dark text. */
-html.dark [data-admin-dashboard] .rt-admin-live-card,
-body[data-mode="dark"] [data-admin-dashboard] .rt-admin-live-card {
-    color: #edf2f8 !important;
-    background-color: #111a27 !important;
-    border-color: #475569 !important;
-}
-
-.dark .rt-admin-live-icon,
 .dark .rt-admin-user-avatar {
     background: #182435;
     border-color: #475569;
-}
-
-.dark .rt-admin-live-stats > :not([hidden]) ~ :not([hidden]) {
-    border-color: #334155;
 }
 
 .dark .rt-admin-operations {
@@ -1815,37 +1675,6 @@ body[data-mode="dark"] .rt-admin-ring-legend {
     .rt-admin-chart-card,
     .rt-admin-kpi {
         transition-duration: 0.01ms;
-    }
-}
-
-/* Sobald GSAP die Strecke fuehrt (DrawSVG setzt stroke-dasharray und
-   -dashoffset selbst), darf der CSS-Fallback nicht dagegen laufen. */
-[data-rt-route][data-rt-route-motion="on"] .rt-admin-route-line {
-    animation: none;
-}
-
-.rt-admin-route-train {
-    filter: drop-shadow(0 0 6px rgba(228, 0, 43, 0.65));
-}
-
-html.dark .rt-admin-route-train,
-body[data-mode="dark"] .rt-admin-route-train {
-    filter: drop-shadow(0 0 7px rgba(251, 59, 87, 0.7));
-}
-
-@keyframes rt-admin-route {
-    to { stroke-dashoffset: -120; }
-}
-
-@keyframes rt-admin-signal {
-    0%, 100% { opacity: 0.45; transform: scale(0.74); }
-    45% { opacity: 1; transform: scale(1.18); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .rt-admin-route-line,
-    .rt-admin-signal {
-        animation: none;
     }
 }
 

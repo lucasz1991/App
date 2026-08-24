@@ -2,8 +2,7 @@
 
 @php
     // Jede Zahl steht genau EINMAL auf dieser Seite. Die Aufteilung:
-    //   Kopf        -> was gerade laeuft (Online, Ungelesen, Einladungen)
-    //   Einsatz     -> die vier Arbeitsbereiche mit ihrer Leitzahl
+    //   Einsatz     -> die Arbeitsbereiche mit ihrer Leitzahl
     //   Belegschaft -> alles zum Personalbestand, gebuendelt in einer Karte
     //   Entwicklung -> Zeitreihen
     //   Personen    -> die beiden Personenlisten nebeneinander
@@ -36,13 +35,11 @@
     $registrationSum = array_sum($charts['userGrowth']['registrations'] ?? []);
     $growthTotals = $charts['userGrowth']['totals'] ?? [];
     $growthCurrent = $growthTotals ? (int) end($growthTotals) : 0;
-    $failedJobs = (int) ($system['failedJobs'] ?? 0);
 @endphp
 
 <x-ui.page :auto-intro="false">
-    {{-- Beim allerersten Besuch startet das Intro automatisch. Danach bleibt
-         derselbe Dialog unsichtbar im DOM und kann ueber den Info-Knopf im
-         Kopf jederzeit erneut geoeffnet werden. --}}
+    {{-- Beim allerersten Besuch startet das Intro automatisch. Der kompakte
+         Info-Knopf in der Einsatzsteuerung oeffnet es spaeter erneut. --}}
     <x-ui.welcome-intro
         :initially-open="\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome')"
     />
@@ -52,90 +49,9 @@
         x-data="adminDashboardCharts(@js($chartConfig))"
         data-admin-dashboard
     >
-        {{-- 1 · KOPF ---------------------------------------------------------
-             Titel und Tageslage. Bewusst ohne Aktionsknoepfe: jede Aktion
-             steht weiter unten in ihrem fachlichen Zusammenhang und zusaetzlich
-             dauerhaft in der Seitennavigation. --}}
-        <section class="rt-admin-hero relative overflow-hidden rounded-[1.4rem] px-4 py-4 text-rt-text shadow-rt-md sm:px-6 sm:py-5 lg:px-7 dark:text-white" data-dashboard-segment="hero">
-            <svg class="pointer-events-none absolute -right-20 bottom-0 h-full w-[58%] opacity-70" viewBox="0 0 720 360" fill="none" aria-hidden="true" data-rt-route>
-                <path class="rt-admin-route-bed" data-rt-route-bed d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke-width="34" stroke-linecap="round" />
-                <path class="rt-admin-route-line" data-rt-route-line d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke="#e4002b" stroke-width="3" stroke-linecap="round" />
-                <circle class="rt-admin-signal rt-admin-signal-neutral" cx="220" cy="176" r="8" />
-                <circle class="rt-admin-signal" cx="431" cy="233" r="8" fill="#e4002b" style="animation-delay:.7s" />
-                <circle class="rt-admin-route-end" cx="680" cy="58" r="5" />
-                <circle class="rt-admin-route-train" data-rt-route-train cx="0" cy="0" r="6" fill="#e4002b" opacity="0" />
-            </svg>
+        <h1 class="sr-only">{{ __('app.admin_control_center') }}</h1>
 
-            <div class="relative z-10 grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)] lg:items-center" data-dashboard-items>
-                <div class="max-w-3xl">
-                    <div class="mb-3 flex flex-wrap items-center gap-2.5">
-                        <span class="rt-admin-hero-badge inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold tracking-[0.08em] text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
-                            <span class="relative flex h-2 w-2">
-                                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-rt-red opacity-70"></span>
-                                <span class="relative inline-flex h-2 w-2 rounded-full bg-rt-red"></span>
-                            </span>
-                            {{ now()->translatedFormat('l, d. F Y') }}
-                        </span>
-                    </div>
-
-                    <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rt-red dark:text-rt-red-light">{{ __('app.administrator_team') }}</p>
-                    <h1 class="mt-1.5 max-w-2xl text-2xl font-semibold leading-tight tracking-[-0.04em] text-rt-text sm:text-3xl lg:text-4xl dark:text-white">
-                        {{ __('app.admin_control_center') }}
-                    </h1>
-                    <p class="rt-admin-hero-copy mt-2 max-w-2xl text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6 dark:text-slate-300">
-                        {{ __('app.admin_dashboard_description') }}
-                    </p>
-                </div>
-
-                <aside class="rt-admin-live-card w-full rounded-xl border border-slate-300 bg-white p-3.5 shadow-[0_16px_36px_-28px_rgba(15,23,42,.32)] lg:justify-self-end dark:border-slate-600 dark:bg-rt-dark-surface dark:shadow-[0_16px_36px_-24px_rgba(0,0,0,.85)]" aria-label="{{ __('app.live_operations') }}" data-rt-glow>
-                    <div class="flex items-center justify-between gap-4">
-                        <div class="min-w-0">
-                            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">{{ __('app.live_operations') }}</p>
-                            {{-- Ohne Systemrechte gibt es hier nichts Belastbares
-                                 zu melden — dann bleibt die Zeile weg, statt ein
-                                 nichtssagendes Wort anzuzeigen. --}}
-                            @if ($canViewSystemData)
-                                <p class="mt-1 truncate text-sm font-semibold {{ $failedJobs > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-rt-text dark:text-white' }}">
-                                    {{ $failedJobs > 0 ? __('app.jobs_failed', ['count' => $failedJobs]) : __('app.system_ready') }}
-                                </p>
-                            @endif
-                        </div>
-                        <span class="flex shrink-0 items-center gap-1.5">
-                            <button
-                                type="button"
-                                class="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 shadow-rt-xs transition duration-200 hover:-translate-y-0.5 hover:border-rt-red hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rt-red-light dark:hover:text-rt-red-light"
-                                x-on:click="$dispatch('rt-welcome:open')"
-                                aria-label="{{ __('app.welcome_intro_reopen') }}"
-                                title="{{ __('app.welcome_intro_reopen') }}"
-                                data-welcome-intro-trigger
-                            >
-                                <i data-feather="info" class="h-4 w-4"></i>
-                            </button>
-                            <span class="rt-admin-live-icon flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-slate-100 text-rt-red dark:border-slate-600 dark:bg-slate-800 dark:text-rt-red-light">
-                                <i data-feather="activity" class="h-4 w-4"></i>
-                            </span>
-                        </span>
-                    </div>
-
-                    <dl class="rt-admin-live-stats mt-3 grid grid-cols-3 divide-x divide-slate-200 dark:divide-slate-700">
-                        <div class="min-w-0 pr-1.5 sm:pr-3">
-                            <dt class="text-pretty text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ __('app.online_now') }}</dt>
-                            <dd class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $operations['online'] }}">{{ $operations['online'] }}</dd>
-                        </div>
-                        <div class="min-w-0 px-1.5 sm:px-3">
-                            <dt class="text-pretty text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ __('app.open_invitations') }}</dt>
-                            <dd class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $operations['openInvitations'] }}">{{ $operations['openInvitations'] }}</dd>
-                        </div>
-                        <div class="min-w-0 pl-1.5 sm:pl-3">
-                            <dt class="text-pretty text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ __('app.unread_messages_total') }}</dt>
-                            <dd class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $operations['unreadTotal'] }}">{{ $operations['unreadTotal'] }}</dd>
-                        </div>
-                    </dl>
-                </aside>
-            </div>
-        </section>
-
-        {{-- 2 · EINSATZ ------------------------------------------------------
+        {{-- 1 · EINSATZ ------------------------------------------------------
              Alle operativen Einstiege an einem Ort — genau die fuenf, die auch
              in der Seitennavigation unter "Betrieb" stehen. Aufträge, Schichten
              und Wagenlisten als Karten, Kalender und Kunden als Randlinks. --}}
@@ -162,6 +78,16 @@
                         <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
                         {{ __('app.live_operations') }}
                     </span>
+                    <button
+                        type="button"
+                        class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white/90 text-slate-500 shadow-rt-xs backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:border-rt-red hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:border-slate-600 dark:bg-slate-900/90 dark:text-slate-300 dark:hover:border-rt-red-light dark:hover:text-rt-red-light"
+                        x-on:click="$dispatch('rt-welcome:open')"
+                        aria-label="{{ __('app.welcome_intro_reopen') }}"
+                        title="{{ __('app.welcome_intro_reopen') }}"
+                        data-welcome-intro-trigger
+                    >
+                        <i data-feather="info" class="h-4 w-4" aria-hidden="true"></i>
+                    </button>
                 </span>
             </header>
 
@@ -236,7 +162,7 @@
             @endif
         </section>
 
-        {{-- 3 · BELEGSCHAFT --------------------------------------------------
+        {{-- 2 · BELEGSCHAFT --------------------------------------------------
              Ersetzt fuenf frueher verstreute Darstellungen derselben Zahlen
              (Fokuskarte, drei KPI-Kacheln und die Ringkarte) durch eine Karte:
              Ring links, die vier Werte rechts, ein Link nach unten rechts. --}}
@@ -267,7 +193,7 @@
             </header>
 
             <div class="grid items-center gap-2 px-2 pb-3 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] sm:px-3">
-                <div class="rt-admin-chart h-[188px] sm:h-[212px]" x-ref="statusChart" aria-label="{{ __('app.workforce_overview') }}"></div>
+                <div class="rt-admin-chart h-[188px] sm:h-[212px]" x-ref="statusChart" role="img" aria-label="{{ __('app.workforce_overview') }}"></div>
 
                 <dl class="grid grid-cols-2 gap-2.5 px-2 pb-1 sm:gap-3 sm:pb-0" data-dashboard-kpis data-dashboard-workforce-kpis data-dashboard-items>
                     <div class="rt-admin-kpi rt-admin-panel rt-admin-panel-accent min-w-0 overflow-hidden rounded-[1.15rem] p-3">
@@ -304,7 +230,7 @@
             </div>
         </section>
 
-        {{-- 4 · ENTWICKLUNG --------------------------------------------------
+        {{-- 3 · ENTWICKLUNG --------------------------------------------------
              Zwei Zeitreihen nebeneinander statt untereinander. Der Ring ist
              hier bewusst nicht mehr dabei — er gehoert zur Belegschaft. --}}
         <section class="grid gap-3 sm:gap-4 md:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-dashboard-segment="charts" data-dashboard-items>
@@ -325,7 +251,7 @@
                         </span>
                     </div>
                 </header>
-                <div class="rt-admin-chart mt-1 h-[236px] px-1 sm:h-[252px] sm:px-2" x-ref="growthChart" aria-label="{{ __('app.user_growth') }}"></div>
+                <div class="rt-admin-chart mt-1 h-[236px] px-1 sm:h-[252px] sm:px-2" x-ref="growthChart" role="img" aria-label="{{ __('app.user_growth') }}"></div>
                 <footer class="rt-admin-chart-legend flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-3.5 text-[11px] font-medium text-rt-muted sm:px-5 dark:text-rt-dark-muted">
                     <span class="inline-flex items-center gap-2"><span class="h-0.5 w-5 rounded-full bg-rt-text dark:bg-white"></span>{{ __('app.total') }}</span>
                     <span class="inline-flex items-center gap-2"><span class="h-3 w-1.5 rounded-sm bg-rt-red"></span>{{ __('app.registrations') }}</span>
@@ -350,16 +276,16 @@
                         </span>
                     </div>
                 </header>
-                <div class="rt-admin-chart mt-1 h-[236px] px-1 pb-2 sm:h-[252px] sm:px-2" x-ref="activityChart" aria-label="{{ __('app.activity_trend') }}"></div>
+                <div class="rt-admin-chart mt-1 h-[236px] px-1 pb-2 sm:h-[252px] sm:px-2" x-ref="activityChart" role="img" aria-label="{{ __('app.activity_trend') }}"></div>
             </article>
         </section>
 
-        {{-- 5 · PERSONEN -----------------------------------------------------
+        {{-- 4 · PERSONEN -----------------------------------------------------
              Beide Personenlisten standen bisher in getrennten Abschnitten mit
              einem Diagrammblock dazwischen. Sie zeigen dieselbe Art von Objekt
              und gehoeren nebeneinander. --}}
-        <section class="grid gap-3 sm:gap-4 md:grid-cols-12" aria-label="{{ __('app.accounts') }}" data-dashboard-segment="people" data-dashboard-items>
-            <article class="rt-admin-panel overflow-hidden rounded-2xl md:col-span-7">
+        <section class="grid gap-3 sm:gap-4 xl:grid-cols-12" aria-label="{{ __('app.accounts') }}" data-dashboard-segment="people" data-dashboard-items>
+            <article class="rt-admin-panel overflow-hidden rounded-2xl xl:col-span-7">
                 <header class="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.accounts') }}</p>
@@ -393,7 +319,7 @@
                 </div>
             </article>
 
-            <article class="rt-admin-panel rounded-2xl p-4 md:col-span-5">
+            <article class="rt-admin-panel rounded-2xl p-4 xl:col-span-5">
                 <div class="flex items-center justify-between gap-3">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.live_operations') }}</p>
@@ -420,7 +346,7 @@
             </article>
         </section>
 
-        {{-- 6 · SYSTEM -------------------------------------------------------
+        {{-- 5 · SYSTEM -------------------------------------------------------
              Neun Werte, die sich praktisch nie aendern. Sie bleiben erreichbar,
              belegen aber keine halbe Bildschirmhoehe mehr. Serverseitig nur
              fuer das Administratoren-Team bereitgestellt. --}}
