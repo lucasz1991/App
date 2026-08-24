@@ -39,6 +39,7 @@ test('portable media requirements follow the imported signature instead of the o
         signature: {
             v7: ['common.png', 'zug-dampf-light.gif', 'zug-dampf-idle-light.gif'],
             v8: ['common.png', 'zug-dampf-v8-light.gif'],
+            v9: ['common.png', 'zug-dampf-v8-light.gif'],
         },
         template: {
             default: ['icon-rt-light.gif'],
@@ -58,8 +59,24 @@ test('portable media requirements follow the imported signature instead of the o
         requirements.signature.v8,
     );
     assert.deepEqual(
+        resolvePortableMediaRequirementIds(
+            requirements,
+            'signature',
+            '<tr data-rt-artifact-version="v9"><td>v9</td></tr>',
+        ),
+        requirements.signature.v9,
+    );
+    assert.deepEqual(
         resolvePortableMediaRequirementIds(requirements, 'template', '<table></table>'),
         requirements.template.default,
+    );
+    assert.throws(
+        () => resolvePortableMediaRequirementIds(
+            requirements,
+            'signature',
+            '<tr data-rt-artifact-version="v10"><td>unbekannt</td></tr>',
+        ),
+        /Medienvertrag ist nicht vollständig konfiguriert/,
     );
     assert.throws(
         () => resolvePortableMediaRequirementIds({}, 'signature', '<tr></tr>'),
@@ -1622,8 +1639,8 @@ test('signature source uses a fixed schema 25 pixel frame with a Classic Outlook
     assert.match(mobile, /data-rt-layer-mobile="stop65"\]\[data-rt-layer-size\][^}]+width: 150% !important; max-width: none !important; margin-left: -25% !important/);
     const phone = css.slice(css.indexOf('@media only screen and (max-width: 480px)'));
     assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width: 175% !important;[\s\S]*?margin-left: -8% !important;/);
-    assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-stage\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;/s);
-    assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-train-layer\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;[^}]*margin-bottom: -280px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v9"\] \.rt-sign-stage\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v9"\] \.rt-sign-train-layer\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;[^}]*margin-bottom: -280px !important;/s);
     assert.match(phone, /data-rt-layer-mobile="stop65"\]\[data-rt-layer-size\][^}]+width: 175% !important;[^}]+margin-left: -40% !important/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][^}]+width: 200% !important; max-width: none !important; margin-left: -100% !important/);
 });

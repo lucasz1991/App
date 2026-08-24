@@ -383,7 +383,7 @@ class MailSignature
     }
 
     /**
-     * v8 ist ein fachlich markierter Signaturstand und besitzt eigene
+     * V8 und V9 sind fachlich markierte Signaturstaende und besitzen eigene
      * Haupt-/Standbilder ohne nachlaufenden Idle-Rauch. Die Auswahl geschieht
      * am tatsächlich gerenderten HTML statt am Importdateinamen, damit
      * Vorschau, Systemmail, Download und Testmail dieselbe Bildidentität sehen.
@@ -393,8 +393,11 @@ class MailSignature
      */
     private function applyArtifactTrainValues(string $documentHtml, array $values): array
     {
-        if (SignatureArtifactVersion::detect(MailDocumentKind::Signature, $documentHtml)
-            !== SignatureArtifactVersion::V8) {
+        $artifactVersion = SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $documentHtml,
+        );
+        if (! SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)) {
             return $values;
         }
 
@@ -404,28 +407,28 @@ class MailSignature
                 EmailTemplateBuilder::signatureTrainUrl(
                     $this->theme,
                     $animated,
-                    SignatureArtifactVersion::V8,
+                    $artifactVersion,
                 ),
             );
             $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainStillUrl(
                 $this->theme,
-                SignatureArtifactVersion::V8,
+                $artifactVersion,
             );
         } else {
             $values['TRAIN_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
                 $this->theme,
                 $animated,
                 $this->playbackNonce,
-                SignatureArtifactVersion::V8,
+                $artifactVersion,
             );
             $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
                 $this->theme,
                 animated: false,
-                artifactVersion: SignatureArtifactVersion::V8,
+                artifactVersion: $artifactVersion,
             );
         }
 
-        // v8 enthaelt nach der Einfahrt keine Smoke-Idle-Sequenz und darf auch
+        // V8/V9 enthalten nach der Einfahrt keine Smoke-Idle-Sequenz und duerfen
         // nicht durch das alte, zeitversetzt eingeblendete Overlay ergaenzt werden.
         $values['TRAIN_IDLE_SRC'] = '';
 

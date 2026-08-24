@@ -30,6 +30,10 @@ final class PortableMediaCatalog
                     MailDocumentKind::Signature,
                     SignatureArtifactVersion::V8,
                 ),
+                SignatureArtifactVersion::V9 => self::requiredSystemAssetIds(
+                    MailDocumentKind::Signature,
+                    SignatureArtifactVersion::V9,
+                ),
             ],
             MailDocumentKind::Template => [
                 'default' => self::requiredSystemAssetIds(MailDocumentKind::Template),
@@ -56,7 +60,7 @@ final class PortableMediaCatalog
                 'wortmarke-signature-light.png',
                 'wortmarke-mail-dark.gif',
                 'wortmarke-mail-dark.png',
-            ], $artifactVersion === SignatureArtifactVersion::V8
+            ], SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)
                 ? [
                     'zug-dampf-v8-light.gif',
                     'zug-dampf-v8-light.png',

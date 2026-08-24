@@ -968,7 +968,7 @@ class EmailTemplateBuilder
         ?string $artifactVersion = null,
     ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
-        $stem = $artifactVersion === SignatureArtifactVersion::V8
+        $stem = SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)
             ? 'zug-dampf-v8'
             : 'zug-dampf';
 
@@ -1178,7 +1178,7 @@ class EmailTemplateBuilder
             'ICON_RT_STILL_SRC' => self::httpsMailAssetUrl(str_replace('.gif', '.png', $markAsset)),
             'TRAIN_SRC' => self::forceHttpsUrl(self::signatureTrainUrl($theme, true, $artifactVersion)),
             'TRAIN_STILL_SRC' => self::forceHttpsUrl(self::signatureTrainStillUrl($theme, $artifactVersion)),
-            'TRAIN_IDLE_SRC' => $artifactVersion === SignatureArtifactVersion::V8
+            'TRAIN_IDLE_SRC' => SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)
                 ? ''
                 : self::httpsMailAssetUrl("zug-dampf-idle-{$variant}.gif"),
         ], array_map(
@@ -1894,7 +1894,7 @@ TEXT;
             ],
         ];
 
-        if ($artifactVersion !== SignatureArtifactVersion::V8) {
+        if (! SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)) {
             $inlineImages['railtime-train-idle'] = [
                 'filename' => $trainIdleAsset,
                 'content' => file_get_contents(self::masterPath('assets/'.$trainIdleAsset)),

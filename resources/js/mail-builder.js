@@ -92,8 +92,9 @@ const MAIL_SIGNATURE_CONTACT_MARKERS = Object.freeze({
 
 /**
  * Bestimmt den Medienvertrag aus dem zu importierenden/exportierenden HTML.
- * Die PHP-Konfiguration liefert die Dateilisten; JavaScript entscheidet nur
- * zwischen dem alten v7-Fallback und dem expliziten v8-Marker.
+ * Die PHP-Konfiguration liefert die Dateilisten; JavaScript waehlt bei einer
+ * Signatur den explizit markierten Vertrag. Nur markerlose Altstaende fallen
+ * auf v7 zurueck. Ein unbekannter Marker bleibt dadurch fail-closed.
  *
  * @param {object} requirements
  * @param {string} kind
@@ -103,10 +104,12 @@ const MAIL_SIGNATURE_CONTACT_MARKERS = Object.freeze({
 export function resolvePortableMediaRequirementIds(requirements, kind, html) {
     const normalizedKind = String(kind || '').trim().toLowerCase();
     const contracts = requirements?.[normalizedKind];
+    const artifactMarker = String(html || '').match(
+        /\bdata-rt-artifact-version\s*=\s*(["'])(v[1-9][0-9]{0,3})\1/i,
+    );
     const contract = normalizedKind === 'signature'
-        && /\bdata-rt-artifact-version\s*=\s*(["'])v8\1/i.test(String(html || ''))
-        ? 'v8'
-        : (normalizedKind === 'signature' ? 'v7' : 'default');
+        ? (artifactMarker?.[2]?.toLowerCase() || 'v7')
+        : 'default';
     const ids = contracts?.[contract];
 
     if (!Array.isArray(ids) || ids.length === 0) {

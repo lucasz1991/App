@@ -1696,30 +1696,30 @@ HTML;
         $prepare->invoke($controller, '<img src="'.$source.'" alt="">', '', [$entry]);
     }
 
-    public function test_codeimport_prueft_den_v8_medienvertrag_aus_dem_kandidaten_html(): void
+    public function test_codeimport_prueft_den_v9_medienvertrag_aus_dem_kandidaten_html(): void
     {
         Storage::fake('public');
         $this->seedDocuments();
         $document = $this->document(MailDocumentKind::Signature);
         $builderData = $document->builder_data ?: [];
 
-        $v8 = preg_replace(
+        $v9 = preg_replace(
             '/^<tr>/',
-            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V8.'">',
+            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V9.'">',
             (string) $document->html,
             1,
             $markerCount,
         );
-        $this->assertIsString($v8);
+        $this->assertIsString($v9);
         $this->assertSame(1, $markerCount);
-        data_set($builderData, 'pages.0.component', $v8);
+        data_set($builderData, 'pages.0.component', $v9);
         $media = $this->portableSystemMedia(
             MailDocumentKind::Signature,
-            SignatureArtifactVersion::V8,
+            SignatureArtifactVersion::V9,
         );
         $payload = [
             'builder_data' => $builderData,
-            'html' => $v8,
+            'html' => $v9,
             'css' => (string) $document->css,
             'expected_hash' => $document->content_hash,
             'portable_media' => $media,
@@ -1743,7 +1743,7 @@ HTML;
             ]);
     }
 
-    public function test_signatur_artefaktversion_erkennt_v7_fallback_und_v8_marker(): void
+    public function test_signatur_artefaktversion_erkennt_v7_fallback_v8_und_v9_marker(): void
     {
         $canonical = $this->canonicalMailDocumentHtml(MailDocumentKind::Signature);
         $v7 = str_replace(
@@ -1783,6 +1783,39 @@ HTML;
             MailDocumentKind::Template,
             $v8,
         ));
+
+        $v9 = str_replace(
+            SignatureArtifactVersion::V8,
+            SignatureArtifactVersion::V9,
+            $v8,
+            $v9MarkerCount,
+        );
+        $this->assertSame(1, $v9MarkerCount);
+        $this->assertSame(SignatureArtifactVersion::V9, SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $v9,
+        ));
+        $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V8));
+        $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V9));
+        $this->assertFalse(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V7));
+        $this->assertSame(
+            PortableMediaCatalog::requiredSystemAssetIds(
+                MailDocumentKind::Signature,
+                SignatureArtifactVersion::V8,
+            ),
+            PortableMediaCatalog::requiredSystemAssetIds(
+                MailDocumentKind::Signature,
+                SignatureArtifactVersion::V9,
+            ),
+        );
+        $this->assertStringContainsString(
+            '/zug-dampf-v8-light.gif',
+            EmailTemplateBuilder::signatureTrainUrl(
+                'light',
+                animated: true,
+                artifactVersion: SignatureArtifactVersion::V9,
+            ),
+        );
     }
 
     public function test_testmail_zeigt_artefakt_dokumentversion_und_pruefkennung_in_mail_und_json(): void
@@ -1795,7 +1828,7 @@ HTML;
         $document = $this->document(MailDocumentKind::Signature);
         $html = preg_replace(
             '/^<tr>/',
-            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V8.'">',
+            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V9.'">',
             (string) $document->html,
             1,
             $markerCount,
@@ -1825,10 +1858,10 @@ HTML;
         $response->assertOk()
             ->assertJsonPath('recipient', $recipient)
             ->assertJsonPath('compatibility.catalog_version', '1.0.0')
-            ->assertJsonPath('layout_version', SignatureArtifactVersion::V8)
+            ->assertJsonPath('layout_version', SignatureArtifactVersion::V9)
             ->assertJsonPath('document_version', $documentVersion)
             ->assertJsonPath('content_hash', $contentHash);
-        $this->assertStringContainsString('Layout v8', (string) $response->json('message'));
+        $this->assertStringContainsString('Layout v9', (string) $response->json('message'));
         $this->assertStringContainsString('Dokumentversion '.$documentVersion, (string) $response->json('message'));
         $this->assertStringContainsString('Prüfung '.$shortHash, (string) $response->json('message'));
         $this->assertGreaterThan(strlen($html), $response->json('compatibility.html_bytes'));
@@ -1843,14 +1876,14 @@ HTML;
             ): bool {
                 $mail = $notification->toMail($notifiable);
                 $expectedSubject = '[TEST] '.MailDocumentKind::Signature->label()
-                    .' · Layout v8'
+                    .' · Layout v9'
                     .' · Dokumentversion '.$documentVersion
                     .' · Prüfung '.$shortHash;
 
                 return $channels === ['mail']
                     && $notifiable->routeNotificationFor('mail') === $recipient
                     && $mail->subject === $expectedSubject
-                    && in_array('Verwendete Layoutversion: v8.', $mail->introLines, true)
+                    && in_array('Verwendete Layoutversion: v9.', $mail->introLines, true)
                     && in_array('Gespeicherte Dokumentversion: '.$documentVersion.'.', $mail->introLines, true)
                     && in_array('Prüfkennung: '.$shortHash.'.', $mail->introLines, true)
                     && strlen($contentHash) === 64;

@@ -320,7 +320,7 @@ img.rt-logo { width: 150px !important; }
 .rt-sign-train-layer[data-rt-layer-mobile="right"][data-rt-layer-size] .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: -100% !important; }
 .rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-sign-train,
 .rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-train-idle-image { width: 150% !important; max-width: none !important; margin-left: 0 !important; }
-/* v8: Das sichtbare Ende des auf 60 % animierten Motivs steht bei 65 %
+/* V8/V9: Das sichtbare Ende des auf 60 % animierten Motivs steht bei 65 %
    der Signaturbreite (60 % von 150 % minus 25 % Versatz). */
 .rt-sign-train-layer[data-rt-layer-mobile="stop65"][data-rt-layer-size] .rt-sign-train { width: 150% !important; max-width: none !important; margin-left: -25% !important; }
 }
@@ -339,20 +339,25 @@ img.rt-logo { width: 150px !important; }
 .rt-sign-train-frame,
 .rt-sign-train-slot,
 .rt-sign-content-frame { height: 296px !important; }
-/* Nur das als v8 gekennzeichnete Importlayout wird auf dem Telefon kompakter.
+/* Nur die als V8/V9 gekennzeichneten Importlayouts werden auf dem Telefon kompakter.
    Aeltere importierte Signaturen behalten ihren bisherigen 296-px-Vertrag. */
-tr[data-rt-artifact-version="v8"] .rt-sign-stage {
+tr[data-rt-artifact-version="v8"] .rt-sign-stage,
+tr[data-rt-artifact-version="v9"] .rt-sign-stage {
   height: 280px !important;
   max-height: 280px !important;
 }
-tr[data-rt-artifact-version="v8"] .rt-sign-train-layer {
+tr[data-rt-artifact-version="v8"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v9"] .rt-sign-train-layer {
   height: 280px !important;
   max-height: 280px !important;
   margin-bottom: -280px !important;
 }
 tr[data-rt-artifact-version="v8"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v8"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v8"] .rt-sign-content-frame { height: 280px !important; }
+tr[data-rt-artifact-version="v8"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v9"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v9"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v9"] .rt-sign-content-frame { height: 280px !important; }
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
@@ -367,7 +372,7 @@ img.rt-logo { width: 138px !important; }
   max-width: none !important;
   margin-left: -8% !important;
 }
-/* v8: 60 % der 175-prozentigen Bildbreite abzueglich 40 % Versatz
+/* V8/V9: 60 % der 175-prozentigen Bildbreite abzueglich 40 % Versatz
    positioniert das Animationsende bei 65 % der mobilen Signaturbreite. */
 .rt-sign-train-layer[data-rt-layer-mobile="stop65"][data-rt-layer-size] .rt-sign-train {
   width: 175% !important;
