@@ -71,19 +71,22 @@
   font-size: 0 !important;
   line-height: 0 !important;
 }
-/* V11/V12 behalten fuer vollstaendige Personensignaturen eine sichere Reserve.
+/* V11 bis V13 behalten fuer vollstaendige Personensignaturen eine sichere Reserve.
    Systemmails erhalten nach dem Entfernen leerer Kontaktzeilen serverseitig
    das kompakte Dichteprofil. Zug und Inhalt teilen weiterhin exakt dieselbe
    feste Pixelhoehe. */
 tr[data-rt-artifact-version="v11"] .rt-sign-stage,
 tr[data-rt-artifact-version="v12"] .rt-sign-stage,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v13"] .rt-sign-stage,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-layer,
 tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
   height: 190px !important;
   max-height: 190px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-train-layer,
-tr[data-rt-artifact-version="v12"] .rt-sign-train-layer {
+tr[data-rt-artifact-version="v12"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-layer {
   margin-bottom: -190px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-train-frame,
@@ -91,7 +94,10 @@ tr[data-rt-artifact-version="v11"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v11"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v12"] .rt-sign-content-frame { height: 190px !important; }
+tr[data-rt-artifact-version="v12"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v13"] .rt-sign-content-frame { height: 190px !important; }
 tr[data-rt-signature-density="compact"] .rt-sign-stage,
 tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
   height: 145px !important;
@@ -369,12 +375,15 @@ tr[data-rt-artifact-version="v11"] .rt-sign-train-layer[data-rt-layer-mobile="st
 tr[data-rt-artifact-version="v11"] .rt-sign-stage,
 tr[data-rt-artifact-version="v12"] .rt-sign-stage,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v13"] .rt-sign-stage,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-layer,
 tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
   height: 296px !important;
   max-height: 296px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-train-layer,
-tr[data-rt-artifact-version="v12"] .rt-sign-train-layer {
+tr[data-rt-artifact-version="v12"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-layer {
   margin-bottom: -296px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-train-frame,
@@ -382,7 +391,10 @@ tr[data-rt-artifact-version="v11"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v11"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v12"] .rt-sign-content-frame { height: 296px !important; }
+tr[data-rt-artifact-version="v12"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v13"] .rt-sign-content-frame { height: 296px !important; }
 tr[data-rt-signature-density="compact"] .rt-sign-stage,
 tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
   height: 215px !important;
@@ -447,17 +459,20 @@ tr[data-rt-artifact-version="v10"] .rt-sign-train-layer {
 tr[data-rt-artifact-version="v10"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v10"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v10"] .rt-sign-content-frame { height: 270px !important; }
-/* V11/V12: 264 px sichern die vollstaendige Personensignatur. Das serverseitig
+/* V11 bis V13: 264 px sichern die vollstaendige Personensignatur. Das serverseitig
    markierte Systemprofil reduziert die leere Telefonreserve auf 190 px. */
 tr[data-rt-artifact-version="v11"] .rt-sign-stage,
 tr[data-rt-artifact-version="v12"] .rt-sign-stage,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v13"] .rt-sign-stage,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-layer,
 tr[data-rt-artifact-version="v11"] .rt-sign-train-layer {
   height: 264px !important;
   max-height: 264px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-train-layer,
-tr[data-rt-artifact-version="v12"] .rt-sign-train-layer {
+tr[data-rt-artifact-version="v12"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-layer {
   margin-bottom: -264px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-train-frame,
@@ -465,7 +480,10 @@ tr[data-rt-artifact-version="v11"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v11"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v12"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v12"] .rt-sign-content-frame { height: 264px !important; }
+tr[data-rt-artifact-version="v12"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v13"] .rt-sign-content-frame { height: 264px !important; }
 tr[data-rt-signature-density="compact"] .rt-sign-stage,
 tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
   height: 190px !important;
@@ -504,9 +522,10 @@ tr[data-rt-artifact-version="v11"] .rt-sign-train-layer[data-rt-layer-mobile="st
   max-width: none !important;
   margin-left: 0 !important;
 }
-/* V12 vergroessert das Motiv mobil, behaelt den rechten Endpunkt aber bei
+/* V12/V13 vergroessern das Motiv mobil, behalten den rechten Endpunkt aber bei
    rund 65 Prozent. Die zusaetzliche Breite wird ausschliesslich links gekappt. */
-tr[data-rt-artifact-version="v12"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
+tr[data-rt-artifact-version="v12"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train,
+tr[data-rt-artifact-version="v13"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
   width: 135% !important;
   max-width: none !important;
   margin-left: -15.75% !important;
@@ -559,28 +578,34 @@ tr[data-rt-artifact-version="v10"] .rt-sign-identity .rt-contact {
 tr[data-rt-artifact-version="v10"] .rt-company-contact {
   margin-top: 8px !important;
 }
-/* V11/V12 geben der Wortmarke unter der roten Linie etwas mehr Luft. Die uebrigen
+/* V11 bis V13 geben der Wortmarke unter der roten Linie etwas mehr Luft. Die uebrigen
    kompakten Abstaende bleiben bewusst identisch zu V10. */
 tr[data-rt-artifact-version="v11"] .rt-sign-content,
-tr[data-rt-artifact-version="v12"] .rt-sign-content {
+tr[data-rt-artifact-version="v12"] .rt-sign-content,
+tr[data-rt-artifact-version="v13"] .rt-sign-content {
   padding-top: 14px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-logo,
-tr[data-rt-artifact-version="v12"] .rt-sign-logo {
+tr[data-rt-artifact-version="v12"] .rt-sign-logo,
+tr[data-rt-artifact-version="v13"] .rt-sign-logo {
   padding-bottom: 8px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-top-row > .rt-sign-identity,
 tr[data-rt-artifact-version="v11"] .rt-sign-company,
 tr[data-rt-artifact-version="v12"] .rt-sign-top-row > .rt-sign-identity,
-tr[data-rt-artifact-version="v12"] .rt-sign-company {
+tr[data-rt-artifact-version="v12"] .rt-sign-company,
+tr[data-rt-artifact-version="v13"] .rt-sign-top-row > .rt-sign-identity,
+tr[data-rt-artifact-version="v13"] .rt-sign-company {
   padding-top: 6px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-identity .rt-contact,
-tr[data-rt-artifact-version="v12"] .rt-sign-identity .rt-contact {
+tr[data-rt-artifact-version="v12"] .rt-sign-identity .rt-contact,
+tr[data-rt-artifact-version="v13"] .rt-sign-identity .rt-contact {
   margin-top: 6px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-company-contact,
-tr[data-rt-artifact-version="v12"] .rt-company-contact {
+tr[data-rt-artifact-version="v12"] .rt-company-contact,
+tr[data-rt-artifact-version="v13"] .rt-company-contact {
   margin-top: 8px !important;
 }
 }

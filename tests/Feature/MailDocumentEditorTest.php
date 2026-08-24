@@ -1636,11 +1636,11 @@ HTML;
             $this->assertStringContainsString('tr.rt-stack > td', $responsiveCss);
         }
 
-        // V10/V11/V12 besitzen eigene mobile Geometrievertraege; V11/V12 trennen
-        // zusaetzlich die sichere Vollfassung vom kompakten Systemprofil. Da
-        // die Vorschau-CSS fuer Hell und Dunkel enthalten ist, bleibt der
-        // realistische Deckel dennoch deutlich unter 128 KiB.
-        $this->assertLessThan(131_072, strlen((string) $match[1]));
+        // V10 bis V13 besitzen eigene mobile Geometrievertraege; V11 bis V13
+        // trennen zusaetzlich die sichere Vollfassung vom kompakten
+        // Systemprofil. Da die Vorschau-CSS fuer Hell und Dunkel enthalten
+        // ist, bleibt der realistische Deckel dennoch deutlich unter 136 KiB.
+        $this->assertLessThan(139_264, strlen((string) $match[1]));
 
         $mailAssets = data_get($config, 'mailAssets');
         $this->assertIsArray($mailAssets);
@@ -1787,54 +1787,56 @@ HTML;
         $prepare->invoke($controller, '<img src="'.$source.'" alt="">', '', [$entry]);
     }
 
-    public function test_codeimport_prueft_den_v12_medienvertrag_aus_dem_kandidaten_html(): void
+    public function test_codeimport_prueft_die_v12_und_v13_medienvertraege_aus_dem_kandidaten_html(): void
     {
         Storage::fake('public');
         $this->seedDocuments();
         $document = $this->document(MailDocumentKind::Signature);
-        $builderData = $document->builder_data ?: [];
 
-        $v12 = preg_replace(
-            '/^<tr>/',
-            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V12.'">',
-            (string) $document->html,
-            1,
-            $markerCount,
-        );
-        $this->assertIsString($v12);
-        $this->assertSame(1, $markerCount);
-        data_set($builderData, 'pages.0.component', $v12);
-        $media = $this->portableSystemMedia(
-            MailDocumentKind::Signature,
-            SignatureArtifactVersion::V12,
-        );
-        $payload = [
-            'builder_data' => $builderData,
-            'html' => $v12,
-            'css' => (string) $document->css,
-            'expected_hash' => $document->content_hash,
-            'portable_media' => $media,
-        ];
+        foreach ([
+            SignatureArtifactVersion::V12 => 'zug-dampf-v12-dark.png',
+            SignatureArtifactVersion::V13 => 'zug-dampf-v13-dark.png',
+        ] as $version => $missingAsset) {
+            $builderData = $document->builder_data ?: [];
+            $html = preg_replace(
+                '/^<tr>/',
+                '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.$version.'">',
+                (string) $document->html,
+                1,
+                $markerCount,
+            );
+            $this->assertIsString($html);
+            $this->assertSame(1, $markerCount);
+            data_set($builderData, 'pages.0.component', $html);
+            $media = $this->portableSystemMedia(MailDocumentKind::Signature, $version);
+            $payload = [
+                'builder_data' => $builderData,
+                'html' => $html,
+                'css' => (string) $document->css,
+                'expected_hash' => $document->content_hash,
+                'portable_media' => $media,
+            ];
 
-        $this->actingAs($this->admin())
-            ->postJson(route('admin.mail-documents.validate-code', $document), $payload)
-            ->assertOk()
-            ->assertJsonPath('compatibility.status', 'pass');
+            $this->actingAs($this->admin())
+                ->postJson(route('admin.mail-documents.validate-code', $document), $payload)
+                ->assertOk()
+                ->assertJsonPath('compatibility.status', 'pass');
 
-        $payload['portable_media'] = array_values(array_filter(
-            $media,
-            static fn (array $entry): bool => ($entry['id'] ?? '') !== 'zug-dampf-v12-dark.png',
-        ));
-        $this->actingAs($this->admin())
-            ->postJson(route('admin.mail-documents.validate-code', $document), $payload)
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors('portable_media')
-            ->assertJsonFragment([
-                'Im Bundle fehlen erforderliche Medien: zug-dampf-v12-dark.png.',
-            ]);
+            $payload['portable_media'] = array_values(array_filter(
+                $media,
+                static fn (array $entry): bool => ($entry['id'] ?? '') !== $missingAsset,
+            ));
+            $this->actingAs($this->admin())
+                ->postJson(route('admin.mail-documents.validate-code', $document), $payload)
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('portable_media')
+                ->assertJsonFragment([
+                    'Im Bundle fehlen erforderliche Medien: '.$missingAsset.'.',
+                ]);
+        }
     }
 
-    public function test_signatur_artefaktversion_erkennt_v7_fallback_v8_v9_v10_v11_und_v12_marker(): void
+    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v13_marker(): void
     {
         $canonical = $this->canonicalMailDocumentHtml(MailDocumentKind::Signature);
         $v7 = str_replace(
@@ -1919,14 +1921,29 @@ HTML;
             MailDocumentKind::Signature,
             $v12,
         ));
+        $v13 = str_replace(
+            SignatureArtifactVersion::V12,
+            SignatureArtifactVersion::V13,
+            $v12,
+            $v13MarkerCount,
+        );
+        $this->assertSame(1, $v13MarkerCount);
+        $this->assertSame(SignatureArtifactVersion::V13, SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $v13,
+        ));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V8));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V9));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V10));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V11));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V12));
+        $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V13));
         $this->assertFalse(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V7));
         $this->assertFalse(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V11));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V12));
+        $this->assertFalse(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V13));
+        $this->assertFalse(SignatureArtifactVersion::usesSmokeSafeArrivalTrain(SignatureArtifactVersion::V12));
+        $this->assertTrue(SignatureArtifactVersion::usesSmokeSafeArrivalTrain(SignatureArtifactVersion::V13));
         $this->assertSame(
             PortableMediaCatalog::requiredSystemAssetIds(
                 MailDocumentKind::Signature,
@@ -1972,7 +1989,29 @@ HTML;
             ),
         );
 
-        foreach ([SignatureArtifactVersion::V11 => $v11, SignatureArtifactVersion::V12 => $v12] as $version => $versionHtml) {
+        $v13Assets = PortableMediaCatalog::requiredSystemAssetIds(
+            MailDocumentKind::Signature,
+            SignatureArtifactVersion::V13,
+        );
+        foreach (['zug-dampf-v13-light.gif', 'zug-dampf-v13-light.png', 'zug-dampf-v13-dark.gif', 'zug-dampf-v13-dark.png'] as $asset) {
+            $this->assertContains($asset, $v13Assets);
+        }
+        $this->assertNotContains('zug-dampf-v12-light.gif', $v13Assets);
+        $this->assertNotContains('zug-dampf-idle-light.gif', $v13Assets);
+        $this->assertStringContainsString(
+            '/zug-dampf-v13-light.gif',
+            EmailTemplateBuilder::signatureTrainUrl(
+                'light',
+                animated: true,
+                artifactVersion: SignatureArtifactVersion::V13,
+            ),
+        );
+
+        foreach ([
+            SignatureArtifactVersion::V11 => $v11,
+            SignatureArtifactVersion::V12 => $v12,
+            SignatureArtifactVersion::V13 => $v13,
+        ] as $version => $versionHtml) {
             $companyHtml = MailSignature::forCompany(
                 playbackNonce: $version.'-density-company',
             )->renderDocument($versionHtml);
@@ -2004,69 +2043,75 @@ HTML;
         Setting::setValue('mails', 'admin_email', $recipient);
 
         $document = $this->document(MailDocumentKind::Signature);
-        $html = preg_replace(
-            '/^<tr>/',
-            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V12.'">',
-            (string) $document->html,
-            1,
-            $markerCount,
-        );
-        $this->assertIsString($html);
-        $this->assertSame(1, $markerCount);
+        $baseHtml = (string) $document->html;
+        $baseBuilderData = $document->builder_data ?: [];
 
-        $builderData = $document->builder_data ?: [];
-        data_set($builderData, 'pages.0.component', $html);
-        $documentVersion = 27;
-        $contentHash = MailDocument::contentHashFor($builderData, $html, (string) $document->css);
-        $document->forceFill([
-            'builder_data' => $builderData,
-            'html' => $html,
-            'content_hash' => $contentHash,
-            'version' => $documentVersion,
-        ])->save();
+        foreach ([SignatureArtifactVersion::V12, SignatureArtifactVersion::V13] as $index => $version) {
+            $html = preg_replace(
+                '/^<tr>/',
+                '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.$version.'">',
+                $baseHtml,
+                1,
+                $markerCount,
+            );
+            $this->assertIsString($html);
+            $this->assertSame(1, $markerCount);
 
-        Notification::fake();
+            $builderData = $baseBuilderData;
+            data_set($builderData, 'pages.0.component', $html);
+            $documentVersion = 27 + $index;
+            $contentHash = MailDocument::contentHashFor($builderData, $html, (string) $document->css);
+            $document->forceFill([
+                'builder_data' => $builderData,
+                'html' => $html,
+                'content_hash' => $contentHash,
+                'version' => $documentVersion,
+            ])->save();
 
-        $response = $this->actingAs($admin)->postJson(
-            route('admin.mail-documents.test-mail', $document),
-            ['expected_hash' => $contentHash],
-        );
+            Notification::fake();
 
-        $shortHash = substr($contentHash, 0, 12);
-        $response->assertOk()
-            ->assertJsonPath('recipient', $recipient)
-            ->assertJsonPath('compatibility.catalog_version', '1.0.0')
-            ->assertJsonPath('layout_version', SignatureArtifactVersion::V12)
-            ->assertJsonPath('document_version', $documentVersion)
-            ->assertJsonPath('content_hash', $contentHash);
-        $this->assertStringContainsString('Layout v12', (string) $response->json('message'));
-        $this->assertStringContainsString('Dokumentversion '.$documentVersion, (string) $response->json('message'));
-        $this->assertStringContainsString('Prüfung '.$shortHash, (string) $response->json('message'));
-        $this->assertGreaterThan(strlen($html), $response->json('compatibility.html_bytes'));
+            $response = $this->actingAs($admin)->postJson(
+                route('admin.mail-documents.test-mail', $document),
+                ['expected_hash' => $contentHash],
+            );
 
-        Notification::assertSentOnDemand(
-            MailDocumentTestNotification::class,
-            function (MailDocumentTestNotification $notification, array $channels, object $notifiable) use (
-                $contentHash,
-                $documentVersion,
-                $recipient,
-                $shortHash,
-            ): bool {
-                $mail = $notification->toMail($notifiable);
-                $expectedSubject = '[TEST] '.MailDocumentKind::Signature->label()
-                    .' · Layout v12'
-                    .' · Dokumentversion '.$documentVersion
-                    .' · Prüfung '.$shortHash;
+            $shortHash = substr($contentHash, 0, 12);
+            $response->assertOk()
+                ->assertJsonPath('recipient', $recipient)
+                ->assertJsonPath('compatibility.catalog_version', '1.0.0')
+                ->assertJsonPath('layout_version', $version)
+                ->assertJsonPath('document_version', $documentVersion)
+                ->assertJsonPath('content_hash', $contentHash);
+            $this->assertStringContainsString('Layout '.$version, (string) $response->json('message'));
+            $this->assertStringContainsString('Dokumentversion '.$documentVersion, (string) $response->json('message'));
+            $this->assertStringContainsString('Prüfung '.$shortHash, (string) $response->json('message'));
+            $this->assertGreaterThan(strlen($html), $response->json('compatibility.html_bytes'));
 
-                return $channels === ['mail']
-                    && $notifiable->routeNotificationFor('mail') === $recipient
-                    && $mail->subject === $expectedSubject
-                    && in_array('Verwendete Layoutversion: v12.', $mail->introLines, true)
-                    && in_array('Gespeicherte Dokumentversion: '.$documentVersion.'.', $mail->introLines, true)
-                    && in_array('Prüfkennung: '.$shortHash.'.', $mail->introLines, true)
-                    && strlen($contentHash) === 64;
-            },
-        );
+            Notification::assertSentOnDemand(
+                MailDocumentTestNotification::class,
+                function (MailDocumentTestNotification $notification, array $channels, object $notifiable) use (
+                    $contentHash,
+                    $documentVersion,
+                    $recipient,
+                    $shortHash,
+                    $version,
+                ): bool {
+                    $mail = $notification->toMail($notifiable);
+                    $expectedSubject = '[TEST] '.MailDocumentKind::Signature->label()
+                        .' · Layout '.$version
+                        .' · Dokumentversion '.$documentVersion
+                        .' · Prüfung '.$shortHash;
+
+                    return $channels === ['mail']
+                        && $notifiable->routeNotificationFor('mail') === $recipient
+                        && $mail->subject === $expectedSubject
+                        && in_array('Verwendete Layoutversion: '.$version.'.', $mail->introLines, true)
+                        && in_array('Gespeicherte Dokumentversion: '.$documentVersion.'.', $mail->introLines, true)
+                        && in_array('Prüfkennung: '.$shortHash.'.', $mail->introLines, true)
+                        && strlen($contentHash) === 64;
+                },
+            );
+        }
     }
 
     public function test_speichern_verlangt_den_aktuellen_fingerabdruck(): void

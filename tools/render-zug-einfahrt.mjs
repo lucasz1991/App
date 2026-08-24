@@ -61,7 +61,9 @@ const ZUG_GRAU = '#737d89';
 const AUSGABEKENNUNG = process.env.RT_AUSGABEKENNUNG || '';
 const OHNE_IDLE = process.env.RT_OHNE_IDLE === '1';
 const KOMPAKTER_END_HALT = OHNE_IDLE && process.env.RT_KOMPAKTER_END_HALT !== '0';
+const KOMPRIMIERE_FINAL_HALT = !OHNE_IDLE && process.env.RT_KOMPRIMIERE_FINAL_HALT === '1';
 const OUTLOOK_AUSGABE = process.env.RT_OUTLOOK !== '0';
+const PNG_TRANSPARENT = process.env.RT_PNG_TRANSPARENT === '1';
 
 if (!/^(?:[a-z0-9]+-)?$/.test(AUSGABEKENNUNG)) {
     throw new Error('RT_AUSGABEKENNUNG muss leer sein oder aus Kleinbuchstaben/Ziffern mit abschliessendem Bindestrich bestehen.');
@@ -125,9 +127,17 @@ const BASIS_ZUG_HOEHE = (BREITE * BASIS_ZUG_FAKTOR) * (151 / 2053);
 // transparenten oberen Leerraum. Falls ein Mailclient absolute Positionen
 // entfernt, reserviert das normale IMG dadurch keine unnoetige Hoehe.
 const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 1.31);
+// Optionaler echter Rauch-Kopfraum: Anders als eine nachtraegliche CSS-
+// Verschiebung vergroessert er die Bildflaeche und verschiebt Zug sowie
+// Schornstein gemeinsam nach unten. Vorgaengerversionen bleiben mit dem
+// Standardwert 0 pixelidentisch; V13 kann oben transparente Reserve tragen.
+const RAUCH_KOPFRAUM_PX = Number(process.env.RT_RAUCH_KOPFRAUM_PX || 0);
+if (!Number.isFinite(RAUCH_KOPFRAUM_PX) || RAUCH_KOPFRAUM_PX < 0) {
+    throw new Error('RT_RAUCH_KOPFRAUM_PX muss eine nichtnegative Zahl sein.');
+}
 // Die Leinwand bleibt gleich hoch. Nur das Motiv selbst wird um zehn
 // Prozent kleiner und weiterhin sauber am Boden ausgerichtet.
-const HOEHE = Math.round(BASIS_ZUG_HOEHE * KOPFRAUM);
+const HOEHE = Math.round((BASIS_ZUG_HOEHE * KOPFRAUM) + RAUCH_KOPFRAUM_PX);
 // Nicht-ganzzahlige Retina-Faktoren wie 1,4 werden einmalig auf echte
 // Pixel gerundet. Canvas, GIF und PNG verwenden danach garantiert dieselben
 // Dimensionen; andernfalls koennten die Bibliotheken 2015,999... Pixel
@@ -173,6 +183,14 @@ const MARKEN_UEBERABTASTUNG = 4;
 const GEPLANTE_BILDER = Number(process.env.RT_BILDER || 72);
 const ERSTES_CS = Number(process.env.RT_ERSTES_CS || 30);
 const RAUCH_TOP_FADE = Number(process.env.RT_RAUCH_TOP_FADE || 0);
+const RAUCH_STAERKE = Number(process.env.RT_RAUCH_STAERKE || 1);
+// Physische Pixel statt CSS-Einheiten: V13 braucht in jedem Retina-Frame
+// garantiert denselben transparenten Sicherheitsrand. Der anschliessende
+// weiche Verlauf verhindert, dass weit aufgestiegene Wolken an dieser
+// Grenze als abgeschnittene horizontale Kante quantisiert werden.
+const RAUCH_SICHERHEITSZONE_PX = Number(process.env.RT_RAUCH_SICHERHEITSZONE_PX || 0);
+const RAUCH_OBEN_FADE_PX = Number(process.env.RT_RAUCH_OBEN_FADE_PX || 0);
+const RAUCH_NUR_IDLE = process.env.RT_RAUCH_NUR_IDLE === '1';
 
 if (!Number.isInteger(GEPLANTE_BILDER) || GEPLANTE_BILDER < 3) {
     throw new Error('RT_BILDER muss eine ganze Zahl ab 3 sein.');
@@ -182,6 +200,15 @@ if (!Number.isInteger(ERSTES_CS) || ERSTES_CS < 1) {
 }
 if (!Number.isFinite(RAUCH_TOP_FADE) || RAUCH_TOP_FADE < 0) {
     throw new Error('RT_RAUCH_TOP_FADE muss eine nichtnegative Zahl sein.');
+}
+if (!Number.isFinite(RAUCH_STAERKE) || RAUCH_STAERKE <= 0) {
+    throw new Error('RT_RAUCH_STAERKE muss eine positive Zahl sein.');
+}
+if (!Number.isInteger(RAUCH_SICHERHEITSZONE_PX) || RAUCH_SICHERHEITSZONE_PX < 0) {
+    throw new Error('RT_RAUCH_SICHERHEITSZONE_PX muss eine nichtnegative ganze Zahl sein.');
+}
+if (!Number.isInteger(RAUCH_OBEN_FADE_PX) || RAUCH_OBEN_FADE_PX < 0) {
+    throw new Error('RT_RAUCH_OBEN_FADE_PX muss eine nichtnegative ganze Zahl sein.');
 }
 // SIEBEN SEKUNDEN bis zum Stillstand. Danach bleibt das letzte Einzelbild
 // an exakt 60 Prozent der Leinwand stehen.
@@ -200,6 +227,7 @@ const FAHRT_ENDE_S = WARTE_S + FAHRT_S;
 const IDLE_ZYKLUS_S = Number(process.env.RT_IDLE_ZYKLUS || 2.0);
 const IDLE_ZYKLEN = Number(process.env.RT_IDLE_ZYKLEN || 2);
 const IDLE_DAUER_S = IDLE_ZYKLUS_S * IDLE_ZYKLEN;
+const IDLE_RENDER_DAUER_S = Math.max(0, IDLE_DAUER_S - 0.12);
 // Der verkuerzte Vorlauf wird dem unsichtbaren End-Hold zugeschlagen. Die
 // Datei bleibt dadurch exakt 13,0 s lang und der bestehende Uebergang in die
 // separat geloopte Idle-Rauchspur bleibt zeitlich und visuell unveraendert.
@@ -212,6 +240,13 @@ const SUMME_CS = Math.round(GESAMT_S * 100);
 // vorherigen 2x-Fassung. Mehr Stufen vergroessern nur die LZW-Tabelle, ohne
 // im halbtransparenten Mailmotiv einen wahrnehmbaren Qualitaetsgewinn.
 const STUFEN = Number(process.env.RT_STUFEN || 6);
+// Gamma > 1 legt bei gleicher Tabellenlaenge mehr Abstufungen nahe an den
+// transparenten Grund. Das ist fuer sehr weichen Rauch effizienter als eine
+// grosse Palette und bleibt ohne expliziten V13-Wert beim linearen Verhalten.
+const PALETTEN_GAMMA = Number(process.env.RT_PALETTEN_GAMMA || 1);
+if (!Number.isFinite(PALETTEN_GAMMA) || PALETTEN_GAMMA <= 0) {
+    throw new Error('RT_PALETTEN_GAMMA muss eine positive Zahl sein.');
+}
 // DURCHSICHTIG. Der Zug steht in der versendeten Mail als eigenes <img>
 // UEBER der Zelle — ein deckender Grund verdeckte dort das Raster des
 // Streifens als sichtbaren Kasten. Dass die Datei dadurch kein Byte
@@ -280,6 +315,26 @@ function zeitpunkte(cs) {
     for (const wert of cs) { t.push(summe / 100); summe += wert; }
 
     return t;
+}
+
+/**
+ * Der Idle-Renderer friert seinen letzten Zustand bewusst 120 ms vor dem
+ * nominellen Ende ein. Bei aktivierter V13-Optimierung werden die danach
+ * pixelidentischen Frames nicht erneut gerendert, sondern ihre Laufzeit im
+ * einzigen finalen Frame gesammelt. Timeline und Schlusszustand bleiben gleich.
+ */
+function komprimiereFinalenHalt(werte) {
+    if (!KOMPRIMIERE_FINAL_HALT) return werte;
+
+    const starts = zeitpunkte(werte);
+    const grenze = FAHRT_ENDE_S + IDLE_RENDER_DAUER_S;
+    const erstesFinalesBild = starts.findIndex((t) => t >= grenze);
+    if (erstesFinalesBild < 1) return werte;
+
+    return [
+        ...werte.slice(0, erstesFinalesBild),
+        werte.slice(erstesFinalesBild).reduce((summe, wert) => summe + wert, 0),
+    ];
 }
 
 const glatt = (a, b, t) => {
@@ -373,8 +428,7 @@ const idleWolken = Array.from({ length: IDLE_WOLKEN }, (_, i) => ({
 function idleWolkenBei(t) {
     if (t <= FAHRT_ENDE_S) return [];
 
-    const bisEnde = Math.max(0, IDLE_DAUER_S - 0.12);
-    const idleZeit = Math.min(t - FAHRT_ENDE_S, bisEnde);
+    const idleZeit = Math.min(t - FAHRT_ENDE_S, IDLE_RENDER_DAUER_S);
     const phase = (idleZeit % IDLE_ZYKLUS_S) / IDLE_ZYKLUS_S;
     const einblenden = glatt(FAHRT_ENDE_S, FAHRT_ENDE_S + 0.65, t);
 
@@ -448,9 +502,14 @@ async function zeichne(auftrag) {
         rx.scale(a.pixelBreite / a.breite, a.pixelHoehe / a.hoehe);
 
         for (const w of a.wolken) {
+            // Sehr weicher Rauch kann in einer kleinen GIF-Palette auf den
+            // transparenten Grundindex fallen. Die optionale Staerke hebt
+            // nur seine Deckkraft vor der Quantisierung an; Standard 1
+            // behaelt bestehende Ausgaben pixelidentisch.
+            const rauchAlpha = Math.min(1, w.alpha * a.rauchStaerke);
             const g = rx.createRadialGradient(w.x, w.y, 0, w.x, w.y, w.r);
-            g.addColorStop(0, `rgba(${a.rauch}, ${w.alpha})`);
-            g.addColorStop(0.55, `rgba(${a.rauch}, ${w.alpha * 0.45})`);
+            g.addColorStop(0, `rgba(${a.rauch}, ${rauchAlpha})`);
+            g.addColorStop(0.55, `rgba(${a.rauch}, ${rauchAlpha * 0.45})`);
             g.addColorStop(1, `rgba(${a.rauch}, 0)`);
             rx.fillStyle = g;
             rx.beginPath();
@@ -472,6 +531,32 @@ async function zeichne(auftrag) {
             rx.fillStyle = 'rgba(0, 0, 0, 1)';
             rx.fillRect(0, a.rauchTopFade, a.breite, a.hoehe - a.rauchTopFade);
             rx.globalCompositeOperation = 'source-over';
+        }
+
+        if (a.rauchSicherheitszonePx > 0 || a.rauchObenFadePx > 0) {
+            // Die Sicherheitszone ist in echten Ausgabepixeln definiert und
+            // darf deshalb nicht von der zuvor gesetzten Retina-Skalierung
+            // mitvergroessert werden.
+            rx.save();
+            rx.setTransform(1, 0, 0, 1, 0, 0);
+            rx.clearRect(0, 0, a.pixelBreite, a.rauchSicherheitszonePx);
+
+            if (a.rauchObenFadePx > 0) {
+                rx.globalCompositeOperation = 'destination-in';
+                const fadeStart = a.rauchSicherheitszonePx;
+                const fadeEnd = fadeStart + a.rauchObenFadePx;
+                const sicherheitsFade = rx.createLinearGradient(0, 0, 0, fadeEnd);
+                sicherheitsFade.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                sicherheitsFade.addColorStop(fadeStart / fadeEnd, 'rgba(0, 0, 0, 0)');
+                sicherheitsFade.addColorStop(1, 'rgba(0, 0, 0, 1)');
+                rx.fillStyle = sicherheitsFade;
+                // Ein einziges, vollflaechiges destination-in ist zwingend:
+                // mehrere Teilrechtecke wuerden sich gegenseitig ausserhalb
+                // ihrer jeweiligen Quellflaeche wieder loeschen.
+                rx.fillRect(0, 0, a.pixelBreite, a.pixelHoehe);
+            }
+
+            rx.restore();
         }
 
         x.drawImage(rauchLayer, 0, 0, a.breite, a.hoehe);
@@ -584,7 +669,7 @@ async function zeichne(auftrag) {
 function farbtabelle(grund, tinte, stufen = STUFEN) {
     const tabelle = [grund.slice()];
     for (let i = 1; i <= stufen; i += 1) {
-        const t = i / stufen;
+        const t = (i / stufen) ** PALETTEN_GAMMA;
         tabelle.push([
             Math.round(mische(grund[0], tinte[0], t)),
             Math.round(mische(grund[1], tinte[1], t)),
@@ -618,6 +703,28 @@ function aufTabelle(rgba, tabelle) {
     }
 
     return index;
+}
+
+/**
+ * Macht ausschliesslich exakt den bereits gerenderten Theme-Grund
+ * durchsichtig. Motiv- und Rauchpixel bleiben unveraendert. Damit besitzt
+ * auch das PNG-Standbild denselben transparenten Kopfraum wie das GIF,
+ * ohne die Ausgabe bestehender Versionen standardmaessig zu veraendern.
+ */
+function transparenterGrund(rgba, grund) {
+    const ausgabe = rgba.slice();
+
+    for (let i = 0; i < ausgabe.length; i += 4) {
+        if (
+            ausgabe[i] === grund[0]
+            && ausgabe[i + 1] === grund[1]
+            && ausgabe[i + 2] === grund[2]
+        ) {
+            ausgabe[i + 3] = 0;
+        }
+    }
+
+    return ausgabe;
 }
 
 /**
@@ -658,7 +765,7 @@ function skaliereFuerOutlook(rgba, grund) {
     return ziel;
 }
 
-const cs = verzoegerungen();
+const cs = komprimiereFinalenHalt(verzoegerungen());
 const zeiten = zeitpunkte(cs);
 console.log(`Zeiten: ${cs.length} Bilder, Summe ${cs.reduce((a, b) => a + b, 0)} cs, erstes ${cs[0]} cs`);
 
@@ -674,10 +781,12 @@ for (const v of VARIANTEN) {
         const zugX = mische(START_X, RUHE_X, easeOut((t - WARTE_S) / FAHRT_S));
 
         const sichtbar = [];
-        for (const w of wolken) {
-            const xBeiGeburt = mische(START_X, RUHE_X, easeOut((w.geburt - WARTE_S) / FAHRT_S));
-            const z = wolkeBei(w, t, SCHORNSTEIN_X + (xBeiGeburt - RUHE_X));
-            if (z && z.alpha > 0.004 && z.x > -60 && z.x < BREITE + 60) sichtbar.push(z);
+        if (!RAUCH_NUR_IDLE) {
+            for (const w of wolken) {
+                const xBeiGeburt = mische(START_X, RUHE_X, easeOut((w.geburt - WARTE_S) / FAHRT_S));
+                const z = wolkeBei(w, t, SCHORNSTEIN_X + (xBeiGeburt - RUHE_X));
+                if (z && z.alpha > 0.004 && z.x > -60 && z.x < BREITE + 60) sichtbar.push(z);
+            }
         }
         if (!OHNE_IDLE) {
             sichtbar.push(...idleWolkenBei(t));
@@ -687,7 +796,10 @@ for (const v of VARIANTEN) {
             breite: BREITE, hoehe: HOEHE, skala: SKALA,
             pixelBreite: PIXEL_BREITE, pixelHoehe: PIXEL_HOEHE,
             grund: `rgb(${v.grund.join(',')})`, rauch: v.rauch,
-            deckkraft: v.deckkraft, wolken: sichtbar, rauchTopFade: RAUCH_TOP_FADE,
+            deckkraft: v.deckkraft, wolken: sichtbar,
+            rauchTopFade: RAUCH_TOP_FADE, rauchStaerke: RAUCH_STAERKE,
+            rauchSicherheitszonePx: RAUCH_SICHERHEITSZONE_PX,
+            rauchObenFadePx: RAUCH_OBEN_FADE_PX,
             zugX, zugY: ZUG_Y, zugBreite: ZUG_BREITE, zugHoehe: ZUG_HOEHE,
             wagenteil: WAGENTEIL, anhaenge: ANHAENGE,
             markenFarbe: ZUG_GRAU,
@@ -743,7 +855,9 @@ for (const v of VARIANTEN) {
     // es ein anderer Zustand — etwa ohne Rauch —, spraenge das Bild in dem
     // Moment, in dem das GIF seine Flaeche doch raeumt. Gleiches Bild,
     // kein Sprung.
-    const stillRoh = letztesBild;
+    const stillRoh = PNG_TRANSPARENT
+        ? transparenterGrund(letztesBild, v.grund)
+        : letztesBild;
     const stillPng = new PNG({ width: PIXEL_BREITE, height: PIXEL_HOEHE });
     stillPng.data.set(stillRoh);
     const stillBytes = PNG.sync.write(stillPng, { deflateLevel: 9 });

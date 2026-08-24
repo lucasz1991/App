@@ -973,11 +973,13 @@ class EmailTemplateBuilder
         ?string $artifactVersion = null,
     ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
-        $stem = SignatureArtifactVersion::usesOptimizedArrivalTrain($artifactVersion)
-            ? 'zug-dampf-v12'
-            : (SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)
-                ? 'zug-dampf-v8'
-                : 'zug-dampf');
+        $stem = SignatureArtifactVersion::usesSmokeSafeArrivalTrain($artifactVersion)
+            ? 'zug-dampf-v13'
+            : (SignatureArtifactVersion::usesOptimizedArrivalTrain($artifactVersion)
+                ? 'zug-dampf-v12'
+                : (SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)
+                    ? 'zug-dampf-v8'
+                    : 'zug-dampf'));
 
         return $stem.'-'.$variant.'.'.($animated ? 'gif' : 'png');
     }
