@@ -46,7 +46,18 @@
                         <small data-mail-preview-status aria-live="polite">Systemmail breit · 1920 px · wird eingepasst</small>
                     </div>
 
-                    <div class="rt-mail-preview-toggle" role="group" aria-label="Farbschema der Vorschau">
+                    <div class="rt-mail-preview-toggle" role="group" aria-label="Editoransicht">
+                        <button type="button" data-mail-view-mode="edit" aria-pressed="true" title="Bearbeitbare Mail-Leinwand anzeigen">
+                            <i data-feather="edit-3" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Bearbeiten</span>
+                        </button>
+                        <button type="button" data-mail-view-mode="delivery" aria-pressed="false" title="Aktuellen Stand mit dem produktiven Systemmail-Compiler anzeigen">
+                            <i data-feather="mail" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Versandansicht</span>
+                        </button>
+                    </div>
+
+                    <div class="rt-mail-preview-toggle" data-mail-theme-controls role="group" aria-label="Farbschema der Editorvorschau">
                         <button type="button" data-mail-theme-button="light" aria-pressed="true" title="Helle Mail ansehen">
                             <i data-feather="sun" class="h-4 w-4" aria-hidden="true"></i>
                             <span>Hell</span>
@@ -75,6 +86,21 @@
                             <span>Mobil</span>
                         </button>
                     </div>
+
+                    <label class="rt-mail-preview-width-control" title="Ganzzahlige Breite der Responsive-Vorschau">
+                        <span class="sr-only">Individuelle Vorschau-Breite in Pixeln</span>
+                        <input
+                            type="number"
+                            min="320"
+                            max="1920"
+                            step="1"
+                            inputmode="numeric"
+                            value="1920"
+                            data-mail-preview-width
+                            aria-label="Individuelle Vorschau-Breite in ganzen Pixeln"
+                        >
+                        <span aria-hidden="true">px</span>
+                    </label>
 
                     <label class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-2 text-xs font-semibold text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text">
                         <i data-feather="shield" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
@@ -434,6 +460,32 @@
                         <span>LMZ Page Builder wird im Mailmodus geladen …</span>
                     </div>
                 </div>
+                <div class="rt-mail-delivery-preview" data-mail-delivery-preview hidden>
+                    <iframe
+                        data-mail-delivery-frame
+                        title="Kompilierte Versandansicht im Browser"
+                        sandbox=""
+                        referrerpolicy="no-referrer"
+                    ></iframe>
+                    <div class="rt-mail-delivery-preview__state" data-mail-delivery-state role="status" aria-live="polite">
+                        Versand-HTML wird kompiliert …
+                    </div>
+                </div>
+                <div
+                    class="rt-mail-preview-resizer"
+                    data-mail-preview-resizer
+                    role="separator"
+                    aria-label="Breite der Mailvorschau ändern"
+                    aria-orientation="vertical"
+                    aria-valuemin="320"
+                    aria-valuemax="1920"
+                    aria-valuenow="1920"
+                    aria-valuetext="1920 Pixel"
+                    tabindex="0"
+                    hidden
+                >
+                    <span aria-hidden="true"></span>
+                </div>
             </div>
         </div>
 
@@ -589,8 +641,15 @@
                     const statusBadge = studioRoot.querySelector('[data-mail-document-status]');
                     const editorFrame = studioRoot.querySelector('[data-mail-editor-frame]');
                     const previewStatus = studioRoot.querySelector('[data-mail-preview-status]');
+                    const viewModeButtons = Array.from(studioRoot.querySelectorAll('[data-mail-view-mode]'));
                     const themeButtons = Array.from(studioRoot.querySelectorAll('[data-mail-theme-button]'));
+                    const themeControls = studioRoot.querySelector('[data-mail-theme-controls]');
                     const deviceButtons = Array.from(studioRoot.querySelectorAll('[data-mail-preview-device]'));
+                    const previewWidthInput = studioRoot.querySelector('[data-mail-preview-width]');
+                    const previewResizer = studioRoot.querySelector('[data-mail-preview-resizer]');
+                    const deliveryPreview = studioRoot.querySelector('[data-mail-delivery-preview]');
+                    const deliveryFrame = studioRoot.querySelector('[data-mail-delivery-frame]');
+                    const deliveryState = studioRoot.querySelector('[data-mail-delivery-state]');
                     const degradationSelect = studioRoot.querySelector('[data-mail-degradation-mode]');
                     const replayButton = studioRoot.querySelector('[data-mail-preview-replay]');
                     const importFile = studioRoot.querySelector('[data-mail-code-import-file]');
@@ -611,6 +670,7 @@
                     let destroyed = false;
                     let selectedTheme = 'light';
                     let selectedDevice = 'wide';
+                    let selectedViewMode = 'edit';
                     let selectedDegradationMode = 'normal';
                     let actionsBusy = false;
                     let compatibilityBlocksPublication = false;
@@ -620,6 +680,12 @@
                     let codeDialogOpener = null;
                     let pendingPortableMedia = [];
                     let selectedVersionId = '';
+                    let latestPreviewGeometry = null;
+                    let compiledDeliveryHtml = '';
+                    let deliveryPreviewRequest = null;
+                    let deliveryPreviewGeneration = 0;
+                    let previewResizeFrame = null;
+                    let resizeGesture = null;
                     const controlListeners = new AbortController();
                     const MAIL_SOURCE_FORMAT = 'railtime-mail-document';
                     const MAIL_SOURCE_VERSION = 2;
@@ -719,23 +785,79 @@
                         unregisterNavigation = navigationCoordinator?.register?.(navigationController) || null;
                     }
 
-                    const updatePreviewStatus = (geometry = null) => {
-                        if (!previewStatus) return;
+                    const syncPreviewResizer = (geometry = latestPreviewGeometry) => {
+                        if (previewResizeFrame !== null) window.cancelAnimationFrame(previewResizeFrame);
+                        previewResizeFrame = window.requestAnimationFrame(() => {
+                            previewResizeFrame = null;
+                            if (!previewResizer || !editorFrame || !geometry) return;
 
-                        const widths = { wide: 1920, desktop: 1024, tablet: 820, mobile: 375 };
-                        const labels = { wide: 'Systemmail breit', desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobil' };
-                        const degradationLabels = {
-                            'images-off': 'Bilder aus',
-                            'head-css-off': 'Head-CSS aus',
-                            'css-off': 'Gesamtes CSS aus',
-                        };
-                        const scale = geometry?.scale
-                            ? ` · Fit ${Math.round(geometry.scale * 100)} %`
-                            : '';
-                        const degradation = selectedDegradationMode === 'normal'
-                            ? ''
-                            : ` · ${degradationLabels[selectedDegradationMode]} · Robustheitsvorschau, keine Mailclient-Emulation`;
-                        previewStatus.textContent = `${labels[selectedDevice]} · ${geometry?.logicalWidth || widths[selectedDevice]} px${scale}${degradation}`;
+                            const target = selectedViewMode === 'delivery'
+                                ? deliveryFrame
+                                : instance?.editor?.Canvas?.getFrameEl?.();
+                            const targetRect = target?.getBoundingClientRect?.();
+                            const hostRect = editorFrame.getBoundingClientRect?.();
+                            if (!targetRect || !hostRect || targetRect.width <= 0 || targetRect.height <= 0) {
+                                previewResizer.hidden = true;
+                                return;
+                            }
+
+                            const left = Math.max(0, Math.min(hostRect.width, targetRect.right - hostRect.left));
+                            const top = Math.max(0, targetRect.top - hostRect.top);
+                            const height = Math.max(44, Math.min(targetRect.height, hostRect.height - top));
+                            editorFrame.style.setProperty('--rt-mail-resizer-left', `${left}px`);
+                            editorFrame.style.setProperty('--rt-mail-resizer-top', `${top}px`);
+                            editorFrame.style.setProperty('--rt-mail-resizer-height', `${height}px`);
+                            previewResizer.hidden = false;
+                        });
+                    };
+
+                    const updatePreviewStatus = (geometry = null) => {
+                        if (geometry) latestPreviewGeometry = geometry;
+                        const activeGeometry = geometry || latestPreviewGeometry;
+                        const logicalWidth = Math.round(Number(activeGeometry?.logicalWidth) || 1920);
+                        const activeDevice = activeGeometry?.device || selectedDevice;
+                        if (activeDevice === 'custom') selectedDevice = 'custom';
+
+                        deviceButtons.forEach((button) => {
+                            button.setAttribute('aria-pressed', String(
+                                activeDevice !== 'custom'
+                                && button.dataset.mailPreviewDevice === activeDevice
+                            ));
+                        });
+                        if (previewWidthInput && window.document.activeElement !== previewWidthInput) {
+                            previewWidthInput.value = String(logicalWidth);
+                        }
+                        if (previewResizer) {
+                            previewResizer.setAttribute('aria-valuenow', String(logicalWidth));
+                            previewResizer.setAttribute('aria-valuetext', `${logicalWidth} Pixel`);
+                        }
+
+                        if (previewStatus) {
+                            const labels = {
+                                wide: 'Systemmail breit',
+                                desktop: 'Desktop',
+                                tablet: 'Tablet',
+                                mobile: 'Mobil',
+                                custom: 'Individuell',
+                            };
+                            const degradationLabels = {
+                                'images-off': 'Bilder aus',
+                                'head-css-off': 'Head-CSS aus',
+                                'css-off': 'Gesamtes CSS aus',
+                            };
+                            const scale = activeGeometry?.scale && activeGeometry.scale < 0.999
+                                ? ` · Fit ${Math.round(activeGeometry.scale * 100)} %`
+                                : ' · 100 %';
+                            const degradation = selectedDegradationMode === 'normal'
+                                ? ''
+                                : ` · ${degradationLabels[selectedDegradationMode]} · Robustheitsvorschau, keine Mailclient-Emulation`;
+                            const rendering = selectedViewMode === 'delivery'
+                                ? 'Kompiliertes Versand-HTML im Browser'
+                                : labels[activeDevice] || 'Editor';
+                            previewStatus.textContent = `${rendering} · ${logicalWidth} px${scale}${degradation}`;
+                        }
+
+                        syncPreviewResizer(activeGeometry);
                     };
 
                     const selectTheme = (theme) => {
@@ -750,8 +872,40 @@
                         }
                     };
 
+                    const prepareCustomViewport = () => {
+                        const canvasFrame = instance?.editor?.Canvas?.getFrameEl?.();
+                        const main = editorFrame?.querySelector?.('.lmz-builder__main');
+                        const canvasRect = canvasFrame?.getBoundingClientRect?.();
+                        const mainRect = main?.getBoundingClientRect?.();
+                        if (canvasRect && mainRect) {
+                            editorFrame.style.setProperty(
+                                '--rt-mail-custom-left',
+                                `${Math.max(0, canvasRect.left - mainRect.left)}px`,
+                            );
+                        }
+
+                        const geometry = instance?.getPreviewGeometry?.() || latestPreviewGeometry;
+                        return geometry?.device === 'custom'
+                            ? Math.round(geometry.logicalWidth)
+                            : Math.round(geometry?.displayWidth || geometry?.logicalWidth || 1024);
+                    };
+
+                    const selectPreviewWidth = (width, { prepare = true } = {}) => {
+                        if (!instance) return null;
+                        if (prepare && selectedDevice !== 'custom') prepareCustomViewport();
+                        selectedDevice = 'custom';
+                        const normalized = Math.min(1920, Math.max(320, Math.round(Number(width) || 1024)));
+                        instance.setPreviewWidth?.(normalized);
+                        if (selectedDegradationMode !== 'normal' && selectedViewMode === 'edit') {
+                            instance.setDegradationMode?.(selectedDegradationMode);
+                        }
+                        updatePreviewStatus(instance.getPreviewGeometry?.());
+                        return normalized;
+                    };
+
                     const selectDevice = (device) => {
                         selectedDevice = ['wide', 'desktop', 'tablet', 'mobile'].includes(device) ? device : 'wide';
+                        editorFrame?.style.removeProperty('--rt-mail-custom-left');
                         deviceButtons.forEach((button) => {
                             button.setAttribute('aria-pressed', String(button.dataset.mailPreviewDevice === selectedDevice));
                         });
@@ -762,12 +916,108 @@
                         updatePreviewStatus(instance?.getPreviewGeometry?.());
                     };
 
+                    const renderCompiledDeliveryHtml = () => {
+                        if (!deliveryFrame || compiledDeliveryHtml === '') return;
+
+                        const preview = selectedDegradationMode === 'normal'
+                            ? { html: compiledDeliveryHtml, disclaimer: '' }
+                            : instance?.createDegradationPreview?.(
+                                compiledDeliveryHtml,
+                                selectedDegradationMode,
+                            );
+                        if (!preview?.html) return;
+
+                        if (deliveryState) {
+                            deliveryState.textContent = preview.disclaimer || 'Kompiliertes Versand-HTML wird im Browser dargestellt …';
+                        }
+                        deliveryFrame.onload = () => {
+                            if (deliveryState && selectedDegradationMode === 'normal') deliveryState.textContent = '';
+                            syncPreviewResizer();
+                        };
+                        deliveryFrame.srcdoc = preview.html;
+                        syncPreviewResizer();
+                    };
+
+                    const loadCompiledDeliveryPreview = async () => {
+                        if (typeof document_.endpoints?.deliveryPreview !== 'string'
+                            || document_.endpoints.deliveryPreview.trim() === '') {
+                            throw new Error('Der sichere Versandvorschau-Endpunkt ist nicht verfügbar.');
+                        }
+
+                        deliveryPreviewRequest?.abort();
+                        deliveryPreviewRequest = new AbortController();
+                        const generation = ++deliveryPreviewGeneration;
+                        if (deliveryState) deliveryState.textContent = 'Aktueller Stand wird mit dem produktiven Systemmail-Compiler geprüft …';
+                        if (deliveryFrame) deliveryFrame.srcdoc = '';
+
+                        const candidate = currentCandidateForServer();
+                        const payload = await request(document_.endpoints.deliveryPreview, 'POST', {
+                            builder_data: candidate.builderData,
+                            html: candidate.html,
+                            css: candidate.css,
+                            expected_hash: document_.contentHash || '',
+                        }, { signal: deliveryPreviewRequest.signal });
+                        if (generation !== deliveryPreviewGeneration || selectedViewMode !== 'delivery') return;
+                        if (payload.preview?.rendering !== 'compiled-system-mail'
+                            || typeof payload.preview?.html !== 'string'
+                            || payload.preview.html.trim() === '') {
+                            throw new Error('Der Server hat kein vollständiges kompiliertes Versand-HTML geliefert.');
+                        }
+
+                        compiledDeliveryHtml = payload.preview.html;
+                        showFindings(payload.report, payload.compatibility);
+                        renderCompiledDeliveryHtml();
+                    };
+
+                    const selectViewMode = async (mode) => {
+                        selectedViewMode = mode === 'delivery' ? 'delivery' : 'edit';
+                        editorFrame?.setAttribute('data-mail-view-mode', selectedViewMode);
+                        viewModeButtons.forEach((button) => {
+                            button.setAttribute('aria-pressed', String(button.dataset.mailViewMode === selectedViewMode));
+                            button.setAttribute('aria-busy', String(
+                                selectedViewMode === 'delivery'
+                                && button.dataset.mailViewMode === 'delivery'
+                            ));
+                        });
+                        themeButtons.forEach((button) => {
+                            button.disabled = selectedViewMode === 'delivery';
+                        });
+                        themeControls?.setAttribute('aria-disabled', String(selectedViewMode === 'delivery'));
+
+                        if (selectedViewMode === 'edit') {
+                            deliveryPreviewGeneration += 1;
+                            deliveryPreviewRequest?.abort();
+                            deliveryPreviewRequest = null;
+                            if (deliveryPreview) deliveryPreview.hidden = true;
+                            if (deliveryFrame) deliveryFrame.srcdoc = '';
+                            instance?.setDegradationMode?.(selectedDegradationMode);
+                            viewModeButtons.forEach((button) => button.setAttribute('aria-busy', 'false'));
+                            updatePreviewStatus(instance?.getPreviewGeometry?.());
+                            return;
+                        }
+
+                        instance?.setDegradationMode?.('normal');
+                        if (deliveryPreview) deliveryPreview.hidden = false;
+                        updatePreviewStatus(instance?.getPreviewGeometry?.());
+                        try {
+                            await loadCompiledDeliveryPreview();
+                        } catch (error) {
+                            if (error?.name === 'AbortError') return;
+                            const surfaced = showRequestError(error, 'Versandansicht nicht verfügbar');
+                            if (deliveryState) deliveryState.textContent = surfaced.message;
+                            toast('error', surfaced.message, 'Versandansicht nicht verfügbar');
+                        } finally {
+                            viewModeButtons.forEach((button) => button.setAttribute('aria-busy', 'false'));
+                        }
+                    };
+
                     const selectDegradationMode = (mode) => {
                         selectedDegradationMode = ['normal', 'images-off', 'head-css-off', 'css-off'].includes(mode)
                             ? mode
                             : 'normal';
                         if (degradationSelect) degradationSelect.value = selectedDegradationMode;
-                        instance?.setDegradationMode?.(selectedDegradationMode);
+                        if (selectedViewMode === 'delivery') renderCompiledDeliveryHtml();
+                        else instance?.setDegradationMode?.(selectedDegradationMode);
                         updatePreviewStatus(instance?.getPreviewGeometry?.());
                     };
 
@@ -1001,10 +1251,11 @@
                         });
                     };
 
-                    const request = async (url, method, body = null) => {
+                    const request = async (url, method, body = null, options = {}) => {
                         const response = await fetch(url, {
                             method,
                             credentials: 'same-origin',
+                            signal: options.signal || undefined,
                             headers: {
                                 Accept: 'application/json',
                                 'X-Requested-With': 'XMLHttpRequest',
@@ -1064,17 +1315,22 @@
                         return { html, css };
                     };
 
-                    const currentCanonicalSource = () => {
+                    const currentCandidateForServer = () => {
                         const editor = instance?.editor;
                         if (!editor?.getProjectData || !editor?.getHtml || !editor?.getCss) {
                             // Die Code-/Export-/Import-Werkzeuge liegen bewusst
                             // ausserhalb der Leinwand. Damit kann ein defekter
                             // Altentwurf auch dann durch ein gueltiges Bundle
                             // ersetzt werden, wenn GrapesJS nicht startet.
-                            return assertPortableSource({
+                            const source = assertPortableSource({
                                 html: String(document_.html || ''),
                                 css: String(document_.css || ''),
                             }, { enforceLimit: false });
+
+                            return {
+                                ...source,
+                                builderData: document_.builderData || {},
+                            };
                         }
 
                         const outgoing = runtimeBridge.serializeForSave({
@@ -1093,10 +1349,20 @@
                         // builder_data noch Vorschaukonfiguration. Der
                         // Export haengt die geprueften Medien separat mit
                         // MIME, Groesse und SHA-256 an.
-                        return assertPortableSource({
+                        const source = assertPortableSource({
                             html: String(outgoing.html || ''),
                             css: String(outgoing.css || ''),
                         }, { enforceLimit: false });
+
+                        return {
+                            ...source,
+                            builderData: outgoing.project,
+                        };
+                    };
+
+                    const currentCanonicalSource = () => {
+                        const { html, css } = currentCandidateForServer();
+                        return { html, css };
                     };
 
                     const importProjectFor = ({ html, css }) => {
@@ -1544,7 +1810,14 @@
                         selectTheme(selectedTheme);
                         selectDevice(selectedDevice);
                         selectDegradationMode(selectedDegradationMode);
+                        await selectViewMode(selectedViewMode);
                     };
+
+                    viewModeButtons.forEach((button) => {
+                        button.addEventListener('click', () => selectViewMode(button.dataset.mailViewMode), {
+                            signal: controlListeners.signal,
+                        });
+                    });
 
                     themeButtons.forEach((button) => {
                         button.addEventListener('click', () => selectTheme(button.dataset.mailThemeButton), {
@@ -1557,6 +1830,67 @@
                             signal: controlListeners.signal,
                         });
                     });
+
+                    previewWidthInput?.addEventListener('input', () => {
+                        if (previewWidthInput.value.trim() === '') return;
+                        selectPreviewWidth(previewWidthInput.value);
+                    }, { signal: controlListeners.signal });
+
+                    const finishResizeGesture = (event = null) => {
+                        if (!resizeGesture) return;
+                        if (event?.pointerId !== undefined && event.pointerId !== resizeGesture.pointerId) return;
+                        if (previewResizer?.hasPointerCapture?.(resizeGesture.pointerId)) {
+                            previewResizer.releasePointerCapture(resizeGesture.pointerId);
+                        }
+                        resizeGesture = null;
+                        editorFrame?.removeAttribute('data-mail-resizing');
+                        syncPreviewResizer();
+                    };
+
+                    previewResizer?.addEventListener('pointerdown', (event) => {
+                        if (event.button !== 0 || !instance) return;
+                        event.preventDefault();
+                        const startWidth = prepareCustomViewport();
+                        selectPreviewWidth(startWidth, { prepare: false });
+                        resizeGesture = {
+                            pointerId: event.pointerId,
+                            startX: event.clientX,
+                            startWidth,
+                        };
+                        previewResizer.setPointerCapture?.(event.pointerId);
+                        editorFrame?.setAttribute('data-mail-resizing', 'true');
+                    }, { signal: controlListeners.signal });
+
+                    previewResizer?.addEventListener('pointermove', (event) => {
+                        if (!resizeGesture || event.pointerId !== resizeGesture.pointerId) return;
+                        event.preventDefault();
+                        selectPreviewWidth(
+                            resizeGesture.startWidth + (event.clientX - resizeGesture.startX),
+                            { prepare: false },
+                        );
+                    }, { signal: controlListeners.signal });
+
+                    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((eventName) => {
+                        previewResizer?.addEventListener(eventName, finishResizeGesture, {
+                            signal: controlListeners.signal,
+                        });
+                    });
+
+                    previewResizer?.addEventListener('keydown', (event) => {
+                        const geometry = instance?.getPreviewGeometry?.() || latestPreviewGeometry;
+                        let nextWidth = geometry?.device === 'custom'
+                            ? Math.round(geometry.logicalWidth)
+                            : prepareCustomViewport();
+                        const step = event.shiftKey ? 10 : 1;
+                        if (event.key === 'ArrowLeft') nextWidth -= step;
+                        else if (event.key === 'ArrowRight') nextWidth += step;
+                        else if (event.key === 'Home') nextWidth = 320;
+                        else if (event.key === 'End') nextWidth = 1920;
+                        else return;
+
+                        event.preventDefault();
+                        selectPreviewWidth(nextWidth, { prepare: false });
+                    }, { signal: controlListeners.signal });
 
                     degradationSelect?.addEventListener('change', () => {
                         try {
@@ -1971,6 +2305,12 @@
 
                     const teardown = () => {
                         destroyed = true;
+                        finishResizeGesture();
+                        deliveryPreviewGeneration += 1;
+                        deliveryPreviewRequest?.abort();
+                        deliveryPreviewRequest = null;
+                        if (previewResizeFrame !== null) window.cancelAnimationFrame(previewResizeFrame);
+                        previewResizeFrame = null;
                         codeDialogOpener = null;
                         if (codeDialog?.open) codeDialog.close('teardown');
                         if (importFile) importFile.value = '';

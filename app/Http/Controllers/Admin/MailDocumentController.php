@@ -227,6 +227,103 @@ final class MailDocumentController extends Controller
     }
 
     /**
+     * Kompiliert den aktuellen, noch nicht gespeicherten Editorstand mit dem
+     * produktiven Systemmail-Compiler. Die Snapshots leben ausschliesslich in
+     * diesem Request; Entwurf, Freigabe und Versionshistorie bleiben unberuehrt.
+     */
+    public function deliveryPreview(
+        SaveMailDocumentRequest $request,
+        MailDocument $document,
+        EmailHtmlSanitizer $sanitizer,
+        EmailCompatibilityAuditor $compatibilityAuditor,
+        PublishedMailDocumentSnapshotStore $snapshots,
+    ): JsonResponse {
+        $this->mailAdmin($request);
+        $validated = $request->validated();
+
+        if (! $document->matchesContentHash((string) $validated['expected_hash'])) {
+            throw ValidationException::withMessages([
+                'expected_hash' => 'Das Dokument wurde zwischenzeitlich geändert. Bitte lade die Seite vor der Versandvorschau neu.',
+            ]);
+        }
+
+        // Anders als der ausdrueckliche Import darf eine Vorschau niemals
+        // Dateien ablegen. Portable Medien muessen zuerst geprueft importiert
+        // werden und stehen danach als normale HTTPS-Mailassets zur Verfuegung.
+        if ((array) ($validated['portable_media'] ?? []) !== []) {
+            throw ValidationException::withMessages([
+                'portable_media' => 'Die Versandvorschau nimmt keine Mediendateien entgegen und hat nichts gespeichert.',
+            ]);
+        }
+
+        $html = MailDocumentAutoRepair::repairHtml(
+            $document->kind,
+            (string) $validated['html'],
+        );
+        $css = (string) $validated['css'];
+        $this->assertEditableCssSource($css);
+        $this->assertDocumentStructure($document, $html, $css);
+
+        $htmlReport = $this->assertCleanHtml($sanitizer, $html);
+        $cssReport = $this->cleanStyleSheet($sanitizer, $css);
+        if ($cssReport->hasViolations()) {
+            throw ValidationException::withMessages([
+                'css' => array_merge(
+                    ['Die Stilregeln enthalten Syntax, die in E-Mails nicht erlaubt ist.'],
+                    $cssReport->violationMessages(),
+                ),
+            ]);
+        }
+        $this->assertDocumentStructure($document, $htmlReport->html, $cssReport->html);
+
+        // Synchronisiert und validiert nur den Projektvertrag. Es folgt kein
+        // save(), kein Versionsabzug und kein Medien-Write.
+        $builderData = $this->syncBuilderData(
+            $document,
+            $validated['builder_data'],
+            $htmlReport->html,
+        );
+        $sourceCompatibility = $this->auditCompatibility(
+            $compatibilityAuditor,
+            $document->kind,
+            $htmlReport->html,
+            $cssReport->html,
+        );
+        $finalHtml = $this->compileFinalSystemMailCandidate(
+            $snapshots,
+            $document->kind,
+            $htmlReport->html,
+            $cssReport->html,
+        );
+        if ($finalHtml === null) {
+            throw ValidationException::withMessages([
+                'preview' => 'Die Versandvorschau benötigt eine gültige Vorlage und Signatur.',
+            ]);
+        }
+        $compatibility = $this->auditCompiledSystemMail($compatibilityAuditor, $finalHtml);
+
+        $candidate = $this->payload($document);
+        $candidate['builder_data'] = $builderData;
+        $candidate['html'] = $htmlReport->html;
+        $candidate['css'] = $cssReport->html;
+
+        return response()->json([
+            'preview' => [
+                'html' => $finalHtml,
+                'html_bytes' => strlen($finalHtml),
+                'rendering' => 'compiled-system-mail',
+            ],
+            'document' => $candidate,
+            'report' => $this->reportPayload($htmlReport, $cssReport),
+            'source_compatibility' => $sourceCompatibility->toArray(),
+            'compatibility' => $compatibility->toArray(),
+        ])->withHeaders([
+            'Cache-Control' => 'no-store, private',
+            'Pragma' => 'no-cache',
+        ]);
+    }
+
+    /**
      * Der Browser bietet nur eine schnelle Vorpruefung. Der Server bestimmt
      * den Pflichtbestand erneut aus dem Kandidaten-HTML, damit ein direkter
      * Request weder Medien auslassen noch v7/v8 miteinander vermischen kann.
@@ -992,6 +1089,30 @@ final class MailDocumentController extends Controller
         string $candidateCss,
         EmailCompatibilityReport $fallback,
     ): EmailCompatibilityReport {
+        $finalHtml = $this->compileFinalSystemMailCandidate(
+            $snapshots,
+            $candidateKind,
+            $candidateHtml,
+            $candidateCss,
+        );
+        if ($finalHtml === null) {
+            return $fallback;
+        }
+
+        return $this->auditCompiledSystemMail($auditor, $finalHtml);
+    }
+
+    /**
+     * Verwendet exakt den Compiler, der auch Laravel-Systemmails ausliefert.
+     * Der jeweils andere Mailbaustein kommt aus seiner Freigabe; nur wenn es
+     * noch keine gibt, dient dessen aktueller Entwurf als Einrichtungsfallback.
+     */
+    private function compileFinalSystemMailCandidate(
+        PublishedMailDocumentSnapshotStore $snapshots,
+        MailDocumentKind $candidateKind,
+        string $candidateHtml,
+        string $candidateCss,
+    ): ?string {
         $documents = [];
         foreach (MailDocumentKind::cases() as $kind) {
             if ($kind === $candidateKind) {
@@ -1002,7 +1123,7 @@ final class MailDocumentController extends Controller
 
             $document = MailDocument::query()->where('kind', $kind->value)->first();
             if (! $document instanceof MailDocument) {
-                return $fallback;
+                return null;
             }
 
             $publishedHtml = trim((string) $document->published_html);
@@ -1015,7 +1136,7 @@ final class MailDocumentController extends Controller
         foreach (MailDocumentKind::cases() as $kind) {
             $snapshot = $documents[$kind->value];
             if (trim($snapshot['html']) === '') {
-                return $fallback;
+                return null;
             }
         }
 
@@ -1025,7 +1146,7 @@ final class MailDocumentController extends Controller
         }
 
         try {
-            $finalHtml = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString(
+            return EmailTemplateBuilder::buildSystemMailHtml(new HtmlString(
                 '<p style="margin:0 0 16px;">RailTime Kompatibilitätsprüfung</p>'
                 .'<p style="margin:0;"><a href="https://rail-time.de/">RailTime öffnen</a></p>',
             ));
@@ -1038,7 +1159,13 @@ final class MailDocumentController extends Controller
                 $snapshots->forget($kind);
             }
         }
+    }
 
+    /** Bewertet das bereits final zusammengesetzte Versand-HTML. */
+    private function auditCompiledSystemMail(
+        EmailCompatibilityAuditor $auditor,
+        string $finalHtml,
+    ): EmailCompatibilityReport {
         try {
             return $auditor->audit($finalHtml, '', [
                 'document_kind' => 'system_mail',

@@ -1142,6 +1142,20 @@ export const MAIL_PREVIEW_DEVICES = Object.freeze({
     mobile: Object.freeze({ id: 'mobile', label: 'Mobil', width: 375 }),
 });
 
+export const MAIL_PREVIEW_MIN_WIDTH = 320;
+export const MAIL_PREVIEW_MAX_WIDTH = 1920;
+
+/** Freie Responsive-Breiten sind immer ganze, realistische CSS-Pixel. */
+export function normalizeMailPreviewWidth(width, fallback = MAIL_PREVIEW_DEVICES.desktop.width) {
+    const numeric = Number(width);
+    const normalizedFallback = Number.isFinite(Number(fallback))
+        ? Math.round(Number(fallback))
+        : MAIL_PREVIEW_DEVICES.desktop.width;
+    const rounded = Number.isFinite(numeric) ? Math.round(numeric) : normalizedFallback;
+
+    return Math.min(MAIL_PREVIEW_MAX_WIDTH, Math.max(MAIL_PREVIEW_MIN_WIDTH, rounded));
+}
+
 /** Schalter, die im Nur-Lese-Modus verschwinden muessen. */
 const WRITE_CONTROL_SELECTORS = [
     '[data-lmz-action="save"]',
@@ -2944,25 +2958,34 @@ export function resolveMailPreviewDevice(device = 'desktop') {
  */
 export function calculateMailPreviewGeometry({
     device = 'desktop',
+    logicalWidth = null,
     hostWidth = 0,
     hostHeight = 0,
     inset = 24,
     minLogicalHeight = 560,
 } = {}) {
     const selected = resolveMailPreviewDevice(device);
+    const custom = logicalWidth !== null && logicalWidth !== undefined;
+    const selectedWidth = custom
+        ? normalizeMailPreviewWidth(logicalWidth, selected.width)
+        : selected.width;
     const normalizedInset = Math.max(0, Number.isFinite(Number(inset)) ? Number(inset) : 0);
     const normalizedHostWidth = Math.max(0, Number.isFinite(Number(hostWidth)) ? Number(hostWidth) : 0);
     const normalizedHostHeight = Math.max(0, Number.isFinite(Number(hostHeight)) ? Number(hostHeight) : 0);
     const minimumHeight = Math.max(320, Number.isFinite(Number(minLogicalHeight)) ? Number(minLogicalHeight) : 560);
     const availableWidth = Math.max(0, normalizedHostWidth - (normalizedInset * 2));
     const availableHeight = Math.max(0, normalizedHostHeight - (normalizedInset * 2));
-    const scale = Math.max(0.01, Math.min(1, availableWidth > 0 ? availableWidth / selected.width : 1));
+    // Eine frei gezogene Kante arbeitet wie ein echter Browser-Viewport bei
+    // 100 %. Nur Presets werden bei Platzmangel als Ganzes eingepasst.
+    const scale = custom
+        ? 1
+        : Math.max(0.01, Math.min(1, availableWidth > 0 ? availableWidth / selectedWidth : 1));
     const logicalHeight = Math.max(minimumHeight, availableHeight > 0 ? availableHeight / scale : minimumHeight);
 
     return Object.freeze({
-        device: selected.id,
-        label: selected.label,
-        logicalWidth: selected.width,
+        device: custom ? 'custom' : selected.id,
+        label: custom ? 'Individuell' : selected.label,
+        logicalWidth: selectedWidth,
         logicalHeight,
         hostWidth: normalizedHostWidth,
         hostHeight: normalizedHostHeight,
@@ -2970,7 +2993,7 @@ export function calculateMailPreviewGeometry({
         availableHeight,
         scale,
         zoom: scale * 100,
-        displayWidth: selected.width * scale,
+        displayWidth: selectedWidth * scale,
         displayHeight: logicalHeight * scale,
     });
 }
@@ -3005,6 +3028,7 @@ export function createMailPreviewController({
         ? environment.ResizeObserver
         : (browserWindow?.ResizeObserver || globalThis.ResizeObserver);
     let activeDevice = resolveMailPreviewDevice(device).id;
+    let activeWidth = null;
     let observedHost = null;
     let scheduledFrame = null;
     let destroyed = false;
@@ -3049,6 +3073,7 @@ export function createMailPreviewController({
         const measuredHeight = Number(host?.clientHeight) > 0 ? host.clientHeight : frame.clientHeight;
         latestGeometry = calculateMailPreviewGeometry({
             device: activeDevice,
+            logicalWidth: activeWidth,
             hostWidth: measuredWidth,
             hostHeight: measuredHeight,
             inset,
@@ -3100,8 +3125,30 @@ export function createMailPreviewController({
 
         setDevice(nextDevice) {
             activeDevice = resolveMailPreviewDevice(nextDevice).id;
+            activeWidth = null;
             editor.setDevice?.(`rt-mail-${activeDevice}`);
             this.refresh();
+        },
+
+        setWidth(nextWidth) {
+            activeWidth = normalizeMailPreviewWidth(
+                nextWidth,
+                latestGeometry?.logicalWidth || MAIL_PREVIEW_DEVICES.desktop.width,
+            );
+            activeDevice = 'custom';
+            const id = 'rt-mail-custom';
+            const attributes = {
+                id,
+                name: `Individuell (${activeWidth} px)`,
+                width: `${activeWidth}px`,
+            };
+            const existing = editor.DeviceManager?.get?.(id);
+            if (existing?.set) existing.set(attributes);
+            else if (!existing) editor.DeviceManager?.add?.(id, attributes);
+            editor.setDevice?.(id);
+            this.refresh();
+
+            return activeWidth;
         },
 
         getGeometry() {
@@ -3559,6 +3606,12 @@ export async function createMailBuilder({
             return preview?.getGeometry() || null;
         },
 
+        /** Ganzzahlige, frei gezogene Clientbreite ohne Dokumentmutation. */
+        setPreviewWidth(nextWidth) {
+            preview?.setWidth(nextWidth);
+            return preview?.getGeometry() || null;
+        },
+
         getPreviewGeometry: () => preview?.getGeometry() || null,
 
         /**
@@ -3567,6 +3620,11 @@ export async function createMailBuilder({
          */
         setDegradationMode(nextMode = 'normal') {
             return renderDegradationOverlay(nextMode);
+        },
+
+        /** Dieselbe skriptlose Degradation auf bereits kompiliertes HTML. */
+        createDegradationPreview(html, nextMode = 'normal') {
+            return createMailDegradationPreview(html, nextMode, { environment: window });
         },
 
         getDegradationMode: () => activeDegradationMode,

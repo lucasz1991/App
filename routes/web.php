@@ -265,6 +265,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
                 ->whereUuid('document')
                 ->middleware('throttle:180,1')
                 ->name('mail-documents.preview');
+            Route::post('/mail-vorlagen/{document}/versandvorschau', [MailDocumentController::class, 'deliveryPreview'])
+                ->whereUuid('document')
+                ->middleware('throttle:60,1')
+                ->name('mail-documents.delivery-preview');
             Route::put('/mail-vorlagen/{document}', [MailDocumentController::class, 'update'])
                 ->whereUuid('document')
                 ->middleware('throttle:120,1')

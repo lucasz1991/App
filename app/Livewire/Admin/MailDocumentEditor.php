@@ -184,6 +184,7 @@ class MailDocumentEditor extends Component
                 'endpoints' => [
                     'update' => route('admin.mail-documents.update', $document),
                     'validate' => route('admin.mail-documents.validate-code', $document),
+                    'deliveryPreview' => route('admin.mail-documents.delivery-preview', $document),
                     'publish' => route('admin.mail-documents.publish', $document),
                     'testMail' => route('admin.mail-documents.test-mail', $document),
                 ],

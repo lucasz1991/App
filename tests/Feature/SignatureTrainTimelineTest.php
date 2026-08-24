@@ -410,7 +410,7 @@ class SignatureTrainTimelineTest extends TestCase
         }
     }
 
-    public function test_v8_train_assets_hold_the_arrival_frame_without_idle_smoke(): void
+    public function test_v8_and_v12_train_assets_keep_their_versioned_arrival_hold_contracts(): void
     {
         foreach (['light', 'dark'] as $theme) {
             $filename = "zug-dampf-v8-{$theme}.gif";
@@ -468,6 +468,71 @@ class SignatureTrainTimelineTest extends TestCase
             $size = getimagesize($pngResource);
             $this->assertIsArray($size);
             $this->assertSame([2160, 159], [$size[0], $size[1]]);
+        }
+
+        foreach (['light', 'dark'] as $theme) {
+            $filename = "zug-dampf-v12-{$theme}.gif";
+            $resource = file_get_contents(resource_path('mail-templates/assets/'.$filename));
+            $public = file_get_contents(public_path('mail-assets/'.$filename));
+
+            $this->assertIsString($resource);
+            $this->assertIsString($public);
+            $this->assertSame($resource, $public, "{$filename}: Ressourcen- und Public-Datei unterscheiden sich.");
+            $this->assertLessThanOrEqual(320 * 1024, strlen($resource), "{$filename}: V12-GIF ist groesser als 320 KiB.");
+            $this->assertStringNotContainsString('NETSCAPE2.0', $resource, "{$filename}: Die Zugfahrt darf nicht loopen.");
+            $this->assertStringNotContainsString('ANIMEXTS1.0', $resource, "{$filename}: Alternativer Loop-Block gefunden.");
+
+            $gif = $this->parseGif($resource);
+            $this->assertSame(2016, $gif['width']);
+            $this->assertSame(148, $gif['height']);
+            $this->assertCount(53, $gif['frames']);
+
+            $delays = array_column($gif['frames'], 'delayCs');
+            $this->assertSame(1300, array_sum($delays), "{$filename}: V12 muss exakt 13,0 s dauern.");
+            $this->assertSame(5, $delays[0], "{$filename}: Das Startbild muss nach 50 ms wechseln.");
+            $this->assertSame(600, $delays[52], "{$filename}: Das letzte Ankunftsbild muss 6,0 s stehen bleiben.");
+
+            foreach ($gif['frames'] as $index => $frame) {
+                $this->assertTrue($frame['transparent'], "{$filename}: Frame {$index} muss transparent sein.");
+                $this->assertSame(
+                    $index === 52 ? 1 : 2,
+                    $frame['disposal'],
+                    "{$filename}: Frame {$index} hat die falsche Entsorgungsmethode.",
+                );
+
+                $pixels = $this->decodeLzw(
+                    $frame['imageData'],
+                    $frame['minimumCodeSize'],
+                    $gif['width'] * $gif['height'],
+                );
+                $this->assertSame(
+                    str_repeat(chr($frame['transparentIndex']), $gif['width']),
+                    substr($pixels, 0, $gif['width']),
+                    "{$filename}: Frame {$index} schneidet Rauch an der oberen Bildkante ab.",
+                );
+
+                if ($index === 0) {
+                    $this->assertSame(
+                        0,
+                        $this->countInk($pixels, $frame['transparentIndex']),
+                        "{$filename}: Das 50-ms-Startbild muss leer sein.",
+                    );
+                }
+                if ($index === 1) {
+                    $this->assertGreaterThan(
+                        0,
+                        $this->countInk($pixels, $frame['transparentIndex']),
+                        "{$filename}: Die Einfahrt muss nach 50 ms sichtbar beginnen.",
+                    );
+                }
+            }
+
+            $pngResource = resource_path("mail-templates/assets/zug-dampf-v12-{$theme}.png");
+            $pngPublic = public_path("mail-assets/zug-dampf-v12-{$theme}.png");
+            $this->assertSame(file_get_contents($pngResource), file_get_contents($pngPublic));
+            $size = getimagesize($pngResource);
+            $this->assertIsArray($size);
+            $this->assertSame([2016, 148], [$size[0], $size[1]]);
         }
     }
 

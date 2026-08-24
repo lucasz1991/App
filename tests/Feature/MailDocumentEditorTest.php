@@ -7,6 +7,7 @@ use App\Enums\MailDocumentStatus;
 use App\Http\Controllers\Admin\MailDocumentController;
 use App\Livewire\Admin\MailDocumentEditor;
 use App\Models\MailDocument;
+use App\Models\MailDocumentVersion;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\UserProfile;
@@ -1477,10 +1478,15 @@ HTML;
             ->assertSee('data-mail-document-back', escape: false)
             ->assertSee('data-mail-theme-button="light"', escape: false)
             ->assertSee('data-mail-theme-button="dark"', escape: false)
+            ->assertSee('data-mail-view-mode="delivery"', escape: false)
+            ->assertSee('Kompilierte Versandansicht im Browser', escape: false)
             ->assertSee('data-mail-preview-device="desktop"', escape: false)
             ->assertSee('data-mail-preview-device="tablet"', escape: false)
             ->assertSee('data-mail-preview-device="mobile"', escape: false)
             ->assertSee('data-mail-preview-replay', escape: false)
+            ->assertSee('data-mail-preview-width', escape: false)
+            ->assertSee('data-mail-preview-resizer', escape: false)
+            ->assertSee('role="separator"', escape: false)
             ->assertSee('restartAllGifs', escape: false)
             ->assertSee('data-mail-editor-frame', escape: false)
             ->assertSee('data-page-builder-preview-first', escape: false)
@@ -1493,6 +1499,67 @@ HTML;
             ->get(route('admin.mail-documents.editor', ['open' => 1]))
             ->assertOk()
             ->assertSee('pageBuilderOpen: true', escape: false);
+    }
+
+    public function test_versandvorschau_kompiliert_den_ungespeicherten_kandidaten_ohne_dokumentmutation(): void
+    {
+        $this->createCanonicalMailDocuments(published: true);
+        $template = $this->document(MailDocumentKind::Template);
+        $candidateHtml = str_replace(
+            'Ihre Nachricht von',
+            'VERSANDVORSCHAU AKTUELL · Nachricht von',
+            (string) $template->html,
+            $replacementCount,
+        );
+        $this->assertSame(1, $replacementCount);
+        $candidateBuilderData = $template->builder_data;
+        data_set($candidateBuilderData, 'pages.0.component', $candidateHtml);
+
+        $snapshot = static fn (): array => MailDocument::query()
+            ->orderBy('id')
+            ->get()
+            ->map(static fn (MailDocument $document): array => [
+                'id' => $document->getKey(),
+                'builder_data' => $document->builder_data,
+                'html' => $document->html,
+                'css' => $document->css,
+                'published_html' => $document->published_html,
+                'published_css' => $document->published_css,
+                'published_at' => $document->published_at?->toIso8601String(),
+                'content_hash' => $document->content_hash,
+                'version' => $document->version,
+                'updated_at' => $document->updated_at?->toIso8601String(),
+            ])
+            ->all();
+        $before = $snapshot();
+        $versionCount = MailDocumentVersion::query()->count();
+
+        $response = $this->actingAs($this->admin())
+            ->postJson(route('admin.mail-documents.delivery-preview', $template), [
+                'builder_data' => $candidateBuilderData,
+                'html' => $candidateHtml,
+                'css' => (string) $template->css,
+                'expected_hash' => (string) $template->content_hash,
+            ])
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertJsonPath('preview.rendering', 'compiled-system-mail')
+            ->assertJsonPath('document.html', $candidateHtml)
+            ->assertJsonStructure([
+                'preview' => ['html', 'html_bytes', 'rendering'],
+                'report',
+                'source_compatibility' => ['status'],
+                'compatibility' => ['status', 'html_bytes', 'findings'],
+            ]);
+
+        $compiled = (string) $response->json('preview.html');
+        $this->assertStringContainsString('VERSANDVORSCHAU AKTUELL', $compiled);
+        $this->assertStringContainsString('RailTime Kompatibilitätsprüfung', $compiled);
+        $this->assertStringNotContainsString('Sicher abgestimmt.', $compiled);
+        $this->assertStringNotContainsString('<script', strtolower($compiled));
+        $this->assertSame(strlen($compiled), $response->json('preview.html_bytes'));
+        $this->assertSame($before, $snapshot());
+        $this->assertSame($versionCount, MailDocumentVersion::query()->count());
     }
 
     public function test_editorconfig_liefert_echte_vorschau_assets_ohne_die_dokumenttokens_zu_veraendern(): void
@@ -1553,11 +1620,11 @@ HTML;
             $this->assertStringContainsString('tr.rt-stack > td', $responsiveCss);
         }
 
-        // V10/V11 besitzen eigene mobile Geometrievertraege; V11 trennt
+        // V10/V11/V12 besitzen eigene mobile Geometrievertraege; V11/V12 trennen
         // zusaetzlich die sichere Vollfassung vom kompakten Systemprofil. Da
         // die Vorschau-CSS fuer Hell und Dunkel enthalten ist, bleibt der
         // realistische Deckel dennoch deutlich unter 128 KiB.
-        $this->assertLessThan(126_000, strlen((string) $match[1]));
+        $this->assertLessThan(131_072, strlen((string) $match[1]));
 
         $mailAssets = data_get($config, 'mailAssets');
         $this->assertIsArray($mailAssets);

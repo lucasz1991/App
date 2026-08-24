@@ -5,6 +5,8 @@ import { DOMParser } from 'linkedom';
 
 import {
     MAIL_PREVIEW_DEVICES,
+    MAIL_PREVIEW_MAX_WIDTH,
+    MAIL_PREVIEW_MIN_WIDTH,
     calculateMailPreviewGeometry,
     closeInitialMailPopovers,
     createMailNavigationController,
@@ -14,6 +16,7 @@ import {
     MAIL_GJS_OPTIONS,
     MAIL_STYLE_SECTORS,
     parseMailCssProjectStyles,
+    normalizeMailPreviewWidth,
     protectMailSystemComponents,
     projectForMailDocument,
     rehydrateAuthoritativeMailProject,
@@ -1404,6 +1407,28 @@ test('mail preview never upscales and mobile keeps an exact 375 pixel iframe', (
     assert.equal(geometry.logicalHeight, 852);
 });
 
+test('custom mail preview widths use whole CSS pixels and clamp to the supported range', () => {
+    assert.equal(MAIL_PREVIEW_MIN_WIDTH, 320);
+    assert.equal(MAIL_PREVIEW_MAX_WIDTH, 1920);
+    assert.equal(normalizeMailPreviewWidth(641.6), 642);
+    assert.equal(normalizeMailPreviewWidth(100), 320);
+    assert.equal(normalizeMailPreviewWidth(5000), 1920);
+    assert.equal(normalizeMailPreviewWidth('487'), 487);
+    assert.equal(normalizeMailPreviewWidth('ungueltig', 777.8), 778);
+
+    const geometry = calculateMailPreviewGeometry({
+        device: 'desktop',
+        logicalWidth: 641.6,
+        hostWidth: 390,
+        hostHeight: 700,
+    });
+    assert.equal(geometry.device, 'custom');
+    assert.equal(geometry.label, 'Individuell');
+    assert.equal(geometry.logicalWidth, 642);
+    assert.equal(geometry.scale, 1);
+    assert.equal(geometry.displayWidth, 642);
+});
+
 test('preview controller writes logical frame variables and cleans listeners', () => {
     const devices = new Map();
     const handlers = new Map();
@@ -1476,6 +1501,20 @@ test('preview controller writes logical frame variables and cleans listeners', (
     assert.equal(triggered.at(-1)[0], 'rt:mail:preview-resize');
     assert.equal(triggered.at(-1)[1].logicalWidth, 375);
 
+    controller.setWidth(641.6);
+    assert.equal(devices.get('rt-mail-custom').width, '642px');
+    assert.equal(selectedDevices.at(-1), 'rt-mail-custom');
+    assert.equal(cssProperties['--rt-mail-logical-width'], '642px');
+    assert.equal(frame.dataset.previewDevice, 'custom');
+    assert.equal(iframeAttributes.width, '642');
+    assert.equal(iframeStyles.width.value, '642px');
+    assert.equal(zooms.at(-1), 100);
+
+    controller.setDevice('tablet');
+    assert.equal(selectedDevices.at(-1), 'rt-mail-tablet');
+    assert.equal(frame.dataset.previewDevice, 'tablet');
+    assert.equal(cssProperties['--rt-mail-logical-width'], '820px');
+
     handlers.get('canvas:frame:load')?.();
     assert.equal(changes.at(-1).device, 'mobile');
 
@@ -1530,6 +1569,18 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /LMZ Page Builder wird im Mailmodus geladen/);
     assert.match(mailView, /data-mail-code-dialog/);
     assert.match(mailView, /data-mail-degradation-mode/);
+    assert.match(mailView, /data-mail-view-mode="delivery"/);
+    assert.match(mailView, /Kompiliertes Versand-HTML im Browser/);
+    assert.match(mailView, /data-mail-preview-width/);
+    assert.match(mailView, /data-mail-preview-resizer/);
+    assert.match(mailView, /role="separator"/);
+    assert.match(mailView, /aria-valuemin="320"/);
+    assert.match(mailView, /aria-valuemax="1920"/);
+    assert.match(mailView, /setPreviewWidth/);
+    assert.match(mailView, /setPointerCapture/);
+    assert.match(mailView, /'pointercancel'/);
+    assert.match(mailView, /event\.shiftKey \? 10 : 1/);
+    assert.match(mailView, /document_\.endpoints\.deliveryPreview/);
     assert.match(mailView, /Bilder aus/);
     assert.match(mailView, /Head-CSS aus/);
     assert.match(mailView, /Gesamtes CSS aus/);
@@ -1568,6 +1619,10 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailCss, /\.rt-mail-code-dialog\s*\{/);
     assert.match(mailCss, /\.rt-mail-code-dialog::backdrop/);
     assert.match(mailCss, /\.rt-mail-degradation-preview\s*\{/);
+    assert.match(mailCss, /\.rt-mail-delivery-preview\s*\{/);
+    assert.match(mailCss, /\.rt-mail-preview-resizer\s*\{/);
+    assert.match(mailCss, /touch-action:\s*none/);
+    assert.match(mailCss, /data-preview-device='custom'/);
     assert.match(mailCss, /data-mail-degradation-active/);
     assert.doesNotMatch(mailCss, /min-height:\s*42rem/);
     assert.match(shellCss, /font-family:\s*'Plus Jakarta Sans Variable'/);
