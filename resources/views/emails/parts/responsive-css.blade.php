@@ -323,6 +323,14 @@ img.rt-logo { width: 150px !important; }
 /* V8/V9: Das sichtbare Ende des auf 60 % animierten Motivs steht bei 65 %
    der Signaturbreite (60 % von 150 % minus 25 % Versatz). */
 .rt-sign-train-layer[data-rt-layer-mobile="stop65"][data-rt-layer-size] .rt-sign-train { width: 150% !important; max-width: none !important; margin-left: -25% !important; }
+/* V10: Das Motiv beginnt ohne negativen Versatz exakt an der linken
+   Signaturkante. 108,67 % bilden den sichtbaren Motivabschluss bei ca. 65 %
+   ab, ohne dass die Lok rechts aus dem Ausschnitt fahren kann. */
+tr[data-rt-artifact-version="v10"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
+  width: 108.67% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+}
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
@@ -339,15 +347,17 @@ img.rt-logo { width: 150px !important; }
 .rt-sign-train-frame,
 .rt-sign-train-slot,
 .rt-sign-content-frame { height: 296px !important; }
-/* Nur die als V8/V9 gekennzeichneten Importlayouts werden auf dem Telefon kompakter.
+/* Nur die als V8 bis V10 gekennzeichneten Importlayouts werden auf dem Telefon kompakter.
    Aeltere importierte Signaturen behalten ihren bisherigen 296-px-Vertrag. */
 tr[data-rt-artifact-version="v8"] .rt-sign-stage,
-tr[data-rt-artifact-version="v9"] .rt-sign-stage {
+tr[data-rt-artifact-version="v9"] .rt-sign-stage,
+tr[data-rt-artifact-version="v10"] .rt-sign-stage {
   height: 280px !important;
   max-height: 280px !important;
 }
 tr[data-rt-artifact-version="v8"] .rt-sign-train-layer,
-tr[data-rt-artifact-version="v9"] .rt-sign-train-layer {
+tr[data-rt-artifact-version="v9"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v10"] .rt-sign-train-layer {
   height: 280px !important;
   max-height: 280px !important;
   margin-bottom: -280px !important;
@@ -357,7 +367,23 @@ tr[data-rt-artifact-version="v8"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v8"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v9"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v9"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v9"] .rt-sign-content-frame { height: 280px !important; }
+tr[data-rt-artifact-version="v9"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v10"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v10"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v10"] .rt-sign-content-frame { height: 280px !important; }
+/* V10 zieht Zug und Kontaktdaten zehn Pixel naeher zusammen. Die separat
+   gesetzten Rahmenhoehen halten Editor, Vorschau und Mailfluss identisch. */
+tr[data-rt-artifact-version="v10"] .rt-sign-stage,
+tr[data-rt-artifact-version="v10"] .rt-sign-train-layer {
+  height: 270px !important;
+  max-height: 270px !important;
+}
+tr[data-rt-artifact-version="v10"] .rt-sign-train-layer {
+  margin-bottom: -270px !important;
+}
+tr[data-rt-artifact-version="v10"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v10"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v10"] .rt-sign-content-frame { height: 270px !important; }
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
@@ -379,6 +405,11 @@ img.rt-logo { width: 138px !important; }
   max-width: none !important;
   margin-left: -40% !important;
 }
+tr[data-rt-artifact-version="v10"] .rt-sign-train-layer[data-rt-layer-mobile="stop65"] .rt-sign-train {
+  width: 108.67% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+}
 
 
 tr.rt-stack > td + td { padding-top: 10px !important; }
@@ -389,7 +420,7 @@ tr.rt-stack > td + td { padding-top: 10px !important; }
 .rt-sign-content { padding-top: 0 !important; padding-bottom: 15px !important; }
 /* V9 behaelt unter der roten Oberkante einen kleinen, mail-sicheren
    Innenabstand. Gleichzeitig werden die Abstaende zwischen Wortmarke,
-   Person und Firmendaten etwas verdichtet, damit die feste 280-px-Buehne
+   Person und Firmendaten etwas verdichtet, damit die feste Mobilbuehne
    und die bei 65 Prozent endende Zugposition unveraendert bleiben. */
 tr[data-rt-artifact-version="v9"] .rt-sign-content {
   padding-top: 10px !important;
@@ -408,5 +439,23 @@ tr[data-rt-artifact-version="v9"] .rt-sign-identity .rt-contact {
 }
 tr[data-rt-artifact-version="v9"] .rt-company-contact {
   margin-top: 10px !important;
+}
+/* V10 nutzt die durch 270 px begrenzte Mobilbuehne noch kompakter. Die
+   Tabellenzellen behalten positive Pixelabstaende und damit den Mailvertrag. */
+tr[data-rt-artifact-version="v10"] .rt-sign-content {
+  padding-top: 8px !important;
+}
+tr[data-rt-artifact-version="v10"] .rt-sign-logo {
+  padding-bottom: 8px !important;
+}
+tr[data-rt-artifact-version="v10"] .rt-sign-top-row > .rt-sign-identity,
+tr[data-rt-artifact-version="v10"] .rt-sign-company {
+  padding-top: 6px !important;
+}
+tr[data-rt-artifact-version="v10"] .rt-sign-identity .rt-contact {
+  margin-top: 6px !important;
+}
+tr[data-rt-artifact-version="v10"] .rt-company-contact {
+  margin-top: 8px !important;
 }
 }

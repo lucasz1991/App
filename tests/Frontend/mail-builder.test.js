@@ -40,6 +40,7 @@ test('portable media requirements follow the imported signature instead of the o
             v7: ['common.png', 'zug-dampf-light.gif', 'zug-dampf-idle-light.gif'],
             v8: ['common.png', 'zug-dampf-v8-light.gif'],
             v9: ['common.png', 'zug-dampf-v8-light.gif'],
+            v10: ['common.png', 'zug-dampf-v8-light.gif'],
         },
         template: {
             default: ['icon-rt-light.gif'],
@@ -67,6 +68,14 @@ test('portable media requirements follow the imported signature instead of the o
         requirements.signature.v9,
     );
     assert.deepEqual(
+        resolvePortableMediaRequirementIds(
+            requirements,
+            'signature',
+            '<tr data-rt-artifact-version="v10"><td>v10</td></tr>',
+        ),
+        requirements.signature.v10,
+    );
+    assert.deepEqual(
         resolvePortableMediaRequirementIds(requirements, 'template', '<table></table>'),
         requirements.template.default,
     );
@@ -74,7 +83,7 @@ test('portable media requirements follow the imported signature instead of the o
         () => resolvePortableMediaRequirementIds(
             requirements,
             'signature',
-            '<tr data-rt-artifact-version="v10"><td>unbekannt</td></tr>',
+            '<tr data-rt-artifact-version="v11"><td>unbekannt</td></tr>',
         ),
         /Medienvertrag ist nicht vollständig konfiguriert/,
     );
@@ -952,6 +961,10 @@ test('protected mail layers keep the regular train image visible and structural'
         trainLayer.state.traits[2].options.map((option) => option.id),
         ['left', 'center', 'train', 'stop65', 'right'],
     );
+    assert.deepEqual(
+        trainLayer.state.traits[1].options.map((option) => option.id),
+        ['100', '108.67', '125', '150', '200'],
+    );
     assert.equal(markCell.state['custom-name'], 'RT-Zeichen (geschützt)');
     assert.equal(applicationRow.state['custom-name'], 'Anwendungsinhalt (geschützt)');
     [markRow, carrier, ordinary].forEach((editableComponent) => {
@@ -1054,6 +1067,7 @@ test('train layer editor maps presets onto the fixed schema 25 pixel contract', 
     attributes['data-rt-layer-align'] = 'right';
     for (const [sizeName, geometry] of Object.entries({
         100: ['100%', '0'],
+        '108.67': ['108.67%', '0 0 0 -8.67%'],
         125: ['125%', '0 0 0 -25%'],
         150: ['150%', '0 0 0 -50%'],
         200: ['200%', '0 0 0 -100%'],
@@ -1639,8 +1653,11 @@ test('signature source uses a fixed schema 25 pixel frame with a Classic Outlook
     assert.match(mobile, /data-rt-layer-mobile="stop65"\]\[data-rt-layer-size\][^}]+width: 150% !important; max-width: none !important; margin-left: -25% !important/);
     const phone = css.slice(css.indexOf('@media only screen and (max-width: 480px)'));
     assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width: 175% !important;[\s\S]*?margin-left: -8% !important;/);
-    assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v9"\] \.rt-sign-stage\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;/s);
-    assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v9"\] \.rt-sign-train-layer\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;[^}]*margin-bottom: -280px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v9"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v10"\] \.rt-sign-stage\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v9"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;[^}]*margin-bottom: -280px !important;/s);
     assert.match(phone, /data-rt-layer-mobile="stop65"\]\[data-rt-layer-size\][^}]+width: 175% !important;[^}]+margin-left: -40% !important/);
+    assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\s*\{[^}]*height: 270px !important;[^}]*max-height: 270px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\s*\{[^}]*margin-bottom: -270px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 108\.67% !important;[^}]*margin-left: 0 !important;/s);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][^}]+width: 200% !important; max-width: none !important; margin-left: -100% !important/);
 });

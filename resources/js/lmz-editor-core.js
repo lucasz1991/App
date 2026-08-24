@@ -2248,6 +2248,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
                 <span>Zugbreite</span>
                 <select name="trainWidth">
                     <option value="100">100 %</option>
+                    <option value="108.67">108,67 % · Halt bei 65 %</option>
                     <option value="125">125 % · Standard</option>
                     <option value="150">150 %</option>
                     <option value="200">200 %</option>
@@ -2302,7 +2303,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
         form.elements.source.value = source;
         form.elements.alt.value = String(attributes.alt || '');
         form.elements.width.value = String(numericImageWidth(target));
-        form.elements.trainWidth.value = ['100', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
+        form.elements.trainWidth.value = ['100', '108.67', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
             ? String(layerAttributes['data-rt-layer-size'])
             : '125';
         form.elements.alignment.value = inferredImageAlignment(target, trainLayer);
@@ -2353,7 +2354,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
         target.addAttributes?.({ src: source, alt });
 
         if (trainLayer) {
-            const size = ['100', '125', '150', '200'].includes(form.elements.trainWidth.value)
+            const size = ['100', '108.67', '125', '150', '200'].includes(form.elements.trainWidth.value)
                 ? form.elements.trainWidth.value
                 : '125';
             trainLayer.addAttributes?.({

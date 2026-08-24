@@ -24,13 +24,15 @@ final class SignatureArtifactVersion
 
     public const V9 = 'v9';
 
+    public const V10 = 'v10';
+
     /**
-     * V8 und V9 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
+     * V8 bis V10 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
      * endet im Ankunftsbild und benoetigt deshalb kein separates Idle-Overlay.
      */
     public static function usesArrivalHoldTrain(?string $version): bool
     {
-        return in_array($version, [self::V8, self::V9], true);
+        return in_array($version, [self::V8, self::V9, self::V10], true);
     }
 
     public static function detect(MailDocumentKind|string $kind, string $html): ?string

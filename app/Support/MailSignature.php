@@ -383,7 +383,7 @@ class MailSignature
     }
 
     /**
-     * V8 und V9 sind fachlich markierte Signaturstaende und besitzen eigene
+     * V8 bis V10 sind fachlich markierte Signaturstaende und besitzen eigene
      * Haupt-/Standbilder ohne nachlaufenden Idle-Rauch. Die Auswahl geschieht
      * am tatsächlich gerenderten HTML statt am Importdateinamen, damit
      * Vorschau, Systemmail, Download und Testmail dieselbe Bildidentität sehen.
@@ -428,7 +428,7 @@ class MailSignature
             );
         }
 
-        // V8/V9 enthalten nach der Einfahrt keine Smoke-Idle-Sequenz und duerfen
+        // V8 bis V10 enthalten nach der Einfahrt keine Smoke-Idle-Sequenz und duerfen
         // nicht durch das alte, zeitversetzt eingeblendete Overlay ergaenzt werden.
         $values['TRAIN_IDLE_SRC'] = '';
 

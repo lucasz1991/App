@@ -22,6 +22,7 @@ final class SignatureTrainCarrier
     /** @var array<string, array{width:string,maxWidth:string,centerLeft:string,rightLeft:string}> */
     private const CANONICAL_LAYER_SIZE = [
         '100' => ['width' => '100%', 'maxWidth' => '1815px', 'centerLeft' => '0', 'rightLeft' => '0'],
+        '108.67' => ['width' => '108.67%', 'maxWidth' => '1973px', 'centerLeft' => '-4.335%', 'rightLeft' => '-8.67%'],
         '125' => ['width' => '125%', 'maxWidth' => '2269px', 'centerLeft' => '-12.5%', 'rightLeft' => '-25%'],
         '150' => ['width' => '150%', 'maxWidth' => '2723px', 'centerLeft' => '-25%', 'rightLeft' => '-50%'],
         '200' => ['width' => '200%', 'maxWidth' => '3630px', 'centerLeft' => '-50%', 'rightLeft' => '-100%'],

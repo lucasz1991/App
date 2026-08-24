@@ -1382,6 +1382,7 @@ const MAIL_SIGNATURE_SCHEMA_20_BACKGROUND = Object.freeze({
 });
 const MAIL_SIGNATURE_TRAIN_SIZES = Object.freeze({
     100: Object.freeze({ width: '100%', centerMargin: '0', rightMargin: '0' }),
+    '108.67': Object.freeze({ width: '108.67%', centerMargin: '-4.335%', rightMargin: '-8.67%' }),
     125: Object.freeze({ width: '125%', centerMargin: '-12.5%', rightMargin: '-25%' }),
     150: Object.freeze({ width: '150%', centerMargin: '-25%', rightMargin: '-50%' }),
     200: Object.freeze({ width: '200%', centerMargin: '-50%', rightMargin: '-100%' }),
@@ -2577,7 +2578,7 @@ export function synchronizeMailTrainLayerAlignment(component) {
     const alignment = ['left', 'center', 'right'].includes(attributes['data-rt-layer-align'])
         ? attributes['data-rt-layer-align']
         : 'center';
-    const sizeName = ['100', '125', '150', '200'].includes(String(attributes['data-rt-layer-size']))
+    const sizeName = ['100', '108.67', '125', '150', '200'].includes(String(attributes['data-rt-layer-size']))
         ? String(attributes['data-rt-layer-size'])
         : '125';
     const mobileCrop = ['left', 'center', 'train', 'stop65', 'right'].includes(attributes['data-rt-layer-mobile'])
@@ -2585,6 +2586,7 @@ export function synchronizeMailTrainLayerAlignment(component) {
         : 'train';
     const size = {
         100: { width: '100%', centerMargin: '0', rightMargin: '0' },
+        '108.67': { width: '108.67%', centerMargin: '-4.335%', rightMargin: '-8.67%' },
         125: { width: '125%', centerMargin: '-12.5%', rightMargin: '-25%' },
         150: { width: '150%', centerMargin: '-25%', rightMargin: '-50%' },
         200: { width: '200%', centerMargin: '-50%', rightMargin: '-100%' },
@@ -2901,6 +2903,7 @@ export function protectMailSystemComponents(editor) {
                         label: 'Zugbreite',
                         options: [
                             { id: '100', name: '100 %' },
+                            { id: '108.67', name: '108,67 % · Halt bei 65 %' },
                             { id: '125', name: '125 % · Standard' },
                             { id: '150', name: '150 %' },
                             { id: '200', name: '200 %' },
