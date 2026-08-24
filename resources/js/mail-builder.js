@@ -16,6 +16,11 @@ import {
     resolveLmzEditorMode,
     waitForPageBuilderActivation,
 } from './lmz-editor-core.js';
+import {
+    createMailDegradationPreview,
+    normalizeMailCompatibilityManifest,
+    normalizeMailDegradationMode,
+} from './mail-compatibility.js';
 
 /**
  * E-Mail-Modus des LMZ Page Builders (Vendor 2.4.5).
@@ -3243,6 +3248,7 @@ export function createMailNavigationController({
  * @param {'light'|'dark'} options.theme        Vorschaufarben der Leinwand
  * @param {object}   options.previewAssets      lokale Logo-/Zug-/Iconquellen nur fuer das iframe
  * @param {object}   options.previewResponsiveCss zentrale responsive Regeln nur fuer das iframe
+ * @param {object}   options.compatibilityManifest sicherer UI-Ausschnitt des CSV-Regelkatalogs
  * @param {'desktop'|'tablet'|'mobile'} options.previewDevice Vorschau-Mailclient
  * @param {Function|null} options.onPreviewChange Meldung neuer Vorschaugeometrie
  * @param {boolean}  options.readOnly           kein Speichern, kein Hochladen
@@ -3260,6 +3266,7 @@ export async function createMailBuilder({
     theme = 'light',
     previewAssets = {},
     previewResponsiveCss = {},
+    compatibilityManifest = {},
     previewDevice = 'desktop',
     onPreviewChange = null,
     readOnly = false,
@@ -3282,6 +3289,7 @@ export async function createMailBuilder({
     await waitForPageBuilderActivation(root);
 
     let activeTheme = theme === 'dark' ? 'dark' : 'light';
+    const normalizedCompatibilityManifest = normalizeMailCompatibilityManifest(compatibilityManifest);
     const responsiveCssForTheme = (selectedTheme) => String(
         previewResponsiveCss?.[selectedTheme === 'dark' ? 'dark' : 'light'] || '',
     );
@@ -3354,6 +3362,62 @@ export async function createMailBuilder({
     protectMailSystemComponents(editor);
     const rootElement = typeof root === 'string' ? document.querySelector(root) : root;
     const frame = rootElement?.closest?.('[data-mail-editor-frame]') || null;
+    let degradationOverlay = null;
+    let activeDegradationMode = 'normal';
+    const removeDegradationOverlay = () => {
+        degradationOverlay?.remove?.();
+        degradationOverlay = null;
+        frame?.removeAttribute?.('data-mail-degradation-active');
+    };
+    const currentCanvasDocumentHtml = () => {
+        const canvasDocument = editor.Canvas?.getDocument?.();
+        const documentElement = canvasDocument?.documentElement;
+
+        if (!documentElement?.outerHTML) {
+            throw new Error('Die aktuelle Mail-Leinwand ist für die Robustheitsvorschau noch nicht bereit.');
+        }
+
+        const doctype = canvasDocument.doctype?.name
+            ? `<!doctype ${canvasDocument.doctype.name}>`
+            : '<!doctype html>';
+
+        return `${doctype}${documentElement.outerHTML}`;
+    };
+    const renderDegradationOverlay = (nextMode = activeDegradationMode) => {
+        activeDegradationMode = normalizeMailDegradationMode(nextMode);
+        if (activeDegradationMode === 'normal') {
+            removeDegradationOverlay();
+
+            return createMailDegradationPreview('<!doctype html><html><head></head><body></body></html>', 'normal', {
+                environment: window,
+            });
+        }
+
+        if (!frame) {
+            throw new Error('Die Robustheitsvorschau benötigt den Mail-Vorschaurahmen.');
+        }
+
+        const previewResult = createMailDegradationPreview(
+            currentCanvasDocumentHtml(),
+            activeDegradationMode,
+            { environment: window },
+        );
+
+        if (!degradationOverlay) {
+            degradationOverlay = window.document.createElement('iframe');
+            degradationOverlay.className = 'rt-mail-degradation-preview';
+            degradationOverlay.setAttribute('sandbox', '');
+            degradationOverlay.setAttribute('data-mail-degradation-preview', '');
+            frame.appendChild(degradationOverlay);
+        }
+
+        degradationOverlay.title = `${previewResult.label}: ${previewResult.disclaimer}`;
+        degradationOverlay.setAttribute('aria-label', degradationOverlay.title);
+        degradationOverlay.srcdoc = previewResult.html;
+        frame.setAttribute('data-mail-degradation-active', activeDegradationMode);
+
+        return previewResult;
+    };
     const preview = frame
         ? createMailPreviewController({
             instance,
@@ -3367,6 +3431,7 @@ export async function createMailBuilder({
         hydrateMailCanvasPlaceholders(editor);
         hydrateMailCanvasAssets(editor, activeTheme, previewAssets);
         preview?.refresh();
+        if (activeDegradationMode !== 'normal') renderDegradationOverlay();
     };
 
     applyMailCanvasStyles(editor, canvasCss);
@@ -3427,6 +3492,7 @@ export async function createMailBuilder({
         editor,
         mode: MAIL_EDITOR_MODE,
         readOnly,
+        compatibilityManifest: normalizedCompatibilityManifest,
 
         /**
          * Speichern.
@@ -3454,6 +3520,16 @@ export async function createMailBuilder({
         },
 
         getPreviewGeometry: () => preview?.getGeometry() || null,
+
+        /**
+         * Rein heuristische Robustheitsansicht. Das isolierte, skriptlose
+         * iframe verändert weder GrapesJS-Modell noch gespeichertes HTML.
+         */
+        setDegradationMode(nextMode = 'normal') {
+            return renderDegradationOverlay(nextMode);
+        },
+
+        getDegradationMode: () => activeDegradationMode,
 
         /** Alle Marken-GIFs auf der Leinwand ohne Modellmutation neu starten. */
         restartAllGifs() {
@@ -3486,6 +3562,7 @@ export async function createMailBuilder({
             editor.off?.('component:add', onComponentAdd);
             editor.off?.('component:update', onComponentUpdate);
             editor.off?.('canvas:frame:load', onFrameLoad);
+            removeDegradationOverlay();
             preview?.destroy();
             instance.destroy?.();
         },

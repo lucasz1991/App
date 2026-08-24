@@ -13,6 +13,9 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\MailDocumentTestNotification;
 use App\Support\Mail\CssSemantic;
+use App\Support\Mail\EmailCompatibilityAuditor;
+use App\Support\Mail\EmailCompatibilityCatalogException;
+use App\Support\Mail\EmailCompatibilityReport;
 use App\Support\Mail\EmailHtmlReport;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentAutoRepair;
@@ -53,6 +56,7 @@ final class MailDocumentController extends Controller
     public function import(
         ImportMailDocumentRequest $request,
         EmailHtmlSanitizer $sanitizer,
+        EmailCompatibilityAuditor $compatibilityAuditor,
         MailDocumentVersionStore $versions,
     ): JsonResponse {
         $actor = $this->mailAdmin($request);
@@ -80,6 +84,12 @@ final class MailDocumentController extends Controller
             ]);
         }
         $this->assertDocumentStructure($prototype, $htmlReport->html, $cssReport->html);
+        $compatibility = $this->auditCompatibility(
+            $compatibilityAuditor,
+            $kind,
+            $htmlReport->html,
+            $cssReport->html,
+        );
         $builderData = $this->syncBuilderData($prototype, [], $htmlReport->html);
         $contentHash = MailDocument::contentHashFor(
             $builderData,
@@ -131,6 +141,7 @@ final class MailDocumentController extends Controller
                 'open' => 1,
             ]),
             'report' => $this->reportPayload($htmlReport, $cssReport),
+            'compatibility' => $compatibility->toArray(),
         ], 201);
     }
 
@@ -143,6 +154,7 @@ final class MailDocumentController extends Controller
         SaveMailDocumentRequest $request,
         MailDocument $document,
         EmailHtmlSanitizer $sanitizer,
+        EmailCompatibilityAuditor $compatibilityAuditor,
     ): JsonResponse {
         $this->mailAdmin($request);
         $validated = $request->validated();
@@ -172,6 +184,12 @@ final class MailDocumentController extends Controller
             ]);
         }
         $this->assertDocumentStructure($document, $htmlReport->html, $cssReport->html);
+        $compatibility = $this->auditCompatibility(
+            $compatibilityAuditor,
+            $document->kind,
+            $htmlReport->html,
+            $cssReport->html,
+        );
         $builderData = $this->syncBuilderData(
             $document,
             $validated['builder_data'],
@@ -187,6 +205,7 @@ final class MailDocumentController extends Controller
         return response()->json([
             'document' => $candidate,
             'report' => $this->reportPayload($htmlReport, $cssReport),
+            'compatibility' => $compatibility->toArray(),
         ]);
     }
 
@@ -338,12 +357,13 @@ final class MailDocumentController extends Controller
         SaveMailDocumentRequest $request,
         MailDocument $document,
         EmailHtmlSanitizer $sanitizer,
+        EmailCompatibilityAuditor $compatibilityAuditor,
         MailDocumentVersionStore $versions,
     ): JsonResponse {
         $actor = $this->mailAdmin($request);
         $validated = $request->validated();
 
-        [$saved, $htmlReport, $cssReport] = DB::transaction(function () use ($document, $validated, $actor, $sanitizer, $versions): array {
+        [$saved, $htmlReport, $cssReport, $compatibility] = DB::transaction(function () use ($document, $validated, $actor, $sanitizer, $compatibilityAuditor, $versions): array {
             $locked = $this->lock($document);
 
             // Der Hashvergleich ist ohne Sperre wertlos: zwei parallele
@@ -376,6 +396,12 @@ final class MailDocumentController extends Controller
                 $validated['builder_data'],
                 $htmlReport->html,
             );
+            $compatibility = $this->auditCompatibility(
+                $compatibilityAuditor,
+                $locked->kind,
+                $htmlReport->html,
+                $cssReport->html,
+            );
 
             $hash = MailDocument::contentHashFor(
                 $builderData,
@@ -397,12 +423,13 @@ final class MailDocumentController extends Controller
                 $versions->capture($locked, $actor, 'saved');
             }
 
-            return [$locked, $htmlReport, $cssReport];
+            return [$locked, $htmlReport, $cssReport, $compatibility];
         });
 
         return response()->json([
             'document' => $this->payload($saved),
             'report' => $this->reportPayload($htmlReport, $cssReport),
+            'compatibility' => $compatibility->toArray(),
         ]);
     }
 
@@ -410,6 +437,7 @@ final class MailDocumentController extends Controller
         Request $request,
         MailDocument $document,
         EmailHtmlSanitizer $sanitizer,
+        EmailCompatibilityAuditor $compatibilityAuditor,
         PublishedMailDocumentSnapshotStore $publishedDocuments,
         MailDocumentVersionStore $versions,
     ): JsonResponse {
@@ -418,7 +446,7 @@ final class MailDocumentController extends Controller
             'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
         ]);
 
-        [$published, $htmlReport, $cssReport] = DB::transaction(function () use ($document, $actor, $sanitizer, $validated, $versions): array {
+        [$published, $htmlReport, $cssReport, $compatibility] = DB::transaction(function () use ($document, $actor, $sanitizer, $compatibilityAuditor, $validated, $versions): array {
             $locked = $this->lock($document);
 
             // Auch die Freigabe ist ein Schreibvorgang. Ohne denselben
@@ -456,6 +484,13 @@ final class MailDocumentController extends Controller
             }
 
             $this->assertDocumentStructure($locked, $htmlReport->html, $cssReport->html);
+            $compatibility = $this->auditCompatibility(
+                $compatibilityAuditor,
+                $locked->kind,
+                $htmlReport->html,
+                $cssReport->html,
+            );
+            $this->assertCompatibilityPublishable($compatibility);
 
             $builderData = $this->syncBuilderData(
                 $locked,
@@ -485,7 +520,7 @@ final class MailDocumentController extends Controller
             $locked->forceFill($attributes)->save();
             $versions->capture($locked, $actor, 'published');
 
-            return [$locked, $htmlReport, $cssReport];
+            return [$locked, $htmlReport, $cssReport, $compatibility];
         });
 
         $publishedDocuments->forget($published->kind);
@@ -493,6 +528,7 @@ final class MailDocumentController extends Controller
         return response()->json([
             'document' => $this->payload($published),
             'report' => $this->reportPayload($htmlReport, $cssReport),
+            'compatibility' => $compatibility->toArray(),
         ]);
     }
 
@@ -550,6 +586,7 @@ final class MailDocumentController extends Controller
         Request $request,
         MailDocument $document,
         EmailHtmlSanitizer $sanitizer,
+        EmailCompatibilityAuditor $compatibilityAuditor,
         PublishedMailDocumentSnapshotStore $snapshots,
     ): JsonResponse {
         $this->mailAdmin($request);
@@ -571,12 +608,20 @@ final class MailDocumentController extends Controller
         }
 
         $repairedHtml = MailDocumentAutoRepair::repairHtml($document->kind, (string) $document->html);
-        $html = $this->assertCleanHtml($sanitizer, $repairedHtml)->html;
+        $htmlReport = $this->assertCleanHtml($sanitizer, $repairedHtml);
+        $html = $htmlReport->html;
         $cssReport = $this->cleanStyleSheet($sanitizer, (string) $document->css);
         if ($cssReport->hasViolations()) {
             throw ValidationException::withMessages(['css' => $cssReport->violationMessages()]);
         }
         $this->assertDocumentStructure($document, $html, $cssReport->html);
+        $compatibility = $this->auditCompatibility(
+            $compatibilityAuditor,
+            $document->kind,
+            $html,
+            $cssReport->html,
+        );
+        $this->assertCompatibilityPublishable($compatibility);
         $artifactVersion = SignatureArtifactVersion::detect($document->kind, $html);
         $shortHash = substr(strtolower((string) $document->content_hash), 0, 12);
         $snapshots->useSnapshot($document->kind, $html, $cssReport->html);
@@ -604,6 +649,8 @@ final class MailDocumentController extends Controller
             'layout_version' => $artifactVersion,
             'document_version' => (int) $document->version,
             'content_hash' => (string) $document->content_hash,
+            'report' => $this->reportPayload($htmlReport, $cssReport),
+            'compatibility' => $compatibility->toArray(),
         ]);
     }
 
@@ -822,6 +869,64 @@ final class MailDocumentController extends Controller
             'findings' => $findings,
             'messages' => array_merge($html->messages(), $css->messages()),
         ];
+    }
+
+    /**
+     * Der Sicherheits-Sanitizer bleibt die erste, unabhaengige Schranke.
+     * Erst sein kanonisches Ergebnis wird gegen den versionierten fachlichen
+     * Katalog geprueft. Ein fehlender/ungueltiger Katalog ist ein sichtbarer
+     * BLOCK-Bericht, darf einen Entwurf aber weiterhin speicherbar lassen.
+     */
+    private function auditCompatibility(
+        EmailCompatibilityAuditor $auditor,
+        MailDocumentKind $kind,
+        string $html,
+        string $css,
+    ): EmailCompatibilityReport {
+        try {
+            return $auditor->audit($html, $css, [
+                'document_kind' => $kind->value,
+                // An dieser Stelle sind HTML und CSS bereits durch den
+                // unveraendert strengen Sanitizer gelaufen. Damit darf der
+                // Auditor bekannte Systemkomponenten bewerten, ohne die
+                // Benutzer-Allowlist fuer Animation/Position zu oeffnen.
+                'trusted_system_css' => true,
+                'allow_template_tokens' => true,
+            ]);
+        } catch (EmailCompatibilityCatalogException $exception) {
+            return EmailCompatibilityReport::unavailable(
+                $exception,
+                strlen($html),
+                strlen($css),
+            );
+        }
+    }
+
+    /** WARN bleibt freigabefaehig; nur BLOCK stoppt produktive Ausgabe. */
+    private function assertCompatibilityPublishable(EmailCompatibilityReport $report): void
+    {
+        if (! $report->blocksPublication()) {
+            return;
+        }
+
+        $messages = array_values(array_map(
+            static function (array $finding): string {
+                $message = '['.$finding['rule_id'].'] '.$finding['message'];
+                $fix = trim((string) ($finding['fix'] ?? ''));
+
+                return $fix === '' ? $message : $message.' Lösung: '.$fix;
+            },
+            array_filter(
+                $report->findings,
+                static fn (array $finding): bool => $finding['enforcement'] === 'BLOCK',
+            ),
+        ));
+
+        throw ValidationException::withMessages([
+            'compatibility' => $messages === []
+                ? ['Die E-Mail-Kompatibilitätsprüfung blockiert die produktive Ausgabe.']
+                : $messages,
+        ]);
     }
 
     /**

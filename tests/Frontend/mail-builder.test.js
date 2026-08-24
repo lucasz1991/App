@@ -265,7 +265,9 @@ test('schema 22 train overlaps migrate deterministically to the schema 25 pixel 
 });
 
 test('signature preview hydrates the train image and roundtrips two canonical rows', () => {
-    const original = `<tr><td class="rt-sign-cell">${canonicalSignatureStage('<span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}">')}</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>`;
+    const v8Stage = canonicalSignatureStage('<span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}">')
+        .replace('data-rt-layer-mobile="train"', 'data-rt-layer-mobile="stop65"');
+    const original = `<tr data-rt-artifact-version="v8"><td class="rt-sign-cell">${v8Stage}</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>`;
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
         css: '',
@@ -301,6 +303,8 @@ test('signature preview hydrates the train image and roundtrips two canonical ro
     const outgoingTrain = outgoingSlot?.querySelector(':scope > img.rt-sign-train[data-rt-train]');
     const outgoingContent = outgoingStage?.querySelector(':scope > table.rt-sign-content-frame');
     assert.ok(outgoingStage, 'the signature must retain its canonical relative stage');
+    assert.equal(outgoingDocument.querySelector('tr[data-rt-artifact-version="v8"]') !== null, true);
+    assert.equal(outgoingLayer.getAttribute('data-rt-layer-mobile'), 'stop65');
     assert.equal(outgoingStage.getAttribute('style'), 'position:relative;height:200px;max-height:200px;overflow:hidden;');
     assert.equal(outgoingContent.style.marginBottom || '', '');
     assert.equal(outgoingStage.firstElementChild, outgoingLayer);

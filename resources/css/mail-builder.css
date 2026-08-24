@@ -277,6 +277,26 @@ body[data-mode='dark'] .rt-mail-editor-frame {
     background: rgb(226 232 240);
 }
 
+/*
+ * Skriptlose Robustheitsvorschau fuer bewusst degradierte Bedingungen.
+ * Sie liegt nur ueber der editierbaren Leinwand und schreibt niemals in das
+ * GrapesJS-Modell. Die Ansicht ist ausdruecklich keine Client-Emulation.
+ */
+.rt-mail-degradation-preview {
+    position: absolute;
+    z-index: 40;
+    inset: 0.5rem;
+    width: calc(100% - 1rem);
+    height: calc(100% - 1rem);
+    border: 1px solid rgb(148 163 184);
+    border-radius: 0.75rem;
+    background: #fff;
+}
+
+.rt-mail-editor-frame[data-mail-degradation-active] .rt-mail-builder-root {
+    visibility: hidden;
+}
+
 .dark .rt-mail-builder-root,
 body[data-mode='dark'] .rt-mail-builder-root {
     border-color: rgb(42 57 77);

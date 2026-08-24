@@ -33,8 +33,11 @@ final class SignatureArtifactVersion
         $previous = libxml_use_internal_errors(true);
 
         try {
+            $source = preg_match('/<(?:html|body)\b/i', $html) === 1
+                ? '<?xml encoding="UTF-8">'.$html
+                : '<?xml encoding="UTF-8"><table><tbody>'.$html.'</tbody></table>';
             $loaded = $document->loadHTML(
-                '<?xml encoding="UTF-8"><table><tbody>'.$html.'</tbody></table>',
+                $source,
                 LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD,
             );
         } finally {

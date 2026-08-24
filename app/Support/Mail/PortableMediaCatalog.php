@@ -11,8 +11,7 @@ final class PortableMediaCatalog
     public static function requiredSystemAssetIds(
         MailDocumentKind|string $kind,
         ?string $artifactVersion = null,
-    ): array
-    {
+    ): array {
         $kind = is_string($kind) ? MailDocumentKind::tryFrom($kind) : $kind;
 
         return match ($kind) {
@@ -38,6 +37,8 @@ final class PortableMediaCatalog
                     'zug-dampf-light.png',
                     'zug-dampf-dark.gif',
                     'zug-dampf-dark.png',
+                    'zug-dampf-idle-light.gif',
+                    'zug-dampf-idle-dark.gif',
                 ]),
             MailDocumentKind::Template => [
                 'icon-rt-light.gif',

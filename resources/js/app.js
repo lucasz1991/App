@@ -75,6 +75,10 @@ import {
     rehydrateAuthoritativeMailProject,
     serializeMailDocumentForSave,
 } from './mail-builder';
+import {
+    normalizeMailCompatibilityManifest,
+    normalizeMailCompatibilityReport,
+} from './mail-compatibility';
 import './marketing-studio';
 
 ensureRailTimeNavigationCoordinator(window, document);
@@ -658,6 +662,8 @@ window.RailTimeMailBuilder = {
     projectFor: projectForMailDocument,
     rehydrateAuthoritative: rehydrateAuthoritativeMailProject,
     serializeForSave: serializeMailDocumentForSave,
+    normalizeCompatibilityManifest: normalizeMailCompatibilityManifest,
+    normalizeCompatibilityReport: normalizeMailCompatibilityReport,
 };
 
 registerRailtimePushSettings(Alpine);

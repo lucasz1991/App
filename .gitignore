@@ -64,6 +64,13 @@ Homestead.json
 !/tests/Feature/DeviceReadinessHardeningTest.php
 !/tests/Feature/DeviceProviderLinkManagementTest.php
 !/tests/Feature/DeviceCommandAssignmentBindingTest.php
+!/tests/Unit/
+/tests/Unit/*
+!/tests/Unit/Support/
+/tests/Unit/Support/*
+!/tests/Unit/Support/Mail/
+/tests/Unit/Support/Mail/*
+!/tests/Unit/Support/Mail/EmailCompatibilityContractTest.php
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/call-recording-gate.test.js
@@ -74,6 +81,7 @@ Homestead.json
 !/tests/Frontend/mail-signature-reply-forward.test.js
 !/tests/Frontend/mail-train-runtime.test.js
 !/tests/Frontend/mail-text-eml-hardening.test.js
+!/tests/Frontend/mail-compatibility.test.js
 !/tests/Frontend/marketing-render.test.js
 !/tests/Frontend/marketing-studio.test.js
 !/tests/Frontend/lmz-editor-assistant.test.js

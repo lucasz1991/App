@@ -76,6 +76,22 @@
                         </button>
                     </div>
 
+                    <label class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-2 text-xs font-semibold text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text">
+                        <i data-feather="shield" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                        <span class="sr-only">Robustheitsvorschau</span>
+                        <select
+                            data-mail-degradation-mode
+                            class="min-h-9 max-w-44 border-0 bg-transparent pr-7 text-xs font-semibold focus:outline-none focus:ring-0 dark:bg-rt-dark-surface"
+                            aria-label="Robustheitsvorschau auswählen; keine Mailclient-Emulation"
+                            title="Heuristische Robustheitsvorschau – keine Outlook- oder Gmail-Emulation"
+                        >
+                            <option value="normal">Normale Vorschau</option>
+                            <option value="images-off">Bilder aus</option>
+                            <option value="head-css-off">Head-CSS aus</option>
+                            <option value="css-off">Gesamtes CSS aus</option>
+                        </select>
+                    </label>
+
                     <button
                         type="button"
                         data-mail-preview-replay
@@ -575,6 +591,7 @@
                     const previewStatus = studioRoot.querySelector('[data-mail-preview-status]');
                     const themeButtons = Array.from(studioRoot.querySelectorAll('[data-mail-theme-button]'));
                     const deviceButtons = Array.from(studioRoot.querySelectorAll('[data-mail-preview-device]'));
+                    const degradationSelect = studioRoot.querySelector('[data-mail-degradation-mode]');
                     const replayButton = studioRoot.querySelector('[data-mail-preview-replay]');
                     const importFile = studioRoot.querySelector('[data-mail-code-import-file]');
                     const codeDialog = studioRoot.querySelector('[data-mail-code-dialog]');
@@ -594,6 +611,9 @@
                     let destroyed = false;
                     let selectedTheme = 'light';
                     let selectedDevice = 'wide';
+                    let selectedDegradationMode = 'normal';
+                    let actionsBusy = false;
+                    let compatibilityBlocksPublication = false;
                     let unregisterNavigation = null;
                     let lastEditorSaveError = null;
                     let activeBaselineHtml = String(document_.html || '');
@@ -658,7 +678,9 @@
                     }
 
                     const setActionsBusy = (busy) => {
+                        actionsBusy = Boolean(busy);
                         const restoreButton = queryVersionControl('[data-mail-document-version-restore]');
+                        const testMailButton = queryToolControl('[data-mail-document-test-mail]');
                         [
                             saveButton,
                             publishButton,
@@ -666,15 +688,17 @@
                             queryToolControl('[data-mail-code-open]'),
                             queryToolControl('[data-mail-code-export]'),
                             queryToolControl('[data-mail-code-import]'),
-                            queryToolControl('[data-mail-document-test-mail]'),
+                            testMailButton,
                             queryVersionControl('[data-mail-document-version-trigger]'),
                             restoreButton,
                             ...codeCancelButtons,
                         ].forEach((button) => {
                             if (!button) return;
 
-                            button.disabled = busy || (button === restoreButton && selectedVersionId === '');
-                            button.setAttribute('aria-busy', String(busy));
+                            button.disabled = actionsBusy
+                                || ([publishButton, testMailButton].includes(button) && compatibilityBlocksPublication)
+                                || (button === restoreButton && selectedVersionId === '');
+                            button.setAttribute('aria-busy', String(actionsBusy));
                         });
                     };
 
@@ -700,10 +724,18 @@
 
                         const widths = { wide: 1920, desktop: 1024, tablet: 820, mobile: 375 };
                         const labels = { wide: 'Systemmail breit', desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobil' };
+                        const degradationLabels = {
+                            'images-off': 'Bilder aus',
+                            'head-css-off': 'Head-CSS aus',
+                            'css-off': 'Gesamtes CSS aus',
+                        };
                         const scale = geometry?.scale
                             ? ` · Fit ${Math.round(geometry.scale * 100)} %`
                             : '';
-                        previewStatus.textContent = `${labels[selectedDevice]} · ${geometry?.logicalWidth || widths[selectedDevice]} px${scale}`;
+                        const degradation = selectedDegradationMode === 'normal'
+                            ? ''
+                            : ` · ${degradationLabels[selectedDegradationMode]} · Robustheitsvorschau, keine Mailclient-Emulation`;
+                        previewStatus.textContent = `${labels[selectedDevice]} · ${geometry?.logicalWidth || widths[selectedDevice]} px${scale}${degradation}`;
                     };
 
                     const selectTheme = (theme) => {
@@ -713,6 +745,9 @@
                             button.setAttribute('aria-pressed', String(button.dataset.mailThemeButton === selectedTheme));
                         });
                         instance?.setTheme?.(selectedTheme);
+                        if (selectedDegradationMode !== 'normal') {
+                            instance?.setDegradationMode?.(selectedDegradationMode);
+                        }
                     };
 
                     const selectDevice = (device) => {
@@ -721,13 +756,56 @@
                             button.setAttribute('aria-pressed', String(button.dataset.mailPreviewDevice === selectedDevice));
                         });
                         instance?.setPreviewDevice?.(selectedDevice);
+                        if (selectedDegradationMode !== 'normal') {
+                            instance?.setDegradationMode?.(selectedDegradationMode);
+                        }
                         updatePreviewStatus(instance?.getPreviewGeometry?.());
                     };
 
-                    const showFindings = (report) => {
+                    const selectDegradationMode = (mode) => {
+                        selectedDegradationMode = ['normal', 'images-off', 'head-css-off', 'css-off'].includes(mode)
+                            ? mode
+                            : 'normal';
+                        if (degradationSelect) degradationSelect.value = selectedDegradationMode;
+                        instance?.setDegradationMode?.(selectedDegradationMode);
+                        updatePreviewStatus(instance?.getPreviewGeometry?.());
+                    };
+
+                    const showFindings = (report, compatibility = undefined) => {
                         if (!findingsBox || !findingsList) return;
 
-                        const messages = Array.isArray(report?.messages) ? report.messages : [];
+                        const sanitizerMessages = Array.isArray(report?.messages) ? report.messages : [];
+                        let normalizedCompatibility = null;
+                        if (compatibility !== undefined) {
+                            normalizedCompatibility = runtimeBridge.normalizeCompatibilityReport?.(compatibility)
+                                || compatibility
+                                || null;
+                            compatibilityBlocksPublication = normalizedCompatibility?.status === 'block';
+                            publishButton?.setAttribute(
+                                'title',
+                                compatibilityBlocksPublication
+                                    ? 'Veröffentlichung durch E-Mail-Kompatibilitätsprüfung blockiert'
+                                    : 'Aktuellen Entwurf veröffentlichen',
+                            );
+                            setActionsBusy(actionsBusy);
+                        }
+
+                        const compatibilityMessages = Array.isArray(normalizedCompatibility?.findings)
+                            ? normalizedCompatibility.findings.map((finding) => {
+                                const ruleId = finding.ruleId || finding.rule_id || 'E-Mail-Kompatibilität';
+                                const message = finding.message || '';
+                                const fix = finding.fix || '';
+                                const profiles = finding.clientProfiles || finding.client_profiles || [];
+                                const profileHint = Array.isArray(profiles) && profiles.length > 0
+                                    ? ` Betroffene Profile: ${profiles.join(', ')}.`
+                                    : '';
+                                const fixHint = fix ? ` Lösung: ${fix}` : '';
+
+                                return `[${ruleId}] ${message}${fixHint}${profileHint}`.trim();
+                            })
+                            : [];
+                        const messages = [...new Set([...sanitizerMessages, ...compatibilityMessages]
+                            .filter((message) => typeof message === 'string' && message.trim() !== ''))];
                         findingsList.replaceChildren();
 
                         if (messages.length === 0) {
@@ -736,12 +814,14 @@
                             return;
                         }
 
-                        const removed = (report.findings || []).some((finding) => finding.severity === 'violation');
+                        const removed = (report?.findings || []).some((finding) => finding.severity === 'violation');
                         const explicitTitle = typeof report?.title === 'string' ? report.title.trim() : '';
                         if (findingsTitle) {
-                            findingsTitle.textContent = explicitTitle || (removed
-                                ? 'Die Prüfung hat Inhalte entfernt'
-                                : 'Hinweise der Prüfung');
+                            findingsTitle.textContent = compatibilityBlocksPublication
+                                ? 'Veröffentlichung durch Kompatibilitätsregeln blockiert'
+                                : (explicitTitle || (removed
+                                    ? 'Die Prüfung hat Inhalte entfernt'
+                                    : 'Hinweise der Sicherheits- und Kompatibilitätsprüfung'));
                         }
 
                         messages.forEach((message) => {
@@ -753,6 +833,11 @@
                         findingsBox.hidden = false;
                         findingsBox.classList.remove('hidden');
                     };
+
+                    // Bereits der serverseitig geladene Entwurf zeigt seinen
+                    // Katalogstatus. BLOCK deaktiviert nur Freigabe/Testmail;
+                    // der Entwurf selbst bleibt weiterhin bearbeitbar.
+                    showFindings(null, document_.compatibility);
 
                     const normalizeError = (error, fallback) => {
                         if (error instanceof Error) return error;
@@ -1358,6 +1443,7 @@
                             assets: config.mailAssets || [],
                             previewAssets: config.previewAssets || {},
                             previewResponsiveCss: config.previewResponsiveCss || {},
+                            compatibilityManifest: config.compatibilityManifest || {},
                             previewDevice: selectedDevice,
                             onPreviewChange: updatePreviewStatus,
                             assistantContext: {
@@ -1403,7 +1489,7 @@
                                         document_.css = payload.document?.css ?? outgoing.css;
                                         activeBaselineHtml = document_.html;
                                         applyDocumentState(payload.document);
-                                        showFindings(payload.report);
+                                        showFindings(payload.report, payload.compatibility);
                                         await runtimeBridge.rehydrateAuthoritative({
                                             editor,
                                             draft: document_,
@@ -1439,6 +1525,7 @@
 
                         selectTheme(selectedTheme);
                         selectDevice(selectedDevice);
+                        selectDegradationMode(selectedDegradationMode);
                     };
 
                     themeButtons.forEach((button) => {
@@ -1452,6 +1539,16 @@
                             signal: controlListeners.signal,
                         });
                     });
+
+                    degradationSelect?.addEventListener('change', () => {
+                        try {
+                            selectDegradationMode(degradationSelect.value);
+                        } catch (error) {
+                            selectDegradationMode('normal');
+                            const surfaced = showRequestError(error, 'Robustheitsvorschau nicht verfügbar');
+                            toast('error', surfaced.message, 'Vorschau nicht verfügbar');
+                        }
+                    }, { signal: controlListeners.signal });
 
                     replayButton?.addEventListener('click', () => {
                         const restarted = Number(instance?.restartAllGifs?.() || 0);
@@ -1515,6 +1612,7 @@
                         return {
                             draft: canonicalDraftFromValidation(payload),
                             report: payload.report || null,
+                            compatibility: payload.compatibility,
                         };
                     };
 
@@ -1538,7 +1636,10 @@
                                 expected_hash: document_.contentHash || '',
                             });
                             applyDocumentState(payload.document);
-                            showFindings(payload.report || validated.report);
+                            showFindings(
+                                payload.report || validated.report,
+                                payload.compatibility ?? validated.compatibility,
+                            );
                             pendingPortableMedia = [];
 
                             const message = 'Der reparierte Entwurf wurde gespeichert. Der Editor wird neu geladen.';
@@ -1568,8 +1669,9 @@
                             selectDevice(selectedDevice);
                             await saveCurrentDraft();
 
-                            if (Array.isArray(validated.report?.messages) && validated.report.messages.length > 0) {
-                                showFindings(validated.report);
+                            if (Array.isArray(validated.report?.messages)
+                                || Array.isArray(validated.compatibility?.findings)) {
+                                showFindings(validated.report, validated.compatibility);
                             }
                             pendingPortableMedia = [];
 
@@ -1749,6 +1851,7 @@
                             const payload = await request(document_.endpoints.testMail, 'POST', {
                                 expected_hash: document_.contentHash || '',
                             });
+                            showFindings(payload.report, payload.compatibility);
                             setMessage(payload.message || 'Testmail wurde gesendet.');
                             toast('success', payload.message || 'Testmail wurde gesendet.', 'Testmail gesendet');
                         } catch (error) {
@@ -1810,7 +1913,7 @@
                                 expected_hash: document_.contentHash || '',
                             });
                             applyDocumentState(payload.document);
-                            showFindings(payload.report);
+                            showFindings(payload.report, payload.compatibility);
                             setMessage(`Veröffentlicht am ${payload.document?.published_label ?? ''} Uhr — diese Fassung wird jetzt für Systemmails verwendet.`);
                             const successText = config.currentDocument === 'signature'
                                 ? 'Outlook-Paket und Systemmails verwenden ab sofort diese Signatur.'

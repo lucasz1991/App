@@ -9,6 +9,7 @@ use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\TemplateDocumentContract;
+use App\Support\Mail\TrustedEmailCss;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -550,9 +551,7 @@ class EmailTemplateBuilder
      */
     public static function responsiveCss(?string $border = null): string
     {
-        return trim(view('emails.parts.responsive-css', [
-            'border' => $border ?: '#e6e8ec',
-        ])->render());
+        return TrustedEmailCss::responsive($border);
     }
 
     /**
@@ -699,8 +698,7 @@ class EmailTemplateBuilder
         string $theme,
         bool $animated = false,
         ?string $artifactVersion = null,
-    ): string
-    {
+    ): string {
         return self::mailAssetUrl(self::signatureTrainFilename($theme, $animated, $artifactVersion));
     }
 
@@ -1828,11 +1826,16 @@ TEXT;
         $companyName = trim(preg_replace('/[\r\n]+/', ' ', $values['FIRMENNAME']));
         $subject = $this->mimeHeaderValue("{{BETREFF}} | {$companyName}");
         $plain = chunk_split(base64_encode($this->buildPlainBody()), 76, "\r\n");
-        $html = chunk_split(base64_encode($this->buildEmailHtml(
+        $htmlDocument = $this->buildEmailHtml(
             inlineImages: false,
             theme: $theme,
             cidOutlookImages: true,
-        )), 76, "\r\n");
+        );
+        $artifactVersion = SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $htmlDocument,
+        );
+        $html = chunk_split(base64_encode($htmlDocument), 76, "\r\n");
 
         $lines = [
             'MIME-Version: 1.0',
@@ -1861,8 +1864,8 @@ TEXT;
         $logoAsset = $this->emailLogoAsset($theme);
         $logoStillAsset = str_replace('.gif', '.png', $logoAsset);
         $markAsset = self::emailMarkAsset($theme);
-        $trainAsset = 'zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.gif';
-        $trainStillAsset = 'zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.png';
+        $trainAsset = self::signatureTrainFilename($theme, true, $artifactVersion);
+        $trainStillAsset = self::signatureTrainFilename($theme, false, $artifactVersion);
         $trainIdleAsset = 'zug-dampf-idle-'.($theme === 'dark' ? 'dark' : 'light').'.gif';
         $inlineImages = [
             'railtime-logo' => [
@@ -1889,11 +1892,14 @@ TEXT;
                 'filename' => $trainStillAsset,
                 'content' => file_get_contents(self::masterPath('assets/'.$trainStillAsset)),
             ],
-            'railtime-train-idle' => [
+        ];
+
+        if ($artifactVersion !== SignatureArtifactVersion::V8) {
+            $inlineImages['railtime-train-idle'] = [
                 'filename' => $trainIdleAsset,
                 'content' => file_get_contents(self::masterPath('assets/'.$trainIdleAsset)),
-            ],
-        ];
+            ];
+        }
 
         foreach (self::CONTACT_ICON_PNG as $name => $base64) {
             $inlineImages['railtime-icon-'.$name] = [

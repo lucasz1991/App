@@ -5,6 +5,10 @@ namespace App\Livewire\Admin;
 use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
 use App\Support\EmailTemplateBuilder;
+use App\Support\Mail\EmailCompatibilityAuditor;
+use App\Support\Mail\EmailCompatibilityCatalog;
+use App\Support\Mail\EmailCompatibilityCatalogException;
+use App\Support\Mail\EmailCompatibilityReport;
 use App\Support\Mail\MailDocumentAutoRepair;
 use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\SignatureArtifactVersion;
@@ -98,10 +102,22 @@ class MailDocumentEditor extends Component
     private function editorConfig(array $documents): array
     {
         $payload = [];
+        $catalog = app(EmailCompatibilityCatalog::class);
+        try {
+            $compatibilityManifest = $catalog->builderManifestForJs();
+        } catch (EmailCompatibilityCatalogException $exception) {
+            $compatibilityManifest = [
+                'schema_version' => 'unavailable',
+                'catalog_version' => 'unavailable',
+                'rules' => [],
+                'error' => $exception->getMessage(),
+            ];
+        }
+        $compatibilityAuditor = new EmailCompatibilityAuditor($catalog);
         $contactIconUrls = EmailTemplateBuilder::contactIconUrls();
         $signatureDocument = $documents[MailDocumentKind::Signature->value] ?? null;
         $signatureArtifactVersion = $signatureDocument instanceof MailDocument
-            ? SignatureArtifactVersion::detect($signatureDocument->kind, (string) $signatureDocument->html)
+            ? SignatureArtifactVersion::detect(MailDocumentKind::Signature, (string) $signatureDocument->html)
             : null;
         $mailAssets = [
             ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-signature-light.gif'), 'name' => 'RailTime Wortmarke hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 504, 'height' => 86, 'category' => 'RailTime Marke'],
@@ -150,6 +166,12 @@ class MailDocumentEditor extends Component
                 // Style- und Markenvertrag.
                 'html' => $source['html'],
                 'css' => (string) $document->css,
+                'compatibility' => $this->editorCompatibility(
+                    $compatibilityAuditor,
+                    $document,
+                    $source['html'],
+                    (string) $document->css,
+                )->toArray(),
                 // Nur eine transiente Projektion: Ein GET veraendert weder
                 // Entwurf noch Version. Der naechste ausdrueckliche Save
                 // uebernimmt den reparierten RailTime-Vertrag.
@@ -189,6 +211,7 @@ class MailDocumentEditor extends Component
         return [
             'currentDocument' => $this->kind,
             'documents' => $payload,
+            'compatibilityManifest' => $compatibilityManifest,
             // Nur diese oeffentlichen, stabilen Mail-URLs duerfen normale
             // Inhaltsbilder ersetzen. Private Admin-Dateien, Uploads und
             // freie Fremd-URLs bleiben im E-Mail-Editor ausgeschlossen.
@@ -251,6 +274,27 @@ class MailDocumentEditor extends Component
         ];
     }
 
+    private function editorCompatibility(
+        EmailCompatibilityAuditor $auditor,
+        MailDocument $document,
+        string $html,
+        string $css,
+    ): EmailCompatibilityReport {
+        try {
+            return $auditor->audit($html, $css, [
+                'document_kind' => $document->kind->value,
+                'trusted_system_css' => true,
+                'allow_template_tokens' => true,
+            ]);
+        } catch (EmailCompatibilityCatalogException $exception) {
+            return EmailCompatibilityReport::unavailable(
+                $exception,
+                strlen($html),
+                strlen($css),
+            );
+        }
+    }
+
     /**
      * Medien, die zum aktuell geoeffneten Dokumentvertrag gehoeren.
      *
@@ -261,7 +305,7 @@ class MailDocumentEditor extends Component
     {
         $activeDocument = $documents[$this->kind] ?? null;
         $artifactVersion = $activeDocument instanceof MailDocument
-            ? SignatureArtifactVersion::detect($activeDocument->kind, (string) $activeDocument->html)
+            ? SignatureArtifactVersion::detect($this->kind, (string) $activeDocument->html)
             : null;
         $includedSystemAssets = array_fill_keys(
             PortableMediaCatalog::requiredSystemAssetIds($this->kind, $artifactVersion),

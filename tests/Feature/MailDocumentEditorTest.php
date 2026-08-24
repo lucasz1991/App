@@ -1544,7 +1544,7 @@ HTML;
             $this->assertStringContainsString('tr.rt-stack > td', $responsiveCss);
         }
 
-        $this->assertLessThan(100_000, strlen((string) $match[1]));
+        $this->assertLessThan(110_000, strlen((string) $match[1]));
 
         $mailAssets = data_get($config, 'mailAssets');
         $this->assertIsArray($mailAssets);

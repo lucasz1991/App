@@ -6,6 +6,7 @@ use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlReport;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\TrustedEmailCss;
 use App\Support\MailSignature;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -165,14 +166,24 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringNotContainsString('.rt-train-idle-runtime-layer', $css);
         $this->assertDoesNotMatchRegularExpression('/background-image:[^;]*(?:TRAIN|train|\.gif)/i', $css);
 
-        // Der serverkontrollierte Keyframe-Block darf unveraendert durch den
-        // Sanitizer; frei editierbares CSS bleibt davon strikt getrennt.
-        $document = "<!doctype html>\n<html lang=\"de\">\n<head>\n<style>\n{$css}\n</style>\n</head>\n<body><p>x</p></body>\n</html>";
+        // Der serverkontrollierte Keyframe-Block hat einen exakten,
+        // versionierten Vertrauenspfad. Der allgemeine Sanitizer muss ihn
+        // weiterhin als unzulaessigen Benutzercode beanstanden.
+        TrustedEmailCss::assertResponsive($css, '#e6e8ec');
+        $this->assertSame(hash('sha256', $css), TrustedEmailCss::fingerprint('#e6e8ec'));
+        try {
+            TrustedEmailCss::assertResponsive($css."\n", '#e6e8ec');
+            $this->fail('Abweichendes System-CSS wurde unerwartet als vertrauenswuerdig akzeptiert.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('versionierten Runtime-Quelle', $exception->getMessage());
+        }
 
+        $document = "<!doctype html>\n<html lang=\"de\">\n<head>\n<style>\n{$css}\n</style>\n</head>\n<body><p>x</p></body>\n</html>";
         $report = $this->sanitizer()->clean($document);
 
-        $this->assertSame([], $report->findings, implode(' | ', $report->messages()));
-        $this->assertSame($document, $report->html);
+        $this->assertTrue($report->hasViolations());
+        $this->assertContains('css.at-rule', array_column($report->findings, 'code'));
+        $this->assertStringNotContainsString('@keyframes', $report->html);
     }
 
     /**

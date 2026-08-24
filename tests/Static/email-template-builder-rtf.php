@@ -21,7 +21,9 @@ namespace {
         return dirname(__DIR__, 2).'/resources'.($path === '' ? '' : '/'.$path);
     }
 
+    require dirname(__DIR__, 2).'/app/Enums/MailDocumentKind.php';
     require dirname(__DIR__, 2).'/app/Support/Mail/CssSemantic.php';
+    require dirname(__DIR__, 2).'/app/Support/Mail/SignatureArtifactVersion.php';
     require dirname(__DIR__, 2).'/app/Support/Mail/SignatureTrainCarrier.php';
     require dirname(__DIR__, 2).'/app/Support/EmailTemplateBuilder.php';
 
