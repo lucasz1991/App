@@ -10,7 +10,7 @@ AddType application/manifest+json .webmanifest
     # Versionierte Mailbilder duerfen beim erneuten Oeffnen derselben Mail aus
     # dem Client-/Proxy-Cache kommen. Der Dateiname wird bei jeder Revision
     # geaendert; damit bleibt ein langes Caching ohne veraltete Darstellung sicher.
-    <FilesMatch "^(?:zug-dampf-v(?:12|13|15)-(?:light|dark)|wortmarke-(?:signature-v15-light|mail-v15-dark))\.(?:gif|png)$">
+    <FilesMatch "^(?:zug-dampf-v(?:12|13|15|17)-(?:light|dark)|wortmarke-(?:signature-v15-light|mail-v15-dark))\.(?:gif|png)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
 </IfModule>

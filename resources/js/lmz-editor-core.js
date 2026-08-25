@@ -381,21 +381,81 @@ function assetSource(asset) {
     if (typeof asset === 'string') return asset;
     if (typeof asset?.getSrc === 'function') return asset.getSrc();
     if (typeof asset?.get === 'function') return asset.get('src');
-    return asset?.src || '';
+    return asset?.src || asset?.source || '';
+}
+
+function assetMetadataValue(asset, names = []) {
+    const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {};
+
+    for (const name of names) {
+        const direct = asset?.[name];
+        if (direct !== undefined && direct !== null && direct !== '') return direct;
+        const nested = metadata?.[name];
+        if (nested !== undefined && nested !== null && nested !== '') return nested;
+        const model = asset?.get?.(name);
+        if (model !== undefined && model !== null && model !== '') return model;
+    }
+
+    return null;
+}
+
+function imageMimeType(source = '', declaredMime = '') {
+    const declared = String(declaredMime || '').trim().toLowerCase().split(';')[0];
+    if (/^image\/(?:gif|png|jpe?g|webp)$/.test(declared)) return declared === 'image/jpg' ? 'image/jpeg' : declared;
+    const dataMime = String(source || '').match(/^data:(image\/(?:gif|png|jpe?g|webp));/i)?.[1]?.toLowerCase();
+    if (dataMime) return dataMime === 'image/jpg' ? 'image/jpeg' : dataMime;
+    const extension = String(source || '').match(/\.([a-z0-9]+)(?:$|[?#])/i)?.[1]?.toLowerCase();
+
+    return {
+        gif: 'image/gif',
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        webp: 'image/webp',
+    }[extension] || '';
+}
+
+function embeddedImageBytes(source = '') {
+    const encoded = String(source || '').match(/^data:image\/(?:gif|png|jpe?g|webp);base64,([a-z0-9+/]*={0,2})$/i)?.[1];
+    if (!encoded || encoded.length % 4 !== 0) return null;
+    const padding = encoded.endsWith('==') ? 2 : (encoded.endsWith('=') ? 1 : 0);
+
+    return Math.max(0, (encoded.length * 3 / 4) - padding);
 }
 
 function normalizeAsset(asset, baseUrl) {
     const source = assetSource(asset);
+    const declaredMime = assetMetadataValue(asset, ['mime', 'mime_type', 'content_type']);
+    const fallback = assetMetadataValue(asset, [
+        'fallback_source',
+        'fallback_src',
+        'fallbackSource',
+        'fallback',
+        'outlook_fallback',
+        'outlookFallback',
+        'still_source',
+        'still_src',
+        'still',
+    ]);
+    const fallbackSource = typeof fallback === 'object' ? assetSource(fallback) : String(fallback || '');
+    const width = number(assetMetadataValue(asset, ['width', 'intrinsic_width', 'intrinsicWidth', 'natural_width', 'naturalWidth']));
+    const height = number(assetMetadataValue(asset, ['height', 'intrinsic_height', 'intrinsicHeight', 'natural_height', 'naturalHeight']));
+    const bytes = number(assetMetadataValue(asset, ['bytes', 'file_size', 'size_bytes']), embeddedImageBytes(source) || 0);
+    const mime = imageMimeType(source, declaredMime);
     return {
         asset,
         src: source,
         key: canonicalMediaSource(source, baseUrl),
         name: String(asset?.name || asset?.get?.('name') || source.split('/').pop() || 'Bild'),
         type: String(asset?.type || asset?.get?.('type') || 'image'),
-        width: number(asset?.width || asset?.get?.('width')) || null,
-        height: number(asset?.height || asset?.get?.('height')) || null,
+        width: width > 0 ? width : null,
+        height: height > 0 ? height : null,
+        bytes: bytes > 0 ? bytes : null,
         category: String(asset?.category || asset?.get?.('category') || ''),
-        mime: String(asset?.mime || asset?.mime_type || asset?.get?.('mime') || asset?.get?.('mime_type') || ''),
+        mime,
+        animated: Boolean(assetMetadataValue(asset, ['animated', 'is_animated'])) || isAnimatedImageSource(source, mime),
+        fallbackSource,
+        fallbackLabel: String(assetMetadataValue(asset, ['fallback_label', 'fallbackLabel', 'still_label']) || ''),
     };
 }
 
@@ -544,6 +604,120 @@ function isEditableBrandPreviewImage(component) {
     if (!isImageComponent(component)) return false;
     const previewToken = String(componentAttributes(component)['data-rt-mail-preview-token'] || '');
     return ['TRAIN_SRC', 'LOGO_SRC'].includes(previewToken);
+}
+
+const IMAGE_LAYER_DETAILS = Object.freeze({
+    TRAIN_SRC: 'Zuganimation',
+    LOGO_SRC: 'Firmenlogo',
+});
+
+const INTERNAL_MEDIA_LAYER_CLASSES = Object.freeze(new Set([
+    'rt-sign-stage',
+    'rt-sign-train-layer',
+    'rt-sign-train-frame',
+    'rt-sign-train-slot',
+]));
+
+function componentClassNames(component) {
+    return String(componentAttributes(component).class || '').split(/\s+/).filter(Boolean);
+}
+
+function imageLayerDetail(component) {
+    if (!isImageComponent(component)) return '';
+    const token = normalizedToken(componentAttributes(component)['data-rt-mail-preview-token']);
+
+    return IMAGE_LAYER_DETAILS[token] || '';
+}
+
+function isInternalMediaLayer(component) {
+    if (!component || isImageComponent(component)) return false;
+    if (componentAttributes(component)['data-rt-mail-preview-train']) return true;
+    if (componentClassNames(component).some((name) => INTERNAL_MEDIA_LAYER_CLASSES.has(name))) return true;
+
+    let current = component.parent?.() || null;
+    let guard = 0;
+    while (current && guard < 20) {
+        if (componentClassNames(current).includes('rt-sign-train-layer')) return true;
+        current = current.parent?.() || null;
+        guard += 1;
+    }
+
+    return false;
+}
+
+function directLayerNameElement(element) {
+    return element?.querySelector?.(':scope > .lmzbjs-layer-item .lmzbjs-layer-name')
+        || element?.querySelector?.(':scope > .lmzbjs-layer-title .lmzbjs-layer-name')
+        || element?.querySelector?.('.lmzbjs-layer-name')
+        || null;
+}
+
+function decorateMediaLayerElement(component, element) {
+    if (!element?.classList) return;
+    const image = isImageComponent(component);
+    const internal = isInternalMediaLayer(component);
+    const detail = imageLayerDetail(component);
+    element.classList.toggle('rt-lmz-layer--image', image);
+    element.classList.toggle('rt-lmz-layer--internal-media-structure', internal);
+    const name = directLayerNameElement(element);
+    if (name && image) {
+        name.textContent = 'Bild';
+        if (detail) name.dataset.rtLmzImageDetail = detail;
+        else delete name.dataset.rtLmzImageDetail;
+    }
+    if (name && !image) delete name.dataset.rtLmzImageDetail;
+}
+
+/**
+ * Keeps the layer tree focused on actual media instead of exposing every
+ * table/carrier node needed by Outlook. Internal nodes stay layerable so the
+ * LayerManager still renders their descendants; CSS hides only their own row.
+ */
+export function installImageLayerPresentation(editor) {
+    const decoratedElements = new Set();
+    const decorate = (component, element = component?.viewLayer?.el) => {
+        if (!component) return;
+        if (element) {
+            decoratedElements.add(element);
+            decorateMediaLayerElement(component, element);
+        }
+    };
+    const refresh = (component = editor?.getWrapper?.() || editor?.getSelected?.() || null) => {
+        if (!component) return 0;
+        let count = 0;
+        const visit = (candidate) => {
+            decorate(candidate);
+            count += 1;
+            componentChildren(candidate).forEach(visit);
+        };
+        visit(component);
+
+        return count;
+    };
+    const onLayerRender = ({ component, el } = {}) => decorate(component, el);
+    const onComponentChange = (component) => refresh(component);
+    const onLoad = () => refresh();
+    editor?.on?.('layer:render', onLayerRender);
+    editor?.on?.('component:add', onComponentChange);
+    editor?.on?.('component:update', onComponentChange);
+    editor?.on?.('load', onLoad);
+    refresh();
+
+    return {
+        refresh,
+        destroy() {
+            editor?.off?.('layer:render', onLayerRender);
+            editor?.off?.('component:add', onComponentChange);
+            editor?.off?.('component:update', onComponentChange);
+            editor?.off?.('load', onLoad);
+            decoratedElements.forEach((element) => {
+                element.classList?.remove?.('rt-lmz-layer--image', 'rt-lmz-layer--internal-media-structure');
+                const name = directLayerNameElement(element);
+                if (name) delete name.dataset.rtLmzImageDetail;
+            });
+            decoratedElements.clear();
+        },
+    };
 }
 
 function hasProtectedEditorMarker(component) {
@@ -2192,6 +2366,118 @@ function numericImageWidth(image, fallback = 600) {
     return Math.min(1200, Math.max(40, Number.isFinite(width) ? width : fallback));
 }
 
+function currentMediaItems(value) {
+    const resolved = typeof value === 'function' ? value() : value;
+
+    return Array.isArray(resolved) ? resolved : [];
+}
+
+function positiveInteger(...values) {
+    for (const value of values) {
+        const parsed = Number.parseInt(String(value ?? ''), 10);
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+
+    return null;
+}
+
+function imageFormatLabel(mime = '', animated = false) {
+    return {
+        'image/gif': animated ? 'GIF-Animation' : 'GIF-Bild',
+        'image/png': 'PNG-Bild',
+        'image/jpeg': 'JPEG-Bild',
+        'image/webp': 'WebP-Bild',
+    }[mime] || (animated ? 'Animiertes Bild' : 'Bild');
+}
+
+function imageByteLabel(bytes) {
+    const size = positiveInteger(bytes);
+    if (!size) return 'Nicht verfügbar';
+    if (size < 1024) return `${size.toLocaleString('de-DE')} Byte`;
+    if (size < 1024 * 1024) return `${(size / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} KiB`;
+
+    return `${(size / 1024 / 1024).toLocaleString('de-DE', { maximumFractionDigits: 2 })} MiB`;
+}
+
+function greatestCommonDivisor(a, b) {
+    let left = Math.abs(Number.parseInt(String(a || 0), 10));
+    let right = Math.abs(Number.parseInt(String(b || 0), 10));
+    while (right) [left, right] = [right, left % right];
+
+    return left || 1;
+}
+
+function imageRatioLabel(width, height) {
+    if (!width || !height) return 'Nicht verfügbar';
+    const divisor = greatestCommonDivisor(width, height);
+    const ratioWidth = width / divisor;
+    const ratioHeight = height / divisor;
+    if (ratioWidth <= 100 && ratioHeight <= 100) return `${ratioWidth}:${ratioHeight}`;
+
+    return `${(width / height).toLocaleString('de-DE', { maximumFractionDigits: 2 })}:1`;
+}
+
+function fallbackMediaDefinition(definition, definitions, token) {
+    const direct = assetMetadataValue(definition, [
+        'fallback_source', 'fallback_src', 'fallbackSource', 'fallback',
+        'outlook_fallback', 'outlookFallback', 'still_source', 'still_src', 'still',
+    ]);
+    const directIsAsset = direct !== null && typeof direct === 'object';
+    const directSource = directIsAsset ? assetSource(direct) : String(direct || '');
+    const directLabel = directIsAsset
+        ? String(direct.label || direct.name || '')
+        : String(assetMetadataValue(definition, ['fallback_label', 'fallbackLabel', 'still_label']) || '');
+    if (directSource) return { source: directSource, label: directLabel };
+
+    const fallbackToken = normalizedToken(
+        assetMetadataValue(definition, ['fallback_token', 'fallbackToken'])
+        || (token ? `${token.replace(/_SRC$/, '')}_STILL_SRC` : ''),
+    );
+    const fallbackDefinition = definitions.find((item) => normalizedToken(item?.token) === fallbackToken);
+
+    return fallbackDefinition
+        ? { source: assetSource(fallbackDefinition), label: String(fallbackDefinition.label || fallbackToken) }
+        : { source: '', label: '' };
+}
+
+function resolveImageInspectorMetadata({ target, source, token, media = {} }) {
+    const baseUrl = media.baseUrl || globalThis.location?.origin || 'http://localhost/';
+    const definitions = currentMediaItems(media.tokenMedia);
+    const definition = definitions.find((item) => normalizedToken(item?.token) === normalizedToken(token)) || null;
+    const tokenAsset = definition ? normalizeAsset(definition, baseUrl) : null;
+    const sourceKey = canonicalMediaSource(source, baseUrl);
+    const libraryAsset = currentMediaItems(media.assets)
+        .map((asset) => normalizeAsset(asset, baseUrl))
+        .find((asset) => asset.key && asset.key === sourceKey) || null;
+    const element = target?.getEl?.();
+    const attributes = componentAttributes(target);
+    const width = positiveInteger(tokenAsset?.width, libraryAsset?.width, element?.naturalWidth);
+    const height = positiveInteger(tokenAsset?.height, libraryAsset?.height, element?.naturalHeight);
+    const mime = imageMimeType(
+        source,
+        tokenAsset?.mime || libraryAsset?.mime || attributes['data-mime-type'] || attributes.type,
+    );
+    const bytes = positiveInteger(tokenAsset?.bytes, libraryAsset?.bytes, embeddedImageBytes(source));
+    const animated = Boolean(
+        tokenAsset?.animated
+        || libraryAsset?.animated
+        || isAnimatedImageSource(source, mime)
+        || componentAnimationContext(target).animated
+    );
+    const fallback = fallbackMediaDefinition(definition, definitions, normalizedToken(token));
+
+    return {
+        animated,
+        bytes,
+        fallback,
+        format: imageFormatLabel(mime, animated),
+        height,
+        mime,
+        ratio: imageRatioLabel(width, height),
+        width,
+    };
+}
+
 let imagePropertiesPanelSequence = 0;
 
 /**
@@ -2204,7 +2490,7 @@ let imagePropertiesPanelSequence = 0;
  * Attribute geschrieben. Die vertikale Ueberlappung bleibt dagegen ein
  * normaler, editierbarer Pixel-Margin und darf ausdruecklich negativ sein.
  */
-function createImagePropertiesPanel({ root, editor, capabilities, media = {}, onChanged }) {
+function createImagePropertiesPanel({ root, editor, mode = 'marketing', capabilities, media = {}, onChanged }) {
     const document_ = root.ownerDocument;
     imagePropertiesPanelSequence += 1;
     const sourceHintId = `rt-lmz-image-source-hint-${imagePropertiesPanelSequence}`;
@@ -2232,7 +2518,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
         </header>
         <form class="rt-lmz-image-properties__form" data-rt-lmz-image-form>
             <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide">
-                <span>Quelle</span>
+                <span data-rt-lmz-image-source-label>Quelle</span>
                 <input type="text" name="source" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="${sourceHintId}">
             </label>
             <p class="rt-lmz-image-properties__hint" id="${sourceHintId}" data-rt-lmz-image-source-hint>HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle.</p>
@@ -2262,6 +2548,27 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
                     <option value="right">Rechts</option>
                 </select>
             </label>
+            <label class="rt-lmz-image-properties__ratio" data-rt-lmz-image-ratio-control>
+                <input type="checkbox" name="preserveRatio" checked>
+                <span><strong>Proportionen beibehalten</strong><small>Mailbilder verwenden immer <code>height:auto</code>.</small></span>
+            </label>
+            <dl class="rt-lmz-image-properties__metadata" aria-label="Bilddatei-Informationen">
+                <div><dt>Typ</dt><dd data-rt-lmz-image-format>Bild</dd></div>
+                <div><dt>MIME</dt><dd data-rt-lmz-image-mime>Nicht verfügbar</dd></div>
+                <div><dt>Originalmaß</dt><dd data-rt-lmz-image-dimensions>Nicht verfügbar</dd></div>
+                <div><dt>Seitenverhältnis</dt><dd data-rt-lmz-image-ratio>Nicht verfügbar</dd></div>
+                <div><dt>Dateigröße</dt><dd data-rt-lmz-image-bytes>Nicht verfügbar</dd></div>
+                <div data-rt-lmz-image-fallback-row hidden><dt>Outlook-Fallback</dt><dd data-rt-lmz-image-fallback>Nicht hinterlegt</dd></div>
+            </dl>
+            <section class="rt-lmz-image-properties__gif" data-rt-lmz-image-gif hidden aria-label="GIF-Vorschau steuern">
+                <header><strong>GIF-Vorschau</strong><small>Nur die Editorvorschau wird gesteuert. Datei, Timing und versendete E-Mail bleiben unverändert.</small></header>
+                <div class="rt-lmz-image-properties__gif-actions">
+                    <button type="button" data-rt-lmz-image-gif-play>Abspielen</button>
+                    <button type="button" data-rt-lmz-image-gif-pause>Pausieren</button>
+                    <button type="button" data-rt-lmz-image-gif-restart>Neu starten</button>
+                </div>
+                <p data-rt-lmz-image-gif-message aria-live="polite"></p>
+            </section>
             <p class="rt-lmz-image-properties__message" data-rt-lmz-image-message aria-live="polite"></p>
             <button type="submit" class="rt-lmz-image-properties__apply">Übernehmen</button>
         </form>`;
@@ -2269,93 +2576,160 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
 
     const form = panel.querySelector('[data-rt-lmz-image-form]');
     const kind = panel.querySelector('[data-rt-lmz-image-kind]');
+    const sourceLabel = panel.querySelector('[data-rt-lmz-image-source-label]');
     const sourceHint = panel.querySelector('[data-rt-lmz-image-source-hint]');
     const message = panel.querySelector('[data-rt-lmz-image-message]');
     const pixelWidthField = panel.querySelector('[data-rt-lmz-image-width-pixels]');
     const presetWidthField = panel.querySelector('[data-rt-lmz-image-width-preset]');
+    const ratioControl = panel.querySelector('[data-rt-lmz-image-ratio-control]');
+    const metadataFields = {
+        format: panel.querySelector('[data-rt-lmz-image-format]'),
+        mime: panel.querySelector('[data-rt-lmz-image-mime]'),
+        dimensions: panel.querySelector('[data-rt-lmz-image-dimensions]'),
+        ratio: panel.querySelector('[data-rt-lmz-image-ratio]'),
+        bytes: panel.querySelector('[data-rt-lmz-image-bytes]'),
+        fallback: panel.querySelector('[data-rt-lmz-image-fallback]'),
+        fallbackRow: panel.querySelector('[data-rt-lmz-image-fallback-row]'),
+    };
+    const gifPanel = panel.querySelector('[data-rt-lmz-image-gif]');
+    const gifMessage = panel.querySelector('[data-rt-lmz-image-gif-message]');
+    const controls = Object.fromEntries(
+        ['source', 'alt', 'width', 'trainWidth', 'alignment', 'preserveRatio']
+            .map((name) => [name, form.querySelector(`[name="${name}"]`)]),
+    );
+    const setControlValue = (control, value) => {
+        if (String(control?.tagName || '').toLowerCase() === 'select') {
+            control.querySelectorAll('option').forEach((option) => {
+                option.selected = option.value === String(value);
+            });
+            return;
+        }
+        control.value = value;
+    };
     let target = null;
     let trainLayer = null;
     let targetIsTrain = false;
+    let targetToken = '';
     let editable = false;
 
     const refresh = (selection = editor.getSelected?.()) => {
         target = resolveInspectableImageComponent(editor, selection);
         trainLayer = target ? imageParentByAttribute(target, 'data-rt-layer-train') : null;
         targetIsTrain = false;
+        targetToken = '';
         editable = false;
         panel.hidden = !target;
         if (!target) return false;
 
         const attributes = componentAttributes(target);
         const token = String(attributes['data-rt-mail-preview-token'] || '').trim();
-        const tokenMedia = typeof media.tokenMedia === 'function' ? media.tokenMedia() : media.tokenMedia;
-        const systemSource = (Array.isArray(tokenMedia) ? tokenMedia : [])
-            .find((item) => normalizedToken(item?.token) === normalizedToken(token))?.src;
+        targetToken = normalizedToken(token);
+        const tokenMedia = currentMediaItems(media.tokenMedia);
+        const systemDefinition = tokenMedia
+            .find((item) => normalizedToken(item?.token) === normalizedToken(token));
+        const systemSource = assetSource(systemDefinition);
         const renderedSource = target.getEl?.()?.getAttribute?.('src');
-        const source = String(renderedSource || systemSource || attributes.src || target.get?.('src') || '').trim();
-        const animated = isAnimatedImageSource(source, attributes['data-mime-type']);
+        // Pausieren ersetzt bei normalen GIFs nur die Canvas-Quelle durch ein
+        // temporaeres PNG-Standbild. Der Inspector muss weiterhin die im
+        // Modell gespeicherte GIF-Quelle anzeigen und beim Uebernehmen nutzen.
+        const persistedSource = attributes.src || target.get?.('src');
+        const source = String(systemSource || persistedSource || renderedSource || '').trim();
+        const metadata = resolveImageInspectorMetadata({ target, source, token, media });
+        const detail = imageLayerDetail(target);
         targetIsTrain = Boolean(trainLayer || attributes['data-rt-train'] !== undefined);
         editable = Boolean(
             capabilities.writable
             && (!isProtectedEditorStructure(target) || ['TRAIN_SRC', 'LOGO_SRC'].includes(token))
         );
         const layerAttributes = componentAttributes(trainLayer);
-        form.elements.source.value = source;
-        form.elements.alt.value = String(attributes.alt || '');
-        form.elements.width.value = String(numericImageWidth(target));
-        form.elements.trainWidth.value = ['100', '108.67', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
+        controls.source.value = source;
+        controls.alt.value = String(attributes.alt || '');
+        controls.width.value = String(numericImageWidth(target));
+        setControlValue(controls.trainWidth, ['100', '108.67', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
             ? String(layerAttributes['data-rt-layer-size'])
-            : '125';
-        form.elements.alignment.value = inferredImageAlignment(target, trainLayer);
+            : '125');
+        setControlValue(controls.alignment, inferredImageAlignment(target, trainLayer));
         pixelWidthField.hidden = targetIsTrain;
         presetWidthField.hidden = !targetIsTrain;
         form.toggleAttribute('data-system-medium', Boolean(token));
-        kind.textContent = token
-            ? `Systemmedium · ${token}${animated ? ' · GIF' : ''}`
-            : (animated ? 'Animiertes GIF' : 'Mail-sicheres Bild');
+        kind.textContent = [detail, metadata.animated ? 'GIF' : 'Bild'].filter(Boolean).join(' · ');
+        sourceLabel.textContent = token ? 'Vorschauquelle' : 'Quelle';
         sourceHint.textContent = token
-            ? 'Die Quelle ändert die Vorschau; der Systemmedien-Slot bleibt beim Speichern erhalten.'
+            ? 'Wird aus dem Systemmedium geladen. Diese Adresse wird nicht als neue Dokumentquelle gespeichert.'
             : 'HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle. Unsichere Protokolle werden abgewiesen.';
+        controls.source.readOnly = Boolean(token);
+        if (token) controls.source.setAttribute('aria-readonly', 'true');
+        else controls.source.removeAttribute('aria-readonly');
+        controls.source.title = token ? 'Schreibgeschützte Vorschauquelle des Systemmediums' : '';
+        ratioControl.hidden = mode !== 'mail';
+        controls.preserveRatio.checked = true;
+        metadataFields.format.textContent = metadata.format;
+        metadataFields.mime.textContent = metadata.mime || 'Nicht verfügbar';
+        metadataFields.dimensions.textContent = metadata.width && metadata.height
+            ? `${metadata.width.toLocaleString('de-DE')} × ${metadata.height.toLocaleString('de-DE')} px`
+            : 'Nicht verfügbar';
+        metadataFields.ratio.textContent = metadata.ratio;
+        metadataFields.bytes.textContent = imageByteLabel(metadata.bytes);
+        metadataFields.fallbackRow.hidden = !metadata.animated;
+        metadataFields.fallback.textContent = metadata.fallback.source
+            ? `${metadata.fallback.label || 'Statisches Standbild'} verfügbar`
+            : 'Nicht in den Medienmetadaten hinterlegt';
+        gifPanel.hidden = !(metadata.animated && capabilities.gifControls);
+        gifMessage.textContent = '';
         message.textContent = '';
+        delete message.dataset.state;
         form.querySelectorAll('input, select, button').forEach((control) => {
             control.disabled = !editable;
         });
-        form.elements.alt.disabled = !editable || targetIsTrain;
+        controls.preserveRatio.disabled = true;
+        gifPanel.querySelectorAll('button').forEach((button) => {
+            button.disabled = !(metadata.animated && capabilities.gifControls);
+        });
+        controls.alt.disabled = !editable || targetIsTrain;
         if (targetIsTrain) {
-            form.elements.alt.value = '';
-            form.elements.alt.title = 'Der dekorative Zug bleibt für Mailclients mit leerem Alternativtext ausgeblendet.';
+            controls.alt.value = '';
+            controls.alt.title = 'Der dekorative Zug bleibt für Mailclients mit leerem Alternativtext ausgeblendet.';
         } else {
-            form.elements.alt.removeAttribute('title');
+            controls.alt.removeAttribute('title');
         }
         if (!editable) {
             message.dataset.state = 'muted';
             message.textContent = 'Dieses Systemmedium ist strukturell gebunden und wird über seinen System-Slot verwaltet.';
         }
-        return editable;
+        return true;
     };
 
     const onSubmit = (event) => {
         event.preventDefault();
         if (!target || !editable) return;
 
-        const source = String(form.elements.source.value || '').trim();
+        const source = String(controls.source.value || '').trim();
         if (!imageSourceIsSafe(source, document_.baseURI)) {
             message.dataset.state = 'error';
             message.textContent = 'Bitte eine sichere HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle verwenden.';
-            form.elements.source.focus();
+            controls.source.focus();
             return;
         }
 
-        const alt = targetIsTrain ? '' : String(form.elements.alt.value || '').trim().slice(0, 240);
-        const alignment = ['left', 'center', 'right'].includes(form.elements.alignment.value)
-            ? form.elements.alignment.value
+        const alt = targetIsTrain ? '' : String(controls.alt.value || '').trim().slice(0, 240);
+        const alignment = ['left', 'center', 'right'].includes(controls.alignment.value)
+            ? controls.alignment.value
             : 'left';
-        target.set?.('src', source);
-        target.addAttributes?.({ src: source, alt });
+        if (!targetToken) {
+            target.set?.('src', source);
+            target.addAttributes?.({ src: source, alt });
+        } else {
+            // Systemslots speichern ihr Token serverautoritativ. Der
+            // Inspector darf die aktuell gerenderte Vorschau-URL deshalb
+            // weder als neue Dokumentquelle ausgeben noch versteckt binden.
+            target.addAttributes?.({ alt });
+        }
+
+        if (mode === 'mail') target.addStyle?.({ height: 'auto' });
 
         if (trainLayer) {
-            const size = ['100', '108.67', '125', '150', '200'].includes(form.elements.trainWidth.value)
-                ? form.elements.trainWidth.value
+            const size = ['100', '108.67', '125', '150', '200'].includes(controls.trainWidth.value)
+                ? controls.trainWidth.value
                 : '125';
             trainLayer.addAttributes?.({
                 'data-rt-layer-align': alignment,
@@ -2367,7 +2741,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
             // sicher, deren addAttributes-Aufruf gebuendelt wird.
             editor.trigger?.('component:update', trainLayer);
         } else {
-            const requestedWidth = Number.parseInt(String(form.elements.width.value || ''), 10);
+            const requestedWidth = Number.parseInt(String(controls.width.value || ''), 10);
             const width = Math.min(1200, Math.max(40, Number.isFinite(requestedWidth) ? requestedWidth : 600));
             const margin = { left: '0', center: '0 auto', right: '0 0 0 auto' }[alignment];
             target.addAttributes?.({ width: String(width), 'data-rt-image-align': alignment });
@@ -2387,7 +2761,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
                 cell.addAttributes?.({ align: alignment });
                 cell.addStyle?.({ 'text-align': alignment });
             }
-            form.elements.width.value = String(width);
+            controls.width.value = String(width);
         }
 
         onChanged?.();
@@ -2396,7 +2770,27 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
         editor.select?.(target);
     };
 
+    const gifPreviewTarget = () => resolveAnimatedComponent(target) || target;
+    const onGifPlay = () => {
+        gifMessage.textContent = setAnimatedPreviewPlayback(gifPreviewTarget(), true)
+            ? 'Nur Vorschau: Das GIF wird abgespielt.'
+            : 'Für dieses Bild wurde keine animierte Vorschau erkannt.';
+    };
+    const onGifPause = () => {
+        gifMessage.textContent = setAnimatedPreviewPlayback(gifPreviewTarget(), false)
+            ? 'Nur Vorschau: Das GIF wurde angehalten.'
+            : 'Für dieses Bild wurde keine animierte Vorschau erkannt.';
+    };
+    const onGifRestart = () => {
+        gifMessage.textContent = restartAnimatedPreview(gifPreviewTarget())
+            ? 'Nur Vorschau: Das GIF wurde neu gestartet.'
+            : 'Für dieses Bild wurde keine animierte Vorschau erkannt.';
+    };
+
     form.addEventListener('submit', onSubmit);
+    panel.querySelector('[data-rt-lmz-image-gif-play]').addEventListener('click', onGifPlay);
+    panel.querySelector('[data-rt-lmz-image-gif-pause]').addEventListener('click', onGifPause);
+    panel.querySelector('[data-rt-lmz-image-gif-restart]').addEventListener('click', onGifRestart);
     refresh();
 
     return {
@@ -2405,10 +2799,14 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
         canEdit: () => editable,
         destroy() {
             form.removeEventListener('submit', onSubmit);
+            panel.querySelector('[data-rt-lmz-image-gif-play]').removeEventListener('click', onGifPlay);
+            panel.querySelector('[data-rt-lmz-image-gif-pause]').removeEventListener('click', onGifPause);
+            panel.querySelector('[data-rt-lmz-image-gif-restart]').removeEventListener('click', onGifRestart);
             panel.remove();
             target = null;
             trainLayer = null;
             targetIsTrain = false;
+            targetToken = '';
             editable = false;
         },
     };
@@ -2663,10 +3061,10 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
             </fieldset>
             <div class="rt-lmz-animation-drawer__gif" data-rt-lmz-animation-gif hidden>
                 <strong>GIF-Vorschau</strong>
-                <p>Frames und Geschwindigkeit gehören zur GIF-Datei. Die Vorschau kann hier verlustfrei neu gestartet werden.</p>
+                <p>Nur die Editorvorschau wird gesteuert. Datei, Timing und versendete E-Mail bleiben unverändert.</p>
                 <div class="rt-lmz-animation-drawer__gif-actions">
-                    <button type="button" data-rt-lmz-gif-playback>Vorschau anhalten</button>
-                    <button type="button" data-rt-lmz-gif-restart>GIF neu starten</button>
+                    <button type="button" data-rt-lmz-gif-playback>Pausieren</button>
+                    <button type="button" data-rt-lmz-gif-restart>Neu starten</button>
                 </div>
             </div>
             <p class="rt-lmz-animation-drawer__message" data-rt-lmz-animation-message aria-live="polite"></p>
@@ -2707,7 +3105,7 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
         const animatedTarget = resolveAnimatedComponent(component) || resolveEditableImageComponent(editor, component, { mode }) || component;
         const context = componentAnimationContext(animatedTarget);
         gif.hidden = !context.animated;
-        playbackButton.textContent = animatedPreviewIsPlaying(animatedTarget) ? 'Vorschau anhalten' : 'Vorschau abspielen';
+        playbackButton.textContent = animatedPreviewIsPlaying(animatedTarget) ? 'Pausieren' : 'Abspielen';
         motionFields.hidden = !capabilities.animation;
         applyButton.hidden = !capabilities.animation;
         message.textContent = '';
@@ -2724,14 +3122,14 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
         const target = resolveAnimatedComponent(component) || resolveEditableImageComponent(editor, component, { mode }) || component;
         const playing = animatedPreviewIsPlaying(target);
         message.textContent = setAnimatedPreviewPlayback(target, !playing)
-            ? (!playing ? 'GIF-Vorschau wird abgespielt.' : 'GIF-Vorschau wurde angehalten.')
+            ? (!playing ? 'Nur Vorschau: Das GIF wird abgespielt.' : 'Nur Vorschau: Das GIF wurde angehalten.')
             : 'Für dieses Segment wurde keine animierte Quelle erkannt.';
-        playbackButton.textContent = animatedPreviewIsPlaying(target) ? 'Vorschau anhalten' : 'Vorschau abspielen';
+        playbackButton.textContent = animatedPreviewIsPlaying(target) ? 'Pausieren' : 'Abspielen';
     });
     drawer.querySelector('[data-rt-lmz-gif-restart]').addEventListener('click', () => {
         const target = resolveAnimatedComponent(component) || resolveEditableImageComponent(editor, component, { mode }) || component;
-        message.textContent = restartAnimatedPreview(target) ? 'GIF-Vorschau wurde neu gestartet.' : 'Für dieses Segment wurde keine animierte Quelle erkannt.';
-        playbackButton.textContent = animatedPreviewIsPlaying(target) ? 'Vorschau anhalten' : 'Vorschau abspielen';
+        message.textContent = restartAnimatedPreview(target) ? 'Nur Vorschau: Das GIF wurde neu gestartet.' : 'Für dieses Segment wurde keine animierte Quelle erkannt.';
+        playbackButton.textContent = animatedPreviewIsPlaying(target) ? 'Pausieren' : 'Abspielen';
     });
     form.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -3673,6 +4071,13 @@ export function createLmzEditorChrome({
         disableCapabilityElement(panel?.querySelector?.('[data-lmz-mount]'), capability);
     });
     enforceProtectedComponentModels(editor, { readOnly: !normalized.writable });
+    const imageLayerPresentation = installImageLayerPresentation(editor);
+    // Domainadapter duerfen direkt nach der Chrome-Erzeugung ihre technische
+    // Schutzkonfiguration anwenden. Danach stellt ein Microtask die bewusst
+    // generische Bildbenennung fuer die sichtbare Ebenenliste wieder her.
+    globalThis.queueMicrotask?.(() => {
+        if (!destroyed) imageLayerPresentation.refresh();
+    });
 
     // Vendorpfade, die in Laravel absichtlich nicht existieren, verschwinden
     // vollstaendig. Der Medienbutton bleibt erhalten und wird umgeleitet.
@@ -3821,6 +4226,7 @@ export function createLmzEditorChrome({
     imagePropertiesPanel = createImagePropertiesPanel({
         root: rootElement,
         editor,
+        mode: normalizedMode,
         capabilities: normalized,
         media,
         onChanged: refreshAll,
@@ -3876,9 +4282,11 @@ export function createLmzEditorChrome({
                 getSelected: () => component,
             }, { readOnly: !normalized.writable });
         }
+        imageLayerPresentation.refresh(component);
     };
     const onLoad = () => {
         enforceProtectedComponentModels(editor, { readOnly: !normalized.writable });
+        imageLayerPresentation.refresh();
         syncContextControls();
     };
     editor.on?.('component:add', onComponentAdded);
@@ -3954,6 +4362,7 @@ export function createLmzEditorChrome({
             mediaDrawer.destroy();
             animationDrawer.destroy();
             imagePropertiesPanel.destroy();
+            imageLayerPresentation.destroy();
             spacing.destroy();
             elementorLayout?.destroy();
             rootElement.classList.remove('rt-lmz-editor');

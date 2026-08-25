@@ -3755,6 +3755,76 @@ export async function createMailBuilder({
             return restartMailCanvasAnimations(editor);
         },
 
+        /**
+         * Eine Aktion der im Modal-Kopf liegenden Single-Toolbar ausfuehren.
+         * Die Vendor-Topbar bleibt nur als interner Zustandsanker im DOM;
+         * deshalb werden Befehle hier direkt und nicht ueber versteckte
+         * Klickziele ausgeloest.
+         */
+        runEditorAction(action) {
+            const command = String(action || '').trim();
+
+            if (command === 'assets') {
+                editorChrome.openMedia({ initialTab: 'used' });
+                return true;
+            }
+
+            if (command === 'undo' || command === 'redo') {
+                if (readOnly) return false;
+                editor.runCommand?.(`core:${command}`);
+                return true;
+            }
+
+            if (command === 'preview') {
+                const active = Boolean(editor.Commands?.isActive?.('core:preview'));
+                if (active) editor.stopCommand?.('core:preview');
+                else editor.runCommand?.('core:preview');
+                return true;
+            }
+
+            return false;
+        },
+
+        /** Linke bzw. rechte Builder-Seitenleiste aus der Single-Toolbar. */
+        openEditorPanel(panel) {
+            const aliases = {
+                'left:blocks': 'blocks',
+                'left:layers': 'layers',
+                'right:styles': 'styles',
+                'right:traits': 'traits',
+                'right:classes': 'classes',
+            };
+
+            return editorChrome.openPanel(aliases[String(panel || '')] || panel);
+        },
+
+        /** Nicht nutzbare Kontextschalter werden auch in der Kopfzeile verborgen. */
+        isEditorPanelAvailable(panel) {
+            const panelIds = {
+                blocks: 'left:blocks',
+                layers: 'left:layers',
+                styles: 'right:styles',
+                traits: 'right:traits',
+                classes: 'right:classes',
+                'left:blocks': 'left:blocks',
+                'left:layers': 'left:layers',
+                'right:styles': 'right:styles',
+                'right:traits': 'right:traits',
+                'right:classes': 'right:classes',
+            };
+            const panelId = panelIds[String(panel || '')];
+            const toggle = panelId
+                ? rootElement.querySelector(`[data-lmz-panel-toggle="${panelId}"]`)
+                : null;
+
+            return Boolean(
+                toggle
+                && !toggle.hidden
+                && !toggle.inert
+                && toggle.getAttribute('aria-disabled') !== 'true'
+            );
+        },
+
         /** Leinwandfarben wechseln; die Wahl wird nicht mitgespeichert. */
         setTheme(nextTheme = activeTheme) {
             activeTheme = nextTheme === 'dark' ? 'dark' : 'light';

@@ -2078,6 +2078,174 @@ test('mail content images keep alt size and GIF tools without advertising replac
     chrome.destroy();
 }));
 
+test('shared mail image inspector exposes honest GIF metadata and keeps real images visible in layers', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-mail-image-inspector">
+    <div id="root">
+        <div class="lmz-builder__topbar"><button data-lmz-action="assets">Medien</button><button data-lmz-panel-toggle="right:traits" data-lmz-panel-group="right">Eigenschaften</button></div>
+        <div class="lmz-builder__viewport">
+            <section data-lmz-popover-panel="right:traits"><div><div data-lmz-mount="traits"></div></div></section>
+            <div data-tools><div data-toolbar></div></div>
+        </div>
+        <img id="logo" src="/mail/logo.gif" alt="RailTime">
+    </div></div></div>
+`, async ({ document }) => {
+    const root = document.querySelector('#root');
+    const wrapper = coreFakeComponent(document.createElement('div'));
+    const logo = coreFakeComponent(document.querySelector('#logo'), {
+        parent: wrapper,
+        type: 'image',
+        attributes: {
+            src: '/mail/logo.gif',
+            alt: 'RailTime',
+            'data-rt-mail-preview-token': 'LOGO_SRC',
+        },
+    });
+    const trainCarrier = coreFakeComponent(document.createElement('span'), {
+        parent: wrapper,
+        attributes: { class: 'rt-sign-train-layer' },
+    });
+    const train = coreFakeComponent(document.createElement('img'), {
+        parent: trainCarrier,
+        type: 'image',
+        attributes: {
+            src: '/mail/train.gif',
+            alt: '',
+            'data-rt-mail-preview-token': 'TRAIN_SRC',
+        },
+    });
+    const protectedIcon = coreFakeComponent(document.createElement('img'), {
+        parent: wrapper,
+        type: 'image',
+        attributes: {
+            src: '/mail/phone.gif',
+            alt: 'Telefon',
+            'data-rt-mail-preview-token': 'ICON_PHONE_SRC',
+        },
+    });
+    trainCarrier.components([train]);
+    wrapper.components([logo, trainCarrier, protectedIcon]);
+    const editor = coreFakeEditor(root, logo);
+    let selected = logo;
+    editor.getSelected = () => selected;
+    editor.getWrapper = () => wrapper;
+    const chrome = createLmzEditorChrome({
+        instance: { editor },
+        root,
+        mode: 'mail',
+        capabilities: { gifControls: true },
+        media: {
+            // Entspricht bewusst der realen Produktionsdefinition: Token,
+            // Label und Quelle; fehlende Datei-Metadaten muessen ehrlich als
+            // nicht verfuegbar erscheinen.
+            tokenMedia: [
+                { token: 'LOGO_SRC', label: 'RailTime Firmenlogo', src: '/mail/logo.gif' },
+                { token: 'ICON_PHONE_SRC', label: 'Telefon-Icon', src: '/mail/phone.gif' },
+            ],
+            assets: [],
+            baseUrl: 'https://railtime.test/',
+        },
+    });
+
+    const inspector = root.querySelector('.rt-lmz-image-properties');
+    assert.equal(inspector.hidden, false);
+    assert.equal(inspector.querySelector('.rt-lmz-image-properties__header strong').textContent, 'Bild');
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-kind]').textContent, 'Firmenlogo · GIF');
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-source-label]').textContent, 'Vorschauquelle');
+    assert.equal(inspector.querySelector('[name="source"]').readOnly, true);
+    assert.equal(inspector.querySelector('[name="source"]').getAttribute('aria-readonly'), 'true');
+    assert.match(inspector.querySelector('[data-rt-lmz-image-source-hint]').textContent, /nicht als neue Dokumentquelle gespeichert/);
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-format]').textContent, 'GIF-Animation');
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-mime]').textContent, 'image/gif');
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-dimensions]').textContent, 'Nicht verfügbar');
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-ratio]').textContent, 'Nicht verfügbar');
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-bytes]').textContent, 'Nicht verfügbar');
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-fallback]').textContent, 'Nicht in den Medienmetadaten hinterlegt');
+    assert.equal(inspector.querySelector('[name="preserveRatio"]').checked, true);
+    assert.equal(inspector.querySelector('[name="preserveRatio"]').disabled, true);
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-ratio-control]').hidden, false);
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-gif]').hidden, false);
+    assert.match(inspector.querySelector('[data-rt-lmz-image-gif] small').textContent, /Nur die Editorvorschau/);
+    assert.deepEqual(
+        [...inspector.querySelectorAll('.rt-lmz-image-properties__gif-actions button')].map((button) => button.textContent),
+        ['Abspielen', 'Pausieren', 'Neu starten'],
+    );
+    assert.equal(logo.state['custom-name'], undefined);
+    assert.equal(train.state['custom-name'], undefined);
+
+    const logoLayer = document.createElement('div');
+    logoLayer.className = 'lmzbjs-layer';
+    logoLayer.innerHTML = '<div class="lmzbjs-layer-item"><span class="lmzbjs-layer-name">Logo</span></div>';
+    editor.emit('layer:render', { component: logo, el: logoLayer });
+    assert.equal(logoLayer.querySelector('.lmzbjs-layer-name').textContent, 'Bild');
+    assert.equal(logoLayer.querySelector('.lmzbjs-layer-name').dataset.rtLmzImageDetail, 'Firmenlogo');
+
+    const carrierLayer = document.createElement('div');
+    carrierLayer.className = 'lmzbjs-layer';
+    carrierLayer.innerHTML = '<div class="lmzbjs-layer-item">Technischer Zug-Carrier</div><div class="lmzbjs-layer-children"></div>';
+    editor.emit('layer:render', { component: trainCarrier, el: carrierLayer });
+    assert.equal(carrierLayer.classList.contains('rt-lmz-layer--internal-media-structure'), true);
+    assert.equal(trainCarrier.state.open, undefined);
+
+    const trainLayer = document.createElement('div');
+    trainLayer.className = 'lmzbjs-layer';
+    trainLayer.innerHTML = '<div class="lmzbjs-layer-item"><span class="lmzbjs-layer-name">Train</span></div>';
+    editor.emit('layer:render', { component: train, el: trainLayer });
+    assert.equal(trainLayer.classList.contains('rt-lmz-layer--internal-media-structure'), false);
+    assert.equal(trainLayer.querySelector('.lmzbjs-layer-name').textContent, 'Bild');
+    assert.equal(trainLayer.querySelector('.lmzbjs-layer-name').dataset.rtLmzImageDetail, 'Zuganimation');
+
+    selected = protectedIcon;
+    editor.emit('component:selected', protectedIcon);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(inspector.hidden, false);
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').hidden, false);
+    assert.equal(inspector.querySelector('[name="source"]').readOnly, true);
+    assert.equal(inspector.querySelector('.rt-lmz-image-properties__apply').disabled, true);
+    assert.match(inspector.querySelector('[data-rt-lmz-image-message]').textContent, /System-Slot verwaltet/);
+
+    chrome.destroy();
+}));
+
+test('pausing a normal GIF never replaces its persisted source when image properties are applied', () => coreWithDom(`
+    <div id="root">
+        <div class="lmz-builder__topbar"><button data-lmz-action="assets">Medien</button></div>
+        <div class="lmz-builder__viewport">
+            <section data-lmz-popover-panel="right:traits"><div><div data-lmz-mount="traits"></div></div></section>
+            <div data-tools><div data-toolbar></div></div>
+        </div>
+        <img id="gif">
+    </div>
+`, async ({ document }) => {
+    const source = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+    const still = 'data:image/png;base64,c3RhdGlj';
+    const root = document.querySelector('#root');
+    const element = document.querySelector('#gif');
+    element.setAttribute('src', source);
+    const selected = coreFakeComponent(element, {
+        type: 'image',
+        attributes: { src: source, alt: 'Animation', 'data-mime-type': 'image/gif' },
+    });
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail' });
+    globalThis.__rtLmzCaptureAnimatedFrame = async () => still;
+    const inspector = root.querySelector('.rt-lmz-image-properties');
+
+    inspector.querySelector('[data-rt-lmz-image-gif-pause]').click();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(element.getAttribute('src'), still);
+
+    chrome.refresh();
+    assert.equal(inspector.querySelector('[name="source"]').value, source);
+    inspector.querySelector('[name="width"]').value = '480';
+    inspector.querySelector('form').dispatchEvent(new document.defaultView.Event('submit', { bubbles: true, cancelable: true }));
+
+    assert.equal(selected.state.src, source);
+    assert.equal(selected.state.attributes.src, source);
+    assert.equal(selected.state.attributes.width, '480');
+    assert.equal(selected.state.style.height, 'auto');
+    chrome.destroy();
+}));
+
 test('native GrapesJS asset entry points use only the scoped drawer and reject protected logo or QR targets', () => {
     const commandMap = new Map([['open-assets', { run: () => 'native-dialog' }]]);
     const openings = [];
@@ -2465,6 +2633,11 @@ test('shared LMZ shell styles real layer rows, grouped inline actions and respon
     const css = await readFile(new URL('../../resources/css/lmz-editor-shell.css', import.meta.url), 'utf8');
 
     assert.match(css, /\.lmzbjs-layer\.lmzbjs-selected\s*>\s*\.lmzbjs-layer-item/);
+    assert.match(css, /\.lmzbjs-layer\.rt-lmz-layer--internal-media-structure\s*>\s*:is\(\.lmzbjs-layer-item, \.lmzbjs-layer-title\)/);
+    assert.match(css, /\.lmzbjs-layer\.rt-lmz-layer--internal-media-structure\s*>\s*\.lmzbjs-layer-children\s*\{[\s\S]*?display:\s*block\s*!important/);
+    assert.match(css, /\.lmzbjs-layer-name\[data-rt-lmz-image-detail\]::after/);
+    assert.match(css, /\.rt-lmz-image-properties__metadata\s*\{/);
+    assert.match(css, /\.rt-lmz-image-properties__gif-actions\s*\{/);
     assert.match(css, /\.rt-lmz-inline-menu__group\s*\{/);
     assert.match(css, /\.rt-lmz-inline-menu__group-header\s*\{/);
     assert.match(css, /\.rt-lmz-inline-menu__icon\s*\{[\s\S]*?width:\s*1\.125rem;/);

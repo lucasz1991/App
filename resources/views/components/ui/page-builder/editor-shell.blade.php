@@ -160,11 +160,7 @@
         :header-class="$singleToolbar ? 'rt-page-builder-single-header' : ''"
         class="[&_header_button]:min-h-11 [&_header_button]:min-w-11"
         data-page-builder-fullscreen
-        @if ($singleToolbar)
-            data-page-builder-fullscreen-root
-            data-page-builder-shell-id="{{ $shellId }}"
-            data-page-builder-single-toolbar
-        @endif
+        data-page-builder-single-toolbar="{{ $singleToolbar ? 'true' : 'false' }}"
     >
         <x-slot:header>
             @if ($singleToolbar && isset($toolbar))
@@ -205,10 +201,8 @@
 
         <div
             class="flex h-full min-h-0 flex-col"
-            @unless ($singleToolbar)
-                data-page-builder-fullscreen-root
-                data-page-builder-shell-id="{{ $shellId }}"
-            @endunless
+            data-page-builder-fullscreen-root
+            data-page-builder-shell-id="{{ $shellId }}"
             data-page-builder-fullscreen-content
         >
             @if (isset($toolbar) && ! $singleToolbar)

@@ -104,7 +104,7 @@
                                 <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-action="assets" x-on:click="close()" title="Medienbibliothek öffnen">
                                     <i data-feather="image" class="h-4 w-4" aria-hidden="true"></i><span>Medien</span>
                                 </x-ui.buttons.button-basic>
-                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-action="upload" x-on:click="close()" title="Bild oder GIF hochladen">
+                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-action="upload" x-on:click="close()" title="Bild oder GIF hochladen" hidden aria-disabled="true">
                                     <i data-feather="upload" class="h-4 w-4" aria-hidden="true"></i><span>Bild / GIF hochladen</span>
                                 </x-ui.buttons.button-basic>
                             </div>
@@ -787,7 +787,14 @@
                     // setzen.
                     window.RailTimeMailDocumentEditor?.destroy?.();
 
-                    const studioRoot = workspace.closest('[data-page-builder-fullscreen-root]') || workspace;
+                    // Die einzeilige Mail-Toolbar sitzt im Kopf des
+                    // Fullscreen-Modals und damit neben (nicht innerhalb)
+                    // der eigentlichen Builder-Workspace. Der gemeinsame
+                    // Modal-Root umfasst beide Bereiche und bleibt auch fuer
+                    // Editoren ohne Single-Toolbar rueckwaertskompatibel.
+                    const studioRoot = workspace.closest('[data-rt-fullscreen-modal]')
+                        || workspace.closest('[data-page-builder-fullscreen-root]')
+                        || workspace;
                     const config = JSON.parse(workspace.querySelector('[data-mail-document-config]')?.textContent || '{}');
                     const document_ = config.documents?.[config.currentDocument];
                     const saveButton = studioRoot.querySelector('[data-mail-document-save]');
@@ -844,6 +851,7 @@
                     let deliveryPreviewGeneration = 0;
                     let previewResizeFrame = null;
                     let resizeGesture = null;
+                    let detachBuilderToolbarContext = null;
                     const controlListeners = new AbortController();
                     const MAIL_SOURCE_FORMAT = 'railtime-mail-document';
                     const MAIL_SOURCE_VERSION = 2;
@@ -898,7 +906,7 @@
                         if (messageNode) messageNode.textContent = text;
                     };
                     if (document_.autoRepaired) {
-                        setMessage('Ein bekannter Signatur-Altstand wurde für den Editor sicher repariert. Beim nächsten Speichern wird Schema 25 übernommen.');
+                        setMessage('Ein bekannter Signatur-Altstand wurde für den Editor sicher repariert. Beim nächsten Speichern wird Schema 26 übernommen.');
                     }
 
                     const setActionsBusy = (busy) => {
@@ -1965,11 +1973,58 @@
                             return;
                         }
 
+                        const syncBuilderToolbarContext = () => {
+                            window.document.querySelectorAll('[data-mail-builder-panel^="right:"]').forEach((control) => {
+                                const available = Boolean(instance?.isEditorPanelAvailable?.(control.dataset.mailBuilderPanel));
+                                control.hidden = !available;
+                                control.inert = !available;
+                                control.setAttribute('aria-disabled', available ? 'false' : 'true');
+                            });
+                        };
+                        ['component:selected', 'component:deselected', 'component:update'].forEach((eventName) => {
+                            instance.editor?.on?.(eventName, syncBuilderToolbarContext);
+                        });
+                        detachBuilderToolbarContext = () => {
+                            ['component:selected', 'component:deselected', 'component:update'].forEach((eventName) => {
+                                instance?.editor?.off?.(eventName, syncBuilderToolbarContext);
+                            });
+                        };
+                        syncBuilderToolbarContext();
+                        window.requestAnimationFrame(syncBuilderToolbarContext);
+
                         selectTheme(selectedTheme);
                         selectDevice(selectedDevice);
                         selectDegradationMode(selectedDegradationMode);
                         await selectViewMode(selectedViewMode);
                     };
+
+                    // Anchor-Dropdowns teleportieren ihren Inhalt an den
+                    // Dokument-Body. Event-Delegation am Modal allein wuerde
+                    // deshalb die neuen Builderbefehle im Dropdown nicht
+                    // erreichen. Der AbortController begrenzt den Listener
+                    // exakt auf diese Livewire-Editorinstanz.
+                    window.document.addEventListener('click', (event) => {
+                        const control = event.target?.closest?.('[data-mail-builder-action], [data-mail-builder-panel]');
+                        if (!control
+                            || control.hidden
+                            || control.disabled
+                            || control.getAttribute('aria-disabled') === 'true') return;
+
+                        const action = control.dataset.mailBuilderAction;
+                        if (action) {
+                            if (!instance) {
+                                setMessage('Der Editor wird noch geladen …');
+                                return;
+                            }
+                            instance.runEditorAction?.(action);
+                            return;
+                        }
+
+                        const panel = control.dataset.mailBuilderPanel;
+                        if (panel && instance && !instance.openEditorPanel?.(panel)) {
+                            setMessage('Diese Einstellung ist für die aktuelle Auswahl nicht verfügbar.');
+                        }
+                    }, { signal: controlListeners.signal });
 
                     viewModeButtons.forEach((button) => {
                         button.addEventListener('click', () => selectViewMode(button.dataset.mailViewMode), {
@@ -2475,6 +2530,8 @@
                         controlListeners.abort();
                         unregisterNavigation?.();
                         unregisterNavigation = null;
+                        detachBuilderToolbarContext?.();
+                        detachBuilderToolbarContext = null;
                         instance?.destroy?.();
                         instance = null;
                         window.RailTimeMailDocumentEditor = null;

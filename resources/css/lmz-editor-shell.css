@@ -366,6 +366,34 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder {
     font-size: 0.6875rem;
 }
 
+/* Outlook benoetigt fuer animierte Mailbilder mehrere Carrier-/Frame-Knoten.
+   Die Ebenenleiste zeigt davon nur das echte IMG; die technischen Eltern
+   bleiben geoeffnet, damit GrapesJS das Bild weiterhin rendern und waehlen
+   kann. */
+.rt-lmz-editor .lmz-builder .lmzbjs-layer.rt-lmz-layer--internal-media-structure > :is(.lmzbjs-layer-item, .lmzbjs-layer-title) {
+    display: none !important;
+}
+
+.rt-lmz-editor .lmz-builder .lmzbjs-layer.rt-lmz-layer--internal-media-structure > .lmzbjs-layer-children {
+    display: block !important;
+    margin-inline-start: 0;
+    border-inline-start: 0;
+}
+
+.rt-lmz-editor .lmz-builder .lmzbjs-layer-name[data-rt-lmz-image-detail]::after {
+    display: block;
+    overflow: hidden;
+    max-width: 100%;
+    margin-top: 0.1rem;
+    color: var(--rt-lmz-muted);
+    content: attr(data-rt-lmz-image-detail);
+    font-size: 0.5625rem;
+    font-weight: 650;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .rt-lmz-editor .lmz-builder :is(.lmzbjs-sm-sector, .lmzbjs-trait-category) {
     margin: 0;
     border: 0;
@@ -500,6 +528,9 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder {
 
 .rt-lmz-image-properties__field--wide,
 .rt-lmz-image-properties__hint,
+.rt-lmz-image-properties__ratio,
+.rt-lmz-image-properties__metadata,
+.rt-lmz-image-properties__gif,
 .rt-lmz-image-properties__message,
 .rt-lmz-image-properties__apply {
     grid-column: 1 / -1;
@@ -529,6 +560,150 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder {
 .rt-lmz-image-properties__field :is(input, select):disabled {
     cursor: not-allowed;
     opacity: 0.58;
+}
+
+.rt-lmz-image-properties__ratio {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.625rem 0.7rem;
+    border: 1px solid var(--rt-lmz-border);
+    border-radius: 0.55rem;
+    background: var(--rt-lmz-surface);
+    color: var(--rt-lmz-text);
+}
+
+.rt-lmz-image-properties__ratio > input {
+    width: 1rem;
+    height: 1rem;
+    flex: 0 0 auto;
+    margin: 0.1rem 0 0;
+    accent-color: var(--rt-lmz-accent);
+}
+
+.rt-lmz-image-properties__ratio > span {
+    display: grid;
+    min-width: 0;
+    gap: 0.15rem;
+}
+
+.rt-lmz-image-properties__ratio strong {
+    font-size: 0.6875rem;
+    font-weight: 800;
+}
+
+.rt-lmz-image-properties__ratio small {
+    color: var(--rt-lmz-muted);
+    font-size: 0.59375rem;
+    line-height: 1.4;
+}
+
+.rt-lmz-image-properties__ratio code {
+    color: inherit;
+    font: inherit;
+    font-weight: 750;
+}
+
+.rt-lmz-image-properties__metadata {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+    margin: 0;
+    border: 1px solid var(--rt-lmz-border);
+    border-radius: 0.55rem;
+    background: var(--rt-lmz-surface);
+}
+
+.rt-lmz-image-properties__metadata > div {
+    display: grid;
+    min-width: 0;
+    gap: 0.2rem;
+    padding: 0.55rem 0.65rem;
+    border-bottom: 1px solid var(--rt-lmz-border);
+}
+
+.rt-lmz-image-properties__metadata > div:nth-child(odd) {
+    border-inline-end: 1px solid var(--rt-lmz-border);
+}
+
+.rt-lmz-image-properties__metadata > div:nth-last-child(-n + 2) {
+    border-bottom: 0;
+}
+
+.rt-lmz-image-properties__metadata dt {
+    color: var(--rt-lmz-muted);
+    font-size: 0.5625rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.rt-lmz-image-properties__metadata dd {
+    overflow-wrap: anywhere;
+    margin: 0;
+    color: var(--rt-lmz-text);
+    font-size: 0.65625rem;
+    font-weight: 650;
+    line-height: 1.4;
+}
+
+.rt-lmz-image-properties__gif {
+    display: grid;
+    min-width: 0;
+    gap: 0.625rem;
+    padding: 0.65rem;
+    border: 1px solid color-mix(in srgb, var(--rt-lmz-accent), transparent 76%);
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--rt-lmz-accent-soft), var(--rt-lmz-surface) 72%);
+}
+
+.rt-lmz-image-properties__gif > header {
+    display: grid;
+    gap: 0.15rem;
+}
+
+.rt-lmz-image-properties__gif > header strong {
+    color: var(--rt-lmz-text);
+    font-size: 0.6875rem;
+    font-weight: 850;
+}
+
+.rt-lmz-image-properties__gif > header small,
+.rt-lmz-image-properties__gif > p {
+    margin: 0;
+    color: var(--rt-lmz-muted);
+    font-size: 0.59375rem;
+    line-height: 1.45;
+}
+
+.rt-lmz-image-properties__gif-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+}
+
+.rt-lmz-image-properties__gif-actions > button {
+    min-width: 0;
+    min-height: 2.35rem;
+    padding: 0.45rem 0.35rem;
+    border: 1px solid var(--rt-lmz-border);
+    border-radius: 0.5rem;
+    background: var(--rt-lmz-surface);
+    color: var(--rt-lmz-text);
+    font: inherit;
+    font-size: 0.59375rem;
+    font-weight: 800;
+}
+
+.rt-lmz-image-properties__gif-actions > button:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--rt-lmz-accent), transparent 45%);
+    color: var(--rt-lmz-accent);
+}
+
+.rt-lmz-image-properties__gif-actions > button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
 }
 
 .rt-lmz-image-properties__hint,
@@ -1640,5 +1815,32 @@ body[data-mode='dark'] .rt-lmz-media-drawer__warning {
     [data-page-builder-fullscreen-root] > [data-page-builder-workspace],
     .rt-lmz-editor .lmz-builder__popover {
         transition: none;
+    }
+}
+
+/* Der Mail-Elementor wird von der gemeinsamen Studio-Kopfzeile gesteuert.
+   Die nativen Schalter bleiben fuer die programmatische Bruecke im DOM,
+   beanspruchen aber weder eine zweite sichtbare Topbar noch Canvas-Hoehe. */
+.rt-lmz-editor[data-rt-lmz-layout='elementor'][data-rt-lmz-mode='mail'] .lmz-builder {
+    grid-template-rows: minmax(0, 1fr);
+}
+
+.rt-lmz-editor[data-rt-lmz-layout='elementor'][data-rt-lmz-mode='mail'] .lmz-builder__topbar {
+    display: none !important;
+}
+
+.rt-lmz-editor[data-rt-lmz-layout='elementor'][data-rt-lmz-mode='mail'] .lmz-builder__main {
+    grid-row: 1;
+}
+
+@media (min-width: 1280px) {
+    [data-page-builder-single-toolbar='true'] [data-page-builder-workspace],
+    [data-page-builder-single-toolbar='true'] > .rt-page-builder-single-header > div {
+        transition: margin-inline-end 180ms ease;
+    }
+
+    html[data-rt-pagebuilder-assist-open='true'] [data-page-builder-single-toolbar='true'] [data-page-builder-workspace],
+    html[data-rt-pagebuilder-assist-open='true'] [data-page-builder-single-toolbar='true'] > .rt-page-builder-single-header > div {
+        margin-inline-end: 24.5rem;
     }
 }

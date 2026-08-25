@@ -20,9 +20,7 @@ final class TrustedEmailCss
     public static function responsive(?string $border = null): string
     {
         $border = self::normalizeBorder($border);
-        $css = trim(view('emails.parts.responsive-css', [
-            'border' => $border,
-        ])->render());
+        $css = self::compiledResponsive($border);
 
         self::assertResponsive($css, $border);
 
@@ -32,9 +30,7 @@ final class TrustedEmailCss
     public static function assertResponsive(string $css, ?string $border = null): void
     {
         $border = self::normalizeBorder($border);
-        $expected = trim(view('emails.parts.responsive-css', [
-            'border' => $border,
-        ])->render());
+        $expected = self::compiledResponsive($border);
 
         if (substr_count($expected, self::RUNTIME_MARKER) !== 1
             || ! hash_equals($expected, $css)) {
@@ -47,6 +43,44 @@ final class TrustedEmailCss
     public static function fingerprint(?string $border = null): string
     {
         return hash('sha256', self::responsive($border));
+    }
+
+    /**
+     * Entfernt ausschliesslich Dokumentationskommentare und Zeilenlayout aus
+     * der versionierten, bereits vertrauenswuerdigen CSS-Quelle. Deklarationen,
+     * Selektoren und die Laufzeitmarke bleiben bytegenau in ihrer Reihenfolge.
+     * Das spart pro Systemmail mehrere KiB und verhindert, dass die identische
+     * Hell-/Dunkel-Vorschau den Livewire-Konfigurationsblock aufblaeht.
+     */
+    private static function compiledResponsive(string $border): string
+    {
+        $rendered = trim(view('emails.parts.responsive-css', [
+            'border' => $border,
+        ])->render());
+
+        if (substr_count($rendered, self::RUNTIME_MARKER) !== 1) {
+            throw new RuntimeException(
+                'Die versionierte Runtime-CSS-Quelle besitzt keine eindeutige Vertrauensmarke.'
+            );
+        }
+
+        $withoutComments = preg_replace_callback(
+            '/\/\*[\s\S]*?\*\//',
+            static fn (array $match): string => str_contains($match[0], self::RUNTIME_MARKER)
+                ? '/* '.self::RUNTIME_MARKER.' */'
+                : '',
+            $rendered,
+        );
+        if (! is_string($withoutComments)) {
+            throw new RuntimeException('Das versionierte Runtime-CSS konnte nicht kompakt ausgegeben werden.');
+        }
+
+        $lines = preg_split('/\R/u', $withoutComments);
+        if (! is_array($lines)) {
+            throw new RuntimeException('Das versionierte Runtime-CSS konnte nicht in Zeilen gelesen werden.');
+        }
+
+        return implode('', array_map(static fn (string $line): string => trim($line), $lines));
     }
 
     private static function normalizeBorder(?string $border): string

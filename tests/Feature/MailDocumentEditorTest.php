@@ -499,7 +499,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertLessThan(60 * 1024, strlen($html));
     }
 
-    public function test_schema_26_behaelt_v14_bytegleich_und_migriert_v15_und_v16_in_die_fail_open_buehne(): void
+    public function test_schema_26_behaelt_v14_bytegleich_und_migriert_v15_bis_v17_in_die_fail_open_buehne(): void
     {
         $this->createCanonicalMailDocuments();
         $canonical = (string) $this->document(MailDocumentKind::Signature)->published_html;
@@ -558,6 +558,21 @@ class MailDocumentEditorTest extends TestCase
         SignatureDocumentContract::assertRuntimeValid($v16);
         $this->assertStringContainsString('data-rt-layer-mobile="stop60"', $v16);
         $this->assertSame($v16, SignatureTrainCarrier::normalize($v16));
+
+        $v17 = str_replace(
+            SignatureArtifactVersion::V16,
+            SignatureArtifactVersion::V17,
+            $v16,
+            $v17MarkerCount,
+        );
+        $this->assertSame(1, $v17MarkerCount);
+        $v17 = str_replace('width="720" height="61" alt=""', 'width="720" alt=""', $v17, $v17HeightCount);
+        $this->assertSame(1, $v17HeightCount);
+        SignatureDocumentContract::assertValid($v17);
+        SignatureDocumentContract::assertRuntimeValid($v17);
+        $this->assertStringContainsString('width="720" alt=""', $v17);
+        $this->assertStringNotContainsString('width="720" height="61" alt=""', $v17);
+        $this->assertSame($v17, SignatureTrainCarrier::normalize($v17));
         $this->assertSame($canonical, SignatureTrainCarrier::normalize($canonical));
 
         foreach ([
@@ -1508,12 +1523,22 @@ HTML;
             ->assertSee('data-mail-document-root', escape: false)
             ->assertSee('data-mail-editor-mode="mail"', escape: false)
             ->assertSee('LMZ Page Builder wird im Mailmodus geladen', escape: false)
-            // Dokumentwahl, Vorschau und Freigabe teilen sich die feste
-            // Studio-Werkzeugleiste oberhalb der scrollfreien Arbeitsflaeche.
+            // Dokumentwahl, Inhalt, Bearbeitung, Vorschau und Freigabe teilen
+            // sich exakt eine Werkzeugleiste im Vollbildkopf.
+            ->assertSee('data-page-builder-single-toolbar', escape: false)
             ->assertSee('data-mail-studio-toolbar', escape: false)
             ->assertSee('data-mail-toolbar-region="documents"', escape: false)
             ->assertSee('data-mail-toolbar-region="preview"', escape: false)
             ->assertSee('data-mail-toolbar-region="actions"', escape: false)
+            ->assertSee('data-mail-toolbar-menu="document"', escape: false)
+            ->assertSee('data-mail-toolbar-menu="content"', escape: false)
+            ->assertSee('data-mail-toolbar-menu="edit"', escape: false)
+            ->assertSee('data-mail-toolbar-menu="view"', escape: false)
+            ->assertSee('data-mail-toolbar-menu="versions"', escape: false)
+            ->assertSee('data-mail-toolbar-menu="tools"', escape: false)
+            ->assertSee('data-mail-builder-panel="left:layers"', escape: false)
+            ->assertSee('data-mail-builder-panel="right:traits"', escape: false)
+            ->assertSee('data-mail-builder-action="assets"', escape: false)
             ->assertSee('data-mail-document-status', escape: false)
             ->assertSee('data-mail-document-save', escape: false)
             ->assertSee('data-mail-document-publish', escape: false)
@@ -1682,9 +1707,9 @@ HTML;
             $this->assertStringContainsString('tr.rt-stack > td', $responsiveCss);
         }
 
-        // V10 bis V16 besitzen eigene mobile Geometrievertraege; V11 bis V16
+        // V10 bis V17 besitzen eigene mobile Geometrievertraege; V11 bis V17
         // trennen zusaetzlich die sichere Vollfassung vom kompakten
-        // Systemprofil. V14 bis V16 ergaenzen explizite Medien- und Fail-open-
+        // Systemprofil. V14 bis V17 ergaenzen explizite Medien- und Fail-open-
         // Vertraege. Trotz doppelter Vorschau-CSS fuer Hell und Dunkel bleibt
         // die komplette Editor-Konfiguration unter 168 KiB.
         $this->assertLessThan(172_032, strlen((string) $match[1]));
@@ -1884,7 +1909,7 @@ HTML;
         }
     }
 
-    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v16_marker(): void
+    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v17_marker(): void
     {
         $canonical = $this->canonicalMailDocumentHtml(MailDocumentKind::Signature);
         $v7 = str_replace(
@@ -2012,6 +2037,17 @@ HTML;
         $this->assertSame(SignatureArtifactVersion::V16, SignatureArtifactVersion::detect(
             MailDocumentKind::Signature,
             $v16,
+        ));
+        $v17 = str_replace(
+            SignatureArtifactVersion::V16,
+            SignatureArtifactVersion::V17,
+            $v16,
+            $v17MarkerCount,
+        );
+        $this->assertSame(1, $v17MarkerCount);
+        $this->assertSame(SignatureArtifactVersion::V17, SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $v17,
         ));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V8));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V9));

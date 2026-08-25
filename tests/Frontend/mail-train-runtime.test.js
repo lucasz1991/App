@@ -91,14 +91,15 @@ test('all delivered mail outputs keep the train-first flow overlap and a Classic
     assert.doesNotMatch(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/);
     assert.match(carrier, /<!--\[if mso\]><img class="rt-sign-train-mso"/);
     assert.match(msoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
-    assert.match(msoFallback, /<img class="rt-sign-train-mso"[^>]*display:inline-block;[^>]*vertical-align:bottom;/);
+    assert.match(msoFallback, /\$fallbackStyle = \$aspectSafeTrain[\s\S]*?'display:inline-block;width:720px;max-width:720px;height:61px;[^']*vertical-align:bottom;'/);
+    assert.match(msoFallback, /<img class="rt-sign-train-mso"[\s\S]*?style="'\.\$fallbackStyle\.'"/);
     assert.doesNotMatch(carrier, /rt-sign-train-mso[\s\S]*?width:720px;max-width:100%/);
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">/);
     assert.match(carrier, /return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="'\.\$alignment\.'" data-rt-layer-size="'\.\$sizeName\.'" data-rt-layer-mobile="'\.\$mobileCrop\.'" '/);
     assert.match(carrier, /\$layerPosition = \$failOpenStage \? 'position:relative;z-index:0;' : '';/);
     assert.match(carrier, /'style="'\.\$layerPosition\.'display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:'\.self::layerMargin\(\$alignment\)\.';margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;">'/);
-    assert.match(carrier, /\$imageHeight = \$failOpenStage \? ' height="61"' : '';/);
+    assert.match(carrier, /\$imageHeight = \$failOpenStage && ! \$aspectSafeTrain \? ' height="61"' : '';/);
     assert.match(carrier, /<table class="rt-sign-train-frame" role="presentation" width="100%" height="200"[^>]*>[\s\S]*?<td class="rt-sign-train-slot" height="200" valign="bottom"[^>]*>[\s\S]*?<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"'\.\$imageHeight\.' alt=""[^>]*style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;[^"\r\n]*vertical-align:bottom;[^"\r\n]*mso-hide:all;/);
     assert.match(carrier, /<table class="rt-sign-content-frame" role="presentation" width="100%" height="200"/);
     assert.match(msoFallback, /substr_replace\(\$html, \$fallback, \$slots\[0\]\['endOffset'\] \+ 1, 0\)/);
@@ -172,7 +173,7 @@ test('all delivered mail outputs keep the train-first flow overlap and a Classic
     assert.doesNotMatch(signatureView, /signatur-(?:raster|marke)-/);
 });
 
-test('immutable caching covers V12/V13 plus V15 assets while production URLs stay stable', () => {
+test('immutable caching covers V12/V13 plus V15/V17 assets while production URLs stay stable', () => {
     const htaccess = text('public/.htaccess');
     const builder = text('app/Support/EmailTemplateBuilder.php');
     const signature = text('app/Support/MailSignature.php');
@@ -185,7 +186,7 @@ test('immutable caching covers V12/V13 plus V15 assets while production URLs sta
         signature.indexOf('protected function companyAsSender'),
     );
 
-    assert.match(htaccess, /zug-dampf-v\(\?:12\|13\|15\)-\(\?:light\|dark\)/);
+    assert.match(htaccess, /zug-dampf-v\(\?:12\|13\|15\|17\)-\(\?:light\|dark\)/);
     assert.match(htaccess, /wortmarke-\(\?:signature-v15-light\|mail-v15-dark\)/);
     assert.match(htaccess, /Cache-Control "public, max-age=31536000, immutable"/);
     assert.doesNotMatch(htaccess, /zug-dampf-v8-/);

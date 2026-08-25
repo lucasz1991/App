@@ -1674,9 +1674,13 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(shell, /pageBuilderOpen:\s*@js\(\(bool\) \$autoOpen\)/);
     assert.match(shell, /data-page-builder-preview-first/);
     assert.match(shell, /data-page-builder-assist/);
+    assert.match(shell, /'singleToolbar'\s*=>\s*false/);
+    assert.match(shell, /data-page-builder-single-toolbar/);
+    assert.match(shell, /data-page-builder-single-toolbar-content/);
     assert.doesNotMatch(shell, /data-page-builder-panel-host/);
 
     assert.match(mailView, /data-mail-studio-toolbar/);
+    assert.match(mailView, /:single-toolbar="\$currentDocument !== null"/);
     assert.match(mailView, /data-mail-document-save/);
     assert.match(mailView, /data-mail-document-publish/);
     assert.match(mailView, /data-mail-code-open/);
@@ -1729,7 +1733,9 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /showRequestError\(error, 'Veröffentlichung nicht möglich'\)/);
     assert.doesNotMatch(mailView, /showFindings\(\{ messages: error\.messages[\s\S]*?severity: 'violation'/);
     assert.match(mailView, /workspace-class="min-h-0 flex-1 overflow-hidden p-0"/);
-    assert.match(mailView, /const studioRoot = workspace\.closest\('\[data-page-builder-fullscreen-root\]'\)/);
+    assert.match(mailView, /const studioRoot = workspace\.closest\('\[data-rt-fullscreen-modal\]'\)[\s\S]*?workspace\.closest\('\[data-page-builder-fullscreen-root\]'\)/);
+    assert.match(mailView, /data-mail-builder-action[\s\S]*?instance\.runEditorAction/);
+    assert.match(mailView, /data-mail-builder-panel[\s\S]*?instance\.openEditorPanel/);
     assert.doesNotMatch(mailView, /class="rt-mail-preview-toolbar"/);
 
     assert.match(mailCss, /\.rt-mail-studio\s*\{[\s\S]*?overflow:\s*hidden;/);
@@ -1745,10 +1751,11 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(shellCss, /font-family:\s*'Plus Jakarta Sans Variable'/);
     assert.match(shellCss, /html\[data-rt-pagebuilder-assist-open='true'\]/);
     assert.match(shellCss, /\.lmz-builder\s+\.lmzbjs-layers/);
+    assert.match(shellCss, /data-rt-lmz-mode='mail'[\s\S]*?\.lmz-builder__topbar\s*\{[\s\S]*?display:\s*none !important/);
     assert.match(shellCss, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmz-builder__popover/);
 });
 
-test('mail toolbar keeps documents, preview and publishing in non-overlapping responsive zones', async () => {
+test('mail editor exposes one responsive topbar with standard grouped dropdowns and visible publishing actions', async () => {
     const { readFile } = await import('node:fs/promises');
     const [view, css] = await Promise.all([
         readFile(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8'),
@@ -1756,46 +1763,44 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     ]);
 
     assert.match(view, /data-mail-toolbar-layout="responsive"/);
+    assert.match(view, /data-mail-toolbar-single/);
+    assert.match(view, /role="toolbar" aria-label="Mail- und Signatur-Editor"/);
     assert.match(view, /:auto-open="request\(\)->boolean\('open'\)"/);
     assert.match(view, /\['dokument' => \$kindValue, 'open' => 1\]/);
     for (const region of ['documents', 'preview', 'actions']) {
         assert.equal((view.match(new RegExp(`data-mail-toolbar-region="${region}"`, 'g')) || []).length, 1);
     }
 
-    assert.match(css, /grid-template-columns:\s*minmax\(16rem, 0\.85fr\) minmax\(22rem, 1fr\) minmax\(17rem, 0\.85fr\)/);
-    const compactDesktop = css.slice(
-        css.indexOf('@media (min-width: 1100px) and (max-width: 1599.98px)'),
-        css.indexOf('@media (max-width: 2199.98px)'),
-    );
-    assert.match(compactDesktop, /\.rt-mail-studio-toolbar__preview[\s\S]*?overflow:\s*hidden/);
-    assert.match(compactDesktop, /\.rt-mail-studio-toolbar__actions[\s\S]*?overflow:\s*hidden/);
-    assert.match(compactDesktop, /\.rt-mail-preview-toggle > button > span[\s\S]*?clip:\s*rect\(0, 0, 0, 0\)/);
+    for (const group of ['document', 'content', 'edit', 'view', 'versions', 'tools']) {
+        assert.equal((view.match(new RegExp(`data-mail-toolbar-menu="${group}"`, 'g')) || []).length, 1);
+    }
+    assert.ok((view.match(/<x-ui\.dropdown\.anchor-dropdown/g) || []).length >= 6);
+    for (const action of ['assets', 'upload', 'undo', 'redo', 'preview']) {
+        assert.match(view, new RegExp(`data-mail-builder-action="${action}"`));
+    }
+    for (const panel of ['left:blocks', 'left:layers', 'right:styles', 'right:traits', 'right:classes']) {
+        assert.match(view, new RegExp(`data-mail-builder-panel="${panel}"`));
+    }
+    assert.match(view, /data-mail-document-status/);
+    assert.match(view, /data-mail-document-save/);
+    assert.match(view, /data-mail-document-publish/);
 
-    const stackedToolbar = css.slice(
-        css.indexOf('@media (max-width: 2199.98px)'),
-        css.indexOf('@media (max-width: 899.98px)'),
-    );
-    assert.match(stackedToolbar, /grid-template-columns:\s*minmax\(0, 1fr\) auto auto/);
-    assert.match(stackedToolbar, /\.rt-mail-studio-toolbar__preview[\s\S]*?grid-column:\s*1 \/ -1[\s\S]*?grid-row:\s*2/);
-    assert.match(stackedToolbar, /\.rt-mail-studio-toolbar__preview[\s\S]*?overflow-x:\s*auto/);
-    assert.match(stackedToolbar, /\.rt-mail-studio-toolbar__actions\s*\{[\s\S]*?display:\s*contents/);
-
-    const mobile = css.slice(css.indexOf('@media (max-width: 639.98px)'));
-    assert.match(mobile, /\.rt-mail-preview-toggle > button span/);
-    assert.match(mobile, /\.rt-mail-studio-toolbar__action-label[\s\S]*?clip:\s*rect\(0, 0, 0, 0\)/);
-    assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons > \.rt-ui-button[\s\S]*?width:\s*2\.75rem/);
-    assert.match(mobile, /grid-template-columns:\s*minmax\(0, 1fr\) auto/);
-    assert.match(mobile, /\.rt-mail-studio-toolbar__documents[\s\S]*?grid-column:\s*1 \/ -1[\s\S]*?grid-row:\s*1/);
-    assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*2/);
+    const singleToolbar = css.slice(css.indexOf('Einzeilige Studio-Kopfzeile'));
+    assert.match(singleToolbar, /\.rt-mail-studio-toolbar\[data-mail-toolbar-single\]\s*\{[\s\S]*?display:\s*flex/);
+    assert.match(singleToolbar, /overflow-x:\s*auto/);
+    assert.match(singleToolbar, /scrollbar-width:\s*none/);
+    assert.match(singleToolbar, /min-height:\s*2\.75rem/);
+    assert.match(singleToolbar, /@media \(max-width: 1199\.98px\)[\s\S]*?width:\s*2\.75rem/);
 });
 
-test('signature source keeps V14 fixed and defines the schema 26 V15/V16 fail-open Outlook contract', async () => {
+test('signature source keeps older artifacts stable and defines the proportional schema 26 V17 Outlook contract', async () => {
     const { readFile } = await import('node:fs/promises');
-    const [css, signatureSource, trainAsset, v15TrainAsset, carrier, runtime, mailBuilderSource] = await Promise.all([
+    const [css, signatureSource, trainAsset, v15TrainAsset, v17TrainAsset, carrier, runtime, mailBuilderSource] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/emails/parts/signature.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/mail-templates/assets/zug-dampf-light.png', import.meta.url)),
         readFile(new URL('../../resources/mail-templates/assets/zug-dampf-v15-light.png', import.meta.url)),
+        readFile(new URL('../../resources/mail-templates/assets/zug-dampf-v17-light.png', import.meta.url)),
         readFile(new URL('../../app/Support/Mail/SignatureTrainCarrier.php', import.meta.url), 'utf8'),
         readFile(new URL('../../app/Support/MailSignature.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/js/mail-builder.js', import.meta.url), 'utf8'),
@@ -1830,13 +1835,19 @@ test('signature source keeps V14 fixed and defines the schema 26 V15/V16 fail-op
         [v15TrainAsset.readUInt32BE(16), v15TrainAsset.readUInt32BE(20)],
         [2016, 171],
     );
+    assert.equal(v17TrainAsset.toString('ascii', 1, 4), 'PNG');
+    assert.deepEqual(
+        [v17TrainAsset.readUInt32BE(16), v17TrainAsset.readUInt32BE(20)],
+        [2016, 171],
+    );
 
     assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 0);
     assert.equal((carrier.match(/<!--\[if mso\]><img class="rt-sign-train-mso"/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::withMsoFallback\(/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::withIdleOverlay\(/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::projectAsRuntimeBackground\(/g) || []).length, 0);
-    assert.match(carrier, /\$imageHeight = \$failOpenStage \? ' height="61"' : '';/);
+    assert.match(carrier, /\$imageHeight = \$failOpenStage && ! \$aspectSafeTrain \? ' height="61"' : '';/);
+    assert.match(carrier, /usesAspectSafeTrain\(string \$html\)[\s\S]*?SignatureArtifactVersion::usesAspectSafeTrain/);
     assert.match(carrier, /canonicalStageStartMarkup\(bool \$failOpenStage\)[\s\S]*?height:auto;min-height:200px;overflow:visible;/);
     assert.match(mailBuilderSource, /export const MAIL_SIGNATURE_SCHEMA = 26;/);
     assert.match(mailBuilderSource, /const MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT = '61';/);
@@ -1846,7 +1857,7 @@ test('signature source keeps V14 fixed and defines the schema 26 V15/V16 fail-op
             carrier.indexOf('public static function withMsoFallback'),
             carrier.indexOf('public static function withIdleOverlay'),
         ),
-        /<img class="rt-sign-train-mso"[^>]*display:inline-block;[^>]*vertical-align:bottom;/,
+        /\$fallbackStyle = \$aspectSafeTrain[\s\S]*?display:inline-block;[\s\S]*?vertical-align:bottom;/,
     );
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
 
@@ -1871,6 +1882,9 @@ test('signature source keeps V14 fixed and defines the schema 26 V15/V16 fail-op
     assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 200px !important;[^}]*overflow: visible !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\s*\{[^}]*height: 200px !important;[^}]*margin-bottom: -200px !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-mso\s*\{[^}]*display: block !important;[^}]*margin-bottom: 0 !important;[^}]*vertical-align: bottom !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 200px !important;[^}]*overflow: visible !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train\s*\{[^}]*display: block !important;[^}]*height: auto !important;[^}]*margin-bottom: 0 !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-mso\s*\{[^}]*width: 720px !important;[^}]*height: 61px !important;/s);
     assert.match(css, /tr\[data-rt-signature-density="compact"\] \.rt-sign-stage,\s*tr\[data-rt-signature-density="compact"\] \.rt-sign-train-layer\s*\{[^}]*height: 145px !important;[^}]*max-height: 145px !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso\s*\{[^}]*width: 94% !important;[^}]*margin-left: 0 !important;/s);
     assert.match(mobile, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 296px !important;[^}]*max-height: 296px !important;/s);
@@ -1886,6 +1900,7 @@ test('signature source keeps V14 fixed and defines the schema 26 V15/V16 fail-op
     assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-stage\s*\{[^}]*min-height: 272px !important;[^}]*overflow: visible !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\s*\{[^}]*height: 272px !important;[^}]*margin-bottom: -272px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train\s*\{[^}]*width: 160% !important;[^}]*margin-left: -36% !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train\s*\{[^}]*width: 164% !important;[^}]*height: auto !important;[^}]*margin-left: -40% !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v15"\] \.rt-sign-content\s*\{[^}]*padding-top: 14px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 108\.67% !important;[^}]*margin-left: 0 !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 135% !important;[^}]*margin-left: -15\.75% !important;/s);
