@@ -209,6 +209,7 @@
                             :sources="$creativePreviewSources"
                             :default-source="$preferredPreviewFormat"
                             :deferred="true"
+                            :loading-overlay="false"
                             :edit-url="route('admin.marketing.creatives.editor', [
                                 'creative' => $creative,
                                 'format' => $preferredPreviewFormat,

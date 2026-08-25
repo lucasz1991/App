@@ -250,9 +250,14 @@ final class SignatureTrainCarrier
 
             $content = substr($html, $contentOffset, $carrierCloseOffset - $contentOffset);
             $failOpenStage = self::usesFailOpenStage($html);
+            $aspectSafeTrain = self::usesAspectSafeTrain($html);
             $stage = self::canonicalStageMarkup(
                 $content,
-                self::canonicalLayerMarkup('{{TRAIN_SRC}}', failOpenStage: $failOpenStage),
+                self::canonicalLayerMarkup(
+                    '{{TRAIN_SRC}}',
+                    failOpenStage: $failOpenStage,
+                    aspectSafeTrain: $aspectSafeTrain,
+                ),
                 $failOpenStage,
             );
             $html = substr_replace(
@@ -330,9 +335,13 @@ final class SignatureTrainCarrier
             ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
             'UTF-8',
         );
+        $aspectSafeTrain = self::usesAspectSafeTrain($html);
         $fallbackHeight = self::usesFailOpenStage($html) ? ' height="61"' : '';
+        $fallbackStyle = $aspectSafeTrain
+            ? 'display:inline-block;width:720px;max-width:720px;height:61px;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;'
+            : 'display:inline-block;width:'.$size['width'].';max-width:none;height:auto;margin:'.self::imageMargin($alignment, $size).';border:0;outline:none;text-decoration:none;vertical-align:bottom;';
         $fallback = '<!--[if mso]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="'.$escapedSource.'" width="720"'.$fallbackHeight.' alt="" '
-            .'style="display:inline-block;width:'.$size['width'].';max-width:none;height:auto;margin:'.self::imageMargin($alignment, $size).';border:0;outline:none;text-decoration:none;vertical-align:bottom;"><![endif]-->';
+            .'style="'.$fallbackStyle.'"><![endif]-->';
 
         $html = substr_replace($html, $fallback, $slots[0]['endOffset'] + 1, 0);
         self::assertRuntimeImages($html, expectedMsoSource: $source);
@@ -497,6 +506,7 @@ final class SignatureTrainCarrier
         bool $allowLegacyFailOpenFixedStage = false,
     ): void {
         $failOpenStage = self::usesFailOpenStage($html) && ! $allowLegacyFailOpenFixedStage;
+        $aspectSafeTrain = self::usesAspectSafeTrain($html);
         if (substr_count($html, '{{TRAIN_SRC}}') !== 1
             || str_contains($html, '{{TRAIN_IDLE_SRC}}')) {
             throw new RuntimeException('Die Signatur benoetigt genau ein kanonisches Zugbild.');
@@ -654,7 +664,7 @@ final class SignatureTrainCarrier
             'src',
             'width',
         ];
-        if ($failOpenStage) {
+        if ($failOpenStage && ! $aspectSafeTrain) {
             $imageAttributeNames[] = 'height';
         }
         $imageAttributeNames = array_merge($imageAttributeNames, [
@@ -1091,7 +1101,10 @@ final class SignatureTrainCarrier
             && ! ($legacyDirectLayer && in_array($widthAttribute, ['100%', $legacyPixelWidth], true))) {
             throw new RuntimeException('Das Zugbild muss als mail-sicherer 720-Pixel-Fallback begrenzt sein.');
         }
-        if ($failOpenStage && $image->getAttribute('height') !== '61') {
+        if ($aspectSafeTrain && $image->hasAttribute('height')) {
+            throw new RuntimeException('Das proportionssichere Zugbild darf keine feste HTML-Hoehe besitzen.');
+        }
+        if ($failOpenStage && ! $aspectSafeTrain && $image->getAttribute('height') !== '61') {
             throw new RuntimeException('Das Fail-open-Zugbild muss seine intrinsische 61-Pixel-Hoehe reservieren.');
         }
     }
@@ -1268,6 +1281,7 @@ final class SignatureTrainCarrier
      */
     private static function normalizeImageToCanonicalFlow(string $html, bool $failOpenStage = false): string
     {
+        $aspectSafeTrain = self::usesAspectSafeTrain($html);
         $stages = [];
         $layers = [];
         $images = [];
@@ -1333,6 +1347,7 @@ final class SignatureTrainCarrier
                     $sizeName,
                     $mobileCrop,
                     $failOpenStage,
+                    $aspectSafeTrain,
                 ),
             ],
             [
@@ -1416,7 +1431,11 @@ final class SignatureTrainCarrier
         }
         $html = substr_replace(
             $html,
-            self::canonicalLayerMarkup('{{TRAIN_SRC}}', failOpenStage: $failOpenStage),
+            self::canonicalLayerMarkup(
+                '{{TRAIN_SRC}}',
+                failOpenStage: $failOpenStage,
+                aspectSafeTrain: self::usesAspectSafeTrain($html),
+            ),
             $stages[0]['endOffset'] + 1,
             0,
         );
@@ -1620,6 +1639,7 @@ final class SignatureTrainCarrier
         string $sizeName = '125',
         string $mobileCrop = 'train',
         bool $failOpenStage = false,
+        bool $aspectSafeTrain = false,
     ): string {
         $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
         if (! is_array($size)
@@ -1629,7 +1649,7 @@ final class SignatureTrainCarrier
         }
 
         $layerPosition = $failOpenStage ? 'position:relative;z-index:0;' : '';
-        $imageHeight = $failOpenStage ? ' height="61"' : '';
+        $imageHeight = $failOpenStage && ! $aspectSafeTrain ? ' height="61"' : '';
 
         return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="'.$alignment.'" data-rt-layer-size="'.$sizeName.'" data-rt-layer-mobile="'.$mobileCrop.'" '
             .'style="'.$layerPosition.'display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:'.self::layerMargin($alignment).';margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;">'
@@ -1788,6 +1808,13 @@ final class SignatureTrainCarrier
     private static function usesFailOpenStage(string $html): bool
     {
         return SignatureArtifactVersion::usesFailOpenStage(
+            SignatureArtifactVersion::detect(MailDocumentKind::Signature, $html),
+        );
+    }
+
+    private static function usesAspectSafeTrain(string $html): bool
+    {
+        return SignatureArtifactVersion::usesAspectSafeTrain(
             SignatureArtifactVersion::detect(MailDocumentKind::Signature, $html),
         );
     }
@@ -2462,6 +2489,7 @@ final class SignatureTrainCarrier
     private static function msoTrainImageSources(string $html): array
     {
         $failOpenStage = self::usesFailOpenStage($html);
+        $aspectSafeTrain = self::usesAspectSafeTrain($html);
         $layers = [];
         $slots = [];
         foreach (self::scanStartTags($html) as $tag) {
@@ -2528,10 +2556,10 @@ final class SignatureTrainCarrier
             }
             self::assertExactSourceTagStyle($tags[0], [
                 'display' => 'inline-block',
-                'width' => $size['width'],
-                'max-width' => 'none',
-                'height' => 'auto',
-                'margin' => self::imageMargin($alignment, $size),
+                'width' => $aspectSafeTrain ? '720px' : $size['width'],
+                'max-width' => $aspectSafeTrain ? '720px' : 'none',
+                'height' => $aspectSafeTrain ? '61px' : 'auto',
+                'margin' => $aspectSafeTrain ? '0' : self::imageMargin($alignment, $size),
                 'border' => '0',
                 'outline' => 'none',
                 'text-decoration' => 'none',

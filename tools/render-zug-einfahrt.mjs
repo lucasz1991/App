@@ -12,6 +12,12 @@
  *
  *   RT_AUSGABEKENNUNG=v8- RT_OHNE_IDLE=1 node tools/render-zug-einfahrt.mjs
  *
+ * Fahrrauch kann fuer neue, dateiversionierte Varianten unabhaengig dosiert
+ * werden, ohne bestehende Renderprofile zu veraendern:
+ *
+ *   RT_RAUCH_WOLKEN=96 RT_RAUCH_EMISSION_BIS=0.58 \
+ *   RT_RAUCH_LEBENSDAUER=1.8 RT_RAUCH_WACHSTUM=0.72
+ *
  * WARUM NEU GERENDERT STATT GEPATCHT
  * Drei Anforderungen zusammen liessen sich am fertigen GIF nicht mehr
  * erfuellen: kein eigener Hintergrund, hoehere Aufloesung und ein
@@ -184,6 +190,16 @@ const GEPLANTE_BILDER = Number(process.env.RT_BILDER || 72);
 const ERSTES_CS = Number(process.env.RT_ERSTES_CS || 30);
 const RAUCH_TOP_FADE = Number(process.env.RT_RAUCH_TOP_FADE || 0);
 const RAUCH_STAERKE = Number(process.env.RT_RAUCH_STAERKE || 1);
+// Die folgenden vier Regler betreffen ausschliesslich den Fahrrauch. Ihre
+// Standardwerte entsprechen byte- und geometrievertraeglich dem bisherigen
+// Profil. Neue Varianten koennen damit eine kuerzere, feinere Fahne erzeugen,
+// ohne die Zugzeichnung oder den rauchfreien Endzustand anzutasten.
+const RAUCH_WOLKEN = Number(process.env.RT_RAUCH_WOLKEN || 200);
+const RAUCH_EMISSION_BIS = Number(process.env.RT_RAUCH_EMISSION_BIS || 0.72);
+const RAUCH_LEBENSDAUER_S = process.env.RT_RAUCH_LEBENSDAUER === undefined
+    ? Number.POSITIVE_INFINITY
+    : Number(process.env.RT_RAUCH_LEBENSDAUER);
+const RAUCH_WACHSTUM = Number(process.env.RT_RAUCH_WACHSTUM || 1);
 // Physische Pixel statt CSS-Einheiten: V13 braucht in jedem Retina-Frame
 // garantiert denselben transparenten Sicherheitsrand. Der anschliessende
 // weiche Verlauf verhindert, dass weit aufgestiegene Wolken an dieser
@@ -203,6 +219,21 @@ if (!Number.isFinite(RAUCH_TOP_FADE) || RAUCH_TOP_FADE < 0) {
 }
 if (!Number.isFinite(RAUCH_STAERKE) || RAUCH_STAERKE <= 0) {
     throw new Error('RT_RAUCH_STAERKE muss eine positive Zahl sein.');
+}
+if (!Number.isInteger(RAUCH_WOLKEN) || RAUCH_WOLKEN < 1) {
+    throw new Error('RT_RAUCH_WOLKEN muss eine positive ganze Zahl sein.');
+}
+if (!Number.isFinite(RAUCH_EMISSION_BIS) || RAUCH_EMISSION_BIS <= 0 || RAUCH_EMISSION_BIS > 1) {
+    throw new Error('RT_RAUCH_EMISSION_BIS muss groesser 0 und hoechstens 1 sein.');
+}
+if (
+    (!Number.isFinite(RAUCH_LEBENSDAUER_S) && RAUCH_LEBENSDAUER_S !== Number.POSITIVE_INFINITY)
+    || RAUCH_LEBENSDAUER_S <= 0
+) {
+    throw new Error('RT_RAUCH_LEBENSDAUER muss eine positive Zahl sein.');
+}
+if (!Number.isFinite(RAUCH_WACHSTUM) || RAUCH_WACHSTUM <= 0) {
+    throw new Error('RT_RAUCH_WACHSTUM muss eine positive Zahl sein.');
 }
 if (!Number.isInteger(RAUCH_SICHERHEITSZONE_PX) || RAUCH_SICHERHEITSZONE_PX < 0) {
     throw new Error('RT_RAUCH_SICHERHEITSZONE_PX muss eine nichtnegative ganze Zahl sein.');
@@ -367,14 +398,14 @@ const MASSSTAB = BREITE / 560;
  */
 const RAUCH_AUS_AB = WARTE_S + (FAHRT_S * 0.62);
 const RAUCH_AUS_BIS = FAHRT_ENDE_S;
-const WOLKEN = 200;
+const WOLKEN = RAUCH_WOLKEN;
 const wolken = Array.from({ length: WOLKEN }, (_, i) => ({
-    geburt: WARTE_S + ((i / WOLKEN) * (FAHRT_S * 0.72)),
+    geburt: WARTE_S + ((i / WOLKEN) * (FAHRT_S * RAUCH_EMISSION_BIS)),
     // Streuung breiter als zuvor: gleichfoermige Werte ergaben eine Bank,
     // keine Fahne.
     drift: (-11 - (rausch(i, 1) * 30)) * MASSSTAB,
     steigen: (-6 - (rausch(i, 2) * 11)) * MASSSTAB,
-    wuchs: (2.4 + (rausch(i, 3) * 4.4)) * MASSSTAB,
+    wuchs: (2.4 + (rausch(i, 3) * 4.4)) * MASSSTAB * RAUCH_WACHSTUM,
     r0: (1.4 + (rausch(i, 1) * 1.6)) * MASSSTAB,
     phase: rausch(i, 2) * Math.PI * 2,
 }));
@@ -382,12 +413,16 @@ const wolken = Array.from({ length: WOLKEN }, (_, i) => ({
 function wolkeBei(w, t, schornsteinX) {
     const alter = t - w.geburt;
     if (alter < 0) return null;
+    if (alter >= RAUCH_LEBENSDAUER_S) return null;
 
     // Der Rauch tritt dort aus, wo der Schornstein ZUM ZEITPUNKT DES
     // AUSTRITTS stand — nur so bleibt die Fahne hinter dem Zug zurueck.
     const auftauchen = glatt(w.geburt, w.geburt + 0.35, t);
     const vergehen = 1 - glatt(RAUCH_AUS_AB, RAUCH_AUS_BIS, t);
-    if (vergehen <= 0) return null;
+    const lebensende = Number.isFinite(RAUCH_LEBENSDAUER_S)
+        ? 1 - glatt(RAUCH_LEBENSDAUER_S * 0.58, RAUCH_LEBENSDAUER_S, alter)
+        : 1;
+    if (vergehen <= 0 || lebensende <= 0) return null;
 
     const r = w.r0 + (w.wuchs * alter);
 
@@ -406,7 +441,7 @@ function wolkeBei(w, t, schornsteinX) {
         y: SCHORNSTEIN_Y + (w.steigen * alter)
             + (Math.cos(w.phase + (alter * 1.3)) * 1.2 * MASSSTAB * (1 + (alter * 0.4))),
         r,
-        alpha: auftauchen * vergehen * 0.26 * verduennung,
+        alpha: auftauchen * vergehen * lebensende * 0.26 * verduennung,
     };
 }
 

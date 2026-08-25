@@ -985,7 +985,9 @@ class EmailTemplateBuilder
         ?string $artifactVersion = null,
     ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
-        $stem = SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)
+        $stem = SignatureArtifactVersion::usesV17TrainAssets($artifactVersion)
+            ? 'zug-dampf-v17'
+            : (SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)
             ? 'zug-dampf-v15'
             : (SignatureArtifactVersion::usesSmokeSafeArrivalTrain($artifactVersion)
             ? 'zug-dampf-v13'
@@ -993,7 +995,7 @@ class EmailTemplateBuilder
                 ? 'zug-dampf-v12'
                 : (SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)
                     ? 'zug-dampf-v8'
-                    : 'zug-dampf')));
+                    : 'zug-dampf'))));
 
         return $stem.'-'.$variant.'.'.($animated ? 'gif' : 'png');
     }

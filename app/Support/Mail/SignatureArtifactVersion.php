@@ -38,13 +38,15 @@ final class SignatureArtifactVersion
 
     public const V16 = 'v16';
 
+    public const V17 = 'v17';
+
     /**
-     * V8 bis V16 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
+     * V8 bis V17 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
      * endet im Ankunftsbild und benoetigt deshalb kein separates Idle-Overlay.
      */
     public static function usesArrivalHoldTrain(?string $version): bool
     {
-        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16], true);
+        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17], true);
     }
 
     /** V12 verwendet die optimierte, sofort sichtbare Zugdatei. */
@@ -59,16 +61,32 @@ final class SignatureArtifactVersion
         return in_array($version, [self::V13, self::V14], true);
     }
 
-    /** V15/V16 verwenden die kleineren Zug- und Wortmarkenmedien. */
+    /** V15 bis V17 verwenden die kleineren Wortmarkenmedien. */
     public static function usesOptimizedMailAssets(?string $version): bool
     {
-        return in_array($version, [self::V15, self::V16], true);
+        return in_array($version, [self::V15, self::V16, self::V17], true);
     }
 
-    /** V15/V16 duerfen den Inhalt auch bei ignorierter negativer Margin nie abschneiden. */
+    /** V15 bis V17 duerfen den Inhalt auch bei ignorierter negativer Margin nie abschneiden. */
     public static function usesFailOpenStage(?string $version): bool
     {
-        return in_array($version, [self::V15, self::V16], true);
+        return in_array($version, [self::V15, self::V16, self::V17], true);
+    }
+
+    /**
+     * V17 reserviert am bewegten Haupt-IMG keine feste HTML-Hoehe mehr.
+     * Prozentuale Breiten koennen dadurch nicht mehr mit einer unveraenderten
+     * 61-px-Hoehe kollidieren. Das bedingte Outlook-PNG bleibt exakt 720x61.
+     */
+    public static function usesAspectSafeTrain(?string $version): bool
+    {
+        return $version === self::V17;
+    }
+
+    /** V17 verwendet den reduzierten Fahrrauch und ein rauchfreies Endbild. */
+    public static function usesV17TrainAssets(?string $version): bool
+    {
+        return $version === self::V17;
     }
 
     public static function detect(MailDocumentKind|string $kind, string $html): ?string

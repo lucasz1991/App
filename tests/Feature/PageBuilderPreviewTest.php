@@ -353,7 +353,13 @@ class PageBuilderPreviewTest extends TestCase
             'data-page-builder-preview-deferred="true"',
             'data-page-builder-preview-frame',
             'sandbox=""',
+            'loading="lazy"',
             'src="about:blank"',
+            'shouldLoad: false',
+            "rootMargin: '360px 0px'",
+            'x-bind:src="activeUrl"',
+            'x-on:load="void 0"',
+            'x-bind:class="&#039;opacity-100&#039;"',
             'wire:target="search,type,status"',
             route('admin.marketing.creatives.preview', [$creative, 'story']),
             route('admin.marketing.creatives.preview', [$creative, 'post']),
@@ -362,6 +368,9 @@ class PageBuilderPreviewTest extends TestCase
             $this->assertTrue(str_contains($html, $needle), 'Marketing-Seite enthält nicht: '.$needle);
         }
 
+        $this->assertStringNotContainsString('data-page-builder-preview-loading', $html);
+        $this->assertStringNotContainsString('data-page-builder-preview-edit-link', $html);
+        $this->assertStringNotContainsString('Vorschau wird geladen', $html);
     }
 
     public function test_email_source_page_renders_two_admin_preview_cards(): void

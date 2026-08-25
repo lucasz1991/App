@@ -9,6 +9,10 @@
     'previewReplayable' => false,
     'previewLoadingOverlay' => true,
     'autoOpen' => false,
+    // Opt-in fuer Editoren, deren eigene Werkzeugleiste direkt in den
+    // Vollbildkopf gehoert. Der Standardvertrag aller anderen Page Builder
+    // bleibt unveraendert zweizeilig.
+    'singleToolbar' => false,
     'workspaceClass' => 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5',
 ])
 
@@ -153,17 +157,30 @@
         labelledby="{{ $shellId }}-title"
         body-class="min-h-0 flex-1 overflow-hidden p-0"
         content-class="h-full min-h-0 w-full max-w-none"
+        :header-class="$singleToolbar ? 'rt-page-builder-single-header' : ''"
         class="[&_header_button]:min-h-11 [&_header_button]:min-w-11"
         data-page-builder-fullscreen
+        @if ($singleToolbar)
+            data-page-builder-fullscreen-root
+            data-page-builder-shell-id="{{ $shellId }}"
+            data-page-builder-single-toolbar
+        @endif
     >
         <x-slot:header>
-            <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent sm:flex">
-                <i class="far fa-object-group" aria-hidden="true"></i>
-            </span>
-            <div class="min-w-0 flex-1">
-                <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-rt-soft dark:text-rt-dark-soft">{{ $eyebrow }}</p>
-                <h2 id="{{ $shellId }}-title" tabindex="-1" class="truncate text-base font-semibold text-rt-text outline-none dark:text-rt-dark-text sm:text-lg" data-page-builder-title>{{ $title }}</h2>
-            </div>
+            @if ($singleToolbar && isset($toolbar))
+                <h2 id="{{ $shellId }}-title" tabindex="-1" class="sr-only outline-none" data-page-builder-title>{{ $title }}</h2>
+                <div class="min-w-0 flex-1" data-page-builder-shell-toolbar data-page-builder-single-toolbar-content>
+                    {{ $toolbar }}
+                </div>
+            @else
+                <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent sm:flex">
+                    <i class="far fa-object-group" aria-hidden="true"></i>
+                </span>
+                <div class="min-w-0 flex-1">
+                    <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-rt-soft dark:text-rt-dark-soft">{{ $eyebrow }}</p>
+                    <h2 id="{{ $shellId }}-title" tabindex="-1" class="truncate text-base font-semibold text-rt-text outline-none dark:text-rt-dark-text sm:text-lg" data-page-builder-title>{{ $title }}</h2>
+                </div>
+            @endif
         </x-slot:header>
 
         <x-slot:actions>
@@ -186,12 +203,19 @@
             </x-ui.buttons.button-basic>
         </x-slot:actions>
 
-        <div class="flex h-full min-h-0 flex-col" data-page-builder-fullscreen-root data-page-builder-shell-id="{{ $shellId }}">
-            @isset($toolbar)
+        <div
+            class="flex h-full min-h-0 flex-col"
+            @unless ($singleToolbar)
+                data-page-builder-fullscreen-root
+                data-page-builder-shell-id="{{ $shellId }}"
+            @endunless
+            data-page-builder-fullscreen-content
+        >
+            @if (isset($toolbar) && ! $singleToolbar)
                 <div class="shrink-0 border-b border-rt-border/70 bg-rt-surface px-3 py-2 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface sm:px-5" data-page-builder-shell-toolbar>
                     {{ $toolbar }}
                 </div>
-            @endisset
+            @endif
 
             <div
                 {{ $attributes->class($workspaceClass) }}
