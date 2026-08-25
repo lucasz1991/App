@@ -35,6 +35,7 @@ final class SignatureTrainCarrier
         'center',
         'train',
         'stop65',
+        'stop60',
         'right',
     ];
 
@@ -82,7 +83,7 @@ final class SignatureTrainCarrier
                         $html,
                         allowLegacyContentFirst: true,
                         allowLegacyExpandedFlowLayer: true,
-                        allowLegacyV15FixedStage: $failOpenStage,
+                        allowLegacyFailOpenFixedStage: $failOpenStage,
                     );
                 } catch (RuntimeException) {
                     try {
@@ -91,7 +92,7 @@ final class SignatureTrainCarrier
                             allowLegacyContentFirst: true,
                             allowLegacyPercentHeight: true,
                             allowLegacyAbsoluteLayer: true,
-                            allowLegacyV15FixedStage: $failOpenStage,
+                            allowLegacyFailOpenFixedStage: $failOpenStage,
                         );
                     } catch (RuntimeException) {
                         self::assertCanonicalImage(
@@ -99,7 +100,7 @@ final class SignatureTrainCarrier
                             allowLegacyDirectLayer: true,
                             allowLegacyPercentHeight: true,
                             allowLegacyAbsoluteLayer: true,
-                            allowLegacyV15FixedStage: $failOpenStage,
+                            allowLegacyFailOpenFixedStage: $failOpenStage,
                         );
                         $html = self::wrapLegacyDirectCarrierInStage($html);
                     }
@@ -493,9 +494,9 @@ final class SignatureTrainCarrier
         bool $allowLegacyPercentHeight = false,
         bool $allowLegacyAbsoluteLayer = false,
         bool $allowLegacyExpandedFlowLayer = false,
-        bool $allowLegacyV15FixedStage = false,
+        bool $allowLegacyFailOpenFixedStage = false,
     ): void {
-        $failOpenStage = self::usesFailOpenStage($html) && ! $allowLegacyV15FixedStage;
+        $failOpenStage = self::usesFailOpenStage($html) && ! $allowLegacyFailOpenFixedStage;
         if (substr_count($html, '{{TRAIN_SRC}}') !== 1
             || str_contains($html, '{{TRAIN_IDLE_SRC}}')) {
             throw new RuntimeException('Die Signatur benoetigt genau ein kanonisches Zugbild.');
@@ -1091,7 +1092,7 @@ final class SignatureTrainCarrier
             throw new RuntimeException('Das Zugbild muss als mail-sicherer 720-Pixel-Fallback begrenzt sein.');
         }
         if ($failOpenStage && $image->getAttribute('height') !== '61') {
-            throw new RuntimeException('Das V15-Zugbild muss seine intrinsische 61-Pixel-Hoehe reservieren.');
+            throw new RuntimeException('Das Fail-open-Zugbild muss seine intrinsische 61-Pixel-Hoehe reservieren.');
         }
     }
 

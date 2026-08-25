@@ -1381,7 +1381,7 @@ function removeInlineStyleDeclaration(style, property) {
  * Schema 21/22 (fruehere Flow-Reihenfolgen), Schema 23 (absoluter Layer)
  * und Schema 24 (proportionale Ueberlappung) werden nur bei exakt erkannter
  * Altstruktur in den markerabhaengigen Schema-26-Vertrag projiziert.
- * V14 und aelter behalten die feste 200-px-Buehne; nur V15 erhaelt die
+ * V14 und aelter behalten die feste 200-px-Buehne; V15/V16 erhalten die
  * fail-open Aussenbuehne. Prozentwerte werden bewusst nicht umgerechnet.
  * Mischformen oder frei manipulierte Layer bleiben harte Fehler.
  */
@@ -1468,9 +1468,11 @@ function assertSignatureBaseStructure(wrapper, rows) {
 }
 
 function usesFailOpenSignatureStage(rows) {
-    return String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '')
-        .trim()
-        .toLowerCase() === 'v15';
+    return ['v15', 'v16'].includes(
+        String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '')
+            .trim()
+            .toLowerCase(),
+    );
 }
 
 function assertCanonicalSignatureStage(structure, failOpenStage = false) {
@@ -1563,7 +1565,7 @@ function signatureTrainGeometry(layer) {
     const size = MAIL_SIGNATURE_TRAIN_SIZES[sizeName];
     if (!['left', 'center', 'right'].includes(alignment)
         || !size
-        || !['left', 'center', 'train', 'stop65', 'right'].includes(mobileCrop)) {
+        || !['left', 'center', 'train', 'stop65', 'stop60', 'right'].includes(mobileCrop)) {
         throw new Error('Der Zug-Layer besitzt keine erlaubte mail-sichere Geometrie.');
     }
     const layerMargin = {
@@ -2047,20 +2049,20 @@ function projectSignatureTrainImage(wrapper, rows, project) {
             assertCanonicalSignatureTrainImage(wrapper, rows, failOpenStage);
         } catch (error) {
             canonicalError = error;
-            let migratedFixedV15 = false;
+            let migratedFixedFailOpenStage = false;
             if (failOpenStage) {
                 try {
                     const fixedStage = assertCanonicalSignatureTrainImage(wrapper, rows, false);
                     applyCanonicalSignatureTrainGeometry(fixedStage.layer, fixedStage.image, true);
                     applyCanonicalSignatureStageGeometry(fixedStage, true);
                     assertCanonicalSignatureTrainImage(wrapper, rows, true);
-                    migratedFixedV15 = true;
+                    migratedFixedFailOpenStage = true;
                 } catch {
                     // Andere bekannte Altformen laufen durch denselben streng
                     // validierten Projektionspfad wie bisher.
                 }
             }
-            if (!migratedFixedV15) {
+            if (!migratedFixedFailOpenStage) {
                 try {
                     projectLegacySignatureTrainLayer(wrapper, rows, failOpenStage);
                 } catch (legacyError) {
@@ -2561,7 +2563,9 @@ function componentClasses(component) {
 function componentUsesFailOpenSignatureStage(component) {
     for (let current = component; current; current = current?.parent?.()) {
         const attributes = current?.getAttributes?.() || current?.get?.('attributes') || {};
-        if (String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').trim().toLowerCase() === 'v15') {
+        if (['v15', 'v16'].includes(
+            String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').trim().toLowerCase(),
+        )) {
             return true;
         }
     }
@@ -2678,7 +2682,7 @@ export function synchronizeMailTrainLayerAlignment(component) {
     const sizeName = ['100', '108.67', '125', '150', '200'].includes(String(attributes['data-rt-layer-size']))
         ? String(attributes['data-rt-layer-size'])
         : '125';
-    const mobileCrop = ['left', 'center', 'train', 'stop65', 'right'].includes(attributes['data-rt-layer-mobile'])
+    const mobileCrop = ['left', 'center', 'train', 'stop65', 'stop60', 'right'].includes(attributes['data-rt-layer-mobile'])
         ? attributes['data-rt-layer-mobile']
         : 'train';
     const size = {
@@ -3025,6 +3029,7 @@ export function protectMailSystemComponents(editor) {
                             { id: 'center', name: 'Mittig' },
                             { id: 'train', name: 'Groß · mobil angeschnitten' },
                             { id: 'stop65', name: 'Groß · Halt bei 65 %' },
+                            { id: 'stop60', name: 'Groß · früher Halt bei 60 %' },
                             { id: 'right', name: 'Rechts' },
                         ],
                     },

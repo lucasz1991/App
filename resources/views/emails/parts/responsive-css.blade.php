@@ -112,9 +112,9 @@ tr[data-rt-artifact-version="v14"] .rt-sign-train-layer {
 tr[data-rt-artifact-version="v14"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v14"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v14"] .rt-sign-content-frame { height: 175px !important; }
-/* V15 behaelt die deckungsgleiche 175-px-Innengeometrie, laesst die aeussere
-   Buehne aber bewusst wachsen. Ignoriert Outlook beim kalten Bild-Layout die
-   negative Margin, bleibt der Inhalt dadurch unter dem Zug sichtbar. */
+/* V15 behaelt seine deckungsgleiche 175-px-Innengeometrie. V16 reserviert
+   200 px fuer vollstaendige Kontaktdaten; so endet die Buehne weiterhin exakt
+   an der Rechtstext-Zeile. Beide Aussenbuehnen bleiben fail-open. */
 tr[data-rt-artifact-version="v15"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
@@ -135,6 +135,26 @@ tr[data-rt-artifact-version="v15"] .rt-sign-content-frame {
   position: relative !important;
   z-index: 1 !important;
 }
+tr[data-rt-artifact-version="v16"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 200px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-train-layer {
+  position: relative !important;
+  z-index: 0 !important;
+  height: 200px !important;
+  max-height: 200px !important;
+  margin-bottom: -200px !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v16"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v16"] .rt-sign-content-frame { height: 200px !important; }
+tr[data-rt-artifact-version="v16"] .rt-sign-content-frame {
+  position: relative !important;
+  z-index: 1 !important;
+}
 tr[data-rt-signature-density="compact"] .rt-sign-stage,
 tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
   height: 145px !important;
@@ -152,6 +172,12 @@ tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign
   min-height: 145px !important;
   overflow: visible !important;
 }
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 145px !important;
+  overflow: visible !important;
+}
 /* Bei der maximalen 1815-px-Breite waere das 108,67-Prozent-Motiv hoeher als
    die kompakte 145-px-Buehne und wuerde unten beschnitten. V14 begrenzt nur
    dieses Desktop-Systemprofil auf 94 Prozent; die spaeteren Mobilregeln sind
@@ -163,6 +189,25 @@ tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign
   width: 94% !important;
   max-width: none !important;
   margin-left: 0 !important;
+}
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train,
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-mso {
+  width: 94% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+}
+/* Das V16-Motiv besitzt bis zum letzten Pixel Inhalt. Blockdarstellung und
+   bottom-valign verhindern deshalb eine zusaetzliche Inline-Grundlinie direkt
+   vor der grauen Rechtstext-Zeile. */
+tr[data-rt-artifact-version="v16"] .rt-sign-train-slot {
+  padding-bottom: 0 !important;
+  vertical-align: bottom !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-train,
+tr[data-rt-artifact-version="v16"] .rt-sign-train-mso {
+  display: block !important;
+  margin-bottom: 0 !important;
+  vertical-align: bottom !important;
 }
 .rt-sign-train,
 .rt-sign-train-mso {
@@ -416,6 +461,14 @@ img.rt-logo { width: 150px !important; }
 /* V8/V9: Das sichtbare Ende des auf 60 % animierten Motivs steht bei 65 %
    der Signaturbreite (60 % von 150 % minus 25 % Versatz). */
 .rt-sign-train-layer[data-rt-layer-mobile="stop65"][data-rt-layer-size] .rt-sign-train { width: 150% !important; max-width: none !important; margin-left: -25% !important; }
+/* V16 stoppt sichtbar bei rund 60 Prozent. Selbst wenn ein mobiler Outlook-
+   Renderer den negativen Versatz ignoriert, endet die Lok bei rund 96 Prozent
+   und bleibt damit innerhalb der Signaturbreite. */
+.rt-sign-train-layer[data-rt-layer-mobile="stop60"][data-rt-layer-size] .rt-sign-train {
+  width: 160% !important;
+  max-width: none !important;
+  margin-left: -36% !important;
+}
 /* V10/V11: Das Motiv beginnt ohne negativen Versatz exakt an der linken
    Signaturkante. 108,67 % bilden den sichtbaren Motivabschluss bei ca. 65 %
    ab, ohne dass die Lok rechts aus dem Ausschnitt fahren kann. */
@@ -481,6 +534,20 @@ tr[data-rt-artifact-version="v15"] .rt-sign-train-layer {
 tr[data-rt-artifact-version="v15"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v15"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v15"] .rt-sign-content-frame { height: 296px !important; }
+tr[data-rt-artifact-version="v16"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 304px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-train-layer {
+  height: 304px !important;
+  max-height: 304px !important;
+  margin-bottom: -304px !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v16"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v16"] .rt-sign-content-frame { height: 304px !important; }
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
@@ -495,6 +562,20 @@ tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-content-frame { height: 215px !important; }
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 215px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-layer {
+  height: 215px !important;
+  max-height: 215px !important;
+  margin-bottom: -215px !important;
+}
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-content-frame { height: 215px !important; }
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
@@ -604,6 +685,20 @@ tr[data-rt-artifact-version="v15"] .rt-sign-train-layer {
 tr[data-rt-artifact-version="v15"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v15"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v15"] .rt-sign-content-frame { height: 264px !important; }
+tr[data-rt-artifact-version="v16"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 272px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-train-layer {
+  height: 272px !important;
+  max-height: 272px !important;
+  margin-bottom: -272px !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v16"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v16"] .rt-sign-content-frame { height: 272px !important; }
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
@@ -618,6 +713,20 @@ tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-content-frame { height: 190px !important; }
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 190px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-layer {
+  height: 190px !important;
+  max-height: 190px !important;
+  margin-bottom: -190px !important;
+}
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-content-frame { height: 190px !important; }
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
@@ -661,6 +770,11 @@ tr[data-rt-artifact-version="v15"] .rt-sign-train-layer[data-rt-layer-mobile="st
   width: 175% !important;
   max-width: none !important;
   margin-left: -40% !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train {
+  width: 160% !important;
+  max-width: none !important;
+  margin-left: -36% !important;
 }
 
 
@@ -738,6 +852,16 @@ tr[data-rt-artifact-version="v15"] .rt-sign-top-row > .rt-sign-identity,
 tr[data-rt-artifact-version="v15"] .rt-sign-company {
   padding-top: 6px !important;
 }
+tr[data-rt-artifact-version="v16"] .rt-sign-content {
+  padding-top: 14px !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-logo {
+  padding-bottom: 8px !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-top-row > .rt-sign-identity,
+tr[data-rt-artifact-version="v16"] .rt-sign-company {
+  padding-top: 6px !important;
+}
 tr[data-rt-artifact-version="v11"] .rt-sign-identity .rt-contact,
 tr[data-rt-artifact-version="v12"] .rt-sign-identity .rt-contact,
 tr[data-rt-artifact-version="v13"] .rt-sign-identity .rt-contact,
@@ -750,6 +874,12 @@ tr[data-rt-artifact-version="v12"] .rt-company-contact,
 tr[data-rt-artifact-version="v13"] .rt-company-contact,
 tr[data-rt-artifact-version="v14"] .rt-company-contact,
 tr[data-rt-artifact-version="v15"] .rt-company-contact {
+  margin-top: 8px !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-sign-identity .rt-contact {
+  margin-top: 6px !important;
+}
+tr[data-rt-artifact-version="v16"] .rt-company-contact {
   margin-top: 8px !important;
 }
 }

@@ -56,6 +56,13 @@ test('portable media requirements follow the imported signature instead of the o
                 'wortmarke-signature-v15-light.gif',
                 'wortmarke-signature-v15-light.png',
             ],
+            v16: [
+                'common.png',
+                'zug-dampf-v15-light.gif',
+                'zug-dampf-v15-light.png',
+                'wortmarke-signature-v15-light.gif',
+                'wortmarke-signature-v15-light.png',
+            ],
         },
         template: {
             default: ['icon-rt-light.gif'],
@@ -131,6 +138,14 @@ test('portable media requirements follow the imported signature instead of the o
         requirements.signature.v15,
     );
     assert.deepEqual(
+        resolvePortableMediaRequirementIds(
+            requirements,
+            'signature',
+            '<tr data-rt-artifact-version="v16"><td>v16</td></tr>',
+        ),
+        requirements.signature.v16,
+    );
+    assert.deepEqual(
         resolvePortableMediaRequirementIds(requirements, 'template', '<table></table>'),
         requirements.template.default,
     );
@@ -138,7 +153,7 @@ test('portable media requirements follow the imported signature instead of the o
         () => resolvePortableMediaRequirementIds(
             requirements,
             'signature',
-            '<tr data-rt-artifact-version="v16"><td>unbekannt</td></tr>',
+            '<tr data-rt-artifact-version="v17"><td>unbekannt</td></tr>',
         ),
         /Medienvertrag ist nicht vollständig konfiguriert/,
     );
@@ -379,10 +394,13 @@ test('schema 22 to 25 train overlaps migrate deterministically to the schema 26 
     });
 });
 
-test('schema 26 keeps V14 fixed while V15 reserves a fail-open 720 by 61 train', () => {
+test('schema 26 keeps V14 fixed while V15 and V16 reserve a fail-open 720 by 61 train', () => {
     const serializeVersion = (version) => {
-        const original = `<tr data-rt-artifact-version="${version}"><td class="rt-sign-cell">${canonicalSignatureStage('Inhalt')}</td></tr>`
+        let original = `<tr data-rt-artifact-version="${version}"><td class="rt-sign-cell">${canonicalSignatureStage('Inhalt')}</td></tr>`
             + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
+        if (version === 'v16') {
+            original = original.replace('data-rt-layer-mobile="train"', 'data-rt-layer-mobile="stop60"');
+        }
         const project = projectForMailDocument({
             builderData: {
                 pages: [{ component: original }],
@@ -425,6 +443,20 @@ test('schema 26 keeps V14 fixed while V15 reserves a fail-open 720 by 61 train',
     assert.equal(v15Train?.getAttribute('height'), '61');
     assert.match(v15Content?.getAttribute('style') || '', /^position:relative;z-index:1;width:100%;height:200px;/);
     assert.equal(v15.project.railtime.schema, MAIL_SIGNATURE_SCHEMA);
+
+    const v16 = serializeVersion('v16');
+    const v16Document = signatureDocument(v16.html);
+    const v16Stage = v16Document.querySelector('.rt-sign-stage');
+    const v16Layer = v16Document.querySelector('.rt-sign-train-layer[data-rt-layer-train]');
+    const v16Train = v16Document.querySelector('img.rt-sign-train[data-rt-train]');
+    const v16Content = v16Document.querySelector('table.rt-sign-content-frame');
+    assert.equal(v16Stage?.getAttribute('style'), 'position:relative;height:auto;min-height:200px;overflow:visible;');
+    assert.match(v16Layer?.getAttribute('style') || '', /^position:relative;z-index:0;display:block;[^\r\n]*margin-bottom:-200px;/);
+    assert.equal(v16Layer?.getAttribute('data-rt-layer-mobile'), 'stop60');
+    assert.equal(v16Train?.getAttribute('width'), '720');
+    assert.equal(v16Train?.getAttribute('height'), '61');
+    assert.match(v16Content?.getAttribute('style') || '', /^position:relative;z-index:1;width:100%;height:200px;/);
+    assert.equal(v16.project.railtime.schema, MAIL_SIGNATURE_SCHEMA);
 });
 
 test('signature preview hydrates the train image and roundtrips two canonical rows', () => {
@@ -1062,7 +1094,7 @@ test('protected mail layers keep the regular train image visible and structural'
     );
     assert.deepEqual(
         trainLayer.state.traits[2].options.map((option) => option.id),
-        ['left', 'center', 'train', 'stop65', 'right'],
+        ['left', 'center', 'train', 'stop65', 'stop60', 'right'],
     );
     assert.deepEqual(
         trainLayer.state.traits[1].options.map((option) => option.id),
@@ -1193,6 +1225,9 @@ test('train layer editor maps presets onto the fixed schema 25 pixel contract', 
     attributes['data-rt-layer-mobile'] = 'stop65';
     synchronizeMailTrainLayerAlignment(component);
     assert.equal(attributes['data-rt-layer-mobile'], 'stop65');
+    attributes['data-rt-layer-mobile'] = 'stop60';
+    synchronizeMailTrainLayerAlignment(component);
+    assert.equal(attributes['data-rt-layer-mobile'], 'stop60');
     state['margin-bottom'] = '-72px';
     attributes['data-rt-layer-align'] = 'calc(1px)';
     attributes['data-rt-layer-mobile'] = 'calc(1px)';
@@ -1754,7 +1789,7 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*2/);
 });
 
-test('signature source keeps V14 fixed and defines the schema 26 V15 fail-open Outlook contract', async () => {
+test('signature source keeps V14 fixed and defines the schema 26 V15/V16 fail-open Outlook contract', async () => {
     const { readFile } = await import('node:fs/promises');
     const [css, signatureSource, trainAsset, v15TrainAsset, carrier, runtime, mailBuilderSource] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
@@ -1819,6 +1854,7 @@ test('signature source keeps V14 fixed and defines the schema 26 V15 fail-open O
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]*?width: 100% !important;/);
     assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][^}]+width: 150% !important; max-width: none !important; margin-left: 0 !important/);
     assert.match(mobile, /data-rt-layer-mobile="stop65"\]\[data-rt-layer-size\][^}]+width: 150% !important; max-width: none !important; margin-left: -25% !important/);
+    assert.match(mobile, /data-rt-layer-mobile="stop60"\]\[data-rt-layer-size\][^}]+width: 160% !important;[^}]+margin-left: -36% !important/);
     const phone = css.slice(css.indexOf('@media only screen and (max-width: 480px)'));
     assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width: 175% !important;[\s\S]*?margin-left: -8% !important;/);
     assert.match(phone, /tr\[data-rt-artifact-version="v8"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v9"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v10"\] \.rt-sign-stage\s*\{[^}]*height: 280px !important;[^}]*max-height: 280px !important;/s);
@@ -1832,16 +1868,24 @@ test('signature source keeps V14 fixed and defines the schema 26 V15 fail-open O
     assert.match(css, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*max-height: none !important;[^}]*min-height: 175px !important;[^}]*overflow: visible !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-train-layer\s*\{[^}]*position: relative !important;[^}]*z-index: 0 !important;[^}]*height: 175px !important;[^}]*margin-bottom: -175px !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-content-frame\s*\{[^}]*position: relative !important;[^}]*z-index: 1 !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 200px !important;[^}]*overflow: visible !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\s*\{[^}]*height: 200px !important;[^}]*margin-bottom: -200px !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-mso\s*\{[^}]*display: block !important;[^}]*margin-bottom: 0 !important;[^}]*vertical-align: bottom !important;/s);
     assert.match(css, /tr\[data-rt-signature-density="compact"\] \.rt-sign-stage,\s*tr\[data-rt-signature-density="compact"\] \.rt-sign-train-layer\s*\{[^}]*height: 145px !important;[^}]*max-height: 145px !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso\s*\{[^}]*width: 94% !important;[^}]*margin-left: 0 !important;/s);
     assert.match(mobile, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 296px !important;[^}]*max-height: 296px !important;/s);
     assert.match(mobile, /tr\[data-rt-signature-density="compact"\] \.rt-sign-stage,\s*tr\[data-rt-signature-density="compact"\] \.rt-sign-train-layer\s*\{[^}]*height: 215px !important;[^}]*max-height: 215px !important;/s);
     assert.match(mobile, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 296px !important;[^}]*overflow: visible !important;/s);
     assert.match(mobile, /tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 215px !important;[^}]*overflow: visible !important;/s);
+    assert.match(mobile, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-stage\s*\{[^}]*min-height: 304px !important;[^}]*overflow: visible !important;/s);
+    assert.match(mobile, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\s*\{[^}]*height: 304px !important;[^}]*margin-bottom: -304px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 264px !important;[^}]*max-height: 264px !important;/s);
     assert.match(phone, /tr\[data-rt-signature-density="compact"\] \.rt-sign-stage,\s*tr\[data-rt-signature-density="compact"\] \.rt-sign-train-layer\s*\{[^}]*height: 190px !important;[^}]*max-height: 190px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 264px !important;[^}]*overflow: visible !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 190px !important;[^}]*overflow: visible !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-stage\s*\{[^}]*min-height: 272px !important;[^}]*overflow: visible !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\s*\{[^}]*height: 272px !important;[^}]*margin-bottom: -272px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train\s*\{[^}]*width: 160% !important;[^}]*margin-left: -36% !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v15"\] \.rt-sign-content\s*\{[^}]*padding-top: 14px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 108\.67% !important;[^}]*margin-left: 0 !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 135% !important;[^}]*margin-left: -15\.75% !important;/s);

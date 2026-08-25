@@ -377,7 +377,7 @@ class MailSignature
     }
 
     /**
-     * V8 bis V15 sind fachlich markierte Signaturstaende und besitzen eigene
+     * V8 bis V16 sind fachlich markierte Signaturstaende und besitzen eigene
      * Haupt-/Standbilder ohne separates nachlaufendes Idle-Overlay. Die Auswahl geschieht
      * am tatsächlich gerenderten HTML statt am Importdateinamen, damit
      * Vorschau, Systemmail, Download und Testmail dieselbe Bildidentität sehen.
@@ -453,7 +453,7 @@ class MailSignature
             }
         }
 
-        // V8 bis V15 enthalten ihren vollstaendigen Ankunftsstand bereits im
+        // V8 bis V16 enthalten ihren vollstaendigen Ankunftsstand bereits im
         // Haupt-GIF und duerfen nicht durch das alte, zeitversetzt eingeblendete
         // Idle-Overlay ergaenzt werden.
         $values['TRAIN_IDLE_SRC'] = '';
@@ -507,7 +507,7 @@ class MailSignature
     }
 
     /**
-     * V11 bis V15 duerfen die kuerzere Firmenbuehne erst nach dem Entfernen leerer
+     * V11 bis V16 duerfen die kuerzere Firmenbuehne erst nach dem Entfernen leerer
      * Kontaktzeilen erhalten. Der editierbare Vollvertrag bleibt dadurch
      * hoch genug fuer persoenliche Signaturen, waehrend Systemmails nicht
      * dieselbe ungenutzte Reserve mitschleppen.
@@ -528,7 +528,7 @@ class MailSignature
 
         $artifactVersion = SignatureArtifactVersion::detect(MailDocumentKind::Signature, $documentHtml);
         if ($this->user !== null
-            || ! in_array($artifactVersion, [SignatureArtifactVersion::V11, SignatureArtifactVersion::V12, SignatureArtifactVersion::V13, SignatureArtifactVersion::V14, SignatureArtifactVersion::V15], true)) {
+            || ! in_array($artifactVersion, [SignatureArtifactVersion::V11, SignatureArtifactVersion::V12, SignatureArtifactVersion::V13, SignatureArtifactVersion::V14, SignatureArtifactVersion::V15, SignatureArtifactVersion::V16], true)) {
             return $renderedHtml;
         }
 

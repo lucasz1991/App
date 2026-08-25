@@ -13,7 +13,7 @@ use RuntimeException;
 /** Gemeinsamer Save-/Publish-/Web-/Outlook-Vertrag der Signaturquelle. */
 final class SignatureDocumentContract
 {
-    /** Aktueller Vertrag: V15-Fail-open-Buehne; aeltere Pixelbuehnen bleiben lesbar. */
+    /** Aktueller Vertrag: V15/V16-Fail-open-Buehne; aeltere Pixelbuehnen bleiben lesbar. */
     public const SCHEMA = 26;
 
     /** @var list<string> */
@@ -93,7 +93,7 @@ final class SignatureDocumentContract
      *
      * Neue Editor-/Publish-Staende muessen den markerabhaengigen Schema-26-
      * IMG-Vertrag besitzen. V14 und aelter behalten dabei ihre unveraenderte
-     * feste Pixelbuehne; nur V15 verwendet die fail-open Aussenbuehne.
+     * feste Pixelbuehne; V15/V16 verwenden die fail-open Aussenbuehne.
      * besitzen. Der Versand darf daneben nur die einzeln beschriebenen
      * Altformen lesen: Schema 6 (Padding), Schema 9/20 (Background), Schema
      * 12-19 (Bild-Layer) und bekannte Flow-Zwischenstaende.
