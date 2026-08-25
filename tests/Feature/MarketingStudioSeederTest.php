@@ -69,11 +69,21 @@ class MarketingStudioSeederTest extends TestCase
             $this->assertSame(MarketingCreativeStatus::Draft, $creative->status);
             $this->assertSame($preferred->id, $creative->created_by);
             $this->assertSame($preferred->id, $creative->updated_by);
-            $this->assertSame($isCareer ? 5 : 4, data_get($creative->shared_content, 'seed_version'));
+            $this->assertSame(
+                $isCareer
+                    ? MarketingTemplateFactory::CAREER_SEED_VERSION
+                    : MarketingTemplateFactory::PREMIUM_SEED_VERSION,
+                data_get($creative->shared_content, 'seed_version'),
+            );
             $this->assertCount(3, $creative->variants);
 
             foreach ($creative->variants as $variant) {
-                $this->assertSame($isCareer ? 5 : 4, data_get($variant->builder_data, 'railtime.schema'));
+                $this->assertSame(
+                    $isCareer
+                        ? MarketingTemplateFactory::CAREER_SEED_VERSION
+                        : MarketingTemplateFactory::PREMIUM_SEED_VERSION,
+                    data_get($variant->builder_data, 'railtime.schema'),
+                );
                 $this->assertStringContainsString('/rt-brand/fonts/manrope-latin.woff2', $variant->css);
                 $this->assertStringContainsString('/rt-brand/fonts/space-mono-700-latin.woff2', $variant->css);
                 $this->assertMatchesRegularExpression(

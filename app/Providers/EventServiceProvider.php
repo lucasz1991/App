@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Listeners\EmbedSystemMailImages;
 use App\Listeners\HandleWebPushFailed;
 use App\Listeners\HandleWebPushSent;
 use App\Listeners\StopChatLiveLocationsOnLogout;
@@ -9,6 +10,7 @@ use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Event;
 use NotificationChannels\WebPush\Events\NotificationFailed;
 use NotificationChannels\WebPush\Events\NotificationSent;
@@ -32,6 +34,9 @@ class EventServiceProvider extends ServiceProvider
         ],
         NotificationFailed::class => [
             HandleWebPushFailed::class,
+        ],
+        MessageSending::class => [
+            EmbedSystemMailImages::class,
         ],
     ];
 

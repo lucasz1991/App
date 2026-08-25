@@ -8,6 +8,7 @@ use App\Support\Mail\CssSemantic;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureTrainCarrier;
+use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TemplateDocumentContract;
 use App\Support\Mail\TrustedEmailCss;
 use Illuminate\Contracts\Support\Htmlable;
@@ -484,10 +485,12 @@ class EmailTemplateBuilder
             .'mso-line-height-rule:exactly;">&nbsp;</td></tr>';
         $html = str_replace($slot, $applicationRow, $html);
 
-        return self::embedPublishedCss(
-            $html,
-            $signature->publishedCss(),
-            MailDocumentKind::Signature,
+        return SystemMailInlineImageEmbedder::mark(
+            self::embedPublishedCss(
+                $html,
+                $signature->publishedCss(),
+                MailDocumentKind::Signature,
+            ),
         );
     }
 
@@ -659,7 +662,7 @@ class EmailTemplateBuilder
     /**
      * Absolute Adresse eines Signaturbildes unter public/mail-assets/.
      *
-     * WARUM VERLINKT STATT EINGEBETTET — nur fuer VERSENDETE Mails:
+     * WARUM HIER ZUNAECHST VERLINKT STATT ALS DATA-URI:
      *
      * Als data:-URI erscheinen die Bilder bei vielen Empfaengern gar nicht.
      * Outlook-Desktop rendert mit der Word-Engine und kennt weder data:-URIs
@@ -668,8 +671,9 @@ class EmailTemplateBuilder
      * Bilder allein waren 104,6 kB, die Signatur stand also hinter dem
      * Schnitt.
      *
-     * Verlinkt sind es normale Bilder, und das Mail schrumpft von rund
-     * 105 kB auf wenige Kilobyte.
+     * Als URLs bleibt der HTML-Teil bei wenigen Kilobyte. Der zentrale
+     * MessageSending-Listener macht daraus beim Transport MIME-CID-Bilder;
+     * dadurch bleiben sie auch beim Weiterleiten Bestandteil der Nachricht.
      *
      * Die HERUNTERLADBAREN Signaturen und Vorlagen behalten ihre data:-URIs:
      * die muessen eigenstaendig funktionieren, auch ohne Verbindung zu
@@ -734,7 +738,7 @@ class EmailTemplateBuilder
     }
 
     /**
-     * Kontaktsymbole als verlinkte Adressen — fuer versendete Mails.
+     * Kontaktsymbole als kompakte URL-Zwischenstufe fuer Systemmails.
      * Die Dateien liegen unter public/mail-assets/, erzeugt aus denselben
      * Konstanten wie die eingebettete Fassung.
      *

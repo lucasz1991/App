@@ -22,9 +22,12 @@ use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
+use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\MailSignature;
+use Illuminate\Contracts\Mail\Factory as MailFactory;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Mail\Markdown;
+use Illuminate\Mail\Transport\ArrayTransport;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Notification;
@@ -34,6 +37,8 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\ViewException;
+use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Part\DataPart;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 
@@ -2346,6 +2351,129 @@ HTML;
                 },
             );
         }
+    }
+
+    public function test_jede_systemmail_bettet_alle_lokalen_bilder_als_mime_cid_ein(): void
+    {
+        $this->createCanonicalMailDocuments();
+
+        $compiledHtml = EmailTemplateBuilder::buildSystemMailHtml(
+            new HtmlString('<p>MIME-CID-Vertrag</p>'),
+        );
+        preg_match_all(
+            '~<img\b[^>]*\ssrc\s*=\s*(["\'])(https?://[^"\']+)\1~i',
+            $compiledHtml,
+            $sourceMatches,
+        );
+
+        $expectedFilenames = [];
+        foreach ($sourceMatches[2] as $source) {
+            $path = parse_url(
+                html_entity_decode($source, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                PHP_URL_PATH,
+            );
+
+            if (is_string($path) && str_contains($path, '/mail-assets/')) {
+                $expectedFilenames[] = basename($path);
+            }
+        }
+        $expectedFilenames = array_values(array_unique($expectedFilenames));
+        sort($expectedFilenames);
+        $this->assertNotEmpty($expectedFilenames);
+
+        $mailer = app(MailFactory::class)->mailer();
+        $transport = $mailer->getSymfonyTransport();
+        $this->assertInstanceOf(ArrayTransport::class, $transport);
+        $transport->flush();
+
+        Notification::route('mail', 'cid-systemmail@rail-time.test')->notify(
+            new MailDocumentTestNotification(
+                MailDocumentKind::Signature,
+                17,
+                SignatureArtifactVersion::V17,
+                hash('sha256', 'mime-cid-systemmail'),
+            ),
+        );
+
+        $sent = $transport->messages()->sole();
+        $email = $sent->getOriginalMessage();
+        $this->assertInstanceOf(Email::class, $email);
+
+        $deliveredHtml = (string) $email->getHtmlBody();
+        $this->assertStringContainsString(SystemMailInlineImageEmbedder::RUNTIME_ATTRIBUTE, $deliveredHtml);
+        $this->assertDoesNotMatchRegularExpression(
+            '~<img\b[^>]*\ssrc\s*=\s*(["\'])https?://[^"\']*/mail-assets/~i',
+            $deliveredHtml,
+        );
+        preg_match_all(
+            '~<img\b[^>]*\ssrc\s*=\s*(["\'])cid:([^"\']+)\1~i',
+            $deliveredHtml,
+            $cidMatches,
+        );
+        $contentIds = array_values(array_unique($cidMatches[2]));
+
+        $attachments = array_values(array_filter(
+            $email->getAttachments(),
+            static fn (mixed $attachment): bool => $attachment instanceof DataPart,
+        ));
+        $this->assertCount(count($expectedFilenames), $contentIds);
+        $this->assertCount(count($expectedFilenames), $attachments);
+
+        $actualFilenames = [];
+        foreach ($attachments as $attachment) {
+            $this->assertSame('inline', $attachment->getDisposition());
+            $this->assertStringContainsString('@', $attachment->getContentId());
+            $this->assertContains($attachment->getContentId(), $contentIds);
+            $actualFilenames[] = (string) $attachment->getFilename();
+        }
+        sort($actualFilenames);
+        $this->assertSame($expectedFilenames, $actualFilenames);
+
+        $rawMime = $sent->toString();
+        $this->assertStringContainsString('multipart/related', $rawMime);
+        $this->assertStringContainsString('Content-Disposition: inline', $rawMime);
+
+        $attachmentCount = count($email->getAttachments());
+        $this->assertSame(0, app(SystemMailInlineImageEmbedder::class)->embed($email));
+        $this->assertCount($attachmentCount, $email->getAttachments());
+
+        Storage::fake('public');
+        $importedBinary = (string) file_get_contents(public_path('mail-assets/contact-email.png'));
+        $importedFilename = hash('sha256', $importedBinary).'.png';
+        Storage::disk('public')->put('mail-imports/'.$importedFilename, $importedBinary);
+        $importedUrl = URL::to(Storage::disk('public')->url('mail-imports/'.$importedFilename));
+        $importedHtml = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString(
+            '<p>Portables Medium</p><img src="'.htmlspecialchars(
+                $importedUrl,
+                ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+                'UTF-8',
+            ).'" alt="">',
+        ));
+
+        $transport->flush();
+        $mailer->html($importedHtml, static function ($message): void {
+            $message->to('cid-import@rail-time.test')->subject('CID-Importvertrag');
+        });
+
+        $importedEmail = $transport->messages()->sole()->getOriginalMessage();
+        $this->assertInstanceOf(Email::class, $importedEmail);
+        $this->assertStringNotContainsString($importedUrl, (string) $importedEmail->getHtmlBody());
+        $importedParts = array_values(array_filter(
+            $importedEmail->getAttachments(),
+            static fn (DataPart $attachment): bool => $attachment->getFilename() === $importedFilename,
+        ));
+        $this->assertCount(1, $importedParts);
+        $this->assertSame('inline', $importedParts[0]->getDisposition());
+        $this->assertStringContainsString(
+            'cid:'.$importedParts[0]->getContentId(),
+            (string) $importedEmail->getHtmlBody(),
+        );
+
+        $foreignHtml = '<html><body><img src="'.URL::asset('mail-assets/contact-email.png').'" alt=""></body></html>';
+        $foreignMail = (new Email)->html($foreignHtml);
+        $this->assertSame(0, app(SystemMailInlineImageEmbedder::class)->embed($foreignMail));
+        $this->assertSame($foreignHtml, $foreignMail->getHtmlBody());
+        $this->assertSame([], $foreignMail->getAttachments());
     }
 
     public function test_speichern_verlangt_den_aktuellen_fingerabdruck(): void

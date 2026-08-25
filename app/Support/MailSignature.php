@@ -31,7 +31,8 @@ class MailSignature
         protected string $theme,
         protected bool $animated,
         protected ?string $playbackNonce = null,
-        // Bilder verlinken statt einbetten. Siehe values().
+        // Kompaktes HTML mit Bild-URLs erzeugen. Beim echten Versand werden
+        // sie zentral in MIME-CID-Anhaenge ueberfuehrt. Siehe values().
         protected bool $remoteAssets = false,
         // Vorschau bei reduzierter Bewegung: PNG statt GIF, keine Rauchfahne.
         protected bool $staticAssets = false,
@@ -49,12 +50,14 @@ class MailSignature
     }
 
     /**
-     * Firmenweite Signatur — der Weg jeder VERSENDETEN Systemmail.
+     * Firmenweite Signatur — der Renderweg jeder Systemmail.
      *
      * Vorgaben bewusst anders als bei forUser(): der Zug faehrt ein
-     * (animated) und alle Bilder werden VERLINKT (remoteAssets).
+     * (animated) und erzeugt zunaechst kompakte Bild-URLs (remoteAssets).
      *
-     * Das Verlinken ist der Grund, warum die Signatur ueberhaupt ankommt.
+     * Die URL-Zwischenstufe haelt den HTML-Teil kompakt. Unmittelbar vor dem
+     * Transport ersetzt SystemMailInlineImageEmbedder diese Quellen durch
+     * MIME-CIDs, damit Antworten und Weiterleitungen die Bilder mitnehmen.
      * Als data:-URI erschien sie bei vielen Empfaengern nicht: Outlook-
      * Desktop kennt weder data:-URIs in <img> noch CSS-Hintergrundbilder,
      * Gmail entfernt data:-URIs in Hintergrundangaben und kappt Nachrichten
@@ -124,9 +127,9 @@ class MailSignature
 
         // ZWEI BETRIEBSARTEN, und die Unterscheidung ist wesentlich:
         //
-        //   verlinkt   — fuer VERSENDETE Mails. Nur so erscheinen die Bilder
-        //                in Outlook-Desktop und Gmail, und das Mail bleibt
-        //                unter Gmails 102-kB-Schnitt.
+        //   verlinkt   — kompakter Render-/Vorschaupfad. Beim Versand werden
+        //                diese URLs als MIME-CID-Bilder angehaengt; der HTML-
+        //                Teil bleibt unter Gmails 102-kB-Schnitt.
         //   eingebettet — fuer HERUNTERLADBARE Signaturen und Vorlagen. Die
         //                muessen eigenstaendig sein, auch ohne Verbindung zu
         //                diesem Server.

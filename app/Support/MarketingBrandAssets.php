@@ -18,6 +18,7 @@ final class MarketingBrandAssets
         '/rt-brand/icons/job-tasks.svg' => 'image/svg+xml',
         '/rt-brand/icons/job-profile.svg' => 'image/svg+xml',
         '/rt-brand/icons/job-benefits.svg' => 'image/svg+xml',
+        '/rt-brand/icons/benefit-track-u.svg' => 'image/svg+xml',
         '/rt-brand/fonts/manrope-latin.woff2' => 'font/woff2',
         '/rt-brand/fonts/space-mono-700-latin.woff2' => 'font/woff2',
     ];

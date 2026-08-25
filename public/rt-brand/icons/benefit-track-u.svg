@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 892 286" preserveAspectRatio="none">
+  <defs>
+    <pattern id="rt-benefit-track-gravel" width="17" height="17" patternUnits="userSpaceOnUse">
+      <rect width="17" height="17" fill="#1a2530"/>
+      <circle cx="3" cy="5" r="1.7" fill="#68747f" opacity=".45"/>
+      <circle cx="13" cy="11" r="2" fill="#8a959f" opacity=".24"/>
+      <circle cx="7" cy="15" r="1.1" fill="#4e5a65" opacity=".55"/>
+    </pattern>
+  </defs>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M78 14H814C857 14 887 71 887 143S857 272 814 272H78" stroke="#111a23" stroke-width="46"/>
+    <path d="M78 14H814C857 14 887 71 887 143S857 272 814 272H78" stroke="url(#rt-benefit-track-gravel)" stroke-width="40"/>
+    <path d="M78 14H814C857 14 887 71 887 143S857 272 814 272H78" stroke="#687580" stroke-width="34" stroke-dasharray="5 18" stroke-linecap="butt"/>
+    <path d="M78 14H814C857 14 887 71 887 143S857 272 814 272H78" stroke="#c4ced6" stroke-width="18"/>
+    <path d="M78 14H814C857 14 887 71 887 143S857 272 814 272H78" stroke="#091119" stroke-width="8"/>
+    <path d="M78 14H814C857 14 887 71 887 143S857 272 814 272H78" stroke="#56626c" stroke-width="5" stroke-dasharray="5 18" stroke-linecap="butt"/>
+    <path d="M30 -9V37M8 -9V37M8 -4L30 14L8 32M30 14H78M30 249V295M8 249V295M8 254L30 272L8 290M30 272H78" stroke="#c5cfd7" stroke-width="4"/>
+  </g>
+</svg>
