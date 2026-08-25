@@ -18,33 +18,182 @@
     preview-replayable
     :preview-loading-overlay="false"
     :auto-open="request()->boolean('open')"
+    :single-toolbar="$currentDocument !== null"
     workspace-class="min-h-0 flex-1 overflow-hidden p-0"
     data-mail-document-studio
     data-mail-document-back
 >
     @if ($currentDocument !== null)
         <x-slot:toolbar>
-            <div class="rt-mail-studio-toolbar" data-mail-studio-toolbar data-mail-toolbar-layout="responsive">
-                <div class="rt-mail-studio-toolbar__documents" data-mail-toolbar-region="documents" role="group" aria-label="Dokument auswählen">
-                    @foreach ($kinds as $kindValue => [$kindLabel, $kindHint])
-                        <a
-                            href="{{ route('admin.mail-documents.editor', ['dokument' => $kindValue, 'open' => 1]) }}"
-                            wire:navigate
-                            data-mail-document-switch="{{ $kindValue }}"
-                            aria-current="{{ $currentKind === $kindValue ? 'page' : 'false' }}"
-                            class="rt-mail-studio-document"
-                        >
-                            <span>{{ $kindLabel }}</span>
-                            <small>{{ $kindHint }}</small>
-                        </a>
-                    @endforeach
+            <div class="rt-mail-studio-toolbar" role="toolbar" aria-label="Mail- und Signatur-Editor" data-mail-studio-toolbar data-mail-toolbar-layout="responsive" data-mail-toolbar-single>
+                <div class="rt-mail-studio-toolbar__documents" data-mail-toolbar-region="documents" role="group" aria-label="Dokument und Inhalt">
+                    <x-ui.dropdown.anchor-dropdown
+                        align="left"
+                        width="80"
+                        :offset="8"
+                        dropdown-id="mail-document-select-{{ $currentDocument->kind->value }}"
+                        layer-group="mail-document-editor"
+                        content-role="dialog"
+                        content-label="Dokument auswählen"
+                        content-classes="bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
+                        dropdown-classes="shadow-xl"
+                        data-mail-toolbar-menu="document"
+                    >
+                        <x-slot:trigger>
+                            <x-ui.buttons.button-basic
+                                type="button"
+                                mode="secondary"
+                                size="sm"
+                                class="min-h-11 min-w-0 shrink-0 rounded-lg px-3"
+                                title="Nachrichtenvorlage oder Signaturblock auswählen"
+                            >
+                                <i data-feather="file-text" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                <span class="rt-mail-studio-toolbar__menu-label">Dokument</span>
+                                <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true">
+                                    <i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                </span>
+                            </x-ui.buttons.button-basic>
+                        </x-slot:trigger>
+
+                        <x-slot:content>
+                            <nav class="grid gap-1" aria-label="Maildokument auswählen">
+                                @foreach ($kinds as $kindValue => [$kindLabel, $kindHint])
+                                    <a
+                                        href="{{ route('admin.mail-documents.editor', ['dokument' => $kindValue, 'open' => 1]) }}"
+                                        wire:navigate
+                                        data-mail-document-switch="{{ $kindValue }}"
+                                        aria-current="{{ $currentKind === $kindValue ? 'page' : 'false' }}"
+                                        class="rt-mail-studio-document"
+                                    >
+                                        <span>{{ $kindLabel }}</span>
+                                        <small>{{ $kindHint }}</small>
+                                    </a>
+                                @endforeach
+                            </nav>
+                        </x-slot:content>
+                    </x-ui.dropdown.anchor-dropdown>
+
+                    <x-ui.dropdown.anchor-dropdown
+                        align="left"
+                        width="64"
+                        :offset="8"
+                        dropdown-id="mail-document-content-{{ $currentDocument->kind->value }}"
+                        layer-group="mail-document-editor"
+                        content-role="dialog"
+                        content-label="Inhalt und Medien"
+                        content-classes="bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
+                        dropdown-classes="shadow-xl"
+                        data-mail-toolbar-menu="content"
+                    >
+                        <x-slot:trigger>
+                            <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 shrink-0 rounded-lg px-3" title="Bausteine, Ebenen und Medien öffnen">
+                                <i data-feather="layers" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                <span class="rt-mail-studio-toolbar__menu-label">Inhalt</span>
+                                <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i></span>
+                            </x-ui.buttons.button-basic>
+                        </x-slot:trigger>
+
+                        <x-slot:content>
+                            <div class="grid gap-1">
+                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-panel="left:blocks" x-on:click="close()" title="Bausteine in der linken Seitenleiste öffnen">
+                                    <i data-feather="grid" class="h-4 w-4" aria-hidden="true"></i><span>Bausteine</span>
+                                </x-ui.buttons.button-basic>
+                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-panel="left:layers" x-on:click="close()" title="Ebenen in der linken Seitenleiste öffnen">
+                                    <i data-feather="layers" class="h-4 w-4" aria-hidden="true"></i><span>Ebenen</span>
+                                </x-ui.buttons.button-basic>
+                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-action="assets" x-on:click="close()" title="Medienbibliothek öffnen">
+                                    <i data-feather="image" class="h-4 w-4" aria-hidden="true"></i><span>Medien</span>
+                                </x-ui.buttons.button-basic>
+                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-action="upload" x-on:click="close()" title="Bild oder GIF hochladen">
+                                    <i data-feather="upload" class="h-4 w-4" aria-hidden="true"></i><span>Bild / GIF hochladen</span>
+                                </x-ui.buttons.button-basic>
+                            </div>
+                        </x-slot:content>
+                    </x-ui.dropdown.anchor-dropdown>
+
+                    <x-ui.dropdown.anchor-dropdown
+                        align="left"
+                        width="64"
+                        :offset="8"
+                        dropdown-id="mail-document-edit-{{ $currentDocument->kind->value }}"
+                        layer-group="mail-document-editor"
+                        content-role="dialog"
+                        content-label="Bearbeiten und Eigenschaften"
+                        content-classes="bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
+                        dropdown-classes="shadow-xl"
+                        data-mail-toolbar-menu="edit"
+                    >
+                        <x-slot:trigger>
+                            <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 shrink-0 rounded-lg px-3" title="Bearbeitungs- und Eigenschaftswerkzeuge öffnen">
+                                <i data-feather="edit-3" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                <span class="rt-mail-studio-toolbar__menu-label">Bearbeiten</span>
+                                <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i></span>
+                            </x-ui.buttons.button-basic>
+                        </x-slot:trigger>
+
+                        <x-slot:content>
+                            <div class="grid grid-cols-2 gap-1 border-b border-rt-border pb-2 dark:border-rt-dark-border">
+                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 justify-center rounded-lg px-3" data-mail-builder-action="undo" x-on:click="close()" title="Letzte Änderung rückgängig machen">
+                                    <i data-feather="corner-up-left" class="h-4 w-4" aria-hidden="true"></i><span>Zurück</span>
+                                </x-ui.buttons.button-basic>
+                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 justify-center rounded-lg px-3" data-mail-builder-action="redo" x-on:click="close()" title="Änderung wiederholen">
+                                    <i data-feather="corner-up-right" class="h-4 w-4" aria-hidden="true"></i><span>Vor</span>
+                                </x-ui.buttons.button-basic>
+                            </div>
+                            <div class="mt-2 grid gap-1">
+                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-panel="right:styles" x-on:click="close()" title="Stile in der rechten Seitenleiste öffnen">
+                                    <i data-feather="sliders" class="h-4 w-4" aria-hidden="true"></i><span>Stile</span>
+                                </x-ui.buttons.button-basic>
+                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-panel="right:traits" x-on:click="close()" title="Eigenschaften in der rechten Seitenleiste öffnen">
+                                    <i data-feather="settings" class="h-4 w-4" aria-hidden="true"></i><span>Eigenschaften</span>
+                                </x-ui.buttons.button-basic>
+                                <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-builder-panel="right:classes" x-on:click="close()" title="Klassen in der rechten Seitenleiste öffnen">
+                                    <i data-feather="tag" class="h-4 w-4" aria-hidden="true"></i><span>Klassen</span>
+                                </x-ui.buttons.button-basic>
+                            </div>
+                        </x-slot:content>
+                    </x-ui.dropdown.anchor-dropdown>
                 </div>
 
                 <div class="rt-mail-studio-toolbar__preview" data-mail-toolbar-region="preview" data-mail-preview-toolbar>
-                    <div class="rt-mail-preview-context">
-                        <strong>Vorschau</strong>
-                        <small data-mail-preview-status aria-live="polite">Systemmail breit · 1920 px · wird eingepasst</small>
-                    </div>
+                    <x-ui.dropdown.anchor-dropdown
+                        align="left"
+                        width="96"
+                        :offset="8"
+                        dropdown-id="mail-document-view-{{ $currentDocument->kind->value }}"
+                        layer-group="mail-document-editor"
+                        content-role="dialog"
+                        content-label="Ansicht und Vorschau"
+                        content-classes="bg-rt-surface p-3 text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
+                        dropdown-classes="shadow-xl"
+                        data-mail-toolbar-menu="view"
+                    >
+                        <x-slot:trigger>
+                            <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 shrink-0 rounded-lg px-3" title="Editor- und Versandansicht einstellen">
+                                <i data-feather="monitor" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                <span class="rt-mail-studio-toolbar__menu-label">Ansicht</span>
+                                <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i></span>
+                            </x-ui.buttons.button-basic>
+                        </x-slot:trigger>
+
+                        <x-slot:content>
+                            <div class="rt-mail-view-menu">
+                                <div class="rt-mail-preview-context">
+                                    <strong>Vorschau</strong>
+                                    <small data-mail-preview-status aria-live="polite">Systemmail breit · 1920 px · wird eingepasst</small>
+                                </div>
+
+                                <x-ui.buttons.button-basic
+                                    type="button"
+                                    mode="secondary"
+                                    size="sm"
+                                    class="min-h-11 w-full justify-start rounded-lg px-3"
+                                    data-mail-builder-action="preview"
+                                    title="Leinwand-Vorschau des Builders umschalten"
+                                >
+                                    <i data-feather="eye" class="h-4 w-4" aria-hidden="true"></i>
+                                    <span>Leinwand-Vorschau</span>
+                                </x-ui.buttons.button-basic>
 
                     <div class="rt-mail-preview-toggle" role="group" aria-label="Editoransicht">
                         <button type="button" data-mail-view-mode="edit" aria-pressed="true" title="Bearbeitbare Mail-Leinwand anzeigen">
@@ -127,6 +276,9 @@
                         <i data-feather="rotate-cw" class="h-4 w-4" aria-hidden="true"></i>
                         <span>Animation neu starten</span>
                     </button>
+                            </div>
+                        </x-slot:content>
+                    </x-ui.dropdown.anchor-dropdown>
                 </div>
 
                 <div class="rt-mail-studio-toolbar__actions" data-mail-toolbar-region="actions">
