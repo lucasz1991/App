@@ -155,6 +155,28 @@ tr[data-rt-artifact-version="v16"] .rt-sign-content-frame {
   position: relative !important;
   z-index: 1 !important;
 }
+/* V17 behaelt die V16-Buehne, trennt jedoch das flexible Haupt-GIF vom
+   exakt proportionalen Outlook-Standbild. */
+tr[data-rt-artifact-version="v17"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 200px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-sign-train-layer {
+  position: relative !important;
+  z-index: 0 !important;
+  height: 200px !important;
+  max-height: 200px !important;
+  margin-bottom: -200px !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v17"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v17"] .rt-sign-content-frame { height: 200px !important; }
+tr[data-rt-artifact-version="v17"] .rt-sign-content-frame {
+  position: relative !important;
+  z-index: 1 !important;
+}
 tr[data-rt-signature-density="compact"] .rt-sign-stage,
 tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
   height: 145px !important;
@@ -173,6 +195,12 @@ tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign
   overflow: visible !important;
 }
 tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 145px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
   min-height: 145px !important;
@@ -207,6 +235,25 @@ tr[data-rt-artifact-version="v16"] .rt-sign-train,
 tr[data-rt-artifact-version="v16"] .rt-sign-train-mso {
   display: block !important;
   margin-bottom: 0 !important;
+  vertical-align: bottom !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-sign-train-slot {
+  padding-bottom: 0 !important;
+  vertical-align: bottom !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-sign-train {
+  display: block !important;
+  height: auto !important;
+  margin-bottom: 0 !important;
+  vertical-align: bottom !important;
+}
+/* Outlook-Desktop erhaelt fuer V17 ein separates, unverzerrbares Standbild. */
+tr[data-rt-artifact-version="v17"] .rt-sign-train-mso {
+  display: block !important;
+  width: 720px !important;
+  max-width: 720px !important;
+  height: 61px !important;
+  margin: 0 !important;
   vertical-align: bottom !important;
 }
 .rt-sign-train,
@@ -548,6 +595,20 @@ tr[data-rt-artifact-version="v16"] .rt-sign-train-layer {
 tr[data-rt-artifact-version="v16"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v16"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v16"] .rt-sign-content-frame { height: 304px !important; }
+tr[data-rt-artifact-version="v17"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 304px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-sign-train-layer {
+  height: 304px !important;
+  max-height: 304px !important;
+  margin-bottom: -304px !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v17"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v17"] .rt-sign-content-frame { height: 304px !important; }
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
@@ -576,6 +637,20 @@ tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign
 tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-content-frame { height: 215px !important; }
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 215px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-train-layer {
+  height: 215px !important;
+  max-height: 215px !important;
+  margin-bottom: -215px !important;
+}
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-content-frame { height: 215px !important; }
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
@@ -699,6 +774,20 @@ tr[data-rt-artifact-version="v16"] .rt-sign-train-layer {
 tr[data-rt-artifact-version="v16"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v16"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v16"] .rt-sign-content-frame { height: 272px !important; }
+tr[data-rt-artifact-version="v17"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 272px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-sign-train-layer {
+  height: 272px !important;
+  max-height: 272px !important;
+  margin-bottom: -272px !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v17"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v17"] .rt-sign-content-frame { height: 272px !important; }
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
@@ -727,6 +816,20 @@ tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign
 tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v16"][data-rt-signature-density="compact"] .rt-sign-content-frame { height: 190px !important; }
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 190px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-train-layer {
+  height: 190px !important;
+  max-height: 190px !important;
+  margin-bottom: -190px !important;
+}
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign-content-frame { height: 190px !important; }
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
@@ -775,6 +878,14 @@ tr[data-rt-artifact-version="v16"] .rt-sign-train-layer[data-rt-layer-mobile="st
   width: 160% !important;
   max-width: none !important;
   margin-left: -36% !important;
+}
+/* V17 bleibt proportional, ist mobil etwas groesser und stoppt mit Reserve
+   vor der rechten Kante. Die zusaetzliche Breite wird links angeschnitten. */
+tr[data-rt-artifact-version="v17"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train {
+  width: 164% !important;
+  max-width: none !important;
+  height: auto !important;
+  margin-left: -40% !important;
 }
 
 
@@ -855,11 +966,21 @@ tr[data-rt-artifact-version="v15"] .rt-sign-company {
 tr[data-rt-artifact-version="v16"] .rt-sign-content {
   padding-top: 14px !important;
 }
+tr[data-rt-artifact-version="v17"] .rt-sign-content {
+  padding-top: 14px !important;
+}
 tr[data-rt-artifact-version="v16"] .rt-sign-logo {
+  padding-bottom: 8px !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-sign-logo {
   padding-bottom: 8px !important;
 }
 tr[data-rt-artifact-version="v16"] .rt-sign-top-row > .rt-sign-identity,
 tr[data-rt-artifact-version="v16"] .rt-sign-company {
+  padding-top: 6px !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-sign-top-row > .rt-sign-identity,
+tr[data-rt-artifact-version="v17"] .rt-sign-company {
   padding-top: 6px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-identity .rt-contact,
@@ -879,7 +1000,13 @@ tr[data-rt-artifact-version="v15"] .rt-company-contact {
 tr[data-rt-artifact-version="v16"] .rt-sign-identity .rt-contact {
   margin-top: 6px !important;
 }
+tr[data-rt-artifact-version="v17"] .rt-sign-identity .rt-contact {
+  margin-top: 6px !important;
+}
 tr[data-rt-artifact-version="v16"] .rt-company-contact {
+  margin-top: 8px !important;
+}
+tr[data-rt-artifact-version="v17"] .rt-company-contact {
   margin-top: 8px !important;
 }
 }

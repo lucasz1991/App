@@ -314,6 +314,7 @@
                             content-classes="bg-rt-surface p-1.5 text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
                             dropdown-classes="shadow-xl"
                             data-mail-document-version
+                            data-mail-toolbar-menu="versions"
                         >
                             <x-slot:trigger>
                                 <x-ui.buttons.button-basic
@@ -373,6 +374,7 @@
                             content-classes="bg-rt-surface p-3 text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
                             dropdown-classes="shadow-xl"
                             data-mail-more-actions
+                            data-mail-toolbar-menu="tools"
                         >
                             <x-slot:trigger>
                                 <x-ui.buttons.button-basic
