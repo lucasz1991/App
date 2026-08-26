@@ -258,6 +258,20 @@ class EmailTemplateBuilder
     }
 
     /**
+     * Liefert die bereits fuer Outlook im Web gepruefte Signatur als reine
+     * Kopierflaeche. Der umgebende Mitarbeiterdialog bleibt fuer Auswahl,
+     * Zwischenablage und Anleitung verantwortlich.
+     */
+    public function buildSignatureCopyHtml(string $theme = 'light'): string
+    {
+        if (! in_array($theme, ['light', 'dark'], true)) {
+            throw new RuntimeException('Unbekannte Signaturvariante.');
+        }
+
+        return $this->buildOutlookBrowserCopySignatureHtml($theme);
+    }
+
+    /**
      * Personalisierungswerte des Benutzers (fuer Vorlagen und Vorschau).
      *
      * @return array<string, string>

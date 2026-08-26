@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Unbefristeter Vertrag">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 5h17l7 7v31H12zM29 5v8h7" stroke="#C4CED6" stroke-width="2.4"/>
+    <path d="M17 18h14M17 23h9" stroke="#FF9CAF" stroke-width="2.4"/>
+    <path d="M16 33c0-4.6 5.2-4.6 8 0 2.8 4.6 8 4.6 8 0s-5.2-4.6-8 0c-2.8 4.6-8 4.6-8 0Z" stroke="#E4002B" stroke-width="2.6"/>
+  </g>
+</svg>

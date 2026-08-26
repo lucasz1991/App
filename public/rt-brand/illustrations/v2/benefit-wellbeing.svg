@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Wellpass und Gesundheit">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24 41S7 31.4 7 18.3C7 11.5 11.2 7 17 7c3.5 0 6 1.8 7 4.7C25 8.8 27.5 7 31 7c5.8 0 10 4.5 10 11.3C41 31.4 24 41 24 41Z" stroke="#C4CED6" stroke-width="2.4"/>
+    <path d="M10.5 24h7l3.1-7 5.6 14 3.2-7H38" stroke="#E4002B" stroke-width="2.7"/>
+    <circle cx="24" cy="11.7" r="1.7" fill="#FF9CAF" stroke="none"/>
+  </g>
+</svg>

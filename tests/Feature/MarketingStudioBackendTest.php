@@ -115,7 +115,7 @@ class MarketingStudioBackendTest extends TestCase
 
         $this->assertTrue($job->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/img/wagenmeister-team-gleis.jpeg')));
         $this->assertTrue($info->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/img/wagenmeister-team.webp')));
-        $this->assertTrue($network->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/img/deutschland-netzwerk.png')));
+        $this->assertTrue($network->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/illustrations/v2/germany-rail-network.svg')));
 
         $this->assertSame(['width' => 1080, 'height' => 1920], MarketingCreativeFormat::Story->dimensions());
         $this->assertSame(['width' => 1080, 'height' => 1080], MarketingCreativeFormat::Post->dimensions());

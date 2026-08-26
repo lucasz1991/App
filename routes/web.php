@@ -223,6 +223,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->name('chat.attachments');
     // Personalisierte E-Mail-Vorlagen/Signaturen als eigenstaendiger Bereich.
     Route::view('/email-templates', 'email-templates.index')->name('email-templates.index');
+    Route::get('/email-templates/signature/copy', [ProfileEmailTemplateController::class, 'signatureCopy'])
+        ->name('email-templates.signature-copy');
     Route::get('/email-templates/{template}/download', ProfileEmailTemplateController::class)
         ->name('email-templates.download');
     Route::get('/email-templates/{template}/preview', [ProfileEmailTemplateController::class, 'preview'])

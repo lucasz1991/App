@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" role="img" aria-label="Technische Linienillustration für Wagenmeister">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#C4CED6" stroke-width="4">
+      <path d="M28 174h212M40 190h188"/>
+      <path d="M54 174v16m34-16v16m34-16v16m34-16v16m34-16v16m34-16v16" opacity=".45"/>
+      <circle cx="76" cy="154" r="34"/>
+      <circle cx="192" cy="154" r="34"/>
+      <circle cx="76" cy="154" r="13"/>
+      <circle cx="192" cy="154" r="13"/>
+      <path d="M76 141h116M76 167h116M98 120h72l18 18H80z"/>
+      <path d="M54 108h160l14 18M108 108V90h52v18"/>
+      <path d="M265 49h61v102h-61zM279 49v-9h33v9M278 76h35M278 129h35"/>
+      <path d="m280 102 10 10 21-23"/>
+      <circle cx="216" cy="119" r="42"/>
+      <path d="m246 149 31 31"/>
+    </g>
+    <g stroke="#E4002B" stroke-width="5">
+      <path d="M54 108h160"/>
+      <path d="M198 91a42 42 0 0 1 52 22"/>
+      <path d="m280 102 10 10 21-23"/>
+    </g>
+    <g stroke="#FF9CAF" stroke-width="3">
+      <path d="M206 105l9-9m-3 18 14-4m-11 15 11 7"/>
+    </g>
+  </g>
+</svg>

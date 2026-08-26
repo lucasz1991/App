@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Betriebliche Altersvorsorge">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24 4.8 38 10v10.8c0 9.3-5.7 17.1-14 21.1-8.3-4-14-11.8-14-21.1V10z" stroke="#C4CED6" stroke-width="2.4"/>
+    <circle cx="24" cy="22" r="8.5" stroke="#E4002B" stroke-width="2.5"/>
+    <path d="M24 17v5l3.5 2.5M18 33.5h12" stroke="#FF9CAF" stroke-width="2.4"/>
+    <path d="M17.5 13.5h13" stroke="#C4CED6" stroke-width="2" opacity=".7"/>
+  </g>
+</svg>

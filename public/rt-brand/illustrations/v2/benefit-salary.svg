@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Überdurchschnittliche Bezahlung">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="5" y="9" width="38" height="29" rx="3" stroke="#C4CED6" stroke-width="2.4"/>
+    <path d="M5 17h38M10 33h8" stroke="#FF9CAF" stroke-width="2.3"/>
+    <circle cx="18" cy="25" r="5.5" stroke="#E4002B" stroke-width="2.4"/>
+    <path d="M27 31V25m5 6V21m5 10V16M26 17l5-4 5 2 6-7" stroke="#C4CED6" stroke-width="2.4"/>
+    <path d="M38 8h4v4" stroke="#E4002B" stroke-width="2.4"/>
+  </g>
+</svg>

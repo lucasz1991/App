@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Moderne Ausstattung und Weiterbildung">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="5" y="7" width="38" height="27" rx="3" stroke="#C4CED6" stroke-width="2.4"/>
+    <path d="M18 42h12M24 34v8M10 29h28" stroke="#C4CED6" stroke-width="2.4"/>
+    <path d="M13 24l7-7 5 5 9-10" stroke="#E4002B" stroke-width="2.6"/>
+    <path d="M29 12h5v5" stroke="#FF9CAF" stroke-width="2.5"/>
+  </g>
+</svg>

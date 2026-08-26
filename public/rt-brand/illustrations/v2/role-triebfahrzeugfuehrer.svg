@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" role="img" aria-label="Technische Linienillustration für Triebfahrzeugführer">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#C4CED6" stroke-width="4">
+      <path d="M24 177h257M38 193h229"/>
+      <path d="M51 177v16m38-16v16m38-16v16m38-16v16m38-16v16m38-16v16" opacity=".45"/>
+      <path d="M42 161V72h158l51 43v46H42z"/>
+      <path d="M64 86h112v42H64zM188 86l43 36h-43z"/>
+      <path d="M42 141h209M62 152h168"/>
+      <circle cx="82" cy="161" r="23"/>
+      <circle cx="209" cy="161" r="23"/>
+      <circle cx="82" cy="161" r="8"/>
+      <circle cx="209" cy="161" r="8"/>
+      <path d="M88 72l24-29h50l27 29M111 43V31m51 12V28"/>
+      <path d="M288 52v126M277 178h23M288 64h35v70h-35"/>
+      <circle cx="305.5" cy="82" r="7"/>
+      <circle cx="305.5" cy="101" r="7"/>
+      <circle cx="305.5" cy="120" r="7"/>
+      <path d="M271 52h34M275 40h26"/>
+      <path d="M263 151c20-9 38-12 62-11" opacity=".5"/>
+    </g>
+    <g stroke="#E4002B" stroke-width="5">
+      <path d="M42 133h199"/>
+      <circle cx="305.5" cy="82" r="7" fill="#E4002B"/>
+      <path d="M252 115h16"/>
+    </g>
+    <g stroke="#FF9CAF" stroke-width="3">
+      <path d="M72 106h58m15 0h22"/>
+      <path d="M254 92l16-8m-13 21 18-2"/>
+    </g>
+    <path d="M64 86h112v42H64z" fill="#111B25" opacity=".68"/>
+  </g>
+</svg>

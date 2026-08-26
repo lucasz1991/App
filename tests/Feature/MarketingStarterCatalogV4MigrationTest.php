@@ -579,7 +579,7 @@ class MarketingStarterCatalogV4MigrationTest extends TestCase
         $this->assertSame(1, $incomplete->variants()->withTrashed()->whereNotNull('deleted_at')->count());
     }
 
-    public function test_information_card_refresh_updates_only_the_exact_plain_release_and_is_idempotent(): void
+    public function test_information_card_refresh_fails_closed_after_its_pinned_target_advances(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $job = $this->createPlainInformationCardJob($admin);
@@ -593,54 +593,15 @@ class MarketingStarterCatalogV4MigrationTest extends TestCase
         $job->forceFill([
             'shared_content' => array_replace($job->shared_content, $companyFields),
         ])->save();
-        $oldVersions = $job->variants
-            ->mapWithKeys(fn (MarketingCreativeVariant $variant): array => [
-                $variant->format->value => $variant->version,
-            ])
-            ->all();
-
+        $state = $this->catalogStateForIds([$job->id]);
         $migration = $this->informationCardMigration();
         $migration->up();
 
         $job->refresh()->load('variants');
-        $definition = app(MarketingTemplateFactory::class)
-            ->definitionByKey(MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER);
-        $expectedContent = array_replace($definition['shared_content'], $companyFields);
-        $binder = app(MarketingContentBinder::class);
-        $sanitizer = app(MarketingHtmlSanitizer::class);
-        $studio = app(MarketingStudioService::class);
-
-        $this->assertSame($expectedContent, $job->shared_content);
+        $this->assertSame($state, $this->catalogStateForIds([$job->id]));
         foreach ($companyFields as $field => $value) {
             $this->assertSame($value, $job->shared_content[$field]);
         }
-
-        foreach ($job->variants as $variant) {
-            $format = $variant->format->value;
-            $template = $definition['variants'][$format];
-            $expectedHtml = $sanitizer->html($binder->bindHtml($template['html'], $expectedContent));
-            $expectedCss = $sanitizer->css($template['css']);
-            $expectedBuilderData = $binder->syncBuilderData($template['builder_data'], $expectedHtml);
-
-            $this->assertSame($oldVersions[$format] + 1, $variant->version);
-            $this->assertSame($expectedHtml, $variant->html);
-            $this->assertSame($expectedCss, $variant->css);
-            $this->assertSame($expectedBuilderData, $variant->builder_data);
-            $this->assertSame(
-                $studio->contentHash($expectedBuilderData, $expectedHtml, $expectedCss),
-                $variant->content_hash,
-            );
-            $this->assertSame(3, substr_count($variant->html, 'class="rt-job-card '));
-
-            foreach (['tasks', 'profile', 'benefits'] as $binding) {
-                $this->assertStringContainsString('data-rt-binding-list="'.$binding.'"', $variant->html);
-            }
-            foreach (['job-tasks.svg', 'job-profile.svg', 'job-benefits.svg'] as $icon) {
-                $this->assertSame(1, substr_count($variant->html, '/rt-brand/icons/'.$icon));
-            }
-        }
-
-        $state = $this->catalogStateForIds([$job->id]);
         $migration->down();
         $this->assertSame($state, $this->catalogStateForIds([$job->id]));
         $migration->up();

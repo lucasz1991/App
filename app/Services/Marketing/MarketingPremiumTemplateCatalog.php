@@ -207,14 +207,15 @@ final class MarketingPremiumTemplateCatalog
 
     private function companyHtml(MarketingCreativeFormat $format): string
     {
-        $logo = $this->brandLockup($format !== MarketingCreativeFormat::Story);
+        $logo = $this->brandLockup(true);
 
         return match ($format) {
             MarketingCreativeFormat::Story => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-company rt-company-story">
   <header class="rt-mast">{$logo}<span class="rt-code">UNTERNEHMEN / 001</span></header>
   <section class="rt-copy"><p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p></section>
-  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team.webp" alt="RailTime-Wagenmeister stimmen einen Einsatz im Team ab"><figcaption>Menschen. Technik. Verantwortung.</figcaption></figure>
+  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team.webp" alt="RailTime-Wagenmeister stimmen einen Einsatz im Team ab"></figure>
+  <div class="rt-freight-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/freight-consist.svg" alt=""></div>
   <section class="rt-intro-panel"><p class="rt-intro" data-rt-binding="intro"></p></section>
   <div class="rt-facts" data-rt-binding-facts="facts"></div>
   <footer><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><div><strong>rail-time.de/de/ueber-uns</strong><span data-rt-binding="contact_email"></span></div></footer>
@@ -223,7 +224,8 @@ HTML,
             MarketingCreativeFormat::Post => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-company rt-company-post">
   <header class="rt-mast">{$logo}<span class="rt-code">RT / UNTERNEHMEN</span></header>
-  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team.webp" alt="RailTime-Wagenmeister stimmen einen Einsatz im Team ab"><figcaption>60+ Menschen für sicheren Bahnbetrieb.</figcaption></figure>
+  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team.webp" alt="RailTime-Wagenmeister stimmen einen Einsatz im Team ab"></figure>
+  <div class="rt-freight-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/freight-consist.svg" alt=""></div>
   <section class="rt-copy"><p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a></section>
   <footer><div class="rt-facts" data-rt-binding-facts="facts"></div><strong data-rt-binding="website"></strong></footer>
 </main>
@@ -231,7 +233,8 @@ HTML,
             MarketingCreativeFormat::Web => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-company rt-company-web">
   <section class="rt-copy">{$logo}<p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p><div class="rt-actions"><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><strong data-rt-binding="website"></strong></div></section>
-  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team.webp" alt="RailTime-Wagenmeister stimmen einen Einsatz im Team ab"><figcaption>COMPANY / PEOPLE / RAIL</figcaption></figure>
+  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team.webp" alt="RailTime-Wagenmeister stimmen einen Einsatz im Team ab"></figure>
+  <div class="rt-freight-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/freight-consist.svg" alt=""></div>
   <footer><div class="rt-facts" data-rt-binding-facts="facts"></div></footer>
 </main>
 HTML,
@@ -246,24 +249,30 @@ HTML,
             MarketingCreativeFormat::Story => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-job-premium rt-job-premium-story">
   <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team-gleis.jpeg" alt="RailTime-Wagenmeister im Einsatz zwischen Güterwagen"></figure>
+  <div class="rt-role-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/role-wagenmeister.svg" alt=""></div>
+  <div class="rt-freight-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/freight-consist.svg" alt=""></div>
   <header class="rt-mast">{$logo}<span class="rt-code">KARRIERE / 001</span></header>
   <section class="rt-copy"><p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p></section>
-  <section class="rt-job-panel"><p class="rt-intro" data-rt-binding="intro"></p><div class="rt-facts" data-rt-binding-facts="facts"></div><div class="rt-job-details"><article class="rt-job-card rt-job-card--tasks"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-tasks.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>01 / Im Einsatz</small><strong>Deine Aufgaben</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="tasks"></ul></article><article class="rt-job-card rt-job-card--profile"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-profile.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>02 / Was zählt</small><strong>Deine Anforderungen</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="profile"></ul></article><article class="rt-job-card rt-job-card--benefits"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-benefits.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>03 / Dein Plus</small><strong>Deine Benefits</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="benefits"></ul></article></div></section>
+  <section class="rt-job-panel"><p class="rt-intro" data-rt-binding="intro"></p><div class="rt-facts" data-rt-binding-facts="facts"></div><div class="rt-job-details"><article class="rt-job-card rt-job-card--tasks"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-tasks.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>01 / Im Einsatz</small><strong>Deine Aufgaben</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="tasks"></ul></article><article class="rt-job-card rt-job-card--profile"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-profile.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>02 / Was zählt</small><strong>Deine Anforderungen</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="profile"></ul></article><article class="rt-job-card rt-job-card--benefits"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-benefits.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>03 / Dein Plus</small><strong>Deine Benefits</strong></span></div><img class="rt-benefit-track-compact" src="/rt-brand/illustrations/v2/benefit-track-compact.svg" alt="" aria-hidden="true"><ul class="rt-job-card__list" data-rt-binding-list="benefits"></ul></article></div></section>
   <footer><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><div><strong>Deine nächste Station: RailTime.</strong><span>rail-time.de/de/karriere</span></div></footer>
 </main>
 HTML,
             MarketingCreativeFormat::Post => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-job-premium rt-job-premium-post">
   <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team-gleis.jpeg" alt="RailTime-Wagenmeister im Einsatz zwischen Güterwagen"></figure>
+  <div class="rt-role-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/role-wagenmeister.svg" alt=""></div>
+  <div class="rt-freight-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/freight-consist.svg" alt=""></div>
   <header class="rt-mast">{$logo}<span class="rt-code">JOB / 001</span></header>
   <section class="rt-copy"><p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p></section>
-  <section class="rt-job-details"><article class="rt-job-card rt-job-card--tasks"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-tasks.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>01 / Im Einsatz</small><strong>Deine Aufgaben</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="tasks"></ul></article><article class="rt-job-card rt-job-card--profile"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-profile.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>02 / Was zählt</small><strong>Deine Anforderungen</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="profile"></ul></article><article class="rt-job-card rt-job-card--benefits"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-benefits.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>03 / Dein Plus</small><strong>Deine Benefits</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="benefits"></ul></article></section>
+  <section class="rt-job-details"><article class="rt-job-card rt-job-card--tasks"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-tasks.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>01 / Im Einsatz</small><strong>Deine Aufgaben</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="tasks"></ul></article><article class="rt-job-card rt-job-card--profile"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-profile.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>02 / Was zählt</small><strong>Deine Anforderungen</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="profile"></ul></article><article class="rt-job-card rt-job-card--benefits"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-benefits.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>03 / Dein Plus</small><strong>Deine Benefits</strong></span></div><img class="rt-benefit-track-compact" src="/rt-brand/illustrations/v2/benefit-track-compact.svg" alt="" aria-hidden="true"><ul class="rt-job-card__list" data-rt-binding-list="benefits"></ul></article></section>
   <footer><div class="rt-facts" data-rt-binding-facts="facts"></div><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><strong data-rt-binding="website"></strong></footer>
 </main>
 HTML,
             MarketingCreativeFormat::Web => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-job-premium rt-job-premium-web">
-  <section class="rt-copy">{$logo}<p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p><div class="rt-job-details"><article class="rt-job-card rt-job-card--tasks"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-tasks.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>01 / Im Einsatz</small><strong>Deine Aufgaben</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="tasks"></ul></article><article class="rt-job-card rt-job-card--profile"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-profile.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>02 / Was zählt</small><strong>Deine Anforderungen</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="profile"></ul></article><article class="rt-job-card rt-job-card--benefits"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-benefits.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>03 / Dein Plus</small><strong>Deine Benefits</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="benefits"></ul></article></div><div class="rt-actions"><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><strong data-rt-binding="website"></strong></div></section>
+  <section class="rt-copy">{$logo}<p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p><div class="rt-job-details"><article class="rt-job-card rt-job-card--tasks"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-tasks.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>01 / Im Einsatz</small><strong>Deine Aufgaben</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="tasks"></ul></article><article class="rt-job-card rt-job-card--profile"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-profile.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>02 / Was zählt</small><strong>Deine Anforderungen</strong></span></div><ul class="rt-job-card__list" data-rt-binding-list="profile"></ul></article><article class="rt-job-card rt-job-card--benefits"><div class="rt-job-card__head"><span class="rt-job-card__icon" aria-hidden="true"><img src="/rt-brand/icons/job-benefits.svg" alt="" width="48" height="48"></span><span class="rt-job-card__heading"><small>03 / Dein Plus</small><strong>Deine Benefits</strong></span></div><img class="rt-benefit-track-compact" src="/rt-brand/illustrations/v2/benefit-track-compact.svg" alt="" aria-hidden="true"><ul class="rt-job-card__list" data-rt-binding-list="benefits"></ul></article></div><div class="rt-actions"><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><strong data-rt-binding="website"></strong></div></section>
+  <div class="rt-role-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/role-wagenmeister.svg" alt=""></div>
+  <div class="rt-freight-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/freight-consist.svg" alt=""></div>
   <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team-gleis.jpeg" alt="RailTime-Wagenmeister im Einsatz zwischen Güterwagen"><figcaption>TECHNIK / VERANTWORTUNG / TEAM</figcaption></figure>
   <footer><div class="rt-facts" data-rt-binding-facts="facts"></div></footer>
 </main>
@@ -273,14 +282,15 @@ HTML,
 
     private function networkHtml(MarketingCreativeFormat $format): string
     {
-        $logo = $this->brandLockup($format !== MarketingCreativeFormat::Story);
+        $logo = $this->brandLockup(true);
 
         return match ($format) {
             MarketingCreativeFormat::Story => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-network-premium rt-network-premium-story">
   <header class="rt-mast">{$logo}<span class="rt-code">NETZWERK / DE</span></header>
   <section class="rt-copy"><p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p></section>
-  <figure class="rt-map"><img src="/rt-brand/img/deutschland-netzwerk.png" alt="Deutschlandkarte mit RailTime-Einsatzstandorten"><figcaption>Hauptsitz / Standorte / Einsatzorte</figcaption></figure>
+  <figure class="rt-map"><img src="/rt-brand/illustrations/v2/germany-rail-network.svg" alt="Deutschlandkarte mit RailTime-Einsatzstandorten"></figure>
+  <div class="rt-freight-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/freight-consist.svg" alt=""></div>
   <section class="rt-network-panel"><p class="rt-intro" data-rt-binding="intro"></p></section>
   <div class="rt-facts" data-rt-binding-facts="facts"></div>
   <footer><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><div><strong data-rt-binding="contact_phone"></strong><span>rail-time.de/de/kontakt</span></div></footer>
@@ -290,14 +300,16 @@ HTML,
 <main class="rt-marketing-canvas rt-premium rt-network-premium rt-network-premium-post">
   <header class="rt-mast">{$logo}<span class="rt-code">NETWORK / DE</span></header>
   <section class="rt-copy"><p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a></section>
-  <figure class="rt-map"><img src="/rt-brand/img/deutschland-netzwerk.png" alt="Deutschlandkarte mit RailTime-Einsatzstandorten"></figure>
+  <figure class="rt-map"><img src="/rt-brand/illustrations/v2/germany-rail-network.svg" alt="Deutschlandkarte mit RailTime-Einsatzstandorten"></figure>
+  <div class="rt-freight-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/freight-consist.svg" alt=""></div>
   <footer><div class="rt-facts" data-rt-binding-facts="facts"></div><strong data-rt-binding="website"></strong></footer>
 </main>
 HTML,
             MarketingCreativeFormat::Web => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-network-premium rt-network-premium-web">
   <section class="rt-copy">{$logo}<p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p><div class="rt-facts" data-rt-binding-facts="facts"></div><div class="rt-actions"><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><strong data-rt-binding="contact_phone"></strong></div></section>
-  <figure class="rt-map"><img src="/rt-brand/img/deutschland-netzwerk.png" alt="Deutschlandkarte mit RailTime-Einsatzstandorten"><figcaption>RAILTIME / NETWORK / GERMANY</figcaption></figure>
+  <figure class="rt-map"><img src="/rt-brand/illustrations/v2/germany-rail-network.svg" alt="Deutschlandkarte mit RailTime-Einsatzstandorten"></figure>
+  <div class="rt-freight-illustration" aria-hidden="true"><img src="/rt-brand/illustrations/v2/freight-consist.svg" alt=""></div>
 </main>
 HTML,
         };
@@ -316,7 +328,7 @@ HTML,
         $dimensions = $format->dimensions();
         $base = <<<CSS
 @font-face{font-family:Manrope;src:url("/rt-brand/fonts/manrope-latin.woff2") format("woff2");font-style:normal;font-weight:400 800;font-display:swap}@font-face{font-family:"Space Mono";src:url("/rt-brand/fonts/space-mono-700-latin.woff2") format("woff2");font-style:normal;font-weight:700;font-display:swap}*{box-sizing:border-box}.rt-marketing-canvas{position:relative;overflow:hidden;width:{$dimensions['width']}px;height:{$dimensions['height']}px;margin:0;background:#f4f2ed;color:#10151b;font-family:Manrope,Arial,sans-serif}.rt-premium:before{position:absolute;z-index:0;inset:0;background-image:linear-gradient(rgba(16,21,27,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(16,21,27,.045) 1px,transparent 1px);background-size:54px 54px;content:"";pointer-events:none}.rt-premium h1,.rt-premium p,.rt-premium figure{margin:0}.rt-premium .rt-mast,.rt-premium .rt-copy,.rt-premium footer{position:absolute;z-index:3}.rt-brand-lockup{position:relative;width:240px}.rt-brand-logo{display:block;width:100%;height:auto}.rt-code,.rt-kicker,.rt-premium figcaption{font-family:"Space Mono",monospace;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.rt-code{color:#7d8791;font-size:13px}.rt-kicker{color:#e4002b;font-size:15px}.rt-premium h1{font-weight:700;letter-spacing:-.063em}.rt-subtitle{font-weight:600;letter-spacing:-.025em}.rt-intro{color:#57636e;line-height:1.55}.rt-photo,.rt-map{position:absolute;z-index:1;overflow:hidden}.rt-photo img,.rt-map img{display:block;width:100%;height:100%;object-fit:cover}.rt-premium figcaption{position:absolute;z-index:2;color:#fff;font-size:11px}.rt-cta{display:inline-flex;min-height:56px;padding:0 25px;align-items:center;justify-content:center;background:#e4002b;color:#fff;font-size:14px;font-weight:800;letter-spacing:.035em;text-decoration:none;text-transform:uppercase}.rt-cta:after{margin-left:22px;content:"→"}.rt-facts{display:grid}.rt-facts>div{display:grid}.rt-facts strong{font-family:"Space Mono",monospace;font-weight:700;letter-spacing:-.06em}.rt-facts span{font-weight:650;line-height:1.25}.rt-keywords{display:flex;margin:0;padding:0;list-style:none}.rt-keywords li{font-family:"Space Mono",monospace;font-weight:700;text-transform:uppercase}.rt-keywords li+li:before{margin:0 13px;color:#e4002b;content:"/"}.rt-actions{display:flex;align-items:center;gap:22px}.rt-job-details{display:grid}.rt-job-details article{min-width:0}.rt-job-details article>span{display:block;color:#e4002b;font-family:"Space Mono",monospace;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.rt-job-details ul{display:grid;margin:0;padding:0;list-style:none}.rt-job-details li{position:relative;padding-left:17px;color:#d5dbe0;font-weight:550}.rt-job-details li:before{position:absolute;top:.65em;left:0;width:8px;height:2px;background:#e4002b;content:""}
-.rt-premium .rt-intro{overflow-wrap:anywhere}
+.rt-premium .rt-intro{overflow-wrap:anywhere}.rt-freight-illustration,.rt-role-illustration{position:absolute;pointer-events:none}.rt-freight-illustration img,.rt-role-illustration img{display:block;width:100%;height:100%;object-fit:contain}.rt-role-illustration{overflow:hidden;border:1px solid rgba(255,255,255,.14);background:linear-gradient(145deg,rgba(18,27,38,.72),rgba(8,13,19,.88));box-shadow:0 18px 50px rgba(0,0,0,.24);clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%)}.rt-role-illustration:before{position:absolute;z-index:1;top:0;right:18px;left:0;height:3px;background:linear-gradient(90deg,#e4002b,rgba(228,0,43,0));content:""}.rt-benefit-track-compact{display:none}
 CSS;
 
         $jobCards = <<<'CSS'
@@ -369,6 +381,37 @@ CSS,
             default => '',
         };
 
-        return $base.$jobCards.$specific.$jobCardSpecific;
+        $illustrationSystem = match ([$templateKey, $format]) {
+            [MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE, MarketingCreativeFormat::Story] => <<<'CSS'
+.rt-company-story{background:#080d13;color:#fff}.rt-company-story:before{background-image:linear-gradient(rgba(255,255,255,.032) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.032) 1px,transparent 1px)}.rt-company-story .rt-code{color:#9ba7b2}.rt-company-story .rt-photo{border-left:1px solid rgba(255,255,255,.12);box-shadow:-32px 28px 90px rgba(0,0,0,.34)}.rt-company-story .rt-photo:after{position:absolute;inset:0;background:linear-gradient(90deg,rgba(8,13,19,.58),transparent 42%),linear-gradient(0deg,rgba(8,13,19,.5),transparent 38%);content:""}.rt-company-story .rt-intro-panel{border-top:4px solid #e4002b;background:linear-gradient(145deg,rgba(19,29,40,.99),rgba(7,11,17,.99));box-shadow:0 22px 58px rgba(0,0,0,.3)}.rt-company-story .rt-facts{border-color:rgba(255,255,255,.18)}.rt-company-story .rt-facts>div{border-color:rgba(255,255,255,.16)}.rt-company-story .rt-facts strong{color:#fff}.rt-company-story .rt-facts span{color:#b8c2ca}.rt-company-story .rt-freight-illustration{z-index:2;top:1504px;right:58px;left:58px;height:88px;opacity:.62}.rt-company-story footer{align-items:center;background:radial-gradient(80% 180% at 92% 20%,rgba(228,0,43,.14),transparent 58%),#05090d}
+CSS,
+            [MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE, MarketingCreativeFormat::Post] => <<<'CSS'
+.rt-company-post footer{border-top:3px solid #e4002b;background:radial-gradient(70% 160% at 88% 40%,rgba(228,0,43,.13),transparent 62%),#0b121a;color:#fff}.rt-company-post .rt-facts>div{border-color:rgba(255,255,255,.17)}.rt-company-post .rt-facts strong{color:#fff}.rt-company-post .rt-facts span{color:#b9c3cc}.rt-company-post .rt-freight-illustration{z-index:4;right:48px;bottom:26px;left:48px;height:76px;opacity:.52}
+CSS,
+            [MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE, MarketingCreativeFormat::Web] => <<<'CSS'
+.rt-company-web .rt-photo{border-left:1px solid rgba(255,255,255,.1)}.rt-company-web .rt-freight-illustration{z-index:4;bottom:18px;left:48px;width:620px;height:66px;opacity:.52}
+CSS,
+            [MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER, MarketingCreativeFormat::Story] => <<<'CSS'
+.rt-job-premium-story .rt-role-illustration{z-index:2;top:226px;right:58px;width:330px;height:200px;padding:18px;opacity:.86}.rt-job-premium-story .rt-freight-illustration{z-index:4;right:58px;bottom:20px;left:58px;height:82px;opacity:.42}
+CSS,
+            [MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER, MarketingCreativeFormat::Post] => <<<'CSS'
+.rt-job-premium-post .rt-role-illustration{z-index:2;top:118px;right:34px;width:250px;height:154px;padding:12px;opacity:.82}.rt-job-premium-post .rt-freight-illustration{z-index:4;right:48px;bottom:18px;left:48px;height:68px;opacity:.42}
+CSS,
+            [MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER, MarketingCreativeFormat::Web] => <<<'CSS'
+.rt-job-premium-web .rt-role-illustration{z-index:3;top:34px;right:18px;width:218px;height:132px;padding:10px;opacity:.82}.rt-job-premium-web .rt-freight-illustration{z-index:4;right:18px;bottom:10px;width:360px;height:45px;opacity:.38}
+CSS,
+            [MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK, MarketingCreativeFormat::Story] => <<<'CSS'
+.rt-network-premium-story{background:#080d13;color:#fff}.rt-network-premium-story:before{background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px)}.rt-network-premium-story .rt-code{color:#9ba7b2}.rt-network-premium-story .rt-map{top:555px;right:4px;width:700px;height:1015px;overflow:visible}.rt-network-premium-story .rt-map:before{inset:50px 0;background:radial-gradient(circle at 54% 50%,rgba(228,0,43,.14),rgba(17,27,37,.18) 44%,transparent 72%)}.rt-network-premium-story .rt-map img{filter:drop-shadow(0 28px 45px rgba(0,0,0,.4))}.rt-network-premium-story .rt-network-panel{border-top:4px solid #e4002b;background:linear-gradient(145deg,rgba(20,30,41,.99),rgba(7,11,17,.99));box-shadow:0 22px 58px rgba(0,0,0,.3)}.rt-network-premium-story .rt-facts{border-color:rgba(255,255,255,.17)}.rt-network-premium-story .rt-facts>div{border-color:rgba(255,255,255,.15)}.rt-network-premium-story .rt-facts strong{color:#ff3158}.rt-network-premium-story .rt-facts span{color:#c0c9d0}.rt-network-premium-story .rt-freight-illustration{z-index:4;right:58px;bottom:22px;left:58px;height:75px;opacity:.42}.rt-network-premium-story footer{align-items:center;background:radial-gradient(80% 180% at 92% 20%,rgba(228,0,43,.14),transparent 58%),#05090d}
+CSS,
+            [MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK, MarketingCreativeFormat::Post] => <<<'CSS'
+.rt-network-premium-post{background:#080d13;color:#fff}.rt-network-premium-post:before{background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px)}.rt-network-premium-post .rt-code{color:#9ba7b2}.rt-network-premium-post .rt-intro{color:#b9c3cc}.rt-network-premium-post .rt-map{top:175px;right:-12px;width:595px;height:755px;overflow:visible}.rt-network-premium-post .rt-map img{filter:drop-shadow(0 24px 38px rgba(0,0,0,.42))}.rt-network-premium-post footer{border-top:3px solid #e4002b;background:#0b121a}.rt-network-premium-post .rt-freight-illustration{z-index:4;right:48px;bottom:14px;left:48px;height:54px;opacity:.4}
+CSS,
+            [MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK, MarketingCreativeFormat::Web] => <<<'CSS'
+.rt-network-premium-web{grid-template-columns:57% 43%}.rt-network-premium-web .rt-copy{width:59%}.rt-network-premium-web .rt-map{width:44%;overflow:visible;background:radial-gradient(circle at 48% 48%,rgba(228,0,43,.12),rgba(17,27,37,.24) 52%,transparent 76%)}.rt-network-premium-web .rt-map:before{inset:24px;background:radial-gradient(circle,rgba(255,255,255,.035),transparent 70%)}.rt-network-premium-web .rt-map img{filter:drop-shadow(0 18px 26px rgba(0,0,0,.4))}.rt-network-premium-web .rt-freight-illustration{z-index:4;bottom:13px;left:48px;width:600px;height:48px;opacity:.42}
+CSS,
+            default => '',
+        };
+
+        return $base.$jobCards.$specific.$jobCardSpecific.$illustrationSystem;
     }
 }

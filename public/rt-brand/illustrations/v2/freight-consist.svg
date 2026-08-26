@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 180" role="img" aria-label="Technische Linienillustration eines RailTime-Güterzugs">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#C4CED6" stroke-width="3">
+      <path d="M36 151H1084M54 163H1066" opacity=".82"/>
+      <path d="M74 151v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12m46-12v12" opacity=".34"/>
+      <path d="M46 125h201v15H46zM61 52h171v73H61zM70 61h153v8H70zM70 77h153v39H70z"/>
+      <path d="M247 134h18m0-9h183v15H265zM278 71h156l-23 54H300zM299 92h113"/>
+      <path d="M448 134h20m0-9h210v15H468zM501 70h128c19 0 35 12 35 27s-16 28-35 28H501c-19 0-34-13-34-28s15-27 34-27Z"/>
+      <path d="M492 74v47m146-47v47M678 134h18m0-9h157v15H696zM710 57h129v68H710zM722 70h105v43H722z"/>
+      <path d="M853 134h17m0 6v-79h116l41 36h47v43H870zM900 61v36h127M914 72h52v25h-52zM986 75l30 22h-30zM1074 113h14v18h-14"/>
+      <path d="M48 140h199m18 0h183m20 0h210m18 0h157m17 0h218"/>
+      <circle cx="78" cy="140" r="12"/><circle cx="210" cy="140" r="12"/>
+      <circle cx="298" cy="140" r="12"/><circle cx="414" cy="140" r="12"/>
+      <circle cx="505" cy="140" r="12"/><circle cx="641" cy="140" r="12"/>
+      <circle cx="728" cy="140" r="12"/><circle cx="822" cy="140" r="12"/>
+      <circle cx="904" cy="140" r="13"/><circle cx="1032" cy="140" r="13"/>
+      <path d="M70 140h16m116 0h16m72 0h16m100 0h16m75 0h16m120 0h16m81 0h16m78 0h18m110 0h18" opacity=".52"/>
+      <path d="M878 111h184M889 123h168" opacity=".42"/>
+      <path d="M930 51l21-25h54l29 35M947 26v-9m39 9V13"/>
+    </g>
+    <g stroke="#E4002B" stroke-width="4">
+      <path d="M870 106h204"/>
+      <path d="M1017 97h57"/>
+      <circle cx="1053" cy="120" r="5" fill="#E4002B"/>
+    </g>
+    <g stroke="#FF9CAF" stroke-width="2.4" opacity=".8">
+      <path d="M79 47v-9m131 9v-9M299 66v-9m112 9v-9M503 65v-9m124 9v-9M722 52v-9m105 9v-9"/>
+    </g>
+  </g>
+</svg>

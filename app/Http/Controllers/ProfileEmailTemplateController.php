@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\EmailTemplateBuilder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
@@ -25,6 +26,25 @@ class ProfileEmailTemplateController extends Controller
         return response($file['content'], 200, [
             'Content-Type' => $file['mime'],
             'Content-Disposition' => 'attachment; filename="'.$file['filename'].'"',
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
+     * Isolierte, personalisierte Kopierfassung fuer neues Outlook und Outlook
+     * im Web. Das JSON wird nur gleichurspruenglich im Mitarbeiterdialog als
+     * sandboxed srcdoc eingebettet und enthaelt selbst keine Skriptlogik.
+     */
+    public function signatureCopy(Request $request): JsonResponse
+    {
+        $html = (new EmailTemplateBuilder($request->user()))
+            ->buildSignatureCopyHtml('light');
+
+        return response()->json(['html' => $html], 200, [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'Referrer-Policy' => 'no-referrer',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 

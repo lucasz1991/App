@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Corporate Benefits">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 18h34v9H7zM10 27h28v16H10zM24 18v25" stroke="#C4CED6" stroke-width="2.4"/>
+    <path d="M7 18h34v9H7M10 27h28" stroke="#E4002B" stroke-width="2.5"/>
+    <path d="M24 18c-8 0-11-2.4-11-6 0-2.6 2-4.5 4.7-4.5 4 0 6.3 4 6.3 10.5Zm0 0c8 0 11-2.4 11-6 0-2.6-2-4.5-4.7-4.5-4 0-6.3 4-6.3 10.5Z" stroke="#FF9CAF" stroke-width="2.4"/>
+  </g>
+</svg>

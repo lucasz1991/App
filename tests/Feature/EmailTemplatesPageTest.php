@@ -38,7 +38,7 @@ class EmailTemplatesPageTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
-    public function test_verified_user_sees_exactly_two_primary_downloads_and_a_lazy_animated_preview(): void
+    public function test_verified_user_gets_a_guided_signature_flow_two_downloads_and_lazy_previews(): void
     {
         $user = User::factory()->create();
 
@@ -57,25 +57,49 @@ class EmailTemplatesPageTest extends TestCase
             ->assertDontSee('previewDownloadUrls:', escape: false)
             ->assertSee('profileModalOpen: false', escape: false)
             ->assertSee('previewModalOpen: false', escape: false)
+            ->assertSee('signatureModalOpen: false', escape: false)
+            ->assertSee('signatureFrameReady: false', escape: false)
+            ->assertSee('signatureLoadFailed: false', escape: false)
+            ->assertSee('signatureCopyUrl:', escape: false)
             ->assertSee("mailTheme: 'light'", escape: false)
             ->assertSee('data-email-template-modal-trigger="profile"', escape: false)
             ->assertSee('data-email-template-modal-trigger="preview"', escape: false)
+            ->assertSee('data-email-template-modal-trigger="signature"', escape: false)
             ->assertSee('data-email-template-modal="profile"', escape: false)
             ->assertSee('data-email-template-modal="preview"', escape: false)
+            ->assertSee('data-email-template-modal="signature"', escape: false)
+            ->assertSee('data-email-template-signature-copy-action', escape: false)
+            ->assertSee('data-email-template-signature-copy-frame', escape: false)
+            ->assertSee('data-email-template-signature-copy-confirm', escape: false)
             ->assertSee('aria-haspopup="dialog"', escape: false)
             ->assertSee('aria-controls="email-template-profile-modal"', escape: false)
             ->assertSee('aria-controls="email-template-preview-modal"', escape: false)
+            ->assertSee('aria-controls="email-template-signature-modal"', escape: false)
             ->assertSee('data-email-template-primary-downloads', escape: false)
-            ->assertSee('Classic Outlook')
-            ->assertSee('Neues Outlook')
+            ->assertSee('Klassisches Outlook für Windows')
+            ->assertSee('Neues Outlook / Web')
+            ->assertSee('Direkt öffnen und kopieren')
+            ->assertSee('Profildaten ergänzen')
+            ->assertSee('data-email-template-secondary-action', escape: false)
             ->assertSee('data-template-format="zip"', escape: false)
             ->assertSee('data-template-format="html"', escape: false)
             ->assertSee('<template x-if="previewModalOpen">', escape: false)
+            ->assertSee('<template x-if="signatureModalOpen && signatureCopyHtml">', escape: false)
             ->assertSee('x-bind:src="previewFrameUrl()"', escape: false)
+            ->assertSee('x-bind:srcdoc="signatureCopyHtml"', escape: false)
+            ->assertSee("headers: { Accept: 'application/json' }", escape: false)
+            ->assertSee("querySelector('body > table[role=presentation]')", escape: false)
+            ->assertSee('watchSignatureFrame()', escape: false)
+            ->assertSee('new window.ResizeObserver', escape: false)
+            ->assertSee('x-ref="signatureCopyButton"', escape: false)
+            ->assertSee('signatureLoadFailed ? loadSignatureCopy() : copySignature()', escape: false)
+            ->assertSee('Erneut versuchen')
             ->assertDontSee('previewFrameLoaded', escape: false)
             ->assertDontSee('previewFrameReady', escape: false)
             ->assertDontSee('data-email-template-preview-loading', escape: false)
             ->assertSee('data-email-template-preview-replay', escape: false)
+            ->assertDontSee('data-email-template-preview-theme-toggle', escape: false)
+            ->assertSee('Vorschau der hellen Mitarbeiter-Version')
             ->assertSee("window.matchMedia('(prefers-reduced-motion: reduce)')", escape: false)
             ->assertSee('previewPlaybackId: 0', escape: false)
             ->assertSee("preview.searchParams.set('play', String(this.previewPlaybackId))", escape: false)
@@ -94,11 +118,11 @@ class EmailTemplatesPageTest extends TestCase
             'vorlage-html',
             'signatur-outlook-hell',
         ], $matches[1]);
-        $this->assertSame(2, substr_count($content, 'data-email-template-modal="'));
-        $this->assertSame(2, substr_count($content, 'data-email-template-modal-trigger="'));
+        $this->assertSame(3, substr_count($content, 'data-email-template-modal="'));
+        $this->assertSame(3, substr_count($content, 'data-email-template-modal-trigger="'));
         $this->assertSame(2, substr_count($content, 'data-email-template-primary-download="'));
         $this->assertSame(2, substr_count($content, 'data-email-template-primary-action'));
-        $this->assertSame(1, substr_count($content, '<iframe'));
+        $this->assertSame(2, substr_count($content, '<iframe'));
         $this->assertDoesNotMatchRegularExpression('/<iframe\b[^>]*\ssrc=/i', $content);
         $this->assertSame(1, substr_count($content, 'data-testid="message-viewer-host"'));
 
@@ -110,6 +134,40 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('max-h-[calc(100dvh-1rem)]', $modalSource);
         $this->assertStringContainsString('overscroll-contain', $modalSource);
         $this->assertStringNotContainsString('email-template-preview-dialog', file_get_contents(resource_path('css/app.css')));
+    }
+
+    public function test_signature_copy_surface_is_private_script_free_and_personalized(): void
+    {
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+
+        $response = $this->actingAs($user)
+            ->get(route('email-templates.signature-copy'));
+
+        $response->assertOk()
+            ->assertHeader('content-type', 'application/json')
+            ->assertHeader('x-content-type-options', 'nosniff')
+            ->assertJsonStructure(['html']);
+
+        $cacheControl = (string) $response->headers->get('cache-control');
+        $this->assertStringContainsString('private', $cacheControl);
+        $this->assertStringContainsString('no-store', $cacheControl);
+        $this->assertStringContainsString('max-age=0', $cacheControl);
+
+        $html = (string) $response->json('html');
+        $this->assertStringContainsString('Mara Beispiel', $html);
+        $this->assertStringNotContainsString('<script', $html);
+
+        preg_match_all('/<img\b[^>]*\bsrc="([^"]+)"/i', $html, $images);
+        $this->assertNotEmpty($images[1]);
+        foreach ($images[1] as $source) {
+            $this->assertStringStartsWith('https://', html_entity_decode($source, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        }
+    }
+
+    public function test_guest_is_redirected_from_signature_copy_surface(): void
+    {
+        $this->get(route('email-templates.signature-copy'))
+            ->assertRedirect(route('login'));
     }
 
     public function test_profile_no_longer_contains_an_email_templates_tab(): void
@@ -1582,7 +1640,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('vollständig', $germanPoints);
         $this->assertStringContainsString('Thunderbird', $germanPoints);
         $this->assertStringContainsString('Testmail', $germanPoints);
-        $this->assertStringContainsString('beiden Downloads', $germanPoints);
+        $this->assertStringContainsString('Signatur und Mailvorlage', $germanPoints);
         $this->assertStringNotContainsString('EML', $germanPoints);
 
         App::setLocale('en');
@@ -1590,11 +1648,21 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('templates & signatures', $english['title']);
         $englishPoints = implode(' ', $english['points']);
         $this->assertStringContainsString('Settings → Accounts → Signatures', $englishPoints);
-        $this->assertStringContainsString('Fully extract', $englishPoints);
+        $this->assertStringContainsString('fully extract', $englishPoints);
         $this->assertStringContainsString('Thunderbird', $englishPoints);
         $this->assertStringContainsString('test email', $englishPoints);
-        $this->assertStringContainsString('Both downloads', $englishPoints);
+        $this->assertStringContainsString('signature and mail template', $englishPoints);
         $this->assertStringNotContainsString('EML', $englishPoints);
+
+        $englishUser = User::factory()->create(['locale' => 'en']);
+        $this->actingAs($englishUser)
+            ->get(route('email-templates.index'))
+            ->assertOk()
+            ->assertSee('Quick setup')
+            ->assertSee('New Outlook / Web')
+            ->assertSee('Copy signature')
+            ->assertSee('Try again')
+            ->assertDontSee('Schnelle Einrichtung');
     }
 
     private function assertRuntimeTrainImages(

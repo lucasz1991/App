@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Attraktive Zuschläge">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="18" cy="13" rx="10" ry="4.5" stroke="#C4CED6" stroke-width="2.4"/>
+    <path d="M8 13v7c0 2.5 4.5 4.5 10 4.5S28 22.5 28 20v-7M8 20v7c0 2.5 4.5 4.5 10 4.5 2.8 0 5.2-.5 7-1.4M8 27v7c0 2.5 4.5 4.5 10 4.5 2.7 0 5.2-.5 7-1.4" stroke="#C4CED6" stroke-width="2.4"/>
+    <circle cx="34.5" cy="31.5" r="9.5" stroke="#E4002B" stroke-width="2.6"/>
+    <path d="M34.5 26.5v10M29.5 31.5h10" stroke="#FF9CAF" stroke-width="2.7"/>
+  </g>
+</svg>

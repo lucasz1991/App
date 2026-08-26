@@ -45,12 +45,16 @@ final class MarketingCareerTemplateCatalog
                 $source = $premiumJob['variants'][$format->value];
                 $html = str_replace(
                     [
+                        'rt-marketing-canvas rt-premium rt-job-premium',
                         'JOB / 001',
                         'RailTime-Wagenmeister im Einsatz zwischen Güterwagen',
+                        '/rt-brand/illustrations/v2/role-wagenmeister.svg',
                     ],
                     [
+                        'rt-marketing-canvas rt-premium rt-job-premium rt-career-compact rt-career-role-'.$role['slug'],
                         'JOB / '.$role['code'],
                         'RailTime-Team im Einsatz zwischen Güterwagen',
+                        $role['illustration'],
                     ],
                     $source['html'],
                 );
@@ -85,6 +89,8 @@ final class MarketingCareerTemplateCatalog
     /**
      * @return array{
      *     code:string,
+     *     slug:string,
+     *     illustration:string,
      *     creative_title:string,
      *     job_title:string,
      *     intro:string,
@@ -97,6 +103,8 @@ final class MarketingCareerTemplateCatalog
         return match ($templateKey) {
             MarketingTemplateFactory::CAREER_JOB_WAGENMEISTER => [
                 'code' => 'WAGENMEISTER',
+                'slug' => 'wagenmeister',
+                'illustration' => '/rt-brand/illustrations/v2/role-wagenmeister.svg',
                 'creative_title' => 'Wagenmeister (m/w/d) – Sicherheit beginnt mit deinem Blick',
                 'job_title' => 'Wagenmeister (m/w/d)',
                 'intro' => 'Du prüfst Güterwagen, dokumentierst präzise und hältst gemeinsam mit deinem Team den Bahnbetrieb sicher in Bewegung.',
@@ -114,6 +122,8 @@ final class MarketingCareerTemplateCatalog
             ],
             MarketingTemplateFactory::CAREER_JOB_TRIEBFAHRZEUGFUEHRER => [
                 'code' => 'TRIEBFAHRZEUGFÜHRER',
+                'slug' => 'triebfahrzeugfuehrer',
+                'illustration' => '/rt-brand/illustrations/v2/role-triebfahrzeugfuehrer.svg',
                 'creative_title' => 'Triebfahrzeugführer (m/w/d) – Gemeinsam sicher in Bewegung',
                 'job_title' => 'Triebfahrzeugführer (m/w/d)',
                 'intro' => 'Du führst Triebfahrzeuge sicher und behältst Zug, Strecke und Fahrplan jederzeit zuverlässig im Blick.',
@@ -131,6 +141,8 @@ final class MarketingCareerTemplateCatalog
             ],
             MarketingTemplateFactory::CAREER_JOB_ARBEITSZUGFUEHRER => [
                 'code' => 'ARBEITSZUGFÜHRER',
+                'slug' => 'arbeitszugfuehrer',
+                'illustration' => '/rt-brand/illustrations/v2/role-arbeitszugfuehrer.svg',
                 'creative_title' => 'Arbeitszugführer (m/w/d) – Sicherheit auf jeder Baustelle',
                 'job_title' => 'Arbeitszugführer (m/w/d)',
                 'intro' => 'Du führst Arbeitszüge sicher und koordinierst Baustelle, Betrieb und Beteiligte zuverlässig im Einsatz.',
@@ -192,15 +204,18 @@ final class MarketingCareerTemplateCatalog
         ];
     }
 
-    /** @param array{code:string} $role */
+    /** @param array{code:string,slug:string,illustration:string} $role */
     private function storyHtml(array $role): string
     {
         $code = $role['code'];
+        $slug = $role['slug'];
+        $illustration = $role['illustration'];
         $track = $this->storyTrackHtml();
 
         return <<<HTML
-<main class="rt-marketing-canvas rt-career-story">
+<main class="rt-marketing-canvas rt-career-story rt-career-role-{$slug}">
   <figure class="rt-career-hero"><img src="/rt-brand/img/wagenmeister-team-gleis.jpeg" alt="RailTime-Team im Einsatz zwischen Güterwagen"></figure>
+  <div class="rt-role-illustration" aria-hidden="true"><img src="{$illustration}" alt=""></div>
   <header class="rt-career-mast"><div class="rt-brand rt-brand-lockup rt-brand-lockup-reverse" data-rt-brand-lockup="official"><img class="rt-brand-logo" src="/rt-brand/img/logo-horizontal-darkbg.png" alt="RT Rail Time GmbH"></div><span class="rt-career-code">KARRIERE / {$code}</span></header>
   <section class="rt-career-copy"><p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-role-title" data-rt-binding="subtitle"></p></section>
   <section class="rt-career-details"><p class="rt-intro" data-rt-binding="intro"></p><div class="rt-detail-grid"><article><header><img src="/rt-brand/icons/job-tasks.svg" alt=""><span><small>01 / Dein Einsatz</small><strong>Deine Aufgaben</strong></span></header><ul data-rt-binding-list="tasks"></ul></article><article><header><img src="/rt-brand/icons/job-profile.svg" alt=""><span><small>02 / Was zählt</small><strong>Deine Anforderungen</strong></span></header><ul data-rt-binding-list="profile"></ul></article></div></section>
@@ -213,7 +228,7 @@ HTML;
     private function storyTrackHtml(): string
     {
         return <<<'HTML'
-<img class="rt-track" src="/rt-brand/icons/benefit-track-u.svg" alt="" aria-hidden="true">
+<img class="rt-track" src="/rt-brand/illustrations/v2/benefit-track-u.svg" alt="" aria-hidden="true">
 HTML;
     }
 
@@ -244,21 +259,30 @@ CSS;
 .rt-benefit-list li:nth-child(7){grid-column:2}
 .rt-benefit-list li:nth-child(8){grid-column:1}
 .rt-benefit-list li:nth-child(n+5){grid-row:2}
-.rt-benefit-list li:nth-child(1):after,.rt-benefit-list li:nth-child(7):after{background-image:url("/rt-brand/icons/job-profile.svg")}
-.rt-benefit-list li:nth-child(4):after,.rt-benefit-list li:nth-child(8):after{background-image:url("/rt-brand/icons/job-tasks.svg")}
+.rt-role-illustration{position:absolute;z-index:3;top:365px;right:58px;width:285px;height:165px;padding:14px;overflow:hidden;border:1px solid rgba(255,255,255,.15);background:linear-gradient(145deg,rgba(18,27,38,.68),rgba(8,13,19,.9));box-shadow:0 18px 50px rgba(0,0,0,.25);clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%)}.rt-role-illustration:before{position:absolute;z-index:1;top:0;right:16px;left:0;height:3px;background:linear-gradient(90deg,#e4002b,rgba(228,0,43,0));content:""}.rt-role-illustration img{display:block;width:100%;height:100%;object-fit:contain}.rt-role-title{max-width:610px}
+.rt-benefit-list li:nth-child(1):after{background-image:url("/rt-brand/illustrations/v2/benefit-contract.svg")}.rt-benefit-list li:nth-child(2):after{background-image:url("/rt-brand/illustrations/v2/benefit-pension.svg")}.rt-benefit-list li:nth-child(3):after{background-image:url("/rt-brand/illustrations/v2/benefit-salary.svg")}.rt-benefit-list li:nth-child(4):after{background-image:url("/rt-brand/illustrations/v2/benefit-bonus.svg")}.rt-benefit-list li:nth-child(5):after{background-image:url("/rt-brand/illustrations/v2/benefit-corporate.svg")}.rt-benefit-list li:nth-child(6):after{background-image:url("/rt-brand/illustrations/v2/benefit-wellbeing.svg")}.rt-benefit-list li:nth-child(7):after{background-image:url("/rt-brand/illustrations/v2/benefit-learning.svg")}.rt-benefit-list li:nth-child(8):after{background-image:url("/rt-brand/illustrations/v2/benefit-team.svg")}
 CSS;
     }
 
     private function eightBenefitLayoutCss(MarketingCreativeFormat $format): string
     {
-        return match ($format) {
+        $layout = match ($format) {
             MarketingCreativeFormat::Post => <<<'CSS'
-.rt-job-premium-post .rt-copy{top:142px}.rt-job-premium-post h1{font-size:56px;line-height:.9}.rt-job-premium-post .rt-subtitle{margin-top:12px;font-size:20px}.rt-job-premium-post .rt-intro{margin-top:11px;font-size:13px;line-height:1.34}.rt-job-premium-post>.rt-job-details{top:444px;bottom:253px;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:184px 189px;gap:10px 12px}.rt-job-premium-post .rt-job-details .rt-job-card{padding:12px 14px}.rt-job-premium-post .rt-job-card__head{gap:10px}.rt-job-premium-post .rt-job-card__icon{width:35px;height:35px}.rt-job-premium-post .rt-job-card__heading strong{font-size:12px}.rt-job-premium-post .rt-job-card__list{margin-top:7px}.rt-job-premium-post .rt-job-card__list li{min-height:27px;padding:4px 0 4px 18px;font-size:10.6px}.rt-job-premium-post .rt-job-card--benefits{display:grid;grid-column:1/-1;grid-template-columns:168px minmax(0,1fr)}.rt-job-premium-post .rt-job-card--benefits .rt-job-card__head{height:100%;padding-right:13px;border-right:1px solid rgba(255,255,255,.1)}.rt-job-premium-post .rt-job-card--benefits .rt-job-card__list{display:grid;margin:0 0 0 13px;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:0 10px}.rt-job-premium-post .rt-job-card--benefits .rt-job-card__list li{min-height:0;padding:5px 3px 5px 17px;font-size:10.2px;line-height:1.16}
+.rt-job-premium-post .rt-copy{top:142px}.rt-job-premium-post h1{font-size:56px;line-height:.9}.rt-job-premium-post .rt-subtitle{margin-top:12px;font-size:20px}.rt-job-premium-post .rt-intro{margin-top:11px;font-size:13px;line-height:1.34}.rt-job-premium-post>.rt-job-details{top:420px;bottom:245px;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:184px 221px;gap:10px 12px}.rt-job-premium-post .rt-job-details .rt-job-card{padding:12px 14px}.rt-job-premium-post .rt-job-card__head{gap:10px}.rt-job-premium-post .rt-job-card__icon{width:35px;height:35px}.rt-job-premium-post .rt-job-card__heading strong{font-size:12px}.rt-job-premium-post .rt-job-card__list{margin-top:7px}.rt-job-premium-post .rt-job-card__list li{min-height:25px;padding:3px 0 3px 18px;font-size:10.4px}.rt-job-premium-post .rt-job-card--benefits{display:grid;grid-column:1/-1;grid-template-columns:168px minmax(0,1fr)}.rt-job-premium-post .rt-job-card--benefits .rt-job-card__head{height:100%;padding-right:13px;border-right:1px solid rgba(255,255,255,.1)}.rt-job-premium-post .rt-job-card--benefits .rt-job-card__list{position:relative;z-index:2;display:grid;margin:0 0 0 13px;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:0 10px}.rt-job-premium-post .rt-job-card--benefits .rt-job-card__list li{min-height:0;padding:8px 3px 8px 22px;font-size:10.4px;line-height:1.16}
 CSS,
             MarketingCreativeFormat::Web => <<<'CSS'
-.rt-job-premium-web h1{font-size:38px;line-height:.9}.rt-job-premium-web .rt-subtitle{font-size:14px}.rt-job-premium-web .rt-intro{font-size:10px}.rt-job-premium-web .rt-job-card--benefits{grid-template-columns:132px minmax(0,1fr)}.rt-job-premium-web .rt-job-card--benefits .rt-job-card__list{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:0 7px}.rt-job-premium-web .rt-job-card--benefits .rt-job-card__list li{min-height:0;padding:3px 1px 3px 14px;font-size:8.2px;line-height:1.12}
+.rt-job-premium-web h1{font-size:38px;line-height:.9}.rt-job-premium-web .rt-subtitle{font-size:14px}.rt-job-premium-web .rt-intro{font-size:10px}.rt-job-premium-web .rt-job-details{height:300px;grid-template-rows:142px 149px}.rt-job-premium-web .rt-job-card--benefits{grid-template-columns:132px minmax(0,1fr)}.rt-job-premium-web .rt-job-card--benefits .rt-job-card__list{position:relative;z-index:2;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:0 7px}.rt-job-premium-web .rt-job-card--benefits .rt-job-card__list li{min-height:0;padding:5px 1px 5px 18px;font-size:8.4px;line-height:1.12}
 CSS,
             MarketingCreativeFormat::Story => '',
         };
+
+        return $layout.$this->compactBenefitIllustrationCss();
+    }
+
+    private function compactBenefitIllustrationCss(): string
+    {
+        return <<<'CSS'
+.rt-career-compact .rt-benefit-track-compact{position:absolute;z-index:0;right:12px;bottom:7px;display:block;width:calc(100% - 192px);height:calc(100% - 20px);object-fit:fill;opacity:.2}.rt-career-compact .rt-job-card--benefits .rt-job-card__list li{border-top-color:rgba(255,255,255,.105);text-shadow:0 1px 5px #080d13}.rt-career-compact .rt-job-card--benefits .rt-job-card__list li:before{top:50%;left:0;width:15px;height:15px;border:0;background:transparent center/contain no-repeat;content:"";transform:translateY(-50%)}.rt-career-compact .rt-job-card--benefits .rt-job-card__list li:nth-child(1):before{background-image:url("/rt-brand/illustrations/v2/benefit-contract.svg")}.rt-career-compact .rt-job-card--benefits .rt-job-card__list li:nth-child(2):before{background-image:url("/rt-brand/illustrations/v2/benefit-pension.svg")}.rt-career-compact .rt-job-card--benefits .rt-job-card__list li:nth-child(3):before{background-image:url("/rt-brand/illustrations/v2/benefit-salary.svg")}.rt-career-compact .rt-job-card--benefits .rt-job-card__list li:nth-child(4):before{background-image:url("/rt-brand/illustrations/v2/benefit-bonus.svg")}.rt-career-compact .rt-job-card--benefits .rt-job-card__list li:nth-child(5):before{background-image:url("/rt-brand/illustrations/v2/benefit-corporate.svg")}.rt-career-compact .rt-job-card--benefits .rt-job-card__list li:nth-child(6):before{background-image:url("/rt-brand/illustrations/v2/benefit-wellbeing.svg")}.rt-career-compact .rt-job-card--benefits .rt-job-card__list li:nth-child(7):before{background-image:url("/rt-brand/illustrations/v2/benefit-learning.svg")}.rt-career-compact .rt-job-card--benefits .rt-job-card__list li:nth-child(8):before{background-image:url("/rt-brand/illustrations/v2/benefit-team.svg")}.rt-career-compact .rt-role-illustration{border-color:rgba(255,255,255,.18);background:linear-gradient(145deg,rgba(17,27,38,.68),rgba(8,13,19,.9))}
+CSS;
     }
 }

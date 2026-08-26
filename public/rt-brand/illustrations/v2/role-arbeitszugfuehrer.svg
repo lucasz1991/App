@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" role="img" aria-label="Technische Linienillustration für Arbeitszugführer">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#C4CED6" stroke-width="4">
+      <path d="M23 177h312M39 193h280"/>
+      <path d="M52 177v16m39-16v16m39-16v16m39-16v16m39-16v16m39-16v16m39-16v16m39-16v16" opacity=".45"/>
+      <path d="M40 159V105h117v54H40zM53 117h91v28H53z"/>
+      <path d="M157 159V91h76l35 30v38H157zM173 105h45v27h-45zM230 105l24 21h-24z"/>
+      <path d="M55 105l36-49h67M91 56l72 49M126 56l47-24M173 32l18 15"/>
+      <path d="M176 32v-9h28v9M191 23V13"/>
+      <circle cx="69" cy="159" r="22"/><circle cx="132" cy="159" r="22"/>
+      <circle cx="187" cy="159" r="22"/><circle cx="241" cy="159" r="22"/>
+      <circle cx="69" cy="159" r="7"/><circle cx="132" cy="159" r="7"/>
+      <circle cx="187" cy="159" r="7"/><circle cx="241" cy="159" r="7"/>
+      <path d="M291 164l18-54 18 54zM299 140h20"/>
+      <path d="M278 62h50v30h-50zM288 62V49h30v13"/>
+    </g>
+    <g stroke="#E4002B" stroke-width="5">
+      <path d="M40 136h228"/>
+      <path d="M278 77h50"/>
+      <path d="M300 164l18-54"/>
+    </g>
+    <g stroke="#FF9CAF" stroke-width="3">
+      <path d="M91 73l15 10m12-19 15 10M284 55l-10-10m48 10 10-10m-29 4V36"/>
+    </g>
+    <path d="M173 105h45v27h-45z" fill="#111B25" opacity=".7"/>
+  </g>
+</svg>

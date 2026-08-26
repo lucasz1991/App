@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Starkes Team und direkte Wege">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="24" cy="12" r="6" stroke="#E4002B" stroke-width="2.5"/>
+    <circle cx="10" cy="19" r="5" stroke="#C4CED6" stroke-width="2.4"/>
+    <circle cx="38" cy="19" r="5" stroke="#C4CED6" stroke-width="2.4"/>
+    <path d="M14 42v-5c0-6 4.5-10 10-10s10 4 10 10v5M3 39v-4c0-5 3-8 7-8 2.4 0 4.4 1 5.6 2.8M45 39v-4c0-5-3-8-7-8-2.4 0-4.4 1-5.6 2.8" stroke="#C4CED6" stroke-width="2.4"/>
+    <path d="M13.5 24.5 18 27m16-2.5L30 27M18 42h12" stroke="#FF9CAF" stroke-width="2.4"/>
+  </g>
+</svg>
