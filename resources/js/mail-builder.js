@@ -61,6 +61,8 @@ const MAIL_SIGNATURE_FIXED_HEIGHT_ATTRIBUTE = '200';
 const MAIL_SIGNATURE_TRAIN_OVERLAP = '-200px';
 const MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT = '61';
 const MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE = 'data-rt-artifact-version';
+const MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS = Object.freeze(['v15', 'v16', 'v17', 'v18']);
+const MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS = Object.freeze(['v17', 'v18']);
 const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
 const MAIL_SIGNATURE_MAIN_MARKER = `<!-- ${MAIL_SIGNATURE_MAIN_MARKER_NAME} -->`;
 const MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE = 'data-rt-mail-contact-marker';
@@ -1468,7 +1470,7 @@ function assertSignatureBaseStructure(wrapper, rows) {
 }
 
 function usesFailOpenSignatureStage(rows) {
-    return ['v15', 'v16', 'v17'].includes(
+    return MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS.includes(
         String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '')
             .trim()
             .toLowerCase(),
@@ -1476,16 +1478,20 @@ function usesFailOpenSignatureStage(rows) {
 }
 
 function usesAspectSafeSignatureTrain(rows) {
-    return String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '')
-        .trim()
-        .toLowerCase() === 'v17';
+    return MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS.includes(
+        String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '')
+            .trim()
+            .toLowerCase(),
+    );
 }
 
 function elementUsesAspectSafeSignatureTrain(element) {
-    return String(element?.closest?.(`[${MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE}]`)
-        ?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '')
-        .trim()
-        .toLowerCase() === 'v17';
+    return MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS.includes(
+        String(element?.closest?.(`[${MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE}]`)
+            ?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '')
+            .trim()
+            .toLowerCase(),
+    );
 }
 
 function assertCanonicalSignatureStage(structure, failOpenStage = false) {
@@ -2579,7 +2585,7 @@ function componentClasses(component) {
 function componentUsesFailOpenSignatureStage(component) {
     for (let current = component; current; current = current?.parent?.()) {
         const attributes = current?.getAttributes?.() || current?.get?.('attributes') || {};
-        if (['v15', 'v16', 'v17'].includes(
+        if (MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS.includes(
             String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').trim().toLowerCase(),
         )) {
             return true;
@@ -2592,7 +2598,9 @@ function componentUsesFailOpenSignatureStage(component) {
 function componentUsesAspectSafeSignatureTrain(component) {
     for (let current = component; current; current = current?.parent?.()) {
         const attributes = current?.getAttributes?.() || current?.get?.('attributes') || {};
-        if (String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').trim().toLowerCase() === 'v17') {
+        if (MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS.includes(
+            String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').trim().toLowerCase(),
+        )) {
             return true;
         }
     }

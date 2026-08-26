@@ -53,8 +53,12 @@ test('reply and forward markup has one company contact DOM and one responsive wo
     const identity = signature.indexOf('class="rt-sign-identity"');
     const company = signature.indexOf('class="rt-sign-company"');
     assert.ok(logo >= 0 && identity > logo && company > identity, 'mobile source order is logo, person, company');
-    assert.match(signature, /<table class="rt-sign-layout" role="presentation" dir="rtl"/);
-    assert.match(signature, /class="rt-sign-identity" dir="ltr" rowspan="2"/);
+    assert.match(signature, /<table class="rt-sign-layout" role="presentation" width="100%"[^>]*style="width:100%;table-layout:fixed;/);
+    assert.match(signature, /class="rt-sign-logo" colspan="2" width="100%"/);
+    assert.match(signature, /<tr class="rt-stack rt-sign-top-row">[\s\S]*?class="rt-sign-identity"[\s\S]*?class="rt-sign-company"/);
+    assert.doesNotMatch(signature, /<table class="rt-sign-layout"[^>]*\bdir="rtl"/);
+    assert.doesNotMatch(signature, /\browspan=/);
+    assert.doesNotMatch(signature, /rt-sign-company-row/);
 });
 
 test('mobile rules restyle the same signature nodes without hide-and-show copies', async () => {
@@ -139,13 +143,13 @@ test('delivery keeps the fixed train pixel frame and its MSO fallback inside the
     assert.match(carrier, /public static function withIdleOverlay/);
     assert.equal(occurrences(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g), 0);
     assert.match(carrier, /<!--\[if mso\]><img class="rt-sign-train-mso"/);
-    assert.match(msoFallback, /<img class="rt-sign-train-mso"[^>]*display:inline-block;[^>]*vertical-align:bottom;/);
+    assert.match(msoFallback, /\$fallbackStyle = \$aspectSafeTrain[\s\S]*?display:inline-block;[\s\S]*?vertical-align:bottom;/);
     assert.match(msoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">/);
     assert.match(carrier, /\$layerPosition = \$failOpenStage \? 'position:relative;z-index:0;' : '';/);
     assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="'\.\$layerPosition\.'display:block;[^"\r\n]*height:200px;max-height:200px;[^"\r\n]*margin-bottom:-200px;/);
-    assert.match(carrier, /\$imageHeight = \$failOpenStage \? ' height="61"' : '';/);
+    assert.match(carrier, /\$imageHeight = \$failOpenStage && ! \$aspectSafeTrain \? ' height="61"' : '';/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"'\.\$imageHeight\.' alt=""/);
     assert.match(carrier, /canonicalStageStartMarkup\(bool \$failOpenStage\)[\s\S]*?height:auto;min-height:200px;overflow:visible;/);
     assert.match(carrier, /canonicalContentFrameStartMarkup\(bool \$failOpenStage = false\)[\s\S]*?position:relative;z-index:1;/);

@@ -40,13 +40,15 @@ final class SignatureArtifactVersion
 
     public const V17 = 'v17';
 
+    public const V18 = 'v18';
+
     /**
-     * V8 bis V17 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
+     * V8 bis V18 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
      * endet im Ankunftsbild und benoetigt deshalb kein separates Idle-Overlay.
      */
     public static function usesArrivalHoldTrain(?string $version): bool
     {
-        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17], true);
+        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17, self::V18], true);
     }
 
     /** V12 verwendet die optimierte, sofort sichtbare Zugdatei. */
@@ -61,32 +63,32 @@ final class SignatureArtifactVersion
         return in_array($version, [self::V13, self::V14], true);
     }
 
-    /** V15 bis V17 verwenden die kleineren Wortmarkenmedien. */
+    /** V15 bis V18 verwenden die kleineren Wortmarkenmedien. */
     public static function usesOptimizedMailAssets(?string $version): bool
     {
-        return in_array($version, [self::V15, self::V16, self::V17], true);
+        return in_array($version, [self::V15, self::V16, self::V17, self::V18], true);
     }
 
-    /** V15 bis V17 duerfen den Inhalt auch bei ignorierter negativer Margin nie abschneiden. */
+    /** V15 bis V18 duerfen den Inhalt auch bei ignorierter negativer Margin nie abschneiden. */
     public static function usesFailOpenStage(?string $version): bool
     {
-        return in_array($version, [self::V15, self::V16, self::V17], true);
+        return in_array($version, [self::V15, self::V16, self::V17, self::V18], true);
     }
 
     /**
-     * V17 reserviert am bewegten Haupt-IMG keine feste HTML-Hoehe mehr.
+     * V17/V18 reservieren am bewegten Haupt-IMG keine feste HTML-Hoehe mehr.
      * Prozentuale Breiten koennen dadurch nicht mehr mit einer unveraenderten
      * 61-px-Hoehe kollidieren. Das bedingte Outlook-PNG bleibt exakt 720x61.
      */
     public static function usesAspectSafeTrain(?string $version): bool
     {
-        return $version === self::V17;
+        return in_array($version, [self::V17, self::V18], true);
     }
 
-    /** V17 verwendet den reduzierten Fahrrauch und ein rauchfreies Endbild. */
+    /** V17/V18 verwenden den reduzierten Fahrrauch und ein rauchfreies Endbild. */
     public static function usesV17TrainAssets(?string $version): bool
     {
-        return $version === self::V17;
+        return in_array($version, [self::V17, self::V18], true);
     }
 
     public static function detect(MailDocumentKind|string $kind, string $html): ?string

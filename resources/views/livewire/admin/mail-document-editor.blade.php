@@ -204,6 +204,10 @@
                             <i data-feather="mail" class="h-4 w-4" aria-hidden="true"></i>
                             <span>Versandansicht</span>
                         </button>
+                        <button type="button" data-mail-view-mode="forward" aria-pressed="false" title="Kompiliertes Versand-HTML als zitierte Weiterleitung ohne Head-CSS prüfen">
+                            <i data-feather="corner-up-right" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Weiterleitung</span>
+                        </button>
                     </div>
 
                     <div class="rt-mail-preview-toggle" data-mail-theme-controls role="group" aria-label="Farbschema der Editorvorschau">
@@ -849,6 +853,7 @@
                     let compiledDeliveryHtml = '';
                     let deliveryPreviewRequest = null;
                     let deliveryPreviewGeneration = 0;
+                    let forwardPreviewRestore = null;
                     let previewResizeFrame = null;
                     let resizeGesture = null;
                     let detachBuilderToolbarContext = null;
@@ -957,7 +962,7 @@
                             previewResizeFrame = null;
                             if (!previewResizer || !editorFrame || !geometry) return;
 
-                            const target = selectedViewMode === 'delivery'
+                            const target = selectedViewMode !== 'edit'
                                 ? deliveryFrame
                                 : instance?.editor?.Canvas?.getFrameEl?.();
                             const targetRect = target?.getBoundingClientRect?.();
@@ -1007,6 +1012,7 @@
                                 custom: 'Individuell',
                             };
                             const degradationLabels = {
+                                'forward': 'Weiterleitung ohne Head-CSS',
                                 'images-off': 'Bilder aus',
                                 'head-css-off': 'Head-CSS aus',
                                 'css-off': 'Gesamtes CSS aus',
@@ -1014,12 +1020,20 @@
                             const scale = activeGeometry?.scale && activeGeometry.scale < 0.999
                                 ? ` · Fit ${Math.round(activeGeometry.scale * 100)} %`
                                 : ' · 100 %';
-                            const degradation = selectedDegradationMode === 'normal'
+                            const effectiveDegradationMode = selectedViewMode === 'forward'
+                                ? 'forward'
+                                : selectedDegradationMode;
+                            const degradationDisclaimer = effectiveDegradationMode === 'forward'
+                                ? 'Weiterleitungs-Robustheitsvorschau, keine iPhone- oder Mailclient-Emulation'
+                                : 'Robustheitsvorschau, keine Mailclient-Emulation';
+                            const degradation = effectiveDegradationMode === 'normal'
                                 ? ''
-                                : ` · ${degradationLabels[selectedDegradationMode]} · Robustheitsvorschau, keine Mailclient-Emulation`;
-                            const rendering = selectedViewMode === 'delivery'
-                                ? 'Kompiliertes Versand-HTML im Browser'
-                                : labels[activeDevice] || 'Editor';
+                                : ` · ${degradationLabels[effectiveDegradationMode]} · ${degradationDisclaimer}`;
+                            const rendering = selectedViewMode === 'forward'
+                                ? 'Kompilierte Weiterleitungsbasis im Browser'
+                                : (selectedViewMode === 'delivery'
+                                    ? 'Kompiliertes Versand-HTML im Browser'
+                                    : labels[activeDevice] || 'Editor');
                             previewStatus.textContent = `${rendering} · ${logicalWidth} px${scale}${degradation}`;
                         }
 
@@ -1082,14 +1096,40 @@
                         updatePreviewStatus(instance?.getPreviewGeometry?.());
                     };
 
+                    const rememberForwardPreviewViewport = () => {
+                        if (forwardPreviewRestore !== null) return;
+
+                        const geometry = instance?.getPreviewGeometry?.() || latestPreviewGeometry;
+                        forwardPreviewRestore = {
+                            device: selectedDevice,
+                            width: Math.round(Number(geometry?.logicalWidth) || 1920),
+                        };
+                    };
+
+                    const restoreForwardPreviewViewport = () => {
+                        const restore = forwardPreviewRestore;
+                        forwardPreviewRestore = null;
+                        if (!restore) return;
+
+                        if (restore.device === 'custom') {
+                            selectPreviewWidth(restore.width, { prepare: false });
+                            return;
+                        }
+
+                        selectDevice(restore.device);
+                    };
+
                     const renderCompiledDeliveryHtml = () => {
                         if (!deliveryFrame || compiledDeliveryHtml === '') return;
 
-                        const preview = selectedDegradationMode === 'normal'
+                        const effectiveDegradationMode = selectedViewMode === 'forward'
+                            ? 'forward'
+                            : selectedDegradationMode;
+                        const preview = effectiveDegradationMode === 'normal'
                             ? { html: compiledDeliveryHtml, disclaimer: '' }
                             : instance?.createDegradationPreview?.(
                                 compiledDeliveryHtml,
-                                selectedDegradationMode,
+                                effectiveDegradationMode,
                             );
                         if (!preview?.html) return;
 
@@ -1097,7 +1137,7 @@
                             deliveryState.textContent = preview.disclaimer || 'Kompiliertes Versand-HTML wird im Browser dargestellt …';
                         }
                         deliveryFrame.onload = () => {
-                            if (deliveryState && selectedDegradationMode === 'normal') deliveryState.textContent = '';
+                            if (deliveryState && effectiveDegradationMode === 'normal') deliveryState.textContent = '';
                             syncPreviewResizer();
                         };
                         deliveryFrame.srcdoc = preview.html;
@@ -1123,7 +1163,7 @@
                             css: candidate.css,
                             expected_hash: document_.contentHash || '',
                         }, { signal: deliveryPreviewRequest.signal });
-                        if (generation !== deliveryPreviewGeneration || selectedViewMode !== 'delivery') return;
+                        if (generation !== deliveryPreviewGeneration || selectedViewMode === 'edit') return;
                         if (payload.preview?.rendering !== 'compiled-system-mail'
                             || typeof payload.preview?.html !== 'string'
                             || payload.preview.html.trim() === '') {
@@ -1132,23 +1172,43 @@
 
                         compiledDeliveryHtml = payload.preview.html;
                         showFindings(payload.report, payload.compatibility);
+                        if (selectedViewMode === 'forward') {
+                            const compilerMessages = Array.isArray(payload.report?.messages)
+                                ? payload.report.messages.map((message) => `Versand-Compiler: ${message}`)
+                                : [];
+                            showFindings({
+                                title: 'Weiterleitungsansicht: visuelle Prüfung erforderlich',
+                                messages: [
+                                    'Head-CSS wird erst im Browser aus dem kompilierten Versand-HTML entfernt. Diese Ansicht ist ein visueller Robustheitstest und kein geprüfter Nachweis für einen bestimmten Mailclient.',
+                                    ...compilerMessages,
+                                ],
+                                findings: payload.report?.findings || [],
+                            });
+                        }
                         renderCompiledDeliveryHtml();
                     };
 
                     const selectViewMode = async (mode) => {
-                        selectedViewMode = mode === 'delivery' ? 'delivery' : 'edit';
+                        const nextViewMode = ['delivery', 'forward'].includes(mode) ? mode : 'edit';
+                        const enteringForward = selectedViewMode !== 'forward' && nextViewMode === 'forward';
+                        const leavingForward = selectedViewMode === 'forward' && nextViewMode !== 'forward';
+                        if (enteringForward) rememberForwardPreviewViewport();
+                        selectedViewMode = nextViewMode;
+                        if (enteringForward) selectDevice('mobile');
+                        if (leavingForward) restoreForwardPreviewViewport();
                         editorFrame?.setAttribute('data-mail-view-mode', selectedViewMode);
                         viewModeButtons.forEach((button) => {
                             button.setAttribute('aria-pressed', String(button.dataset.mailViewMode === selectedViewMode));
                             button.setAttribute('aria-busy', String(
-                                selectedViewMode === 'delivery'
-                                && button.dataset.mailViewMode === 'delivery'
+                                selectedViewMode !== 'edit'
+                                && button.dataset.mailViewMode === selectedViewMode
                             ));
                         });
                         themeButtons.forEach((button) => {
-                            button.disabled = selectedViewMode === 'delivery';
+                            button.disabled = selectedViewMode !== 'edit';
                         });
-                        themeControls?.setAttribute('aria-disabled', String(selectedViewMode === 'delivery'));
+                        themeControls?.setAttribute('aria-disabled', String(selectedViewMode !== 'edit'));
+                        if (degradationSelect) degradationSelect.disabled = selectedViewMode === 'forward';
 
                         if (selectedViewMode === 'edit') {
                             deliveryPreviewGeneration += 1;
@@ -1169,9 +1229,12 @@
                             await loadCompiledDeliveryPreview();
                         } catch (error) {
                             if (error?.name === 'AbortError') return;
-                            const surfaced = showRequestError(error, 'Versandansicht nicht verfügbar');
+                            const unavailableTitle = selectedViewMode === 'forward'
+                                ? 'Weiterleitungsansicht nicht verfügbar'
+                                : 'Versandansicht nicht verfügbar';
+                            const surfaced = showRequestError(error, unavailableTitle);
                             if (deliveryState) deliveryState.textContent = surfaced.message;
-                            toast('error', surfaced.message, 'Versandansicht nicht verfügbar');
+                            toast('error', surfaced.message, unavailableTitle);
                         } finally {
                             viewModeButtons.forEach((button) => button.setAttribute('aria-busy', 'false'));
                         }
@@ -1182,7 +1245,7 @@
                             ? mode
                             : 'normal';
                         if (degradationSelect) degradationSelect.value = selectedDegradationMode;
-                        if (selectedViewMode === 'delivery') renderCompiledDeliveryHtml();
+                        if (selectedViewMode !== 'edit') renderCompiledDeliveryHtml();
                         else instance?.setDegradationMode?.(selectedDegradationMode);
                         updatePreviewStatus(instance?.getPreviewGeometry?.());
                     };

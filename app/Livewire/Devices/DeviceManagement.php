@@ -15,6 +15,7 @@ use App\Services\DeviceManagement\DeviceArtifactService;
 use App\Services\DeviceManagement\DeviceCommandService;
 use App\Services\DeviceManagement\DeviceEnrollmentModeCatalog;
 use App\Services\DeviceManagement\DeviceEnrollmentService;
+use App\Services\DeviceManagement\DeviceFleetSnapshot;
 use App\Services\DeviceManagement\DeviceInventoryImportService;
 use App\Services\DeviceManagement\DeviceInventoryService;
 use App\Services\DeviceManagement\DeviceManagementSettings;
@@ -674,6 +675,7 @@ class DeviceManagement extends Component
         DeviceProviderRegistry $providers,
         DeviceManagementSettings $settings,
         DeviceEnrollmentModeCatalog $enrollmentModes,
+        DeviceFleetSnapshot $fleetSnapshot,
     ) {
         Gate::authorize('devices.view');
 
@@ -765,15 +767,7 @@ class DeviceManagement extends Component
                 ->get(['id', 'name', 'email']),
             'locations' => $locations,
             'locationStats' => $locationStats,
-            'stats' => [
-                'total' => Device::query()->count(),
-                'assigned' => Device::query()->whereHas('activeAssignment')->count(),
-                'inventory' => Device::query()->where('lifecycle_status', 'inventory')->count(),
-                'attention' => Device::query()->where(function (Builder $query): void {
-                    $query->whereIn('compliance_status', ['warning', 'non_compliant'])
-                        ->orWhere('management_status', 'error');
-                })->count(),
-            ],
+            'stats' => $fleetSnapshot->get(),
         ])->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
     }
 

@@ -83,6 +83,15 @@ export const MAIL_DEGRADATION_MODES = Object.freeze({
         colorScheme: null,
         disclaimer: DEGRADATION_DISCLAIMER,
     }),
+    forward: Object.freeze({
+        id: 'forward',
+        label: 'Weiterleitung',
+        description: 'Prüft das kompilierte HTML als zitierte Weiterleitung ohne Head-CSS; Inline-Stile und HTML-Attribute bleiben erhalten.',
+        clientEmulation: false,
+        viewportWidth: 375,
+        colorScheme: null,
+        disclaimer: 'Weiterleitungs-Robustheitsvorschau – keine iPhone- oder Mailclient-Emulation.',
+    }),
     'css-off': Object.freeze({
         id: 'css-off',
         label: 'CSS aus',
@@ -633,6 +642,23 @@ function removeAllCss(root) {
     });
 }
 
+function prepareForwarding(parsed) {
+    removeEmbeddedCss(parsed.root);
+    if (!parsed.fullDocument || !parsed.document_?.body) return;
+
+    const body = parsed.document_.body;
+    const quote = parsed.document_.createElement('blockquote');
+    quote.setAttribute('type', 'cite');
+    quote.setAttribute('data-rt-mail-forwarded-content', '');
+    quote.setAttribute(
+        'style',
+        'margin:0 0 0 8px;padding:0 0 0 8px;border:0;border-left:1px solid #d1d5db;',
+    );
+
+    while (body.firstChild) quote.appendChild(body.firstChild);
+    body.appendChild(quote);
+}
+
 function ensureMeta(document_, name, content) {
     const escapedName = String(name).replace(/"/g, '\\"');
     let meta = document_.head?.querySelector?.(`meta[name="${escapedName}"]`) || null;
@@ -680,6 +706,7 @@ export function transformMailHtmlForDegradation(html, mode = 'normal', options =
 
     if (normalizedMode === 'images-off') disableImages(parsed.root);
     if (normalizedMode === 'head-css-off') removeEmbeddedCss(parsed.root);
+    if (normalizedMode === 'forward') prepareForwarding(parsed);
     if (normalizedMode === 'css-off') removeAllCss(parsed.root);
 
     if (parsed.fullDocument) {

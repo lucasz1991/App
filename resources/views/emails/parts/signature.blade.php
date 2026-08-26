@@ -16,17 +16,17 @@
     weiterhin ungefaehr bei 60 Prozent endet. Es gibt keine Umrechnung aus
     einer Prozent-Margin und keine vom Editor-Viewport abhaengige Hoehe.
 
-    AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
-    Person, rechts die Firma. Logo und Firmenkontakte existieren jeweils
-    genau einmal: Im Breitlayout sitzen beide rechts. Auf schmalen Ansichten
-    stapelt die Quellreihenfolge erst das Logo, dann die Person und danach
-    die Firmendaten. Damit koennen Mailclients beim Antworten oder
-    Weiterleiten niemals eine versteckte zweite Fassung zusaetzlich zeigen.
+    AUFBAU: Die Wortmarke steht in einer eigenen ersten Tabellenzeile. Darunter
+    folgen Person und Firma in ihrer sichtbaren Links-nach-rechts-Reihenfolge.
+    Logo und Firmenkontakte existieren jeweils genau einmal. Es gibt weder
+    RTL-Reordering noch Rowspan-Abhaengigkeiten; beim Verlust von Head-CSS
+    bleibt deshalb eine vollstaendig lesbare Zweispaltenfassung bestehen. Auf
+    schmalen Ansichten darf dieselbe zweite Zeile progressiv stapeln.
 
     Die Markenspalte zeigt bewusst NUR den Schriftzug: das RT-Zeichen davor
     doppelte die Marke auf engem Raum, und der Claim darunter kostete eine
     Zeile, ohne etwas zu sagen. Auch die Wortmarke existiert nur einmal im
-    DOM; mobil wird dieselbe Marke oberhalb der Person gesetzt.
+    DOM und steht bereits strukturell oberhalb der Person.
 
     Alle Werte kommen bereits HTML-escaped aus App\Support\MailSignature.
     Optionale Zeilen (Durchwahl, Mobil, Website, Firmentelefon) tragen die
@@ -88,14 +88,13 @@
         <table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">
             <tr>
                 <td class="rt-pad rt-sign-content" valign="bottom" style="padding:{{ $padding }};position:relative;z-index:1;vertical-align:bottom;">
-                    {{-- Einmaliges, Outlook-taugliches Reverse-Stacking:
-                         Desktop ordnet die RTL-Tabellenspalten als Person
-                         links und Firma rechts an. Mobil werden die Zellen
-                         in ihrer DOM-Reihenfolge Logo, Person, Firmendaten
-                         gestapelt. Weder Logo noch Kontakte werden kopiert. --}}
-                    <table class="rt-sign-layout" role="presentation" dir="rtl" width="100%" border="0" cellspacing="0" cellpadding="0" style="direction:rtl;width:100%;border-collapse:collapse;position:relative;z-index:1;">
-                        <tr class="rt-stack rt-sign-top-row">
-                <td class="rt-sign-logo" dir="ltr" width="50%" valign="top" align="right" style="direction:ltr;width:50%;padding-left:24px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;vertical-align:top;">
+                    {{-- V18-SAFE-Grundstruktur: Die Quellreihenfolge entspricht
+                         der sichtbaren Reihenfolge. Head-CSS darf beim
+                         Weiterleiten komplett entfallen, ohne Logo, Person
+                         oder Firma umzuschichten oder zu duplizieren. --}}
+                    <table class="rt-sign-layout" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;table-layout:fixed;border-collapse:collapse;position:relative;z-index:1;">
+                        <tr>
+                <td class="rt-sign-logo" colspan="2" width="100%" valign="top" align="right" style="width:100%;padding:0 0 10px;text-align:right;vertical-align:top;">
                     {{-- OUTLOOK BEKOMMT DAS STANDBILD. Die bewegte Marke baut
                          sich Zeichen fuer Zeichen auf; ihr erstes Einzelbild
                          ist deshalb fast leer — und genau dieses eine zeigt
@@ -108,10 +107,12 @@
                     <img class="rt-logo" src="{{ $values['LOGO_SRC'] }}" width="210" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:210px;max-width:100%;height:auto;margin-left:auto;mso-hide:all;">
                     <!--[if mso]><img class="rt-logo" src="{{ $values['LOGO_STILL_SRC'] ?? $values['LOGO_SRC'] }}" width="210" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:210px;height:auto;margin-left:auto;"><![endif]-->
                 </td>
+                        </tr>
+                        <tr class="rt-stack rt-sign-top-row">
                 {{-- Ohne Person bleibt die Namenszeile LEER: Die Marke steht
-                     bereits als Wortmarke in der rechten Spalte, der
-                     Firmenname darunter waere eine Doppelung. --}}
-                <td class="rt-sign-identity" dir="ltr" rowspan="2" width="50%" valign="top" align="left" style="direction:ltr;width:50%;padding:0 24px 0 0;position:relative;z-index:1;text-align:left;vertical-align:top;">
+                     bereits als Wortmarke darueber, der Firmenname darunter
+                     waere eine Doppelung. --}}
+                <td class="rt-sign-identity" dir="ltr" width="50%" valign="top" align="left" style="direction:ltr;width:50%;padding:8px 24px 0 0;position:relative;z-index:1;text-align:left;vertical-align:top;">
                     {{-- Eigener Behaelter, damit Name und Funktion gestapelt
                          NEBEN die Kontaktliste ruecken koennen statt darueber
                          (siehe responsive-css: inline-block). --}}
@@ -141,12 +142,10 @@
                         </tbody>
                     </table>
                 </td>
-                        </tr>
-                        <tr class="rt-sign-company-row">
-                {{-- Die rechte Trennlinie wird auf Desktop ueber beide
-                     Firmenzeilen fortgesetzt. Mobil verschwindet sie und
-                     derselbe einzelne Kontaktblock folgt der Person. --}}
-                <td class="rt-sign-company" dir="ltr" width="50%" valign="top" align="right" style="direction:ltr;width:50%;padding:14px 0 0 24px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;vertical-align:top;">
+                {{-- Die rechte Trennlinie trennt nur die beiden Datenzellen.
+                     Mobil verschwindet sie und derselbe einzelne Kontaktblock
+                     folgt der Person. --}}
+                <td class="rt-sign-company" dir="ltr" width="50%" valign="top" align="right" style="direction:ltr;width:50%;padding:8px 0 0 24px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;vertical-align:top;">
                     {{-- Im unpersoenlichen Fall stehen Firmentelefon und
                          Firmen-E-Mail bereits links an der Stelle von
                          Durchwahl und Mailadresse. Rechts blieben sie eine

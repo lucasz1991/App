@@ -13,7 +13,7 @@ use RuntimeException;
 /** Gemeinsamer Save-/Publish-/Web-/Outlook-Vertrag der Signaturquelle. */
 final class SignatureDocumentContract
 {
-    /** Aktueller Vertrag: V15/V16-Fail-open-Buehne; aeltere Pixelbuehnen bleiben lesbar. */
+    /** Aktueller Vertrag: V15-V18-Fail-open-Buehne; aeltere Pixelbuehnen bleiben lesbar. */
     public const SCHEMA = 26;
 
     /** @var list<string> */
@@ -93,7 +93,7 @@ final class SignatureDocumentContract
      *
      * Neue Editor-/Publish-Staende muessen den markerabhaengigen Schema-26-
      * IMG-Vertrag besitzen. V14 und aelter behalten dabei ihre unveraenderte
-     * feste Pixelbuehne; V15/V16 verwenden die fail-open Aussenbuehne.
+     * feste Pixelbuehne; V15-V18 verwenden die fail-open Aussenbuehne.
      * besitzen. Der Versand darf daneben nur die einzeln beschriebenen
      * Altformen lesen: Schema 6 (Padding), Schema 9/20 (Background), Schema
      * 12-19 (Bild-Layer) und bekannte Flow-Zwischenstaende.
@@ -177,6 +177,166 @@ final class SignatureDocumentContract
             throw new RuntimeException('Der Zug muss als kanonisches IMG im Signatur-Layer gespeichert werden.');
         }
         self::assertTableStructure($html, $allowLegacyPaddedCarrier);
+
+        if (SignatureArtifactVersion::detect('signature', $html) === SignatureArtifactVersion::V18) {
+            self::assertV18ForwardSafeLayout($html);
+        }
+    }
+
+    /**
+     * V18 verzichtet bewusst auf die fragile Kombination aus RTL-Reordering
+     * und Rowspan. Mobile Mailclients duerfen Head-CSS beim Weiterleiten
+     * entfernen oder berechnete Display-Werte einbetten, ohne die logische
+     * Reihenfolge Logo, Person, Firma zerlegen zu koennen.
+     */
+    private static function assertV18ForwardSafeLayout(string $html): void
+    {
+        $wrapperId = 'rt-signature-v18-contract-'.hash('sha256', $html);
+        while (str_contains($html, $wrapperId)) {
+            $wrapperId .= 'x';
+        }
+
+        $previousErrors = libxml_use_internal_errors(true);
+
+        try {
+            $document = new DOMDocument('1.0', 'UTF-8');
+            $loaded = $document->loadHTML(
+                '<?xml encoding="UTF-8"><table id="'.$wrapperId.'"><tbody>'.$html.'</tbody></table>',
+                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING,
+            );
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrors);
+        }
+
+        $wrapper = $loaded ? $document->getElementById($wrapperId) : null;
+        if (! $wrapper instanceof DOMElement) {
+            throw new RuntimeException('Die V18-Signatur ist kein eindeutiges Tabellenfragment.');
+        }
+
+        $layouts = [];
+        foreach ($wrapper->getElementsByTagName('table') as $table) {
+            if ($table instanceof DOMElement && in_array('rt-sign-layout', self::classes($table), true)) {
+                $layouts[] = $table;
+            }
+        }
+        if (count($layouts) !== 1 || ! self::isMailSafeWrapperTable($layouts[0])) {
+            throw new RuntimeException('Die V18-Signatur muss genau eine mail-sichere rt-sign-layout-Tabelle behalten.');
+        }
+
+        $layout = $layouts[0];
+        foreach ([$layout, ...iterator_to_array($layout->getElementsByTagName('*'))] as $element) {
+            if (! $element instanceof DOMElement) {
+                continue;
+            }
+            if (strtolower(trim($element->getAttribute('dir'))) === 'rtl'
+                || preg_match('/(?:^|;)\s*direction\s*:\s*rtl\b/i', $element->getAttribute('style')) === 1
+                || $element->hasAttribute('rowspan')) {
+                throw new RuntimeException('Die V18-Weiterleitungsstruktur darf weder RTL-Reordering noch Rowspan verwenden.');
+            }
+        }
+
+        $rowContainer = self::firstElementChild($layout);
+        if ($rowContainer instanceof DOMElement && strtolower($rowContainer->tagName) === 'tbody') {
+            $rows = array_values(array_filter(
+                self::elementChildren($rowContainer),
+                static fn (DOMElement $element): bool => strtolower($element->tagName) === 'tr',
+            ));
+        } else {
+            $rows = array_values(array_filter(
+                self::elementChildren($layout),
+                static fn (DOMElement $element): bool => strtolower($element->tagName) === 'tr',
+            ));
+        }
+
+        if (count($rows) !== 2) {
+            throw new RuntimeException('Die V18-Weiterleitungsstruktur muss genau eine Logozeile und eine Datenzeile besitzen.');
+        }
+
+        $logoCells = array_values(array_filter(
+            self::elementChildren($rows[0]),
+            static fn (DOMElement $element): bool => strtolower($element->tagName) === 'td',
+        ));
+        $dataCells = array_values(array_filter(
+            self::elementChildren($rows[1]),
+            static fn (DOMElement $element): bool => strtolower($element->tagName) === 'td',
+        ));
+
+        if (count($logoCells) !== 1
+            || ! self::hasExactClasses(self::classes($logoCells[0]), ['rt-sign-logo'])
+            || trim($logoCells[0]->getAttribute('colspan')) !== '2'
+            || trim($logoCells[0]->getAttribute('width')) !== '100%') {
+            throw new RuntimeException('Die V18-Weiterleitungsstruktur muss das einzelne Logo in einer vollen ersten Zeile fuehren.');
+        }
+
+        if (! self::hasExactClasses(self::classes($rows[1]), ['rt-stack', 'rt-sign-top-row'])
+            || count($dataCells) !== 2
+            || ! self::hasExactClasses(self::classes($dataCells[0]), ['rt-sign-identity'])
+            || ! self::hasExactClasses(self::classes($dataCells[1]), ['rt-sign-company'])
+            || trim($dataCells[0]->getAttribute('width')) !== '50%'
+            || trim($dataCells[1]->getAttribute('width')) !== '50%') {
+            throw new RuntimeException('Die V18-Weiterleitungsstruktur muss Person und Firma in dieser logischen Reihenfolge fuehren.');
+        }
+
+        foreach ([
+            [$layout, 'Layout'],
+            [$logoCells[0], 'Logo'],
+            [$rows[1], 'Datenzeile'],
+            [$dataCells[0], 'Person'],
+            [$dataCells[1], 'Firma'],
+        ] as [$element, $label]) {
+            self::assertV18ElementVisible($element, $label);
+        }
+
+        foreach ($wrapper->getElementsByTagName('*') as $element) {
+            if ($element instanceof DOMElement && in_array('rt-sign-company-row', self::classes($element), true)) {
+                throw new RuntimeException('Die alte separate Firmenzeile ist in der V18-Weiterleitungsstruktur nicht zulaessig.');
+            }
+        }
+    }
+
+    /** Kritische V18-Knoten duerfen nicht nur ueber Head-CSS sichtbar werden. */
+    private static function assertV18ElementVisible(DOMElement $element, string $label): void
+    {
+        if ($element->hasAttribute('hidden')) {
+            throw new RuntimeException("Die V18-Weiterleitungsstruktur darf {$label} nicht ausblenden.");
+        }
+
+        $style = CssSemantic::decodeHtmlEntitiesOnce($element->getAttribute('style'));
+        if (preg_match('/[\x{0000}-\x{0008}\x{000B}\x{000E}-\x{001F}\x{007F}-\x{009F}]/u', $style) !== 0
+            || str_contains($style, '/*')
+            || str_contains($style, '*/')
+            || str_contains($style, '\\')) {
+            throw new RuntimeException("Die V18-Sichtbarkeit fuer {$label} enthaelt unlesbares CSS.");
+        }
+
+        $effective = [];
+        foreach (self::splitCssAtTopLevel($style, ';') as $segment) {
+            $colon = strpos($segment, ':');
+            if ($colon === false) {
+                $property = strtolower(trim($segment));
+                if (in_array($property, ['display', 'visibility', 'opacity'], true)) {
+                    throw new RuntimeException("Die V18-Sichtbarkeit fuer {$label} enthaelt eine unlesbare Deklaration.");
+                }
+
+                continue;
+            }
+
+            $property = strtolower(trim(substr($segment, 0, $colon)));
+            if (! in_array($property, ['display', 'visibility', 'opacity'], true)) {
+                continue;
+            }
+
+            $value = strtolower(trim(substr($segment, $colon + 1)));
+            $effective[$property] = trim((string) preg_replace('/\s*!important\s*$/i', '', $value));
+        }
+
+        $hidden = ($effective['display'] ?? null) === 'none'
+            || in_array($effective['visibility'] ?? null, ['hidden', 'collapse'], true)
+            || (isset($effective['opacity']) && preg_match('/^(?:0+(?:\.0+)?|\.0+)$/', $effective['opacity']) === 1);
+        if ($hidden) {
+            throw new RuntimeException("Die V18-Weiterleitungsstruktur darf {$label} nicht ausblenden.");
+        }
     }
 
     private static function assertExactMarkers(string $html): void

@@ -38,7 +38,7 @@ class EmailTemplatesPageTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
-    public function test_verified_user_gets_a_guided_signature_flow_two_downloads_and_lazy_previews(): void
+    public function test_verified_employee_gets_four_minimal_actions_and_lazy_previews(): void
     {
         $user = User::factory()->create();
 
@@ -55,24 +55,20 @@ class EmailTemplatesPageTest extends TestCase
             ->assertDontSee(route('email-templates.download', ['template' => 'signatur-text']), escape: false)
             ->assertSee('previewUrls:', escape: false)
             ->assertDontSee('previewDownloadUrls:', escape: false)
-            ->assertSee('profileModalOpen: false', escape: false)
             ->assertSee('previewModalOpen: false', escape: false)
             ->assertSee('signatureModalOpen: false', escape: false)
             ->assertSee('signatureFrameReady: false', escape: false)
             ->assertSee('signatureLoadFailed: false', escape: false)
             ->assertSee('signatureCopyUrl:', escape: false)
             ->assertSee("mailTheme: 'light'", escape: false)
-            ->assertSee('data-email-template-modal-trigger="profile"', escape: false)
             ->assertSee('data-email-template-modal-trigger="preview"', escape: false)
             ->assertSee('data-email-template-modal-trigger="signature"', escape: false)
-            ->assertSee('data-email-template-modal="profile"', escape: false)
             ->assertSee('data-email-template-modal="preview"', escape: false)
             ->assertSee('data-email-template-modal="signature"', escape: false)
             ->assertSee('data-email-template-signature-copy-action', escape: false)
             ->assertSee('data-email-template-signature-copy-frame', escape: false)
             ->assertSee('data-email-template-signature-copy-confirm', escape: false)
             ->assertSee('aria-haspopup="dialog"', escape: false)
-            ->assertSee('aria-controls="email-template-profile-modal"', escape: false)
             ->assertSee('aria-controls="email-template-preview-modal"', escape: false)
             ->assertSee('aria-controls="email-template-signature-modal"', escape: false)
             ->assertSee('data-email-template-primary-downloads', escape: false)
@@ -81,6 +77,14 @@ class EmailTemplatesPageTest extends TestCase
             ->assertSee('Direkt öffnen und kopieren')
             ->assertSee('Profildaten ergänzen')
             ->assertSee('data-email-template-secondary-action', escape: false)
+            ->assertDontSee('data-email-template-quick-actions', escape: false)
+            ->assertDontSee('data-email-template-modal="profile"', escape: false)
+            ->assertDontSee(__('app.email_templates_flow.steps_label'))
+            ->assertDontSee(__('app.email_templates_flow.signature_safety'))
+            ->assertDontSee(__('app.email_templates_flow.profile_included'))
+            ->assertDontSee(__('app.email_templates_flow.approved_design'))
+            ->assertDontSee(__('app.email_templates_legal_hint'))
+            ->assertDontSee(__('app.email_templates_flow.employee_preview'))
             ->assertSee('data-template-format="zip"', escape: false)
             ->assertSee('data-template-format="html"', escape: false)
             ->assertSee('<template x-if="previewModalOpen">', escape: false)
@@ -97,9 +101,8 @@ class EmailTemplatesPageTest extends TestCase
             ->assertDontSee('previewFrameLoaded', escape: false)
             ->assertDontSee('previewFrameReady', escape: false)
             ->assertDontSee('data-email-template-preview-loading', escape: false)
-            ->assertSee('data-email-template-preview-replay', escape: false)
+            ->assertDontSee('data-email-template-preview-replay', escape: false)
             ->assertDontSee('data-email-template-preview-theme-toggle', escape: false)
-            ->assertSee('Vorschau der hellen Mitarbeiter-Version')
             ->assertSee("window.matchMedia('(prefers-reduced-motion: reduce)')", escape: false)
             ->assertSee('previewPlaybackId: 0', escape: false)
             ->assertSee("preview.searchParams.set('play', String(this.previewPlaybackId))", escape: false)
@@ -118,8 +121,9 @@ class EmailTemplatesPageTest extends TestCase
             'vorlage-html',
             'signatur-outlook-hell',
         ], $matches[1]);
-        $this->assertSame(3, substr_count($content, 'data-email-template-modal="'));
-        $this->assertSame(3, substr_count($content, 'data-email-template-modal-trigger="'));
+        $this->assertSame(2, substr_count($content, 'data-email-template-modal="'));
+        $this->assertSame(2, substr_count($content, 'data-email-template-modal-trigger="'));
+        $this->assertSame(4, substr_count($content, 'data-email-template-employee-action="'));
         $this->assertSame(2, substr_count($content, 'data-email-template-primary-download="'));
         $this->assertSame(2, substr_count($content, 'data-email-template-primary-action'));
         $this->assertSame(2, substr_count($content, '<iframe'));
@@ -1658,7 +1662,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->actingAs($englishUser)
             ->get(route('email-templates.index'))
             ->assertOk()
-            ->assertSee('Quick setup')
+            ->assertDontSee('Quick setup')
             ->assertSee('New Outlook / Web')
             ->assertSee('Copy signature')
             ->assertSee('Try again')

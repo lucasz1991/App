@@ -380,7 +380,7 @@ class MailSignature
     }
 
     /**
-     * V8 bis V17 sind fachlich markierte Signaturstaende und besitzen eigene
+     * V8 bis V18 sind fachlich markierte Signaturstaende und besitzen eigene
      * Haupt-/Standbilder ohne separates nachlaufendes Idle-Overlay. Die Auswahl geschieht
      * am tatsächlich gerenderten HTML statt am Importdateinamen, damit
      * Vorschau, Systemmail, Download und Testmail dieselbe Bildidentität sehen.
@@ -456,7 +456,7 @@ class MailSignature
             }
         }
 
-        // V8 bis V17 enthalten ihren vollstaendigen Ankunftsstand bereits im
+        // V8 bis V18 enthalten ihren vollstaendigen Ankunftsstand bereits im
         // Haupt-GIF und duerfen nicht durch das alte, zeitversetzt eingeblendete
         // Idle-Overlay ergaenzt werden.
         $values['TRAIN_IDLE_SRC'] = '';
@@ -518,6 +518,10 @@ class MailSignature
      * Das Attribut wird serverseitig normalisiert: Ein importierter Entwurf
      * kann die kompakte Geometrie nicht eigenmaechtig fuer Personensignaturen
      * erzwingen.
+     *
+     * V18 bleibt absichtlich bei seiner 200-px-SAFE-Basis: Die Weiterleitungs-
+     * festigkeit darf nicht von einer nur im Head vorhandenen Kompaktregel
+     * abhaengen.
      */
     private function applyRuntimeDensityProfile(string $documentHtml, string $renderedHtml): string
     {

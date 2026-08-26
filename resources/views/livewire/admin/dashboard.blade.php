@@ -310,6 +310,16 @@
                     </div>
                 </article>
             </div>
+
+            @can('devices.view')
+                @if ($deviceSnapshot)
+                    <x-ui.dashboard.device-management-widget
+                        :stats="$deviceSnapshot"
+                        :href="$deviceSnapshot['available'] ? route('admin.devices') : null"
+                        data-dashboard-item
+                    />
+                @endif
+            @endcan
         </section>
 
         {{-- 3 · KONTENENTWICKLUNG

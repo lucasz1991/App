@@ -403,7 +403,8 @@ body[data-mode='dark'] .rt-mail-editor-frame {
     display: none;
 }
 
-.rt-mail-editor-frame[data-mail-view-mode='delivery'] .rt-mail-builder-root {
+.rt-mail-editor-frame[data-mail-view-mode='delivery'] .rt-mail-builder-root,
+.rt-mail-editor-frame[data-mail-view-mode='forward'] .rt-mail-builder-root {
     visibility: hidden;
 }
 

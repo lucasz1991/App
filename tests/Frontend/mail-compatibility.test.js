@@ -189,6 +189,7 @@ test('plain and HTML-safe render strings are explicit and deterministic', () => 
         '&lt;strong title=&quot;x&quot;&gt;A &amp; B&lt;/strong&gt;',
     );
     assert.equal(normalizeMailDegradationMode('DARK'), 'dark');
+    assert.equal(normalizeMailDegradationMode('FORWARD'), 'forward');
     assert.equal(normalizeMailDegradationMode('outlook-2016'), 'normal');
 });
 
@@ -232,6 +233,20 @@ test('head-css-off keeps inline styles while css-off preserves only HTML present
     assert.match(cssOff, /role="presentation"/);
 });
 
+test('forward mode uses quoted compiled HTML without Head CSS and keeps the inline SAFE basis', () => {
+    const preview = createMailDegradationPreview(mailDocument, 'forward', { environment });
+
+    assert.equal(preview.clientEmulation, false);
+    assert.equal(preview.viewportWidth, 375);
+    assert.match(preview.disclaimer, /keine iPhone- oder Mailclient-Emulation/);
+    assert.doesNotMatch(preview.html, /<style\b|rel="stylesheet"/i);
+    assert.match(preview.html, /style="width: 600px"/);
+    assert.match(preview.html, /<blockquote(?=[^>]*type="cite")(?=[^>]*data-rt-mail-forwarded-content)[^>]*>/);
+    assert.equal((preview.html.match(/RailTime Logo/g) || []).length, 1);
+    assert.equal((preview.html.match(/href="https:\/\/rail-time\.de"/g) || []).length, 1);
+    assert.equal(mailDocument.includes('<style>.hero'), true, 'the source HTML remains unchanged');
+});
+
 test('mobile and dark modes expose honest host metadata instead of client emulation claims', () => {
     const mobile = createMailDegradationPreview(mailDocument, 'mobile', { environment });
     const dark = createMailDegradationPreview(mailDocument, 'dark', { environment });
@@ -257,8 +272,11 @@ test('mobile and dark modes expose honest host metadata instead of client emulat
 test('fragment degradation preserves table-row shape and never adds a wrapper', () => {
     const fragment = '<tr style="color:red"><td><img src="logo.png" alt="Logo"></td></tr>';
     const degraded = transformMailHtmlForDegradation(fragment, 'css-off', { environment });
+    const forwarded = transformMailHtmlForDegradation(fragment, 'forward', { environment });
 
     assert.equal(degraded, '<tr><td><img src="logo.png" alt="Logo"></td></tr>');
+    assert.equal(forwarded, fragment);
+    assert.doesNotMatch(forwarded, /blockquote/i);
 });
 
 test('degradation rejects non-string HTML and a missing DOM parser', () => {

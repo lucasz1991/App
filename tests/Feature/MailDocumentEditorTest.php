@@ -207,6 +207,55 @@ class MailDocumentEditorTest extends TestCase
         return $legacy;
     }
 
+    /** Baut die bis V17 gespeicherte RTL-/Rowspan-Kontaktstruktur nach. */
+    private function legacyV17ContactLayout(string $html): string
+    {
+        $html = str_replace(
+            'class="rt-sign-layout" role="presentation" width="100%"',
+            'class="rt-sign-layout" role="presentation" dir="rtl" width="100%"',
+            $html,
+            $layoutCount,
+        );
+        $html = str_replace(
+            'style="width:100%;table-layout:fixed;border-collapse:collapse;position:relative;z-index:1;"',
+            'style="direction:rtl;width:100%;border-collapse:collapse;position:relative;z-index:1;"',
+            $html,
+            $layoutStyleCount,
+        );
+        $html = preg_replace(
+            '~<tr>\s*<td class="rt-sign-logo" colspan="2" width="100%"~',
+            '<tr class="rt-stack rt-sign-top-row"><td class="rt-sign-logo" dir="ltr" width="50%"',
+            $html,
+            1,
+            $logoRowCount,
+        );
+        $html = preg_replace(
+            '~</td>\s*</tr>\s*<tr class="rt-stack rt-sign-top-row">\s*<td class="rt-sign-identity" dir="ltr" width="50%"~',
+            '</td><td class="rt-sign-identity" dir="ltr" rowspan="2" width="50%"',
+            (string) $html,
+            1,
+            $identityBridgeCount,
+        );
+        $html = preg_replace(
+            '~</td>\s*<td class="rt-sign-company" dir="ltr" width="50%"~',
+            '</td></tr><tr class="rt-sign-company-row"><td class="rt-sign-company" dir="ltr" width="50%"',
+            (string) $html,
+            1,
+            $companyRowCount,
+        );
+        $this->assertIsString($html);
+
+        $this->assertSame([1, 1, 1, 1, 1], [
+            $layoutCount,
+            $layoutStyleCount,
+            $logoRowCount,
+            $identityBridgeCount,
+            $companyRowCount,
+        ]);
+
+        return $html;
+    }
+
     /** @return list<array<string, int|string>> */
     private function portableSystemMedia(
         MailDocumentKind $kind,
@@ -504,7 +553,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertLessThan(60 * 1024, strlen($html));
     }
 
-    public function test_schema_26_behaelt_v14_bytegleich_und_migriert_v15_bis_v17_in_die_fail_open_buehne(): void
+    public function test_schema_26_behaelt_v14_bytegleich_und_migriert_v15_bis_v18_in_die_fail_open_buehne(): void
     {
         $this->createCanonicalMailDocuments();
         $canonical = (string) $this->document(MailDocumentKind::Signature)->published_html;
@@ -564,20 +613,81 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringContainsString('data-rt-layer-mobile="stop60"', $v16);
         $this->assertSame($v16, SignatureTrainCarrier::normalize($v16));
 
-        $v17 = str_replace(
+        $v17Base = str_replace(
             SignatureArtifactVersion::V16,
             SignatureArtifactVersion::V17,
             $v16,
             $v17MarkerCount,
         );
         $this->assertSame(1, $v17MarkerCount);
-        $v17 = str_replace('width="720" height="61" alt=""', 'width="720" alt=""', $v17, $v17HeightCount);
+        $v17Base = str_replace('width="720" height="61" alt=""', 'width="720" alt=""', $v17Base, $v17HeightCount);
         $this->assertSame(1, $v17HeightCount);
+        $v17 = $this->legacyV17ContactLayout($v17Base);
         SignatureDocumentContract::assertValid($v17);
         SignatureDocumentContract::assertRuntimeValid($v17);
+        $this->assertStringContainsString('dir="rtl"', $v17);
+        $this->assertStringContainsString('rowspan="2"', $v17);
+        $this->assertStringContainsString('rt-sign-company-row', $v17);
         $this->assertStringContainsString('width="720" alt=""', $v17);
         $this->assertStringNotContainsString('width="720" height="61" alt=""', $v17);
         $this->assertSame($v17, SignatureTrainCarrier::normalize($v17));
+
+        $v18 = str_replace(
+            SignatureArtifactVersion::V17,
+            SignatureArtifactVersion::V18,
+            $v17Base,
+            $v18MarkerCount,
+        );
+        $this->assertSame(1, $v18MarkerCount);
+        SignatureDocumentContract::assertValid($v18);
+        SignatureDocumentContract::assertRuntimeValid($v18);
+        $this->assertStringNotContainsString('dir="rtl"', $v18);
+        $this->assertStringNotContainsString('rowspan=', $v18);
+        $this->assertStringNotContainsString('rt-sign-company-row', $v18);
+        $this->assertSame($v18, SignatureTrainCarrier::normalize($v18));
+
+        foreach ([
+            'RTL-Reordering' => str_replace(
+                'class="rt-sign-layout"',
+                'class="rt-sign-layout" dir="rtl"',
+                $v18,
+            ),
+            'Rowspan' => str_replace(
+                'class="rt-sign-identity"',
+                'class="rt-sign-identity" rowspan="2"',
+                $v18,
+            ),
+        ] as $label => $invalidV18) {
+            try {
+                SignatureDocumentContract::assertValid($invalidV18);
+                $this->fail("V18 akzeptierte die fragile Weiterleitungsstruktur: {$label}.");
+            } catch (\RuntimeException $exception) {
+                $this->assertStringContainsString(
+                    'weder RTL-Reordering noch Rowspan',
+                    $exception->getMessage(),
+                    $label,
+                );
+            }
+        }
+        foreach ([
+            'verstecktes Layout' => str_replace(
+                'style="width:100%;table-layout:fixed;border-collapse:collapse;position:relative;z-index:1;"',
+                'style="display:none;width:100%;table-layout:fixed;border-collapse:collapse;position:relative;z-index:1;"',
+                $v18,
+            ),
+            'versteckte Firma' => str_replace(
+                'class="rt-sign-company" dir="ltr" width="50%" valign="top" align="right" style="direction:ltr;',
+                'class="rt-sign-company" dir="ltr" width="50%" valign="top" align="right" style="visibility:hidden;direction:ltr;',
+                $v18,
+            ),
+        ] as $label => $hiddenV18) {
+            try {
+                SignatureDocumentContract::assertValid($hiddenV18);
+                $this->fail("V18 akzeptierte einen unsichtbaren Pflichtknoten: {$label}.");
+            } catch (\RuntimeException $exception) {
+                $this->assertStringContainsString('nicht ausblenden', $exception->getMessage(), $label);
+            }
+        }
         $this->assertSame($canonical, SignatureTrainCarrier::normalize($canonical));
 
         foreach ([
@@ -836,6 +946,19 @@ class MailDocumentEditorTest extends TestCase
         );
         $this->assertIsString($legacy);
         $this->assertSame(1, $wrapperCloseCount);
+        // Der historische Schema-6-Carrier hatte unmittelbar eine rt-stack-
+        // Zeile. Die heutige Vorlage besitzt davor eine eigene Logozeile;
+        // fuer diesen isolierten Altvertrag stellen wir den damaligen
+        // Fingerabdruck am ersten Layout-TR explizit wieder her.
+        $legacy = preg_replace(
+            '~(<table\b[^>]*class="rt-sign-layout"[^>]*>\s*)<tr>~i',
+            '$1<tr class="rt-stack">',
+            $legacy,
+            1,
+            $legacyStackCount,
+        );
+        $this->assertIsString($legacy);
+        $this->assertSame(1, $legacyStackCount);
         $legacy = str_replace(
             'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
             'style="display:block;width:100%;max-width:1815px;margin:0 auto;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
@@ -1914,7 +2037,7 @@ HTML;
         }
     }
 
-    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v17_marker(): void
+    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v18_marker(): void
     {
         $canonical = $this->canonicalMailDocumentHtml(MailDocumentKind::Signature);
         $v7 = str_replace(
@@ -2054,6 +2177,17 @@ HTML;
             MailDocumentKind::Signature,
             $v17,
         ));
+        $v18 = str_replace(
+            SignatureArtifactVersion::V17,
+            SignatureArtifactVersion::V18,
+            $v17,
+            $v18MarkerCount,
+        );
+        $this->assertSame(1, $v18MarkerCount);
+        $this->assertSame(SignatureArtifactVersion::V18, SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $v18,
+        ));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V8));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V9));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V10));
@@ -2063,6 +2197,8 @@ HTML;
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V14));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V15));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V16));
+        $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V17));
+        $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V18));
         $this->assertFalse(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V7));
         $this->assertFalse(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V11));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V12));
@@ -2073,8 +2209,16 @@ HTML;
         $this->assertFalse(SignatureArtifactVersion::usesSmokeSafeArrivalTrain(SignatureArtifactVersion::V15));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V15));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V16));
+        $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V17));
+        $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V18));
         $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V15));
         $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V16));
+        $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V17));
+        $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V18));
+        $this->assertTrue(SignatureArtifactVersion::usesAspectSafeTrain(SignatureArtifactVersion::V17));
+        $this->assertTrue(SignatureArtifactVersion::usesAspectSafeTrain(SignatureArtifactVersion::V18));
+        $this->assertTrue(SignatureArtifactVersion::usesV17TrainAssets(SignatureArtifactVersion::V17));
+        $this->assertTrue(SignatureArtifactVersion::usesV17TrainAssets(SignatureArtifactVersion::V18));
         $this->assertFalse(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V14));
         $this->assertSame(
             PortableMediaCatalog::requiredSystemAssetIds(
@@ -2169,6 +2313,19 @@ HTML;
         $this->assertSame($v15Assets, $v16Assets);
         $this->assertArrayHasKey(
             SignatureArtifactVersion::V16,
+            PortableMediaCatalog::requiredSystemAssetContracts(MailDocumentKind::Signature),
+        );
+        $v17Assets = PortableMediaCatalog::requiredSystemAssetIds(
+            MailDocumentKind::Signature,
+            SignatureArtifactVersion::V17,
+        );
+        $v18Assets = PortableMediaCatalog::requiredSystemAssetIds(
+            MailDocumentKind::Signature,
+            SignatureArtifactVersion::V18,
+        );
+        $this->assertSame($v17Assets, $v18Assets);
+        $this->assertArrayHasKey(
+            SignatureArtifactVersion::V18,
             PortableMediaCatalog::requiredSystemAssetContracts(MailDocumentKind::Signature),
         );
         $this->assertStringContainsString(

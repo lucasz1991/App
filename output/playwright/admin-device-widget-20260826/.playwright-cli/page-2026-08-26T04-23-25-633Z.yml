@@ -1,0 +1,28 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - button "Hell/Dunkel umschalten" [ref=e4] [cursor=pointer]
+    - img "RT Rail Time GmbH" [ref=e15]
+    - generic [ref=e17]:
+      - heading "Anmelden" [level=1] [ref=e18]
+      - paragraph [ref=e19]: Willkommen zurück! Bitte melden Sie sich mit Ihren Zugangsdaten an.
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: E-Mail
+          - textbox "E-Mail" [active] [ref=e23]
+        - generic [ref=e24]:
+          - generic [ref=e25]: Passwort
+          - textbox "Passwort" [ref=e26]
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - generic [ref=e29] [cursor=pointer]:
+              - checkbox "Angemeldet bleiben" [ref=e30]
+              - generic [ref=e31]: Angemeldet bleiben
+            - paragraph [ref=e32]: Auf diesem vertrauenswürdigen Gerät bis zu 400 Tage angemeldet bleiben.
+          - link "Passwort vergessen?" [ref=e33] [cursor=pointer]:
+            - /url: http://127.0.0.1:8019/administrator/forgot-password
+        - button "Anmelden" [ref=e34] [cursor=pointer]
+    - generic [ref=e35]:
+      - generic [ref=e36]: RT / 01
+      - generic [ref=e38]: DE / BUNDESWEIT
+      - generic [ref=e40]: 24 / 7
+    - generic [ref=e41]: RailTime v1.0.0

@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Models\User;
+use App\Services\DeviceManagement\DeviceFleetSnapshot;
 use App\Support\Dashboard\SystemDashboardData;
 use App\Support\Operations\OperationalPreviewCatalog;
 use Livewire\Component;
@@ -28,8 +29,11 @@ class Dashboard extends Component
         $this->totalTeams = $dashboardData->teamCount();
     }
 
-    public function render(SystemDashboardData $dashboardData, OperationalPreviewCatalog $previewCatalog)
-    {
+    public function render(
+        SystemDashboardData $dashboardData,
+        OperationalPreviewCatalog $previewCatalog,
+        DeviceFleetSnapshot $fleetSnapshot,
+    ) {
         // Die Route traegt bereits role:admin — diese Pruefung schuetzt den
         // Fall, dass die Komponente anderswo eingebunden wird.
         abort_unless(auth()->user()?->isAdmin(), 403);
@@ -41,6 +45,7 @@ class Dashboard extends Component
             'recentActivity' => $dashboardData->recentActivity(),
             'charts' => $dashboardData->charts(),
             'workforce' => $this->workforceSnapshot(),
+            'deviceSnapshot' => auth()->user()->can('devices.view') ? $fleetSnapshot->get() : null,
             'operationalModules' => $previewCatalog->dashboard(),
             'canViewSystemData' => $canViewSystemData,
             'system' => $this->systemLoaded ? $this->system : null,

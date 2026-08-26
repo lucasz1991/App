@@ -1,0 +1,269 @@
+- generic [active] [ref=f1e1]:
+  - link "Zum Inhalt springen" [ref=f1e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - region "scrollable content" [ref=f1e8]:
+    - list [ref=f1e11]:
+      - listitem [ref=f1e12]: Übersicht
+      - listitem [ref=f1e13]:
+        - link "Dashboard" [ref=f1e14] [cursor=pointer]:
+          - /url: http://127.0.0.1:8019/administrator
+      - listitem [ref=f1e19]: Firma
+      - listitem [ref=f1e20]:
+        - link "Einstellungen" [ref=f1e21] [cursor=pointer]:
+          - /url: http://127.0.0.1:8019/administrator/settings
+      - listitem [ref=f1e26]: Kommunikation
+      - listitem [ref=f1e27]:
+        - link "Chat & Nachrichten" [ref=f1e28] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f1e33]: Management
+      - listitem [ref=f1e34]:
+        - link "Verwaltung" [ref=f1e35] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f1e41]:
+        - link "Disposition" [ref=f1e42] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f1e48]:
+        - link "Marketing" [ref=f1e49] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f1e56]: Betrieb
+      - listitem [ref=f1e57]:
+        - link "Wagenliste" [ref=f1e58] [cursor=pointer]:
+          - /url: http://127.0.0.1:8019/administrator/betrieb/wagenliste
+      - listitem [ref=f1e61]: Inhalte & Dateien
+      - listitem [ref=f1e62]:
+        - link "Dateien" [ref=f1e63] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f1e68]: Mein Bereich
+      - listitem [ref=f1e69]:
+        - link "Meine Geräte" [ref=f1e70] [cursor=pointer]:
+          - /url: http://127.0.0.1:8019/meine-geraete
+      - listitem [ref=f1e74]:
+        - link "Profil" [ref=f1e75] [cursor=pointer]:
+          - /url: http://127.0.0.1:8019/user/profile
+      - listitem [ref=f1e80]:
+        - link "E-Mail und Signatur" [ref=f1e81] [cursor=pointer]:
+          - /url: http://127.0.0.1:8019/email-templates
+      - listitem [ref=f1e86]:
+        - link "Support" [ref=f1e87] [cursor=pointer]:
+          - /url: "#"
+  - navigation "Kopfnavigation" [ref=f1e98]:
+    - generic [ref=f1e99]:
+      - generic [ref=f1e100]:
+        - link "RailTime" [ref=f1e384] [cursor=pointer]:
+          - /url: http://127.0.0.1:8019/administrator
+          - img "RailTime Logo" [ref=f1e385]
+        - button "Navigation öffnen oder schließen" [ref=f1e386] [cursor=pointer]
+      - generic [ref=f1e105]:
+        - search [ref=f1e107]:
+          - generic [ref=f1e108]:
+            - button "RailTime durchsuchen" [ref=f1e109] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f1e112] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f1e116] [cursor=pointer]:
+          - generic [ref=f1e117]: 
+        - button "Einstellungen" [ref=f1e120] [cursor=pointer]
+        - button "Konto verwalten" [ref=f1e127] [cursor=pointer]:
+          - img "Dashboard QA" [ref=f1e129]
+          - text: 
+  - main [ref=f1e134]:
+    - generic [ref=f1e137]:
+      - generic [ref=f1e142]:
+        - heading "RailTime Command Center" [level=1] [ref=f1e143]
+        - region [ref=f1e144]:
+          - generic [ref=f1e145]:
+            - generic [ref=f1e146]:
+              - paragraph [ref=f1e147]: Betriebssteuerung
+              - heading "Aufträge, Schichten & Wagenlisten" [level=2] [ref=f1e148]
+            - generic [ref=f1e149]:
+              - generic [ref=f1e150]: Kein offener Hinweis
+              - generic "Stand 06:32 Uhr" [ref=f1e152]
+              - button "Dashboard aktualisieren" [ref=f1e156] [cursor=pointer]
+              - button "Willkommens-Einführung erneut anzeigen" [ref=f1e162] [cursor=pointer]
+          - generic [ref=f1e165]:
+            - article [ref=f1e166]:
+              - link "Aufträge · Öffnen" [ref=f1e168] [cursor=pointer]:
+                - /url: http://127.0.0.1:8019/administrator/betrieb/orders
+              - generic [ref=f1e169]: 0 dringend
+              - paragraph [ref=f1e176]: "0"
+              - paragraph [ref=f1e177]: offene Aufträge
+              - generic [ref=f1e178]:
+                - heading "Aufträge" [level=3] [ref=f1e179]
+                - paragraph [ref=f1e180]: Aufträge erfassen, priorisieren und vom Eingang bis zur Abrechnung steuern.
+              - generic [ref=f1e181]: Öffnen
+            - article [ref=f1e186]:
+              - link "Schichtplanung · Öffnen" [ref=f1e188] [cursor=pointer]:
+                - /url: http://127.0.0.1:8019/administrator/betrieb/shift-management
+              - generic [ref=f1e189]: 0 unterbesetzt
+              - paragraph [ref=f1e196]: "0"
+              - paragraph [ref=f1e197]: kommende Schichten
+              - heading "Schichtplanung" [level=3] [ref=f1e199]
+              - generic [ref=f1e200]: Öffnen
+            - article [ref=f1e205]:
+              - link "Wagenliste · Wagenliste öffnen" [ref=f1e207] [cursor=pointer]:
+                - /url: http://127.0.0.1:8019/administrator/betrieb/wagenliste
+              - generic [ref=f1e208]: Wagenlisten verfügbar
+              - heading "Wagenliste" [level=3] [ref=f1e214]
+              - generic [ref=f1e215]: Wagenliste öffnen
+            - article [ref=f1e220]:
+              - link "Kalender · Öffnen" [ref=f1e222] [cursor=pointer]:
+                - /url: http://127.0.0.1:8019/administrator/betrieb/calendar
+              - generic [ref=f1e223]: 0 diese Woche
+              - paragraph [ref=f1e229]: "0"
+              - paragraph [ref=f1e230]: Schichten heute
+              - heading "Kalender" [level=3] [ref=f1e232]
+              - generic [ref=f1e233]: Öffnen
+            - article [ref=f1e238]:
+              - link "Kunden · Öffnen" [ref=f1e240] [cursor=pointer]:
+                - /url: http://127.0.0.1:8019/administrator/betrieb/customers
+              - generic [ref=f1e241]: 0 insgesamt
+              - paragraph [ref=f1e248]: "0"
+              - paragraph [ref=f1e249]: aktive Kunden
+              - heading "Kunden" [level=3] [ref=f1e251]
+              - generic [ref=f1e252]: Öffnen
+        - region [ref=f1e257]:
+          - generic [ref=f1e259]:
+            - paragraph [ref=f1e260]: Mitarbeiter
+            - heading "Belegschaft & Aktivität" [level=2] [ref=f1e261]
+          - generic [ref=f1e262]:
+            - article [ref=f1e263]:
+              - generic [ref=f1e264]:
+                - generic [ref=f1e265]:
+                  - heading "Mitarbeiterkonten" [level=3] [ref=f1e266]
+                  - paragraph [ref=f1e267]: Der Status zeigt freigeschaltete Konten – nicht die aktuelle Verfügbarkeit der Mitarbeitenden.
+                - link "Mitarbeiter verwalten" [ref=f1e268] [cursor=pointer]:
+                  - /url: http://127.0.0.1:8019/administrator/employees
+              - generic [ref=f1e272]:
+                - 'img "This is a chart about \"1\". It consists of 2 series count. The 0 series is a Pie chart.The data is as follows: 1. The 1 series is a Pie chart.The data is as follows: the data for Freigeschaltet is 1, the data for Gesperrt is 0." [ref=f1e391]':
+                  - img [ref=f1e477]:
+                    - generic [ref=f1e479]:
+                      - generic [ref=f1e483]: "1"
+                      - generic [ref=f1e485]: Mitarbeiter
+                - generic [ref=f1e274]:
+                  - generic [ref=f1e275]:
+                    - term [ref=f1e276]: Mitarbeiter
+                    - definition [ref=f1e277]: "1"
+                  - generic [ref=f1e278]:
+                    - term [ref=f1e279]: Freigeschaltet
+                    - definition [ref=f1e280]: "1"
+                  - generic [ref=f1e281]:
+                    - term [ref=f1e282]: Gesperrt
+                    - definition [ref=f1e283]: "0"
+                  - generic [ref=f1e284]:
+                    - term [ref=f1e285]: Teams (Rechtegruppen)
+                    - definition [ref=f1e286]: "0"
+              - generic [ref=f1e288]:
+                - generic [ref=f1e289]: Anteil freigeschalteter Konten
+                - generic [ref=f1e290]: 100%
+            - article [ref=f1e293]:
+              - generic [ref=f1e294]:
+                - generic [ref=f1e295]:
+                  - paragraph [ref=f1e296]: Letzte 14 Tage
+                  - heading "Aktivität im Verlauf" [level=3] [ref=f1e297]
+                - generic [ref=f1e298]:
+                  - generic [ref=f1e299]:
+                    - generic [ref=f1e300]: Durchschnitt
+                    - generic [ref=f1e301]: Ø 0,0
+                  - generic [ref=f1e302]:
+                    - generic [ref=f1e303]: Spitzenwert
+                    - generic [ref=f1e304]: "0"
+              - 'img "This is a chart with type Line chart named Aktive Benutzer.The first 10 items are: the data for 13. Aug is 0, 0, the data for 14. Aug is 1, 0, the data for 15. Aug is 2, 0, the data for 16. Aug is 3, 0, the data for 17. Aug is 4, 0, the data for 18. Aug is 5, 0, the data for 19. Aug is 6, 0, the data for 20. Aug is 7, 0, the data for 21. Aug is 8, 0, the data for 22. Aug is 9, 0." [ref=f1e402]':
+                - img [ref=f1e487]:
+                  - generic [ref=f1e489]:
+                    - generic [ref=f1e490]: "0"
+                    - generic [ref=f1e491]: "1"
+                    - generic [ref=f1e492]: 13. Aug
+                    - generic [ref=f1e493]: 17. Aug
+                    - generic [ref=f1e494]: 21. Aug
+                    - generic [ref=f1e495]: 25. Aug
+                    - generic [ref=f1e497]: Ø Durchschnitt
+              - paragraph [ref=f1e306]: Im Durchschnitt waren 0 Konten pro Tag aktiv, der Spitzenwert lag bei 0.
+              - generic [ref=f1e307]:
+                - heading "Zuletzt aktiv" [level=4] [ref=f1e309]
+                - list "Zuletzt aktiv" [ref=f1e313]:
+                  - listitem [ref=f1e314]:
+                    - paragraph [ref=f1e315]: Noch keine Aktivität erfasst.
+          - article [ref=f1e316]:
+            - generic [ref=f1e317]:
+              - generic [ref=f1e322]:
+                - paragraph [ref=f1e323]: IT & Betrieb
+                - heading "Geräteverwaltung" [level=3] [ref=f1e324]
+                - paragraph [ref=f1e325]: Bestand, Zuweisungen und technische Auffälligkeiten direkt im Blick.
+              - generic "Kennzahlen der Geräteverwaltung" [ref=f1e326]:
+                - generic [ref=f1e327]:
+                  - term [ref=f1e328]:
+                    - generic [ref=f1e330]: Geräte gesamt
+                  - definition [ref=f1e331]: "4"
+                - generic [ref=f1e332]:
+                  - term [ref=f1e333]:
+                    - generic [ref=f1e335]: Zugewiesen
+                  - definition [ref=f1e336]: "2"
+                - generic [ref=f1e337]:
+                  - term [ref=f1e338]:
+                    - generic [ref=f1e340]: Im Lager
+                  - definition [ref=f1e341]: "2"
+                - generic [ref=f1e342]:
+                  - term [ref=f1e343]:
+                    - generic [ref=f1e345]: Handlungsbedarf
+                  - definition [ref=f1e346]: "2"
+              - generic [ref=f1e347]:
+                - status [ref=f1e348]: 2 Geräte prüfen
+                - link "Geräte verwalten" [ref=f1e350] [cursor=pointer]:
+                  - /url: http://127.0.0.1:8019/administrator/geraete
+        - region [ref=f1e415]:
+          - generic [ref=f1e416]:
+            - paragraph [ref=f1e417]: Konten
+            - heading "Kontenentwicklung" [level=2] [ref=f1e418]
+          - generic [ref=f1e419]:
+            - article [ref=f1e420]:
+              - generic [ref=f1e421]:
+                - generic [ref=f1e422]:
+                  - paragraph [ref=f1e423]: Letzte 14 Tage
+                  - heading "Nutzerentwicklung" [level=3] [ref=f1e424]
+                - generic [ref=f1e425]:
+                  - generic [ref=f1e426]:
+                    - generic [ref=f1e427]: Gesamt
+                    - generic [ref=f1e428]: "0"
+                  - generic [ref=f1e429]:
+                    - generic [ref=f1e430]: Neuanmeldungen
+                    - generic [ref=f1e431]: "+2"
+              - 'img "This is a chart. It consists of 2 series count. The 0 series is a Line chart representing Gesamt.The first 10 items are: the data for 13. Aug is 0, 0, the data for 14. Aug is 1, 0, the data for 15. Aug is 2, 0, the data for 16. Aug is 3, 0, the data for 17. Aug is 4, 0, the data for 18. Aug is 5, 0, the data for 19. Aug is 6, 0, the data for 20. Aug is 7, 0, the data for 21. Aug is 8, 0, the data for 22. Aug is 9, 0. The 1 series is a Bar chart representing Neuanmeldungen.The first 10 items are: the data for 13. Aug is 0, 0, the data for 14. Aug is 1, 0, the data for 15. Aug is 2, 0, the data for 16. Aug is 3, 0, the data for 17. Aug is 4, 0, the data for 18. Aug is 5, 0, the data for 19. Aug is 6, 0, the data for 20. Aug is 7, 0, the data for 21. Aug is 8, 0, the data for 22. Aug is 9, 0." [ref=f1e432]':
+                - img [ref=f1e499]:
+                  - generic [ref=f1e501]:
+                    - generic [ref=f1e502]: "0"
+                    - generic [ref=f1e503]: "1"
+                    - generic [ref=f1e504]: "2"
+                    - generic [ref=f1e505]: 13. Aug
+                    - generic [ref=f1e506]: 17. Aug
+                    - generic [ref=f1e507]: 21. Aug
+                    - generic [ref=f1e508]: 25. Aug
+                    - generic [ref=f1e513]: Ø Durchschnitt
+              - paragraph [ref=f1e449]: Insgesamt 2 Konten, davon 2 Neuanmeldungen in den letzten 14 Tagen.
+              - generic [ref=f1e450]:
+                - generic [ref=f1e451]: Gesamt
+                - generic [ref=f1e453]: Neuanmeldungen
+                - generic [ref=f1e455]: Durchschnitt
+            - article [ref=f1e457]:
+              - generic [ref=f1e458]:
+                - generic [ref=f1e459]:
+                  - paragraph [ref=f1e460]: Konten
+                  - heading "Neueste Benutzer" [level=3] [ref=f1e461]
+                - link "Alle anzeigen" [ref=f1e462] [cursor=pointer]:
+                  - /url: http://127.0.0.1:8019/administrator/employees
+              - list "Neueste Benutzer" [ref=f1e466]:
+                - listitem [ref=f1e467]:
+                  - link "G Geräte Test device.qa@railtime.test aktiv 26.08.2026" [ref=f1e468] [cursor=pointer]:
+                    - /url: http://127.0.0.1:8019/administrator/user/2
+                    - generic [ref=f1e469]: G
+                    - generic [ref=f1e470]:
+                      - generic [ref=f1e471]: Geräte Test
+                      - generic [ref=f1e472]: device.qa@railtime.test
+                    - generic [ref=f1e473]:
+                      - generic [ref=f1e474]: aktiv
+                      - generic [ref=f1e475]: 26.08.2026
+      - generic [ref=f1e354]: RailTime v1.0.0
+  - generic:
+    - button "RailTime Assist öffnen" [ref=f1e355] [cursor=pointer]
+    - text: ·
+  - text:                                  
+  - status:
+    - generic: RailTime lädt die nächste Seite
