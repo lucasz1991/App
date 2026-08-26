@@ -911,7 +911,7 @@
                         if (messageNode) messageNode.textContent = text;
                     };
                     if (document_.autoRepaired) {
-                        setMessage('Ein bekannter Signatur-Altstand wurde für den Editor sicher repariert. Beim nächsten Speichern wird Schema 26 übernommen.');
+                        setMessage('Ein bekannter Signatur-Altstand wurde für den Editor sicher repariert. Beim nächsten Speichern wird Schema 27 übernommen.');
                     }
 
                     const setActionsBusy = (busy) => {

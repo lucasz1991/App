@@ -553,7 +553,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertLessThan(60 * 1024, strlen($html));
     }
 
-    public function test_schema_26_behaelt_v14_bytegleich_und_migriert_v15_bis_v18_in_die_fail_open_buehne(): void
+    public function test_schema_27_behaelt_v14_bytegleich_und_migriert_v15_bis_v19_in_die_fail_open_buehne(): void
     {
         $this->createCanonicalMailDocuments();
         $canonical = (string) $this->document(MailDocumentKind::Signature)->published_html;
@@ -645,6 +645,37 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringNotContainsString('rowspan=', $v18);
         $this->assertStringNotContainsString('rt-sign-company-row', $v18);
         $this->assertSame($v18, SignatureTrainCarrier::normalize($v18));
+
+        $v19LegacyGeometry = str_replace(
+            SignatureArtifactVersion::V18,
+            SignatureArtifactVersion::V19,
+            $v18,
+            $v19MarkerCount,
+        );
+        $this->assertSame(1, $v19MarkerCount);
+        $v19 = SignatureTrainCarrier::normalize($v19LegacyGeometry);
+        SignatureDocumentContract::assertValid($v19);
+        SignatureDocumentContract::assertRuntimeValid($v19);
+        $this->assertStringContainsString(
+            'style="position:absolute;z-index:0;left:0;right:0;top:auto;bottom:0;display:block;width:100%;height:61px;max-height:61px;',
+            $v19,
+        );
+        $this->assertStringContainsString(
+            'class="rt-sign-train-frame" role="presentation" width="100%" height="61"',
+            $v19,
+        );
+        $this->assertStringContainsString(
+            'class="rt-sign-train-slot" height="61" valign="bottom"',
+            $v19,
+        );
+        $this->assertStringContainsString(
+            'width="720" height="61" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:block;width:720px;max-width:100%;height:auto;margin:0;',
+            $v19,
+        );
+        $this->assertStringNotContainsString('margin-bottom:-200px', $v19);
+        $this->assertStringNotContainsString('dir="rtl"', $v19);
+        $this->assertStringNotContainsString('rowspan=', $v19);
+        $this->assertSame($v19, SignatureTrainCarrier::normalize($v19));
 
         foreach ([
             'RTL-Reordering' => str_replace(
@@ -1835,12 +1866,12 @@ HTML;
             $this->assertStringContainsString('tr.rt-stack > td', $responsiveCss);
         }
 
-        // V10 bis V17 besitzen eigene mobile Geometrievertraege; V11 bis V17
+        // V10 bis V19 besitzen eigene mobile Geometrievertraege; V11 bis V19
         // trennen zusaetzlich die sichere Vollfassung vom kompakten
-        // Systemprofil. V14 bis V17 ergaenzen explizite Medien- und Fail-open-
+        // Systemprofil. V14 bis V19 ergaenzen explizite Medien- und Fail-open-
         // Vertraege. Trotz doppelter Vorschau-CSS fuer Hell und Dunkel bleibt
-        // die komplette Editor-Konfiguration unter 168 KiB.
-        $this->assertLessThan(172_032, strlen((string) $match[1]));
+        // die komplette Editor-Konfiguration unter 169 KiB.
+        $this->assertLessThan(173_056, strlen((string) $match[1]));
 
         $mailAssets = data_get($config, 'mailAssets');
         $this->assertIsArray($mailAssets);
@@ -2037,7 +2068,7 @@ HTML;
         }
     }
 
-    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v18_marker(): void
+    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v19_marker(): void
     {
         $canonical = $this->canonicalMailDocumentHtml(MailDocumentKind::Signature);
         $v7 = str_replace(
@@ -2188,6 +2219,17 @@ HTML;
             MailDocumentKind::Signature,
             $v18,
         ));
+        $v19 = str_replace(
+            SignatureArtifactVersion::V18,
+            SignatureArtifactVersion::V19,
+            $v18,
+            $v19MarkerCount,
+        );
+        $this->assertSame(1, $v19MarkerCount);
+        $this->assertSame(SignatureArtifactVersion::V19, SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $v19,
+        ));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V8));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V9));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V10));
@@ -2199,6 +2241,7 @@ HTML;
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V16));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V17));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V18));
+        $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V19));
         $this->assertFalse(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V7));
         $this->assertFalse(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V11));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V12));
@@ -2211,14 +2254,22 @@ HTML;
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V16));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V17));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V18));
+        $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V19));
         $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V15));
         $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V16));
         $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V17));
         $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V18));
+        $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V19));
         $this->assertTrue(SignatureArtifactVersion::usesAspectSafeTrain(SignatureArtifactVersion::V17));
         $this->assertTrue(SignatureArtifactVersion::usesAspectSafeTrain(SignatureArtifactVersion::V18));
+        $this->assertFalse(SignatureArtifactVersion::usesAspectSafeTrain(SignatureArtifactVersion::V19));
         $this->assertTrue(SignatureArtifactVersion::usesV17TrainAssets(SignatureArtifactVersion::V17));
         $this->assertTrue(SignatureArtifactVersion::usesV17TrainAssets(SignatureArtifactVersion::V18));
+        $this->assertFalse(SignatureArtifactVersion::usesV17TrainAssets(SignatureArtifactVersion::V19));
+        $this->assertTrue(SignatureArtifactVersion::usesForwardSafeAbsoluteTrain(SignatureArtifactVersion::V19));
+        $this->assertTrue(SignatureArtifactVersion::usesV19MailAssets(SignatureArtifactVersion::V19));
+        $this->assertFalse(SignatureArtifactVersion::usesForwardSafeAbsoluteTrain(SignatureArtifactVersion::V18));
+        $this->assertFalse(SignatureArtifactVersion::usesV19MailAssets(SignatureArtifactVersion::V18));
         $this->assertFalse(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V14));
         $this->assertSame(
             PortableMediaCatalog::requiredSystemAssetIds(
@@ -2328,6 +2379,33 @@ HTML;
             SignatureArtifactVersion::V18,
             PortableMediaCatalog::requiredSystemAssetContracts(MailDocumentKind::Signature),
         );
+        $v19Assets = PortableMediaCatalog::requiredSystemAssetIds(
+            MailDocumentKind::Signature,
+            SignatureArtifactVersion::V19,
+        );
+        foreach ([
+            'icon-rt-v19-light.gif',
+            'icon-rt-v19-light.png',
+            'icon-rt-v19-dark.gif',
+            'icon-rt-v19-dark.png',
+            'wortmarke-signature-v19-light.gif',
+            'wortmarke-signature-v19-light.png',
+            'wortmarke-mail-v19-dark.gif',
+            'wortmarke-mail-v19-dark.png',
+            'zug-dampf-v19-light.gif',
+            'zug-dampf-v19-light.png',
+            'zug-dampf-v19-dark.gif',
+            'zug-dampf-v19-dark.png',
+        ] as $asset) {
+            $this->assertContains($asset, $v19Assets);
+        }
+        foreach (['icon-rt-light.gif', 'wortmarke-signature-v15-light.gif', 'zug-dampf-v17-light.gif'] as $legacyAsset) {
+            $this->assertNotContains($legacyAsset, $v19Assets);
+        }
+        $this->assertArrayHasKey(
+            SignatureArtifactVersion::V19,
+            PortableMediaCatalog::requiredSystemAssetContracts(MailDocumentKind::Signature),
+        );
         $this->assertStringContainsString(
             '/zug-dampf-v15-light.gif',
             EmailTemplateBuilder::signatureTrainUrl(
@@ -2343,6 +2421,30 @@ HTML;
         $this->assertSame(
             'wortmarke-mail-v15-dark.gif',
             EmailTemplateBuilder::signatureLogoAsset('dark', SignatureArtifactVersion::V15),
+        );
+        $this->assertStringContainsString(
+            '/zug-dampf-v19-light.gif',
+            EmailTemplateBuilder::signatureTrainUrl(
+                'light',
+                animated: true,
+                artifactVersion: SignatureArtifactVersion::V19,
+            ),
+        );
+        $this->assertSame(
+            'icon-rt-v19-light.gif',
+            EmailTemplateBuilder::emailMarkAsset('light', SignatureArtifactVersion::V19),
+        );
+        $this->assertSame(
+            'icon-rt-v19-dark.gif',
+            EmailTemplateBuilder::emailMarkAsset('dark', SignatureArtifactVersion::V19),
+        );
+        $this->assertSame(
+            'wortmarke-signature-v19-light.gif',
+            EmailTemplateBuilder::signatureLogoAsset('light', SignatureArtifactVersion::V19),
+        );
+        $this->assertSame(
+            'wortmarke-mail-v19-dark.gif',
+            EmailTemplateBuilder::signatureLogoAsset('dark', SignatureArtifactVersion::V19),
         );
 
         $v15Canonical = SignatureTrainCarrier::normalize($v15);
@@ -2514,6 +2616,30 @@ HTML;
     {
         $this->createCanonicalMailDocuments();
 
+        $signature = $this->document(MailDocumentKind::Signature);
+        $markedSignature = preg_replace(
+            '/^<tr>/',
+            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V19.'">',
+            (string) $signature->published_html,
+            1,
+            $markerCount,
+        );
+        $this->assertIsString($markedSignature);
+        $this->assertSame(1, $markerCount);
+        $v19Signature = SignatureTrainCarrier::normalize($markedSignature);
+        SignatureDocumentContract::assertValid($v19Signature);
+        $builderData = $signature->builder_data ?: [];
+        data_set($builderData, 'pages.0.component', $v19Signature);
+        data_set($builderData, 'railtime.schema', SignatureDocumentContract::SCHEMA);
+        $signature->forceFill([
+            'builder_data' => $builderData,
+            'html' => $v19Signature,
+            'published_html' => $v19Signature,
+            'content_hash' => MailDocument::contentHashFor($builderData, $v19Signature, ''),
+            'version' => 19,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
         $compiledHtml = EmailTemplateBuilder::buildSystemMailHtml(
             new HtmlString('<p>MIME-CID-Vertrag</p>'),
         );
@@ -2537,6 +2663,19 @@ HTML;
         $expectedFilenames = array_values(array_unique($expectedFilenames));
         sort($expectedFilenames);
         $this->assertNotEmpty($expectedFilenames);
+        foreach ([
+            'icon-rt-v19-light.gif',
+            'icon-rt-v19-light.png',
+            'wortmarke-signature-v19-light.gif',
+            'wortmarke-signature-v19-light.png',
+            'zug-dampf-v19-light.gif',
+            'zug-dampf-v19-light.png',
+        ] as $v19Filename) {
+            $this->assertContains($v19Filename, $expectedFilenames);
+        }
+        $this->assertStringNotContainsString('icon-rt-light.gif', $compiledHtml);
+        $this->assertStringNotContainsString('wortmarke-signature-v15-light.gif', $compiledHtml);
+        $this->assertStringNotContainsString('zug-dampf-v17-light.gif', $compiledHtml);
 
         $mailer = app(MailFactory::class)->mailer();
         $transport = $mailer->getSymfonyTransport();
@@ -2546,8 +2685,8 @@ HTML;
         Notification::route('mail', 'cid-systemmail@rail-time.test')->notify(
             new MailDocumentTestNotification(
                 MailDocumentKind::Signature,
-                17,
-                SignatureArtifactVersion::V17,
+                19,
+                SignatureArtifactVersion::V19,
                 hash('sha256', 'mime-cid-systemmail'),
             ),
         );

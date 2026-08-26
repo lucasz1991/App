@@ -77,6 +77,15 @@ test('portable media requirements follow the imported signature instead of the o
                 'wortmarke-signature-v15-light.gif',
                 'wortmarke-signature-v15-light.png',
             ],
+            v19: [
+                'common.png',
+                'zug-dampf-v19-light.gif',
+                'zug-dampf-v19-light.png',
+                'wortmarke-signature-v19-light.gif',
+                'wortmarke-signature-v19-light.png',
+                'icon-rt-v19-light.gif',
+                'icon-rt-v19-light.png',
+            ],
         },
         template: {
             default: ['icon-rt-light.gif'],
@@ -176,6 +185,14 @@ test('portable media requirements follow the imported signature instead of the o
         requirements.signature.v18,
     );
     assert.deepEqual(
+        resolvePortableMediaRequirementIds(
+            requirements,
+            'signature',
+            '<tr data-rt-artifact-version="v19"><td>v19</td></tr>',
+        ),
+        requirements.signature.v19,
+    );
+    assert.deepEqual(
         resolvePortableMediaRequirementIds(requirements, 'template', '<table></table>'),
         requirements.template.default,
     );
@@ -183,7 +200,7 @@ test('portable media requirements follow the imported signature instead of the o
         () => resolvePortableMediaRequirementIds(
             requirements,
             'signature',
-            '<tr data-rt-artifact-version="v19"><td>unbekannt</td></tr>',
+            '<tr data-rt-artifact-version="v20"><td>unbekannt</td></tr>',
         ),
         /Medienvertrag ist nicht vollständig konfiguriert/,
     );
@@ -257,9 +274,10 @@ test('mail canvas renders lightweight same-origin token assets in light and dark
     };
     const snapshot = structuredClone(previewAssets);
 
-    const responsiveCss = '@media only screen and (max-width: 860px) { tr.rt-stack > td { display:block !important; width:100% !important; } }';
+    const responsiveCss = '/* rt-responsive-sentinel */\n@media only screen and (max-width: 860px) { tr.rt-stack > td { display:block !important; width:100% !important; } }';
     const light = mailCanvasStyles('light', previewAssets, responsiveCss);
     const dark = mailCanvasStyles('dark', previewAssets);
+    const editorTrainSelector = 'body.rt-mail-canvas table[data-rt-mail-signature-canvas] tr[data-rt-artifact-version="v19"] .rt-sign-stage > .rt-sign-train-layer';
 
     assert.match(light, /\[bgcolor="\{\{PAGE_BG\}\}"\]/);
     assert.match(light, /#e7eaed/);
@@ -269,6 +287,9 @@ test('mail canvas renders lightweight same-origin token assets in light and dark
     assert.match(light, /mail-assets\/location-icon\.png/);
     assert.match(light, /max-width:\s*860px/);
     assert.match(light, /tr\.rt-stack > td/);
+    assert.equal(light.indexOf(responsiveCss) < light.indexOf(editorTrainSelector), true);
+    assert.match(light, /body\.rt-mail-canvas table\[data-rt-mail-signature-canvas\] tr\[data-rt-artifact-version="v19"\] \.rt-sign-stage > \.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;[^}]*left:\s*0 !important;[^}]*right:\s*0 !important;[^}]*bottom:\s*0 !important;[^}]*height:\s*100% !important;[^}]*max-height:\s*none !important;[^}]*margin:\s*0 !important;/s);
+    assert.match(light, /tr\[data-rt-artifact-version="v19"\][^{}]+\.rt-sign-train-layer > \.rt-sign-train-frame,\s*body\.rt-mail-canvas[^{}]+\.rt-sign-train-slot\s*\{[^}]*height:\s*100% !important;/s);
     assert.match(dark, /#070a0e/);
     assert.match(dark, /mail-assets\/dark-logo\.gif/);
     assert.doesNotMatch(dark, /mail-assets\/dark-train\.gif/);
@@ -357,7 +378,7 @@ test('signature project gets a valid editor-only table and a reversible train im
     assert.deepEqual(draft.builderData, source);
 });
 
-test('schema 22 to 25 train overlaps migrate deterministically to the schema 26 pixel contract', () => {
+test('schema 22 to 25 train overlaps migrate deterministically to the schema 27 pixel contract', () => {
     const legacyTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
     const schema24Train = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
     const legacyStage = (train) => canonicalSignatureStage('Inhalt').replace(canonicalTrain, train);
@@ -424,11 +445,11 @@ test('schema 22 to 25 train overlaps migrate deterministically to the schema 26 
     });
 });
 
-test('schema 26 keeps V14 fixed while V15 and V16 reserve a fail-open 720 by 61 train', () => {
+test('schema 27 keeps older geometry stable and gives V19 a bottom-anchored forwarding fallback', () => {
     const serializeVersion = (version) => {
         let original = `<tr data-rt-artifact-version="${version}"><td class="rt-sign-cell">${canonicalSignatureStage('Inhalt')}</td></tr>`
             + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
-        if (version === 'v16') {
+        if (version === 'v16' || version === 'v19') {
             original = original.replace('data-rt-layer-mobile="train"', 'data-rt-layer-mobile="stop60"');
         }
         const project = projectForMailDocument({
@@ -487,6 +508,26 @@ test('schema 26 keeps V14 fixed while V15 and V16 reserve a fail-open 720 by 61 
     assert.equal(v16Train?.getAttribute('height'), '61');
     assert.match(v16Content?.getAttribute('style') || '', /^position:relative;z-index:1;width:100%;height:200px;/);
     assert.equal(v16.project.railtime.schema, MAIL_SIGNATURE_SCHEMA);
+
+    const v19 = serializeVersion('v19');
+    const v19Document = signatureDocument(v19.html);
+    const v19Stage = v19Document.querySelector('.rt-sign-stage');
+    const v19Layer = v19Document.querySelector('.rt-sign-train-layer[data-rt-layer-train]');
+    const v19Frame = v19Document.querySelector('table.rt-sign-train-frame');
+    const v19Slot = v19Document.querySelector('td.rt-sign-train-slot');
+    const v19Train = v19Document.querySelector('img.rt-sign-train[data-rt-train]');
+    const v19Content = v19Document.querySelector('table.rt-sign-content-frame');
+    assert.equal(v19Stage?.getAttribute('style'), 'position:relative;height:auto;min-height:200px;overflow:visible;');
+    assert.match(v19Layer?.getAttribute('style') || '', /^position:absolute;z-index:0;left:0;right:0;top:auto;bottom:0;display:block;[^\r\n]*height:61px;[^\r\n]*margin:0;/);
+    assert.doesNotMatch(v19Layer?.getAttribute('style') || '', /margin-bottom/);
+    assert.equal(v19Layer?.getAttribute('data-rt-layer-mobile'), 'stop60');
+    assert.equal(v19Frame?.getAttribute('height'), '61');
+    assert.equal(v19Slot?.getAttribute('height'), '61');
+    assert.equal(v19Train?.getAttribute('width'), '720');
+    assert.equal(v19Train?.getAttribute('height'), '61');
+    assert.match(v19Train?.getAttribute('style') || '', /display:block;width:720px;max-width:100%;height:auto;margin:0;/);
+    assert.match(v19Content?.getAttribute('style') || '', /^position:relative;z-index:1;width:100%;height:200px;/);
+    assert.equal(v19.project.railtime.schema, MAIL_SIGNATURE_SCHEMA);
 });
 
 test('signature preview hydrates the train image and roundtrips two canonical rows', () => {
@@ -835,6 +876,8 @@ test('GrapesJS inline import rules are merged in cascade order without touching 
     assert.match(outgoing.html, /class="rt-sign-train"[^>]*data-rt-train[^>]*src="\{\{TRAIN_SRC\}\}"/);
     assert.match(outgoing.html, /class="c777"/);
     assert.doesNotMatch(outgoing.html, /c101|c102|data-rt-mail|about:blank|data:image/);
+    assert.doesNotMatch(outgoing.html, /body\.rt-mail-canvas|position:\s*absolute[^;]*;[^"']*bottom:\s*0[^;]*;[^"']*height:\s*100%/);
+    assert.doesNotMatch(outgoing.css, /data-rt-mail-signature-canvas|rt-sign-train-layer/);
     assert.match(outgoing.css, /\.c777\{color:#abcdef;\}/);
     assert.match(outgoing.css, /\.rt-user\{color:\{\{SIGNATURE_TEXT_MUTED\}\};\}/);
     assert.match(outgoing.css, /\.c999 \.child\{color:#111820;\}/);
@@ -1833,14 +1876,15 @@ test('mail editor exposes one responsive topbar with standard grouped dropdowns 
     assert.match(singleToolbar, /@media \(max-width: 1199\.98px\)[\s\S]*?width:\s*2\.75rem/);
 });
 
-test('signature source keeps older artifacts stable and defines the proportional schema 26 V17/V18 Outlook contract', async () => {
+test('signature source keeps older artifacts stable and defines the schema 27 V17/V18/V19 Outlook contract', async () => {
     const { readFile } = await import('node:fs/promises');
-    const [css, signatureSource, trainAsset, v15TrainAsset, v17TrainAsset, carrier, runtime, mailBuilderSource] = await Promise.all([
+    const [css, signatureSource, trainAsset, v15TrainAsset, v17TrainAsset, v19TrainAsset, carrier, runtime, mailBuilderSource] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/emails/parts/signature.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/mail-templates/assets/zug-dampf-light.png', import.meta.url)),
         readFile(new URL('../../resources/mail-templates/assets/zug-dampf-v15-light.png', import.meta.url)),
         readFile(new URL('../../resources/mail-templates/assets/zug-dampf-v17-light.png', import.meta.url)),
+        readFile(new URL('../../resources/mail-templates/assets/zug-dampf-v19-light.png', import.meta.url)),
         readFile(new URL('../../app/Support/Mail/SignatureTrainCarrier.php', import.meta.url), 'utf8'),
         readFile(new URL('../../app/Support/MailSignature.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/js/mail-builder.js', import.meta.url), 'utf8'),
@@ -1859,7 +1903,8 @@ test('signature source keeps older artifacts stable and defines the proportional
     assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(css, /\.rt-sign-cell\.rt-sign-train-background/);
     assert.match(css, /\.rt-sign-train-layer\s*\{[^}]*display:\s*block !important;[^}]*margin-top:\s*0 !important;/s);
-    assert.doesNotMatch(css, /\.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;/s);
+    const baseRuntimeCss = css.slice(css.indexOf('.rt-sign-stage {'), css.indexOf('/* V11 bis V13'));
+    assert.doesNotMatch(baseRuntimeCss, /\.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;/s);
     assert.doesNotMatch(css, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
     assert.match(css, /\.rt-sign-train,\s*\.rt-sign-train-mso\s*\{[^}]*position:\s*static !important;[^}]*display:\s*inline-block !important;[^}]*vertical-align:\s*bottom !important;/s);
     assert.match(css, /\.rt-train-idle-overlay\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*0 !important;[^}]*height:\s*0 !important;/s);
@@ -1880,26 +1925,32 @@ test('signature source keeps older artifacts stable and defines the proportional
         [v17TrainAsset.readUInt32BE(16), v17TrainAsset.readUInt32BE(20)],
         [2016, 171],
     );
+    assert.equal(v19TrainAsset.toString('ascii', 1, 4), 'PNG');
+    assert.deepEqual(
+        [v19TrainAsset.readUInt32BE(16), v19TrainAsset.readUInt32BE(20)],
+        [2016, 171],
+    );
 
     assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 0);
     assert.equal((carrier.match(/<!--\[if mso\]><img class="rt-sign-train-mso"/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::withMsoFallback\(/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::withIdleOverlay\(/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::projectAsRuntimeBackground\(/g) || []).length, 0);
-    assert.match(carrier, /\$imageHeight = \$failOpenStage && ! \$aspectSafeTrain \? ' height="61"' : '';/);
+    assert.match(carrier, /\$imageHeight = \(\$forwardSafeTrain \|\| \(\$failOpenStage && ! \$aspectSafeTrain\)\) \? ' height="61"' : '';/);
     assert.match(carrier, /usesAspectSafeTrain\(string \$html\)[\s\S]*?SignatureArtifactVersion::usesAspectSafeTrain/);
     assert.match(carrier, /canonicalStageStartMarkup\(bool \$failOpenStage\)[\s\S]*?height:auto;min-height:200px;overflow:visible;/);
-    assert.match(mailBuilderSource, /export const MAIL_SIGNATURE_SCHEMA = 26;/);
+    assert.match(mailBuilderSource, /export const MAIL_SIGNATURE_SCHEMA = 27;/);
     assert.match(mailBuilderSource, /const MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT = '61';/);
-    assert.match(mailBuilderSource, /MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS = Object\.freeze\(\['v15', 'v16', 'v17', 'v18'\]\)/);
+    assert.match(mailBuilderSource, /MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS = Object\.freeze\(\['v15', 'v16', 'v17', 'v18', 'v19'\]\)/);
     assert.match(mailBuilderSource, /MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS = Object\.freeze\(\['v17', 'v18'\]\)/);
+    assert.match(mailBuilderSource, /MAIL_SIGNATURE_FORWARD_SAFE_ARTIFACTS = Object\.freeze\(\['v19'\]\)/);
     assert.match(mailBuilderSource, /failOpenStage[\s\S]*?height:\s*'auto'[\s\S]*?'min-height': MAIL_SIGNATURE_FIXED_HEIGHT[\s\S]*?overflow:\s*'visible'/);
     assert.match(
         carrier.slice(
             carrier.indexOf('public static function withMsoFallback'),
             carrier.indexOf('public static function withIdleOverlay'),
         ),
-        /\$fallbackStyle = \$aspectSafeTrain[\s\S]*?display:inline-block;[\s\S]*?vertical-align:bottom;/,
+        /\$fallbackStyle = \(\$aspectSafeTrain \|\| \$forwardSafeTrain\)[\s\S]*?display:inline-block;[\s\S]*?vertical-align:bottom;/,
     );
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
 
@@ -1925,8 +1976,12 @@ test('signature source keeps older artifacts stable and defines the proportional
     assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\s*\{[^}]*height: 200px !important;[^}]*margin-bottom: -200px !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-mso\s*\{[^}]*display: block !important;[^}]*margin-bottom: 0 !important;[^}]*vertical-align: bottom !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 200px !important;[^}]*overflow: visible !important;/s);
-    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train\s*\{[^}]*display: block !important;[^}]*height: auto !important;[^}]*margin-bottom: 0 !important;/s);
-    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train-mso\s*\{[^}]*width: 720px !important;[^}]*height: 61px !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train\s*\{[^}]*display: block !important;[^}]*height: auto !important;[^}]*margin-bottom: 0 !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-mso\s*\{[^}]*width: 720px !important;[^}]*height: 61px !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v19"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 200px !important;[^}]*overflow: visible !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-layer\s*\{[^}]*position: absolute !important;[^}]*bottom: 0 !important;[^}]*height: auto !important;[^}]*margin: 0 !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-frame,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-slot\s*\{\s*height: 100% !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v19"\] \.rt-sign-train\s*\{[^}]*width: 108\.67% !important;[^}]*max-width: none !important;[^}]*margin-left: 0 !important;/s);
     assert.match(css, /tr\[data-rt-signature-density="compact"\] \.rt-sign-stage,\s*tr\[data-rt-signature-density="compact"\] \.rt-sign-train-layer\s*\{[^}]*height: 145px !important;[^}]*max-height: 145px !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso\s*\{[^}]*width: 94% !important;[^}]*margin-left: 0 !important;/s);
     assert.match(mobile, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 296px !important;[^}]*max-height: 296px !important;/s);
@@ -1942,7 +1997,7 @@ test('signature source keeps older artifacts stable and defines the proportional
     assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-stage\s*\{[^}]*min-height: 272px !important;[^}]*overflow: visible !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\s*\{[^}]*height: 272px !important;[^}]*margin-bottom: -272px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train\s*\{[^}]*width: 160% !important;[^}]*margin-left: -36% !important;/s);
-    assert.match(phone, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train\s*\{[^}]*width: 164% !important;[^}]*height: auto !important;[^}]*margin-left: -40% !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train\s*\{[^}]*width: 164% !important;[^}]*height: auto !important;[^}]*margin-left: -40% !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v15"\] \.rt-sign-content\s*\{[^}]*padding-top: 14px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 108\.67% !important;[^}]*margin-left: 0 !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 135% !important;[^}]*margin-left: -15\.75% !important;/s);

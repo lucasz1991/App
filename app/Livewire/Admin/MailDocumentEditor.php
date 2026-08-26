@@ -119,11 +119,30 @@ class MailDocumentEditor extends Component
         $signatureArtifactVersion = $signatureDocument instanceof MailDocument
             ? SignatureArtifactVersion::detect(MailDocumentKind::Signature, (string) $signatureDocument->html)
             : null;
+        $lightLogoAsset = EmailTemplateBuilder::signatureLogoAsset('light', $signatureArtifactVersion);
+        $darkLogoAsset = EmailTemplateBuilder::signatureLogoAsset('dark', $signatureArtifactVersion);
+        $lightMarkAsset = EmailTemplateBuilder::emailMarkAsset('light', $signatureArtifactVersion);
+        $darkMarkAsset = EmailTemplateBuilder::emailMarkAsset('dark', $signatureArtifactVersion);
+        $editorImageAsset = static function (string $filename, string $name): array {
+            $path = public_path('mail-assets/'.$filename);
+            $dimensions = is_file($path) ? getimagesize($path) : false;
+
+            return [
+                'src' => EmailTemplateBuilder::mailAssetUrl($filename),
+                'name' => $name,
+                'type' => 'image',
+                'mime_type' => 'image/gif',
+                'animated' => true,
+                'width' => is_array($dimensions) ? (int) $dimensions[0] : 1,
+                'height' => is_array($dimensions) ? (int) $dimensions[1] : 1,
+                'category' => 'RailTime Marke',
+            ];
+        };
         $mailAssets = [
-            ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-signature-light.gif'), 'name' => 'RailTime Wortmarke hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 504, 'height' => 86, 'category' => 'RailTime Marke'],
-            ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-mail-dark.gif'), 'name' => 'RailTime Wortmarke dunkel', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 618, 'height' => 105, 'category' => 'RailTime Marke'],
-            ['src' => EmailTemplateBuilder::mailAssetUrl('icon-rt-light.gif'), 'name' => 'RT-Zeichen hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 132, 'height' => 132, 'category' => 'RailTime Marke'],
-            ['src' => EmailTemplateBuilder::mailAssetUrl('icon-rt-dark.gif'), 'name' => 'RT-Zeichen dunkel', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 132, 'height' => 132, 'category' => 'RailTime Marke'],
+            $editorImageAsset($lightLogoAsset, 'RailTime Wortmarke hell'),
+            $editorImageAsset($darkLogoAsset, 'RailTime Wortmarke dunkel'),
+            $editorImageAsset($lightMarkAsset, 'RT-Zeichen hell'),
+            $editorImageAsset($darkMarkAsset, 'RT-Zeichen dunkel'),
         ];
         foreach ([
             'LOCATION' => 'Standort-Icon',
@@ -243,8 +262,12 @@ class MailDocumentEditor extends Component
             // schon vor dem GrapesJS-Start um mehrere MiB vergroessern.
             'previewAssets' => [
                 'light' => [
-                    'logo' => EmailTemplateBuilder::mailAssetUrl('wortmarke-signature-light.gif'),
-                    'mark' => EmailTemplateBuilder::mailAssetUrl('icon-rt-light.gif'),
+                    'logo' => EmailTemplateBuilder::mailAssetUrl(
+                        EmailTemplateBuilder::signatureLogoAsset('light', $signatureArtifactVersion),
+                    ),
+                    'mark' => EmailTemplateBuilder::mailAssetUrl(
+                        EmailTemplateBuilder::emailMarkAsset('light', $signatureArtifactVersion),
+                    ),
                     'train' => EmailTemplateBuilder::signatureTrainUrl(
                         'light',
                         animated: true,
@@ -252,8 +275,12 @@ class MailDocumentEditor extends Component
                     ),
                 ],
                 'dark' => [
-                    'logo' => EmailTemplateBuilder::mailAssetUrl('wortmarke-mail-dark.gif'),
-                    'mark' => EmailTemplateBuilder::mailAssetUrl('icon-rt-dark.gif'),
+                    'logo' => EmailTemplateBuilder::mailAssetUrl(
+                        EmailTemplateBuilder::signatureLogoAsset('dark', $signatureArtifactVersion),
+                    ),
+                    'mark' => EmailTemplateBuilder::mailAssetUrl(
+                        EmailTemplateBuilder::emailMarkAsset('dark', $signatureArtifactVersion),
+                    ),
                     'train' => EmailTemplateBuilder::signatureTrainUrl(
                         'dark',
                         animated: true,

@@ -143,13 +143,13 @@ test('delivery keeps the fixed train pixel frame and its MSO fallback inside the
     assert.match(carrier, /public static function withIdleOverlay/);
     assert.equal(occurrences(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g), 0);
     assert.match(carrier, /<!--\[if mso\]><img class="rt-sign-train-mso"/);
-    assert.match(msoFallback, /\$fallbackStyle = \$aspectSafeTrain[\s\S]*?display:inline-block;[\s\S]*?vertical-align:bottom;/);
+    assert.match(msoFallback, /\$fallbackStyle = \(\$aspectSafeTrain \|\| \$forwardSafeTrain\)[\s\S]*?display:inline-block;[\s\S]*?vertical-align:bottom;/);
     assert.match(msoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">/);
     assert.match(carrier, /\$layerPosition = \$failOpenStage \? 'position:relative;z-index:0;' : '';/);
     assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="'\.\$layerPosition\.'display:block;[^"\r\n]*height:200px;max-height:200px;[^"\r\n]*margin-bottom:-200px;/);
-    assert.match(carrier, /\$imageHeight = \$failOpenStage && ! \$aspectSafeTrain \? ' height="61"' : '';/);
+    assert.match(carrier, /\$imageHeight = \(\$forwardSafeTrain \|\| \(\$failOpenStage && ! \$aspectSafeTrain\)\) \? ' height="61"' : '';/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"'\.\$imageHeight\.' alt=""/);
     assert.match(carrier, /canonicalStageStartMarkup\(bool \$failOpenStage\)[\s\S]*?height:auto;min-height:200px;overflow:visible;/);
     assert.match(carrier, /canonicalContentFrameStartMarkup\(bool \$failOpenStage = false\)[\s\S]*?position:relative;z-index:1;/);

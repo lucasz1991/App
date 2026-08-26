@@ -190,6 +190,7 @@ test('plain and HTML-safe render strings are explicit and deterministic', () => 
     );
     assert.equal(normalizeMailDegradationMode('DARK'), 'dark');
     assert.equal(normalizeMailDegradationMode('FORWARD'), 'forward');
+    assert.equal(normalizeMailDegradationMode('FORWARD-STRICT'), 'forward-strict');
     assert.equal(normalizeMailDegradationMode('outlook-2016'), 'normal');
 });
 
@@ -247,6 +248,30 @@ test('forward mode uses quoted compiled HTML without Head CSS and keeps the inli
     assert.equal(mailDocument.includes('<style>.hero'), true, 'the source HTML remains unchanged');
 });
 
+test('strict iPhone forwarding stress removes fragile overlap styles but keeps media and HTML dimensions', () => {
+    const strictDocument = mailDocument.replace(
+        '<table role="presentation" width="600" bgcolor="#ffffff" style="width: 600px">',
+        '<table role="presentation" width="600" height="200" bgcolor="#ffffff" style="position:relative;z-index:1;width:600px;height:200px;margin:0 auto;margin-bottom:-200px">',
+    ).replace(
+        'width="120" height="40" alt="RailTime Logo"',
+        'width="120" height="40" alt="RailTime Logo" style="position:absolute;right:0;bottom:0;z-index:2;width:120px;height:auto;margin:0 0 -4px 0"',
+    );
+    const preview = createMailDegradationPreview(strictDocument, 'forward-strict', { environment });
+
+    assert.equal(preview.clientEmulation, false);
+    assert.equal(preview.viewportWidth, 375);
+    assert.equal(preview.label, 'iPhone-Weiterleitung · Stress');
+    assert.match(preview.disclaimer, /Stressprüfung/);
+    assert.match(preview.disclaimer, /keine iPhone- oder Mailclient-Emulation/);
+    assert.doesNotMatch(preview.html, /<style\b|rel="stylesheet"/i);
+    assert.doesNotMatch(preview.html, /(?:^|[;"\s])(?:position|z-index|top|right|bottom|left|inset(?:-[a-z-]+)?)\s*:/i);
+    assert.doesNotMatch(preview.html, /margin(?:-[a-z-]+)?\s*:[^;"']*-\s*(?:\d|\.\d)/i);
+    assert.match(preview.html, /<blockquote(?=[^>]*type="cite")(?=[^>]*data-rt-mail-forwarded-content)(?=[^>]*data-rt-mail-forward-stress)[^>]*>/);
+    assert.match(preview.html, /<table(?=[^>]*width="600")(?=[^>]*height="200")[^>]*style="width:600px;height:200px;margin:0 auto;"/);
+    assert.match(preview.html, /<img(?=[^>]*src="https:\/\/assets\.test\/logo\.png")(?=[^>]*srcset="https:\/\/assets\.test\/logo@2x\.png 2x")(?=[^>]*width="120")(?=[^>]*height="40")[^>]*style="width:120px;height:auto;"/);
+    assert.equal(strictDocument.includes('margin-bottom:-200px'), true, 'the source HTML remains unchanged');
+});
+
 test('mobile and dark modes expose honest host metadata instead of client emulation claims', () => {
     const mobile = createMailDegradationPreview(mailDocument, 'mobile', { environment });
     const dark = createMailDegradationPreview(mailDocument, 'dark', { environment });
@@ -273,10 +298,17 @@ test('fragment degradation preserves table-row shape and never adds a wrapper', 
     const fragment = '<tr style="color:red"><td><img src="logo.png" alt="Logo"></td></tr>';
     const degraded = transformMailHtmlForDegradation(fragment, 'css-off', { environment });
     const forwarded = transformMailHtmlForDegradation(fragment, 'forward', { environment });
+    const strictForwarded = transformMailHtmlForDegradation(
+        '<tr style="position:relative;margin-bottom:-20px;color:red"><td><img src="logo.png" width="120" height="40" alt="Logo"></td></tr>',
+        'forward-strict',
+        { environment },
+    );
 
     assert.equal(degraded, '<tr><td><img src="logo.png" alt="Logo"></td></tr>');
     assert.equal(forwarded, fragment);
     assert.doesNotMatch(forwarded, /blockquote/i);
+    assert.equal(strictForwarded, '<tr style="color:red;"><td><img src="logo.png" width="120" height="40" alt="Logo"></td></tr>');
+    assert.doesNotMatch(strictForwarded, /blockquote/i);
 });
 
 test('degradation rejects non-string HTML and a missing DOM parser', () => {

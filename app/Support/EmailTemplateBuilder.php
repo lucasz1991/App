@@ -474,6 +474,14 @@ class EmailTemplateBuilder
             remoteAssets: true,
         );
         $values = $signature->values();
+        // Die obere RT-Marke gehoert zur Nachrichtenschale, ihre konkrete
+        // Mediengeneration jedoch zum veroeffentlichten Signatur-Artefakt.
+        // So verwenden Systemmail/Testmail bei V19 nicht mehr versehentlich
+        // das groessere Legacy-GIF, waehrend Logo und Zug bereits V19 laden.
+        $signatureArtifactVersion = self::activeSignatureArtifactVersion();
+        $markAsset = self::emailMarkAsset('light', $signatureArtifactVersion);
+        $values['ICON_RT_SRC'] = self::mailAssetUrl($markAsset);
+        $values['ICON_RT_STILL_SRC'] = self::mailAssetUrl(str_replace('.gif', '.png', $markAsset));
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
         // Der serverseitige Signatur-Render validiert den Flow-IMG-Layer.
         // Haupt-GIF, Idle-GIF und MSO-Standbild bleiben echte Bilder innerhalb
@@ -850,14 +858,24 @@ class EmailTemplateBuilder
      * dunklem Grund traegt der Balken des T einen hellen Ton — anthrazit
      * waere dort unsichtbar.
      */
-    public static function emailMarkAsset(string $theme): string
+    public static function emailMarkAsset(string $theme, ?string $artifactVersion = null): string
     {
+        if (SignatureArtifactVersion::usesV19MailAssets($artifactVersion)) {
+            return $theme === 'dark' ? 'icon-rt-v19-dark.gif' : 'icon-rt-v19-light.gif';
+        }
+
         return $theme === 'dark' ? 'icon-rt-dark.gif' : 'icon-rt-light.gif';
     }
 
     /** Der Schriftzug OHNE das RT-Zeichen — siehe MailSignature::values(). */
     public static function signatureLogoAsset(string $theme, ?string $artifactVersion = null): string
     {
+        if (SignatureArtifactVersion::usesV19MailAssets($artifactVersion)) {
+            return $theme === 'dark'
+                ? 'wortmarke-mail-v19-dark.gif'
+                : 'wortmarke-signature-v19-light.gif';
+        }
+
         if (SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)) {
             return $theme === 'dark'
                 ? 'wortmarke-mail-v15-dark.gif'
@@ -897,7 +915,8 @@ class EmailTemplateBuilder
         // Das RT-Zeichen oben rechts. Es steht bewusst NUR hier: die
         // Signatur darunter traegt den Schriftzug, zusammen ergeben beide
         // die Marke einmal — nicht zweimal.
-        $markAsset = self::emailMarkAsset($theme);
+        $artifactVersion = self::activeSignatureArtifactVersion();
+        $markAsset = self::emailMarkAsset($theme, $artifactVersion);
         if ($staticAnimations) {
             $markAsset = str_replace('.gif', '.png', $markAsset);
         }
@@ -909,7 +928,7 @@ class EmailTemplateBuilder
                 : 'cid:railtime-mark',
             // Standbild fuer Outlook-Desktop, siehe email-master.html.
             'ICON_RT_STILL_SRC' => $inlineImages
-                ? self::inlineImage(str_replace('.gif', '.png', self::emailMarkAsset($theme)), 'image/png')
+                ? self::inlineImage(str_replace('.gif', '.png', self::emailMarkAsset($theme, $artifactVersion)), 'image/png')
                 : 'cid:railtime-mark-still',
         ]);
 
@@ -922,7 +941,6 @@ class EmailTemplateBuilder
             playbackNonce: $playbackNonce,
             staticAssets: $staticAnimations,
         );
-        $artifactVersion = self::activeSignatureArtifactVersion();
         $logoAsset = $this->emailLogoAsset($theme, $artifactVersion);
         if ($staticAnimations) {
             $logoAsset = str_replace('.gif', '.png', $logoAsset);
@@ -1003,7 +1021,9 @@ class EmailTemplateBuilder
         ?string $artifactVersion = null,
     ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
-        $stem = SignatureArtifactVersion::usesV17TrainAssets($artifactVersion)
+        $stem = SignatureArtifactVersion::usesV19MailAssets($artifactVersion)
+            ? 'zug-dampf-v19'
+            : (SignatureArtifactVersion::usesV17TrainAssets($artifactVersion)
             ? 'zug-dampf-v17'
             : (SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)
             ? 'zug-dampf-v15'
@@ -1013,7 +1033,7 @@ class EmailTemplateBuilder
                 ? 'zug-dampf-v12'
                 : (SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)
                     ? 'zug-dampf-v8'
-                    : 'zug-dampf'))));
+                    : 'zug-dampf')))));
 
         return $stem.'-'.$variant.'.'.($animated ? 'gif' : 'png');
     }
@@ -1215,7 +1235,7 @@ class EmailTemplateBuilder
         $variant = $theme === 'dark' ? 'dark' : 'light';
         $artifactVersion = self::activeSignatureArtifactVersion();
         $logoAsset = $this->emailLogoAsset($theme, $artifactVersion);
-        $markAsset = self::emailMarkAsset($theme);
+        $markAsset = self::emailMarkAsset($theme, $artifactVersion);
         $remoteSources = array_merge([
             'LOGO_SRC' => self::httpsMailAssetUrl($logoAsset),
             'LOGO_STILL_SRC' => self::httpsMailAssetUrl(str_replace('.gif', '.png', $logoAsset)),
@@ -1920,7 +1940,7 @@ TEXT;
 
         $logoAsset = $this->emailLogoAsset($theme, $artifactVersion);
         $logoStillAsset = str_replace('.gif', '.png', $logoAsset);
-        $markAsset = self::emailMarkAsset($theme);
+        $markAsset = self::emailMarkAsset($theme, $artifactVersion);
         $trainAsset = self::signatureTrainFilename($theme, true, $artifactVersion);
         $trainStillAsset = self::signatureTrainFilename($theme, false, $artifactVersion);
         $trainIdleAsset = 'zug-dampf-idle-'.($theme === 'dark' ? 'dark' : 'light').'.gif';

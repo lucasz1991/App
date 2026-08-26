@@ -355,7 +355,7 @@ class MailSignature
      */
     public function renderDocument(string $documentHtml, array $layout = [], array $overrides = []): string
     {
-        $values = $this->applyArtifactTrainValues($documentHtml, $this->values($overrides), $overrides);
+        $values = $this->valuesForDocument($documentHtml, $overrides);
         $explicitTrainSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
         $singleTrainSource = $explicitTrainSource !== ''
             ? $explicitTrainSource
@@ -380,7 +380,25 @@ class MailSignature
     }
 
     /**
-     * V8 bis V18 sind fachlich markierte Signaturstaende und besitzen eigene
+     * Liefert denselben artefaktgebundenen Medien-/Tokenstand, den auch der
+     * Renderer benutzt. Die Livevorschau darf dadurch V19-Werte vorab fuer
+     * Nachrichtenschale und Signatur gemeinsam aufloesen, ohne die
+     * Artifact-Auswahl durch Legacy-Medien-Overrides zu blockieren.
+     *
+     * @param  array<string, string>  $overrides
+     * @return array<string, string>
+     */
+    public function valuesForDocument(string $documentHtml, array $overrides = []): array
+    {
+        return $this->applyArtifactTrainValues(
+            $documentHtml,
+            $this->values($overrides),
+            $overrides,
+        );
+    }
+
+    /**
+     * V8 bis V19 sind fachlich markierte Signaturstaende und besitzen eigene
      * Haupt-/Standbilder ohne separates nachlaufendes Idle-Overlay. Die Auswahl geschieht
      * am tatsächlich gerenderten HTML statt am Importdateinamen, damit
      * Vorschau, Systemmail, Download und Testmail dieselbe Bildidentität sehen.
@@ -421,6 +439,28 @@ class MailSignature
             }
         }
 
+        if (SignatureArtifactVersion::usesV19MailAssets($artifactVersion)) {
+            $markAsset = EmailTemplateBuilder::emailMarkAsset($this->theme, $artifactVersion);
+            if ($this->staticAssets) {
+                $markAsset = str_replace('.gif', '.png', $markAsset);
+            }
+            $markStill = str_replace('.gif', '.png', $markAsset);
+            if (! array_key_exists('ICON_RT_SRC', $overrides)) {
+                $values['ICON_RT_SRC'] = $this->remoteAssets
+                    ? EmailTemplateBuilder::mailAssetUrl($markAsset)
+                    : EmailTemplateBuilder::inlineImage(
+                        $markAsset,
+                        str_ends_with($markAsset, '.gif') ? 'image/gif' : 'image/png',
+                        $this->playbackNonce,
+                    );
+            }
+            if (! array_key_exists('ICON_RT_STILL_SRC', $overrides)) {
+                $values['ICON_RT_STILL_SRC'] = $this->remoteAssets
+                    ? EmailTemplateBuilder::mailAssetUrl($markStill)
+                    : EmailTemplateBuilder::inlineImage($markStill, 'image/png');
+            }
+        }
+
         $animated = ! $this->staticAssets && $this->animated;
         if ($this->remoteAssets) {
             if (! array_key_exists('TRAIN_SRC', $overrides)) {
@@ -456,7 +496,7 @@ class MailSignature
             }
         }
 
-        // V8 bis V18 enthalten ihren vollstaendigen Ankunftsstand bereits im
+        // V8 bis V19 enthalten ihren vollstaendigen Ankunftsstand bereits im
         // Haupt-GIF und duerfen nicht durch das alte, zeitversetzt eingeblendete
         // Idle-Overlay ergaenzt werden.
         $values['TRAIN_IDLE_SRC'] = '';

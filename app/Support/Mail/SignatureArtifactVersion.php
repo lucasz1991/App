@@ -42,13 +42,15 @@ final class SignatureArtifactVersion
 
     public const V18 = 'v18';
 
+    public const V19 = 'v19';
+
     /**
-     * V8 bis V18 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
+     * V8 bis V19 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
      * endet im Ankunftsbild und benoetigt deshalb kein separates Idle-Overlay.
      */
     public static function usesArrivalHoldTrain(?string $version): bool
     {
-        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17, self::V18], true);
+        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17, self::V18, self::V19], true);
     }
 
     /** V12 verwendet die optimierte, sofort sichtbare Zugdatei. */
@@ -63,16 +65,16 @@ final class SignatureArtifactVersion
         return in_array($version, [self::V13, self::V14], true);
     }
 
-    /** V15 bis V18 verwenden die kleineren Wortmarkenmedien. */
+    /** V15 bis V19 verwenden die kleineren Wortmarkenmedien. */
     public static function usesOptimizedMailAssets(?string $version): bool
     {
-        return in_array($version, [self::V15, self::V16, self::V17, self::V18], true);
+        return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19], true);
     }
 
-    /** V15 bis V18 duerfen den Inhalt auch bei ignorierter negativer Margin nie abschneiden. */
+    /** V15 bis V19 duerfen den Inhalt bei degradiertem Client-CSS nie abschneiden. */
     public static function usesFailOpenStage(?string $version): bool
     {
-        return in_array($version, [self::V15, self::V16, self::V17, self::V18], true);
+        return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19], true);
     }
 
     /**
@@ -83,6 +85,22 @@ final class SignatureArtifactVersion
     public static function usesAspectSafeTrain(?string $version): bool
     {
         return in_array($version, [self::V17, self::V18], true);
+    }
+
+    /**
+     * V19 verankert den Zug ohne negative Margin absolut an der Unterkante.
+     * Der 720x61-Fallback bleibt bei von Compose-Clients reduziertem CSS klein
+     * und proportional, statt eine zweite 200-px-Zeile zu erzeugen.
+     */
+    public static function usesForwardSafeAbsoluteTrain(?string $version): bool
+    {
+        return $version === self::V19;
+    }
+
+    /** V19 verwendet verlustarm optimierte, eigenstaendig versionierte Medien. */
+    public static function usesV19MailAssets(?string $version): bool
+    {
+        return $version === self::V19;
     }
 
     /** V17/V18 verwenden den reduzierten Fahrrauch und ein rauchfreies Endbild. */

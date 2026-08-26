@@ -93,14 +93,19 @@ final class PageBuilderPreviewService
             remoteAssets: false,
             staticAssets: ! $animated,
         );
-        $values = $signatureRenderer->values();
+        $sampleValues = $this->sampleMailValues($user);
+        $values = $signatureDocument === null
+            ? array_merge($signatureRenderer->values(), $sampleValues)
+            : $signatureRenderer->valuesForDocument(
+                (string) $signatureDocument->html,
+                $sampleValues,
+            );
         if ($animated) {
             $values = $this->uniquePreviewGifValues(
                 $values,
                 $playbackNonce ?? bin2hex(random_bytes(12)),
             );
         }
-        $values = array_merge($values, $this->sampleMailValues($user));
         $signature = $signatureDocument === null
             ? ''
             : $signatureRenderer->renderDocument(

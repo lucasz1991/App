@@ -183,6 +183,33 @@ tr[data-rt-artifact-version="v18"] .rt-sign-content-frame {
   position: relative !important;
   z-index: 1 !important;
 }
+/* V19 benoetigt keine negative Margin mehr. Der absolut verankerte Layer
+   folgt der realen Buehnenhoehe; sein 61-px-Inline-Fallback bleibt bei einer
+   Weiterleitungs-Rekonstruktion proportional und erzeugt keinen 200-px-Spalt. */
+tr[data-rt-artifact-version="v19"] .rt-sign-stage {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 200px !important;
+  overflow: visible !important;
+}
+tr[data-rt-artifact-version="v19"] .rt-sign-train-layer {
+  position: absolute !important;
+  z-index: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 !important;
+}
+tr[data-rt-artifact-version="v19"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v19"] .rt-sign-train-slot { height: 100% !important; }
+tr[data-rt-artifact-version="v19"] .rt-sign-content-frame {
+  position: relative !important;
+  z-index: 1 !important;
+  height: 200px !important;
+}
 tr[data-rt-signature-density="compact"] .rt-sign-stage,
 tr[data-rt-signature-density="compact"] .rt-sign-train-layer {
   height: 145px !important;
@@ -244,20 +271,32 @@ tr[data-rt-artifact-version="v16"] .rt-sign-train-mso {
   vertical-align: bottom !important;
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v18"] .rt-sign-train-slot {
+tr[data-rt-artifact-version="v18"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v19"] .rt-sign-train-slot {
   padding-bottom: 0 !important;
   vertical-align: bottom !important;
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-train,
-tr[data-rt-artifact-version="v18"] .rt-sign-train {
+tr[data-rt-artifact-version="v18"] .rt-sign-train,
+tr[data-rt-artifact-version="v19"] .rt-sign-train {
   display: block !important;
   height: auto !important;
   margin-bottom: 0 !important;
   vertical-align: bottom !important;
 }
-/* Outlook-Desktop erhaelt fuer V17/V18 ein separates, unverzerrbares Standbild. */
+/* Im vollwertigen Mail-/Editor-CSS behaelt V19 die visuelle Zugbreite der
+   V18-Fassung. Nur der CSS-lose Weiterleitungs-Fallback bleibt bewusst bei
+   proportionalen 720x61 Pixeln und kann deshalb keinen grossen Leerblock
+   erzeugen. */
+tr[data-rt-artifact-version="v19"] .rt-sign-train {
+  width: 108.67% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+}
+/* Outlook-Desktop erhaelt fuer V17 bis V19 ein separates, unverzerrbares Standbild. */
 tr[data-rt-artifact-version="v17"] .rt-sign-train-mso,
-tr[data-rt-artifact-version="v18"] .rt-sign-train-mso {
+tr[data-rt-artifact-version="v18"] .rt-sign-train-mso,
+tr[data-rt-artifact-version="v19"] .rt-sign-train-mso {
   display: block !important;
   width: 720px !important;
   max-width: 720px !important;
@@ -623,6 +662,10 @@ tr[data-rt-artifact-version="v17"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v18"] .rt-sign-content-frame { height: 304px !important; }
+tr[data-rt-artifact-version="v19"] .rt-sign-stage {
+  min-height: 304px !important;
+}
+tr[data-rt-artifact-version="v19"] .rt-sign-content-frame { height: 304px !important; }
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
@@ -807,6 +850,10 @@ tr[data-rt-artifact-version="v17"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v18"] .rt-sign-content-frame { height: 272px !important; }
+tr[data-rt-artifact-version="v19"] .rt-sign-stage {
+  min-height: 272px !important;
+}
+tr[data-rt-artifact-version="v19"] .rt-sign-content-frame { height: 272px !important; }
 tr[data-rt-artifact-version="v15"][data-rt-signature-density="compact"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
@@ -853,6 +900,14 @@ tr[data-rt-artifact-version="v17"][data-rt-signature-density="compact"] .rt-sign
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
 img.rt-logo { width: 138px !important; }
+/* V19 verwendet dieselbe 150-px-Wortmarke im mobilen Original und im
+   Inline-Fallback. Entfernt iPhone Mail beim Weiterleiten das Head-CSS,
+   springt das Logo deshalb nicht mehr von 138 auf 200 Pixel. */
+tr[data-rt-artifact-version="v19"] img.rt-logo {
+  width: 150px !important;
+  max-width: 150px !important;
+  height: auto !important;
+}
 
 /* Auf Telefonbreite ist der Zug 75 Prozent groesser als der Viewport. Der
    gemessene Versatz haelt die Lok vollstaendig innerhalb der rechten Kante;
@@ -902,7 +957,8 @@ tr[data-rt-artifact-version="v16"] .rt-sign-train-layer[data-rt-layer-mobile="st
    Reserve vor der rechten Kante. Die zusaetzliche Breite wird links
    angeschnitten. */
 tr[data-rt-artifact-version="v17"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train,
-tr[data-rt-artifact-version="v18"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train {
+tr[data-rt-artifact-version="v18"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train,
+tr[data-rt-artifact-version="v19"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train {
   width: 164% !important;
   max-width: none !important;
   height: auto !important;
@@ -988,14 +1044,16 @@ tr[data-rt-artifact-version="v16"] .rt-sign-content {
   padding-top: 14px !important;
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-content,
-tr[data-rt-artifact-version="v18"] .rt-sign-content {
+tr[data-rt-artifact-version="v18"] .rt-sign-content,
+tr[data-rt-artifact-version="v19"] .rt-sign-content {
   padding-top: 14px !important;
 }
 tr[data-rt-artifact-version="v16"] .rt-sign-logo {
   padding-bottom: 8px !important;
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-logo,
-tr[data-rt-artifact-version="v18"] .rt-sign-logo {
+tr[data-rt-artifact-version="v18"] .rt-sign-logo,
+tr[data-rt-artifact-version="v19"] .rt-sign-logo {
   padding-bottom: 8px !important;
 }
 tr[data-rt-artifact-version="v16"] .rt-sign-top-row > .rt-sign-identity,
@@ -1005,7 +1063,9 @@ tr[data-rt-artifact-version="v16"] .rt-sign-company {
 tr[data-rt-artifact-version="v17"] .rt-sign-top-row > .rt-sign-identity,
 tr[data-rt-artifact-version="v17"] .rt-sign-company,
 tr[data-rt-artifact-version="v18"] .rt-sign-top-row > .rt-sign-identity,
-tr[data-rt-artifact-version="v18"] .rt-sign-company {
+tr[data-rt-artifact-version="v18"] .rt-sign-company,
+tr[data-rt-artifact-version="v19"] .rt-sign-top-row > .rt-sign-identity,
+tr[data-rt-artifact-version="v19"] .rt-sign-company {
   padding-top: 6px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-identity .rt-contact,
@@ -1026,14 +1086,16 @@ tr[data-rt-artifact-version="v16"] .rt-sign-identity .rt-contact {
   margin-top: 6px !important;
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-identity .rt-contact,
-tr[data-rt-artifact-version="v18"] .rt-sign-identity .rt-contact {
+tr[data-rt-artifact-version="v18"] .rt-sign-identity .rt-contact,
+tr[data-rt-artifact-version="v19"] .rt-sign-identity .rt-contact {
   margin-top: 6px !important;
 }
 tr[data-rt-artifact-version="v16"] .rt-company-contact {
   margin-top: 8px !important;
 }
 tr[data-rt-artifact-version="v17"] .rt-company-contact,
-tr[data-rt-artifact-version="v18"] .rt-company-contact {
+tr[data-rt-artifact-version="v18"] .rt-company-contact,
+tr[data-rt-artifact-version="v19"] .rt-company-contact {
   margin-top: 8px !important;
 }
 }

@@ -143,7 +143,7 @@ class MailBrandAnimationGifTest extends TestCase
     /**
      * @return array<string, array{0: string, 1: string, 2: int, 3: int}>
      */
-    public static function v15BrandAnimations(): array
+    public static function optimizedWordmarkAnimations(): array
     {
         return [
             'V15 signature wordmark light' => [
@@ -158,11 +158,23 @@ class MailBrandAnimationGifTest extends TestCase
                 147_044,
                 22_484,
             ],
+            'V19 signature wordmark light' => [
+                'wortmarke-signature-v19-light.gif',
+                'wortmarke-signature-v19-light.png',
+                93_943,
+                6_793,
+            ],
+            'V19 mail wordmark dark' => [
+                'wortmarke-mail-v19-dark.gif',
+                'wortmarke-mail-v19-dark.png',
+                83_810,
+                6_383,
+            ],
         ];
     }
 
-    #[DataProvider('v15BrandAnimations')]
-    public function test_v15_brand_assets_keep_the_optimized_single_run_contract(
+    #[DataProvider('optimizedWordmarkAnimations')]
+    public function test_versioned_brand_assets_keep_the_optimized_single_run_contract(
         string $gifFilename,
         string $pngFilename,
         int $maximumGifBytes,
@@ -176,7 +188,7 @@ class MailBrandAnimationGifTest extends TestCase
         $this->assertIsString($gifResource);
         $this->assertIsString($gifPublic);
         $this->assertSame($gifResource, $gifPublic, "{$gifFilename}: Ressourcen- und Public-Datei unterscheiden sich.");
-        $this->assertLessThanOrEqual($maximumGifBytes, strlen($gifResource), "{$gifFilename}: V15-GIF ist groesser als die freigegebene Fassung.");
+        $this->assertLessThanOrEqual($maximumGifBytes, strlen($gifResource), "{$gifFilename}: GIF ist groesser als die freigegebene Fassung.");
         $this->assertStringNotContainsString('NETSCAPE2.0', $gifResource, "{$gifFilename}: Die Wortmarke darf nicht loopen.");
         $this->assertStringNotContainsString('ANIMEXTS1.0', $gifResource, "{$gifFilename}: Alternativer Loop-Block gefunden.");
 
@@ -192,9 +204,9 @@ class MailBrandAnimationGifTest extends TestCase
         $this->assertSame(
             [6 => 36, 12 => 2, 18 => 1, 222 => 1],
             $delayCounts,
-            "{$gifFilename}: Die optimierte V15-Timeline ist abgewichen.",
+            "{$gifFilename}: Die optimierte Timeline ist abgewichen.",
         );
-        $this->assertSame(480, array_sum($delays), "{$gifFilename}: V15 muss exakt 4,8 s dauern.");
+        $this->assertSame(480, array_sum($delays), "{$gifFilename}: Die Wortmarke muss exakt 4,8 s dauern.");
         $this->assertSame(222, $delays[39], "{$gifFilename}: Die fertige Wortmarke muss im letzten Frame sichtbar gehalten werden.");
 
         $firstInk = null;
@@ -245,7 +257,7 @@ class MailBrandAnimationGifTest extends TestCase
         $this->assertIsString($pngResource);
         $this->assertIsString($pngPublic);
         $this->assertSame($pngResource, $pngPublic, "{$pngFilename}: Ressourcen- und Public-Datei unterscheiden sich.");
-        $this->assertLessThanOrEqual($maximumPngBytes, strlen($pngResource), "{$pngFilename}: V15-PNG ist groesser als die freigegebene Fassung.");
+        $this->assertLessThanOrEqual($maximumPngBytes, strlen($pngResource), "{$pngFilename}: PNG ist groesser als die freigegebene Fassung.");
         $pngSize = getimagesize($pngResourcePath);
         $this->assertIsArray($pngSize);
         $this->assertSame([400, 68], [$pngSize[0], $pngSize[1]]);
@@ -254,9 +266,15 @@ class MailBrandAnimationGifTest extends TestCase
         $this->assertInstanceOf(\GdImage::class, $png);
         $visiblePixels = 0;
         $transparentPixels = 0;
+        $trueColor = imageistruecolor($png);
+        $paletteAlpha = [];
         for ($y = 0; $y < imagesy($png); $y++) {
             for ($x = 0; $x < imagesx($png); $x++) {
-                if (((imagecolorat($png, $x, $y) >> 24) & 0x7F) < 127) {
+                $color = imagecolorat($png, $x, $y);
+                $alpha = $trueColor
+                    ? (($color >> 24) & 0x7F)
+                    : ($paletteAlpha[$color] ??= imagecolorsforindex($png, $color)['alpha']);
+                if ($alpha < 127) {
                     $visiblePixels++;
                 } else {
                     $transparentPixels++;
@@ -266,6 +284,83 @@ class MailBrandAnimationGifTest extends TestCase
         imagedestroy($png);
         $this->assertGreaterThan((int) floor(400 * 68 * 0.03), $visiblePixels, "{$pngFilename}: Das finale PNG enthaelt keine vollstaendige Wortmarke.");
         $this->assertGreaterThan(0, $transparentPixels, "{$pngFilename}: Der transparente Hintergrund des finalen PNG fehlt.");
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string, 2: int, 3: int, 4: int}>
+     */
+    public static function v19RtIconAnimations(): array
+    {
+        return [
+            'V19 RT icon light' => ['icon-rt-v19-light.gif', 'icon-rt-v19-light.png', 29, 20_773, 1_531],
+            'V19 RT icon dark' => ['icon-rt-v19-dark.gif', 'icon-rt-v19-dark.png', 30, 21_050, 1_442],
+        ];
+    }
+
+    #[DataProvider('v19RtIconAnimations')]
+    public function test_v19_rt_icon_assets_keep_the_smaller_single_run_contract(
+        string $gifFilename,
+        string $pngFilename,
+        int $frameCount,
+        int $maximumGifBytes,
+        int $maximumPngBytes,
+    ): void {
+        $gifResourcePath = resource_path('mail-templates/assets/'.$gifFilename);
+        $gifPublicPath = public_path('mail-assets/'.$gifFilename);
+        $gifResource = file_get_contents($gifResourcePath);
+        $gifPublic = file_get_contents($gifPublicPath);
+
+        $this->assertIsString($gifResource);
+        $this->assertIsString($gifPublic);
+        $this->assertSame($gifResource, $gifPublic, "{$gifFilename}: Ressourcen- und Public-Datei unterscheiden sich.");
+        $this->assertLessThanOrEqual($maximumGifBytes, strlen($gifResource), "{$gifFilename}: V19-GIF ist groesser als die freigegebene Fassung.");
+        $this->assertStringNotContainsString('NETSCAPE2.0', $gifResource, "{$gifFilename}: Das RT-Zeichen darf nicht loopen.");
+        $this->assertStringNotContainsString('ANIMEXTS1.0', $gifResource, "{$gifFilename}: Alternativer Loop-Block gefunden.");
+
+        $gif = $this->parseGif($gifResource);
+        $this->assertSame('GIF89a', $gif['signature']);
+        $this->assertSame([132, 132], [$gif['width'], $gif['height']]);
+        $this->assertCount($frameCount, $gif['frames']);
+        $delays = array_column($gif['frames'], 'delayCs');
+        $this->assertSame(360, array_sum($delays), "{$gifFilename}: Das RT-Zeichen muss exakt 3,6 s dauern.");
+        $this->assertSame(205, $delays[$frameCount - 1], "{$gifFilename}: Das fertige RT-Zeichen braucht den End-Hold.");
+
+        $firstInk = null;
+        $lastInk = null;
+        foreach ($gif['frames'] as $index => $frame) {
+            $this->assertTrue($frame['transparent'], "{$gifFilename}: Frame {$index} muss transparent sein.");
+            $this->assertSame($index === $frameCount - 1 ? 1 : 2, $frame['disposal'], "{$gifFilename}: Frame {$index} hat die falsche Entsorgungsmethode.");
+            $this->assertLessThanOrEqual($gif['width'], $frame['left'] + $frame['width']);
+            $this->assertLessThanOrEqual($gif['height'], $frame['top'] + $frame['height']);
+            $pixels = $this->decodeLzw(
+                $frame['imageData'],
+                $frame['minimumCodeSize'],
+                $frame['width'] * $frame['height'],
+            );
+            $this->assertSame($frame['width'] * $frame['height'], strlen($pixels));
+            $ink = $this->countInkPixels($pixels, $frame['transparentIndex']);
+            if ($index === 0) {
+                $firstInk = $ink;
+            }
+            if ($index === $frameCount - 1) {
+                $lastInk = $ink;
+            }
+        }
+        $this->assertSame(0, $firstInk, "{$gifFilename}: Die Animation muss aus einem leeren Canvas beginnen.");
+        $this->assertIsInt($lastInk);
+        $this->assertGreaterThan((int) floor(132 * 132 * 0.03), $lastInk, "{$gifFilename}: Im End-Hold fehlt das RT-Zeichen.");
+
+        $pngResourcePath = resource_path('mail-templates/assets/'.$pngFilename);
+        $pngPublicPath = public_path('mail-assets/'.$pngFilename);
+        $pngResource = file_get_contents($pngResourcePath);
+        $pngPublic = file_get_contents($pngPublicPath);
+        $this->assertIsString($pngResource);
+        $this->assertIsString($pngPublic);
+        $this->assertSame($pngResource, $pngPublic, "{$pngFilename}: Ressourcen- und Public-Datei unterscheiden sich.");
+        $this->assertLessThanOrEqual($maximumPngBytes, strlen($pngResource), "{$pngFilename}: V19-PNG ist groesser als die freigegebene Fassung.");
+        $pngSize = getimagesize($pngResourcePath);
+        $this->assertIsArray($pngSize);
+        $this->assertSame([132, 132], [$pngSize[0], $pngSize[1]]);
     }
 
     /**

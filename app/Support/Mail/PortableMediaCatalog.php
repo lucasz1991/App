@@ -70,6 +70,10 @@ final class PortableMediaCatalog
                     MailDocumentKind::Signature,
                     SignatureArtifactVersion::V18,
                 ),
+                SignatureArtifactVersion::V19 => self::requiredSystemAssetIds(
+                    MailDocumentKind::Signature,
+                    SignatureArtifactVersion::V19,
+                ),
             ],
             MailDocumentKind::Template => [
                 'default' => self::requiredSystemAssetIds(MailDocumentKind::Template),
@@ -92,7 +96,18 @@ final class PortableMediaCatalog
                 'contact-mobile.png',
                 'contact-phone.png',
                 'contact-web.png',
-            ], SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)
+            ], SignatureArtifactVersion::usesV19MailAssets($artifactVersion)
+                ? [
+                    'icon-rt-v19-light.gif',
+                    'icon-rt-v19-light.png',
+                    'icon-rt-v19-dark.gif',
+                    'icon-rt-v19-dark.png',
+                    'wortmarke-signature-v19-light.gif',
+                    'wortmarke-signature-v19-light.png',
+                    'wortmarke-mail-v19-dark.gif',
+                    'wortmarke-mail-v19-dark.png',
+                ]
+                : (SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)
                 ? [
                     'wortmarke-signature-v15-light.gif',
                     'wortmarke-signature-v15-light.png',
@@ -104,7 +119,14 @@ final class PortableMediaCatalog
                     'wortmarke-signature-light.png',
                     'wortmarke-mail-dark.gif',
                     'wortmarke-mail-dark.png',
-                ], SignatureArtifactVersion::usesV17TrainAssets($artifactVersion)
+                ]), SignatureArtifactVersion::usesV19MailAssets($artifactVersion)
+                ? [
+                    'zug-dampf-v19-light.gif',
+                    'zug-dampf-v19-light.png',
+                    'zug-dampf-v19-dark.gif',
+                    'zug-dampf-v19-dark.png',
+                ]
+                : (SignatureArtifactVersion::usesV17TrainAssets($artifactVersion)
                 ? [
                     'zug-dampf-v17-light.gif',
                     'zug-dampf-v17-light.png',
@@ -146,7 +168,7 @@ final class PortableMediaCatalog
                     'zug-dampf-dark.png',
                     'zug-dampf-idle-light.gif',
                     'zug-dampf-idle-dark.gif',
-                ]))))),
+                ])))))),
             MailDocumentKind::Template => [
                 'icon-rt-light.gif',
                 'icon-rt-light.png',

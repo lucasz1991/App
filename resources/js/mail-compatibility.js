@@ -92,6 +92,15 @@ export const MAIL_DEGRADATION_MODES = Object.freeze({
         colorScheme: null,
         disclaimer: 'Weiterleitungs-Robustheitsvorschau – keine iPhone- oder Mailclient-Emulation.',
     }),
+    'forward-strict': Object.freeze({
+        id: 'forward-strict',
+        label: 'iPhone-Weiterleitung · Stress',
+        description: 'Stressprüfung einer zitierten Weiterleitung ohne Head-CSS, negative Margins oder positionierte Ebenen; HTML-Abmessungen und Medien bleiben erhalten.',
+        clientEmulation: false,
+        viewportWidth: 375,
+        colorScheme: null,
+        disclaimer: 'iPhone-Weiterleitungs-Stressprüfung – bewusste Degradation, keine iPhone- oder Mailclient-Emulation.',
+    }),
     'css-off': Object.freeze({
         id: 'css-off',
         label: 'CSS aus',
@@ -642,14 +651,107 @@ function removeAllCss(root) {
     });
 }
 
-function prepareForwarding(parsed) {
+function splitInlineCssDeclarations(style) {
+    const declarations = [];
+    let current = '';
+    let quote = '';
+    let depth = 0;
+    let escaped = false;
+
+    for (const character of String(style || '')) {
+        if (escaped) {
+            current += character;
+            escaped = false;
+            continue;
+        }
+        if (character === '\\' && quote) {
+            current += character;
+            escaped = true;
+            continue;
+        }
+        if (quote) {
+            current += character;
+            if (character === quote) quote = '';
+            continue;
+        }
+        if (character === '"' || character === "'") {
+            quote = character;
+            current += character;
+            continue;
+        }
+        if (character === '(') depth += 1;
+        if (character === ')' && depth > 0) depth -= 1;
+        if (character === ';' && depth === 0) {
+            if (current.trim()) declarations.push(current.trim());
+            current = '';
+            continue;
+        }
+        current += character;
+    }
+
+    if (current.trim()) declarations.push(current.trim());
+
+    return declarations;
+}
+
+function hasNegativeCssNumber(value) {
+    return /-\s*(?:\d|\.\d)/.test(
+        String(value || '').replace(/\/\*[\s\S]*?\*\//g, ''),
+    );
+}
+
+function neutralizeStrictForwardingStyles(root) {
+    const positionalProperties = new Set([
+        'position',
+        'z-index',
+        'top',
+        'right',
+        'bottom',
+        'left',
+        'inset',
+        'inset-block',
+        'inset-block-start',
+        'inset-block-end',
+        'inset-inline',
+        'inset-inline-start',
+        'inset-inline-end',
+    ]);
+
+    Array.from(root?.querySelectorAll?.('[style]') || []).forEach((element) => {
+        const declarations = splitInlineCssDeclarations(element.getAttribute?.('style'));
+        const retained = declarations.filter((declaration) => {
+            const separator = declaration.indexOf(':');
+            if (separator <= 0) return false;
+
+            const property = declaration.slice(0, separator).trim().toLowerCase();
+            const value = declaration.slice(separator + 1).trim();
+            if (positionalProperties.has(property)) return false;
+            if ((property === 'margin' || property.startsWith('margin-'))
+                && hasNegativeCssNumber(value)) {
+                return false;
+            }
+
+            return true;
+        });
+
+        if (retained.length === 0) {
+            element.removeAttribute('style');
+            return;
+        }
+        element.setAttribute('style', `${retained.join(';')};`);
+    });
+}
+
+function prepareForwarding(parsed, { strict = false } = {}) {
     removeEmbeddedCss(parsed.root);
+    if (strict) neutralizeStrictForwardingStyles(parsed.root);
     if (!parsed.fullDocument || !parsed.document_?.body) return;
 
     const body = parsed.document_.body;
     const quote = parsed.document_.createElement('blockquote');
     quote.setAttribute('type', 'cite');
     quote.setAttribute('data-rt-mail-forwarded-content', '');
+    if (strict) quote.setAttribute('data-rt-mail-forward-stress', '');
     quote.setAttribute(
         'style',
         'margin:0 0 0 8px;padding:0 0 0 8px;border:0;border-left:1px solid #d1d5db;',
@@ -707,6 +809,7 @@ export function transformMailHtmlForDegradation(html, mode = 'normal', options =
     if (normalizedMode === 'images-off') disableImages(parsed.root);
     if (normalizedMode === 'head-css-off') removeEmbeddedCss(parsed.root);
     if (normalizedMode === 'forward') prepareForwarding(parsed);
+    if (normalizedMode === 'forward-strict') prepareForwarding(parsed, { strict: true });
     if (normalizedMode === 'css-off') removeAllCss(parsed.root);
 
     if (parsed.fullDocument) {

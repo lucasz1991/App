@@ -20,6 +20,10 @@ final class SignatureTrainCarrier
 
     private const TRAIN_OVERLAP = '-200px';
 
+    private const FORWARD_SAFE_HEIGHT = '61px';
+
+    private const FORWARD_SAFE_HEIGHT_ATTRIBUTE = '61';
+
     /** @var array<string, array{width:string,maxWidth:string,centerLeft:string,rightLeft:string}> */
     private const CANONICAL_LAYER_SIZE = [
         '100' => ['width' => '100%', 'maxWidth' => '1815px', 'centerLeft' => '0', 'rightLeft' => '0'],
@@ -78,31 +82,33 @@ final class SignatureTrainCarrier
 
                 return $html;
             } catch (RuntimeException) {
-                try {
-                    self::assertCanonicalImage(
-                        $html,
-                        allowLegacyContentFirst: true,
-                        allowLegacyExpandedFlowLayer: true,
-                        allowLegacyFailOpenFixedStage: $failOpenStage,
-                    );
-                } catch (RuntimeException) {
+                if (! self::isStrictPreviousContractForForwardSafeUpgrade($html)) {
                     try {
                         self::assertCanonicalImage(
                             $html,
                             allowLegacyContentFirst: true,
-                            allowLegacyPercentHeight: true,
-                            allowLegacyAbsoluteLayer: true,
+                            allowLegacyExpandedFlowLayer: true,
                             allowLegacyFailOpenFixedStage: $failOpenStage,
                         );
                     } catch (RuntimeException) {
-                        self::assertCanonicalImage(
-                            $html,
-                            allowLegacyDirectLayer: true,
-                            allowLegacyPercentHeight: true,
-                            allowLegacyAbsoluteLayer: true,
-                            allowLegacyFailOpenFixedStage: $failOpenStage,
-                        );
-                        $html = self::wrapLegacyDirectCarrierInStage($html);
+                        try {
+                            self::assertCanonicalImage(
+                                $html,
+                                allowLegacyContentFirst: true,
+                                allowLegacyPercentHeight: true,
+                                allowLegacyAbsoluteLayer: true,
+                                allowLegacyFailOpenFixedStage: $failOpenStage,
+                            );
+                        } catch (RuntimeException) {
+                            self::assertCanonicalImage(
+                                $html,
+                                allowLegacyDirectLayer: true,
+                                allowLegacyPercentHeight: true,
+                                allowLegacyAbsoluteLayer: true,
+                                allowLegacyFailOpenFixedStage: $failOpenStage,
+                            );
+                            $html = self::wrapLegacyDirectCarrierInStage($html);
+                        }
                     }
                 }
             }
@@ -251,12 +257,14 @@ final class SignatureTrainCarrier
             $content = substr($html, $contentOffset, $carrierCloseOffset - $contentOffset);
             $failOpenStage = self::usesFailOpenStage($html);
             $aspectSafeTrain = self::usesAspectSafeTrain($html);
+            $forwardSafeTrain = self::usesForwardSafeAbsoluteTrain($html);
             $stage = self::canonicalStageMarkup(
                 $content,
                 self::canonicalLayerMarkup(
                     '{{TRAIN_SRC}}',
                     failOpenStage: $failOpenStage,
                     aspectSafeTrain: $aspectSafeTrain,
+                    forwardSafeTrain: $forwardSafeTrain,
                 ),
                 $failOpenStage,
             );
@@ -336,8 +344,9 @@ final class SignatureTrainCarrier
             'UTF-8',
         );
         $aspectSafeTrain = self::usesAspectSafeTrain($html);
+        $forwardSafeTrain = self::usesForwardSafeAbsoluteTrain($html);
         $fallbackHeight = self::usesFailOpenStage($html) ? ' height="61"' : '';
-        $fallbackStyle = $aspectSafeTrain
+        $fallbackStyle = ($aspectSafeTrain || $forwardSafeTrain)
             ? 'display:inline-block;width:720px;max-width:720px;height:61px;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;'
             : 'display:inline-block;width:'.$size['width'].';max-width:none;height:auto;margin:'.self::imageMargin($alignment, $size).';border:0;outline:none;text-decoration:none;vertical-align:bottom;';
         $fallback = '<!--[if mso]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="'.$escapedSource.'" width="720"'.$fallbackHeight.' alt="" '
@@ -507,6 +516,7 @@ final class SignatureTrainCarrier
     ): void {
         $failOpenStage = self::usesFailOpenStage($html) && ! $allowLegacyFailOpenFixedStage;
         $aspectSafeTrain = self::usesAspectSafeTrain($html);
+        $forwardSafeTrain = self::usesForwardSafeAbsoluteTrain($html);
         if (substr_count($html, '{{TRAIN_SRC}}') !== 1
             || str_contains($html, '{{TRAIN_IDLE_SRC}}')) {
             throw new RuntimeException('Die Signatur benoetigt genau ein kanonisches Zugbild.');
@@ -647,7 +657,13 @@ final class SignatureTrainCarrier
         }
 
         if ($usesFixedPixelStructure) {
-            self::assertCanonicalPixelFrames($trainFrame, $trainSlot, $contentFrame, $failOpenStage);
+            self::assertCanonicalPixelFrames(
+                $trainFrame,
+                $trainSlot,
+                $contentFrame,
+                $failOpenStage,
+                $forwardSafeTrain,
+            );
         }
 
         self::assertExactElementAttributeNames($layer, [
@@ -664,7 +680,7 @@ final class SignatureTrainCarrier
             'src',
             'width',
         ];
-        if ($failOpenStage && ! $aspectSafeTrain) {
+        if ($forwardSafeTrain || ($failOpenStage && ! $aspectSafeTrain)) {
             $imageAttributeNames[] = 'height';
         }
         $imageAttributeNames = array_merge($imageAttributeNames, [
@@ -864,7 +880,24 @@ final class SignatureTrainCarrier
             'mso-hide' => 'all',
         ];
         if ($usesFixedPixelStructure) {
-            $fixedLayerStyle = [
+            $fixedLayerStyle = $forwardSafeTrain ? [
+                'position' => 'absolute',
+                'z-index' => '0',
+                'left' => '0',
+                'right' => '0',
+                'top' => 'auto',
+                'bottom' => '0',
+                'display' => 'block',
+                'width' => '100%',
+                'height' => self::FORWARD_SAFE_HEIGHT,
+                'max-height' => self::FORWARD_SAFE_HEIGHT,
+                'max-width' => '1815px',
+                'margin' => '0',
+                'overflow' => 'hidden',
+                'font-size' => '0',
+                'line-height' => '0',
+                'text-align' => 'left',
+            ] : [
                 'display' => 'block',
                 'width' => '100%',
                 'height' => self::STAGE_HEIGHT,
@@ -877,14 +910,29 @@ final class SignatureTrainCarrier
                 'line-height' => '0',
                 'text-align' => 'left',
             ];
-            if ($failOpenStage) {
+            if ($failOpenStage && ! $forwardSafeTrain) {
                 $fixedLayerStyle = [
                     'position' => 'relative',
                     'z-index' => '0',
                 ] + $fixedLayerStyle;
             }
             self::assertExactSimpleStyle($layer, $fixedLayerStyle, 'Zug-Layer');
-            $fixedImageStyle = $imageStyle;
+            $fixedImageStyle = $forwardSafeTrain ? [
+                'position' => 'static',
+                'left' => 'auto',
+                'right' => 'auto',
+                'bottom' => 'auto',
+                'display' => 'block',
+                'width' => '720px',
+                'max-width' => '100%',
+                'height' => 'auto',
+                'margin' => '0',
+                'border' => '0',
+                'outline' => 'none',
+                'text-decoration' => 'none',
+                'vertical-align' => 'bottom',
+                'mso-hide' => 'all',
+            ] : $imageStyle;
             $fixedImageStyle['vertical-align'] = 'bottom';
             self::assertExactSimpleStyle($image, $fixedImageStyle, 'Zugbild');
         } else {
@@ -1282,6 +1330,7 @@ final class SignatureTrainCarrier
     private static function normalizeImageToCanonicalFlow(string $html, bool $failOpenStage = false): string
     {
         $aspectSafeTrain = self::usesAspectSafeTrain($html);
+        $forwardSafeTrain = self::usesForwardSafeAbsoluteTrain($html);
         $stages = [];
         $layers = [];
         $images = [];
@@ -1348,6 +1397,7 @@ final class SignatureTrainCarrier
                     $mobileCrop,
                     $failOpenStage,
                     $aspectSafeTrain,
+                    $forwardSafeTrain,
                 ),
             ],
             [
@@ -1435,6 +1485,7 @@ final class SignatureTrainCarrier
                 '{{TRAIN_SRC}}',
                 failOpenStage: $failOpenStage,
                 aspectSafeTrain: self::usesAspectSafeTrain($html),
+                forwardSafeTrain: self::usesForwardSafeAbsoluteTrain($html),
             ),
             $stages[0]['endOffset'] + 1,
             0,
@@ -1640,6 +1691,7 @@ final class SignatureTrainCarrier
         string $mobileCrop = 'train',
         bool $failOpenStage = false,
         bool $aspectSafeTrain = false,
+        bool $forwardSafeTrain = false,
     ): string {
         $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
         if (! is_array($size)
@@ -1649,7 +1701,18 @@ final class SignatureTrainCarrier
         }
 
         $layerPosition = $failOpenStage ? 'position:relative;z-index:0;' : '';
-        $imageHeight = $failOpenStage && ! $aspectSafeTrain ? ' height="61"' : '';
+        $imageHeight = ($forwardSafeTrain || ($failOpenStage && ! $aspectSafeTrain)) ? ' height="61"' : '';
+
+        if ($forwardSafeTrain) {
+            return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="'.$alignment.'" data-rt-layer-size="'.$sizeName.'" data-rt-layer-mobile="'.$mobileCrop.'" '
+                .'style="position:absolute;z-index:0;left:0;right:0;top:auto;bottom:0;display:block;width:100%;height:61px;max-height:61px;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;">'
+                .'<table class="rt-sign-train-frame" role="presentation" width="100%" height="61" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:61px;border-collapse:collapse;">'
+                .'<tr><td class="rt-sign-train-slot" height="61" valign="bottom" style="height:61px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;">'
+                .'<img class="rt-sign-train" data-rt-train src="'.$source.'" width="720" height="61" alt="" '
+                .'style="position:static;left:auto;right:auto;bottom:auto;display:block;width:720px;max-width:100%;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;">'
+                .'</td></tr></table>'
+                .'</div>';
+        }
 
         return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="'.$alignment.'" data-rt-layer-size="'.$sizeName.'" data-rt-layer-mobile="'.$mobileCrop.'" '
             .'style="'.$layerPosition.'display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:'.self::layerMargin($alignment).';margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;">'
@@ -1673,6 +1736,7 @@ final class SignatureTrainCarrier
         DOMElement $trainSlot,
         DOMElement $contentFrame,
         bool $failOpenStage = false,
+        bool $forwardSafeTrain = false,
     ): void {
         if (self::elementClasses($trainFrame) !== ['rt-sign-train-frame']
             || self::elementClasses($trainSlot) !== ['rt-sign-train-slot']
@@ -1690,28 +1754,31 @@ final class SignatureTrainCarrier
             'class', 'role', 'width', 'height', 'border', 'cellspacing', 'cellpadding', 'style',
         ], 'Signatur-Inhaltsrahmen');
 
-        foreach ([$trainFrame, $contentFrame] as $frame) {
+        foreach ([
+            [$trainFrame, $forwardSafeTrain ? self::FORWARD_SAFE_HEIGHT_ATTRIBUTE : self::STAGE_HEIGHT_ATTRIBUTE],
+            [$contentFrame, self::STAGE_HEIGHT_ATTRIBUTE],
+        ] as [$frame, $expectedHeight]) {
             if (strtolower($frame->getAttribute('role')) !== 'presentation'
                 || $frame->getAttribute('width') !== '100%'
-                || $frame->getAttribute('height') !== self::STAGE_HEIGHT_ATTRIBUTE
+                || $frame->getAttribute('height') !== $expectedHeight
                 || $frame->getAttribute('border') !== '0'
                 || $frame->getAttribute('cellspacing') !== '0'
                 || $frame->getAttribute('cellpadding') !== '0') {
                 throw new RuntimeException('Die feste Tabellenhoehe der Signatur muss 200 Pixel betragen.');
             }
         }
-        if ($trainSlot->getAttribute('height') !== self::STAGE_HEIGHT_ATTRIBUTE
+        if ($trainSlot->getAttribute('height') !== ($forwardSafeTrain ? self::FORWARD_SAFE_HEIGHT_ATTRIBUTE : self::STAGE_HEIGHT_ATTRIBUTE)
             || strtolower($trainSlot->getAttribute('valign')) !== 'bottom') {
             throw new RuntimeException('Der Zug-Slot muss am unteren Rand der 200-Pixel-Buehne stehen.');
         }
 
         self::assertExactSimpleStyle($trainFrame, [
             'width' => '100%',
-            'height' => self::STAGE_HEIGHT,
+            'height' => $forwardSafeTrain ? self::FORWARD_SAFE_HEIGHT : self::STAGE_HEIGHT,
             'border-collapse' => 'collapse',
         ], 'Zug-Rahmen');
         self::assertExactSimpleStyle($trainSlot, [
-            'height' => self::STAGE_HEIGHT,
+            'height' => $forwardSafeTrain ? self::FORWARD_SAFE_HEIGHT : self::STAGE_HEIGHT,
             'padding' => '0',
             'text-align' => 'left',
             'vertical-align' => 'bottom',
@@ -1817,6 +1884,59 @@ final class SignatureTrainCarrier
         return SignatureArtifactVersion::usesAspectSafeTrain(
             SignatureArtifactVersion::detect(MailDocumentKind::Signature, $html),
         );
+    }
+
+    private static function usesForwardSafeAbsoluteTrain(string $html): bool
+    {
+        return SignatureArtifactVersion::usesForwardSafeAbsoluteTrain(
+            SignatureArtifactVersion::detect(MailDocumentKind::Signature, $html),
+        );
+    }
+
+    /**
+     * Beim Versionswechsel steht der V19-Marker bereits im Entwurf, waehrend
+     * der gespeicherte Zugtraeger noch exakt den V18-Vertrag abbildet. Nur
+     * diese eine bekannte, zuvor vollstaendig gueltige Altform darf vor der
+     * Projektion gegen V18 geprueft werden; beliebige 200-px-Strukturen werden
+     * dadurch nicht als V19 akzeptiert.
+     */
+    private static function isStrictPreviousContractForForwardSafeUpgrade(string $html): bool
+    {
+        if (! self::usesForwardSafeAbsoluteTrain($html)) {
+            return false;
+        }
+
+        $replacementCount = 0;
+        $previous = preg_replace_callback(
+            '/(\b'.preg_quote(SignatureArtifactVersion::ATTRIBUTE, '/').'\s*=\s*)(["\'])'
+                .preg_quote(SignatureArtifactVersion::V19, '/').'\2/i',
+            static function (array $match) use (&$replacementCount): string {
+                $replacementCount++;
+
+                return $match[1].$match[2].SignatureArtifactVersion::V18.$match[2];
+            },
+            $html,
+        );
+        if (! is_string($previous) || $replacementCount !== 1) {
+            return false;
+        }
+
+        try {
+            self::assertCanonicalImage($previous);
+
+            return true;
+        } catch (RuntimeException) {
+            try {
+                self::assertCanonicalImage(
+                    $previous,
+                    allowLegacyFailOpenFixedStage: true,
+                );
+
+                return true;
+            } catch (RuntimeException) {
+                return false;
+            }
+        }
     }
 
     /**
@@ -2490,6 +2610,7 @@ final class SignatureTrainCarrier
     {
         $failOpenStage = self::usesFailOpenStage($html);
         $aspectSafeTrain = self::usesAspectSafeTrain($html);
+        $forwardSafeTrain = self::usesForwardSafeAbsoluteTrain($html);
         $layers = [];
         $slots = [];
         foreach (self::scanStartTags($html) as $tag) {
@@ -2556,10 +2677,10 @@ final class SignatureTrainCarrier
             }
             self::assertExactSourceTagStyle($tags[0], [
                 'display' => 'inline-block',
-                'width' => $aspectSafeTrain ? '720px' : $size['width'],
-                'max-width' => $aspectSafeTrain ? '720px' : 'none',
-                'height' => $aspectSafeTrain ? '61px' : 'auto',
-                'margin' => $aspectSafeTrain ? '0' : self::imageMargin($alignment, $size),
+                'width' => ($aspectSafeTrain || $forwardSafeTrain) ? '720px' : $size['width'],
+                'max-width' => ($aspectSafeTrain || $forwardSafeTrain) ? '720px' : 'none',
+                'height' => ($aspectSafeTrain || $forwardSafeTrain) ? '61px' : 'auto',
+                'margin' => ($aspectSafeTrain || $forwardSafeTrain) ? '0' : self::imageMargin($alignment, $size),
                 'border' => '0',
                 'outline' => 'none',
                 'text-decoration' => 'none',

@@ -824,6 +824,135 @@ class SignatureTrainTimelineTest extends TestCase
         $this->assertGreaterThan(0, $visiblePixels, "{$pngFilename}: Das Endstand-PNG enthaelt keinen Zug.");
     }
 
+    /**
+     * @return array<string, array{0: string, 1: int, 2: int}>
+     */
+    public static function v19TrainAnimations(): array
+    {
+        return [
+            'V19 light' => ['light', 224_126, 7_366],
+            'V19 dark' => ['dark', 147_456, 7_236],
+        ];
+    }
+
+    #[DataProvider('v19TrainAnimations')]
+    public function test_v19_train_assets_keep_the_smaller_forward_safe_contract(
+        string $theme,
+        int $maximumGifBytes,
+        int $maximumPngBytes,
+    ): void {
+        $filename = "zug-dampf-v19-{$theme}.gif";
+        $resourcePath = resource_path('mail-templates/assets/'.$filename);
+        $publicPath = public_path('mail-assets/'.$filename);
+        $resource = file_get_contents($resourcePath);
+        $public = file_get_contents($publicPath);
+
+        $this->assertIsString($resource);
+        $this->assertIsString($public);
+        $this->assertSame($resource, $public, "{$filename}: Ressourcen- und Public-Datei unterscheiden sich.");
+        $this->assertLessThanOrEqual($maximumGifBytes, strlen($resource), "{$filename}: V19-GIF ist groesser als die freigegebene Fassung.");
+        $this->assertStringNotContainsString('NETSCAPE2.0', $resource, "{$filename}: Die Zugfahrt darf nicht loopen.");
+        $this->assertStringNotContainsString('ANIMEXTS1.0', $resource, "{$filename}: Alternativer Loop-Block gefunden.");
+
+        $gif = $this->parseGif($resource);
+        $this->assertSame('GIF89a', $gif['signature']);
+        $this->assertSame([2016, 171], [$gif['width'], $gif['height']]);
+        $this->assertCount(36, $gif['frames']);
+        $delays = array_column($gif['frames'], 'delayCs');
+        $this->assertSame([25, ...array_fill(0, 34, 20), 595], $delays, "{$filename}: Die optimierte V19-Timeline ist abgewichen.");
+        $this->assertSame(1300, array_sum($delays), "{$filename}: V19 muss exakt 13,0 s dauern.");
+
+        $drivingSmokeFrames = 0;
+        $deltaFrames = 0;
+        foreach ($gif['frames'] as $index => $frame) {
+            $this->assertTrue($frame['transparent'], "{$filename}: Frame {$index} muss transparent sein.");
+            $this->assertSame($index === 35 ? 1 : 2, $frame['disposal'], "{$filename}: Frame {$index} hat die falsche Entsorgungsmethode.");
+            $this->assertGreaterThan(0, $frame['width']);
+            $this->assertGreaterThan(0, $frame['height']);
+            $this->assertLessThanOrEqual($gif['width'], $frame['left'] + $frame['width']);
+            $this->assertLessThanOrEqual($gif['height'], $frame['top'] + $frame['height']);
+            if ($frame['left'] !== 0 || $frame['top'] !== 0 || $frame['width'] !== $gif['width'] || $frame['height'] !== $gif['height']) {
+                $deltaFrames++;
+            }
+
+            $pixels = $this->decodeLzw(
+                $frame['imageData'],
+                $frame['minimumCodeSize'],
+                $frame['width'] * $frame['height'],
+            );
+            $this->assertSame($frame['width'] * $frame['height'], strlen($pixels), "{$filename}: Frame {$index} ist unvollstaendig.");
+
+            $safeZonePixels = 0;
+            $smokePixels = 0;
+            for ($localY = 0; $localY < $frame['height']; $localY++) {
+                $globalY = $frame['top'] + $localY;
+                if ($globalY >= 76) {
+                    break;
+                }
+                for ($localX = 0; $localX < $frame['width']; $localX++) {
+                    if (ord($pixels[($localY * $frame['width']) + $localX]) === $frame['transparentIndex']) {
+                        continue;
+                    }
+                    if ($globalY < 16) {
+                        $safeZonePixels++;
+                    } else {
+                        $smokePixels++;
+                    }
+                }
+            }
+            $this->assertSame(0, $safeZonePixels, "{$filename}: Frame {$index} belegt die 16 Pixel hohe Rauch-Sicherheitszone.");
+            if ($index < 35 && $smokePixels > 0) {
+                $drivingSmokeFrames++;
+            }
+            if ($index === 0) {
+                $this->assertSame(0, $this->countInk($pixels, $frame['transparentIndex']), "{$filename}: Das Startbild muss leer sein.");
+            }
+            if ($index === 35) {
+                $this->assertSame(0, $smokePixels, "{$filename}: Der End-Hold muss rauchfrei sein.");
+                $this->assertGreaterThan(0, $this->countInk($pixels, $frame['transparentIndex']), "{$filename}: Der End-Hold darf nicht leer sein.");
+            }
+        }
+        $this->assertGreaterThan(0, $deltaFrames, "{$filename}: Die Delta-Frame-Optimierung fehlt.");
+        $this->assertGreaterThanOrEqual(20, $drivingSmokeFrames, "{$filename}: Waehrend der Fahrt ist zu wenig Rauch sichtbar.");
+
+        $pngFilename = "zug-dampf-v19-{$theme}.png";
+        $pngResourcePath = resource_path('mail-templates/assets/'.$pngFilename);
+        $pngPublicPath = public_path('mail-assets/'.$pngFilename);
+        $pngResource = file_get_contents($pngResourcePath);
+        $pngPublic = file_get_contents($pngPublicPath);
+        $this->assertIsString($pngResource);
+        $this->assertIsString($pngPublic);
+        $this->assertSame($pngResource, $pngPublic, "{$pngFilename}: Ressourcen- und Public-Datei unterscheiden sich.");
+        $this->assertLessThanOrEqual($maximumPngBytes, strlen($pngResource), "{$pngFilename}: V19-PNG ist groesser als die freigegebene Fassung.");
+        $pngSize = getimagesize($pngResourcePath);
+        $this->assertIsArray($pngSize);
+        $this->assertSame([2016, 171], [$pngSize[0], $pngSize[1]]);
+
+        $png = imagecreatefrompng($pngResourcePath);
+        $this->assertInstanceOf(\GdImage::class, $png);
+        $visiblePixels = 0;
+        $trueColor = imageistruecolor($png);
+        $paletteAlpha = [];
+        for ($y = 0; $y < imagesy($png); $y++) {
+            $transparentRow = true;
+            for ($x = 0; $x < imagesx($png); $x++) {
+                $color = imagecolorat($png, $x, $y);
+                $alpha = $trueColor
+                    ? (($color >> 24) & 0x7F)
+                    : ($paletteAlpha[$color] ??= imagecolorsforindex($png, $color)['alpha']);
+                if ($alpha < 127) {
+                    $transparentRow = false;
+                    $visiblePixels++;
+                }
+            }
+            if ($y < 76) {
+                $this->assertTrue($transparentRow, "{$pngFilename}: Das Endstand-PNG enthaelt Fahrrauch in Zeile {$y}.");
+            }
+        }
+        imagedestroy($png);
+        $this->assertGreaterThan(0, $visiblePixels, "{$pngFilename}: Das Endstand-PNG enthaelt keinen Zug.");
+    }
+
     public function test_outlook_arrival_is_the_exact_three_to_one_derivative_of_the_main_frame(): void
     {
         foreach (['light', 'dark'] as $theme) {

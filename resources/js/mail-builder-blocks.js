@@ -515,5 +515,24 @@ ${imageRule('ICON_LOCATION_SRC', icons.location)}
 
 /* ---- Versandgleiche Umbrueche, nur innerhalb des Editor-Iframes ---- */
 ${String(responsiveCss || '')}
+
+/* ---- Editor-Geometrie fuer flexible Signaturbuehnen -----------------
+ * V19 darf durch vollstaendige Kontaktdaten hoeher als seine mailseitige
+ * Mindesthoehe werden. Der Zug bleibt im Canvas deshalb an beiden Kanten der
+ * tatsaechlichen Buehne verankert. Diese Regel lebt ausschliesslich im
+ * Editor-iframe und veraendert weder Projektmodell noch Versand-HTML. */
+body.rt-mail-canvas table[data-rt-mail-signature-canvas] tr[data-rt-artifact-version="v19"] .rt-sign-stage > .rt-sign-train-layer {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    height: 100% !important;
+    max-height: none !important;
+    margin: 0 !important;
+}
+body.rt-mail-canvas table[data-rt-mail-signature-canvas] tr[data-rt-artifact-version="v19"] .rt-sign-stage > .rt-sign-train-layer > .rt-sign-train-frame,
+body.rt-mail-canvas table[data-rt-mail-signature-canvas] tr[data-rt-artifact-version="v19"] .rt-sign-stage > .rt-sign-train-layer > .rt-sign-train-frame .rt-sign-train-slot {
+    height: 100% !important;
+}
 `.trim();
 }

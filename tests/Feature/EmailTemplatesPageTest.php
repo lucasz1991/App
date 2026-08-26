@@ -948,6 +948,93 @@ class EmailTemplatesPageTest extends TestCase
         }
     }
 
+    public function test_published_v19_signature_drives_eml_header_mark_logo_and_train_assets(): void
+    {
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        $this->createCanonicalMailDocuments();
+
+        $signature = MailDocument::query()
+            ->where('kind', MailDocumentKind::Signature->value)
+            ->firstOrFail();
+        $markedHtml = preg_replace(
+            '/^<tr>/',
+            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V19.'">',
+            (string) $signature->published_html,
+            1,
+            $markerCount,
+        );
+        $this->assertIsString($markedHtml);
+        $this->assertSame(1, $markerCount);
+
+        $v19Html = SignatureTrainCarrier::normalize($markedHtml);
+        SignatureDocumentContract::assertValid($v19Html);
+        $builderData = $signature->builder_data ?: [];
+        data_set($builderData, 'pages.0.component', $v19Html);
+        data_set($builderData, 'railtime.schema', SignatureDocumentContract::SCHEMA);
+        $signature->forceFill([
+            'builder_data' => $builderData,
+            'html' => $v19Html,
+            'published_html' => $v19Html,
+            'content_hash' => MailDocument::contentHashFor($builderData, $v19Html, ''),
+            'version' => 19,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $builder = new EmailTemplateBuilder(User::factory()->create(['name' => 'Mara Beispiel']));
+        foreach ([
+            'vorlage-eml' => [
+                'theme' => 'light',
+                'mark' => 'icon-rt-v19-light',
+                'logo' => 'wortmarke-signature-v19-light',
+                'train' => 'zug-dampf-v19-light',
+            ],
+            'vorlage-dunkel-eml' => [
+                'theme' => 'dark',
+                'mark' => 'icon-rt-v19-dark',
+                'logo' => 'wortmarke-mail-v19-dark',
+                'train' => 'zug-dampf-v19-dark',
+            ],
+        ] as $template => $assets) {
+            $eml = $builder->build($template)['content'];
+
+            foreach ([
+                'railtime-mark' => $assets['mark'].'.gif',
+                'railtime-mark-still' => $assets['mark'].'.png',
+                'railtime-logo' => $assets['logo'].'.gif',
+                'railtime-logo-still' => $assets['logo'].'.png',
+                'railtime-train' => $assets['train'].'.gif',
+                'railtime-train-still' => $assets['train'].'.png',
+            ] as $contentId => $filename) {
+                $this->assertStringContainsString("Content-ID: <{$contentId}>", $eml);
+                $this->assertStringContainsString(
+                    "Content-Disposition: inline; filename=\"{$filename}\"",
+                    $eml,
+                );
+                $this->assertSame(
+                    file_get_contents(resource_path('mail-templates/assets/'.$filename)),
+                    $this->decodeEmlInlineAttachment($eml, $contentId),
+                    $filename,
+                );
+            }
+
+            $this->assertStringNotContainsString('Content-ID: <railtime-train-idle>', $eml);
+            $emlHtml = $this->decodeEmlHtmlPart($eml);
+            $this->assertStringContainsString('data-rt-artifact-version="v19"', $emlHtml);
+            $this->assertStringContainsString('src="cid:railtime-mark"', $emlHtml);
+            $this->assertStringContainsString('src="cid:railtime-mark-still"', $emlHtml);
+            $this->assertStringContainsString(
+                'style="position:absolute;z-index:0;left:0;right:0;top:auto;bottom:0;display:block;width:100%;height:61px;max-height:61px;',
+                $emlHtml,
+            );
+            SignatureTrainCarrier::assertRuntimeImages(
+                $emlHtml,
+                'cid:railtime-train',
+                expectedIdleSource: '',
+                expectedMsoSource: 'cid:railtime-train-still',
+            );
+        }
+    }
+
     public function test_only_the_steam_train_is_public_and_the_old_motif_query_is_ignored(): void
     {
         $vector = resource_path('mail-templates/assets/zug-dampf.svg');
@@ -1198,17 +1285,19 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('data-rt-train-idle-image', $html);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
             $this->assertStringContainsString(
-                'class="rt-sign-logo" dir="ltr" width="50%" valign="top"',
+                'class="rt-sign-logo" colspan="2" width="100%" valign="top"',
                 $html,
             );
             $this->assertStringContainsString('text-align:right;vertical-align:top;', $html);
             $this->assertStringContainsString(
-                'class="rt-sign-identity" dir="ltr" rowspan="2" width="50%" valign="top"',
+                'class="rt-sign-identity" dir="ltr" width="50%" valign="top"',
                 $html,
             );
             $this->assertStringContainsString('class="rt-sign-company" dir="ltr" width="50%"', $html);
-            $this->assertStringContainsString('padding:0 24px 0 0;position:relative;z-index:1;', $html);
+            $this->assertStringContainsString('padding:8px 24px 0 0;position:relative;z-index:1;', $html);
             $this->assertStringContainsString('text-align:left;vertical-align:top;', $html);
+            $this->assertStringNotContainsString('rowspan=', $html);
+            $this->assertStringNotContainsString('class="rt-sign-layout" role="presentation" dir="rtl"', $html);
             $this->assertStringNotContainsString('{{THEME', $html);
             $this->assertStringNotContainsString('{{ICON_', $html);
         }
@@ -1337,13 +1426,15 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringNotContainsString('signatur-raster-', $html);
         $this->assertStringNotContainsString('signatur-marke-', $html);
 
-        // EIN Reverse-Stacking-Wrapper: Desktop bleibt Person links/Firma
-        // rechts. Mobil gilt die sichere DOM-Reihenfolge Logo, Person,
-        // Firmendaten; keine dieser drei Gruppen wird dupliziert.
-        $this->assertSame(1, substr_count($html, '<table class="rt-sign-layout" role="presentation" dir="rtl"'));
-        $this->assertStringContainsString('<td class="rt-sign-logo" dir="ltr" width="50%"', $html);
-        $this->assertStringContainsString('<td class="rt-sign-identity" dir="ltr" rowspan="2" width="50%"', $html);
+        // EIN Quellreihenfolge-sicherer Wrapper: Logo, Person und Firma
+        // existieren genau einmal. Auch wenn ein weiterleitender Client das
+        // responsive Head-CSS entfernt, bleibt diese Reihenfolge lesbar.
+        $this->assertSame(1, substr_count($html, '<table class="rt-sign-layout" role="presentation" width="100%"'));
+        $this->assertStringContainsString('<td class="rt-sign-logo" colspan="2" width="100%"', $html);
+        $this->assertStringContainsString('<td class="rt-sign-identity" dir="ltr" width="50%"', $html);
         $this->assertStringContainsString('<td class="rt-sign-company" dir="ltr" width="50%"', $html);
+        $this->assertStringNotContainsString('rowspan=', $html);
+        $this->assertStringNotContainsString('class="rt-sign-layout" role="presentation" dir="rtl"', $html);
 
         $namePosition = strpos($html, 'Mara Beispiel');
         $phonePosition = strpos($html, 'href="tel:+49417112345"');
@@ -1467,14 +1558,15 @@ class EmailTemplatesPageTest extends TestCase
         foreach (['vorlage-html', 'vorlage-dunkel-html', 'signatur-hell', 'signatur-dunkel'] as $key) {
             $html = $builder->build($key)['content'];
 
-            // Beide Kontaktbereiche schreiben ihre Leserichtung ausdruecklich
-            // fest. Ein Client mit geerbtem rtl wuerde die schrumpfende
-            // Tabelle sonst an die falsche Kante schieben — und mit ihr die
-            // Symbole auf die falsche Seite.
-            $this->assertSame(1, substr_count($html, '<table class="rt-sign-layout" role="presentation" dir="rtl"'), $key);
-            $this->assertStringContainsString('class="rt-sign-logo" dir="ltr"', $html, $key);
+            // Der Layout-Wrapper bleibt selbst links-nach-rechts. Beide
+            // Kontaktbereiche schreiben ihre Leserichtung zusaetzlich fest,
+            // damit geerbtes RTL die Symbole nicht auf die falsche Seite legt.
+            $this->assertSame(1, substr_count($html, '<table class="rt-sign-layout" role="presentation" width="100%"'), $key);
+            $this->assertStringContainsString('class="rt-sign-logo" colspan="2" width="100%"', $html, $key);
             $this->assertStringContainsString('class="rt-sign-identity" dir="ltr"', $html, $key);
             $this->assertStringContainsString('class="rt-sign-company" dir="ltr"', $html, $key);
+            $this->assertStringNotContainsString('rowspan=', $html, $key);
+            $this->assertStringNotContainsString('class="rt-sign-layout" role="presentation" dir="rtl"', $html, $key);
             $this->assertStringContainsString(
                 '<table class="rt-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:0;margin-right:auto;',
                 $html,
