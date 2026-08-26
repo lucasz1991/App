@@ -13,7 +13,7 @@ use RuntimeException;
 /** Gemeinsamer Save-/Publish-/Web-/Outlook-Vertrag der Signaturquelle. */
 final class SignatureDocumentContract
 {
-    /** Aktueller Vertrag: V19-Forward-SAFE-Buehne; aeltere Pixelbuehnen bleiben lesbar. */
+    /** Aktueller Vertrag: Schema 27; V20 nutzt wieder exakt die V18-Buehne. */
     public const SCHEMA = 27;
 
     /** @var list<string> */
@@ -93,8 +93,8 @@ final class SignatureDocumentContract
      *
      * Neue Editor-/Publish-Staende muessen den markerabhaengigen Schema-27-
      * IMG-Vertrag besitzen. V14 und aelter behalten dabei ihre unveraenderte
-     * feste Pixelbuehne; V15-V18 verwenden die fail-open Aussenbuehne und V19
-     * den absoluten, weiterleitungssicheren 61-px-Fallback. Der Versand darf
+     * feste Pixelbuehne; V15-V18/V20 verwenden die fail-open Aussenbuehne und
+     * V19 den absoluten 61-px-Fallback. Der Versand darf
      * daneben nur die einzeln beschriebenen
      * Altformen lesen: Schema 6 (Padding), Schema 9/20 (Background), Schema
      * 12-19 (Bild-Layer) und bekannte Flow-Zwischenstaende.
@@ -182,6 +182,7 @@ final class SignatureDocumentContract
         if (in_array(SignatureArtifactVersion::detect('signature', $html), [
             SignatureArtifactVersion::V18,
             SignatureArtifactVersion::V19,
+            SignatureArtifactVersion::V20,
         ], true)) {
             self::assertV18ForwardSafeLayout($html);
         }

@@ -948,7 +948,7 @@ class EmailTemplatesPageTest extends TestCase
         }
     }
 
-    public function test_published_v19_signature_drives_eml_header_mark_logo_and_train_assets(): void
+    public function test_published_v20_signature_uses_v18_geometry_and_optimized_eml_media(): void
     {
         (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
         $this->createCanonicalMailDocuments();
@@ -958,7 +958,7 @@ class EmailTemplatesPageTest extends TestCase
             ->firstOrFail();
         $markedHtml = preg_replace(
             '/^<tr>/',
-            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V19.'">',
+            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V20.'">',
             (string) $signature->published_html,
             1,
             $markerCount,
@@ -966,17 +966,17 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertIsString($markedHtml);
         $this->assertSame(1, $markerCount);
 
-        $v19Html = SignatureTrainCarrier::normalize($markedHtml);
-        SignatureDocumentContract::assertValid($v19Html);
+        $v20Html = SignatureTrainCarrier::normalize($markedHtml);
+        SignatureDocumentContract::assertValid($v20Html);
         $builderData = $signature->builder_data ?: [];
-        data_set($builderData, 'pages.0.component', $v19Html);
+        data_set($builderData, 'pages.0.component', $v20Html);
         data_set($builderData, 'railtime.schema', SignatureDocumentContract::SCHEMA);
         $signature->forceFill([
             'builder_data' => $builderData,
-            'html' => $v19Html,
-            'published_html' => $v19Html,
-            'content_hash' => MailDocument::contentHashFor($builderData, $v19Html, ''),
-            'version' => 19,
+            'html' => $v20Html,
+            'published_html' => $v20Html,
+            'content_hash' => MailDocument::contentHashFor($builderData, $v20Html, ''),
+            'version' => 20,
         ])->save();
         $this->app->forgetScopedInstances();
 
@@ -1019,13 +1019,15 @@ class EmailTemplatesPageTest extends TestCase
 
             $this->assertStringNotContainsString('Content-ID: <railtime-train-idle>', $eml);
             $emlHtml = $this->decodeEmlHtmlPart($eml);
-            $this->assertStringContainsString('data-rt-artifact-version="v19"', $emlHtml);
+            $this->assertStringContainsString('data-rt-artifact-version="v20"', $emlHtml);
             $this->assertStringContainsString('src="cid:railtime-mark"', $emlHtml);
             $this->assertStringContainsString('src="cid:railtime-mark-still"', $emlHtml);
             $this->assertStringContainsString(
-                'style="position:absolute;z-index:0;left:0;right:0;top:auto;bottom:0;display:block;width:100%;height:61px;max-height:61px;',
+                'style="position:relative;z-index:0;display:block;width:100%;height:200px;max-height:200px;',
                 $emlHtml,
             );
+            $this->assertStringContainsString('margin-bottom:-200px', $emlHtml);
+            $this->assertStringNotContainsString('position:absolute;z-index:0', $emlHtml);
             SignatureTrainCarrier::assertRuntimeImages(
                 $emlHtml,
                 'cid:railtime-train',

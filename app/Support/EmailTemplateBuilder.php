@@ -476,8 +476,8 @@ class EmailTemplateBuilder
         $values = $signature->values();
         // Die obere RT-Marke gehoert zur Nachrichtenschale, ihre konkrete
         // Mediengeneration jedoch zum veroeffentlichten Signatur-Artefakt.
-        // So verwenden Systemmail/Testmail bei V19 nicht mehr versehentlich
-        // das groessere Legacy-GIF, waehrend Logo und Zug bereits V19 laden.
+        // So verwenden Systemmail/Testmail bei V19/V20 nicht versehentlich
+        // das groessere Legacy-GIF, waehrend Logo und Zug optimiert laden.
         $signatureArtifactVersion = self::activeSignatureArtifactVersion();
         $markAsset = self::emailMarkAsset('light', $signatureArtifactVersion);
         $values['ICON_RT_SRC'] = self::mailAssetUrl($markAsset);

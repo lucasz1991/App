@@ -155,17 +155,20 @@ tr[data-rt-artifact-version="v16"] .rt-sign-content-frame {
   position: relative !important;
   z-index: 1 !important;
 }
-/* V17/V18 behalten die V16-Buehne, trennen jedoch das flexible Haupt-GIF
-   vom exakt proportionalen Outlook-Standbild. */
+/* V17/V18/V20 behalten die V16-Buehne, trennen jedoch das flexible Haupt-GIF
+   vom exakt proportionalen Outlook-Standbild. V20 verwendet bewusst wieder
+   exakt diese V18-Geometrie und lediglich die komprimierten Medien. */
 tr[data-rt-artifact-version="v17"] .rt-sign-stage,
-tr[data-rt-artifact-version="v18"] .rt-sign-stage {
+tr[data-rt-artifact-version="v18"] .rt-sign-stage,
+tr[data-rt-artifact-version="v20"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
   min-height: 200px !important;
   overflow: visible !important;
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-train-layer,
-tr[data-rt-artifact-version="v18"] .rt-sign-train-layer {
+tr[data-rt-artifact-version="v18"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-layer {
   position: relative !important;
   z-index: 0 !important;
   height: 200px !important;
@@ -177,9 +180,13 @@ tr[data-rt-artifact-version="v17"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v17"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v18"] .rt-sign-content-frame { height: 200px !important; }
+tr[data-rt-artifact-version="v18"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v20"] .rt-sign-content-frame { height: 200px !important; }
 tr[data-rt-artifact-version="v17"] .rt-sign-content-frame,
-tr[data-rt-artifact-version="v18"] .rt-sign-content-frame {
+tr[data-rt-artifact-version="v18"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v20"] .rt-sign-content-frame {
   position: relative !important;
   z-index: 1 !important;
 }
@@ -272,13 +279,15 @@ tr[data-rt-artifact-version="v16"] .rt-sign-train-mso {
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v19"] .rt-sign-train-slot {
+tr[data-rt-artifact-version="v19"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-slot {
   padding-bottom: 0 !important;
   vertical-align: bottom !important;
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-train,
 tr[data-rt-artifact-version="v18"] .rt-sign-train,
-tr[data-rt-artifact-version="v19"] .rt-sign-train {
+tr[data-rt-artifact-version="v19"] .rt-sign-train,
+tr[data-rt-artifact-version="v20"] .rt-sign-train {
   display: block !important;
   height: auto !important;
   margin-bottom: 0 !important;
@@ -293,10 +302,11 @@ tr[data-rt-artifact-version="v19"] .rt-sign-train {
   max-width: none !important;
   margin-left: 0 !important;
 }
-/* Outlook-Desktop erhaelt fuer V17 bis V19 ein separates, unverzerrbares Standbild. */
+/* Outlook-Desktop erhaelt fuer V17 bis V20 ein separates, unverzerrbares Standbild. */
 tr[data-rt-artifact-version="v17"] .rt-sign-train-mso,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-mso,
-tr[data-rt-artifact-version="v19"] .rt-sign-train-mso {
+tr[data-rt-artifact-version="v19"] .rt-sign-train-mso,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-mso {
   display: block !important;
   width: 720px !important;
   max-width: 720px !important;
@@ -644,14 +654,16 @@ tr[data-rt-artifact-version="v16"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v16"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v16"] .rt-sign-content-frame { height: 304px !important; }
 tr[data-rt-artifact-version="v17"] .rt-sign-stage,
-tr[data-rt-artifact-version="v18"] .rt-sign-stage {
+tr[data-rt-artifact-version="v18"] .rt-sign-stage,
+tr[data-rt-artifact-version="v20"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
   min-height: 304px !important;
   overflow: visible !important;
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-train-layer,
-tr[data-rt-artifact-version="v18"] .rt-sign-train-layer {
+tr[data-rt-artifact-version="v18"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-layer {
   height: 304px !important;
   max-height: 304px !important;
   margin-bottom: -304px !important;
@@ -661,7 +673,10 @@ tr[data-rt-artifact-version="v17"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v17"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v18"] .rt-sign-content-frame { height: 304px !important; }
+tr[data-rt-artifact-version="v18"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v20"] .rt-sign-content-frame { height: 304px !important; }
 tr[data-rt-artifact-version="v19"] .rt-sign-stage {
   min-height: 304px !important;
 }
@@ -832,14 +847,16 @@ tr[data-rt-artifact-version="v16"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v16"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v16"] .rt-sign-content-frame { height: 272px !important; }
 tr[data-rt-artifact-version="v17"] .rt-sign-stage,
-tr[data-rt-artifact-version="v18"] .rt-sign-stage {
+tr[data-rt-artifact-version="v18"] .rt-sign-stage,
+tr[data-rt-artifact-version="v20"] .rt-sign-stage {
   height: auto !important;
   max-height: none !important;
   min-height: 272px !important;
   overflow: visible !important;
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-train-layer,
-tr[data-rt-artifact-version="v18"] .rt-sign-train-layer {
+tr[data-rt-artifact-version="v18"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-layer {
   height: 272px !important;
   max-height: 272px !important;
   margin-bottom: -272px !important;
@@ -849,7 +866,10 @@ tr[data-rt-artifact-version="v17"] .rt-sign-train-slot,
 tr[data-rt-artifact-version="v17"] .rt-sign-content-frame,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-slot,
-tr[data-rt-artifact-version="v18"] .rt-sign-content-frame { height: 272px !important; }
+tr[data-rt-artifact-version="v18"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-slot,
+tr[data-rt-artifact-version="v20"] .rt-sign-content-frame { height: 272px !important; }
 tr[data-rt-artifact-version="v19"] .rt-sign-stage {
   min-height: 272px !important;
 }
@@ -953,12 +973,13 @@ tr[data-rt-artifact-version="v16"] .rt-sign-train-layer[data-rt-layer-mobile="st
   max-width: none !important;
   margin-left: -36% !important;
 }
-/* V17/V18 bleiben proportional, sind mobil etwas groesser und stoppen mit
+/* V17/V18/V20 bleiben proportional, sind mobil etwas groesser und stoppen mit
    Reserve vor der rechten Kante. Die zusaetzliche Breite wird links
    angeschnitten. */
 tr[data-rt-artifact-version="v17"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train,
 tr[data-rt-artifact-version="v18"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train,
-tr[data-rt-artifact-version="v19"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train {
+tr[data-rt-artifact-version="v19"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train,
+tr[data-rt-artifact-version="v20"] .rt-sign-train-layer[data-rt-layer-mobile="stop60"] .rt-sign-train {
   width: 164% !important;
   max-width: none !important;
   height: auto !important;
@@ -1045,7 +1066,8 @@ tr[data-rt-artifact-version="v16"] .rt-sign-content {
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-content,
 tr[data-rt-artifact-version="v18"] .rt-sign-content,
-tr[data-rt-artifact-version="v19"] .rt-sign-content {
+tr[data-rt-artifact-version="v19"] .rt-sign-content,
+tr[data-rt-artifact-version="v20"] .rt-sign-content {
   padding-top: 14px !important;
 }
 tr[data-rt-artifact-version="v16"] .rt-sign-logo {
@@ -1053,7 +1075,8 @@ tr[data-rt-artifact-version="v16"] .rt-sign-logo {
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-logo,
 tr[data-rt-artifact-version="v18"] .rt-sign-logo,
-tr[data-rt-artifact-version="v19"] .rt-sign-logo {
+tr[data-rt-artifact-version="v19"] .rt-sign-logo,
+tr[data-rt-artifact-version="v20"] .rt-sign-logo {
   padding-bottom: 8px !important;
 }
 tr[data-rt-artifact-version="v16"] .rt-sign-top-row > .rt-sign-identity,
@@ -1065,7 +1088,9 @@ tr[data-rt-artifact-version="v17"] .rt-sign-company,
 tr[data-rt-artifact-version="v18"] .rt-sign-top-row > .rt-sign-identity,
 tr[data-rt-artifact-version="v18"] .rt-sign-company,
 tr[data-rt-artifact-version="v19"] .rt-sign-top-row > .rt-sign-identity,
-tr[data-rt-artifact-version="v19"] .rt-sign-company {
+tr[data-rt-artifact-version="v19"] .rt-sign-company,
+tr[data-rt-artifact-version="v20"] .rt-sign-top-row > .rt-sign-identity,
+tr[data-rt-artifact-version="v20"] .rt-sign-company {
   padding-top: 6px !important;
 }
 tr[data-rt-artifact-version="v11"] .rt-sign-identity .rt-contact,
@@ -1087,7 +1112,8 @@ tr[data-rt-artifact-version="v16"] .rt-sign-identity .rt-contact {
 }
 tr[data-rt-artifact-version="v17"] .rt-sign-identity .rt-contact,
 tr[data-rt-artifact-version="v18"] .rt-sign-identity .rt-contact,
-tr[data-rt-artifact-version="v19"] .rt-sign-identity .rt-contact {
+tr[data-rt-artifact-version="v19"] .rt-sign-identity .rt-contact,
+tr[data-rt-artifact-version="v20"] .rt-sign-identity .rt-contact {
   margin-top: 6px !important;
 }
 tr[data-rt-artifact-version="v16"] .rt-company-contact {
@@ -1095,7 +1121,8 @@ tr[data-rt-artifact-version="v16"] .rt-company-contact {
 }
 tr[data-rt-artifact-version="v17"] .rt-company-contact,
 tr[data-rt-artifact-version="v18"] .rt-company-contact,
-tr[data-rt-artifact-version="v19"] .rt-company-contact {
+tr[data-rt-artifact-version="v19"] .rt-company-contact,
+tr[data-rt-artifact-version="v20"] .rt-company-contact {
   margin-top: 8px !important;
 }
 }

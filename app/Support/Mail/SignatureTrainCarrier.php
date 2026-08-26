@@ -82,7 +82,8 @@ final class SignatureTrainCarrier
 
                 return $html;
             } catch (RuntimeException) {
-                if (! self::isStrictPreviousContractForForwardSafeUpgrade($html)) {
+                if (! self::isStrictPreviousContractForForwardSafeUpgrade($html)
+                    && ! self::isStrictForwardSafeContractForAspectSafeUpgrade($html)) {
                     try {
                         self::assertCanonicalImage(
                             $html,
@@ -1936,6 +1937,42 @@ final class SignatureTrainCarrier
             } catch (RuntimeException) {
                 return false;
             }
+        }
+    }
+
+    /**
+     * V20 ist strukturell V18 und bindet lediglich die kleineren V19-Medien.
+     * Ein bereits als V19 gespeicherter Entwurf darf deshalb nur dann auf die
+     * V18-Pixelbuehne zurueckprojiziert werden, wenn sein Zugtraeger zuvor als
+     * vollstaendig kanonischer V19-Vertrag validiert werden kann.
+     */
+    private static function isStrictForwardSafeContractForAspectSafeUpgrade(string $html): bool
+    {
+        if (SignatureArtifactVersion::detect(MailDocumentKind::Signature, $html) !== SignatureArtifactVersion::V20) {
+            return false;
+        }
+
+        $replacementCount = 0;
+        $previous = preg_replace_callback(
+            '/(\b'.preg_quote(SignatureArtifactVersion::ATTRIBUTE, '/').'\s*=\s*)(["\'])'
+                .preg_quote(SignatureArtifactVersion::V20, '/').'\2/i',
+            static function (array $match) use (&$replacementCount): string {
+                $replacementCount++;
+
+                return $match[1].$match[2].SignatureArtifactVersion::V19.$match[2];
+            },
+            $html,
+        );
+        if (! is_string($previous) || $replacementCount !== 1) {
+            return false;
+        }
+
+        try {
+            self::assertCanonicalImage($previous);
+
+            return true;
+        } catch (RuntimeException) {
+            return false;
         }
     }
 

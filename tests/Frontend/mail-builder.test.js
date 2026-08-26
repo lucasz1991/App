@@ -86,6 +86,15 @@ test('portable media requirements follow the imported signature instead of the o
                 'icon-rt-v19-light.gif',
                 'icon-rt-v19-light.png',
             ],
+            v20: [
+                'common.png',
+                'zug-dampf-v19-light.gif',
+                'zug-dampf-v19-light.png',
+                'wortmarke-signature-v19-light.gif',
+                'wortmarke-signature-v19-light.png',
+                'icon-rt-v19-light.gif',
+                'icon-rt-v19-light.png',
+            ],
         },
         template: {
             default: ['icon-rt-light.gif'],
@@ -193,6 +202,14 @@ test('portable media requirements follow the imported signature instead of the o
         requirements.signature.v19,
     );
     assert.deepEqual(
+        resolvePortableMediaRequirementIds(
+            requirements,
+            'signature',
+            '<tr data-rt-artifact-version="v20"><td>v20</td></tr>',
+        ),
+        requirements.signature.v20,
+    );
+    assert.deepEqual(
         resolvePortableMediaRequirementIds(requirements, 'template', '<table></table>'),
         requirements.template.default,
     );
@@ -200,7 +217,7 @@ test('portable media requirements follow the imported signature instead of the o
         () => resolvePortableMediaRequirementIds(
             requirements,
             'signature',
-            '<tr data-rt-artifact-version="v20"><td>unbekannt</td></tr>',
+            '<tr data-rt-artifact-version="v21"><td>unbekannt</td></tr>',
         ),
         /Medienvertrag ist nicht vollständig konfiguriert/,
     );
@@ -445,11 +462,11 @@ test('schema 22 to 25 train overlaps migrate deterministically to the schema 27 
     });
 });
 
-test('schema 27 keeps older geometry stable and gives V19 a bottom-anchored forwarding fallback', () => {
+test('schema 27 keeps V18 and V20 geometry stable while V19 retains its isolated forwarding fallback', () => {
     const serializeVersion = (version) => {
         let original = `<tr data-rt-artifact-version="${version}"><td class="rt-sign-cell">${canonicalSignatureStage('Inhalt')}</td></tr>`
             + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
-        if (version === 'v16' || version === 'v19') {
+        if (version === 'v16' || ['v18', 'v19', 'v20'].includes(version)) {
             original = original.replace('data-rt-layer-mobile="train"', 'data-rt-layer-mobile="stop60"');
         }
         const project = projectForMailDocument({
@@ -528,6 +545,51 @@ test('schema 27 keeps older geometry stable and gives V19 a bottom-anchored forw
     assert.match(v19Train?.getAttribute('style') || '', /display:block;width:720px;max-width:100%;height:auto;margin:0;/);
     assert.match(v19Content?.getAttribute('style') || '', /^position:relative;z-index:1;width:100%;height:200px;/);
     assert.equal(v19.project.railtime.schema, MAIL_SIGNATURE_SCHEMA);
+
+    const v18 = serializeVersion('v18');
+    const v20 = serializeVersion('v20');
+    const v20Document = signatureDocument(v20.html);
+    const v20Stage = v20Document.querySelector('.rt-sign-stage');
+    const v20Layer = v20Document.querySelector('.rt-sign-train-layer[data-rt-layer-train]');
+    const v20Frame = v20Document.querySelector('table.rt-sign-train-frame');
+    const v20Slot = v20Document.querySelector('td.rt-sign-train-slot');
+    const v20Train = v20Document.querySelector('img.rt-sign-train[data-rt-train]');
+    const v20Content = v20Document.querySelector('table.rt-sign-content-frame');
+    assert.equal(v20Stage?.getAttribute('style'), 'position:relative;height:auto;min-height:200px;overflow:visible;');
+    assert.match(v20Layer?.getAttribute('style') || '', /^position:relative;z-index:0;display:block;[^\r\n]*height:200px;[^\r\n]*margin-bottom:-200px;/);
+    assert.equal(v20Layer?.getAttribute('data-rt-layer-mobile'), 'stop60');
+    assert.equal(v20Frame?.getAttribute('height'), '200');
+    assert.equal(v20Slot?.getAttribute('height'), '200');
+    assert.equal(v20Train?.getAttribute('width'), '720');
+    assert.equal(v20Train?.hasAttribute('height'), false);
+    assert.match(v20Train?.getAttribute('style') || '', /display:inline-block;width:100%;max-width:none;height:auto;margin:0;/);
+    assert.match(v20Content?.getAttribute('style') || '', /^position:relative;z-index:1;width:100%;height:200px;/);
+    assert.equal(v20.project.railtime.schema, MAIL_SIGNATURE_SCHEMA);
+    assert.equal(
+        v20.html.replace('data-rt-artifact-version="v20"', 'data-rt-artifact-version="v18"'),
+        v18.html,
+        'V20 muss bis auf den Artefaktmarker bytegleich die V18-Geometrie serialisieren',
+    );
+
+    const migratedV19 = projectForMailDocument({
+        builderData: {
+            pages: [{
+                component: v19.html.replace(
+                    'data-rt-artifact-version="v19"',
+                    'data-rt-artifact-version="v20"',
+                ),
+            }],
+            styles: [],
+            railtime: { document: 'signature', schema: MAIL_SIGNATURE_SCHEMA },
+        },
+        css: '',
+    }, () => [], { kind: 'signature', environment: { DOMParser } });
+    const migratedV19Document = signatureDocument(migratedV19.pages[0].component);
+    assert.match(
+        migratedV19Document.querySelector('.rt-sign-train-layer')?.getAttribute('style') || '',
+        /^position:relative;z-index:0;display:block;[^\r\n]*height:200px;[^\r\n]*margin-bottom:-200px;/,
+    );
+    assert.equal(migratedV19Document.querySelector('.rt-sign-train')?.hasAttribute('height'), false);
 });
 
 test('signature preview hydrates the train image and roundtrips two canonical rows', () => {
@@ -1876,7 +1938,7 @@ test('mail editor exposes one responsive topbar with standard grouped dropdowns 
     assert.match(singleToolbar, /@media \(max-width: 1199\.98px\)[\s\S]*?width:\s*2\.75rem/);
 });
 
-test('signature source keeps older artifacts stable and defines the schema 27 V17/V18/V19 Outlook contract', async () => {
+test('signature source keeps older artifacts stable and defines the schema 27 V17/V18/V19/V20 Outlook contract', async () => {
     const { readFile } = await import('node:fs/promises');
     const [css, signatureSource, trainAsset, v15TrainAsset, v17TrainAsset, v19TrainAsset, carrier, runtime, mailBuilderSource] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
@@ -1941,8 +2003,8 @@ test('signature source keeps older artifacts stable and defines the schema 27 V1
     assert.match(carrier, /canonicalStageStartMarkup\(bool \$failOpenStage\)[\s\S]*?height:auto;min-height:200px;overflow:visible;/);
     assert.match(mailBuilderSource, /export const MAIL_SIGNATURE_SCHEMA = 27;/);
     assert.match(mailBuilderSource, /const MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT = '61';/);
-    assert.match(mailBuilderSource, /MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS = Object\.freeze\(\['v15', 'v16', 'v17', 'v18', 'v19'\]\)/);
-    assert.match(mailBuilderSource, /MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS = Object\.freeze\(\['v17', 'v18'\]\)/);
+    assert.match(mailBuilderSource, /MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS = Object\.freeze\(\['v15', 'v16', 'v17', 'v18', 'v19', 'v20'\]\)/);
+    assert.match(mailBuilderSource, /MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS = Object\.freeze\(\['v17', 'v18', 'v20'\]\)/);
     assert.match(mailBuilderSource, /MAIL_SIGNATURE_FORWARD_SAFE_ARTIFACTS = Object\.freeze\(\['v19'\]\)/);
     assert.match(mailBuilderSource, /failOpenStage[\s\S]*?height:\s*'auto'[\s\S]*?'min-height': MAIL_SIGNATURE_FIXED_HEIGHT[\s\S]*?overflow:\s*'visible'/);
     assert.match(
@@ -1975,13 +2037,14 @@ test('signature source keeps older artifacts stable and defines the schema 27 V1
     assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 200px !important;[^}]*overflow: visible !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\s*\{[^}]*height: 200px !important;[^}]*margin-bottom: -200px !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-mso\s*\{[^}]*display: block !important;[^}]*margin-bottom: 0 !important;[^}]*vertical-align: bottom !important;/s);
-    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 200px !important;[^}]*overflow: visible !important;/s);
-    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train\s*\{[^}]*display: block !important;[^}]*height: auto !important;[^}]*margin-bottom: 0 !important;/s);
-    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-mso\s*\{[^}]*width: 720px !important;[^}]*height: 61px !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v20"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 200px !important;[^}]*overflow: visible !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v20"\] \.rt-sign-train\s*\{[^}]*display: block !important;[^}]*height: auto !important;[^}]*margin-bottom: 0 !important;/s);
+    assert.match(css, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v20"\] \.rt-sign-train-mso\s*\{[^}]*width: 720px !important;[^}]*height: 61px !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v19"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 200px !important;[^}]*overflow: visible !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-layer\s*\{[^}]*position: absolute !important;[^}]*bottom: 0 !important;[^}]*height: auto !important;[^}]*margin: 0 !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-frame,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-slot\s*\{\s*height: 100% !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v19"\] \.rt-sign-train\s*\{[^}]*width: 108\.67% !important;[^}]*max-width: none !important;[^}]*margin-left: 0 !important;/s);
+    assert.doesNotMatch(css, /tr\[data-rt-artifact-version="v20"\] \.rt-sign-train-layer\s*\{[^}]*position: absolute !important;/s);
     assert.match(css, /tr\[data-rt-signature-density="compact"\] \.rt-sign-stage,\s*tr\[data-rt-signature-density="compact"\] \.rt-sign-train-layer\s*\{[^}]*height: 145px !important;[^}]*max-height: 145px !important;/s);
     assert.match(css, /tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v14"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso,\s*tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-train-mso\s*\{[^}]*width: 94% !important;[^}]*margin-left: 0 !important;/s);
     assert.match(mobile, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 296px !important;[^}]*max-height: 296px !important;/s);
@@ -1990,14 +2053,18 @@ test('signature source keeps older artifacts stable and defines the schema 27 V1
     assert.match(mobile, /tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 215px !important;[^}]*overflow: visible !important;/s);
     assert.match(mobile, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-stage\s*\{[^}]*min-height: 304px !important;[^}]*overflow: visible !important;/s);
     assert.match(mobile, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\s*\{[^}]*height: 304px !important;[^}]*margin-bottom: -304px !important;/s);
+    assert.match(mobile, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v20"\] \.rt-sign-stage\s*\{[^}]*min-height: 304px !important;[^}]*overflow: visible !important;/s);
+    assert.match(mobile, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v20"\] \.rt-sign-train-layer\s*\{[^}]*height: 304px !important;[^}]*margin-bottom: -304px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\s*\{[^}]*height: 264px !important;[^}]*max-height: 264px !important;/s);
     assert.match(phone, /tr\[data-rt-signature-density="compact"\] \.rt-sign-stage,\s*tr\[data-rt-signature-density="compact"\] \.rt-sign-train-layer\s*\{[^}]*height: 190px !important;[^}]*max-height: 190px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v15"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 264px !important;[^}]*overflow: visible !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v15"\]\[data-rt-signature-density="compact"\] \.rt-sign-stage\s*\{[^}]*height: auto !important;[^}]*min-height: 190px !important;[^}]*overflow: visible !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-stage\s*\{[^}]*min-height: 272px !important;[^}]*overflow: visible !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\s*\{[^}]*height: 272px !important;[^}]*margin-bottom: -272px !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v20"\] \.rt-sign-stage\s*\{[^}]*min-height: 272px !important;[^}]*overflow: visible !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train-layer,\s*tr\[data-rt-artifact-version="v20"\] \.rt-sign-train-layer\s*\{[^}]*height: 272px !important;[^}]*margin-bottom: -272px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v16"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train\s*\{[^}]*width: 160% !important;[^}]*margin-left: -36% !important;/s);
-    assert.match(phone, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train\s*\{[^}]*width: 164% !important;[^}]*height: auto !important;[^}]*margin-left: -40% !important;/s);
+    assert.match(phone, /tr\[data-rt-artifact-version="v17"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v18"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v20"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop60"\] \.rt-sign-train\s*\{[^}]*width: 164% !important;[^}]*height: auto !important;[^}]*margin-left: -40% !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v11"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v12"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v14"\] \.rt-sign-content,\s*tr\[data-rt-artifact-version="v15"\] \.rt-sign-content\s*\{[^}]*padding-top: 14px !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v10"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v11"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 108\.67% !important;[^}]*margin-left: 0 !important;/s);
     assert.match(phone, /tr\[data-rt-artifact-version="v12"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train,\s*tr\[data-rt-artifact-version="v13"\] \.rt-sign-train-layer\[data-rt-layer-mobile="stop65"\] \.rt-sign-train\s*\{[^}]*width: 135% !important;[^}]*margin-left: -15\.75% !important;/s);

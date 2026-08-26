@@ -61,8 +61,8 @@ const MAIL_SIGNATURE_FIXED_HEIGHT_ATTRIBUTE = '200';
 const MAIL_SIGNATURE_TRAIN_OVERLAP = '-200px';
 const MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT = '61';
 const MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE = 'data-rt-artifact-version';
-const MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS = Object.freeze(['v15', 'v16', 'v17', 'v18', 'v19']);
-const MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS = Object.freeze(['v17', 'v18']);
+const MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS = Object.freeze(['v15', 'v16', 'v17', 'v18', 'v19', 'v20']);
+const MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS = Object.freeze(['v17', 'v18', 'v20']);
 const MAIL_SIGNATURE_FORWARD_SAFE_ARTIFACTS = Object.freeze(['v19']);
 const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
 const MAIL_SIGNATURE_MAIN_MARKER = `<!-- ${MAIL_SIGNATURE_MAIN_MARKER_NAME} -->`;
@@ -1494,6 +1494,12 @@ function usesForwardSafeSignatureTrain(rows) {
     );
 }
 
+function usesV20SignatureTrain(rows) {
+    return String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '')
+        .trim()
+        .toLowerCase() === 'v20';
+}
+
 function elementUsesAspectSafeSignatureTrain(element) {
     return MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS.includes(
         String(element?.closest?.(`[${MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE}]`)
@@ -2144,6 +2150,34 @@ function projectPreviousSignatureTrainLayerToForwardSafe(wrapper, rows) {
     return assertCanonicalSignatureTrainImage(wrapper, rows, true);
 }
 
+/**
+ * V20 nimmt bewusst die bewaehrte V18-Geometrie wieder auf. Ein bereits als
+ * V20 markierter Import darf deshalb entweder diesen Vertrag direkt tragen
+ * oder aus dem streng gueltigen V19-Zwischenstand stammen. Nur die exakt
+ * bekannte V19-Form wird zur 200-px/-200-px-Ueberlagerung zurueckprojiziert;
+ * frei manipulierte Layer bleiben weiterhin gesperrt.
+ */
+function projectPreviousSignatureTrainLayerToV18Geometry(wrapper, rows) {
+    const artifactRow = rows?.[0];
+    const artifactVersion = artifactRow?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE);
+    if (!artifactRow || !usesV20SignatureTrain(rows)) {
+        throw new Error('Die Signatur besitzt keinen V20-Zugvertrag.');
+    }
+
+    let previous = null;
+    try {
+        artifactRow.setAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE, 'v19');
+        previous = assertCanonicalSignatureTrainImage(wrapper, rows, true);
+    } finally {
+        artifactRow.setAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE, artifactVersion || 'v20');
+    }
+
+    applyCanonicalSignatureTrainGeometry(previous.layer, previous.image, true);
+    applyCanonicalSignatureStageGeometry(previous, true);
+
+    return assertCanonicalSignatureTrainImage(wrapper, rows, true);
+}
+
 function projectSignatureTrainImage(wrapper, rows, project) {
     const declaredSchema = project?.railtime?.schema;
     const failOpenStage = usesFailOpenSignatureStage(rows);
@@ -2192,7 +2226,16 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         } catch (error) {
             canonicalError = error;
             let migratedFixedFailOpenStage = false;
-            if (failOpenStage && usesForwardSafeSignatureTrain(rows)) {
+            if (failOpenStage && usesV20SignatureTrain(rows)) {
+                try {
+                    projectPreviousSignatureTrainLayerToV18Geometry(wrapper, rows);
+                    migratedFixedFailOpenStage = true;
+                } catch {
+                    // Nur der streng kanonische V19-Zwischenstand darf ohne
+                    // Benutzerentscheidung nach V20 zurueckprojiziert werden.
+                }
+            }
+            if (!migratedFixedFailOpenStage && failOpenStage && usesForwardSafeSignatureTrain(rows)) {
                 try {
                     projectPreviousSignatureTrainLayerToForwardSafe(wrapper, rows);
                     migratedFixedFailOpenStage = true;

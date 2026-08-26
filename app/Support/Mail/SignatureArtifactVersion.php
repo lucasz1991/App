@@ -44,13 +44,15 @@ final class SignatureArtifactVersion
 
     public const V19 = 'v19';
 
+    public const V20 = 'v20';
+
     /**
-     * V8 bis V19 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
+     * V8 bis V20 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
      * endet im Ankunftsbild und benoetigt deshalb kein separates Idle-Overlay.
      */
     public static function usesArrivalHoldTrain(?string $version): bool
     {
-        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17, self::V18, self::V19], true);
+        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17, self::V18, self::V19, self::V20], true);
     }
 
     /** V12 verwendet die optimierte, sofort sichtbare Zugdatei. */
@@ -65,26 +67,26 @@ final class SignatureArtifactVersion
         return in_array($version, [self::V13, self::V14], true);
     }
 
-    /** V15 bis V19 verwenden die kleineren Wortmarkenmedien. */
+    /** V15 bis V20 verwenden die kleineren Wortmarkenmedien. */
     public static function usesOptimizedMailAssets(?string $version): bool
     {
-        return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19], true);
+        return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19, self::V20], true);
     }
 
-    /** V15 bis V19 duerfen den Inhalt bei degradiertem Client-CSS nie abschneiden. */
+    /** V15 bis V20 duerfen den Inhalt bei degradiertem Client-CSS nie abschneiden. */
     public static function usesFailOpenStage(?string $version): bool
     {
-        return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19], true);
+        return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19, self::V20], true);
     }
 
     /**
-     * V17/V18 reservieren am bewegten Haupt-IMG keine feste HTML-Hoehe mehr.
+     * V17/V18/V20 reservieren am bewegten Haupt-IMG keine feste HTML-Hoehe mehr.
      * Prozentuale Breiten koennen dadurch nicht mehr mit einer unveraenderten
      * 61-px-Hoehe kollidieren. Das bedingte Outlook-PNG bleibt exakt 720x61.
      */
     public static function usesAspectSafeTrain(?string $version): bool
     {
-        return in_array($version, [self::V17, self::V18], true);
+        return in_array($version, [self::V17, self::V18, self::V20], true);
     }
 
     /**
@@ -97,10 +99,10 @@ final class SignatureArtifactVersion
         return $version === self::V19;
     }
 
-    /** V19 verwendet verlustarm optimierte, eigenstaendig versionierte Medien. */
+    /** V19/V20 verwenden verlustarm optimierte, eigenstaendig versionierte Medien. */
     public static function usesV19MailAssets(?string $version): bool
     {
-        return $version === self::V19;
+        return in_array($version, [self::V19, self::V20], true);
     }
 
     /** V17/V18 verwenden den reduzierten Fahrrauch und ein rauchfreies Endbild. */
