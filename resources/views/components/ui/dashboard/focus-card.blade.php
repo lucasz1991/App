@@ -45,7 +45,7 @@
     $isFeatured = $variant === 'featured';
     $isCompact = $variant === 'compact';
     $cardClasses = match ($variant) {
-        'featured' => 'min-h-[19rem] bg-slate-950 p-5 shadow-rt-md ring-slate-800 sm:p-6 dark:bg-slate-900 dark:ring-slate-700',
+        'featured' => 'min-h-[19rem] bg-rt-surface p-5 shadow-rt-md ring-rt-border/70 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
         'compact' => 'min-h-[10.75rem] bg-rt-surface p-4 shadow-rt-xs ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
         default => 'min-h-48 bg-rt-surface p-4 shadow-rt-sm ring-rt-border/70 sm:min-h-52 sm:p-5 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
     };
@@ -100,7 +100,7 @@
     @if (filled($metric))
         <p @class([
             'relative font-bold leading-none tabular-nums tracking-[-0.05em]',
-            'mt-6 text-5xl text-white sm:text-6xl' => $isFeatured,
+            'mt-6 text-5xl text-rt-text sm:text-6xl dark:text-white' => $isFeatured,
             'mt-3 text-2xl text-rt-text dark:text-white' => $isCompact,
             'mt-5 text-3xl text-rt-text sm:text-4xl dark:text-white' => ! $isFeatured && ! $isCompact,
         ])>
@@ -109,11 +109,7 @@
     @endif
 
     @if (filled($metricLabel))
-        <p @class([
-            'relative mt-1 text-[11px] font-semibold uppercase tracking-[0.1em]',
-            'text-slate-400' => $isFeatured,
-            'text-rt-muted dark:text-rt-dark-muted' => ! $isFeatured,
-        ])>
+        <p class="relative mt-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-rt-muted dark:text-rt-dark-muted">
             {{ $metricLabel }}
         </p>
     @endif
@@ -121,13 +117,13 @@
     <div @class(['relative', 'mt-6' => $isFeatured, 'mt-3' => ! $isFeatured])>
         <h3 @class([
             'font-bold tracking-[-0.02em]',
-            'text-xl text-white' => $isFeatured,
+            'text-xl text-rt-text dark:text-white' => $isFeatured,
             'text-base text-rt-text dark:text-white' => ! $isFeatured,
         ])>{{ $title }}</h3>
         @if (filled($description) && ! $isCompact)
             <p @class([
                 'mt-1 text-pretty text-xs leading-5',
-                'max-w-md text-slate-300' => $isFeatured,
+                'max-w-md text-rt-muted dark:text-rt-dark-muted' => $isFeatured,
                 'text-rt-muted dark:text-rt-dark-muted' => ! $isFeatured,
             ])>{{ $description }}</p>
         @endif
@@ -135,8 +131,7 @@
 
     <div @class([
         'relative mt-auto flex items-center justify-between gap-3 pt-3 text-xs font-semibold',
-        'text-rose-300' => $isFeatured && filled($href),
-        'text-rt-red dark:text-rt-red-light' => ! $isFeatured && filled($href),
+        'text-rt-red dark:text-rt-dark-accent' => filled($href),
         'text-rt-soft dark:text-rt-dark-soft' => blank($href),
     ])>
         <span>{{ filled($href) ? $resolvedActionLabel : ($preview ? __('app.demo_preview') : __('app.no_database_connection')) }}</span>

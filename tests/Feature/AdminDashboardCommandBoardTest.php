@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\Dashboard\SystemDashboardData;
 use App\Support\Operations\OperationalPreviewCatalog;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
@@ -122,5 +123,27 @@ class AdminDashboardCommandBoardTest extends TestCase
         $this->assertIsInt($modules['calendar']['supporting_value']);
         $this->assertIsInt($modules['customers']['supporting_value']);
         $this->assertArrayNotHasKey('status', app(SystemDashboardData::class)->charts());
+    }
+
+    public function test_featured_operational_card_follows_light_and_dark_surfaces(): void
+    {
+        $html = Blade::render(<<<'BLADE'
+            <x-ui.dashboard.focus-card
+                title="Aufträge"
+                description="Offene Aufträge steuern."
+                metric="5"
+                metric-label="Offene Aufträge"
+                href="/administrator/betrieb/orders"
+                variant="featured"
+            />
+        BLADE);
+
+        $this->assertStringContainsString('bg-rt-surface', $html);
+        $this->assertStringContainsString('dark:bg-rt-dark-surface', $html);
+        $this->assertStringContainsString('text-rt-text', $html);
+        $this->assertStringContainsString('dark:text-white', $html);
+        $this->assertStringContainsString('dark:text-rt-dark-accent', $html);
+        $this->assertStringNotContainsString('bg-slate-950', $html);
+        $this->assertStringNotContainsString('dark:text-rt-red-light', $html);
     }
 }
