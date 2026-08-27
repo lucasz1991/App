@@ -383,6 +383,7 @@ class MailDocumentEditorTest extends TestCase
             ->assertJsonPath('compatibility.catalog_version', '1.0.0')
             ->assertJsonPath('redirect', route('admin.mail-documents.editor', [
                 'dokument' => MailDocumentKind::Signature->value,
+                'slot' => $response->json('document.id'),
                 'open' => 1,
             ]));
 
@@ -1479,6 +1480,7 @@ HTML;
             'published_css' => '',
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
+            'is_active' => true,
         ])->save();
 
         $html = (new EmailTemplateBuilder($user->fresh()))->build('vorlage-html')['content'];
@@ -1521,6 +1523,7 @@ HTML;
             'published_css' => '.rt-sign-name{letter-spacing:0;}',
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
+            'is_active' => true,
         ])->save();
         $templateDocument = $this->document(MailDocumentKind::Template);
         $templateDocument->forceFill([
@@ -1528,6 +1531,7 @@ HTML;
             'published_css' => '',
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
+            'is_active' => true,
         ])->save();
         $this->app->forgetScopedInstances();
 
@@ -1666,6 +1670,7 @@ HTML;
             'published_css' => '.snapshot-a{letter-spacing:0;}',
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
+            'is_active' => true,
         ])->save();
 
         // Das Layout liest zuerst CSS; der Footer erzeugt danach eine zweite
@@ -1712,6 +1717,7 @@ HTML;
             'published_css' => '',
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
+            'is_active' => true,
         ])->save();
 
         $html = (new EmailTemplateBuilder($user))->build('signatur-hell')['content'];
@@ -3628,6 +3634,7 @@ HTML;
             'published_html' => $attackHtml,
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
+            'is_active' => true,
         ])->save();
         $this->app->forgetScopedInstances();
 
@@ -3687,6 +3694,7 @@ HTML;
             'published_html' => $attackHtml,
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
+            'is_active' => true,
         ])->save();
         $this->app->forgetScopedInstances();
 
@@ -3748,6 +3756,7 @@ HTML;
             'published_html' => $attackHtml,
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
+            'is_active' => true,
         ])->save();
         $this->app->forgetScopedInstances();
 
@@ -3899,6 +3908,7 @@ HTML;
                 'published_html' => $attackHtml,
                 'published_at' => now(),
                 'status' => MailDocumentStatus::Published,
+                'is_active' => true,
             ])->save();
             $this->app->forgetScopedInstances();
 
@@ -4071,6 +4081,7 @@ HTML;
                 'published_html' => $attackHtml,
                 'published_at' => now(),
                 'status' => MailDocumentStatus::Published,
+                'is_active' => true,
             ])->save();
             $this->app->forgetScopedInstances();
 
@@ -4457,6 +4468,7 @@ HTML;
             'published_html' => $storedFallback,
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
+            'is_active' => true,
         ])->save();
         $this->app->forgetScopedInstances();
         try {
@@ -4478,6 +4490,7 @@ HTML;
             'published_html' => $invalid,
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
+            'is_active' => true,
         ])->save();
         $this->app->forgetScopedInstances();
 

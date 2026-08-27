@@ -28,6 +28,7 @@ use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\TemplateDocumentContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
@@ -1050,15 +1051,14 @@ final class MailDocumentController extends Controller
         return $normalized;
     }
 
-    /** @param  \Illuminate\Support\Collection<int, MailDocument>  $slots */
+    /** @param  Collection<int, MailDocument>  $slots */
     private function assertUniqueSlotName(
-        \Illuminate\Support\Collection $slots,
+        Collection $slots,
         string $name,
         ?MailDocument $except = null,
     ): void {
         $key = mb_strtolower($name, 'UTF-8');
-        $duplicate = $slots->contains(static fn (MailDocument $slot): bool =>
-            ($except === null || $slot->getKey() !== $except->getKey())
+        $duplicate = $slots->contains(static fn (MailDocument $slot): bool => ($except === null || $slot->getKey() !== $except->getKey())
             && mb_strtolower(trim((string) $slot->name), 'UTF-8') === $key
         );
 

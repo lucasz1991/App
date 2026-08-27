@@ -2206,14 +2206,17 @@ test('mail editor exposes one responsive topbar with grouped controls and visibl
 
 test('mail design manager uses the shared state modal and saves before slot or version transitions', async () => {
     const { readFile } = await import('node:fs/promises');
-    const view = await readFile(
-        new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url),
-        'utf8',
-    );
+    const [view, editorShell, stateModal] = await Promise.all([
+        readFile(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/components/ui/page-builder/editor-shell.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/components/ui/state-modal.blade.php', import.meta.url), 'utf8'),
+    ]);
 
-    assert.match(view, /x-data="\{ managerOpen: false \}"/);
-    assert.match(view, /x-on:mail-design-manager-open\.window="managerOpen = true"/);
+    assert.match(view, /x-data="\{[\s\S]*?managerOpen: false,[\s\S]*?managerBusy: false,[\s\S]*?closeManager\(\)/);
+    assert.match(view, /x-on:mail-design-manager-open\.window="openManager\(\)"/);
+    assert.match(view, /x-on:mail-design-manager-busy\.window="managerBusy = \$event\.detail === true"/);
     assert.match(view, /<x-ui\.state-modal[\s\S]*?state="managerOpen"[\s\S]*?data-mail-design-manager[\s\S]*?data-page-builder-subdialog/);
+    assert.match(view, /close-action="closeManager\(\)"/);
     assert.match(view, /description="[^"]*Genau ein veröffentlichtes Design wird von Systemmails verwendet\."/);
 
     for (const control of [
@@ -2235,6 +2238,10 @@ test('mail design manager uses the shared state modal and saves before slot or v
     assert.doesNotMatch(view, /data-mail-toolbar-menu="versions"/);
     assert.doesNotMatch(view, /data-mail-document-version(?:[\s=>-]|$)/);
     assert.doesNotMatch(view, /window\.confirm\s*\(/);
+    assert.match(editorShell, /pageBuilderSubdialogOpen\(\)/);
+    assert.match(editorShell, /escape-action="if \(! pageBuilderAssistantOpen\(\) && ! pageBuilderSubdialogOpen\(\)\) requestClose\(\)"/);
+    assert.match(editorShell, /if \(event\.defaultPrevented \|\| this\.pageBuilderSubdialogOpen\(\)\) return;/);
+    assert.match(stateModal, /keydown\.escape\.window="if \(\{\{ \$state \}\}\) \{ \$event\.stopImmediatePropagation\(\);/);
 
     const managerScriptStart = view.indexOf('const saveBeforeDesignAction = async () => {');
     const managerScriptEnd = view.indexOf('bindDesignManager();', managerScriptStart);
@@ -2247,6 +2254,9 @@ test('mail design manager uses the shared state modal and saves before slot or v
     assert.match(saveHelper, /if \(pendingPortableMedia\.length > 0\)/);
     assert.match(saveHelper, /focused\.blur\(\);[\s\S]*?requestAnimationFrame[\s\S]*?await saveCurrentDraft\(\);/);
     assert.match(managerScript, /new CustomEvent\('rt-confirm',[\s\S]*?cancelLabel: 'Abbrechen',[\s\S]*?action/);
+    assert.match(managerScript, /new CustomEvent\('mail-design-manager-busy', \{ detail: true \}\)/);
+    assert.match(managerScript, /new CustomEvent\('mail-design-manager-busy', \{ detail: false \}\)/);
+    assert.ok((managerScript.match(/fail\(error,[^\n]+\);\s*throw error;/g) || []).length >= 4);
     assert.equal((managerScript.match(/dispatchConfirmation\(\{/g) || []).length, 4);
     assert.equal((managerScript.match(/await saveBeforeDesignAction\(\);/g) || []).length, 6);
     assert.doesNotMatch(managerScript, /window\.confirm\s*\(/);

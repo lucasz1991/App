@@ -247,12 +247,19 @@ php artisan db:seed --class=MarketingStudioSeeder --force
 Ohne diese Angabe verwendet der Seeder den ersten Administrator. Bestehende oder
 gelöschte Startmotive werden nicht überschrieben und nicht doppelt angelegt.
 
-Der administrative **Mail- & Signatur-Editor** verwendet exakt zwei
-kanonische Dokumente. Sie werden nicht mehr durch einen autoritativen Seeder
-angelegt oder überschrieben. Fehlt eine Nachrichtenvorlage oder Signatur, kann
-das jeweilige portable JSON-Bundle direkt im Editor als Entwurf importiert,
-geprüft und anschließend bewusst veröffentlicht werden. Vorhandene Entwürfe
-und Veröffentlichungen bleiben bei Deployments unverändert.
+Der administrative **Mail- & Signatur-Editor** verwaltet zwei Dokumentarten
+(Nachrichtenvorlage und Signatur) mit jeweils mehreren benannten Design-Slots.
+Jeder Slot besitzt einen eigenen Arbeitsentwurf und Versionsverlauf. Pro
+Dokumentart ist höchstens ein Slot aktiv veröffentlicht; Systemmails lesen nur
+diesen Abzug. Das Aktivieren eines anderen Slots schaltet die Freigabe atomar
+um, ohne die übrigen Entwürfe zu überschreiben. Aktive sowie letzte Slots und
+die letzte Rückfallversion sind gegen Löschen geschützt.
+
+Die Dokumente werden nicht durch einen autoritativen Seeder angelegt oder
+überschrieben. Fehlt eine Nachrichtenvorlage oder Signatur, kann das jeweilige
+portable JSON-Bundle direkt im Editor als Entwurf importiert, geprüft und
+anschließend bewusst veröffentlicht werden. Vorhandene Entwürfe und
+Veröffentlichungen bleiben bei Deployments unverändert.
 
 Nach vorhandener `mail_documents`-Migration versenden Laravel-Mails und
 Notifications ausschließlich diese veröffentlichten Datenbankstände. Fehlt

@@ -2422,6 +2422,7 @@
                         const withBusy = async (callback) => {
                             setActionsBusy(true);
                             manager.setAttribute('aria-busy', 'true');
+                            window.dispatchEvent(new CustomEvent('mail-design-manager-busy', { detail: true }));
                             manager.querySelectorAll('button, input').forEach((control) => {
                                 control.disabled = true;
                             });
@@ -2434,6 +2435,7 @@
                                         control.disabled = false;
                                     }
                                 });
+                                window.dispatchEvent(new CustomEvent('mail-design-manager-busy', { detail: false }));
                                 setActionsBusy(false);
                             }
                         };
@@ -2499,7 +2501,10 @@
                                         });
                                         toast('success', 'Systemmails verwenden jetzt dieses Design.', 'Design aktiviert');
                                         window.location.reload();
-                                    }).catch((error) => fail(error, 'Design konnte nicht veröffentlicht werden')),
+                                    }).catch((error) => {
+                                        fail(error, 'Design konnte nicht veröffentlicht werden');
+                                        throw error;
+                                    }),
                                 });
                                 return;
                             }
@@ -2517,7 +2522,10 @@
                                         });
                                         toast('success', 'Der inaktive Design-Slot wurde gelöscht.', 'Design gelöscht');
                                         window.location.assign(payload.redirect || window.location.href);
-                                    }).catch((error) => fail(error, 'Design konnte nicht gelöscht werden')),
+                                    }).catch((error) => {
+                                        fail(error, 'Design konnte nicht gelöscht werden');
+                                        throw error;
+                                    }),
                                 });
                                 return;
                             }
@@ -2535,7 +2543,10 @@
                                         });
                                         toast('success', 'Die Historienversion wurde gelöscht.', 'Version gelöscht');
                                         window.location.reload();
-                                    }).catch((error) => fail(error, 'Version konnte nicht gelöscht werden')),
+                                    }).catch((error) => {
+                                        fail(error, 'Version konnte nicht gelöscht werden');
+                                        throw error;
+                                    }),
                                 });
                                 return;
                             }
@@ -2564,7 +2575,10 @@
                                         projectOptions: { kind: config.currentDocument, environment: window },
                                     });
                                     window.location.reload();
-                                }).catch((error) => fail(error, 'Version konnte nicht wiederhergestellt werden')),
+                                }).catch((error) => {
+                                    fail(error, 'Version konnte nicht wiederhergestellt werden');
+                                    throw error;
+                                }),
                             });
                         }, { signal: controlListeners.signal });
                     };

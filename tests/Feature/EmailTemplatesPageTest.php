@@ -17,6 +17,7 @@ use App\Support\MailSignature;
 use App\Support\PageHelpCatalog;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 use ZipArchive;
@@ -194,7 +195,10 @@ class EmailTemplatesPageTest extends TestCase
         // Die Tabelle gehoert nicht zum Minimalschema — hier kommt sie aus der
         // echten Migration, damit Spalten und Test nicht auseinanderlaufen.
         (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
         $this->createCanonicalMailDocuments();
+        $template = MailDocument::query()->where('kind', MailDocumentKind::Template->value)->firstOrFail();
+        $signature = MailDocument::query()->where('kind', MailDocumentKind::Signature->value)->firstOrFail();
 
         $this->actingAs($admin)
             ->get(route('email-templates.index'))
@@ -203,8 +207,8 @@ class EmailTemplatesPageTest extends TestCase
             ->assertSee(route('admin.mail-documents.editor', ['open' => 1]), escape: false)
             // OHNE escape: false — Blade escaped das Trennzeichen & der
             // Query im href zu &amp;. Die rohe URL steht so nie im Markup.
-            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'template', 'open' => 1]))
-            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'open' => 1]))
+            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'template', 'slot' => $template->public_id, 'open' => 1]))
+            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'slot' => $signature->public_id, 'open' => 1]))
             ->assertSee('data-email-template-editor-link', escape: false)
             ->assertSee('Vorlagen &amp; Signaturen bearbeiten', escape: false)
             ->assertSee('data-menu-active="true"', escape: false);
@@ -1824,7 +1828,7 @@ class EmailTemplatesPageTest extends TestCase
                 ],
             ];
 
-            MailDocument::query()->create([
+            $attributes = [
                 'kind' => $kind,
                 'status' => MailDocumentStatus::Published,
                 'builder_data' => $builderData,
@@ -1835,7 +1839,15 @@ class EmailTemplatesPageTest extends TestCase
                 'published_at' => now(),
                 'content_hash' => MailDocument::contentHashFor($builderData, $html, ''),
                 'version' => 1,
-            ]);
+            ];
+            if (Schema::hasColumn('mail_documents', 'name')) {
+                $attributes['name'] = $kind === MailDocumentKind::Signature ? 'Standardsignatur' : 'Standardvorlage';
+            }
+            if (Schema::hasColumn('mail_documents', 'is_active')) {
+                $attributes['is_active'] = true;
+            }
+
+            MailDocument::query()->create($attributes);
         }
     }
 
