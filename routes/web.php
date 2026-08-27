@@ -291,6 +291,22 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
                 ->whereUuid(['document', 'version'])
                 ->middleware('throttle:30,1')
                 ->name('mail-documents.versions.restore');
+            Route::delete('/mail-vorlagen/{document}/versionen/{version}', [MailDocumentController::class, 'deleteVersion'])
+                ->whereUuid(['document', 'version'])
+                ->middleware('throttle:30,1')
+                ->name('mail-documents.versions.destroy');
+            Route::post('/mail-vorlagen/{document}/designs', [MailDocumentController::class, 'createDesignSlot'])
+                ->whereUuid('document')
+                ->middleware('throttle:30,1')
+                ->name('mail-documents.slots.store');
+            Route::patch('/mail-vorlagen/{document}/design', [MailDocumentController::class, 'renameDesignSlot'])
+                ->whereUuid('document')
+                ->middleware('throttle:60,1')
+                ->name('mail-documents.slots.update');
+            Route::delete('/mail-vorlagen/{document}/design', [MailDocumentController::class, 'deleteDesignSlot'])
+                ->whereUuid('document')
+                ->middleware('throttle:30,1')
+                ->name('mail-documents.slots.destroy');
         });
         Route::withoutMiddleware('role:admin')->group(function (): void {
             Route::get('/marketing/motive', MarketingCreativesIndex::class)

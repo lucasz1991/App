@@ -46,13 +46,15 @@ final class SignatureArtifactVersion
 
     public const V20 = 'v20';
 
+    public const V21 = 'v21';
+
     /**
-     * V8 bis V20 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
+     * V8 bis V21 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
      * endet im Ankunftsbild und benoetigt deshalb kein separates Idle-Overlay.
      */
     public static function usesArrivalHoldTrain(?string $version): bool
     {
-        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17, self::V18, self::V19, self::V20], true);
+        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17, self::V18, self::V19, self::V20, self::V21], true);
     }
 
     /** V12 verwendet die optimierte, sofort sichtbare Zugdatei. */
@@ -67,10 +69,10 @@ final class SignatureArtifactVersion
         return in_array($version, [self::V13, self::V14], true);
     }
 
-    /** V15 bis V20 verwenden die kleineren Wortmarkenmedien. */
+    /** V15 bis V21 verwenden die kleineren Wortmarkenmedien. */
     public static function usesOptimizedMailAssets(?string $version): bool
     {
-        return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19, self::V20], true);
+        return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19, self::V20, self::V21], true);
     }
 
     /** V15 bis V20 duerfen den Inhalt bei degradiertem Client-CSS nie abschneiden. */
@@ -99,10 +101,20 @@ final class SignatureArtifactVersion
         return $version === self::V19;
     }
 
-    /** V19/V20 verwenden verlustarm optimierte, eigenstaendig versionierte Medien. */
+    /** V19 bis V21 verwenden verlustarm optimierte, eigenstaendig versionierte Medien. */
     public static function usesV19MailAssets(?string $version): bool
     {
-        return in_array($version, [self::V19, self::V20], true);
+        return in_array($version, [self::V19, self::V20, self::V21], true);
+    }
+
+    /**
+     * V21 verzichtet vollstaendig auf Buehnenhoehen, Positionierung und
+     * Ueberlappungen. Inhalt und Zug stehen in logischer Tabellenreihenfolge
+     * und bleiben dadurch auch nach CSS-Reduktion beim Weiterleiten lesbar.
+     */
+    public static function usesFlowSafeTrain(?string $version): bool
+    {
+        return $version === self::V21;
     }
 
     /** V17/V18 verwenden den reduzierten Fahrrauch und ein rauchfreies Endbild. */

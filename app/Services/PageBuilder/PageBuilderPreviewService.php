@@ -79,7 +79,14 @@ final class PageBuilderPreviewService
         $theme = $theme === 'dark' ? 'dark' : 'light';
         $signatureDocument = $document->kind === MailDocumentKind::Signature
             ? $document
-            : MailDocument::query()->where('kind', MailDocumentKind::Signature->value)->first();
+            : (MailDocument::query()
+                ->where('kind', MailDocumentKind::Signature->value)
+                ->active()
+                ->first()
+                ?? MailDocument::query()
+                    ->where('kind', MailDocumentKind::Signature->value)
+                    ->orderBy('id')
+                    ->first());
 
         // Vorschau und Editor zeigen den tatsaechlichen Absenderkontext der
         // Systemnachrichten. Zuvor wurde hier das Profil des angemeldeten

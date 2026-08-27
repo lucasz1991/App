@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use JsonException;
 use RuntimeException;
@@ -25,7 +26,9 @@ class MailDocument extends Model
     protected $fillable = [
         'public_id',
         'kind',
+        'name',
         'status',
+        'is_active',
         'builder_data',
         'html',
         'css',
@@ -41,6 +44,7 @@ class MailDocument extends Model
     protected $casts = [
         'kind' => MailDocumentKind::class,
         'status' => MailDocumentStatus::class,
+        'is_active' => 'boolean',
         'builder_data' => 'array',
         'published_at' => 'datetime',
         'version' => 'integer',
@@ -84,16 +88,42 @@ class MailDocument extends Model
      */
     public function scopePublished(Builder $query): Builder
     {
-        return $query
+        $query
             ->where('status', MailDocumentStatus::Published->value)
             ->whereNotNull('published_at')
             ->whereNotNull('published_html')
             ->where('published_html', '!=', '');
+
+        // Bis die neue Migration auf einer Installation gelaufen ist, bleibt
+        // der bisherige UNIQUE-kind-Vertrag funktionsfaehig. Danach ist
+        // is_active die zusaetzliche, datenbankseitig eindeutige Freigabe.
+        if (Schema::hasColumn($query->getModel()->getTable(), 'is_active')) {
+            $query->where('is_active', true);
+        }
+
+        return $query;
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        if (Schema::hasColumn($query->getModel()->getTable(), 'is_active')) {
+            return $query->where('is_active', true);
+        }
+
+        return $query->where('status', MailDocumentStatus::Published->value);
+    }
+
+    public function isActive(): bool
+    {
+        return Schema::hasColumn($this->getTable(), 'is_active')
+            ? $this->is_active === true
+            : $this->status === MailDocumentStatus::Published;
     }
 
     public function isPublished(): bool
     {
-        return $this->status === MailDocumentStatus::Published
+        return $this->isActive()
+            && $this->status === MailDocumentStatus::Published
             && $this->published_at !== null
             && $this->publishedHtml() !== null;
     }

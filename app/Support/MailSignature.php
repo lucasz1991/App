@@ -381,7 +381,7 @@ class MailSignature
 
     /**
      * Liefert denselben artefaktgebundenen Medien-/Tokenstand, den auch der
-     * Renderer benutzt. Die Livevorschau darf dadurch V19/V20-Werte vorab fuer
+     * Renderer benutzt. Die Livevorschau darf dadurch V19-V21-Werte vorab fuer
      * Nachrichtenschale und Signatur gemeinsam aufloesen, ohne die
      * Artifact-Auswahl durch Legacy-Medien-Overrides zu blockieren.
      *
@@ -398,7 +398,7 @@ class MailSignature
     }
 
     /**
-     * V8 bis V20 sind fachlich markierte Signaturstaende und besitzen eigene
+     * V8 bis V21 sind fachlich markierte Signaturstaende und besitzen eigene
      * Haupt-/Standbilder ohne separates nachlaufendes Idle-Overlay. Die Auswahl geschieht
      * am tatsächlich gerenderten HTML statt am Importdateinamen, damit
      * Vorschau, Systemmail, Download und Testmail dieselbe Bildidentität sehen.
@@ -496,7 +496,7 @@ class MailSignature
             }
         }
 
-        // V8 bis V20 enthalten ihren vollstaendigen Ankunftsstand bereits im
+        // V8 bis V21 enthalten ihren vollstaendigen Ankunftsstand bereits im
         // Haupt-GIF und duerfen nicht durch das alte, zeitversetzt eingeblendete
         // Idle-Overlay ergaenzt werden.
         $values['TRAIN_IDLE_SRC'] = '';
@@ -647,9 +647,8 @@ class MailSignature
         }
 
         // Hauptzug und Idle-Rauch bleiben wie Logo und RT-Zeichen echte IMG.
-        // Der Hauptzug steht im normalen Fluss vor dem Inhalt. Seine negative
-        // Margin erzeugt denselben Overlap in Editor, Browser und Outlook;
-        // nur der Idle-Holder bleibt hoehenneutral.
+        // Historische Artefakte behalten ihren versionsgebundenen Vertrag;
+        // V21 fuehrt den Hauptzug ohne Ueberlagerung direkt nach dem Inhalt.
         return SignatureTrainCarrier::withMsoFallback($html, $outlookFallbackSource);
     }
 

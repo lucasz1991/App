@@ -26,6 +26,7 @@ import {
     resolvePortableMediaRequirementIds,
     serializeMailDocumentForSave,
     serializeMailProjectStyles,
+    synchronizeMailSignatureFlowGeometry,
     synchronizeMailSignatureFixedGeometry,
     synchronizeMailTrainLayerAlignment,
 } from '../../resources/js/mail-builder.js';
@@ -36,6 +37,12 @@ const canonicalSignatureStage = (content = '') => '<div class="rt-sign-stage" st
     + canonicalTrain
     + '<table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">'
     + `<tbody><tr><td>${content}</td></tr></tbody></table>`
+    + '</div>';
+const flowSafeTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="left" style="display:block;width:100%;max-width:720px;margin:0 auto 0 0;overflow:hidden;font-size:0;line-height:0;text-align:left;"><table class="rt-sign-train-frame" role="presentation" width="100%" height="61" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:61px;border-collapse:collapse;"><tr><td class="rt-sign-train-slot" height="61" valign="bottom" style="height:61px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" height="61" alt="" style="display:block;width:100%;max-width:720px;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;"></td></tr></table></div>';
+const flowSafeSignatureStage = (content = '') => '<div class="rt-sign-stage" style="display:block;width:100%;overflow:visible;">'
+    + '<table class="rt-sign-content-frame" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">'
+    + `<tbody><tr><td>${content}</td></tr></tbody></table>`
+    + flowSafeTrain
     + '</div>';
 
 test('portable media requirements follow the imported signature instead of the open draft', () => {
@@ -87,6 +94,15 @@ test('portable media requirements follow the imported signature instead of the o
                 'icon-rt-v19-light.png',
             ],
             v20: [
+                'common.png',
+                'zug-dampf-v19-light.gif',
+                'zug-dampf-v19-light.png',
+                'wortmarke-signature-v19-light.gif',
+                'wortmarke-signature-v19-light.png',
+                'icon-rt-v19-light.gif',
+                'icon-rt-v19-light.png',
+            ],
+            v21: [
                 'common.png',
                 'zug-dampf-v19-light.gif',
                 'zug-dampf-v19-light.png',
@@ -210,6 +226,14 @@ test('portable media requirements follow the imported signature instead of the o
         requirements.signature.v20,
     );
     assert.deepEqual(
+        resolvePortableMediaRequirementIds(
+            requirements,
+            'signature',
+            '<tr data-rt-artifact-version="v21"><td>v21</td></tr>',
+        ),
+        requirements.signature.v21,
+    );
+    assert.deepEqual(
         resolvePortableMediaRequirementIds(requirements, 'template', '<table></table>'),
         requirements.template.default,
     );
@@ -217,7 +241,7 @@ test('portable media requirements follow the imported signature instead of the o
         () => resolvePortableMediaRequirementIds(
             requirements,
             'signature',
-            '<tr data-rt-artifact-version="v21"><td>unbekannt</td></tr>',
+            '<tr data-rt-artifact-version="v22"><td>unbekannt</td></tr>',
         ),
         /Medienvertrag ist nicht vollständig konfiguriert/,
     );
@@ -395,7 +419,7 @@ test('signature project gets a valid editor-only table and a reversible train im
     assert.deepEqual(draft.builderData, source);
 });
 
-test('schema 22 to 25 train overlaps migrate deterministically to the schema 27 pixel contract', () => {
+test('schema 22 to 25 train overlaps migrate deterministically to the current pixel contract', () => {
     const legacyTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
     const schema24Train = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
     const legacyStage = (train) => canonicalSignatureStage('Inhalt').replace(canonicalTrain, train);
@@ -462,7 +486,7 @@ test('schema 22 to 25 train overlaps migrate deterministically to the schema 27 
     });
 });
 
-test('schema 27 keeps V18 and V20 geometry stable while V19 retains its isolated forwarding fallback', () => {
+test('schema 28 keeps V18 and V20 geometry stable while V19 retains its isolated forwarding fallback', () => {
     const serializeVersion = (version) => {
         let original = `<tr data-rt-artifact-version="${version}"><td class="rt-sign-cell">${canonicalSignatureStage('Inhalt')}</td></tr>`
             + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
@@ -590,6 +614,147 @@ test('schema 27 keeps V18 and V20 geometry stable while V19 retains its isolated
         /^position:relative;z-index:0;display:block;[^\r\n]*height:200px;[^\r\n]*margin-bottom:-200px;/,
     );
     assert.equal(migratedV19Document.querySelector('.rt-sign-train')?.hasAttribute('height'), false);
+});
+
+test('schema 28 keeps V21 in strict content-first flow without overlay geometry', () => {
+    const original = `<tr data-rt-artifact-version="v21"><td class="rt-sign-cell">${flowSafeSignatureStage('<img src="{{LOGO_SRC}}" alt="{{FIRMENNAME}}"><p>Inhalt</p>')}</td></tr>`
+        + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
+    const project = projectForMailDocument({
+        builderData: {
+            pages: [{ component: original }],
+            styles: [],
+            railtime: { document: 'signature', schema: 28 },
+        },
+        css: '',
+    }, () => [], { kind: 'signature', environment: { DOMParser } });
+    const outgoing = serializeMailDocumentForSave({
+        project,
+        html: project.pages[0].component,
+        kind: 'signature',
+        environment: { DOMParser },
+    });
+    const document_ = new DOMParser().parseFromString(
+        `<table><tbody>${outgoing.html}</tbody></table>`,
+        'text/html',
+    );
+    const stage = document_.querySelector('tr[data-rt-artifact-version="v21"] .rt-sign-stage');
+    const content = stage?.querySelector(':scope > table.rt-sign-content-frame');
+    const layer = stage?.querySelector(':scope > div.rt-sign-train-layer[data-rt-layer-train]');
+    const frame = layer?.querySelector(':scope > table.rt-sign-train-frame');
+    const slot = frame?.querySelector('td.rt-sign-train-slot');
+    const train = slot?.querySelector(':scope > img.rt-sign-train[data-rt-train]');
+
+    assert.equal(MAIL_SIGNATURE_SCHEMA, 28);
+    assert.equal(outgoing.project.railtime.schema, 28);
+    assert.equal(stage?.children.length, 2);
+    assert.equal(stage?.firstElementChild, content);
+    assert.equal(stage?.lastElementChild, layer);
+    assert.equal(stage?.getAttribute('style'), 'display:block;width:100%;overflow:visible;');
+    assert.equal(content?.hasAttribute('height'), false);
+    assert.equal(content?.getAttribute('style'), 'width:100%;border-collapse:collapse;');
+    assert.equal(layer?.getAttribute('data-rt-layer-align'), 'left');
+    assert.equal(layer?.getAttribute('data-rt-layer-size'), '100');
+    assert.equal(layer?.getAttribute('data-rt-layer-mobile'), 'left');
+    assert.equal(
+        layer?.getAttribute('style'),
+        'display:block;width:100%;max-width:720px;margin:0 auto 0 0;overflow:hidden;font-size:0;line-height:0;text-align:left;',
+    );
+    assert.equal(frame?.getAttribute('width'), '100%');
+    assert.equal(frame?.getAttribute('height'), '61');
+    assert.equal(frame?.getAttribute('style'), 'width:100%;height:61px;border-collapse:collapse;');
+    assert.equal(slot?.getAttribute('height'), '61');
+    assert.equal(slot?.getAttribute('valign'), 'bottom');
+    assert.equal(train?.getAttribute('width'), '720');
+    assert.equal(train?.getAttribute('height'), '61');
+    assert.equal(
+        train?.getAttribute('style'),
+        'display:block;width:100%;max-width:720px;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;',
+    );
+    assert.equal((outgoing.html.match(/\{\{TRAIN_SRC\}\}/g) || []).length, 1);
+    assert.doesNotMatch(outgoing.html, /(?:position|z-index|background-image)\s*:/i);
+    assert.doesNotMatch(outgoing.html, /margin(?:-(?:top|right|bottom|left))?\s*:\s*-/i);
+});
+
+test('V21 rejects overlay remnants and never migrates an invalid flow into a legacy stage', () => {
+    const originalStage = flowSafeSignatureStage('Inhalt');
+    const variants = [
+        originalStage.replace(
+            /(<table class="rt-sign-content-frame"[\s\S]*?<\/table>)(<div class="rt-sign-train-layer"[\s\S]*?<\/div>)/,
+            '$2$1',
+        ),
+        originalStage.replace(
+            'display:block;width:100%;overflow:visible;',
+            'position:relative;display:block;width:100%;overflow:visible;',
+        ),
+        originalStage.replace('height="61" alt=""', 'alt=""'),
+        originalStage.replace(
+            'margin:0 auto 0 0;',
+            'margin:0 auto 0 0;margin-bottom:-61px;',
+        ),
+        originalStage.replace(
+            'margin:0 auto 0 0;',
+            'margin:0 0 -1px 0;',
+        ),
+        originalStage.replace(
+            'overflow:visible;',
+            'overflow:visible;background-image:url(\'{{TRAIN_SRC}}\');',
+        ),
+        originalStage.replace(
+            'class="rt-sign-stage"',
+            'class="rt-sign-stage fremde-klasse"',
+        ),
+        originalStage.replace(
+            'class="rt-sign-content-frame"',
+            'class="rt-sign-content-frame fremde-klasse"',
+        ),
+        originalStage.replace(
+            '</table></div></div>',
+            '</table><span>Fremder Layer-Inhalt</span></div></div>',
+        ),
+        originalStage.replace(
+            '<img class="rt-sign-train"',
+            '<span>Fremder Slot-Inhalt</span><img class="rt-sign-train"',
+        ),
+        originalStage.replace(
+            'display:block;width:100%;overflow:visible;',
+            'display:block;width:100%;overflow:visible;transform:translateX(0);',
+        ),
+        originalStage.replace(
+            'width:100%;border-collapse:collapse;',
+            'width:100%;border-collapse:collapse;display:flex;',
+        ),
+        originalStage.replace(
+            'width:100%;border-collapse:collapse;',
+            'width:100%;border-collapse:collapse;height:200px;',
+        ),
+    ];
+
+    variants.forEach((stage) => {
+        const html = `<tr data-rt-artifact-version="v21"><td class="rt-sign-cell">${stage}</td></tr>`
+            + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
+        assert.throws(() => projectForMailDocument({
+            builderData: {
+                pages: [{ component: html }],
+                styles: [],
+                railtime: { document: 'signature', schema: 28 },
+            },
+            css: '',
+        }, () => [], { kind: 'signature', environment: { DOMParser } }));
+    });
+});
+
+test('V21 permits plain inline background colors without reopening image backgrounds', () => {
+    const original = `<tr data-rt-artifact-version="v21"><td class="rt-sign-cell" style="background:#fff;">${flowSafeSignatureStage('Inhalt')}</td></tr>`
+        + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
+
+    assert.doesNotThrow(() => projectForMailDocument({
+        builderData: {
+            pages: [{ component: original }],
+            styles: [],
+            railtime: { document: 'signature', schema: 28 },
+        },
+        css: '',
+    }, () => [], { kind: 'signature', environment: { DOMParser } }));
 });
 
 test('signature preview hydrates the train image and roundtrips two canonical rows', () => {
@@ -1424,6 +1589,104 @@ test('fixed signature geometry resets stage and content frame directly to pixels
     });
 });
 
+test('V21 editor synchronization restores flow geometry and bypasses legacy synchronizers', () => {
+    const component = (attributes = {}, tagName = 'div', children = [], style = {}) => {
+        const state = { attributes, tagName, style };
+        const item = {
+            components: () => ({ models: children }),
+            get: (key) => state[key],
+            getAttributes: () => attributes,
+            getStyle: () => style,
+            addAttributes: (next) => Object.assign(attributes, next),
+            removeAttributes: (name) => { delete attributes[name]; },
+            setStyle: (next) => {
+                Object.keys(style).forEach((name) => delete style[name]);
+                Object.assign(style, next);
+            },
+            removeStyle: (name) => { delete style[name]; },
+            parent: () => item.parentComponent || null,
+        };
+        children.forEach((child) => { child.parentComponent = item; });
+        return item;
+    };
+    const train = component(
+        { class: 'rt-sign-train', 'data-rt-train': '', width: '1200' },
+        'img',
+        [],
+        { position: 'absolute', width: '200%', 'margin-bottom': '-61px' },
+    );
+    const slot = component({ class: 'rt-sign-train-slot', height: '200' }, 'td', [train], { height: '200px' });
+    const frameRow = component({}, 'tr', [slot]);
+    const frameBody = component({}, 'tbody', [frameRow]);
+    const frame = component({ class: 'rt-sign-train-frame', width: '100%', height: '200' }, 'table', [frameBody], { height: '200px' });
+    const layer = component({
+        class: 'rt-sign-train-layer',
+        'data-rt-layer-train': '',
+        'data-rt-layer-align': 'center',
+        'data-rt-layer-size': '200',
+        'data-rt-layer-mobile': 'stop60',
+    }, 'div', [frame], { position: 'absolute', 'margin-bottom': '-200px' });
+    const content = component({ class: 'rt-sign-content-frame', height: '200' }, 'table', [], { height: '200px', 'z-index': '1' });
+    const stage = component({ class: 'rt-sign-stage' }, 'div', [content, layer], { position: 'relative', height: '200px' });
+    const cell = component({ class: 'rt-sign-cell' }, 'td', [stage]);
+    const artifact = component({ 'data-rt-artifact-version': 'v21' }, 'tr', [cell]);
+
+    [stage, content, layer, frame, slot, train].forEach((node) => {
+        assert.equal(synchronizeMailSignatureFlowGeometry(node), true);
+    });
+    assert.deepEqual(stage.getStyle(), { display: 'block', width: '100%', overflow: 'visible' });
+    assert.equal(content.getAttributes().height, undefined);
+    assert.deepEqual(content.getStyle(), { width: '100%', 'border-collapse': 'collapse' });
+    assert.deepEqual(layer.getAttributes(), {
+        class: 'rt-sign-train-layer',
+        'data-rt-layer-train': '',
+        'data-rt-layer-align': 'left',
+        'data-rt-layer-size': '100',
+        'data-rt-layer-mobile': 'left',
+    });
+    assert.deepEqual(layer.getStyle(), {
+        display: 'block',
+        width: '100%',
+        'max-width': '720px',
+        margin: '0 auto 0 0',
+        overflow: 'hidden',
+        'font-size': '0',
+        'line-height': '0',
+        'text-align': 'left',
+    });
+    assert.equal(frame.getAttributes().height, '61');
+    assert.equal(slot.getAttributes().height, '61');
+    assert.equal(slot.getAttributes().valign, 'bottom');
+    assert.equal(train.getAttributes().width, '720');
+    assert.equal(train.getAttributes().height, '61');
+    assert.deepEqual(train.getStyle(), {
+        display: 'block',
+        width: '100%',
+        'max-width': '720px',
+        height: 'auto',
+        margin: '0',
+        border: '0',
+        outline: 'none',
+        'text-decoration': 'none',
+        'vertical-align': 'bottom',
+        'mso-hide': 'all',
+    });
+
+    const snapshot = JSON.stringify({
+        stage: stage.getStyle(),
+        layer: layer.getStyle(),
+        train: train.getStyle(),
+    });
+    assert.equal(synchronizeMailSignatureFixedGeometry(stage), false);
+    assert.equal(synchronizeMailTrainLayerAlignment(layer), false);
+    assert.equal(JSON.stringify({
+        stage: stage.getStyle(),
+        layer: layer.getStyle(),
+        train: train.getStyle(),
+    }), snapshot);
+    assert.ok(artifact);
+});
+
 test('mail editor no longer offers misleading train background controls', () => {
     const exposedProperties = MAIL_STYLE_SECTORS.flatMap((sector) => [
         ...(sector.buildProps || []),
@@ -1900,7 +2163,7 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(shellCss, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmz-builder__popover/);
 });
 
-test('mail editor exposes one responsive topbar with standard grouped dropdowns and visible publishing actions', async () => {
+test('mail editor exposes one responsive topbar with grouped controls and visible publishing actions', async () => {
     const { readFile } = await import('node:fs/promises');
     const [view, css] = await Promise.all([
         readFile(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8'),
@@ -1916,10 +2179,13 @@ test('mail editor exposes one responsive topbar with standard grouped dropdowns 
         assert.equal((view.match(new RegExp(`data-mail-toolbar-region="${region}"`, 'g')) || []).length, 1);
     }
 
-    for (const group of ['document', 'content', 'edit', 'view', 'versions', 'tools']) {
+    for (const group of ['document', 'content', 'edit', 'view', 'designs-versions', 'tools']) {
         assert.equal((view.match(new RegExp(`data-mail-toolbar-menu="${group}"`, 'g')) || []).length, 1);
     }
-    assert.ok((view.match(/<x-ui\.dropdown\.anchor-dropdown/g) || []).length >= 6);
+    assert.ok((view.match(/<x-ui\.dropdown\.anchor-dropdown/g) || []).length >= 5);
+    assert.match(view, /data-mail-design-manager-trigger/);
+    assert.doesNotMatch(view, /data-mail-toolbar-menu="versions"/);
+    assert.doesNotMatch(view, /data-mail-document-version(?:[\s=>-]|$)/);
     for (const action of ['assets', 'upload', 'undo', 'redo', 'preview']) {
         assert.match(view, new RegExp(`data-mail-builder-action="${action}"`));
     }
@@ -1938,7 +2204,63 @@ test('mail editor exposes one responsive topbar with standard grouped dropdowns 
     assert.match(singleToolbar, /@media \(max-width: 1199\.98px\)[\s\S]*?width:\s*2\.75rem/);
 });
 
-test('signature source keeps older artifacts stable and defines the schema 27 V17/V18/V19/V20 Outlook contract', async () => {
+test('mail design manager uses the shared state modal and saves before slot or version transitions', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const view = await readFile(
+        new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url),
+        'utf8',
+    );
+
+    assert.match(view, /x-data="\{ managerOpen: false \}"/);
+    assert.match(view, /x-on:mail-design-manager-open\.window="managerOpen = true"/);
+    assert.match(view, /<x-ui\.state-modal[\s\S]*?state="managerOpen"[\s\S]*?data-mail-design-manager[\s\S]*?data-page-builder-subdialog/);
+    assert.match(view, /description="[^"]*Genau ein veröffentlichtes Design wird von Systemmails verwendet\."/);
+
+    for (const control of [
+        'data-mail-slot-create-form',
+        'data-mail-design-slot-list',
+        'data-mail-design-slot',
+        'data-mail-slot-open',
+        'data-mail-slot-activate',
+        'data-mail-slot-rename-form',
+        'data-mail-slot-delete',
+        'data-mail-slot-version-list',
+        'data-mail-version-restore',
+        'data-mail-version-delete',
+    ]) {
+        assert.match(view, new RegExp(control));
+    }
+
+    assert.doesNotMatch(view, /dropdown-id="mail-document-versions-/);
+    assert.doesNotMatch(view, /data-mail-toolbar-menu="versions"/);
+    assert.doesNotMatch(view, /data-mail-document-version(?:[\s=>-]|$)/);
+    assert.doesNotMatch(view, /window\.confirm\s*\(/);
+
+    const managerScriptStart = view.indexOf('const saveBeforeDesignAction = async () => {');
+    const managerScriptEnd = view.indexOf('bindDesignManager();', managerScriptStart);
+    assert.ok(managerScriptStart >= 0, 'save-before-design helper must exist');
+    assert.ok(managerScriptEnd > managerScriptStart, 'design-manager binding must follow the save helper');
+
+    const managerScript = view.slice(managerScriptStart, managerScriptEnd + 'bindDesignManager();'.length);
+    const saveHelper = managerScript.slice(0, managerScript.indexOf('const dispatchConfirmation'));
+    assert.match(saveHelper, /if \(codeDialog\?\.open\)/);
+    assert.match(saveHelper, /if \(pendingPortableMedia\.length > 0\)/);
+    assert.match(saveHelper, /focused\.blur\(\);[\s\S]*?requestAnimationFrame[\s\S]*?await saveCurrentDraft\(\);/);
+    assert.match(managerScript, /new CustomEvent\('rt-confirm',[\s\S]*?cancelLabel: 'Abbrechen',[\s\S]*?action/);
+    assert.equal((managerScript.match(/dispatchConfirmation\(\{/g) || []).length, 4);
+    assert.equal((managerScript.match(/await saveBeforeDesignAction\(\);/g) || []).length, 6);
+    assert.doesNotMatch(managerScript, /window\.confirm\s*\(/);
+
+    const slotOpenStart = managerScript.indexOf("if (control.matches('[data-mail-slot-open]'))");
+    const slotActivateStart = managerScript.indexOf("if (control.matches('[data-mail-slot-activate]'))", slotOpenStart);
+    assert.ok(slotOpenStart >= 0 && slotActivateStart > slotOpenStart, 'slot-open handler must precede slot activation');
+    const slotOpenHandler = managerScript.slice(slotOpenStart, slotActivateStart);
+    const saveIndex = slotOpenHandler.indexOf('await saveBeforeDesignAction();');
+    const navigateIndex = slotOpenHandler.indexOf('window.location.assign(control.dataset.url);');
+    assert.ok(saveIndex >= 0 && navigateIndex > saveIndex, 'slot changes must save the current draft before navigation');
+});
+
+test('signature source keeps older artifacts stable and defines the schema 28 V17-V21 Outlook contracts', async () => {
     const { readFile } = await import('node:fs/promises');
     const [css, signatureSource, trainAsset, v15TrainAsset, v17TrainAsset, v19TrainAsset, carrier, runtime, mailBuilderSource] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
@@ -1994,19 +2316,27 @@ test('signature source keeps older artifacts stable and defines the schema 27 V1
     );
 
     assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 0);
-    assert.equal((carrier.match(/<!--\[if mso\]><img class="rt-sign-train-mso"/g) || []).length, 1);
+    assert.equal((carrier.match(/<!--\[if mso\]><img class="rt-sign-train-mso"/g) || []).length, 2);
     assert.equal((runtime.match(/SignatureTrainCarrier::withMsoFallback\(/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::withIdleOverlay\(/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::projectAsRuntimeBackground\(/g) || []).length, 0);
     assert.match(carrier, /\$imageHeight = \(\$forwardSafeTrain \|\| \(\$failOpenStage && ! \$aspectSafeTrain\)\) \? ' height="61"' : '';/);
     assert.match(carrier, /usesAspectSafeTrain\(string \$html\)[\s\S]*?SignatureArtifactVersion::usesAspectSafeTrain/);
     assert.match(carrier, /canonicalStageStartMarkup\(bool \$failOpenStage\)[\s\S]*?height:auto;min-height:200px;overflow:visible;/);
-    assert.match(mailBuilderSource, /export const MAIL_SIGNATURE_SCHEMA = 27;/);
+    assert.match(mailBuilderSource, /export const MAIL_SIGNATURE_SCHEMA = 28;/);
     assert.match(mailBuilderSource, /const MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT = '61';/);
     assert.match(mailBuilderSource, /MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS = Object\.freeze\(\['v15', 'v16', 'v17', 'v18', 'v19', 'v20'\]\)/);
     assert.match(mailBuilderSource, /MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS = Object\.freeze\(\['v17', 'v18', 'v20'\]\)/);
     assert.match(mailBuilderSource, /MAIL_SIGNATURE_FORWARD_SAFE_ARTIFACTS = Object\.freeze\(\['v19'\]\)/);
     assert.match(mailBuilderSource, /failOpenStage[\s\S]*?height:\s*'auto'[\s\S]*?'min-height': MAIL_SIGNATURE_FIXED_HEIGHT[\s\S]*?overflow:\s*'visible'/);
+    const v21CssStart = css.indexOf('/* V21:');
+    assert.ok(v21CssStart > 0);
+    assert.doesNotMatch(css.slice(0, v21CssStart), /data-rt-artifact-version="v21"/);
+    const v21Css = css.slice(v21CssStart);
+    assert.match(v21Css, /tr\[data-rt-artifact-version="v21"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v21"\] \.rt-sign-content-frame,\s*tr\[data-rt-artifact-version="v21"\] \.rt-sign-train-layer\s*\{[^}]*position:\s*static !important;[^}]*height:\s*auto !important;[^}]*max-height:\s*none !important;/s);
+    assert.match(v21Css, /tr\[data-rt-artifact-version="v21"\] \.rt-sign-stage\s*\{\s*overflow:\s*visible !important;/s);
+    assert.match(v21Css, /tr\[data-rt-artifact-version="v21"\] \.rt-sign-train-layer\s*\{[^}]*max-width:\s*720px !important;[^}]*margin:\s*0 auto 0 0 !important;/s);
+    assert.match(v21Css, /tr\[data-rt-artifact-version="v21"\] \.rt-sign-train-layer\[data-rt-layer-train\] \.rt-sign-train,[\s\S]*?width:\s*100% !important;[\s\S]*?max-width:\s*720px !important;[\s\S]*?height:\s*auto !important;/);
     assert.match(
         carrier.slice(
             carrier.indexOf('public static function withMsoFallback'),

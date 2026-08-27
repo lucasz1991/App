@@ -126,7 +126,9 @@ final class MailDocumentController extends Controller
 
             $document = MailDocument::query()->create([
                 'kind' => $kind,
+                'name' => $kind === MailDocumentKind::Signature ? 'Standardsignatur' : 'Standardvorlage',
                 'status' => MailDocumentStatus::Draft,
+                'is_active' => null,
                 'builder_data' => $builderData,
                 'html' => $htmlReport->html,
                 'css' => $cssReport->html,
@@ -147,6 +149,7 @@ final class MailDocumentController extends Controller
             'document' => $this->payload($document),
             'redirect' => route('admin.mail-documents.editor', [
                 'dokument' => $kind->value,
+                'slot' => $document->public_id,
                 'open' => 1,
             ]),
             'report' => $this->reportPayload($htmlReport, $cssReport),
@@ -601,7 +604,7 @@ final class MailDocumentController extends Controller
         ]);
 
         [$published, $htmlReport, $cssReport, $compatibility] = DB::transaction(function () use ($document, $actor, $sanitizer, $compatibilityAuditor, $publishedDocuments, $validated, $versions): array {
-            $locked = $this->lock($document);
+            $locked = $this->lockDesignSlotsFor($document);
 
             // Auch die Freigabe ist ein Schreibvorgang. Ohne denselben
             // Vergleich wie beim Speichern koennte ein veralteter Tab den
@@ -671,6 +674,7 @@ final class MailDocumentController extends Controller
                 'published_css' => $cssReport->html,
                 'published_at' => now(),
                 'status' => MailDocumentStatus::Published,
+                'is_active' => true,
                 'updated_by' => $actor->getKey(),
             ];
 
@@ -678,6 +682,19 @@ final class MailDocumentController extends Controller
             // die kanonische Builder-Struktur oder die Haertung ihn aendert.
             if (! hash_equals((string) $locked->content_hash, $contentHash)) {
                 $attributes['version'] = $locked->version + 1;
+            }
+
+            if (Schema::hasColumn($locked->getTable(), 'is_active')) {
+                MailDocument::query()
+                    ->where('kind', $locked->kind->value)
+                    ->whereKeyNot($locked->getKey())
+                    ->where('is_active', true)
+                    ->update([
+                        'is_active' => null,
+                        'status' => MailDocumentStatus::Draft->value,
+                        'updated_by' => $actor->getKey(),
+                        'updated_at' => now(),
+                    ]);
             }
 
             $locked->forceFill($attributes)->save();
@@ -693,6 +710,173 @@ final class MailDocumentController extends Controller
             'report' => $this->reportPayload($htmlReport, $cssReport),
             'compatibility' => $compatibility->toArray(),
         ]);
+    }
+
+    /** Dupliziert einen gespeicherten Entwurf als unabhaengigen Design-Slot. */
+    public function createDesignSlot(
+        Request $request,
+        MailDocument $document,
+        MailDocumentVersionStore $versions,
+    ): JsonResponse {
+        $actor = $this->mailAdmin($request);
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:80'],
+            'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+        ]);
+        $name = $this->normalizedSlotName((string) $validated['name']);
+
+        $created = DB::transaction(function () use ($document, $validated, $name, $actor, $versions): MailDocument {
+            $slots = MailDocument::query()
+                ->where('kind', $document->kind->value)
+                ->lockForUpdate()
+                ->get();
+            $source = $slots->firstWhere($document->getKeyName(), $document->getKey());
+            abort_unless($source instanceof MailDocument, 404);
+
+            if (! $source->matchesContentHash((string) $validated['expected_hash'])) {
+                throw ValidationException::withMessages([
+                    'expected_hash' => 'Der Ausgangsentwurf wurde zwischenzeitlich geändert. Bitte speichere erneut.',
+                ]);
+            }
+            if ($slots->count() >= 20) {
+                throw ValidationException::withMessages([
+                    'name' => 'Pro Dokumentart können höchstens 20 Design-Slots angelegt werden.',
+                ]);
+            }
+            $this->assertUniqueSlotName($slots, $name);
+
+            $slot = MailDocument::query()->create([
+                'kind' => $source->kind,
+                'name' => $name,
+                'status' => MailDocumentStatus::Draft,
+                'is_active' => null,
+                'builder_data' => $source->builder_data ?: [],
+                'html' => (string) $source->html,
+                'css' => (string) $source->css,
+                'published_html' => null,
+                'published_css' => null,
+                'published_at' => null,
+                'content_hash' => (string) $source->content_hash,
+                'version' => 1,
+                'created_by' => $actor->getKey(),
+                'updated_by' => $actor->getKey(),
+            ]);
+            $versions->capture($slot, $actor, 'duplicated');
+
+            return $slot;
+        });
+
+        return response()->json([
+            'document' => $this->payload($created),
+            'redirect' => $this->slotEditorUrl($created),
+        ], 201);
+    }
+
+    /** Aendert nur den Anzeigenamen; Entwurf und Historie bleiben unberuehrt. */
+    public function renameDesignSlot(Request $request, MailDocument $document): JsonResponse
+    {
+        $actor = $this->mailAdmin($request);
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:80'],
+            'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+        ]);
+        $name = $this->normalizedSlotName((string) $validated['name']);
+
+        $renamed = DB::transaction(function () use ($document, $validated, $name, $actor): MailDocument {
+            $slots = MailDocument::query()
+                ->where('kind', $document->kind->value)
+                ->lockForUpdate()
+                ->get();
+            $locked = $slots->firstWhere($document->getKeyName(), $document->getKey());
+            abort_unless($locked instanceof MailDocument, 404);
+            if (! $locked->matchesContentHash((string) $validated['expected_hash'])) {
+                throw ValidationException::withMessages([
+                    'expected_hash' => 'Der Design-Slot wurde zwischenzeitlich geändert. Bitte lade die Seite neu.',
+                ]);
+            }
+            $this->assertUniqueSlotName($slots, $name, $locked);
+            $locked->forceFill(['name' => $name, 'updated_by' => $actor->getKey()])->save();
+
+            return $locked;
+        });
+
+        return response()->json(['document' => $this->payload($renamed)]);
+    }
+
+    /** Entfernt nur inaktive Slots und bewahrt immer mindestens einen Entwurf. */
+    public function deleteDesignSlot(Request $request, MailDocument $document): JsonResponse
+    {
+        $this->mailAdmin($request);
+        $validated = $request->validate([
+            'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+        ]);
+
+        $redirect = DB::transaction(function () use ($document, $validated): string {
+            $slots = MailDocument::query()
+                ->where('kind', $document->kind->value)
+                ->lockForUpdate()
+                ->get();
+            $locked = $slots->firstWhere($document->getKeyName(), $document->getKey());
+            abort_unless($locked instanceof MailDocument, 404);
+            if (! $locked->matchesContentHash((string) $validated['expected_hash'])) {
+                throw ValidationException::withMessages([
+                    'expected_hash' => 'Der Design-Slot wurde zwischenzeitlich geändert. Bitte lade die Seite neu.',
+                ]);
+            }
+            if ($locked->isActive()) {
+                throw ValidationException::withMessages([
+                    'slot' => 'Das aktive, veröffentlichte Design kann nicht gelöscht werden. Aktiviere zuerst einen anderen Slot.',
+                ]);
+            }
+            if ($slots->count() <= 1) {
+                throw ValidationException::withMessages([
+                    'slot' => 'Der letzte Design-Slot dieser Dokumentart kann nicht gelöscht werden.',
+                ]);
+            }
+
+            $fallback = $slots->first(fn (MailDocument $slot): bool => $slot->getKey() !== $locked->getKey() && $slot->isActive())
+                ?? $slots->first(fn (MailDocument $slot): bool => $slot->getKey() !== $locked->getKey());
+            $locked->delete();
+
+            return $this->slotEditorUrl($fallback);
+        });
+
+        return response()->json(['redirect' => $redirect]);
+    }
+
+    /** Loescht einen Historieneintrag, niemals aber die einzige Rueckfallebene. */
+    public function deleteVersion(
+        Request $request,
+        MailDocument $document,
+        MailDocumentVersion $version,
+    ): JsonResponse {
+        $this->mailAdmin($request);
+        $validated = $request->validate([
+            'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+        ]);
+        abort_unless($version->mail_document_id === $document->getKey(), 404);
+
+        $updated = DB::transaction(function () use ($document, $version, $validated): MailDocument {
+            $locked = $this->lock($document);
+            if (! $locked->matchesContentHash((string) $validated['expected_hash'])) {
+                throw ValidationException::withMessages([
+                    'expected_hash' => 'Der Design-Slot wurde zwischenzeitlich geändert. Bitte lade die Seite neu.',
+                ]);
+            }
+            $versions = $locked->versions()->lockForUpdate()->get();
+            $lockedVersion = $versions->firstWhere($version->getKeyName(), $version->getKey());
+            abort_unless($lockedVersion instanceof MailDocumentVersion, 404);
+            if ($versions->count() <= 1) {
+                throw ValidationException::withMessages([
+                    'version' => 'Die einzige gespeicherte Version eines Design-Slots kann nicht gelöscht werden.',
+                ]);
+            }
+            $lockedVersion->delete();
+
+            return $locked->refresh();
+        });
+
+        return response()->json(['document' => $this->payload($updated)]);
     }
 
     public function restoreVersion(
@@ -836,6 +1020,62 @@ final class MailDocumentController extends Controller
         abort_unless($locked instanceof MailDocument, 404);
 
         return $locked;
+    }
+
+    /** Sperrt alle Slots einer Art, damit zwei Freigaben nicht nebeneinander aktiv werden. */
+    private function lockDesignSlotsFor(MailDocument $document): MailDocument
+    {
+        if (! Schema::hasColumn($document->getTable(), 'is_active')) {
+            return $this->lock($document);
+        }
+
+        $slots = MailDocument::query()
+            ->where('kind', $document->kind->value)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        $locked = $slots->firstWhere($document->getKeyName(), $document->getKey());
+        abort_unless($locked instanceof MailDocument, 404);
+
+        return $locked;
+    }
+
+    private function normalizedSlotName(string $name): string
+    {
+        $normalized = trim((string) preg_replace('/\s+/u', ' ', $name));
+        if ($normalized === '') {
+            throw ValidationException::withMessages(['name' => 'Bitte gib einen Namen für den Design-Slot ein.']);
+        }
+
+        return $normalized;
+    }
+
+    /** @param  \Illuminate\Support\Collection<int, MailDocument>  $slots */
+    private function assertUniqueSlotName(
+        \Illuminate\Support\Collection $slots,
+        string $name,
+        ?MailDocument $except = null,
+    ): void {
+        $key = mb_strtolower($name, 'UTF-8');
+        $duplicate = $slots->contains(static fn (MailDocument $slot): bool =>
+            ($except === null || $slot->getKey() !== $except->getKey())
+            && mb_strtolower(trim((string) $slot->name), 'UTF-8') === $key
+        );
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'name' => 'Ein Design-Slot mit diesem Namen ist bereits vorhanden.',
+            ]);
+        }
+    }
+
+    private function slotEditorUrl(MailDocument $document): string
+    {
+        return route('admin.mail-documents.editor', [
+            'dokument' => $document->kind->value,
+            'slot' => $document->public_id,
+            'open' => 1,
+        ]);
     }
 
     /**
@@ -984,7 +1224,10 @@ final class MailDocumentController extends Controller
     private function payload(MailDocument $document): array
     {
         return [
+            'id' => $document->public_id,
             'kind' => $document->kind->value,
+            'name' => (string) ($document->name ?: $document->kind->label()),
+            'is_active' => $document->isActive(),
             'status' => $document->status->value,
             'status_label' => $document->status->label(),
             'content_hash' => (string) $document->content_hash,
@@ -1019,12 +1262,14 @@ final class MailDocumentController extends Controller
                     'imported' => 'Importiert',
                     'published' => 'Veröffentlicht',
                     'restored' => 'Wiederhergestellt',
+                    'duplicated' => 'Dupliziert',
                     default => 'Gespeichert',
                 },
                 'created_label' => $version->created_at?->translatedFormat('d.m.Y H:i'),
                 'creator' => $version->creator?->name,
                 'was_published' => (bool) $version->was_published,
                 'restore_url' => route('admin.mail-documents.versions.restore', [$document, $version]),
+                'delete_url' => route('admin.mail-documents.versions.destroy', [$document, $version]),
             ],
         )->all();
     }
@@ -1121,7 +1366,11 @@ final class MailDocumentController extends Controller
                 continue;
             }
 
-            $document = MailDocument::query()->where('kind', $kind->value)->first();
+            $document = MailDocument::query()
+                ->where('kind', $kind->value)
+                ->active()
+                ->first()
+                ?? MailDocument::query()->where('kind', $kind->value)->orderBy('id')->first();
             if (! $document instanceof MailDocument) {
                 return null;
             }

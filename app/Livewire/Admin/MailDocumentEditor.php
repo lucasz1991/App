@@ -19,11 +19,10 @@ use Livewire\Component;
 use Throwable;
 
 /**
- * Editorseite der beiden Maildokumente (Nachrichtenschale und Signaturblock).
+ * Editorseite der beiden Maildokumentarten und ihrer Design-Slots.
  *
- * Es gibt bewusst keine Uebersichtsseite: mehr als diese zwei Dokumente kann
- * es nicht geben (mail_documents.kind ist unique). Gewechselt wird deshalb
- * ueber ?dokument=template|signature.
+ * `?dokument=` waehlt die Art, `?slot=` einen konkreten Arbeitsentwurf. Ohne
+ * Slot wird die aktive Freigabe oder der erste vorhandene Entwurf geoeffnet.
  *
  * Die Rollenpruefung steht in mount() UND render(): eine Livewire-Komponente
  * lebt ueber viele Anfragen, und die Rolle kann sich zwischendurch aendern.
@@ -32,24 +31,33 @@ class MailDocumentEditor extends Component
 {
     public string $kind = MailDocumentKind::Template->value;
 
+    public ?string $slotId = null;
+
     public function mount(): void
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
 
         $requested = (string) request()->query('dokument', MailDocumentKind::Template->value);
         $this->kind = MailDocumentKind::tryFrom($requested)?->value ?? MailDocumentKind::Template->value;
+        $requestedSlot = trim((string) request()->query('slot', ''));
+        $this->slotId = $requestedSlot !== '' ? $requestedSlot : null;
     }
 
     public function render()
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
 
-        $documents = $this->documents();
+        [$documents, $documentSlots] = $this->documentState();
         $current = $documents[$this->kind] ?? null;
+        $active = collect($documentSlots)->first(
+            static fn (MailDocument $document): bool => $document->isActive(),
+        );
 
         return view('livewire.admin.mail-document-editor', [
             'currentKind' => $this->kind,
             'documents' => $documents,
+            'documentSlots' => $documentSlots,
+            'activeDocument' => $active,
             'currentDocument' => $current,
             'editorConfig' => $current === null ? null : $this->editorConfig($documents),
             'editorPreviewSources' => $current === null ? [] : [
@@ -78,20 +86,53 @@ class MailDocumentEditor extends Component
      *
      * @return array<string, MailDocument>
      */
-    private function documents(): array
+    private function documentState(): array
     {
         try {
             if (! Schema::hasTable('mail_documents')) {
-                return [];
+                return [[], []];
             }
 
-            return MailDocument::query()
+            $all = MailDocument::query()
+                ->with('updater:id,name')
+                ->when(
+                    Schema::hasTable('mail_document_versions'),
+                    static fn ($query) => $query->withCount('versions'),
+                )
                 ->orderBy('id')
-                ->get()
-                ->keyBy(fn (MailDocument $document): string => $document->kind->value)
-                ->all();
+                ->get();
+            $documents = [];
+            $currentSlots = [];
+
+            foreach (MailDocumentKind::cases() as $kind) {
+                $slots = $all
+                    ->filter(static fn (MailDocument $document): bool => $document->kind === $kind)
+                    ->values();
+                if ($kind->value === $this->kind) {
+                    $currentSlots = $slots->all();
+                }
+
+                $selected = null;
+                if ($kind->value === $this->kind && $this->slotId !== null) {
+                    $selected = $slots->first(
+                        fn (MailDocument $document): bool => hash_equals(
+                            (string) $document->public_id,
+                            (string) $this->slotId,
+                        ),
+                    );
+                }
+                $selected ??= $slots->first(
+                    static fn (MailDocument $document): bool => $document->isActive(),
+                );
+                $selected ??= $slots->first();
+                if ($selected instanceof MailDocument) {
+                    $documents[$kind->value] = $selected;
+                }
+            }
+
+            return [$documents, $currentSlots];
         } catch (Throwable) {
-            return [];
+            return [[], []];
         }
     }
 
@@ -175,6 +216,8 @@ class MailDocumentEditor extends Component
             );
             $payload[$key] = [
                 'id' => $document->public_id,
+                'name' => (string) ($document->name ?: $document->kind->label()),
+                'isActive' => $document->isActive(),
                 'label' => $document->kind->label(),
                 'builderData' => $source['builderData'],
                 // Der Template-Serializer editiert nur den <body> und baut
@@ -216,12 +259,14 @@ class MailDocumentEditor extends Component
                                 'imported' => 'Importiert',
                                 'published' => 'Veröffentlicht',
                                 'restored' => 'Wiederhergestellt',
+                                'duplicated' => 'Dupliziert',
                                 default => 'Gespeichert',
                             },
                             'created_label' => $version->created_at?->translatedFormat('d.m.Y H:i'),
                             'creator' => $version->creator?->name,
                             'was_published' => (bool) $version->was_published,
                             'restore_url' => route('admin.mail-documents.versions.restore', [$document, $version]),
+                            'delete_url' => route('admin.mail-documents.versions.destroy', [$document, $version]),
                         ],
                     )->all()
                     : [],
@@ -230,7 +275,10 @@ class MailDocumentEditor extends Component
 
         return [
             'currentDocument' => $this->kind,
+            'currentSlot' => $documents[$this->kind]?->public_id,
             'documents' => $payload,
+            'designSlotsEnabled' => Schema::hasColumn('mail_documents', 'is_active')
+                && Schema::hasColumn('mail_documents', 'name'),
             'compatibilityManifest' => $compatibilityManifest,
             // Nur diese oeffentlichen, stabilen Mail-URLs duerfen normale
             // Inhaltsbilder ersetzen. Private Admin-Dateien, Uploads und

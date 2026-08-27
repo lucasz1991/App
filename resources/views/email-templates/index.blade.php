@@ -37,7 +37,10 @@
                     $adminMailDocuments = \App\Models\MailDocument::query()
                         ->orderBy('id')
                         ->get()
-                        ->keyBy(fn (\App\Models\MailDocument $document): string => $document->kind->value);
+                        ->groupBy(fn (\App\Models\MailDocument $document): string => $document->kind->value)
+                        ->map(fn ($slots) => $slots->first(
+                            fn (\App\Models\MailDocument $document): bool => $document->isActive(),
+                        ) ?? $slots->first());
                 }
             } catch (\Throwable) {
                 $adminMailDocuments = collect();
@@ -403,7 +406,11 @@
                             ] as $documentKind => [$documentTitle, $documentDescription, $previewHeight])
                                 @if ($document = $adminMailDocuments->get($documentKind))
                                     @php
-                                        $documentEditUrl = route('admin.mail-documents.editor', ['dokument' => $documentKind, 'open' => 1]);
+                                        $documentEditUrl = route('admin.mail-documents.editor', [
+                                            'dokument' => $documentKind,
+                                            'slot' => $document->public_id,
+                                            'open' => 1,
+                                        ]);
                                         $documentPreviewSources = collect(['light' => 'Hell', 'dark' => 'Dunkel'])
                                             ->mapWithKeys(fn (string $label, string $theme): array => [$theme => [
                                                 'label' => $label,

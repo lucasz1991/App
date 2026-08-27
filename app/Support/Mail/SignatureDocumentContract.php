@@ -13,8 +13,8 @@ use RuntimeException;
 /** Gemeinsamer Save-/Publish-/Web-/Outlook-Vertrag der Signaturquelle. */
 final class SignatureDocumentContract
 {
-    /** Aktueller Vertrag: Schema 27; V20 nutzt wieder exakt die V18-Buehne. */
-    public const SCHEMA = 27;
+    /** Aktueller Vertrag: Schema 28; V21 nutzt ausschliesslich normalen Tabellenfluss. */
+    public const SCHEMA = 28;
 
     /** @var list<string> */
     private const REQUIRED_TOKENS = [
@@ -91,10 +91,11 @@ final class SignatureDocumentContract
     /**
      * Laufzeitvertrag fuer bereits veroeffentlichte Signaturen.
      *
-     * Neue Editor-/Publish-Staende muessen den markerabhaengigen Schema-27-
+     * Neue Editor-/Publish-Staende muessen den markerabhaengigen Schema-28-
      * IMG-Vertrag besitzen. V14 und aelter behalten dabei ihre unveraenderte
-     * feste Pixelbuehne; V15-V18/V20 verwenden die fail-open Aussenbuehne und
-     * V19 den absoluten 61-px-Fallback. Der Versand darf
+     * feste Pixelbuehne; V15-V18/V20 verwenden die fail-open Aussenbuehne,
+     * V19 den absoluten 61-px-Fallback und V21 ausschliesslich normalen Flow.
+     * Der Versand darf
      * daneben nur die einzeln beschriebenen
      * Altformen lesen: Schema 6 (Padding), Schema 9/20 (Background), Schema
      * 12-19 (Bild-Layer) und bekannte Flow-Zwischenstaende.
@@ -142,7 +143,12 @@ final class SignatureDocumentContract
         self::assertExactMarkers($html);
         self::assertLegacyTrainStill($html, $decodedHtml, $allowLegacyTrainStill);
 
-        if (SignatureTrainCarrier::hasCanonicalImage($html)) {
+        $artifactVersion = SignatureArtifactVersion::detect('signature', $html);
+
+        if (SignatureArtifactVersion::usesFlowSafeTrain($artifactVersion)) {
+            SignatureTrainCarrier::assertFlowSafeImage($html);
+            self::assertV21FlowSafeCss($html);
+        } elseif (SignatureTrainCarrier::hasCanonicalImage($html)) {
             if ($allowLegacyDirectImage || $allowLegacyPercentHeight || $allowLegacyAbsoluteImage) {
                 // Der Runtime-Einstieg akzeptiert nur die im Carrier selbst
                 // exakt beschriebenen Altvertraege und normalisiert sie ohne
@@ -183,6 +189,7 @@ final class SignatureDocumentContract
             SignatureArtifactVersion::V18,
             SignatureArtifactVersion::V19,
             SignatureArtifactVersion::V20,
+            SignatureArtifactVersion::V21,
         ], true)) {
             self::assertV18ForwardSafeLayout($html);
         }
@@ -296,6 +303,43 @@ final class SignatureDocumentContract
         foreach ($wrapper->getElementsByTagName('*') as $element) {
             if ($element instanceof DOMElement && in_array('rt-sign-company-row', self::classes($element), true)) {
                 throw new RuntimeException('Die alte separate Firmenzeile ist in der V18-Weiterleitungsstruktur nicht zulaessig.');
+            }
+        }
+    }
+
+    /**
+     * Der V21-Vertrag ist bewusst ohne Layer-Tricks lesbar. Diese Schranke
+     * verhindert, dass der Editor spaeter wieder eine Ueberlagerung oder ein
+     * nur per Head-CSS sichtbares Alternativlayout in das Fragment schreibt.
+     */
+    private static function assertV21FlowSafeCss(string $html): void
+    {
+        preg_match_all('/\bstyle\s*=\s*(["\'])(.*?)\1/is', $html, $matches);
+        foreach ($matches[2] ?? [] as $rawStyle) {
+            $style = CssSemantic::decodeHtmlEntitiesOnce((string) $rawStyle);
+            if (preg_match(
+                '/(?:^|;)\s*(?:position|z-index|transform|float|background-image)\s*:/i',
+                $style,
+            ) === 1
+                || preg_match(
+                    '/(?:^|;)\s*background\s*:[^;]*(?:url|gradient|image-set)\s*\(/i',
+                    $style,
+                ) === 1
+                || preg_match(
+                    '/(?:^|;)\s*display\s*:\s*(?:inline-)?(?:flex|grid)\b/i',
+                    $style,
+                ) === 1
+                || preg_match(
+                    '/(?:^|;)\s*margin(?:-(?:top|right|bottom|left))?\s*:[^;]*-\s*(?:\d|\.)/i',
+                    $style,
+                ) === 1
+                || preg_match(
+                    '/(?:^|;)\s*(?:height|min-height|max-height)\s*:\s*200px\b/i',
+                    $style,
+                ) === 1) {
+                throw new RuntimeException(
+                    'V21 darf keine Positionierung, Ueberlagerung, CSS-Bildquelle oder feste 200-px-Buehne enthalten.'
+                );
             }
         }
     }

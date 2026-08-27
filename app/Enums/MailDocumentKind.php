@@ -3,7 +3,8 @@
 namespace App\Enums;
 
 /**
- * Es gibt genau ZWEI Maildokumente.
+ * Es gibt genau zwei MaildokumentARTEN. Jede Art kann mehrere benannte
+ * Design-Slots besitzen; produktiv aktiv ist hoechstens einer je Art.
  *
  * Hell und Dunkel sind bewusst KEINE eigenen Arten: beide Fassungen entstehen
  * zur Laufzeit aus den Palettenwerten (EmailTemplateBuilder::emailThemeValues),

@@ -3,9 +3,8 @@
 namespace App\Enums;
 
 /**
- * Nur zwei Zustaende: Am Entwurf wird gearbeitet, veroeffentlicht wird
- * verschickt. Einen Archivzustand wie im Marketing-Studio gibt es nicht —
- * die beiden Maildokumente sind dauerhaft und lassen sich nicht stilllegen.
+ * Nur zwei Zustaende pro Design-Slot: Am Entwurf wird gearbeitet oder dieser
+ * Slot ist aktiv veroeffentlicht. Einen separaten Archivzustand gibt es nicht.
  */
 enum MailDocumentStatus: string
 {

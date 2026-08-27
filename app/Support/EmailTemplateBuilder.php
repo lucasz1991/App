@@ -1351,16 +1351,21 @@ class EmailTemplateBuilder
             MailDocumentKind::Signature,
             $html,
         );
-        $hasSafeStageGeometry = SignatureArtifactVersion::usesFailOpenStage($artifactVersion)
-            ? str_contains($stageStyle, 'height:auto')
-                && str_contains($stageStyle, 'min-height:200px')
+        $usesFlowSafeTrain = SignatureArtifactVersion::usesFlowSafeTrain($artifactVersion);
+        $hasSafeStageGeometry = $usesFlowSafeTrain
+            ? str_contains($stageStyle, 'display:block')
+                && str_contains($stageStyle, 'width:100%')
                 && str_contains($stageStyle, 'overflow:visible')
-            : str_contains($stageStyle, 'overflow:hidden');
+            : (SignatureArtifactVersion::usesFailOpenStage($artifactVersion)
+                ? str_contains($stageStyle, 'height:auto')
+                    && str_contains($stageStyle, 'min-height:200px')
+                    && str_contains($stageStyle, 'overflow:visible')
+                : str_contains($stageStyle, 'overflow:hidden'));
         if ($stages === false
             || $stages->length !== 1
             || ! $stage instanceof \DOMElement
             || ! $stage->parentNode?->isSameNode($carrier)
-            || ! str_contains($stageStyle, 'position:relative')
+            || (! $usesFlowSafeTrain && ! str_contains($stageStyle, 'position:relative'))
             || ! $hasSafeStageGeometry) {
             throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine sichere Zug-Buehne.');
         }

@@ -75,6 +75,12 @@ final class SignatureTrainCarrier
 
     public static function normalize(string $html): string
     {
+        if (self::usesFlowSafeTrain($html)) {
+            self::assertFlowSafeImage($html);
+
+            return $html;
+        }
+
         if (self::hasCanonicalImage($html)) {
             $failOpenStage = self::usesFailOpenStage($html);
             try {
@@ -228,6 +234,27 @@ final class SignatureTrainCarrier
             throw new RuntimeException('Die Zuganimation besitzt keine eindeutige Bildquelle.');
         }
 
+        if (self::usesFlowSafeTrain($html)) {
+            self::assertFlowSafeImage($html);
+            $escapedSource = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+            $replacements = 0;
+            $projected = preg_replace_callback(
+                '/\bsrc\s*=\s*(["\'])\{\{TRAIN_SRC\}\}\1/i',
+                static function (array $match) use ($escapedSource, &$replacements): string {
+                    $replacements++;
+
+                    return 'src='.$match[1].$escapedSource.$match[1];
+                },
+                $html,
+            );
+            if (! is_string($projected) || $replacements !== 1) {
+                throw new RuntimeException('Das mail-sichere V21-Zugbild konnte nicht eindeutig befuellt werden.');
+            }
+            self::assertFlowSafeRuntimeImages($projected, expectedMainSource: $source);
+
+            return $projected;
+        }
+
         if (self::hasCanonicalImage($html)) {
             $html = self::normalize($html);
         } elseif (self::hasCanonicalBackground($html)) {
@@ -309,6 +336,30 @@ final class SignatureTrainCarrier
         $source = trim($source);
         if ($source === '' || ! self::isAllowedMailImageSource($source, staticOnly: true)) {
             throw new RuntimeException('Das Outlook-Standbild des Zuges besitzt keine Bildquelle.');
+        }
+
+        if (self::usesFlowSafeTrain($html)) {
+            self::assertFlowSafeRuntimeImages($html);
+            if (self::flowSafeMsoTrainImageSources($html) !== []) {
+                throw new RuntimeException('Der Outlook-Zugfallback kann nicht eindeutig verankert werden.');
+            }
+
+            $slots = array_values(array_filter(
+                self::scanStartTags($html),
+                static fn (array $tag): bool => $tag['name'] === 'td'
+                    && self::sourceTagHasClass($tag, 'rt-sign-train-slot'),
+            ));
+            if (count($slots) !== 1) {
+                throw new RuntimeException('Der Outlook-Zugfallback besitzt keinen eindeutigen V21-Zug-Slot.');
+            }
+
+            $escapedSource = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+            $fallback = '<!--[if mso]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="'.$escapedSource.'" width="720" height="61" alt="" '
+                .'style="display:block;width:720px;max-width:100%;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;"><![endif]-->';
+            $html = substr_replace($html, $fallback, $slots[0]['endOffset'] + 1, 0);
+            self::assertFlowSafeRuntimeImages($html, expectedMsoSource: $source);
+
+            return $html;
         }
 
         self::assertRuntimeImages($html);
@@ -457,6 +508,235 @@ final class SignatureTrainCarrier
         }
 
         return false;
+    }
+
+    /**
+     * V21: ein ausschliesslich normal fliessender Tabellenvertrag.
+     *
+     * Die Inhalts-Tabelle steht zuerst, die kompakte Zugzeile danach. Keine
+     * feste Buehnenhoehe, Positionierung, negative Margin oder CSS-Bildquelle
+     * ist Teil dieses Vertrags. Damit bleibt die Semantik auch erhalten, wenn
+     * ein Compose-/Forward-Client den Dokument-Head verwirft.
+     */
+    public static function assertFlowSafeImage(string $html): void
+    {
+        if (! self::usesFlowSafeTrain($html)
+            || substr_count($html, '{{TRAIN_SRC}}') !== 1
+            || str_contains($html, '{{TRAIN_IDLE_SRC}}')) {
+            throw new RuntimeException('Die V21-Signatur benoetigt genau ein normal fliessendes Zugbild.');
+        }
+
+        $previousErrors = libxml_use_internal_errors(true);
+        try {
+            $document = new DOMDocument('1.0', 'UTF-8');
+            $loaded = $document->loadHTML(
+                '<?xml encoding="UTF-8"><table id="rt-flow-safe-train-contract"><tbody>'.$html.'</tbody></table>',
+                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING,
+            );
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrors);
+        }
+
+        $wrapper = $loaded ? $document->getElementById('rt-flow-safe-train-contract') : null;
+        if (! $wrapper instanceof DOMElement) {
+            throw new RuntimeException('Der V21-Zugvertrag konnte nicht gelesen werden.');
+        }
+
+        $groups = [
+            'carrier' => [],
+            'stage' => [],
+            'content' => [],
+            'layer' => [],
+            'frame' => [],
+            'slot' => [],
+            'image' => [],
+        ];
+        foreach ($wrapper->getElementsByTagName('*') as $element) {
+            if (! $element instanceof DOMElement) {
+                continue;
+            }
+            $classes = self::elementClasses($element);
+            if ($element->tagName === 'td' && in_array('rt-sign-cell', $classes, true)) {
+                $groups['carrier'][] = $element;
+            }
+            if ($element->tagName === 'div' && in_array('rt-sign-stage', $classes, true)) {
+                $groups['stage'][] = $element;
+            }
+            if ($element->tagName === 'table' && in_array('rt-sign-content-frame', $classes, true)) {
+                $groups['content'][] = $element;
+            }
+            if ($element->tagName === 'div' && in_array('rt-sign-train-layer', $classes, true)) {
+                $groups['layer'][] = $element;
+            }
+            if ($element->tagName === 'table' && in_array('rt-sign-train-frame', $classes, true)) {
+                $groups['frame'][] = $element;
+            }
+            if ($element->tagName === 'td' && in_array('rt-sign-train-slot', $classes, true)) {
+                $groups['slot'][] = $element;
+            }
+            if ($element->tagName === 'img'
+                && ($element->hasAttribute('data-rt-train') || in_array('rt-sign-train', $classes, true))) {
+                $groups['image'][] = $element;
+            }
+        }
+
+        foreach ($groups as $name => $elements) {
+            if (count($elements) !== 1) {
+                throw new RuntimeException("Der V21-Zugvertrag besitzt keinen eindeutigen {$name}-Knoten.");
+            }
+        }
+
+        $carrier = $groups['carrier'][0];
+        $stage = $groups['stage'][0];
+        $content = $groups['content'][0];
+        $layer = $groups['layer'][0];
+        $frame = $groups['frame'][0];
+        $slot = $groups['slot'][0];
+        $image = $groups['image'][0];
+        $carrierStyle = CssSemantic::decodeHtmlEntitiesOnce($carrier->getAttribute('style'));
+        if ($carrier->hasAttribute('background')
+            || preg_match('/(?:^|;)\s*background-image\s*:/i', $carrierStyle) === 1
+            || preg_match(
+                '/(?:^|;)\s*background\s*:[^;]*(?:url|gradient|image-set)\s*\(/i',
+                $carrierStyle,
+            ) === 1
+            || str_contains($carrierStyle, '{{TRAIN_SRC}}')
+            || str_contains($carrierStyle, '{{TRAIN_IDLE_SRC}}')) {
+            throw new RuntimeException('V21 darf Bilder ausschliesslich als normale IMG-Elemente einbinden.');
+        }
+        $stageElements = self::elementChildren($stage);
+        $layerElements = self::elementChildren($layer);
+        $frameElements = self::elementChildren($frame);
+        $frameBody = count($frameElements) === 1
+            && strtolower($frameElements[0]->tagName) === 'tbody'
+                ? $frameElements[0]
+                : null;
+        $frameRows = $frameBody instanceof DOMElement
+            ? self::elementChildren($frameBody)
+            : $frameElements;
+        $frameRow = $frameRows[0] ?? null;
+        $frameCells = $frameRow instanceof DOMElement ? self::elementChildren($frameRow) : [];
+        $slotElements = self::elementChildren($slot);
+        if (! $stage->parentNode?->isSameNode($carrier)
+            || count($stageElements) !== 2
+            || ! $stageElements[0]->isSameNode($content)
+            || ! $stageElements[1]->isSameNode($layer)
+            || count($layerElements) !== 1
+            || ! $layerElements[0]->isSameNode($frame)
+            || count($frameRows) !== 1
+            || ! $frameRow instanceof DOMElement
+            || strtolower($frameRow->tagName) !== 'tr'
+            || count($frameCells) !== 1
+            || ! $frameCells[0]->isSameNode($slot)
+            || count($slotElements) !== 1
+            || ! $slotElements[0]->isSameNode($image)) {
+            throw new RuntimeException('V21 muss Inhalt und Zug in dieser normalen Tabellenreihenfolge fuehren.');
+        }
+
+        if (self::elementClasses($carrier) !== ['rt-sign-cell']
+            || self::elementClasses($stage) !== ['rt-sign-stage']
+            || self::elementClasses($content) !== ['rt-sign-content-frame']
+            || self::elementClasses($layer) !== ['rt-sign-train-layer']
+            || self::elementClasses($frame) !== ['rt-sign-train-frame']
+            || self::elementClasses($slot) !== ['rt-sign-train-slot']
+            || self::elementClasses($image) !== ['rt-sign-train']) {
+            throw new RuntimeException('Der V21-Zugvertrag besitzt fremde oder fehlende Klassen.');
+        }
+
+        self::assertExactElementAttributeNames($stage, ['class', 'style'], 'V21-Signaturfluss');
+        self::assertExactSimpleStyle($stage, [
+            'display' => 'block',
+            'width' => '100%',
+            'overflow' => 'visible',
+        ], 'V21-Signaturfluss');
+        self::assertExactElementAttributeNames($content, [
+            'class', 'role', 'width', 'border', 'cellspacing', 'cellpadding', 'style',
+        ], 'V21-Inhaltsrahmen');
+        if ($content->getAttribute('role') !== 'presentation'
+            || $content->getAttribute('width') !== '100%'
+            || $content->getAttribute('border') !== '0'
+            || $content->getAttribute('cellspacing') !== '0'
+            || $content->getAttribute('cellpadding') !== '0') {
+            throw new RuntimeException('Der V21-Inhaltsrahmen besitzt fremde Tabellenattribute.');
+        }
+        self::assertExactSimpleStyle($content, [
+            'width' => '100%',
+            'border-collapse' => 'collapse',
+        ], 'V21-Inhaltsrahmen');
+
+        self::assertExactElementAttributeNames($layer, [
+            'class', 'data-rt-layer-train', 'data-rt-layer-align', 'data-rt-layer-size',
+            'data-rt-layer-mobile', 'style',
+        ], 'V21-Zugzeile');
+        if ($layer->getAttribute('data-rt-layer-train') !== ''
+            || $layer->getAttribute('data-rt-layer-align') !== 'left'
+            || $layer->getAttribute('data-rt-layer-size') !== '100'
+            || $layer->getAttribute('data-rt-layer-mobile') !== 'left') {
+            throw new RuntimeException('Die V21-Zugzeile muss linksbuendig und proportionssicher bleiben.');
+        }
+        self::assertExactSimpleStyle($layer, [
+            'display' => 'block',
+            'width' => '100%',
+            'max-width' => '720px',
+            'margin' => '0 auto 0 0',
+            'overflow' => 'hidden',
+            'font-size' => '0',
+            'line-height' => '0',
+            'text-align' => 'left',
+        ], 'V21-Zugzeile');
+
+        self::assertExactElementAttributeNames($frame, [
+            'class', 'role', 'width', 'height', 'border', 'cellspacing', 'cellpadding', 'style',
+        ], 'V21-Zugrahmen');
+        if ($frame->getAttribute('role') !== 'presentation'
+            || $frame->getAttribute('width') !== '100%'
+            || $frame->getAttribute('height') !== '61'
+            || $frame->getAttribute('border') !== '0'
+            || $frame->getAttribute('cellspacing') !== '0'
+            || $frame->getAttribute('cellpadding') !== '0') {
+            throw new RuntimeException('Der V21-Zugrahmen besitzt fremde Tabellenattribute.');
+        }
+        self::assertExactSimpleStyle($frame, [
+            'width' => '100%',
+            'height' => '61px',
+            'border-collapse' => 'collapse',
+        ], 'V21-Zugrahmen');
+        self::assertExactElementAttributeNames($slot, ['class', 'height', 'valign', 'style'], 'V21-Zugslot');
+        if ($slot->getAttribute('height') !== '61' || $slot->getAttribute('valign') !== 'bottom') {
+            throw new RuntimeException('Der V21-Zugslot muss an seiner Unterkante ausgerichtet sein.');
+        }
+        self::assertExactSimpleStyle($slot, [
+            'height' => '61px',
+            'padding' => '0',
+            'text-align' => 'left',
+            'vertical-align' => 'bottom',
+            'font-size' => '0',
+            'line-height' => '0',
+        ], 'V21-Zugslot');
+
+        self::assertExactElementAttributeNames($image, [
+            'class', 'data-rt-train', 'src', 'width', 'height', 'alt', 'style',
+        ], 'V21-Zugbild');
+        if ($image->getAttribute('data-rt-train') !== ''
+            || $image->getAttribute('src') !== '{{TRAIN_SRC}}'
+            || $image->getAttribute('width') !== '720'
+            || $image->getAttribute('height') !== '61'
+            || $image->getAttribute('alt') !== '') {
+            throw new RuntimeException('Das V21-Zugbild besitzt fremde oder fehlende Attribute.');
+        }
+        self::assertExactSimpleStyle($image, [
+            'display' => 'block',
+            'width' => '100%',
+            'max-width' => '720px',
+            'height' => 'auto',
+            'margin' => '0',
+            'border' => '0',
+            'outline' => 'none',
+            'text-decoration' => 'none',
+            'vertical-align' => 'bottom',
+            'mso-hide' => 'all',
+        ], 'V21-Zugbild');
     }
 
     public static function hasCanonicalBackground(string $html): bool
@@ -1880,6 +2160,13 @@ final class SignatureTrainCarrier
         );
     }
 
+    private static function usesFlowSafeTrain(string $html): bool
+    {
+        return SignatureArtifactVersion::usesFlowSafeTrain(
+            SignatureArtifactVersion::detect(MailDocumentKind::Signature, $html),
+        );
+    }
+
     private static function usesAspectSafeTrain(string $html): bool
     {
         return SignatureArtifactVersion::usesAspectSafeTrain(
@@ -2102,6 +2389,19 @@ final class SignatureTrainCarrier
         return null;
     }
 
+    /** @return list<DOMElement> */
+    private static function elementChildren(DOMElement $element): array
+    {
+        $children = [];
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof DOMElement) {
+                $children[] = $child;
+            }
+        }
+
+        return $children;
+    }
+
     private static function isDescendantOf(DOMElement $element, DOMElement $ancestor): bool
     {
         for ($parent = $element->parentNode; $parent !== null; $parent = $parent->parentNode) {
@@ -2259,6 +2559,17 @@ final class SignatureTrainCarrier
         ?string $expectedIdleSource = null,
         ?string $expectedMsoSource = null,
     ): void {
+        if (self::usesFlowSafeTrain($html)) {
+            self::assertFlowSafeRuntimeImages(
+                $html,
+                $expectedMainSource,
+                $expectedIdleSource,
+                $expectedMsoSource,
+            );
+
+            return;
+        }
+
         if (preg_match('/\b(?:rt-sign-train-background|data-rt-train-background)\b/i', $html) === 1
             || preg_match(
                 '/<v:(?:fill|image)\b[^>]*\bsrc\s*=\s*(["\'])[^"\']*(?:zug-dampf|railtime-train)[^"\']*\1/i',
@@ -2645,6 +2956,10 @@ final class SignatureTrainCarrier
     /** @return list<string> */
     private static function msoTrainImageSources(string $html): array
     {
+        if (self::usesFlowSafeTrain($html)) {
+            return self::flowSafeMsoTrainImageSources($html);
+        }
+
         $failOpenStage = self::usesFailOpenStage($html);
         $aspectSafeTrain = self::usesAspectSafeTrain($html);
         $forwardSafeTrain = self::usesForwardSafeAbsoluteTrain($html);
@@ -2723,6 +3038,131 @@ final class SignatureTrainCarrier
                 'text-decoration' => 'none',
                 'vertical-align' => 'bottom',
             ], 'Outlook-Zugfallback');
+            $sources[] = $source;
+        }
+
+        return $sources;
+    }
+
+    private static function assertFlowSafeRuntimeImages(
+        string $html,
+        ?string $expectedMainSource = null,
+        ?string $expectedIdleSource = null,
+        ?string $expectedMsoSource = null,
+    ): void {
+        if (($expectedIdleSource !== null && trim($expectedIdleSource) !== '')
+            || preg_match('/\b(?:rt-train-idle-(?:overlay|image)|data-rt-train-idle-(?:overlay|image))\b/i', $html) === 1
+            || preg_match('/\b(?:rt-sign-train-background|data-rt-train-background)\b/i', $html) === 1
+            || preg_match('/<v:(?:fill|image)\b/i', $html) === 1) {
+            throw new RuntimeException('V21 darf weder Idle-, Background- noch VML-Zugbilder enthalten.');
+        }
+
+        $withoutFallback = preg_replace_callback(
+            '/<!--\s*\[if\s+mso\]\s*>.*?<!\s*\[endif\]\s*-->/is',
+            static fn (array $match): string => preg_match('/\brt-sign-train-mso\b/i', $match[0]) === 1
+                ? ''
+                : $match[0],
+            $html,
+        );
+        if (! is_string($withoutFallback)) {
+            throw new RuntimeException('Der V21-Outlook-Fallback konnte nicht isoliert werden.');
+        }
+
+        $mainImages = array_values(array_filter(
+            self::scanStartTags($withoutFallback),
+            static fn (array $tag): bool => $tag['name'] === 'img'
+                && (self::sourceTagHasClass($tag, 'rt-sign-train')
+                    || isset($tag['attributes']['data-rt-train'])),
+        ));
+        if (count($mainImages) !== 1) {
+            throw new RuntimeException('Der finale V21-Zug muss genau einmal als IMG vorliegen.');
+        }
+        $source = self::singleTagAttributeValue($mainImages[0], 'src');
+        if (! self::isAllowedMailImageSource($source)
+            || ($expectedMainSource !== null && ! hash_equals(trim($expectedMainSource), $source))) {
+            throw new RuntimeException('Das finale V21-Zugbild besitzt nicht die erwartete Bildquelle.');
+        }
+
+        $sourceAttributes = $mainImages[0]['attributes']['src'] ?? [];
+        if (count($sourceAttributes) !== 1 || $sourceAttributes[0]['valueOffset'] === null) {
+            throw new RuntimeException('Das finale V21-Zugbild besitzt kein eindeutiges src-Attribut.');
+        }
+        $canonical = substr_replace(
+            $withoutFallback,
+            '{{TRAIN_SRC}}',
+            $sourceAttributes[0]['valueOffset'],
+            $sourceAttributes[0]['valueLength'],
+        );
+        self::assertFlowSafeImage($canonical);
+
+        $msoSources = self::flowSafeMsoTrainImageSources($html);
+        if ($expectedMsoSource === '' && $msoSources !== []) {
+            throw new RuntimeException('V21 darf keinen Outlook-Zugfallback enthalten.');
+        }
+        if ($expectedMsoSource !== null && $expectedMsoSource !== '') {
+            if (count($msoSources) !== 1
+                || ! hash_equals(trim($expectedMsoSource), $msoSources[0])) {
+                throw new RuntimeException('Das V21-Outlook-Zugbild besitzt nicht die erwartete Bildquelle.');
+            }
+        } elseif (count($msoSources) > 1) {
+            throw new RuntimeException('Das V21-Outlook-Zugbild darf nur einmal vorliegen.');
+        }
+    }
+
+    /** @return list<string> */
+    private static function flowSafeMsoTrainImageSources(string $html): array
+    {
+        $slots = array_values(array_filter(
+            self::scanStartTags($html),
+            static fn (array $tag): bool => $tag['name'] === 'td'
+                && self::sourceTagHasClass($tag, 'rt-sign-train-slot'),
+        ));
+        if (count($slots) !== 1) {
+            throw new RuntimeException('Der V21-Outlook-Zugfallback besitzt keinen eindeutigen Zug-Slot.');
+        }
+
+        preg_match_all(
+            '/<!--\s*\[if\s+mso\]\s*>(.*?)<!\s*\[endif\]\s*-->/is',
+            $html,
+            $comments,
+            PREG_SET_ORDER | PREG_OFFSET_CAPTURE,
+        );
+        $sources = [];
+        foreach ($comments as $comment) {
+            $content = (string) ($comment[1][0] ?? '');
+            if (preg_match('/\brt-sign-train-mso\b/i', $content) !== 1) {
+                continue;
+            }
+            if (($comment[0][1] ?? -1) !== $slots[0]['endOffset'] + 1) {
+                throw new RuntimeException('Das V21-Outlook-Zugbild muss direkt am Anfang des Zug-Slots liegen.');
+            }
+            $tags = self::scanStartTags($content);
+            if (count($tags) !== 1 || $tags[0]['name'] !== 'img') {
+                throw new RuntimeException('Der V21-Outlook-Fallback muss genau ein IMG enthalten.');
+            }
+            self::assertExactSourceTagAttributeNames($tags[0], [
+                'class', 'data-rt-train-mso', 'src', 'width', 'height', 'alt', 'style',
+            ], 'V21-Outlook-Zugbild');
+            $source = self::singleTagAttributeValue($tags[0], 'src');
+            if (! self::sourceTagHasClass($tags[0], 'rt-sign-train-mso')
+                || self::singleTagAttributeValue($tags[0], 'data-rt-train-mso') !== '1'
+                || self::singleTagAttributeValue($tags[0], 'width') !== '720'
+                || self::singleTagAttributeValue($tags[0], 'height') !== '61'
+                || self::singleTagAttributeValue($tags[0], 'alt') !== ''
+                || ! self::isAllowedMailImageSource($source, staticOnly: true)) {
+                throw new RuntimeException('Das V21-Outlook-Zugbild besitzt keine mail-sichere Quelle oder Groesse.');
+            }
+            self::assertExactSourceTagStyle($tags[0], [
+                'display' => 'block',
+                'width' => '720px',
+                'max-width' => '100%',
+                'height' => 'auto',
+                'margin' => '0',
+                'border' => '0',
+                'outline' => 'none',
+                'text-decoration' => 'none',
+                'vertical-align' => 'bottom',
+            ], 'V21-Outlook-Zugbild');
             $sources[] = $source;
         }
 

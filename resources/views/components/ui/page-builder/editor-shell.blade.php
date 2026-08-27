@@ -74,7 +74,15 @@
                 '[data-railtime-chatbot-root][data-pagebuilder-active=true] #railtime-chatbot-panel'
             );
             return document.documentElement.hasAttribute('data-rt-pagebuilder-assist-open')
-                || (panel && window.getComputedStyle(panel).display !== 'none');
+                 || (panel && window.getComputedStyle(panel).display !== 'none');
+        },
+        pageBuilderSubdialogOpen() {
+            return [...document.querySelectorAll('[data-page-builder-subdialog]')].some((dialog) => {
+                const style = window.getComputedStyle(dialog);
+                return style.display !== 'none'
+                    && style.visibility !== 'hidden'
+                    && dialog.getAttribute('aria-hidden') !== 'true';
+            });
         },
         pageBuilderFocusables() {
             const selector = [
@@ -94,7 +102,7 @@
             (title || this.pageBuilderFocusables()[0])?.focus?.({ preventScroll: true });
         },
         trapPageBuilderFocus(event) {
-            if (event.defaultPrevented) return;
+            if (event.defaultPrevented || this.pageBuilderSubdialogOpen()) return;
             const focusables = this.pageBuilderFocusables();
             if (!focusables.length) return;
             const current = focusables.indexOf(document.activeElement);
@@ -153,7 +161,7 @@
         state="pageBuilderOpen"
         :trap="false"
         close-action="requestClose()"
-        escape-action="if (! pageBuilderAssistantOpen()) requestClose()"
+        escape-action="if (! pageBuilderAssistantOpen() && ! pageBuilderSubdialogOpen()) requestClose()"
         labelledby="{{ $shellId }}-title"
         body-class="min-h-0 flex-1 overflow-hidden p-0"
         content-class="h-full min-h-0 w-full max-w-none"

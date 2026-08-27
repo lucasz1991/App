@@ -55,7 +55,7 @@ function gifTimeline(bytes) {
     return delays;
 }
 
-test('delivered mail keeps legacy flow overlap plus the V19 forwarding-safe bottom layer and Classic Outlook IMG', () => {
+test('delivered mail keeps legacy overlap contracts plus the V21 flow-safe Classic Outlook IMG', () => {
     const signature = text('app/Support/MailSignature.php');
     const signatureView = text('resources/views/emails/parts/signature.blade.php');
     const carrier = text('app/Support/Mail/SignatureTrainCarrier.php');
@@ -68,6 +68,11 @@ test('delivered mail keeps legacy flow overlap plus the V19 forwarding-safe bott
         carrier.indexOf('public static function withMsoFallback'),
         carrier.indexOf('public static function withIdleOverlay'),
     );
+    const flowSafeMsoFallback = msoFallback.slice(
+        msoFallback.indexOf('if (self::usesFlowSafeTrain($html))'),
+        msoFallback.indexOf('self::assertRuntimeImages($html);'),
+    );
+    const legacyMsoFallback = msoFallback.slice(msoFallback.indexOf('self::assertRuntimeImages($html);'));
 
     assert.match(signature, /SignatureTrainCarrier::projectAsImage\(/);
     assert.doesNotMatch(signature, /SignatureTrainCarrier::projectAsRuntimeBackground\(/);
@@ -90,10 +95,12 @@ test('delivered mail keeps legacy flow overlap plus the V19 forwarding-safe bott
     assert.doesNotMatch(carrier, /background-image:[^;]*(?:TRAIN|train|\.gif)/);
     assert.doesNotMatch(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/);
     assert.match(carrier, /<!--\[if mso\]><img class="rt-sign-train-mso"/);
-    assert.match(msoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
-    assert.match(msoFallback, /\$fallbackStyle = \(\$aspectSafeTrain \|\| \$forwardSafeTrain\)[\s\S]*?'display:inline-block;width:720px;max-width:720px;height:61px;[^']*vertical-align:bottom;'/);
-    assert.match(msoFallback, /<img class="rt-sign-train-mso"[\s\S]*?style="'\.\$fallbackStyle\.'"/);
-    assert.doesNotMatch(msoFallback, /rt-sign-train-mso[\s\S]*?width:720px;max-width:100%/);
+    assert.match(flowSafeMsoFallback, /self::assertFlowSafeRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
+    assert.match(flowSafeMsoFallback, /rt-sign-train-mso[\s\S]*?width:720px;max-width:100%;height:auto;[\s\S]*?vertical-align:bottom;/);
+    assert.match(legacyMsoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
+    assert.match(legacyMsoFallback, /\$fallbackStyle = \(\$aspectSafeTrain \|\| \$forwardSafeTrain\)[\s\S]*?'display:inline-block;width:720px;max-width:720px;height:61px;[^']*vertical-align:bottom;'/);
+    assert.match(legacyMsoFallback, /<img class="rt-sign-train-mso"[\s\S]*?style="'\.\$fallbackStyle\.'"/);
+    assert.doesNotMatch(legacyMsoFallback, /rt-sign-train-mso[\s\S]*?width:720px;max-width:100%/);
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">/);
     assert.match(carrier, /return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="'\.\$alignment\.'" data-rt-layer-size="'\.\$sizeName\.'" data-rt-layer-mobile="'\.\$mobileCrop\.'" '/);
@@ -126,10 +133,11 @@ test('delivered mail keeps legacy flow overlap plus the V19 forwarding-safe bott
         responsiveCss.indexOf('.rt-sign-stage {'),
         responsiveCss.indexOf('/* V11 bis V13'),
     );
+    const legacyResponsiveCss = responsiveCss.slice(0, responsiveCss.indexOf('/* V21:'));
     assert.doesNotMatch(baseRuntimeCss, /\.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;/s);
     assert.match(responsiveCss, /tr\[data-rt-artifact-version="v19"\] \.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*0 !important;[^}]*margin:\s*0 !important;/s);
     assert.match(responsiveCss, /\.rt-sign-train,\s*\.rt-sign-train-mso\s*\{[^}]*position:\s*static !important;[^}]*bottom:\s*auto !important;[^}]*display:\s*inline-block !important;[^}]*vertical-align:\s*bottom !important;/s);
-    assert.doesNotMatch(responsiveCss, /\.rt-sign-train-mso\s*\{[^}]*width:\s*100% !important;[^}]*margin:\s*0 !important;/s);
+    assert.doesNotMatch(legacyResponsiveCss, /\.rt-sign-train-mso\s*\{[^}]*width:\s*100% !important;[^}]*margin:\s*0 !important;/s);
     assert.match(responsiveCss, /\.rt-train-idle-overlay\s*\{[^}]*top:\s*auto !important;[^}]*bottom:\s*0 !important;[^}]*max-width:\s*none !important;/s);
     assert.match(responsiveCss, /\.rt-train-idle-image\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*0 !important;[^}]*display:\s*inline-block !important;[^}]*vertical-align:\s*bottom !important;/s);
     assert.match(responsiveCss, /prefers-reduced-motion:[^)]+\)[\s\S]*?\.rt-train-idle-overlay/);

@@ -28,7 +28,7 @@
     <div
         x-show.important="{{ $state }}"
         x-cloak
-        x-on:keydown.escape.window="if ({{ $state }}) { {{ $closeExpression }} }"
+        x-on:keydown.escape.window="if ({{ $state }}) { $event.stopImmediatePropagation(); {{ $closeExpression }} }"
         x-on:rt-navigation:prepare.window="{{ $state }} = false"
         x-trap.inert.noscroll="{{ $state }}"
         {{-- rt-modal-shell ist Pflicht, nicht Zierde: nur damit greift die

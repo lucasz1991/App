@@ -1126,3 +1126,30 @@ tr[data-rt-artifact-version="v20"] .rt-company-contact {
   margin-top: 8px !important;
 }
 }
+
+/* V21: setzt nur die historischen Buehnenwerte zurueck. Alle sichtbaren
+   Basiswerte stehen bereits inline im normalen Tabellenfluss. */
+tr[data-rt-artifact-version="v21"] .rt-sign-stage,
+tr[data-rt-artifact-version="v21"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v21"] .rt-sign-train-layer {
+  position: static !important;
+  height: auto !important;
+  max-height: none !important;
+}
+tr[data-rt-artifact-version="v21"] .rt-sign-stage { overflow: visible !important; }
+tr[data-rt-artifact-version="v21"] .rt-sign-train-layer {
+  max-width: 720px !important;
+  margin: 0 auto 0 0 !important;
+}
+tr[data-rt-artifact-version="v21"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v21"] .rt-sign-train-slot {
+  height: auto !important;
+}
+tr[data-rt-artifact-version="v21"] .rt-sign-train-layer[data-rt-layer-train] .rt-sign-train,
+tr[data-rt-artifact-version="v21"] .rt-sign-train-layer[data-rt-layer-train] .rt-sign-train-mso {
+  display: block !important;
+  width: 100% !important;
+  max-width: 720px !important;
+  height: auto !important;
+  margin: 0 !important;
+}

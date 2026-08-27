@@ -295,77 +295,33 @@
                     >{{ $currentDocument->isPublished() && $currentDocument->hasUnpublishedChanges() ? 'Entwurf' : $currentDocument->status->label() }}</span>
 
                     <p class="rt-mail-studio-toolbar__message" data-mail-document-message aria-live="polite">
-                        @if ($currentDocument->isPublished())
+                        @if ($currentDocument->isActive() && $currentDocument->isPublished())
                             @if ($currentDocument->hasUnpublishedChanges())
                                 Entwurf gespeichert — Systemmails verwenden weiterhin die Veröffentlichung vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
                             @else
                                 Systemmails verwenden die Veröffentlichung vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
                             @endif
+                        @elseif ($activeDocument instanceof \App\Models\MailDocument)
+                            Entwurf „{{ $currentDocument->name }}“ — Systemmails verwenden weiterhin „{{ $activeDocument->name }}“.
                         @else
-                            Nicht veröffentlicht — Systemmails bleiben bis zur Freigabe gesperrt.
+                            Noch kein Design veröffentlicht — veröffentliche einen Slot für Systemmails.
                         @endif
                     </p>
 
                     <div class="rt-mail-studio-toolbar__action-buttons" role="group" aria-label="Code, Import, Export, Entwurf und Veröffentlichung">
-                        <x-ui.dropdown.anchor-dropdown
-                            align="right"
-                            width="96"
-                            :offset="8"
-                            dropdown-id="mail-document-versions-{{ $currentDocument->kind->value }}"
-                            layer-group="mail-document-editor"
-                            content-role="dialog"
-                            content-label="Gespeicherte Versionen"
-                            content-classes="bg-rt-surface p-1.5 text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
-                            dropdown-classes="shadow-xl"
-                            data-mail-document-version
-                            data-mail-toolbar-menu="versions"
+                        <x-ui.buttons.button-basic
+                            type="button"
+                            mode="secondary"
+                            size="sm"
+                            class="min-h-11 min-w-0 shrink-0 rounded-lg px-3"
+                            x-on:click="$dispatch('mail-design-manager-open')"
+                            data-mail-design-manager-trigger
+                            data-mail-toolbar-menu="designs-versions"
+                            title="Design-Slots und gespeicherte Versionen verwalten"
                         >
-                            <x-slot:trigger>
-                                <x-ui.buttons.button-basic
-                                    type="button"
-                                    mode="secondary"
-                                    size="sm"
-                                    class="min-h-11 min-w-0 shrink-0 rounded-lg px-3"
-                                    data-mail-document-version-trigger
-                                    title="Gespeicherte Version auswählen"
-                                >
-                                    <i data-feather="clock" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
-                                    <span data-mail-document-version-trigger-label class="max-w-40 truncate">Versionen</span>
-                                    <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true">
-                                        <i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i>
-                                    </span>
-                                </x-ui.buttons.button-basic>
-                            </x-slot:trigger>
-
-                            <x-slot:content>
-                                <div class="grid gap-1.5">
-                                    <span id="mail-document-version-label" class="px-3 pb-1 pt-2 text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
-                                        Gespeicherte Version
-                                    </span>
-                                    <div
-                                        id="mail-document-version-listbox"
-                                        role="listbox"
-                                        aria-labelledby="mail-document-version-label"
-                                        class="max-h-72 space-y-1 overflow-y-auto"
-                                        data-mail-document-version-list
-                                    ></div>
-                                    <div class="border-t border-rt-border px-1.5 pt-1.5 dark:border-rt-dark-border">
-                                        <x-ui.buttons.button-basic
-                                            type="button"
-                                            mode="secondary"
-                                            size="sm"
-                                            class="min-h-11 w-full justify-start rounded-lg px-3"
-                                            data-mail-document-version-restore
-                                            disabled
-                                            title="Ausgewählte Version als neuen Entwurf wiederherstellen"
-                                        >
-                                            <i data-feather="clock" class="h-4 w-4" aria-hidden="true"></i>
-                                            <span class="rt-mail-studio-toolbar__utility-label">Wiederherstellen</span>
-                                        </x-ui.buttons.button-basic>
-                                    </div>
-                                </div>
-                            </x-slot:content>
-                        </x-ui.dropdown.anchor-dropdown>
+                            <i data-feather="clock" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                            <span class="max-w-44 truncate">Designs &amp; Versionen</span>
+                        </x-ui.buttons.button-basic>
 
                         <x-ui.dropdown.anchor-dropdown
                             align="right"
@@ -742,6 +698,280 @@
             </form>
         </dialog>
 
+        <div
+            x-data="{
+                managerOpen: false,
+                managerBusy: false,
+                openManager() {
+                    this.managerOpen = true;
+                },
+                closeManager() {
+                    if (this.managerBusy) return;
+                    this.managerOpen = false;
+                    this.$nextTick(() => document.querySelector('[data-mail-design-manager-trigger]')?.focus?.({ preventScroll: true }));
+                },
+            }"
+            x-on:mail-design-manager-open.window="openManager()"
+            x-on:mail-design-manager-busy.window="managerBusy = $event.detail === true"
+            data-mail-design-manager-host
+        >
+            <x-ui.state-modal
+                id="mail-design-manager-{{ $currentDocument->kind->value }}"
+                state="managerOpen"
+                title="Designs &amp; Versionen"
+                description="Verwalte getrennte Arbeitsentwürfe. Genau ein veröffentlichtes Design wird von Systemmails verwendet."
+                icon="far fa-layer-group"
+                max-width="6xl"
+                close-action="closeManager()"
+                body-class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-4 [scrollbar-gutter:stable] sm:p-6"
+                data-mail-design-manager
+                data-page-builder-subdialog
+            >
+                <x-slot:actions>
+                    <x-ui.badge color="slate">{{ count($documentSlots) }} {{ count($documentSlots) === 1 ? 'Design' : 'Designs' }}</x-ui.badge>
+                </x-slot:actions>
+
+                @if (! \Illuminate\Support\Facades\Schema::hasColumn('mail_documents', 'is_active'))
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900 dark:border-amber-800 dark:bg-amber-500/10 dark:text-amber-100" role="alert">
+                        Die Design-Slot-Migration ist noch nicht installiert. Bitte führe zuerst die Datenbankmigrationen aus.
+                    </div>
+                @else
+                    <form
+                        class="mb-5 grid gap-3 rounded-2xl border border-rt-border bg-rt-surface-muted/60 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
+                        data-mail-slot-create-form
+                        data-endpoint="{{ route('admin.mail-documents.slots.store', $currentDocument) }}"
+                    >
+                        <label class="grid min-w-0 gap-1.5">
+                            <span class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Neues Design aus „{{ $currentDocument->name }}“</span>
+                            <span class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Der aktuelle gespeicherte Entwurf wird dupliziert; die Veröffentlichung bleibt unverändert.</span>
+                            <x-ui.forms.input
+                                name="name"
+                                maxlength="80"
+                                required
+                                aria-required="true"
+                                autocomplete="off"
+                                placeholder="z. B. Herbstkampagne"
+                                data-mail-slot-create-name
+                            />
+                        </label>
+                        <x-ui.buttons.button-basic type="submit" mode="primary" size="sm" class="min-h-11 rounded-xl px-4" data-mail-slot-create>
+                            <i data-feather="plus" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Design anlegen</span>
+                        </x-ui.buttons.button-basic>
+                    </form>
+
+                    <div class="grid gap-4" data-mail-design-slot-list>
+                        @foreach ($documentSlots as $slot)
+                            @php
+                                $isCurrentSlot = $slot->is($currentDocument);
+                                $isActiveSlot = $slot->isActive();
+                                $slotVersionCount = \Illuminate\Support\Facades\Schema::hasTable('mail_document_versions')
+                                    ? (int) ($slot->versions_count ?? 0)
+                                    : 0;
+                                $slotVersions = $isCurrentSlot && \Illuminate\Support\Facades\Schema::hasTable('mail_document_versions')
+                                    ? $slot->versions()->with('creator:id,name')->limit(40)->get()
+                                    : collect();
+                                $slotDeleteReason = $isActiveSlot
+                                    ? 'Dieses Design ist für Systemmails aktiv. Aktiviere zuerst einen anderen Slot.'
+                                    : (count($documentSlots) <= 1
+                                        ? 'Mindestens ein Design-Slot muss erhalten bleiben.'
+                                        : 'Beim Löschen werden auch alle Versionen dieses Entwurfs entfernt.');
+                            @endphp
+                            <x-ui.surface.card
+                                padding="p-0"
+                                class="overflow-hidden {{ $isCurrentSlot ? 'ring-2 ring-rt-red/30' : '' }}"
+                                data-mail-design-slot
+                                data-slot-id="{{ $slot->public_id }}"
+                                data-slot-current="{{ $isCurrentSlot ? 'true' : 'false' }}"
+                                data-slot-active="{{ $isActiveSlot ? 'true' : 'false' }}"
+                            >
+                                <div class="grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <h3 class="truncate text-base font-semibold tracking-tight" data-mail-slot-heading>{{ $slot->name ?: $slot->kind->label() }}</h3>
+                                            @if ($isActiveSlot)
+                                                <x-ui.badge color="green" data-mail-slot-active-badge>Für Systemmails aktiv</x-ui.badge>
+                                            @else
+                                                <x-ui.badge color="slate" data-mail-slot-draft-badge>Arbeitsentwurf</x-ui.badge>
+                                            @endif
+                                            @if ($isActiveSlot && $slot->hasUnpublishedChanges())
+                                                <x-ui.badge color="amber" data-mail-slot-changed-badge>Neuere Entwurfsänderungen</x-ui.badge>
+                                            @endif
+                                            @if ($isCurrentSlot)
+                                                <x-ui.badge color="red">Im Editor geöffnet</x-ui.badge>
+                                            @endif
+                                        </div>
+                                        <p class="mt-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
+                                            Dokumentversion {{ $slot->version }}
+                                            @if ($slot->updated_at)
+                                                · geändert {{ $slot->updated_at->translatedFormat('d.m.Y H:i') }} Uhr
+                                            @endif
+                                            @if ($slot->updater?->name)
+                                                · {{ $slot->updater->name }}
+                                            @endif
+                                        </p>
+                                    </div>
+
+                                    <div class="flex flex-wrap gap-2 lg:justify-end">
+                                        @unless ($isCurrentSlot)
+                                            <x-ui.buttons.button-basic
+                                                type="button"
+                                                mode="secondary"
+                                                size="sm"
+                                                class="min-h-11 rounded-xl px-3"
+                                                data-mail-slot-open
+                                                data-url="{{ route('admin.mail-documents.editor', ['dokument' => $slot->kind->value, 'slot' => $slot->public_id, 'open' => 1]) }}"
+                                            >
+                                                <i data-feather="edit-3" class="h-4 w-4" aria-hidden="true"></i>
+                                                <span>Im Editor öffnen</span>
+                                            </x-ui.buttons.button-basic>
+                                        @endunless
+                                        @unless ($isActiveSlot)
+                                            <x-ui.buttons.button-basic
+                                                type="button"
+                                                mode="success"
+                                                size="sm"
+                                                class="min-h-11 rounded-xl px-3"
+                                                data-mail-slot-activate
+                                                data-endpoint="{{ route('admin.mail-documents.publish', $slot) }}"
+                                                data-expected-hash="{{ $slot->content_hash }}"
+                                                data-slot-name="{{ $slot->name }}"
+                                            >
+                                                <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
+                                                <span>Aktiv veröffentlichen</span>
+                                            </x-ui.buttons.button-basic>
+                                        @endunless
+                                    </div>
+                                </div>
+
+                                <div class="grid border-t border-rt-border dark:border-rt-dark-border lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1.4fr)]">
+                                    <div class="border-b border-rt-border p-4 dark:border-rt-dark-border lg:border-b-0 lg:border-r sm:p-5">
+                                        <form
+                                            class="grid gap-2"
+                                            data-mail-slot-rename-form
+                                            data-endpoint="{{ route('admin.mail-documents.slots.update', $slot) }}"
+                                            data-expected-hash="{{ $slot->content_hash }}"
+                                        >
+                                            <label for="mail-slot-name-{{ $slot->public_id }}" class="text-xs font-semibold uppercase tracking-[0.12em] text-rt-muted dark:text-rt-dark-muted">Designname</label>
+                                            <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                                                <x-ui.forms.input id="mail-slot-name-{{ $slot->public_id }}" name="name" maxlength="80" value="{{ $slot->name }}" required aria-required="true" data-mail-slot-rename-name />
+                                                <x-ui.buttons.button-basic type="submit" mode="secondary" size="sm" class="min-h-11 rounded-xl px-3" data-mail-slot-rename>
+                                                    <i data-feather="check" class="h-4 w-4" aria-hidden="true"></i>
+                                                    <span>Umbenennen</span>
+                                                </x-ui.buttons.button-basic>
+                                            </div>
+                                        </form>
+
+                                        <div class="mt-4 border-t border-rt-border pt-4 dark:border-rt-dark-border">
+                                            <x-ui.buttons.button-basic
+                                                type="button"
+                                                mode="danger"
+                                                size="sm"
+                                                class="min-h-11 rounded-xl px-3"
+                                                data-mail-slot-delete
+                                                data-endpoint="{{ route('admin.mail-documents.slots.destroy', $slot) }}"
+                                                data-expected-hash="{{ $slot->content_hash }}"
+                                                data-slot-name="{{ $slot->name }}"
+                                                :disabled="$isActiveSlot || count($documentSlots) <= 1"
+                                                data-mail-slot-permanently-disabled="{{ $isActiveSlot || count($documentSlots) <= 1 ? 'true' : 'false' }}"
+                                                aria-describedby="mail-slot-delete-help-{{ $slot->public_id }}"
+                                                title="{{ $isActiveSlot ? 'Aktive Designs können erst nach dem Aktivieren eines anderen Slots gelöscht werden.' : (count($documentSlots) <= 1 ? 'Der letzte Design-Slot kann nicht gelöscht werden.' : 'Design-Slot löschen') }}"
+                                            >
+                                                <i data-feather="trash-2" class="h-4 w-4" aria-hidden="true"></i>
+                                                <span>Design löschen</span>
+                                            </x-ui.buttons.button-basic>
+                                            <p id="mail-slot-delete-help-{{ $slot->public_id }}" class="mt-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ $slotDeleteReason }}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="min-w-0 p-4 sm:p-5">
+                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                            <div>
+                                                <h4 class="text-sm font-semibold">Versionsverlauf</h4>
+                                                <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Wiederherstellen erzeugt einen neuen Entwurf und verändert die aktive Veröffentlichung nicht.</p>
+                                            </div>
+                                            <x-ui.badge color="slate">
+                                                @if ($slotVersionCount > 40)
+                                                    Letzte 40 von {{ $slotVersionCount }} Versionen
+                                                @else
+                                                    {{ $slotVersionCount }} {{ $slotVersionCount === 1 ? 'Version' : 'Versionen' }}
+                                                @endif
+                                            </x-ui.badge>
+                                        </div>
+
+                                        @if (! $isCurrentSlot)
+                                            <p class="mt-4 rounded-xl border border-dashed border-rt-border p-4 text-sm leading-6 text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted">
+                                                Öffne dieses Design im Editor, um seine Versionshistorie hier zu verwalten. Dadurch bleibt das Modal auch bei vielen Entwürfen schnell.
+                                            </p>
+                                        @else
+                                        <ol class="mt-4 grid max-h-72 gap-2 overflow-y-auto pr-1" data-mail-slot-version-list>
+                                            @forelse ($slotVersions as $version)
+                                                <li class="grid gap-3 rounded-xl border border-rt-border bg-rt-surface-muted/45 p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/35 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" data-mail-slot-version="{{ $version->public_id }}">
+                                                    <div class="min-w-0">
+                                                        <p class="text-sm font-semibold">
+                                                            #{{ $version->revision }} ·
+                                                            {{ match ($version->action) {
+                                                                'imported' => 'Importiert',
+                                                                'published' => 'Veröffentlicht',
+                                                                'restored' => 'Wiederhergestellt',
+                                                                'duplicated' => 'Dupliziert',
+                                                                default => 'Gespeichert',
+                                                            } }}
+                                                        </p>
+                                                        <p class="mt-1 truncate text-xs text-rt-muted dark:text-rt-dark-muted">
+                                                            {{ $version->created_at?->translatedFormat('d.m.Y H:i') }} Uhr
+                                                            @if ($version->creator?->name) · {{ $version->creator->name }} @endif
+                                                            @if ($version->was_published) · war veröffentlicht @endif
+                                                        </p>
+                                                    </div>
+                                                    <div class="flex flex-wrap gap-2 sm:justify-end">
+                                                        <x-ui.buttons.button-basic
+                                                            type="button"
+                                                            mode="secondary"
+                                                            size="sm"
+                                                            class="min-h-10 rounded-lg px-3"
+                                                            data-mail-version-restore
+                                                            data-endpoint="{{ route('admin.mail-documents.versions.restore', [$slot, $version]) }}"
+                                                            data-expected-hash="{{ $slot->content_hash }}"
+                                                            data-slot-url="{{ route('admin.mail-documents.editor', ['dokument' => $slot->kind->value, 'slot' => $slot->public_id, 'open' => 1]) }}"
+                                                            data-slot-current="{{ $isCurrentSlot ? 'true' : 'false' }}"
+                                                            data-revision="{{ $version->revision }}"
+                                                        >Wiederherstellen</x-ui.buttons.button-basic>
+                                                        <x-ui.buttons.button-basic
+                                                            type="button"
+                                                            mode="danger"
+                                                            size="sm"
+                                                            class="min-h-10 rounded-lg px-3"
+                                                            data-mail-version-delete
+                                                            data-endpoint="{{ route('admin.mail-documents.versions.destroy', [$slot, $version]) }}"
+                                                            data-expected-hash="{{ $slot->content_hash }}"
+                                                            data-revision="{{ $version->revision }}"
+                                                            :disabled="$slotVersions->count() <= 1"
+                                                            data-mail-slot-permanently-disabled="{{ $slotVersions->count() <= 1 ? 'true' : 'false' }}"
+                                                            aria-describedby="mail-version-delete-help-{{ $slot->public_id }}"
+                                                            title="{{ $slotVersions->count() <= 1 ? 'Die einzige gespeicherte Version bleibt als Rückfallebene erhalten.' : 'Historienversion löschen' }}"
+                                                        >Löschen</x-ui.buttons.button-basic>
+                                                    </div>
+                                                </li>
+                                            @empty
+                                                <li class="rounded-xl border border-dashed border-rt-border p-4 text-sm text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted">Noch keine gespeicherte Version vorhanden.</li>
+                                            @endforelse
+                                        </ol>
+                                        @if ($slotVersions->count() <= 1)
+                                            <p id="mail-version-delete-help-{{ $slot->public_id }}" class="mt-3 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Die einzige gespeicherte Version bleibt als sichere Rückfallebene erhalten.</p>
+                                        @else
+                                            <p id="mail-version-delete-help-{{ $slot->public_id }}" class="sr-only">Gelöschte Historienversionen können nicht wiederhergestellt werden.</p>
+                                        @endif
+                                        @endif
+                                    </div>
+                                </div>
+                            </x-ui.surface.card>
+                        @endforeach
+                    </div>
+                @endif
+            </x-ui.state-modal>
+        </div>
+
         @script
             <script>
                 (async function () {
@@ -848,7 +1078,6 @@
                     let activeBaselineHtml = String(document_.html || '');
                     let codeDialogOpener = null;
                     let pendingPortableMedia = [];
-                    let selectedVersionId = '';
                     let latestPreviewGeometry = null;
                     let compiledDeliveryHtml = '';
                     let deliveryPreviewRequest = null;
@@ -864,14 +1093,9 @@
                     const MAX_BUNDLE_BYTES = 16 * 1024 * 1024;
                     const MAX_MEDIA_BYTES = 2 * 1024 * 1024;
                     const toolsPanelId = `rt-dropdown-mail-document-tools-${config.currentDocument}-content`;
-                    const versionsPanelId = `rt-dropdown-mail-document-versions-${config.currentDocument}-content`;
                     const queryToolControl = (selector) => window.document
                         .getElementById(toolsPanelId)
                         ?.querySelector(selector) || null;
-                    const queryVersionControl = (selector) => studioRoot
-                        .querySelector(`[data-mail-document-version] ${selector}`)
-                        || window.document.getElementById(versionsPanelId)?.querySelector(selector)
-                        || null;
                     const bindTeleportedControl = (queryControl, selector, listener, attempt = 0) => {
                         const control = queryControl(selector);
                         if (control) {
@@ -897,11 +1121,6 @@
                         selector,
                         listener,
                     );
-                    const bindVersionControl = (selector, listener) => bindTeleportedControl(
-                        queryVersionControl,
-                        selector,
-                        listener,
-                    );
 
                     const toast = (type, text, title) => window.dispatchEvent(new CustomEvent('swal:toast', {
                         detail: { type, text, title: title || undefined },
@@ -911,12 +1130,11 @@
                         if (messageNode) messageNode.textContent = text;
                     };
                     if (document_.autoRepaired) {
-                        setMessage('Ein bekannter Signatur-Altstand wurde für den Editor sicher repariert. Beim nächsten Speichern wird Schema 27 übernommen.');
+                        setMessage('Ein bekannter Signatur-Altstand wurde für den Editor sicher repariert. Beim nächsten Speichern wird Schema 28 übernommen.');
                     }
 
                     const setActionsBusy = (busy) => {
                         actionsBusy = Boolean(busy);
-                        const restoreButton = queryVersionControl('[data-mail-document-version-restore]');
                         const testMailButton = queryToolControl('[data-mail-document-test-mail]');
                         [
                             saveButton,
@@ -926,15 +1144,12 @@
                             queryToolControl('[data-mail-code-export]'),
                             queryToolControl('[data-mail-code-import]'),
                             testMailButton,
-                            queryVersionControl('[data-mail-document-version-trigger]'),
-                            restoreButton,
                             ...codeCancelButtons,
                         ].forEach((button) => {
                             if (!button) return;
 
                             button.disabled = actionsBusy
-                                || ([publishButton, testMailButton].includes(button) && compatibilityBlocksPublication)
-                                || (button === restoreButton && selectedVersionId === '');
+                                || ([publishButton, testMailButton].includes(button) && compatibilityBlocksPublication);
                             button.setAttribute('aria-busy', String(actionsBusy));
                         });
                     };
@@ -1351,51 +1566,6 @@
                         return normalized;
                     };
 
-                    const renderVersions = (versions = document_.versions || [], attempt = 0) => {
-                        const list = queryVersionControl('[data-mail-document-version-list]');
-                        const triggerLabel = queryVersionControl('[data-mail-document-version-trigger-label]');
-                        const restoreButton = queryVersionControl('[data-mail-document-version-restore]');
-                        if (!list || !triggerLabel || !restoreButton) {
-                            if (!destroyed && attempt < 60) {
-                                window.requestAnimationFrame(() => renderVersions(versions, attempt + 1));
-                            }
-                            return;
-                        }
-
-                        const selected = versions.find((version) => String(version.id) === selectedVersionId) || null;
-                        if (!selected) selectedVersionId = '';
-                        triggerLabel.textContent = selected
-                            ? `#${selected.revision} · ${selected.action_label}`
-                            : 'Versionen';
-                        restoreButton.disabled = !selected;
-                        list.replaceChildren();
-
-                        if (versions.length === 0) {
-                            const empty = window.document.createElement('p');
-                            empty.className = 'px-3 py-2 text-sm text-rt-muted dark:text-rt-dark-muted';
-                            empty.textContent = 'Noch keine gespeicherte Version vorhanden.';
-                            list.appendChild(empty);
-                            return;
-                        }
-
-                        versions.forEach((version) => {
-                            const published = version.was_published ? ' · veröffentlicht' : '';
-                            const creator = version.creator ? ` · ${version.creator}` : '';
-                            const option = window.document.createElement('button');
-                            option.type = 'button';
-                            option.setAttribute('role', 'option');
-                            option.setAttribute('aria-selected', String(String(version.id) === selectedVersionId));
-                            option.dataset.mailDocumentVersionOption = String(version.id);
-                            option.className = 'flex min-h-11 w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-rt-text outline-none transition hover:bg-rt-surface-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent/35 dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted dark:focus-visible:ring-rt-dark-accent/40';
-                            option.textContent = `#${version.revision} · ${version.action_label} · ${version.created_label || ''}${creator}${published}`;
-                            option.addEventListener('click', () => {
-                                selectedVersionId = String(version.id);
-                                renderVersions(versions);
-                            }, { signal: controlListeners.signal });
-                            list.appendChild(option);
-                        });
-                    };
-
                     const applyDocumentState = (payload) => {
                         if (!payload) return;
 
@@ -1409,7 +1579,6 @@
                         if (typeof payload.css === 'string') document_.css = payload.css;
                         if (payload.builder_data) document_.builderData = payload.builder_data;
                         if (Array.isArray(payload.versions)) document_.versions = payload.versions;
-                        renderVersions();
 
                         if (statusBadge) {
                             statusBadge.dataset.status = document_.status;
@@ -1420,7 +1589,6 @@
                                 : statusBadge.dataset.statusLabel;
                         }
                     };
-                    renderVersions();
 
                     const loadOnce = (tag, attributes) => new Promise((resolve, reject) => {
                         const selector = tag === 'link'
@@ -2204,6 +2372,204 @@
                         lastEditorSaveError = null;
                     };
 
+                    const saveBeforeDesignAction = async () => {
+                        if (codeDialog?.open) {
+                            throw new Error('Schließe die Codeansicht zuerst mit „Prüfen & als Entwurf speichern“ oder „Abbrechen“.');
+                        }
+                        if (pendingPortableMedia.length > 0) {
+                            throw new Error('Der vorbereitete Medienimport wurde noch nicht übernommen. Bitte schließe den Import zuerst ab.');
+                        }
+
+                        const focused = window.document.activeElement;
+                        if (focused instanceof HTMLElement && focused !== window.document.body) {
+                            focused.blur();
+                        }
+                        await new Promise((resolve) => window.requestAnimationFrame(resolve));
+                        await saveCurrentDraft();
+                    };
+
+                    const dispatchConfirmation = ({ title, message, confirmLabel, variant = 'default', action }) => {
+                        window.dispatchEvent(new CustomEvent('rt-confirm', {
+                            detail: {
+                                title,
+                                message,
+                                confirmLabel,
+                                cancelLabel: 'Abbrechen',
+                                variant,
+                                action,
+                            },
+                        }));
+                    };
+
+                    const bindDesignManager = (attempt = 0) => {
+                        const manager = window.document.querySelector('[data-mail-design-manager]');
+                        if (!manager) {
+                            if (!destroyed && attempt < 90) {
+                                window.requestAnimationFrame(() => bindDesignManager(attempt + 1));
+                            }
+                            return;
+                        }
+
+                        const slotFor = (control) => control.closest('[data-mail-design-slot]');
+                        const expectedHashFor = (control) => slotFor(control)?.dataset.slotCurrent === 'true'
+                            ? document_.contentHash || ''
+                            : control.dataset.expectedHash || '';
+                        const fail = (error, title) => {
+                            const surfaced = showRequestError(error, title);
+                            toast('error', surfaced.message, title);
+                            return surfaced;
+                        };
+                        const withBusy = async (callback) => {
+                            setActionsBusy(true);
+                            manager.setAttribute('aria-busy', 'true');
+                            manager.querySelectorAll('button, input').forEach((control) => {
+                                control.disabled = true;
+                            });
+                            try {
+                                return await callback();
+                            } finally {
+                                manager.removeAttribute('aria-busy');
+                                manager.querySelectorAll('button, input').forEach((control) => {
+                                    if (control.dataset.mailSlotPermanentlyDisabled !== 'true') {
+                                        control.disabled = false;
+                                    }
+                                });
+                                setActionsBusy(false);
+                            }
+                        };
+
+                        manager.addEventListener('submit', async (event) => {
+                            const createForm = event.target.closest?.('[data-mail-slot-create-form]');
+                            const renameForm = event.target.closest?.('[data-mail-slot-rename-form]');
+                            if (!createForm && !renameForm) return;
+                            event.preventDefault();
+
+                            try {
+                                await withBusy(async () => {
+                                    await saveBeforeDesignAction();
+                                    const form = createForm || renameForm;
+                                    const name = String(form.querySelector('input[name="name"]')?.value || '').trim();
+                                    if (!name) throw new Error('Bitte gib einen Namen für den Design-Slot ein.');
+                                    const payload = await request(
+                                        form.dataset.endpoint,
+                                        createForm ? 'POST' : 'PATCH',
+                                        {
+                                            name,
+                                            expected_hash: createForm
+                                                ? document_.contentHash || ''
+                                                : expectedHashFor(form),
+                                        },
+                                    );
+                                    toast(
+                                        'success',
+                                        createForm ? 'Der neue Entwurf wurde aus dem aktuellen Design angelegt.' : 'Der Designname wurde gespeichert.',
+                                        createForm ? 'Design angelegt' : 'Design umbenannt',
+                                    );
+                                    window.location.assign(payload.redirect || window.location.href);
+                                });
+                            } catch (error) {
+                                fail(error, createForm ? 'Design konnte nicht angelegt werden' : 'Design konnte nicht umbenannt werden');
+                            }
+                        }, { signal: controlListeners.signal });
+
+                        manager.addEventListener('click', (event) => {
+                            const control = event.target.closest?.(
+                                '[data-mail-slot-open], [data-mail-slot-activate], [data-mail-slot-delete], [data-mail-version-restore], [data-mail-version-delete]'
+                            );
+                            if (!control || control.disabled) return;
+
+                            if (control.matches('[data-mail-slot-open]')) {
+                                event.preventDefault();
+                                withBusy(async () => {
+                                    await saveBeforeDesignAction();
+                                    window.location.assign(control.dataset.url);
+                                }).catch((error) => fail(error, 'Design konnte nicht geöffnet werden'));
+                                return;
+                            }
+
+                            if (control.matches('[data-mail-slot-activate]')) {
+                                dispatchConfirmation({
+                                    title: 'Design aktiv veröffentlichen?',
+                                    message: `„${control.dataset.slotName || 'Dieses Design'}“ ersetzt die bisher aktive Fassung für Systemmails. Andere Entwürfe bleiben erhalten.`,
+                                    confirmLabel: 'Aktiv veröffentlichen',
+                                    action: () => withBusy(async () => {
+                                        await saveBeforeDesignAction();
+                                        await request(control.dataset.endpoint, 'POST', {
+                                            expected_hash: expectedHashFor(control),
+                                        });
+                                        toast('success', 'Systemmails verwenden jetzt dieses Design.', 'Design aktiviert');
+                                        window.location.reload();
+                                    }).catch((error) => fail(error, 'Design konnte nicht veröffentlicht werden')),
+                                });
+                                return;
+                            }
+
+                            if (control.matches('[data-mail-slot-delete]')) {
+                                dispatchConfirmation({
+                                    title: 'Design-Slot löschen?',
+                                    message: `„${control.dataset.slotName || 'Dieser Entwurf'}“ und seine Versionshistorie werden gelöscht. Das aktive Design bleibt unverändert.`,
+                                    confirmLabel: 'Design löschen',
+                                    variant: 'destructive',
+                                    action: () => withBusy(async () => {
+                                        await saveBeforeDesignAction();
+                                        const payload = await request(control.dataset.endpoint, 'DELETE', {
+                                            expected_hash: expectedHashFor(control),
+                                        });
+                                        toast('success', 'Der inaktive Design-Slot wurde gelöscht.', 'Design gelöscht');
+                                        window.location.assign(payload.redirect || window.location.href);
+                                    }).catch((error) => fail(error, 'Design konnte nicht gelöscht werden')),
+                                });
+                                return;
+                            }
+
+                            if (control.matches('[data-mail-version-delete]')) {
+                                dispatchConfirmation({
+                                    title: `Version #${control.dataset.revision} löschen?`,
+                                    message: 'Der aktuelle Entwurf und die veröffentlichte Fassung bleiben unverändert.',
+                                    confirmLabel: 'Version löschen',
+                                    variant: 'destructive',
+                                    action: () => withBusy(async () => {
+                                        await saveBeforeDesignAction();
+                                        await request(control.dataset.endpoint, 'DELETE', {
+                                            expected_hash: expectedHashFor(control),
+                                        });
+                                        toast('success', 'Die Historienversion wurde gelöscht.', 'Version gelöscht');
+                                        window.location.reload();
+                                    }).catch((error) => fail(error, 'Version konnte nicht gelöscht werden')),
+                                });
+                                return;
+                            }
+
+                            dispatchConfirmation({
+                                title: `Version #${control.dataset.revision} wiederherstellen?`,
+                                message: 'Die Version wird als neuer Entwurf angelegt. Das aktive, veröffentlichte Design bleibt unverändert.',
+                                confirmLabel: 'Wiederherstellen',
+                                action: () => withBusy(async () => {
+                                    await saveBeforeDesignAction();
+                                    const payload = await request(control.dataset.endpoint, 'POST', {
+                                        expected_hash: expectedHashFor(control),
+                                    });
+                                    toast('success', 'Die Version wurde als neuer Entwurf wiederhergestellt.', 'Version wiederhergestellt');
+                                    if (control.dataset.slotCurrent !== 'true') {
+                                        window.location.assign(control.dataset.slotUrl);
+                                        return;
+                                    }
+                                    applyDocumentState(payload.document);
+                                    activeBaselineHtml = String(document_.html || '');
+                                    await runtimeBridge.rehydrateAuthoritative({
+                                        editor: instance.editor,
+                                        draft: document_,
+                                        sanitizationChanged: true,
+                                        parseCss: (canonicalCss) => instance.editor.Parser?.parseCss?.(canonicalCss) || [],
+                                        projectOptions: { kind: config.currentDocument, environment: window },
+                                    });
+                                    window.location.reload();
+                                }).catch((error) => fail(error, 'Version konnte nicht wiederhergestellt werden')),
+                            });
+                        }, { signal: controlListeners.signal });
+                    };
+                    bindDesignManager();
+
                     const canonicalDraftFromValidation = (payload) => {
                         const canonical = payload?.document || payload?.canonical || null;
                         const builderData = canonical?.builder_data || canonical?.builderData;
@@ -2494,43 +2860,6 @@
                         }
                     });
 
-                    bindVersionControl('[data-mail-document-version-restore]', async () => {
-                        const selected = (document_.versions || []).find(
-                            (version) => String(version.id) === selectedVersionId,
-                        );
-                        if (!selected) {
-                            toast('warning', 'Bitte zuerst eine gespeicherte Version auswählen.', 'Keine Version gewählt');
-                            return;
-                        }
-                        if (!window.confirm(`Version #${selected.revision} als neuen Entwurf wiederherstellen? Die veröffentlichte Fassung bleibt aktiv.`)) return;
-
-                        setActionsBusy(true);
-                        try {
-                            await saveCurrentDraft();
-                            const payload = await request(selected.restore_url, 'POST', {
-                                expected_hash: document_.contentHash || '',
-                            });
-                            applyDocumentState(payload.document);
-                            activeBaselineHtml = String(document_.html || '');
-                            await runtimeBridge.rehydrateAuthoritative({
-                                editor: instance.editor,
-                                draft: document_,
-                                sanitizationChanged: true,
-                                parseCss: (canonicalCss) => instance.editor.Parser?.parseCss?.(canonicalCss) || [],
-                                projectOptions: { kind: config.currentDocument, environment: window },
-                            });
-                            selectTheme(selectedTheme);
-                            selectDevice(selectedDevice);
-                            setMessage(`Version #${selected.revision} wurde als neuer Entwurf wiederhergestellt.`);
-                            toast('success', 'Die Veröffentlichung wurde nicht verändert.', 'Version wiederhergestellt');
-                        } catch (error) {
-                            const surfaced = showRequestError(error, 'Version konnte nicht wiederhergestellt werden');
-                            toast('error', surfaced.message, 'Wiederherstellung fehlgeschlagen');
-                        } finally {
-                            setActionsBusy(false);
-                        }
-                    });
-
                     publishButton?.addEventListener('click', async () => {
                         setActionsBusy(true);
 
@@ -2551,6 +2880,12 @@
                                 ? 'Outlook-Paket und Systemmails verwenden ab sofort diese Signatur.'
                                 : 'Mail-Notifications und Systemmails verwenden ab sofort diese Nachrichtenschale.';
                             toast('success', successText, 'Veröffentlicht');
+                            // Slotstatus, Schutzschalter und Versionsliste
+                            // stammen serverseitig aus einer gemeinsamen
+                            // Transaktion. Ein kurzer Reload zieht das Modal
+                            // nach, ohne den eben gespeicherten Entwurf zu
+                            // verlieren.
+                            window.setTimeout(() => window.location.reload(), 350);
                         } catch (error) {
                             const surfaced = showRequestError(error, 'Veröffentlichung nicht möglich');
                             toast('error', surfaced.message, 'Nicht veröffentlicht');

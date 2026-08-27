@@ -67,6 +67,7 @@ class MailDocumentEditorTest extends TestCase
         // der echten Migration, damit Spalten und Test nicht auseinanderlaufen.
         (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
         (include database_path('migrations/2026_08_22_000200_create_mail_document_versions_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
 
         // LogActivity haengt an jeder schreibenden Anfrage.
         Schema::create('activity_log', function (Blueprint $table): void {
@@ -107,9 +108,12 @@ class MailDocumentEditorTest extends TestCase
     private function createCanonicalMailDocument(
         MailDocumentKind $kind,
         bool $published = true,
+        ?string $name = null,
+        ?bool $isActive = null,
     ): MailDocument {
         $html = $this->canonicalMailDocumentHtml($kind);
         $css = '';
+        $active = $isActive ?? $published;
         $builderData = [
             'pages' => [[
                 'name' => $kind->label(),
@@ -124,7 +128,12 @@ class MailDocumentEditorTest extends TestCase
 
         return MailDocument::query()->create([
             'kind' => $kind,
+            'name' => $name ?? match ($kind) {
+                MailDocumentKind::Template => 'Standardvorlage',
+                MailDocumentKind::Signature => 'Standardsignatur',
+            },
             'status' => $published ? MailDocumentStatus::Published : MailDocumentStatus::Draft,
+            'is_active' => $active ? true : null,
             'builder_data' => $builderData,
             'html' => $html,
             'css' => $css,
@@ -550,9 +559,9 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringNotContainsString('signatur-marke-', $html);
         $this->assertSame(1, substr_count($html, 'class="rt-pad rt-sign-content"'));
         $this->assertStringNotContainsString('data:image', $html);
-        // V20 fuegt fuer seine eigenstaendige, V18-identische Geometrie nur
-        // den notwendigen Versionsselektor hinzu und bleibt knapp bei 60 KiB.
-        $this->assertLessThan(60 * 1024 + 64, strlen($html));
+        // V21 ergaenzt den gemeinsamen Runtime-Block um einen kleinen, gezielt
+        // versionierten Flow-Reset. Auch V20-Ausgaben bleiben damit unter 61 KiB.
+        $this->assertLessThan(61 * 1024, strlen($html));
     }
 
     public function test_schema_27_behaelt_v14_bytegleich_und_migriert_v15_bis_v20_in_die_fail_open_buehne(): void
@@ -1744,7 +1753,13 @@ HTML;
             ->assertSee('data-mail-toolbar-menu="content"', escape: false)
             ->assertSee('data-mail-toolbar-menu="edit"', escape: false)
             ->assertSee('data-mail-toolbar-menu="view"', escape: false)
-            ->assertSee('data-mail-toolbar-menu="versions"', escape: false)
+            // Design-Slots und ihre Versionen liegen in einem ausreichend
+            // grossen Modal statt in einem schmalen Toolbar-Dropdown.
+            ->assertSee('data-mail-design-manager-trigger', escape: false)
+            ->assertSee('data-mail-toolbar-menu="designs-versions"', escape: false)
+            ->assertSee('data-mail-design-manager-host', escape: false)
+            ->assertSee('data-mail-design-manager', escape: false)
+            ->assertSee('data-mail-design-slot-list', escape: false)
             ->assertSee('data-mail-toolbar-menu="tools"', escape: false)
             ->assertSee('data-mail-builder-panel="left:layers"', escape: false)
             ->assertSee('data-mail-builder-panel="right:traits"', escape: false)
@@ -1780,6 +1795,209 @@ HTML;
             ->get(route('admin.mail-documents.editor', ['open' => 1]))
             ->assertOk()
             ->assertSee('pageBuilderOpen: true', escape: false);
+    }
+
+    public function test_design_slot_wird_als_unabhaengiger_entwurf_dupliziert(): void
+    {
+        $this->createCanonicalMailDocuments(published: true);
+        $admin = $this->admin();
+        $source = $this->document(MailDocumentKind::Template);
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.slots.store', $source), [
+                'name' => '  Sommer   2027  ',
+                'expected_hash' => $source->content_hash,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('document.name', 'Sommer 2027')
+            ->assertJsonPath('document.status', MailDocumentStatus::Draft->value)
+            ->assertJsonPath('document.is_active', false)
+            ->assertJsonCount(1, 'document.versions');
+
+        $copy = MailDocument::query()
+            ->where('public_id', $response->json('document.id'))
+            ->firstOrFail();
+
+        $this->assertSame($source->kind, $copy->kind);
+        $this->assertSame('Sommer 2027', $copy->name);
+        $this->assertNull($copy->is_active);
+        $this->assertFalse($copy->isActive());
+        $this->assertSame($source->builder_data, $copy->builder_data);
+        $this->assertSame($source->html, $copy->html);
+        $this->assertSame($source->css, $copy->css);
+        $this->assertSame($source->content_hash, $copy->content_hash);
+        $this->assertNull($copy->published_html);
+        $this->assertNull($copy->published_css);
+        $this->assertNull($copy->published_at);
+        $this->assertSame(1, $copy->version);
+        $this->assertSame(2, MailDocument::query()->where('kind', MailDocumentKind::Template->value)->count());
+        $this->assertSame(1, MailDocument::query()->where('kind', MailDocumentKind::Template->value)->active()->count());
+        $this->assertDatabaseHas('mail_document_versions', [
+            'mail_document_id' => $copy->getKey(),
+            'revision' => 1,
+            'action' => 'duplicated',
+            'created_by' => $admin->getKey(),
+        ]);
+        $this->assertSame(route('admin.mail-documents.editor', [
+            'dokument' => MailDocumentKind::Template->value,
+            'slot' => $copy->public_id,
+            'open' => 1,
+        ]), $response->json('redirect'));
+    }
+
+    public function test_veroeffentlichen_wechselt_den_aktiven_slot_atomar(): void
+    {
+        $this->createCanonicalMailDocuments(published: true);
+        $admin = $this->admin();
+        $previous = $this->document(MailDocumentKind::Template);
+        $previousPublishedHtml = $previous->published_html;
+        $candidate = $this->createCanonicalMailDocument(
+            MailDocumentKind::Template,
+            published: false,
+            name: 'Alternative Freigabe',
+            isActive: false,
+        );
+        $candidateHtml = str_replace(
+            '{{SIGNATURE_BLOCK}}',
+            '<tr><td>RT-AKTIVER-DESIGN-SLOT</td></tr>{{SIGNATURE_BLOCK}}',
+            (string) $candidate->html,
+            $replacementCount,
+        );
+        $this->assertSame(1, $replacementCount);
+        $candidateBuilderData = $candidate->builder_data;
+        data_set($candidateBuilderData, 'pages.0.component', $candidateHtml);
+        $candidate->forceFill([
+            'builder_data' => $candidateBuilderData,
+            'html' => $candidateHtml,
+            'content_hash' => MailDocument::contentHashFor(
+                $candidateBuilderData,
+                $candidateHtml,
+                (string) $candidate->css,
+            ),
+        ])->save();
+
+        // Ein Konflikt vor der Freigabe darf den bisherigen aktiven Slot
+        // weder deaktivieren noch seinen Versandabzug veraendern.
+        $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.publish', $candidate), [
+                'expected_hash' => str_repeat('0', 64),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('expected_hash');
+
+        $this->assertTrue($previous->fresh()->isActive());
+        $this->assertFalse($candidate->fresh()->isActive());
+        $this->assertSame($previousPublishedHtml, $previous->fresh()->published_html);
+        $this->assertSame(1, MailDocument::query()->where('kind', MailDocumentKind::Template->value)->active()->count());
+
+        $this->postJson(route('admin.mail-documents.publish', $candidate), [
+            'expected_hash' => $candidate->content_hash,
+        ])->assertOk()
+            ->assertJsonPath('document.id', $candidate->public_id)
+            ->assertJsonPath('document.is_active', true)
+            ->assertJsonPath('document.status', MailDocumentStatus::Published->value);
+
+        $previous = $previous->fresh();
+        $candidate = $candidate->fresh();
+        $this->assertFalse($previous->isActive());
+        $this->assertNull($previous->is_active);
+        $this->assertSame(MailDocumentStatus::Draft, $previous->status);
+        $this->assertSame($previousPublishedHtml, $previous->published_html);
+        $this->assertTrue($candidate->isActive());
+        $this->assertSame(MailDocumentStatus::Published, $candidate->status);
+        $this->assertSame(1, MailDocument::query()->where('kind', MailDocumentKind::Template->value)->active()->count());
+
+        app()->forgetScopedInstances();
+        $this->assertStringContainsString(
+            'RT-AKTIVER-DESIGN-SLOT',
+            (string) EmailTemplateBuilder::publishedDocument(MailDocumentKind::Template),
+        );
+    }
+
+    public function test_aktiver_slot_ist_geschuetzt_und_inaktiver_slot_wird_vollstaendig_geloescht(): void
+    {
+        $this->createCanonicalMailDocuments(published: true);
+        $admin = $this->admin();
+        $active = $this->document(MailDocumentKind::Template);
+        $activeSnapshot = [
+            ...$active->only(['content_hash', 'published_html', 'published_css']),
+            'published_at' => $active->published_at?->toIso8601String(),
+        ];
+
+        $created = $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.slots.store', $active), [
+                'name' => 'Loeschbarer Entwurf',
+                'expected_hash' => $active->content_hash,
+            ])
+            ->assertCreated();
+        $draft = MailDocument::query()->where('public_id', $created->json('document.id'))->firstOrFail();
+        $draftVersion = $draft->versions()->firstOrFail();
+
+        $this->deleteJson(route('admin.mail-documents.slots.destroy', $active), [
+            'expected_hash' => $active->content_hash,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('slot');
+
+        $this->assertNotNull($active->fresh());
+        $this->assertTrue($active->fresh()->isActive());
+
+        $this->deleteJson(route('admin.mail-documents.slots.destroy', $draft), [
+            'expected_hash' => $draft->content_hash,
+        ])->assertOk()
+            ->assertJsonPath('redirect', route('admin.mail-documents.editor', [
+                'dokument' => MailDocumentKind::Template->value,
+                'slot' => $active->public_id,
+                'open' => 1,
+            ]));
+
+        $this->assertNull($draft->fresh());
+        $this->assertDatabaseMissing('mail_documents', ['id' => $draft->getKey()]);
+        $this->assertDatabaseMissing('mail_document_versions', ['id' => $draftVersion->getKey()]);
+        $freshActive = $active->fresh();
+        $this->assertSame($activeSnapshot, [
+            ...$freshActive->only(['content_hash', 'published_html', 'published_css']),
+            'published_at' => $freshActive->published_at?->toIso8601String(),
+        ]);
+        $this->assertSame(1, MailDocument::query()->where('kind', MailDocumentKind::Template->value)->count());
+        $this->assertSame(1, MailDocument::query()->where('kind', MailDocumentKind::Template->value)->active()->count());
+    }
+
+    public function test_historienversion_kann_geloescht_werden_aber_die_letzte_bleibt_erhalten(): void
+    {
+        $this->seedDocuments();
+        $admin = $this->admin();
+        $document = $this->document(MailDocumentKind::Template);
+        $snapshot = [
+            'mail_document_id' => $document->getKey(),
+            'action' => 'saved',
+            'builder_data' => $document->builder_data,
+            'html' => (string) $document->html,
+            'css' => (string) $document->css,
+            'content_hash' => (string) $document->content_hash,
+            'was_published' => false,
+            'created_by' => $admin->getKey(),
+        ];
+        $first = MailDocumentVersion::query()->create([...$snapshot, 'revision' => 1]);
+        $second = MailDocumentVersion::query()->create([...$snapshot, 'revision' => 2]);
+
+        $this->actingAs($admin)
+            ->deleteJson(route('admin.mail-documents.versions.destroy', [$document, $second]), [
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertOk()
+            ->assertJsonCount(1, 'document.versions')
+            ->assertJsonPath('document.versions.0.id', $first->public_id);
+
+        $this->assertDatabaseMissing('mail_document_versions', ['id' => $second->getKey()]);
+        $this->assertDatabaseHas('mail_document_versions', ['id' => $first->getKey()]);
+
+        $this->deleteJson(route('admin.mail-documents.versions.destroy', [$document, $first]), [
+            'expected_hash' => $document->content_hash,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('version');
+
+        $this->assertDatabaseHas('mail_document_versions', ['id' => $first->getKey()]);
+        $this->assertSame(1, $document->versions()->count());
     }
 
     public function test_versandvorschau_kompiliert_ungespeicherte_template_und_signaturkandidaten_ohne_dokumentmutation(): void
@@ -1919,10 +2137,10 @@ HTML;
 
         // V10 bis V20 besitzen eigene mobile Geometrievertraege; V11 bis V20
         // trennen zusaetzlich die sichere Vollfassung vom kompakten
-        // Systemprofil. V14 bis V20 ergaenzen explizite Medien- und Fail-open-
+        // Systemprofil. V14 bis V21 ergaenzen explizite Medien- und Layout-
         // Vertraege. Trotz doppelter Vorschau-CSS fuer Hell und Dunkel bleibt
-        // die komplette Editor-Konfiguration unter 174 KiB.
-        $this->assertLessThan(174 * 1024, strlen((string) $match[1]));
+        // die komplette Editor-Konfiguration unter 176 KiB.
+        $this->assertLessThan(176 * 1024, strlen((string) $match[1]));
 
         $mailAssets = data_get($config, 'mailAssets');
         $this->assertIsArray($mailAssets);
@@ -2119,7 +2337,40 @@ HTML;
         }
     }
 
-    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v20_marker(): void
+    public function test_v21_flowvertrag_erlaubt_farbhintergrund_und_weist_fremde_strukturen_ab(): void
+    {
+        $html = <<<'HTML'
+<tr data-rt-artifact-version="v21"><td class="rt-sign-cell" style="background:#fff;"><div class="rt-sign-stage" style="display:block;width:100%;overflow:visible;"><table class="rt-sign-content-frame" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tbody><tr><td>Inhalt</td></tr></tbody></table><div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="left" style="display:block;width:100%;max-width:720px;margin:0 auto 0 0;overflow:hidden;font-size:0;line-height:0;text-align:left;"><table class="rt-sign-train-frame" role="presentation" width="100%" height="61" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:61px;border-collapse:collapse;"><tr><td class="rt-sign-train-slot" height="61" valign="bottom" style="height:61px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" height="61" alt="" style="display:block;width:100%;max-width:720px;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;"></td></tr></table></div></div></td></tr>
+HTML;
+
+        $this->assertSame($html, SignatureTrainCarrier::normalize($html));
+
+        $invalid = [
+            str_replace('class="rt-sign-stage"', 'class="rt-sign-stage fremd"', $html),
+            str_replace('class="rt-sign-content-frame"', 'class="rt-sign-content-frame fremd"', $html),
+            str_replace(
+                '</td></tr></table></div></div></td></tr>',
+                '</td></tr></table><span>Fremder Layer-Inhalt</span></div></div></td></tr>',
+                $html,
+            ),
+            str_replace(
+                '<img class="rt-sign-train"',
+                '<span>Fremder Slot-Inhalt</span><img class="rt-sign-train"',
+                $html,
+            ),
+        ];
+
+        foreach ($invalid as $fragment) {
+            try {
+                SignatureTrainCarrier::assertFlowSafeImage($fragment);
+                $this->fail('Eine fremde V21-Struktur wurde unerwartet akzeptiert.');
+            } catch (\RuntimeException $exception) {
+                $this->assertNotSame('', $exception->getMessage());
+            }
+        }
+    }
+
+    public function test_signatur_artefaktversion_erkennt_v7_fallback_bis_v21_marker(): void
     {
         $canonical = $this->canonicalMailDocumentHtml(MailDocumentKind::Signature);
         $v7 = str_replace(
@@ -2292,6 +2543,17 @@ HTML;
             MailDocumentKind::Signature,
             $v20,
         ));
+        $v21 = str_replace(
+            SignatureArtifactVersion::V20,
+            SignatureArtifactVersion::V21,
+            $v20,
+            $v21MarkerCount,
+        );
+        $this->assertSame(1, $v21MarkerCount);
+        $this->assertSame(SignatureArtifactVersion::V21, SignatureArtifactVersion::detect(
+            MailDocumentKind::Signature,
+            $v21,
+        ));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V8));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V9));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V10));
@@ -2305,6 +2567,7 @@ HTML;
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V18));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V19));
         $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V20));
+        $this->assertTrue(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V21));
         $this->assertFalse(SignatureArtifactVersion::usesArrivalHoldTrain(SignatureArtifactVersion::V7));
         $this->assertFalse(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V11));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedArrivalTrain(SignatureArtifactVersion::V12));
@@ -2319,6 +2582,7 @@ HTML;
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V18));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V19));
         $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V20));
+        $this->assertTrue(SignatureArtifactVersion::usesOptimizedMailAssets(SignatureArtifactVersion::V21));
         $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V15));
         $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V16));
         $this->assertTrue(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V17));
@@ -2337,6 +2601,12 @@ HTML;
         $this->assertTrue(SignatureArtifactVersion::usesV19MailAssets(SignatureArtifactVersion::V19));
         $this->assertFalse(SignatureArtifactVersion::usesForwardSafeAbsoluteTrain(SignatureArtifactVersion::V20));
         $this->assertTrue(SignatureArtifactVersion::usesV19MailAssets(SignatureArtifactVersion::V20));
+        $this->assertTrue(SignatureArtifactVersion::usesV19MailAssets(SignatureArtifactVersion::V21));
+        $this->assertTrue(SignatureArtifactVersion::usesFlowSafeTrain(SignatureArtifactVersion::V21));
+        $this->assertFalse(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V21));
+        $this->assertFalse(SignatureArtifactVersion::usesAspectSafeTrain(SignatureArtifactVersion::V21));
+        $this->assertFalse(SignatureArtifactVersion::usesForwardSafeAbsoluteTrain(SignatureArtifactVersion::V21));
+        $this->assertFalse(SignatureArtifactVersion::usesFlowSafeTrain(SignatureArtifactVersion::V20));
         $this->assertFalse(SignatureArtifactVersion::usesForwardSafeAbsoluteTrain(SignatureArtifactVersion::V18));
         $this->assertFalse(SignatureArtifactVersion::usesV19MailAssets(SignatureArtifactVersion::V18));
         $this->assertFalse(SignatureArtifactVersion::usesFailOpenStage(SignatureArtifactVersion::V14));
@@ -2484,6 +2754,15 @@ HTML;
             SignatureArtifactVersion::V20,
             PortableMediaCatalog::requiredSystemAssetContracts(MailDocumentKind::Signature),
         );
+        $v21Assets = PortableMediaCatalog::requiredSystemAssetIds(
+            MailDocumentKind::Signature,
+            SignatureArtifactVersion::V21,
+        );
+        $this->assertSame($v19Assets, $v21Assets);
+        $this->assertArrayHasKey(
+            SignatureArtifactVersion::V21,
+            PortableMediaCatalog::requiredSystemAssetContracts(MailDocumentKind::Signature),
+        );
         $this->assertStringContainsString(
             '/zug-dampf-v15-light.gif',
             EmailTemplateBuilder::signatureTrainUrl(
@@ -2539,6 +2818,22 @@ HTML;
         $this->assertSame(
             'wortmarke-signature-v19-light.gif',
             EmailTemplateBuilder::signatureLogoAsset('light', SignatureArtifactVersion::V20),
+        );
+        $this->assertStringContainsString(
+            '/zug-dampf-v19-light.gif',
+            EmailTemplateBuilder::signatureTrainUrl(
+                'light',
+                animated: true,
+                artifactVersion: SignatureArtifactVersion::V21,
+            ),
+        );
+        $this->assertSame(
+            'icon-rt-v19-light.gif',
+            EmailTemplateBuilder::emailMarkAsset('light', SignatureArtifactVersion::V21),
+        );
+        $this->assertSame(
+            'wortmarke-signature-v19-light.gif',
+            EmailTemplateBuilder::signatureLogoAsset('light', SignatureArtifactVersion::V21),
         );
 
         $v20Canonical = SignatureTrainCarrier::normalize(str_replace(
