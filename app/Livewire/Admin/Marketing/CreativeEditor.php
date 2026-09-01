@@ -37,6 +37,11 @@ class CreativeEditor extends Component
 
                 return [$format => [
                     'builderData' => $variant->builder_data ?: [],
+                    // HTML und CSS bleiben neben dem editierbaren GrapesJS-
+                    // Projekt die serverseitig gehaertete Renderquelle. Der
+                    // Client benoetigt beide Fassungen, damit ein reines
+                    // Oeffnen/Speichern nicht erneut durch den Parser laeuft.
+                    'html' => (string) $variant->html,
                     'css' => (string) $variant->css,
                     'contentHash' => (string) $variant->content_hash,
                     'version' => (int) $variant->version,

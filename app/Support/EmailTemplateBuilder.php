@@ -272,6 +272,71 @@ class EmailTemplateBuilder
     }
 
     /**
+     * Kompaktes Signaturfragment fuer Office.context.mailbox.item.body.
+     *
+     * Der Add-in-Weg teilt sich bewusst Renderer und Personalisierung mit der
+     * geprueften Browser-Kopierfassung. Abweichend ist nur die aeussere
+     * Dokumenthuelle: setSignatureAsync erwartet kein zweites html/body-
+     * Dokument. Bilder bleiben hier zunaechst absolute HTTPS-Quellen und
+     * werden unmittelbar danach durch OutlookAddinPayloadService in echte
+     * CID-Anhaenge ueberfuehrt.
+     */
+    public function buildOutlookAddinSignatureHtml(string $theme = 'light'): string
+    {
+        if (! in_array($theme, ['light', 'dark'], true)) {
+            throw new RuntimeException('Unbekannte Signaturvariante.');
+        }
+
+        return self::outlookAddinFragment(
+            $this->buildOutlookBrowserCopySignatureHtml($theme),
+            includeStyles: false,
+        );
+    }
+
+    /**
+     * Aktuell veroeffentlichte Nachrichtenschale als Outlook-Compose-
+     * Fragment. Statische Bilder reduzieren Startzeit und verhindern, dass
+     * eine Animation Voraussetzung fuer das Signaturlayout wird. Die cid:-
+     * Referenzen werden vom Add-in als Inline-Anhaenge eingesetzt.
+     */
+    public function buildOutlookAddinTemplateHtml(string $theme = 'light'): string
+    {
+        if (! in_array($theme, ['light', 'dark'], true)) {
+            throw new RuntimeException('Unbekannte Vorlagenvariante.');
+        }
+
+        return self::outlookAddinFragment(
+            $this->buildEmailHtml(
+                inlineImages: false,
+                theme: $theme,
+                animatedSignature: false,
+                staticAnimations: true,
+                cidOutlookImages: true,
+            ),
+            includeStyles: true,
+        );
+    }
+
+    private static function outlookAddinFragment(string $document, bool $includeStyles): string
+    {
+        if (! preg_match('~<body\b[^>]*>(.*)</body>~is', $document, $bodyMatch)) {
+            throw new RuntimeException('Das Maildokument besitzt keinen eindeutigen HTML-Inhalt.');
+        }
+
+        $styles = '';
+        if ($includeStyles && preg_match_all('~<style\b[^>]*>.*?</style>~is', $document, $styleMatches)) {
+            $styles = implode("\n", $styleMatches[0])."\n";
+        }
+
+        $fragment = trim($styles.trim((string) $bodyMatch[1]));
+        if ($fragment === '' || preg_match('~<script\b~i', $fragment)) {
+            throw new RuntimeException('Das Maildokument kann nicht sicher als Outlook-Fragment ausgegeben werden.');
+        }
+
+        return $fragment;
+    }
+
+    /**
      * Personalisierungswerte des Benutzers (fuer Vorlagen und Vorschau).
      *
      * @return array<string, string>

@@ -9,6 +9,8 @@ use Illuminate\Support\Arr;
 
 final class MarketingContentBinder
 {
+    public function __construct(private readonly MarketingBuilderProjectCodec $projectCodec) {}
+
     /** @param array<string, mixed> $content */
     public function bindHtml(string $html, array $content): string
     {
@@ -47,26 +49,7 @@ final class MarketingContentBinder
     /** @param array<string, mixed> $builderData */
     public function syncBuilderData(array $builderData, string $html): array
     {
-        $pageName = data_get($builderData, 'pages.0.name', 'Motiv');
-        if (! is_string($pageName) || trim($pageName) === '') {
-            $pageName = 'Motiv';
-        }
-
-        $metadata = is_array($builderData['railtime'] ?? null) ? $builderData['railtime'] : [];
-        $safeMetadata = array_intersect_key($metadata, array_flip(['template', 'format', 'schema']));
-        if (($metadata['design_preset'] ?? null) === 'railtime_modern') {
-            $safeMetadata['design_preset'] = 'railtime_modern';
-        }
-
-        return [
-            'pages' => [[
-                'name' => mb_substr(trim($pageName), 0, 80),
-                'component' => $html,
-            ]],
-            // CSS wird ausschließlich aus der separat sanitisierten CSS-Spalte geladen.
-            'styles' => [],
-            'railtime' => $safeMetadata,
-        ];
+        return $this->projectCodec->decodeAndSynchronize($builderData, $html);
     }
 
     /** @param array<string, mixed> $content */

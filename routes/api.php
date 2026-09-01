@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\DeviceArtifactDownloadController;
 use App\Http\Controllers\Api\DeviceProviderWebhookController;
+use App\Http\Controllers\Api\OutlookAddinBootstrapController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -14,6 +15,10 @@ use Illuminate\Support\Facades\Route;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
+
+Route::get('/outlook-addin/bootstrap', OutlookAddinBootstrapController::class)
+    ->middleware('throttle:outlook-addin')
+    ->name('api.outlook-addin.bootstrap');
 
 // Connector-Rueckmeldungen sind HMAC-signiert (Zeitstempel + Rohbody),
 // groessenbegrenzt und zusaetzlich durch den allgemeinen API-Limiter geschuetzt.

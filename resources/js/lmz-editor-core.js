@@ -217,12 +217,33 @@ export const DEFAULT_LMZ_CAPABILITIES = Object.freeze({
  * oder durch einen UI-Wechsel mit Marketing-CSS serialisiert werden.
  */
 export const LMZ_EDITOR_MODES = Object.freeze({
+    website: Object.freeze({
+        id: 'website',
+        label: 'Website Page',
+        description: 'Responsive Seiten mit vollständiger Dokumentstruktur und Stylesheet-CSS.',
+        contentModel: 'website',
+        contentStrategy: 'full-document',
+        styleStrategy: 'stylesheet',
+        fidelityStrategy: 'source-preserving',
+        blockPrefix: 'rt-website-',
+        requiresCompiler: false,
+        capabilities: Object.freeze({
+            classes: true,
+            mediaInsert: true,
+            imageReplace: true,
+            animation: true,
+        }),
+    }),
     marketing: Object.freeze({
         id: 'marketing',
-        label: 'Marketing',
+        label: 'Motive',
         description: 'Freie Artboards mit RailTime-Medien und Motion-Werkzeugen.',
         contentModel: 'artboard',
+        contentStrategy: 'artboard',
         styleStrategy: 'canvas',
+        fidelityStrategy: 'source-preserving',
+        blockPrefix: 'rt-marketing-',
+        requiresCompiler: false,
         capabilities: Object.freeze({
             classes: true,
             mediaInsert: true,
@@ -232,10 +253,14 @@ export const LMZ_EDITOR_MODES = Object.freeze({
     }),
     mail: Object.freeze({
         id: 'mail',
-        label: 'Mail',
+        label: 'E-Mail Template',
         description: 'Mailclient-sichere Bausteine, Inline-Stile und freigegebene Medien.',
         contentModel: 'email',
+        contentStrategy: 'mail-document',
         styleStrategy: 'inline',
+        fidelityStrategy: 'compiler-required',
+        blockPrefix: 'rt-mail-',
+        requiresCompiler: true,
         capabilities: Object.freeze({
             classes: false,
             mediaInsert: false,
@@ -247,9 +272,329 @@ export const LMZ_EDITOR_MODES = Object.freeze({
     }),
 });
 
-export function resolveLmzEditorMode(mode = 'marketing') {
+export function resolveLmzEditorMode(mode = 'website') {
     const id = typeof mode === 'object' && mode !== null ? mode.id : mode;
-    return LMZ_EDITOR_MODES[String(id || '').toLowerCase()] || LMZ_EDITOR_MODES.marketing;
+    const normalized = String(id ?? '').trim().toLowerCase() || 'website';
+    const profile = LMZ_EDITOR_MODES[normalized];
+    if (!profile) {
+        throw new TypeError(`Unbekannter LMZ-Editormodus: ${normalized}.`);
+    }
+
+    return profile;
+}
+
+const PAGE_BUILDER_FIDELITY_CHANNELS = Object.freeze(['html', 'css']);
+
+function normalizeFidelityChannels(value = {}, fallback = {}) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        throw new TypeError('PageBuilder-Quellen müssen als Objekt mit html- und css-Kanal übergeben werden.');
+    }
+
+    return Object.freeze(Object.fromEntries(PAGE_BUILDER_FIDELITY_CHANNELS.map((channel) => [
+        channel,
+        String(value[channel] ?? fallback[channel] ?? ''),
+    ])));
+}
+
+function projectFingerprint(project) {
+    if (project === undefined) return null;
+
+    try {
+        return JSON.stringify(project);
+    } catch {
+        throw new TypeError('Das GrapesJS-Projekt muss eine serialisierbare JSON-Struktur sein.');
+    }
+}
+
+function mergeCanonicalProjectEnvelope(canonicalProject, projectedProject) {
+    if (canonicalProject === undefined || canonicalProject === null
+        || typeof canonicalProject !== 'object' || Array.isArray(canonicalProject)
+        || projectedProject === undefined || projectedProject === null
+        || typeof projectedProject !== 'object' || Array.isArray(projectedProject)) {
+        return projectedProject;
+    }
+
+    // GrapesJS serialisiert nur seine bekannten Root-Kanaele. Eigene,
+    // serverseitig validierte Metadaten (z. B. railtime.template/format/schema)
+    // duerfen bei der ersten echten Bearbeitung deshalb nicht verschwinden.
+    // Aktuelle Editor-Kanaele gewinnen; fehlende Root-Kanaele stammen aus der
+    // kanonischen Serverfassung und werden im Backend erneut streng validiert.
+    return Object.fromEntries([
+        ...Object.entries(canonicalProject),
+        ...Object.entries(projectedProject),
+    ]);
+}
+
+function freezeFidelityReport(profile, revision, channels, compilerAvailable, projectChannel = null) {
+    const entries = Object.fromEntries(PAGE_BUILDER_FIDELITY_CHANNELS.map((channel) => {
+        const changed = Boolean(channels[channel].changed);
+        return [channel, Object.freeze({
+            changed,
+            sourcePreserved: !changed,
+            decision: changed ? 'editor-projection' : 'canonical-source',
+        })];
+    }));
+    if (projectChannel) entries.project = Object.freeze(projectChannel);
+    const reportChannels = Object.keys(entries);
+    const changedChannels = reportChannels.filter((channel) => entries[channel].changed);
+    const preservedChannels = reportChannels.filter((channel) => entries[channel].sourcePreserved);
+
+    return Object.freeze({
+        mode: profile.id,
+        revision,
+        contentStrategy: profile.contentStrategy,
+        styleStrategy: profile.styleStrategy,
+        fidelityStrategy: profile.fidelityStrategy,
+        blockPrefix: profile.blockPrefix,
+        requiresCompiler: profile.requiresCompiler,
+        compilerAvailable,
+        committable: !profile.requiresCompiler || compilerAvailable,
+        changedChannels: Object.freeze(changedChannels),
+        preservedChannels: Object.freeze(preservedChannels),
+        channels: Object.freeze(entries),
+    });
+}
+
+/**
+ * Bewahrt die kanonische HTML-/CSS-/Projektquelle getrennt von der GrapesJS-
+ * Projektion. GrapesJS darf beim Einlesen Markup und CSS normalisieren; solange
+ * ein Kanal im Editor unveraendert bleibt, wird deshalb beim Speichern exakt
+ * die kanonische Quelle dieses Kanals verwendet. Nur tatsaechlich bearbeitete
+ * Kanaele werden aus der aktuellen Projektion uebernommen.
+ *
+ * `projection` muss die direkt nach dem Laden gelesene GrapesJS-Projektion
+ * enthalten. Alternativ liest `editor.getHtml()`/`editor.getCss()` sie beim
+ * Erzeugen der Session. Bei spaeter erzeugten Editoren setzt
+ * `captureProjection({ project, html, css })` einmal die geladene Referenz.
+ * `capture()` ist eine verlustfreie Vorschau, `report()` erklaert die
+ * Kanalentscheidung, und `serialize()` liefert die speicherbare Quelle samt
+ * unveraendertem `project`. `commit(projection)` kompiliert und uebernimmt eine
+ * lokale Projektion. Eine bereits serverseitig normalisierte Antwort wird nur
+ * ueber den ausdruecklichen Vertrauenspfad `acknowledgeServer(...)` als neue
+ * Quelle bestaetigt.
+ * Mail-Quellen sind bei `serialize()` und `commit()` nur mit einem expliziten
+ * Compiler zulaessig, damit Browser-HTML nie versehentlich als Versand-HTML
+ * gilt. Ein asynchroner Compiler macht entsprechend `serialize()` asynchron.
+ */
+export function createPageBuilderFidelitySession({
+    mode = 'website',
+    source = {},
+    sourceProject = undefined,
+    projection = null,
+    editor = null,
+    readProjection = null,
+    compiler = null,
+} = {}) {
+    const profile = resolveLmzEditorMode(mode);
+    const compilerAvailable = typeof compiler === 'function';
+    if (compiler !== null && compiler !== undefined && !compilerAvailable) {
+        throw new TypeError('Der PageBuilder-Compiler muss eine Funktion sein.');
+    }
+    if (readProjection !== null && readProjection !== undefined && typeof readProjection !== 'function') {
+        throw new TypeError('Der PageBuilder-Projektionsleser muss eine Funktion sein.');
+    }
+
+    const projectionReader = readProjection || (editor
+        ? () => ({ html: editor.getHtml?.() ?? '', css: editor.getCss?.() ?? '' })
+        : null);
+    const readChannels = (provided, fallback) => {
+        const value = provided ?? projectionReader?.() ?? fallback;
+        if (value && typeof value.then === 'function') {
+            throw new TypeError('Die GrapesJS-Projektion muss synchron gelesen werden.');
+        }
+        return normalizeFidelityChannels(value, fallback);
+    };
+
+    let canonicalSource = normalizeFidelityChannels(source);
+    let canonicalProject = sourceProject;
+    let baselineProjection = readChannels(projection, canonicalSource);
+    let baselineProject = projection
+        && typeof projection === 'object'
+        && Object.prototype.hasOwnProperty.call(projection, 'project')
+        ? projection.project
+        : undefined;
+    let revision = 0;
+
+    const snapshot = (providedProjection) => {
+        const currentProjection = readChannels(providedProjection, baselineProjection);
+        const currentProject = providedProjection
+            && typeof providedProjection === 'object'
+            && Object.prototype.hasOwnProperty.call(providedProjection, 'project')
+            ? providedProjection.project
+            : baselineProject;
+        const channels = Object.fromEntries(PAGE_BUILDER_FIDELITY_CHANNELS.map((channel) => {
+            const changed = currentProjection[channel] !== baselineProjection[channel];
+            return [channel, {
+                changed,
+                value: changed ? currentProjection[channel] : canonicalSource[channel],
+            }];
+        }));
+        const hasCanonicalProject = canonicalProject !== undefined;
+        const projectChanged = hasCanonicalProject
+            && projectFingerprint(currentProject) !== projectFingerprint(baselineProject);
+        const project = hasCanonicalProject && !projectChanged
+            ? canonicalProject
+            : mergeCanonicalProjectEnvelope(canonicalProject, currentProject);
+        const projectChannel = hasCanonicalProject ? {
+            changed: projectChanged,
+            sourcePreserved: !projectChanged,
+            decision: projectChanged ? 'editor-projection' : 'canonical-source',
+        } : null;
+        const fidelityReport = freezeFidelityReport(
+            profile,
+            revision,
+            channels,
+            compilerAvailable,
+            projectChannel,
+        );
+        const projectionSnapshot = Object.freeze({
+            ...currentProjection,
+            ...(currentProject === undefined ? {} : { project: currentProject }),
+        });
+
+        return Object.freeze({
+            mode: profile.id,
+            profile,
+            revision,
+            html: channels.html.value,
+            css: channels.css.value,
+            project,
+            projection: projectionSnapshot,
+            compiled: false,
+            serializable: !profile.requiresCompiler,
+            report: fidelityReport,
+        });
+    };
+
+    const normalizeCompiledSource = (compiled) => {
+        if (compiled === null || typeof compiled !== 'object' || Array.isArray(compiled)) {
+            throw new TypeError('Der PageBuilder-Compiler muss ein Objekt mit html- und css-Kanal zurückgeben.');
+        }
+        if (!Object.prototype.hasOwnProperty.call(compiled, 'html')
+            || !Object.prototype.hasOwnProperty.call(compiled, 'css')) {
+            throw new TypeError('Der PageBuilder-Compiler muss html und css explizit zurückgeben.');
+        }
+
+        return normalizeFidelityChannels(compiled);
+    };
+
+    const compilerInput = (captured) => Object.freeze({
+        mode: profile.id,
+        profile,
+        html: captured.html,
+        css: captured.css,
+        project: captured.project,
+        projection: captured.projection,
+        report: captured.report,
+    });
+
+    const serializedSnapshot = (captured) => {
+        if (profile.requiresCompiler && !compilerAvailable) {
+            throw new Error(`Der Modus ${profile.id} benötigt vor dem Speichern einen expliziten Compiler.`);
+        }
+        if (!compilerAvailable) {
+            return Object.freeze({
+                ...captured,
+                serializable: true,
+            });
+        }
+
+        const compiled = compiler(compilerInput(captured));
+        const finalize = (result) => {
+            const compiledSource = normalizeCompiledSource(result);
+            return Object.freeze({
+                ...captured,
+                html: compiledSource.html,
+                css: compiledSource.css,
+                compiled: true,
+                serializable: true,
+            });
+        };
+
+        return compiled && typeof compiled.then === 'function'
+            ? Promise.resolve(compiled).then(finalize)
+            : finalize(compiled);
+    };
+
+    const api = {
+        profile,
+        captureProjection(currentProjection = undefined) {
+            baselineProjection = readChannels(currentProjection, baselineProjection);
+            if (currentProjection
+                && typeof currentProjection === 'object'
+                && Object.prototype.hasOwnProperty.call(currentProjection, 'project')) {
+                baselineProject = currentProjection.project;
+            }
+            return snapshot(currentProjection);
+        },
+        capture(currentProjection = undefined) {
+            return snapshot(currentProjection);
+        },
+        report(currentProjection = undefined) {
+            return snapshot(currentProjection).report;
+        },
+        serialize(currentProjection = undefined) {
+            return serializedSnapshot(snapshot(currentProjection));
+        },
+        async commit(change = undefined) {
+            if (change
+                && typeof change === 'object'
+                && Object.prototype.hasOwnProperty.call(change, 'source')) {
+                throw new TypeError('Serverantworten müssen ausdrücklich mit acknowledgeServer() bestätigt werden.');
+            }
+            const captured = snapshot(change);
+            const serialized = await serializedSnapshot(captured);
+            const committedSource = normalizeFidelityChannels({ html: serialized.html, css: serialized.css });
+
+            canonicalSource = committedSource;
+            canonicalProject = serialized.project;
+            baselineProjection = captured.projection;
+            baselineProject = captured.projection.project;
+            revision += 1;
+
+            return Object.freeze({
+                ...captured,
+                revision,
+                html: committedSource.html,
+                css: committedSource.css,
+                project: captured.project,
+                compiled: serialized.compiled,
+                serializable: true,
+                report: Object.freeze({
+                    ...captured.report,
+                    revision,
+                    committed: true,
+                    compiled: serialized.compiled,
+                }),
+            });
+        },
+        acknowledgeServer({ source: persistedSource, project, projection: persistedProjection } = {}) {
+            canonicalSource = normalizeFidelityChannels(persistedSource);
+            if (project !== undefined) canonicalProject = project;
+            baselineProjection = readChannels(persistedProjection, baselineProjection);
+            if (persistedProjection
+                && typeof persistedProjection === 'object'
+                && Object.prototype.hasOwnProperty.call(persistedProjection, 'project')) {
+                baselineProject = persistedProjection.project;
+            }
+            revision += 1;
+            const acknowledged = snapshot(persistedProjection);
+
+            return Object.freeze({
+                ...acknowledged,
+                revision,
+                serverAcknowledged: true,
+                compiled: false,
+                report: Object.freeze({
+                    ...acknowledged.report,
+                    revision,
+                    serverAcknowledged: true,
+                }),
+            });
+        },
+    };
+
+    return Object.freeze(api);
 }
 
 function number(value, fallback = 0) {
@@ -275,7 +620,7 @@ function dispatch(root, name, detail = {}) {
     root.dispatchEvent(new CustomEvent(name, { bubbles: true, detail }));
 }
 
-export function normalizeLmzCapabilities(mode = 'marketing', capabilities = {}) {
+export function normalizeLmzCapabilities(mode = 'website', capabilities = {}) {
     const profile = resolveLmzEditorMode(mode);
     const normalizedMode = profile.id;
     const merged = {
@@ -466,13 +811,14 @@ function normalizedToken(token) {
 export function collectUsedMedia({
     html = '',
     css = '',
-    mode = 'marketing',
+    mode = 'website',
     assets = [],
     trustedSources = [],
     tokenMedia = [],
     baseUrl = 'http://localhost/',
     environment = {},
 } = {}) {
+    const profile = resolveLmzEditorMode(mode);
     const library = (Array.isArray(assets) ? assets : [])
         .map((asset) => normalizeAsset(asset, baseUrl))
         .filter((asset) => asset.src && asset.type === 'image');
@@ -482,7 +828,7 @@ export function collectUsedMedia({
     const seen = new Set();
     const warnings = [];
 
-    if (mode === 'mail') {
+    if (profile.id === 'mail') {
         const source = `${html}\n${css}`;
         const markerTokens = [];
         source.replace(/data-rt-mail-preview-(?:token|train)\s*=\s*["']([A-Z0-9_]+)["']/gi, (_match, token) => {
@@ -900,7 +1246,8 @@ export function createScopedAssetCallbackSelection({
     };
 }
 
-export function resolveEditableImageComponent(editor, selected = null, { mode = 'marketing' } = {}) {
+export function resolveEditableImageComponent(editor, selected = null, { mode = 'website' } = {}) {
+    resolveLmzEditorMode(mode);
     const image = resolveInspectableImageComponent(editor, selected);
     if (!image || isProtectedEditorImage(image, mode)) return null;
 
@@ -931,13 +1278,15 @@ export function createImageAssetSelection({
     editor,
     target = null,
     assets = [],
-    mode = 'marketing',
+    mode = 'website',
     baseUrl = globalThis.location?.origin || 'http://localhost/',
     onSelected = null,
 } = {}) {
-    const image = resolveEditableImageComponent(editor, target, { mode });
+    const profile = resolveLmzEditorMode(mode);
+    const normalizedMode = profile.id;
+    const image = resolveEditableImageComponent(editor, target, { mode: profile });
     if (!image) {
-        throw new Error(mode === 'mail'
+        throw new Error(normalizedMode === 'mail'
             ? 'Markenmedien und Mail-Tokens sind geschützt und können hier nicht ersetzt werden.'
             : 'Bitte genau ein bearbeitbares Bild auswählen.');
     }
@@ -962,7 +1311,7 @@ export function createImageAssetSelection({
             if (isAnimatedImageSource(source, normalized.mime)) attributes['data-rt-animated-media'] = 'gif';
             image.set?.('src', source);
             image.addAttributes?.(attributes);
-            if (mode === 'mail') {
+            if (normalizedMode === 'mail') {
                 const currentAttributes = image.getAttributes?.() || image.get?.('attributes') || {};
                 const currentStyle = image.getStyle?.() || {};
                 const requestedWidth = Number(normalized.width || currentAttributes.width || 600);
@@ -1000,7 +1349,9 @@ export function createImageAssetSelection({
  * them through the scoped RailTime drawer so protected logos/QR codes and
  * out-of-pool URLs can never reach the native AssetManager dialog.
  */
-export function installScopedAssetAccess({ editor, mediaDrawer, mode = 'marketing' } = {}) {
+export function installScopedAssetAccess({ editor, mediaDrawer, mode = 'website' } = {}) {
+    const profile = resolveLmzEditorMode(mode);
+    const normalizedMode = profile.id;
     const commands = editor?.Commands;
     const assetManager = editor?.AssetManager;
     if (!commands?.add || !mediaDrawer?.open) return () => {};
@@ -1020,7 +1371,7 @@ export function installScopedAssetAccess({ editor, mediaDrawer, mode = 'marketin
             || assetManager?.getTarget?.()
             || editor?.getSelected?.()
             || null;
-        if (candidate && isProtectedEditorImage(candidate, mode)) {
+        if (candidate && isProtectedEditorImage(candidate, normalizedMode)) {
             assetManager?.setTarget?.(null);
             return false;
         }
@@ -1030,7 +1381,7 @@ export function installScopedAssetAccess({ editor, mediaDrawer, mode = 'marketin
         // Callback. Er bleibt im RailTime-Drawer, bekommt aber ausschliesslich
         // ein bereits serverseitig freigegebenes FilePool-Asset zurueck.
         if (!requestedTarget && typeof requestedOptions?.select === 'function') {
-            if (mode !== 'marketing') return false;
+            if (normalizedMode === 'mail') return false;
             mediaDrawer.open({
                 selectAsset: requestedOptions.select,
                 initialTab: 'library',
@@ -1038,7 +1389,7 @@ export function installScopedAssetAccess({ editor, mediaDrawer, mode = 'marketin
             return true;
         }
 
-        const image = resolveEditableImageComponent(editor, candidate, { mode });
+        const image = resolveEditableImageComponent(editor, candidate, { mode: profile });
         if (image && mediaDrawer.canReplace?.(image) === false) return false;
         const opened = mediaDrawer.open(image
             ? { replaceTarget: image, initialTab: 'library' }
@@ -2490,7 +2841,7 @@ let imagePropertiesPanelSequence = 0;
  * Attribute geschrieben. Die vertikale Ueberlappung bleibt dagegen ein
  * normaler, editierbarer Pixel-Margin und darf ausdruecklich negativ sein.
  */
-function createImagePropertiesPanel({ root, editor, mode = 'marketing', capabilities, media = {}, onChanged }) {
+function createImagePropertiesPanel({ root, editor, mode = 'website', capabilities, media = {}, onChanged }) {
     const document_ = root.ownerDocument;
     imagePropertiesPanelSequence += 1;
     const sourceHintId = `rt-lmz-image-source-hint-${imagePropertiesPanelSequence}`;
@@ -3734,12 +4085,12 @@ function componentTag(component) {
     return String(component?.get?.('tagName') || component?.getEl?.()?.tagName || '').toLowerCase();
 }
 
-function assistantSelectionProtected(component, mode) {
+function assistantSelectionProtected(component, profile) {
     const attributes = componentAttributes(component);
     const tag = componentTag(component);
     const block = String(attributes['data-rt-block'] || '');
     if (attributes['data-rt-brand-lockup'] || attributes['data-rt-qr-binding'] || ['logo-light', 'logo-dark', 'qr'].includes(block)) return true;
-    if (mode !== 'mail') return false;
+    if (profile.id !== 'mail') return false;
     const structural = new Set(['html', 'head', 'body', 'style', 'table', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th']);
     return structural.has(tag)
         || Boolean(attributes['data-rt-mail-preview-token'] || attributes['data-rt-mail-preview-train'])
@@ -3753,13 +4104,12 @@ function assetFileId(asset) {
     return match ? Number(match[1]) : null;
 }
 
-function availableEditorBlockIds(editor, mode, configured = []) {
-    const prefix = mode === 'mail' ? 'rt-mail-' : 'rt-marketing-';
+function availableEditorBlockIds(editor, profile, configured = []) {
     const fromManager = editor?.BlockManager?.getAll?.()?.models || [];
     return [...new Set([
         ...(configured || []),
         ...fromManager.map((block) => String(block?.get?.('id') || block?.id || '')),
-    ].filter((id) => String(id).startsWith(prefix)))];
+    ].filter((id) => String(id).startsWith(profile.blockPrefix)))];
 }
 
 function insertAssistantBlock(editor, blockId, position, selected) {
@@ -3783,7 +4133,7 @@ export function createLmzAssistantAdapter({
     root,
     instance,
     chrome,
-    mode = 'marketing',
+    mode = 'website',
     routeName,
     resourceId,
     formatOrKind = () => '',
@@ -3799,7 +4149,9 @@ export function createLmzAssistantAdapter({
     const rootElement = asElement(root);
     const editor = instance?.editor;
     if (!rootElement || !editor) return null;
-    const normalizedMode = mode === 'mail' ? 'mail' : 'marketing';
+    const profile = resolveLmzEditorMode(mode);
+    const normalizedMode = profile.id;
+    const modeCapabilities = normalizeLmzCapabilities(profile);
     const window_ = rootElement.ownerDocument?.defaultView || globalThis.window;
     const workspaceNonce = assistantNonce('workspace');
     let selectionNonce = assistantNonce('selection');
@@ -3810,11 +4162,9 @@ export function createLmzAssistantAdapter({
     const capabilities = [
         'open_fullscreen', 'open_panel', 'focus_selection', 'edit_text', 'set_style',
         'add_block', 'undo', 'redo', 'preview', 'save', 'gif_preview',
-        ...(normalizedMode === 'marketing' ? [
-            'replace_image',
-            'animation',
-            ...(typeof redesignDocument === 'function' ? ['redesign_document'] : []),
-        ] : []),
+        ...(modeCapabilities.imageReplace === true ? ['replace_image'] : []),
+        ...(modeCapabilities.animation ? ['animation'] : []),
+        ...(normalizedMode === 'marketing' && typeof redesignDocument === 'function' ? ['redesign_document'] : []),
     ];
     const createWindowEvent = (name, detail) => {
         const EventConstructor = window_?.CustomEvent || globalThis.CustomEvent;
@@ -3859,7 +4209,7 @@ export function createLmzAssistantAdapter({
             const source = String(component?.get?.('src') || attributes.src || '');
             const asset = (assets || []).find((candidate) => canonicalMediaSource(assetSource(candidate), window_?.location?.origin)
                 === canonicalMediaSource(source, window_?.location?.origin));
-            const protectedSelection = assistantSelectionProtected(component, normalizedMode);
+            const protectedSelection = assistantSelectionProtected(component, profile);
             const animated = resolveAnimatedComponent(component) || (componentAnimationContext(component).animated ? component : null);
             const selectionFingerprint = await fingerprint({
                 cid: component.cid || component?.get?.('id') || '',
@@ -3876,9 +4226,9 @@ export function createLmzAssistantAdapter({
                 block_id: String(attributes['data-rt-block'] || attributes.id || component?.get?.('name') || '').slice(0, 80),
                 text,
                 styles: style,
-                image_file_id: normalizedMode === 'marketing' ? assetFileId(asset) : null,
+                image_file_id: modeCapabilities.imageReplace === true ? assetFileId(asset) : null,
                 protected: protectedSelection,
-                motion_allowed: normalizedMode === 'marketing' && !protectedSelection,
+                motion_allowed: modeCapabilities.animation && !protectedSelection,
                 gif: Boolean(animated),
             };
         }
@@ -3919,7 +4269,7 @@ export function createLmzAssistantAdapter({
                 unsaved: Boolean(instance.hasUnsavedChanges?.()),
                 selection: await currentSelection(),
                 capabilities,
-                available_block_ids: availableEditorBlockIds(editor, normalizedMode, availableBlockIds),
+                available_block_ids: availableEditorBlockIds(editor, profile, availableBlockIds),
                 validation: { state: issues.length ? 'warning' : 'valid', issues },
             };
         },
@@ -3939,29 +4289,29 @@ export function createLmzAssistantAdapter({
         openPanel(panel) { return chrome?.openPanel?.(panel) || false; },
         editText(text) {
             const component = verifiedComponent();
-            if (!component || assistantSelectionProtected(component, normalizedMode)) return false;
+            if (!component || assistantSelectionProtected(component, profile)) return false;
             if (String(component?.get?.('type') || '').toLowerCase() === 'textnode') component.set?.('content', text);
             else component.components?.([{ type: 'textnode', content: String(text) }]);
             return true;
         },
         setStyle(property, value) {
             const component = verifiedComponent();
-            if (!component || assistantSelectionProtected(component, normalizedMode)) return false;
+            if (!component || assistantSelectionProtected(component, profile)) return false;
             component.addStyle?.({ [property]: value });
             return true;
         },
         replaceImageByFileId(fileId) {
-            if (normalizedMode !== 'marketing') return false;
+            if (modeCapabilities.imageReplace !== true) return false;
             const asset = (assets || []).find((candidate) => assetFileId(candidate) === Number(fileId));
             if (!asset) return false;
             const target = verifiedComponent();
             if (!target) return false;
-            const selection = createImageAssetSelection({ editor, assets, target, mode: 'marketing', baseUrl: window_?.location?.origin });
+            const selection = createImageAssetSelection({ editor, assets, target, mode: normalizedMode, baseUrl: window_?.location?.origin });
             selection.select(asset, true);
             return true;
         },
         addBlock(blockId, position) {
-            if (!availableEditorBlockIds(editor, normalizedMode, availableBlockIds).includes(blockId)) return false;
+            if (!availableEditorBlockIds(editor, profile, availableBlockIds).includes(blockId)) return false;
             const component = verifiedComponent();
             return component ? insertAssistantBlock(editor, blockId, position, component) : false;
         },
@@ -3976,9 +4326,9 @@ export function createLmzAssistantAdapter({
         },
         restartGifPreview() { return chrome?.restartGif?.(verifiedComponent()) || false; },
         setAnimation(field, value) {
-            if (normalizedMode !== 'marketing') return false;
+            if (!modeCapabilities.animation) return false;
             const component = verifiedComponent();
-            if (!component || assistantSelectionProtected(component, normalizedMode)) return false;
+            if (!component || assistantSelectionProtected(component, profile)) return false;
             const sanitized = sanitizeMotionSettings({ [field]: value });
             if (!Object.prototype.hasOwnProperty.call(sanitized, field)) return false;
             applyMotionSettings(component, { [field]: value });
@@ -4010,7 +4360,7 @@ export function createLmzAssistantAdapter({
 export function createLmzEditorChrome({
     instance,
     root,
-    mode = 'marketing',
+    mode = 'website',
     layout = 'default',
     capabilities = {},
     media = {},
@@ -4031,7 +4381,10 @@ export function createLmzEditorChrome({
     rootElement.dataset.rtLmzMode = normalizedMode;
     rootElement.dataset.rtLmzModeLabel = profile.label;
     rootElement.dataset.rtLmzContentModel = profile.contentModel;
+    rootElement.dataset.rtLmzContentStrategy = profile.contentStrategy;
     rootElement.dataset.rtLmzStyleStrategy = profile.styleStrategy;
+    rootElement.dataset.rtLmzFidelityStrategy = profile.fidelityStrategy;
+    rootElement.dataset.rtLmzBlockPrefix = profile.blockPrefix;
     rootElement.dataset.rtLmzOpen = isOpen ? 'true' : 'false';
     rootElement.dataset.rtLmzReadOnly = normalized.writable ? 'false' : 'true';
     const readOnlyMounts = !normalized.writable
@@ -4369,7 +4722,10 @@ export function createLmzEditorChrome({
             delete rootElement.dataset.rtLmzMode;
             delete rootElement.dataset.rtLmzModeLabel;
             delete rootElement.dataset.rtLmzContentModel;
+            delete rootElement.dataset.rtLmzContentStrategy;
             delete rootElement.dataset.rtLmzStyleStrategy;
+            delete rootElement.dataset.rtLmzFidelityStrategy;
+            delete rootElement.dataset.rtLmzBlockPrefix;
             delete rootElement.dataset.rtLmzOpen;
             delete rootElement.dataset.rtLmzReadOnly;
             delete rootElement.dataset.rtLmzHasSelection;

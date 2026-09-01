@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\MarketingCreativeTransferController;
 use App\Http\Controllers\Admin\MarketingFileController;
 use App\Http\Controllers\Admin\MarketingRenderController;
 use App\Http\Controllers\Admin\MarketingVariantController;
+use App\Http\Controllers\Admin\OutlookAddinDeploymentController;
 use App\Http\Controllers\Admin\PageBuilderPreviewController;
 use App\Http\Controllers\Assistant\AssistantAudioInputTranscriptionController;
 use App\Http\Controllers\Assistant\AssistantAudioOutputStreamController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\ChatExportController;
 use App\Http\Controllers\ChatLiveLocationController;
 use App\Http\Controllers\DeviceInventoryTemplateController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
+use App\Http\Controllers\OutlookAddin\OutlookAddinController;
 use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\PwaIconController;
@@ -62,6 +64,29 @@ Route::get('/pwa-icons/{icon}', PwaIconController::class)
     ->whereIn('icon', array_keys(PwaIcon::DIMENSIONS))
     ->withoutMiddleware(LogActivity::class)
     ->name('pwa.icon');
+
+// Oeffentliche, geheimnisfreie Office-Add-in-Oberflaechen. Authentifiziert
+// wird ausschliesslich der persoenliche API-Abruf per Microsoft Entra NAA.
+Route::get('/outlook-addin/config.json', [OutlookAddinController::class, 'config'])
+    ->withoutMiddleware(LogActivity::class)
+    ->name('outlook-addin.config');
+Route::get('/outlook-addin/taskpane', [OutlookAddinController::class, 'taskpane'])
+    ->withoutMiddleware(LogActivity::class)
+    ->name('outlook-addin.taskpane');
+Route::get('/outlook-addin/runtime', [OutlookAddinController::class, 'runtime'])
+    ->withoutMiddleware(LogActivity::class)
+    ->name('outlook-addin.runtime');
+Route::get('/outlook-addin/{bundle}.js', [OutlookAddinController::class, 'bundle'])
+    ->whereIn('bundle', ['runtime', 'taskpane'])
+    ->withoutMiddleware(LogActivity::class)
+    ->name('outlook-addin.bundle');
+Route::get('/outlook-addin/assets/icon-{size}.png', [OutlookAddinController::class, 'icon'])
+    ->whereNumber('size')
+    ->withoutMiddleware(LogActivity::class)
+    ->name('outlook-addin.icon');
+Route::get('/.well-known/microsoft-officeaddins-allowed.json', [OutlookAddinController::class, 'allowed'])
+    ->withoutMiddleware(LogActivity::class)
+    ->name('outlook-addin.allowed');
 
 // Legacy-Pfad fuer bereits installierte Manifeste/Service Worker. Auf Servern,
 // die physische Unterordner vor Laravel abfangen, zeigt die Anwendung selbst
@@ -254,6 +279,12 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/files/verbindlich', ManagedDocuments::class)->name('managed-documents');
         Route::get('/mails', MailManagement::class)->name('mail-management');
         Route::get('/mail-vorlagen', MailDocumentEditor::class)->name('mail-documents.editor');
+        Route::get('/mail-vorlagen/outlook/manifest.xml', [OutlookAddinDeploymentController::class, 'manifest'])
+            ->withoutMiddleware('role:admin')
+            ->name('outlook-addin.manifest');
+        Route::get('/mail-vorlagen/outlook/bereitstellung.zip', [OutlookAddinDeploymentController::class, 'package'])
+            ->withoutMiddleware('role:admin')
+            ->name('outlook-addin.package');
         // Speichern und Veroeffentlichen antworten mit JSON. role:admin ist
         // dafuer abgeschaltet, weil RoleMiddleware bei falscher Rolle
         // weiterleitet statt 403 zu liefern — im Editor kaeme sonst eine

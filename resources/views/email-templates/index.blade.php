@@ -18,6 +18,9 @@
         $missingPhone = $templateValues['DURCHWAHL'] === '' && $templateValues['MOBIL'] === '';
         $missingPosition = blank($user->profile?->position);
         $missingContactData = $missingPhone || $missingPosition;
+        $outlookAddinConfiguration = app(\App\Support\OutlookAddin\OutlookAddinConfiguration::class);
+        $outlookAddinDeployed = $outlookAddinConfiguration->deployed();
+        $outlookAddinReady = $outlookAddinConfiguration->availableTo($user);
         $themes = [
             'light' => [
                 'label' => __('app.email_templates_theme_light'),
@@ -279,14 +282,50 @@
                 </aside>
             @endif
 
-            <section
-                class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
+            @if ($outlookAddinReady)
+                <section
+                    class="flex flex-col gap-3 rounded-2xl bg-emerald-50 px-4 py-4 text-emerald-950 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-100 dark:ring-emerald-400/20 sm:flex-row sm:items-center sm:px-5"
+                    data-outlook-addin-managed
+                >
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                        <i class="far fa-check" aria-hidden="true"></i>
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <h2 class="text-sm font-semibold">Für Outlook zentral eingerichtet</h2>
+                        <p class="mt-0.5 text-xs leading-5 opacity-80">
+                            Bei neuen E-Mails, Antworten und Weiterleitungen setzt Outlook automatisch die aktuell veröffentlichte RailTime-Signatur ein. Sie müssen nichts herunterladen oder kopieren.
+                        </p>
+                    </div>
+                </section>
+            @elseif ($outlookAddinDeployed)
+                <section class="flex items-center gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-amber-950 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-100 dark:ring-amber-400/20">
+                    <i class="far fa-clock shrink-0" aria-hidden="true"></i>
+                    <p class="text-xs leading-5">Ihr Outlook-Zugang wird noch durch die IT verknüpft. Bis dahin bleibt die manuelle Einrichtung verfügbar.</p>
+                </section>
+            @endif
+
+            <details
+                @if (! $outlookAddinReady) open @endif
+                class="group overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
                 aria-labelledby="email-template-downloads-heading"
                 data-email-template-primary-downloads
             >
-                <h2 id="email-template-downloads-heading" class="sr-only">{{ __('app.email_templates_short_hint') }}</h2>
+                <summary class="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-rt-red/15 dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted sm:px-5 [&::-webkit-details-marker]:hidden">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-red dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
+                        <i class="far fa-screwdriver-wrench" aria-hidden="true"></i>
+                    </span>
+                    <span class="min-w-0 flex-1">
+                        <span id="email-template-downloads-heading" class="block">
+                            {{ $outlookAddinReady ? 'Manuelle Einrichtung' : __('app.email_templates_short_hint') }}
+                        </span>
+                        <span class="mt-0.5 block text-xs font-normal text-rt-muted dark:text-rt-dark-muted">
+                            {{ $outlookAddinReady ? 'Nur verwenden, wenn das zentrale Outlook-Add-in auf einem Gerät nicht verfügbar ist.' : 'Signatur und Vorlage für das verwendete Mailprogramm bereitstellen.' }}
+                        </span>
+                    </span>
+                    <i class="far fa-chevron-down text-xs text-rt-soft transition group-open:rotate-180 dark:text-rt-dark-soft" aria-hidden="true"></i>
+                </summary>
 
-                <div class="divide-y divide-rt-border/70 dark:divide-rt-dark-border/70">
+                <div class="divide-y divide-rt-border/70 border-t border-rt-border/70 dark:divide-rt-dark-border/70 dark:border-rt-dark-border/70">
                     <article
                         class="grid min-w-0 gap-4 bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(25rem,31rem)] lg:items-center"
                         data-email-template-primary-download="signature"
@@ -375,7 +414,7 @@
                         </div>
                     </article>
                 </div>
-            </section>
+            </details>
             @if ($user?->isAdmin() && $adminMailDocuments->isNotEmpty())
                 <details
                     class="group overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"

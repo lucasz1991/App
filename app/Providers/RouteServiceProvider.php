@@ -53,6 +53,15 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinutes(10, 3)->by($request->user()?->id ?: $request->ip());
         });
 
+        RateLimiter::for('outlook-addin', function (Request $request) {
+            $tokenFingerprint = hash('sha256', (string) $request->bearerToken());
+
+            return [
+                Limit::perMinute(60)->by('outlook-addin-token:'.$tokenFingerprint),
+                Limit::perMinute(120)->by('outlook-addin-ip:'.$request->ip()),
+            ];
+        });
+
         RateLimiter::for('chat-live-location-start', function (Request $request) {
             $actor = $request->user()?->id ?: $request->ip();
 

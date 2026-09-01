@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AccountProvider;
 use App\Enums\MailDocumentKind;
 use App\Enums\MailDocumentStatus;
+use App\Http\Middleware\LogActivity;
+use App\Models\EmployeeIdentityAccount;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Models\UserProfile;
@@ -14,9 +17,18 @@ use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\MailSignature;
+use App\Support\OutlookAddin\EntraAccessTokenValidator;
+use App\Support\OutlookAddin\OutlookAddinException;
+use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
+use App\Support\OutlookAddin\OutlookAddinPayloadService;
+use App\Support\OutlookAddin\VerifiedEntraIdentity;
 use App\Support\PageHelpCatalog;
+use Firebase\JWT\JWT;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -37,6 +49,279 @@ class EmailTemplatesPageTest extends TestCase
     {
         $this->get(route('email-templates.index'))
             ->assertRedirect(route('login'));
+    }
+
+    public function test_outlook_addin_public_config_is_fail_closed_and_contains_no_secret(): void
+    {
+        config([
+            'outlook_addin.enabled' => false,
+            'outlook_addin.deployed' => false,
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+            'outlook_addin.entra.tenant_id' => '',
+            'outlook_addin.entra.client_id' => '',
+            'outlook_addin.entra.audience' => '',
+            'outlook_addin.entra.scope_uri' => '',
+        ]);
+
+        $this->get(route('outlook-addin.config'))
+            ->assertOk()
+            ->assertHeader('x-content-type-options', 'nosniff')
+            ->assertJsonPath('ready', false)
+            ->assertJsonMissingPath('auth.clientSecret')
+            ->assertJsonMissingPath('token');
+
+        $this->getJson(route('api.outlook-addin.bootstrap'))
+            ->assertUnauthorized()
+            ->assertJsonPath('error', 'outlook_addin_unauthorized');
+    }
+
+    public function test_outlook_addin_validates_a_real_entra_rs256_access_token(): void
+    {
+        $tenantId = '11111111-1111-4111-8111-111111111111';
+        $clientId = '22222222-2222-4222-8222-222222222222';
+        $objectId = '33333333-3333-4333-8333-333333333333';
+        config([
+            'outlook_addin.enabled' => true,
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+            'outlook_addin.entra.tenant_id' => $tenantId,
+            'outlook_addin.entra.client_id' => $clientId,
+            'outlook_addin.entra.audience' => $clientId,
+            'outlook_addin.entra.scope' => 'Signature.Read',
+            'outlook_addin.entra.scope_uri' => "api://{$clientId}/Signature.Read",
+        ]);
+
+        $key = openssl_pkey_new([
+            'private_key_bits' => 2048,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+        ]);
+        $this->assertNotFalse($key);
+        $this->assertTrue(openssl_pkey_export($key, $privateKey));
+        $details = openssl_pkey_get_details($key);
+        $this->assertIsArray($details);
+
+        Http::fake([
+            "https://login.microsoftonline.com/{$tenantId}/discovery/v2.0/keys" => Http::response([
+                'keys' => [[
+                    'kty' => 'RSA',
+                    'use' => 'sig',
+                    'kid' => 'railtime-test-key',
+                    'alg' => 'RS256',
+                    'n' => $this->base64Url((string) $details['rsa']['n']),
+                    'e' => $this->base64Url((string) $details['rsa']['e']),
+                ]],
+            ]),
+        ]);
+        Cache::flush();
+
+        $token = JWT::encode([
+            'aud' => $clientId,
+            'iss' => "https://login.microsoftonline.com/{$tenantId}/v2.0",
+            'iat' => time() - 5,
+            'nbf' => time() - 5,
+            'exp' => time() + 300,
+            'tid' => $tenantId,
+            'oid' => $objectId,
+            'scp' => 'openid profile Signature.Read',
+            'azp' => $clientId,
+            'preferred_username' => 'mara@example.com',
+            'name' => 'Mara Beispiel',
+        ], $privateKey, 'RS256', 'railtime-test-key');
+
+        $identity = app(EntraAccessTokenValidator::class)->validate($token);
+
+        $this->assertSame($tenantId, $identity->tenantId);
+        $this->assertSame($objectId, $identity->objectId);
+        $this->assertSame('mara@example.com', $identity->principal);
+        $this->assertSame('Mara Beispiel', $identity->displayName);
+        Http::assertSentCount(1);
+    }
+
+    public function test_outlook_addin_requires_a_preprovisioned_identity_and_matching_mailbox(): void
+    {
+        $this->createOutlookIdentityAccountsTable();
+        $user = User::factory()->create([
+            'email' => 'mara@example.com',
+            'email_verified_at' => now(),
+        ]);
+        $identity = new VerifiedEntraIdentity(
+            tenantId: '11111111-1111-4111-8111-111111111111',
+            objectId: '33333333-3333-4333-8333-333333333333',
+            principal: 'mara@example.com',
+            displayName: 'Mara Beispiel',
+        );
+        $resolver = app(OutlookAddinIdentityResolver::class);
+
+        try {
+            $resolver->resolve($identity, 'mara@example.com');
+            $this->fail('Eine nicht provisionierte E-Mail-Adresse darf kein Microsoft-Konto verknüpfen.');
+        } catch (OutlookAddinException $exception) {
+            $this->assertSame('outlook_addin_identity_not_linked', $exception->errorCode);
+        }
+
+        EmployeeIdentityAccount::query()->create([
+            'user_id' => $user->id,
+            'provider' => AccountProvider::Microsoft365,
+            'external_id' => $identity->objectId,
+            'principal' => $identity->principal,
+            'email' => $user->email,
+            'lifecycle_status' => 'active',
+            'provisioning_status' => 'active',
+        ]);
+
+        $this->assertTrue($resolver->resolve($identity, 'MARA@example.com')->is($user));
+
+        try {
+            $resolver->resolve($identity, 'fremdes-postfach@example.com');
+            $this->fail('Ein fremdes Outlook-Postfach darf nicht auf die Signatur zugreifen.');
+        } catch (OutlookAddinException $exception) {
+            $this->assertSame('outlook_addin_mailbox_mismatch', $exception->errorCode);
+        }
+
+        $this->assertDatabaseCount('employee_identity_accounts', 1);
+        $this->assertDatabaseHas('employee_identity_accounts', [
+            'external_id' => $identity->objectId,
+            'principal' => $identity->principal,
+        ]);
+    }
+
+    public function test_outlook_addin_payload_uses_published_documents_and_inline_cid_media(): void
+    {
+        config([
+            'app.url' => 'https://app.rail-time.de',
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+            'outlook_addin.marker' => 'RT-SIGNATURE-MANAGED-V1',
+        ]);
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+
+        $payload = app(OutlookAddinPayloadService::class)->forUser($user);
+
+        $this->assertSame('RT-SIGNATURE-MANAGED-V1', $payload['marker']);
+        $this->assertStringContainsString('Mara Beispiel', $payload['signature']['html']);
+        $this->assertStringContainsString('<!-- RT-SIGNATURE-MANAGED-V1 -->', $payload['signature']['html']);
+        $this->assertStringContainsString('src="cid:', $payload['signature']['html']);
+        $this->assertStringNotContainsString('src="https://', $payload['signature']['html']);
+        $this->assertStringNotContainsString('data:image/', $payload['signature']['html']);
+        $this->assertNotEmpty($payload['signature']['media']);
+
+        foreach ([$payload['signature'], $payload['template']] as $document) {
+            foreach ($document['media'] as $medium) {
+                $this->assertSame($medium['name'], $medium['contentId']);
+                $this->assertNotSame('', base64_decode($medium['base64'], true));
+                $this->assertStringContainsString('cid:'.$medium['contentId'], $document['html']);
+            }
+        }
+    }
+
+    public function test_outlook_addin_manifest_and_employee_surface_use_the_cross_platform_compose_event(): void
+    {
+        $this->withoutMiddleware(LogActivity::class);
+        $this->configureReadyOutlookAddin();
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($admin)->get(route('admin.outlook-addin.manifest'));
+        $manifest = $response->getContent();
+
+        $response->assertOk()
+            ->assertHeader('content-type', 'application/xml; charset=UTF-8')
+            ->assertHeader('x-content-type-options', 'nosniff');
+        $this->assertStringContainsString('DefaultMinVersion="1.10"', $manifest);
+        $this->assertSame(2, substr_count($manifest, 'Type="OnNewMessageCompose"'));
+        $this->assertSame(2, substr_count($manifest, 'FunctionName="onNewMessageComposeHandler"'));
+        $this->assertStringNotContainsString('Type="OnMessageCompose"', $manifest);
+        $this->assertStringContainsString('/outlook-addin/runtime.js', $manifest);
+        $this->assertStringNotContainsString('client_secret', strtolower($manifest));
+
+        $document = new \DOMDocument;
+        $this->assertTrue($document->loadXML($manifest, LIBXML_NONET));
+
+        $this->createOutlookIdentityAccountsTable();
+        $employee = User::factory()->create(['email' => 'employee@example.com']);
+        EmployeeIdentityAccount::query()->create([
+            'user_id' => $employee->id,
+            'provider' => AccountProvider::Microsoft365,
+            'external_id' => '44444444-4444-4444-8444-444444444444',
+            'principal' => $employee->email,
+            'email' => $employee->email,
+            'lifecycle_status' => 'active',
+            'provisioning_status' => 'active',
+        ]);
+        $this->actingAs($employee)
+            ->get(route('email-templates.index'))
+            ->assertOk()
+            ->assertSee('data-outlook-addin-managed', escape: false)
+            ->assertSee('Für Outlook zentral eingerichtet')
+            ->assertSee('Sie müssen nichts herunterladen oder kopieren.');
+
+        $unlinkedEmployee = User::factory()->create(['email' => 'unlinked@example.com']);
+        $this->actingAs($unlinkedEmployee)
+            ->get(route('email-templates.index'))
+            ->assertOk()
+            ->assertDontSee('Für Outlook zentral eingerichtet')
+            ->assertSee('Ihr Outlook-Zugang wird noch durch die IT verknüpft.');
+
+        $unauthorizedEmployee = User::factory()->create(['role' => 'user']);
+        $this->actingAs($unauthorizedEmployee)
+            ->get(route('admin.outlook-addin.manifest'))
+            ->assertForbidden();
+    }
+
+    public function test_outlook_deployment_package_is_complete_and_inert_by_default(): void
+    {
+        $this->withoutMiddleware(LogActivity::class);
+        $this->configureReadyOutlookAddin();
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($admin)->get(route('admin.outlook-addin.package'));
+        $response->assertOk()
+            ->assertHeader('content-type', 'application/zip')
+            ->assertHeader('x-content-type-options', 'nosniff');
+
+        $path = tempnam(sys_get_temp_dir(), 'railtime-outlook-test-');
+        $this->assertIsString($path);
+
+        try {
+            $this->assertNotFalse(file_put_contents($path, $response->getContent()));
+            $zip = new ZipArchive;
+            $this->assertTrue($zip->open($path));
+            $files = [];
+            for ($index = 0; $index < $zip->numFiles; $index++) {
+                $files[] = $zip->getNameIndex($index);
+            }
+            sort($files);
+            $this->assertSame([
+                'ExchangeFallback.ps1',
+                'README.txt',
+                'manifest.xml',
+                'meta.json',
+                'signature.html',
+            ], $files);
+            $script = (string) $zip->getFromName('ExchangeFallback.ps1');
+            $signature = (string) $zip->getFromName('signature.html');
+            $meta = json_decode((string) $zip->getFromName('meta.json'), true, flags: JSON_THROW_ON_ERROR);
+            $zip->close();
+
+            $this->assertStringContainsString('$ApplyChanges = $false', $script);
+            $this->assertStringContainsString('$EnableRule = $false', $script);
+            $this->assertFalse($meta['tenant_mutated']);
+            $this->assertFalse($meta['apply_changes_default']);
+            $this->assertFalse($meta['enable_rule_default']);
+            $this->assertStringContainsString('%%DisplayName%%', $signature);
+            $this->assertStringContainsString('%%Title%%', $signature);
+            $this->assertStringContainsString('%%Phone%%', $signature);
+            $this->assertStringContainsString('%%MobilePhone%%', $signature);
+            $this->assertStringContainsString('%%WindowsEmailAddress%%', $signature);
+            $this->assertStringNotContainsString('RTEXCHANGE', $signature);
+        } finally {
+            if (is_string($path) && is_file($path)) {
+                unlink($path);
+            }
+        }
     }
 
     public function test_verified_employee_gets_four_minimal_actions_and_lazy_previews(): void
@@ -1849,6 +2134,51 @@ class EmailTemplatesPageTest extends TestCase
 
             MailDocument::query()->create($attributes);
         }
+    }
+
+    private function base64Url(string $value): string
+    {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    }
+
+    private function configureReadyOutlookAddin(): void
+    {
+        $tenantId = '11111111-1111-4111-8111-111111111111';
+        $clientId = '22222222-2222-4222-8222-222222222222';
+
+        config([
+            'outlook_addin.enabled' => true,
+            'outlook_addin.deployed' => true,
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+            'outlook_addin.entra.tenant_id' => $tenantId,
+            'outlook_addin.entra.client_id' => $clientId,
+            'outlook_addin.entra.authority' => "https://login.microsoftonline.com/{$tenantId}",
+            'outlook_addin.entra.audience' => $clientId,
+            'outlook_addin.entra.scope' => 'Signature.Read',
+            'outlook_addin.entra.scope_uri' => "api://{$clientId}/Signature.Read",
+        ]);
+    }
+
+    private function createOutlookIdentityAccountsTable(): void
+    {
+        if (Schema::hasTable('employee_identity_accounts')) {
+            return;
+        }
+
+        Schema::create('employee_identity_accounts', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('provider', 64);
+            $table->string('external_id', 191)->nullable();
+            $table->string('principal', 191)->nullable();
+            $table->string('email', 191)->nullable();
+            $table->string('lifecycle_status', 32)->default('active');
+            $table->string('provisioning_status', 32)->nullable();
+            $table->string('license_status', 32)->nullable();
+            $table->text('metadata')->nullable();
+            $table->timestamp('last_synced_at')->nullable();
+            $table->timestamps();
+        });
     }
 
     private function canonicalMailDocumentHtml(MailDocumentKind $kind): string

@@ -69,6 +69,7 @@ Homestead.json
 !/tests/Feature/DeviceCommandAssignmentBindingTest.php
 !/tests/Unit/
 /tests/Unit/*
+!/tests/Unit/MarketingBuilderProjectCodecTest.php
 !/tests/Unit/Support/
 /tests/Unit/Support/*
 !/tests/Unit/Support/Mail/

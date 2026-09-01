@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import {
+    createPageBuilderFidelitySession,
     createLmzEditorChrome,
     createLmzAssistantAdapter,
     createPageBuilderLifecycleController,
@@ -1083,6 +1084,7 @@ export function normalizeVariantPayload(payload) {
 
         variants[format] = {
             builderData: variant.builder_data || variant.builderData || {},
+            html: variant.html || '',
             css: variant.css || '',
             contentHash: variant.content_hash || variant.contentHash || '',
             version: Number(variant.version || 1),
@@ -1148,9 +1150,38 @@ export function marketingRedesignFailureStatus(error, { requestStarted = false }
 
 export function projectForVariant(variant, parseCss = () => []) {
     const project = structuredClone(variant?.builderData || {});
-    if (variant?.css && (!Array.isArray(project.styles) || project.styles.length === 0)) {
-        project.styles = parseCss(variant.css) || project.styles || [];
+    const page = project?.pages?.[0];
+    const frame = page?.frames?.[0];
+    const wrapper = frame?.component;
+    const hasV2Wrapper = Boolean(frame && wrapper && typeof wrapper === 'object' && !Array.isArray(wrapper));
+    const canonicalHtml = typeof variant?.html === 'string'
+        ? variant.html
+        : (hasV2Wrapper ? '' : String(page?.component || ''));
+    const canonicalCss = String(variant?.css || '');
+
+    if (hasV2Wrapper && canonicalHtml.trim() === '') {
+        throw new Error('Das V2-Marketingprojekt hat keine kanonische HTML-Quelle und wurde nicht geladen.');
     }
+
+    // `pages[].component` wird von GrapesJS ignoriert, sobald dieselbe Seite
+    // Frames enthaelt. Dann kann ein serverseitig aktualisierter Entwurf im
+    // Canvas weiterhin den alten Komponentenbaum zeigen. Rehydriere deshalb
+    // den vorhandenen V2-Wrapper aus der kanonischen HTML-Quelle. Page-,
+    // Frame- und Wrapper-ID bleiben erhalten; nur die Kinder stammen aus der
+    // aktuellen, serverseitig gehaerteten Renderquelle.
+    if (page && hasV2Wrapper) {
+        wrapper.components = canonicalHtml;
+        delete page.component;
+    } else {
+        if (!project.pages?.length) project.pages = [{}];
+        delete project.pages[0].frames;
+        project.pages[0].component = canonicalHtml;
+    }
+
+    // Die getrennt gespeicherte CSS-Quelle ist ebenfalls kanonisch. Alte oder
+    // vom Parser expandierte Projekt-Styles duerfen sie im Canvas nicht
+    // ueberstimmen; GrapesJS baut daraus seine editierbare Projektion neu.
+    project.styles = canonicalCss ? (parseCss(canonicalCss) || []) : [];
 
     return project;
 }
@@ -1315,9 +1346,24 @@ export async function createMarketingStudio(workspace, config) {
         setRenderStatus(workspace, 'idle', 'Noch kein Export für dieses Format erstellt.');
         if (exportButton && !readOnly) exportButton.disabled = false;
 
-        const variant = config.variants?.[format] || { builderData: {}, css: '', contentHash: '', version: 1 };
+        const variant = config.variants?.[format] || {
+            builderData: {},
+            html: '',
+            css: '',
+            contentHash: '',
+            version: 1,
+        };
         config.variants ||= {};
         config.variants[format] = variant;
+        const storedComponent = variant.builderData?.pages?.[0]?.component;
+        const fidelitySession = createPageBuilderFidelitySession({
+            mode: 'marketing',
+            source: {
+                html: variant.html || (typeof storedComponent === 'string' ? storedComponent : ''),
+                css: variant.css || '',
+            },
+            sourceProject: variant.builderData,
+        });
 
         instance = await builderRuntime.create({
             root,
@@ -1347,13 +1393,15 @@ export async function createMarketingStudio(workspace, config) {
                     );
                 },
                 onSave: async ({ project, html, css }) => {
+                    const projection = { project, html, css };
+                    const outgoing = fidelitySession.serialize(projection);
                     const endpoint = replaceEndpointToken(config.endpoints.variantUpdate, '__FORMAT__', currentFormat);
                     const payload = await requestJson(endpoint, {
                         method: 'PUT',
                         json: {
-                            builder_data: project,
-                            html,
-                            css,
+                            builder_data: outgoing.project,
+                            html: outgoing.html,
+                            css: outgoing.css,
                             expected_hash: variant.contentHash || '',
                         },
                     });
@@ -1361,8 +1409,13 @@ export async function createMarketingStudio(workspace, config) {
                     await applySavedVariantAndPublishAssistantContext(
                         variant,
                         saved,
-                        { project, html, css },
+                        outgoing,
                     );
+                    fidelitySession.acknowledgeServer({
+                        source: { html: variant.html, css: variant.css },
+                        project: variant.builderData,
+                        projection,
+                    });
                     setCreativeStatus(workspace, payload.creative?.status);
                 },
             },
@@ -1384,6 +1437,12 @@ export async function createMarketingStudio(workspace, config) {
             instance = null;
             return;
         }
+
+        fidelitySession.captureProjection({
+            project: instance.editor.getProjectData(),
+            html: instance.editor.getHtml(),
+            css: instance.editor.getCss(),
+        });
 
         removeBuilderUploadControls(root);
         root.dataset.runtimeState = 'ready';

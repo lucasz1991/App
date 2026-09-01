@@ -536,17 +536,24 @@ class MarketingStudioBackendTest extends TestCase
         $story = $finalUnchanged['creative']->variants->firstWhere('format', MarketingCreativeFormat::Story);
         $builderData = $story->builder_data;
         $builderData['railtime']['provider_injected'] = 'muss entfernt werden';
-        $savedStory = $studio->saveVariant(
-            $finalUnchanged['creative'],
-            MarketingCreativeFormat::Story,
-            $builderData,
-            $story->html,
-            $story->css,
-            $story->content_hash,
-            $admin,
-        );
-        $this->assertSame('railtime_modern', $savedStory->builder_data['railtime']['design_preset']);
-        $this->assertArrayNotHasKey('provider_injected', $savedStory->builder_data['railtime']);
+        try {
+            $studio->saveVariant(
+                $finalUnchanged['creative'],
+                MarketingCreativeFormat::Story,
+                $builderData,
+                $story->html,
+                $story->css,
+                $story->content_hash,
+                $admin,
+            );
+            $this->fail('Unbekannte Provider-Metadaten durften nicht still übernommen oder entfernt werden.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('builder_data.railtime.provider_injected', $exception->errors());
+        }
+
+        $story->refresh();
+        $this->assertSame('railtime_modern', $story->builder_data['railtime']['design_preset']);
+        $this->assertArrayNotHasKey('provider_injected', $story->builder_data['railtime']);
     }
 
     public function test_complete_redesign_maps_legacy_and_premium_identity_to_the_matching_premium_layout(): void
@@ -907,16 +914,32 @@ class MarketingStudioBackendTest extends TestCase
         $variant = $creative->variants->firstWhere('format', MarketingCreativeFormat::Story);
         $oldHash = $variant->content_hash;
 
+        try {
+            $studio->saveVariant(
+                $creative,
+                MarketingCreativeFormat::Story,
+                [
+                    'pages' => [
+                        ['name' => 'Post', 'component' => '<p>stale</p>'],
+                        ['name' => 'Böse', 'component' => '<script>alert(3)</script>'],
+                    ],
+                    'styles' => [['selectors' => ['body'], 'style' => ['background' => 'url(javascript:alert(4))']]],
+                ],
+                $variant->html,
+                $variant->css,
+                $oldHash,
+                $admin,
+            );
+            $this->fail('Aktive Builder-Projektdaten durften nicht still bereinigt werden.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('builder_data.styles.0.style.background', $exception->errors());
+        }
+        $this->assertSame($oldHash, $variant->fresh()->content_hash);
+
         $saved = $studio->saveVariant(
             $creative,
             MarketingCreativeFormat::Story,
-            [
-                'pages' => [
-                    ['name' => 'Post', 'component' => '<p>stale</p>'],
-                    ['name' => 'Böse', 'component' => '<script>alert(3)</script>'],
-                ],
-                'styles' => [['selectors' => ['body'], 'style' => ['background' => 'url(javascript:alert(4))']]],
-            ],
+            $variant->builder_data,
             '<div class="rt-brand rt-brand-lockup rt-brand-lockup-standard" data-rt-brand-lockup="official"><img class="rt-brand-logo" src="/rt-brand/img/logo-horizontal.png" alt="RT Rail Time GmbH"></div><section onclick="alert(1)"><a href="java&#x0A;script:alert(1)">Text</a><a href="https://www.rail-time.de/de/karriere">CTA</a><img src="https://attacker.example/pixel.png"><style>@import url(https://example.org)</style><script>alert(1)</script><iframe src="https://example.org"></iframe><svg><script>alert(2)</script></svg></section>',
             '@IMPORT url(https://example.org/a.css);body{background:url(jav\\61script:alert(1));width:expression(alert(1))}.remote{background:url(https://attacker.example/pixel.png)}</StYlE>',
             $oldHash,

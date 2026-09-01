@@ -3,8 +3,9 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build",
-        "build:clean": "vite build && node scripts/prune-build-assets.mjs",
+        "build": "vite build && npm run build:outlook-addin",
+        "build:clean": "vite build && npm run build:outlook-addin && node scripts/prune-build-assets.mjs",
+        "build:outlook-addin": "node scripts/build-outlook-addin.mjs",
         "prune:assets": "node scripts/prune-build-assets.mjs",
         "test:frontend": "node --test \"tests/Frontend/*.test.js\"",
         "test:pwa": "node --test tests/Frontend/pwa.test.js tests/Frontend/microphone-stream.test.js tests/Frontend/keyboard-viewport.test.js"
@@ -27,6 +28,7 @@
         "@alpinejs/persist": "^3.15.8",
         "@alpinejs/resize": "^3.15.8",
         "@alpinejs/sort": "^3.15.8",
+        "@azure/msal-browser": "^4.30.0",
         "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
         "alpinejs": "^3.14.3",
         "echarts": "^6.1.0",

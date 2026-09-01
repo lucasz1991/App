@@ -21,6 +21,7 @@ import {
     LMZ_EDITOR_MODES,
     createLmzAssistantAdapter,
     createLmzEditorChrome,
+    createPageBuilderFidelitySession,
     createPageBuilderLifecycleController,
     createPageBuilderNavigationController,
     normalizeLmzCapabilities,
@@ -1058,9 +1059,9 @@ test('variant refresh accepts server maps and drops unknown formats', () => {
             print: { builder_data: {}, content_hash: 'ignored', version: 1 },
         },
     }), {
-        story: { builderData: { pages: [] }, css: '', contentHash: 'story-hash', version: 2 },
-        post: { builderData: { pages: [1] }, css: '', contentHash: 'post-hash', version: 3 },
-        web: { builderData: { pages: [2] }, css: '', contentHash: 'web-hash', version: 4 },
+        story: { builderData: { pages: [] }, html: '', css: '', contentHash: 'story-hash', version: 2 },
+        post: { builderData: { pages: [1] }, html: '', css: '', contentHash: 'post-hash', version: 3 },
+        web: { builderData: { pages: [2] }, html: '', css: '', contentHash: 'web-hash', version: 4 },
     });
 });
 
@@ -1150,6 +1151,7 @@ test('a saved CSS response survives format reloads and remains the next save fal
         return [{ selectors: ['.headline'], style: { color: '#c90025' } }];
     });
     assert.equal(parsedCss, '.headline{color:#c90025}');
+    assert.equal(reloaded.pages[0].component, '<p>Serverbereinigt</p>');
     assert.equal(reloaded.styles[0].style.color, '#c90025');
 
     applySavedVariant(variant, {}, {
@@ -1159,6 +1161,52 @@ test('a saved CSS response survives format reloads and remains the next save fal
     });
     assert.equal(variant.css, '.headline{color:#c90025}');
     assert.equal(variant.html, '<p>Serverbereinigt</p>');
+});
+
+test('canonical marketing source rehydrates the active V2 frame without losing stable container ids', () => {
+    const variant = {
+        builderData: {
+            pages: [{
+                id: 'story-page',
+                component: '<main>Ignored parallel source</main>',
+                frames: [{
+                    id: 'story-frame',
+                    component: {
+                        type: 'wrapper',
+                        id: 'story-wrapper',
+                        components: '<main id="old">Alt</main>',
+                    },
+                }],
+            }],
+            styles: [{ selectors: ['old'], style: { background: 'none' } }],
+            railtime: { template: 'job_wagenmeister', format: 'story', schema: 4 },
+        },
+        html: '<main id="canonical">Neu</main>',
+        css: '.canonical{background:radial-gradient(circle,#fff,transparent),none}',
+    };
+    const before = structuredClone(variant.builderData);
+    let parsedCss = '';
+    const projected = projectForVariant(variant, (css) => {
+        parsedCss = css;
+        return [{ selectors: ['canonical'], style: { background: 'radial-gradient(circle,#fff,transparent),none' } }];
+    });
+
+    assert.deepEqual(variant.builderData, before);
+    assert.equal(projected.pages[0].id, 'story-page');
+    assert.equal(projected.pages[0].frames[0].id, 'story-frame');
+    assert.equal(projected.pages[0].frames[0].component.id, 'story-wrapper');
+    assert.equal(projected.pages[0].frames[0].component.components, variant.html);
+    assert.equal(Object.hasOwn(projected.pages[0], 'component'), false);
+    assert.equal(parsedCss, variant.css);
+    assert.equal(projected.styles[0].selectors[0], 'canonical');
+    assert.deepEqual(projected.railtime, variant.builderData.railtime);
+
+    const withoutCanonicalSource = structuredClone(variant);
+    delete withoutCanonicalSource.html;
+    assert.throws(
+        () => projectForVariant(withoutCanonicalSource),
+        /keine kanonische HTML-Quelle/,
+    );
 });
 
 test('a server-authoritative variant save publishes its fresh assistant snapshot before completing', async () => {
@@ -1525,11 +1573,25 @@ test('shared LMZ capabilities keep mail GIF preview separate from persistent mar
     const mail = normalizeLmzCapabilities('mail', { animation: true, classes: true });
     const marketing = normalizeLmzCapabilities('marketing');
 
+    assert.equal(resolveLmzEditorMode(), LMZ_EDITOR_MODES.website);
+    assert.equal(resolveLmzEditorMode('website'), LMZ_EDITOR_MODES.website);
     assert.equal(resolveLmzEditorMode('mail'), LMZ_EDITOR_MODES.mail);
     assert.equal(resolveLmzEditorMode('marketing'), LMZ_EDITOR_MODES.marketing);
-    assert.equal(resolveLmzEditorMode('unsafe'), LMZ_EDITOR_MODES.marketing);
+    assert.throws(() => resolveLmzEditorMode('unsafe'), /Unbekannter LMZ-Editormodus/);
+    assert.equal(resolveLmzEditorMode(''), LMZ_EDITOR_MODES.website);
+    assert.equal(resolveLmzEditorMode(null), LMZ_EDITOR_MODES.website);
+    assert.equal(LMZ_EDITOR_MODES.website.contentStrategy, 'full-document');
+    assert.equal(LMZ_EDITOR_MODES.website.label, 'Website Page');
+    assert.equal(LMZ_EDITOR_MODES.website.styleStrategy, 'stylesheet');
+    assert.equal(LMZ_EDITOR_MODES.website.fidelityStrategy, 'source-preserving');
+    assert.equal(LMZ_EDITOR_MODES.website.blockPrefix, 'rt-website-');
+    assert.equal(LMZ_EDITOR_MODES.marketing.blockPrefix, 'rt-marketing-');
+    assert.equal(LMZ_EDITOR_MODES.marketing.label, 'Motive');
     assert.equal(LMZ_EDITOR_MODES.mail.contentModel, 'email');
+    assert.equal(LMZ_EDITOR_MODES.mail.label, 'E-Mail Template');
     assert.equal(LMZ_EDITOR_MODES.mail.styleStrategy, 'inline');
+    assert.equal(LMZ_EDITOR_MODES.mail.fidelityStrategy, 'compiler-required');
+    assert.equal(LMZ_EDITOR_MODES.mail.blockPrefix, 'rt-mail-');
     assert.equal(mail.animation, false);
     assert.equal(mail.imageReplace, 'tokens-only');
     assert.equal(mail.classes, false);
@@ -1538,6 +1600,160 @@ test('shared LMZ capabilities keep mail GIF preview separate from persistent mar
     assert.equal(marketing.animation, true);
     assert.equal(marketing.imageReplace, true);
 });
+
+test('fidelity session preserves untouched canonical channels and adopts only changed Grapes projections', async () => {
+    const source = {
+        html: '<section data-layout="hero">\n  <h1>Original source</h1>\n</section>',
+        css: '.hero { color: #ec0033; }\n@media (max-width: 600px) { .hero { color: white; } }',
+    };
+    const baseline = {
+        html: '<section data-layout="hero"><h1>Original source</h1></section>',
+        css: '.hero{color:#ec0033}@media (max-width:600px){.hero{color:white}}',
+    };
+    let current = { ...baseline };
+    const sourceProject = {
+        pages: [{ id: 'story', frames: [{ id: 'frame-source', component: { id: 'hero-source' } }] }],
+        styles: [{ selectors: ['hero'], style: { 'background-image': 'radial-gradient(circle,#fff,transparent),none' } }],
+        railtime: { template: 'job_wagenmeister', format: 'story', schema: 4 },
+    };
+    const project = {
+        pages: [{ id: 'story', frames: [{ id: 'frame-projected', component: { id: 'hero-projected' } }] }],
+        styles: [{ selectors: ['hero'], style: { 'background-image': 'none' } }],
+    };
+    const session = createPageBuilderFidelitySession({
+        mode: 'marketing',
+        source,
+        sourceProject,
+        readProjection: () => current,
+    });
+    const loaded = session.captureProjection({ ...baseline, project });
+
+    assert.equal(loaded.project, sourceProject);
+    const untouched = session.capture({ ...baseline, project });
+    assert.equal(untouched.mode, 'marketing');
+    assert.equal(untouched.html, source.html);
+    assert.equal(untouched.css, source.css);
+    assert.equal(untouched.serializable, true);
+    assert.deepEqual(untouched.report.changedChannels, []);
+    assert.deepEqual(untouched.report.preservedChannels, ['html', 'css', 'project']);
+
+    current = { ...baseline, html: '<section data-layout="hero"><h1>Bearbeitet</h1></section>' };
+    const edited = session.serialize({ ...current, project });
+    assert.equal(edited.html, current.html);
+    assert.equal(edited.css, source.css);
+    assert.equal(edited.project, sourceProject);
+    assert.deepEqual(edited.report.changedChannels, ['html']);
+    assert.equal(edited.report.channels.html.decision, 'editor-projection');
+    assert.equal(edited.report.channels.css.decision, 'canonical-source');
+    assert.equal(edited.report.channels.project.decision, 'canonical-source');
+
+    const changedProject = structuredClone(project);
+    changedProject.pages[0].frames[0].component.id = 'hero-edited';
+    const withProjectEdit = session.serialize({ ...current, project: changedProject });
+    assert.deepEqual(withProjectEdit.project, {
+        ...changedProject,
+        railtime: sourceProject.railtime,
+    });
+    assert.equal(withProjectEdit.project.railtime.template, 'job_wagenmeister');
+    assert.deepEqual(withProjectEdit.report.changedChannels, ['html', 'project']);
+
+    const serverProject = structuredClone(changedProject);
+    serverProject.railtime = { mode: 'marketing', codec_version: 2 };
+    const committed = session.acknowledgeServer({
+        source: { html: current.html, css: source.css },
+        project: serverProject,
+        projection: { ...current, project: changedProject },
+    });
+    assert.equal(committed.revision, 1);
+    assert.equal(committed.compiled, false);
+    assert.equal(committed.serverAcknowledged, true);
+    assert.equal(committed.project, serverProject);
+    assert.equal(committed.html, current.html);
+    assert.equal(committed.css, source.css);
+    const stable = session.capture();
+    assert.equal(stable.html, current.html);
+    assert.equal(stable.css, source.css);
+    assert.equal(stable.project, serverProject);
+    assert.deepEqual(stable.report.changedChannels, []);
+});
+
+test('mail fidelity session fails closed without a compiler and commits only explicit compiler output', async () => {
+    const source = {
+        html: '<table role="presentation">\n<tr><td>Original</td></tr>\n</table>',
+        css: '.mail-copy { color: #111827; }',
+    };
+    const projection = {
+        html: '<table role="presentation"><tbody><tr><td>Original</td></tr></tbody></table>',
+        css: '.mail-copy{color:#111827}',
+    };
+    const withoutCompiler = createPageBuilderFidelitySession({ mode: 'mail', source, projection });
+
+    assert.equal(withoutCompiler.capture().serializable, false);
+    assert.equal(withoutCompiler.report().committable, false);
+    assert.throws(() => withoutCompiler.serialize(), /expliziten Compiler/);
+    await assert.rejects(() => withoutCompiler.commit(), /expliziten Compiler/);
+
+    let compilerInput = null;
+    const withCompiler = createPageBuilderFidelitySession({
+        mode: 'mail',
+        source,
+        projection,
+        compiler: async (input) => {
+            compilerInput = input;
+            return {
+                html: `<!-- compiled -->${input.html}`,
+                css: `/* compiled */${input.css}`,
+            };
+        },
+    });
+    await assert.rejects(
+        () => withCompiler.commit({ source, projection }),
+        /acknowledgeServer/,
+    );
+    const committed = await withCompiler.commit({
+        html: projection.html,
+        css: '.mail-copy{color:#ec0033}',
+    });
+
+    assert.equal(compilerInput.html, source.html);
+    assert.equal(compilerInput.css, '.mail-copy{color:#ec0033}');
+    assert.deepEqual(compilerInput.report.changedChannels, ['css']);
+    assert.equal(committed.compiled, true);
+    assert.equal(committed.serializable, true);
+    assert.match(committed.html, /^<!-- compiled -->/);
+    assert.match(committed.css, /^\/\* compiled \*\//);
+});
+
+test('assistant block filtering follows the website profile instead of a marketing fallback', () => coreWithDom(`
+    <div id="root"><div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div>
+`, async ({ document }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('section'));
+    const editor = coreFakeEditor(root, selected);
+    editor.BlockManager = {
+        getAll: () => ({
+            models: [
+                { id: 'rt-website-hero' },
+                { id: 'rt-marketing-hero' },
+                { id: 'rt-mail-copy' },
+            ],
+        }),
+    };
+    const adapter = createLmzAssistantAdapter({
+        root,
+        instance: { editor, hasUnsavedChanges: () => false },
+        chrome: { mediaState: () => ({ warnings: [] }) },
+        mode: 'website',
+        availableBlockIds: ['rt-website-footer', 'rt-marketing-footer'],
+    });
+
+    const context = await adapter.getContext();
+    assert.equal(context.mode, 'website');
+    assert.deepEqual(context.available_block_ids, ['rt-website-footer', 'rt-website-hero']);
+    assert.equal(context.capabilities.includes('replace_image'), true);
+    assert.equal(context.capabilities.includes('animation'), true);
+    adapter.destroy();
+}));
 
 test('shared LMZ shell exposes the resolved mail profile and removes unsafe class controls', () => coreWithDom(`
     <div id="root">
@@ -1561,15 +1777,20 @@ test('shared LMZ shell exposes the resolved mail profile and removes unsafe clas
     assert.equal(chrome.mode, LMZ_EDITOR_MODES.mail);
     assert.equal(root.dataset.rtLmzMode, 'mail');
     assert.equal(root.dataset.rtLmzContentModel, 'email');
+    assert.equal(root.dataset.rtLmzContentStrategy, 'mail-document');
     assert.equal(root.dataset.rtLmzStyleStrategy, 'inline');
+    assert.equal(root.dataset.rtLmzFidelityStrategy, 'compiler-required');
+    assert.equal(root.dataset.rtLmzBlockPrefix, 'rt-mail-');
     assert.equal(indicator.getAttribute('role'), 'status');
-    assert.match(indicator.getAttribute('aria-label'), /Aktiver Editormodus: Mail/);
+    assert.match(indicator.getAttribute('aria-label'), /Aktiver Editormodus: E-Mail Template/);
     assert.match(indicator.textContent, /Mailclient-sichere Bausteine/);
     assert.equal(classesToggle.hidden, true);
     assert.equal(chrome.openPanel('classes'), false);
 
     chrome.destroy();
     assert.equal(root.querySelector('[data-rt-lmz-mode-indicator]'), null);
+    assert.equal(root.dataset.rtLmzFidelityStrategy, undefined);
+    assert.equal(root.dataset.rtLmzBlockPrefix, undefined);
     assert.equal(classesToggle.hidden, false);
 }));
 
@@ -2666,6 +2887,8 @@ test('shared LMZ closes vendor auto-styles after selection but preserves explici
         if (styles.getAttribute('aria-expanded') !== 'true') styles.setAttribute('aria-expanded', 'true');
     });
     const chrome = createLmzEditorChrome({ instance: { editor }, root, media: { baseUrl: 'https://railtime.test/' } });
+    assert.equal(chrome.mode, LMZ_EDITOR_MODES.website);
+    assert.equal(root.dataset.rtLmzMode, 'website');
 
     editor.emit('component:selected', selected);
     await new Promise((resolve) => setTimeout(resolve, 5));
