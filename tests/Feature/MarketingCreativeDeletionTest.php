@@ -64,8 +64,10 @@ class MarketingCreativeDeletionTest extends TestCase
         Livewire::actingAs($admin)
             ->test(CreativesIndex::class)
             ->assertSee($creative->title)
+            ->assertSee('Dateien verwalten')
             ->assertSee('Motiv entfernen')
-            ->call('deleteCreative', $creative->public_id)
+            ->assertSee('Die Dateien bleiben für eine Wiederherstellung erhalten.')
+            ->call('deleteMotive', $creative->public_id)
             ->assertDispatched('swal:toast')
             ->assertDontSee($creative->title);
 
@@ -117,7 +119,8 @@ class MarketingCreativeDeletionTest extends TestCase
         $index = $this->actingAs($admin)
             ->get(route('admin.marketing.creatives.index'))
             ->assertOk();
-        $index->assertSee('aus dem Marketing-Studio entfernen', escape: false);
+        $index->assertSee('Dateien verwalten', escape: false);
+        $index->assertSee('Die Dateien bleiben für eine Wiederherstellung erhalten.', escape: false);
         $this->assertFalse(Route::has('admin.marketing.creatives.restore'));
 
         $this->actingAs($staff)

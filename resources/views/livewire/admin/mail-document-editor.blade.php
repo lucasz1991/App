@@ -179,8 +179,11 @@
                         <x-slot:content>
                             <div class="rt-mail-view-menu">
                                 <div class="rt-mail-preview-context">
-                                    <strong>Vorschau</strong>
+                                    <strong>Mailclient-Prüfung</strong>
                                     <small data-mail-preview-status aria-live="polite">Systemmail breit · 1920 px · wird eingepasst</small>
+                                    <small data-mail-compiler-parity-note>
+                                        „Bearbeiten“ nutzt nur mail-sichere Werkzeuge. „Compiler-Parität“ zeigt die produktiv kompilierte Systemmail-Quelle; Outlook nutzt dieselben veröffentlichten Dokumente mit clientspezifischen Medien- und Wrapper-Anpassungen. Die abschließende Word-Renderer-Prüfung erfolgt per Testmail.
+                                    </small>
                                 </div>
 
                                 <x-ui.buttons.button-basic
@@ -200,9 +203,9 @@
                             <i data-feather="edit-3" class="h-4 w-4" aria-hidden="true"></i>
                             <span>Bearbeiten</span>
                         </button>
-                        <button type="button" data-mail-view-mode="delivery" aria-pressed="false" title="Aktuellen Stand mit dem produktiven Systemmail-Compiler anzeigen">
+                        <button type="button" data-mail-view-mode="delivery" aria-pressed="false" title="Verbindliche Versandquelle mit dem produktiven Systemmail-Compiler prüfen; die Darstellung erfolgt weiterhin im Browser">
                             <i data-feather="mail" class="h-4 w-4" aria-hidden="true"></i>
-                            <span>Versandansicht</span>
+                            <span>Compiler-Parität</span>
                         </button>
                         <button type="button" data-mail-view-mode="forward" aria-pressed="false" title="Kompiliertes Versand-HTML als zitierte Weiterleitung ohne Head-CSS prüfen">
                             <i data-feather="corner-up-right" class="h-4 w-4" aria-hidden="true"></i>
@@ -581,12 +584,12 @@
                 <div class="rt-mail-delivery-preview" data-mail-delivery-preview hidden>
                     <iframe
                         data-mail-delivery-frame
-                        title="Kompilierte Versandansicht im Browser"
+                        title="Kompilierte produktive Systemmail-Quelle im Browser"
                         sandbox=""
                         referrerpolicy="no-referrer"
                     ></iframe>
                     <div class="rt-mail-delivery-preview__state" data-mail-delivery-state role="status" aria-live="polite">
-                        Versand-HTML wird kompiliert …
+                        Verbindliche Versandquelle wird kompiliert …
                     </div>
                 </div>
                 <div
@@ -1247,7 +1250,7 @@
                             const rendering = selectedViewMode === 'forward'
                                 ? 'Kompilierte Weiterleitungsbasis im Browser'
                                 : (selectedViewMode === 'delivery'
-                                    ? 'Kompiliertes Versand-HTML im Browser'
+                                    ? 'Compiler-Parität · produktive Systemmail-Quelle im Browser'
                                     : labels[activeDevice] || 'Editor');
                             previewStatus.textContent = `${rendering} · ${logicalWidth} px${scale}${degradation}`;
                         }
@@ -1341,7 +1344,10 @@
                             ? 'forward'
                             : selectedDegradationMode;
                         const preview = effectiveDegradationMode === 'normal'
-                            ? { html: compiledDeliveryHtml, disclaimer: '' }
+                            ? {
+                                html: compiledDeliveryHtml,
+                                disclaimer: 'Produktive Systemmail-Quelle · Outlook-Darstellung abschließend per Testmail prüfen.',
+                            }
                             : instance?.createDegradationPreview?.(
                                 compiledDeliveryHtml,
                                 effectiveDegradationMode,
@@ -1349,10 +1355,12 @@
                         if (!preview?.html) return;
 
                         if (deliveryState) {
-                            deliveryState.textContent = preview.disclaimer || 'Kompiliertes Versand-HTML wird im Browser dargestellt …';
+                            deliveryState.textContent = preview.disclaimer || 'Kompilierte Versandquelle wird im Browser dargestellt …';
                         }
                         deliveryFrame.onload = () => {
-                            if (deliveryState && effectiveDegradationMode === 'normal') deliveryState.textContent = '';
+                            if (deliveryState && effectiveDegradationMode === 'normal') {
+                                deliveryState.textContent = preview.disclaimer;
+                            }
                             syncPreviewResizer();
                         };
                         deliveryFrame.srcdoc = preview.html;

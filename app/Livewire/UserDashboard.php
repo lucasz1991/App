@@ -3,6 +3,9 @@
 namespace App\Livewire;
 
 use App\Models\File;
+use App\Models\User;
+use App\Services\DeviceManagement\DeviceFleetSnapshot;
+use App\Services\DeviceManagement\PersonalDeviceSnapshot;
 use App\Support\Dashboard\SystemDashboardData;
 use Livewire\Component;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -27,11 +30,16 @@ class UserDashboard extends Component
         return $file->download($file->disk ?: 'private');
     }
 
-    public function render(SystemDashboardData $dashboardData)
+    public function render(
+        SystemDashboardData $dashboardData,
+        DeviceFleetSnapshot $fleetSnapshot,
+        PersonalDeviceSnapshot $personalDeviceSnapshot,
+    )
     {
         $user = auth()->user();
         $audience = $user->dashboardAudience();
         $dashboardTeam = $user->dashboardTeam();
+        $deviceWidget = $this->deviceWidget($user, $fleetSnapshot, $personalDeviceSnapshot);
 
         if ($user->canViewManagementDashboard()) {
             $canViewSystemData = $user->canViewSystemDashboard();
@@ -44,6 +52,7 @@ class UserDashboard extends Component
                     'recentActivity' => $dashboardData->recentActivity(),
                     'operations' => $dashboardData->operations(),
                     'charts' => $dashboardData->charts(),
+                    'deviceWidget' => $deviceWidget,
                     'canViewSystemData' => $canViewSystemData,
                     'system' => $canViewSystemData ? $dashboardData->system() : null,
                 ]
@@ -129,8 +138,35 @@ class UserDashboard extends Component
             'dashboardAudience' => $audience,
             'dashboardTeamName' => $dashboardTeam?->name
                 ?? ($audience === 'guest' ? __('app.team_guests') : __('app.team_employees')),
+            'deviceWidget' => $deviceWidget,
             'showSchedule' => $audience === 'employee',
             'wagonListRoute' => route('operations.wagon-list'),
         ])->layout('layouts.master', ['area' => 'user']);
+    }
+
+    /**
+     * Flottenzahlen bleiben an das delegierbare devices.view-Gate gebunden.
+     * Ohne dieses Recht erhaelt jede Rolle ausschliesslich ihre eigenen
+     * aktiven Zuweisungen und den persoenlichen Zielpfad.
+     *
+     * @return array{scope:'fleet'|'personal',stats:array<string, bool|int>,href:?string}
+     */
+    private function deviceWidget(
+        User $user,
+        DeviceFleetSnapshot $fleetSnapshot,
+        PersonalDeviceSnapshot $personalDeviceSnapshot,
+    ): array {
+        $canViewFleet = $user->can('devices.view');
+        $stats = $canViewFleet
+            ? $fleetSnapshot->get()
+            : $personalDeviceSnapshot->get($user);
+
+        return [
+            'scope' => $canViewFleet ? 'fleet' : 'personal',
+            'stats' => $stats,
+            'href' => $stats['available']
+                ? route($canViewFleet ? 'devices.index' : 'devices.mine')
+                : null,
+        ];
     }
 }

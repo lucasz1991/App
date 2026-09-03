@@ -335,7 +335,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('min-width:1920px;width:1920px', $signatureHtml);
     }
 
-    public function test_marketing_source_page_renders_sandboxed_format_cards(): void
+    public function test_marketing_source_page_renders_file_library_cards_without_preview_iframes(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $creative = app(MarketingStudioService::class)->createFromTemplate(
@@ -349,28 +349,27 @@ class PageBuilderPreviewTest extends TestCase
         $html = (string) $response->getContent();
 
         foreach ([
-            'data-page-builder-preview-card',
-            'data-page-builder-preview-deferred="true"',
-            'data-page-builder-preview-frame',
-            'sandbox=""',
-            'loading="lazy"',
-            'src="about:blank"',
-            'shouldLoad: false',
-            "rootMargin: '360px 0px'",
-            'x-bind:src="activeUrl"',
-            'x-on:load="void 0"',
-            'x-bind:class="&#039;opacity-100&#039;"',
-            'wire:target="search,type,status"',
-            route('admin.marketing.creatives.preview', [$creative, 'story']),
-            route('admin.marketing.creatives.preview', [$creative, 'post']),
-            route('admin.marketing.creatives.preview', [$creative, 'web']),
+            'data-marketing-motive-list',
+            'data-marketing-motive-card',
+            'Dateien verwalten',
+            'wire:target="search,type"',
+            route('admin.marketing.creatives.files', $creative),
         ] as $needle) {
             $this->assertTrue(str_contains($html, $needle), 'Marketing-Seite enthält nicht: '.$needle);
         }
 
-        $this->assertStringNotContainsString('data-page-builder-preview-loading', $html);
-        $this->assertStringNotContainsString('data-page-builder-preview-edit-link', $html);
-        $this->assertStringNotContainsString('Vorschau wird geladen', $html);
+        foreach ([
+            'data-page-builder-preview-card',
+            'data-page-builder-preview-frame',
+            '<iframe',
+            'src="about:blank"',
+            'Vorschau wird geladen',
+            route('admin.marketing.creatives.preview', [$creative, 'story']),
+            route('admin.marketing.creatives.preview', [$creative, 'post']),
+            route('admin.marketing.creatives.preview', [$creative, 'web']),
+        ] as $needle) {
+            $this->assertStringNotContainsString($needle, $html);
+        }
     }
 
     public function test_email_source_page_renders_two_admin_preview_cards(): void
@@ -388,44 +387,33 @@ class PageBuilderPreviewTest extends TestCase
         }
     }
 
-    public function test_editor_starts_with_preview_and_uses_the_guarded_fullscreen_shell(): void
+    public function test_legacy_marketing_editor_route_redirects_admin_to_the_file_library(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
+        $staff = User::factory()->create(['role' => 'staff']);
         $creative = app(MarketingStudioService::class)->createFromTemplate(
             MarketingCreativeType::Info,
             $admin,
         );
+        $legacyEditorUrl = route('admin.marketing.creatives.editor', $creative);
+        $filesUrl = route('admin.marketing.creatives.files', $creative);
 
-        $response = $this->actingAs($admin)
-            ->get(route('admin.marketing.creatives.editor', $creative))
-            ->assertOk();
-        $html = (string) $response->getContent();
+        $this->actingAs($staff)
+            ->get($legacyEditorUrl)
+            ->assertForbidden();
 
-        foreach ([
-            'data-page-builder-fullscreen',
-            'data-page-builder-workspace',
-            'aria-modal="false"',
-            'page-builder-shell:before-close',
-            'page-builder-shell:close-approved',
-            'data-page-builder-preview-first',
-            'pageBuilderOpen: false',
-            'data-page-builder-open',
-            'trapPageBuilderFocus',
-            'pageBuilderTrigger',
-            'data-rt-pagebuilder-assist-open',
-            'data-page-builder-title',
-            'data-page-builder-assist',
-            'aria-label="Zurück zu den Motiven"',
-        ] as $needle) {
-            $this->assertTrue(str_contains($html, $needle), 'Editor enthält nicht: '.$needle);
-        }
+        $this->actingAs($admin)
+            ->get($legacyEditorUrl)
+            ->assertRedirect($filesUrl);
 
-        $this->assertStringNotContainsString('data-page-builder-panel-host', $html);
-        $this->assertStringNotContainsString("'[tabindex=\"", $html);
-        $this->assertStringNotContainsString("'[contenteditable=\"", $html);
+        $this->actingAs($admin)
+            ->get($filesUrl)
+            ->assertOk()
+            ->assertSee('data-marketing-motive-files', false)
+            ->assertSee('Dateien hochladen und organisieren');
     }
 
-    public function test_preview_card_link_opens_the_editor_directly_in_fullscreen(): void
+    public function test_marketing_index_links_directly_to_files_without_fullscreen_editor_state(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $creative = app(MarketingStudioService::class)->createFromTemplate(
@@ -438,17 +426,12 @@ class PageBuilderPreviewTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('open=1', $sourceHtml);
-
-        $editorHtml = (string) $this->get(route('admin.marketing.creatives.editor', [
-            'creative' => $creative,
-            'format' => 'post',
-            'open' => 1,
-        ]))->assertOk()->getContent();
-
-        $this->assertStringContainsString('pageBuilderOpen: true', $editorHtml);
-        $this->assertStringContainsString('this.sync(this.pageBuilderOpen)', $editorHtml);
-        $this->assertStringContainsString("this.\$root?.querySelector?.('[data-page-builder-open]')", $editorHtml);
+        $this->assertStringContainsString(route('admin.marketing.creatives.files', $creative), $sourceHtml);
+        $this->assertStringNotContainsString(route('admin.marketing.creatives.editor', $creative), $sourceHtml);
+        $this->assertStringNotContainsString('open=1', $sourceHtml);
+        $this->assertStringNotContainsString('data-page-builder-fullscreen', $sourceHtml);
+        $this->assertStringNotContainsString('data-page-builder-open', $sourceHtml);
+        $this->assertStringNotContainsString('pageBuilderOpen:', $sourceHtml);
     }
 
     private function createCanonicalMailDocuments(): void

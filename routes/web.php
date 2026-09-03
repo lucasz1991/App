@@ -38,7 +38,7 @@ use App\Livewire\Admin\FileManager;
 use App\Livewire\Admin\MailDocumentEditor;
 use App\Livewire\Admin\MailManagement;
 use App\Livewire\Admin\ManagedDocuments;
-use App\Livewire\Admin\Marketing\CreativeEditor as MarketingCreativeEditor;
+use App\Livewire\Admin\Marketing\CreativeFiles as MarketingCreativeFiles;
 use App\Livewire\Admin\Marketing\CreativesIndex as MarketingCreativesIndex;
 use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
@@ -56,6 +56,7 @@ use App\Livewire\MessageBox;
 use App\Livewire\Operations\WagonListPrototype;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
+use App\Models\MarketingCreative;
 use App\Support\Pwa\PwaIcon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -342,15 +343,22 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::withoutMiddleware('role:admin')->group(function (): void {
             Route::get('/marketing/motive', MarketingCreativesIndex::class)
                 ->name('marketing.creatives.index');
+            Route::get('/marketing/motive/{creative}/dateien', MarketingCreativeFiles::class)
+                ->whereUuid('creative')
+                ->name('marketing.creatives.files');
+            Route::get('/marketing/motive/{creative}/bearbeiten', function (Request $request, MarketingCreative $creative) {
+                abort_unless($request->user()?->isAdmin(), 403);
+
+                return redirect()->route('admin.marketing.creatives.files', ['creative' => $creative]);
+            })
+                ->whereUuid('creative')
+                ->name('marketing.creatives.editor');
             Route::post('/marketing/motive', [MarketingCreativeController::class, 'store'])
                 ->middleware('throttle:30,1')
                 ->name('marketing.creatives.store');
             Route::post('/marketing/motive/importieren', [MarketingCreativeTransferController::class, 'import'])
                 ->middleware('throttle:10,1')
                 ->name('marketing.creatives.import');
-            Route::get('/marketing/motive/{creative}/bearbeiten', MarketingCreativeEditor::class)
-                ->whereUuid('creative')
-                ->name('marketing.creatives.editor');
             Route::get('/marketing/motive/{creative}/vorschau/{format}', [PageBuilderPreviewController::class, 'marketing'])
                 ->whereUuid('creative')
                 ->whereIn('format', ['story', 'post', 'web'])

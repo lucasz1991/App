@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class FilePool extends Model
@@ -30,6 +31,15 @@ class FilePool extends Model
     public function files(): MorphMany
     {
         return $this->morphMany(File::class, 'fileable');
+    }
+
+    /**
+     * A single lightweight representative for library cards. Loading this
+     * relation avoids hydrating every file merely to render a cover image.
+     */
+    public function latestFile(): MorphOne
+    {
+        return $this->morphOne(File::class, 'fileable')->latestOfMany();
     }
 
     /**

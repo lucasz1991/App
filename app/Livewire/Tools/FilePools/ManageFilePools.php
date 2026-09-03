@@ -5,12 +5,14 @@ namespace App\Livewire\Tools\FilePools;
 use App\Models\File;
 use App\Models\FileFolder;
 use App\Models\FilePool;
+use App\Models\MarketingCreative;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
@@ -163,6 +165,19 @@ class ManageFilePools extends Component
         $this->allowTeamPermissions = $allowTeamPermissions;
 
         abort_unless($this->userCanAccessPool($this->filePool), 403);
+    }
+
+    /**
+     * Recheck the pool boundary before every subsequent Livewire request.
+     * This closes long-lived components immediately after a role or pool
+     * assignment changes instead of trusting the permission from mount().
+     */
+    public function hydrate(): void
+    {
+        $pool = FilePool::findOrFail($this->filePoolId);
+        $this->filePool = $pool;
+
+        abort_unless($this->userCanAccessPool($pool), 403);
     }
 
     /* ------------------------------------------------------------------
@@ -673,6 +688,12 @@ class ManageFilePools extends Component
 
         abort_unless($user, 403);
 
+        if ($this->isMarketingMotivePool($pool)) {
+            abort_unless($user->isAdmin(), 403);
+
+            return;
+        }
+
         if ($user->isAdmin() || Gate::allows('files.manage')) {
             return;
         }
@@ -834,6 +855,10 @@ class ManageFilePools extends Component
             return false;
         }
 
+        if ($this->isMarketingMotivePool($pool)) {
+            return $user->isAdmin();
+        }
+
         if ($this->canBypassFileVisibility()) {
             return true;
         }
@@ -858,6 +883,10 @@ class ManageFilePools extends Component
     protected function canBypassFileVisibility(): bool
     {
         $user = Auth::user();
+
+        if ($this->isMarketingMotivePool($this->filePool)) {
+            return (bool) $user?->isAdmin();
+        }
 
         return (bool) ($user && (
             $user->isAdmin()
@@ -1014,7 +1043,15 @@ class ManageFilePools extends Component
     {
         foreach (array_unique($paths) as $path) {
             try {
-                Storage::disk('private')->delete($path);
+                $deleted = Storage::disk('private')->delete($path);
+
+                if (! $deleted) {
+                    Log::warning('Konnte unvollstaendig hochgeladene Datei nicht entfernen.', [
+                        'disk' => 'private',
+                        'path' => $path,
+                        'error' => 'Storage-Adapter meldete false.',
+                    ]);
+                }
             } catch (Throwable $cleanupException) {
                 report($cleanupException);
             }
@@ -1027,6 +1064,10 @@ class ManageFilePools extends Component
 
         if ($this->readOnly || ! $user) {
             return false;
+        }
+
+        if ($this->isMarketingMotivePool($pool)) {
+            return $user->isAdmin();
         }
 
         if ($user->isAdmin() || Gate::allows('files.manage')) {
@@ -1045,6 +1086,12 @@ class ManageFilePools extends Component
         }
 
         return false;
+    }
+
+    protected function isMarketingMotivePool(?FilePool $pool): bool
+    {
+        return $pool instanceof FilePool
+            && $pool->filepoolable_type === (new MarketingCreative)->getMorphClass();
     }
 
     public function placeholder()
@@ -1066,6 +1113,10 @@ class ManageFilePools extends Component
     public function render()
     {
         $filePool = FilePool::find($this->filePoolId);
+
+        abort_unless($filePool, 404);
+        $this->filePool = $filePool;
+        abort_unless($this->userCanAccessPool($filePool), 403);
 
         $currentFolder = $this->resolveCurrentFolder();
 

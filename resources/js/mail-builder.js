@@ -45,6 +45,7 @@ const MAIL_CANVAS_BODY_CLASS = 'rt-mail-canvas';
 const MAIL_SIGNATURE_CANVAS_ATTRIBUTE = 'data-rt-mail-signature-canvas';
 const MAIL_PREVIEW_IMAGE_ATTRIBUTE = 'data-rt-mail-preview-token';
 const MAIL_IMPORTED_INLINE_ATTRIBUTE = 'data-rt-mail-inline-source';
+const MAIL_PRESENTATION_SYNC_STATE = new WeakMap();
 const MAIL_TEMPLATE_MARK_START_NAME = 'RT_TEMPLATE_MARK_START';
 const MAIL_TEMPLATE_MARK_END_NAME = 'RT_TEMPLATE_MARK_END';
 const MAIL_TEMPLATE_MARK_START = `<!-- ${MAIL_TEMPLATE_MARK_START_NAME} -->`;
@@ -1197,49 +1198,95 @@ const MOTION_CONTROL_SELECTORS = [
  * Werteliste, weil die eingebaute Fassung flex anbietet — deshalb steht der
  * Fluss-Sektor auf properties mit { extend: 'display', options: [...] }.
  */
+export const MAIL_SAFE_FONT_STACKS = Object.freeze([
+    Object.freeze({ id: 'Arial,Helvetica,sans-serif', label: 'Arial · Outlook-Standard' }),
+    Object.freeze({ id: 'Tahoma,Verdana,sans-serif', label: 'Tahoma · kompakt' }),
+    Object.freeze({ id: 'Verdana,Arial,sans-serif', label: 'Verdana · gut lesbar' }),
+    Object.freeze({ id: "Georgia,'Times New Roman',serif", label: 'Georgia · Serif' }),
+    Object.freeze({ id: "Consolas,'Courier New',monospace", label: 'Consolas · Monospace' }),
+]);
+
+const MAIL_SAFE_STYLE_GROUPS = Object.freeze({
+    typography: Object.freeze([
+        'font-family',
+        'font-size',
+        'font-weight',
+        'line-height',
+        'letter-spacing',
+        'word-spacing',
+        'color',
+        'text-align',
+        'text-decoration',
+        'text-transform',
+        'white-space',
+    ]),
+    spacing: Object.freeze([
+        'padding',
+        'margin',
+        'width',
+        'max-width',
+        'height',
+        'max-height',
+        'box-sizing',
+    ]),
+    surface: Object.freeze(['background-color']),
+    border: Object.freeze([
+        'border',
+        'border-top',
+        'border-right',
+        'border-bottom',
+        'border-left',
+        'border-radius',
+    ]),
+    flow: Object.freeze([
+        'display',
+        'vertical-align',
+        'border-collapse',
+        'direction',
+    ]),
+});
+
+/**
+ * Ein einziger, exportierter Vertrag fuer Style-Manager und Tests. Die
+ * Editoroberflaeche bietet damit keine Browser-Properties an, die der
+ * statische Mailpfad spaeter entfernen oder in Outlook anders auslegen muss.
+ * Geschuetzte Systemkomponenten duerfen weiterhin ihre serverautoritativen
+ * mso-/Positionierungsangaben besitzen; diese Liste gilt fuer Bearbeitungen.
+ */
+export const MAIL_SAFE_EDITABLE_STYLE_PROPERTIES = Object.freeze(
+    Object.values(MAIL_SAFE_STYLE_GROUPS).flat(),
+);
+
 export const MAIL_STYLE_SECTORS = Object.freeze([
     Object.freeze({
         id: 'rt-mail-typography',
-        name: 'Schrift',
+        name: 'Schrift · Mail-sicher',
         open: true,
-        buildProps: [
-            'font-family',
-            'font-size',
-            'font-weight',
-            'line-height',
-            'letter-spacing',
-            'word-spacing',
-            'color',
-            'text-align',
-            'text-decoration',
-            'text-transform',
-            'white-space',
+        properties: [
+            {
+                extend: 'font-family',
+                name: 'Mail-Schrift',
+                options: MAIL_SAFE_FONT_STACKS,
+            },
+            ...MAIL_SAFE_STYLE_GROUPS.typography.slice(1),
         ],
     }),
     Object.freeze({
         id: 'rt-mail-spacing',
         name: 'Abstand & Größe',
         open: true,
-        buildProps: [
-            'padding',
-            'margin',
-            'width',
-            'max-width',
-            'height',
-            'max-height',
-            'box-sizing',
-        ],
+        buildProps: MAIL_SAFE_STYLE_GROUPS.spacing,
     }),
     Object.freeze({
         id: 'rt-mail-surface',
         name: 'Fläche',
         open: false,
-        // 'background' als reine Farbe statt der eingebauten Ebenen-Fassung:
-        // die Allowlist des Sanitizers kennt kein background-color, und
-        // Hintergrundbilder faellt Outlook ohnehin weg. Der Bestand setzt
-        // ebenfalls durchgaengig 'background:<Farbe>'.
+        // Ausschliesslich eine Farbe: frei editierbare Bilder, Gradients und
+        // Ebenen im CSS-Hintergrund besitzen keinen verlaesslichen Outlook-
+        // Pfad. synchronizeMailPresentationAttributes() schreibt parallel
+        // das klassische bgcolor-Attribut fuer Tabellenzellen.
         properties: [
-            { property: 'background', name: 'Hintergrund', type: 'color' },
+            { property: MAIL_SAFE_STYLE_GROUPS.surface[0], name: 'Hintergrundfarbe', type: 'color' },
         ],
     }),
     Object.freeze({
@@ -1247,11 +1294,7 @@ export const MAIL_STYLE_SECTORS = Object.freeze([
         name: 'Rahmen',
         open: false,
         properties: [
-            'border',
-            'border-top',
-            'border-right',
-            'border-bottom',
-            'border-left',
+            ...MAIL_SAFE_STYLE_GROUPS.border.slice(0, -1),
             {
                 extend: 'border-radius',
                 name: 'Ecken (progressiv, eckiger Fallback)',
@@ -1275,9 +1318,7 @@ export const MAIL_STYLE_SECTORS = Object.freeze([
                     { id: 'none', label: 'Ausgeblendet' },
                 ],
             },
-            'vertical-align',
-            'border-collapse',
-            'direction',
+            ...MAIL_SAFE_STYLE_GROUPS.flow.slice(1),
         ],
     }),
 ]);
@@ -3497,6 +3538,125 @@ export function synchronizeMailContentImage(component) {
     return attributesChanged || styleChanged || parentChanged;
 }
 
+function mailPresentationColor(value) {
+    const color = String(value || '').trim();
+    if (/^\{\{[A-Z][A-Z0-9_]*\}\}$/.test(color)
+        || /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(color)) {
+        return color;
+    }
+
+    const rgb = color.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(1(?:\.0+)?))?\s*\)$/i);
+    if (!rgb) return '';
+    const channels = rgb.slice(1, 4).map((channel) => Number(channel));
+    if (channels.some((channel) => channel < 0 || channel > 255)) return '';
+
+    return `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function mailPresentationDimension(value, { percent = true } = {}) {
+    const dimension = String(value || '').trim();
+    const match = dimension.match(percent
+        ? /^(\d{1,4})(px|%)$/i
+        : /^(\d{1,4})px$/i);
+    if (!match || Number(match[1]) < 1) return '';
+
+    return match[2] === '%' ? `${Number(match[1])}%` : String(Number(match[1]));
+}
+
+/**
+ * Spiegelt eine im Style-Panel gesetzte SAFE-Deklaration in die klassischen
+ * HTML-Praesentationsattribute. Moderne Clients lesen weiterhin Inline-CSS;
+ * Outlook/Word erhaelt fuer Farbe, Groesse und Ausrichtung denselben Wert als
+ * bgcolor/width/height/align/valign. Nur echte Style-Aenderungen rufen diese
+ * Funktion auf, sodass die geschuetzte Signaturstruktur beim Laden bytegleich
+ * bleibt. Ein Undo stellt ueber den WeakMap-Zustand den vorherigen Attributwert
+ * wieder her, ohne Editor-Metadaten in das Mail-HTML zu schreiben.
+ */
+export function synchronizeMailPresentationAttributes(component, property = '') {
+    if (!component || typeof component.getStyle !== 'function') return false;
+
+    const tagName = String(component.get?.('tagName') || '').toLowerCase();
+    const style = component.getStyle?.() || {};
+    const attributes = component.getAttributes?.() || component.get?.('attributes') || {};
+    const changedProperty = String(property || '').trim().toLowerCase();
+    const state = MAIL_PRESENTATION_SYNC_STATE.get(component) || new Map();
+    let changed = false;
+
+    const updateAttribute = (attribute, value, { clear = false } = {}) => {
+        const normalizedValue = String(value || '');
+        const tracked = state.get(attribute);
+        if (!normalizedValue) {
+            if (!tracked) {
+                if (!clear || !Object.prototype.hasOwnProperty.call(attributes, attribute)) return;
+                component.removeAttributes?.(attribute, { silent: true });
+                if (typeof component.removeAttributes !== 'function') delete attributes[attribute];
+                changed = true;
+                return;
+            }
+            if (tracked.original === undefined) {
+                component.removeAttributes?.(attribute, { silent: true });
+                if (typeof component.removeAttributes !== 'function') delete attributes[attribute];
+            } else if (String(attributes[attribute] || '') !== String(tracked.original)) {
+                component.addAttributes?.({ [attribute]: tracked.original }, { silent: true });
+                if (typeof component.addAttributes !== 'function') attributes[attribute] = tracked.original;
+            }
+            state.delete(attribute);
+            changed = true;
+            return;
+        }
+
+        if (!tracked) state.set(attribute, { original: attributes[attribute] });
+        if (String(attributes[attribute] || '') === normalizedValue) return;
+        component.addAttributes?.({ [attribute]: normalizedValue }, { silent: true });
+        if (typeof component.addAttributes !== 'function') attributes[attribute] = normalizedValue;
+        changed = true;
+    };
+    const applies = (...properties) => !changedProperty || properties.includes(changedProperty);
+
+    if (applies('background', 'background-color')
+        && ['body', 'table', 'tr', 'td', 'th'].includes(tagName)) {
+        const directBackground = String(style['background-color'] || '').trim();
+        const shorthandBackground = String(style.background || '').trim();
+        const directColor = mailPresentationColor(directBackground);
+        const shorthandColor = mailPresentationColor(shorthandBackground);
+        updateAttribute('bgcolor', directColor || shorthandColor, {
+            clear: directBackground === '' && shorthandBackground === '',
+        });
+    }
+
+    if (applies('width') && ['table', 'td', 'th'].includes(tagName)) {
+        const width = String(style.width || '').trim();
+        updateAttribute('width', mailPresentationDimension(width), { clear: width === '' });
+    }
+    if (applies('height') && ['table', 'td', 'th'].includes(tagName)) {
+        const height = String(style.height || '').trim();
+        updateAttribute('height', mailPresentationDimension(height, { percent: false }), { clear: height === '' });
+    }
+
+    if (applies('text-align')) {
+        const alignment = String(style['text-align'] || '').trim().toLowerCase();
+        const allowed = ['left', 'center', 'right', 'justify'];
+        // Das table-Attribut align positioniert die Tabelle selbst, waehrend
+        // CSS text-align ihren Inhalt ausrichtet. Diese zwei Semantiken duerfen
+        // insbesondere in Outlook/Word nicht miteinander gekoppelt werden.
+        if (['tr', 'td', 'th', 'div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
+            updateAttribute('align', allowed.includes(alignment) ? alignment : '', { clear: alignment === '' });
+        }
+    }
+
+    if (applies('vertical-align') && ['tr', 'td', 'th'].includes(tagName)) {
+        const alignment = String(style['vertical-align'] || '').trim().toLowerCase();
+        updateAttribute('valign', ['top', 'middle', 'bottom', 'baseline'].includes(alignment) ? alignment : '', {
+            clear: alignment === '',
+        });
+    }
+
+    if (state.size > 0) MAIL_PRESENTATION_SYNC_STATE.set(component, state);
+    else MAIL_PRESENTATION_SYNC_STATE.delete(component);
+
+    return changed;
+}
+
 export function protectMailSystemComponents(editor) {
     const root = editor?.getWrapper?.();
     if (!root) return 0;
@@ -4179,8 +4339,21 @@ export async function createMailBuilder({
         synchronizeMailTrainLayerAlignment(component);
         synchronizeMailContentImage(component);
     };
+    const onComponentStyleUpdate = (component, changes = {}) => {
+        const styleChanges = changes?.style && typeof changes.style === 'object'
+            ? changes.style
+            : changes;
+        const properties = styleChanges && typeof styleChanges === 'object'
+            ? Object.keys(styleChanges)
+            : [];
+        (properties.length > 0 ? properties : ['']).forEach((property) => {
+            synchronizeMailPresentationAttributes(component, property);
+        });
+        synchronizeMailContentImage(component);
+    };
     editor.on?.('component:add', onComponentAdd);
     editor.on?.('component:update', onComponentUpdate);
+    editor.on?.('component:styleUpdate', onComponentStyleUpdate);
     protectMailSystemComponents(editor);
     const rootElement = typeof root === 'string' ? document.querySelector(root) : root;
     const frame = rootElement?.closest?.('[data-mail-editor-frame]') || null;
@@ -4464,6 +4637,7 @@ export async function createMailBuilder({
             editorChrome.destroy();
             editor.off?.('component:add', onComponentAdd);
             editor.off?.('component:update', onComponentUpdate);
+            editor.off?.('component:styleUpdate', onComponentStyleUpdate);
             editor.off?.('canvas:frame:load', onFrameLoad);
             removeDegradationOverlay();
             preview?.destroy();

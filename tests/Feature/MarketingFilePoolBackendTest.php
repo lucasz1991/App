@@ -6,7 +6,6 @@ use App\Enums\MarketingCreativeFormat;
 use App\Enums\MarketingCreativeStatus;
 use App\Enums\MarketingCreativeType;
 use App\Enums\MarketingRenderStatus;
-use App\Livewire\Admin\Marketing\CreativesIndex;
 use App\Models\File;
 use App\Models\FileFolder;
 use App\Models\FilePool;
@@ -25,7 +24,6 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
-use Livewire\Livewire;
 use Mockery;
 use Tests\TestCase;
 
@@ -134,10 +132,18 @@ class MarketingFilePoolBackendTest extends TestCase
         $this->assertFalse($library['assets'][0]['animated']);
     }
 
-    public function test_motive_index_uses_metadata_summary_without_opening_private_blobs(): void
+    public function test_motive_index_uses_its_own_file_pool_metadata_without_opening_private_blobs(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $pool = FilePool::company();
+        $creative = app(MarketingStudioService::class)->createFromTemplate(
+            MarketingCreativeType::Info,
+            $admin,
+        );
+        $pool = $creative->filePool()->create([
+            'title' => $creative->title,
+            'type' => 'marketing-motive',
+            'description' => '',
+        ]);
         $pool->files()->create([
             'user_id' => $admin->id,
             'name' => 'nur-metadaten.png',
@@ -150,7 +156,12 @@ class MarketingFilePoolBackendTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.marketing.creatives.index'))
             ->assertOk()
-            ->assertSee('1 Bild im Editor verfügbar');
+            ->assertSee($creative->title)
+            ->assertSee('1 Datei')
+            ->assertSee('Dateien verwalten')
+            ->assertSee(route('admin.marketing.creatives.files', ['creative' => $creative]), false)
+            ->assertDontSee('1 Bild im Editor verfügbar')
+            ->assertDontSee('data-marketing-editor-root', false);
 
         $this->assertFalse(Storage::disk('private')->exists('uploads/files/nicht-vorhanden.png'));
     }
@@ -178,26 +189,25 @@ class MarketingFilePoolBackendTest extends TestCase
         $this->assertTrue($asset['animated']);
     }
 
-    public function test_livewire_source_save_uses_compare_and_swap_and_refreshes_after_conflict(): void
+    public function test_source_selection_service_uses_compare_and_swap_without_the_removed_index_control(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $pool = FilePool::company();
         $first = FileFolder::query()->create(['file_pool_id' => $pool->id, 'name' => 'Erste Quelle']);
         $second = FileFolder::query()->create(['file_pool_id' => $pool->id, 'name' => 'Zweite Quelle']);
-        $firstEditor = Livewire::actingAs($admin)->test(CreativesIndex::class);
-        $staleEditor = Livewire::actingAs($admin)->test(CreativesIndex::class);
+        $files = app(MarketingFileSourceService::class);
+        $staleFingerprint = $files->selectionFingerprint();
 
-        $firstEditor
-            ->set('mediaFolderId', (string) $first->id)
-            ->call('saveMediaFolder')
-            ->assertHasNoErrors();
-        $staleEditor
-            ->set('mediaFolderId', (string) $second->id)
-            ->call('saveMediaFolder')
-            ->assertHasErrors(['mediaFolderId'])
-            ->assertSet('mediaFolderId', (string) $first->id);
+        $files->setSelectedFolder($first->id, $admin, $staleFingerprint);
 
-        $this->assertSame($first->id, app(MarketingFileSourceService::class)->selectedFolderId(true));
+        try {
+            $files->setSelectedFolder($second->id, $admin, $staleFingerprint);
+            $this->fail('Eine veraltete Quellenauswahl durfte den gespeicherten Ordner nicht überschreiben.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('mediaFolderId', $exception->errors());
+        }
+
+        $this->assertSame($first->id, $files->selectedFolderId(true));
     }
 
     public function test_malformed_or_deleted_source_never_exposes_root_files(): void

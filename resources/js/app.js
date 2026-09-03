@@ -80,7 +80,6 @@ import {
     normalizeMailCompatibilityManifest,
     normalizeMailCompatibilityReport,
 } from './mail-compatibility';
-import './marketing-studio';
 
 ensureRailTimeNavigationCoordinator(window, document);
 
@@ -256,7 +255,6 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     let contentEntrancePending = false;
     let visibleBeforeSwap = false;
     let transitionToken = 0;
-    let pendingNavigations = 0;
     let visibleStartedAt = null;
 
     // Notbremse. Grund (verifiziert in vendor/livewire/livewire/dist/
@@ -381,9 +379,14 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     }
 
     function start() {
-        pendingNavigations += 1;
         contentEntrancePending = true;
 
+        // Livewire kann fuer denselben Besuch mehr als ein navigate-Signal
+        // liefern (z. B. wenn ein vorgeschalteter Autosave den Besuch kurz
+        // anhaelt und anschliessend fortsetzt). Der Loader repraesentiert den
+        // gesamten Seitenwechsel und ist deshalb bewusst idempotent. Ein
+        // Zaehler wuerde bei zwei Startsignalen, aber nur einem Abschluss,
+        // bis zur Notbremse sichtbar bleiben.
         if (active) {
             window.clearTimeout(failsafeTimer);
             failsafeTimer = window.setTimeout(done, FAILSAFE_MS);
@@ -475,7 +478,6 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         const token = transitionToken;
         const wasVisible = visibleBeforeSwap || overlay?.classList.contains('is-visible');
 
-        pendingNavigations = 0;
         active = false;
         clearTransitionTimers();
         removeOverlayClones();
@@ -532,8 +534,8 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     });
     document.addEventListener('livewire:navigating', function (event) {
         // Normalerweise lief livewire:navigate bereits. Der Fallback schuetzt
-        // programmatische/abweichende Livewire-Pfade, ohne eine Navigation
-        // doppelt in pendingNavigations zu zaehlen.
+        // programmatische/abweichende Livewire-Pfade, ohne denselben aktiven
+        // Seitenwechsel ein zweites Mal zu starten.
         if (!active) {
             start();
         }
@@ -565,14 +567,7 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     // Alle Wege, auf denen eine Navigation endet ODER scheitert. done() ist
     // idempotent, mehrfaches Aufraeumen ist deshalb unschaedlich.
     document.addEventListener('livewire:navigated', function () {
-        if (pendingNavigations > 0) {
-            pendingNavigations -= 1;
-        }
-
-        // Livewire kann mehrere Navigate-Fetches parallel abschliessen. Die
-        // fruehere Antwort darf den Loader der noch offenen Navigation nicht
-        // ausblenden; das Outro gehoert ausschliesslich zum letzten Abschluss.
-        if (pendingNavigations > 0 || !active) {
+        if (!active) {
             return;
         }
 
@@ -653,9 +648,9 @@ window.Alpine = Alpine;
 // vollstaendig bedienbar, nur eben ohne Uebergaenge.
 window.RailTimeWagonMotion = createWagonListMotion();
 
-// E-Mail-Modus des Page Builders. Anders als marketing-studio.js bringt das
-// Modul bewusst KEINEN eigenen Startvorgang mit (es haengt an keinem
-// Livewire-Ereignis); eingehaengt wird es von der Editorseite selbst.
+// E-Mail-Modus des Page Builders. Er bleibt bewusst ein eigener, nur von der
+// Mail-Editorseite gestarteter Laufzeitpfad und wird nicht von der neuen
+// dateibasierten Marketing-Motivverwaltung verwendet.
 window.RailTimeMailBuilder = {
     signatureSchema: MAIL_SIGNATURE_SCHEMA,
     create: createMailBuilder,

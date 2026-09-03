@@ -702,14 +702,14 @@ class AssistantPageBuilderToolsTest extends TestCase
         );
     }
 
-    public function test_contextual_help_describes_both_fullscreen_editors(): void
+    public function test_contextual_help_describes_motive_file_library_and_mail_editor(): void
     {
         $catalog = app(PageHelpCatalog::class);
         $admin = User::factory()->create(['role' => 'admin']);
 
-        $marketing = $catalog->forRoute('admin.marketing.creatives.editor');
+        $marketing = $catalog->forRoute('admin.marketing.creatives.index');
         $mail = $catalog->forRoute('admin.mail-documents.editor');
-        $this->assertSame('Marketing-Motiv-Editor', $marketing['title']);
+        $this->assertSame('Marketing-Motiv-Dateiablage', $marketing['title']);
         $this->assertSame('E-Mail- und Signatur-Editor', $mail['title']);
         $this->assertSame('/administrator/marketing/motive', route($marketing['route'], [], false));
         $this->assertSame('/administrator/mail-vorlagen', route($mail['route'], [], false));

@@ -2612,6 +2612,387 @@ function installElementorEditorLayout({ root, modeIndicator }) {
     };
 }
 
+const PANEL_EXPERIENCE_CONFIG = Object.freeze({
+    layers: Object.freeze({
+        panelId: 'left:layers',
+        description: 'Struktur, Reihenfolge und Sichtbarkeit',
+        placeholder: 'Ebenen filtern …',
+        singular: 'Ebene',
+        plural: 'Ebenen',
+        empty: 'Noch keine Ebenen verfügbar.',
+        filteredEmpty: 'Keine Ebene entspricht der Suche.',
+    }),
+    styles: Object.freeze({
+        panelId: 'right:styles',
+        description: 'Abstände, Typografie, Farbe und Rahmen',
+        placeholder: 'Stile filtern …',
+        singular: 'Stil',
+        plural: 'Stile',
+        empty: 'Für dieses Element sind keine Stile verfügbar.',
+        filteredEmpty: 'Kein Stil entspricht der Suche.',
+    }),
+    traits: Object.freeze({
+        panelId: 'right:traits',
+        description: 'Inhalt, Links und Elementdaten',
+        placeholder: 'Eigenschaften filtern …',
+        singular: 'Eigenschaft',
+        plural: 'Eigenschaften',
+        empty: 'Keine bearbeitbaren Eigenschaften verfügbar.',
+        filteredEmpty: 'Keine Eigenschaft entspricht der Suche.',
+    }),
+    classes: Object.freeze({
+        panelId: 'right:classes',
+        description: 'Wiederverwendbare CSS-Zuordnungen',
+        placeholder: 'Klassen filtern …',
+        singular: 'Klasse',
+        plural: 'Klassen',
+        empty: 'Noch keine Klasse zugewiesen.',
+        filteredEmpty: 'Keine Klasse entspricht der Suche.',
+    }),
+});
+
+function normalizePanelSearch(value) {
+    return String(value || '')
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLocaleLowerCase('de-DE')
+        .trim();
+}
+
+function componentInspectorLabel(component) {
+    if (!component) return 'Keine Auswahl';
+    const explicit = component.getName?.()
+        || component.get?.('name')
+        || component.get?.('custom-name');
+    if (String(explicit || '').trim()) return String(explicit).trim();
+    const type = String(component.get?.('type') || '').trim();
+    const tag = String(component.get?.('tagName') || component.get?.('tag') || '').trim();
+    return type && type !== 'default' ? type : (tag || 'Element');
+}
+
+/**
+ * Erweitert die unveränderten GrapesJS-Manager um eine gemeinsame, rein
+ * progressive Paneloberfläche. Die Suchfelder filtern ausschließlich die
+ * sichtbaren Managerknoten; Komponenten-, Stil- und Klassendaten werden nicht
+ * verändert. Dadurch bleibt dasselbe Verhalten in Website, Motiv und Mail
+ * erhalten, während große Dokumente deutlich schneller navigierbar werden.
+ */
+function installEditorPanelExperience({ root, editor }) {
+    const document_ = root.ownerDocument;
+    const abortController = new AbortController();
+    const panelStates = [];
+    const decoratedAttributes = new Map();
+    const filteredAria = new Map();
+    let destroyed = false;
+    let refreshQueued = false;
+
+    const rememberAttributes = (element) => {
+        if (!element || decoratedAttributes.has(element)) return;
+        decoratedAttributes.set(element, {
+            role: element.getAttribute('role'),
+            tabindex: element.getAttribute('tabindex'),
+            ariaLabel: element.getAttribute('aria-label'),
+            ariaExpanded: element.getAttribute('aria-expanded'),
+        });
+    };
+    const setFiltered = (element, filtered) => {
+        if (!element) return;
+        if (filtered) {
+            if (!filteredAria.has(element)) filteredAria.set(element, element.getAttribute('aria-hidden'));
+            element.classList.add('rt-lmz-panel-filtered-out');
+            element.setAttribute('aria-hidden', 'true');
+            return;
+        }
+        element.classList.remove('rt-lmz-panel-filtered-out');
+        if (!filteredAria.has(element)) return;
+        const previous = filteredAria.get(element);
+        if (previous === null) element.removeAttribute('aria-hidden');
+        else element.setAttribute('aria-hidden', previous);
+        filteredAria.delete(element);
+    };
+    const matches = (element, query, text = null) => !query
+        || normalizePanelSearch(text === null ? element?.textContent : text).includes(query);
+    const ownText = (element, selector) => element?.querySelector?.(selector)?.textContent || '';
+
+    const filterLayers = (state, query) => {
+        const layers = [...state.mount.querySelectorAll('.lmzbjs-layer')];
+        const directMatches = new Set(layers.filter((layer) => matches(
+            layer,
+            query,
+            ownText(layer, ':scope > .lmzbjs-layer-item .lmzbjs-layer-name, :scope > .lmzbjs-layer-title .lmzbjs-layer-name'),
+        )));
+        const visibleLayers = new Set(directMatches);
+        const ancestorLayers = new Set();
+        if (query) {
+            directMatches.forEach((layer) => {
+                layer.querySelectorAll('.lmzbjs-layer').forEach((descendant) => visibleLayers.add(descendant));
+                let ancestor = layer.parentElement?.closest?.('.lmzbjs-layer');
+                while (ancestor && state.mount.contains(ancestor)) {
+                    visibleLayers.add(ancestor);
+                    ancestorLayers.add(ancestor);
+                    ancestor = ancestor.parentElement?.closest?.('.lmzbjs-layer');
+                }
+            });
+        }
+        layers.forEach((layer) => {
+            const visible = !query || visibleLayers.has(layer);
+            setFiltered(layer, !visible);
+            layer.classList.toggle('rt-lmz-panel-filter-match', Boolean(query && directMatches.has(layer)));
+            layer.classList.toggle('rt-lmz-panel-filter-ancestor', Boolean(query && ancestorLayers.has(layer) && !directMatches.has(layer)));
+            const row = layer.querySelector(':scope > .lmzbjs-layer-item, :scope > .lmzbjs-layer-title');
+            if (row) {
+                rememberAttributes(row);
+                row.setAttribute('tabindex', '0');
+                row.setAttribute('role', 'button');
+                const name = ownText(layer, ':scope > .lmzbjs-layer-item .lmzbjs-layer-name, :scope > .lmzbjs-layer-title .lmzbjs-layer-name').trim();
+                if (name) row.setAttribute('aria-label', `Ebene ${name} auswählen`);
+            }
+        });
+        const count = query ? directMatches.size : layers.length;
+        return { count, total: layers.length };
+    };
+
+    const filterGroupedControls = ({ state, query, groupSelector, titleSelector, itemSelector }) => {
+        const groups = [...state.mount.querySelectorAll(groupSelector)];
+        const groupedItems = new Set();
+        let count = 0;
+        groups.forEach((group) => {
+            const items = [...group.querySelectorAll(itemSelector)];
+            items.forEach((item) => groupedItems.add(item));
+            const groupMatches = matches(group, query, ownText(group, titleSelector));
+            let groupCount = 0;
+            items.forEach((item) => {
+                const itemMatches = groupMatches || matches(item, query);
+                setFiltered(item, Boolean(query && !itemMatches));
+                if (itemMatches) groupCount += 1;
+            });
+            setFiltered(group, Boolean(query && !groupMatches && groupCount === 0));
+            count += groupCount;
+            const title = group.querySelector(titleSelector);
+            if (title) {
+                rememberAttributes(title);
+                title.setAttribute('tabindex', '0');
+                title.setAttribute('role', 'button');
+                const expanded = group.classList.contains('lmzbjs-sm-open')
+                    || group.classList.contains('lmzbjs-open');
+                title.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            }
+        });
+        const looseItems = [...state.mount.querySelectorAll(itemSelector)].filter((item) => !groupedItems.has(item));
+        looseItems.forEach((item) => {
+            const itemMatches = matches(item, query);
+            setFiltered(item, Boolean(query && !itemMatches));
+            if (itemMatches) count += 1;
+        });
+        return { count, total: groupedItems.size + looseItems.length };
+    };
+
+    const filterTraits = (state, query) => {
+        const result = filterGroupedControls({
+            state,
+            query,
+            groupSelector: '.lmzbjs-trait-category',
+            titleSelector: '.lmzbjs-title',
+            itemSelector: '.lmzbjs-trt-trait',
+        });
+        const imagePanel = state.panel.querySelector('.rt-lmz-image-properties:not([hidden])');
+        if (imagePanel) {
+            const imageMatches = matches(imagePanel, query);
+            setFiltered(imagePanel, Boolean(query && !imageMatches));
+            if (imageMatches) {
+                result.count += 1;
+                result.total += 1;
+            }
+        }
+        return result;
+    };
+
+    const filterClasses = (state, query) => {
+        const tags = [...state.mount.querySelectorAll('.lmzbjs-clm-tag')];
+        let count = 0;
+        tags.forEach((tag) => {
+            const tagMatches = matches(tag, query);
+            setFiltered(tag, Boolean(query && !tagMatches));
+            if (tagMatches) count += 1;
+        });
+        return { count, total: tags.length };
+    };
+
+    const refreshState = (state) => {
+        if (destroyed) return;
+        const query = normalizePanelSearch(state.input.value);
+        state.clear.hidden = !query;
+        state.tools.dataset.rtLmzPanelSearching = query ? 'true' : 'false';
+        state.context.textContent = state.key === 'layers'
+            ? 'Dokumentstruktur'
+            : componentInspectorLabel(editor.getSelected?.());
+        let result;
+        if (state.key === 'layers') result = filterLayers(state, query);
+        else if (state.key === 'styles') {
+            result = filterGroupedControls({
+                state,
+                query,
+                groupSelector: '.lmzbjs-sm-sector',
+                titleSelector: '.lmzbjs-sm-sector-title, .lmzbjs-sm-title',
+                itemSelector: '.lmzbjs-sm-property',
+            });
+        } else if (state.key === 'traits') result = filterTraits(state, query);
+        else result = filterClasses(state, query);
+        const unit = result.count === 1 ? state.config.singular : state.config.plural;
+        state.count.textContent = query ? `${result.count} Treffer` : `${result.total} ${unit}`;
+        state.empty.hidden = result.count > 0;
+        state.empty.dataset.rtLmzPanelEmpty = query ? 'filtered' : 'initial';
+        state.emptyText.textContent = query ? state.config.filteredEmpty : state.config.empty;
+    };
+    const refresh = () => panelStates.forEach(refreshState);
+    const scheduleRefresh = () => {
+        if (destroyed || refreshQueued) return;
+        refreshQueued = true;
+        const run = () => {
+            refreshQueued = false;
+            refresh();
+        };
+        if (typeof globalThis.queueMicrotask === 'function') globalThis.queueMicrotask(run);
+        else Promise.resolve().then(run);
+    };
+
+    Object.entries(PANEL_EXPERIENCE_CONFIG).forEach(([key, config]) => {
+        const panel = root.querySelector(`[data-lmz-popover-panel="${config.panelId}"]`);
+        const mount = panel?.querySelector?.(`[data-lmz-mount="${key}"]`);
+        const body = mount?.parentElement;
+        if (!panel || !mount || !body || panel.dataset.rtLmzCapability) return;
+        const originalBodyChildren = [...body.children];
+        panel.dataset.rtLmzPanelKind = key;
+        const title = panel.querySelector('.lmz-builder__popover-title');
+        const subtitle = document_.createElement('small');
+        subtitle.className = 'rt-lmz-panel-subtitle';
+        subtitle.textContent = config.description;
+        title?.append(subtitle);
+        const tools = document_.createElement('div');
+        tools.className = 'rt-lmz-panel-tools';
+        tools.innerHTML = `
+            <div class="rt-lmz-panel-tools__meta">
+                <span class="rt-lmz-panel-context" data-rt-lmz-panel-context></span>
+                <output class="rt-lmz-panel-count" data-rt-lmz-panel-count aria-live="polite"></output>
+            </div>
+            <label class="rt-lmz-panel-search">
+                <span class="sr-only">${config.placeholder}</span>
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+                <input class="rt-lmz-panel-search__input" type="search" inputmode="search" autocomplete="off" spellcheck="false" placeholder="${config.placeholder}" data-rt-lmz-panel-search="${key}">
+                <button class="rt-lmz-panel-search__clear" type="button" aria-label="Suche leeren" data-rt-lmz-panel-search-clear hidden>
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m8 8 8 8M16 8l-8 8"/></svg>
+                </button>
+            </label>`;
+        const empty = document_.createElement('div');
+        empty.className = 'rt-lmz-panel-empty';
+        empty.setAttribute('role', 'status');
+        empty.innerHTML = `
+            <span class="rt-lmz-panel-empty__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h7"/><circle cx="18" cy="16" r="3"/></svg>
+            </span>
+            <span><strong>Nichts gefunden</strong><small data-rt-lmz-panel-empty-text></small></span>`;
+        const scroll = document_.createElement('div');
+        scroll.className = 'rt-lmz-panel-scroll';
+        body.append(tools, scroll);
+        originalBodyChildren.forEach((child) => scroll.append(child));
+        scroll.append(empty);
+        const state = {
+            key,
+            config,
+            panel,
+            mount,
+            tools,
+            scroll,
+            originalBodyChildren,
+            input: tools.querySelector('[data-rt-lmz-panel-search]'),
+            clear: tools.querySelector('[data-rt-lmz-panel-search-clear]'),
+            context: tools.querySelector('[data-rt-lmz-panel-context]'),
+            count: tools.querySelector('[data-rt-lmz-panel-count]'),
+            empty,
+            emptyText: empty.querySelector('[data-rt-lmz-panel-empty-text]'),
+            subtitle,
+            observer: null,
+        };
+        state.input.addEventListener('input', () => refreshState(state), { signal: abortController.signal });
+        state.clear.addEventListener('click', () => {
+            state.input.value = '';
+            refreshState(state);
+            state.input.focus();
+        }, { signal: abortController.signal });
+        panel.addEventListener('keydown', (event) => {
+            if (!['Enter', ' '].includes(event.key)) return;
+            const target = event.target?.closest?.(
+                '.lmzbjs-layer-item[role="button"], .lmzbjs-layer-title[role="button"], .lmzbjs-sm-sector-title[role="button"], .lmzbjs-sm-title[role="button"], .lmzbjs-trait-category .lmzbjs-title[role="button"]',
+            );
+            if (!target || !panel.contains(target)) return;
+            event.preventDefault();
+            target.click?.();
+            scheduleRefresh();
+        }, { signal: abortController.signal });
+        const MutationObserverClass = document_.defaultView?.MutationObserver || globalThis.MutationObserver;
+        state.observer = typeof MutationObserverClass === 'function'
+            ? new MutationObserverClass(scheduleRefresh)
+            : null;
+        state.observer?.observe(mount, {
+            subtree: true,
+            childList: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: ['class', 'hidden'],
+        });
+        panelStates.push(state);
+    });
+
+    const focusActiveSearch = (event) => {
+        const key = String(event.key || '').toLowerCase();
+        const editableTarget = event.target?.matches?.('input, textarea, select, [contenteditable="true"]');
+        const shortcut = (key === 'f' && (event.ctrlKey || event.metaKey))
+            || (key === '/' && !editableTarget && !event.ctrlKey && !event.metaKey && !event.altKey);
+        if (!shortcut) return;
+        const active = panelStates.find((state) => state.panel.classList.contains('is-active') && !state.panel.hidden);
+        if (!active) return;
+        event.preventDefault();
+        event.stopPropagation();
+        active.input.focus();
+        active.input.select?.();
+    };
+    root.addEventListener('keydown', focusActiveSearch, { capture: true, signal: abortController.signal });
+    refresh();
+
+    return {
+        refresh,
+        destroy() {
+            if (destroyed) return;
+            destroyed = true;
+            abortController.abort();
+            panelStates.forEach((state) => {
+                state.observer?.disconnect?.();
+                state.tools.remove();
+                state.empty.remove();
+                state.originalBodyChildren.forEach((child) => state.panel.querySelector('.lmz-builder__popover-body')?.append(child));
+                state.scroll.remove();
+                state.subtitle.remove();
+                delete state.panel.dataset.rtLmzPanelKind;
+            });
+            root.querySelectorAll('.rt-lmz-panel-filter-match, .rt-lmz-panel-filter-ancestor').forEach((element) => {
+                element.classList.remove('rt-lmz-panel-filter-match', 'rt-lmz-panel-filter-ancestor');
+            });
+            filteredAria.forEach((previous, element) => {
+                element.classList.remove('rt-lmz-panel-filtered-out', 'rt-lmz-panel-filter-match', 'rt-lmz-panel-filter-ancestor');
+                if (previous === null) element.removeAttribute('aria-hidden');
+                else element.setAttribute('aria-hidden', previous);
+            });
+            decoratedAttributes.forEach(({ role, tabindex, ariaLabel, ariaExpanded }, element) => {
+                const restore = (name, value) => value === null ? element.removeAttribute(name) : element.setAttribute(name, value);
+                restore('role', role);
+                restore('tabindex', tabindex);
+                restore('aria-label', ariaLabel);
+                restore('aria-expanded', ariaExpanded);
+            });
+        },
+    };
+}
+
 function markMoveHandleReady(handle) {
     if (!handle) return false;
     const marker = `${Date.now()}-${Math.random()}`;
@@ -4463,6 +4844,14 @@ export function createLmzEditorChrome({
     rootElement.querySelectorAll('[data-lmz-popover]').forEach((drawer) => drawer.setAttribute('data-rt-lmz-drawer', drawer.dataset.lmzPopover || ''));
     const onVendorPopoverEscape = (event) => {
         if (event.key !== 'Escape') return;
+        const panelSearch = event.target?.closest?.('[data-rt-lmz-panel-search]');
+        if (panelSearch && panelSearch.value) {
+            consumeEscape(event);
+            panelSearch.value = '';
+            panelSearch.dispatchEvent(new panelSearch.ownerDocument.defaultView.Event('input', { bubbles: true }));
+            panelSearch.focus?.();
+            return;
+        }
         const popover = openVendorPopover(rootElement, event.target);
         if (!popover) return;
         consumeEscape(event);
@@ -4502,6 +4891,7 @@ export function createLmzEditorChrome({
     let mediaDrawer;
     let animationDrawer;
     let imagePropertiesPanel;
+    let panelExperience;
     let lastContextSelection = null;
     const contextualElementState = new Map();
     const traitCount = (component) => {
@@ -4574,6 +4964,7 @@ export function createLmzEditorChrome({
         spacing.refresh();
         mediaDrawer?.refresh();
         syncContextControls();
+        panelExperience?.refresh();
     };
     mediaDrawer = createMediaDrawer({ root: rootElement, editor, mode: normalizedMode, media, capabilities: normalized, onChanged: refreshAll });
     imagePropertiesPanel = createImagePropertiesPanel({
@@ -4584,6 +4975,7 @@ export function createLmzEditorChrome({
         media,
         onChanged: refreshAll,
     });
+    panelExperience = installEditorPanelExperience({ root: rootElement, editor });
     const detachScopedAssetAccess = installScopedAssetAccess({ editor, mediaDrawer, mode: normalizedMode });
     animationDrawer = createAnimationDrawer({ root: rootElement, editor, capabilities: normalized, mode: normalizedMode, onChanged: refreshAll });
     const menu = createInlineMenu({ root: rootElement, editor, capabilities: normalized, mode: normalizedMode, mediaDrawer, animationDrawer });
@@ -4714,6 +5106,7 @@ export function createLmzEditorChrome({
             menu.destroy();
             mediaDrawer.destroy();
             animationDrawer.destroy();
+            panelExperience.destroy();
             imagePropertiesPanel.destroy();
             imageLayerPresentation.destroy();
             spacing.destroy();

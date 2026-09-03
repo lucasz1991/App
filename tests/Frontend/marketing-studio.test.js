@@ -1457,7 +1457,8 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.doesNotMatch(source, /\bonUpload\s*:/);
     assert.doesNotMatch(source, /assetUpload/);
     assert.doesNotMatch(source, /marketingAssetLibrary/);
-    assert.match(appSource, /import '\.\/marketing-studio';/);
+    assert.doesNotMatch(appSource, /import '\.\/marketing-studio';/);
+    assert.match(appSource, /from '\.\/mail-builder';/);
     assert.doesNotMatch(appSource, /Alpine\.data\('marketingAssetLibrary'/);
     assert.match(cssSource, /\[data-lmz-action='upload'\]\s*{\s*display:\s*none\s*!important/);
     assert.match(editorSource, /'logoLightUrl'\s*=>\s*asset\('rt-brand\/img\/logo-horizontal\.png'\)/);
@@ -1786,12 +1787,105 @@ test('shared LMZ shell exposes the resolved mail profile and removes unsafe clas
     assert.match(indicator.textContent, /Mailclient-sichere Bausteine/);
     assert.equal(classesToggle.hidden, true);
     assert.equal(chrome.openPanel('classes'), false);
+    assert.equal(root.querySelector('[data-rt-lmz-panel-search="classes"]'), null);
 
     chrome.destroy();
     assert.equal(root.querySelector('[data-rt-lmz-mode-indicator]'), null);
     assert.equal(root.dataset.rtLmzFidelityStrategy, undefined);
     assert.equal(root.dataset.rtLmzBlockPrefix, undefined);
     assert.equal(classesToggle.hidden, false);
+}));
+
+test('shared panel experience filters nested layers and inspector controls without mutating editor data', () => coreWithDom(`
+    <div id="root">
+        <div class="lmz-builder__topbar">
+            <div class="lmz-builder__actions"><button data-lmz-action="assets">Medien</button></div>
+            <div class="lmz-builder__panel-actions lmz-builder__panel-actions--left">
+                <button data-lmz-panel-toggle="left:layers" data-lmz-panel-group="left" aria-expanded="false"><span class="lmz-builder__action-label">Ebenen</span></button>
+            </div>
+            <div class="lmz-builder__panel-actions lmz-builder__panel-actions--right">
+                <button data-lmz-panel-toggle="right:styles" data-lmz-panel-group="right" aria-expanded="false"><span class="lmz-builder__action-label">Stile</span></button>
+                <button data-lmz-panel-toggle="right:traits" data-lmz-panel-group="right" aria-expanded="false"><span class="lmz-builder__action-label">Eigenschaften</span></button>
+                <button data-lmz-panel-toggle="right:classes" data-lmz-panel-group="right" aria-expanded="false"><span class="lmz-builder__action-label">Klassen</span></button>
+            </div>
+        </div>
+        <div class="lmz-builder__viewport">
+            <main class="lmz-builder__main"><div data-tools><div data-toolbar></div></div></main>
+            <aside class="lmz-builder__popover is-open" data-lmz-popover="left">
+                <section class="lmz-builder__popover-panel is-active" data-lmz-popover-panel="left:layers">
+                    <header class="lmz-builder__popover-head"><div class="lmz-builder__popover-title"><span class="lmz-builder__popover-icon"></span><strong>Ebenen</strong></div></header>
+                    <div class="lmz-builder__popover-body"><div class="lmz-builder__mount" data-lmz-mount="layers">
+                        <div class="lmzbjs-layers">
+                            <div class="lmzbjs-layer" data-layer="hero"><div class="lmzbjs-layer-item"><span class="lmzbjs-layer-name">Hero</span></div><div class="lmzbjs-layer-children"><div class="lmzbjs-layer" data-layer="cta"><div class="lmzbjs-layer-item"><span class="lmzbjs-layer-name">Bewerben CTA</span></div></div></div></div>
+                            <div class="lmzbjs-layer" data-layer="footer"><div class="lmzbjs-layer-item"><span class="lmzbjs-layer-name">Footer</span></div></div>
+                        </div>
+                    </div></div>
+                </section>
+            </aside>
+            <aside class="lmz-builder__popover is-open" data-lmz-popover="right">
+                <section class="lmz-builder__popover-panel is-active" data-lmz-popover-panel="right:styles">
+                    <header class="lmz-builder__popover-head"><div class="lmz-builder__popover-title"><span class="lmz-builder__popover-icon"></span><strong>Stile</strong></div></header>
+                    <div class="lmz-builder__popover-body"><div class="lmz-builder__mount" data-lmz-mount="styles"><div class="lmzbjs-sm-sector lmzbjs-sm-open"><div class="lmzbjs-sm-sector-title">Typografie</div><div class="lmzbjs-sm-properties"><div class="lmzbjs-sm-property">Schriftgröße</div><div class="lmzbjs-sm-property">Zeilenhöhe</div></div></div></div></div>
+                </section>
+                <section class="lmz-builder__popover-panel" data-lmz-popover-panel="right:traits" hidden>
+                    <header class="lmz-builder__popover-head"><div class="lmz-builder__popover-title"><span class="lmz-builder__popover-icon"></span><strong>Eigenschaften</strong></div></header>
+                    <div class="lmz-builder__popover-body"><div class="lmz-builder__mount" data-lmz-mount="traits"><div class="lmzbjs-trait-category lmzbjs-open"><div class="lmzbjs-title">Inhalt</div><div class="lmzbjs-trt-traits"><div class="lmzbjs-trt-trait">Linkziel</div><div class="lmzbjs-trt-trait">Titel</div></div></div></div></div>
+                </section>
+                <section class="lmz-builder__popover-panel" data-lmz-popover-panel="right:classes" hidden>
+                    <header class="lmz-builder__popover-head"><div class="lmz-builder__popover-title"><span class="lmz-builder__popover-icon"></span><strong>Klassen</strong></div></header>
+                    <div class="lmz-builder__popover-body"><div class="lmz-builder__mount" data-lmz-mount="classes"><div class="lmzbjs-clm-tags-c"><span class="lmzbjs-clm-tag">hero-dark</span><span class="lmzbjs-clm-tag">spacing-wide</span></div></div></div>
+                </section>
+            </aside>
+        </div>
+    </div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    document.defaultView.MutationObserver = undefined;
+    const selected = coreFakeComponent(document.createElement('section'), { tagName: 'section' });
+    selected.state.name = 'Hero-Sektion';
+    selected.state.traits = [{ name: 'title' }];
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'marketing', layout: 'elementor' });
+    const searches = root.querySelectorAll('[data-rt-lmz-panel-search]');
+
+    assert.equal(searches.length, 4);
+    assert.match(root.querySelector('[data-lmz-popover-panel="right:styles"] .rt-lmz-panel-subtitle').textContent, /Typografie/);
+    assert.equal(root.querySelector('[data-lmz-popover-panel="right:styles"] [data-rt-lmz-panel-context]').textContent, 'Hero-Sektion');
+    assert.equal(root.querySelector('[data-lmz-popover-panel="left:layers"] [data-rt-lmz-panel-count]').textContent, '3 Ebenen');
+    assert.equal(root.querySelector('.lmzbjs-trait-category > .lmzbjs-title').getAttribute('aria-expanded'), 'true');
+
+    const layerSearch = root.querySelector('[data-rt-lmz-panel-search="layers"]');
+    layerSearch.value = 'cta';
+    layerSearch.dispatchEvent(new document.defaultView.Event('input', { bubbles: true }));
+    assert.equal(root.querySelector('[data-layer="cta"]').classList.contains('rt-lmz-panel-filter-match'), true);
+    assert.equal(root.querySelector('[data-layer="hero"]').classList.contains('rt-lmz-panel-filter-ancestor'), true);
+    assert.equal(root.querySelector('[data-layer="footer"]').classList.contains('rt-lmz-panel-filtered-out'), true);
+    assert.equal(root.querySelector('[data-lmz-popover-panel="left:layers"] [data-rt-lmz-panel-count]').textContent, '1 Treffer');
+
+    let rowClicks = 0;
+    const ctaRow = root.querySelector('[data-layer="cta"] > .lmzbjs-layer-item');
+    ctaRow.addEventListener('click', () => { rowClicks += 1; });
+    const enter = new document.defaultView.Event('keydown', { bubbles: true, cancelable: true });
+    Object.defineProperty(enter, 'key', { value: 'Enter' });
+    ctaRow.dispatchEvent(enter);
+    assert.equal(ctaRow.getAttribute('role'), 'button');
+    assert.equal(rowClicks, 1);
+
+    const escape = new document.defaultView.Event('keydown', { bubbles: true, cancelable: true });
+    Object.defineProperty(escape, 'key', { value: 'Escape' });
+    layerSearch.dispatchEvent(escape);
+    assert.equal(escape.defaultPrevented, true);
+    assert.equal(layerSearch.value, '');
+    assert.equal(root.querySelector('[data-layer="footer"]').classList.contains('rt-lmz-panel-filtered-out'), false);
+
+    chrome.destroy();
+    assert.equal(root.querySelector('[data-rt-lmz-panel-search]'), null);
+    assert.equal(root.querySelector('[data-lmz-mount="layers"]').parentElement.className, 'lmz-builder__popover-body');
+    assert.deepEqual(
+        [...root.querySelector('[data-lmz-popover-panel="left:layers"] .lmz-builder__popover-body').children]
+            .map((element) => element.dataset.lmzMount || element.className),
+        ['layers'],
+    );
 }));
 
 test('mail chrome separates vendor panels into accessible left navigation and right inspector docks', () => coreWithDom(`
@@ -2868,7 +2962,11 @@ test('shared LMZ shell styles real layer rows, grouped inline actions and respon
     assert.match(css, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmzbjs-trt-trait textarea[\s\S]*?font-size:\s*1rem;/);
     assert.match(css, /data-page-builder-shell-toolbar[\s\S]*?margin-inline-end:\s*24\.5rem;/);
     assert.match(css, /data-rt-lmz-layout='elementor'[\s\S]*?data-rt-lmz-mode='mail'[\s\S]*?data-lmz-action='save'[\s\S]*?display:\s*none\s*!important/);
-    assert.match(css, /grid-template-columns:\s*clamp\(16rem, 18vw, 19rem\)\s*minmax\(0, 1fr\)\s*clamp\(18rem, 20vw, 22rem\)/);
+    assert.match(css, /grid-template-columns:\s*clamp\(16rem, 18vw, 19rem\)\s*minmax\(0, 1fr\)\s*clamp\(18rem, 22vw, 24rem\)/);
+    assert.match(css, /\.rt-lmz-panel-tools\s*\{/);
+    assert.match(css, /\.rt-lmz-panel-search__clear\s*\{[\s\S]*?width:\s*2\.75rem;[\s\S]*?height:\s*2\.75rem;/);
+    assert.match(css, /\.rt-lmz-panel-scroll\s*\{[\s\S]*?overflow:\s*auto;/);
+    assert.match(css, /data-rt-lmz-panel-kind='classes'[\s\S]*?\.lmzbjs-clm-tag-close\s*\{[\s\S]*?width:\s*2\.75rem;/);
     assert.match(css, /rt-lmz-control-dock--navigation[\s\S]*?grid-column:\s*1;[\s\S]*?rt-lmz-control-dock--inspector[\s\S]*?grid-column:\s*3;/);
     assert.match(css, /data-rt-lmz-has-context-actions='false'[\s\S]*?rt-lmz-control-dock--inspector\s*\{\s*display:\s*none;/);
 });

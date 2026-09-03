@@ -1303,6 +1303,12 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
     border-bottom: 1px solid rgb(215 224 234);
 }
 
+.rt-mail-view-menu .rt-mail-preview-context [data-mail-compiler-parity-note] {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+}
+
 .dark .rt-mail-view-menu .rt-mail-preview-context,
 body[data-mode='dark'] .rt-mail-view-menu .rt-mail-preview-context {
     border-bottom-color: rgb(42 57 77);

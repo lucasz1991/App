@@ -469,14 +469,14 @@ class MarketingCareerCatalogTest extends TestCase
             ->count());
     }
 
-    public function test_default_database_seeder_installs_the_career_catalog_after_creating_the_admin(): void
+    public function test_default_database_seeder_does_not_install_legacy_builder_motives(): void
     {
         $this->seed(DatabaseSeeder::class);
 
-        $this->assertSame(3, MarketingCreative::query()
+        $this->assertSame(0, MarketingCreative::query()
             ->whereIn('shared_content->template_key', self::TEMPLATE_KEYS)
             ->count());
-        $this->assertSame(6, MarketingCreative::query()->count());
+        $this->assertSame(0, MarketingCreative::query()->count());
     }
 
     private function createPreIllustrationStarter(

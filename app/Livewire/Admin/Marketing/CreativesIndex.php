@@ -2,20 +2,22 @@
 
 namespace App\Livewire\Admin\Marketing;
 
-use App\Enums\MarketingCreativeFormat;
-use App\Enums\MarketingCreativeStatus;
 use App\Enums\MarketingCreativeType;
 use App\Models\MarketingCreative;
-use App\Services\Marketing\MarketingFileSourceService;
-use App\Services\Marketing\MarketingStudioService;
+use App\Models\User;
+use App\Services\Marketing\MarketingMotiveService;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Throwable;
 
 class CreativesIndex extends Component
 {
+    use WithFileUploads;
     use WithPagination;
 
     #[Url(as: 'q', except: '')]
@@ -24,18 +26,21 @@ class CreativesIndex extends Component
     #[Url(except: '')]
     public string $type = '';
 
-    #[Url(except: '')]
-    public string $status = '';
+    public bool $createMotiveOpen = false;
 
-    public string $mediaFolderId = '';
+    public string $motiveTitle = '';
 
-    public string $mediaSourceFingerprint = '';
+    public string $motiveType = 'job';
 
-    public function mount(MarketingFileSourceService $media): void
+    /** @var array<int, mixed> */
+    public array $motiveUploads = [];
+
+    #[Locked]
+    public bool $createDraftReady = false;
+
+    public function mount(): void
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
-
-        $this->syncMediaFolderSelection($media);
+        $this->admin();
     }
 
     public function updatedSearch(): void
@@ -48,161 +53,161 @@ class CreativesIndex extends Component
         $this->resetPage();
     }
 
-    public function updatedStatus(): void
+    public function openCreateMotive(): void
     {
-        $this->resetPage();
+        $this->admin();
+        $this->resetCreateDraft();
+
+        $this->createDraftReady = true;
+        $this->createMotiveOpen = true;
     }
 
-    public function create(string $type, MarketingStudioService $studio): void
+    public function cancelCreateMotive(): void
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $this->admin();
+        $this->resetCreateDraft();
+    }
 
-        $creativeType = MarketingCreativeType::tryFrom($type);
-        abort_unless($creativeType, 404);
+    /**
+     * Sicherheitsnetz fuer Schliessen ueber Kopf-X, Escape oder Backdrop.
+     * Alle Schliesswege brechen auch einen laufenden temporaeren Upload ab.
+     */
+    public function updatedCreateMotiveOpen(bool $open): void
+    {
+        $this->admin();
 
-        $creative = $studio->createFromTemplate($creativeType, auth()->user());
+        if (! $open && $this->createDraftReady) {
+            $this->resetCreateDraft();
+        }
+    }
+
+    public function createMotive(MarketingMotiveService $motives): void
+    {
+        $actor = $this->admin();
+        abort_unless($this->createDraftReady && $this->createMotiveOpen, 403);
+
+        $this->motiveTitle = trim($this->motiveTitle);
+
+        $validated = $this->validate([
+            'motiveTitle' => ['required', 'string', 'max:160'],
+            'motiveType' => ['required', Rule::enum(MarketingCreativeType::class)],
+            'motiveUploads' => ['required', 'array', 'min:1', 'max:20'],
+            'motiveUploads.*' => ['file', 'max:51200'],
+        ], [
+            'motiveTitle.required' => 'Bitte gib dem Motiv einen Namen.',
+            'motiveTitle.max' => 'Der Name darf maximal 160 Zeichen lang sein.',
+            'motiveType.required' => 'Bitte wähle einen Motivtyp aus.',
+            'motiveType.enum' => 'Der gewählte Motivtyp ist nicht verfügbar.',
+            'motiveUploads.required' => 'Bitte füge mindestens eine Datei hinzu.',
+            'motiveUploads.min' => 'Bitte füge mindestens eine Datei hinzu.',
+            'motiveUploads.max' => 'Pro Motiv können höchstens 20 Dateien hochgeladen werden.',
+            'motiveUploads.*.file' => 'Eine ausgewählte Datei ist ungültig.',
+            'motiveUploads.*.max' => 'Jede Datei darf höchstens 50 MB groß sein.',
+        ]);
+
+        try {
+            $creative = $motives->create(
+                $validated['motiveTitle'],
+                MarketingCreativeType::from($validated['motiveType']),
+                $actor,
+                $validated['motiveUploads'],
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->addError(
+                'motiveUploads',
+                'Das Motiv konnte nicht vollständig gespeichert werden. Bitte prüfe die Dateien und versuche es erneut.',
+            );
+
+            return;
+        }
+
+        $this->resetCreateDraft(notifyClient: false);
+        $this->dispatch('filepool:saved', model: 'motiveUploads');
 
         $this->redirectRoute(
-            'admin.marketing.creatives.editor',
-            ['creative' => $creative, 'open' => 1],
+            'admin.marketing.creatives.files',
+            ['creative' => $creative],
             navigate: true,
         );
     }
 
-    public function duplicate(string $creativeId, MarketingStudioService $studio): void
+    public function deleteMotive(string $creativeId, MarketingMotiveService $motives): void
     {
-        $copy = $studio->duplicate($this->creative($creativeId), auth()->user());
-
-        $this->dispatch(
-            'swal:toast',
-            type: 'success',
-            text: sprintf('„%s“ wurde als Entwurf dupliziert.', $copy->title),
-        );
-    }
-
-    public function approve(string $creativeId, MarketingStudioService $studio): void
-    {
-        $studio->approve($this->creative($creativeId), auth()->user());
-
-        $this->dispatch('swal:toast', type: 'success', text: 'Motiv wurde zur Veröffentlichung freigegeben.');
-    }
-
-    public function archive(string $creativeId, MarketingStudioService $studio): void
-    {
-        $studio->archive($this->creative($creativeId), auth()->user());
-
-        $this->dispatch('swal:toast', type: 'success', text: 'Motiv wurde archiviert.');
-    }
-
-    public function deleteCreative(string $creativeId, MarketingStudioService $studio): void
-    {
+        $actor = $this->admin();
         $creative = $this->creative($creativeId);
         $title = $creative->title;
 
-        $studio->delete($creative, auth()->user());
+        $motives->delete($creative, $actor);
         $this->resetPage();
 
         $this->dispatch(
             'swal:toast',
             type: 'success',
-            text: sprintf('"%s" wurde aus dem Marketing-Studio entfernt.', $title),
+            text: sprintf('„%s“ wurde entfernt.', $title),
         );
     }
 
-    public function saveMediaFolder(MarketingFileSourceService $media): void
+    public function render()
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $this->admin();
 
-        $value = trim($this->mediaFolderId);
-        abort_unless($value === '' || ctype_digit($value), 422);
-
-        try {
-            $media->setSelectedFolder(
-                $value === '' ? null : (int) $value,
-                auth()->user(),
-                $this->mediaSourceFingerprint,
-            );
-        } catch (ValidationException $exception) {
-            $this->syncMediaFolderSelection($media);
-
-            throw $exception;
-        }
-
-        $this->syncMediaFolderSelection($media);
-        $this->dispatch(
-            'swal:toast',
-            type: 'success',
-            text: 'Bildquelle für neue und bestehende Motive gespeichert.',
-        );
-    }
-
-    public function render(MarketingFileSourceService $media)
-    {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $search = trim($this->search);
+        $selectedType = MarketingCreativeType::tryFrom($this->type);
 
         $creatives = MarketingCreative::query()
-            ->when($this->search !== '', function (Builder $query): void {
-                $query->where('title', 'like', '%'.trim($this->search).'%');
+            ->with([
+                'filePool' => fn ($poolQuery) => $poolQuery
+                    ->withCount('files')
+                    ->with('latestFile'),
+            ])
+            ->when($search !== '', function (Builder $query) use ($search): void {
+                $query->where('title', 'like', '%'.$search.'%');
             })
-            ->when(MarketingCreativeType::tryFrom($this->type), function (Builder $query, MarketingCreativeType $type): void {
+            ->when($selectedType, function (Builder $query, MarketingCreativeType $type): void {
                 $query->where('type', $type->value);
-            })
-            ->when(MarketingCreativeStatus::tryFrom($this->status), function (Builder $query, MarketingCreativeStatus $status): void {
-                $query->where('status', $status->value);
             })
             ->latest('updated_at')
             ->paginate(12);
 
-        $selectedFolderId = $media->selectedFolderId();
-        $selectedFolder = $media->selectedFolder();
-        $mediaSourceInvalid = $selectedFolderId !== null && $selectedFolder === null;
-        $folderTree = $media->folderTree();
-        $selectedFolderNode = collect($folderTree)->first(
-            fn (array $folder): bool => (bool) ($folder['selected'] ?? false)
-        );
-        $assetSummary = $mediaSourceInvalid
-            ? ['total' => 0, 'visible' => 0, 'limit' => 0, 'truncated' => false]
-            : $media->editorAssetSummary($folderTree);
-
         return view('livewire.admin.marketing.creatives-index', [
             'creatives' => $creatives,
-            'previewFormats' => collect(MarketingCreativeFormat::cases())
-                ->mapWithKeys(function (MarketingCreativeFormat $format): array {
-                    $dimensions = $format->dimensions();
-
-                    return [$format->value => [
-                        'label' => ucfirst($format->value),
-                        'width' => $dimensions['width'],
-                        'height' => $dimensions['height'],
-                    ]];
-                })
-                ->all(),
-            'mediaFolderTree' => $folderTree,
-            'mediaSourceInvalid' => $mediaSourceInvalid,
-            'mediaSourcePath' => $mediaSourceInvalid
-                ? 'Ausgewählter Ordner nicht mehr verfügbar'
-                : ($selectedFolderNode['path'] ?? 'Firmendateien / Grundverzeichnis'),
-            'mediaAssetCount' => $assetSummary['total'],
-            'mediaAssetVisibleCount' => $assetSummary['visible'],
-            'mediaAssetTruncated' => $assetSummary['truncated'],
-            'mediaFilesUrl' => route(
-                'admin.files',
-                $selectedFolder && ! $mediaSourceInvalid ? ['folder' => $selectedFolder->getKey()] : [],
-            ),
         ])->layout('layouts.master', ['area' => 'admin']);
     }
 
     private function creative(string $creativeId): MarketingCreative
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $this->admin();
 
-        return MarketingCreative::query()->where('public_id', $creativeId)->firstOrFail();
+        return MarketingCreative::query()
+            ->where('public_id', $creativeId)
+            ->firstOrFail();
     }
 
-    private function syncMediaFolderSelection(MarketingFileSourceService $media): void
+    private function resetCreateDraft(bool $notifyClient = true): void
     {
-        $selectedFolderId = $media->selectedFolderId(uncached: true);
-        $this->mediaFolderId = $selectedFolderId === null ? '' : (string) $selectedFolderId;
-        $this->mediaSourceFingerprint = $media->selectionFingerprint();
+        $hadActiveDraft = $this->createDraftReady
+            || $this->createMotiveOpen
+            || $this->motiveUploads !== [];
+
+        // Zuerst die Sperre entfernen, damit der entangle-Hook idempotent bleibt.
+        $this->createDraftReady = false;
+        $this->createMotiveOpen = false;
+        $this->motiveTitle = '';
+        $this->motiveType = 'job';
+        $this->motiveUploads = [];
+        $this->resetValidation();
+
+        if ($notifyClient && $hadActiveDraft) {
+            $this->dispatch('filepool:cancelled', model: 'motiveUploads');
+        }
+    }
+
+    private function admin(): User
+    {
+        $user = auth()->user();
+        abort_unless($user?->isAdmin(), 403);
+
+        return $user;
     }
 }

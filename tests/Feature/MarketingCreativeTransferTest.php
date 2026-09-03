@@ -88,7 +88,7 @@ final class MarketingCreativeTransferTest extends TestCase
         );
     }
 
-    public function test_routes_are_admin_only_and_the_index_exposes_import_and_export_controls(): void
+    public function test_legacy_transfer_routes_remain_admin_only_while_the_index_hides_import_and_export_controls(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $staff = User::factory()->create(['role' => 'staff']);
@@ -100,14 +100,14 @@ final class MarketingCreativeTransferTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.marketing.creatives.index'))
             ->assertOk()
-            ->assertSee('Motivpaket importieren')
-            ->assertSee('Exportieren');
+            ->assertSee('Dateien verwalten')
+            ->assertSee(route('admin.marketing.creatives.files', $creative), false)
+            ->assertDontSee('Motivpaket importieren')
+            ->assertDontSee('Exportieren');
 
         $this->actingAs($admin)
             ->get(route('admin.marketing.creatives.editor', $creative))
-            ->assertOk()
-            ->assertSee('JSON-Paket')
-            ->assertSee('Vorteil 8');
+            ->assertRedirect(route('admin.marketing.creatives.files', $creative));
 
         $exportResponse = $this->actingAs($admin)
             ->get(route('admin.marketing.creatives.export', $creative));
@@ -132,7 +132,7 @@ final class MarketingCreativeTransferTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_import_dialog_alpine_state_is_compiled_for_closed_and_validation_error_renders(): void
+    public function test_index_never_renders_the_legacy_import_dialog_even_after_import_validation_fails(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
@@ -141,28 +141,25 @@ final class MarketingCreativeTransferTest extends TestCase
 
         $closedResponse
             ->assertOk()
-            ->assertSee('x-data="{ importOpen: false }"', false)
-            ->assertSee('x-show.important="importOpen"', false)
-            ->assertDontSee('x-show="importOpen"', false)
-            ->assertSee('x-on:click.self="importOpen = false"', false)
+            ->assertDontSee('importOpen', false)
+            ->assertDontSee('Motivpaket importieren')
             ->assertDontSee('@js(', false);
 
         $invalidUpload = UploadedFile::fake()->createWithContent(
             'ungueltiges-motiv.json',
             '{kein-json',
         );
-        $openResponse = $this->actingAs($admin)
-            ->followingRedirects()
+        $this->actingAs($admin)
             ->from(route('admin.marketing.creatives.index'))
-            ->post(route('admin.marketing.creatives.import'), ['bundle' => $invalidUpload]);
+            ->post(route('admin.marketing.creatives.import'), ['bundle' => $invalidUpload])
+            ->assertRedirect(route('admin.marketing.creatives.index'))
+            ->assertSessionHasErrors('bundle');
 
-        $openResponse
+        $this->actingAs($admin)
+            ->get(route('admin.marketing.creatives.index'))
             ->assertOk()
-            ->assertSee('x-data="{ importOpen: true }"', false)
-            ->assertSee('x-show.important="importOpen"', false)
-            ->assertDontSee('x-show="importOpen"', false)
-            ->assertSee('x-on:click.self="importOpen = false"', false)
-            ->assertSee('Die Datei enthält kein gültiges JSON-Motivpaket.')
+            ->assertDontSee('importOpen', false)
+            ->assertDontSee('Motivpaket importieren')
             ->assertDontSee('@js(', false);
     }
 

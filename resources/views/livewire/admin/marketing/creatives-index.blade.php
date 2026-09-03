@@ -2,362 +2,332 @@
 
 <x-ui.page
     title="Marketing-Motive"
-    eyebrow="Management"
-    description="Jobanzeigen und Informationsmotive zentral gestalten, prüfen und als PNG ausgeben."
+    eyebrow="Marketing"
+    description="Motive und zugehörige Dateien zentral ablegen, wiederfinden und verwalten."
+    :count="$creatives->total()"
     :auto-intro="false"
     :show-back="false"
     content-class="space-y-5"
     data-marketing-creatives
-    :x-data="$errors->has('bundle') ? '{ importOpen: true }' : '{ importOpen: false }'"
 >
     <x-slot:actions>
-        <button
+        <x-ui.buttons.button-basic
             type="button"
-            x-on:click="importOpen = true; $nextTick(() => $refs.bundleInput?.focus())"
-            aria-label="Motivpaket importieren"
-            class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:border-rt-red/40 hover:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text"
-        >
-            <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
-            <span class="hidden sm:inline">Importieren</span>
-        </button>
-        <button
-            type="button"
-            wire:click="create('info')"
+            mode="primary"
+            size="md"
+            wire:click="openCreateMotive"
             wire:loading.attr="disabled"
-            aria-label="Info-Motiv erstellen"
-            class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:border-rt-red/40 hover:text-rt-red disabled:opacity-50 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text"
+            wire:target="openCreateMotive"
+            class="min-h-11 px-4"
+            aria-label="Neues Marketing-Motiv anlegen"
         >
-            <i data-feather="info" class="h-4 w-4" aria-hidden="true"></i>
-            <span class="hidden sm:inline">Info-Motiv</span>
-        </button>
-        <button
-            type="button"
-            wire:click="create('job')"
-            wire:loading.attr="disabled"
-            aria-label="Job-Motiv erstellen"
-            class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-3.5 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark disabled:opacity-50"
-        >
-            <i data-feather="briefcase" class="h-4 w-4" aria-hidden="true"></i>
-            <span class="hidden sm:inline">Job-Motiv</span>
-        </button>
+            <i class="far fa-plus" aria-hidden="true"></i>
+            <span>Motiv anlegen</span>
+        </x-ui.buttons.button-basic>
     </x-slot:actions>
 
-    @if (session('marketing_import_success'))
-        <div class="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200" role="status">
-            <i data-feather="check-circle" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
-            <p>{{ session('marketing_import_success') }}</p>
-        </div>
-    @endif
-
-    <x-ui.surface.card padding="p-4 sm:p-5" data-marketing-media-source>
-        <form wire:submit="saveMediaFolder" class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-            <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.8fr)] lg:items-end">
-                <label class="block min-w-0">
-                    <span class="text-xs font-bold uppercase tracking-[0.1em] text-rt-red">Bildquelle für Motive</span>
-                    <select
-                        wire:model="mediaFolderId"
-                        class="mt-2 min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3 text-base text-rt-text focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm"
-                        aria-describedby="marketing-media-source-help marketing-media-source-error"
-                    >
-                        <option value="">Grundverzeichnis (alle Ordner)</option>
-                        @if ($mediaSourceInvalid)
-                            <option value="{{ $mediaFolderId }}" disabled>Ordner #{{ $mediaFolderId }} · nicht mehr verfügbar</option>
-                        @endif
-                        @foreach ($mediaFolderTree as $folder)
-                            <option value="{{ $folder['id'] }}">
-                                {{ str_repeat('— ', (int) ($folder['depth'] ?? 0)) }}{{ $folder['path'] }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <p id="marketing-media-source-help" class="mt-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
-                        Der gewählte Ordner und alle Unterordner bilden die schreibgeschützte Bilderbibliothek im Editor.
-                    </p>
-                    @error('mediaFolderId')
-                        <p id="marketing-media-source-error" class="mt-2 text-xs font-semibold leading-5 text-rt-red" role="alert">{{ $message }}</p>
-                    @enderror
-                </label>
-
-                <div class="min-w-0 rounded-xl border border-rt-border bg-rt-surface-muted px-4 py-3 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted">
-                    <p class="text-[11px] font-bold uppercase tracking-[0.1em] text-rt-soft">Aktuell freigegeben</p>
-                    <p class="mt-1 break-words text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $mediaSourcePath }}</p>
-                    <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">
-                        @if ($mediaAssetTruncated)
-                            {{ $mediaAssetVisibleCount }} von {{ $mediaAssetCount }} Bildern im Editor geladen · Für weitere Treffer einen Unterordner wählen
-                        @else
-                            {{ $mediaAssetCount }} {{ $mediaAssetCount === 1 ? 'Bild' : 'Bilder' }} im Editor verfügbar
-                        @endif
-                    </p>
-                </div>
-            </div>
-
-            <div class="flex flex-wrap gap-2 xl:justify-end">
-                <a
-                    href="{{ $mediaFilesUrl }}"
-                    wire:navigate
-                    class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-muted transition hover:border-rt-red/30 hover:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted"
-                >
-                    <i data-feather="folder" class="h-4 w-4" aria-hidden="true"></i>
-                    Dateien öffnen
-                </a>
-                <button
-                    type="submit"
-                    wire:loading.attr="disabled"
-                    wire:target="saveMediaFolder"
-                    class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white transition hover:bg-rt-red-dark disabled:opacity-50"
-                >
-                    <i data-feather="check" class="h-4 w-4" aria-hidden="true"></i>
-                    <span wire:loading.remove wire:target="saveMediaFolder">Bildquelle speichern</span>
-                    <span wire:loading wire:target="saveMediaFolder">Wird geprüft …</span>
-                </button>
-            </div>
-        </form>
-
-        @if ($mediaSourceInvalid)
-            <div class="mt-4 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-500/10 dark:text-rose-200" role="alert" data-marketing-media-source-invalid>
-                <i data-feather="alert-triangle" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
-                <p><strong>Die gespeicherte Bildquelle ist nicht mehr verfügbar.</strong> Der Editor zeigt aus Sicherheitsgründen keine Bilder. Wähle das Grundverzeichnis oder einen vorhandenen Ordner und speichere erneut.</p>
-            </div>
-        @endif
-    </x-ui.surface.card>
-
-    <x-ui.surface.card padding="p-4">
-        <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_12rem]" aria-label="Motive filtern">
-            <label class="relative block">
+    <x-ui.surface.card padding="p-4 sm:p-5">
+        <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_14rem]" aria-label="Marketing-Motive filtern">
+            <label class="relative block min-w-0">
                 <span class="sr-only">Motive durchsuchen</span>
-                <i data-feather="search" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-rt-soft" aria-hidden="true"></i>
+                <i class="far fa-search pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-rt-soft" aria-hidden="true"></i>
                 <input
                     type="search"
                     wire:model.live.debounce.300ms="search"
-                    placeholder="Titel durchsuchen …"
-                    class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control py-2 pl-10 pr-3 text-base text-rt-text placeholder:text-rt-soft focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm"
+                    placeholder="Nach Motivnamen suchen …"
+                    autocomplete="off"
+                    class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control py-2.5 pl-10 pr-4 text-base text-rt-text outline-none transition placeholder:text-rt-soft focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm"
                 >
             </label>
 
-            <label>
-                <span class="sr-only">Motivtyp</span>
-                <select wire:model.live="type" class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3 text-base text-rt-text focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm">
-                    <option value="">Alle Typen</option>
-                    <option value="job">Jobs</option>
-                    <option value="info">Informationen</option>
-                </select>
-            </label>
-
-            <label>
-                <span class="sr-only">Status</span>
-                <select wire:model.live="status" class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3 text-base text-rt-text focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm">
-                    <option value="">Alle Status</option>
-                    <option value="draft">Entwurf</option>
-                    <option value="approved">Freigegeben</option>
-                    <option value="archived">Archiviert</option>
+            <label class="block min-w-0">
+                <span class="sr-only">Nach Motivtyp filtern</span>
+                <select
+                    wire:model.live="type"
+                    class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3 text-base text-rt-text outline-none transition focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm"
+                >
+                    <option value="">Alle Motivtypen</option>
+                    <option value="job">Job-Motive</option>
+                    <option value="info">Informationsmotive</option>
                 </select>
             </label>
         </div>
-    </x-ui.surface.card>
 
-    <div
-        wire:loading.delay.shorter
-        wire:target="search,type,status"
-        style="display: none;"
-        class="w-fit rounded-full border border-rt-border bg-rt-surface px-3 py-2 text-xs font-semibold text-rt-muted shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted"
-        role="status"
-        aria-live="polite"
-        data-marketing-filter-progress
-    >
-        <span class="inline-flex items-center gap-2">
+        <div
+            wire:loading.flex.delay
+            wire:target="search,type"
+            class="mt-3 hidden items-center gap-2 text-xs font-semibold text-rt-muted dark:text-rt-dark-muted"
+            role="status"
+            aria-live="polite"
+        >
             <i class="far fa-spinner-third animate-spin text-rt-red" aria-hidden="true"></i>
             Motive werden aktualisiert …
-        </span>
-    </div>
+        </div>
+    </x-ui.surface.card>
 
-    <div>
-        @if ($creatives->isEmpty())
-            <x-ui.surface.card padding="p-8 sm:p-12" class="text-center">
-                <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rt-red dark:bg-rose-500/10 dark:text-rose-300">
-                    <i data-feather="layout" class="h-5 w-5" aria-hidden="true"></i>
+    @if ($creatives->isEmpty())
+        <x-ui.surface.card padding="p-8 sm:p-12" class="overflow-hidden text-center">
+            <div class="relative mx-auto flex h-20 w-20 items-center justify-center">
+                <span class="absolute inset-0 rounded-[1.75rem] bg-rt-red/10 ring-1 ring-rt-red/15 dark:bg-rt-red/15"></span>
+                <span class="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-sm" aria-hidden="true">
+                    <i class="far fa-plus text-xs"></i>
                 </span>
-                <h2 class="mt-4 text-lg font-semibold">Noch keine passenden Motive</h2>
-                <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Erstelle ein Job- oder Info-Motiv. Story, Post und Webformat werden direkt gemeinsam angelegt.</p>
-            </x-ui.surface.card>
-        @else
-            <div class="grid gap-4 xl:grid-cols-2" data-marketing-creative-list>
-                @foreach ($creatives as $creative)
-                    @php
-                        $typeValue = $creative->type instanceof \BackedEnum ? $creative->type->value : (string) $creative->type;
-                        $statusValue = $creative->status instanceof \BackedEnum ? $creative->status->value : (string) $creative->status;
-                        $statusLabel = ['draft' => 'Entwurf', 'approved' => 'Freigegeben', 'archived' => 'Archiviert'][$statusValue] ?? $statusValue;
-                        $preferredPreviewFormat = data_get($creative->shared_content, 'preferred_preview_format', 'post');
-                        if (! array_key_exists($preferredPreviewFormat, $previewFormats)) {
-                            $preferredPreviewFormat = 'post';
-                        }
-                        $creativePreviewSources = collect($previewFormats)->mapWithKeys(
-                            fn (array $preview, string $format): array => [$format => array_merge($preview, [
-                                'url' => route('admin.marketing.creatives.preview', [$creative, $format]),
-                                'editUrl' => route('admin.marketing.creatives.editor', [
-                                    'creative' => $creative,
-                                    'format' => $format,
-                                    'open' => 1,
-                                ]),
-                            ])]
-                        )->all();
-                    @endphp
-                    <article wire:key="marketing-creative-{{ $creative->public_id }}" class="group rounded-2xl border border-rt-border bg-rt-surface p-5 shadow-rt-xs transition hover:border-rt-red/25 hover:shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface" data-marketing-creative-card>
-                        <x-ui.page-builder.preview-card
-                            class="mb-4"
-                            :title="$creative->title"
-                            :description="($typeValue === 'job' ? 'Jobmotiv' : 'Informationsmotiv').' · zuletzt geändert '.$creative->updated_at?->diffForHumans()"
-                            :status="$statusLabel"
-                            :sources="$creativePreviewSources"
-                            :default-source="$preferredPreviewFormat"
-                            :deferred="true"
-                            :loading-overlay="false"
-                            :edit-url="route('admin.marketing.creatives.editor', [
-                                'creative' => $creative,
-                                'format' => $preferredPreviewFormat,
-                                'open' => 1,
-                            ])"
-                            :edit-label="$statusValue === 'archived' ? 'Im Vollbild ansehen' : 'Im Vollbild bearbeiten'"
-                        />
-
-                        <div class="flex items-start gap-4">
-                            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-red dark:bg-rt-dark-surface-muted dark:text-rose-300">
-                                <i data-feather="{{ $typeValue === 'job' ? 'briefcase' : 'info' }}" class="h-5 w-5" aria-hidden="true"></i>
-                            </span>
-                            <div class="min-w-0 flex-1">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <span @class([
-                                        'rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em]',
-                                        'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300' => $statusValue === 'draft',
-                                        'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' => $statusValue === 'approved',
-                                        'bg-slate-100 text-slate-600 dark:bg-slate-500/10 dark:text-slate-300' => $statusValue === 'archived',
-                                    ])>{{ $statusLabel }}</span>
-                                    <span class="text-xs font-medium text-rt-soft">{{ $typeValue === 'job' ? 'Job' : 'Information' }}</span>
-                                </div>
-                                <h2 class="mt-2 truncate text-base font-semibold text-rt-text dark:text-rt-dark-text" title="{{ $creative->title }}">{{ $creative->title }}</h2>
-                                <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Zuletzt geändert {{ $creative->updated_at?->diffForHumans() }}</p>
-                            </div>
-                        </div>
-
-                        <div class="mt-4 flex flex-wrap gap-2" aria-label="Verfügbare Formate">
-                            @foreach (['story' => 'Story 9:16', 'post' => 'Post 1:1', 'web' => 'Web 1,91:1'] as $format => $label)
-                                <span class="rounded-lg border border-rt-border/80 bg-rt-surface-muted px-2.5 py-1.5 text-[11px] font-semibold text-rt-muted dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">{{ $label }}</span>
-                            @endforeach
-                        </div>
-
-                        <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-rt-border/70 pt-4 dark:border-rt-dark-border/70">
-                            <a href="{{ route('admin.marketing.creatives.editor', ['creative' => $creative, 'open' => 1]) }}" wire:navigate class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-3.5 text-sm font-semibold text-white transition hover:bg-rt-red-dark">
-                                <i data-feather="{{ $statusValue === 'archived' ? 'eye' : 'edit-3' }}" class="h-4 w-4" aria-hidden="true"></i>
-                                {{ $statusValue === 'archived' ? 'Ansehen' : 'Bearbeiten' }}
-                            </a>
-                            <button type="button" wire:click="duplicate('{{ $creative->public_id }}')" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-muted transition hover:border-rt-red/30 hover:text-rt-red disabled:opacity-50 dark:border-rt-dark-border dark:text-rt-dark-muted">
-                                <i data-feather="copy" class="h-4 w-4" aria-hidden="true"></i>
-                                Duplizieren
-                            </button>
-                            <a
-                                href="{{ route('admin.marketing.creatives.export', $creative) }}"
-                                class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-muted transition hover:border-rt-red/30 hover:text-rt-red dark:border-rt-dark-border dark:text-rt-dark-muted"
-                                title="Editierbares Motivpaket mit Bildern exportieren"
-                            >
-                                <i data-feather="download-cloud" class="h-4 w-4" aria-hidden="true"></i>
-                                Exportieren
-                            </a>
-                            @if ($statusValue === 'draft')
-                                <button type="button" wire:click="approve('{{ $creative->public_id }}')" wire:confirm="Dieses Motiv ohne Entwurfs-Wasserzeichen freigeben?" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-200 px-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/10">
-                                    <i data-feather="check-circle" class="h-4 w-4" aria-hidden="true"></i>
-                                    Freigeben
-                                </button>
-                            @endif
-                            @if ($statusValue !== 'archived')
-                                <button type="button" wire:click="archive('{{ $creative->public_id }}')" wire:confirm="Dieses Motiv archivieren?" wire:loading.attr="disabled" class="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-rt-soft transition hover:bg-rose-50 hover:text-rt-red disabled:opacity-50 dark:hover:bg-rose-500/10" title="Archivieren" aria-label="{{ $creative->title }} archivieren">
-                                    <i data-feather="archive" class="h-4 w-4" aria-hidden="true"></i>
-                                </button>
-                            @endif
-                            <button
-                                type="button"
-                                wire:click="deleteCreative('{{ $creative->public_id }}')"
-                                wire:confirm="Dieses Motiv endgültig aus dem Marketing-Studio entfernen? Es ist danach nicht mehr im Editor, in Vorschauen oder Exporten erreichbar."
-                                wire:loading.attr="disabled"
-                                @class([
-                                    'inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-rt-soft transition hover:bg-rose-50 hover:text-rt-red disabled:opacity-50 dark:hover:bg-rose-500/10',
-                                    'ml-auto' => $statusValue === 'archived',
-                                ])
-                                title="Motiv entfernen"
-                                aria-label="{{ $creative->title }} aus dem Marketing-Studio entfernen"
-                            >
-                                <i data-feather="trash-2" class="h-4 w-4" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                    </article>
-                @endforeach
+                <i class="fad fa-photo-video relative text-3xl text-rt-red" aria-hidden="true"></i>
             </div>
 
-            @if ($creatives->hasPages())
-                <div class="mt-5">{{ $creatives->links() }}</div>
+            <h2 class="mt-5 text-xl font-semibold tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">
+                {{ $search !== '' || $type !== '' ? 'Keine passenden Motive gefunden' : 'Noch keine Marketing-Motive' }}
+            </h2>
+            <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+                @if ($search !== '' || $type !== '')
+                    Passe Suche oder Motivtyp an, um andere Ergebnisse anzuzeigen.
+                @else
+                    Lege dein erstes Motiv an und füge direkt die fertigen Bilder, PDFs oder weiteren Ausgabedateien hinzu.
+                @endif
+            </p>
+
+            @if ($search === '' && $type === '')
+                <x-ui.buttons.button-basic
+                    type="button"
+                    mode="primary"
+                    size="md"
+                    wire:click="openCreateMotive"
+                    class="mt-6 min-h-11 px-5"
+                >
+                    <i class="far fa-plus" aria-hidden="true"></i>
+                    Erstes Motiv anlegen
+                </x-ui.buttons.button-basic>
             @endif
+        </x-ui.surface.card>
+    @else
+        <div class="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3" data-marketing-motive-list>
+            @foreach ($creatives as $creative)
+                @php
+                    $typeValue = $creative->type instanceof \BackedEnum ? $creative->type->value : (string) $creative->type;
+                    $typeLabel = $typeValue === 'job' ? 'Job-Motiv' : 'Informationsmotiv';
+                    $pool = $creative->filePool;
+                    $fileCount = (int) ($pool?->files_count ?? 0);
+                    $previewFile = $pool?->latestFile;
+                    $previewIsImage = (bool) ($previewFile?->is_image ?? false);
+                    $previewSource = $previewFile?->icon_or_thumbnail;
+                @endphp
+
+                <article
+                    wire:key="marketing-motive-{{ $creative->public_id }}"
+                    class="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-rt-border bg-rt-surface shadow-rt-xs transition duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red/25 hover:shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface"
+                    data-marketing-motive-card
+                >
+                    <a
+                        href="{{ route('admin.marketing.creatives.files', ['creative' => $creative]) }}"
+                        wire:navigate
+                        class="relative block aspect-[16/10] overflow-hidden bg-rt-surface-muted focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-rt-red/25 dark:bg-rt-dark-surface-muted"
+                        aria-label="Dateien von {{ $creative->title }} verwalten"
+                    >
+                        @if ($previewSource)
+                            <img
+                                src="{{ $previewSource }}"
+                                alt=""
+                                @class([
+                                    'h-full w-full transition duration-500 ease-rt-spring group-hover:scale-[1.025]',
+                                    'object-cover' => $previewIsImage,
+                                    'object-contain p-12 sm:p-14' => ! $previewIsImage,
+                                ])
+                                loading="lazy"
+                            >
+                            @if ($previewIsImage)
+                                <span class="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-transparent" aria-hidden="true"></span>
+                            @endif
+                        @else
+                            <span class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-rt-soft dark:text-rt-dark-soft" aria-hidden="true">
+                                <span class="flex h-16 w-16 items-center justify-center rounded-2xl bg-rt-surface text-2xl text-rt-red shadow-rt-xs ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border">
+                                    <i class="fad fa-folder-open"></i>
+                                </span>
+                                <span class="text-xs font-semibold uppercase tracking-[0.12em]">Noch ohne Dateien</span>
+                            </span>
+                        @endif
+
+                        <span class="absolute left-3 top-3 inline-flex min-h-8 items-center gap-1.5 rounded-full border border-white/60 bg-white/90 px-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-700 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-slate-950/80 dark:text-slate-200">
+                            <i class="far {{ $typeValue === 'job' ? 'fa-briefcase' : 'fa-info-circle' }} text-rt-red" aria-hidden="true"></i>
+                            {{ $typeLabel }}
+                        </span>
+
+                        <span class="absolute bottom-3 right-3 inline-flex min-h-8 items-center gap-1.5 rounded-full border border-white/60 bg-white/90 px-2.5 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-slate-950/80 dark:text-slate-200">
+                            <i class="far fa-paperclip text-rt-red" aria-hidden="true"></i>
+                            {{ $fileCount }} {{ $fileCount === 1 ? 'Datei' : 'Dateien' }}
+                        </span>
+                    </a>
+
+                    <div class="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
+                        <div class="min-w-0 flex-1">
+                            <h2 class="truncate text-base font-semibold tracking-[-0.015em] text-rt-text dark:text-rt-dark-text" title="{{ $creative->title }}">
+                                {{ $creative->title }}
+                            </h2>
+                            <p class="mt-1.5 flex items-center gap-1.5 text-xs text-rt-muted dark:text-rt-dark-muted">
+                                <i class="far fa-clock text-rt-soft" aria-hidden="true"></i>
+                                Aktualisiert {{ $creative->updated_at?->diffForHumans() }}
+                            </p>
+                        </div>
+
+                        <div class="mt-5 flex items-center gap-2 border-t border-rt-border/70 pt-4 dark:border-rt-dark-border/70">
+                            <x-ui.buttons.button-basic
+                                href="{{ route('admin.marketing.creatives.files', ['creative' => $creative]) }}"
+                                mode="primary"
+                                size="md"
+                                class="min-h-11 min-w-0 flex-1 px-3"
+                                aria-label="Dateien von {{ $creative->title }} verwalten"
+                            >
+                                <i class="far fa-folder-open" aria-hidden="true"></i>
+                                <span class="truncate">Dateien verwalten</span>
+                            </x-ui.buttons.button-basic>
+
+                            <button
+                                type="button"
+                                wire:click="deleteMotive('{{ $creative->public_id }}')"
+                                wire:confirm="Dieses Motiv aus der aktiven Bibliothek entfernen? Die Dateien bleiben für eine Wiederherstellung erhalten."
+                                wire:loading.attr="disabled"
+                                wire:target="deleteMotive('{{ $creative->public_id }}')"
+                                class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-transparent text-rt-soft transition hover:border-rose-200 hover:bg-rose-50 hover:text-rt-red focus:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 disabled:cursor-wait disabled:opacity-50 dark:hover:border-rose-900 dark:hover:bg-rose-500/10"
+                                title="Motiv entfernen"
+                                aria-label="{{ $creative->title }} entfernen"
+                            >
+                                <i wire:loading.remove wire:target="deleteMotive('{{ $creative->public_id }}')" class="far fa-trash-alt" aria-hidden="true"></i>
+                                <i wire:loading wire:target="deleteMotive('{{ $creative->public_id }}')" class="far fa-spinner-third animate-spin" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                </article>
+            @endforeach
+        </div>
+
+        @if ($creatives->hasPages())
+            <div>{{ $creatives->links() }}</div>
         @endif
-    </div>
+    @endif
 
-    <div
-        x-cloak
-        x-show.important="importOpen"
-        x-transition.opacity
-        x-on:click.self="importOpen = false"
-        x-on:keydown.escape.window="importOpen = false"
-        class="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="marketing-import-title"
+    <x-dialog-modal
+        wire:model.live="createMotiveOpen"
+        maxWidth="4xl"
+        :instant="true"
+        data-filepool-upload-modal
     >
-        <div class="pointer-events-none absolute inset-0 bg-slate-950/70 backdrop-blur-xl" aria-hidden="true"></div>
-
-        <section
-            x-show.important="importOpen"
-            x-transition
-            x-trap.inert.noscroll="importOpen"
-            class="relative w-full max-w-xl overflow-hidden rounded-3xl border border-white/15 bg-white shadow-2xl dark:bg-[#0b1118]"
-        >
-            <header class="flex items-start gap-4 border-b border-rt-border px-5 py-5 dark:border-rt-dark-border sm:px-6">
-                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rt-red dark:bg-rose-500/10 dark:text-rose-300">
-                    <i data-feather="package" class="h-5 w-5" aria-hidden="true"></i>
+        <x-slot name="title">
+            <span class="flex min-w-0 items-center gap-3">
+                <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-red/10 text-rt-red dark:bg-rt-red/20 dark:text-rt-dark-accent" aria-hidden="true">
+                    <i class="fad fa-photo-video"></i>
                 </span>
-                <div class="min-w-0 flex-1">
-                    <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-rt-red">Portabler Entwurf</p>
-                    <h2 id="marketing-import-title" class="mt-1 text-xl font-semibold text-rt-text dark:text-white">Motivpaket importieren</h2>
-                    <p class="mt-1 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Story, Post, Web und verwendete Bilder werden gemeinsam geprüft. Der Import wird immer als neuer, ungeprüfter Entwurf angelegt.</p>
+                <span class="min-w-0">
+                    <span class="block">Neues Motiv anlegen</span>
+                    <span class="mt-0.5 block text-xs font-medium text-rt-muted dark:text-rt-dark-muted">Name, Typ und Dateien gemeinsam speichern</span>
+                </span>
+            </span>
+        </x-slot>
+
+        <x-slot name="content">
+            <form id="marketing-motive-create-form" wire:submit="createMotive" class="space-y-6">
+                <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.72fr)]">
+                    <label class="block min-w-0">
+                        <span class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Name des Motivs</span>
+                        <span class="ml-1 text-rt-red" aria-hidden="true">*</span>
+                        <input
+                            type="text"
+                            wire:model="motiveTitle"
+                            maxlength="160"
+                            required
+                            autocomplete="off"
+                            placeholder="z. B. Wagenmeister · Herbstkampagne"
+                            aria-describedby="marketing-motive-title-help marketing-motive-title-error"
+                            class="mt-2 min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 text-base text-rt-text outline-none transition placeholder:text-rt-soft focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm"
+                        >
+                        <p id="marketing-motive-title-help" class="mt-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Ein klarer Name macht das Motiv später schnell auffindbar.</p>
+                        @error('motiveTitle')
+                            <p id="marketing-motive-title-error" class="mt-2 text-sm font-semibold text-rt-red" role="alert">{{ $message }}</p>
+                        @enderror
+                    </label>
+
+                    <fieldset class="min-w-0">
+                        <legend class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Motivtyp</legend>
+                        <div class="mt-2 grid grid-cols-2 gap-2">
+                            <label class="cursor-pointer">
+                                <input type="radio" wire:model="motiveType" value="job" class="peer sr-only">
+                                <span class="flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border border-rt-border bg-rt-control px-3 text-center text-sm font-semibold text-rt-muted transition hover:border-rt-red/35 peer-checked:border-rt-red peer-checked:bg-rt-red/[0.06] peer-checked:text-rt-red peer-focus-visible:ring-4 peer-focus-visible:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted">
+                                    <i class="far fa-briefcase text-lg" aria-hidden="true"></i>
+                                    Job-Motiv
+                                </span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" wire:model="motiveType" value="info" class="peer sr-only">
+                                <span class="flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border border-rt-border bg-rt-control px-3 text-center text-sm font-semibold text-rt-muted transition hover:border-rt-red/35 peer-checked:border-rt-red peer-checked:bg-rt-red/[0.06] peer-checked:text-rt-red peer-focus-visible:ring-4 peer-focus-visible:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted">
+                                    <i class="far fa-info-circle text-lg" aria-hidden="true"></i>
+                                    Information
+                                </span>
+                            </label>
+                        </div>
+                        @error('motiveType')
+                            <p class="mt-2 text-sm font-semibold text-rt-red" role="alert">{{ $message }}</p>
+                        @enderror
+                    </fieldset>
                 </div>
-                <button type="button" x-on:click="importOpen = false" class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-rt-soft transition hover:bg-rt-surface-muted hover:text-rt-text dark:hover:bg-white/5 dark:hover:text-white" aria-label="Schließen">
-                    <i data-feather="x" class="h-5 w-5" aria-hidden="true"></i>
-                </button>
-            </header>
 
-            <form method="POST" action="{{ route('admin.marketing.creatives.import') }}" enctype="multipart/form-data" class="p-5 sm:p-6">
-                @csrf
-                <label class="group flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-rt-border bg-rt-surface-muted px-6 py-8 text-center transition hover:border-rt-red/45 hover:bg-rose-50/60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:hover:bg-rose-500/5">
-                    <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-rt-red shadow-rt-xs dark:bg-white/5">
-                        <i data-feather="file-plus" class="h-6 w-6" aria-hidden="true"></i>
-                    </span>
-                    <strong class="mt-4 text-base text-rt-text dark:text-white">RailTime-Motivpaket auswählen</strong>
-                    <span class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">JSON · maximal 32 MiB</span>
-                    <input x-ref="bundleInput" type="file" name="bundle" accept=".json,application/json" required class="mt-5 block w-full max-w-sm text-sm text-rt-muted file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-rt-red file:px-4 file:font-semibold file:text-white hover:file:bg-rt-red-dark dark:text-rt-dark-muted">
-                </label>
+                <section aria-labelledby="marketing-motive-files-title">
+                    <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+                        <div>
+                            <h3 id="marketing-motive-files-title" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">
+                                Dateien <span class="text-rt-red" aria-hidden="true">*</span>
+                            </h3>
+                            <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Mindestens eine, maximal 20 Dateien mit jeweils bis zu 50 MB.</p>
+                        </div>
+                        <span wire:loading.flex wire:target="motiveUploads" class="items-center gap-2 text-xs font-semibold text-rt-red" role="status" aria-live="polite">
+                            <i class="far fa-spinner-third animate-spin" aria-hidden="true"></i>
+                            Dateien werden vorbereitet …
+                        </span>
+                    </div>
 
-                @error('bundle')
-                    <p class="mt-3 flex items-start gap-2 text-sm font-semibold text-rt-red" role="alert">
-                        <i data-feather="alert-circle" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
-                        {{ $message }}
-                    </p>
-                @enderror
+                    <x-ui.filepool.drop-zone
+                        model="motiveUploads"
+                        :max-files="20"
+                        :max-filesize="50"
+                    />
 
-                <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <button type="button" x-on:click="importOpen = false" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-muted transition hover:text-rt-text dark:border-rt-dark-border dark:text-rt-dark-muted dark:hover:text-white">
-                        <i data-feather="x" class="h-4 w-4" aria-hidden="true"></i>
-                        Abbrechen
-                    </button>
-                    <button type="submit" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-5 text-sm font-semibold text-white transition hover:bg-rt-red-dark">
-                        <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
-                        Prüfen &amp; importieren
-                    </button>
-                </div>
+                    @error('motiveUploads.*')
+                        <p class="mt-2 flex items-start gap-2 text-sm font-semibold text-rt-red" role="alert">
+                            <i class="far fa-exclamation-circle mt-0.5 shrink-0" aria-hidden="true"></i>
+                            <span>{{ $message }}</span>
+                        </p>
+                    @enderror
+                </section>
             </form>
-        </section>
-    </div>
+        </x-slot>
+
+        <x-slot name="footer">
+            <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <x-ui.buttons.button-basic
+                    type="button"
+                    mode="basic"
+                    size="md"
+                    wire:click="cancelCreateMotive"
+                    wire:loading.attr="disabled"
+                    wire:target="createMotive"
+                    class="min-h-11 min-w-[8.5rem]"
+                >
+                    <i class="far fa-times" aria-hidden="true"></i>
+                    Abbrechen
+                </x-ui.buttons.button-basic>
+
+                <x-ui.buttons.button-basic
+                    type="submit"
+                    form="marketing-motive-create-form"
+                    mode="primary"
+                    size="md"
+                    wire:loading.attr="disabled"
+                    wire:target="createMotive,motiveUploads"
+                    class="min-h-11 min-w-[10.5rem]"
+                >
+                    <i wire:loading.remove wire:target="createMotive" class="fad fa-cloud-upload-alt" aria-hidden="true"></i>
+                    <i wire:loading wire:target="createMotive" class="far fa-spinner-third animate-spin" aria-hidden="true"></i>
+                    <span wire:loading.remove wire:target="createMotive">Motiv anlegen</span>
+                    <span wire:loading wire:target="createMotive">Wird gespeichert …</span>
+                </x-ui.buttons.button-basic>
+            </div>
+        </x-slot>
+    </x-dialog-modal>
 </x-ui.page>

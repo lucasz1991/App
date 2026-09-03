@@ -430,11 +430,41 @@ export function mailCanvasStyles(theme = 'light', previewAssets = {}, responsive
         : '';
 
     return `
-body.rt-mail-canvas {
+html {
     margin: 0;
-    padding: 28px 0;
+    padding: 0;
     background: ${palette.PAGE_BG};
+}
+body.rt-mail-canvas {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    background: ${palette.PAGE_BG};
+    color: ${palette.TEXT_PRIMARY};
     font-family: ${FONT_STACK};
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+/* Dieselbe neutrale Basis wie im produktiven Mail-Master. Der Canvas darf
+ * keine eigenen Kartenabstaende, Tabellenluecken oder Bild-Baselines
+ * hinzufuegen, die Outlook im Versand nicht besitzt. */
+body.rt-mail-canvas table {
+    border-spacing: 0;
+    border-collapse: collapse;
+    mso-table-lspace: 0pt;
+    mso-table-rspace: 0pt;
+}
+body.rt-mail-canvas img {
+    display: block;
+    height: auto;
+    border: 0;
+    outline: none;
+    line-height: 100%;
+    text-decoration: none;
+    -ms-interpolation-mode: bicubic;
 }
 
 /* ---- Vorschau der Palettenplatzhalter ---- */

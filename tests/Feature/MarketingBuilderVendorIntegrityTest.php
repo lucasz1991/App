@@ -4,13 +4,10 @@ namespace Tests\Feature;
 
 use App\Enums\MarketingCreativeType;
 use App\Livewire\Admin\Marketing\CreativesIndex;
-use App\Models\FileFolder;
-use App\Models\FilePool;
+use App\Models\MarketingCreative;
 use App\Models\User;
-use App\Services\Marketing\MarketingFileSourceService;
-use App\Services\Marketing\MarketingStudioService;
-use App\Support\MarketingFileSourceSettings;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -48,44 +45,34 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         $this->assertStringContainsString('do not depend on GrapesJS Studio SDK', $notice);
     }
 
-    public function test_marketing_views_keep_the_builder_and_read_only_file_source_contracts_visible(): void
+    public function test_marketing_index_exposes_the_file_library_without_pagebuilder_contracts(): void
     {
-        $editor = file_get_contents(resource_path('views/livewire/admin/marketing/creative-editor.blade.php'));
         $index = file_get_contents(resource_path('views/livewire/admin/marketing/creatives-index.blade.php'));
         $sidebar = file_get_contents(resource_path('views/layouts/admin-sidebar.blade.php'));
-        $adapter = file_get_contents(resource_path('js/marketing-studio.js'));
 
-        $this->assertIsString($editor);
         $this->assertIsString($index);
         $this->assertIsString($sidebar);
-        $this->assertIsString($adapter);
 
-        $this->assertStringContainsString('data-marketing-editor-root', $editor);
-        $this->assertStringContainsString('wire:ignore', $editor);
-        $this->assertStringContainsString("'story' => ['Story', '1080 × 1920']", $editor);
-        $this->assertStringContainsString("'post' => ['Post', '1080 × 1080']", $editor);
-        $this->assertStringContainsString("'web' => ['Web', '1200 × 630']", $editor);
-        $this->assertStringContainsString('data-marketing-safe-zone', $editor);
-        $this->assertStringContainsString('data-marketing-export', $editor);
-        $this->assertStringContainsString('data-mobile-pane="layout"', $editor);
-        $this->assertStringContainsString("mobilePane = 'layout'", $editor);
-        $this->assertStringContainsString('marketing-editor:viewport-change', $editor);
-        $this->assertStringContainsString('data-marketing-artboard-label', $editor);
-        $this->assertStringContainsString('data-marketing-scale-label', $editor);
-        $this->assertStringContainsString('data-marketing-pan-hint', $editor);
-        $this->assertStringContainsString('data-marketing-media-source', $editor);
-        $this->assertStringContainsString("request()->boolean('open')", $editor);
-        $this->assertStringContainsString("'open' => 1", $index);
-
-        $this->assertStringContainsString('wire:submit="saveMediaFolder"', $index);
-        $this->assertStringContainsString('Grundverzeichnis (alle Ordner)', $index);
-        $this->assertStringContainsString('data-marketing-media-source-invalid', $index);
-        $this->assertStringContainsString('href="{{ $mediaFilesUrl }}"', $index);
+        $this->assertStringContainsString('wire:click="openCreateMotive"', $index);
+        $this->assertStringContainsString('wire:model="motiveTitle"', $index);
+        $this->assertStringContainsString('wire:model="motiveType"', $index);
+        $this->assertStringContainsString('wire:model.live="createMotiveOpen"', $index);
+        $this->assertStringContainsString('<x-ui.filepool.drop-zone', $index);
+        $this->assertStringContainsString('model="motiveUploads"', $index);
+        $this->assertStringContainsString(':max-files="20"', $index);
+        $this->assertStringContainsString(':max-filesize="50"', $index);
+        $this->assertStringContainsString("route('admin.marketing.creatives.files'", $index);
+        $this->assertStringContainsString('data-marketing-motive-card', $index);
+        $this->assertStringContainsString('wire:click="deleteMotive(', $index);
+        $this->assertStringNotContainsString('x-ui.page-builder.preview-card', $index);
+        $this->assertStringNotContainsString('admin.marketing.creatives.preview', $index);
+        $this->assertStringNotContainsString('admin.marketing.creatives.editor', $index);
+        $this->assertStringNotContainsString('saveMediaFolder', $index);
+        $this->assertStringNotContainsString('importOpen', $index);
+        $this->assertStringNotContainsString('<iframe', $index);
         $this->assertStringContainsString("route('admin.marketing.creatives.index')", $sidebar);
         $this->assertStringNotContainsString('admin.marketing.assets', $sidebar);
         $this->assertStringNotContainsString('>Medien<', preg_replace('/\s+/', '', $sidebar) ?: $sidebar);
-        $this->assertStringNotContainsString('assetUpload', $adapter);
-        $this->assertStringNotContainsString('onUpload:', $adapter);
         $this->assertFileDoesNotExist(resource_path('views/livewire/admin/marketing/assets-index.blade.php'));
         $this->assertFileDoesNotExist(app_path('Livewire/Admin/Marketing/AssetsIndex.php'));
     }
@@ -119,63 +106,56 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         );
     }
 
-    public function test_real_admin_pages_render_file_pool_images_while_staff_is_denied(): void
+    public function test_admin_can_create_a_file_motive_and_staff_is_denied_from_both_library_routes(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $staff = User::factory()->create(['role' => 'staff']);
         Storage::fake('private');
-        $image = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=', true);
-        $this->assertIsString($image);
-        Storage::disk('private')->put('uploads/files/railtime-einsatz.png', $image);
+        Storage::fake('public');
 
-        $pool = FilePool::company();
-        $folder = FileFolder::query()->create([
-            'file_pool_id' => $pool->id,
-            'name' => 'Marketing / Einsatzbilder',
-        ]);
-        $file = $pool->files()->create([
-            'folder_id' => $folder->id,
-            'user_id' => $admin->id,
-            'name' => 'railtime-einsatz.png',
-            'disk' => 'private',
-            'path' => 'uploads/files/railtime-einsatz.png',
-            'mime_type' => 'image/png',
-            'size' => strlen($image),
-        ]);
-        $creative = app(MarketingStudioService::class)->createFromTemplate(
-            MarketingCreativeType::Job,
-            $admin,
-        );
+        $component = Livewire::actingAs($admin)
+            ->test(CreativesIndex::class)
+            ->assertSee('Motiv anlegen')
+            ->call('openCreateMotive')
+            ->assertSet('createMotiveOpen', true)
+            ->set('motiveTitle', 'Deutschlandkarte · Herbstkampagne')
+            ->set('motiveType', MarketingCreativeType::Info->value)
+            ->set('motiveUploads', [UploadedFile::fake()->image('deutschlandkarte.png', 1080, 1080)])
+            ->call('createMotive')
+            ->assertHasNoErrors();
+
+        $creative = MarketingCreative::query()
+            ->where('title', 'Deutschlandkarte · Herbstkampagne')
+            ->firstOrFail();
+        $component->assertRedirect(route('admin.marketing.creatives.files', ['creative' => $creative]));
+
+        $this->assertSame(MarketingCreativeType::Info, $creative->type);
+        $this->assertSame(1, $creative->filePool()->firstOrFail()->files()->count());
 
         $this->actingAs($admin)
             ->get(route('admin.marketing.creatives.index'))
             ->assertOk()
             ->assertSee('Marketing-Motive')
             ->assertSee($creative->title)
-            ->assertSee('Firmendateien / Grundverzeichnis')
-            ->assertSee('1 Bild im Editor verfügbar');
+            ->assertSee('Informationsmotiv')
+            ->assertSee('1 Datei')
+            ->assertSee('Dateien verwalten')
+            ->assertSee(route('admin.marketing.creatives.files', ['creative' => $creative]), false)
+            ->assertDontSee('data-marketing-editor-root', false)
+            ->assertDontSee('Motivpaket importieren')
+            ->assertDontSee('Story 9:16');
 
         $this->actingAs($admin)
-            ->get(route('admin.marketing.creatives.editor', $creative))
+            ->get(route('admin.marketing.creatives.files', ['creative' => $creative]))
             ->assertOk()
-            ->assertSee('data-marketing-editor-root', false)
-            ->assertSee('data-mobile-pane="layout"', false)
-            ->assertSee('Feste Exportfläche')
-            ->assertSee('1080 × 1920')
-            ->assertSee('Bildquelle:')
-            ->assertSee(asset('rt-brand/img/wagenmeister-team-gleis.jpeg'), false)
-            ->assertSee(route('admin.marketing.files.show', $file), false);
-
-        $this->actingAs($admin)
-            ->get(route('admin.marketing.files.show', $file))
-            ->assertOk();
+            ->assertSee($creative->title);
 
         $this->actingAs($staff)
             ->get(route('admin.marketing.creatives.index'))
             ->assertForbidden();
 
         $this->actingAs($staff)
-            ->get(route('admin.marketing.files.show', $file))
+            ->get(route('admin.marketing.creatives.files', ['creative' => $creative]))
             ->assertForbidden();
 
         Livewire::actingAs($staff)
@@ -183,35 +163,21 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_admin_explicitly_saves_a_file_folder_and_invalid_stored_source_fails_closed(): void
+    public function test_create_modal_requires_a_title_type_and_at_least_one_file(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $pool = FilePool::company();
-        $folder = FileFolder::query()->create([
-            'file_pool_id' => $pool->id,
-            'name' => 'Freigegebene Motive',
-        ]);
 
         Livewire::actingAs($admin)
             ->test(CreativesIndex::class)
-            ->set('mediaFolderId', (string) $folder->id)
-            ->call('saveMediaFolder')
-            ->assertHasNoErrors()
-            ->assertSet('mediaFolderId', (string) $folder->id);
+            ->call('openCreateMotive')
+            ->set('motiveTitle', '')
+            ->set('motiveType', 'ungueltig')
+            ->set('motiveUploads', [])
+            ->call('createMotive')
+            ->assertHasErrors(['motiveTitle', 'motiveType', 'motiveUploads'])
+            ->assertSet('createMotiveOpen', true);
 
-        $this->assertSame(
-            $folder->id,
-            app(MarketingFileSourceService::class)->selectedFolderId(uncached: true),
-        );
-
-        MarketingFileSourceSettings::setSelectedFolderId(999999);
-
-        $this->actingAs($admin)
-            ->get(route('admin.marketing.creatives.index'))
-            ->assertOk()
-            ->assertSee('data-marketing-media-source-invalid', false)
-            ->assertSee('Die gespeicherte Bildquelle ist nicht mehr verfügbar')
-            ->assertSee('0 Bilder im Editor verfügbar');
+        $this->assertDatabaseCount('marketing_creatives', 0);
     }
 
     public function test_create_action_rechecks_admin_role_after_the_component_was_mounted(): void
@@ -222,7 +188,7 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         $admin->forceFill(['role' => 'staff'])->save();
 
         $component
-            ->call('create', MarketingCreativeType::Job->value)
+            ->call('openCreateMotive')
             ->assertForbidden();
 
         $this->assertDatabaseCount('marketing_creatives', 0);

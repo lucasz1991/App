@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -71,6 +72,19 @@ class MarketingCreative extends Model
     public function renders(): HasMany
     {
         return $this->hasMany(MarketingRender::class);
+    }
+
+    /**
+     * Private Dateien, die gemeinsam dieses Marketing-Motiv bilden.
+     *
+     * Der Pool wird bei einem normalen Soft-Delete bewusst nicht entfernt.
+     * Dadurch bleiben hochgeladene Originale fuer eine spaetere
+     * Wiederherstellung erhalten. Ein endgueltiger Purge muss Pool, Ordner
+     * und Dateien explizit ueber deren Eloquent-Lebenszyklus entfernen.
+     */
+    public function filePool(): MorphOne
+    {
+        return $this->morphOne(FilePool::class, 'filepoolable');
     }
 
     public function approver(): BelongsTo

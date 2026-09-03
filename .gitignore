@@ -39,6 +39,7 @@ Homestead.json
 !/tests/Feature/EmailHtmlSanitizerTest.php
 !/tests/Feature/MailDocumentEditorTest.php
 !/tests/Feature/MarketingBuilderVendorIntegrityTest.php
+!/tests/Feature/MarketingMotiveLibraryTest.php
 !/tests/Feature/MarketingStudioBackendTest.php
 !/tests/Feature/MarketingStudioSeederTest.php
 !/tests/Feature/MarketingCareerCatalogTest.php

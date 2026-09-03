@@ -15,6 +15,8 @@ import {
     hydrateMailCanvasAssets,
     MAIL_EDITOR_MODE,
     MAIL_GJS_OPTIONS,
+    MAIL_SAFE_EDITABLE_STYLE_PROPERTIES,
+    MAIL_SAFE_FONT_STACKS,
     MAIL_STYLE_SECTORS,
     parseMailCssProjectStyles,
     normalizeMailPreviewWidth,
@@ -26,6 +28,7 @@ import {
     resolvePortableMediaRequirementIds,
     serializeMailDocumentForSave,
     serializeMailProjectStyles,
+    synchronizeMailPresentationAttributes,
     synchronizeMailSignatureFlowGeometry,
     synchronizeMailSignatureFixedGeometry,
     synchronizeMailTrainLayerAlignment,
@@ -276,6 +279,14 @@ test('LMZ traits and mail protection do not recurse through component updates', 
         mailBuilderSource.indexOf('const onComponentUpdate ='),
         mailBuilderSource.indexOf("editor.on?.('component:add'"),
     );
+    const mailStyleUpdateSource = mailBuilderSource.slice(
+        mailBuilderSource.indexOf('const onComponentStyleUpdate ='),
+        mailBuilderSource.indexOf('protectMailSystemComponents(editor);', mailBuilderSource.indexOf('const onComponentStyleUpdate =')),
+    );
+    const mailDestroySource = mailBuilderSource.slice(
+        mailBuilderSource.indexOf('destroy() {'),
+        mailBuilderSource.indexOf('const inferredKind ='),
+    );
 
     assert.match(motionTraitSource, /component\.get\?\.\('traits'\)/);
     assert.doesNotMatch(motionTraitSource, /component\.getTrait\?/);
@@ -283,6 +294,11 @@ test('LMZ traits and mail protection do not recurse through component updates', 
     assert.match(mailUpdateSource, /synchronizeMailTrainLayerAlignment\(component\)/);
     assert.match(mailUpdateSource, /synchronizeMailContentImage\(component\)/);
     assert.doesNotMatch(mailUpdateSource, /protectMailSystemComponents/);
+    assert.match(mailStyleUpdateSource, /changes\?\.style/);
+    assert.match(mailStyleUpdateSource, /Object\.keys\(styleChanges\)/);
+    assert.match(mailStyleUpdateSource, /synchronizeMailPresentationAttributes\(component, property\)/);
+    assert.match(mailStyleUpdateSource, /editor\.on\?\.\('component:styleUpdate', onComponentStyleUpdate\)/);
+    assert.match(mailDestroySource, /editor\.off\?\.\('component:styleUpdate', onComponentStyleUpdate\)/);
     assert.equal(masterLayoutSource.split("'resources/js/app.js'").length - 1, 1);
     assert.equal(
         masterLayoutSource.indexOf("'resources/js/app.js'") < masterLayoutSource.indexOf('</head>'),
@@ -328,6 +344,10 @@ test('mail canvas renders lightweight same-origin token assets in light and dark
     assert.match(light, /mail-assets\/location-icon\.png/);
     assert.match(light, /max-width:\s*860px/);
     assert.match(light, /tr\.rt-stack > td/);
+    assert.match(light, /body\.rt-mail-canvas\s*\{[^}]*padding:\s*0;/s);
+    assert.doesNotMatch(light, /padding:\s*28px 0/);
+    assert.match(light, /body\.rt-mail-canvas table\s*\{[^}]*border-spacing:\s*0;[^}]*mso-table-lspace:\s*0pt;[^}]*mso-table-rspace:\s*0pt;/s);
+    assert.match(light, /body\.rt-mail-canvas img\s*\{[^}]*display:\s*block;[^}]*-ms-interpolation-mode:\s*bicubic;/s);
     assert.equal(light.indexOf(responsiveCss) < light.indexOf(editorTrainSelector), true);
     assert.match(light, /body\.rt-mail-canvas table\[data-rt-mail-signature-canvas\] tr\[data-rt-artifact-version="v19"\] \.rt-sign-stage > \.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;[^}]*left:\s*0 !important;[^}]*right:\s*0 !important;[^}]*bottom:\s*0 !important;[^}]*height:\s*100% !important;[^}]*max-height:\s*none !important;[^}]*margin:\s*0 !important;/s);
     assert.match(light, /tr\[data-rt-artifact-version="v19"\][^{}]+\.rt-sign-train-layer > \.rt-sign-train-frame,\s*body\.rt-mail-canvas[^{}]+\.rt-sign-train-slot\s*\{[^}]*height:\s*100% !important;/s);
@@ -1706,6 +1726,19 @@ test('mail editor no longer offers misleading train background controls', () => 
     assert.equal(exposedProperties.includes('overflow'), false);
     assert.equal(exposedProperties.includes('flex'), false);
     assert.equal(exposedProperties.includes('grid'), false);
+    assert.deepEqual([...new Set(exposedProperties)].sort(), [...MAIL_SAFE_EDITABLE_STYLE_PROPERTIES].sort());
+    assert.equal(exposedProperties.includes('background'), false);
+    assert.equal(exposedProperties.includes('background-color'), true);
+    assert.deepEqual(
+        MAIL_SAFE_FONT_STACKS.map((font) => font.id),
+        [
+            'Arial,Helvetica,sans-serif',
+            'Tahoma,Verdana,sans-serif',
+            'Verdana,Arial,sans-serif',
+            "Georgia,'Times New Roman',serif",
+            "Consolas,'Courier New',monospace",
+        ],
+    );
     const progressiveRadius = MAIL_STYLE_SECTORS
         .flatMap((sector) => sector.properties || [])
         .find((property) => typeof property === 'object' && property.extend === 'border-radius');
@@ -1713,6 +1746,155 @@ test('mail editor no longer offers misleading train background controls', () => 
     assert.equal(MAIL_EDITOR_MODE.id, 'mail');
     assert.equal(MAIL_EDITOR_MODE.contentModel, 'email');
     assert.equal(MAIL_EDITOR_MODE.styleStrategy, 'inline');
+});
+
+test('mail style changes keep Outlook presentation attributes in sync and undo restores the original fallback', () => {
+    const createComponent = (tagName, style, attributes) => ({
+        get: (key) => key === 'tagName' ? tagName : undefined,
+        getStyle: () => style,
+        getAttributes: () => attributes,
+        addAttributes(next) { Object.assign(attributes, next); },
+        removeAttributes(name) { delete attributes[name]; },
+    });
+    const style = {
+        'background-color': 'rgb(228, 0, 43)',
+        width: '60%',
+        height: '44px',
+        'text-align': 'center',
+        'vertical-align': 'middle',
+    };
+    const attributes = {
+        bgcolor: '{{CARD_BG}}',
+        width: '50%',
+        height: '36',
+        align: 'left',
+        valign: 'top',
+    };
+    const cell = createComponent('td', style, attributes);
+
+    ['background-color', 'width', 'height', 'text-align', 'vertical-align'].forEach((property) => {
+        assert.equal(synchronizeMailPresentationAttributes(cell, property), true);
+    });
+    assert.deepEqual(attributes, {
+        bgcolor: '#e4002b',
+        width: '60%',
+        height: '44',
+        align: 'center',
+        valign: 'middle',
+    });
+
+    style['background-color'] = '';
+    style.width = '';
+    style.height = '';
+    style['text-align'] = '';
+    style['vertical-align'] = '';
+    ['background-color', 'width', 'height', 'text-align', 'vertical-align'].forEach((property) => {
+        assert.equal(synchronizeMailPresentationAttributes(cell, property), true);
+    });
+    assert.deepEqual(attributes, {
+        bgcolor: '{{CARD_BG}}',
+        width: '50%',
+        height: '36',
+        align: 'left',
+        valign: 'top',
+    });
+
+    style.background = 'linear-gradient(red, blue)';
+    assert.equal(synchronizeMailPresentationAttributes(cell, 'background'), false);
+    assert.equal(attributes.bgcolor, '{{CARD_BG}}');
+
+    const tableStyle = { 'text-align': 'center' };
+    const tableAttributes = { align: 'left' };
+    const table = createComponent('table', tableStyle, tableAttributes);
+    assert.equal(synchronizeMailPresentationAttributes(table, 'text-align'), false);
+    assert.equal(tableAttributes.align, 'left');
+
+    const reloadedStyle = {
+        'background-color': '',
+        width: '',
+        height: '',
+        'text-align': '',
+        'vertical-align': '',
+    };
+    const reloadedAttributes = {
+        bgcolor: '#e4002b',
+        width: '60%',
+        height: '44',
+        align: 'center',
+        valign: 'middle',
+    };
+    const reloadedCell = createComponent('td', reloadedStyle, reloadedAttributes);
+    ['background-color', 'width', 'height', 'text-align', 'vertical-align'].forEach((property) => {
+        assert.equal(synchronizeMailPresentationAttributes(reloadedCell, property), true);
+    });
+    assert.deepEqual(reloadedAttributes, {});
+});
+
+test('mail presentation attributes survive save and style removal without stale edited fallbacks', () => {
+    const canonical = '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>RailTime</title></head><body><table><tbody><tr><td class="mail-card" bgcolor="#ffffff" width="50%" height="36" align="left" valign="top" style="background-color:#ffffff;width:50%;height:36px;text-align:left;vertical-align:top;">Inhalt</td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
+    const project = projectForMailDocument({
+        builderData: { pages: [{ component: canonical }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'template', environment: { DOMParser } });
+    const projectedHtml = project.pages[0].component;
+    const document_ = new DOMParser().parseFromString(projectedHtml, 'text/html');
+    const cellElement = document_.querySelector('td.mail-card');
+    const style = {
+        'background-color': '#e4002b',
+        width: '60%',
+        height: '44px',
+        'text-align': 'center',
+        'vertical-align': 'middle',
+    };
+    const attributes = Object.fromEntries([...cellElement.attributes].map(({ name, value }) => [name, value]));
+    const cell = {
+        get: (key) => key === 'tagName' ? 'td' : undefined,
+        getStyle: () => style,
+        getAttributes: () => attributes,
+        addAttributes(next) { Object.assign(attributes, next); },
+        removeAttributes(name) { delete attributes[name]; },
+    };
+    const properties = ['background-color', 'width', 'height', 'text-align', 'vertical-align'];
+    const projectHtml = () => {
+        const inlineStyle = Object.entries(style)
+            .filter(([, value]) => String(value || '').trim() !== '')
+            .map(([property, value]) => `${property}:${value}`)
+            .join(';');
+        if (inlineStyle) attributes.style = `${inlineStyle};`;
+        else delete attributes.style;
+        const openingTag = `<td ${Object.entries(attributes)
+            .map(([name, value]) => `${name}="${String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"`)
+            .join(' ')}>`;
+        return projectedHtml.replace(/<td\b[^>]*\bclass="mail-card"[^>]*>/i, openingTag);
+    };
+    const save = () => serializeMailDocumentForSave({
+        project,
+        html: projectHtml(),
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    });
+
+    properties.forEach((property) => synchronizeMailPresentationAttributes(cell, property));
+    const editedDocument = new DOMParser().parseFromString(save().html, 'text/html');
+    const editedCell = editedDocument.querySelector('td.mail-card');
+    assert.equal(editedCell.getAttribute('bgcolor'), '#e4002b');
+    assert.equal(editedCell.getAttribute('width'), '60%');
+    assert.equal(editedCell.getAttribute('height'), '44');
+    assert.equal(editedCell.getAttribute('align'), 'center');
+    assert.equal(editedCell.getAttribute('valign'), 'middle');
+    assert.match(editedCell.getAttribute('style') || '', /background-color:\s*#e4002b/i);
+
+    properties.forEach((property) => { style[property] = ''; });
+    properties.forEach((property) => synchronizeMailPresentationAttributes(cell, property));
+    const removedDocument = new DOMParser().parseFromString(save().html, 'text/html');
+    const removedCell = removedDocument.querySelector('td.mail-card');
+    assert.equal(removedCell.getAttribute('bgcolor'), '#ffffff');
+    assert.equal(removedCell.getAttribute('width'), '50%');
+    assert.equal(removedCell.getAttribute('height'), '36');
+    assert.equal(removedCell.getAttribute('align'), 'left');
+    assert.equal(removedCell.getAttribute('valign'), 'top');
+    assert.doesNotMatch(removedCell.getAttribute('style') || '', /#e4002b|60%|44px|center|middle/i);
 });
 
 test('canvas hydrates exactly one regular train image without mutating its token model', () => {
@@ -2092,7 +2274,12 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /data-mail-view-mode="forward"/);
     assert.match(mailView, />Weiterleitung</);
     assert.match(mailView, /selectedViewMode === 'forward'/);
-    assert.match(mailView, /Kompiliertes Versand-HTML im Browser/);
+    assert.match(mailView, /Compiler-Parität · produktive Systemmail-Quelle im Browser/);
+    assert.match(mailView, /data-mail-compiler-parity-note/);
+    assert.match(mailView, /abschließende Word-Renderer-Prüfung erfolgt per Testmail/);
+    assert.match(mailView, /clientspezifischen Medien- und Wrapper-Anpassungen/);
+    assert.match(mailView, />Compiler-Parität</);
+    assert.match(mailCss, /\[data-mail-compiler-parity-note\]\s*\{[^}]*white-space:\s*normal;/s);
     assert.match(mailView, /Kompilierte Weiterleitungsbasis im Browser/);
     assert.match(mailView, /Weiterleitungsansicht: visuelle Prüfung erforderlich/);
     assert.match(mailView, /kein geprüfter Nachweis für einen bestimmten Mailclient/);

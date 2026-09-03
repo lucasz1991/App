@@ -4,6 +4,8 @@ namespace App\Livewire\Tools\FilePools;
 
 use App\Models\ChatMessage;
 use App\Models\File;
+use App\Models\FilePool;
+use App\Models\MarketingCreative;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
@@ -112,6 +114,14 @@ class FilePreviewModal extends Component
                 return false;
             }
 
+            // Marketing-Motive leben in privaten FilePools, deren gesamte
+            // Verwaltungsoberflaeche bewusst Admin-only ist. Delegierte
+            // Dateirechte duerfen diese Grenze im globalen Viewer nicht
+            // ueber eine erratene Datei-ID umgehen.
+            if ($this->isMarketingMotiveFile($file)) {
+                return $user->isAdmin();
+            }
+
             if ($user->isAdmin()
                 || Gate::forUser($user)->allows('files.manage')
                 || Gate::forUser($user)->allows('users.edit')) {
@@ -152,6 +162,18 @@ class FilePreviewModal extends Component
         $visibleSince = $chat->visibleSinceFor($user);
 
         return $visibleSince === null || ! $message->created_at->lt($visibleSince);
+    }
+
+    protected function isMarketingMotiveFile(File $file): bool
+    {
+        if ($file->fileable_type !== (new FilePool)->getMorphClass()) {
+            return false;
+        }
+
+        $pool = $file->fileable;
+
+        return $pool instanceof FilePool
+            && $pool->filepoolable_type === (new MarketingCreative)->getMorphClass();
     }
 
     protected function resetPreview(): void

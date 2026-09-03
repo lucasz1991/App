@@ -116,8 +116,13 @@ class File extends Model
 
                 try {
                     $storage = Storage::disk($disk);
-                    if ($storage->exists($path)) {
-                        $storage->delete($path);
+                    if ($storage->exists($path) && ! $storage->delete($path)) {
+                        Log::warning('Konnte Datei beim Löschen des File-Modells nicht entfernen', [
+                            'file_id' => $file->id,
+                            'disk' => $disk,
+                            'path' => $path,
+                            'error' => 'Storage::delete lieferte false zurück.',
+                        ]);
                     }
                 } catch (\Throwable $e) {
                     Log::warning('Konnte Datei beim Löschen des File-Modells nicht entfernen', [

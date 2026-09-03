@@ -722,7 +722,13 @@ final class MarketingStudioService
             foreach ($renderPaths as $snapshot) {
                 DB::afterCommit(static function () use ($snapshot): void {
                     try {
-                        Storage::disk($snapshot['disk'])->delete($snapshot['path']);
+                        if (! Storage::disk($snapshot['disk'])->delete($snapshot['path'])) {
+                            Log::warning('Konnte Export eines geloeschten Marketing-Motivs nicht entfernen.', [
+                                'disk' => $snapshot['disk'],
+                                'path' => $snapshot['path'],
+                                'error' => 'Storage::delete lieferte false zurueck.',
+                            ]);
+                        }
                     } catch (Throwable $exception) {
                         Log::warning('Konnte Export eines geloeschten Marketing-Motivs nicht entfernen.', [
                             'disk' => $snapshot['disk'],
