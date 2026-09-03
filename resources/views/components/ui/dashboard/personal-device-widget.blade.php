@@ -71,7 +71,7 @@
             <a
                 href="{{ $href }}"
                 wire:navigate
-                class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-md bg-rt-text px-4 py-2 text-sm font-semibold text-white outline-none transition hover:bg-slate-700 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-rt-red/35 focus-visible:ring-offset-2 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600 dark:focus-visible:ring-offset-rt-dark-surface sm:w-auto"
+                class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-md bg-rt-text px-4 py-2 text-sm font-semibold text-white outline-none transition hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-rt-red/70 focus-visible:ring-offset-2 motion-safe:active:scale-[0.98] motion-reduce:transition-none dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600 dark:focus-visible:ring-offset-rt-dark-surface sm:w-auto"
                 data-dashboard-action="devices-mine"
             >
                 {{ __('app.personal_device_open') }}

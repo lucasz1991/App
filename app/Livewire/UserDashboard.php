@@ -34,8 +34,7 @@ class UserDashboard extends Component
         SystemDashboardData $dashboardData,
         DeviceFleetSnapshot $fleetSnapshot,
         PersonalDeviceSnapshot $personalDeviceSnapshot,
-    )
-    {
+    ) {
         $user = auth()->user();
         $audience = $user->dashboardAudience();
         $dashboardTeam = $user->dashboardTeam();
@@ -72,42 +71,10 @@ class UserDashboard extends Component
             ->values();
         $recentFiles = $availableFiles
             ->sortByDesc('created_at')
-            ->take(6)
+            ->take(4)
             ->values();
 
         $unreadMessages = $user->receivedMessages()->where('status', 1)->count();
-
-        // The compact charts are entirely server-rendered from existing data.
-        // Orders and shifts intentionally stay marked as not connected until
-        // their productive modules provide a real data source.
-        $activityDays = collect(range(13, 0))
-            ->map(fn (int $daysAgo) => now()->subDays($daysAgo)->startOfDay());
-        $receivedMessagesByDay = $user->receivedMessages()
-            ->where('created_at', '>=', $activityDays->first()->copy()->startOfDay())
-            ->get(['id', 'created_at'])
-            ->countBy(fn ($message) => $message->created_at->toDateString());
-        $messageActivity = [
-            'labels' => $activityDays
-                ->map(fn ($day) => $day->translatedFormat('d. M'))
-                ->all(),
-            'values' => $activityDays
-                ->map(fn ($day) => (int) ($receivedMessagesByDay[$day->toDateString()] ?? 0))
-                ->all(),
-        ];
-        $messageActivity['total'] = array_sum($messageActivity['values']);
-
-        $fileSources = [
-            'labels' => [
-                __('app.provided_for_you'),
-                __('app.company_files'),
-                __('app.team'),
-            ],
-            'values' => [
-                $grouped['personal']->count(),
-                $grouped['company']->count(),
-                $teamFiles->count(),
-            ],
-        ];
 
         $latestMessages = $user->receivedMessages()
             ->with('sender:id,name,profile_photo_path')
@@ -130,8 +97,6 @@ class UserDashboard extends Component
             'recentFiles' => $recentFiles,
             'unreadMessages' => $unreadMessages,
             'filesTotal' => $availableFiles->count(),
-            'messageActivity' => $messageActivity,
-            'fileSources' => $fileSources,
             'latestMessages' => $latestMessages,
             'profileChecks' => $profileChecks,
             'profileCompletion' => $profileCompletion,
@@ -156,7 +121,7 @@ class UserDashboard extends Component
         DeviceFleetSnapshot $fleetSnapshot,
         PersonalDeviceSnapshot $personalDeviceSnapshot,
     ): array {
-        $canViewFleet = $user->can('devices.view');
+        $canViewFleet = $user->canViewManagementDashboard() && $user->can('devices.view');
         $stats = $canViewFleet
             ? $fleetSnapshot->get()
             : $personalDeviceSnapshot->get($user);

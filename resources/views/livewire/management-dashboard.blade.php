@@ -115,6 +115,23 @@
                     <i data-feather="shield" class="h-4 w-4 sm:h-5 sm:w-5"></i>
                 </x-ui.dashboard.stat-card>
             </div>
+
+            @if ($deviceWidget['scope'] === 'fleet')
+                @can('devices.view')
+                    <x-ui.dashboard.device-management-widget
+                        :stats="$deviceWidget['stats']"
+                        :href="$deviceWidget['href']"
+                        data-dashboard-device-scope="fleet"
+                    />
+                @endcan
+            @else
+                <x-ui.dashboard.personal-device-widget
+                    :stats="$deviceWidget['stats']"
+                    :href="$deviceWidget['href']"
+                    class="mt-4"
+                    data-dashboard-device-variant="compact"
+                />
+            @endif
         </section>
 
         {{-- ARBEITSBEREICHE — nur das, was diese Rolle auch oeffnen darf. --}}

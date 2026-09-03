@@ -3,9 +3,13 @@
 namespace Tests\Feature;
 
 use App\Livewire\Admin\Dashboard;
+use App\Livewire\UserDashboard;
+use App\Models\Message;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceFleetSnapshot;
+use App\Services\DeviceManagement\DeviceReadinessService;
+use App\Services\DeviceManagement\PersonalDeviceSnapshot;
 use App\Support\Dashboard\SystemDashboardData;
 use App\Support\Operations\OperationalPreviewCatalog;
 use Illuminate\Database\Schema\Blueprint;
@@ -70,9 +74,19 @@ class AdminDashboardCommandBoardTest extends TestCase
         Schema::create('device_assignments', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('device_id')->index();
+            $table->unsignedBigInteger('user_id')->nullable()->index();
             $table->string('status', 32)->default('active')->index();
             $table->timestamp('returned_at')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('device_readiness_checks', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('device_id')->index();
+            $table->string('check_key', 80);
+            $table->string('status', 32)->default('unknown')->index();
+            $table->timestamps();
+            $table->unique(['device_id', 'check_key']);
         });
     }
 
@@ -302,6 +316,201 @@ class AdminDashboardCommandBoardTest extends TestCase
             ->assertViewHas('deviceSnapshot', fn (array $snapshot): bool => $snapshot['available'] === false)
             ->assertSee('data-dashboard-device-available="false"', escape: false)
             ->assertDontSee('data-dashboard-action="devices-manage"', escape: false);
+    }
+
+    public function test_personal_device_snapshot_is_private_disjoint_and_single_query(): void
+    {
+        $employee = User::factory()->create(['role' => 'staff']);
+        $otherEmployee = User::factory()->create(['role' => 'staff']);
+        $timestamp = now();
+
+        foreach (range(1, 5) as $deviceId) {
+            DB::table('devices')->insert([
+                'id' => $deviceId,
+                'lifecycle_status' => 'assigned',
+                'management_status' => 'managed',
+                'compliance_status' => 'compliant',
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+                'deleted_at' => null,
+            ]);
+        }
+
+        DB::table('device_assignments')->insert([
+            ['device_id' => 1, 'user_id' => $employee->id, 'status' => 'active', 'returned_at' => null, 'created_at' => $timestamp, 'updated_at' => $timestamp],
+            ['device_id' => 2, 'user_id' => $employee->id, 'status' => 'active', 'returned_at' => null, 'created_at' => $timestamp, 'updated_at' => $timestamp],
+            ['device_id' => 3, 'user_id' => $employee->id, 'status' => 'active', 'returned_at' => null, 'created_at' => $timestamp, 'updated_at' => $timestamp],
+            ['device_id' => 4, 'user_id' => $otherEmployee->id, 'status' => 'active', 'returned_at' => null, 'created_at' => $timestamp, 'updated_at' => $timestamp],
+            ['device_id' => 5, 'user_id' => $employee->id, 'status' => 'returned', 'returned_at' => $timestamp, 'created_at' => $timestamp, 'updated_at' => $timestamp],
+        ]);
+
+        $readyRows = collect(array_keys(DeviceReadinessService::REQUIRED_CHECKS))
+            ->map(fn (string $key, int $index): array => [
+                'device_id' => 1,
+                'check_key' => $key,
+                'status' => $index === 0 ? 'not_applicable' : 'passed',
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ])
+            ->all();
+        DB::table('device_readiness_checks')->insert($readyRows);
+        DB::table('device_readiness_checks')->insert([
+            'device_id' => 2,
+            'check_key' => 'asset',
+            'status' => 'blocked',
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+        ]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $snapshot = app(PersonalDeviceSnapshot::class)->get($employee);
+        $queries = collect(DB::getQueryLog())
+            ->filter(fn (array $query): bool => str_contains(strtolower($query['query']), 'device_assignments'))
+            ->values();
+        DB::disableQueryLog();
+
+        $this->assertSame([
+            'available' => true,
+            'total' => 3,
+            'ready' => 1,
+            'pending' => 1,
+            'blocked' => 1,
+        ], $snapshot);
+        $this->assertSame($snapshot['total'], $snapshot['ready'] + $snapshot['pending'] + $snapshot['blocked']);
+        $this->assertCount(1, $queries);
+        $this->assertStringContainsString('user_id', $queries->first()['query']);
+    }
+
+    public function test_management_dashboard_uses_fleet_only_with_permission_and_the_neutral_route(): void
+    {
+        $owner = User::factory()->create(['role' => 'admin']);
+        $authorizedTeam = Team::forceCreate([
+            'user_id' => $owner->id,
+            'name' => 'Verwaltung',
+            'personal_team' => false,
+            'rbac_permissions' => ['devices.view' => true],
+        ]);
+        $personalTeam = Team::forceCreate([
+            'user_id' => $owner->id,
+            'name' => 'Verwaltung',
+            'personal_team' => false,
+            'rbac_permissions' => ['devices.view' => false],
+        ]);
+        $authorized = User::factory()->create(['role' => 'staff', 'current_team_id' => $authorizedTeam->id]);
+        $personal = User::factory()->create(['role' => 'staff', 'current_team_id' => $personalTeam->id]);
+
+        Livewire::actingAs($authorized)
+            ->test(UserDashboard::class)
+            ->assertViewHas('deviceWidget', fn (array $widget): bool => $widget['scope'] === 'fleet')
+            ->assertSee('data-management-dashboard', escape: false)
+            ->assertSee('data-dashboard-device-scope="fleet"', escape: false)
+            ->assertSee('data-dashboard-action="devices-manage"', escape: false)
+            ->assertSee('href="'.route('devices.index').'"', escape: false)
+            ->assertDontSee('href="'.route('admin.devices').'"', escape: false);
+
+        Livewire::actingAs($personal)
+            ->test(UserDashboard::class)
+            ->assertViewHas('deviceWidget', fn (array $widget): bool => $widget['scope'] === 'personal')
+            ->assertSee('data-management-dashboard', escape: false)
+            ->assertSee('data-dashboard-device-scope="personal"', escape: false)
+            ->assertSee('data-dashboard-action="devices-mine"', escape: false)
+            ->assertDontSee('data-dashboard-action="devices-manage"', escape: false);
+    }
+
+    public function test_employee_and_guest_dashboards_are_minimal_and_personal(): void
+    {
+        $owner = User::factory()->create(['role' => 'admin']);
+        $employeeTeam = Team::forceCreate([
+            'user_id' => $owner->id,
+            'name' => 'Mitarbeiter',
+            'personal_team' => false,
+            'rbac_permissions' => ['devices.view' => false],
+        ]);
+        $guestTeam = Team::forceCreate([
+            'user_id' => $owner->id,
+            'name' => 'Gäste',
+            'personal_team' => false,
+            'rbac_permissions' => [],
+        ]);
+        $employee = User::factory()->create(['role' => 'staff', 'current_team_id' => $employeeTeam->id]);
+        $guest = User::factory()->create(['role' => 'staff', 'current_team_id' => $guestTeam->id]);
+        $message = Message::create([
+            'subject' => 'Persönliche Einsatzunterlagen',
+            'message' => 'Die Unterlagen wurden aktualisiert.',
+            'from_user' => $owner->id,
+            'to_user' => $employee->id,
+            'status' => 1,
+        ]);
+
+        Livewire::actingAs($employee)
+            ->test(UserDashboard::class)
+            ->assertSee('data-dashboard-layout="minimal"', escape: false)
+            ->assertSee('data-dashboard-personal-header', escape: false)
+            ->assertSee('data-dashboard-primary-action="wagon-list"', escape: false)
+            ->assertSee('data-dashboard-device-variant="compact"', escape: false)
+            ->assertSee('data-dashboard-device-scope="personal"', escape: false)
+            ->assertSee('href="'.route('devices.mine').'"', escape: false)
+            ->assertSee('href="'.route('messages', ['open' => $message->id]).'"', escape: false)
+            ->assertSee(__('app.unread'))
+            ->assertDontSee('data-dashboard-real-series', escape: false)
+            ->assertDontSee(__('app.shift_workspace'));
+
+        Livewire::actingAs($guest)
+            ->test(UserDashboard::class)
+            ->assertSee('data-dashboard-layout="minimal"', escape: false)
+            ->assertSee('data-dashboard-personal-summary', escape: false)
+            ->assertSee('data-dashboard-message-list', escape: false)
+            ->assertSee('data-dashboard-device-scope="personal"', escape: false)
+            ->assertDontSee('data-dashboard-work-focus', escape: false)
+            ->assertDontSee('data-dashboard-primary-action="wagon-list"', escape: false)
+            ->assertDontSee('data-dashboard-real-series', escape: false);
+
+        $template = file_get_contents(resource_path('views/livewire/user-dashboard.blade.php'));
+        $this->assertStringNotContainsString('<x-ui.dashboard.role-hero', $template);
+        $this->assertStringNotContainsString('<x-ui.dashboard.operational-stat', $template);
+        $this->assertStringNotContainsString('<x-ui.dashboard.focus-card', $template);
+        $this->assertStringNotContainsString('<x-ui.dashboard.trend-chart', $template);
+    }
+
+    public function test_personal_device_widget_fails_soft_and_is_flat_in_both_languages(): void
+    {
+        $owner = User::factory()->create(['role' => 'admin']);
+        $team = Team::forceCreate([
+            'user_id' => $owner->id,
+            'name' => 'Mitarbeiter',
+            'personal_team' => false,
+            'rbac_permissions' => [],
+        ]);
+        $employee = User::factory()->create(['role' => 'staff', 'current_team_id' => $team->id]);
+
+        Schema::drop('device_readiness_checks');
+
+        Livewire::actingAs($employee)
+            ->test(UserDashboard::class)
+            ->assertViewHas(
+                'deviceWidget',
+                fn (array $widget): bool => $widget['scope'] === 'personal'
+                    && $widget['stats']['available'] === false
+                    && $widget['href'] === null,
+            )
+            ->assertSee('data-dashboard-device-available="false"', escape: false)
+            ->assertSee('data-dashboard-device-unavailable', escape: false)
+            ->assertDontSee('data-dashboard-action="devices-mine"', escape: false);
+
+        $stats = ['available' => true, 'total' => 2, 'ready' => 1, 'pending' => 1, 'blocked' => 0];
+        app()->setLocale('de');
+        $german = Blade::render('<x-ui.dashboard.personal-device-widget :stats="$stats" href="/meine-geraete" />', compact('stats'));
+        app()->setLocale('en');
+        $english = Blade::render('<x-ui.dashboard.personal-device-widget :stats="$stats" href="/my-devices" />', compact('stats'));
+
+        $this->assertStringContainsString('Meine Geräte', $german);
+        $this->assertStringContainsString('My devices', $english);
+        $this->assertStringContainsString('border-y', $english);
+        $this->assertStringContainsString('dark:border-rt-dark-border', $english);
+        $this->assertStringNotContainsString('rt-admin-panel', $english);
+        $this->assertStringNotContainsString('data-feather', $english);
+        $this->assertStringNotContainsString('gradient', $english);
     }
 
     public function test_featured_operational_card_follows_light_and_dark_surfaces(): void
