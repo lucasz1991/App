@@ -44,37 +44,52 @@
     $resolvedActionLabel = $actionLabel ?: __('app.open');
     $isFeatured = $variant === 'featured';
     $isCompact = $variant === 'compact';
+    $isMinimal = $variant === 'minimal';
     $cardClasses = match ($variant) {
         'featured' => 'min-h-[19rem] bg-rt-surface p-5 shadow-rt-md ring-rt-border/70 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
         'compact' => 'min-h-[10.75rem] bg-rt-surface p-4 shadow-rt-xs ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
+        'minimal' => 'min-h-[10rem] bg-rt-surface p-4 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
         default => 'min-h-48 bg-rt-surface p-4 shadow-rt-sm ring-rt-border/70 sm:min-h-52 sm:p-5 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70',
     };
+    $cardRadius = $isMinimal ? 'rounded-xl' : 'rounded-[1.4rem]';
 @endphp
 
 <article
-    {{ $attributes->class("group relative flex min-w-0 flex-col overflow-hidden rounded-[1.4rem] ring-1 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md {$cardClasses}") }}
+    {{ $attributes->class([
+        "group relative flex min-w-0 flex-col overflow-hidden {$cardRadius} ring-1 transition duration-200 {$cardClasses}",
+        'hover:ring-rt-red/30 motion-reduce:transition-none' => $isMinimal,
+        'ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md' => ! $isMinimal,
+    ]) }}
     data-dashboard-focus-card
     data-dashboard-focus-tone="{{ $tone }}"
     data-dashboard-focus-variant="{{ $variant }}"
     data-dashboard-data-source="{{ $preview ? 'preview' : 'live' }}"
     @if ($preview) data-dashboard-focus-preview="true" @endif
 >
-    <span class="absolute inset-x-0 top-0 h-1 {{ $toneClasses['bar'] }}" aria-hidden="true"></span>
-    <span class="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full blur-3xl {{ $toneClasses['wash'] }}" aria-hidden="true"></span>
+    <span class="absolute inset-x-0 top-0 {{ $isMinimal ? 'h-0.5' : 'h-1' }} {{ $toneClasses['bar'] }}" aria-hidden="true"></span>
+    @unless ($isMinimal)
+        <span class="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full blur-3xl {{ $toneClasses['wash'] }}" aria-hidden="true"></span>
+    @endunless
 
     @if (filled($href))
         <a
             href="{{ $href }}"
             @if ($navigate) wire:navigate @endif
-            class="absolute inset-0 z-10 rounded-[1.4rem] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red"
+            class="absolute inset-0 z-10 {{ $cardRadius }} outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red"
             aria-label="{{ $title }} · {{ $resolvedActionLabel }}"
         ></a>
     @endif
 
     <div class="relative flex items-start justify-between gap-3">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset {{ $toneClasses['icon'] }}" aria-hidden="true">
-            <i data-feather="{{ $icon }}" class="h-5 w-5"></i>
-        </span>
+        @if ($isMinimal)
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset {{ $toneClasses['icon'] }}" aria-hidden="true">
+                <span class="h-2 w-2 rounded-sm {{ $toneClasses['bar'] }}"></span>
+            </span>
+        @else
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset {{ $toneClasses['icon'] }}" aria-hidden="true">
+                <i data-feather="{{ $icon }}" class="h-5 w-5"></i>
+            </span>
+        @endif
 
         @if ($preview || filled($badge))
             <span class="flex min-w-0 max-w-[76%] flex-wrap justify-end gap-1.5">
@@ -83,7 +98,9 @@
                         class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-500/20 dark:text-amber-300"
                         data-dashboard-preview-label
                     >
-                        <i data-feather="eye" class="h-3 w-3" aria-hidden="true"></i>
+                        @unless ($isMinimal)
+                            <i data-feather="eye" class="h-3 w-3" aria-hidden="true"></i>
+                        @endunless
                         {{ __('app.demo_preview') }}
                     </span>
                 @endif
@@ -114,7 +131,7 @@
         </p>
     @endif
 
-    <div @class(['relative', 'mt-6' => $isFeatured, 'mt-3' => ! $isFeatured])>
+    <div @class(['relative', 'mt-6' => $isFeatured, 'mt-3' => ! $isFeatured && ! $isMinimal, 'mt-4' => $isMinimal])>
         <h3 @class([
             'font-bold tracking-[-0.02em]',
             'text-xl text-rt-text dark:text-white' => $isFeatured,
@@ -135,6 +152,12 @@
         'text-rt-soft dark:text-rt-dark-soft' => blank($href),
     ])>
         <span>{{ filled($href) ? $resolvedActionLabel : ($preview ? __('app.demo_preview') : __('app.no_database_connection')) }}</span>
-        <i data-feather="{{ filled($href) ? 'arrow-up-right' : 'minus' }}" class="h-4 w-4 transition duration-200 group-hover:translate-x-0.5" aria-hidden="true"></i>
+        @if ($isMinimal)
+            <span class="transition duration-200 motion-safe:group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden="true">
+                {{ filled($href) ? '→' : '—' }}
+            </span>
+        @else
+            <i data-feather="{{ filled($href) ? 'arrow-up-right' : 'minus' }}" class="h-4 w-4 transition duration-200 group-hover:translate-x-0.5" aria-hidden="true"></i>
+        @endif
     </div>
 </article>

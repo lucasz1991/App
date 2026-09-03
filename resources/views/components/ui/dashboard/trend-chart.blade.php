@@ -10,9 +10,11 @@
     'summaryLabel' => null,
     'emptyLabel' => null,
     'id' => null,
+    'variant' => 'default',
 ])
 
 @php
+    $isMinimal = $variant === 'minimal';
     $series = collect($values)
         ->map(fn ($value) => max(0, (float) $value))
         ->values();
@@ -70,17 +72,26 @@
 @endphp
 
 <figure
-    {{ $attributes->except('id')->class('relative min-w-0 overflow-hidden rounded-[1.5rem] bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/70 sm:p-5 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70') }}
+    {{ $attributes->except('id')->class([
+        'relative min-w-0 overflow-hidden bg-rt-surface p-4 sm:p-5 dark:bg-rt-dark-surface',
+        'rounded-xl border border-rt-border/80 dark:border-rt-dark-border/80' => $isMinimal,
+        'rounded-[1.5rem] shadow-rt-sm ring-1 ring-rt-border/70 dark:ring-rt-dark-border/70' => ! $isMinimal,
+    ]) }}
     id="{{ $chartId }}"
     data-dashboard-chart
     data-dashboard-chart-type="{{ $type }}"
+    data-dashboard-chart-variant="{{ $variant }}"
     aria-labelledby="{{ $chartId }}-title"
 >
     <div class="flex min-w-0 items-start justify-between gap-4">
         <figcaption class="flex min-w-0 items-start gap-3">
-            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-muted ring-1 ring-inset ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70" aria-hidden="true">
-                <i data-feather="{{ $icon }}" class="h-5 w-5"></i>
-            </span>
+            @if ($isMinimal)
+                <span class="mt-1.5 h-5 w-1 shrink-0 rounded-sm bg-rt-red" aria-hidden="true"></span>
+            @else
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-muted ring-1 ring-inset ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70" aria-hidden="true">
+                    <i data-feather="{{ $icon }}" class="h-5 w-5"></i>
+                </span>
+            @endif
             <span class="min-w-0">
                 <span id="{{ $chartId }}-title" class="block text-sm font-bold tracking-[-0.015em] text-rt-text dark:text-white">
                     {{ $title }}
@@ -109,21 +120,23 @@
     @if ($pointCount > 0 && $hasSignal)
         <div class="mt-5 min-w-0" data-dashboard-chart-plot>
             <svg
-                class="h-36 w-full overflow-visible {{ $toneClasses }}"
+                class="{{ $isMinimal ? 'h-28 sm:h-32' : 'h-36' }} w-full overflow-visible {{ $toneClasses }}"
                 viewBox="0 0 100 48"
                 preserveAspectRatio="none"
                 role="img"
                 aria-label="{{ $title }}: {{ number_format((float) $resolvedSummary, 0, ',', '.') }}"
             >
                 <title>{{ $title }}</title>
-                <defs>
-                    <linearGradient id="{{ $chartId }}-fill" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stop-color="currentColor" stop-opacity="0.22"></stop>
-                        <stop offset="100%" stop-color="currentColor" stop-opacity="0.015"></stop>
-                    </linearGradient>
-                </defs>
+                @unless ($isMinimal)
+                    <defs>
+                        <linearGradient id="{{ $chartId }}-fill" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" stop-color="currentColor" stop-opacity="0.22"></stop>
+                            <stop offset="100%" stop-color="currentColor" stop-opacity="0.015"></stop>
+                        </linearGradient>
+                    </defs>
+                @endunless
 
-                <g class="text-rt-border dark:text-rt-dark-border" fill="none" stroke="currentColor" stroke-width="0.45" vector-effect="non-scaling-stroke">
+                <g class="text-rt-border dark:text-rt-dark-border {{ $isMinimal ? 'opacity-60' : '' }}" fill="none" stroke="currentColor" stroke-width="0.45" vector-effect="non-scaling-stroke">
                     <path d="M0 8 H100"></path>
                     <path d="M0 20 H100"></path>
                     <path d="M0 32 H100"></path>
@@ -152,7 +165,9 @@
                             </rect>
                         @endforeach
                     @else
-                        <polygon points="{{ $areaPoints }}" fill="url(#{{ $chartId }}-fill)"></polygon>
+                        @unless ($isMinimal)
+                            <polygon points="{{ $areaPoints }}" fill="url(#{{ $chartId }}-fill)"></polygon>
+                        @endunless
                         <polyline
                             points="{{ $linePoints }}"
                             fill="none"
@@ -204,9 +219,11 @@
             </ol>
         </div>
     @else
-        <div class="mt-5 flex min-h-36 flex-col items-center justify-center rounded-2xl border border-dashed border-rt-border bg-rt-surface-muted/40 px-4 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/25" data-dashboard-chart-empty>
-            <i data-feather="minus" class="h-5 w-5 text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
-            <p class="mt-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
+        <div class="mt-5 flex min-h-28 flex-col items-center justify-center rounded-lg border border-dashed border-rt-border bg-transparent px-4 text-center dark:border-rt-dark-border" data-dashboard-chart-empty>
+            @unless ($isMinimal)
+                <i data-feather="minus" class="h-5 w-5 text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
+            @endunless
+            <p class="{{ $isMinimal ? '' : 'mt-2' }} text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                 {{ $resolvedEmptyLabel }}
             </p>
         </div>

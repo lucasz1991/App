@@ -1,6 +1,7 @@
 @props([
     'stats',
     'href' => null,
+    'variant' => 'line',
 ])
 
 @php
@@ -9,6 +10,7 @@
     $ready = (int) ($stats['ready'] ?? 0);
     $pending = (int) ($stats['pending'] ?? 0);
     $blocked = (int) ($stats['blocked'] ?? 0);
+    $isPanel = $variant === 'panel';
 
     if (! $available) {
         $state = 'unavailable';
@@ -28,7 +30,11 @@
 @endphp
 
 <article
-    {{ $attributes->class('min-w-0 border-y border-rt-border/80 py-5 sm:py-6 dark:border-rt-dark-border/80') }}
+    {{ $attributes->class([
+        'min-w-0',
+        'border-y border-rt-border/80 py-5 sm:py-6 dark:border-rt-dark-border/80' => ! $isPanel,
+        'rounded-xl border border-rt-border/80 bg-rt-surface p-4 sm:p-5 dark:border-rt-dark-border/80 dark:bg-rt-dark-surface' => $isPanel,
+    ]) }}
     aria-labelledby="personal-device-widget-title"
     data-dashboard-device-widget
     data-dashboard-device-scope="personal"
@@ -37,6 +43,7 @@
     data-dashboard-device-ready="{{ $ready }}"
     data-dashboard-device-pending="{{ $pending }}"
     data-dashboard-device-blocked="{{ $blocked }}"
+    data-dashboard-device-variant="{{ $variant }}"
 >
     <div class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
         <header class="min-w-0">

@@ -71,10 +71,46 @@ class UserDashboard extends Component
             ->values();
         $recentFiles = $availableFiles
             ->sortByDesc('created_at')
-            ->take(4)
+            ->take(6)
             ->values();
 
         $unreadMessages = $user->receivedMessages()->where('status', 1)->count();
+
+        // Persoenliche Verlaufsdaten bleiben Teil des bisherigen Layouts.
+        // Sie stammen ausschliesslich aus dem eigenen Nachrichteneingang.
+        $today = now()->startOfDay();
+        $activityDays = collect(range(13, 0))
+            ->map(fn (int $daysAgo) => $today->copy()->subDays($daysAgo));
+        $receivedMessagesByDay = $user->receivedMessages()
+            ->whereBetween('created_at', [
+                $activityDays->first()->copy()->startOfDay(),
+                $today->copy()->endOfDay(),
+            ])
+            ->selectRaw('DATE(created_at) as activity_date, COUNT(*) as message_count')
+            ->groupByRaw('DATE(created_at)')
+            ->pluck('message_count', 'activity_date');
+        $messageActivity = [
+            'labels' => $activityDays
+                ->map(fn ($day) => $day->translatedFormat('d. M'))
+                ->all(),
+            'values' => $activityDays
+                ->map(fn ($day) => (int) ($receivedMessagesByDay[$day->toDateString()] ?? 0))
+                ->all(),
+        ];
+        $messageActivity['total'] = array_sum($messageActivity['values']);
+
+        $fileSources = [
+            'labels' => [
+                __('app.provided_for_you'),
+                __('app.company_files'),
+                __('app.team'),
+            ],
+            'values' => [
+                $grouped['personal']->count(),
+                $grouped['company']->count(),
+                $teamFiles->count(),
+            ],
+        ];
 
         $latestMessages = $user->receivedMessages()
             ->with('sender:id,name,profile_photo_path')
@@ -97,6 +133,8 @@ class UserDashboard extends Component
             'recentFiles' => $recentFiles,
             'unreadMessages' => $unreadMessages,
             'filesTotal' => $availableFiles->count(),
+            'messageActivity' => $messageActivity,
+            'fileSources' => $fileSources,
             'latestMessages' => $latestMessages,
             'profileChecks' => $profileChecks,
             'profileCompletion' => $profileCompletion,
