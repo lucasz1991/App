@@ -65,6 +65,7 @@
                 $previewPerson = $chat->isGroup()
                     ? null
                     : $chat->participants->firstWhere('id', '!=', $me->id);
+                $previewPersonIsOnline = $previewPerson?->isOnline() ?? false;
                 $timeLabel = $latest
                     ? ($latest->created_at->isToday() ? $latest->created_at->format('H:i') : $latest->created_at->format('d.m.'))
                     : '';
@@ -85,7 +86,7 @@
                     <x-chat.avatar
                         :src="$avatarUrl"
                         :name="$chat->displayNameFor($me)"
-                        :signal="$isActive"
+                        :signal="$previewPersonIsOnline"
                     />
 
                     <span class="min-w-0 flex-1">

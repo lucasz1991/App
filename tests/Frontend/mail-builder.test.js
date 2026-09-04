@@ -275,6 +275,18 @@ test('LMZ traits and mail protection do not recurse through component updates', 
         lmzBuilderSource.indexOf('function setupMotionTraits'),
         lmzBuilderSource.indexOf('function setupSharedElementPreview'),
     );
+    const sharedPreviewSetupSource = lmzBuilderSource.slice(
+        lmzBuilderSource.indexOf('function setupSharedElementPreview'),
+        lmzBuilderSource.indexOf('function setupMotionEditor'),
+    );
+    const motionEditorSetupSource = lmzBuilderSource.slice(
+        lmzBuilderSource.indexOf('function setupMotionEditor'),
+        lmzBuilderSource.indexOf('function waitForNextPaint'),
+    );
+    const mailRuntimeOptionsSource = mailBuilderSource.slice(
+        mailBuilderSource.indexOf('const instance = await runtime.create'),
+        mailBuilderSource.indexOf('// "Speichern" ginge weiterhin durch'),
+    );
     const mailUpdateSource = mailBuilderSource.slice(
         mailBuilderSource.indexOf('const onComponentUpdate ='),
         mailBuilderSource.indexOf("editor.on?.('component:add'"),
@@ -287,10 +299,36 @@ test('LMZ traits and mail protection do not recurse through component updates', 
         mailBuilderSource.indexOf('destroy() {'),
         mailBuilderSource.indexOf('const inferredKind ='),
     );
+    const runtimeUpdateSource = lmzBuilderSource.slice(
+        lmzBuilderSource.indexOf("editor.on('update'"),
+        lmzBuilderSource.indexOf("editor.on('component:selected'", lmzBuilderSource.indexOf("editor.on('update'")),
+    );
+    const runtimeLoadSource = lmzBuilderSource.slice(
+        lmzBuilderSource.indexOf('async load() {'),
+        lmzBuilderSource.indexOf('async function initFromStudioNode'),
+    );
+    const grapesRuntimeSource = lmzBuilderSource.slice(
+        lmzBuilderSource.indexOf('async function ensureGrapesJs'),
+        lmzBuilderSource.indexOf('function resolveEndpoint'),
+    );
 
     assert.match(motionTraitSource, /component\.get\?\.\('traits'\)/);
     assert.doesNotMatch(motionTraitSource, /component\.getTrait\?/);
     assert.doesNotMatch(motionSetupSource, /component:update/);
+    assert.match(motionSetupSource, /motionOptions/);
+    assert.match(motionSetupSource, /!motionEnabled && !integrationsEnabled/);
+    assert.match(sharedPreviewSetupSource, /integrations === false/);
+    assert.match(motionEditorSetupSource, /if \(!enabled\)[\s\S]*?destroy\(\) \{\}/);
+    assert.match(mailRuntimeOptionsSource, /motion:\s*\{ enabled: false, preview: false \}/);
+    assert.match(mailRuntimeOptionsSource, /integrations:\s*false/);
+    assert.match(runtimeUpdateSource, /state\.loading \|\| state\.destroyed/);
+    assert.match(runtimeLoadSource, /await api\.load\(\)/);
+    assert.match(runtimeLoadSource, /await loadProject\(\);[\s\S]*?state\.loading = false;[\s\S]*?await loadAssetLibrary/);
+    assert.match(runtimeLoadSource, /api\.destroy\(\)/);
+    assert.match(grapesRuntimeSource, /__lmzBuilderGrapesJsAssetUrl/);
+    assert.match(grapesRuntimeSource, /String\(current\?\.version \|\| ''\) === GRAPESJS_VERSION/);
+    assert.match(grapesRuntimeSource, /trackedSource === expectedSource/);
+    assert.match(lmzBuilderSource, /searchParams\.get\('runtime'\) \|\| currentScriptUrl\.searchParams\.get\('v'\)/);
     assert.match(mailUpdateSource, /synchronizeMailTrainLayerAlignment\(component\)/);
     assert.match(mailUpdateSource, /synchronizeMailContentImage\(component\)/);
     assert.doesNotMatch(mailUpdateSource, /protectMailSystemComponents/);

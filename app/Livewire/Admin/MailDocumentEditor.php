@@ -142,6 +142,31 @@ class MailDocumentEditor extends Component
      */
     private function editorConfig(array $documents): array
     {
+        $versionedVendorAsset = static function (string $filename): array {
+            $relativePath = 'vendor/lmz-builder/2.4.5/'.$filename;
+            $absolutePath = public_path($relativePath);
+            $contentHash = is_file($absolutePath) ? hash_file('sha256', $absolutePath) : false;
+            $version = is_string($contentHash) ? substr($contentHash, 0, 16) : '';
+
+            return [
+                'url' => asset($relativePath).($version !== '' ? '?v='.$version : ''),
+                'version' => $version,
+            ];
+        };
+        $builderRuntimeAsset = $versionedVendorAsset('lmz-builder.js');
+        $builderStyleAsset = $versionedVendorAsset('lmz-builder.css');
+        $coreRuntimeAsset = $versionedVendorAsset('lmz-builder-core.js');
+        $coreStyleAsset = $versionedVendorAsset('lmz-builder-core.css');
+        $runtimeVersion = substr(hash('sha256', implode('|', [
+            $builderRuntimeAsset['version'],
+            $builderStyleAsset['version'],
+            $coreRuntimeAsset['version'],
+            $coreStyleAsset['version'],
+        ])), 0, 16);
+        $builderRuntimeUrl = $builderRuntimeAsset['url']
+            .(str_contains($builderRuntimeAsset['url'], '?') ? '&' : '?')
+            .'runtime='.$runtimeVersion;
+
         $payload = [];
         $catalog = app(EmailCompatibilityCatalog::class);
         try {
@@ -353,10 +378,11 @@ class MailDocumentEditor extends Component
                 'dark' => EmailTemplateBuilder::responsiveCss('#313944'),
             ],
             'vendor' => [
-                'builderJs' => asset('vendor/lmz-builder/2.4.5/lmz-builder.js'),
-                'builderCss' => asset('vendor/lmz-builder/2.4.5/lmz-builder.css'),
-                'coreJs' => asset('vendor/lmz-builder/2.4.5/lmz-builder-core.js'),
-                'coreCss' => asset('vendor/lmz-builder/2.4.5/lmz-builder-core.css'),
+                'builderJs' => $builderRuntimeUrl,
+                'builderVersion' => $runtimeVersion,
+                'builderCss' => $builderStyleAsset['url'],
+                'coreJs' => $coreRuntimeAsset['url'],
+                'coreCss' => $coreStyleAsset['url'],
             ],
         ];
     }

@@ -1616,7 +1616,11 @@
                     });
 
                     const ensureRuntime = async () => {
-                        if (window.LMZBuilder?.create) {
+                        const expectedVersion = String(config.vendor.builderVersion || '');
+                        const runtimeIsCurrent = () => window.LMZBuilder?.create
+                            && (!expectedVersion || String(window.LMZBuilder.assetVersion || '') === expectedVersion);
+
+                        if (runtimeIsCurrent()) {
                             return window.LMZBuilder;
                         }
 
@@ -1626,7 +1630,7 @@
                         ]);
                         await loadOnce('script', { src: config.vendor.builderJs, defer: true });
 
-                        if (!window.LMZBuilder?.create) {
+                        if (!runtimeIsCurrent()) {
                             throw new Error('LMZ Page Builder 2.4.5 wurde nicht initialisiert.');
                         }
 

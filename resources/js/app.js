@@ -1355,13 +1355,13 @@ Alpine.data('chatTranscriptScroll', () => ({
 
         window.gsap?.fromTo(
             rows,
-            { autoAlpha: 0, y: 8, scale: 0.985 },
+            { autoAlpha: 0, y: 6, scale: 0.98 },
             {
                 autoAlpha: 1,
                 y: 0,
                 scale: 1,
-                duration: 0.3,
-                stagger: 0.035,
+                duration: 0.18,
+                stagger: 0.025,
                 ease: 'power2.out',
                 clearProps: 'transform,opacity,visibility',
                 overwrite: 'auto',

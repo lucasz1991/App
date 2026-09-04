@@ -22,7 +22,7 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         // Commit d0bb4374 intentionally renamed the bundled GrapesJS entry
         // points inside this adapter. Keep the integrity pin on those exact
         // approved bytes instead of the pre-rename adapter hash.
-        'lmz-builder.js' => '75D0FAE92553C44A19493A4E04DD5C45D871EBFF3D7CFB2E8EA8E426AD8FEC48',
+        'lmz-builder.js' => 'BABF28F25126A805F754D526BF50CF59813F260F668EFF05D01DDCA0336DA3C5',
         'lmz-builder-core.js' => '1511DA9E52323A75F7329645778749FEAA11245BBADB93C8292A03C080283048',
         'lmz-builder.css' => '62C9335D4B7416F1CF3FDB4DE52A80F2F92CD888322323CDC028AF1A3C5C8E70',
         'lmz-builder-core.css' => '2DAA348D7C55F4E9DB7A3C7FD775AE4DFD651FFF56498559E569E4AF249C954A',

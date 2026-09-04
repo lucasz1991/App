@@ -245,8 +245,91 @@ test('rendered reaction emojis stay transparent while the rail overlaps the bubb
     assert.match(chipRule, /background:\s*transparent/);
     assert.match(chipRule, /box-shadow:\s*none/);
     assert.match(overlayRule, /position:\s*absolute/);
-    assert.match(overlayRule, /bottom:\s*0/);
+    assert.match(overlayRule, /bottom:\s*-1\.35rem/);
     assert.match(overlayRule, /overflow-x:\s*auto/);
     assert.match(source, /\[data-chat-message-action-trigger\]\[aria-expanded='true'\]/);
     assert.doesNotMatch(source, /\.rt-chat-message-(?:actions|caret)/);
+});
+
+test('premium chat hierarchy keeps real presence, group identity, and external message metadata', async () => {
+    const [chatBox, list, header, transcript] = await Promise.all([
+        readFile(new URL('../../app/Livewire/ChatBox.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/livewire/chat/partials/chat-list.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/livewire/chat/partials/conversation-header.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/livewire/chat/partials/transcript.blade.php', import.meta.url), 'utf8'),
+    ]);
+
+    assert.match(chatBox, /withMax\('activities as last_activity_at', 'created_at'\)/);
+    assert.match(list, /\$previewPersonIsOnline\s*=\s*\$previewPerson\?->isOnline\(\)/);
+    assert.match(list, /:signal="\$previewPersonIsOnline"/);
+    assert.match(header, /\$headerIsOnline\s*=\s*\$headerPerson\?->isOnline\(\)/);
+    assert.match(header, /data-chat-presence="\{\{ \$headerIsOnline \? 'online' : 'offline' \}\}"/);
+    assert.doesNotMatch(header, /rt-chat-live-status/);
+
+    assert.match(transcript, /@if \(\$selectedChat->isGroup\(\)\)[\s\S]*?<x-chat\.avatar/);
+    assert.match(transcript, /rt-chat-message-bubble-wrap/);
+    assert.match(transcript, /rt-chat-message-meta--\{\{ \$own \? 'own' : 'other' \}\}/);
+    assert.doesNotMatch(transcript, /metaInline|rt-chat-message-meta-inline/);
+});
+
+test('typing feedback has one live region, preserves scroll position, and renders decorative dots', async () => {
+    const [header, transcript] = await Promise.all([
+        readFile(new URL('../../resources/views/livewire/chat/partials/conversation-header.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/livewire/chat/partials/transcript.blade.php', import.meta.url), 'utf8'),
+    ]);
+
+    assert.match(transcript, /data-chat-typing-indicator/);
+    assert.match(transcript, /x-effect="if \(typingLabel && stickToBottom\)/);
+    assert.match(transcript, /aria-hidden="true"/);
+    assert.doesNotMatch(transcript, /role="status"/);
+    assert.doesNotMatch(transcript, /aria-live="polite"/);
+    assert.match(header, /aria-live="polite"/);
+    assert.match(transcript, /rt-chat-typing-bubble[\s\S]*?<span><\/span>[\s\S]*?<span><\/span>[\s\S]*?<span><\/span>/);
+});
+
+test('composer preserves every input path in the detached premium control layout', async () => {
+    const composer = await readFile(
+        new URL('../../resources/views/livewire/chat/partials/composer.blade.php', import.meta.url),
+        'utf8',
+    );
+
+    assert.match(composer, /data-chat-composer-attachment/);
+    assert.match(composer, /x-ref="attachmentInput"/);
+    assert.match(composer, /x-ref="attachmentInput"[\s\S]*?tabindex="-1"/);
+    assert.match(composer, /@click="\$refs\.attachmentInput\.click\(\)"/);
+    assert.match(composer, /aria-label="\{\{ __\('app\.add_attachment'\) \}\}"/);
+    assert.match(composer, /<x-chat\.live-location-share/);
+    assert.match(composer, /@click="startRecording\(\)"/);
+    assert.match(composer, /data-chat-input-capsule/);
+    assert.match(composer, /data-chat-send-button/);
+    assert.match(composer, /x-show\.important="draft\.trim\(\)\.length > 0/);
+    assert.match(composer, /wire:loading\.attr="disabled"/);
+    assert.match(composer, /rounded-full/);
+    assert.match(composer, /__\('app\.send_message'\)/);
+});
+
+test('reference motion and geometry stay compact, branded, and reduced-motion safe', async () => {
+    const [styles, app] = await Promise.all([
+        readFile(new URL('../../resources/css/chat-redesign.css', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/js/app.js', import.meta.url), 'utf8'),
+    ]);
+
+    const lineRule = styles.match(/\.rt-chat-message-line\s*\{([\s\S]*?)\}/)?.[1] || '';
+    const ownRule = styles.match(/\.rt-chat-message--own,[\s\S]*?\{([\s\S]*?)\}/)?.[1] || '';
+    const transcriptRule = styles.match(/\.rt-chat-transcript,[\s\S]*?\{([\s\S]*?)\}/)?.[1] || '';
+
+    assert.match(lineRule, /max-width:\s*78%/);
+    assert.match(styles, /\.rt-chat-message-line--group\s*\{[\s\S]*?align-items:\s*flex-start/);
+    assert.match(ownRule, /linear-gradient\(135deg, var\(--chat-bubble-own-start\), var\(--chat-bubble-own-end\)\)/);
+    assert.match(transcriptRule, /background-image:\s*none/);
+    assert.match(styles, /@keyframes rt-chat-typing-dot/);
+    assert.match(styles, /prefers-reduced-motion:[\s\S]*?\.rt-chat-typing-bubble > span/);
+    assert.match(styles, /--chat-online-text:\s*#15803d/);
+    assert.match(styles, /--chat-bubble-own-start:\s*#d5274f/);
+    assert.match(styles, /\.rt-chat-header-action\s*\{[\s\S]*?border-radius:\s*9999px/);
+    assert.match(styles, /\.rt-chat-options-trigger\s*\{[\s\S]*?border-radius:\s*9999px !important/);
+    assert.match(styles, /\.rt-chat-options-trigger\s*\{[\s\S]*?width:\s*2\.75rem !important[\s\S]*?height:\s*2\.75rem !important/);
+    assert.match(app, /\{ autoAlpha: 0, y: 6, scale: 0\.98 \}/);
+    assert.match(app, /duration:\s*0\.18/);
+    assert.match(app, /stagger:\s*0\.025/);
 });

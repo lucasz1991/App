@@ -5,6 +5,7 @@
     const CANVAS_STYLE_SYNC_INTERVAL_MS = 2000;
     const MOTION_REFRESH_DEBOUNCE_MS = 180;
     const LMZ_VENDOR_VERSION = '20260331-3';
+    const GRAPESJS_VERSION = '0.22.14';
     const SPACING_SIDES = ['top', 'right', 'bottom', 'left'];
     const SPACING_MIN_HANDLE_SIZE = 10;
 
@@ -490,19 +491,44 @@
     }
 
     async function ensureGrapesJs(options) {
+        const expectedSource = toAbsoluteUrl(options.gjsScript, window.location.href);
         const current = resolveGrapesJsGlobal();
-        if (current) {
+        const trackedSource = String(window.__lmzBuilderGrapesJsAssetUrl || '');
+        const matchingScript = Array.from(document.querySelectorAll('script[src]'))
+            .some((script) => toAbsoluteUrl(script.src, window.location.href) === expectedSource);
+        const expectedVersion = String(current?.version || '') === GRAPESJS_VERSION;
+
+        if (current && expectedVersion && (trackedSource === expectedSource || (!trackedSource && matchingScript))) {
+            window.__lmzBuilderGrapesJsAssetUrl = expectedSource;
             return current;
+        }
+
+        // Ein langer Livewire-Tab darf nach einem Core-Update nicht still die
+        // alte globale GrapesJS-Instanz weiterverwenden. Die bereits erzeugten
+        // Editoren behalten ihre Objekt-Referenzen; der naechste Editor erhaelt
+        // die versionierte, serverseitig konfigurierte Core-Datei.
+        if (current) {
+            try { window.grapesjs = undefined; } catch (_) {}
+            try {
+                if (window.globalThis) window.globalThis.grapesjs = undefined;
+            } catch (_) {}
+            try {
+                if (window.exports?.grapesjs === current) delete window.exports.grapesjs;
+            } catch (_) {}
+            try {
+                if (window.module?.exports === current) window.module.exports = {};
+            } catch (_) {}
         }
 
         await loadStyleOnce(options.gjsStyle);
         await loadScriptOnce(options.gjsScript);
 
         const loaded = resolveGrapesJsGlobal();
-        if (!loaded) {
+        if (!loaded || String(loaded.version || '') !== GRAPESJS_VERSION) {
             throw new Error('LMZBuilder: grapesjs could not be loaded');
         }
 
+        window.__lmzBuilderGrapesJsAssetUrl = expectedSource;
         return loaded;
     }
 
@@ -2209,21 +2235,31 @@
         });
     }
 
-    function setupMotionTraits(editor, integrations) {
+    function setupMotionTraits(editor, integrations, motionOptions) {
+        const motionSettings = isPlainObject(motionOptions) ? motionOptions : {};
+        const motionEnabled = motionOptions !== false && motionSettings.enabled !== false;
+        const integrationsEnabled = integrations !== false;
+
+        // Mail-Dokumente schalten Motion und Joomla-Integrationen bewusst ab.
+        // Ohne diesen Guard wurden trotzdem fuer jede verschachtelte
+        // table/tr/td/img-Komponente alle Motion-Traits erzeugt. GrapesJS
+        // rendert den TraitManager dabei synchron und kann den Browser-Thread
+        // bei grossen E-Mail-Tabellen fuer mehrere Sekunden blockieren.
+        if (!motionEnabled && !integrationsEnabled) {
+            return () => {};
+        }
+
+        const hydrateTraits = (component) => {
+            if (motionEnabled) addMotionTraits(component);
+            if (integrationsEnabled) addIntegrationTraits(component, integrations);
+        };
         const visit = (component) => {
-            addMotionTraits(component);
-            addIntegrationTraits(component, integrations);
+            hydrateTraits(component);
             getChildComponents(component).forEach(visit);
         };
         const refreshAll = () => visit(editor.getWrapper?.());
-        const onCreate = (component) => {
-            addMotionTraits(component);
-            addIntegrationTraits(component, integrations);
-        };
-        const onSelected = (component) => {
-            addMotionTraits(component);
-            addIntegrationTraits(component, integrations);
-        };
+        const onCreate = (component) => hydrateTraits(component);
+        const onSelected = (component) => hydrateTraits(component);
 
         editor.on('component:create', onCreate);
         editor.on('component:selected', onSelected);
@@ -2238,6 +2274,13 @@
     }
 
     function setupSharedElementPreview(editor, integrations) {
+        // Der Mailmodus setzt integrations=false. Dort existieren keine
+        // Joomla-Shared-Elemente; ohne den Guard wuerde dennoch jedes
+        // component:create/add/update einen rekursiven Preview-Refresh planen.
+        if (integrations === false) {
+            return () => {};
+        }
+
         const language = String(integrations?.sharedLanguage || '').trim();
         const previewItems = getSharedElementItems(integrations).reduce((items, item) => {
             const key = String(item?.element_key || '').trim();
@@ -2358,6 +2401,32 @@
         const previewButton = refs.shell.querySelector('[data-lmz-action="motion-preview"]');
         const pauseButton = refs.shell.querySelector('[data-lmz-action="motion-pause"]');
         const restartButton = refs.shell.querySelector('[data-lmz-action="motion-restart"]');
+
+        // Ein deaktivierter Mail-Modus benoetigt weder die zehn Editor-Events
+        // noch einen Debounce-Timer pro Komponenten-Aenderung. Die API-Form
+        // bleibt erhalten, damit aufrufender Code keinen Sonderfall braucht.
+        if (!enabled) {
+            if (refs.motionState) {
+                refs.motionState.dataset.state = 'unavailable';
+                refs.motionState.textContent = 'Nicht konfiguriert';
+            }
+            [previewButton, pauseButton, restartButton].forEach((button) => {
+                if (button) button.disabled = true;
+            });
+
+            return {
+                refresh() {},
+                restart() {},
+                pause() {},
+                resume() {},
+                setEnabled() {},
+                getState() {
+                    return { enabled: false, previewEnabled: false, paused: false, available: false };
+                },
+                destroy() {},
+            };
+        }
+
         const debounceMs = Math.max(40, Number(settings.debounceMs) || MOTION_REFRESH_DEBOUNCE_MS);
         const editorEvents = [
             'load',
@@ -2685,13 +2754,14 @@
             }
         });
 
-        const stopMotionTraits = setupMotionTraits(editor, options.integrations);
+        const stopMotionTraits = setupMotionTraits(editor, options.integrations, options.motion);
         const stopSharedElementPreview = setupSharedElementPreview(editor, options.integrations);
         const motionEditor = setupMotionEditor(editor, refs, options.motion, configuredCanvasScripts);
 
         const state = {
             dirtyCount: 0,
             changeVersion: 0,
+            loading: true,
             saveChain: Promise.resolve(true),
             autosavePromise: null,
             manualSavePending: 0,
@@ -2919,6 +2989,12 @@
             },
             async load() {
                 await loadProject();
+                // Nur loadProjectData() erzeugt die internen Dokumentupdates,
+                // die nicht als Benutzerbearbeitung zaehlen duerfen. Die
+                // Medienbibliothek laedt danach asynchron; das bereits
+                // sichtbare Dokument bleibt waehrenddessen editierbar und
+                // jede echte Aenderung muss Dirty-State/Autosave erreichen.
+                state.loading = false;
                 try {
                     await loadAssetLibrary(editor, options);
                 } catch (error) {
@@ -2945,6 +3021,7 @@
                 return uploadAssets(editor, files, options);
             },
             destroy() {
+                if (state.destroyed) return;
                 state.destroyed = true;
                 stopCanvasStyleSync();
                 stopSpacingEditor();
@@ -3011,6 +3088,10 @@
         });
 
         editor.on('update', () => {
+            // loadProjectData() emittiert zahlreiche interne Updates. Sie sind
+            // keine Benutzeraktion und duerfen weder Shell-Arbeit noch einen
+            // Autosave ausloesen, waehrend die Instanz noch startet.
+            if (state.loading || state.destroyed) return;
             state.dirtyCount += 1;
             state.changeVersion += 1;
             syncEditorShell();
@@ -3055,12 +3136,27 @@
             console.warn('LMZBuilder: save keymap could not be registered');
         }
 
-        await api.load();
-        ensureCanvasStyles(editor, canvasStyles, configuredCanvasBaseUrl);
-        ensureCanvasContext(editor, configuredCanvasBodyClasses, configuredCanvasLanguage, configuredCanvasBaseUrl);
-        syncEditorShell();
+        try {
+            await api.load();
+            if (state.destroyed) {
+                throw new Error('LMZBuilder: initialization cancelled');
+            }
+            ensureCanvasStyles(editor, canvasStyles, configuredCanvasBaseUrl);
+            ensureCanvasContext(editor, configuredCanvasBodyClasses, configuredCanvasLanguage, configuredCanvasBaseUrl);
+            syncEditorShell();
 
-        return api;
+            return api;
+        } catch (error) {
+            // create() darf nie eine halbfertige GrapesJS-Instanz samt
+            // Intervallen und Listenern zuruecklassen. Sonst wird jeder
+            // weitere Oeffnungsversuch langsamer als der vorherige.
+            try {
+                api.destroy();
+            } catch (destroyError) {
+                console.error('LMZBuilder: cleanup after failed initialization failed', destroyError);
+            }
+            throw error;
+        }
     }
 
     async function initFromStudioNode() {
@@ -3108,7 +3204,15 @@
 
     window.LMZBuilder = {
         create,
-        version: '2.4.5-joomla',
+        version: '2.4.5-joomla+railtime.20260904.1',
+        assetVersion: (() => {
+            try {
+                const currentScriptUrl = new URL(document.currentScript?.src || '', window.location.href);
+                return currentScriptUrl.searchParams.get('runtime') || currentScriptUrl.searchParams.get('v') || '';
+            } catch (_) {
+                return '';
+            }
+        })(),
     };
     window.initLMZBuilder = initFromStudioNode;
 })();

@@ -58,68 +58,84 @@
     >
         <input
             id="chat-attachments-{{ $selectedChat->id }}"
+            x-ref="attachmentInput"
             type="file"
             wire:model="uploads"
             multiple
             accept="audio/*,video/*,image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
+            tabindex="-1"
             class="sr-only"
         >
 
         <div
             x-show.important="!recording && !sendingVoice"
             data-chat-composer-mode="text"
-            class="rt-chat-composer-control flex min-h-12 min-w-0 flex-1 items-center gap-1 rounded-[1.15rem] px-1.5 py-1"
+            class="rt-chat-composer-row flex min-w-0 flex-1 items-center gap-2"
         >
-            <label
-                for="chat-attachments-{{ $selectedChat->id }}"
-                title="{{ __('app.add_attachment') }}"
-                class="rt-chat-composer-action flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl"
-            >
-                <i class="far fa-paperclip" aria-hidden="true"></i>
-                <span class="sr-only">{{ __('app.add_attachment') }}</span>
-            </label>
-
-            <x-chat.live-location-share
-                :chat-id="$selectedChat->id"
-                :start-url="route('chat.live-locations.store', ['chat' => $selectedChat])"
-                :reply-to-message-id="$replyingToMessage?->id"
-                context="chat"
-            />
-
-            <input
-                x-ref="messageInput"
-                type="text"
-                x-model="draft"
-                @input.debounce.250ms="sendTyping()"
-                placeholder="{{ __('app.type_message') }}"
-                autocomplete="off"
-                autocapitalize="sentences"
-                enterkeyhint="send"
-                spellcheck="true"
-                class="h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-base leading-6 text-rt-text outline-none placeholder:text-rt-soft focus:border-0 focus:ring-0 sm:text-sm dark:text-white dark:placeholder:text-rt-dark-soft"
-            >
-
             <button
-                x-cloak
-                x-show.important="draft.trim().length === 0 && !@js($uploads !== [])"
                 type="button"
-                @click="startRecording()"
-                title="{{ __('app.voice_message') }}"
-                class="rt-chat-composer-action flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                @click="$refs.attachmentInput.click()"
+                title="{{ __('app.add_attachment') }}"
+                aria-label="{{ __('app.add_attachment') }}"
+                class="rt-chat-composer-action rt-chat-composer-action--detached flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full"
+                data-chat-composer-attachment
             >
-                <i class="far fa-microphone" aria-hidden="true"></i>
-                <span class="sr-only">{{ __('app.voice_message') }}</span>
+                <i class="far fa-plus" aria-hidden="true"></i>
             </button>
 
+            <div class="rt-chat-composer-control flex min-h-12 min-w-0 flex-1 items-center gap-1 rounded-full px-1.5 py-1" data-chat-input-capsule>
+                <x-chat.live-location-share
+                    :chat-id="$selectedChat->id"
+                    :start-url="route('chat.live-locations.store', ['chat' => $selectedChat])"
+                    :reply-to-message-id="$replyingToMessage?->id"
+                    context="chat"
+                />
+
+                <input
+                    x-ref="messageInput"
+                    type="text"
+                    x-model="draft"
+                    @input.debounce.250ms="sendTyping()"
+                    placeholder="{{ __('app.type_message') }}"
+                    autocomplete="off"
+                    autocapitalize="sentences"
+                    enterkeyhint="send"
+                    spellcheck="true"
+                    class="h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-base leading-6 text-rt-text outline-none placeholder:text-rt-soft focus:border-0 focus:ring-0 sm:text-sm dark:text-white dark:placeholder:text-rt-dark-soft"
+                >
+
+                <button
+                    x-cloak
+                    x-show.important="draft.trim().length === 0 && !@js($uploads !== [])"
+                    type="button"
+                    @click="startRecording()"
+                    title="{{ __('app.voice_message') }}"
+                    class="rt-chat-composer-action flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                >
+                    <i class="far fa-microphone" aria-hidden="true"></i>
+                    <span class="sr-only">{{ __('app.voice_message') }}</span>
+                </button>
+            </div>
+
             <button
                 x-cloak
-                x-show="draft.trim().length > 0 || @js($uploads !== [])"
+                x-show.important="draft.trim().length > 0 || @js($uploads !== [])"
+                x-transition:enter="transition duration-150 ease-out"
+                x-transition:enter-start="scale-75 opacity-0"
+                x-transition:enter-end="scale-100 opacity-100"
+                x-transition:leave="transition duration-100 ease-in"
+                x-transition:leave-start="scale-100 opacity-100"
+                x-transition:leave-end="scale-75 opacity-0"
                 type="submit"
-                title="{{ __('app.type_message') }}"
-                class="rt-chat-send-button flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
+                wire:loading.attr="disabled"
+                wire:target="send"
+                title="{{ __('app.send_message') }}"
+                aria-label="{{ __('app.send_message') }}"
+                class="rt-chat-send-button flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white disabled:cursor-wait disabled:opacity-70"
+                data-chat-send-button
             >
-                <i class="far fa-paper-plane" aria-hidden="true"></i>
-                <span class="sr-only">{{ __('app.type_message') }}</span>
+                <i wire:loading.remove wire:target="send" class="far fa-paper-plane" aria-hidden="true"></i>
+                <i wire:loading wire:target="send" class="fas fa-spinner fa-spin" aria-hidden="true"></i>
             </button>
         </div>
 

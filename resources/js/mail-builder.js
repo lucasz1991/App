@@ -4293,6 +4293,10 @@ export async function createMailBuilder({
         canvasLanguage: 'de',
 
         motion: { enabled: false, preview: false },
+        // Der Mail-Builder verwendet weder Joomla-Embeds noch globale
+        // Website-Elemente. Zusammen mit deaktiviertem Motion kann die
+        // gemeinsame Runtime dadurch die komplette Trait-Hydrierung auslassen.
+        integrations: false,
         autosave,
 
         blocks: {

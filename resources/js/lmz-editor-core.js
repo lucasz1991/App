@@ -16,6 +16,9 @@ const INLINE_ACTION_ICON_PATHS = Object.freeze({
     assistant: '<path d="M12 3l1.25 3.75L17 8l-3.75 1.25L12 13l-1.25-3.75L7 8l3.75-1.25L12 3Z"/><path d="M18 14l.75 2.25L21 17l-2.25.75L18 20l-.75-2.25L15 17l2.25-.75L18 14Z"/>',
     content: '<path d="M4 20h4l10.5-10.5a2.83 2.83 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>',
     traits: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+    display: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M8 18v4M16 18v4"/>',
+    attributes: '<path d="m8 5-5 7 5 7M16 5l5 7-5 7M14 3l-4 18"/>',
+    file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
     styles: '<path d="M12 3a9 9 0 1 0 0 18h1.5a1.5 1.5 0 0 0 0-3H12a2 2 0 0 1 0-4h2a7 7 0 0 0-2-11Z"/><circle cx="7.5" cy="10" r=".75"/><circle cx="10" cy="6.5" r=".75"/><circle cx="15" cy="7.5" r=".75"/>',
     spacing: '<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v6m-2-2 2 2 2-2M9 22v-6m-2 2 2-2 2 2M2 9h6M6 7l2 2-2 2m16-2h-6m2-2-2 2 2 2"/>',
     media: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m4 17 4.5-4.5 3 3 2-2L20 19"/>',
@@ -3225,7 +3228,8 @@ let imagePropertiesPanelSequence = 0;
 function createImagePropertiesPanel({ root, editor, mode = 'website', capabilities, media = {}, onChanged }) {
     const document_ = root.ownerDocument;
     imagePropertiesPanelSequence += 1;
-    const sourceHintId = `rt-lmz-image-source-hint-${imagePropertiesPanelSequence}`;
+    const panelPrefix = `rt-lmz-image-${imagePropertiesPanelSequence}`;
+    const sourceHintId = `${panelPrefix}-source-hint`;
     const traitsPanel = root.querySelector('[data-lmz-popover-panel="right:traits"]');
     const traitsMount = traitsPanel?.querySelector?.('[data-lmz-mount="traits"]');
     const traitsBody = traitsMount?.parentElement || null;
@@ -3248,58 +3252,80 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             </span>
             <span><strong>Bild</strong><small data-rt-lmz-image-kind>Mail-sichere Darstellung</small></span>
         </header>
+        <div class="rt-lmz-image-properties__tabs" role="tablist" aria-label="Bildkonfiguration">
+            <button type="button" role="tab" id="${panelPrefix}-tab-content" aria-controls="${panelPrefix}-panel-content" aria-selected="true" tabindex="0" data-rt-lmz-image-tab="content">Inhalt</button>
+            <button type="button" role="tab" id="${panelPrefix}-tab-display" aria-controls="${panelPrefix}-panel-display" aria-selected="false" tabindex="-1" data-rt-lmz-image-tab="display">Darstellung</button>
+            <button type="button" role="tab" id="${panelPrefix}-tab-attributes" aria-controls="${panelPrefix}-panel-attributes" aria-selected="false" tabindex="-1" data-rt-lmz-image-tab="attributes">Attribute</button>
+            <button type="button" role="tab" id="${panelPrefix}-tab-file" aria-controls="${panelPrefix}-panel-file" aria-selected="false" tabindex="-1" data-rt-lmz-image-tab="file">Datei &amp; GIF</button>
+        </div>
         <form class="rt-lmz-image-properties__form" data-rt-lmz-image-form>
-            <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide">
-                <span data-rt-lmz-image-source-label>Quelle</span>
-                <input type="text" name="source" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="${sourceHintId}">
-            </label>
-            <p class="rt-lmz-image-properties__hint" id="${sourceHintId}" data-rt-lmz-image-source-hint>HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle.</p>
-            <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide">
-                <span>Alternativtext</span>
-                <input type="text" name="alt" autocomplete="off" maxlength="240" placeholder="Bildinhalt kurz beschreiben">
-            </label>
-            <label class="rt-lmz-image-properties__field" data-rt-lmz-image-width-pixels>
-                <span>Breite (px)</span>
-                <input type="number" name="width" min="40" max="1200" step="1" inputmode="numeric">
-            </label>
-            <label class="rt-lmz-image-properties__field" data-rt-lmz-image-width-preset hidden>
-                <span>Zugbreite</span>
-                <select name="trainWidth">
-                    <option value="100">100 %</option>
-                    <option value="108.67">108,67 % · Halt bei 65 %</option>
-                    <option value="125">125 % · Standard</option>
-                    <option value="150">150 %</option>
-                    <option value="200">200 %</option>
-                </select>
-            </label>
-            <label class="rt-lmz-image-properties__field">
-                <span>Ausrichtung</span>
-                <select name="alignment">
-                    <option value="left">Links</option>
-                    <option value="center">Mittig</option>
-                    <option value="right">Rechts</option>
-                </select>
-            </label>
-            <label class="rt-lmz-image-properties__ratio" data-rt-lmz-image-ratio-control>
-                <input type="checkbox" name="preserveRatio" checked>
-                <span><strong>Proportionen beibehalten</strong><small>Mailbilder verwenden immer <code>height:auto</code>.</small></span>
-            </label>
-            <dl class="rt-lmz-image-properties__metadata" aria-label="Bilddatei-Informationen">
-                <div><dt>Typ</dt><dd data-rt-lmz-image-format>Bild</dd></div>
-                <div><dt>MIME</dt><dd data-rt-lmz-image-mime>Nicht verfügbar</dd></div>
-                <div><dt>Originalmaß</dt><dd data-rt-lmz-image-dimensions>Nicht verfügbar</dd></div>
-                <div><dt>Seitenverhältnis</dt><dd data-rt-lmz-image-ratio>Nicht verfügbar</dd></div>
-                <div><dt>Dateigröße</dt><dd data-rt-lmz-image-bytes>Nicht verfügbar</dd></div>
-                <div data-rt-lmz-image-fallback-row hidden><dt>Outlook-Fallback</dt><dd data-rt-lmz-image-fallback>Nicht hinterlegt</dd></div>
-            </dl>
-            <section class="rt-lmz-image-properties__gif" data-rt-lmz-image-gif hidden aria-label="GIF-Vorschau steuern">
-                <header><strong>GIF-Vorschau</strong><small>Nur die Editorvorschau wird gesteuert. Datei, Timing und versendete E-Mail bleiben unverändert.</small></header>
-                <div class="rt-lmz-image-properties__gif-actions">
-                    <button type="button" data-rt-lmz-image-gif-play>Abspielen</button>
-                    <button type="button" data-rt-lmz-image-gif-pause>Pausieren</button>
-                    <button type="button" data-rt-lmz-image-gif-restart>Neu starten</button>
+            <section class="rt-lmz-image-properties__tabpanel" role="tabpanel" id="${panelPrefix}-panel-content" aria-labelledby="${panelPrefix}-tab-content" data-rt-lmz-image-section="content">
+                <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide">
+                    <span data-rt-lmz-image-source-label>Quelle</span>
+                    <input type="text" name="source" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="${sourceHintId}">
+                </label>
+                <p class="rt-lmz-image-properties__hint" id="${sourceHintId}" data-rt-lmz-image-source-hint>HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle.</p>
+            </section>
+            <section class="rt-lmz-image-properties__tabpanel" role="tabpanel" id="${panelPrefix}-panel-display" aria-labelledby="${panelPrefix}-tab-display" data-rt-lmz-image-section="display" hidden>
+                <label class="rt-lmz-image-properties__field" data-rt-lmz-image-width-pixels>
+                    <span>Breite (px)</span>
+                    <input type="number" name="width" min="40" max="1200" step="1" inputmode="numeric">
+                </label>
+                <label class="rt-lmz-image-properties__field" data-rt-lmz-image-width-preset hidden>
+                    <span>Zugbreite</span>
+                    <select name="trainWidth">
+                        <option value="100">100 %</option>
+                        <option value="108.67">108,67 % · Halt bei 65 %</option>
+                        <option value="125">125 % · Standard</option>
+                        <option value="150">150 %</option>
+                        <option value="200">200 %</option>
+                    </select>
+                </label>
+                <label class="rt-lmz-image-properties__field">
+                    <span>Ausrichtung</span>
+                    <select name="alignment">
+                        <option value="left">Links</option>
+                        <option value="center">Mittig</option>
+                        <option value="right">Rechts</option>
+                    </select>
+                </label>
+                <label class="rt-lmz-image-properties__ratio" data-rt-lmz-image-ratio-control>
+                    <input type="checkbox" name="preserveRatio" checked>
+                    <span><strong>Proportionen beibehalten</strong><small>Mailbilder verwenden immer <code>height:auto</code>.</small></span>
+                </label>
+            </section>
+            <section class="rt-lmz-image-properties__tabpanel rt-lmz-image-properties__tabpanel--attributes" role="tabpanel" id="${panelPrefix}-panel-attributes" aria-labelledby="${panelPrefix}-tab-attributes" data-rt-lmz-image-section="attributes" hidden>
+                <div class="rt-lmz-image-properties__attribute-note">
+                    <strong>HTML-Attribute</strong>
+                    <span>Alternativtext und Titel werden hier eindeutig gepflegt. Systembindungen und nicht freigegebene Attribute bleiben schreibgeschützt.</span>
                 </div>
-                <p data-rt-lmz-image-gif-message aria-live="polite"></p>
+                <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide">
+                    <span>Alternativtext</span>
+                    <input type="text" name="alt" autocomplete="off" maxlength="240" placeholder="Bildinhalt kurz beschreiben">
+                </label>
+                <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide">
+                    <span>Titelattribut</span>
+                    <input type="text" name="title" autocomplete="off" maxlength="240" placeholder="Optionaler Tooltip-Text">
+                </label>
+            </section>
+            <section class="rt-lmz-image-properties__tabpanel" role="tabpanel" id="${panelPrefix}-panel-file" aria-labelledby="${panelPrefix}-tab-file" data-rt-lmz-image-section="file" hidden>
+                <dl class="rt-lmz-image-properties__metadata" aria-label="Bilddatei-Informationen">
+                    <div><dt>Typ</dt><dd data-rt-lmz-image-format>Bild</dd></div>
+                    <div><dt>MIME</dt><dd data-rt-lmz-image-mime>Nicht verfügbar</dd></div>
+                    <div><dt>Originalmaß</dt><dd data-rt-lmz-image-dimensions>Nicht verfügbar</dd></div>
+                    <div><dt>Seitenverhältnis</dt><dd data-rt-lmz-image-ratio>Nicht verfügbar</dd></div>
+                    <div><dt>Dateigröße</dt><dd data-rt-lmz-image-bytes>Nicht verfügbar</dd></div>
+                    <div data-rt-lmz-image-fallback-row hidden><dt>Outlook-Fallback</dt><dd data-rt-lmz-image-fallback>Nicht hinterlegt</dd></div>
+                </dl>
+                <section class="rt-lmz-image-properties__gif" data-rt-lmz-image-gif hidden aria-label="GIF-Vorschau steuern">
+                    <header><strong>GIF-Vorschau</strong><small>Nur die Editorvorschau wird gesteuert. Datei, Timing und versendete E-Mail bleiben unverändert.</small></header>
+                    <div class="rt-lmz-image-properties__gif-actions">
+                        <button type="button" data-rt-lmz-image-gif-play>Abspielen</button>
+                        <button type="button" data-rt-lmz-image-gif-pause>Pausieren</button>
+                        <button type="button" data-rt-lmz-image-gif-restart>Neu starten</button>
+                    </div>
+                    <p data-rt-lmz-image-gif-message aria-live="polite"></p>
+                </section>
             </section>
             <p class="rt-lmz-image-properties__message" data-rt-lmz-image-message aria-live="polite"></p>
             <button type="submit" class="rt-lmz-image-properties__apply">Übernehmen</button>
@@ -3325,8 +3351,15 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
     };
     const gifPanel = panel.querySelector('[data-rt-lmz-image-gif]');
     const gifMessage = panel.querySelector('[data-rt-lmz-image-gif-message]');
+    const tabs = [...panel.querySelectorAll('[data-rt-lmz-image-tab]')];
+    const sections = new Map([...panel.querySelectorAll('[data-rt-lmz-image-section]')]
+        .map((section) => [section.dataset.rtLmzImageSection, section]));
+    const setHiddenState = (element, hidden) => {
+        const next = Boolean(hidden);
+        if (element && element.hidden !== next) element.hidden = next;
+    };
     const controls = Object.fromEntries(
-        ['source', 'alt', 'width', 'trainWidth', 'alignment', 'preserveRatio']
+        ['source', 'alt', 'title', 'width', 'trainWidth', 'alignment', 'preserveRatio']
             .map((name) => [name, form.querySelector(`[name="${name}"]`)]),
     );
     const setControlValue = (control, value) => {
@@ -3343,15 +3376,86 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
     let targetIsTrain = false;
     let targetToken = '';
     let editable = false;
+    let activeSection = 'content';
+    let formDirty = false;
+    const traitsMountInitialHidden = traitsMount.hidden;
+    const traitsMountInitialAriaLabel = traitsMount.getAttribute('aria-label');
+    const availableSections = new Set(['content', 'display', 'attributes', 'file']);
+    const restoreNativeTraitsLabel = () => {
+        if (traitsMountInitialAriaLabel === null) traitsMount.removeAttribute('aria-label');
+        else traitsMount.setAttribute('aria-label', traitsMountInitialAriaLabel);
+    };
+    const syncNativeTraits = () => {
+        if (!target) {
+            setHiddenState(traitsMount, traitsMountInitialHidden);
+            traitsMount.removeAttribute('data-rt-lmz-image-attribute-mount');
+            restoreNativeTraitsLabel();
+            return;
+        }
+        // Die Bildmaske ist der einzige sichtbare Attributpfad. Der native
+        // GrapesJS-Trait-Mount bleibt fuer Bilder ausgeblendet, damit alt,
+        // title, Breite und Ausrichtung nicht doppelt editiert werden und
+        // geschuetzte Systemslots keinen zweiten Schreibweg erhalten.
+        setHiddenState(traitsMount, true);
+        traitsMount.removeAttribute('data-rt-lmz-image-attribute-mount');
+        restoreNativeTraitsLabel();
+    };
+    const activateSection = (requestedSection = 'content', { focus = false } = {}) => {
+        const section = availableSections.has(requestedSection) ? requestedSection : 'content';
+        activeSection = section;
+        tabs.forEach((tab) => {
+            const selected = tab.dataset.rtLmzImageTab === section;
+            tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+            tab.tabIndex = selected ? 0 : -1;
+        });
+        sections.forEach((sectionPanel, name) => {
+            setHiddenState(sectionPanel, name !== section);
+        });
+        syncNativeTraits();
+        if (focus) {
+            Promise.resolve().then(() => {
+                const selectedTab = tabs.find((tab) => tab.dataset.rtLmzImageTab === section);
+                // Roving Tabs behalten den Fokus auf der Reiterleiste. Erst
+                // die normale Tab-Taste wechselt in den jeweiligen Inhalt.
+                selectedTab?.focus?.();
+            });
+        }
+        return section;
+    };
+    const onTabClick = (event) => activateSection(event.currentTarget?.dataset?.rtLmzImageTab, { focus: true });
+    const onTabKeydown = (event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const current = tabs.indexOf(event.currentTarget);
+        let index = current;
+        if (event.key === 'Home') index = 0;
+        else if (event.key === 'End') index = tabs.length - 1;
+        else index = (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+        activateSection(tabs[index]?.dataset?.rtLmzImageTab, { focus: true });
+    };
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', onTabClick);
+        tab.addEventListener('keydown', onTabKeydown);
+    });
 
     const refresh = (selection = editor.getSelected?.()) => {
-        target = resolveInspectableImageComponent(editor, selection);
+        const nextTarget = resolveInspectableImageComponent(editor, selection);
+        const targetChanged = nextTarget !== target;
+        target = nextTarget;
         trainLayer = target ? imageParentByAttribute(target, 'data-rt-layer-train') : null;
         targetIsTrain = false;
         targetToken = '';
         editable = false;
-        panel.hidden = !target;
-        if (!target) return false;
+        setHiddenState(panel, !target);
+        if (!target) {
+            formDirty = false;
+            syncNativeTraits();
+            return false;
+        }
+        if (targetChanged) {
+            activeSection = 'content';
+            formDirty = false;
+        }
 
         const attributes = componentAttributes(target);
         const token = String(attributes['data-rt-mail-preview-token'] || '').trim();
@@ -3374,15 +3478,18 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             && (!isProtectedEditorStructure(target) || ['TRAIN_SRC', 'LOGO_SRC'].includes(token))
         );
         const layerAttributes = componentAttributes(trainLayer);
-        controls.source.value = source;
-        controls.alt.value = String(attributes.alt || '');
-        controls.width.value = String(numericImageWidth(target));
-        setControlValue(controls.trainWidth, ['100', '108.67', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
-            ? String(layerAttributes['data-rt-layer-size'])
-            : '125');
-        setControlValue(controls.alignment, inferredImageAlignment(target, trainLayer));
-        pixelWidthField.hidden = targetIsTrain;
-        presetWidthField.hidden = !targetIsTrain;
+        if (!formDirty) {
+            controls.source.value = source;
+            controls.alt.value = String(attributes.alt || '');
+            controls.title.value = String(attributes.title || '');
+            controls.width.value = String(numericImageWidth(target));
+            setControlValue(controls.trainWidth, ['100', '108.67', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
+                ? String(layerAttributes['data-rt-layer-size'])
+                : '125');
+            setControlValue(controls.alignment, inferredImageAlignment(target, trainLayer));
+        }
+        setHiddenState(pixelWidthField, targetIsTrain);
+        setHiddenState(presetWidthField, !targetIsTrain);
         form.toggleAttribute('data-system-medium', Boolean(token));
         kind.textContent = [detail, metadata.animated ? 'GIF' : 'Bild'].filter(Boolean).join(' · ');
         sourceLabel.textContent = token ? 'Vorschauquelle' : 'Quelle';
@@ -3393,7 +3500,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
         if (token) controls.source.setAttribute('aria-readonly', 'true');
         else controls.source.removeAttribute('aria-readonly');
         controls.source.title = token ? 'Schreibgeschützte Vorschauquelle des Systemmediums' : '';
-        ratioControl.hidden = mode !== 'mail';
+        setHiddenState(ratioControl, mode !== 'mail');
         controls.preserveRatio.checked = true;
         metadataFields.format.textContent = metadata.format;
         metadataFields.mime.textContent = metadata.mime || 'Nicht verfügbar';
@@ -3402,11 +3509,11 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             : 'Nicht verfügbar';
         metadataFields.ratio.textContent = metadata.ratio;
         metadataFields.bytes.textContent = imageByteLabel(metadata.bytes);
-        metadataFields.fallbackRow.hidden = !metadata.animated;
+        setHiddenState(metadataFields.fallbackRow, !metadata.animated);
         metadataFields.fallback.textContent = metadata.fallback.source
             ? `${metadata.fallback.label || 'Statisches Standbild'} verfügbar`
             : 'Nicht in den Medienmetadaten hinterlegt';
-        gifPanel.hidden = !(metadata.animated && capabilities.gifControls);
+        setHiddenState(gifPanel, !(metadata.animated && capabilities.gifControls));
         gifMessage.textContent = '';
         message.textContent = '';
         delete message.dataset.state;
@@ -3418,16 +3525,21 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             button.disabled = !(metadata.animated && capabilities.gifControls);
         });
         controls.alt.disabled = !editable || targetIsTrain;
+        controls.title.disabled = !editable || targetIsTrain;
         if (targetIsTrain) {
             controls.alt.value = '';
+            controls.title.value = '';
             controls.alt.title = 'Der dekorative Zug bleibt für Mailclients mit leerem Alternativtext ausgeblendet.';
+            controls.title.title = 'Der dekorative Zug verwendet kein Titelattribut.';
         } else {
             controls.alt.removeAttribute('title');
+            controls.title.removeAttribute('title');
         }
         if (!editable) {
             message.dataset.state = 'muted';
             message.textContent = 'Dieses Systemmedium ist strukturell gebunden und wird über seinen System-Slot verwaltet.';
         }
+        activateSection(activeSection);
         return true;
     };
 
@@ -3444,18 +3556,20 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
         }
 
         const alt = targetIsTrain ? '' : String(controls.alt.value || '').trim().slice(0, 240);
+        const title = targetIsTrain ? '' : String(controls.title.value || '').trim().slice(0, 240);
         const alignment = ['left', 'center', 'right'].includes(controls.alignment.value)
             ? controls.alignment.value
             : 'left';
         if (!targetToken) {
             target.set?.('src', source);
-            target.addAttributes?.({ src: source, alt });
+            target.addAttributes?.({ src: source, alt, ...(title ? { title } : {}) });
         } else {
             // Systemslots speichern ihr Token serverautoritativ. Der
             // Inspector darf die aktuell gerenderte Vorschau-URL deshalb
             // weder als neue Dokumentquelle ausgeben noch versteckt binden.
-            target.addAttributes?.({ alt });
+            target.addAttributes?.({ alt, ...(title ? { title } : {}) });
         }
+        if (!title) target.removeAttributes?.('title');
 
         if (mode === 'mail') target.addStyle?.({ height: 'auto' });
 
@@ -3496,6 +3610,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             controls.width.value = String(width);
         }
 
+        formDirty = false;
         onChanged?.();
         message.dataset.state = 'success';
         message.textContent = 'Bildeigenschaften übernommen.';
@@ -3518,8 +3633,13 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
             ? 'Nur Vorschau: Das GIF wurde neu gestartet.'
             : 'Für dieses Bild wurde keine animierte Vorschau erkannt.';
     };
+    const onFormChanged = (event) => {
+        if (target && event.target?.matches?.('input, select, textarea')) formDirty = true;
+    };
 
     form.addEventListener('submit', onSubmit);
+    form.addEventListener('input', onFormChanged);
+    form.addEventListener('change', onFormChanged);
     panel.querySelector('[data-rt-lmz-image-gif-play]').addEventListener('click', onGifPlay);
     panel.querySelector('[data-rt-lmz-image-gif-pause]').addEventListener('click', onGifPause);
     panel.querySelector('[data-rt-lmz-image-gif-restart]').addEventListener('click', onGifRestart);
@@ -3529,11 +3649,27 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
         refresh,
         hasTarget: () => Boolean(target),
         canEdit: () => editable,
+        activeSection: () => activeSection,
+        showSection(section, options = {}) {
+            if (!target) refresh();
+            if (!target) return false;
+            activateSection(section, options);
+            return true;
+        },
         destroy() {
             form.removeEventListener('submit', onSubmit);
+            form.removeEventListener('input', onFormChanged);
+            form.removeEventListener('change', onFormChanged);
             panel.querySelector('[data-rt-lmz-image-gif-play]').removeEventListener('click', onGifPlay);
             panel.querySelector('[data-rt-lmz-image-gif-pause]').removeEventListener('click', onGifPause);
             panel.querySelector('[data-rt-lmz-image-gif-restart]').removeEventListener('click', onGifRestart);
+            tabs.forEach((tab) => {
+                tab.removeEventListener('click', onTabClick);
+                tab.removeEventListener('keydown', onTabKeydown);
+            });
+            setHiddenState(traitsMount, traitsMountInitialHidden);
+            traitsMount.removeAttribute('data-rt-lmz-image-attribute-mount');
+            restoreNativeTraitsLabel();
             panel.remove();
             target = null;
             trainLayer = null;
@@ -3919,26 +4055,42 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
 function addInlineEditToolbar(editor, root, menu) {
     const document_ = root.ownerDocument;
     let attachQueued = false;
+    const configure = (button) => {
+        const image = resolveInspectableImageComponent(editor, editor.getSelected?.());
+        const context = image ? 'image' : 'element';
+        const label = image ? 'Bild konfigurieren' : 'Bearbeiten';
+        button.classList.toggle('is-image-context', Boolean(image));
+        button.title = label;
+        button.setAttribute('aria-label', label);
+        button.setAttribute('aria-expanded', menu.isOpen?.() ? 'true' : 'false');
+        if (button.dataset.rtLmzTriggerContext === context) return;
+        button.dataset.rtLmzTriggerContext = context;
+        button.innerHTML = image
+            ? `${inlineActionIcon('media')}<span class="rt-lmz-inline-edit-label">Bild</span>`
+            : '<span class="rt-lmz-inline-edit-icon" aria-hidden="true">&bull;&bull;&bull;</span>';
+    };
     const attach = () => {
         canvasToolbars(editor, root).forEach((toolbar) => {
-            if (toolbar.querySelector?.(`[data-command="${EDIT_COMMAND}"]`)) return;
+            const existing = toolbar.querySelector?.(`[data-command="${EDIT_COMMAND}"]`);
+            if (existing) {
+                configure(existing);
+                return;
+            }
             const button = document_.createElement('button');
             button.type = 'button';
             button.className = 'lmzbjs-toolbar-item rt-lmz-inline-edit-trigger';
             button.dataset.command = EDIT_COMMAND;
-            button.title = 'Bearbeiten';
-            button.setAttribute('aria-label', 'Bearbeiten');
             button.setAttribute('aria-haspopup', 'menu');
-            button.innerHTML = '<span class="rt-lmz-inline-edit-icon" aria-hidden="true">&bull;&bull;&bull;</span>';
             button.addEventListener('click', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 menu.open(editor.getSelected?.());
             });
+            configure(button);
             toolbar.appendChild(button);
         });
     };
-    const onSelected = () => {
+    const scheduleAttach = () => {
         if (attachQueued) return;
         attachQueued = true;
         Promise.resolve().then(() => {
@@ -3946,18 +4098,31 @@ function addInlineEditToolbar(editor, root, menu) {
             attach();
         });
     };
+    const toolbarSelector = '.lmzbjs-toolbar, [data-toolbar]';
+    const onToolbarMutation = (mutations = []) => {
+        const relevant = mutations.some((mutation) => {
+            const target = mutation.target;
+            if (target?.closest?.(`[data-command="${EDIT_COMMAND}"]`)) return false;
+            if (target?.matches?.(toolbarSelector) || target?.closest?.(toolbarSelector)) return true;
+            return [...(mutation.addedNodes || [])].some((node) => (
+                node.matches?.(toolbarSelector)
+                || node.querySelector?.(toolbarSelector)
+            ));
+        });
+        if (relevant) scheduleAttach();
+    };
     const MutationObserverClass = document_.defaultView?.MutationObserver || globalThis.MutationObserver;
     const toolbarObserver = typeof MutationObserverClass === 'function'
-        ? new MutationObserverClass(onSelected)
+        ? new MutationObserverClass(onToolbarMutation)
         : null;
     toolbarObserver?.observe?.(root, { childList: true, subtree: true });
-    editor.on?.('component:selected', onSelected);
-    editor.on?.('canvas:frame:load', onSelected);
+    editor.on?.('component:selected', scheduleAttach);
+    editor.on?.('canvas:frame:load', scheduleAttach);
     attach();
     return () => {
         toolbarObserver?.disconnect?.();
-        editor.off?.('component:selected', onSelected);
-        editor.off?.('canvas:frame:load', onSelected);
+        editor.off?.('component:selected', scheduleAttach);
+        editor.off?.('canvas:frame:load', scheduleAttach);
         canvasToolbars(editor, root).forEach((toolbar) => {
             toolbar.querySelectorAll?.(`[data-command="${EDIT_COMMAND}"]`)?.forEach?.((button) => button.remove?.());
         });
@@ -4044,6 +4209,15 @@ function installStructureActionGuard(editor, root, { writable = true } = {}) {
     const blockedCommands = new Set(['tlb-move', 'tlb-clone', 'tlb-delete']);
     const selectionContentIsProtected = () => !writable || isProtectedEditorStructure(editor?.getSelected?.());
     const selectionStructureIsProtected = () => !writable || isProtectedEditorStructureTree(editor?.getSelected?.());
+    const protectedPanelIsInspectable = (panel) => {
+        if (!writable) return false;
+        const image = resolveInspectableImageComponent(editor, editor?.getSelected?.());
+        if (!image) return false;
+        if (panel === 'right:traits') return true;
+        if (panel !== 'right:styles') return false;
+        const stylable = image.get?.('stylable');
+        return stylable === true || (Array.isArray(stylable) && stylable.length > 0);
+    };
     const refresh = () => {
         const protectedSelection = selectionStructureIsProtected();
         const protectedContent = selectionContentIsProtected();
@@ -4053,6 +4227,7 @@ function installStructureActionGuard(editor, root, { writable = true } = {}) {
         }
         if (protectedContent) {
             root.querySelectorAll?.('[data-lmz-panel-group="right"][aria-expanded="true"]')?.forEach?.((button) => {
+                if (protectedPanelIsInspectable(button.dataset?.lmzPanelToggle)) return;
                 button.dataset.rtLmzProtectedClosing = 'true';
                 button.click?.();
                 delete button.dataset.rtLmzProtectedClosing;
@@ -4089,7 +4264,8 @@ function installStructureActionGuard(editor, root, { writable = true } = {}) {
         const panel = action?.dataset?.lmzPanelToggle;
         const protectedPanel = ['right:styles', 'right:traits'].includes(String(panel || ''))
             && action?.dataset?.rtLmzProtectedClosing !== 'true'
-            && selectionContentIsProtected();
+            && selectionContentIsProtected()
+            && !protectedPanelIsInspectable(panel);
         const protectedCommand = blockedCommands.has(String(command || '')) && selectionStructureIsProtected();
         if (!protectedCommand && !protectedPanel) return;
         event.preventDefault?.();
@@ -4177,7 +4353,7 @@ function openSelectedContent(editor, component, root) {
     return opened;
 }
 
-function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, animationDrawer }) {
+function createInlineMenu({ root, editor, capabilities, mode, media = {}, mediaDrawer, imagePropertiesPanel, animationDrawer }) {
     const document_ = root.ownerDocument;
     const menu = document_.createElement('div');
     menu.className = 'rt-lmz-inline-menu';
@@ -4189,42 +4365,84 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
     let returnFocus = null;
     const groups = Object.freeze({
         assistant: { label: 'Assist', description: 'Kontextbezogene Hilfe' },
+        image: { label: 'Bild konfigurieren', description: 'Inhalt, Darstellung, Attribute und Datei' },
         edit: { label: 'Bearbeiten', description: 'Inhalt, Darstellung und Medien' },
         structure: { label: 'Struktur', description: 'Element anordnen oder verwalten' },
     });
 
     const actionDefinitions = () => {
+        const inspectableImage = resolveInspectableImageComponent(editor, component);
         const image = resolveEditableImageComponent(editor, component, { mode });
+        const contextTarget = inspectableImage || component;
         const protectedStructure = isProtectedEditorStructure(component);
         const protectedStructureTree = isProtectedEditorStructureTree(component);
-        const selectedStylable = component?.get?.('stylable');
-        const protectedStyleAllowed = protectedStructure
+        const contextProtected = isProtectedEditorStructure(contextTarget);
+        const selectedStylable = contextTarget?.get?.('stylable');
+        const protectedStyleAllowed = contextProtected
             && (selectedStylable === true
                 || (Array.isArray(selectedStylable) && selectedStylable.length > 0));
-        const animationTarget = resolveAnimatedComponent(component);
-        const animation = componentAnimationContext(animationTarget || image || component);
+        const animationTarget = resolveAnimatedComponent(contextTarget);
+        const animation = componentAnimationContext(animationTarget || inspectableImage || component);
+        const imageGroup = inspectableImage ? 'image' : 'edit';
         return [
             { id: 'assistant', label: 'Mit Assist bearbeiten', group: 'assistant', enabled: true },
-            { id: 'content', label: 'Inhalt', group: 'edit', enabled: capabilities.writable && !protectedStructure },
-            { id: 'traits', label: 'Eigenschaften', group: 'edit', panel: 'right:traits', enabled: capabilities.writable && capabilities.traits && !protectedStructure },
-            { id: 'styles', label: 'Stile', group: 'edit', panel: 'right:styles', enabled: capabilities.writable && capabilities.styles && (!protectedStructure || protectedStyleAllowed) },
+            { id: 'content', label: 'Inhalt', group: 'edit', enabled: capabilities.writable && !protectedStructure && !inspectableImage },
+            {
+                id: 'traits',
+                label: inspectableImage ? 'Eigenschaften' : 'Eigenschaften',
+                group: imageGroup,
+                panel: 'right:traits',
+                section: inspectableImage ? 'content' : null,
+                enabled: capabilities.writable && capabilities.traits && (Boolean(inspectableImage) || !protectedStructure),
+            },
+            {
+                id: 'display',
+                label: 'Darstellung',
+                group: 'image',
+                panel: 'right:traits',
+                section: 'display',
+                enabled: capabilities.writable && capabilities.traits && Boolean(inspectableImage),
+            },
+            {
+                id: 'styles',
+                label: inspectableImage ? 'Erweiterte Stile' : 'Stile',
+                group: imageGroup,
+                panel: 'right:styles',
+                enabled: capabilities.writable && capabilities.styles && (!contextProtected || protectedStyleAllowed),
+            },
+            {
+                id: 'attributes',
+                label: 'HTML-Attribute',
+                group: 'image',
+                panel: 'right:traits',
+                section: 'attributes',
+                enabled: capabilities.writable && capabilities.traits && Boolean(inspectableImage),
+            },
+            {
+                id: 'file',
+                label: animation.animated ? 'Datei & GIF' : 'Datei-Informationen',
+                group: 'image',
+                panel: 'right:traits',
+                section: 'file',
+                enabled: capabilities.writable && capabilities.traits && Boolean(inspectableImage),
+            },
             { id: 'spacing', label: 'Abstände', group: 'edit', panel: 'right:styles', enabled: capabilities.writable && capabilities.spacing && !protectedStructure && !isFixedMailSignatureGeometry(component) },
-            { id: 'media', label: 'Medien', group: 'edit', enabled: capabilities.media && (image || mode === 'mail') },
-            { id: 'replace', label: 'Bild ersetzen', group: 'edit', enabled: Boolean(image) && mediaDrawer.canReplace?.(component) === true },
+            { id: 'media', label: 'Medienbibliothek', group: imageGroup, enabled: capabilities.media && (inspectableImage || mode === 'mail') },
+            { id: 'replace', label: 'Bild ersetzen', group: 'image', enabled: Boolean(image) && mediaDrawer.canReplace?.(contextTarget) === true },
             {
                 id: 'animation',
                 label: animation.animated ? 'Animation & GIF' : 'Animation',
-                group: 'edit',
+                group: imageGroup,
                 enabled: (!protectedStructure && capabilities.animation)
                     || (capabilities.gifControls && animation.animated),
             },
             {
                 id: 'gif-playback',
                 label: animatedPreviewIsPlaying(animationTarget || image || component) ? 'GIF-Vorschau anhalten' : 'GIF-Vorschau abspielen',
-                group: 'edit',
+                group: imageGroup,
                 enabled: capabilities.gifControls && animation.animated,
             },
-            { id: 'gif-restart', label: 'GIF-Vorschau neu starten', group: 'edit', enabled: capabilities.gifControls && animation.animated },
+            { id: 'gif-restart', label: 'GIF-Vorschau neu starten', group: imageGroup, enabled: capabilities.gifControls && animation.animated },
             { id: 'move', label: 'Umpositionieren', group: 'structure', enabled: capabilities.writable && !protectedStructureTree },
             { id: 'duplicate', label: 'Duplizieren', group: 'structure', enabled: capabilities.writable && !protectedStructureTree },
             { id: 'delete', label: 'Löschen', group: 'structure', enabled: capabilities.writable && !protectedStructureTree, danger: true },
@@ -4234,6 +4452,7 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
     const close = ({ restoreFocus = false } = {}) => {
         const focusTarget = returnFocus;
         menu.hidden = true;
+        focusTarget?.setAttribute?.('aria-expanded', 'false');
         component = null;
         returnFocus = null;
         if (restoreFocus) focusTarget?.focus?.();
@@ -4263,6 +4482,8 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
     const runAction = (definition) => {
         const selected = component;
         if (!selected) return;
+        const inspectableImage = resolveInspectableImageComponent(editor, selected);
+        const contextTarget = inspectableImage || selected;
 
         if (definition.id === 'assistant') {
             close({ restoreFocus: true });
@@ -4270,8 +4491,15 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
             return;
         }
         if (definition.panel) {
+            if (inspectableImage) {
+                editor.select?.(inspectableImage);
+                imagePropertiesPanel?.refresh?.(inspectableImage);
+            }
             close({ restoreFocus: true });
-            if (openPanel(root, definition.panel)) panelToggle(root, definition.panel)?.focus?.();
+            if (openPanel(root, definition.panel)) {
+                if (definition.section) imagePropertiesPanel?.showSection?.(definition.section, { focus: true });
+                else panelToggle(root, definition.panel)?.focus?.();
+            }
             return;
         }
         if (definition.id === 'content') {
@@ -4282,24 +4510,24 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
         if (definition.id === 'media' || definition.id === 'replace') {
             close({ restoreFocus: true });
             mediaDrawer.open(definition.id === 'replace'
-                ? { replaceTarget: selected, initialTab: 'library' }
+                ? { replaceTarget: contextTarget, initialTab: 'library' }
                 : { initialTab: 'used' });
             return;
         }
         if (definition.id === 'animation') {
             close({ restoreFocus: true });
-            animationDrawer.open(selected);
+            animationDrawer.open(contextTarget);
             return;
         }
         if (definition.id === 'gif-playback') {
-            const target = resolveAnimatedComponent(selected) || resolveEditableImageComponent(editor, selected, { mode }) || selected;
+            const target = resolveAnimatedComponent(contextTarget) || inspectableImage || selected;
             close({ restoreFocus: true });
             setAnimatedPreviewPlayback(target, !animatedPreviewIsPlaying(target));
             return;
         }
         if (definition.id === 'gif-restart') {
             close({ restoreFocus: true });
-            restartAnimatedPreview(resolveAnimatedComponent(selected) || resolveEditableImageComponent(editor, selected, { mode }) || selected);
+            restartAnimatedPreview(resolveAnimatedComponent(contextTarget) || inspectableImage || selected);
             return;
         }
         if (definition.id === 'move') {
@@ -4322,8 +4550,51 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
             if (deleteSelectedComponent(editor, selected)) focusInlineTrigger();
         }
     };
+    const renderImageSummary = () => {
+        const image = resolveInspectableImageComponent(editor, component);
+        menu.dataset.rtLmzContext = image ? 'image' : 'element';
+        menu.setAttribute('aria-label', image ? 'Bild konfigurieren' : 'Element bearbeiten');
+        if (!image) return;
+
+        const attributes = componentAttributes(image);
+        const token = String(attributes['data-rt-mail-preview-token'] || '').trim();
+        const systemDefinition = currentMediaItems(media.tokenMedia)
+            .find((item) => normalizedToken(item?.token) === normalizedToken(token));
+        const persistedSource = attributes.src || image.get?.('src');
+        const renderedSource = image.getEl?.()?.getAttribute?.('src');
+        const source = String(renderedSource || assetSource(systemDefinition) || persistedSource || '').trim();
+        const metadata = resolveImageInspectorMetadata({ target: image, source, token, media });
+        const detail = imageLayerDetail(image) || String(attributes.alt || '').trim() || 'Bild';
+        const editableImage = capabilities.writable && Boolean(resolveEditableImageComponent(editor, image, { mode }));
+        const header = document_.createElement('header');
+        header.className = 'rt-lmz-inline-menu__image-summary';
+        header.setAttribute('role', 'presentation');
+
+        const preview = document_.createElement('span');
+        preview.className = 'rt-lmz-inline-menu__image-preview';
+        preview.setAttribute('aria-hidden', 'true');
+        if (source && imageSourceIsSafe(source, document_.baseURI)) {
+            const thumbnail = document_.createElement('img');
+            thumbnail.alt = '';
+            thumbnail.src = source;
+            preview.appendChild(thumbnail);
+        } else {
+            preview.innerHTML = inlineActionIcon('media');
+        }
+
+        const copy = document_.createElement('span');
+        copy.className = 'rt-lmz-inline-menu__image-copy';
+        const title = document_.createElement('strong');
+        title.textContent = detail;
+        const status = document_.createElement('small');
+        status.textContent = `${metadata.format} · ${editableImage ? 'Bearbeitbar' : 'Nur ansehen'}`;
+        copy.append(title, status);
+        header.append(preview, copy);
+        menu.appendChild(header);
+    };
     const render = () => {
         menu.replaceChildren();
+        renderImageSummary();
         const renderedGroups = new Map();
         actionDefinitions().forEach((definition) => {
             let group = renderedGroups.get(definition.group);
@@ -4354,7 +4625,7 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
             button.addEventListener('click', () => runAction(definition));
             group.appendChild(button);
         });
-        if (componentAnimationContext(resolveAnimatedComponent(component) || resolveEditableImageComponent(editor, component, { mode }) || component).animated) {
+        if (componentAnimationContext(resolveAnimatedComponent(component) || resolveInspectableImageComponent(editor, component) || component).animated) {
             const note = document_.createElement('p');
             note.className = 'rt-lmz-inline-menu__note';
             note.textContent = 'Timing und Frames lassen sich nur durch den Austausch der GIF-Quelldatei ändern.';
@@ -4385,9 +4656,13 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
         open(selected) {
             component = selected || editor.getSelected?.();
             if (!component) return;
-            returnFocus = document_.activeElement;
-            render();
             const toolbar = visibleCanvasToolbar(editor, root);
+            const activeElement = document_.activeElement;
+            returnFocus = activeElement?.matches?.(`[data-command="${EDIT_COMMAND}"]`)
+                ? activeElement
+                : toolbar?.querySelector?.(`[data-command="${EDIT_COMMAND}"]`) || activeElement;
+            returnFocus?.setAttribute?.('aria-expanded', 'true');
+            render();
             menu.hidden = false;
             const previousVisibility = menu.style.visibility;
             menu.style.visibility = 'hidden';
@@ -4421,6 +4696,7 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
             menu.querySelector('[role="menuitem"]')?.focus?.();
         },
         close,
+        isOpen: () => !menu.hidden,
         selectionChanged(selected, { deselected = false } = {}) {
             if (menu.hidden || !component) return false;
             if (!deselected && selected === component) return false;
@@ -4978,7 +5254,16 @@ export function createLmzEditorChrome({
     panelExperience = installEditorPanelExperience({ root: rootElement, editor });
     const detachScopedAssetAccess = installScopedAssetAccess({ editor, mediaDrawer, mode: normalizedMode });
     animationDrawer = createAnimationDrawer({ root: rootElement, editor, capabilities: normalized, mode: normalizedMode, onChanged: refreshAll });
-    const menu = createInlineMenu({ root: rootElement, editor, capabilities: normalized, mode: normalizedMode, mediaDrawer, animationDrawer });
+    const menu = createInlineMenu({
+        root: rootElement,
+        editor,
+        capabilities: normalized,
+        mode: normalizedMode,
+        media,
+        mediaDrawer,
+        imagePropertiesPanel,
+        animationDrawer,
+    });
     const detachToolbar = addInlineEditToolbar(editor, rootElement, menu);
     const detachCanvasTabBoundary = installCanvasTabBoundary(editor, rootElement);
     const detachStructureActionGuard = installStructureActionGuard(editor, rootElement, normalized);

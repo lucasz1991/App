@@ -3,6 +3,7 @@
     $headerPerson = $selectedChat->isGroup()
         ? null
         : $selectedChat->participants->firstWhere('id', '!=', $me->id);
+    $headerIsOnline = $headerPerson?->isOnline() ?? false;
 @endphp
 
 <div class="rt-chat-conversation-header flex shrink-0 items-center gap-2.5 px-3 py-3 sm:gap-3 sm:px-5 sm:py-3.5">
@@ -34,7 +35,7 @@
                 :src="$headerAvatar"
                 :name="$selectedChat->displayNameFor($me)"
                 size="lg"
-                signal
+                :signal="$headerIsOnline"
             />
 
             <span class="min-w-0 flex-1">
@@ -69,12 +70,23 @@
                         </button>
                     </x-slot:trigger>
                 </x-user.person-anchor-preview>
-                <span
-                    x-cloak
-                    x-show.important="typingLabel"
-                    x-text="typingLabel"
-                    class="rt-chat-typing mt-0.5 block truncate text-[10px] font-bold text-rt-accent dark:text-rt-dark-accent"
-                ></span>
+                <span class="mt-0.5 block min-h-[1rem]" aria-live="polite" aria-atomic="true">
+                    <span
+                        x-show.important="!typingLabel"
+                        class="rt-chat-presence {{ $headerIsOnline ? 'is-online' : 'is-offline' }} inline-flex items-center gap-1.5 text-[10px] font-semibold"
+                        data-chat-presence="{{ $headerIsOnline ? 'online' : 'offline' }}"
+                    >
+                        <span class="rt-chat-presence__dot" aria-hidden="true"></span>
+                        {{ $headerIsOnline ? __('app.online') : __('app.offline') }}
+                    </span>
+                    <span
+                        x-cloak
+                        x-show.important="typingLabel"
+                        x-text="typingLabel"
+                        class="rt-chat-typing block truncate text-[10px] font-bold text-rt-accent dark:text-rt-dark-accent"
+                        data-chat-presence="typing"
+                    ></span>
+                </span>
             </span>
         </div>
     @else
@@ -82,29 +94,25 @@
             :src="$headerAvatar"
             :name="$selectedChat->displayNameFor($me)"
             size="lg"
-            signal
         />
 
         <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-extrabold tracking-[-0.025em] text-rt-text dark:text-rt-dark-text sm:text-[15px]">
                 {{ $selectedChat->displayNameFor($me) }}
             </p>
-            <p class="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.08em] text-rt-muted dark:text-rt-dark-muted">
-                {{ trans_choice('app.members_count', $selectedChat->participants->count()) }}
-            </p>
-            <p
-                x-cloak
-                x-show.important="typingLabel"
-                x-text="typingLabel"
-                class="rt-chat-typing mt-0.5 truncate text-[10px] font-bold text-rt-accent dark:text-rt-dark-accent"
-            ></p>
+            <div class="mt-0.5 min-h-[1rem]" aria-live="polite" aria-atomic="true">
+                <p x-show.important="!typingLabel" class="truncate text-[10px] font-medium uppercase tracking-[0.08em] text-rt-muted dark:text-rt-dark-muted">
+                    {{ trans_choice('app.members_count', $selectedChat->participants->count()) }}
+                </p>
+                <p
+                    x-cloak
+                    x-show.important="typingLabel"
+                    x-text="typingLabel"
+                    class="rt-chat-typing truncate text-[10px] font-bold text-rt-accent dark:text-rt-dark-accent"
+                ></p>
+            </div>
         </div>
     @endif
-
-    <span class="rt-chat-live-status hidden items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] sm:inline-flex">
-        <span aria-hidden="true"></span>
-        {{ __('app.online') }}
-    </span>
 
     @if ($selectedChat->activeRoom)
         @can('calls.join')
@@ -130,6 +138,8 @@
                 icon="far fa-phone"
                 :label="__('app.calls_start_audio')"
                 tone="quiet"
+                size="lg"
+                class="rt-chat-header-action rounded-full"
                 wire:click="startCall(false)"
                 wire:loading.attr="disabled"
                 wire:target="startCall"
@@ -139,7 +149,9 @@
             <x-chat.icon-button
                 icon="far fa-video"
                 :label="__('app.calls_start')"
-                tone="accent"
+                tone="quiet"
+                size="lg"
+                class="rt-chat-header-action rounded-full"
                 wire:click="startCall(true)"
                 wire:loading.attr="disabled"
                 wire:target="startCall"
@@ -160,7 +172,7 @@
         <x-slot name="trigger">
             <x-ui.dropdown.action-trigger
                 :aria-label="__('app.chat_options')"
-                class="rt-chat-options-trigger h-11 w-11 rounded-xl px-0"
+                class="rt-chat-options-trigger h-11 w-11 rounded-full px-0"
                 data-no-chat-swipe
             />
         </x-slot>

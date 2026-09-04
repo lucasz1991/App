@@ -1959,8 +1959,8 @@ test('mail chrome separates vendor panels into accessible left navigation and ri
     const navigation = root.querySelector('[data-rt-lmz-control-dock][data-rt-lmz-side="left"]');
     const inspector = root.querySelector('[data-rt-lmz-control-dock][data-rt-lmz-side="right"]');
     const main = root.querySelector('.lmz-builder__main');
-    const navigationTabs = [...navigation.querySelectorAll('[role="tab"]')];
-    const inspectorTabs = [...inspector.querySelectorAll('[role="tab"]')];
+    const navigationTabs = [...navigation.querySelectorAll('.rt-lmz-control-dock__tabs [data-lmz-panel-toggle]')];
+    const inspectorTabs = [...inspector.querySelectorAll('.rt-lmz-control-dock__tabs [data-lmz-panel-toggle]')];
     assert.equal(chrome.layout, 'elementor');
     assert.equal(root.dataset.rtLmzLayout, 'elementor');
     assert.equal(navigation.parentElement, root.querySelector('.lmz-builder__viewport'));
@@ -2380,10 +2380,18 @@ test('mail content images keep alt size and GIF tools without advertising replac
     });
 
     root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    assert.equal(root.querySelector('.rt-lmz-inline-edit-trigger').getAttribute('aria-label'), 'Bild konfigurieren');
+    assert.equal(root.querySelector('.rt-lmz-inline-edit-trigger').getAttribute('aria-expanded'), 'true');
+    assert.equal(root.querySelector('.rt-lmz-inline-menu').dataset.rtLmzContext, 'image');
+    assert.equal(root.querySelector('.rt-lmz-inline-menu__image-copy strong').textContent, 'Inhaltsbild');
+    assert.match(root.querySelector('.rt-lmz-inline-menu__image-copy small').textContent, /GIF-Animation/);
     const actions = [...root.querySelectorAll('[data-rt-lmz-inline-action]')]
         .map((item) => item.dataset.rtLmzInlineAction);
     assert.equal(actions.includes('traits'), true);
+    assert.equal(actions.includes('display'), true);
     assert.equal(actions.includes('styles'), true);
+    assert.equal(actions.includes('attributes'), true);
+    assert.equal(actions.includes('file'), true);
     assert.equal(actions.includes('media'), true);
     assert.equal(actions.includes('animation'), true);
     assert.equal(actions.includes('gif-playback'), true);
@@ -2462,6 +2470,7 @@ test('shared mail image inspector exposes honest GIF metadata and keeps real ima
     });
 
     const inspector = root.querySelector('.rt-lmz-image-properties');
+    const traitsMount = root.querySelector('[data-lmz-mount="traits"]');
     assert.equal(inspector.hidden, false);
     assert.equal(inspector.querySelector('.rt-lmz-image-properties__header strong').textContent, 'Bild');
     assert.equal(inspector.querySelector('[data-rt-lmz-image-kind]').textContent, 'Firmenlogo · GIF');
@@ -2484,6 +2493,42 @@ test('shared mail image inspector exposes honest GIF metadata and keeps real ima
         [...inspector.querySelectorAll('.rt-lmz-image-properties__gif-actions button')].map((button) => button.textContent),
         ['Abspielen', 'Pausieren', 'Neu starten'],
     );
+    assert.deepEqual(
+        [...inspector.querySelectorAll('[data-rt-lmz-image-tab]')].map((tab) => tab.textContent),
+        ['Inhalt', 'Darstellung', 'Attribute', 'Datei & GIF'],
+    );
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-tab="content"]').getAttribute('aria-selected'), 'true');
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-section="content"]').hidden, false);
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-section="content"] [name="alt"]'), null);
+    assert.ok(inspector.querySelector('[data-rt-lmz-image-section="attributes"] [name="alt"]'));
+    assert.ok(inspector.querySelector('[data-rt-lmz-image-section="attributes"] [name="title"]'));
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-section="display"]').hidden, true);
+    assert.equal(traitsMount.hidden, true);
+
+    inspector.querySelector('[data-rt-lmz-image-tab="display"]').click();
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-section="display"]').hidden, false);
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-section="content"]').hidden, true);
+    assert.equal(traitsMount.hidden, true);
+
+    const displayTab = inspector.querySelector('[data-rt-lmz-image-tab="display"]');
+    const attributesTab = inspector.querySelector('[data-rt-lmz-image-tab="attributes"]');
+    let focusedTab = null;
+    attributesTab.focus = () => {
+        focusedTab = attributesTab;
+    };
+    const arrowEvent = new document.defaultView.Event('keydown', { bubbles: true, cancelable: true });
+    arrowEvent.key = 'ArrowRight';
+    displayTab.dispatchEvent(arrowEvent);
+    await Promise.resolve();
+    assert.equal(attributesTab.getAttribute('aria-selected'), 'true');
+    assert.equal(focusedTab, attributesTab);
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-section="attributes"]').hidden, false);
+    assert.equal(traitsMount.hidden, true);
+    const pendingAlt = inspector.querySelector('[name="alt"]');
+    pendingAlt.value = 'Noch nicht übernommener Alternativtext';
+    pendingAlt.dispatchEvent(new document.defaultView.Event('input', { bubbles: true }));
+    editor.emit('component:update', logo);
+    assert.equal(pendingAlt.value, 'Noch nicht übernommener Alternativtext');
     assert.equal(logo.state['custom-name'], undefined);
     assert.equal(train.state['custom-name'], undefined);
 
@@ -2516,9 +2561,32 @@ test('shared mail image inspector exposes honest GIF metadata and keeps real ima
     assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').hidden, false);
     assert.equal(inspector.querySelector('[name="source"]').readOnly, true);
     assert.equal(inspector.querySelector('.rt-lmz-image-properties__apply').disabled, true);
+    assert.equal(inspector.querySelector('[name="alt"]').disabled, true);
+    assert.equal(inspector.querySelector('[name="title"]').disabled, true);
     assert.match(inspector.querySelector('[data-rt-lmz-image-message]').textContent, /System-Slot verwaltet/);
 
+    root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    const protectedActions = [...root.querySelectorAll('[data-rt-lmz-inline-action]')]
+        .map((item) => item.dataset.rtLmzInlineAction);
+    assert.equal(protectedActions.includes('traits'), true);
+    assert.equal(protectedActions.includes('attributes'), true);
+    assert.equal(protectedActions.includes('file'), true);
+    assert.equal(protectedActions.includes('replace'), false);
+    root.querySelector('[data-rt-lmz-inline-action="attributes"]').click();
+    await Promise.resolve();
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-tab="attributes"]').getAttribute('aria-selected'), 'true');
+    assert.equal(traitsMount.hidden, true);
+
+    root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    root.querySelector('[data-rt-lmz-inline-action="file"]').click();
+    await Promise.resolve();
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-tab="file"]').getAttribute('aria-selected'), 'true');
+    assert.equal(inspector.querySelector('[data-rt-lmz-image-section="file"]').hidden, false);
+    assert.equal(traitsMount.hidden, true);
+
     chrome.destroy();
+    assert.equal(traitsMount.hidden, false);
+    assert.equal(traitsMount.hasAttribute('data-rt-lmz-image-attribute-mount'), false);
 }));
 
 test('pausing a normal GIF never replaces its persisted source when image properties are applied', () => coreWithDom(`
@@ -2551,11 +2619,13 @@ test('pausing a normal GIF never replaces its persisted source when image proper
 
     chrome.refresh();
     assert.equal(inspector.querySelector('[name="source"]').value, source);
+    inspector.querySelector('[name="title"]').value = 'Animiertes Motiv';
     inspector.querySelector('[name="width"]').value = '480';
     inspector.querySelector('form').dispatchEvent(new document.defaultView.Event('submit', { bubbles: true, cancelable: true }));
 
     assert.equal(selected.state.src, source);
     assert.equal(selected.state.attributes.src, source);
+    assert.equal(selected.state.attributes.title, 'Animiertes Motiv');
     assert.equal(selected.state.attributes.width, '480');
     assert.equal(selected.state.style.height, 'auto');
     chrome.destroy();
@@ -2919,11 +2989,16 @@ test('inline menu groups accessible icon actions and points Umpositionieren to t
     const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'marketing' });
     const trigger = toolbar.querySelector('.rt-lmz-inline-edit-trigger');
 
+    assert.equal(trigger.classList.contains('is-image-context'), true);
+    assert.equal(trigger.getAttribute('aria-label'), 'Bild konfigurieren');
+    assert.equal(trigger.querySelector('.rt-lmz-inline-edit-label').textContent, 'Bild');
     trigger.focus();
     trigger.click();
     const groups = [...root.querySelectorAll('[data-rt-lmz-inline-group]')];
-    assert.deepEqual(groups.map((group) => group.dataset.rtLmzInlineGroup), ['assistant', 'edit', 'structure']);
-    assert.deepEqual(groups.map((group) => group.getAttribute('aria-label')), ['Assist', 'Bearbeiten', 'Struktur']);
+    assert.deepEqual(groups.map((group) => group.dataset.rtLmzInlineGroup), ['assistant', 'image', 'edit', 'structure']);
+    assert.deepEqual(groups.map((group) => group.getAttribute('aria-label')), ['Assist', 'Bild konfigurieren', 'Bearbeiten', 'Struktur']);
+    assert.equal(root.querySelector('.rt-lmz-inline-menu__image-summary')?.getAttribute('role'), 'presentation');
+    assert.equal(root.querySelector('.rt-lmz-inline-menu').getAttribute('aria-label'), 'Bild konfigurieren');
     groups.forEach((group) => assert.ok(group.querySelector('.rt-lmz-inline-menu__group-header small').textContent));
     root.querySelectorAll('[data-rt-lmz-inline-action]').forEach((action) => {
         assert.ok(action.querySelector('svg[aria-hidden="true"]'));
@@ -2951,12 +3026,19 @@ test('shared LMZ shell styles real layer rows, grouped inline actions and respon
     assert.match(css, /\.lmzbjs-layer\.rt-lmz-layer--internal-media-structure\s*>\s*:is\(\.lmzbjs-layer-item, \.lmzbjs-layer-title\)/);
     assert.match(css, /\.lmzbjs-layer\.rt-lmz-layer--internal-media-structure\s*>\s*\.lmzbjs-layer-children\s*\{[\s\S]*?display:\s*block\s*!important/);
     assert.match(css, /\.lmzbjs-layer-name\[data-rt-lmz-image-detail\]::after/);
+    assert.match(css, /\.rt-lmz-image-properties__tabs\s*\{/);
+    assert.match(css, /\.rt-lmz-image-properties__tabs button\[aria-selected='true'\]/);
+    assert.match(css, /\.rt-lmz-image-properties__tabpanel\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
     assert.match(css, /\.rt-lmz-image-properties__metadata\s*\{/);
     assert.match(css, /\.rt-lmz-image-properties__gif-actions\s*\{/);
     assert.match(css, /\.rt-lmz-inline-menu__group\s*\{/);
     assert.match(css, /\.rt-lmz-inline-menu__group-header\s*\{/);
     assert.match(css, /\.rt-lmz-inline-menu__icon\s*\{[\s\S]*?width:\s*1\.125rem;/);
     assert.match(css, /\.rt-lmz-inline-menu__action-label\s*\{/);
+    assert.match(css, /\.rt-lmz-inline-menu__image-summary\s*\{/);
+    assert.match(css, /\.rt-lmz-inline-edit-trigger\.is-image-context\s*\{/);
+    assert.match(css, /\.rt-lmz-spacing-overlay__surface\s*\{[\s\S]*?opacity:\s*0;[\s\S]*?visibility:\s*hidden;/);
+    assert.match(css, /\.rt-lmz-spacing-overlay__handle:is\(:hover, :focus-visible, \.is-active\) \.rt-lmz-spacing-overlay__surface\s*\{[\s\S]*?opacity:\s*1;[\s\S]*?visibility:\s*visible;/);
     assert.match(css, /\.lmzbjs-field:not\(\.lmzbjs-field-checkbox\):focus-within/);
     assert.match(css, /\.lmzbjs-field \.lmzbjs-sel-arrow\s*\{[\s\S]*?z-index:\s*2;/);
     assert.match(css, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmzbjs-trt-trait textarea[\s\S]*?font-size:\s*1rem;/);

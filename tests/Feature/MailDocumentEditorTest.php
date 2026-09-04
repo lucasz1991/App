@@ -2123,6 +2123,28 @@ HTML;
         ));
         $config = json_decode($match[1], true, flags: JSON_THROW_ON_ERROR);
 
+        // Direkte Vendor-Dateien laufen nicht durch Vite. Ein Inhalts-Hash
+        // verhindert auch bei timestamp-erhaltenden Deployments, dass ein
+        // langer Livewire-Tab eine alte Builder-Laufzeit weiterverwendet.
+        foreach (['builderJs', 'builderCss', 'coreJs', 'coreCss'] as $assetKey) {
+            $source = (string) data_get($config, 'vendor.'.$assetKey);
+            $this->assertMatchesRegularExpression('/[?&]v=[a-f0-9]{16}(?:&|$)/', $source, $assetKey);
+        }
+        parse_str((string) parse_url((string) data_get($config, 'vendor.builderJs'), PHP_URL_QUERY), $builderQuery);
+        $this->assertSame((string) data_get($config, 'vendor.builderVersion'), $builderQuery['runtime'] ?? null);
+        $this->assertSame(
+            substr((string) hash_file('sha256', public_path('vendor/lmz-builder/2.4.5/lmz-builder.js')), 0, 16),
+            $builderQuery['v'] ?? null,
+        );
+        $expectedRuntimeVersion = substr(hash('sha256', implode('|', array_map(
+            static fn (string $filename): string => substr((string) hash_file(
+                'sha256',
+                public_path('vendor/lmz-builder/2.4.5/'.$filename),
+            ), 0, 16),
+            ['lmz-builder.js', 'lmz-builder.css', 'lmz-builder-core.js', 'lmz-builder-core.css'],
+        ))), 0, 16);
+        $this->assertSame($expectedRuntimeVersion, (string) data_get($config, 'vendor.builderVersion'));
+
         // Alle Vorschauquellen sind gleich-originige Mailassets. Dadurch
         // bleiben GIFs animiert, ohne den Livewire-DOM mit mehreren MiB
         // Base64 zu blockieren.

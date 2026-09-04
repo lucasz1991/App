@@ -1063,7 +1063,10 @@ class ChatBox extends Component
         $me = auth()->user();
 
         $chats = $me->chats()
-            ->with('participants')
+            ->with([
+                'participants' => fn ($query) => $query
+                    ->withMax('activities as last_activity_at', 'created_at'),
+            ])
             ->where('chats.type', '!=', 'call')
             ->orderByDesc('chats.updated_at')
             ->get();
@@ -1115,7 +1118,13 @@ class ChatBox extends Component
 
         if ($this->selectedChatId) {
             $selectedChat = $chats->firstWhere('id', $this->selectedChatId)
-                ?? $me->chats()->with('participants')->where('chats.type', '!=', 'call')->find($this->selectedChatId);
+                ?? $me->chats()
+                    ->with([
+                        'participants' => fn ($query) => $query
+                            ->withMax('activities as last_activity_at', 'created_at'),
+                    ])
+                    ->where('chats.type', '!=', 'call')
+                    ->find($this->selectedChatId);
 
             if ($selectedChat) {
                 $visibleSince = $selectedChat->visibleSinceFor($me);

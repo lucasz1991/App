@@ -11,9 +11,11 @@ use App\Models\ChatMessageReaction;
 use App\Models\User;
 use App\Services\Chat\ChatMessageInteractionService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -29,7 +31,32 @@ class ChatRepliesAndReactionsTest extends TestCase
 
         $this->withoutMiddleware(LogActivity::class);
         $this->buildMinimalRailTimeSchema();
+        Schema::create('activity_log', function (Blueprint $table): void {
+            $table->bigIncrements('id');
+            $table->string('log_name')->nullable()->index();
+            $table->text('description');
+            $table->nullableMorphs('subject', 'subject');
+            $table->string('event')->nullable();
+            $table->nullableMorphs('causer', 'causer');
+            $table->json('properties')->nullable();
+            $table->uuid('batch_uuid')->nullable();
+            $table->timestamps();
+        });
         Storage::fake('private');
+    }
+
+    public function test_chat_header_uses_recent_activity_for_actual_presence(): void
+    {
+        [$sender, $recipient, $chat] = $this->directChat();
+
+        activity()
+            ->causedBy($recipient)
+            ->event('presence')
+            ->log('Chat presence test');
+
+        Livewire::actingAs($sender)
+            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->assertSeeHtml('data-chat-presence="online"');
     }
 
     public function test_reply_is_bound_to_a_visible_message_in_the_same_chat(): void

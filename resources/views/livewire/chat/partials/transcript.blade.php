@@ -49,7 +49,6 @@
                     : ($voiceFile
                     ? 'rt-chat-message--voice'
                     : ($message->files->isNotEmpty() ? 'rt-chat-message--attachment' : 'rt-chat-message--text')));
-            $metaInline = ! $deleted && ! $isLiveLocation && filled($message->body) && ! $voiceFile && $message->files->isEmpty();
             $reactionGroups = $message->reactions->groupBy('emoji');
             $myReaction = $message->reactions->firstWhere('user_id', $me->id)?->emoji;
         @endphp
@@ -68,34 +67,37 @@
                 </div>
             @endif
 
-            <div class="rt-chat-message-line {{ $own ? 'rt-chat-message-line--own ml-auto flex-row-reverse' : 'mr-auto' }} flex items-end gap-2">
-                <x-chat.avatar
-                    :src="$message->sender?->profile_photo_url"
-                    :name="$message->sender?->name ?? __('app.unknown')"
-                    size="xs"
-                    class="rt-chat-message-avatar mb-0.5"
-                />
+            <div class="rt-chat-message-line {{ $own ? 'rt-chat-message-line--own ml-auto flex-row-reverse' : 'mr-auto' }} {{ $selectedChat->isGroup() ? 'rt-chat-message-line--group' : 'rt-chat-message-line--direct' }} flex items-end gap-2">
+                @if ($selectedChat->isGroup())
+                    <x-chat.avatar
+                        :src="$message->sender?->profile_photo_url"
+                        :name="$message->sender?->name ?? __('app.unknown')"
+                        size="xs"
+                        class="rt-chat-message-avatar mb-0.5"
+                    />
+                @endif
 
                 <div
                     x-data="chatMessageActions({ messageId: {{ $message->id }}, controllerId: 'chat-{{ $message->id }}', disabled: @js($deleted), canReact: @js(! $own && ! $deleted) })"
                     data-chat-message-controller="chat-{{ $message->id }}"
                     class="rt-chat-message-stack {{ $reactionGroups->isNotEmpty() ? 'rt-chat-message-stack--reacted' : '' }} {{ $own ? 'items-end' : 'items-start' }} relative flex min-w-0 max-w-full flex-col"
                 >
-                    <div
-                        data-rt-chat-message="{{ $own ? 'own' : 'other' }}"
-                        tabindex="{{ $deleted ? '-1' : '0' }}"
-                        x-ref="messageBubble"
-                        x-on:contextmenu.stop="openActionsAtPointer($event)"
-                        x-on:pointerdown="startLongPress($event)"
-                        x-on:pointermove="moveLongPress($event)"
-                        x-on:pointerup="finishLongPress($event)"
-                        x-on:pointercancel="cancelLongPress()"
-                        x-on:keydown="handleKeyboard($event)"
-                        x-on:click="handleClick($event)"
-                        class="rt-chat-message {{ $own
-                            ? 'rt-chat-message--own rt-chat-message--actionable rounded-br-md'
-                            : 'rt-chat-message--other rt-chat-message--actionable rounded-bl-md' }} {{ $messageSurface }} relative rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:px-4"
-                    >
+                    <div class="rt-chat-message-bubble-wrap relative max-w-full">
+                        <div
+                            data-rt-chat-message="{{ $own ? 'own' : 'other' }}"
+                            tabindex="{{ $deleted ? '-1' : '0' }}"
+                            x-ref="messageBubble"
+                            x-on:contextmenu.stop="openActionsAtPointer($event)"
+                            x-on:pointerdown="startLongPress($event)"
+                            x-on:pointermove="moveLongPress($event)"
+                            x-on:pointerup="finishLongPress($event)"
+                            x-on:pointercancel="cancelLongPress()"
+                            x-on:keydown="handleKeyboard($event)"
+                            x-on:click="handleClick($event)"
+                            class="rt-chat-message {{ $own
+                                ? 'rt-chat-message--own rt-chat-message--actionable rounded-br-md'
+                                : 'rt-chat-message--other rt-chat-message--actionable rounded-bl-md' }} {{ $messageSurface }} relative rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:px-4"
+                        >
                         @unless ($deleted)
                             <x-chat.message-dropdown
                                 :message-id="$message->id"
@@ -147,7 +149,7 @@
                                 <x-chat.live-location-card :message="$message" :own="$own" />
                             @else
                                 @if (filled($message->body))
-                                    <p class="rt-chat-message-copy whitespace-pre-wrap break-words">{{ $message->body }}@if ($metaInline)<span class="rt-chat-message-meta-inline"><time datetime="{{ $message->created_at->toIso8601String() }}">{{ $message->created_at->format('H:i') }}</time>@if ($own)<i class="rt-chat-read-indicator far fa-check-double {{ $isRead ? 'is-read' : 'is-delivered' }}" title="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}" aria-label="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"></i>@endif</span>@endif</p>
+                                    <p class="rt-chat-message-copy whitespace-pre-wrap break-words">{{ $message->body }}</p>
                                 @endif
 
                                 @if ($voiceFile)
@@ -202,47 +204,68 @@
                             @endif
                         @endif
 
-                        @unless ($metaInline)
-                            <div class="rt-chat-message-meta mt-1 flex items-center justify-end gap-1 text-right text-[9px] font-semibold leading-none">
-                                <time datetime="{{ $message->created_at->toIso8601String() }}">{{ $message->created_at->format('H:i') }}</time>
-                                @if ($own && ! $deleted)
-                                    <i class="rt-chat-read-indicator far fa-check-double {{ $isRead ? 'is-read' : 'is-delivered' }}" title="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}" aria-label="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"></i>
-                                @endif
+                        </div>
+
+                        @if (! $deleted && $reactionGroups->isNotEmpty())
+                            <div class="rt-chat-reactions rt-chat-reactions--overlay {{ $own ? 'rt-chat-reactions--own' : 'rt-chat-reactions--other' }} flex max-w-full flex-nowrap items-center gap-1 px-1" data-chat-action-ignore data-no-chat-swipe aria-label="{{ __('app.chat_message_reactions') }}">
+                                @foreach ($allowedReactions as $emoji)
+                                    @if ($reactionGroups->has($emoji))
+                                        @php
+                                            $count = $reactionGroups->get($emoji)->count();
+                                        @endphp
+                                        @if ($own)
+                                            <span
+                                                class="rt-chat-reaction-chip inline-flex items-center justify-center gap-1 px-0.5 text-sm"
+                                                aria-label="{{ trans_choice('app.chat_reaction_count', $count, ['emoji' => $emoji, 'count' => $count]) }}"
+                                            >
+                                                <span aria-hidden="true">{{ $emoji }}</span>
+                                                @if ($count > 1)<span class="text-[10px] font-extrabold tabular-nums">{{ $count }}</span>@endif
+                                            </span>
+                                        @else
+                                            <x-chat.reaction-dropdown
+                                                :message-id="$message->id"
+                                                :emoji="$emoji"
+                                                :count="$count"
+                                                :names="$reactionGroups->get($emoji)->pluck('user.name')->filter()->join(', ')"
+                                                :my-reaction="$myReaction"
+                                                dropdown-id="chat-reaction-{{ $message->id }}-{{ md5($emoji) }}"
+                                            />
+                                        @endif
+                                    @endif
+                                @endforeach
                             </div>
-                        @endunless
+                        @endif
                     </div>
 
-                    @if (! $deleted && $reactionGroups->isNotEmpty())
-                        <div class="rt-chat-reactions rt-chat-reactions--overlay {{ $own ? 'rt-chat-reactions--own' : 'rt-chat-reactions--other' }} flex max-w-full flex-nowrap items-center gap-1 px-1" data-chat-action-ignore data-no-chat-swipe aria-label="{{ __('app.chat_message_reactions') }}">
-                            @foreach ($allowedReactions as $emoji)
-                                @if ($reactionGroups->has($emoji))
-                                    @php
-                                        $count = $reactionGroups->get($emoji)->count();
-                                    @endphp
-                                    @if ($own)
-                                        <span
-                                            class="rt-chat-reaction-chip inline-flex items-center justify-center gap-1 px-0.5 text-sm"
-                                            aria-label="{{ trans_choice('app.chat_reaction_count', $count, ['emoji' => $emoji, 'count' => $count]) }}"
-                                        >
-                                            <span aria-hidden="true">{{ $emoji }}</span>
-                                            @if ($count > 1)<span class="text-[10px] font-extrabold tabular-nums">{{ $count }}</span>@endif
-                                        </span>
-                                    @else
-                                        <x-chat.reaction-dropdown
-                                            :message-id="$message->id"
-                                            :emoji="$emoji"
-                                            :count="$count"
-                                            :names="$reactionGroups->get($emoji)->pluck('user.name')->filter()->join(', ')"
-                                            :my-reaction="$myReaction"
-                                            dropdown-id="chat-reaction-{{ $message->id }}-{{ md5($emoji) }}"
-                                        />
-                                    @endif
-                                @endif
-                            @endforeach
-                        </div>
-                    @endif
+                    <div class="rt-chat-message-meta rt-chat-message-meta--{{ $own ? 'own' : 'other' }} flex items-center gap-1 text-[9px] font-semibold leading-none">
+                        <time datetime="{{ $message->created_at->toIso8601String() }}">{{ $message->created_at->format('H:i') }}</time>
+                        @if ($own && ! $deleted)
+                            <i class="rt-chat-read-indicator far fa-check-double {{ $isRead ? 'is-read' : 'is-delivered' }}" title="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}" aria-label="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"></i>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>
     @endforeach
+
+    <div
+        x-cloak
+        x-show.important="typingLabel"
+        x-effect="if (typingLabel && stickToBottom) $nextTick(() => { if (stickToBottom) scrollToLatest(true) })"
+        x-transition:enter="transition duration-150 ease-out"
+        x-transition:enter-start="translate-y-1 opacity-0"
+        x-transition:enter-end="translate-y-0 opacity-100"
+        x-transition:leave="transition duration-100 ease-in"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="rt-chat-typing-row mr-auto flex items-end"
+        data-chat-typing-indicator
+        aria-hidden="true"
+    >
+        <span class="rt-chat-typing-bubble inline-flex items-center gap-1.5">
+            <span></span>
+            <span></span>
+            <span></span>
+        </span>
+    </div>
 </div>
