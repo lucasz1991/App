@@ -244,7 +244,15 @@ class MailDocumentEditor extends Component
             }
         }
 
-        foreach ($documents as $key => $document) {
+        // Der Browser editiert immer exakt einen Slot. Die zweite Dokumentart
+        // darf deshalb weder repariert noch auditiert und als grosses
+        // GrapesJS-Projekt in denselben Livewire-DOM serialisiert werden.
+        // Beim Wechsel folgt ohnehin ein eigener, harter Seitenaufruf.
+        $currentDocuments = isset($documents[$this->kind])
+            ? [$this->kind => $documents[$this->kind]]
+            : [];
+
+        foreach ($currentDocuments as $key => $document) {
             $source = MailDocumentAutoRepair::editorSource(
                 $document->kind,
                 $document->builder_data ?: [],

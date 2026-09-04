@@ -1838,9 +1838,8 @@ test('shared panel experience filters nested layers and inspector controls witho
             </aside>
         </div>
     </div>
-`, ({ document }) => {
+`, async ({ document }) => {
     const root = document.querySelector('#root');
-    document.defaultView.MutationObserver = undefined;
     const selected = coreFakeComponent(document.createElement('section'), { tagName: 'section' });
     selected.state.name = 'Hero-Sektion';
     selected.state.traits = [{ name: 'title' }];
@@ -1853,6 +1852,13 @@ test('shared panel experience filters nested layers and inspector controls witho
     assert.equal(root.querySelector('[data-lmz-popover-panel="right:styles"] [data-rt-lmz-panel-context]').textContent, 'Hero-Sektion');
     assert.equal(root.querySelector('[data-lmz-popover-panel="left:layers"] [data-rt-lmz-panel-count]').textContent, '3 Ebenen');
     assert.equal(root.querySelector('.lmzbjs-trait-category > .lmzbjs-title').getAttribute('aria-expanded'), 'true');
+
+    const appendedLayer = document.createElement('div');
+    appendedLayer.className = 'lmzbjs-layer';
+    appendedLayer.innerHTML = '<div class="lmzbjs-layer-item"><span class="lmzbjs-layer-name">Nachtrag</span></div>';
+    root.querySelector('[data-lmz-mount="layers"] > .lmzbjs-layers').append(appendedLayer);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(root.querySelector('[data-lmz-popover-panel="left:layers"] [data-rt-lmz-panel-count]').textContent, '4 Ebenen');
 
     const layerSearch = root.querySelector('[data-rt-lmz-panel-search="layers"]');
     layerSearch.value = 'cta';

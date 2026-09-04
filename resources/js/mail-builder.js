@@ -3927,6 +3927,8 @@ export function createMailPreviewController({
     let scheduledFrame = null;
     let destroyed = false;
     let latestGeometry = null;
+    let appliedHost = null;
+    let appliedCanvasFrame = null;
     let controller = null;
 
     Object.values(MAIL_PREVIEW_DEVICES).forEach((previewDevice) => {
@@ -3965,7 +3967,7 @@ export function createMailPreviewController({
         const host = observeCurrentHost();
         const measuredWidth = Number(host?.clientWidth) > 0 ? host.clientWidth : frame.clientWidth;
         const measuredHeight = Number(host?.clientHeight) > 0 ? host.clientHeight : frame.clientHeight;
-        latestGeometry = calculateMailPreviewGeometry({
+        const nextGeometry = calculateMailPreviewGeometry({
             device: activeDevice,
             logicalWidth: activeWidth,
             hostWidth: measuredWidth,
@@ -3973,6 +3975,28 @@ export function createMailPreviewController({
             inset,
             minLogicalHeight,
         });
+        const canvasFrame = editor.Canvas?.getFrameEl?.() || null;
+        const geometryUnchanged = latestGeometry
+            && latestGeometry.device === nextGeometry.device
+            && latestGeometry.logicalWidth === nextGeometry.logicalWidth
+            && latestGeometry.logicalHeight === nextGeometry.logicalHeight
+            && latestGeometry.hostWidth === nextGeometry.hostWidth
+            && latestGeometry.hostHeight === nextGeometry.hostHeight
+            && latestGeometry.scale === nextGeometry.scale;
+
+        // ResizeObserver meldet auch Layoutfolgen unserer eigenen Canvas-
+        // Anpassung. Ohne diesen Guard wird bei identischer Geometrie erneut
+        // editor.refresh() ausgeloest, was wiederum die beobachtete Flaeche
+        // invalidiert und den Browser in einer dauerhaften Renderkette halten
+        // kann. Ein neues Host-/iframe-Element muss trotzdem initialisiert
+        // werden, etwa nach einem echten Canvas-Reload.
+        if (geometryUnchanged && host === appliedHost && canvasFrame === appliedCanvasFrame) {
+            return;
+        }
+
+        latestGeometry = nextGeometry;
+        appliedHost = host;
+        appliedCanvasFrame = canvasFrame;
 
         const logicalWidth = `${latestGeometry.logicalWidth}px`;
         const logicalHeight = `${latestGeometry.logicalHeight}px`;
@@ -3992,7 +4016,6 @@ export function createMailPreviewController({
         // diese Werte beim Devicewechsel asynchron; die expliziten Attribute
         // halten Wrapper und Layout-Viewport auch nach Resize/Frame-Reload
         // deckungsgleich.
-        const canvasFrame = editor.Canvas?.getFrameEl?.();
         if (canvasFrame) {
             canvasFrame.setAttribute?.('width', String(latestGeometry.logicalWidth));
             canvasFrame.setAttribute?.('height', String(Math.ceil(latestGeometry.logicalHeight)));
@@ -4056,6 +4079,8 @@ export function createMailPreviewController({
             scheduledFrame = null;
             observer?.disconnect?.();
             observedHost = null;
+            appliedHost = null;
+            appliedCanvasFrame = null;
             editor.off?.('canvas:frame:load', onFrameLoad);
         },
     };

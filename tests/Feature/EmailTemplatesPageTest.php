@@ -13,6 +13,7 @@ use App\Models\UserProfile;
 use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
@@ -21,15 +22,18 @@ use App\Support\OutlookAddin\EntraAccessTokenValidator;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
+use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\VerifiedEntraIdentity;
 use App\Support\PageHelpCatalog;
 use Firebase\JWT\JWT;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 use ZipArchive;
@@ -196,7 +200,8 @@ class EmailTemplatesPageTest extends TestCase
         $this->createCanonicalMailDocuments();
         $user = User::factory()->create(['name' => 'Mara Beispiel']);
 
-        $payload = app(OutlookAddinPayloadService::class)->forUser($user);
+        $payloads = app(OutlookAddinPayloadService::class);
+        $payload = $payloads->forUser($user);
 
         $this->assertSame('RT-SIGNATURE-MANAGED-V1', $payload['marker']);
         $this->assertStringContainsString('Mara Beispiel', $payload['signature']['html']);
@@ -205,6 +210,26 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringNotContainsString('src="https://', $payload['signature']['html']);
         $this->assertStringNotContainsString('data:image/', $payload['signature']['html']);
         $this->assertNotEmpty($payload['signature']['media']);
+        $this->assertMatchesRegularExpression('/\A[0-9a-f]{16}\z/', $payload['version']['signature']);
+        $this->assertStringContainsString(
+            'RT-SIGNATURE-VERSION:'.$payload['version']['signature'],
+            $payload['signature']['html'],
+        );
+        $this->assertSame(
+            2,
+            substr_count($payload['signature']['html'], 'RT-SIGNATURE-VERSION:'.$payload['version']['signature']),
+        );
+        $this->assertCount(1, $payload['templates']);
+        $this->assertTrue($payload['templates'][0]['active']);
+        $this->assertSame($payload['template'], [
+            'html' => $payload['templates'][0]['html'],
+            'media' => $payload['templates'][0]['media'],
+        ]);
+        $this->assertSame($payload['version']['template'], $payload['templates'][0]['version']);
+        $this->assertStringContainsString(
+            'RT-SIGNATURE-VERSION:'.$payload['version']['signature'],
+            $payload['templates'][0]['html'],
+        );
 
         foreach ([$payload['signature'], $payload['template']] as $document) {
             foreach ($document['media'] as $medium) {
@@ -212,6 +237,225 @@ class EmailTemplatesPageTest extends TestCase
                 $this->assertNotSame('', base64_decode($medium['base64'], true));
                 $this->assertStringContainsString('cid:'.$medium['contentId'], $document['html']);
             }
+        }
+
+        $previousSignatureVersion = $payload['version']['signature'];
+        $user->forceFill(['name' => 'Mara Aktualisiert'])->save();
+        $updatedPayload = $payloads->forUser($user->fresh());
+        $this->assertNotSame($previousSignatureVersion, $updatedPayload['version']['signature']);
+        $this->assertStringContainsString(
+            'RT-SIGNATURE-VERSION:'.$updatedPayload['version']['signature'],
+            $updatedPayload['signature']['html'],
+        );
+        $this->assertStringNotContainsString(
+            'RT-SIGNATURE-VERSION:'.$previousSignatureVersion,
+            $updatedPayload['signature']['html'],
+        );
+        $this->assertSame(
+            $updatedPayload['version']['signature'],
+            $payloads->forUser($user->fresh())['version']['signature'],
+        );
+
+        $signatureDocument = MailDocument::query()
+            ->where('kind', MailDocumentKind::Signature->value)
+            ->where('is_active', true)
+            ->firstOrFail();
+        $v20Html = preg_replace(
+            '/<tr>/',
+            '<tr '.SignatureArtifactVersion::ATTRIBUTE.'="'.SignatureArtifactVersion::V20.'">',
+            (string) $signatureDocument->published_html,
+            1,
+            $v20MarkerCount,
+        );
+        $this->assertSame(1, $v20MarkerCount);
+        $this->assertIsString($v20Html);
+        $v20Html = SignatureTrainCarrier::normalize($v20Html);
+        $v20Html = str_replace(
+            'class="rt-sign-name"',
+            'class="rt-sign-name custom-copy"',
+            $v20Html,
+            $customClassCount,
+        );
+        $this->assertSame(1, $customClassCount);
+        $signatureDocument->forceFill([
+            'published_html' => $v20Html,
+            'published_css' => '.custom-copy{color:#123456}.rt-sign-name{letter-spacing:0}',
+        ])->save();
+        app(PublishedMailDocumentSnapshotStore::class)
+            ->forget(MailDocumentKind::Signature);
+
+        $customPayload = $payloads->forUser($user->fresh());
+        $customSignature = $customPayload['signature']['html'];
+        $publishedStylePosition = strpos($customSignature, 'data-rt-mail-document-css="signature"');
+        $runtimeStylePosition = strpos($customSignature, 'data-rt-outlook-signature-css="1"');
+        $signatureTablePosition = strpos($customSignature, 'class="rt-outlook-signature"');
+
+        $this->assertIsInt($publishedStylePosition);
+        $this->assertIsInt($runtimeStylePosition);
+        $this->assertIsInt($signatureTablePosition);
+        $this->assertLessThan($runtimeStylePosition, $publishedStylePosition);
+        $this->assertLessThan($signatureTablePosition, $runtimeStylePosition);
+        $this->assertStringContainsString('.custom-copy{color:#123456}', $customSignature);
+    }
+
+    public function test_outlook_addin_payload_exposes_published_template_snapshots_in_stable_order(): void
+    {
+        config([
+            'app.url' => 'https://app.rail-time.de',
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+            'outlook_addin.marker' => 'RT-SIGNATURE-MANAGED-V1',
+        ]);
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $active = MailDocument::query()
+            ->where('kind', MailDocumentKind::Template->value)
+            ->where('is_active', true)
+            ->firstOrFail();
+        $canonicalHtml = trim((string) $active->published_html);
+        $alphaPublished = str_replace('Sicher abgestimmt.', 'Alpha freigegeben.', $canonicalHtml, $alphaCount);
+        $alphaDraft = str_replace('Sicher abgestimmt.', 'Alpha nur im Entwurf.', $canonicalHtml, $alphaDraftCount);
+        $zuluPublished = str_replace('Sicher abgestimmt.', 'Zulu freigegeben.', $canonicalHtml, $zuluCount);
+        $this->assertSame([1, 1, 1], [$alphaCount, $alphaDraftCount, $zuluCount]);
+
+        $zulu = $this->createTemplateSlot('Zulu Vorlage', $zuluPublished, $zuluPublished);
+        $alpha = $this->createTemplateSlot('  Alpha   Vorlage  ', $alphaDraft, $alphaPublished);
+        $draftOnly = $this->createTemplateSlot('Nicht freigegeben', $canonicalHtml, null);
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+        $payloads = app(OutlookAddinPayloadService::class);
+
+        $payload = $payloads->forUser($user);
+
+        $this->assertSame(
+            [$active->public_id, $alpha->public_id, $zulu->public_id],
+            array_column($payload['templates'], 'id'),
+        );
+        $this->assertSame(
+            ['Standardvorlage', 'Alpha Vorlage', 'Zulu Vorlage'],
+            array_column($payload['templates'], 'name'),
+        );
+        $this->assertSame([true, false, false], array_column($payload['templates'], 'active'));
+        $this->assertNotContains($draftOnly->public_id, array_column($payload['templates'], 'id'));
+
+        foreach ($payload['templates'] as $template) {
+            $this->assertSame($template['id'], $template['key']);
+            $this->assertSame($template['name'], $template['label']);
+            $this->assertMatchesRegularExpression('/\A[0-9a-f]{16}\z/', $template['version']);
+            $this->assertMatchesRegularExpression('/\A[0-9a-f]{64}\z/', $template['hash']);
+            $this->assertStringStartsWith($template['version'], $template['hash']);
+            $this->assertStringContainsString('Mara Beispiel', $template['html']);
+            foreach ($template['media'] as $medium) {
+                $this->assertStringContainsString('cid:'.$medium['contentId'], $template['html']);
+            }
+        }
+
+        $this->assertStringContainsString('Alpha freigegeben.', $payload['templates'][1]['html']);
+        $this->assertStringNotContainsString('Alpha nur im Entwurf.', $payload['templates'][1]['html']);
+        $this->assertSame(
+            hash('sha256', $alphaPublished."\0"),
+            $payload['templates'][1]['hash'],
+        );
+        $this->assertSame($payload['template'], [
+            'html' => $payload['templates'][0]['html'],
+            'media' => $payload['templates'][0]['media'],
+        ]);
+        $this->assertSame($payload['version']['template'], $payload['templates'][0]['version']);
+
+        $fingerprint = $payloads->sourceFingerprint($user);
+        $draftOnly->forceFill(['html' => $draftOnly->html.'<!-- geaenderter Entwurf -->'])->save();
+        $alpha->forceFill(['html' => $alpha->html.'<!-- ebenfalls nur Entwurf -->'])->save();
+        $this->assertSame($fingerprint, $payloads->sourceFingerprint($user));
+
+        $alpha->forceFill([
+            'published_html' => str_replace('Alpha freigegeben.', 'Alpha neu freigegeben.', $alphaPublished),
+        ])->save();
+        $this->assertNotSame($fingerprint, $payloads->sourceFingerprint($user));
+    }
+
+    public function test_outlook_addin_rebuilds_a_legacy_personal_snapshot_without_template_collection(): void
+    {
+        config([
+            'app.url' => 'https://app.rail-time.de',
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+            'outlook_addin.snapshots.disk' => 'private',
+        ]);
+        Storage::fake('private');
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $user = User::factory()->create([
+            'name' => 'Mara Beispiel',
+            'role' => 'staff',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        $snapshots = app(OutlookAddinUserSnapshotStore::class);
+        $payload = $snapshots->currentForUser($user);
+        $path = $snapshots->pathForUser($user);
+        $encrypted = Storage::disk('private')->get($path);
+        $compressed = base64_decode(Crypt::decryptString($encrypted), true);
+        $this->assertIsString($compressed);
+        $json = gzdecode($compressed);
+        $this->assertIsString($json);
+        $envelope = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        unset($envelope['payload']['templates']);
+        $envelope['payload_hash'] = hash('sha256', json_encode(
+            $envelope['payload'],
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+        ));
+        $legacyEnvelope = gzencode(json_encode(
+            $envelope,
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+        ), 6);
+        $this->assertIsString($legacyEnvelope);
+        Storage::disk('private')->put(
+            $path,
+            Crypt::encryptString(base64_encode($legacyEnvelope)),
+        );
+
+        $rebuilt = $snapshots->currentForUser($user);
+
+        $this->assertSame($payload['templates'], $rebuilt['templates']);
+        $this->assertStringContainsString(
+            'RT-SIGNATURE-VERSION:'.$rebuilt['version']['signature'],
+            $rebuilt['signature']['html'],
+        );
+    }
+
+    public function test_outlook_addin_fails_closed_when_active_template_status_is_not_published(): void
+    {
+        config([
+            'app.url' => 'https://app.rail-time.de',
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+        ]);
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        MailDocument::query()
+            ->where('kind', MailDocumentKind::Template->value)
+            ->where('is_active', true)
+            ->firstOrFail()
+            ->forceFill(['status' => MailDocumentStatus::Draft])
+            ->save();
+        $this->assertFalse(MailDocument::query()
+            ->published()
+            ->where('kind', MailDocumentKind::Template->value)
+            ->exists());
+        $payloads = app(OutlookAddinPayloadService::class);
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+
+        try {
+            $payloads->forUser($user);
+            $this->fail('Ein aktiver Entwurf darf nicht als Outlook-Vorlage ausgeliefert werden.');
+        } catch (OutlookAddinException $exception) {
+            $this->assertSame('outlook_addin_publication_invalid', $exception->errorCode);
+        }
+
+        try {
+            $payloads->sourceFingerprint($user);
+            $this->fail('Ein aktiver Entwurf darf keinen Outlook-Quellfingerabdruck erzeugen.');
+        } catch (OutlookAddinException $exception) {
+            $this->assertSame('outlook_addin_snapshot_source_invalid', $exception->errorCode);
         }
     }
 
@@ -2134,6 +2378,36 @@ class EmailTemplatesPageTest extends TestCase
 
             MailDocument::query()->create($attributes);
         }
+    }
+
+    private function createTemplateSlot(string $name, string $draftHtml, ?string $publishedHtml): MailDocument
+    {
+        $builderData = [
+            'pages' => [[
+                'name' => $name,
+                'component' => $draftHtml,
+            ]],
+            'styles' => [],
+            'railtime' => [
+                'document' => MailDocumentKind::Template->value,
+                'schema' => SignatureDocumentContract::SCHEMA,
+            ],
+        ];
+
+        return MailDocument::query()->create([
+            'kind' => MailDocumentKind::Template,
+            'name' => $name,
+            'status' => MailDocumentStatus::Draft,
+            'is_active' => null,
+            'builder_data' => $builderData,
+            'html' => $draftHtml,
+            'css' => '',
+            'published_html' => $publishedHtml,
+            'published_css' => $publishedHtml === null ? null : '',
+            'published_at' => $publishedHtml === null ? null : now(),
+            'content_hash' => MailDocument::contentHashFor($builderData, $draftHtml, ''),
+            'version' => 2,
+        ]);
     }
 
     private function base64Url(string $value): string

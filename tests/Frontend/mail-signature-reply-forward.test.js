@@ -168,3 +168,152 @@ test('delivery keeps the fixed train pixel frame and its MSO fallback inside the
     assert.doesNotMatch(carrier, /background-image:[^;]*(?:TRAIN|train|\.gif)/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
 });
+
+test('outlook taskpane normalizes multiple templates and keeps the single-template fallback', async () => {
+    const previousOffice = globalThis.Office;
+    globalThis.Office = { onReady() {} };
+
+    try {
+        const taskpane = await import('../../resources/js/outlook-addin/taskpane.js');
+        const templates = taskpane.normalizeTemplateChoices({
+            templates: [
+                {
+                    id: 'slot-standard',
+                    key: 'slot-standard',
+                    name: 'Standardvorlage',
+                    label: 'Standardvorlage',
+                    active: true,
+                    html: '<p>Standard</p>',
+                    media: [],
+                    version: '0123456789abcdef',
+                    hash: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+                },
+                {
+                    id: 'slot-offer',
+                    key: 'slot-offer',
+                    name: 'Angebot',
+                    label: 'Angebot',
+                    active: false,
+                    html: '<p>Angebot</p>',
+                    media: [],
+                    version: 'fedcba9876543210',
+                    hash: 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
+                },
+            ],
+            template: { html: '<p>Legacy</p>', media: [] },
+            version: {
+                personal: '1111111111111111',
+                signature: '2222222222222222',
+                template: '3333333333333333',
+            },
+        });
+
+        assert.deepEqual(
+            templates.map(({ id, name, active, version }) => ({ id, name, active, version })),
+            [
+                {
+                    id: 'slot-standard',
+                    name: 'Standardvorlage',
+                    active: true,
+                    version: '0123456789abcdef',
+                },
+                {
+                    id: 'slot-offer',
+                    name: 'Angebot',
+                    active: false,
+                    version: 'fedcba9876543210',
+                },
+            ],
+        );
+        assert.equal(taskpane.hasCurrentSnapshot({
+            version: { personal: '1111111111111111', signature: '2222222222222222' },
+        }), true);
+        assert.equal(taskpane.hasCurrentSnapshot({
+            version: { signature: '2222222222222222' },
+        }), false);
+
+        const fallback = taskpane.normalizeTemplateChoices({
+            template: { html: '<p>Legacy</p>', media: [] },
+            version: { template: '3333333333333333' },
+        });
+        assert.equal(fallback.length, 1);
+        assert.equal(fallback[0].id, 'active-template');
+        assert.equal(fallback[0].name, 'Standardvorlage');
+        assert.equal(fallback[0].active, true);
+        assert.equal(fallback[0].version, '3333333333333333');
+        assert.deepEqual(
+            taskpane.signatureVersionsFromBody(
+                '<!-- RT-SIGNATURE-VERSION:2222222222222222 -->'
+                + '<span>RT-SIGNATURE-VERSION:ABCDEF0123456789</span>',
+            ),
+            ['2222222222222222', 'abcdef0123456789'],
+        );
+        assert.equal(
+            taskpane.currentComposeBodyHtml(
+                '<p>Neu</p><!-- RT-SIGNATURE-VERSION:2222222222222222 -->',
+                'newMail',
+            ),
+            '<p>Neu</p><!-- RT-SIGNATURE-VERSION:2222222222222222 -->',
+        );
+        assert.equal(
+            taskpane.currentComposeBodyHtml(
+                '<p>Antwort</p><!-- RT-SIGNATURE-VERSION:2222222222222222 -->'
+                + '<div id="divRplyFwdMsg">Von:</div>'
+                + '<!-- RT-SIGNATURE-VERSION:aaaaaaaaaaaaaaaa -->',
+                'reply',
+            ),
+            '<p>Antwort</p><!-- RT-SIGNATURE-VERSION:2222222222222222 -->',
+        );
+        assert.equal(
+            taskpane.currentComposeBodyHtml(
+                '<p>Antwort ohne eindeutigen Trenner</p><!-- RT-SIGNATURE-VERSION:2222222222222222 -->',
+                'reply',
+            ),
+            null,
+        );
+    } finally {
+        if (previousOffice === undefined) {
+            delete globalThis.Office;
+        } else {
+            globalThis.Office = previousOffice;
+        }
+    }
+});
+
+test('outlook taskpane keeps templates visible and hides resolved maintenance actions accessibly', async () => {
+    const [view, taskpane] = await Promise.all([
+        source('../../resources/views/outlook-addin/taskpane.blade.php'),
+        source('../../resources/js/outlook-addin/taskpane.js'),
+    ]);
+
+    assert.match(view, /\[hidden\]\s*\{\s*display:\s*none !important;/);
+    assert.match(view, /<label class="field-label" for="outlook-template-select">Vorlage auswählen<\/label>/);
+    assert.match(view, /<select[\s\S]*?id="outlook-template-select"[\s\S]*?data-outlook-template-select/);
+    assert.match(view, /data-outlook-template-name/);
+    assert.match(view, /data-outlook-template-version/);
+    assert.match(view, /data-outlook-maintenance-actions/);
+    assert.match(view, /aria-live="polite"/);
+    assert.match(view, /:focus-visible/);
+    assert.match(view, /@media \(max-width: 340px\)/);
+
+    assert.match(taskpane, /view\.login\.hidden = authenticatedBootstrap;/);
+    assert.match(taskpane, /view\.signature\.hidden = authenticatedBootstrap\s*&& taskpaneState\.itemChangedMonitoringReady\s*&& taskpaneState\.signatureCurrent;/);
+    assert.match(taskpane, /view\.maintenanceActions\.hidden = view\.login\.hidden && view\.signature\.hidden;/);
+    assert.match(taskpane, /item\.body\.getAsync\(Office\.CoercionType\.Html/);
+    assert.match(taskpane, /item\.getComposeTypeAsync/);
+    assert.match(taskpane, /RT-SIGNATURE-VERSION:\(\[0-9a-f\]\{16\}\)/);
+    assert.match(taskpane, /const currentBodyHtml = currentComposeBodyHtml\(bodyHtml, composeType\);[\s\S]*?return signatureVersionsFromBody\(currentBodyHtml\)\.includes\(expectedVersion\);/);
+    assert.match(taskpane, /currentBootstrap = payload;[\s\S]*?await refreshSignatureCurrentState\(\);/);
+    assert.match(taskpane, /window\.addEventListener\('focus', requestSignatureCurrentStateRefresh\);/);
+    assert.match(taskpane, /document\.addEventListener\('visibilitychange',/);
+    assert.match(taskpane, /Office\.EventType\?\.ItemChanged/);
+    assert.match(taskpane, /void refreshSignatureCurrentState\(\)\.catch\(\(error\) =>/);
+    assert.match(taskpane, /Office\.EventType\.ItemChanged,\s*requestSignatureCurrentStateRefresh,\s*\(result\) =>/);
+    assert.match(taskpane, /taskpaneState\.itemChangedMonitoringReady = result\?\.status === Office\.AsyncResultStatus\.Succeeded;[\s\S]*?if \(!taskpaneState\.itemChangedMonitoringReady\) \{[\s\S]*?failOpenSignatureCurrentState\(\);/);
+    assert.match(taskpane, /\} else \{\s*taskpaneState\.itemChangedMonitoringReady = false;\s*failOpenSignatureCurrentState\(\);/);
+    assert.doesNotMatch(taskpane, /localStorage/);
+    assert.match(taskpane, /validatedDocument\(templateChoice\.document, 'template'/);
+    assert.match(taskpane, /await replaceBody\(item, template\.html\);\s*await removeStaleManagedInlineMedia\(item, template\.media, previousAttachments\);/);
+    assert.equal(occurrences(taskpane, /await refreshSignatureCurrentState\(\);/g), 3);
+    assert.doesNotMatch(taskpane, /taskpaneState\.signatureCurrent = await signatureIsCurrent/);
+});

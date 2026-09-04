@@ -14,7 +14,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 4;
+    private const RENDERER_REVISION = 6;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -45,15 +45,6 @@ final class OutlookAddinPayloadService
 
     private const TRANSPARENT_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+Qn5ZAAAAAElFTkSuQmCC';
 
-    private const SIGNATURE_RESPONSIVE_CSS = <<<'CSS'
-<style>
-table,td{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0}img{border:0;outline:none;text-decoration:none}.rt-sign-stage,.rt-sign-content-frame{width:100%}.rt-sign-train-layer{overflow:hidden}.rt-sign-content{position:relative;z-index:1}
-@media only screen and (max-width:600px){
-.rt-pad{box-sizing:border-box!important;padding-left:16px!important;padding-right:16px!important}.rt-sign-stage,.rt-sign-content-frame{height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important}.rt-sign-train-layer{position:static!important;width:100%!important;height:auto!important;max-height:none!important;max-width:none!important;margin:0!important;overflow:hidden!important}.rt-sign-train-frame,.rt-sign-train-slot{height:auto!important}.rt-sign-train,.rt-sign-train-mso{display:block!important;width:135%!important;max-width:none!important;height:auto!important;margin:0 0 0 -35%!important}.rt-sign-layout,.rt-sign-layout>tbody,.rt-sign-top-row,.rt-sign-company-row{display:block!important;width:100%!important}.rt-sign-top-row>td,.rt-sign-company-row>td{box-sizing:border-box!important;display:block!important;width:100%!important}.rt-sign-logo{padding:12px 0 14px!important;text-align:left!important}.rt-sign-logo img{width:150px!important;margin-left:0!important}.rt-sign-identity{padding:10px 0 0!important}.rt-sign-company{padding:14px 0 0!important;border-left:0!important;border-top:1px solid #dfe3e6!important;text-align:left!important}.rt-company-contact{float:none!important;display:table!important;width:100%!important;margin:10px 0 0!important}.rt-company-contact td{text-align:left!important}.rt-contact img{width:18px!important;height:18px!important}.rt-contact td.rt-contact-icon{width:18px!important}.rt-contact td.rt-contact-text{padding-left:7px!important;font-size:12px!important;line-height:17px!important}
-}
-</style>
-CSS;
-
     public function __construct(
         private readonly PublishedMailDocumentSnapshotStore $publishedDocuments,
     ) {}
@@ -68,10 +59,11 @@ CSS;
     public function sourceFingerprint(User $user): string
     {
         try {
-            $templateSnapshot = $this->publishedDocuments->freshSnapshot(MailDocumentKind::Template);
+            $templateSnapshots = $this->publishedDocuments->freshTemplateSnapshots();
+            $templateSnapshot = $this->activeTemplateSnapshot($templateSnapshots);
             $signatureSnapshot = $this->publishedDocuments->freshSnapshot(MailDocumentKind::Signature);
 
-            if ($templateSnapshot === null || $signatureSnapshot === null) {
+            if ($signatureSnapshot === null) {
                 throw new RuntimeException('Vorlage und Signatur muessen aktiv veroeffentlicht sein.');
             }
 
@@ -87,15 +79,18 @@ CSS;
                 'email_verified_at' => $user->email_verified_at?->toIso8601String(),
                 'profile' => $profileValues,
                 'published' => [
-                    'signature' => hash('sha256', $signatureSnapshot['html']."\0".$signatureSnapshot['css']),
-                    'template' => hash('sha256', $templateSnapshot['html']."\0".$templateSnapshot['css']),
+                    'signature' => $this->fullSnapshotHash($signatureSnapshot),
+                    'template' => $this->fullSnapshotHash($templateSnapshot),
+                    'templates' => array_map(fn (array $snapshot): array => [
+                        'id' => $snapshot['id'],
+                        'key' => $snapshot['key'],
+                        'name' => $snapshot['name'],
+                        'label' => $snapshot['label'],
+                        'active' => $snapshot['active'],
+                        'hash' => $this->fullSnapshotHash($snapshot),
+                    ], $templateSnapshots),
                 ],
-                'assets' => $this->sourceAssetHashes(
-                    $templateSnapshot['html'],
-                    $templateSnapshot['css'],
-                    $signatureSnapshot['html'],
-                    $signatureSnapshot['css'],
-                ),
+                'assets' => $this->sourceAssetHashes($templateSnapshots, $signatureSnapshot),
             ];
 
             return hash('sha256', json_encode(
@@ -118,24 +113,32 @@ CSS;
     public function forUser(User $user): array
     {
         try {
-            $templateSnapshot = EmailTemplateBuilder::publishedDocumentSnapshot(MailDocumentKind::Template);
-            $signatureSnapshot = EmailTemplateBuilder::publishedDocumentSnapshot(MailDocumentKind::Signature);
+            $templateSnapshots = $this->publishedDocuments->templateSnapshots();
+            $signatureSnapshot = $this->publishedDocuments->snapshot(MailDocumentKind::Signature);
 
-            if ($templateSnapshot === null || $signatureSnapshot === null) {
+            if ($signatureSnapshot === null) {
                 throw new RuntimeException('Vorlage und Signatur muessen aktiv veroeffentlicht sein.');
             }
 
             $builder = new EmailTemplateBuilder($user);
             [$signatureHtml, $signatureMedia] = $this->localizeRemoteImages(
                 $this->withMarker(
-                    self::SIGNATURE_RESPONSIVE_CSS.$builder->buildOutlookAddinSignatureHtml('light'),
+                    $builder->buildOutlookAddinSignatureHtml('light'),
                 ),
             );
             $signatureHtml = $this->compactSignature($signatureHtml);
-            [$templateHtml, $templateMedia] = $this->materializeTemplateCids(
-                $this->withMarker($builder->buildOutlookAddinTemplateHtml('light')),
-                $signatureSnapshot['html'],
+            $signatureVersion = $this->signatureArtifactVersion($signatureHtml, $signatureMedia);
+            $signatureHtml = $this->withSignatureVersionMarker(
+                $signatureHtml,
+                $signatureVersion,
             );
+            $templates = $this->renderTemplates(
+                $builder,
+                $templateSnapshots,
+                $signatureSnapshot['html'],
+                $signatureVersion,
+            );
+            $activeTemplate = $this->activeTemplatePayload($templates);
 
             if (mb_strlen($signatureHtml, 'UTF-8') > self::MAX_SIGNATURE_CHARACTERS) {
                 throw new RuntimeException('Die veroeffentlichte Signatur ueberschreitet das Outlook-Limit von 30.000 Zeichen ('.mb_strlen($signatureHtml, 'UTF-8').').');
@@ -149,12 +152,13 @@ CSS;
                     'media' => $signatureMedia,
                 ],
                 'template' => [
-                    'html' => $templateHtml,
-                    'media' => $templateMedia,
+                    'html' => $activeTemplate['html'],
+                    'media' => $activeTemplate['media'],
                 ],
+                'templates' => $templates,
                 'version' => [
-                    'signature' => $this->snapshotHash($signatureSnapshot),
-                    'template' => $this->snapshotHash($templateSnapshot),
+                    'signature' => $signatureVersion,
+                    'template' => $activeTemplate['version'],
                 ],
             ];
         } catch (OutlookAddinException $exception) {
@@ -167,6 +171,101 @@ CSS;
                 $exception,
             );
         }
+    }
+
+    /**
+     * @param  list<array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string}>  $snapshots
+     * @return list<array{
+     *     id: string,
+     *     key: string,
+     *     name: string,
+     *     label: string,
+     *     active: bool,
+     *     html: string,
+     *     media: list<array{name: string, contentId: string, base64: string}>,
+     *     version: string,
+     *     hash: string
+     * }>
+     */
+    private function renderTemplates(
+        EmailTemplateBuilder $builder,
+        array $snapshots,
+        string $signatureDocument,
+        string $signatureVersion,
+    ): array {
+        $activeSnapshot = $this->activeTemplateSnapshot($snapshots);
+        $templates = [];
+
+        try {
+            foreach ($snapshots as $snapshot) {
+                $this->publishedDocuments->useSnapshot(
+                    MailDocumentKind::Template,
+                    $snapshot['html'],
+                    $snapshot['css'],
+                );
+                [$html, $media] = $this->materializeTemplateCids(
+                    $this->withMarker($builder->buildOutlookAddinTemplateHtml('light')),
+                    $signatureDocument,
+                );
+                $html = $this->withSignatureVersionMarker($html, $signatureVersion);
+
+                $templates[] = [
+                    'id' => $snapshot['id'],
+                    'key' => $snapshot['key'],
+                    'name' => $snapshot['name'],
+                    'label' => $snapshot['label'],
+                    'active' => $snapshot['active'],
+                    'html' => $html,
+                    'media' => $media,
+                    'version' => $this->snapshotHash($snapshot),
+                    'hash' => $this->fullSnapshotHash($snapshot),
+                ];
+            }
+        } finally {
+            $this->publishedDocuments->useSnapshot(
+                MailDocumentKind::Template,
+                $activeSnapshot['html'],
+                $activeSnapshot['css'],
+            );
+        }
+
+        return $templates;
+    }
+
+    /**
+     * @param  list<array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string}>  $snapshots
+     * @return array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string}
+     */
+    private function activeTemplateSnapshot(array $snapshots): array
+    {
+        $active = array_values(array_filter(
+            $snapshots,
+            static fn (array $snapshot): bool => $snapshot['active'],
+        ));
+
+        if (count($active) !== 1) {
+            throw new RuntimeException('Genau eine Outlook-Vorlage muss aktiv veroeffentlicht sein.');
+        }
+
+        return $active[0];
+    }
+
+    /**
+     * @param  list<array{id: string, key: string, name: string, label: string, active: bool, html: string, media: array, version: string, hash: string}>  $templates
+     * @return array{id: string, key: string, name: string, label: string, active: bool, html: string, media: array, version: string, hash: string}
+     */
+    private function activeTemplatePayload(array $templates): array
+    {
+        $active = array_values(array_filter(
+            $templates,
+            static fn (array $template): bool => $template['active'],
+        ));
+
+        if (count($active) !== 1) {
+            throw new RuntimeException('Die aktive Outlook-Vorlage ist nicht eindeutig.');
+        }
+
+        return $active[0];
     }
 
     private function withMarker(string $html): string
@@ -182,6 +281,65 @@ CSS;
             .$marker
             .'</span>'
             .$html;
+    }
+
+    private function withSignatureVersionMarker(string $html, string $version): string
+    {
+        if (preg_match('/\A[0-9a-f]{16}\z/', $version) !== 1) {
+            throw new RuntimeException('Die Outlook-Signaturversion ist ungueltig.');
+        }
+
+        $marker = 'RT-SIGNATURE-VERSION:'.$version;
+
+        return "<!-- {$marker} -->"
+            .'<span aria-hidden="true" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'
+            .$marker
+            .'</span>'
+            .$html;
+    }
+
+    /**
+     * Die sichtbare Version folgt dem tatsaechlich ausgelieferten Artefakt,
+     * nicht nur dem unpersonalisierten Datenbankabzug. Der Versionsmarker wird
+     * erst danach eingesetzt, damit sein eigener Wert nicht rekursiv in den
+     * Hash eingeht.
+     *
+     * @param  list<array{name: string, contentId: string, base64: string}>  $media
+     */
+    private function signatureArtifactVersion(string $html, array $media): string
+    {
+        $serializedMedia = [];
+        foreach ($media as $attachment) {
+            if (! is_string($attachment['name'] ?? null)
+                || ! is_string($attachment['contentId'] ?? null)
+                || ! is_string($attachment['base64'] ?? null)) {
+                throw new RuntimeException('Die Outlook-Signaturmedien besitzen keinen stabilen Versionsvertrag.');
+            }
+
+            $serializedMedia[] = [
+                'name' => $attachment['name'],
+                'contentId' => $attachment['contentId'],
+                'base64' => $attachment['base64'],
+            ];
+        }
+        usort($serializedMedia, static function (array $left, array $right): int {
+            $byContentId = strcmp($left['contentId'], $right['contentId']);
+            if ($byContentId !== 0) {
+                return $byContentId;
+            }
+
+            $byName = strcmp($left['name'], $right['name']);
+
+            return $byName !== 0 ? $byName : strcmp($left['base64'], $right['base64']);
+        });
+
+        $serialized = json_encode([
+            'renderer_revision' => self::RENDERER_REVISION,
+            'html' => $html,
+            'media' => $serializedMedia,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return substr(hash('sha256', $serialized), 0, 16);
     }
 
     private function compactSignature(string $html): string
@@ -438,18 +596,27 @@ CSS;
         ];
     }
 
-    /** @return array<string, string> */
-    private function sourceAssetHashes(string ...$documents): array
+    /**
+     * @param  list<array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string}>  $templateSnapshots
+     * @param  array{html: string, css: string}  $signatureSnapshot
+     * @return array<string, string>
+     */
+    private function sourceAssetHashes(array $templateSnapshots, array $signatureSnapshot): array
     {
-        $signatureDocument = $documents[2] ?? '';
+        $signatureDocument = $signatureSnapshot['html'];
         $mapping = $this->templateMediaPaths($signatureDocument);
         $paths = array_values($mapping);
         $sources = [
-            ...$this->imageSources($documents[0] ?? ''),
-            ...$this->cssImageSources($documents[1] ?? ''),
-            ...$this->imageSources($documents[2] ?? ''),
-            ...$this->cssImageSources($documents[3] ?? ''),
+            ...$this->imageSources($signatureSnapshot['html']),
+            ...$this->cssImageSources($signatureSnapshot['css']),
         ];
+        foreach ($templateSnapshots as $templateSnapshot) {
+            $sources = [
+                ...$sources,
+                ...$this->imageSources($templateSnapshot['html']),
+                ...$this->cssImageSources($templateSnapshot['css']),
+            ];
+        }
         $hashes = [];
 
         foreach (array_values(array_unique($sources)) as $encodedSource) {
@@ -970,6 +1137,12 @@ CSS;
     /** @param array{html: string, css: string} $snapshot */
     private function snapshotHash(array $snapshot): string
     {
-        return substr(hash('sha256', $snapshot['html']."\0".$snapshot['css']), 0, 16);
+        return substr($this->fullSnapshotHash($snapshot), 0, 16);
+    }
+
+    /** @param array{html: string, css: string} $snapshot */
+    private function fullSnapshotHash(array $snapshot): string
+    {
+        return hash('sha256', $snapshot['html']."\0".$snapshot['css']);
     }
 }

@@ -2257,6 +2257,80 @@ test('preview controller writes logical frame variables and cleans listeners', (
     assert.equal(handlers.size, 0);
 });
 
+test('preview controller ignores identical ResizeObserver feedback after geometry was applied', () => {
+    let resizeCallback = null;
+    let scheduledCallback = null;
+    let refreshCount = 0;
+    let zoomCount = 0;
+    let changeCount = 0;
+    const iframe = {
+        setAttribute() {},
+        style: { setProperty() {} },
+    };
+    const editor = {
+        DeviceManager: {
+            get: () => null,
+            add: () => {},
+        },
+        Canvas: {
+            getFrameEl: () => iframe,
+            setZoom: () => { zoomCount += 1; },
+        },
+        setDevice() {},
+        refresh() { refreshCount += 1; },
+        trigger() {},
+        on() {},
+        off() {},
+    };
+    const host = { clientWidth: 1200, clientHeight: 800 };
+    const frame = {
+        clientWidth: 1200,
+        clientHeight: 800,
+        dataset: {},
+        style: { setProperty() {} },
+        querySelector: () => host,
+    };
+    class ResizeObserverStub {
+        constructor(callback) { resizeCallback = callback; }
+        observe() {}
+        disconnect() {}
+    }
+
+    const controller = createMailPreviewController({
+        instance: { editor },
+        frame,
+        onChange: () => { changeCount += 1; },
+        environment: {
+            ResizeObserver: ResizeObserverStub,
+            requestAnimationFrame(callback) {
+                scheduledCallback = callback;
+                return 1;
+            },
+            cancelAnimationFrame() {},
+        },
+    });
+
+    scheduledCallback();
+    assert.equal(refreshCount, 1);
+    assert.equal(zoomCount, 1);
+    assert.equal(changeCount, 1);
+
+    resizeCallback();
+    scheduledCallback();
+    assert.equal(refreshCount, 1);
+    assert.equal(zoomCount, 1);
+    assert.equal(changeCount, 1);
+
+    host.clientWidth = 900;
+    resizeCallback();
+    scheduledCallback();
+    assert.equal(refreshCount, 2);
+    assert.equal(zoomCount, 2);
+    assert.equal(changeCount, 2);
+
+    controller.destroy();
+});
+
 test('mail editor waits for the teleported fullscreen workspace before booting LMZ', async () => {
     const { readFile } = await import('node:fs/promises');
     const source = await readFile(
@@ -2410,6 +2484,11 @@ test('mail editor exposes one responsive topbar with grouped controls and visibl
     assert.match(view, /role="toolbar" aria-label="Mail- und Signatur-Editor"/);
     assert.match(view, /:auto-open="\$editorRequested"/);
     assert.match(view, /\['dokument' => \$kindValue, 'open' => 1\]/);
+    assert.match(view, /data-mail-document-hard-switch/);
+    assert.doesNotMatch(view, /wire:navigate/);
+    assert.match(view, /data-mail-document-root[\s\S]*?wire:ignore[\s\S]*?x-ignore/);
+    assert.match(view, /stopObservingMutations/);
+    assert.match(view, /finally\s*\{[\s\S]*?startObservingMutations/);
     for (const region of ['documents', 'preview', 'actions']) {
         assert.equal((view.match(new RegExp(`data-mail-toolbar-region="${region}"`, 'g')) || []).length, 1);
     }

@@ -2686,6 +2686,13 @@ function installEditorPanelExperience({ root, editor }) {
     const panelStates = [];
     const decoratedAttributes = new Map();
     const filteredAria = new Map();
+    const panelObserverOptions = {
+        subtree: true,
+        childList: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['class', 'hidden'],
+    };
     let destroyed = false;
     let refreshQueued = false;
 
@@ -2823,29 +2830,39 @@ function installEditorPanelExperience({ root, editor }) {
 
     const refreshState = (state) => {
         if (destroyed) return;
-        const query = normalizePanelSearch(state.input.value);
-        state.clear.hidden = !query;
-        state.tools.dataset.rtLmzPanelSearching = query ? 'true' : 'false';
-        state.context.textContent = state.key === 'layers'
-            ? 'Dokumentstruktur'
-            : componentInspectorLabel(editor.getSelected?.());
-        let result;
-        if (state.key === 'layers') result = filterLayers(state, query);
-        else if (state.key === 'styles') {
-            result = filterGroupedControls({
-                state,
-                query,
-                groupSelector: '.lmzbjs-sm-sector',
-                titleSelector: '.lmzbjs-sm-sector-title, .lmzbjs-sm-title',
-                itemSelector: '.lmzbjs-sm-property',
-            });
-        } else if (state.key === 'traits') result = filterTraits(state, query);
-        else result = filterClasses(state, query);
-        const unit = result.count === 1 ? state.config.singular : state.config.plural;
-        state.count.textContent = query ? `${result.count} Treffer` : `${result.total} ${unit}`;
-        state.empty.hidden = result.count > 0;
-        state.empty.dataset.rtLmzPanelEmpty = query ? 'filtered' : 'initial';
-        state.emptyText.textContent = query ? state.config.filteredEmpty : state.config.empty;
+        // Die Suche dekoriert genau den DOM, den ihr Observer verfolgt.
+        // Ohne die kurze Pause erzeugen unsere eigenen class-/hidden-
+        // Anpassungen immer neue Observer-Läufe und damit eine endlose
+        // Microtask-Kette. Vendor-Aenderungen werden ausserhalb dieses
+        // synchronen Refreshs weiterhin normal beobachtet.
+        state.observer?.disconnect?.();
+        try {
+            const query = normalizePanelSearch(state.input.value);
+            state.clear.hidden = !query;
+            state.tools.dataset.rtLmzPanelSearching = query ? 'true' : 'false';
+            state.context.textContent = state.key === 'layers'
+                ? 'Dokumentstruktur'
+                : componentInspectorLabel(editor.getSelected?.());
+            let result;
+            if (state.key === 'layers') result = filterLayers(state, query);
+            else if (state.key === 'styles') {
+                result = filterGroupedControls({
+                    state,
+                    query,
+                    groupSelector: '.lmzbjs-sm-sector',
+                    titleSelector: '.lmzbjs-sm-sector-title, .lmzbjs-sm-title',
+                    itemSelector: '.lmzbjs-sm-property',
+                });
+            } else if (state.key === 'traits') result = filterTraits(state, query);
+            else result = filterClasses(state, query);
+            const unit = result.count === 1 ? state.config.singular : state.config.plural;
+            state.count.textContent = query ? `${result.count} Treffer` : `${result.total} ${unit}`;
+            state.empty.hidden = result.count > 0;
+            state.empty.dataset.rtLmzPanelEmpty = query ? 'filtered' : 'initial';
+            state.emptyText.textContent = query ? state.config.filteredEmpty : state.config.empty;
+        } finally {
+            if (!destroyed) state.observer?.observe?.(state.mount, panelObserverOptions);
+        }
     };
     const refresh = () => panelStates.forEach(refreshState);
     const scheduleRefresh = () => {
@@ -2936,13 +2953,7 @@ function installEditorPanelExperience({ root, editor }) {
         state.observer = typeof MutationObserverClass === 'function'
             ? new MutationObserverClass(scheduleRefresh)
             : null;
-        state.observer?.observe(mount, {
-            subtree: true,
-            childList: true,
-            characterData: true,
-            attributes: true,
-            attributeFilter: ['class', 'hidden'],
-        });
+        state.observer?.observe(mount, panelObserverOptions);
         panelStates.push(state);
     });
 

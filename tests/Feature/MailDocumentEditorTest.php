@@ -2257,7 +2257,8 @@ HTML;
         $originalSignatureHtml = (string) $signature->html;
         $repairedSignatureHtml = SignatureTrainCarrier::normalize($originalSignatureHtml);
 
-        $response = $this->actingAs($this->admin())
+        $admin = $this->admin();
+        $response = $this->actingAs($admin)
             ->get(route('admin.mail-documents.editor', ['open' => 1]))
             ->assertOk();
 
@@ -2269,6 +2270,25 @@ HTML;
             $match,
         ));
         $config = json_decode($match[1], true, flags: JSON_THROW_ON_ERROR);
+
+        $signatureResponse = $this->actingAs($admin)
+            ->get(route('admin.mail-documents.editor', [
+                'dokument' => MailDocumentKind::Signature->value,
+                'open' => 1,
+            ]))
+            ->assertOk();
+        $this->assertSame(1, preg_match(
+            '/<script[^>]*data-mail-document-config[^>]*>([^<]*)<\/script>/',
+            (string) $signatureResponse->getContent(),
+            $signatureMatch,
+        ));
+        $signatureConfig = json_decode($signatureMatch[1], true, flags: JSON_THROW_ON_ERROR);
+
+        // Jede Vollbildseite transportiert nur das tatsaechlich geoeffnete
+        // GrapesJS-Projekt. Der Dokumentwechsel ist ein harter Seitenaufruf;
+        // das zweite grosse Projekt darf den Livewire-DOM nicht verdoppeln.
+        $this->assertSame(['template'], array_keys(data_get($config, 'documents')));
+        $this->assertSame(['signature'], array_keys(data_get($signatureConfig, 'documents')));
 
         // Direkte Vendor-Dateien laufen nicht durch Vite. Ein Inhalts-Hash
         // verhindert auch bei timestamp-erhaltenden Deployments, dass ein
@@ -2364,35 +2384,37 @@ HTML;
             $this->assertSame($required, $asset['included'] ?? null);
         }
 
-        foreach (['template', 'signature'] as $kind) {
-            $this->assertSame(
-                route('admin.mail-documents.validate-code', $kind === 'template' ? $template : $signature),
-                data_get($config, "documents.{$kind}.endpoints.validate"),
-            );
-        }
+        $this->assertSame(
+            route('admin.mail-documents.validate-code', $template),
+            data_get($config, 'documents.template.endpoints.validate'),
+        );
+        $this->assertSame(
+            route('admin.mail-documents.validate-code', $signature),
+            data_get($signatureConfig, 'documents.signature.endpoints.validate'),
+        );
 
         $this->assertStringContainsString(
             '{{LOGO_SRC}}',
-            (string) data_get($config, 'documents.signature.builderData.pages.0.component'),
+            (string) data_get($signatureConfig, 'documents.signature.builderData.pages.0.component'),
         );
         // Der Body wird im Builder editiert; die vollstaendige HTML-Fassung
         // bleibt als serverautoritative Baseline fuer Head, Markenfragment
         // und Dokumenthuelle im Payload. CSS und Builderprojekt muessen
         // daneben unverkuerzt ankommen.
         $this->assertSame((string) $template->html, data_get($config, 'documents.template.html'));
-        $this->assertSame($repairedSignatureHtml, data_get($config, 'documents.signature.html'));
+        $this->assertSame($repairedSignatureHtml, data_get($signatureConfig, 'documents.signature.html'));
         $this->assertSame((string) $template->css, data_get($config, 'documents.template.css'));
-        $this->assertSame((string) $signature->css, data_get($config, 'documents.signature.css'));
+        $this->assertSame((string) $signature->css, data_get($signatureConfig, 'documents.signature.css'));
         $this->assertSame($originalTemplateBuilderData, data_get($config, 'documents.template.builderData'));
         $this->assertSame(
             SignatureDocumentContract::SCHEMA,
-            data_get($config, 'documents.signature.builderData.railtime.schema'),
+            data_get($signatureConfig, 'documents.signature.builderData.railtime.schema'),
         );
         $this->assertSame(
             $repairedSignatureHtml,
-            data_get($config, 'documents.signature.builderData.pages.0.component'),
+            data_get($signatureConfig, 'documents.signature.builderData.pages.0.component'),
         );
-        $this->assertTrue((bool) data_get($config, 'documents.signature.autoRepaired'));
+        $this->assertTrue((bool) data_get($signatureConfig, 'documents.signature.autoRepaired'));
         $this->assertFalse((bool) data_get($config, 'documents.template.autoRepaired'));
         $this->assertSame($originalTemplateBuilderData, $template->fresh()->builder_data);
         $this->assertSame($originalSignatureBuilderData, $signature->fresh()->builder_data);

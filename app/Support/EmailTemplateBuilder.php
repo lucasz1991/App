@@ -11,6 +11,7 @@ use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TemplateDocumentContract;
 use App\Support\Mail\TrustedEmailCss;
+use App\Support\Mail\TrustedOutlookSignatureCss;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -274,12 +275,13 @@ class EmailTemplateBuilder
     /**
      * Kompaktes Signaturfragment fuer Office.context.mailbox.item.body.
      *
-     * Der Add-in-Weg teilt sich bewusst Renderer und Personalisierung mit der
-     * geprueften Browser-Kopierfassung. Abweichend ist nur die aeussere
-     * Dokumenthuelle: setSignatureAsync erwartet kein zweites html/body-
-     * Dokument. Bilder bleiben hier zunaechst absolute HTTPS-Quellen und
-     * werden unmittelbar danach durch OutlookAddinPayloadService in echte
-     * CID-Anhaenge ueberfuehrt.
+     * Der Add-in-Weg rendert die veroeffentlichte Signatur direkt. Damit
+     * entfallen die feste 720-px-Kopierhuelle und das spaetere Abschneiden
+     * ihrer Head-Regeln. setSignatureAsync erhaelt stattdessen genau die
+     * personalisierten Tabellenzeilen in einer fluiden Praesentationstabelle
+     * sowie ausschliesslich das dazu passende veroeffentlichte Dokument-CSS.
+     * Bilder bleiben zunaechst absolute HTTPS-Quellen und werden danach durch
+     * OutlookAddinPayloadService in echte CID-Anhaenge ueberfuehrt.
      */
     public function buildOutlookAddinSignatureHtml(string $theme = 'light'): string
     {
@@ -287,10 +289,29 @@ class EmailTemplateBuilder
             throw new RuntimeException('Unbekannte Signaturvariante.');
         }
 
-        return self::outlookAddinFragment(
-            $this->buildOutlookBrowserCopySignatureHtml($theme),
-            includeStyles: false,
+        $signature = MailSignature::forUser(
+            $this->user,
+            $theme,
+            animated: false,
+            remoteAssets: true,
+            staticAssets: true,
         );
+        $rows = trim($signature->render());
+        if ($rows === '' || preg_match('~<(?:html|body|script)\b~i', $rows) === 1) {
+            throw new RuntimeException('Die veroeffentlichte Signatur kann nicht sicher als Outlook-Fragment ausgegeben werden.');
+        }
+
+        $publishedStyle = TrustedOutlookSignatureCss::publishedStyle(
+            $rows,
+            $signature->publishedCss(),
+        );
+        $runtimeStyle = TrustedOutlookSignatureCss::style($rows);
+
+        return $publishedStyle
+            .$runtimeStyle
+            .'<table class="rt-outlook-signature" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" '
+            .'style="width:100%;border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">'
+            .'<tbody>'.$rows.'</tbody></table>';
     }
 
     /**

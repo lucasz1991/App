@@ -6,11 +6,27 @@ import {
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
 const API_TIMEOUT_MS = 12000;
+const SIGNATURE_VERSION_PATTERN = /^([0-9a-f]{16})$/i;
+const SIGNATURE_BODY_VERSION_PATTERN = /RT-SIGNATURE-VERSION:([0-9a-f]{16})/i;
+const MANAGED_ATTACHMENT_NAME_PATTERN = /^railtime-(?:[0-9a-f]{20}|train-idle)\.(?:gif|jpe?g|png|webp)$/i;
 
 let configPromise;
 let authenticationClientPromise;
 let currentConfig;
 let currentTokenResult;
+let currentBootstrap;
+let signatureStateRevision = 0;
+const taskpaneState = {
+    authenticated: false,
+    bootstrapReady: false,
+    busy: false,
+    configReady: false,
+    itemChangedMonitoringReady: false,
+    signatureCurrent: false,
+    signatureVersion: '',
+    templates: [],
+    selectedTemplateId: '',
+};
 
 function codedError(code) {
     const error = new Error(code);
@@ -29,6 +45,109 @@ function firstNonEmptyString(values) {
     }
 
     return '';
+}
+
+function scalarString(value) {
+    if (typeof value === 'string') {
+        return value.trim();
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+    }
+
+    return '';
+}
+
+function displayVersion(value, hash = '') {
+    const direct = scalarString(value);
+
+    if (direct !== '') {
+        return direct;
+    }
+
+    const normalizedHash = scalarString(hash);
+
+    return /^[0-9a-f]{16,64}$/i.test(normalizedHash)
+        ? normalizedHash.slice(0, 16).toLowerCase()
+        : '';
+}
+
+/**
+ * Normalisiert den neuen Mehrvorlagenvertrag und behaelt alte Server bei,
+ * die nur `template` liefern. Der Dokumentinhalt wird dabei nicht veraendert.
+ */
+export function normalizeTemplateChoices(payload) {
+    if (!payload || typeof payload !== 'object') {
+        return Object.freeze([]);
+    }
+
+    const entries = Array.isArray(payload.templates) ? payload.templates : [];
+    const choices = [];
+    const usedIds = new Set();
+
+    entries.forEach((entry, index) => {
+        if (!entry || typeof entry !== 'object' || scalarString(entry.html) === '') {
+            return;
+        }
+
+        const baseId = firstNonEmptyString([entry.id, entry.key]) || `template-${index + 1}`;
+        let id = baseId;
+        let suffix = 2;
+
+        while (usedIds.has(id)) {
+            id = `${baseId}-${suffix}`;
+            suffix += 1;
+        }
+
+        usedIds.add(id);
+        const name = firstNonEmptyString([entry.name, entry.label]) || `Vorlage ${index + 1}`;
+
+        choices.push(Object.freeze({
+            id,
+            key: firstNonEmptyString([entry.key, entry.id]) || id,
+            name,
+            label: firstNonEmptyString([entry.label, entry.name]) || name,
+            active: entry.active === true,
+            version: displayVersion(entry.version, entry.hash),
+            hash: scalarString(entry.hash),
+            document: entry,
+        }));
+    });
+
+    if (choices.length === 0
+        && payload.template
+        && typeof payload.template === 'object'
+        && scalarString(payload.template.html) !== '') {
+        const name = firstNonEmptyString([
+            payload.template.name,
+            payload.template.label,
+        ]) || 'Standardvorlage';
+
+        choices.push(Object.freeze({
+            id: firstNonEmptyString([payload.template.id, payload.template.key]) || 'active-template',
+            key: firstNonEmptyString([payload.template.key, payload.template.id]) || 'active-template',
+            name,
+            label: firstNonEmptyString([payload.template.label, payload.template.name]) || name,
+            active: true,
+            version: displayVersion(payload.template.version, payload.version?.template),
+            hash: scalarString(payload.template.hash),
+            document: payload.template,
+        }));
+    }
+
+    return Object.freeze(choices);
+}
+
+export function hasCurrentSnapshot(payload) {
+    if (!payload || typeof payload !== 'object' || payload.snapshot?.current === false) {
+        return false;
+    }
+
+    const personalVersion = scalarString(payload.version?.personal);
+    const signatureVersion = scalarString(payload.version?.signature);
+
+    return personalVersion !== '' && SIGNATURE_VERSION_PATTERN.test(signatureVersion);
 }
 
 function buildTimeConfigUrl() {
@@ -364,7 +483,10 @@ function addInlineAttachment(item, media) {
 }
 
 async function attachInlineMedia(item, media) {
-    const existingNames = await existingAttachmentNames(item);
+    const existingNames = new Set(
+        (await existingAttachments(item))
+            .map((attachment) => attachment.name.toLowerCase()),
+    );
 
     for (let index = 0; index < media.length; index += 1) {
         const attachment = media[index];
@@ -379,23 +501,53 @@ async function attachInlineMedia(item, media) {
     }
 }
 
-function existingAttachmentNames(item) {
+function existingAttachments(item) {
     if (typeof item?.getAttachmentsAsync !== 'function') {
-        return Promise.resolve(new Set());
+        return Promise.resolve([]);
     }
 
     return new Promise((resolve) => {
         item.getAttachmentsAsync((result) => {
             if (result?.status !== Office.AsyncResultStatus.Succeeded || !Array.isArray(result.value)) {
-                resolve(new Set());
+                resolve([]);
                 return;
             }
 
-            resolve(new Set(result.value
-                .map((attachment) => String(attachment?.name || '').trim().toLowerCase())
-                .filter((name) => name !== '')));
+            resolve(result.value.map((attachment) => ({
+                id: String(attachment?.id || '').trim(),
+                isInline: attachment?.isInline === true,
+                name: String(attachment?.name || '').trim(),
+            })).filter((attachment) => attachment.name !== ''));
         });
     });
+}
+
+function removeAttachment(item, attachmentId) {
+    return new Promise((resolve) => {
+        item.removeAttachmentAsync(attachmentId, () => resolve());
+    });
+}
+
+async function removeStaleManagedInlineMedia(item, media, previousAttachments) {
+    if (typeof item?.removeAttachmentAsync !== 'function') {
+        return;
+    }
+
+    const desiredNames = new Set(media.map((attachment) => attachment.name.toLowerCase()));
+    const stale = previousAttachments.filter((attachment) => (
+        attachment.id !== ''
+        && attachment.isInline
+        && MANAGED_ATTACHMENT_NAME_PATTERN.test(attachment.name)
+        && !desiredNames.has(attachment.name.toLowerCase())
+    ));
+
+    for (let index = 0; index < stale.length; index += 1) {
+        // Der neue Body referenziert diese Dateien zu diesem Zeitpunkt nicht
+        // mehr. Outlook kann Inline-Anhaenge erst danach sicher entfernen.
+        // Eine abgelaufene sitzungsgebundene Attachment-ID darf das bereits
+        // erfolgreich eingesetzte Dokument jedoch nicht zurueckrollen.
+        await removeAttachment(item, stale[index].id);
+    }
 }
 
 function setSignature(item, html) {
@@ -450,40 +602,411 @@ function elements() {
     return {
         root: document.querySelector('[data-outlook-addin-taskpane]'),
         status: document.querySelector('[data-outlook-status]'),
+        statusSymbol: document.querySelector('[data-outlook-status-symbol]'),
         statusTitle: document.querySelector('[data-outlook-status-title]'),
         statusDetail: document.querySelector('[data-outlook-status-detail]'),
         account: document.querySelector('[data-outlook-account]'),
+        accountLabel: document.querySelector('[data-outlook-account-label]'),
+        connectionChip: document.querySelector('[data-outlook-connection-chip]'),
+        maintenanceActions: document.querySelector('[data-outlook-maintenance-actions]'),
+        templateRegion: document.querySelector('[data-outlook-template-region]'),
+        templateCount: document.querySelector('[data-outlook-template-count]'),
+        templateSelect: document.querySelector('[data-outlook-template-select]'),
+        templateName: document.querySelector('[data-outlook-template-name]'),
+        templateVersion: document.querySelector('[data-outlook-template-version]'),
+        templateActive: document.querySelector('[data-outlook-template-active]'),
+        templateActionDetail: document.querySelector('[data-outlook-template-action-detail]'),
+        loginTitle: document.querySelector('[data-outlook-login-title]'),
+        loginDetail: document.querySelector('[data-outlook-login-detail]'),
+        signatureDetail: document.querySelector('[data-outlook-signature-detail]'),
         login: document.querySelector('[data-outlook-action="login"]'),
         signature: document.querySelector('[data-outlook-action="signature"]'),
         template: document.querySelector('[data-outlook-action="template"]'),
     };
 }
 
-function setStatus(tone, title, detail = '') {
+function setStatus(tone, title, detail = '', focus = false) {
     const view = elements();
+    const symbolByTone = {
+        error: '!',
+        neutral: 'i',
+        success: '✓',
+        working: '…',
+    };
 
     view.status.dataset.tone = tone;
+    view.status.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+    view.status.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
+    view.statusSymbol.textContent = symbolByTone[tone] || 'i';
     view.statusTitle.textContent = title;
     view.statusDetail.textContent = detail;
+
+    if (focus && typeof view.status.focus === 'function') {
+        try {
+            view.status.focus({ preventScroll: true });
+        } catch {
+            view.status.focus();
+        }
+    }
+}
+
+function setConnectionChip(tone, label) {
+    const view = elements();
+
+    view.connectionChip.dataset.tone = tone;
+    view.connectionChip.textContent = label;
+}
+
+function setTemplateRegionState(state) {
+    const view = elements();
+    const labels = {
+        empty: '0 Vorlagen',
+        error: 'Nicht verfügbar',
+        loading: 'Laden …',
+        locked: 'Anmeldung nötig',
+    };
+
+    view.templateRegion.dataset.state = state;
+
+    if (labels[state]) {
+        view.templateCount.textContent = labels[state];
+    }
+}
+
+function selectedTemplate() {
+    return taskpaneState.templates.find(
+        (template) => template.id === taskpaneState.selectedTemplateId,
+    ) || null;
+}
+
+function renderSelectedTemplate() {
+    const view = elements();
+    const template = selectedTemplate();
+
+    if (!template) {
+        view.templateName.textContent = 'Keine Vorlage ausgewählt';
+        view.templateVersion.textContent = 'Version nicht verfügbar';
+        view.templateVersion.removeAttribute('title');
+        view.templateActive.hidden = true;
+        view.templateActionDetail.textContent = 'Ausgewählte Vorlage in die Nachricht übernehmen';
+        view.template.removeAttribute('aria-label');
+        return;
+    }
+
+    const versionLabel = template.version !== ''
+        ? `Version ${template.version}`
+        : 'Version nicht verfügbar';
+
+    view.templateName.textContent = template.name;
+    view.templateVersion.textContent = versionLabel;
+    view.templateVersion.title = template.hash || versionLabel;
+    view.templateActive.hidden = !template.active;
+    view.templateActionDetail.textContent = `${template.name} in die Nachricht übernehmen`;
+    view.template.setAttribute('aria-label', `Vorlage ${template.name} einfügen`);
+}
+
+function renderTemplateChoices(payload) {
+    const view = elements();
+    const previousSelection = taskpaneState.selectedTemplateId;
+    const templates = normalizeTemplateChoices(payload);
+
+    taskpaneState.templates = [...templates];
+    view.templateSelect.replaceChildren();
+
+    if (templates.length === 0) {
+        taskpaneState.selectedTemplateId = '';
+        setTemplateRegionState('empty');
+        renderSelectedTemplate();
+        return;
+    }
+
+    templates.forEach((template) => {
+        const option = document.createElement('option');
+
+        option.value = template.id;
+        option.textContent = template.name;
+        view.templateSelect.append(option);
+    });
+
+    const selected = templates.find((template) => template.id === previousSelection)
+        || templates.find((template) => template.active)
+        || templates[0];
+
+    taskpaneState.selectedTemplateId = selected.id;
+    view.templateSelect.value = selected.id;
+    view.templateCount.textContent = templates.length === 1
+        ? '1 Vorlage'
+        : `${templates.length} Vorlagen`;
+    setTemplateRegionState('ready');
+    renderSelectedTemplate();
+}
+
+function clearTemplateChoices(state) {
+    const view = elements();
+
+    taskpaneState.templates = [];
+    taskpaneState.selectedTemplateId = '';
+    view.templateSelect.replaceChildren();
+    renderSelectedTemplate();
+    setTemplateRegionState(state);
+}
+
+function snapshotSignatureVersion(payload) {
+    const version = scalarString(payload?.version?.signature).toLowerCase();
+
+    return SIGNATURE_VERSION_PATTERN.test(version) ? version : '';
+}
+
+export function signatureVersionsFromBody(html) {
+    if (typeof html !== 'string' || html === '') {
+        return Object.freeze([]);
+    }
+
+    const pattern = new RegExp(SIGNATURE_BODY_VERSION_PATTERN.source, 'ig');
+    const versions = [];
+    let match;
+
+    while ((match = pattern.exec(html)) !== null) {
+        const version = String(match[1] || '').toLowerCase();
+
+        if (version !== '' && !versions.includes(version)) {
+            versions.push(version);
+        }
+    }
+
+    return Object.freeze(versions);
+}
+
+function readBodyHtml(item) {
+    if (typeof item?.body?.getAsync !== 'function') {
+        return Promise.resolve(null);
+    }
+
+    return new Promise((resolve) => {
+        try {
+            item.body.getAsync(Office.CoercionType.Html, (result) => {
+                if (result?.status !== Office.AsyncResultStatus.Succeeded
+                    || typeof result.value !== 'string') {
+                    resolve(null);
+                    return;
+                }
+
+                resolve(result.value);
+            });
+        } catch {
+            resolve(null);
+        }
+    });
+}
+
+function readComposeType(item) {
+    if (typeof item?.getComposeTypeAsync !== 'function') {
+        return Promise.resolve(null);
+    }
+
+    return new Promise((resolve) => {
+        try {
+            item.getComposeTypeAsync((result) => {
+                if (result?.status !== Office.AsyncResultStatus.Succeeded) {
+                    resolve(null);
+                    return;
+                }
+
+                const composeType = scalarString(result.value?.composeType);
+
+                resolve(['newMail', 'reply', 'forward'].includes(composeType) ? composeType : null);
+            });
+        } catch {
+            resolve(null);
+        }
+    });
+}
+
+/**
+ * Liefert nur den vom Benutzer aktuell bearbeiteten Bereich. Marker aus
+ * zitierten Nachrichten duerfen eine Antwort oder Weiterleitung niemals als
+ * aktuell markieren. Wenn Outlook keinen eindeutigen Trenner liefert, bleibt
+ * die Aktualisieren-Aktion absichtlich sichtbar.
+ */
+export function currentComposeBodyHtml(html, composeType) {
+    if (typeof html !== 'string' || html === '') {
+        return null;
+    }
+
+    if (composeType === 'newMail') {
+        return html;
+    }
+
+    if (!['reply', 'forward'].includes(composeType)) {
+        return null;
+    }
+
+    const boundaries = [
+        /<[^>]+\bid\s*=\s*["'](?:x_)?divrplyfwdmsg["'][^>]*>/ig,
+        /<[^>]+\bid\s*=\s*["']mail-editor-reference-message-container["'][^>]*>/ig,
+        /<[^>]+\bclass\s*=\s*["'][^"']*(?:gmail_quote|yahoo_quoted|moz-cite-prefix)[^"']*["'][^>]*>/ig,
+        /<blockquote\b[^>]*(?:\btype\s*=\s*["']cite["']|\bcite\s*=)[^>]*>/ig,
+        /<hr\b[^>]*\bid\s*=\s*["']stopspelling["'][^>]*>/ig,
+        /<!--\s*(?:original message|urspruengliche nachricht)\s*-->/ig,
+    ];
+    let boundary = -1;
+
+    boundaries.forEach((pattern) => {
+        pattern.lastIndex = 0;
+        const match = pattern.exec(html);
+
+        if (match && (boundary === -1 || match.index < boundary)) {
+            boundary = match.index;
+        }
+    });
+
+    return boundary === -1 ? null : html.slice(0, boundary);
+}
+
+async function signatureIsCurrent(payload) {
+    const expectedVersion = snapshotSignatureVersion(payload);
+
+    if (!hasCurrentSnapshot(payload) || expectedVersion === '') {
+        return false;
+    }
+
+    const item = Office.context.mailbox?.item;
+    const [bodyHtml, composeType] = await Promise.all([
+        readBodyHtml(item),
+        readComposeType(item),
+    ]);
+
+    const currentBodyHtml = currentComposeBodyHtml(bodyHtml, composeType);
+    if (typeof currentBodyHtml !== 'string') {
+        // Fail open: Ohne lesbaren Compose-Body darf ein alter mailboxweiter
+        // Speicherwert die Aktualisieren-Aktion niemals ausblenden.
+        return false;
+    }
+
+    return signatureVersionsFromBody(currentBodyHtml).includes(expectedVersion);
+}
+
+async function refreshSignatureCurrentState() {
+    const payload = currentBootstrap;
+
+    if (!taskpaneState.authenticated || !taskpaneState.bootstrapReady || !payload) {
+        return;
+    }
+
+    const revision = ++signatureStateRevision;
+    let isCurrent = false;
+
+    try {
+        isCurrent = await signatureIsCurrent(payload);
+    } catch {
+        // Fail open: Wenn Outlook den aktuellen Compose-Zustand nicht liefern
+        // kann, muss die sichere Aktualisieren-Aktion sichtbar bleiben.
+        isCurrent = false;
+    }
+
+    if (revision !== signatureStateRevision
+        || payload !== currentBootstrap
+        || !taskpaneState.authenticated
+        || !taskpaneState.bootstrapReady) {
+        return;
+    }
+
+    taskpaneState.signatureCurrent = isCurrent;
+    syncActionState();
+}
+
+function requestSignatureCurrentStateRefresh() {
+    void refreshSignatureCurrentState().catch((error) => {
+        signatureStateRevision += 1;
+        taskpaneState.signatureCurrent = false;
+
+        try {
+            syncActionState();
+        } catch {
+            // Das Taskpane kann waehrend eines spaeten Office-Events bereits
+            // entladen sein. Der Fehler darf nicht als Promise-Rejection enden.
+        }
+
+        console.warn('RailTime signature state refresh failed.', error);
+    });
+}
+
+function failOpenSignatureCurrentState() {
+    signatureStateRevision += 1;
+    taskpaneState.signatureCurrent = false;
+    syncActionState();
+}
+
+function syncConnectionChip() {
+    if (taskpaneState.busy) {
+        setConnectionChip('working', 'Lädt');
+        return;
+    }
+
+    if (taskpaneState.authenticated && taskpaneState.bootstrapReady) {
+        setConnectionChip('success', 'Bereit');
+        return;
+    }
+
+    if (taskpaneState.authenticated || taskpaneState.configReady) {
+        setConnectionChip('working', taskpaneState.authenticated ? 'Prüfen' : 'Verbinden');
+        return;
+    }
+
+    setConnectionChip('error', 'Offline');
+}
+
+function updateDisabledStates() {
+    const view = elements();
+
+    [view.login, view.signature, view.template].forEach((button) => {
+        button.disabled = taskpaneState.busy || button.dataset.available !== 'true';
+    });
+    view.templateSelect.disabled = taskpaneState.busy
+        || view.templateRegion.dataset.state !== 'ready'
+        || taskpaneState.templates.length === 0;
+}
+
+function syncActionState() {
+    const view = elements();
+    const authenticatedBootstrap = taskpaneState.authenticated && taskpaneState.bootstrapReady;
+    const currentTemplate = selectedTemplate();
+
+    view.login.dataset.available = taskpaneState.configReady ? 'true' : 'false';
+    view.signature.dataset.available = taskpaneState.authenticated ? 'true' : 'false';
+    view.template.dataset.available = authenticatedBootstrap && currentTemplate ? 'true' : 'false';
+
+    view.login.hidden = authenticatedBootstrap;
+    view.signature.hidden = authenticatedBootstrap
+        && taskpaneState.itemChangedMonitoringReady
+        && taskpaneState.signatureCurrent;
+    view.maintenanceActions.hidden = view.login.hidden && view.signature.hidden;
+
+    view.loginTitle.textContent = taskpaneState.authenticated
+        ? 'Verbindung prüfen'
+        : 'Mit Microsoft verbinden';
+    view.loginDetail.textContent = taskpaneState.authenticated
+        ? 'RailTime-Inhalte erneut sicher laden'
+        : 'Einmalig mit dem Firmenkonto anmelden';
+    view.signatureDetail.textContent = taskpaneState.signatureVersion !== ''
+        ? `Veröffentlichte Version ${taskpaneState.signatureVersion} einsetzen`
+        : 'Veröffentlichte Signatur laden und einsetzen';
+
+    updateDisabledStates();
+    syncConnectionChip();
 }
 
 function setBusy(busy, activeButton = null) {
     const view = elements();
 
+    taskpaneState.busy = busy;
     view.root.setAttribute('aria-busy', busy ? 'true' : 'false');
     [view.login, view.signature, view.template].forEach((button) => {
-        button.disabled = busy || button.dataset.available !== 'true';
         button.dataset.busy = busy && button === activeButton ? 'true' : 'false';
+        button.setAttribute('aria-busy', busy && button === activeButton ? 'true' : 'false');
     });
-}
-
-function setActionAvailability(authenticated) {
-    const view = elements();
-
-    view.login.dataset.available = 'true';
-    view.signature.dataset.available = authenticated ? 'true' : 'false';
-    view.template.dataset.available = authenticated ? 'true' : 'false';
-    setBusy(false);
+    updateDisabledStates();
+    syncConnectionChip();
 }
 
 function displayAccount() {
@@ -492,8 +1015,41 @@ function displayAccount() {
     const label = firstNonEmptyString([account?.name, account?.username, mailbox]);
     const view = elements();
 
-    view.account.textContent = label;
+    view.accountLabel.textContent = label;
     view.account.hidden = label === '';
+}
+
+function clearAccount() {
+    const view = elements();
+
+    view.accountLabel.textContent = '';
+    view.account.hidden = true;
+}
+
+async function acceptBootstrap(payload) {
+    currentBootstrap = payload;
+    taskpaneState.bootstrapReady = true;
+    taskpaneState.signatureVersion = snapshotSignatureVersion(payload);
+    renderTemplateChoices(payload);
+    await refreshSignatureCurrentState();
+    syncActionState();
+}
+
+function invalidateBootstrap(templateState, authenticationLost = false) {
+    signatureStateRevision += 1;
+    currentBootstrap = null;
+    taskpaneState.bootstrapReady = false;
+    taskpaneState.signatureCurrent = false;
+    taskpaneState.signatureVersion = '';
+    clearTemplateChoices(templateState);
+
+    if (authenticationLost) {
+        taskpaneState.authenticated = false;
+        currentTokenResult = null;
+        clearAccount();
+    }
+
+    syncActionState();
 }
 
 function safeErrorCode(error) {
@@ -506,6 +1062,10 @@ function safeErrorCode(error) {
     }
 
     return typeof error?.name === 'string' ? error.name : 'UNAVAILABLE';
+}
+
+function authenticationWasLost(error) {
+    return isInteractionRequired(error) || safeErrorCode(error) === 'HTTP_401';
 }
 
 function userMessage(error) {
@@ -524,7 +1084,23 @@ function userMessage(error) {
     }
 
     if (code === 'InvalidFormatError') {
-        return 'Die Nachricht ist im Nur-Text-Format. HTML-Signaturen können dort nicht eingesetzt werden.';
+        return 'Die Nachricht ist im Nur-Text-Format. HTML-Inhalte können dort nicht eingesetzt werden.';
+    }
+
+    if (code === 'REQUEST_TIMEOUT') {
+        return 'RailTime antwortet gerade zu langsam. Bitte erneut versuchen.';
+    }
+
+    if (code === 'TEMPLATE_SELECTION_MISSING') {
+        return 'Bitte zuerst eine veröffentlichte Vorlage auswählen.';
+    }
+
+    if (code === 'SET_SIGNATURE_UNAVAILABLE' || code === 'SET_TEMPLATE_UNAVAILABLE') {
+        return 'Diese Outlook-Ansicht unterstützt die gewünschte Einfügefunktion nicht.';
+    }
+
+    if (code === 'COMPOSE_API_UNAVAILABLE') {
+        return 'Bitte das Add-in in einer geöffneten neuen Nachricht verwenden.';
     }
 
     if (code.startsWith('HTTP_')) {
@@ -534,36 +1110,69 @@ function userMessage(error) {
     return 'Die Aktion konnte nicht abgeschlossen werden. Bitte erneut versuchen.';
 }
 
+function readyStatusDetail() {
+    const templateCount = taskpaneState.templates.length;
+    const templateLabel = templateCount === 1
+        ? '1 Vorlage verfügbar'
+        : `${templateCount} Vorlagen verfügbar`;
+    const signatureLabel = taskpaneState.signatureCurrent
+        ? 'Signatur aktuell'
+        : 'Signatur prüfen';
+
+    return `${templateLabel} · ${signatureLabel}`;
+}
+
+function handleFailure(error, bootstrapWasLoaded = false) {
+    const authLost = authenticationWasLost(error);
+
+    if (!bootstrapWasLoaded || authLost) {
+        invalidateBootstrap(authLost ? 'locked' : 'error', authLost);
+    }
+
+    setBusy(false);
+    syncActionState();
+    setStatus('error', 'Aktion nicht abgeschlossen', userMessage(error), true);
+}
+
 async function authenticateInteractively(button) {
     setBusy(true, button);
-    setStatus('working', 'Microsoft-Anmeldung wird geöffnet …');
+    setStatus('working', 'Microsoft-Anmeldung wird geöffnet …', 'Danach lädt RailTime Ihre veröffentlichten Inhalte.');
 
     try {
-        await acquireAccessToken(currentConfig, true);
+        const accessToken = await acquireAccessToken(currentConfig, true);
+
+        taskpaneState.authenticated = true;
         displayAccount();
-        setActionAvailability(true);
-        setStatus('success', 'Outlook ist verbunden', 'Veröffentlichte RailTime-Inhalte stehen bereit.');
+        const bootstrap = await loadBootstrap(currentConfig, accessToken);
+
+        await acceptBootstrap(bootstrap);
+        setBusy(false);
+        syncActionState();
+        setStatus('success', 'RailTime ist bereit', readyStatusDetail());
     } catch (error) {
-        setActionAvailability(false);
-        setStatus('error', 'Anmeldung nicht abgeschlossen', userMessage(error));
+        handleFailure(error);
     }
 }
 
 async function withAuthenticatedBootstrap(button, callback) {
+    let bootstrapWasLoaded = false;
+
     setBusy(true, button);
 
     try {
         const accessToken = await acquireAccessToken(currentConfig, true);
+        taskpaneState.authenticated = true;
+        displayAccount();
         const bootstrap = await loadBootstrap(currentConfig, accessToken);
 
-        displayAccount();
-        setActionAvailability(true);
+        bootstrapWasLoaded = true;
+        await acceptBootstrap(bootstrap);
         setBusy(true, button);
         await callback(bootstrap);
         setBusy(false);
+        syncActionState();
     } catch (error) {
-        setActionAvailability(Boolean(currentTokenResult?.accessToken));
-        setStatus('error', 'Aktion nicht abgeschlossen', userMessage(error));
+        handleFailure(error, bootstrapWasLoaded);
     }
 }
 
@@ -580,24 +1189,53 @@ async function updateSignature(button) {
 
         await attachInlineMedia(item, signature.media);
         await setSignature(item, signature.html);
-        setStatus('success', 'Signatur ist aktuell', 'Die veröffentlichte RailTime-Signatur wurde eingesetzt.');
+        await refreshSignatureCurrentState();
+        setStatus(
+            'success',
+            'Signatur ist aktuell',
+            taskpaneState.signatureVersion !== ''
+                ? `Version ${taskpaneState.signatureVersion} wurde eingesetzt.`
+                : 'Die veröffentlichte RailTime-Signatur wurde eingesetzt.',
+        );
     });
 }
 
 async function insertTemplate(button) {
-    setStatus('working', 'Vorlage wird eingefügt …', 'Die aktuelle Veröffentlichung wird geladen.');
+    const selected = selectedTemplate();
+
+    setStatus(
+        'working',
+        'Vorlage wird eingefügt …',
+        selected ? `${selected.name} wird sicher geladen.` : 'Die aktuelle Veröffentlichung wird geladen.',
+    );
 
     await withAuthenticatedBootstrap(button, async (bootstrap) => {
         const item = composeItem();
-        const template = validatedDocument(bootstrap.template, 'template', currentConfig.marker);
+        const templateChoice = selectedTemplate();
+
+        if (!templateChoice) {
+            throw codedError('TEMPLATE_SELECTION_MISSING');
+        }
+
+        const template = validatedDocument(templateChoice.document, 'template', currentConfig.marker);
 
         if (!item.body.setAsync) {
             throw codedError('SET_TEMPLATE_UNAVAILABLE');
         }
 
+        const previousAttachments = await existingAttachments(item);
         await attachInlineMedia(item, template.media);
         await replaceBody(item, template.html);
-        setStatus('success', 'Vorlage wurde eingesetzt', 'Der Nachrichteninhalt entspricht der aktuellen Veröffentlichung.');
+        await removeStaleManagedInlineMedia(item, template.media, previousAttachments);
+        await refreshSignatureCurrentState();
+
+        setStatus(
+            'success',
+            'Vorlage wurde eingesetzt',
+            templateChoice.version !== ''
+                ? `${templateChoice.name} · Version ${templateChoice.version}`
+                : templateChoice.name,
+        );
     });
 }
 
@@ -607,45 +1245,101 @@ function bindActions() {
     view.login.addEventListener('click', () => authenticateInteractively(view.login));
     view.signature.addEventListener('click', () => updateSignature(view.signature));
     view.template.addEventListener('click', () => insertTemplate(view.template));
+    view.templateSelect.addEventListener('change', () => {
+        taskpaneState.selectedTemplateId = view.templateSelect.value;
+        renderSelectedTemplate();
+        syncActionState();
+    });
+
+    window.addEventListener('focus', requestSignatureCurrentStateRefresh);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            requestSignatureCurrentStateRefresh();
+        }
+    });
+
+    if (typeof Office.context.mailbox?.addHandlerAsync === 'function'
+        && Office.EventType?.ItemChanged) {
+        try {
+            Office.context.mailbox.addHandlerAsync(
+                Office.EventType.ItemChanged,
+                requestSignatureCurrentStateRefresh,
+                (result) => {
+                    taskpaneState.itemChangedMonitoringReady = result?.status === Office.AsyncResultStatus.Succeeded;
+
+                    if (!taskpaneState.itemChangedMonitoringReady) {
+                        failOpenSignatureCurrentState();
+                        return;
+                    }
+
+                    requestSignatureCurrentStateRefresh();
+                },
+            );
+        } catch {
+            taskpaneState.itemChangedMonitoringReady = false;
+            failOpenSignatureCurrentState();
+        }
+    } else {
+        taskpaneState.itemChangedMonitoringReady = false;
+        failOpenSignatureCurrentState();
+    }
 }
 
 async function initialize() {
     bindActions();
-    setActionAvailability(false);
+    clearTemplateChoices('loading');
+    syncActionState();
     setBusy(true);
-    setStatus('working', 'Outlook wird vorbereitet …');
+    setStatus('working', 'Outlook wird vorbereitet …', 'Die sichere Verbindung wird geprüft.');
 
     try {
         currentConfig = await loadConfig();
+        taskpaneState.configReady = true;
+        syncActionState();
 
         if (!supportsNestedAppAuthentication()) {
             throw codedError('NAA_NOT_SUPPORTED');
         }
 
         try {
-            await acquireAccessToken(currentConfig, false);
+            const accessToken = await acquireAccessToken(currentConfig, false);
+
+            taskpaneState.authenticated = true;
             displayAccount();
-            setActionAvailability(true);
-            setStatus('success', 'Outlook ist verbunden', 'Signatur und Vorlage können verwendet werden.');
+            const bootstrap = await loadBootstrap(currentConfig, accessToken);
+
+            await acceptBootstrap(bootstrap);
+            setBusy(false);
+            syncActionState();
+            setStatus('success', 'RailTime ist bereit', readyStatusDetail());
         } catch (error) {
             if (!isInteractionRequired(error)) {
                 throw error;
             }
 
-            setActionAvailability(false);
+            taskpaneState.authenticated = false;
+            invalidateBootstrap('locked', true);
+            setBusy(false);
+            syncActionState();
             setStatus('neutral', 'Einmalig verbinden', 'Melden Sie sich sicher mit Ihrem RailTime-Firmenkonto an.');
         }
     } catch (error) {
-        setActionAvailability(false);
-        elements().login.dataset.available = 'false';
+        const authLost = authenticationWasLost(error);
+
+        invalidateBootstrap(authLost ? 'locked' : 'error', authLost);
         setBusy(false);
+        syncActionState();
         setStatus('error', 'Add-in nicht verfügbar', userMessage(error));
     }
 }
 
 Office.onReady((info) => {
     if (info.host !== Office.HostType.Outlook) {
-        setStatus('error', 'Nur in Outlook verfügbar');
+        taskpaneState.configReady = false;
+        clearTemplateChoices('error');
+        setBusy(false);
+        syncActionState();
+        setStatus('error', 'Nur in Outlook verfügbar', 'Öffnen Sie den RailTime Mail-Assistenten in Outlook.');
         return;
     }
 

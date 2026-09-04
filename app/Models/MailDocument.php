@@ -89,10 +89,8 @@ class MailDocument extends Model
     public function scopePublished(Builder $query): Builder
     {
         $query
-            ->where('status', MailDocumentStatus::Published->value)
-            ->whereNotNull('published_at')
-            ->whereNotNull('published_html')
-            ->where('published_html', '!=', '');
+            ->withPublishedSnapshot()
+            ->where('status', MailDocumentStatus::Published->value);
 
         // Bis die neue Migration auf einer Installation gelaufen ist, bleibt
         // der bisherige UNIQUE-kind-Vertrag funktionsfaehig. Danach ist
@@ -102,6 +100,22 @@ class MailDocument extends Model
         }
 
         return $query;
+    }
+
+    /**
+     * Dokument-Slots mit einem echten, unveraenderlichen Freigabeabzug.
+     *
+     * Beim Aktivieren eines anderen Slots wird der bisher aktive Slot wieder
+     * zum Entwurf. Sein zuletzt veroeffentlichter Abzug bleibt jedoch erhalten
+     * und darf im Outlook-Add-in weiterhin bewusst ausgewaehlt werden. Dieser
+     * Scope prueft deshalb absichtlich weder status noch is_active.
+     */
+    public function scopeWithPublishedSnapshot(Builder $query): Builder
+    {
+        return $query
+            ->whereNotNull('published_at')
+            ->whereNotNull('published_html')
+            ->where('published_html', '!=', '');
     }
 
     public function scopeActive(Builder $query): Builder

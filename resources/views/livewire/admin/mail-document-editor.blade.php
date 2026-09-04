@@ -62,8 +62,8 @@
                                 @foreach ($kinds as $kindValue => [$kindLabel, $kindHint])
                                     <a
                                         href="{{ route('admin.mail-documents.editor', ['dokument' => $kindValue, 'open' => 1]) }}"
-                                        wire:navigate
                                         data-mail-document-switch="{{ $kindValue }}"
+                                        data-mail-document-hard-switch
                                         aria-current="{{ $currentKind === $kindValue ? 'page' : 'false' }}"
                                         class="rt-mail-studio-document"
                                     >
@@ -447,7 +447,7 @@
                     @foreach ($kinds as $kindValue => [$kindLabel, $kindHint])
                         <a
                             href="{{ route('admin.mail-documents.editor', ['dokument' => $kindValue, 'open' => 1]) }}"
-                            wire:navigate
+                            data-mail-document-hard-switch
                             aria-current="{{ $currentKind === $kindValue ? 'page' : 'false' }}"
                             class="rounded-xl border px-4 py-3 text-sm transition {{ $currentKind === $kindValue ? 'border-rt-accent bg-rt-accent-soft text-rt-accent' : 'border-slate-200 bg-white text-slate-700 hover:border-rt-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200' }}"
                         >
@@ -577,6 +577,7 @@
                     data-mail-document-root
                     data-mail-editor-mode="mail"
                     wire:ignore
+                    x-ignore
                 >
                     <div class="rt-mail-editor-loading" role="status">
                         <span class="rt-mail-editor-loading__mark">RT</span>
@@ -2129,31 +2130,45 @@
 
                         if (destroyed) return;
 
-                        instance = await runtimeBridge.create({
-                            runtime,
-                            root,
-                            projectId: `mail:${document_.id}`,
-                            vendor: config.vendor,
-                            theme: selectedTheme,
-                            assets: config.mailAssets || [],
-                            previewAssets: config.previewAssets || {},
-                            previewResponsiveCss: config.previewResponsiveCss || {},
-                            compatibilityManifest: config.compatibilityManifest || {},
-                            previewDevice: selectedDevice,
-                            onPreviewChange: updatePreviewStatus,
-                            assistantContext: {
-                                resourceId: document_.id,
-                                formatOrKind: () => config.currentDocument,
-                                persistedHash: () => document_.contentHash || '',
-                                persistedVersion: () => document_.version || 0,
-                            },
-                            storage: {
-                                onLoad: ({ editor }) => runtimeBridge.projectFor(
-                                    document_,
-                                    (css) => editor.Parser?.parseCss?.(css) || [],
-                                    { kind: config.currentDocument, environment: window },
-                                ),
-                                onSave: async ({ project, html, css, editor }) => {
+                        // GrapesJS baut beim Start mehrere tausend Knoten in
+                        // einem Zug auf. wire:ignore schuetzt nur Livewire;
+                        // ohne diese Grenze versucht Alpines globaler
+                        // MutationObserver jeden dieser fremdverwalteten
+                        // Knoten als Alpine-Komponente zu initialisieren und
+                        // blockiert den Renderer. Die Pause umfasst bewusst
+                        // nur den initialen Builder-Aufbau.
+                        const alpine = window.Alpine;
+                        const canPauseAlpineMutations = typeof alpine?.stopObservingMutations === 'function'
+                            && typeof alpine?.startObservingMutations === 'function';
+
+                        if (canPauseAlpineMutations) alpine.stopObservingMutations();
+
+                        try {
+                            instance = await runtimeBridge.create({
+                                runtime,
+                                root,
+                                projectId: `mail:${document_.id}`,
+                                vendor: config.vendor,
+                                theme: selectedTheme,
+                                assets: config.mailAssets || [],
+                                previewAssets: config.previewAssets || {},
+                                previewResponsiveCss: config.previewResponsiveCss || {},
+                                compatibilityManifest: config.compatibilityManifest || {},
+                                previewDevice: selectedDevice,
+                                onPreviewChange: updatePreviewStatus,
+                                assistantContext: {
+                                    resourceId: document_.id,
+                                    formatOrKind: () => config.currentDocument,
+                                    persistedHash: () => document_.contentHash || '',
+                                    persistedVersion: () => document_.version || 0,
+                                },
+                                storage: {
+                                    onLoad: ({ editor }) => runtimeBridge.projectFor(
+                                        document_,
+                                        (css) => editor.Parser?.parseCss?.(css) || [],
+                                        { kind: config.currentDocument, environment: window },
+                                    ),
+                                    onSave: async ({ project, html, css, editor }) => {
                                     lastEditorSaveError = null;
 
                                     try {
@@ -2208,9 +2223,12 @@
                                         );
                                         throw lastEditorSaveError;
                                     }
+                                    },
                                 },
-                            },
-                        });
+                            });
+                        } finally {
+                            if (canPauseAlpineMutations) alpine.startObservingMutations();
+                        }
 
                         if (destroyed) {
                             instance.destroy();

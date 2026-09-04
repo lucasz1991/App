@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use JsonException;
 use RuntimeException;
 use Throwable;
@@ -242,16 +243,111 @@ final class OutlookAddinUserSnapshotStore
     /** @param array<string, mixed> $payload */
     private function validPayload(array $payload): bool
     {
-        return (int) ($payload['schema'] ?? 0) === 1
-            && is_string($payload['marker'] ?? null)
-            && is_array($payload['signature'] ?? null)
-            && is_string($payload['signature']['html'] ?? null)
-            && is_array($payload['signature']['media'] ?? null)
-            && is_array($payload['template'] ?? null)
-            && is_string($payload['template']['html'] ?? null)
-            && is_array($payload['template']['media'] ?? null)
-            && is_array($payload['version'] ?? null)
-            && is_string($payload['version']['personal'] ?? null);
+        if ((int) ($payload['schema'] ?? 0) !== 1
+            || ! is_string($payload['marker'] ?? null)
+            || ! is_array($payload['signature'] ?? null)
+            || ! is_array($payload['template'] ?? null)
+            || ! is_array($payload['templates'] ?? null)
+            || ! is_array($payload['version'] ?? null)) {
+            return false;
+        }
+
+        $signatureVersion = $payload['version']['signature'] ?? null;
+        $templateVersion = $payload['version']['template'] ?? null;
+        $personalVersion = $payload['version']['personal'] ?? null;
+        if (! is_string($payload['marker'])
+            || trim($payload['marker']) === ''
+            || ! $this->validDocumentPayload($payload['signature'])
+            || ! $this->validDocumentPayload($payload['template'])
+            || ! is_string($signatureVersion)
+            || preg_match('/\A[0-9a-f]{16}\z/', $signatureVersion) !== 1
+            || ! str_contains($payload['signature']['html'], 'RT-SIGNATURE-VERSION:'.$signatureVersion)
+            || ! is_string($templateVersion)
+            || preg_match('/\A[0-9a-f]{16}\z/', $templateVersion) !== 1
+            || ! is_string($personalVersion)
+            || preg_match('/\A[0-9a-f]{16}\z/', $personalVersion) !== 1) {
+            return false;
+        }
+
+        return $this->validTemplates(
+            $payload['templates'],
+            $payload['template'],
+            $templateVersion,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $document
+     */
+    private function validDocumentPayload(array $document): bool
+    {
+        if (! is_string($document['html'] ?? null)
+            || trim($document['html']) === ''
+            || ! is_array($document['media'] ?? null)
+            || ! array_is_list($document['media'])) {
+            return false;
+        }
+
+        foreach ($document['media'] as $medium) {
+            if (! is_array($medium)
+                || ! is_string($medium['name'] ?? null)
+                || trim($medium['name']) === ''
+                || ! is_string($medium['contentId'] ?? null)
+                || trim($medium['contentId']) === ''
+                || ! is_string($medium['base64'] ?? null)
+                || base64_decode($medium['base64'], true) === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<int, mixed>  $templates
+     * @param  array<string, mixed>  $legacyTemplate
+     */
+    private function validTemplates(array $templates, array $legacyTemplate, string $legacyVersion): bool
+    {
+        if ($templates === [] || ! array_is_list($templates)) {
+            return false;
+        }
+
+        $ids = [];
+        $active = null;
+        foreach ($templates as $template) {
+            if (! is_array($template)
+                || ! is_string($template['id'] ?? null)
+                || ! Str::isUuid($template['id'])
+                || ($template['key'] ?? null) !== $template['id']
+                || isset($ids[strtolower($template['id'])])
+                || ! is_string($template['name'] ?? null)
+                || trim($template['name']) === ''
+                || mb_strlen($template['name'], 'UTF-8') > 80
+                || ($template['label'] ?? null) !== $template['name']
+                || ! is_bool($template['active'] ?? null)
+                || ! is_string($template['version'] ?? null)
+                || preg_match('/\A[0-9a-f]{16}\z/', $template['version']) !== 1
+                || ! is_string($template['hash'] ?? null)
+                || preg_match('/\A[0-9a-f]{64}\z/', $template['hash']) !== 1
+                || ! str_starts_with($template['hash'], $template['version'])
+                || ! $this->validDocumentPayload($template)) {
+                return false;
+            }
+
+            $ids[strtolower($template['id'])] = true;
+            if ($template['active']) {
+                if ($active !== null) {
+                    return false;
+                }
+                $active = $template;
+            }
+        }
+
+        return is_array($active)
+            && $legacyTemplate['html'] === $active['html']
+            && $legacyTemplate['media'] === $active['media']
+            && hash_equals($legacyVersion, $active['version']);
     }
 
     /** @param array<string, mixed> $payload */
