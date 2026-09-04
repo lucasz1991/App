@@ -1,0 +1,110 @@
+- generic [active] [ref=f13e1]:
+  - link "Zum Inhalt springen" [ref=f13e218] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f13e219]:
+    - region "scrollable content" [ref=f13e220]:
+      - list [ref=f13e11]:
+        - listitem [ref=f13e12]: Übersicht
+        - listitem [ref=f13e13]:
+          - link "Dashboard" [ref=f13e221] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f13e19]: Firma
+        - listitem [ref=f13e20]:
+          - link "Einstellungen" [ref=f13e222] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f13e26]: Kommunikation
+        - listitem [ref=f13e27]:
+          - link "Chat & Nachrichten" [ref=f13e223] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f13e33]: Management
+        - listitem [ref=f13e34]:
+          - link "Verwaltung" [ref=f13e224] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f13e41]:
+          - link "Disposition" [ref=f13e225] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f13e48]:
+          - link "Marketing" [ref=f13e226] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f13e56]: Betrieb
+        - listitem [ref=f13e57]:
+          - link "Wagenliste" [ref=f13e227] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f13e61]: Inhalte & Dateien
+        - listitem [ref=f13e62]:
+          - link "Dateien" [expanded] [ref=f13e228] [cursor=pointer]:
+            - /url: "#"
+          - list [ref=f13e68]:
+            - listitem [ref=f13e69]:
+              - link "Dateien" [ref=f13e229] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/files
+            - listitem [ref=f13e74]:
+              - link "Arbeitsmittel" [ref=f13e230] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/files/verbindlich
+        - listitem [ref=f13e79]: Mein Bereich
+        - listitem [ref=f13e80]:
+          - link "Meine Geräte" [ref=f13e231] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f13e85]:
+          - link "Profil" [ref=f13e232] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f13e91]:
+          - link "E-Mail und Signatur" [ref=f13e233] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f13e97]:
+          - link "Support" [ref=f13e234] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f13e235]:
+    - generic [ref=f13e110]:
+      - link [ref=f13e236] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f13e237]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f13e116]:
+        - search [ref=f13e118]:
+          - generic [ref=f13e119]:
+            - button "RailTime durchsuchen" [ref=f13e238] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f13e239] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f13e240] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f13e128]: 
+          - generic [ref=f13e129]: "3"
+        - button "Einstellungen" [ref=f13e241] [cursor=pointer]
+        - button "Konto verwalten" [ref=f13e242] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f13e243]
+          - generic [ref=f13e142]:
+            - generic [ref=f13e143]: RailTime Demo
+            - generic [ref=f13e144]: Profil
+          - generic [aria-hidden] [ref=f13e145]: 
+  - main [ref=f13e146]:
+    - generic [ref=f13e149]:
+      - generic [ref=f13e151]:
+        - generic [ref=f13e152]:
+          - button "Zurück" [ref=f13e244] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f13e154]: 
+          - heading "Dateiexplorer" [level=1] [ref=f13e245]
+          - button "Informationen zu dieser Seite" [ref=f13e246] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f13e159]: 
+        - generic [ref=f13e163]:
+          - text:  􏎂 
+          - paragraph [ref=f13e164]: Datei ziehen und auf einem sichtbaren Ordner oder Breadcrumb ablegen.
+          - generic [ref=f13e165]:
+            - generic [ref=f13e166]:
+              - button "Neuer Ordner" [ref=f13e247] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f13e168]:  􏙞
+              - button "Datei-Upload" [ref=f13e248] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f13e170]:  􏎂
+            - navigation "Breadcrumb" [ref=f13e249]:
+              - button " 􏀕 Hauptverzeichnis" [ref=f13e250] [cursor=pointer]:
+                - generic [ref=f13e173]:  􏀕
+                - text: Hauptverzeichnis
+          - generic [ref=f13e175]:
+            - generic [ref=f13e176]:  􏁼
+            - generic [ref=f13e177]: Keine Dateien vorhanden.
+          - text:  
+      - generic [ref=f13e178]: RailTime v1.0.0
+  - generic:
+    - button "RailTime Assist öffnen" [ref=f13e251] [cursor=pointer]
+    - text: ·
+  - text:             􏎂   􏎂  􏁮  􏀗  􏎂    􏞃  􏃀  􏉳  􏠩   􏎂    􏌄  􏁮  􏀗   􏌄  􏁮  􏀗              

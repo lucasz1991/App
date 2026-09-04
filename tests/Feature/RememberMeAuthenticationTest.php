@@ -43,15 +43,89 @@ class RememberMeAuthenticationTest extends TestCase
         );
     }
 
-    public function test_login_forms_explain_the_400_day_trusted_device_contract(): void
+    public function test_admin_login_explains_the_400_day_trusted_device_contract(): void
     {
-        foreach ([route('login'), route('admin.login')] as $url) {
-            $this->get($url)
-                ->assertOk()
-                ->assertSee('name="remember"', escape: false)
-                ->assertSee('aria-describedby="remember-help"', escape: false)
-                ->assertSee(__('app.remember_me_hint'));
-        }
+        $this->get(route('admin.login'))
+            ->assertOk()
+            ->assertSee('name="remember"', escape: false)
+            ->assertSee('aria-describedby="remember-help"', escape: false)
+            ->assertSee(__('app.remember_me_hint'));
+    }
+
+    public function test_normal_login_keeps_the_remember_control_without_the_long_hint(): void
+    {
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('name="remember"', escape: false)
+            ->assertDontSee('aria-describedby="remember-help"', escape: false)
+            ->assertDontSee(__('app.remember_me_hint'));
+    }
+
+    public function test_normal_login_renders_the_isolated_premium_ui_contract(): void
+    {
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('data-auth-variant="premium-login"', escape: false)
+            ->assertSee('data-premium-login-form', escape: false)
+            ->assertSee('name="_token"', escape: false)
+            ->assertSee('name="email"', escape: false)
+            ->assertSee('autocomplete="username"', escape: false)
+            ->assertSee('name="password"', escape: false)
+            ->assertSee('autocomplete="current-password"', escape: false)
+            ->assertSee('name="remember"', escape: false)
+            ->assertSee('role="switch"', escape: false)
+            ->assertSee('x-bind:type="passwordVisible ? \'text\' : \'password\'"', escape: false)
+            ->assertSee(__('app.show_password'))
+            ->assertSee(__('app.hide_password'))
+            ->assertSee('data-rt-logo-3d', escape: false)
+            ->assertSee(config('app.name').' v'.config('app.version'))
+            ->assertDontSee('rt-auth__compact-brand', escape: false)
+            ->assertDontSee(__('app.login_description'))
+            ->assertDontSee('Sicherer Zugang')
+            ->assertDontSee('Geschützter Zugang für Mitarbeitende und Partner.')
+            ->assertDontSee('RT / 01')
+            ->assertDontSee('name="admin_login"', escape: false)
+            ->assertDontSee('remember-help', escape: false);
+    }
+
+    public function test_admin_login_keeps_the_standard_auth_shell(): void
+    {
+        $this->get(route('admin.login'))
+            ->assertOk()
+            ->assertSee('data-auth-variant="standard"', escape: false)
+            ->assertSee('data-rt-logo-3d', escape: false)
+            ->assertSee('name="admin_login" value="1"', escape: false)
+            ->assertDontSee('data-premium-login-form', escape: false);
+    }
+
+    public function test_failed_login_returns_the_premium_form_with_its_described_error_and_old_email(): void
+    {
+        $user = User::factory()->create();
+
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'email' => $user->email,
+                'password' => 'definitely-wrong',
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors('email');
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('value="'.e($user->email).'"', escape: false)
+            ->assertSee('aria-invalid="true" aria-describedby="email-error"', escape: false)
+            ->assertSee('id="email-error"', escape: false);
+    }
+
+    public function test_login_status_is_announced_on_the_premium_form(): void
+    {
+        $status = 'QA login status';
+
+        $this->withSession(['status' => $status])
+            ->get(route('login'))
+            ->assertOk()
+            ->assertSee('role="status"', escape: false)
+            ->assertSee($status);
     }
 
     public function test_unchecked_login_does_not_issue_a_remember_cookie(): void

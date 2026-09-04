@@ -348,9 +348,15 @@ class EmailTemplateBuilder
         $website = $companyValues['FIRMEN_WEBSITE'];
         $phone = trim((string) ($profile?->phone ?? ''));
         $mobile = trim((string) ($profile?->mobile ?? ''));
+        $profileName = trim(implode(' ', array_filter([
+            trim((string) ($profile?->first_name ?? '')),
+            trim((string) ($profile?->last_name ?? '')),
+        ], static fn (string $part): bool => $part !== '')));
 
         return array_merge($companyValues, [
-            'VORNAME_NACHNAME' => $this->user->name,
+            // Die selbst gepflegten Profilnamen sind fuer Signatur und Vorlage
+            // autoritativ. Ohne beide Angaben bleibt users.name der Rueckfall.
+            'VORNAME_NACHNAME' => $profileName !== '' ? $profileName : $this->user->name,
             'POSITION' => $profile?->position ?: $this->fallbackPosition(),
             'DURCHWAHL' => $phone,
             'DURCHWAHL_TEL' => self::telHref($phone),

@@ -457,6 +457,8 @@ return [
     'remember_me_hint' => 'Auf diesem vertrauenswürdigen Gerät bis zu 400 Tage angemeldet bleiben.',
     'forgot_password' => 'Passwort vergessen?',
     'login_button' => 'Anmelden',
+    'show_password' => 'Passwort anzeigen',
+    'hide_password' => 'Passwort ausblenden',
     'admin_login_button' => 'In Adminbereich einloggen',
     'register_button' => 'Konto erstellen',
     'no_account' => 'Noch kein Konto?',

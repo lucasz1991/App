@@ -1,0 +1,22 @@
+- main [ref=f3e2]:
+  - generic [ref=f3e3]:
+    - button "Hell/Dunkel umschalten" [ref=f3e4] [cursor=pointer]
+    - img "RT Rail Time GmbH" [ref=f3e15]
+    - generic [ref=f3e18]:
+      - generic [ref=f3e19]:
+        - textbox "E-Mail" [active] [ref=f3e20]:
+          - /placeholder: " "
+        - generic: E-Mail
+      - generic [ref=f3e21]:
+        - textbox "Passwort" [ref=f3e22]:
+          - /placeholder: " "
+        - generic: Passwort
+        - button "Passwort anzeigen" [ref=f3e23] [cursor=pointer]
+      - generic [ref=f3e28]:
+        - generic [ref=f3e29] [cursor=pointer]:
+          - switch "Angemeldet bleiben" [ref=f3e30]
+          - generic [ref=f3e32]: Angemeldet bleiben
+        - link "Passwort vergessen?" [ref=f3e33] [cursor=pointer]:
+          - /url: http://127.0.0.1:5106/administrator/forgot-password
+      - button "Anmelden" [ref=f3e34] [cursor=pointer]
+    - generic [ref=f3e38]: RailTime v1.0.0

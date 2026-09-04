@@ -68,9 +68,13 @@
 {{-- Kein overflow-hidden: die Aktions-Dropdowns der Zeilen ragen ueber den
      Rahmen hinaus und wuerden sonst abgeschnitten. Die runden Ecken werden
      stattdessen ueber rounded-t/b auf Kopf- und letzter Zeile gehalten. --}}
-<div {{ $attributes->merge(['class' => 'rt-ui-surface rt-ui-table relative w-full min-w-0 max-w-full rounded-xl bg-rt-surface text-rt-text shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 '.($flushTop ? '' : 'mt-4 ').$class]) }}>
+<div
+    {{ $attributes->merge(['class' => 'rt-ui-surface rt-ui-table rt-table-frame relative w-full min-w-0 max-w-full rounded-xl bg-rt-surface text-rt-text shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 '.($flushTop ? '' : 'mt-4 ').$class]) }}
+    data-rt-premium-table
+>
+    <div class="rt-table-core">
     {{-- Header (nur md+) --}}
-    <div class="rt-ui-surface-muted hidden md:grid rounded-t-xl bg-rt-surface-muted p-2 pr-16 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
+    <div class="rt-ui-surface-muted rt-table-head hidden md:grid rounded-t-xl bg-rt-surface-muted p-2 pr-16 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
          style="grid-template-columns: {{ $gridTemplate }};">
         @foreach($columns as $col)
             @php $hidden = $hideClass($col['hideOn']); @endphp
@@ -79,7 +83,7 @@
                 <button
                     type="button"
                     aria-sort="{{ $sortBy === $col['key'] ? ($sortDir === 'asc' ? 'ascending' : 'descending') : 'none' }}"
-                    class="flex items-center gap-1 rounded-lg px-2 py-2 text-left transition hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 {{ $hidden }}"
+                    class="rt-table-head-cell rt-table-sort-control flex items-center gap-1 rounded-lg px-2 py-2 text-left transition hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 {{ $hidden }}"
                     @click="$dispatch('table-sort', {
                         key: '{{ $col['key'] }}',
                         dir: '{{ ($sortBy == $col['key'] && $sortDir == 'asc') ? 'desc' : 'asc' }}'
@@ -91,12 +95,13 @@
                         </span>
                 </button>
             @else
-                <div class="px-2 py-2 {{ $hidden }}">{{ $col['label'] }}</div>
+                <div class="rt-table-head-cell px-2 py-2 {{ $hidden }}">{{ $col['label'] }}</div>
             @endif
         @endforeach
     </div>
 
     {{-- Rows --}}
+    <div class="rt-table-body">
     @forelse($items as $item)
     @php
         $isSelected = in_array($item->id, (array) $selectedItems);
@@ -190,7 +195,8 @@
         @endif
     </div>
     @empty
-    <div class="p-4 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $empty }}</div>
+    <div class="rt-table-empty p-4 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $empty }}</div>
     @endforelse
-
+    </div>
+    </div>
 </div>

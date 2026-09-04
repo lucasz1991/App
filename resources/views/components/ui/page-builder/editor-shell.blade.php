@@ -9,6 +9,10 @@
     'previewReplayable' => false,
     'previewLoadingOverlay' => true,
     'autoOpen' => false,
+    // Optionaler harter Seitenwechsel fuer schwere Editoren. Dadurch muss
+    // die geschlossene Vorschauseite weder Workspace noch Runtime vorladen.
+    'openUrl' => null,
+    'renderWorkspace' => true,
     // Opt-in fuer Editoren, deren eigene Werkzeugleiste direkt in den
     // Vollbildkopf gehoert. Der Standardvertrag aller anderen Page Builder
     // bleibt unveraendert zweizeilig.
@@ -134,16 +138,28 @@
         data-page-builder-closed-preview
     >
         <x-slot:actions>
-            <x-ui.buttons.button-basic
-                type="button"
-                mode="primary"
-                x-on:click="openPageBuilder()"
-                class="min-h-11 rounded-xl px-3.5"
-                data-page-builder-open
-            >
-                <i class="far fa-expand" aria-hidden="true"></i>
-                Vollbildeditor öffnen
-            </x-ui.buttons.button-basic>
+            @if (filled($openUrl))
+                <a
+                    href="{{ $openUrl }}"
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
+                    data-page-builder-open
+                    data-page-builder-load-on-demand
+                >
+                    <i class="far fa-expand" aria-hidden="true"></i>
+                    Vollbildeditor laden
+                </a>
+            @else
+                <x-ui.buttons.button-basic
+                    type="button"
+                    mode="primary"
+                    x-on:click="openPageBuilder()"
+                    class="min-h-11 rounded-xl px-3.5"
+                    data-page-builder-open
+                >
+                    <i class="far fa-expand" aria-hidden="true"></i>
+                    Vollbildeditor öffnen
+                </x-ui.buttons.button-basic>
+            @endif
         </x-slot:actions>
 
         <x-ui.page-builder.preview-card
@@ -157,6 +173,7 @@
         />
     </x-ui.page>
 
+    @if ($renderWorkspace)
     <x-ui.fullscreen-modal
         state="pageBuilderOpen"
         :trap="false"
@@ -229,4 +246,5 @@
             </div>
         </div>
     </x-ui.fullscreen-modal>
+    @endif
 </div>

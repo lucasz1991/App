@@ -457,6 +457,8 @@ return [
     'remember_me_hint' => 'Stay signed in on this trusted device for up to 400 days.',
     'forgot_password' => 'Forgot password?',
     'login_button' => 'Sign in',
+    'show_password' => 'Show password',
+    'hide_password' => 'Hide password',
     'admin_login_button' => 'Sign in to admin area',
     'register_button' => 'Create account',
     'no_account' => 'No account yet?',

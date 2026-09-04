@@ -11,7 +11,7 @@
 <div
     {{ $attributes->class([
         // Outer frame carries border & rounded
-        "inline-flex items-stretch overflow-hidden rounded-lg border border-rt-border bg-rt-surface shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface",
+        "rt-ui-radio-group inline-flex items-stretch overflow-hidden rounded-lg border border-rt-border bg-rt-surface shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface",
         // Optional dividers between buttons (purely visual; no double borders)
         "divide-x divide-rt-border/60 dark:divide-rt-dark-border/60" => $divide,
         // Make all children flex equally when desired

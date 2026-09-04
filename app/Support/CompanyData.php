@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Setting;
+use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
 
 class CompanyData
 {
@@ -71,6 +72,10 @@ class CompanyData
         );
 
         Setting::setValue('company', 'profile', $normalized);
+
+        // Erst nach dem Cache-Reset in Setting::setValue planen, damit der
+        // Renderer garantiert die gerade gespeicherten Firmenwerte liest.
+        app(OutlookAddinSnapshotRefreshScheduler::class)->scheduleAll();
     }
 
     public static function addressLine(?array $company = null): string

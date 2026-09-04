@@ -2281,9 +2281,11 @@ test('mail editor waits for the teleported fullscreen workspace before booting L
 
 test('shared page builder opens from preview into a compact responsive Mail Studio', async () => {
     const { readFile } = await import('node:fs/promises');
-    const [shell, mailView, mailCss, shellCss] = await Promise.all([
+    const [shell, mailView, mailIndex, adminSidebar, mailCss, shellCss] = await Promise.all([
         readFile(new URL('../../resources/views/components/ui/page-builder/editor-shell.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/email-templates/index.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/layouts/admin-sidebar.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/css/mail-builder.css', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/css/lmz-editor-shell.css', import.meta.url), 'utf8'),
     ]);
@@ -2298,7 +2300,9 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.doesNotMatch(shell, /data-page-builder-panel-host/);
 
     assert.match(mailView, /data-mail-studio-toolbar/);
-    assert.match(mailView, /:single-toolbar="\$currentDocument !== null"/);
+    assert.match(mailView, /:single-toolbar="\$currentDocument !== null && \$editorRequested"/);
+    assert.match(mailView, /:open-url="\$currentDocument !== null && ! \$editorRequested \? \$editorOpenUrl : null"/);
+    assert.match(mailView, /:render-workspace="\$currentDocument === null \|\| \$editorRequested"/);
     assert.match(mailView, /data-mail-document-save/);
     assert.match(mailView, /data-mail-document-publish/);
     assert.match(mailView, /data-mail-code-open/);
@@ -2369,6 +2373,12 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /data-mail-builder-action[\s\S]*?instance\.runEditorAction/);
     assert.match(mailView, /data-mail-builder-panel[\s\S]*?instance\.openEditorPanel/);
     assert.doesNotMatch(mailView, /class="rt-mail-preview-toolbar"/);
+    assert.match(mailIndex, /data-email-template-editor-link/);
+    assert.match(mailIndex, /data-email-template-import-link/);
+    assert.match(mailIndex, /:navigate-edit="false"/);
+    assert.doesNotMatch(mailIndex, /wire:navigate\s+data-email-template-(?:editor|import)-link/);
+    assert.match(adminSidebar, /:href="route\('admin\.mail-documents\.editor'\)"[\s\S]*?:navigate="false"/);
+    assert.match(adminSidebar, /:href="route\('admin\.mail-documents\.import-page'\)"[\s\S]*?:navigate="false"/);
 
     assert.match(mailCss, /\.rt-mail-studio\s*\{[\s\S]*?overflow:\s*hidden;/);
     assert.match(mailCss, /\.rt-mail-code-dialog\s*\{/);
@@ -2398,7 +2408,7 @@ test('mail editor exposes one responsive topbar with grouped controls and visibl
     assert.match(view, /data-mail-toolbar-layout="responsive"/);
     assert.match(view, /data-mail-toolbar-single/);
     assert.match(view, /role="toolbar" aria-label="Mail- und Signatur-Editor"/);
-    assert.match(view, /:auto-open="request\(\)->boolean\('open'\)"/);
+    assert.match(view, /:auto-open="\$editorRequested"/);
     assert.match(view, /\['dokument' => \$kindValue, 'open' => 1\]/);
     for (const region of ['documents', 'preview', 'actions']) {
         assert.equal((view.match(new RegExp(`data-mail-toolbar-region="${region}"`, 'g')) || []).length, 1);

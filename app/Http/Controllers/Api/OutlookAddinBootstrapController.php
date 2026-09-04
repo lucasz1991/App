@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\OutlookAddin\EntraAccessTokenValidator;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
-use App\Support\OutlookAddin\OutlookAddinPayloadService;
+use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,7 +18,7 @@ final class OutlookAddinBootstrapController extends Controller
         Request $request,
         EntraAccessTokenValidator $validator,
         OutlookAddinIdentityResolver $identityResolver,
-        OutlookAddinPayloadService $payloadService,
+        OutlookAddinUserSnapshotStore $snapshots,
     ): JsonResponse|Response {
         try {
             $token = $request->bearerToken();
@@ -33,7 +33,7 @@ final class OutlookAddinBootstrapController extends Controller
             $identity = $validator->validate($token);
             $mailboxAddress = trim((string) $request->header('X-RailTime-Outlook-Mailbox'));
             $user = $identityResolver->resolve($identity, $mailboxAddress);
-            $payload = $payloadService->forUser($user);
+            $payload = $snapshots->currentForUser($user);
             $encoded = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             $etag = '"'.hash('sha256', $encoded).'"';
 

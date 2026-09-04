@@ -33,6 +33,9 @@ class MailDocumentEditor extends Component
 
     public ?string $slotId = null;
 
+    /** Erst ?open=1 darf die grosse Builder-Konfiguration erzeugen. */
+    public bool $editorRequested = false;
+
     public function mount(): void
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
@@ -41,6 +44,7 @@ class MailDocumentEditor extends Component
         $this->kind = MailDocumentKind::tryFrom($requested)?->value ?? MailDocumentKind::Template->value;
         $requestedSlot = trim((string) request()->query('slot', ''));
         $this->slotId = $requestedSlot !== '' ? $requestedSlot : null;
+        $this->editorRequested = request()->boolean('open');
     }
 
     public function render()
@@ -59,7 +63,15 @@ class MailDocumentEditor extends Component
             'documentSlots' => $documentSlots,
             'activeDocument' => $active,
             'currentDocument' => $current,
-            'editorConfig' => $current === null ? null : $this->editorConfig($documents),
+            'editorRequested' => $this->editorRequested,
+            'editorOpenUrl' => $current === null ? null : route('admin.mail-documents.editor', [
+                'dokument' => $current->kind->value,
+                'slot' => $current->public_id,
+                'open' => 1,
+            ]),
+            'editorConfig' => $current === null || ! $this->editorRequested
+                ? null
+                : $this->editorConfig($documents),
             'editorPreviewSources' => $current === null ? [] : [
                 'light' => [
                     'label' => 'Hell',

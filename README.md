@@ -267,6 +267,44 @@ eine Freigabe, bricht der Versand sichtbar ab, statt still auf einen Entwurf
 oder eine andere Blade-Fassung auszuweichen. Nur vor Anlegen der Tabelle steht
 für Migration und Erstinstallation ein Bootstrap-Fallback bereit.
 
+#### Persoenliche Outlook-Abzuege
+
+Fuer das Outlook-Add-in erzeugt RailTime pro aktivem Admin- oder Mitarbeiterkonto einen
+vollstaendigen, persoenlichen Abzug aus der aktuell veroeffentlichten Vorlage,
+der aktuell veroeffentlichten Signatur und den aktuellen Personen-, Team- und
+Firmendaten. Diese Ableitung ist keine zweite fachliche Datenquelle. Sie liegt
+komprimiert und mit `APP_KEY` verschluesselt auf dem privaten lokalen Disk unter
+`storage/app/private/outlook-addin/users/{bucket}/{user_id}/current.json.enc`.
+Dateiname und Verzeichnis enthalten weder Namen noch E-Mail-Adressen; es gibt
+dafuer keine oeffentliche Downloadroute.
+
+Aenderungen an Name, E-Mail, Vor-/Nachname, Telefon, Mobilnummer, Position,
+Status, Teamzuordnung, Teamname und Microsoft-Identitaetskonto planen einen
+idempotenten Neuaufbau des betroffenen Mitarbeiters ein. Eine neue aktive
+Veröffentlichung oder geaenderte Firmendaten planen den Neuaufbau aller aktiven
+Mitarbeiter ein. Vor jeder API-Auslieferung wird der vollstaendige
+Quellfingerabdruck nochmals geprueft; ein fehlender, veralteter oder
+beschaedigter Abzug wird unter einer Mitarbeitersperre neu erzeugt und niemals
+ungeprueft ausgeliefert.
+
+Initialer Aufbau oder kontrollierter Neuabgleich aller aktiven Admin- und Mitarbeiterkonten:
+
+```bash
+php artisan outlook-addin:snapshots:refresh
+```
+
+Gezielter Neuabgleich einer oder mehrerer interner Mitarbeiter-IDs:
+
+```bash
+php artisan outlook-addin:snapshots:refresh --user=17 --user=42
+```
+
+Der automatische Neuaufbau ist standardmaessig aktiv und nutzt den privaten
+Disk. Er kann nur fuer Wartungsfaelle ueber
+`OUTLOOK_ADDIN_SNAPSHOTS_AUTO_REFRESH=false` pausiert werden. Der
+API-Zugriff prueft weiterhin Entra-Token, vorab provisionierte Objekt-ID und das
+tatsaechlich geoeffnete Postfach, bevor ein persoenlicher Abzug gelesen wird.
+
 Der Chromium-Unterprozess endet spätestens nach 75 Sekunden, der Render-Job
 nach 85 Sekunden und der Worker nach 90 Sekunden. Diese Staffelung lässt Zeit
 fÃ¼r temporÃ¤res Datei-Cleanup und einen sauber gespeicherten Fehlerstatus.

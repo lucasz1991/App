@@ -280,6 +280,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/files/verbindlich', ManagedDocuments::class)->name('managed-documents');
         Route::get('/mails', MailManagement::class)->name('mail-management');
         Route::get('/mail-vorlagen', MailDocumentEditor::class)->name('mail-documents.editor');
+        Route::get('/mail-vorlagen/import', [MailDocumentController::class, 'draftImportPage'])
+            ->name('mail-documents.import-page');
         Route::get('/mail-vorlagen/outlook/manifest.xml', [OutlookAddinDeploymentController::class, 'manifest'])
             ->withoutMiddleware('role:admin')
             ->name('outlook-addin.manifest');
@@ -295,6 +297,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
             Route::post('/mail-vorlagen/importieren', [MailDocumentController::class, 'import'])
                 ->middleware('throttle:20,1')
                 ->name('mail-documents.import');
+            Route::post('/mail-vorlagen/{document}/entwurf-importieren', [MailDocumentController::class, 'importDraft'])
+                ->whereUuid('document')
+                ->middleware('throttle:20,1')
+                ->name('mail-documents.draft-import');
             Route::get('/mail-vorlagen/{document}/vorschau', [PageBuilderPreviewController::class, 'mail'])
                 ->whereUuid('document')
                 ->middleware('throttle:180,1')

@@ -1,0 +1,131 @@
+- generic [active] [ref=f15e1]:
+  - link "Zum Inhalt springen" [ref=f15e276] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f15e277]:
+    - region "scrollable content" [ref=f15e278]:
+      - list [ref=f15e11]:
+        - listitem [ref=f15e12]: Übersicht
+        - listitem [ref=f15e13]:
+          - link "Dashboard" [ref=f15e279] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f15e19]: Firma
+        - listitem [ref=f15e20]:
+          - link "Einstellungen" [ref=f15e280] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f15e26]: Kommunikation
+        - listitem [ref=f15e27]:
+          - link "Chat & Nachrichten" [expanded] [ref=f15e281] [cursor=pointer]:
+            - /url: "#"
+          - list [ref=f15e33]:
+            - listitem [ref=f15e34]:
+              - link "Chat" [ref=f15e282] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/chat
+            - listitem [ref=f15e39]:
+              - link "Nachrichten" [ref=f15e283] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/messages
+            - listitem [ref=f15e45]:
+              - link "Anrufe" [ref=f15e284] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/calls
+        - listitem [ref=f15e50]: Management
+        - listitem [ref=f15e51]:
+          - link "Verwaltung" [ref=f15e285] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f15e58]:
+          - link "Disposition" [ref=f15e286] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f15e65]:
+          - link "Marketing" [ref=f15e287] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f15e73]: Betrieb
+        - listitem [ref=f15e74]:
+          - link "Wagenliste" [ref=f15e288] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f15e78]: Inhalte & Dateien
+        - listitem [ref=f15e79]:
+          - link "Dateien" [ref=f15e289] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f15e85]: Mein Bereich
+        - listitem [ref=f15e86]:
+          - link "Meine Geräte" [ref=f15e290] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f15e91]:
+          - link "Profil" [ref=f15e291] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f15e97]:
+          - link "E-Mail und Signatur" [ref=f15e292] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f15e103]:
+          - link "Support" [ref=f15e293] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f15e294]:
+    - generic [ref=f15e116]:
+      - link [ref=f15e295] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f15e296]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f15e122]:
+        - search [ref=f15e124]:
+          - generic [ref=f15e125]:
+            - button "RailTime durchsuchen" [ref=f15e297] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f15e298] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f15e299] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f15e134]: 
+          - generic [ref=f15e135]: "3"
+        - button "Einstellungen" [ref=f15e300] [cursor=pointer]
+        - button "Konto verwalten" [ref=f15e301] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f15e302]
+          - generic [ref=f15e148]:
+            - generic [ref=f15e149]: RailTime Demo
+            - generic [ref=f15e150]: Profil
+          - generic [aria-hidden] [ref=f15e151]: 
+  - main [ref=f15e152]:
+    - generic [ref=f15e155]:
+      - generic [ref=f15e158]:
+        - generic [ref=f15e159]:
+          - button "Zurück" [ref=f15e303] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f15e161]: 
+          - heading "Nachrichten" [level=1] [ref=f15e304]
+          - button "Informationen zu dieser Seite" [ref=f15e305] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f15e166]: 
+        - generic [ref=f15e169]:
+          - generic [ref=f15e172]:
+            - button "Suchen" [expanded] [ref=f15e306] [cursor=pointer]
+            - textbox "Suchen" [ref=f15e307]
+          - generic [ref=f15e178]:
+            - generic [ref=f15e179]:
+              - generic [ref=f15e180]: Von
+              - generic [ref=f15e181]: Betreff
+              - generic [ref=f15e182]: Nachricht
+              - generic [ref=f15e183]: Datum
+            - generic [ref=f15e184]:
+              - row "Leonie Hartmann Neue Einsatzunterlagen verfügbar Die aktualisierte Wagenliste und Sicherheitsunterweisung stehen bereit. vor 5 Minuten Aktionen" [ref=f15e308] [cursor=pointer]:
+                - generic [ref=f15e186]:
+                  - generic [ref=f15e187]: Leonie Hartmann
+                  - generic [ref=f15e190]: Neue Einsatzunterlagen verfügbar
+                  - generic [ref=f15e192]: Die aktualisierte Wagenliste und Sicherheitsunterweisung stehen bereit.
+                  - generic "04.09.2026 11:30" [ref=f15e309]: vor 5 Minuten
+                - button "Aktionen" [ref=f15e310]:
+                  - generic [aria-hidden] [ref=f15e201]: 
+              - row "Leonie Hartmann Meeting heute um 14:30 Uhr Die Einladung zur Abstimmung mit der Disposition wurde hinterlegt. vor 5 Minuten Aktionen" [ref=f15e311] [cursor=pointer]:
+                - generic [ref=f15e203]:
+                  - generic [ref=f15e204]: Leonie Hartmann
+                  - generic [ref=f15e207]: Meeting heute um 14:30 Uhr
+                  - generic [ref=f15e209]: Die Einladung zur Abstimmung mit der Disposition wurde hinterlegt.
+                  - generic "04.09.2026 11:30" [ref=f15e312]: vor 5 Minuten
+                - button "Aktionen" [ref=f15e313]:
+                  - generic [aria-hidden] [ref=f15e218]: 
+              - row "Leonie Hartmann Geräteeinrichtung vorbereitet Das neue Dienstgerät kann jetzt angemeldet und automatisch eingerichtet werden. vor 5 Minuten Aktionen" [ref=f15e314] [cursor=pointer]:
+                - generic [ref=f15e220]:
+                  - generic [ref=f15e221]: Leonie Hartmann
+                  - generic [ref=f15e224]: Geräteeinrichtung vorbereitet
+                  - generic [ref=f15e226]: Das neue Dienstgerät kann jetzt angemeldet und automatisch eingerichtet werden.
+                  - generic "04.09.2026 11:30" [ref=f15e315]: vor 5 Minuten
+                - button "Aktionen" [ref=f15e316]:
+                  - generic [aria-hidden] [ref=f15e235]: 
+      - generic [ref=f15e236]: RailTime v1.0.0
+  - generic:
+    - button "RailTime Assist öffnen" [ref=f15e317] [cursor=pointer]
+    - text: ·
+  - text:                                 

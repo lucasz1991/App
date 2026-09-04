@@ -45,4 +45,23 @@ return [
         'jwks_cache_seconds' => max(300, (int) env('OUTLOOK_ADDIN_JWKS_CACHE', 21600)),
         'maximum_length' => max(4096, (int) env('OUTLOOK_ADDIN_TOKEN_MAX_LENGTH', 16384)),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Persoenliche, lokale Outlook-Abzuege
+    |--------------------------------------------------------------------------
+    |
+    | Die Dateien sind nur ein verschluesselter, jederzeit ableitbarer Cache.
+    | Autoritativ bleiben veroeffentlichte Maildokumente und aktuelle Stamm-
+    | daten. Der Disk muss lokal und privat sein; es gibt keine Downloadroute.
+    |
+    */
+    'snapshots' => [
+        'auto_refresh' => (bool) env('OUTLOOK_ADDIN_SNAPSHOTS_AUTO_REFRESH', true),
+        'disk' => (string) env('OUTLOOK_ADDIN_SNAPSHOT_DISK', 'private'),
+        'directory' => 'outlook-addin/users',
+        'lock_seconds' => max(10, (int) env('OUTLOOK_ADDIN_SNAPSHOT_LOCK_SECONDS', 45)),
+        'wait_seconds' => max(1, (int) env('OUTLOOK_ADDIN_SNAPSHOT_WAIT_SECONDS', 12)),
+        'maximum_file_bytes' => max(1048576, (int) env('OUTLOOK_ADDIN_SNAPSHOT_MAX_BYTES', 12582912)),
+    ],
 ];

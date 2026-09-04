@@ -6,6 +6,7 @@ use App\Enums\MailDocumentKind;
 use App\Enums\MailDocumentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mail\ImportMailDocumentRequest;
+use App\Http\Requests\Mail\ReplaceMailDocumentDraftRequest;
 use App\Http\Requests\Mail\SaveMailDocumentRequest;
 use App\Models\MailDocument;
 use App\Models\MailDocumentVersion;
@@ -26,6 +27,8 @@ use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\TemplateDocumentContract;
+use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -53,6 +56,66 @@ use Illuminate\Validation\ValidationException;
 final class MailDocumentController extends Controller
 {
     /**
+     * Leichte Wiederherstellungsseite fuer Entwurfsimporte.
+     *
+     * Diese Route instanziiert weder die Livewire-Editorkomponente noch deren
+     * Medienkatalog oder GrapesJS-Konfiguration. Sie bleibt damit auch dann
+     * benutzbar, wenn ein grosser Builder-Entwurf den Browser blockiert.
+     */
+    public function draftImportPage(Request $request): View
+    {
+        $this->mailAdmin($request);
+
+        $documents = collect();
+        if (Schema::hasTable('mail_documents')) {
+            $columns = [
+                'id',
+                'public_id',
+                'kind',
+                'name',
+                'status',
+                'content_hash',
+                'version',
+                'updated_at',
+            ];
+            $hasActiveColumn = Schema::hasColumn('mail_documents', 'is_active');
+            if ($hasActiveColumn) {
+                $columns[] = 'is_active';
+            }
+
+            $documents = MailDocument::query()
+                ->select($columns)
+                ->orderBy('kind')
+                ->when($hasActiveColumn, static fn ($query) => $query->orderByDesc('is_active'))
+                ->orderBy('name')
+                ->get();
+        }
+
+        return view('mail-documents.import', [
+            'documents' => $documents,
+            'importConfig' => [
+                'maxBytes' => 16 * 1024 * 1024,
+                'documents' => $documents->map(static fn (MailDocument $document): array => [
+                    'id' => $document->public_id,
+                    'kind' => $document->kind->value,
+                    'kindLabel' => $document->kind->label(),
+                    'name' => (string) ($document->name ?: $document->kind->label()),
+                    'status' => $document->status->label(),
+                    'active' => $document->isActive(),
+                    'version' => (int) $document->version,
+                    'contentHash' => (string) $document->content_hash,
+                    'endpoint' => route('admin.mail-documents.draft-import', $document),
+                    'editorUrl' => route('admin.mail-documents.editor', [
+                        'dokument' => $document->kind->value,
+                        'slot' => $document->public_id,
+                        'open' => 1,
+                    ]),
+                ])->values()->all(),
+            ],
+        ]);
+    }
+
+    /**
      * Legt ein noch fehlendes Maildokument ausschliesslich aus einem zuvor
      * exportierten v2-Bundle an. Dieser explizite Erstimport ersetzt die
      * fruehere Initialisierung und ueberschreibt niemals vorhandene Inhalte.
@@ -66,45 +129,15 @@ final class MailDocumentController extends Controller
         $actor = $this->mailAdmin($request);
         $validated = $request->validated();
         $kind = MailDocumentKind::from((string) $validated['kind']);
-        $this->assertPortableMediaComplete(
-            $kind,
-            (string) $validated['html'],
-            (array) $validated['media'],
-            'media',
-        );
-
-        [$html, $css, $portableFiles] = $this->preparePortableMedia(
+        $prototype = new MailDocument(['kind' => $kind->value]);
+        [$htmlReport, $cssReport, $portableFiles, $compatibility, $builderData, $contentHash] = $this->preparePortableDraft(
+            $prototype,
             (string) $validated['html'],
             (string) $validated['css'],
             (array) $validated['media'],
-        );
-        $html = MailDocumentAutoRepair::repairHtml($kind, $html);
-        $this->assertEditableCssSource($css);
-
-        $prototype = new MailDocument(['kind' => $kind->value]);
-        $this->assertDocumentStructure($prototype, $html, $css);
-        $htmlReport = $this->assertCleanHtml($sanitizer, $html);
-        $cssReport = $this->cleanStyleSheet($sanitizer, $css);
-        if ($cssReport->hasViolations()) {
-            throw ValidationException::withMessages([
-                'css' => array_merge(
-                    ['Die Stilregeln enthalten Syntax, die in E-Mails nicht erlaubt ist.'],
-                    $cssReport->violationMessages(),
-                ),
-            ]);
-        }
-        $this->assertDocumentStructure($prototype, $htmlReport->html, $cssReport->html);
-        $compatibility = $this->auditCompatibility(
+            $sanitizer,
             $compatibilityAuditor,
-            $kind,
-            $htmlReport->html,
-            $cssReport->html,
-        );
-        $builderData = $this->syncBuilderData($prototype, [], $htmlReport->html);
-        $contentHash = MailDocument::contentHashFor(
-            $builderData,
-            $htmlReport->html,
-            $cssReport->html,
+            'media',
         );
 
         $document = DB::transaction(function () use (
@@ -119,7 +152,7 @@ final class MailDocumentController extends Controller
         ): MailDocument {
             if (MailDocument::query()->where('kind', $kind->value)->lockForUpdate()->exists()) {
                 throw ValidationException::withMessages([
-                    'kind' => 'Dieses Maildokument ist bereits eingerichtet. Bitte importiere es im geöffneten Editor.',
+                    'kind' => 'Dieses Maildokument ist bereits eingerichtet. Bitte lade die Importseite neu und wähle den vorhandenen Zielentwurf.',
                 ]);
             }
 
@@ -159,6 +192,92 @@ final class MailDocumentController extends Controller
     }
 
     /**
+     * Ersetzt ausschliesslich den Arbeitsstand eines vorhandenen Design-Slots.
+     * Der aktive/veroeffentlichte Snapshot bleibt dabei unveraendert in Kraft.
+     */
+    public function importDraft(
+        ReplaceMailDocumentDraftRequest $request,
+        MailDocument $document,
+        EmailHtmlSanitizer $sanitizer,
+        EmailCompatibilityAuditor $compatibilityAuditor,
+        MailDocumentVersionStore $versions,
+    ): JsonResponse {
+        $actor = $this->mailAdmin($request);
+        $validated = $request->validated();
+        $bundleKind = MailDocumentKind::from((string) $validated['kind']);
+
+        if ($document->kind !== $bundleKind) {
+            throw ValidationException::withMessages([
+                'kind' => 'Das Bundle passt nicht zur gewählten Dokumentart.',
+            ]);
+        }
+
+        [$htmlReport, $cssReport, $portableFiles, $compatibility, $builderData, $contentHash] = $this->preparePortableDraft(
+            $document,
+            (string) $validated['html'],
+            (string) $validated['css'],
+            (array) $validated['media'],
+            $sanitizer,
+            $compatibilityAuditor,
+            'media',
+        );
+
+        [$saved, $changed] = DB::transaction(function () use (
+            $document,
+            $validated,
+            $bundleKind,
+            $portableFiles,
+            $builderData,
+            $htmlReport,
+            $cssReport,
+            $contentHash,
+            $actor,
+            $versions,
+        ): array {
+            $locked = $this->lock($document);
+
+            if (! $locked->matchesContentHash((string) $validated['expected_hash'])) {
+                throw ValidationException::withMessages([
+                    'expected_hash' => 'Der Entwurf wurde zwischenzeitlich geändert. Bitte lade die Importseite neu, damit keine Änderungen überschrieben werden.',
+                ]);
+            }
+
+            if ($locked->kind !== $bundleKind) {
+                throw ValidationException::withMessages([
+                    'kind' => 'Das Bundle passt nicht zur gewählten Dokumentart.',
+                ]);
+            }
+
+            $this->storePortableMedia($portableFiles);
+            $changed = ! hash_equals((string) $locked->content_hash, $contentHash);
+
+            if ($changed) {
+                $locked->forceFill([
+                    'builder_data' => $builderData,
+                    'html' => $htmlReport->html,
+                    'css' => $cssReport->html,
+                    'content_hash' => $contentHash,
+                    'version' => $locked->version + 1,
+                    'updated_by' => $actor->getKey(),
+                ])->save();
+                $versions->capture($locked, $actor, 'imported');
+            }
+
+            return [$locked, $changed];
+        });
+
+        return response()->json([
+            'message' => $changed
+                ? 'Der Entwurf wurde importiert. Die veröffentlichte Systemmail bleibt unverändert.'
+                : 'Das Bundle entspricht bereits exakt dem gewählten Entwurf.',
+            'changed' => $changed,
+            'document' => $this->payload($saved),
+            'report' => $this->reportPayload($htmlReport, $cssReport),
+            'compatibility' => $compatibility->toArray(),
+        ]);
+    }
+
+    /**
      * Prueft importierten HTML-/CSS-Code mit exakt denselben Vertraegen wie
      * ein Save, schreibt aber kein einziges Feld. Erst diese autoritative
      * Antwort darf der Editor in seine Leinwand laden.
@@ -183,6 +302,7 @@ final class MailDocumentController extends Controller
             $this->assertPortableMediaComplete(
                 $document->kind,
                 (string) $validated['html'],
+                (string) $validated['css'],
                 $portableMedia,
             );
         }
@@ -337,12 +457,13 @@ final class MailDocumentController extends Controller
     private function assertPortableMediaComplete(
         MailDocumentKind $kind,
         string $html,
+        string $css,
         array $media,
         string $field = 'portable_media',
     ): void {
         $ids = array_values(array_filter(array_map(
             static fn ($entry): string => is_array($entry)
-                ? trim((string) ($entry['id'] ?? ''))
+                ? PortableMediaCatalog::canonicalAssetId((string) ($entry['id'] ?? ''))
                 : '',
             $media,
         ), static fn (string $id): bool => $id !== ''));
@@ -354,9 +475,10 @@ final class MailDocumentController extends Controller
         }
 
         $missing = array_values(array_diff(
-            PortableMediaCatalog::requiredSystemAssetIds(
+            PortableMediaCatalog::requiredBundleAssetIds(
                 $kind,
-                SignatureArtifactVersion::detect($kind, $html),
+                $html,
+                $css,
             ),
             array_keys($counts),
         ));
@@ -365,6 +487,70 @@ final class MailDocumentController extends Controller
                 $field => 'Im Bundle fehlen erforderliche Medien: '.implode(', ', $missing).'.',
             ]);
         }
+    }
+
+    /**
+     * Bereitet ein portables Bundle fuer Erstimport und Entwurfsersatz ueber
+     * exakt dieselbe Reparatur-, Haertungs- und Kompatibilitaetsstrecke vor.
+     *
+     * @param  list<array<string, mixed>>  $media
+     * @return array{0: EmailHtmlReport, 1: EmailHtmlReport, 2: list<array{path: string, binary: string}>, 3: EmailCompatibilityReport, 4: array<string, mixed>, 5: string}
+     */
+    private function preparePortableDraft(
+        MailDocument $document,
+        string $html,
+        string $css,
+        array $media,
+        EmailHtmlSanitizer $sanitizer,
+        EmailCompatibilityAuditor $compatibilityAuditor,
+        string $mediaField = 'portable_media',
+    ): array {
+        $this->assertPortableMediaComplete(
+            $document->kind,
+            $html,
+            $css,
+            $media,
+            $mediaField,
+        );
+
+        [$html, $css, $portableFiles] = $this->preparePortableMedia($html, $css, $media);
+        $html = MailDocumentAutoRepair::repairHtml($document->kind, $html);
+        $this->assertEditableCssSource($css);
+        $this->assertDocumentStructure($document, $html, $css);
+
+        $htmlReport = $this->assertCleanHtml($sanitizer, $html);
+        $cssReport = $this->cleanStyleSheet($sanitizer, $css);
+        if ($cssReport->hasViolations()) {
+            throw ValidationException::withMessages([
+                'css' => array_merge(
+                    ['Die Stilregeln enthalten Syntax, die in E-Mails nicht erlaubt ist.'],
+                    $cssReport->violationMessages(),
+                ),
+            ]);
+        }
+
+        $this->assertDocumentStructure($document, $htmlReport->html, $cssReport->html);
+        $compatibility = $this->auditCompatibility(
+            $compatibilityAuditor,
+            $document->kind,
+            $htmlReport->html,
+            $cssReport->html,
+        );
+        $builderData = $this->syncBuilderData($document, [], $htmlReport->html);
+        $contentHash = MailDocument::contentHashFor(
+            $builderData,
+            $htmlReport->html,
+            $cssReport->html,
+        );
+
+        return [
+            $htmlReport,
+            $cssReport,
+            $portableFiles,
+            $compatibility,
+            $builderData,
+            $contentHash,
+        ];
     }
 
     /**
@@ -380,6 +566,8 @@ final class MailDocumentController extends Controller
     {
         $files = [];
         $sources = [];
+        $importedReferences = PortableMediaCatalog::referencedImportedAssetSources($html, $css);
+        $imageSources = PortableMediaCatalog::referencedImageSources($html, $css);
         $extensions = [
             'image/gif' => 'gif',
             'image/png' => 'png',
@@ -467,24 +655,48 @@ final class MailDocumentController extends Controller
 
             $path = 'mail-imports/'.$sha256.'.'.$extensions[$mime];
             $target = URL::to(Storage::disk('public')->url($path));
-            $escapedSource = htmlspecialchars(
-                $source,
-                ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
-                'UTF-8',
-            );
             // System-Tokens wie {{TRAIN_SRC}} binden weiterhin das
             // versionierte RailTime-Asset der Installation. Deren im Bundle
             // mitgefuehrte Bytes werden vollstaendig validiert, aber nicht als
             // unreferenzierte Dublette in storage/mail-imports abgelegt.
-            $isReferenced = str_contains($html, $source)
-                || str_contains($html, $escapedSource)
-                || str_contains($css, $source);
-            $html = str_replace(
-                [$source, $escapedSource],
-                [$target, htmlspecialchars($target, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8')],
-                $html,
+            // Bei Importmedien ist allein die parser-seitig erkannte Referenz
+            // fuer exakt diese Hash-ID autoritativ. `entry.source` ist
+            // Bundle-Eingabe und darf niemals als kurzer globaler Teilstring
+            // (etwa `/storage`) das gesamte Dokument umschreiben.
+            $decodedSource = html_entity_decode(
+                $source,
+                ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+                'UTF-8',
             );
-            $css = str_replace($source, $target, $css);
+            $referencedAliases = $isImportedAsset
+                ? ($importedReferences[strtolower($id)] ?? [])
+                : (in_array($decodedSource, $imageSources, true) ? [$decodedSource] : []);
+            $isReferenced = $referencedAliases !== [];
+            $htmlReplacements = [];
+            $cssReplacements = [];
+            foreach ($referencedAliases as $alias) {
+                $htmlReplacements[$alias] = $target;
+                $htmlReplacements[htmlspecialchars(
+                    $alias,
+                    ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+                    'UTF-8',
+                )] = htmlspecialchars(
+                    $target,
+                    ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+                    'UTF-8',
+                );
+                $cssReplacements[$alias] = $target;
+            }
+            uksort(
+                $htmlReplacements,
+                static fn (string $left, string $right): int => strlen($right) <=> strlen($left),
+            );
+            uksort(
+                $cssReplacements,
+                static fn (string $left, string $right): int => strlen($right) <=> strlen($left),
+            );
+            $html = strtr($html, $htmlReplacements);
+            $css = strtr($css, $cssReplacements);
             if ($isReferenced) {
                 $files[] = ['path' => $path, 'binary' => $binary];
             }
@@ -499,13 +711,48 @@ final class MailDocumentController extends Controller
     {
         $disk = Storage::disk('public');
         foreach ($files as $file) {
-            if ($disk->exists($file['path'])) {
+            $path = (string) ($file['path'] ?? '');
+            $binary = (string) ($file['binary'] ?? '');
+            $sha256 = hash('sha256', $binary);
+
+            if (preg_match(
+                '~^mail-imports/([a-f0-9]{64})\.(?:gif|png|jpg|webp)$~',
+                $path,
+                $match,
+            ) !== 1 || ! hash_equals($match[1], $sha256)) {
+                throw ValidationException::withMessages([
+                    'portable_media' => 'Der inhaltsadressierte Medienpfad stimmt nicht mit seinem SHA-256 ueberein.',
+                ]);
+            }
+
+            $matches = false;
+            if ($disk->exists($path)) {
+                try {
+                    $existing = $disk->get($path);
+                    $matches = hash_equals($sha256, hash('sha256', $existing));
+                } catch (\Throwable) {
+                    $matches = false;
+                }
+            }
+
+            if ($matches) {
                 continue;
             }
 
-            if (! $disk->put($file['path'], $file['binary'])) {
+            if (! $disk->put($path, $binary)) {
                 throw ValidationException::withMessages([
                     'portable_media' => 'Ein importiertes Medium konnte nicht gespeichert werden.',
+                ]);
+            }
+
+            try {
+                $stored = $disk->get($path);
+            } catch (\Throwable) {
+                $stored = null;
+            }
+            if (! is_string($stored) || ! hash_equals($sha256, hash('sha256', $stored))) {
+                throw ValidationException::withMessages([
+                    'portable_media' => 'Das importierte Medium konnte nicht unveraendert gespeichert werden.',
                 ]);
             }
         }
@@ -598,6 +845,7 @@ final class MailDocumentController extends Controller
         EmailCompatibilityAuditor $compatibilityAuditor,
         PublishedMailDocumentSnapshotStore $publishedDocuments,
         MailDocumentVersionStore $versions,
+        OutlookAddinSnapshotRefreshScheduler $outlookSnapshots,
     ): JsonResponse {
         $actor = $this->mailAdmin($request);
         $validated = $request->validate([
@@ -705,6 +953,7 @@ final class MailDocumentController extends Controller
         });
 
         $publishedDocuments->forget($published->kind);
+        $outlookSnapshots->scheduleAll();
 
         return response()->json([
             'document' => $this->payload($published),
@@ -1182,6 +1431,7 @@ final class MailDocumentController extends Controller
     private function assertDocumentStructure(MailDocument $document, string $html, string $css = ''): void
     {
         $this->assertEditableCssSource($css);
+        $this->assertTransportableImageSources($html, $css);
 
         if ($document->kind === MailDocumentKind::Template) {
             try {
@@ -1215,6 +1465,27 @@ final class MailDocumentController extends Controller
             throw ValidationException::withMessages([
                 'html' => $exception->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Gespeicherte Editor-Dokumente transportieren keine freien MIME-Parts.
+     * Bekannte RailTime-CIDs entstehen ausschliesslich nach der kontrollierten
+     * Runtime-Tokenbindung; eine feste cid:-Quelle wuerde ansonsten erst beim
+     * Outlook-Snapshot oder Versand ohne zugehoerigen Anhang scheitern.
+     */
+    private function assertTransportableImageSources(string $html, string $css): void
+    {
+        $errors = [];
+        if (PortableMediaCatalog::untransportableCidImageSources($html) !== []) {
+            $errors['html'] = 'Direkte cid:-Bildquellen besitzen im gespeicherten Dokument keinen transportierbaren Anhang. Verwende einen freigegebenen Bildquellen-Platzhalter oder ein portables Importmedium.';
+        }
+        if (PortableMediaCatalog::untransportableCidImageSources('', $css) !== []) {
+            $errors['css'] = 'Direkte cid:-Bildquellen besitzen im gespeicherten CSS keinen transportierbaren Anhang. Verwende einen freigegebenen Bildquellen-Platzhalter oder ein portables Importmedium.';
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
         }
     }
 

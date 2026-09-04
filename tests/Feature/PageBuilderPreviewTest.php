@@ -92,7 +92,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString("window.matchMedia('(prefers-reduced-motion: reduce)')", $html);
 
         $mailHtml = Blade::render(
-            '<x-ui.page-builder.preview-card title="Mail" :sources="$sources" :replayable="true" :loading-overlay="false" edit-url="/editor" />',
+            '<x-ui.page-builder.preview-card title="Mail" :sources="$sources" :replayable="true" :loading-overlay="false" :navigate-edit="false" edit-url="/editor" />',
             ['sources' => ['light' => [
                 'label' => 'Hell',
                 'url' => '/preview?theme=light&animate=1',
@@ -106,6 +106,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('x-on:load="void 0"', $mailHtml);
         $this->assertStringContainsString('x-bind:class="&#039;opacity-100&#039;"', $mailHtml);
         $this->assertStringNotContainsString('@js(', $mailHtml);
+        $this->assertStringNotContainsString('wire:navigate', $mailHtml);
     }
 
     public function test_deferred_preview_card_loads_only_near_the_viewport(): void

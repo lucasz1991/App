@@ -3,19 +3,21 @@
     'label' => null,
     'model' => null,
     'change' => null,
+    'size' => 'md',
     'disabled' => false,
 ])
 
 @php
     $inputId = $id ?: 'toggle-' . \Illuminate\Support\Str::random(6);
+    $resolvedSize = in_array($size, ['sm', 'md'], true) ? $size : 'md';
 @endphp
 
 <label
     for="{{ $inputId }}"
     {{ $attributes->only('class')->class([
-        'group inline-flex min-h-11 items-center gap-3 select-none',
+        'rt-ui-toggle group',
         'cursor-pointer' => ! $disabled,
-        'cursor-not-allowed opacity-60' => $disabled,
+        'is-disabled' => $disabled,
     ]) }}
 >
     <input
@@ -27,7 +29,7 @@
         @if($model) data-autosave-model="{{ $model }}" data-autosave-field-id="{{ $inputId }}" @endif
         {{ $disabled ? 'disabled' : '' }}
         {!! $attributes->except('class') !!}
-        class="peer sr-only"
+        class="rt-ui-toggle__input peer sr-only"
     />
 
     <span
@@ -40,11 +42,11 @@
             data-autosave-visual
         @endif
         aria-hidden="true"
-        class="rt-ui-toggle-control relative h-7 w-12 shrink-0 rounded-full border border-rt-border bg-slate-200 shadow-[inset_0_1px_2px_rgba(15,23,42,.12)] transition-all duration-200 ease-rt-spring after:absolute after:start-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:border after:border-slate-200 after:bg-white after:shadow-[0_2px_5px_rgba(15,23,42,.28)] after:transition-transform after:duration-200 after:ease-rt-spring peer-checked:border-rt-accent peer-checked:bg-rt-accent peer-checked:after:translate-x-full peer-disabled:shadow-none rtl:peer-checked:after:-translate-x-full dark:border-slate-600 dark:bg-slate-700 dark:after:border-slate-500 dark:peer-checked:border-rt-dark-accent dark:peer-checked:bg-rt-dark-accent"
+        class="rt-ui-toggle-control rt-ui-toggle-control--{{ $resolvedSize }}"
     ></span>
 
     @if($label)
-        <span class="text-sm font-semibold leading-5 text-rt-text transition-colors group-hover:text-rt-accent dark:text-rt-dark-text dark:group-hover:text-white">
+        <span class="rt-ui-toggle__label">
             {{ $label }}
         </span>
     @endif

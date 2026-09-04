@@ -17,13 +17,15 @@
     preview-default="light"
     preview-replayable
     :preview-loading-overlay="false"
-    :auto-open="request()->boolean('open')"
-    :single-toolbar="$currentDocument !== null"
+    :auto-open="$editorRequested"
+    :open-url="$currentDocument !== null && ! $editorRequested ? $editorOpenUrl : null"
+    :render-workspace="$currentDocument === null || $editorRequested"
+    :single-toolbar="$currentDocument !== null && $editorRequested"
     workspace-class="min-h-0 flex-1 overflow-hidden p-0"
     data-mail-document-studio
     data-mail-document-back
 >
-    @if ($currentDocument !== null)
+    @if ($currentDocument !== null && $editorRequested)
         <x-slot:toolbar>
             <div class="rt-mail-studio-toolbar" role="toolbar" aria-label="Mail- und Signatur-Editor" data-mail-studio-toolbar data-mail-toolbar-layout="responsive" data-mail-toolbar-single>
                 <div class="rt-mail-studio-toolbar__documents" data-mail-toolbar-region="documents" role="group" aria-label="Dokument und Inhalt">
@@ -557,7 +559,7 @@
                 })();
             </script>
         @endscript
-    @else
+    @elseif ($editorRequested)
         <script type="application/json" data-mail-document-config>{!! json_encode($editorConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
 
         <div class="rt-mail-studio" data-mail-studio>

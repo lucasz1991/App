@@ -1,0 +1,9 @@
+- main [ref=f7e2]:
+  - generic [ref=f7e4]:
+    - generic [ref=f7e5]: Bevor Sie fortfahren, bestätigen Sie bitte Ihre E-Mail-Adresse über den Link, den wir Ihnen gerade geschickt haben. Falls Sie die E-Mail nicht erhalten haben, senden wir Ihnen gerne eine neue.
+    - generic [ref=f7e6]:
+      - button "Bestätigungs-E-Mail erneut senden" [ref=f7e9] [cursor=pointer]
+      - generic [ref=f7e10]:
+        - link "Profil bearbeiten" [ref=f7e11] [cursor=pointer]:
+          - /url: http://127.0.0.1:5112/user/profile
+        - button "Abmelden" [ref=f7e13] [cursor=pointer]

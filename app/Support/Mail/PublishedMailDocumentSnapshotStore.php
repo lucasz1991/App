@@ -31,6 +31,20 @@ final class PublishedMailDocumentSnapshotStore
     }
 
     /**
+     * Liest den aktuell veroeffentlichten Stand erneut aus der Datenbank.
+     *
+     * Dauerhafte, personenbezogene Ableitungen verwenden diese Variante fuer
+     * ihren Eingabefingerabdruck. Damit kann ein laenger laufender Job keinen
+     * zuvor im Scope gelesenen Freigabestand als vermeintlich aktuell sichern.
+     *
+     * @return array{html: string, css: string}|null
+     */
+    public function freshSnapshot(MailDocumentKind $kind): ?array
+    {
+        return $this->snapshots[$kind->value] = $this->read($kind);
+    }
+
+    /**
      * Eine Freigabe im selben Scope darf danach bewusst den neuen Abzug
      * lesen. Andere Requests/Jobs besitzen eine eigene Store-Instanz und
      * behalten bis zu ihrem Ende ihren bereits gelesenen konsistenten Stand.

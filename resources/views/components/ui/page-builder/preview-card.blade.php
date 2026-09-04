@@ -9,6 +9,7 @@
     'replayable' => false,
     'deferred' => false,
     'loadingOverlay' => true,
+    'navigateEdit' => true,
 ])
 
 @php
@@ -265,7 +266,7 @@
                     <a
                         href="{{ $initialSource['editUrl'] ?? $editUrl }}"
                         x-bind:href="active?.editUrl || @js($editUrl)"
-                        wire:navigate
+                        @if ($navigateEdit) wire:navigate @endif
                         class="absolute inset-0 z-10 rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent"
                         aria-label="{{ $editLabel }}: {{ $title }}"
                         data-page-builder-preview-edit-link
@@ -276,7 +277,7 @@
 
         @if (filled($editUrl) || filled($initialSource['editUrl'] ?? null))
             <div class="flex items-center justify-end border-t border-rt-border/70 px-4 py-3 dark:border-rt-dark-border/70">
-                <a href="{{ $initialSource['editUrl'] ?? $editUrl }}" x-bind:href="active?.editUrl || @js($editUrl)" wire:navigate class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-accent px-3.5 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30">
+                <a href="{{ $initialSource['editUrl'] ?? $editUrl }}" x-bind:href="active?.editUrl || @js($editUrl)" @if ($navigateEdit) wire:navigate @endif class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-accent px-3.5 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30">
                     <i class="far fa-expand" aria-hidden="true"></i>
                     {{ $editLabel }}
                 </a>

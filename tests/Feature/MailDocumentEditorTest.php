@@ -429,6 +429,144 @@ class MailDocumentEditorTest extends TestCase
         $this->assertSame(1, MailDocument::query()->count());
     }
 
+    public function test_externe_importseite_bleibt_ohne_builder_erreichbar_und_listet_design_slots(): void
+    {
+        $template = $this->createCanonicalMailDocument(
+            MailDocumentKind::Template,
+            published: true,
+            name: 'Aktive Vorlage',
+        );
+        $signature = $this->createCanonicalMailDocument(
+            MailDocumentKind::Signature,
+            published: false,
+            name: 'Signatur Entwurf',
+        );
+        $admin = $this->admin();
+
+        $this->get(route('admin.mail-documents.import-page'))
+            ->assertRedirect(route('login'));
+
+        $this->actingAs(User::factory()->create(['role' => 'user']))
+            ->get(route('admin.mail-documents.import-page'))
+            ->assertRedirect(route('dashboard'));
+
+        $this->actingAs($admin)
+            ->get(route('admin.mail-documents.import-page'))
+            ->assertOk()
+            ->assertSee('Builder-freier Rettungsimport', escape: false)
+            ->assertSee('data-mail-draft-import', escape: false)
+            ->assertSee($template->public_id, escape: false)
+            ->assertSee($signature->public_id, escape: false)
+            ->assertSee(route('admin.mail-documents.draft-import', $template), escape: false)
+            ->assertDontSee('data-mail-document-config', escape: false)
+            ->assertDontSee('data-mail-document-root', escape: false)
+            ->assertDontSee('data-page-builder-workspace', escape: false)
+            ->assertDontSee('/vendor/lmz-builder/', escape: false);
+    }
+
+    public function test_externer_bundle_import_ersetzt_nur_den_entwurf_und_bewahrt_die_freigabe(): void
+    {
+        Storage::fake('public');
+        $admin = $this->admin();
+        $document = $this->createCanonicalMailDocument(
+            MailDocumentKind::Signature,
+            published: true,
+        );
+        $publishedBefore = [
+            'published_html' => (string) $document->published_html,
+            'published_css' => (string) $document->published_css,
+            'published_at' => $document->published_at?->toIso8601String(),
+            'status' => $document->status->value,
+            'is_active' => $document->is_active,
+        ];
+
+        $response = $this->actingAs($admin)->postJson(
+            route('admin.mail-documents.draft-import', $document),
+            [
+                'format' => 'railtime-mail-document',
+                'version' => 2,
+                'kind' => MailDocumentKind::Signature->value,
+                'html' => $this->canonicalMailDocumentHtml(MailDocumentKind::Signature),
+                'css' => 'td { color:#111820; }',
+                'media' => $this->portableSystemMedia(MailDocumentKind::Signature),
+                'expected_hash' => $document->content_hash,
+            ],
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('changed', true)
+            ->assertJsonPath('document.version', 2)
+            ->assertJsonPath('document.status', MailDocumentStatus::Published->value)
+            ->assertJsonPath('document.is_active', true)
+            ->assertJsonPath('document.has_unpublished_changes', true);
+
+        $fresh = $document->fresh();
+        $this->assertNotNull($fresh);
+        $this->assertSame($publishedBefore, [
+            'published_html' => (string) $fresh->published_html,
+            'published_css' => (string) $fresh->published_css,
+            'published_at' => $fresh->published_at?->toIso8601String(),
+            'status' => $fresh->status->value,
+            'is_active' => $fresh->is_active,
+        ]);
+        $this->assertSame('td { color:#111820; }', (string) $fresh->css);
+        $this->assertSame((string) $fresh->html, (string) data_get($fresh->builder_data, 'pages.0.component'));
+        $this->assertSame($admin->getKey(), $fresh->updated_by);
+        $this->assertDatabaseHas('mail_document_versions', [
+            'mail_document_id' => $fresh->getKey(),
+            'revision' => 1,
+            'action' => 'imported',
+        ]);
+    }
+
+    public function test_externer_bundle_import_lehnt_falsche_art_und_veralteten_hash_ohne_aenderung_ab(): void
+    {
+        Storage::fake('public');
+        $admin = $this->admin();
+        $document = $this->createCanonicalMailDocument(
+            MailDocumentKind::Signature,
+            published: false,
+        );
+        $before = $document->only(['html', 'css', 'content_hash', 'version', 'updated_by']);
+
+        $base = [
+            'format' => 'railtime-mail-document',
+            'version' => 2,
+            'html' => $this->canonicalMailDocumentHtml(MailDocumentKind::Signature),
+            'css' => 'td { color:#111820; }',
+            'media' => $this->portableSystemMedia(MailDocumentKind::Signature),
+            'expected_hash' => $document->content_hash,
+        ];
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.draft-import', $document), [
+                ...$base,
+                'kind' => MailDocumentKind::Template->value,
+                'html' => $this->canonicalMailDocumentHtml(MailDocumentKind::Template),
+                'media' => $this->portableSystemMedia(MailDocumentKind::Template),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('kind');
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.draft-import', $document), [
+                ...$base,
+                'kind' => MailDocumentKind::Signature->value,
+                'expected_hash' => str_repeat('0', 64),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('expected_hash');
+
+        $this->assertSame($before, $document->fresh()?->only([
+            'html',
+            'css',
+            'content_hash',
+            'version',
+            'updated_by',
+        ]));
+        $this->assertSame(0, MailDocumentVersion::query()->count());
+    }
+
     private function document(MailDocumentKind $kind): MailDocument
     {
         return MailDocument::query()->where('kind', $kind->value)->firstOrFail();
@@ -1744,6 +1882,20 @@ HTML;
             ->get(route('admin.mail-documents.editor'))
             ->assertOk()
             ->assertSee('pageBuilderOpen: false', escape: false)
+            ->assertSee('data-page-builder-load-on-demand', escape: false)
+            ->assertSee(route('admin.mail-documents.editor', [
+                'dokument' => MailDocumentKind::Template->value,
+                'slot' => $this->document(MailDocumentKind::Template)->public_id,
+                'open' => 1,
+            ]))
+            ->assertDontSee('data-mail-document-config', escape: false)
+            ->assertDontSee('data-mail-document-root', escape: false)
+            ->assertDontSee('data-page-builder-workspace', escape: false);
+
+        $this->actingAs($admin)
+            ->get(route('admin.mail-documents.editor', ['open' => 1]))
+            ->assertOk()
+            ->assertSee('pageBuilderOpen: true', escape: false)
             ->assertSee('data-mail-document-config', escape: false)
             ->assertSee('data-mail-document-root', escape: false)
             ->assertSee('data-mail-editor-mode="mail"', escape: false)
@@ -1799,11 +1951,6 @@ HTML;
             ->assertSee('animate=1', escape: false)
             ->assertSee('data-page-builder-assist', escape: false)
             ->assertSee('Mail- &amp; Signatur-Editor', escape: false);
-
-        $this->actingAs($admin)
-            ->get(route('admin.mail-documents.editor', ['open' => 1]))
-            ->assertOk()
-            ->assertSee('pageBuilderOpen: true', escape: false);
     }
 
     public function test_design_slot_wird_als_unabhaengiger_entwurf_dupliziert(): void
@@ -2111,7 +2258,7 @@ HTML;
         $repairedSignatureHtml = SignatureTrainCarrier::normalize($originalSignatureHtml);
 
         $response = $this->actingAs($this->admin())
-            ->get(route('admin.mail-documents.editor'))
+            ->get(route('admin.mail-documents.editor', ['open' => 1]))
             ->assertOk();
 
         // JSON in einem <script> darf kein rohes < enthalten (Blade escaped

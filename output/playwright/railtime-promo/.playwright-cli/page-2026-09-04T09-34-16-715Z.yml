@@ -1,0 +1,185 @@
+- generic [active] [ref=f11e1]:
+  - link "Zum Inhalt springen" [ref=f11e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f11e3]:
+    - region "scrollable content" [ref=f11e8]:
+      - list [ref=f11e11]:
+        - listitem [ref=f11e12]: Übersicht
+        - listitem [ref=f11e13]:
+          - link "Dashboard" [ref=f11e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f11e19]: Firma
+        - listitem [ref=f11e20]:
+          - link "Einstellungen" [ref=f11e21] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f11e26]: Kommunikation
+        - listitem [ref=f11e27]:
+          - link "Chat & Nachrichten" [expanded] [ref=f11e28] [cursor=pointer]:
+            - /url: "#"
+          - list [ref=f11e33]:
+            - listitem [ref=f11e34]:
+              - link "Chat" [ref=f11e35] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/chat
+            - listitem [ref=f11e39]:
+              - link "Nachrichten" [ref=f11e40] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/messages
+            - listitem [ref=f11e45]:
+              - link "Anrufe" [ref=f11e46] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/calls
+        - listitem [ref=f11e50]: Management
+        - listitem [ref=f11e51]:
+          - link "Verwaltung" [ref=f11e52] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f11e58]:
+          - link "Disposition" [ref=f11e59] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f11e65]:
+          - link "Marketing" [ref=f11e66] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f11e73]: Betrieb
+        - listitem [ref=f11e74]:
+          - link "Wagenliste" [ref=f11e75] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f11e78]: Inhalte & Dateien
+        - listitem [ref=f11e79]:
+          - link "Dateien" [ref=f11e80] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f11e85]: Mein Bereich
+        - listitem [ref=f11e86]:
+          - link "Meine Geräte" [ref=f11e87] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f11e91]:
+          - link "Profil" [ref=f11e92] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f11e97]:
+          - link "E-Mail und Signatur" [ref=f11e98] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f11e103]:
+          - link "Support" [ref=f11e104] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f11e115]:
+    - generic [ref=f11e116]:
+      - link [ref=f11e119] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f11e120]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f11e122]:
+        - search [ref=f11e124]:
+          - generic [ref=f11e125]:
+            - button "RailTime durchsuchen" [ref=f11e126] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f11e129] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f11e133] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f11e134]: 
+          - generic [ref=f11e135]: "3"
+        - button "Einstellungen" [ref=f11e138] [cursor=pointer]
+        - button "Konto verwalten" [ref=f11e145] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f11e147]
+          - generic [ref=f11e148]:
+            - generic [ref=f11e149]: RailTime Demo
+            - generic [ref=f11e150]: Profil
+          - generic [aria-hidden] [ref=f11e151]: 
+  - main [ref=f11e152]:
+    - generic [ref=f11e158]:
+      - generic [ref=f11e159]:
+        - generic [ref=f11e161]:
+          - generic [ref=f11e162]:
+            - paragraph [ref=f11e163]: Chat & Nachrichten
+            - generic [ref=f11e164]:
+              - heading "Chats" [level=1] [ref=f11e165]
+              - generic "2 Chats" [ref=f11e166]: "2"
+          - generic [ref=f11e167]:
+            - button "Informationen zu dieser Seite" [ref=f11e168] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f11e169]: 
+            - text: 
+            - button "Neuer Chat" [ref=f11e170] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f11e171]: 
+        - generic [ref=f11e172]:
+          - generic [ref=f11e173]: Suchen
+          - generic [ref=f11e174]:
+            - generic:
+              - generic [aria-hidden]: 
+            - searchbox "Suchen" [ref=f11e175]
+        - generic [ref=f11e176]:
+          - generic [ref=f11e177]:
+            - button "Mara König Mara König Erledigt – das Team kann jetzt darauf zugreifen. 11:24" [ref=f11e178] [cursor=pointer]:
+              - img "Mara König" [ref=f11e180]
+              - generic [ref=f11e182]:
+                - generic [ref=f11e183]: Mara König
+                - generic [ref=f11e184]: Erledigt – das Team kann jetzt darauf zugreifen.
+              - generic [ref=f11e185]: 11:24
+            - generic:
+              - generic:
+                - generic:
+                  - 'button "Chat-Optionen: Mara König"':
+                    - generic [aria-hidden]: 
+          - generic [ref=f11e187]:
+            - button "Disposition Nord Übergabe Gleis 7 ist bestätigt. Alle Beteiligten sind informiert. 11:30" [ref=f11e188] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f11e190]: DN
+              - generic [ref=f11e191]:
+                - generic [ref=f11e192]: Disposition Nord
+                - generic [ref=f11e193]: Übergabe Gleis 7 ist bestätigt. Alle Beteiligten sind informiert.
+              - generic [ref=f11e194]: 11:30
+            - generic:
+              - generic:
+                - generic:
+                  - 'button "Chat-Optionen: Disposition Nord"':
+                    - generic [aria-hidden]: 
+      - generic [ref=f11e197]:
+        - generic [ref=f11e198]:
+          - button "Chatübersicht ausblenden" [expanded] [ref=f11e199] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f11e200]: 
+          - text: 
+          - generic [ref=f11e201]:
+            - img "Mara König" [ref=f11e203]
+            - generic [ref=f11e205]:
+              - 'button "Personenvorschau öffnen: Mara König" [ref=f11e208] [cursor=pointer]':
+                - generic [ref=f11e209]: Mara König
+              - generic [ref=f11e210]: Online
+          - button "Sprachanruf starten" [ref=f11e213] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f11e214]: 
+          - button "Videoanruf starten" [ref=f11e215] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f11e216]: 
+          - button "Chat-Optionen" [ref=f11e219] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f11e220]: 
+        - generic [ref=f11e221]:
+          - generic [ref=f11e222]:
+            - generic [ref=f11e223]: Heute
+            - generic [ref=f11e226]:
+              - generic [ref=f11e228]:
+                - generic:
+                  - generic:
+                    - button [aria-hidden]
+                - paragraph [ref=f11e229]: Guten Morgen! Die Wagenliste für den Nordkorridor ist vollständig.
+              - time [ref=f11e231]: 11:12
+          - generic [ref=f11e234]:
+            - generic [ref=f11e236]:
+              - generic:
+                - generic:
+                  - button [aria-hidden]
+              - paragraph [ref=f11e237]: Perfekt, danke. Bitte die aktualisierten Unterlagen direkt im Chat bereitstellen.
+            - generic [ref=f11e238]:
+              - time [ref=f11e239]: 11:18
+              - generic "Zugestellt" [ref=f11e240]: 
+          - generic [ref=f11e243]:
+            - generic [ref=f11e245]:
+              - generic:
+                - generic:
+                  - button [aria-hidden]
+              - paragraph [ref=f11e246]: Erledigt – das Team kann jetzt darauf zugreifen.
+            - time [ref=f11e248]: 11:24
+        - generic [ref=f11e250]:
+          - button "Choose File" [ref=f11e251]
+          - generic [ref=f11e252]:
+            - button "Anhang hinzufügen" [ref=f11e253] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f11e254]: 
+            - generic [ref=f11e255]:
+              - button "Live-Standort teilen" [ref=f11e257] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f11e258]: 
+              - textbox "Nachricht schreiben …" [ref=f11e259]
+              - button "Sprachnachricht" [ref=f11e260] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f11e261]: 
+            - text:  
+          - text:  
+  - text:                                            􏒲         􏔉    􏎂               

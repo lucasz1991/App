@@ -1,0 +1,155 @@
+- generic [active] [ref=f16e1]:
+  - link "Zum Inhalt springen" [ref=f16e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f16e3]:
+    - region "scrollable content" [ref=f16e8]:
+      - list [ref=f16e11]:
+        - listitem [ref=f16e12]: Übersicht
+        - listitem [ref=f16e13]:
+          - link "Dashboard" [ref=f16e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f16e19]: Firma
+        - listitem [ref=f16e20]:
+          - link "Einstellungen" [ref=f16e21] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f16e26]: Kommunikation
+        - listitem [ref=f16e27]:
+          - link "Chat & Nachrichten" [ref=f16e28] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f16e33]: Management
+        - listitem [ref=f16e34]:
+          - link "Verwaltung" [expanded] [ref=f16e35] [cursor=pointer]:
+            - /url: "#"
+          - list [ref=f16e41]:
+            - listitem [ref=f16e42]:
+              - link "Mitarbeiter" [ref=f16e43] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/employees
+            - listitem [ref=f16e50]:
+              - link "Geräte & Lager" [ref=f16e51] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/geraete
+            - listitem [ref=f16e55]:
+              - link "Kunden" [ref=f16e56] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/betrieb/customers
+            - listitem [ref=f16e61]:
+              - link "Mailverwaltung" [ref=f16e62] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/mails
+            - listitem [ref=f16e67]:
+              - link "E-Mail-Vorlagen" [ref=f16e68] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/mail-vorlagen
+            - listitem [ref=f16e73]:
+              - link "Entwürfe importieren" [ref=f16e74] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/mail-vorlagen/import
+        - listitem [ref=f16e80]:
+          - link "Disposition" [ref=f16e81] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f16e87]:
+          - link "Marketing" [ref=f16e88] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f16e95]: Betrieb
+        - listitem [ref=f16e96]:
+          - link "Wagenliste" [ref=f16e97] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f16e100]: Inhalte & Dateien
+        - listitem [ref=f16e101]:
+          - link "Dateien" [ref=f16e102] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f16e107]: Mein Bereich
+        - listitem [ref=f16e108]:
+          - link "Meine Geräte" [ref=f16e109] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f16e113]:
+          - link "Profil" [ref=f16e114] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f16e119]:
+          - link "E-Mail und Signatur" [ref=f16e120] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f16e125]:
+          - link "Support" [ref=f16e126] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f16e137]:
+    - generic [ref=f16e138]:
+      - link [ref=f16e141] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f16e142]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f16e144]:
+        - search [ref=f16e146]:
+          - generic [ref=f16e147]:
+            - button "RailTime durchsuchen" [ref=f16e148] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f16e151] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f16e155] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f16e156]: 
+          - generic [ref=f16e157]: "3"
+        - button "Einstellungen" [ref=f16e160] [cursor=pointer]
+        - button "Konto verwalten" [ref=f16e167] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f16e169]
+          - generic [ref=f16e170]:
+            - generic [ref=f16e171]: RailTime Demo
+            - generic [ref=f16e172]: Profil
+          - generic [aria-hidden] [ref=f16e173]: 
+  - main [ref=f16e174]:
+    - generic [ref=f16e177]:
+      - generic [ref=f16e180]:
+        - generic [ref=f16e181]:
+          - link "Zur Vorlagen-Seite" [ref=f16e182] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+            - generic [aria-hidden] [ref=f16e183]: 
+          - heading "Mail- & Signatur-Editor" [level=1] [ref=f16e185]
+          - generic [ref=f16e186]:
+            - link "Vollbildeditor laden" [ref=f16e188] [cursor=pointer]:
+              - /url: http://127.0.0.1:5112/administrator/mail-vorlagen?dokument=template&slot=bc0e25a5-000e-4cd8-b366-75dbffe0bf9d&open=1
+              - generic [aria-hidden] [ref=f16e189]: 
+              - text: Vollbildeditor laden
+            - button "Informationen zu dieser Seite" [ref=f16e190] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f16e191]: 
+        - generic [ref=f16e195]:
+          - generic [ref=f16e196]:
+            - generic [ref=f16e197]:
+              - heading "Mail- & Signatur-Editor" [level=3] [ref=f16e199]
+              - paragraph [ref=f16e200]: Nachrichtenschale und Signaturblock zentral bearbeiten. Die veröffentlichten Fassungen gelten für Downloads und Systemmails.
+            - generic [ref=f16e201]:
+              - group "Vorschauformat" [ref=f16e202]:
+                - button "Hell" [pressed] [ref=f16e203] [cursor=pointer]
+                - button "Dunkel" [ref=f16e204] [cursor=pointer]
+              - button "Neu starten" [ref=f16e205] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f16e206]: 
+                - text: Neu starten
+          - iframe [ref=f16e208]:
+            - generic [ref=f17e1]:
+              - heading "Sicher abgestimmt. Verlässlich im Einsatz." [level=1] [ref=f17e2]: Sicher abgestimmt.Verlässlich im Einsatz.
+              - paragraph [ref=f17e3]: Guten Tag,
+              - paragraph [ref=f17e4]: vielen Dank für Ihre Nachricht und Ihr Interesse an RailTime.
+              - paragraph [ref=f17e5]: Diese sichere Vorschau zeigt den aktuellen Arbeitsstand der Nachrichtenschale mit echten RailTime-Markenelementen und Ihren hinterlegten Profildaten.
+              - text: EINSATZDATEN / OPTIONAL
+              - generic [ref=f17e6]: Einsatzort
+              - strong [ref=f17e7]: Deutschlandweit
+              - generic [ref=f17e8]: Zeitraum
+              - strong [ref=f17e9]: Nach Vereinbarung
+              - generic [ref=f17e10]: Leistung
+              - strong [ref=f17e11]: Bahnbetriebliche Dienstleistungen
+              - generic [ref=f17e12]: Ansprechpartner
+              - strong [ref=f17e13]: RailTime Demo
+              - link "RailTime kontaktieren →" [ref=f17e14] [cursor=pointer]:
+                - /url: "#"
+              - paragraph [ref=f17e15]: Mit freundlichen Grüßen,
+              - paragraph
+              - paragraph [ref=f17e16]: Ihr Team von RT Rail Time GmbH
+              - generic [ref=f17e17]:
+                - img "RT Rail Time GmbH" [ref=f17e19]
+                - generic [ref=f17e20]:
+                  - paragraph
+                  - paragraph [ref=f17e21]: Automatische Nachricht
+                - link "04171 546803" [ref=f17e22] [cursor=pointer]:
+                  - /url: "#"
+                - link "info@rail-time.de" [ref=f17e23] [cursor=pointer]:
+                  - /url: "#"
+                - generic [ref=f17e24]:
+                  - text: Borsteler Weg 29–31 · 21423 Winsen (Luhe)
+                  - link "rail-time.de" [ref=f17e25] [cursor=pointer]:
+                    - /url: "#"
+              - text: "Geschäftsführung: Durim Morina und Mazan Moslehe · Registergericht: Amtsgericht Tostedt · HRB 204604 · USt-IdNr. DE169651368 · Steuernummer Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht."
+      - generic [ref=f16e209]: RailTime v1.0.0
+  - generic: ·
+  - text:                        

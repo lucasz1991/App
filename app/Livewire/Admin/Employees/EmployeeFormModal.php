@@ -6,6 +6,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;
 use App\Support\EmployeeWelcomeService;
+use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -199,6 +200,11 @@ class EmployeeFormModal extends Component
             $user->teams()->sync([$team->id]);
             $user->switchTeam($team);
         }
+
+        // Die direkte Pivot-Synchronisation loest nicht in jedem Pfad ein
+        // Jetstream-Teamereignis aus. Nach allen Personenschreibvorgaengen
+        // wird deshalb nochmals derselbe idempotente Neuaufbau eingeplant.
+        app(OutlookAddinSnapshotRefreshScheduler::class)->scheduleForUser($user);
 
         if ($this->canEditMasterData() || $this->canEditCompensation()) {
             activity('employee-master-data')

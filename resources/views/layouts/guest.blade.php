@@ -12,7 +12,7 @@
     <title>{{ config('app.name') }}</title>
     <script>if (localStorage.getItem('rt-theme') === 'true') document.documentElement.classList.add('dark');</script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    <link rel="stylesheet" href="{{ asset('rt-brand/rt-auth.css') }}">
+    <link rel="stylesheet" href="{{ asset('rt-brand/rt-auth.css') }}?v=20260904-toggle-alignment">
     @livewireStyles
     @yield('css')
     @stack('styles')

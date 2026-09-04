@@ -26,7 +26,7 @@
         navigationListener: null,
         focusFrame: null,
         init() {
-            this.expanded = !this.isTopbar && String(this.value ?? '').length > 0;
+            this.expanded = !this.isTopbar;
             this.mobileQuery = window.matchMedia('(max-width: 767.98px)');
             this.mobile = this.mobileQuery.matches;
             this.mobileQueryListener = (event) => {
@@ -65,7 +65,7 @@
             }
         },
         isExpanded() {
-            return this.expanded || (!this.isTopbar && String(this.value ?? '').length > 0);
+            return !this.isTopbar || this.expanded;
         },
         isMobileLayerOpen() {
             return this.isTopbar && this.mobile && this.expanded;
@@ -181,7 +181,7 @@
     x-on:rt-navigation:prepare.window="close(false)"
     x-on:rt-topbar-layer-open.window="handleLayerOpen($event)"
     x-on:rt-topbar-search-close.window="handleSearchClose($event)"
-    class="rt-expandable-search"
+    class="rt-expandable-search rt-table-search"
     x-trap.noautofocus.inert.noscroll="isMobileLayerOpen()"
     x-bind:role="isMobileLayerOpen() ? 'dialog' : null"
     x-bind:aria-modal="isMobileLayerOpen() ? 'true' : null"

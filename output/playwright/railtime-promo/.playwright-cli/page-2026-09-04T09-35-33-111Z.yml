@@ -1,0 +1,168 @@
+- generic [active] [ref=f14e1]:
+  - link "Zum Inhalt springen" [ref=f14e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f14e3]:
+    - region "scrollable content" [ref=f14e8]:
+      - list [ref=f14e11]:
+        - listitem [ref=f14e12]: Übersicht
+        - listitem [ref=f14e13]:
+          - link "Dashboard" [ref=f14e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f14e19]: Firma
+        - listitem [ref=f14e20]:
+          - link "Einstellungen" [ref=f14e21] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f14e26]: Kommunikation
+        - listitem [ref=f14e27]:
+          - link "Chat & Nachrichten" [ref=f14e28] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f14e33]: Management
+        - listitem [ref=f14e34]:
+          - link "Verwaltung" [ref=f14e35] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f14e41]:
+          - link "Disposition" [ref=f14e42] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f14e48]:
+          - link "Marketing" [ref=f14e49] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f14e56]: Betrieb
+        - listitem [ref=f14e57]:
+          - link "Wagenliste" [ref=f14e58] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f14e61]: Inhalte & Dateien
+        - listitem [ref=f14e62]:
+          - link "Dateien" [ref=f14e63] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f14e68]: Mein Bereich
+        - listitem [ref=f14e69]:
+          - link "Meine Geräte" [ref=f14e70] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f14e74]:
+          - link "Profil" [ref=f14e75] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f14e80]:
+          - link "E-Mail und Signatur" [ref=f14e81] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f14e86]:
+          - link "Support" [ref=f14e87] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f14e98]:
+    - generic [ref=f14e99]:
+      - link [ref=f14e102] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f14e103]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f14e105]:
+        - search [ref=f14e107]:
+          - generic [ref=f14e108]:
+            - button "RailTime durchsuchen" [ref=f14e109] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f14e112] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f14e116] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f14e117]: 
+          - generic [ref=f14e118]: "3"
+        - button "Einstellungen" [ref=f14e121] [cursor=pointer]
+        - button "Konto verwalten" [ref=f14e128] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f14e130]
+          - generic [ref=f14e131]:
+            - generic [ref=f14e132]: RailTime Demo
+            - generic [ref=f14e133]: Profil
+          - generic [aria-hidden] [ref=f14e134]: 
+  - main [ref=f14e135]:
+    - generic [ref=f14e138]:
+      - generic [ref=f14e141]:
+        - generic [ref=f14e142]:
+          - button "Zurück" [ref=f14e143] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f14e144]: 
+          - heading "Download-Center" [level=1] [ref=f14e146]
+          - generic [ref=f14e147]:
+            - generic [ref=f14e148]:
+              - generic [ref=f14e149]:
+                - generic [aria-hidden]: 
+                - searchbox "Dateien durchsuchen …" [ref=f14e150]
+                - button "Zurücksetzen" [ref=f14e151] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=f14e152]: 
+              - generic [ref=f14e153]:
+                - text: 
+                - generic [ref=f14e154]: 4 Dateien
+            - button "Informationen zu dieser Seite" [ref=f14e155] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f14e156]: 
+        - generic [ref=f14e159]:
+          - generic [ref=f14e160]:
+            - generic [ref=f14e161]:  􏃀
+            - generic [ref=f14e163]:
+              - paragraph [ref=f14e164]: Meine Teams
+              - heading "Administratoren" [level=2] [ref=f14e165]
+              - paragraph [ref=f14e166]: 4 Dateien
+          - generic [ref=f14e167]:
+            - group "Einsatzplanung September.pdf" [ref=f14e169]:
+              - 'button "Vorschau: Einsatzplanung September.pdf" [ref=f14e170] [cursor=pointer]':
+                - generic [ref=f14e171]:
+                  - generic [ref=f14e172]: Einsatzplanung September.pdf
+                  - generic [ref=f14e173]: 277,3 KB
+              - generic [ref=f14e176]:
+                - button "Aktionen für Einsatzplanung September.pdf":
+                  - generic [aria-hidden]: 
+            - group "Sicherheitsunterweisung 2026.pdf" [ref=f14e178]:
+              - 'button "Vorschau: Sicherheitsunterweisung 2026.pdf" [ref=f14e179] [cursor=pointer]':
+                - generic [ref=f14e180]:
+                  - generic [ref=f14e181]: Sicherheitsunterweisung 2026.pdf
+                  - generic [ref=f14e182]: 402,3 KB
+              - generic [ref=f14e185]:
+                - button "Aktionen für Sicherheitsunterweisung 2026.pdf":
+                  - generic [aria-hidden]: 
+            - group "Übergabeprotokoll Nord.xlsx" [ref=f14e187]:
+              - 'button "Vorschau: Übergabeprotokoll Nord.xlsx" [ref=f14e188] [cursor=pointer]':
+                - generic [ref=f14e189]:
+                  - generic [ref=f14e190]: Übergabeprotokoll Nord.xlsx
+                  - generic [ref=f14e191]: 93,8 KB
+              - generic [ref=f14e194]:
+                - button "Aktionen für Übergabeprotokoll Nord.xlsx":
+                  - generic [aria-hidden]: 
+            - group "Leitfaden Kommunikation.docx" [ref=f14e196]:
+              - 'button "Vorschau: Leitfaden Kommunikation.docx" [ref=f14e197] [cursor=pointer]':
+                - generic [ref=f14e198]:
+                  - generic [ref=f14e199]: Leitfaden Kommunikation.docx
+                  - generic [ref=f14e200]: 134,8 KB
+              - generic [ref=f14e203]:
+                - button "Aktionen für Leitfaden Kommunikation.docx":
+                  - generic [aria-hidden]: 
+      - generic [ref=f14e204]: RailTime v1.0.0
+  - generic:
+    - button "RailTime Assist öffnen" [ref=f14e205] [cursor=pointer]
+    - text: ·
+  - dialog [ref=f14e213]:
+    - banner [ref=f14e214]:
+      - generic [aria-hidden] [ref=f14e216]: 
+      - generic [ref=f14e217]:
+        - paragraph [ref=f14e218]: Über diese Seite
+        - heading "Dateimanager" [level=2] [ref=f14e219]
+      - button "Schließen" [ref=f14e220] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f14e221]: 
+    - generic [ref=f14e222]:
+      - paragraph [ref=f14e223]: Ordner und Dateien hochladen, strukturieren, verschieben, in der Vorschau öffnen und gezielt freigeben.
+      - list [ref=f14e224]:
+        - listitem [ref=f14e225]:
+          - generic [ref=f14e226]: "01"
+          - generic [ref=f14e227]: Breadcrumbs zeigen den aktuellen Ordner und dienen zugleich als Ziel beim Verschieben.
+        - listitem [ref=f14e228]:
+          - generic [ref=f14e229]: "02"
+          - generic [ref=f14e230]: Ordner stehen vor Dateien; Drag-and-drop verschiebt Elemente direkt in einen Ordner oder Breadcrumb.
+        - listitem [ref=f14e231]:
+          - generic [ref=f14e232]: "03"
+          - generic [ref=f14e233]: Klick öffnet unterstützte Dateien in der Vorschau, der Download bleibt eine bewusste Aktion.
+        - listitem [ref=f14e234]:
+          - generic [ref=f14e235]: "04"
+          - generic [ref=f14e236]: Rechtsklick oder der Drei-Punkte-Knopf öffnet Umbenennen, Verschieben und Löschen.
+    - contentinfo [ref=f14e237]:
+      - link "Alle Hilfethemen öffnen" [ref=f14e238] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/help
+        - generic [aria-hidden] [ref=f14e239]: 
+        - text: Alle Hilfethemen öffnen
+        - generic [aria-hidden] [ref=f14e240]: 
+      - button "Los geht’s" [ref=f14e241] [cursor=pointer]:
+        - text: Los geht’s
+        - generic [aria-hidden] [ref=f14e242]: 
+  - text:                           

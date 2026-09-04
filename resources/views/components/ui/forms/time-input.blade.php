@@ -74,7 +74,7 @@
             @if($required) required @endif
             pattern="^\d{2}:\d{2}$"
             {{ $attributes->merge([
-                'class' => 'rt-ui-control block min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 pr-11 text-base leading-6 text-rt-text shadow-rt-xs outline-none placeholder:text-rt-soft transition-[border-color,box-shadow,background-color,color] duration-200 ease-rt-spring hover:border-rt-accent/50 hover:shadow-rt-sm focus:border-rt-accent disabled:cursor-not-allowed disabled:bg-rt-surface-muted disabled:text-rt-soft disabled:opacity-60 disabled:shadow-none sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent dark:disabled:bg-rt-dark-canvas',
+                'class' => 'rt-ui-control rt-ui-field-control block min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 pr-11 text-base leading-6 text-rt-text shadow-rt-xs outline-none placeholder:text-rt-soft transition-[border-color,box-shadow,background-color,color] duration-200 ease-rt-spring hover:border-rt-accent/50 hover:shadow-rt-sm focus:border-rt-accent disabled:cursor-not-allowed disabled:bg-rt-surface-muted disabled:text-rt-soft disabled:opacity-60 disabled:shadow-none sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent dark:disabled:bg-rt-dark-canvas',
                 // Hinweis: min/max bei Flatpickr werden via JS gesetzt; HTML-Attribute sind optional
                 'autocomplete' => 'off',
             ]) }}

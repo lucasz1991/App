@@ -59,8 +59,15 @@
         @if ($user?->isAdmin())
             <x-slot:actions>
                 <a
+                    href="{{ route('admin.mail-documents.import-page') }}"
+                    data-email-template-import-link
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-4 text-sm font-semibold text-rt-text shadow-sm transition hover:border-rt-red/40 hover:text-rt-red focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:border-rt-dark-accent/50 dark:hover:text-rt-dark-accent"
+                >
+                    <i class="far fa-file-import" aria-hidden="true"></i>
+                    Entwürfe importieren
+                </a>
+                <a
                     href="{{ route('admin.mail-documents.editor', ['open' => 1]) }}"
-                    wire:navigate
                     data-email-template-editor-link
                     class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
                 >
@@ -469,6 +476,7 @@
                                         :edit-url="$documentEditUrl"
                                         :replayable="true"
                                         :loading-overlay="false"
+                                        :navigate-edit="false"
                                     />
                                 @endif
                             @endforeach

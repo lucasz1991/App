@@ -1,13 +1,27 @@
-@props(['title' => null, 'description' => null])
+@props([
+    'title' => null,
+    'description' => null,
+    'variant' => 'standard',
+])
+
+@php
+    $premiumLogin = $variant === 'premium-login';
+@endphp
 
 {{-- Gemeinsame Auth-Shell fuer Login/Register:
      eine zentrierte Spalte — oben das animierte RailTime-Logo
      (3D-Logo + Animation aus Layout 3 der Website), darunter das Formular. --}}
 
-<div class="rt-auth">
+<div
+    @class([
+        'rt-auth',
+        'rt-auth--premium-login' => $premiumLogin,
+    ])
+    data-auth-variant="{{ $premiumLogin ? 'premium-login' : 'standard' }}"
+>
     {{-- Theme-Umschalter (Hell/Dunkel) — nutzt den globalen Alpine-Theme-Store --}}
     <button type="button" x-data @click="$store.theme?.toggle()"
-            class="fixed right-4 top-4 z-50 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/20 backdrop-blur-sm transition-all duration-300 hover:bg-white/20 active:scale-95"
+            class="rt-auth__theme-toggle fixed right-4 top-4 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/20 backdrop-blur-sm transition-all duration-300 hover:bg-white/20 active:scale-95"
             :aria-label="$store.theme?.dark ? '{{ __('app.toggle_theme') }}' : '{{ __('app.toggle_theme') }}'"
             title="{{ __('app.toggle_theme') }}">
         <svg x-show="!$store.theme?.dark" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -18,7 +32,8 @@
         </svg>
     </button>
 
-    {{-- Markenbuehne: Logo oben --}}
+    {{-- Gemeinsame rotierende 3D-Logobuehne; die Premiumvariante skaliert sie
+         kompakter, behaelt aber dieselbe bestehende Logo-Engine. --}}
     <div class="rt-auth__brand">
         <div class="rt-auth-brand__logo" id="rt-auth-logo">
             <div class="rt-logo-stage" aria-hidden="true">
@@ -39,21 +54,35 @@
 
     {{-- Formular-Karte darunter --}}
     <div class="rt-auth__card">
-        <div class="w-full rounded-2xl bg-rt-surface p-6 text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60">
+        <section
+            @class([
+                'rt-auth-card__surface w-full rounded-2xl bg-rt-surface p-6 text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60',
+                'rt-auth-card__surface--premium' => $premiumLogin,
+            ])
+            @if ($title) aria-labelledby="rt-auth-title" @endif
+        >
             @if ($title)
-                <h1 class="text-2xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ $title }}</h1>
+                <h1 id="rt-auth-title" @class([
+                    'text-2xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text',
+                    'rt-auth-card__title' => $premiumLogin,
+                ])>{{ $title }}</h1>
             @endif
             @if ($description)
-                <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $description }}</p>
+                <p @class([
+                    'mt-1 text-sm text-rt-muted dark:text-rt-dark-muted',
+                    'rt-auth-card__description' => $premiumLogin,
+                ])>{{ $description }}</p>
             @endif
 
             {{ $slot }}
-        </div>
+        </section>
     </div>
 
-    <div class="rt-auth__status" aria-hidden="true">
-        <span>RT / 01</span><i></i><span>DE / BUNDESWEIT</span><i></i><span>24 / 7</span>
-    </div>
+    @unless ($premiumLogin)
+        <div class="rt-auth__status" aria-hidden="true">
+            <span>RT / 01</span><i></i><span>DE / BUNDESWEIT</span><i></i><span>24 / 7</span>
+        </div>
+    @endunless
 
     <div class="mt-3.5 text-center text-[11px] font-medium tracking-wide text-slate-500 dark:text-white/40">
         {{ config('app.name') }} v{{ config('app.version') }}

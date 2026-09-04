@@ -71,6 +71,14 @@ final class SaveMailDocumentRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                // Die strukturellen Regeln laufen vor diesem After-Hook. Bei
+                // bereits ungueltigen verschachtelten Typen darf die
+                // Groessenpruefung keine Arrays in Strings umwandeln und aus
+                // einem sauberen 422 einen PHP-Fehler machen.
+                if ($validator->errors()->isNotEmpty()) {
+                    return;
+                }
+
                 $encoded = json_encode($this->input('builder_data', []));
 
                 if ($encoded === false || strlen($encoded) > 1_000_000) {

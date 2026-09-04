@@ -1,0 +1,160 @@
+- generic [ref=f15e1]:
+  - link [aria-hidden] [ref=f15e2] [cursor=pointer]:
+    - /url: "#main-content"
+    - text: Zum Inhalt springen
+  - complementary [ref=f15e3]:
+    - region [ref=f15e8]:
+      - list [ref=f15e11]:
+        - listitem [ref=f15e12]: Übersicht
+        - listitem [ref=f15e13]:
+          - link [ref=f15e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f15e19]: Firma
+        - listitem [ref=f15e20]:
+          - link [ref=f15e21] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f15e26]: Kommunikation
+        - listitem [ref=f15e27]:
+          - link [expanded] [ref=f15e28] [cursor=pointer]:
+            - /url: "#"
+          - list [ref=f15e33]:
+            - listitem [ref=f15e34]:
+              - link [ref=f15e35] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/chat
+            - listitem [ref=f15e39]:
+              - link [ref=f15e40] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/messages
+            - listitem [ref=f15e45]:
+              - link [ref=f15e46] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/calls
+        - listitem [ref=f15e50]: Management
+        - listitem [ref=f15e51]:
+          - link [ref=f15e52] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f15e58]:
+          - link [ref=f15e59] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f15e65]:
+          - link [ref=f15e66] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f15e73]: Betrieb
+        - listitem [ref=f15e74]:
+          - link [ref=f15e75] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f15e78]: Inhalte & Dateien
+        - listitem [ref=f15e79]:
+          - link [ref=f15e80] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f15e85]: Mein Bereich
+        - listitem [ref=f15e86]:
+          - link [ref=f15e87] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f15e91]:
+          - link [ref=f15e92] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f15e97]:
+          - link [ref=f15e98] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f15e103]:
+          - link [ref=f15e104] [cursor=pointer]:
+            - /url: "#"
+  - navigation [aria-hidden] [ref=f15e115]:
+    - generic [ref=f15e116]:
+      - link [ref=f15e119] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+      - generic [ref=f15e122]:
+        - search [ref=f15e124]:
+          - generic [ref=f15e125]:
+            - button [ref=f15e126] [cursor=pointer]
+            - searchbox
+          - button [ref=f15e129] [cursor=pointer]: Suchen
+        - button [ref=f15e133] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f15e134]: 
+          - generic [ref=f15e135]: "3"
+        - button [ref=f15e138] [cursor=pointer]
+        - button [ref=f15e145] [cursor=pointer]:
+          - generic [ref=f15e148]:
+            - generic [ref=f15e149]: RailTime Demo
+            - generic [ref=f15e150]: Profil
+          - generic [aria-hidden] [ref=f15e151]: 
+  - main [aria-hidden] [ref=f15e152]:
+    - generic [ref=f15e155]:
+      - generic [ref=f15e158]:
+        - generic [ref=f15e159]:
+          - button [ref=f15e160] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f15e161]: 
+          - heading [level=1] [ref=f15e163]: Nachrichten
+          - button [ref=f15e165] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f15e166]: 
+        - generic [ref=f15e169]:
+          - generic [ref=f15e172]:
+            - button [expanded] [ref=f15e173] [cursor=pointer]
+            - textbox [ref=f15e176]:
+              - /placeholder: Suchen
+          - generic [ref=f15e178]:
+            - generic [ref=f15e179]:
+              - generic [ref=f15e180]: Von
+              - generic [ref=f15e181]: Betreff
+              - generic [ref=f15e182]: Nachricht
+              - generic [ref=f15e183]: Datum
+            - generic [ref=f15e184]:
+              - row [ref=f15e185] [cursor=pointer]:
+                - generic [ref=f15e186]:
+                  - generic [ref=f15e187]: Leonie Hartmann
+                  - generic [ref=f15e190]: Neue Einsatzunterlagen verfügbar
+                  - generic [ref=f15e192]: Die aktualisierte Wagenliste und Sicherheitsunterweisung stehen bereit.
+                  - generic [ref=f15e195]: vor 5 Minuten
+                - button [ref=f15e200]:
+                  - generic [aria-hidden] [ref=f15e201]: 
+              - row [ref=f15e202] [cursor=pointer]:
+                - generic [ref=f15e203]:
+                  - generic [ref=f15e204]: Leonie Hartmann
+                  - generic [ref=f15e207]: Meeting heute um 14:30 Uhr
+                  - generic [ref=f15e209]: Die Einladung zur Abstimmung mit der Disposition wurde hinterlegt.
+                  - generic [ref=f15e212]: vor 5 Minuten
+                - button [ref=f15e217]:
+                  - generic [aria-hidden] [ref=f15e218]: 
+              - row [ref=f15e219] [cursor=pointer]:
+                - generic [ref=f15e220]:
+                  - generic [ref=f15e221]: Leonie Hartmann
+                  - generic [ref=f15e224]: Geräteeinrichtung vorbereitet
+                  - generic [ref=f15e226]: Das neue Dienstgerät kann jetzt angemeldet und automatisch eingerichtet werden.
+                  - generic [ref=f15e229]: vor 5 Minuten
+                - button [ref=f15e234]:
+                  - generic [aria-hidden] [ref=f15e235]: 
+      - generic [ref=f15e236]: RailTime v1.0.0
+  - button [ref=f15e237] [cursor=pointer]
+  - text: ·
+  - dialog [ref=f15e245]:
+    - banner [ref=f15e246]:
+      - generic [aria-hidden] [ref=f15e248]: 
+      - generic [ref=f15e249]:
+        - paragraph [ref=f15e250]: Über diese Seite
+        - heading "Nachrichten" [level=2] [ref=f15e251]
+      - button "Schließen" [active] [ref=f15e252] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f15e253]: 
+    - generic [ref=f15e254]:
+      - paragraph [ref=f15e255]: Ankündigungen und interne Mitteilungen lesen, filtern und – mit Berechtigung – erstellen oder verwalten.
+      - list [ref=f15e256]:
+        - listitem [ref=f15e257]:
+          - generic [ref=f15e258]: "01"
+          - generic [ref=f15e259]: Suche, Status und Empfängerfilter grenzen die Liste ein.
+        - listitem [ref=f15e260]:
+          - generic [ref=f15e261]: "02"
+          - generic [ref=f15e262]: Eine Nachricht öffnet sich mit Inhalt, Absender, Zeit und Anhängen in der gemeinsamen Vorschau.
+        - listitem [ref=f15e263]:
+          - generic [ref=f15e264]: "03"
+          - generic [ref=f15e265]: Ungelesene Einträge werden in Topbar und App-Badge berücksichtigt.
+        - listitem [ref=f15e266]:
+          - generic [ref=f15e267]: "04"
+          - generic [ref=f15e268]: Erstellen, Bearbeiten oder Löschen ist nur mit den jeweiligen Kommunikationsrechten möglich.
+    - contentinfo [ref=f15e269]:
+      - link "Alle Hilfethemen öffnen" [ref=f15e270] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/help
+        - generic [aria-hidden] [ref=f15e271]: 
+        - text: Alle Hilfethemen öffnen
+        - generic [aria-hidden] [ref=f15e272]: 
+      - button "Los geht’s" [ref=f15e273] [cursor=pointer]:
+        - text: Los geht’s
+        - generic [aria-hidden] [ref=f15e274]: 
+  - text:                            

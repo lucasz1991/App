@@ -51,7 +51,7 @@
 >
     <div
         x-ref="anchor"
-        class="rt-ui-date-field__shell flex min-h-11 w-full items-stretch overflow-hidden rounded-xl border border-rt-border bg-rt-control shadow-rt-xs transition-[border-color,box-shadow] duration-200 ease-rt-spring hover:border-rt-accent/50 focus-within:border-rt-accent focus-within:shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:hover:border-rt-dark-accent"
+        class="rt-ui-date-field__shell rt-ui-field-shell flex min-h-11 w-full items-stretch overflow-hidden rounded-xl border border-rt-border bg-rt-control shadow-rt-xs transition-[border-color,box-shadow] duration-200 ease-rt-spring hover:border-rt-accent/50 focus-within:border-rt-accent focus-within:shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:hover:border-rt-dark-accent"
         :data-open="open ? 'true' : 'false'"
     >
         <input

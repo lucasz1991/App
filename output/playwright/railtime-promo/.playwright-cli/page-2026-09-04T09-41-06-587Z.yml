@@ -1,0 +1,252 @@
+- generic [active] [ref=f2e1]:
+  - link "Zum Inhalt springen" [ref=f2e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f2e3]:
+    - region "scrollable content" [ref=f2e8]:
+      - list [ref=f2e11]:
+        - listitem [ref=f2e12]: Übersicht
+        - listitem [ref=f2e13]:
+          - link "Dashboard" [ref=f2e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f2e19]: Firma
+        - listitem [ref=f2e20]:
+          - link "Einstellungen" [ref=f2e21] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f2e26]: Kommunikation
+        - listitem [ref=f2e27]:
+          - link "Chat & Nachrichten" [ref=f2e28] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f2e33]: Management
+        - listitem [ref=f2e34]:
+          - link "Verwaltung" [expanded] [ref=f2e35] [cursor=pointer]:
+            - /url: "#"
+          - list [ref=f2e41]:
+            - listitem [ref=f2e42]:
+              - link "Mitarbeiter" [ref=f2e43] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/employees
+            - listitem [ref=f2e50]:
+              - link "Geräte & Lager" [ref=f2e51] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/geraete
+            - listitem [ref=f2e55]:
+              - link "Kunden" [ref=f2e56] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/betrieb/customers
+            - listitem [ref=f2e61]:
+              - link "Mailverwaltung" [ref=f2e62] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/mails
+            - listitem [ref=f2e67]:
+              - link "E-Mail-Vorlagen" [ref=f2e68] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/mail-vorlagen
+            - listitem [ref=f2e73]:
+              - link "Entwürfe importieren" [ref=f2e74] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/mail-vorlagen/import
+        - listitem [ref=f2e80]:
+          - link "Disposition" [ref=f2e81] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f2e87]:
+          - link "Marketing" [ref=f2e88] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f2e95]: Betrieb
+        - listitem [ref=f2e96]:
+          - link "Wagenliste" [ref=f2e97] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f2e100]: Inhalte & Dateien
+        - listitem [ref=f2e101]:
+          - link "Dateien" [ref=f2e102] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f2e107]: Mein Bereich
+        - listitem [ref=f2e108]:
+          - link "Meine Geräte" [ref=f2e109] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f2e113]:
+          - link "Profil" [ref=f2e114] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f2e119]:
+          - link "E-Mail und Signatur" [ref=f2e120] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f2e125]:
+          - link "Support" [ref=f2e126] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f2e137]:
+    - generic [ref=f2e138]:
+      - link [ref=f2e141] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f2e142]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f2e144]:
+        - search [ref=f2e146]:
+          - generic [ref=f2e147]:
+            - button "RailTime durchsuchen" [ref=f2e148] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f2e151] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f2e155] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f2e156]: 
+          - generic [ref=f2e157]: "3"
+        - button "Einstellungen" [ref=f2e160] [cursor=pointer]
+        - button "Konto verwalten" [ref=f2e167] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f2e169]
+          - generic [ref=f2e170]:
+            - generic [ref=f2e171]: RailTime Demo
+            - generic [ref=f2e172]: Profil
+          - generic [aria-hidden] [ref=f2e173]: 
+  - main [ref=f2e174]:
+    - generic [ref=f2e177]:
+      - generic [ref=f2e179]:
+        - generic [ref=f2e180]:
+          - button "Zurück" [ref=f2e181] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f2e182]: 
+          - heading "Geräte" [level=1] [ref=f2e184]
+          - generic [ref=f2e185]:
+            - generic [ref=f2e186]:
+              - button "Systemstatus öffnen" [ref=f2e187] [cursor=pointer]
+              - button "Gerät erfassen" [ref=f2e191] [cursor=pointer]
+            - button "Informationen zu dieser Seite" [ref=f2e193] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f2e194]: 
+        - generic [ref=f2e197]:
+          - region "Sichere Bereitstellung" [ref=f2e198]:
+            - generic [ref=f2e202]:
+              - paragraph [ref=f2e203]: Startklar-Bereitstellung ohne Passwortspeicher
+              - paragraph [ref=f2e204]: Microsoft 365, Google Workspace und Apple-SSO werden vorbereitet; die Anmeldung bleibt im offiziellen OAuth-/MFA-Dialog.
+          - region "Geräte suchen und filtern" [ref=f2e205]:
+            - generic [ref=f2e206]:
+              - generic [ref=f2e207]:
+                - generic [ref=f2e208]: Geräte suchen
+                - searchbox "Geräte suchen" [ref=f2e209]
+              - button "Gerätefilter öffnen" [ref=f2e211] [cursor=pointer]
+          - region "Gerätekennzahlen" [ref=f2e216]:
+            - article [ref=f2e217]:
+              - generic [ref=f2e222]:
+                - paragraph [ref=f2e223]: Gesamt
+                - paragraph [ref=f2e225]: "4"
+                - paragraph [ref=f2e226]: Geräte
+            - article [ref=f2e227]:
+              - generic [ref=f2e234]:
+                - paragraph [ref=f2e235]: Zugewiesen
+                - paragraph [ref=f2e237]: "3"
+                - paragraph [ref=f2e238]: aktive Ausgaben
+            - article [ref=f2e239]:
+              - generic [ref=f2e246]:
+                - paragraph [ref=f2e247]: Virtuelles Lager
+                - paragraph [ref=f2e249]: "1"
+                - paragraph [ref=f2e250]: nicht zugewiesener Bestand
+            - article [ref=f2e251]:
+              - generic [ref=f2e256]:
+                - paragraph [ref=f2e257]: Handlungsbedarf
+                - paragraph [ref=f2e259]: "1"
+                - paragraph [ref=f2e260]: Warnung oder Fehler
+          - generic [ref=f2e261]:
+            - region [ref=f2e262]:
+              - generic [ref=f2e264]:
+                - heading "Gerätebestand" [level=2] [ref=f2e265]
+                - paragraph [ref=f2e266]: 4 Treffer in Inventar und Ausgabe
+              - generic [ref=f2e268]:
+                - generic [ref=f2e269]:
+                  - generic [ref=f2e270]: Gerät
+                  - generic [ref=f2e271]: Mitarbeiter
+                  - generic [ref=f2e272]: Plattform
+                  - generic [ref=f2e273]: Standort
+                  - generic [ref=f2e274]: Status
+                - generic [ref=f2e275]:
+                  - 'row "Dienstnotebook Verwaltung RT-NB-1042 Leonie Hartmann leonie.hartmann@rail-time.test Windows Hamburg · Verwaltung Notebook Konform Sync: vor 15 Minuten Aktionen für Dienstnotebook Verwaltung" [ref=f2e276] [cursor=pointer]':
+                    - generic [ref=f2e277]:
+                      - button "Dienstnotebook Verwaltung RT-NB-1042" [ref=f2e279]:
+                        - generic [ref=f2e280]: Dienstnotebook Verwaltung
+                        - generic [ref=f2e281]: RT-NB-1042
+                      - generic [ref=f2e282]:
+                        - generic [ref=f2e283]: Leonie Hartmann
+                        - generic [ref=f2e284]: leonie.hartmann@rail-time.test
+                      - generic [ref=f2e286]:
+                        - generic [aria-hidden] [ref=f2e287]: 
+                        - generic [ref=f2e288]: Windows
+                      - generic [ref=f2e289]:
+                        - generic [ref=f2e290]: Hamburg · Verwaltung
+                        - generic [ref=f2e291]: Notebook
+                      - generic [ref=f2e292]:
+                        - generic "Konform" [ref=f2e293]:
+                          - generic [aria-hidden] [ref=f2e294]: 
+                        - generic [ref=f2e296]: "Sync: vor 15 Minuten"
+                    - button "Aktionen für Dienstnotebook Verwaltung" [ref=f2e300]:
+                      - generic [aria-hidden] [ref=f2e301]: 
+                  - 'row "iPhone Einsatzleitung RT-IP-0218 Mara König mara.koenig@rail-time.test iOS Hamburg · Übergabe Phone Warnung Sync: vor 15 Minuten Aktionen für iPhone Einsatzleitung" [ref=f2e302] [cursor=pointer]':
+                    - generic [ref=f2e303]:
+                      - button "iPhone Einsatzleitung RT-IP-0218" [ref=f2e305]:
+                        - generic [ref=f2e306]: iPhone Einsatzleitung
+                        - generic [ref=f2e307]: RT-IP-0218
+                      - generic [ref=f2e308]:
+                        - generic [ref=f2e309]: Mara König
+                        - generic [ref=f2e310]: mara.koenig@rail-time.test
+                      - generic [ref=f2e312]:
+                        - generic [aria-hidden] [ref=f2e313]: 
+                        - generic [ref=f2e314]: iOS
+                      - generic [ref=f2e315]:
+                        - generic [ref=f2e316]: Hamburg · Übergabe
+                        - generic [ref=f2e317]: Phone
+                      - generic [ref=f2e318]:
+                        - generic "Warnung" [ref=f2e319]:
+                          - generic [aria-hidden] [ref=f2e320]: 
+                        - generic [ref=f2e322]: "Sync: vor 15 Minuten"
+                    - button "Aktionen für iPhone Einsatzleitung" [ref=f2e326]:
+                      - generic [aria-hidden] [ref=f2e327]: 
+                  - 'row "MacBook Geschäftsführung RT-MB-0088 RailTime Demo demo.admin@rail-time.test macOS Hamburg · Geschäftsführung Notebook Konform Sync: vor 15 Minuten Aktionen für MacBook Geschäftsführung" [ref=f2e328] [cursor=pointer]':
+                    - generic [ref=f2e329]:
+                      - button "MacBook Geschäftsführung RT-MB-0088" [ref=f2e331]:
+                        - generic [ref=f2e332]: MacBook Geschäftsführung
+                        - generic [ref=f2e333]: RT-MB-0088
+                      - generic [ref=f2e334]:
+                        - generic [ref=f2e335]: RailTime Demo
+                        - generic [ref=f2e336]: demo.admin@rail-time.test
+                      - generic [ref=f2e338]:
+                        - generic [aria-hidden] [ref=f2e339]: 
+                        - generic [ref=f2e340]: macOS
+                      - generic [ref=f2e341]:
+                        - generic [ref=f2e342]: Hamburg · Geschäftsführung
+                        - generic [ref=f2e343]: Notebook
+                      - generic [ref=f2e344]:
+                        - generic "Konform" [ref=f2e345]:
+                          - generic [aria-hidden] [ref=f2e346]: 
+                        - generic [ref=f2e348]: "Sync: vor 15 Minuten"
+                    - button "Aktionen für MacBook Geschäftsführung" [ref=f2e352]:
+                      - generic [aria-hidden] [ref=f2e353]: 
+                  - 'row "Tablet Wagenmeister RT-TB-0311 Im Lager Nicht zugewiesen Android Lager Hamburg Tablet Unbekannt Sync: vor 15 Minuten Aktionen für Tablet Wagenmeister" [ref=f2e354] [cursor=pointer]':
+                    - generic [ref=f2e355]:
+                      - button "Tablet Wagenmeister RT-TB-0311" [ref=f2e357]:
+                        - generic [ref=f2e358]: Tablet Wagenmeister
+                        - generic [ref=f2e359]: RT-TB-0311
+                      - generic [ref=f2e360]:
+                        - generic [ref=f2e361]: Im Lager
+                        - generic [ref=f2e362]: Nicht zugewiesen
+                      - generic [ref=f2e364]:
+                        - generic [aria-hidden] [ref=f2e365]: 
+                        - generic [ref=f2e366]: Android
+                      - generic [ref=f2e367]:
+                        - generic [ref=f2e368]: Lager Hamburg
+                        - generic [ref=f2e369]: Tablet
+                      - generic [ref=f2e370]:
+                        - generic "Unbekannt" [ref=f2e371]:
+                          - generic [aria-hidden] [ref=f2e372]: 
+                        - generic [ref=f2e374]: "Sync: vor 15 Minuten"
+                    - button "Aktionen für Tablet Wagenmeister" [ref=f2e378]:
+                      - generic [aria-hidden] [ref=f2e379]: 
+            - complementary [ref=f2e381]:
+              - generic [ref=f2e383]:
+                - heading "Gerätestandorte" [level=2] [ref=f2e384]
+                - paragraph [ref=f2e385]: Deklarierte Einsatzorte
+              - generic [ref=f2e390]:
+                - button "Hamburg · Geschäftsführung 1" [ref=f2e391] [cursor=pointer]:
+                  - generic [ref=f2e393]: Hamburg · Geschäftsführung
+                  - generic [ref=f2e394]: "1"
+                - button "Hamburg · Verwaltung 1" [ref=f2e395] [cursor=pointer]:
+                  - generic [ref=f2e397]: Hamburg · Verwaltung
+                  - generic [ref=f2e398]: "1"
+                - button "Hamburg · Übergabe 1" [ref=f2e399] [cursor=pointer]:
+                  - generic [ref=f2e401]: Hamburg · Übergabe
+                  - generic [ref=f2e402]: "1"
+                - button "Lager Hamburg 1" [ref=f2e403] [cursor=pointer]:
+                  - generic [ref=f2e405]: Lager Hamburg
+                  - generic [ref=f2e406]: "1"
+              - generic [ref=f2e407]: Keine Live-Ortung · Angaben aus Inventar und Rückgabe
+      - generic [ref=f2e408]: RailTime v1.0.0
+  - generic:
+    - button "RailTime Assist öffnen" [ref=f2e409] [cursor=pointer]
+    - text: ·
+  - text:                               

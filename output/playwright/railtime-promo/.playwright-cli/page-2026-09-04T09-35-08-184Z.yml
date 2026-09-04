@@ -1,0 +1,138 @@
+- generic [ref=f13e1]:
+  - link [aria-hidden] [ref=f13e2] [cursor=pointer]:
+    - /url: "#main-content"
+    - text: Zum Inhalt springen
+  - complementary [ref=f13e3]:
+    - region [ref=f13e8]:
+      - list [ref=f13e11]:
+        - listitem [ref=f13e12]: Übersicht
+        - listitem [ref=f13e13]:
+          - link [ref=f13e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f13e19]: Firma
+        - listitem [ref=f13e20]:
+          - link [ref=f13e21] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f13e26]: Kommunikation
+        - listitem [ref=f13e27]:
+          - link [ref=f13e28] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f13e33]: Management
+        - listitem [ref=f13e34]:
+          - link [ref=f13e35] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f13e41]:
+          - link [ref=f13e42] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f13e48]:
+          - link [ref=f13e49] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f13e56]: Betrieb
+        - listitem [ref=f13e57]:
+          - link [ref=f13e58] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f13e61]: Inhalte & Dateien
+        - listitem [ref=f13e62]:
+          - link [expanded] [ref=f13e63] [cursor=pointer]:
+            - /url: "#"
+          - list [ref=f13e68]:
+            - listitem [ref=f13e69]:
+              - link [ref=f13e70] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/files
+            - listitem [ref=f13e74]:
+              - link [ref=f13e75] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/files/verbindlich
+        - listitem [ref=f13e79]: Mein Bereich
+        - listitem [ref=f13e80]:
+          - link [ref=f13e81] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f13e85]:
+          - link [ref=f13e86] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f13e91]:
+          - link [ref=f13e92] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f13e97]:
+          - link [ref=f13e98] [cursor=pointer]:
+            - /url: "#"
+  - navigation [aria-hidden] [ref=f13e109]:
+    - generic [ref=f13e110]:
+      - link [ref=f13e113] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+      - generic [ref=f13e116]:
+        - search [ref=f13e118]:
+          - generic [ref=f13e119]:
+            - button [ref=f13e120] [cursor=pointer]
+            - searchbox
+          - button [ref=f13e123] [cursor=pointer]: Suchen
+        - button [ref=f13e127] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f13e128]: 
+          - generic [ref=f13e129]: "3"
+        - button [ref=f13e132] [cursor=pointer]
+        - button [ref=f13e139] [cursor=pointer]:
+          - generic [ref=f13e142]:
+            - generic [ref=f13e143]: RailTime Demo
+            - generic [ref=f13e144]: Profil
+          - generic [aria-hidden] [ref=f13e145]: 
+  - main [aria-hidden] [ref=f13e146]:
+    - generic [ref=f13e149]:
+      - generic [ref=f13e151]:
+        - generic [ref=f13e152]:
+          - button [ref=f13e153] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f13e154]: 
+          - heading [level=1] [ref=f13e156]: Dateiexplorer
+          - button [ref=f13e158] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f13e159]: 
+        - generic [ref=f13e163]:
+          - text:  􏎂 
+          - paragraph [ref=f13e164]: Datei ziehen und auf einem sichtbaren Ordner oder Breadcrumb ablegen.
+          - generic [ref=f13e165]:
+            - generic [ref=f13e166]:
+              - button [ref=f13e167] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f13e168]:  􏙞
+              - button [ref=f13e169] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f13e170]:  􏎂
+            - navigation [ref=f13e171]:
+              - button [ref=f13e172] [cursor=pointer]:
+                - generic [ref=f13e173]:  􏀕
+                - text: Hauptverzeichnis
+          - generic [ref=f13e175]:
+            - generic [ref=f13e176]:  􏁼
+            - generic [ref=f13e177]: Keine Dateien vorhanden.
+          - text:  
+      - generic [ref=f13e178]: RailTime v1.0.0
+  - button [ref=f13e179] [cursor=pointer]
+  - text: ·
+  - dialog [ref=f13e187]:
+    - banner [ref=f13e188]:
+      - generic [aria-hidden] [ref=f13e190]: 
+      - generic [ref=f13e191]:
+        - paragraph [ref=f13e192]: Über diese Seite
+        - heading "Dateimanager" [level=2] [ref=f13e193]
+      - button "Schließen" [active] [ref=f13e194] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f13e195]: 
+    - generic [ref=f13e196]:
+      - paragraph [ref=f13e197]: Ordner und Dateien hochladen, strukturieren, verschieben, in der Vorschau öffnen und gezielt freigeben.
+      - list [ref=f13e198]:
+        - listitem [ref=f13e199]:
+          - generic [ref=f13e200]: "01"
+          - generic [ref=f13e201]: Breadcrumbs zeigen den aktuellen Ordner und dienen zugleich als Ziel beim Verschieben.
+        - listitem [ref=f13e202]:
+          - generic [ref=f13e203]: "02"
+          - generic [ref=f13e204]: Ordner stehen vor Dateien; Drag-and-drop verschiebt Elemente direkt in einen Ordner oder Breadcrumb.
+        - listitem [ref=f13e205]:
+          - generic [ref=f13e206]: "03"
+          - generic [ref=f13e207]: Klick öffnet unterstützte Dateien in der Vorschau, der Download bleibt eine bewusste Aktion.
+        - listitem [ref=f13e208]:
+          - generic [ref=f13e209]: "04"
+          - generic [ref=f13e210]: Rechtsklick oder der Drei-Punkte-Knopf öffnet Umbenennen, Verschieben und Löschen.
+    - contentinfo [ref=f13e211]:
+      - link "Alle Hilfethemen öffnen" [ref=f13e212] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/help
+        - generic [aria-hidden] [ref=f13e213]: 
+        - text: Alle Hilfethemen öffnen
+        - generic [aria-hidden] [ref=f13e214]: 
+      - button "Los geht’s" [ref=f13e215] [cursor=pointer]:
+        - text: Los geht’s
+        - generic [aria-hidden] [ref=f13e216]: 
+  - text:        􏎂   􏎂  􏁮  􏀗  􏎂    􏞃  􏃀  􏉳  􏠩   􏎂    􏌄  􏁮  􏀗   􏌄  􏁮  􏀗              

@@ -1,0 +1,249 @@
+- generic [active] [ref=f8e1]:
+  - link "Zum Inhalt springen" [ref=f8e487] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f8e488]:
+    - region "scrollable content" [ref=f8e489]:
+      - list [ref=f8e11]:
+        - listitem [ref=f8e12]: Übersicht
+        - listitem [ref=f8e13]:
+          - link "Dashboard" [ref=f8e490] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f8e19]: Firma
+        - listitem [ref=f8e20]:
+          - link "Einstellungen" [ref=f8e491] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f8e26]: Kommunikation
+        - listitem [ref=f8e27]:
+          - link "Chat & Nachrichten" [ref=f8e492] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f8e33]: Management
+        - listitem [ref=f8e34]:
+          - link "Verwaltung" [ref=f8e493] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f8e41]:
+          - link "Disposition" [ref=f8e494] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f8e48]:
+          - link "Marketing" [ref=f8e495] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f8e56]: Betrieb
+        - listitem [ref=f8e57]:
+          - link "Wagenliste" [ref=f8e496] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f8e61]: Inhalte & Dateien
+        - listitem [ref=f8e62]:
+          - link "Dateien" [ref=f8e497] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f8e68]: Mein Bereich
+        - listitem [ref=f8e69]:
+          - link "Meine Geräte" [ref=f8e498] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f8e74]:
+          - link "Profil" [ref=f8e499] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f8e80]:
+          - link "E-Mail und Signatur" [ref=f8e500] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f8e86]:
+          - link "Support" [ref=f8e501] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f8e502]:
+    - generic [ref=f8e99]:
+      - link [ref=f8e503] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f8e504]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f8e105]:
+        - search [ref=f8e107]:
+          - generic [ref=f8e108]:
+            - button "RailTime durchsuchen" [ref=f8e505] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f8e506] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f8e507] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f8e117]: 
+          - generic [ref=f8e118]: "3"
+        - button "Einstellungen" [ref=f8e508] [cursor=pointer]
+        - button "Konto verwalten" [ref=f8e509] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f8e510]
+          - generic [ref=f8e131]:
+            - generic [ref=f8e132]: RailTime Demo
+            - generic [ref=f8e133]: Profil
+          - generic [aria-hidden] [ref=f8e134]: 
+  - main [ref=f8e135]:
+    - generic [ref=f8e138]:
+      - generic [ref=f8e143]:
+        - heading "RailTime Command Center" [level=1] [ref=f8e511]
+        - region [ref=f8e512]:
+          - generic [ref=f8e146]:
+            - generic [ref=f8e147]:
+              - paragraph [ref=f8e148]: Betriebssteuerung
+              - heading "Aufträge, Schichten & Wagenlisten" [level=2] [ref=f8e513]
+            - generic [ref=f8e150]:
+              - generic [ref=f8e151]: Kein offener Hinweis
+              - generic "Stand 11:32 Uhr" [ref=f8e514]
+              - button "Dashboard aktualisieren" [ref=f8e515] [cursor=pointer]
+              - button "Willkommens-Einführung erneut anzeigen" [ref=f8e516] [cursor=pointer]
+          - generic [ref=f8e166]:
+            - article [ref=f8e167]:
+              - link "Aufträge · Öffnen" [ref=f8e517] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/betrieb/orders
+              - generic [ref=f8e170]: 0 dringend
+              - paragraph [ref=f8e177]: "0"
+              - paragraph [ref=f8e178]: offene Aufträge
+              - generic [ref=f8e179]:
+                - heading "Aufträge" [level=3] [ref=f8e518]
+                - paragraph [ref=f8e181]: Aufträge erfassen, priorisieren und vom Eingang bis zur Abrechnung steuern.
+              - generic [ref=f8e182]: Öffnen
+            - article [ref=f8e187]:
+              - link "Schichtplanung · Öffnen" [ref=f8e519] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/betrieb/shift-management
+              - generic [ref=f8e190]: 0 unterbesetzt
+              - paragraph [ref=f8e197]: "0"
+              - paragraph [ref=f8e198]: kommende Schichten
+              - heading "Schichtplanung" [level=3] [ref=f8e520]
+              - generic [ref=f8e201]: Öffnen
+            - article [ref=f8e206]:
+              - link "Wagenliste · Wagenliste öffnen" [ref=f8e521] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+              - generic [ref=f8e209]: Wagenlisten verfügbar
+              - heading "Wagenliste" [level=3] [ref=f8e522]
+              - generic [ref=f8e216]: Wagenliste öffnen
+            - article [ref=f8e221]:
+              - link "Kalender · Öffnen" [ref=f8e523] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/betrieb/calendar
+              - generic [ref=f8e224]: 0 diese Woche
+              - paragraph [ref=f8e230]: "0"
+              - paragraph [ref=f8e231]: Schichten heute
+              - heading "Kalender" [level=3] [ref=f8e524]
+              - generic [ref=f8e234]: Öffnen
+            - article [ref=f8e239]:
+              - link "Kunden · Öffnen" [ref=f8e525] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/betrieb/customers
+              - generic [ref=f8e242]: 0 insgesamt
+              - paragraph [ref=f8e249]: "0"
+              - paragraph [ref=f8e250]: aktive Kunden
+              - heading "Kunden" [level=3] [ref=f8e526]
+              - generic [ref=f8e253]: Öffnen
+        - region [ref=f8e527]:
+          - generic [ref=f8e260]:
+            - paragraph [ref=f8e261]: Mitarbeiter
+            - heading "Belegschaft & Aktivität" [level=2] [ref=f8e528]
+          - generic [ref=f8e263]:
+            - article [ref=f8e264]:
+              - generic [ref=f8e265]:
+                - generic [ref=f8e266]:
+                  - heading "Mitarbeiterkonten" [level=3] [ref=f8e529]
+                  - paragraph [ref=f8e268]: Der Status zeigt freigeschaltete Konten – nicht die aktuelle Verfügbarkeit der Mitarbeitenden.
+                - link "Mitarbeiter verwalten" [ref=f8e530] [cursor=pointer]:
+                  - /url: http://127.0.0.1:5112/administrator/employees
+              - generic [ref=f8e273]:
+                - 'img "This is a chart about \"4\". It consists of 2 series count. The 0 series is a Pie chart.The data is as follows: 1. The 1 series is a Pie chart.The data is as follows: the data for Freigeschaltet is 4, the data for Gesperrt is 0." [ref=f8e531]':
+                  - img [ref=f8e456]:
+                    - generic [ref=f8e458]:
+                      - generic [ref=f8e462]: "4"
+                      - generic [ref=f8e464]: Mitarbeiter
+                - generic [ref=f8e275]:
+                  - generic [ref=f8e276]:
+                    - term [ref=f8e277]: Mitarbeiter
+                    - definition [ref=f8e278]: "4"
+                  - generic [ref=f8e279]:
+                    - term [ref=f8e280]: Freigeschaltet
+                    - definition [ref=f8e281]: "4"
+                  - generic [ref=f8e282]:
+                    - term [ref=f8e283]: Gesperrt
+                    - definition [ref=f8e284]: "0"
+                  - generic [ref=f8e285]:
+                    - term [ref=f8e286]: Teams (Rechtegruppen)
+                    - definition [ref=f8e287]: "3"
+              - generic [ref=f8e289]:
+                - generic [ref=f8e290]: Anteil freigeschalteter Konten
+                - generic [ref=f8e291]: 100%
+            - article [ref=f8e294]:
+              - generic [ref=f8e295]:
+                - generic [ref=f8e296]:
+                  - paragraph [ref=f8e297]: Letzte 14 Tage
+                  - heading "Aktivität im Verlauf" [level=3] [ref=f8e532]
+                - generic [ref=f8e299]:
+                  - generic [ref=f8e300]:
+                    - generic [ref=f8e301]: Durchschnitt
+                    - generic [ref=f8e302]: Ø 0,3
+                  - generic [ref=f8e303]:
+                    - generic [ref=f8e304]: Spitzenwert
+                    - generic [ref=f8e305]: "4"
+              - 'img "This is a chart with type Line chart named Aktive Benutzer.The first 10 items are: the data for 22. Aug is 0, 0, the data for 23. Aug is 1, 0, the data for 24. Aug is 2, 0, the data for 25. Aug is 3, 0, the data for 26. Aug is 4, 0, the data for 27. Aug is 5, 0, the data for 28. Aug is 6, 0, the data for 29. Aug is 7, 0, the data for 30. Aug is 8, 0, the data for 31. Aug is 9, 0." [ref=f8e533]':
+                - img [ref=f8e466]:
+                  - generic [ref=f8e468]:
+                    - generic [ref=f8e469]: "0"
+                    - generic [ref=f8e470]: "1"
+                    - generic [ref=f8e471]: "2"
+                    - generic [ref=f8e472]: "3"
+                    - generic [ref=f8e473]: "4"
+                    - generic [ref=f8e474]: 22. Aug
+                    - generic [ref=f8e475]: 24. Aug
+                    - generic [ref=f8e476]: 26. Aug
+                    - generic [ref=f8e477]: 28. Aug
+                    - generic [ref=f8e478]: 30. Aug
+                    - generic [ref=f8e479]: 01. Sep
+                    - generic [ref=f8e480]: 03. Sep
+                    - generic [ref=f8e485]: Ø Durchschnitt
+              - paragraph [ref=f8e307]: Im Durchschnitt waren 0.3 Konten pro Tag aktiv, der Spitzenwert lag bei 4.
+              - generic [ref=f8e308]:
+                - heading "Zuletzt aktiv" [level=4] [ref=f8e534]
+                - list "Zuletzt aktiv" [ref=f8e535]:
+                  - listitem [ref=f8e315]:
+                    - link "Online Mara König vor 1 Minute" [ref=f8e536] [cursor=pointer]:
+                      - /url: http://127.0.0.1:5112/administrator/user/2
+                      - generic [ref=f8e317]: Online
+                      - generic [ref=f8e320]: Mara König
+                      - time [ref=f8e321]: vor 1 Minute
+                  - listitem [ref=f8e322]:
+                    - link "Online Jonas Weber vor 1 Minute" [ref=f8e537] [cursor=pointer]:
+                      - /url: http://127.0.0.1:5112/administrator/user/3
+                      - generic [ref=f8e324]: Online
+                      - generic [ref=f8e327]: Jonas Weber
+                      - time [ref=f8e328]: vor 1 Minute
+                  - listitem [ref=f8e329]:
+                    - link "Online Leonie Hartmann vor 1 Minute" [ref=f8e538] [cursor=pointer]:
+                      - /url: http://127.0.0.1:5112/administrator/user/4
+                      - generic [ref=f8e331]: Online
+                      - generic [ref=f8e334]: Leonie Hartmann
+                      - time [ref=f8e335]: vor 1 Minute
+                  - listitem [ref=f8e336]:
+                    - link "Online Tobias Berger vor 1 Minute" [ref=f8e539] [cursor=pointer]:
+                      - /url: http://127.0.0.1:5112/administrator/user/5
+                      - generic [ref=f8e338]: Online
+                      - generic [ref=f8e341]: Tobias Berger
+                      - time [ref=f8e342]: vor 1 Minute
+          - article [ref=f8e343]:
+            - generic [ref=f8e344]:
+              - generic [ref=f8e349]:
+                - paragraph [ref=f8e350]: IT & Betrieb
+                - heading "Geräteverwaltung" [level=3] [ref=f8e540]
+                - paragraph [ref=f8e352]: Bestand, Zuweisungen und technische Auffälligkeiten direkt im Blick.
+              - generic "Kennzahlen der Geräteverwaltung" [ref=f8e541]:
+                - generic [ref=f8e354]:
+                  - term [ref=f8e355]:
+                    - generic [ref=f8e357]: Geräte gesamt
+                  - definition [ref=f8e358]: "4"
+                - generic [ref=f8e359]:
+                  - term [ref=f8e360]:
+                    - generic [ref=f8e362]: Zugewiesen
+                  - definition [ref=f8e363]: "3"
+                - generic [ref=f8e364]:
+                  - term [ref=f8e365]:
+                    - generic [ref=f8e367]: Im Lager
+                  - definition [ref=f8e368]: "1"
+                - generic [ref=f8e369]:
+                  - term [ref=f8e370]:
+                    - generic [ref=f8e372]: Handlungsbedarf
+                  - definition [ref=f8e373]: "1"
+              - generic [ref=f8e374]:
+                - status [ref=f8e375]: 1 Gerät prüfen
+                - link "Geräte verwalten" [ref=f8e542] [cursor=pointer]:
+                  - /url: http://127.0.0.1:5112/administrator/geraete
+      - generic [ref=f8e381]: RailTime v1.0.0
+  - generic:
+    - button "RailTime Assist öffnen" [ref=f8e543] [cursor=pointer]
+    - text: ·
+  - text:                                   
