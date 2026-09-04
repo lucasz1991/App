@@ -1,0 +1,91 @@
+- generic [active] [ref=f4e1]:
+  - link "Zum Inhalt springen" [ref=f4e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f4e3]:
+    - region "scrollable content" [ref=f4e8]:
+      - list [ref=f4e11]:
+        - listitem [ref=f4e12]: Übersicht
+        - listitem [ref=f4e13]:
+          - link "Dashboard" [ref=f4e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f4e19]: Firma
+        - listitem [ref=f4e20]:
+          - link "Einstellungen" [ref=f4e21] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f4e26]: Kommunikation
+        - listitem [ref=f4e27]:
+          - link "Chat & Nachrichten" [expanded] [ref=f4e28] [cursor=pointer]:
+            - /url: "#"
+          - list [ref=f4e33]:
+            - listitem [ref=f4e34]:
+              - link "Chat" [ref=f4e35] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/chat
+            - listitem [ref=f4e39]:
+              - link "Nachrichten" [ref=f4e40] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/messages
+            - listitem [ref=f4e45]:
+              - link "Anrufe" [ref=f4e46] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/calls
+        - listitem [ref=f4e50]: Management
+        - listitem [ref=f4e51]:
+          - link "Verwaltung" [ref=f4e52] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f4e58]:
+          - link "Disposition" [ref=f4e59] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f4e65]:
+          - link "Marketing" [ref=f4e66] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f4e73]: Betrieb
+        - listitem [ref=f4e74]:
+          - link "Wagenliste" [ref=f4e75] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f4e78]: Inhalte & Dateien
+        - listitem [ref=f4e79]:
+          - link "Dateien" [ref=f4e80] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f4e85]: Mein Bereich
+        - listitem [ref=f4e86]:
+          - link "Meine Geräte" [ref=f4e87] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f4e91]:
+          - link "Profil" [ref=f4e92] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f4e97]:
+          - link "E-Mail und Signatur" [ref=f4e98] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f4e103]:
+          - link "Support" [ref=f4e104] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f4e115]:
+    - generic [ref=f4e116]:
+      - link [ref=f4e119] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f4e120]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f4e122]:
+        - search [ref=f4e124]:
+          - generic [ref=f4e125]:
+            - button "RailTime durchsuchen" [ref=f4e126] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f4e129] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f4e133] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f4e134]: 
+          - generic [ref=f4e135]: "3"
+        - button "Einstellungen" [ref=f4e138] [cursor=pointer]
+        - button "Konto verwalten" [ref=f4e145] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f4e147]
+          - generic [ref=f4e148]:
+            - generic [ref=f4e149]: RailTime Demo
+            - generic [ref=f4e150]: Profil
+          - generic [aria-hidden] [ref=f4e151]: 
+  - main [ref=f4e152]:
+    - generic [ref=f4e156]:
+      - 'button "Chat-Optionen: Mara König"':
+        - generic [aria-hidden]: 
+      - 'button "Chat-Optionen: Disposition Nord"':
+        - generic [aria-hidden]: 
+      - button "Chat-Optionen" [ref=f4e157] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f4e158]: 
+  - text:                                            􏒲         􏔉    􏎂               

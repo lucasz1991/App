@@ -43,6 +43,7 @@
         chat-action="openDirectChat"
         call-action="startDirectCall"
         :selected="$isSelected"
+        :selection-indicator="true"
     />
 </div>
 

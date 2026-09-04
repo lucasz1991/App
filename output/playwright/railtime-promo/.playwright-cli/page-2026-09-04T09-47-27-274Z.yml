@@ -1,0 +1,131 @@
+- generic [active] [ref=f7e1]:
+  - link "Zum Inhalt springen" [ref=f7e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f7e3]:
+    - region "scrollable content" [ref=f7e8]:
+      - list [ref=f7e11]:
+        - listitem [ref=f7e12]: Übersicht
+        - listitem [ref=f7e13]:
+          - link "Dashboard" [ref=f7e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f7e19]: Firma
+        - listitem [ref=f7e20]:
+          - link "Einstellungen" [ref=f7e21] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f7e26]: Kommunikation
+        - listitem [ref=f7e27]:
+          - link "Chat & Nachrichten" [expanded] [ref=f7e28] [cursor=pointer]:
+            - /url: "#"
+          - list [ref=f7e33]:
+            - listitem [ref=f7e34]:
+              - link "Chat" [ref=f7e35] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/chat
+            - listitem [ref=f7e39]:
+              - link "Nachrichten" [ref=f7e40] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/messages
+            - listitem [ref=f7e45]:
+              - link "Anrufe" [ref=f7e46] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/calls
+        - listitem [ref=f7e50]: Management
+        - listitem [ref=f7e51]:
+          - link "Verwaltung" [ref=f7e52] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f7e58]:
+          - link "Disposition" [ref=f7e59] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f7e65]:
+          - link "Marketing" [ref=f7e66] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f7e73]: Betrieb
+        - listitem [ref=f7e74]:
+          - link "Wagenliste" [ref=f7e75] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f7e78]: Inhalte & Dateien
+        - listitem [ref=f7e79]:
+          - link "Dateien" [ref=f7e80] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f7e85]: Mein Bereich
+        - listitem [ref=f7e86]:
+          - link "Meine Geräte" [ref=f7e87] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f7e91]:
+          - link "Profil" [ref=f7e92] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f7e97]:
+          - link "E-Mail und Signatur" [ref=f7e98] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f7e103]:
+          - link "Support" [ref=f7e104] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f7e115]:
+    - generic [ref=f7e116]:
+      - link [ref=f7e119] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f7e120]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f7e122]:
+        - search [ref=f7e124]:
+          - generic [ref=f7e125]:
+            - button "RailTime durchsuchen" [ref=f7e126] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f7e129] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f7e133] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f7e134]: 
+          - generic [ref=f7e135]: "3"
+        - button "Einstellungen" [ref=f7e138] [cursor=pointer]
+        - button "Konto verwalten" [ref=f7e145] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f7e147]
+          - generic [ref=f7e148]:
+            - generic [ref=f7e149]: RailTime Demo
+            - generic [ref=f7e150]: Profil
+          - generic [aria-hidden] [ref=f7e151]: 
+  - main [ref=f7e152]:
+    - generic [ref=f7e155]:
+      - generic [ref=f7e158]:
+        - generic [ref=f7e159]:
+          - button "Zurück" [ref=f7e160] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f7e161]: 
+          - heading "Nachrichten" [level=1] [ref=f7e163]
+          - button "Informationen zu dieser Seite" [ref=f7e165] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f7e166]: 
+        - generic [ref=f7e169]:
+          - generic [ref=f7e172]:
+            - button "Suchen" [expanded] [ref=f7e173] [cursor=pointer]
+            - textbox "Suchen" [ref=f7e176]
+          - generic [ref=f7e178]:
+            - generic [ref=f7e179]:
+              - generic [ref=f7e180]: Von
+              - generic [ref=f7e181]: Betreff
+              - generic [ref=f7e182]: Nachricht
+              - generic [ref=f7e183]: Datum
+            - generic [ref=f7e184]:
+              - row "Leonie Hartmann Neue Einsatzunterlagen verfügbar Die aktualisierte Wagenliste und Sicherheitsunterweisung stehen bereit. vor 16 Minuten Aktionen" [ref=f7e185] [cursor=pointer]:
+                - generic [ref=f7e186]:
+                  - generic [ref=f7e187]: Leonie Hartmann
+                  - generic [ref=f7e190]: Neue Einsatzunterlagen verfügbar
+                  - generic [ref=f7e192]: Die aktualisierte Wagenliste und Sicherheitsunterweisung stehen bereit.
+                  - generic "04.09.2026 11:30" [ref=f7e195]: vor 16 Minuten
+                - button "Aktionen" [ref=f7e200]:
+                  - generic [aria-hidden] [ref=f7e201]: 
+              - row "Leonie Hartmann Meeting heute um 14:30 Uhr Die Einladung zur Abstimmung mit der Disposition wurde hinterlegt. vor 16 Minuten Aktionen" [ref=f7e202] [cursor=pointer]:
+                - generic [ref=f7e203]:
+                  - generic [ref=f7e204]: Leonie Hartmann
+                  - generic [ref=f7e207]: Meeting heute um 14:30 Uhr
+                  - generic [ref=f7e209]: Die Einladung zur Abstimmung mit der Disposition wurde hinterlegt.
+                  - generic "04.09.2026 11:30" [ref=f7e212]: vor 16 Minuten
+                - button "Aktionen" [ref=f7e217]:
+                  - generic [aria-hidden] [ref=f7e218]: 
+              - row "Leonie Hartmann Geräteeinrichtung vorbereitet Das neue Dienstgerät kann jetzt angemeldet und automatisch eingerichtet werden. vor 16 Minuten Aktionen" [ref=f7e219] [cursor=pointer]:
+                - generic [ref=f7e220]:
+                  - generic [ref=f7e221]: Leonie Hartmann
+                  - generic [ref=f7e224]: Geräteeinrichtung vorbereitet
+                  - generic [ref=f7e226]: Das neue Dienstgerät kann jetzt angemeldet und automatisch eingerichtet werden.
+                  - generic "04.09.2026 11:30" [ref=f7e229]: vor 16 Minuten
+                - button "Aktionen" [ref=f7e234]:
+                  - generic [aria-hidden] [ref=f7e235]: 
+      - generic [ref=f7e236]: RailTime v1.0.0
+  - generic:
+    - button "RailTime Assist öffnen" [ref=f7e237] [cursor=pointer]
+    - text: ·
+  - text:                                 

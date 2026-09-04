@@ -1,0 +1,147 @@
+- generic [active] [ref=f5e1]:
+  - link "Zum Inhalt springen" [ref=f5e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f5e3]:
+    - region "scrollable content" [ref=f5e8]:
+      - list [ref=f5e11]:
+        - listitem [ref=f5e12]: Übersicht
+        - listitem [ref=f5e13]:
+          - link "Dashboard" [ref=f5e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f5e19]: Firma
+        - listitem [ref=f5e20]:
+          - link "Einstellungen" [ref=f5e21] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f5e26]: Kommunikation
+        - listitem [ref=f5e27]:
+          - link "Chat & Nachrichten" [expanded] [ref=f5e28] [cursor=pointer]:
+            - /url: "#"
+          - list [ref=f5e33]:
+            - listitem [ref=f5e34]:
+              - link "Chat" [ref=f5e35] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/chat
+            - listitem [ref=f5e39]:
+              - link "Nachrichten" [ref=f5e40] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/administrator/messages
+            - listitem [ref=f5e45]:
+              - link "Anrufe" [ref=f5e46] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/calls
+        - listitem [ref=f5e50]: Management
+        - listitem [ref=f5e51]:
+          - link "Verwaltung" [ref=f5e52] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f5e58]:
+          - link "Disposition" [ref=f5e59] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f5e65]:
+          - link "Marketing" [ref=f5e66] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f5e73]: Betrieb
+        - listitem [ref=f5e74]:
+          - link "Wagenliste" [ref=f5e75] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f5e78]: Inhalte & Dateien
+        - listitem [ref=f5e79]:
+          - link "Dateien" [ref=f5e80] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f5e85]: Mein Bereich
+        - listitem [ref=f5e86]:
+          - link "Meine Geräte" [ref=f5e87] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f5e91]:
+          - link "Profil" [ref=f5e92] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f5e97]:
+          - link "E-Mail und Signatur" [ref=f5e98] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f5e103]:
+          - link "Support" [ref=f5e104] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f5e115]:
+    - generic [ref=f5e116]:
+      - link [ref=f5e119] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f5e120]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f5e122]:
+        - search [ref=f5e124]:
+          - generic [ref=f5e125]:
+            - button "RailTime durchsuchen" [ref=f5e126] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f5e129] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f5e133] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f5e134]: 
+          - generic [ref=f5e135]: "3"
+        - button "Einstellungen" [ref=f5e138] [cursor=pointer]
+        - button "Konto verwalten" [ref=f5e145] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f5e147]
+          - generic [ref=f5e148]:
+            - generic [ref=f5e149]: RailTime Demo
+            - generic [ref=f5e150]: Profil
+          - generic [aria-hidden] [ref=f5e151]: 
+  - main [ref=f5e152]:
+    - generic [ref=f5e155]:
+      - generic [ref=f5e158]:
+        - generic [ref=f5e159]:
+          - button "Zurück" [ref=f5e160] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f5e161]: 
+          - heading "Anrufe" [level=1] [ref=f5e163]
+          - generic [ref=f5e164]:
+            - generic [ref=f5e166]:
+              - button "Alle" [ref=f5e167] [cursor=pointer]
+              - button "Laufend" [ref=f5e168] [cursor=pointer]
+              - button "Verpasst" [ref=f5e169] [cursor=pointer]
+              - button "Meetings" [ref=f5e170] [cursor=pointer]
+              - button "Aufzeichnungen" [ref=f5e171] [cursor=pointer]
+            - button "Informationen zu dieser Seite" [ref=f5e172] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f5e173]: 
+        - generic [ref=f5e175]:
+          - generic [ref=f5e176]:
+            - generic [ref=f5e177]:
+              - generic [ref=f5e178]:
+                - generic [aria-hidden] [ref=f5e180]:  􏠰
+                - generic [ref=f5e181]:
+                  - heading "Meeting eröffnen" [level=2] [ref=f5e182]
+                  - paragraph [ref=f5e183]: Es klingelt niemand. Der Raum bleibt offen, bis der letzte Teilnehmer geht.
+              - generic [ref=f5e184]:
+                - generic [ref=f5e185]:
+                  - generic [ref=f5e186]: Bezeichnung
+                  - textbox "Bezeichnung" [ref=f5e187]:
+                    - /placeholder: z. B. Schichtübergabe Freitag
+                - generic [ref=f5e188] [cursor=pointer]:
+                  - checkbox "Mit Kamera starten" [checked] [ref=f5e190]
+                  - text: Mit Kamera starten
+                - button "Meeting starten" [ref=f5e191] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=f5e192]: 
+                  - text: Meeting starten
+            - generic [ref=f5e193]:
+              - generic [ref=f5e194]:
+                - generic [aria-hidden] [ref=f5e196]:  􏣝
+                - heading "Laufende Meetings" [level=2] [ref=f5e197]
+                - generic [ref=f5e198]: "1"
+              - list [ref=f5e199]:
+                - listitem [ref=f5e200]:
+                  - generic [aria-hidden] [ref=f5e202]: 
+                  - generic [ref=f5e203]:
+                    - paragraph [ref=f5e204]: Tageslage Verwaltung & Disposition
+                    - paragraph [ref=f5e205]: "Gastgeber: RailTime Demo · niemand verbunden"
+                  - button "Beitreten" [ref=f5e206] [cursor=pointer]
+          - list [ref=f5e209]:
+            - listitem [ref=f5e210]:
+              - generic [aria-hidden] [ref=f5e212]: 
+              - generic [ref=f5e213]:
+                - paragraph [ref=f5e214]: Wochenplanung Betriebsführung
+                - paragraph [ref=f5e215]: Fr., 04.09.2026 11:30 · Dauer 44:00
+            - listitem [ref=f5e216]:
+              - generic [aria-hidden] [ref=f5e218]: 
+              - generic [ref=f5e219]:
+                - paragraph [ref=f5e220]: Tageslage Verwaltung & Disposition
+                - paragraph [ref=f5e221]: Fr., 04.09.2026 11:30 · Mara König, Leonie Hartmann
+              - link [ref=f5e222] [cursor=pointer]:
+                - /url: http://127.0.0.1:5112/calls/be3062e1-6ca8-4244-9204-e45265af50ab
+      - generic [ref=f5e226]: RailTime v1.0.0
+  - generic:
+    - button "RailTime Assist öffnen" [ref=f5e227] [cursor=pointer]
+    - text: ·
+  - text:                        

@@ -1,0 +1,26 @@
+[Script Info]
+Title: RailTime App Kurzvorstellung
+ScriptType: v4.00+
+PlayResX: 1440
+PlayResY: 900
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Lower,Arial,34,&H003A2418,&H003A2418,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,1,0,0,1,118,90,54,1
+Style: Intro,Arial,46,&H003A2418,&H003A2418,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,1,0,0,5,90,90,180,1
+Style: Outro,Arial,42,&H003A2418,&H003A2418,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,1,0,0,5,90,90,180,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.70,0:00:03.70,Intro,,0,0,0,,{\fad(450,350)}Eine Plattform für Betrieb, Kommunikation\Nund Verwaltung
+Dialogue: 0,0:00:04.20,0:00:10.80,Lower,,0,0,0,,{\fad(250,250)}Verwaltung auf einen Blick\N{\b0\fs23}Aufträge, Schichten und Wagenstatus
+Dialogue: 0,0:00:11.20,0:00:17.00,Lower,,0,0,0,,{\fad(250,250)}Kommunikation ohne Medienbruch\N{\b0\fs23}Chat, Telefonie und Video im Arbeitskontext
+Dialogue: 0,0:00:17.70,0:00:23.50,Lower,,0,0,0,,{\fad(250,250)}Meetings und Anrufe\N{\b0\fs23}Starten, beitreten und gemeinsam abstimmen
+Dialogue: 0,0:00:24.20,0:00:29.00,Lower,,0,0,0,,{\fad(250,250)}Dateien gezielt bereitstellen\N{\b0\fs23}Aktuelle Unterlagen für Teams und Rollen
+Dialogue: 0,0:00:29.70,0:00:34.50,Lower,,0,0,0,,{\fad(250,250)}Nachrichten, die ankommen\N{\b0\fs23}Hinweise und Aufgaben zentral verteilen
+Dialogue: 0,0:00:35.20,0:00:41.50,Lower,,0,0,0,,{\fad(250,250)}E-Mail-Vorlagen zentral steuern\N{\b0\fs23}Für Systemmails, Outlook und API-Nutzung veröffentlichen
+Dialogue: 0,0:00:42.20,0:00:51.50,Lower,,0,0,0,,{\fad(250,250)}Geräte automatisch vorbereiten\N{\b0\fs23}Registrieren, Benutzer zuweisen, Apps und Profile bereitstellen
+Dialogue: 0,0:00:52.20,0:00:59.30,Lower,,0,0,0,,{\fad(250,250)}Sichere API- und Provider-Anbindung\N{\b0\fs23}MDM, Identität, Webhooks und Health-Checks
+Dialogue: 0,0:01:00.30,0:01:04.20,Outro,,0,0,0,,{\fad(350,450)}Zentrale Abläufe. Klare Kommunikation.\NStartklar im Einsatz.

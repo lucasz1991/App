@@ -8,6 +8,7 @@
     'callAction' => null,
     'messageAction' => 'openMessage',
     'selected' => false,
+    'selectionIndicator' => false,
     'triggerClasses' => 'inline-flex',
 ])
 
@@ -47,6 +48,7 @@
                     :size="10"
                     :show-email="true"
                     :selected="$selected"
+                    :selection-indicator="$selectionIndicator"
                 />
             </button>
         @endisset

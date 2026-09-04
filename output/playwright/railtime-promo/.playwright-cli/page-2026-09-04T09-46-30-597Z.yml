@@ -1,0 +1,136 @@
+- generic [active] [ref=f6e1]:
+  - link "Zum Inhalt springen" [ref=f6e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Navigation öffnen oder schließen" [ref=f6e3]:
+    - region "scrollable content" [ref=f6e8]:
+      - list [ref=f6e11]:
+        - listitem [ref=f6e12]: Übersicht
+        - listitem [ref=f6e13]:
+          - link "Dashboard" [ref=f6e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator
+        - listitem [ref=f6e19]: Firma
+        - listitem [ref=f6e20]:
+          - link "Einstellungen" [ref=f6e21] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/settings
+        - listitem [ref=f6e26]: Kommunikation
+        - listitem [ref=f6e27]:
+          - link "Chat & Nachrichten" [ref=f6e28] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f6e33]: Management
+        - listitem [ref=f6e34]:
+          - link "Verwaltung" [ref=f6e35] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f6e41]:
+          - link "Disposition" [ref=f6e42] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f6e48]:
+          - link "Marketing" [ref=f6e49] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f6e56]: Betrieb
+        - listitem [ref=f6e57]:
+          - link "Wagenliste" [ref=f6e58] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/administrator/betrieb/wagenliste
+        - listitem [ref=f6e61]: Inhalte & Dateien
+        - listitem [ref=f6e62]:
+          - link "Dateien" [ref=f6e63] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f6e68]: Mein Bereich
+        - listitem [ref=f6e69]:
+          - link "Meine Geräte" [ref=f6e70] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/meine-geraete
+        - listitem [ref=f6e74]:
+          - link "Profil" [ref=f6e75] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/user/profile
+        - listitem [ref=f6e80]:
+          - link "E-Mail und Signatur" [ref=f6e81] [cursor=pointer]:
+            - /url: http://127.0.0.1:5112/email-templates
+        - listitem [ref=f6e86]:
+          - link "Support" [ref=f6e87] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Kopfnavigation" [ref=f6e98]:
+    - generic [ref=f6e99]:
+      - link [ref=f6e102] [cursor=pointer]:
+        - /url: http://127.0.0.1:5112/administrator
+        - img "RailTime Logo" [ref=f6e103]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f6e105]:
+        - search [ref=f6e107]:
+          - generic [ref=f6e108]:
+            - button "RailTime durchsuchen" [ref=f6e109] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f6e112] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f6e116] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f6e117]: 
+          - generic [ref=f6e118]: "3"
+        - button "Einstellungen" [ref=f6e121] [cursor=pointer]
+        - button "Konto verwalten" [ref=f6e128] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f6e130]
+          - generic [ref=f6e131]:
+            - generic [ref=f6e132]: RailTime Demo
+            - generic [ref=f6e133]: Profil
+          - generic [aria-hidden] [ref=f6e134]: 
+  - main [ref=f6e135]:
+    - generic [ref=f6e138]:
+      - generic [ref=f6e141]:
+        - generic [ref=f6e142]:
+          - button "Zurück" [ref=f6e143] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f6e144]: 
+          - heading "Download-Center" [level=1] [ref=f6e146]
+          - generic [ref=f6e147]:
+            - generic [ref=f6e148]:
+              - generic [ref=f6e149]:
+                - generic [aria-hidden]: 
+                - searchbox "Dateien durchsuchen …" [ref=f6e150]
+                - button "Zurücksetzen" [ref=f6e151] [cursor=pointer]:
+                  - generic [aria-hidden] [ref=f6e152]: 
+              - generic [ref=f6e153]:
+                - text: 
+                - generic [ref=f6e154]: 4 Dateien
+            - button "Informationen zu dieser Seite" [ref=f6e155] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f6e156]: 
+        - generic [ref=f6e159]:
+          - generic [ref=f6e160]:
+            - generic [ref=f6e161]:  􏃀
+            - generic [ref=f6e163]:
+              - paragraph [ref=f6e164]: Meine Teams
+              - heading "Administratoren" [level=2] [ref=f6e165]
+              - paragraph [ref=f6e166]: 4 Dateien
+          - generic [ref=f6e167]:
+            - group "Einsatzplanung September.pdf" [ref=f6e169]:
+              - 'button "Vorschau: Einsatzplanung September.pdf" [ref=f6e170] [cursor=pointer]':
+                - generic [ref=f6e171]:
+                  - generic [ref=f6e172]: Einsatzplanung September.pdf
+                  - generic [ref=f6e173]: 277,3 KB
+              - generic [ref=f6e176]:
+                - button "Aktionen für Einsatzplanung September.pdf":
+                  - generic [aria-hidden]: 
+            - group "Sicherheitsunterweisung 2026.pdf" [ref=f6e178]:
+              - 'button "Vorschau: Sicherheitsunterweisung 2026.pdf" [ref=f6e179] [cursor=pointer]':
+                - generic [ref=f6e180]:
+                  - generic [ref=f6e181]: Sicherheitsunterweisung 2026.pdf
+                  - generic [ref=f6e182]: 402,3 KB
+              - generic [ref=f6e185]:
+                - button "Aktionen für Sicherheitsunterweisung 2026.pdf":
+                  - generic [aria-hidden]: 
+            - group "Übergabeprotokoll Nord.xlsx" [ref=f6e187]:
+              - 'button "Vorschau: Übergabeprotokoll Nord.xlsx" [ref=f6e188] [cursor=pointer]':
+                - generic [ref=f6e189]:
+                  - generic [ref=f6e190]: Übergabeprotokoll Nord.xlsx
+                  - generic [ref=f6e191]: 93,8 KB
+              - generic [ref=f6e194]:
+                - button "Aktionen für Übergabeprotokoll Nord.xlsx":
+                  - generic [aria-hidden]: 
+            - group "Leitfaden Kommunikation.docx" [ref=f6e196]:
+              - 'button "Vorschau: Leitfaden Kommunikation.docx" [ref=f6e197] [cursor=pointer]':
+                - generic [ref=f6e198]:
+                  - generic [ref=f6e199]: Leitfaden Kommunikation.docx
+                  - generic [ref=f6e200]: 134,8 KB
+              - generic [ref=f6e203]:
+                - button "Aktionen für Leitfaden Kommunikation.docx":
+                  - generic [aria-hidden]: 
+      - generic [ref=f6e204]: RailTime v1.0.0
+  - generic:
+    - button "RailTime Assist öffnen" [ref=f6e205] [cursor=pointer]
+    - text: ·
+  - text:                                

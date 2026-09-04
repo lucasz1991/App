@@ -5,6 +5,7 @@
     'showEmail' => false,
     'showPresence' => true,
     'selected' => false,
+    'selectionIndicator' => false,
 ])
 
 @php
@@ -53,14 +54,30 @@
 @endphp
 
 <div {{ $attributes->class(['flex min-w-0 items-center gap-2.5', 'opacity-90' => ! $hasUser]) }}>
-    <span
-        @class([
-            'h-4 w-0.5 shrink-0 rounded-full transition-colors duration-200',
-            'bg-rt-red dark:bg-rt-dark-accent' => $selected,
-            'bg-transparent' => ! $selected,
-        ])
-        aria-hidden="true"
-    ></span>
+    @if ($selectionIndicator)
+        {{-- Die Spur waechst beim Auswaehlen und bewegt den Profilblock weich nach
+             rechts. Das dekorative Steuerelement selbst bleibt aria-hidden. --}}
+        <span
+            class="rt-person-selection-slot"
+            data-checked="{{ $selected ? 'true' : 'false' }}"
+            aria-hidden="true"
+        >
+            <span
+                class="rt-person-selection-indicator"
+                data-checked="{{ $selected ? 'true' : 'false' }}"
+            >
+                <svg
+                    class="rt-person-selection-indicator__icon"
+                    viewBox="0 0 18 18"
+                    focusable="false"
+                    aria-hidden="true"
+                >
+                    <path d="M4.75 9.15 7.45 12l5.8-6.1"></path>
+                </svg>
+            </span>
+        </span>
+    @endif
+
     <span class="relative shrink-0">
         <img
             src="{{ $hasUser && ! empty($resolvedUser->profile_photo_url) ? $resolvedUser->profile_photo_url : $avatarUrl }}"

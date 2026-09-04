@@ -1,0 +1,17 @@
+RailTime bündelt Betrieb, Kommunikation und Verwaltung in einer zentralen Arbeitsoberfläche.
+
+Das Admin-Dashboard zeigt Aufträge, Schichten, Wagenstatus und offene Hinweise auf einen Blick.
+
+Teams kommunizieren direkt per Chat. Telefon- und Videoanrufe starten aus demselben Arbeitskontext.
+
+Meetings lassen sich eröffnen, laufend verfolgen und gemeinsam betreten.
+
+Dateien und wichtige Nachrichten werden gezielt für Teams und Rollen bereitgestellt.
+
+E-Mail-Vorlagen und Signaturen werden zentral bearbeitet und für Systemmails, Outlook und die API-Nutzung veröffentlicht.
+
+Auch neue Geräte werden strukturiert vorbereitet: Gerät anmelden, Benutzer zuweisen sowie Anwendungen und Kontenprofile bereitstellen.
+
+Die Anbindung erfolgt sicher über Geräteprovider, Identitätsdienste, Webhooks und Health-Checks. Nach Anschluss der produktiven MDM-Systeme läuft die Bereitstellung automatisiert, ohne Passwörter in RailTime zu speichern.
+
+RailTime. Zentrale Abläufe, klare Kommunikation und startklare Geräte.

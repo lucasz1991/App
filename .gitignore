@@ -33,6 +33,7 @@ Homestead.json
 !/tests/Feature/ChatRepliesAndReactionsTest.php
 !/tests/Feature/ChatLiveLocationTest.php
 !/tests/Feature/RememberMeAuthenticationTest.php
+!/tests/Feature/EmployeeSelectionIndicatorUiTest.php
 !/tests/Feature/EmailVerificationTest.php
 !/tests/Feature/CompanyDataOfficialProfileTest.php
 !/tests/Feature/EmailTemplatesPageTest.php
