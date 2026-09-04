@@ -22,12 +22,12 @@ final class OutlookAddinController extends Controller
 
     public function taskpane(): Response
     {
-        return $this->addinView('outlook-addin.taskpane');
+        return $this->addinView('outlook-addin.taskpane', 'taskpane');
     }
 
     public function runtime(): Response
     {
-        return $this->addinView('outlook-addin.runtime');
+        return $this->addinView('outlook-addin.runtime', 'runtime');
     }
 
     public function bundle(string $bundle): Response
@@ -82,12 +82,14 @@ final class OutlookAddinController extends Controller
         ]);
     }
 
-    private function addinView(string $view): Response
+    private function addinView(string $view, string $bundle): Response
     {
         $baseUrl = app(OutlookAddinConfiguration::class)->baseUrl(throwWhenInvalid: false);
+        $resolvedBaseUrl = $baseUrl !== '' ? $baseUrl : rtrim(url('/'), '/');
 
         $response = response()->view($view, [
-            'configUrl' => ($baseUrl !== '' ? $baseUrl : rtrim(url('/'), '/')).'/outlook-addin/config.json',
+            'configUrl' => $resolvedBaseUrl.'/outlook-addin/config.json',
+            'scriptUrl' => $this->versionedBundleUrl($resolvedBaseUrl, $bundle),
         ]);
 
         $response->headers->set('Cache-Control', 'public, no-store, max-age=0');
@@ -99,5 +101,21 @@ final class OutlookAddinController extends Controller
         );
 
         return $response;
+    }
+
+    private function versionedBundleUrl(string $baseUrl, string $bundle): string
+    {
+        $url = $baseUrl."/outlook-addin/{$bundle}.js";
+        $path = public_path("outlook-addin/{$bundle}.js");
+
+        if (! is_file($path) || ! is_readable($path)) {
+            return $url;
+        }
+
+        $hash = hash_file('sha256', $path);
+
+        return is_string($hash) && $hash !== ''
+            ? $url.'?v='.substr($hash, 0, 16)
+            : $url;
     }
 }

@@ -75,6 +75,19 @@ class EmailTemplatesPageTest extends TestCase
             ->assertJsonMissingPath('auth.clientSecret')
             ->assertJsonMissingPath('token');
 
+        foreach (['taskpane', 'runtime'] as $bundle) {
+            $hash = hash_file('sha256', public_path("outlook-addin/{$bundle}.js"));
+            $this->assertIsString($hash);
+
+            $this->get(route("outlook-addin.{$bundle}"))
+                ->assertOk()
+                ->assertHeader('cache-control', 'no-store, public, max-age=0')
+                ->assertSee(
+                    "https://app.rail-time.de/outlook-addin/{$bundle}.js?v=".substr($hash, 0, 16),
+                    escape: false,
+                );
+        }
+
         $this->getJson(route('api.outlook-addin.bootstrap'))
             ->assertUnauthorized()
             ->assertJsonPath('error', 'outlook_addin_unauthorized');
