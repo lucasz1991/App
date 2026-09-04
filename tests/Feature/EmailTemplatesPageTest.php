@@ -17,6 +17,7 @@ use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
+use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\MailSignature;
 use App\Support\OutlookAddin\EntraAccessTokenValidator;
 use App\Support\OutlookAddin\OutlookAddinException;
@@ -279,7 +280,21 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertSame(1, $customClassCount);
         $signatureDocument->forceFill([
             'published_html' => $v20Html,
-            'published_css' => '.custom-copy{color:#123456}.rt-sign-name{letter-spacing:0}',
+            'published_css' => implode('', [
+                '.custom-copy{color:#123456}',
+                '.rt-sign-name{letter-spacing:0}',
+                ':scope/**/>/**/b\\6f dy .custom-copy{text-decoration:none}',
+                ':is(html,:root,:scope,body) .custom-copy{font-weight:700}',
+                ':where(html/**/>body,:sc\\6f pe body) .custom-copy{font-style:normal}',
+                ':is(html,.custom-copy) .custom-copy{text-align:left}',
+                '.ExternalClass .custom-copy{line-height:100%}',
+                '[data-ogsc] .custom-copy{font-size:14px}',
+                '[data-outlook-cycle] .custom-copy{white-space:normal}',
+                'body[data-outlook-cycle] .custom-copy{overflow-wrap:normal}',
+                'u + #body .custom-copy{word-spacing:0}',
+                '@media only screen and (max-width:480px){[data-ogsc] :where(html,body) .custom-copy{font-size:13px}}',
+                '.ExternalClass .missing-outlook-copy{color:#654321}',
+            ]),
         ])->save();
         app(PublishedMailDocumentSnapshotStore::class)
             ->forget(MailDocumentKind::Signature);
@@ -288,7 +303,7 @@ class EmailTemplatesPageTest extends TestCase
         $customSignature = $customPayload['signature']['html'];
         $publishedStylePosition = strpos($customSignature, 'data-rt-mail-document-css="signature"');
         $runtimeStylePosition = strpos($customSignature, 'data-rt-outlook-signature-css="1"');
-        $signatureTablePosition = strpos($customSignature, 'class="rt-outlook-signature"');
+        $signatureTablePosition = strpos($customSignature, 'class="rt-outlook-signature rts');
 
         $this->assertIsInt($publishedStylePosition);
         $this->assertIsInt($runtimeStylePosition);
@@ -296,6 +311,70 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertLessThan($runtimeStylePosition, $publishedStylePosition);
         $this->assertLessThan($signatureTablePosition, $runtimeStylePosition);
         $this->assertStringContainsString('.custom-copy{color:#123456}', $customSignature);
+        $this->assertMatchesRegularExpression(
+            '/class="rt-outlook-signature (rts[0-9a-f]{10})"/',
+            $customSignature,
+        );
+        preg_match('/class="rt-outlook-signature (rts[0-9a-f]{10})"/', $customSignature, $scopeMatch);
+        $scopeSelector = '.'.$scopeMatch[1];
+        $this->assertStringContainsString(
+            $scopeSelector.' .custom-copy{text-decoration:none}',
+            $customSignature,
+        );
+        $this->assertStringContainsString(
+            $scopeSelector.' .custom-copy{font-weight:700}',
+            $customSignature,
+        );
+        $this->assertStringContainsString(
+            $scopeSelector.' .custom-copy{font-style:normal}',
+            $customSignature,
+        );
+        $this->assertStringContainsString(
+            $scopeSelector.' :is(html,.custom-copy) .custom-copy{text-align:left}',
+            $customSignature,
+        );
+        $this->assertStringContainsString(
+            '.ExternalClass '.$scopeSelector.' .custom-copy{line-height:100%}',
+            $customSignature,
+        );
+        $this->assertStringContainsString(
+            '[data-ogsc] '.$scopeSelector.' .custom-copy{font-size:14px}',
+            $customSignature,
+        );
+        $this->assertStringContainsString(
+            '[data-outlook-cycle] '.$scopeSelector.' .custom-copy{white-space:normal}',
+            $customSignature,
+        );
+        $this->assertStringContainsString(
+            'body[data-outlook-cycle] '.$scopeSelector.' .custom-copy{overflow-wrap:normal}',
+            $customSignature,
+        );
+        $this->assertStringContainsString(
+            'u + #body '.$scopeSelector.' .custom-copy{word-spacing:0}',
+            $customSignature,
+        );
+        $this->assertStringContainsString(
+            '@media only screen and (max-width:480px){[data-ogsc] '.$scopeSelector.' .custom-copy{font-size:13px}}',
+            $customSignature,
+        );
+        $this->assertStringNotContainsString('missing-outlook-copy', $customSignature);
+    }
+
+    public function test_outlook_addin_published_root_context_css_cannot_escape_signature_scope(): void
+    {
+        try {
+            TrustedOutlookSignatureCss::publishedStyle(
+                '<table class="custom-copy"></table>',
+                ':is(html,body) + *{color:red}',
+                'rts0123456789',
+            );
+            $this->fail('Ein Root-Sibling-Selektor darf den dynamischen Signatur-Scope nicht verlassen.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame(
+                'Das veroeffentlichte Signatur-CSS darf keine Elemente ausserhalb der Signatur adressieren.',
+                $exception->getMessage(),
+            );
+        }
     }
 
     public function test_outlook_addin_payload_exposes_published_template_snapshots_in_stable_order(): void

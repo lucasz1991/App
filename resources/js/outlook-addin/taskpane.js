@@ -6,6 +6,7 @@ import {
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
 const API_TIMEOUT_MS = 12000;
+const SILENT_BOOTSTRAP_REFRESH_INTERVAL_MS = 15000;
 const SIGNATURE_VERSION_PATTERN = /^([0-9a-f]{16})$/i;
 const SIGNATURE_BODY_VERSION_PATTERN = /RT-SIGNATURE-VERSION:([0-9a-f]{16})/i;
 const MANAGED_ATTACHMENT_NAME_PATTERN = /^railtime-(?:[0-9a-f]{20}|train-idle)\.(?:gif|jpe?g|png|webp)$/i;
@@ -16,6 +17,10 @@ let currentConfig;
 let currentTokenResult;
 let currentBootstrap;
 let signatureStateRevision = 0;
+let mailboxItemRevision = 0;
+let bootstrapStateRevision = 0;
+let lastBootstrapRefreshAt = 0;
+let silentBootstrapRefreshPromise;
 const taskpaneState = {
     authenticated: false,
     bootstrapReady: false,
@@ -482,7 +487,8 @@ function addInlineAttachment(item, media) {
     });
 }
 
-async function attachInlineMedia(item, media) {
+async function attachInlineMedia(target, media) {
+    const item = assertComposeTarget(target);
     const existingNames = new Set(
         (await existingAttachments(item))
             .map((attachment) => attachment.name.toLowerCase()),
@@ -496,6 +502,7 @@ async function attachInlineMedia(item, media) {
             continue;
         }
 
+        assertComposeTarget(target);
         await addInlineAttachment(item, attachment);
         existingNames.add(normalizedName);
     }
@@ -528,7 +535,8 @@ function removeAttachment(item, attachmentId) {
     });
 }
 
-async function removeStaleManagedInlineMedia(item, media, previousAttachments) {
+async function removeStaleManagedInlineMedia(target, media, previousAttachments) {
+    const item = assertComposeTarget(target);
     if (typeof item?.removeAttachmentAsync !== 'function') {
         return;
     }
@@ -546,6 +554,7 @@ async function removeStaleManagedInlineMedia(item, media, previousAttachments) {
         // mehr. Outlook kann Inline-Anhaenge erst danach sicher entfernen.
         // Eine abgelaufene sitzungsgebundene Attachment-ID darf das bereits
         // erfolgreich eingesetzte Dokument jedoch nicht zurueckrollen.
+        assertComposeTarget(target);
         await removeAttachment(item, stale[index].id);
     }
 }
@@ -596,6 +605,23 @@ function composeItem() {
     }
 
     return item;
+}
+
+function captureComposeTarget() {
+    return Object.freeze({
+        item: composeItem(),
+        revision: mailboxItemRevision,
+    });
+}
+
+function assertComposeTarget(target) {
+    if (!target
+        || target.revision !== mailboxItemRevision
+        || Office.context.mailbox.item !== target.item) {
+        throw codedError('ITEM_CHANGED');
+    }
+
+    return target.item;
 }
 
 function elements() {
@@ -937,6 +963,15 @@ function failOpenSignatureCurrentState() {
     syncActionState();
 }
 
+function handleMailboxItemChanged() {
+    // Beim Wechsel in einen anderen Entwurf gehoert der alte Markerstatus
+    // sofort zum vorherigen Item. Die sichere Aktion bleibt sichtbar, bis
+    // Outlook den neuen Compose-Body eindeutig als aktuell bestaetigt.
+    mailboxItemRevision += 1;
+    failOpenSignatureCurrentState();
+    requestSignatureCurrentStateRefresh();
+}
+
 function syncConnectionChip() {
     if (taskpaneState.busy) {
         setConnectionChip('working', 'Lädt');
@@ -1027,7 +1062,9 @@ function clearAccount() {
 }
 
 async function acceptBootstrap(payload) {
+    bootstrapStateRevision += 1;
     currentBootstrap = payload;
+    lastBootstrapRefreshAt = Date.now();
     taskpaneState.bootstrapReady = true;
     taskpaneState.signatureVersion = snapshotSignatureVersion(payload);
     renderTemplateChoices(payload);
@@ -1036,6 +1073,7 @@ async function acceptBootstrap(payload) {
 }
 
 function invalidateBootstrap(templateState, authenticationLost = false) {
+    bootstrapStateRevision += 1;
     signatureStateRevision += 1;
     currentBootstrap = null;
     taskpaneState.bootstrapReady = false;
@@ -1103,6 +1141,10 @@ function userMessage(error) {
         return 'Bitte das Add-in in einer geöffneten neuen Nachricht verwenden.';
     }
 
+    if (code === 'ITEM_CHANGED') {
+        return 'Die geöffnete Nachricht hat gewechselt. Bitte die Aktion im aktuellen Entwurf erneut starten.';
+    }
+
     if (code.startsWith('HTTP_')) {
         return 'RailTime konnte die veröffentlichten Inhalte nicht laden. Bitte erneut versuchen.';
     }
@@ -1134,7 +1176,71 @@ function handleFailure(error, bootstrapWasLoaded = false) {
     setStatus('error', 'Aktion nicht abgeschlossen', userMessage(error), true);
 }
 
+function requestSilentBootstrapRefresh() {
+    if (!currentConfig
+        || !taskpaneState.authenticated
+        || !taskpaneState.bootstrapReady
+        || taskpaneState.busy) {
+        requestSignatureCurrentStateRefresh();
+        return;
+    }
+
+    if (silentBootstrapRefreshPromise) {
+        return;
+    }
+
+    if (Date.now() - lastBootstrapRefreshAt < SILENT_BOOTSTRAP_REFRESH_INTERVAL_MS) {
+        requestSignatureCurrentStateRefresh();
+        return;
+    }
+
+    // Bis der Server den aktuellen Snapshot bestaetigt hat, darf die
+    // Aktualisieren-Aktion nicht aufgrund eines veralteten Stands fehlen.
+    failOpenSignatureCurrentState();
+
+    silentBootstrapRefreshPromise = (async () => {
+        const expectedRevision = bootstrapStateRevision;
+
+        try {
+            const accessToken = await acquireAccessToken(currentConfig, false);
+            const bootstrap = await loadBootstrap(currentConfig, accessToken);
+
+            if (expectedRevision !== bootstrapStateRevision
+                || taskpaneState.busy
+                || !taskpaneState.authenticated) {
+                return;
+            }
+
+            await acceptBootstrap(bootstrap);
+
+            if (bootstrapStateRevision !== expectedRevision + 1 || taskpaneState.busy) {
+                return;
+            }
+
+            setStatus('success', 'RailTime ist bereit', readyStatusDetail());
+        } catch (error) {
+            if (expectedRevision !== bootstrapStateRevision || taskpaneState.busy) {
+                return;
+            }
+
+            if (authenticationWasLost(error)) {
+                invalidateBootstrap('locked', true);
+                setStatus('neutral', 'Verbindung erneuern', 'Bitte einmal erneut mit Ihrem RailTime-Firmenkonto anmelden.');
+                return;
+            }
+
+            // Ohne bestaetigten Serverstand bleibt die sichere Aktualisieren-
+            // Aktion sichtbar; die zuletzt geladenen Vorlagen bleiben nutzbar.
+            failOpenSignatureCurrentState();
+            console.warn('RailTime bootstrap refresh failed.', error);
+        } finally {
+            silentBootstrapRefreshPromise = null;
+        }
+    })();
+}
+
 async function authenticateInteractively(button) {
+    bootstrapStateRevision += 1;
     setBusy(true, button);
     setStatus('working', 'Microsoft-Anmeldung wird geöffnet …', 'Danach lädt RailTime Ihre veröffentlichten Inhalte.');
 
@@ -1157,9 +1263,11 @@ async function authenticateInteractively(button) {
 async function withAuthenticatedBootstrap(button, callback) {
     let bootstrapWasLoaded = false;
 
+    bootstrapStateRevision += 1;
     setBusy(true, button);
 
     try {
+        const target = captureComposeTarget();
         const accessToken = await acquireAccessToken(currentConfig, true);
         taskpaneState.authenticated = true;
         displayAccount();
@@ -1168,7 +1276,7 @@ async function withAuthenticatedBootstrap(button, callback) {
         bootstrapWasLoaded = true;
         await acceptBootstrap(bootstrap);
         setBusy(true, button);
-        await callback(bootstrap);
+        await callback(bootstrap, target);
         setBusy(false);
         syncActionState();
     } catch (error) {
@@ -1179,17 +1287,20 @@ async function withAuthenticatedBootstrap(button, callback) {
 async function updateSignature(button) {
     setStatus('working', 'Signatur wird aktualisiert …', 'Bilder werden sicher in die Nachricht eingebettet.');
 
-    await withAuthenticatedBootstrap(button, async (bootstrap) => {
-        const item = composeItem();
+    await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
+        const item = assertComposeTarget(target);
         const signature = validatedDocument(bootstrap.signature, 'signature', currentConfig.marker);
 
         if (!item.body.setSignatureAsync) {
             throw codedError('SET_SIGNATURE_UNAVAILABLE');
         }
 
-        await attachInlineMedia(item, signature.media);
+        await attachInlineMedia(target, signature.media);
+        assertComposeTarget(target);
         await setSignature(item, signature.html);
+        assertComposeTarget(target);
         await refreshSignatureCurrentState();
+        assertComposeTarget(target);
         setStatus(
             'success',
             'Signatur ist aktuell',
@@ -1209,8 +1320,8 @@ async function insertTemplate(button) {
         selected ? `${selected.name} wird sicher geladen.` : 'Die aktuelle Veröffentlichung wird geladen.',
     );
 
-    await withAuthenticatedBootstrap(button, async (bootstrap) => {
-        const item = composeItem();
+    await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
+        const item = assertComposeTarget(target);
         const templateChoice = selectedTemplate();
 
         if (!templateChoice) {
@@ -1224,10 +1335,14 @@ async function insertTemplate(button) {
         }
 
         const previousAttachments = await existingAttachments(item);
-        await attachInlineMedia(item, template.media);
+        assertComposeTarget(target);
+        await attachInlineMedia(target, template.media);
+        assertComposeTarget(target);
         await replaceBody(item, template.html);
-        await removeStaleManagedInlineMedia(item, template.media, previousAttachments);
+        await removeStaleManagedInlineMedia(target, template.media, previousAttachments);
+        assertComposeTarget(target);
         await refreshSignatureCurrentState();
+        assertComposeTarget(target);
 
         setStatus(
             'success',
@@ -1251,10 +1366,10 @@ function bindActions() {
         syncActionState();
     });
 
-    window.addEventListener('focus', requestSignatureCurrentStateRefresh);
+    window.addEventListener('focus', requestSilentBootstrapRefresh);
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-            requestSignatureCurrentStateRefresh();
+            requestSilentBootstrapRefresh();
         }
     });
 
@@ -1263,7 +1378,7 @@ function bindActions() {
         try {
             Office.context.mailbox.addHandlerAsync(
                 Office.EventType.ItemChanged,
-                requestSignatureCurrentStateRefresh,
+                handleMailboxItemChanged,
                 (result) => {
                     taskpaneState.itemChangedMonitoringReady = result?.status === Office.AsyncResultStatus.Succeeded;
 

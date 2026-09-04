@@ -301,17 +301,21 @@ class EmailTemplateBuilder
             throw new RuntimeException('Die veroeffentlichte Signatur kann nicht sicher als Outlook-Fragment ausgegeben werden.');
         }
 
+        $publishedCss = $signature->publishedCss();
+        $scopeClass = TrustedOutlookSignatureCss::scopeClass($rows, $publishedCss);
         $publishedStyle = TrustedOutlookSignatureCss::publishedStyle(
             $rows,
-            $signature->publishedCss(),
+            $publishedCss,
+            $scopeClass,
         );
-        $runtimeStyle = TrustedOutlookSignatureCss::style($rows);
+        $runtimeStyle = TrustedOutlookSignatureCss::style($rows, scopeClass: $scopeClass);
 
         return $publishedStyle
             .$runtimeStyle
-            .'<table class="rt-outlook-signature" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" '
+            .'<div class="rt-outlook-signature '.$scopeClass.'" style="display:block;width:100%;">'
+            .'<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" '
             .'style="width:100%;border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">'
-            .'<tbody>'.$rows.'</tbody></table>';
+            .'<tbody>'.$rows.'</tbody></table></div>';
     }
 
     /**

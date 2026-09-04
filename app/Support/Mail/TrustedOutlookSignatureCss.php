@@ -20,18 +20,27 @@ final class TrustedOutlookSignatureCss
 
     private const MAX_CSS_BYTES = 12000;
 
-    public static function responsive(string $signatureHtml, ?string $border = '#dfe3e6'): string
-    {
+    public static function responsive(
+        string $signatureHtml,
+        ?string $border = '#dfe3e6',
+        ?string $scopeClass = null,
+    ): string {
         $artifactVersion = SignatureArtifactVersion::detect(
             MailDocumentKind::Signature,
             $signatureHtml,
         );
         $documentTraits = self::documentTraits($signatureHtml);
+        $runtime = self::filterRuntimeStylesheet(
+            TrustedEmailCss::responsive($border),
+            $artifactVersion,
+            $documentTraits,
+        );
         $css = '/* '.self::RUNTIME_MARKER.' */'
-            .self::filterStylesheet(
-                TrustedEmailCss::responsive($border),
-                $artifactVersion,
-                $documentTraits,
+            .self::scopeStylesheet(
+                $runtime,
+                '.'.self::validatedScopeClass(
+                    $scopeClass ?? self::scopeClass($signatureHtml, '', $border),
+                ),
             );
 
         self::assertResponsive($css, $artifactVersion, $documentTraits);
@@ -39,15 +48,36 @@ final class TrustedOutlookSignatureCss
         return $css;
     }
 
-    public static function style(string $signatureHtml, ?string $border = '#dfe3e6'): string
-    {
+    public static function style(
+        string $signatureHtml,
+        ?string $border = '#dfe3e6',
+        ?string $scopeClass = null,
+    ): string {
         return '<style data-rt-outlook-signature-css="1">'
-            .self::responsive($signatureHtml, $border)
+            .self::responsive($signatureHtml, $border, $scopeClass)
             .'</style>';
     }
 
-    public static function publishedStyle(string $signatureHtml, string $publishedCss): string
-    {
+    /**
+     * Kurzer, inhaltsgebundener Scope: wenig Overhead im 30.000-Zeichen-Limit
+     * und keine Kollision mit aelteren Signaturfassungen im zitierten Verlauf.
+     */
+    public static function scopeClass(
+        string $signatureHtml,
+        string $publishedCss = '',
+        ?string $border = '#dfe3e6',
+    ): string {
+        return 'rts'.substr(hash(
+            'sha256',
+            $signatureHtml."\0".$publishedCss."\0".TrustedEmailCss::responsive($border),
+        ), 0, 10);
+    }
+
+    public static function publishedStyle(
+        string $signatureHtml,
+        string $publishedCss,
+        ?string $scopeClass = null,
+    ): string {
         $publishedCss = trim($publishedCss);
         if ($publishedCss === '') {
             return '';
@@ -57,13 +87,15 @@ final class TrustedOutlookSignatureCss
             throw new RuntimeException('Das veroeffentlichte Signatur-CSS kann nicht sicher eingebettet werden.');
         }
 
-        $artifactVersion = SignatureArtifactVersion::detect(
-            MailDocumentKind::Signature,
-            $signatureHtml,
-        );
-        $css = self::filterStylesheet(
+        if (CssSemantic::containsForbiddenAnimationOrProtectedSelector($publishedCss)) {
+            throw new RuntimeException(CssSemantic::PROTECTED_EDITABLE_CSS_MESSAGE);
+        }
+
+        $css = self::scopeStylesheet(
             $publishedCss,
-            $artifactVersion,
+            '.'.self::validatedScopeClass(
+                $scopeClass ?? self::scopeClass($signatureHtml, $publishedCss),
+            ),
             self::documentTraits($signatureHtml),
         );
 
@@ -72,8 +104,17 @@ final class TrustedOutlookSignatureCss
             : '<style data-rt-mail-document-css="signature">'.$css.'</style>';
     }
 
+    private static function validatedScopeClass(string $scopeClass): string
+    {
+        if (preg_match('/\Arts[0-9a-f]{10}\z/', $scopeClass) !== 1) {
+            throw new RuntimeException('Der interne Outlook-Signatur-Scope ist ungueltig.');
+        }
+
+        return $scopeClass;
+    }
+
     /** @param array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string} $documentTraits */
-    private static function filterStylesheet(
+    private static function filterRuntimeStylesheet(
         string $css,
         ?string $artifactVersion,
         array $documentTraits,
@@ -107,7 +148,7 @@ final class TrustedOutlookSignatureCss
                     continue;
                 }
 
-                $filteredBody = self::filterStylesheet(
+                $filteredBody = self::filterRuntimeStylesheet(
                     $body,
                     $artifactVersion,
                     $documentTraits,
@@ -153,6 +194,644 @@ final class TrustedOutlookSignatureCss
     }
 
     /**
+     * Das bereits veroeffentlichte Pagebuilder-CSS ist zuvor durch den
+     * Mail-Sanitizer gelaufen. Im Add-in darf es daher nicht nochmals anhand
+     * einer unvollstaendigen Selektor-Allowlist ausgeduennt werden. Wir
+     * begrenzen jede Regel stattdessen auf die transportierte Signaturwurzel,
+     * damit weder der Compose-Body noch zitierte Nachrichten erfasst werden.
+     */
+    /** @param null|array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string} $documentTraits */
+    private static function scopeStylesheet(
+        string $css,
+        string $scopeSelector,
+        ?array $documentTraits = null,
+    ): string {
+        $result = '';
+        $length = strlen($css);
+        $offset = 0;
+
+        while ($offset < $length) {
+            self::skipTrivia($css, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $openingBrace = self::nextOpeningBrace($css, $offset);
+            if ($openingBrace === null) {
+                throw new RuntimeException('Das veroeffentlichte Signatur-CSS besitzt eine unvollstaendige Regel.');
+            }
+
+            $prelude = trim(substr($css, $offset, $openingBrace - $offset));
+            $closingBrace = self::matchingBrace($css, $openingBrace);
+            $body = substr($css, $openingBrace + 1, $closingBrace - $openingBrace - 1);
+            $offset = $closingBrace + 1;
+
+            if ($prelude === '') {
+                continue;
+            }
+
+            $atRuleName = self::atRuleName($prelude);
+            if ($atRuleName === 'media') {
+                $scopedBody = self::scopeStylesheet($body, $scopeSelector, $documentTraits);
+                if ($scopedBody !== '') {
+                    $result .= $prelude.'{'.$scopedBody.'}';
+                }
+
+                continue;
+            }
+
+            if ($atRuleName !== null || str_starts_with($prelude, '@')) {
+                throw new RuntimeException('Das veroeffentlichte Signatur-CSS enthaelt eine nicht unterstuetzte At-Regel.');
+            }
+
+            $selectors = [];
+            foreach (self::splitSelectorList($prelude) as $selector) {
+                if ($documentTraits !== null
+                    && self::selectorDefinitelyUnused($selector, $documentTraits)) {
+                    continue;
+                }
+
+                $selectors[] = self::scopeSelector($selector, $scopeSelector);
+            }
+
+            $selectors = array_values(array_unique(array_filter($selectors)));
+            $body = trim($body);
+            if ($selectors !== [] && $body !== '') {
+                $result .= implode(',', $selectors).'{'.$body.'}';
+            }
+        }
+
+        return $result;
+    }
+
+    private static function scopeSelector(string $selector, string $scopeSelector): string
+    {
+        $selector = trim($selector);
+        if ($selector === '') {
+            throw new RuntimeException('Das veroeffentlichte Signatur-CSS enthaelt einen leeren Selektor.');
+        }
+
+        $offset = 0;
+        self::skipTrivia($selector, $offset);
+        if (isset($selector[$offset]) && in_array($selector[$offset], ['+', '~'], true)) {
+            throw new RuntimeException('Das veroeffentlichte Signatur-CSS darf keine Elemente ausserhalb der Signatur adressieren.');
+        }
+
+        // Einige Mailclients setzen ihren Kompatibilitaetskontext ausserhalb
+        // des eigentlichen Signaturfragments. Der Scope muss deshalb zwischen
+        // diesem bekannten Ahnen und dem eigentlichen Ziel stehen. Nur exakt
+        // erkannte, begrenzte Kontexte werden umgestellt; alles andere bleibt
+        // beim konservativen Descendant-Scope.
+        $externalContext = self::externalClientContext($selector, $offset);
+        if ($externalContext !== null) {
+            [$contextEnd, $remainderOffset] = $externalContext;
+            $context = trim(substr($selector, $offset, $contextEnd - $offset));
+            $remainder = substr($selector, $remainderOffset);
+
+            return $context.' '.self::scopeSelector($remainder, $scopeSelector);
+        }
+
+        // Exportierte Vollseiten koennen body/html als Kontext enthalten.
+        // Im Add-in entspricht diese Wurzel ausschliesslich der Signatur. Ein
+        // kleiner Token-Scanner erkennt auch gueltige CSS-Escapes und Kommentare,
+        // ohne Kommas oder Kombinatoren per Regex fehlzuinterpretieren.
+        $rootEnd = self::rootContextEnd($selector, $offset);
+        if ($rootEnd === null) {
+            return $scopeSelector.' '.$selector;
+        }
+
+        self::assertRootCompoundContained($selector, $rootEnd);
+        $remainderOffset = $rootEnd;
+        self::skipTrivia($selector, $remainderOffset);
+        if ($remainderOffset >= strlen($selector)) {
+            return $scopeSelector;
+        }
+
+        $combinator = $selector[$remainderOffset];
+        if (in_array($combinator, ['+', '~'], true)) {
+            throw new RuntimeException('Das veroeffentlichte Signatur-CSS darf keine Elemente ausserhalb der Signatur adressieren.');
+        }
+
+        $remainder = substr($selector, $remainderOffset);
+        if ($combinator === '>') {
+            return $scopeSelector.$remainder;
+        }
+
+        return $remainderOffset === $rootEnd
+            ? $scopeSelector.$remainder
+            : $scopeSelector.' '.$remainder;
+    }
+
+    private static function rootContextEnd(string $selector, int $offset): ?int
+    {
+        $cursor = $offset;
+        if (($selector[$cursor] ?? '') === ':') {
+            $cursor++;
+            $pseudo = self::readCssIdentifier($selector, $cursor);
+            if (in_array($pseudo, ['root', 'scope'], true)) {
+                return self::optionalBodyContextEnd($selector, $cursor);
+            }
+
+            if (in_array($pseudo, ['is', 'where'], true)) {
+                return self::rootFunctionContextEnd($selector, $cursor);
+            }
+
+            return null;
+        }
+
+        $root = self::readCssIdentifier($selector, $cursor);
+        if ($root === 'body') {
+            return $cursor;
+        }
+
+        if ($root !== 'html') {
+            return null;
+        }
+
+        return self::optionalBodyContextEnd($selector, $cursor);
+    }
+
+    /**
+     * :is() und :where() duerfen nur dann die Dokumentwurzel vertreten, wenn
+     * jede ihrer Alternativen selbst vollstaendig ein bekannter Rootkontext
+     * ist. Gemischte Listen wie :is(body, .karte) bleiben damit konservativ
+     * unterhalb des Signatur-Scopes und koennen ihn nie ersetzen.
+     */
+    private static function rootFunctionContextEnd(string $selector, int $functionNameEnd): ?int
+    {
+        if (($selector[$functionNameEnd] ?? '') !== '(') {
+            return null;
+        }
+
+        $closingParenthesis = self::matchingSelectorParenthesis($selector, $functionNameEnd);
+        $arguments = substr(
+            $selector,
+            $functionNameEnd + 1,
+            $closingParenthesis - $functionNameEnd - 1,
+        );
+
+        foreach (self::splitSelectorList($arguments) as $argument) {
+            $argumentOffset = 0;
+            self::skipTrivia($argument, $argumentOffset);
+            $argumentEnd = self::simpleRootContextEnd($argument, $argumentOffset);
+            if ($argumentEnd === null) {
+                return null;
+            }
+
+            self::skipTrivia($argument, $argumentEnd);
+            if ($argumentEnd !== strlen($argument)) {
+                return null;
+            }
+        }
+
+        return self::optionalBodyContextEnd($selector, $closingParenthesis + 1);
+    }
+
+    /** Nur die nicht-funktionalen Rootformen; verhindert mehrdeutige Rekursion. */
+    private static function simpleRootContextEnd(string $selector, int $offset): ?int
+    {
+        $cursor = $offset;
+        if (($selector[$cursor] ?? '') === ':') {
+            $cursor++;
+
+            return in_array(self::readCssIdentifier($selector, $cursor), ['root', 'scope'], true)
+                ? self::optionalBodyContextEnd($selector, $cursor)
+                : null;
+        }
+
+        $root = self::readCssIdentifier($selector, $cursor);
+        if ($root === 'body') {
+            return $cursor;
+        }
+
+        return $root === 'html'
+            ? self::optionalBodyContextEnd($selector, $cursor)
+            : null;
+    }
+
+    private static function optionalBodyContextEnd(string $selector, int $rootEnd): int
+    {
+        $cursor = $rootEnd;
+        self::skipTrivia($selector, $cursor);
+        $hasDescendantSeparator = $cursor > $rootEnd;
+
+        if (($selector[$cursor] ?? '') === '>') {
+            $cursor++;
+            self::skipTrivia($selector, $cursor);
+        } elseif (! $hasDescendantSeparator) {
+            return $rootEnd;
+        }
+
+        $bodyEnd = $cursor;
+        if (self::readCssIdentifier($selector, $bodyEnd) === 'body') {
+            return $bodyEnd;
+        }
+
+        return $rootEnd;
+    }
+
+    private static function matchingSelectorParenthesis(string $selector, int $openingParenthesis): int
+    {
+        $length = strlen($selector);
+        $depth = 0;
+        $quote = null;
+
+        for ($index = $openingParenthesis; $index < $length; $index++) {
+            $character = $selector[$index];
+            if ($quote !== null) {
+                if ($character === '\\') {
+                    $index++;
+                } elseif ($character === $quote) {
+                    $quote = null;
+                }
+
+                continue;
+            }
+
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+
+                continue;
+            }
+
+            if ($character === '\\') {
+                $escapedEnd = $index;
+                self::readCssIdentifier($selector, $escapedEnd);
+                $index = max($index, $escapedEnd - 1);
+
+                continue;
+            }
+
+            if (substr($selector, $index, 2) === '/*') {
+                $end = strpos($selector, '*/', $index + 2);
+                if ($end === false) {
+                    throw new RuntimeException('Das Signatur-CSS enthaelt einen offenen Kommentar.');
+                }
+
+                $index = $end + 1;
+
+                continue;
+            }
+
+            if ($character === '(') {
+                $depth++;
+
+                continue;
+            }
+
+            if ($character === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $index;
+                }
+            }
+        }
+
+        throw new RuntimeException('Das Signatur-CSS besitzt eine unvollstaendige Selektorfunktion.');
+    }
+
+    /**
+     * @return array{0: int, 1: int}|null Ende des Ahnenkontexts und Beginn des Zielselektors
+     */
+    private static function externalClientContext(string $selector, int $offset): ?array
+    {
+        $contextEnd = self::externalClientAnchorEnd($selector, $offset);
+        if ($contextEnd === null) {
+            return null;
+        }
+
+        $remainderOffset = $contextEnd;
+        self::skipTrivia($selector, $remainderOffset);
+        if ($remainderOffset === $contextEnd
+            || $remainderOffset >= strlen($selector)
+            || in_array($selector[$remainderOffset], ['>', '+', '~'], true)
+            || substr($selector, $remainderOffset, 2) === '||') {
+            return null;
+        }
+
+        return [$contextEnd, $remainderOffset];
+    }
+
+    private static function externalClientAnchorEnd(string $selector, int $offset): ?int
+    {
+        if (($selector[$offset] ?? '') === '.') {
+            $cursor = $offset + 1;
+
+            return self::readCssIdentifier($selector, $cursor) === 'externalclass'
+                ? $cursor
+                : null;
+        }
+
+        if (($selector[$offset] ?? '') === '[') {
+            return self::externalClientAttributeEnd($selector, $offset);
+        }
+
+        // Outlook kann die bekannten Dark-Mode-Marker direkt auf html/body
+        // setzen. Der Elementname gehoert dann zum externen Client-Kontext;
+        // andernfalls wuerde der Marker faelschlich auf den Signatur-Scope
+        // verschoben und die veroeffentlichte Regel waere wirkungslos.
+        $elementCursor = $offset;
+        $element = self::readCssIdentifier($selector, $elementCursor);
+        if (in_array($element, ['html', 'body'], true)
+            && ($selector[$elementCursor] ?? '') === '[') {
+            $attributeEnd = self::externalClientAttributeEnd($selector, $elementCursor);
+            if ($attributeEnd !== null) {
+                return $attributeEnd;
+            }
+        }
+
+        $cursor = $offset;
+        if (self::readCssIdentifier($selector, $cursor) !== 'u') {
+            return null;
+        }
+
+        self::skipTrivia($selector, $cursor);
+        if (($selector[$cursor] ?? '') !== '+') {
+            return null;
+        }
+
+        $cursor++;
+        self::skipTrivia($selector, $cursor);
+        if (($selector[$cursor] ?? '') !== '#') {
+            return null;
+        }
+
+        $cursor++;
+
+        return self::readCssIdentifier($selector, $cursor) === 'body'
+            ? $cursor
+            : null;
+    }
+
+    private static function externalClientAttributeEnd(string $selector, int $offset): ?int
+    {
+        $cursor = $offset + 1;
+        self::skipTrivia($selector, $cursor);
+        $attribute = self::readCssIdentifier($selector, $cursor);
+        if (! in_array($attribute, ['data-ogsc', 'data-outlook-cycle'], true)) {
+            return null;
+        }
+
+        self::skipTrivia($selector, $cursor);
+
+        return ($selector[$cursor] ?? '') === ']'
+            ? $cursor + 1
+            : null;
+    }
+
+    private static function readCssIdentifier(string $css, int &$offset): ?string
+    {
+        $start = $offset;
+        $decoded = '';
+        $length = strlen($css);
+
+        while ($offset < $length) {
+            $character = $css[$offset];
+            if (preg_match('/[a-z0-9_-]/i', $character) === 1) {
+                $decoded .= $character;
+                $offset++;
+
+                continue;
+            }
+
+            if ($character !== '\\') {
+                break;
+            }
+
+            $offset++;
+            if ($offset >= $length) {
+                break;
+            }
+
+            $hexStart = $offset;
+            while ($offset < $length
+                && $offset - $hexStart < 6
+                && ctype_xdigit($css[$offset])) {
+                $offset++;
+            }
+
+            if ($offset > $hexStart) {
+                $codepoint = hexdec(substr($css, $hexStart, $offset - $hexStart));
+                $decoded .= $codepoint > 0 && $codepoint <= 0x7F
+                    ? chr($codepoint)
+                    : "\x80";
+
+                if ($offset < $length
+                    && $css[$offset] === "\r"
+                    && ($css[$offset + 1] ?? '') === "\n") {
+                    $offset += 2;
+                } elseif ($offset < $length && preg_match('/\s/', $css[$offset]) === 1) {
+                    $offset++;
+                }
+
+                continue;
+            }
+
+            if ($css[$offset] === "\r" && ($css[$offset + 1] ?? '') === "\n") {
+                $offset += 2;
+
+                continue;
+            }
+
+            if ($css[$offset] === "\r" || $css[$offset] === "\n" || $css[$offset] === "\f") {
+                $offset++;
+
+                continue;
+            }
+
+            $decoded .= $css[$offset];
+            $offset++;
+        }
+
+        return $offset === $start ? null : strtolower($decoded);
+    }
+
+    private static function assertRootCompoundContained(string $selector, int $offset): void
+    {
+        $length = strlen($selector);
+        $quote = null;
+        $roundDepth = 0;
+        $squareDepth = 0;
+
+        for ($index = $offset; $index < $length; $index++) {
+            $character = $selector[$index];
+            if ($quote !== null) {
+                if ($character === '\\') {
+                    $index++;
+                } elseif ($character === $quote) {
+                    $quote = null;
+                }
+
+                continue;
+            }
+
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+
+                continue;
+            }
+
+            if ($character === '\\') {
+                $escapedEnd = $index;
+                self::readCssIdentifier($selector, $escapedEnd);
+                $index = max($index, $escapedEnd - 1);
+
+                continue;
+            }
+
+            if (substr($selector, $index, 2) === '/*') {
+                $end = strpos($selector, '*/', $index + 2);
+                if ($end === false) {
+                    throw new RuntimeException('Das Signatur-CSS enthaelt einen offenen Kommentar.');
+                }
+
+                $index = $end + 1;
+
+                continue;
+            }
+
+            if ($character === '(') {
+                $roundDepth++;
+
+                continue;
+            }
+
+            if ($character === ')') {
+                $roundDepth--;
+
+                continue;
+            }
+
+            if ($character === '[') {
+                $squareDepth++;
+
+                continue;
+            }
+
+            if ($character === ']') {
+                $squareDepth--;
+
+                continue;
+            }
+
+            if ($roundDepth !== 0 || $squareDepth !== 0) {
+                continue;
+            }
+
+            if (in_array($character, ['+', '~'], true)
+                || substr($selector, $index, 2) === '||') {
+                throw new RuntimeException('Das veroeffentlichte Signatur-CSS darf keine Elemente ausserhalb der Signatur adressieren.');
+            }
+
+            if ($character === '>') {
+                return;
+            }
+
+            if (preg_match('/\s/', $character) === 1) {
+                $next = $index;
+                self::skipTrivia($selector, $next);
+                if (isset($selector[$next])
+                    && (in_array($selector[$next], ['+', '~'], true)
+                        || substr($selector, $next, 2) === '||')) {
+                    throw new RuntimeException('Das veroeffentlichte Signatur-CSS darf keine Elemente ausserhalb der Signatur adressieren.');
+                }
+
+                return;
+            }
+        }
+    }
+
+    private static function atRuleName(string $prelude): ?string
+    {
+        if (($prelude[0] ?? '') !== '@') {
+            return null;
+        }
+
+        $offset = 1;
+
+        return self::readCssIdentifier($prelude, $offset);
+    }
+
+    /**
+     * Entfernt nur Selektoren, deren einfache, positiv verlangte Klasse im
+     * konkreten Fragment sicher fehlt. Funktions-Pseudoklassen und CSS-Escapes
+     * bleiben unangetastet, weil :is(), :not() und aehnliche Konstrukte keine
+     * pauschale Klassenkonjunktion bilden.
+     *
+     * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string}  $documentTraits
+     */
+    private static function selectorDefinitelyUnused(string $selector, array $documentTraits): bool
+    {
+        if (str_contains($selector, '(') || str_contains($selector, '\\')) {
+            return false;
+        }
+
+        $scanOffset = 0;
+        self::skipTrivia($selector, $scanOffset);
+        while (($externalContext = self::externalClientContext($selector, $scanOffset)) !== null) {
+            [, $scanOffset] = $externalContext;
+            self::skipTrivia($selector, $scanOffset);
+        }
+
+        $length = strlen($selector);
+        $quote = null;
+        $squareDepth = 0;
+
+        for ($offset = $scanOffset; $offset < $length; $offset++) {
+            $character = $selector[$offset];
+            if ($quote !== null) {
+                if ($character === $quote) {
+                    $quote = null;
+                }
+
+                continue;
+            }
+
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+
+                continue;
+            }
+
+            if (substr($selector, $offset, 2) === '/*') {
+                $end = strpos($selector, '*/', $offset + 2);
+                if ($end === false) {
+                    return false;
+                }
+
+                $offset = $end + 1;
+
+                continue;
+            }
+
+            if ($character === '[') {
+                $squareDepth++;
+
+                continue;
+            }
+
+            if ($character === ']') {
+                $squareDepth = max(0, $squareDepth - 1);
+
+                continue;
+            }
+
+            if ($character !== '.' || $squareDepth !== 0) {
+                continue;
+            }
+
+            $classOffset = $offset + 1;
+            $className = self::readCssIdentifier($selector, $classOffset);
+            if ($className !== null
+                && ! isset($documentTraits['classes'][$className])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string}  $documentTraits
      * @return list<string>
      */
@@ -161,10 +840,7 @@ final class TrustedOutlookSignatureCss
         ?string $artifactVersion,
         array $documentTraits,
     ): array {
-        $selectors = preg_split('/\s*,\s*/u', trim($prelude));
-        if (! is_array($selectors)) {
-            throw new RuntimeException('Das kanonische Signatur-CSS konnte nicht gelesen werden.');
-        }
+        $selectors = self::splitSelectorList($prelude);
 
         $relevant = [];
         foreach ($selectors as $selector) {
@@ -181,6 +857,86 @@ final class TrustedOutlookSignatureCss
         }
 
         return array_values(array_unique($relevant));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitSelectorList(string $prelude): array
+    {
+        $selectors = [];
+        $start = 0;
+        $length = strlen($prelude);
+        $quote = null;
+        $roundDepth = 0;
+        $squareDepth = 0;
+
+        for ($index = 0; $index < $length; $index++) {
+            $character = $prelude[$index];
+
+            if ($quote !== null) {
+                if ($character === '\\') {
+                    $index++;
+                } elseif ($character === $quote) {
+                    $quote = null;
+                }
+
+                continue;
+            }
+
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+
+                continue;
+            }
+
+            if ($character === '\\') {
+                $index++;
+
+                continue;
+            }
+
+            if (substr($prelude, $index, 2) === '/*') {
+                $end = strpos($prelude, '*/', $index + 2);
+                if ($end === false) {
+                    throw new RuntimeException('Das Signatur-CSS enthaelt einen offenen Kommentar.');
+                }
+
+                $index = $end + 1;
+
+                continue;
+            }
+
+            if ($character === '(') {
+                $roundDepth++;
+            } elseif ($character === ')') {
+                $roundDepth--;
+            } elseif ($character === '[') {
+                $squareDepth++;
+            } elseif ($character === ']') {
+                $squareDepth--;
+            } elseif ($character === ',' && $roundDepth === 0 && $squareDepth === 0) {
+                $selectors[] = trim(substr($prelude, $start, $index - $start));
+                $start = $index + 1;
+            }
+
+            if ($roundDepth < 0 || $squareDepth < 0) {
+                throw new RuntimeException('Das Signatur-CSS besitzt einen ungueltigen Selektor.');
+            }
+        }
+
+        if ($quote !== null || $roundDepth !== 0 || $squareDepth !== 0) {
+            throw new RuntimeException('Das Signatur-CSS besitzt einen unvollstaendigen Selektor.');
+        }
+
+        $selectors[] = trim(substr($prelude, $start));
+        foreach ($selectors as $selector) {
+            if ($selector === '') {
+                throw new RuntimeException('Das Signatur-CSS enthaelt einen leeren Selektor.');
+            }
+        }
+
+        return $selectors;
     }
 
     private static function matchesArtifact(string $selector, ?string $artifactVersion): bool
@@ -293,6 +1049,11 @@ final class TrustedOutlookSignatureCss
         preg_match_all('/\bclass\s*=\s*(["\'])(.*?)\1/is', $signatureHtml, $classMatches);
         $classes = [];
         foreach ($classMatches[2] ?? [] as $classAttribute) {
+            $classAttribute = html_entity_decode(
+                $classAttribute,
+                ENT_QUOTES | ENT_HTML5,
+                'UTF-8',
+            );
             foreach (preg_split('/\s+/u', trim($classAttribute)) ?: [] as $className) {
                 if ($className !== '') {
                     $classes[strtolower($className)] = true;
@@ -319,7 +1080,11 @@ final class TrustedOutlookSignatureCss
             return null;
         }
 
-        $value = trim($match[2]);
+        $value = trim(html_entity_decode(
+            $match[2],
+            ENT_QUOTES | ENT_HTML5,
+            'UTF-8',
+        ));
 
         return $value !== '' ? $value : null;
     }
@@ -399,6 +1164,23 @@ final class TrustedOutlookSignatureCss
                 continue;
             }
 
+            if ($character === '\\') {
+                $index++;
+
+                continue;
+            }
+
+            if (substr($css, $index, 2) === '/*') {
+                $end = strpos($css, '*/', $index + 2);
+                if ($end === false) {
+                    throw new RuntimeException('Das Signatur-CSS enthaelt einen offenen Kommentar.');
+                }
+
+                $index = $end + 1;
+
+                continue;
+            }
+
             if ($character === '{') {
                 return $index;
             }
@@ -427,6 +1209,23 @@ final class TrustedOutlookSignatureCss
 
             if ($character === '"' || $character === "'") {
                 $quote = $character;
+
+                continue;
+            }
+
+            if ($character === '\\') {
+                $index++;
+
+                continue;
+            }
+
+            if (substr($css, $index, 2) === '/*') {
+                $end = strpos($css, '*/', $index + 2);
+                if ($end === false) {
+                    throw new RuntimeException('Das Signatur-CSS enthaelt einen offenen Kommentar.');
+                }
+
+                $index = $end + 1;
 
                 continue;
             }

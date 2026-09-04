@@ -14,7 +14,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 6;
+    private const RENDERER_REVISION = 7;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -132,6 +132,11 @@ final class OutlookAddinPayloadService
                 $signatureHtml,
                 $signatureVersion,
             );
+            $signatureCharacters = $this->outlookStringLength($signatureHtml);
+            if ($signatureCharacters > self::MAX_SIGNATURE_CHARACTERS) {
+                throw new RuntimeException('Die veroeffentlichte Signatur ueberschreitet das Outlook-Limit von 30.000 Zeichen ('.$signatureCharacters.').');
+            }
+
             $templates = $this->renderTemplates(
                 $builder,
                 $templateSnapshots,
@@ -139,10 +144,6 @@ final class OutlookAddinPayloadService
                 $signatureVersion,
             );
             $activeTemplate = $this->activeTemplatePayload($templates);
-
-            if (mb_strlen($signatureHtml, 'UTF-8') > self::MAX_SIGNATURE_CHARACTERS) {
-                throw new RuntimeException('Die veroeffentlichte Signatur ueberschreitet das Outlook-Limit von 30.000 Zeichen ('.mb_strlen($signatureHtml, 'UTF-8').').');
-            }
 
             return [
                 'schema' => 1,
@@ -289,6 +290,10 @@ final class OutlookAddinPayloadService
             throw new RuntimeException('Die Outlook-Signaturversion ist ungueltig.');
         }
 
+        if (preg_match('/RT-SIGNATURE-VERSION:[0-9a-f]{16}/i', $html) === 1) {
+            throw new RuntimeException('Die Outlook-Signatur enthaelt einen fremden Versionsmarker.');
+        }
+
         $marker = 'RT-SIGNATURE-VERSION:'.$version;
 
         return "<!-- {$marker} -->"
@@ -356,9 +361,39 @@ final class OutlookAddinPayloadService
             },
             $html,
         ) ?? $html;
-        $html = preg_replace('~>\s+<~', '><', $html) ?? $html;
+        $preformatted = [];
+        $html = preg_replace_callback(
+            '~<pre\b[^>]*>.*?</pre\s*>~is',
+            static function (array $match) use (&$preformatted): string {
+                $placeholder = "\x1ART-PRE-".count($preformatted)."\x1A";
+                $preformatted[$placeholder] = $match[0];
 
-        return trim($html);
+                return $placeholder;
+            },
+            $html,
+        ) ?? $html;
+        // Ein sichtbares Leerzeichen zwischen zwei Inline-Elementen darf
+        // durch die Transportkomprimierung nicht verschwinden. Vorformatierte
+        // Inhalte bleiben dabei bytegenau erhalten.
+        $html = preg_replace('~>\s+<~', '> <', $html) ?? $html;
+
+        return strtr(trim($html), $preformatted);
+    }
+
+    /**
+     * Office.js begrenzt setSignatureAsync auf 30.000 UTF-16-Codeunits.
+     * mb_strlen() zaehlt dagegen Unicode-Codepoints und unterschätzt damit
+     * Zeichen ausserhalb der BMP (zum Beispiel Emojis) um jeweils eine Unit.
+     */
+    private function outlookStringLength(string $value): int
+    {
+        if (! mb_check_encoding($value, 'UTF-8')) {
+            throw new RuntimeException('Die Outlook-Signatur enthaelt ungueltige UTF-8-Zeichen.');
+        }
+
+        $utf16 = mb_convert_encoding($value, 'UTF-16LE', 'UTF-8');
+
+        return intdiv(strlen($utf16), 2);
     }
 
     /**

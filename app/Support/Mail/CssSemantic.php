@@ -37,6 +37,7 @@ final class CssSemantic
         'rt-sign-content-frame',
         'rt-sign-train-mso',
         'rt-sign-stage',
+        'rt-outlook-signature',
         'rt-train-main-layer',
         'rt-train-main-image',
         'rt-train-idle-overlay',
