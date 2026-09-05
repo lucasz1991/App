@@ -1571,7 +1571,7 @@ function usesFlowSafeSignatureTrain(rows) {
 }
 
 function usesSignatureBackground(rows) {
-    return String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').trim().toLowerCase() === 'v22';
+    return ['v22', 'v23'].includes(String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').trim().toLowerCase());
 }
 
 function assertSignatureBackgroundDocument(wrapper, rows) {
@@ -2708,7 +2708,7 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         const signatureParser = domParserFor(options.environment || globalThis);
         const contactProjection = bindSignatureContactMarkerRows(page.component, signatureParser);
         const signature = contactProjection.html;
-        if (!/data-rt-artifact-version\s*=\s*(["'])v22\1/i.test(signature)
+        if (!/data-rt-artifact-version\s*=\s*(["'])v2[23]\1/i.test(signature)
             && (signature.split('{{TRAIN_SRC}}').length - 1) !== 1) {
             throw new Error('Die Signatur benötigt genau ein gebundenes Zugbild.');
         }
@@ -3199,7 +3199,7 @@ function componentUsesFlowSafeSignatureTrain(component) {
 
 function componentUsesSignatureBackground(component) {
     for (let current = component; current; current = current?.parent?.()) {
-        if (String((current.getAttributes?.() || current.get?.('attributes') || {})[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').toLowerCase() === 'v22') return true;
+        if (['v22', 'v23'].includes(String((current.getAttributes?.() || current.get?.('attributes') || {})[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').toLowerCase())) return true;
     }
     return false;
 }
@@ -3877,6 +3877,12 @@ export function protectMailSystemComponents(editor) {
         setName(component, label(component, attributes));
         const tagName = String(component?.get?.('tagName') || '').toLowerCase();
         const classes = classNames(attributes);
+        if (tagName !== 'img' && componentUsesSignatureBackground(component)) {
+            // These layouts intentionally have no fixed stage or overlap.
+            // Do not offer geometry the save contract would have to reject.
+            component.set?.({ stylable: MAIL_SAFE_EDITABLE_STYLE_PROPERTIES.filter((property) =>
+                !['height', 'max-height', 'margin', 'display'].includes(property)) }, { silent: true });
+        }
         if (isMailSignatureBackgroundComponent(component)) {
             synchronizeMailSignatureBackground(component);
             protect(component, { layerable: true });
@@ -4609,11 +4615,27 @@ export async function createMailBuilder({
         preview?.refresh();
         if (activeDegradationMode !== 'normal') renderDegradationOverlay();
     };
+    let projectPreviewFrame = null;
+    let previewDisposed = false;
+    const onProjectLoad = () => {
+        // Loading canonical project data can reuse the existing iframe. Its
+        // document then receives new neutral images without frame:load firing.
+        globalThis.queueMicrotask?.(() => {
+            if (previewDisposed) return;
+            onFrameLoad();
+            if (projectPreviewFrame !== null) globalThis.cancelAnimationFrame?.(projectPreviewFrame);
+            projectPreviewFrame = globalThis.requestAnimationFrame?.(() => {
+                projectPreviewFrame = null;
+                if (!previewDisposed) onFrameLoad();
+            }) ?? null;
+        });
+    };
 
     applyMailCanvasStyles(editor, canvasCss);
     hydrateMailCanvasPlaceholders(editor);
     hydrateMailCanvasAssets(editor, activeTheme, previewAssets);
     editor.on?.('canvas:frame:load', onFrameLoad);
+    editor.on?.('project:load', onProjectLoad);
 
     removeBuilderControls(rootElement, MOTION_CONTROL_SELECTORS);
 
@@ -4820,6 +4842,10 @@ export async function createMailBuilder({
             editor.off?.('component:update', onComponentUpdate);
             editor.off?.('component:styleUpdate', onComponentStyleUpdate);
             editor.off?.('canvas:frame:load', onFrameLoad);
+            editor.off?.('project:load', onProjectLoad);
+            previewDisposed = true;
+            if (projectPreviewFrame !== null) globalThis.cancelAnimationFrame?.(projectPreviewFrame);
+            projectPreviewFrame = null;
             removeDegradationOverlay();
             preview?.destroy();
             instance.destroy?.();

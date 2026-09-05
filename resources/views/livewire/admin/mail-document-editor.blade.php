@@ -159,6 +159,10 @@
                 </div>
 
                 <div class="rt-mail-studio-toolbar__preview" data-mail-toolbar-region="preview" data-mail-preview-toolbar>
+                    <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 shrink-0 rounded-lg px-3" data-mail-view-shortcut title="Zwischen Bearbeitung und serverseitiger Versandvorschau wechseln">
+                        <i data-feather="edit-3" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                        <span data-mail-view-shortcut-label>Layout bearbeiten</span>
+                    </x-ui.buttons.button-basic>
                     <x-ui.dropdown.anchor-dropdown
                         align="left"
                         width="96"
@@ -182,10 +186,10 @@
                         <x-slot:content>
                             <div class="rt-mail-view-menu">
                                 <div class="rt-mail-preview-context">
-                                    <strong>Mailclient-Prüfung</strong>
+                                    <strong>Versandvorschau &amp; Bearbeitung</strong>
                                     <small data-mail-preview-status aria-live="polite">Systemmail breit · 1920 px · wird eingepasst</small>
                                     <small data-mail-compiler-parity-note>
-                                        „Bearbeiten“ nutzt nur mail-sichere Werkzeuge. „Compiler-Parität“ zeigt die produktiv kompilierte Systemmail-Quelle; Outlook nutzt dieselben veröffentlichten Dokumente mit clientspezifischen Medien- und Wrapper-Anpassungen. Die abschließende Word-Renderer-Prüfung erfolgt per Testmail.
+                                        „Bearbeiten“ ist die Autorenansicht mit Platzhaltern. „Versandvorschau“ zeigt den aktuellen Entwurf nach dem echten Systemmail-Compiler und CSS-Inliner (Compiler-Parität). Andere Bausteine stammen aus der Freigabe, bei der Ersteinrichtung gegebenenfalls aus deren Entwurf. Outlook erhält clientspezifische Medien- und Wrapper-Anpassungen. Keine Ansicht emuliert Outlook oder iPhone Mail; die Empfangsprüfung erfolgt per Testmail.
                                     </small>
                                 </div>
 
@@ -202,13 +206,13 @@
                                 </x-ui.buttons.button-basic>
 
                     <div class="rt-mail-preview-toggle" role="group" aria-label="Editoransicht">
-                        <button type="button" data-mail-view-mode="edit" aria-pressed="true" title="Bearbeitbare Mail-Leinwand anzeigen">
+                        <button type="button" data-mail-view-mode="edit" aria-pressed="false" title="Autorenansicht mit Platzhaltern; keine Mailclient-Emulation">
                             <i data-feather="edit-3" class="h-4 w-4" aria-hidden="true"></i>
                             <span>Bearbeiten</span>
                         </button>
-                        <button type="button" data-mail-view-mode="delivery" aria-pressed="false" title="Verbindliche Versandquelle mit dem produktiven Systemmail-Compiler prüfen; die Darstellung erfolgt weiterhin im Browser">
+                        <button type="button" data-mail-view-mode="delivery" aria-pressed="true" title="Aktuellen Entwurf mit dem produktiven Systemmail-Compiler prüfen; die Darstellung erfolgt weiterhin im Browser">
                             <i data-feather="mail" class="h-4 w-4" aria-hidden="true"></i>
-                            <span>Compiler-Parität</span>
+                            <span>Versandvorschau</span>
                         </button>
                         <button type="button" data-mail-view-mode="forward" aria-pressed="false" title="Kompiliertes Versand-HTML als zitierte Weiterleitung ohne Head-CSS prüfen">
                             <i data-feather="corner-up-right" class="h-4 w-4" aria-hidden="true"></i>
@@ -1085,7 +1089,9 @@
                     let destroyed = false;
                     let selectedTheme = 'light';
                     let selectedDevice = 'wide';
-                    let selectedViewMode = 'edit';
+                    // Zuerst die tatsaechlich kompilierte Quelle zeigen.
+                    // Die editierbare Autorenansicht bleibt explizit erreichbar.
+                    let selectedViewMode = 'delivery';
                     let selectedDegradationMode = 'normal';
                     let actionsBusy = false;
                     let compatibilityBlocksPublication = false;
@@ -1265,8 +1271,8 @@
                             const rendering = selectedViewMode === 'forward'
                                 ? 'Kompilierte Weiterleitungsbasis im Browser'
                                 : (selectedViewMode === 'delivery'
-                                    ? 'Compiler-Parität · produktive Systemmail-Quelle im Browser'
-                                    : labels[activeDevice] || 'Editor');
+                                    ? 'Versandvorschau · aktueller Entwurf nach CSS-Inliner'
+                                    : `Autorenansicht · ${labels[activeDevice] || 'Editor'} · keine Client-Emulation`);
                             previewStatus.textContent = `${rendering} · ${logicalWidth} px${scale}${degradation}`;
                         }
 
@@ -1361,7 +1367,7 @@
                         const preview = effectiveDegradationMode === 'normal'
                             ? {
                                 html: compiledDeliveryHtml,
-                                disclaimer: 'Produktive Systemmail-Quelle · Outlook-Darstellung abschließend per Testmail prüfen.',
+                                disclaimer: 'Aktueller Entwurf nach CSS-Inliner · Browserdarstellung, kein Outlook-/iPhone-Nachweis.',
                             }
                             : instance?.createDegradationPreview?.(
                                 compiledDeliveryHtml,
@@ -1391,6 +1397,9 @@
                         deliveryPreviewRequest?.abort();
                         deliveryPreviewRequest = new AbortController();
                         const generation = ++deliveryPreviewGeneration;
+                        // Eine fehlgeschlagene neue Pruefung darf beim Wechsel
+                        // der Robustheitsansicht keine alte Mail wiederbeleben.
+                        compiledDeliveryHtml = '';
                         if (deliveryState) deliveryState.textContent = 'Aktueller Stand wird mit dem produktiven Systemmail-Compiler geprüft …';
                         if (deliveryFrame) deliveryFrame.srcdoc = '';
 
@@ -1401,7 +1410,7 @@
                             css: candidate.css,
                             expected_hash: document_.contentHash || '',
                         }, { signal: deliveryPreviewRequest.signal });
-                        if (generation !== deliveryPreviewGeneration || selectedViewMode === 'edit') return;
+                        if (destroyed || generation !== deliveryPreviewGeneration || selectedViewMode === 'edit') return;
                         if (payload.preview?.rendering !== 'compiled-system-mail'
                             || typeof payload.preview?.html !== 'string'
                             || payload.preview.html.trim() === '') {
@@ -1432,6 +1441,8 @@
                         const leavingForward = selectedViewMode === 'forward' && nextViewMode !== 'forward';
                         if (enteringForward) rememberForwardPreviewViewport();
                         selectedViewMode = nextViewMode;
+                        const shortcutLabel = studioRoot.querySelector('[data-mail-view-shortcut-label]');
+                        if (shortcutLabel) shortcutLabel.textContent = selectedViewMode === 'edit' ? 'Versand prüfen' : 'Layout bearbeiten';
                         if (enteringForward) selectDevice('mobile');
                         if (leavingForward) restoreForwardPreviewViewport();
                         editorFrame?.setAttribute('data-mail-view-mode', selectedViewMode);
@@ -2321,6 +2332,10 @@
                                 ? `${restarted} Animation${restarted === 1 ? '' : 'en'} neu gestartet.`
                                 : 'In der aktuellen Vorschau wurde keine GIF-Animation gefunden.');
                         }
+                    }, { signal: controlListeners.signal });
+
+                    studioRoot.querySelector('[data-mail-view-shortcut]')?.addEventListener('click', () => {
+                        void selectViewMode(selectedViewMode === 'edit' ? 'delivery' : 'edit');
                     }, { signal: controlListeners.signal });
 
                     window.document.addEventListener('input', (event) => {

@@ -1130,6 +1130,17 @@ export function isFixedMailSignatureGeometry(component) {
     return classes.some((name) => FIXED_MAIL_SIGNATURE_GEOMETRY_CLASSES.has(name));
 }
 
+export function isMailBackgroundFlowContent(component) {
+    if (String(component?.get?.('tagName') || '').toLowerCase() === 'img') return false;
+    let current = component;
+    let guard = 0;
+    while (current && guard++ < 40) {
+        if (['v22', 'v23'].includes(String(componentAttributes(current)['data-rt-artifact-version'] || '').toLowerCase())) return true;
+        current = current.parent?.();
+    }
+    return false;
+}
+
 export function isProtectedEditorImage(component) {
     if (!component) return true;
 
@@ -2069,6 +2080,7 @@ export function createSpacingOverlayController({
         node.hidden = false;
         ['margin', 'padding'].forEach((type) => SIDES.forEach((side) => {
             const handle = handles.get(`${type}:${side}`);
+            handle.hidden = type === 'margin' && isMailBackgroundFlowContent(selected);
             applyHandleRect(handle, geometry[type][side], side, coarse ? 44 : 12);
             const value = rounded(geometry.spacing[type][side] / Math.max(number(position.zoom, 1), 0.01));
             handle.dataset.value = `${value}px`;
@@ -2135,6 +2147,7 @@ export function createSpacingOverlayController({
         const offsets = element ? editor.Canvas.getElementOffsets?.(element) : null;
         const type = event.currentTarget?.dataset?.type;
         const side = event.currentTarget?.dataset?.side;
+        if (type === 'margin' && isMailBackgroundFlowContent(component)) return;
         if (!component || !position || !offsets || !['margin', 'padding'].includes(type) || !SIDES.includes(side)) return;
         event.preventDefault?.();
         event.stopPropagation?.();
@@ -2204,6 +2217,7 @@ export function createSpacingOverlayController({
         const zoom = Math.max(number(position.zoom, 1), 0.01);
         const type = event.currentTarget?.dataset?.type || event.target?.closest?.('[data-type]')?.dataset?.type;
         const side = event.currentTarget?.dataset?.side || event.target?.closest?.('[data-side]')?.dataset?.side;
+        if (type === 'margin' && isMailBackgroundFlowContent(component)) return;
         if (!['margin', 'padding'].includes(type) || !SIDES.includes(side)) return;
         const snapshot = spacingCssSnapshot(offsets, zoom);
         const handle = handles.get(`${type}:${side}`);
@@ -2649,7 +2663,7 @@ export function installMailFocusChrome({ root, editor }) {
     const classesGroup = document_.createElement('details');
     classesGroup.className = 'rt-lmz-properties-classes';
     const summary = document_.createElement('summary');
-    summary.textContent = 'CSS-Klassen';
+    summary.textContent = classesMount?.inert ? 'CSS-Klassen · schreibgeschützt' : 'CSS-Klassen';
     classesGroup.append(summary);
     if (classesMount && traitsMount?.parentElement) {
         classesGroup.append(classesMount);
@@ -2753,6 +2767,9 @@ export function installMailFocusChrome({ root, editor }) {
     };
     host.addEventListener('pointermove', pointer, { passive: true });
     host.addEventListener('pointerdown', pointer, { passive: true });
+    // Sandboxed delivery iframes do not expose their document. Their boundary
+    // event still reveals chrome without any transparent input-catching layer.
+    host.addEventListener('pointerover', pointer, { passive: true });
     host.addEventListener('pointerleave', leave);
     host.addEventListener('focusin', sync);
     host.addEventListener('focusout', schedule);
@@ -2769,6 +2786,7 @@ export function installMailFocusChrome({ root, editor }) {
             destroyed = true;
             host.removeEventListener('pointermove', pointer);
             host.removeEventListener('pointerdown', pointer);
+            host.removeEventListener('pointerover', pointer);
             host.removeEventListener('pointerleave', leave);
             host.removeEventListener('focusin', sync);
             host.removeEventListener('focusout', schedule);
@@ -2781,7 +2799,7 @@ export function installMailFocusChrome({ root, editor }) {
             restoreNodePosition(classesPosition);
             classesGroup.remove(); launcher.remove(); closeButtons.forEach((button) => button.remove());
             previousHost.forEach(([name, value]) => value === null ? host.removeAttribute(name) : host.setAttribute(name, value));
-            ['rtLmzFocusChrome', 'rtLmzLauncherRevealed', 'rtLmzLeftOpen', 'rtLmzRightOpen'].forEach((name) => { delete root.dataset[name]; });
+            ['focus-chrome', 'launcher-revealed', 'left-open', 'right-open'].forEach((name) => root.removeAttribute(`data-rt-lmz-${name}`));
         },
     };
 }
@@ -5385,7 +5403,7 @@ export function createLmzEditorChrome({
     modeIndicator.append(modeEyebrow, modeName, modeDescription);
     topbar?.insertBefore(modeIndicator, topbar.querySelector('.lmz-builder__panel-actions--left'));
     const elementorLayout = normalizedLayout === 'elementor'
-        ? installElementorEditorLayout({ root: rootElement, modeIndicator })
+        ? installElementorEditorLayout({ root: rootElement, modeIndicator, autoHide: normalizedMode === 'mail' })
         : null;
     rootElement.querySelectorAll('[data-lmz-panel-toggle]').forEach((button) => button.classList.add('rt-lmz-drawer-trigger'));
     rootElement.querySelectorAll('[data-lmz-popover]').forEach((drawer) => drawer.setAttribute('data-rt-lmz-drawer', drawer.dataset.lmzPopover || ''));
@@ -5440,6 +5458,8 @@ export function createLmzEditorChrome({
     let imagePropertiesPanel;
     let signatureBackgroundPanel;
     let panelExperience;
+    let mailFocusChrome;
+    let mailSelectionActive = false;
     let lastContextSelection = null;
     const contextualElementState = new Map();
     const traitCount = (component) => {
@@ -5475,7 +5495,8 @@ export function createLmzEditorChrome({
         toggle.setAttribute('aria-disabled', available ? 'false' : 'true');
     };
     const syncContextControls = () => {
-        const selected = editor.getSelected?.() || null;
+        const current = editor.getSelected?.() || null;
+        const selected = mailFocusChrome && !mailSelectionActive ? null : current;
         const hasImage = imagePropertiesPanel?.refresh(selected) || false;
         const hasBackground = signatureBackgroundPanel?.refresh(selected) || false;
         const protectedSelection = isProtectedEditorStructure(selected);
@@ -5483,7 +5504,7 @@ export function createLmzEditorChrome({
             selected
             && normalized.writable
             && normalized.traits
-            && (hasImage || hasBackground || (!protectedSelection && traitCount(selected) > 0))
+            && (hasImage || hasBackground || (!protectedSelection && (traitCount(selected) > 0 || (mailFocusChrome && normalized.classes))))
         );
         const stylesAvailable = Boolean(
             selected
@@ -5502,12 +5523,14 @@ export function createLmzEditorChrome({
         rootElement.dataset.rtLmzHasContextActions = traitsAvailable || stylesAvailable || classesAvailable ? 'true' : 'false';
         setContextPanelAvailable('right:traits', traitsAvailable);
         setContextPanelAvailable('right:styles', stylesAvailable);
-        setContextPanelAvailable('right:classes', classesAvailable);
+        setContextPanelAvailable('right:classes', mailFocusChrome ? false : classesAvailable);
+        mailFocusChrome?.showClasses(Boolean(selected && !protectedSelection));
         if (elementorLayout && selected !== lastContextSelection) {
             lastContextSelection = selected;
             if (selected) elementorLayout.openContextPanel();
         }
         elementorLayout?.syncTabs();
+        mailFocusChrome?.sync();
     };
     const refreshAll = () => {
         spacing.refresh();
@@ -5528,6 +5551,7 @@ export function createLmzEditorChrome({
         signatureBackgroundPanel = createMailSignatureBackgroundPanel({ root: rootElement, editor, capabilities: normalized, media, onChanged: refreshAll });
     }
     panelExperience = installEditorPanelExperience({ root: rootElement, editor });
+    if (normalizedMode === 'mail' && elementorLayout) mailFocusChrome = installMailFocusChrome({ root: rootElement, editor });
     const detachScopedAssetAccess = installScopedAssetAccess({ editor, mediaDrawer, mode: normalizedMode });
     animationDrawer = createAnimationDrawer({ root: rootElement, editor, capabilities: normalized, mode: normalizedMode, onChanged: refreshAll });
     const menu = createInlineMenu({
@@ -5556,6 +5580,9 @@ export function createLmzEditorChrome({
     // gemeinsame Editor oeffnet Panels ausschliesslich durch Benutzerwahl.
     closeAutomaticallyOpenedStyles(rootElement, intentionalRightPanel);
     const onSelected = (selected = editor.getSelected?.()) => {
+        if (mailFocusChrome) mailSelectionActive = Boolean(selected && selected !== editor.getWrapper?.()
+            && !['body', 'wrapper'].includes(String(selected.get?.('type') || '').toLowerCase())
+            && String(selected.get?.('tagName') || '').toLowerCase() !== 'body');
         menu.selectionChanged(selected);
         mediaDrawer.selectionChanged(selected);
         animationDrawer.selectionChanged(selected);
@@ -5591,6 +5618,7 @@ export function createLmzEditorChrome({
         imageLayerPresentation.refresh(component);
     };
     const onLoad = () => {
+        if (mailFocusChrome) mailSelectionActive = false;
         enforceProtectedComponentModels(editor, { readOnly: !normalized.writable });
         imageLayerPresentation.refresh();
         syncContextControls();
@@ -5636,7 +5664,7 @@ export function createLmzEditorChrome({
             const mapping = {
                 blocks: 'left:blocks', layers: 'left:layers', styles: 'right:styles',
                 traits: 'right:traits', properties: 'right:traits', spacing: 'right:styles',
-                classes: 'right:classes',
+                classes: mailFocusChrome ? 'right:traits' : 'right:classes',
             };
             const panelId = mapping[panel];
             const capability = capabilityByPanel[panelId];
@@ -5667,6 +5695,7 @@ export function createLmzEditorChrome({
             menu.destroy();
             mediaDrawer.destroy();
             animationDrawer.destroy();
+            mailFocusChrome?.destroy();
             panelExperience.destroy();
             imagePropertiesPanel.destroy();
             signatureBackgroundPanel?.destroy();

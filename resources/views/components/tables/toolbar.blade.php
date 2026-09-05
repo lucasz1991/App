@@ -54,11 +54,17 @@
             };
             this.filterViewport.addEventListener?.('change', this.filterViewportListener);
         },
+        closeFilters(restoreFocus = false) {
+            this.filtersOpen = false;
+            if (restoreFocus) {
+                this.$nextTick(() => this.$refs.filterTrigger?.focus({ preventScroll: true }));
+            }
+        },
         destroy() {
             this.filterViewport?.removeEventListener?.('change', this.filterViewportListener);
         },
     }"
-    x-on:keydown.escape.window="filtersOpen = false"
+    x-on:keydown.escape.window="if (filtersOpen) closeFilters(true)"
     data-tables-toolbar
     data-rt-premium-filter
     aria-labelledby="{{ $panelId }}-title"
@@ -104,6 +110,7 @@
             @if ($hasFilters)
                 <template x-if="! desktopFilters">
                     <button
+                        x-ref="filterTrigger"
                         type="button"
                         class="rt-ui-button rt-ui-button-secondary rt-table-filter-trigger"
                         x-on:click="filtersOpen = ! filtersOpen"
@@ -160,7 +167,7 @@
                     </div>
                     <button
                         type="button"
-                        x-on:click="filtersOpen = false"
+                        x-on:click="closeFilters(true)"
                         class="rt-table-toolbar__apply"
                         data-tables-filter-apply
                     >

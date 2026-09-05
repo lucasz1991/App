@@ -22,9 +22,12 @@
 
         {{-- Listen-Toolbar: links Massenauswahl, rechts Suche/Filter --}}
         <x-tables.toolbar
+            id="employee-list-filters"
             data-anim="fade-up"
             :single-line="true"
             :filter-count="$this->activeFilterCount"
+            :title="__('app.filter_employees')"
+            reset-action="resetFilters"
         >
             <x-slot:bulk>
                 <x-tables.bulk-actions :count="count($selectedEmployees)" select-all="toggleSelectAll">
@@ -50,52 +53,66 @@
                 />
             </x-slot:search>
 
-            {{-- Rolle --}}
-            <div class="w-full lg:w-40">
-                <x-ui.forms.select wire:model.live="role" :aria-label="__('app.role')">
+            <x-tables.filter-field :label="__('app.role')" icon="far fa-user-shield">
+                <x-ui.forms.select wire:model.live="role" :aria-label="__('app.role')" class="w-full">
                     <option value="">{{ __('app.all_roles') }}</option>
                     <option value="admin">{{ __('app.role_admin') }}</option>
                     <option value="staff">{{ __('app.role_staff') }}</option>
                 </x-ui.forms.select>
-            </div>
-            {{-- Kontostatus --}}
-            <div class="w-full lg:w-40">
-                <x-ui.forms.select wire:model.live="accountStatus" :aria-label="__('app.status')">
+            </x-tables.filter-field>
+
+            <x-tables.filter-field :label="__('app.status')" icon="far fa-signal-alt-3">
+                <x-ui.forms.select wire:model.live="accountStatus" :aria-label="__('app.status')" class="w-full">
                     <option value="">{{ __('app.all_statuses') }}</option>
                     <option value="active">{{ ucfirst(__('app.active')) }}</option>
                     <option value="inactive">{{ ucfirst(__('app.inactive')) }}</option>
                 </x-ui.forms.select>
-            </div>
-            {{-- Team --}}
-            <div class="w-full lg:w-44">
-                <x-ui.forms.select wire:model.live="teamId" :aria-label="__('app.team')">
+            </x-tables.filter-field>
+
+            <x-tables.filter-field :label="__('app.team')" icon="far fa-users">
+                <x-ui.forms.select wire:model.live="teamId" :aria-label="__('app.team')" class="w-full">
                     <option value="">{{ __('app.all_teams') }}</option>
                     @foreach($teams as $t)
                         <option value="{{ $t->id }}">{{ $t->name }}</option>
                     @endforeach
                 </x-ui.forms.select>
-            </div>
-            {{-- Pro Seite --}}
-            <div class="w-full lg:w-36">
-                <x-ui.forms.select wire:model.live="perPage" :aria-label="__('app.per_page', ['count' => $perPage])">
+            </x-tables.filter-field>
+
+            <x-tables.filter-field :label="__('app.display')" icon="far fa-list-ol">
+                <x-ui.forms.select wire:model.live="perPage" :aria-label="__('app.per_page', ['count' => $perPage])" class="w-full">
                     <option value="15">{{ __('app.per_page', ['count' => 15]) }}</option>
                     <option value="30">{{ __('app.per_page', ['count' => 30]) }}</option>
                     <option value="50">{{ __('app.per_page', ['count' => 50]) }}</option>
                     <option value="100">{{ __('app.per_page', ['count' => 100]) }}</option>
                 </x-ui.forms.select>
-            </div>
+            </x-tables.filter-field>
 
-            @if ($this->activeFilterCount > 0)
-                <button
-                    type="button"
-                    wire:click="resetFilters"
-                    class="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-red/10 hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
-                    title="{{ __('app.reset_filters') }}"
-                >
-                    <i class="far fa-filter-slash" aria-hidden="true"></i>
-                    <span class="hidden xl:inline">{{ __('app.reset_filters') }}</span>
-                </button>
-            @endif
+            <x-slot:chips>
+                @if (trim($search) !== '')
+                    <x-tables.filter-chip :label="__('app.search')" :value="$search" wire:click="$set('search', '')" />
+                @endif
+                @if ($role !== '')
+                    <x-tables.filter-chip
+                        :label="__('app.role')"
+                        :value="$role === 'admin' ? __('app.role_admin') : __('app.role_staff')"
+                        wire:click="$set('role', '')"
+                    />
+                @endif
+                @if ($accountStatus !== '')
+                    <x-tables.filter-chip
+                        :label="__('app.status')"
+                        :value="$accountStatus === 'active' ? ucfirst(__('app.active')) : ucfirst(__('app.inactive'))"
+                        wire:click="$set('accountStatus', '')"
+                    />
+                @endif
+                @if ($teamId)
+                    <x-tables.filter-chip
+                        :label="__('app.team')"
+                        :value="$teams->firstWhere('id', (int) $teamId)?->name ?? __('app.team')"
+                        wire:click="$set('teamId', null)"
+                    />
+                @endif
+            </x-slot:chips>
         </x-tables.toolbar>
 
         {{-- Tabelle --}}

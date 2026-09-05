@@ -2024,9 +2024,37 @@ test('mail chrome separates vendor panels into accessible left navigation and ri
     assert.equal(inspector.querySelector('.rt-lmz-control-dock__panels [data-lmz-popover="right"]') !== null, true);
     assert.equal(inspector.querySelector('[data-lmz-popover="left"]'), null);
     assert.equal(inspector.querySelector('.rt-lmz-control-dock__footer .lmz-builder__meta') !== null, true);
-    assert.equal(root.querySelector('[data-lmz-panel-toggle="left:blocks"]').getAttribute('aria-selected'), 'true');
-    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-selected'), 'true');
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="left:blocks"]').getAttribute('aria-selected'), 'false');
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-selected'), 'false');
     assert.equal(root.querySelector('[data-lmz-popover-panel="right:traits"]').getAttribute('role'), 'tabpanel');
+    assert.equal(root.querySelectorAll('[data-lmz-popover].is-open').length, 0);
+    assert.equal(root.getAttribute('data-rt-lmz-left-open'), 'false');
+    assert.equal(root.getAttribute('data-rt-lmz-right-open'), 'false');
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:classes"]').hidden, true);
+    assert.equal(root.querySelectorAll('[data-lmz-mount="classes"]').length, 1);
+    assert.equal(root.querySelector('[data-lmz-mount="classes"]').closest('[data-lmz-popover-panel]').dataset.lmzPopoverPanel, 'right:traits');
+
+    root.getBoundingClientRect = main.getBoundingClientRect = () => ({ top: 0, left: 0, width: 1000, height: 800, right: 1000, bottom: 800 });
+    const move = (x, y) => {
+        const event = new document.defaultView.Event('pointermove', { bubbles: true });
+        Object.assign(event, { clientX: x, clientY: y, pointerType: 'mouse' });
+        root.dispatchEvent(event);
+    };
+    move(100, 100);
+    assert.equal(root.getAttribute('data-rt-editor-toolbar-revealed'), 'true');
+    assert.equal(root.getAttribute('data-rt-lmz-launcher-revealed'), 'true');
+    move(900, 700);
+    assert.equal(root.getAttribute('data-rt-editor-toolbar-revealed'), 'false');
+    assert.equal(root.getAttribute('data-rt-lmz-launcher-revealed'), 'false');
+    const tab = new document.defaultView.Event('keydown', { bubbles: true });
+    Object.defineProperty(tab, 'key', { value: 'Tab' });
+    document.dispatchEvent(tab);
+    assert.equal(root.getAttribute('data-rt-editor-toolbar-revealed'), 'true');
+    assert.equal(root.getAttribute('data-rt-lmz-launcher-revealed'), 'true');
+    editor.emit('component:selected', selected);
+    root.querySelector('[data-rt-lmz-launch="blocks"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-selected'), 'true');
     assert.equal(root.querySelectorAll('[data-lmz-popover].is-open').length, 2);
 
     root.querySelector('[data-lmz-panel-toggle="left:layers"]').click();
@@ -2062,6 +2090,9 @@ test('mail chrome separates vendor panels into accessible left navigation and ri
     assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"] .lmz-builder__action-label').textContent, 'Eigenschaften');
     assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('role'), null);
     assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-haspopup'), 'dialog');
+    assert.equal(root.querySelector('[data-lmz-mount="classes"]').closest('[data-lmz-popover-panel]').dataset.lmzPopoverPanel, 'right:classes');
+    assert.equal(root.hasAttribute('data-rt-editor-chrome'), false);
+    assert.equal(root.querySelector('.rt-lmz-glass-launcher'), null);
 }));
 
 test('shared LMZ media inventory exposes missing sources without loading external previews', () => {

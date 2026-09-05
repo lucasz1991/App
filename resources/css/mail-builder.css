@@ -1434,6 +1434,13 @@ body[data-mode='dark'] [data-page-builder-editor-mode='mail'][data-page-builder-
     transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
 }
 
+[data-page-builder-editor-mode='mail'] .rt-mail-studio-toolbar[data-mail-toolbar-single] [data-mail-toolbar-menu] > [data-rt-dropdown-trigger] .rt-ui-button,
+[data-page-builder-editor-mode='mail'] .rt-mail-studio-toolbar[data-mail-toolbar-single] .rt-mail-studio-toolbar__action-buttons > .rt-ui-button {
+    width: auto;
+    min-width: var(--rt-mail-chrome-control);
+    padding-inline: 0.625rem;
+}
+
 [data-page-builder-editor-mode='mail'][data-page-builder-single-toolbar='true'] > .rt-page-builder-single-header button:not(.rt-ui-button-primary) {
     border-color: transparent;
     background: transparent;
@@ -1460,8 +1467,8 @@ body[data-mode='dark'] [data-page-builder-editor-mode='mail'][data-page-builder-
 
 [data-page-builder-editor-mode='mail'] .rt-mail-studio-toolbar[data-mail-toolbar-single] [data-rt-dropdown-trigger] button > span[aria-hidden='true'],
 [data-page-builder-editor-mode='mail'] .rt-mail-studio-toolbar[data-mail-toolbar-single] [data-rt-dropdown-trigger] button > span[aria-hidden='true'] > :is(i, svg) {
-    width: 0.75rem;
-    height: 0.75rem;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
     flex: 0 0 0.75rem;
     opacity: 0.6;
 }

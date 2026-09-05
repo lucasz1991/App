@@ -52,101 +52,113 @@
         </section>
 
         @php
-            $activeFilterCount = collect([$locationFilter, $lifecycleFilter, $platformFilter, $formFactorFilter, $complianceFilter])
+            $activeFilterCount = collect([$search, $locationFilter, $lifecycleFilter, $platformFilter, $formFactorFilter, $complianceFilter])
                 ->filter(fn ($value) => $value !== '')
                 ->count();
+            $lifecycleFilterLabels = [
+                'inventory' => 'Im Lager',
+                'preparing' => 'Vorbereitung',
+                'assigned' => 'Zugewiesen',
+                'in_service' => 'Im Einsatz',
+                'repair' => 'Reparatur',
+                'lost' => 'Verloren',
+                'retired' => 'Ausgemustert',
+            ];
+            $formFactorFilterLabels = [
+                'laptop' => 'Laptop',
+                'desktop' => 'Desktop',
+                'phone' => 'Smartphone',
+                'tablet' => 'Tablet',
+                'other' => 'Sonstiges',
+            ];
+            $complianceFilterLabels = [
+                'compliant' => 'Konform',
+                'warning' => 'Warnung',
+                'non_compliant' => 'Nicht konform',
+                'unknown' => 'Unbekannt',
+            ];
         @endphp
-        <section class="rounded-xl border border-rt-border/80 bg-white p-2.5 shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-label="Geräte suchen und filtern">
-            <div class="flex items-center gap-2">
-                <label class="relative min-w-0 flex-1">
-                    <span class="sr-only">Geräte suchen</span>
-                    <i data-feather="search" class="pointer-events-none absolute left-3 top-3 h-4 w-4 text-rt-muted" aria-hidden="true"></i>
-                    <input type="search" wire:model.live.debounce.350ms="search" placeholder="Gerät, Seriennummer oder Mitarbeiter …" class="min-h-10 w-full rounded-lg border border-rt-border bg-white pl-10 pr-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                </label>
+        <x-tables.toolbar
+            id="device-inventory-filters"
+            :filter-count="$activeFilterCount"
+            title="Geräte filtern"
+            reset-action="clearFilters"
+        >
+            <x-slot:search>
+                <x-tables.search-field
+                    id="device-inventory-search"
+                    :results-count="$devices->count()"
+                    wire:model.live.debounce.350ms="search"
+                    placeholder="Gerät, Seriennummer oder Mitarbeiter …"
+                />
+            </x-slot:search>
 
-                <div class="relative shrink-0" x-data="{ open: false }" @keydown.escape.window="open = false" @click.outside="open = false">
-                    <button
-                        type="button"
-                        @click="open = ! open"
-                        :aria-expanded="open ? 'true' : 'false'"
-                        aria-controls="device-filter-dropdown"
-                        aria-label="Gerätefilter öffnen"
-                        class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-rt-border bg-white px-3 text-sm font-semibold text-rt-text transition duration-200 hover:border-rt-accent/30 hover:bg-rt-surface-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"
-                    >
-                        <i data-feather="sliders" class="h-4 w-4" aria-hidden="true"></i>
-                        <span class="hidden sm:inline">Filter</span>
-                        @if($activeFilterCount > 0)
-                            <span class="grid h-5 min-w-5 place-items-center rounded-md bg-rt-red px-1 text-[10px] font-bold tabular-nums text-white">{{ $activeFilterCount }}</span>
-                        @endif
-                        <span class="grid h-3.5 w-3.5 place-items-center transition-transform duration-200" :class="open ? 'rotate-180' : ''" aria-hidden="true">
-                            <i data-feather="chevron-down" class="h-3.5 w-3.5"></i>
-                        </span>
-                    </button>
+            <x-tables.filter-field label="Standort" icon="far fa-map-marker-alt">
+                <x-ui.forms.select id="device-location-filter" wire:model.live="locationFilter" aria-label="Standort" class="w-full">
+                    <option value="">Alle Standorte</option>
+                    @foreach($locations as $location)
+                        <option value="{{ $location }}">{{ $location }}</option>
+                    @endforeach
+                </x-ui.forms.select>
+            </x-tables.filter-field>
 
-                    <div
-                        id="device-filter-dropdown"
-                        x-cloak
-                        x-show="open"
-                        x-transition:enter="transition ease-out duration-150"
-                        x-transition:enter-start="opacity-0 -translate-y-1 scale-[0.98]"
-                        x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-                        x-transition:leave="transition ease-in duration-100"
-                        x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-                        x-transition:leave-end="opacity-0 -translate-y-1 scale-[0.98]"
-                        class="absolute right-0 z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] origin-top-right rounded-xl border border-rt-border bg-white p-3 shadow-rt-lg dark:border-rt-dark-border dark:bg-rt-dark-surface"
-                        role="group"
-                        aria-label="Gerätefilter"
-                    >
-                        <div class="flex items-center justify-between gap-3 border-b border-rt-border/70 pb-2.5 dark:border-rt-dark-border">
-                            <div>
-                                <p class="text-sm font-bold text-rt-text dark:text-white">Gerätefilter</p>
-                                <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">Mehrere Kriterien kombinieren</p>
-                            </div>
-                            @if($activeFilterCount > 0 || $search !== '')
-                                <button type="button" wire:click="clearFilters" class="min-h-10 rounded-lg px-2 text-xs font-semibold text-rt-red transition hover:bg-rt-red/5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15">Zurücksetzen</button>
-                            @endif
-                        </div>
+            <x-tables.filter-field label="Gerätezustand" icon="far fa-layer-group">
+                <x-ui.forms.select id="device-lifecycle-filter" wire:model.live="lifecycleFilter" aria-label="Gerätezustand" class="w-full">
+                    <option value="">Alle Gerätezustände</option>
+                    @foreach($lifecycleFilterLabels as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </x-ui.forms.select>
+            </x-tables.filter-field>
 
-                        <div class="mt-3 grid gap-2">
-                            <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
-                                Standort
-                                <select wire:model.live="locationFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                                    <option value="">Alle Standorte</option>@foreach($locations as $location)<option value="{{ $location }}">{{ $location }}</option>@endforeach
-                                </select>
-                            </label>
-                            <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
-                                Gerätezustand
-                                <select wire:model.live="lifecycleFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                                    <option value="">Alle Gerätezustände</option>
-                                    <option value="inventory">Im Lager</option><option value="preparing">Vorbereitung</option><option value="assigned">Zugewiesen</option><option value="in_service">Im Einsatz</option><option value="repair">Reparatur</option><option value="lost">Verloren</option><option value="retired">Ausgemustert</option>
-                                </select>
-                            </label>
-                            <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
-                                Plattform
-                                <select wire:model.live="platformFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                                    <option value="">Alle Plattformen</option>
-                                    @foreach(\App\Enums\DevicePlatform::cases() as $platform)<option value="{{ $platform->value }}">{{ ucfirst($platform->value) }}</option>@endforeach
-                                </select>
-                            </label>
-                            <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
-                                Gerätetyp
-                                <select wire:model.live="formFactorFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                                    <option value="">Alle Gerätetypen</option><option value="laptop">Laptop</option><option value="desktop">Desktop</option><option value="phone">Smartphone</option><option value="tablet">Tablet</option><option value="other">Sonstiges</option>
-                                </select>
-                            </label>
-                            <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
-                                Compliance
-                                <select wire:model.live="complianceFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                                    <option value="">Alle Compliance-Stati</option><option value="compliant">Konform</option><option value="warning">Warnung</option><option value="non_compliant">Nicht konform</option><option value="unknown">Unbekannt</option>
-                                </select>
-                            </label>
-                        </div>
+            <x-tables.filter-field label="Plattform" icon="far fa-desktop">
+                <x-ui.forms.select id="device-platform-filter" wire:model.live="platformFilter" aria-label="Plattform" class="w-full">
+                    <option value="">Alle Plattformen</option>
+                    @foreach(\App\Enums\DevicePlatform::cases() as $platform)
+                        <option value="{{ $platform->value }}">{{ ucfirst($platform->value) }}</option>
+                    @endforeach
+                </x-ui.forms.select>
+            </x-tables.filter-field>
 
-                        <button type="button" @click="open = false" class="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-rt-text px-3 text-sm font-semibold text-white transition hover:bg-slate-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/20 dark:bg-white dark:text-rt-dark-canvas dark:hover:bg-slate-100">Filter übernehmen</button>
-                    </div>
-                </div>
-            </div>
-        </section>
+            <x-tables.filter-field label="Gerätetyp" icon="far fa-laptop">
+                <x-ui.forms.select id="device-form-factor-filter" wire:model.live="formFactorFilter" aria-label="Gerätetyp" class="w-full">
+                    <option value="">Alle Gerätetypen</option>
+                    @foreach($formFactorFilterLabels as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </x-ui.forms.select>
+            </x-tables.filter-field>
+
+            <x-tables.filter-field label="Compliance" icon="far fa-shield-check">
+                <x-ui.forms.select id="device-compliance-filter" wire:model.live="complianceFilter" aria-label="Compliance" class="w-full">
+                    <option value="">Alle Compliance-Stati</option>
+                    @foreach($complianceFilterLabels as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </x-ui.forms.select>
+            </x-tables.filter-field>
+
+            <x-slot:chips>
+                @if ($search !== '')
+                    <x-tables.filter-chip label="Suche" :value="$search" wire:click="$set('search', '')" />
+                @endif
+                @if ($locationFilter !== '')
+                    <x-tables.filter-chip label="Standort" :value="$locationFilter" wire:click="$set('locationFilter', '')" />
+                @endif
+                @if ($lifecycleFilter !== '')
+                    <x-tables.filter-chip label="Zustand" :value="$lifecycleFilterLabels[$lifecycleFilter] ?? $lifecycleFilter" wire:click="$set('lifecycleFilter', '')" />
+                @endif
+                @if ($platformFilter !== '')
+                    <x-tables.filter-chip label="Plattform" :value="ucfirst($platformFilter)" wire:click="$set('platformFilter', '')" />
+                @endif
+                @if ($formFactorFilter !== '')
+                    <x-tables.filter-chip label="Gerätetyp" :value="$formFactorFilterLabels[$formFactorFilter] ?? $formFactorFilter" wire:click="$set('formFactorFilter', '')" />
+                @endif
+                @if ($complianceFilter !== '')
+                    <x-tables.filter-chip label="Compliance" :value="$complianceFilterLabels[$complianceFilter] ?? $complianceFilter" wire:click="$set('complianceFilter', '')" />
+                @endif
+            </x-slot:chips>
+        </x-tables.toolbar>
 
         <section class="grid grid-cols-2 gap-2.5 lg:grid-cols-4" aria-label="Gerätekennzahlen">
             @foreach([
@@ -193,9 +205,6 @@
                         <h2 id="device-inventory-title" class="text-sm font-bold text-rt-text dark:text-white">Gerätebestand</h2>
                         <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ number_format($devices->total(), 0, ',', '.') }} Treffer in Inventar und Ausgabe</p>
                     </div>
-                    @if($search !== '' || $platformFilter !== '' || $lifecycleFilter !== '' || $complianceFilter !== '' || $locationFilter !== '')
-                        <button type="button" wire:click="clearFilters" class="min-h-10 rounded-lg px-3 text-xs font-semibold text-rt-red transition hover:bg-rt-red/5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15">Filter löschen</button>
-                    @endif
                 </div>
 
                 <div class="rt-device-mobile-header px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] md:hidden">
