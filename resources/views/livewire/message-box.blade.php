@@ -2,15 +2,27 @@
     <x-ui.page :title="__('app.messages')" :eyebrow="__('app.personal_data')" :count="$messages->total()">
         <div class="space-y-3 sm:space-y-5">
             {{-- Suche --}}
-            <div class="rounded-xl bg-rt-surface p-3 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-4 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                <div class="flex items-center">
+            <x-tables.toolbar
+                id="message-list-filters"
+                :filter-count="trim($search) !== '' ? 1 : 0"
+                :title="__('app.search')"
+                reset-action="resetFilters"
+                search-for="message-search"
+            >
+                <x-slot:search>
                     <x-tables.search-field
                         id="message-search"
                         :results-count="$messages->count()"
                         wire:model.live.debounce.400ms="search"
                     />
-                </div>
-            </div>
+                </x-slot:search>
+
+                <x-slot:chips>
+                    @if (trim($search) !== '')
+                        <x-tables.filter-chip :label="__('app.search')" :value="$search" wire:click="$set('search', '')" />
+                    @endif
+                </x-slot:chips>
+            </x-tables.toolbar>
 
             {{-- Nachrichten-Tabelle --}}
             <x-tables.table

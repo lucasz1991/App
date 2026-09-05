@@ -29,6 +29,7 @@
     @if ($currentDocument !== null && $editorRequested)
         <x-slot:toolbar>
             <div class="rt-mail-studio-toolbar" role="toolbar" aria-label="Mail- und Signatur-Editor" data-mail-studio-toolbar data-mail-toolbar-layout="responsive" data-mail-toolbar-single>
+                <div class="rt-mail-studio-toolbar__scroll" role="group" aria-label="Editor-Menüs; auf kleinen Bildschirmen horizontal verschiebbar">
                 <div class="rt-mail-studio-toolbar__documents" data-mail-toolbar-region="documents" role="group" aria-label="Dokument und Inhalt">
                     <x-ui.dropdown.anchor-dropdown
                         align="left"
@@ -416,7 +417,11 @@
                                 </div>
                             </x-slot:content>
                         </x-ui.dropdown.anchor-dropdown>
+                    </div>
+                </div>
+                </div>
 
+                <div class="rt-mail-studio-toolbar__primary-actions" role="group" aria-label="Entwurf speichern und veröffentlichen">
                         <x-ui.buttons.button-basic
                             type="button"
                             mode="secondary"
@@ -441,7 +446,6 @@
                             <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
                             <span class="rt-mail-studio-toolbar__action-label">Veröffentlichen</span>
                         </x-ui.buttons.button-basic>
-                    </div>
                 </div>
             </div>
         </x-slot:toolbar>
@@ -2195,6 +2199,9 @@
                                     ),
                                     onSave: async ({ project, html, css, editor }) => {
                                     lastEditorSaveError = null;
+                                    let editedDuringSave = false;
+                                    const markConcurrentEdit = () => { editedDuringSave = true; };
+                                    editor.on?.('update', markConcurrentEdit);
 
                                     try {
                                         const outgoing = runtimeBridge.serializeForSave({
@@ -2215,6 +2222,11 @@
                                             expected_hash: document_.contentHash || '',
                                         });
 
+                                        // Ab jetzt folgende Server-Hydration ist keine
+                                        // neue Benutzereingabe waehrend des Requests.
+                                        editor.off?.('update', markConcurrentEdit);
+                                        if (destroyed) return;
+
                                         // Die Serverfassung ist nach der
                                         // E-Mail-Haertung autoritativ. Vor allem
                                         // builder_data darf kein unsauberes
@@ -2225,7 +2237,10 @@
                                         activeBaselineHtml = document_.html;
                                         applyDocumentState(payload.document);
                                         showFindings(payload.report, payload.compatibility);
-                                        await runtimeBridge.rehydrateAuthoritative({
+                                        // Der gespeicherte Hash wird uebernommen, neuere
+                                        // Eingaben im Canvas aber niemals durch den alten
+                                        // Requeststand ersetzt. Der Vendor behaelt sie dirty.
+                                        if (!editedDuringSave) await runtimeBridge.rehydrateAuthoritative({
                                             editor,
                                             draft: document_,
                                             sanitizationChanged: (payload.report?.findings || [])
@@ -2233,7 +2248,9 @@
                                             parseCss: (canonicalCss) => editor.Parser?.parseCss?.(canonicalCss) || [],
                                             projectOptions: { kind: config.currentDocument, environment: window },
                                         });
-                                        setMessage(document_.hasUnpublishedChanges
+                                        setMessage(editedDuringSave
+                                            ? 'Zwischenstand gespeichert. Neuere Änderungen bleiben im Editor und werden anschließend gespeichert.'
+                                            : document_.hasUnpublishedChanges
                                             ? 'Gespeichert — noch nicht veröffentlicht.'
                                             : 'Gespeichert.');
                                     } catch (error) {
@@ -2247,6 +2264,8 @@
                                             'Der Entwurf konnte nicht gespeichert werden.',
                                         );
                                         throw lastEditorSaveError;
+                                    } finally {
+                                        editor.off?.('update', markConcurrentEdit);
                                     }
                                     },
                                 },

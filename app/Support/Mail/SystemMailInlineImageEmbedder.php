@@ -143,7 +143,7 @@ final class SystemMailInlineImageEmbedder
     }
 
     /**
-     * V22 verwendet einen echten, optionalen CSS-Hintergrund. Nur der bereits
+     * V22/V23 verwenden einen echten, optionalen CSS-Hintergrund. Nur der bereits
      * validierte direkte Signatur-Carrier darf hier eine lokale Bildreferenz
      * erhalten; beliebige CSS-URLs und andere Layoutversionen bleiben unberuehrt.
      *
@@ -158,7 +158,7 @@ final class SystemMailInlineImageEmbedder
                 $row = $this->tagAttributes($match[1]);
                 $cell = $this->tagAttributes($match[3]);
 
-                if (($row['data-rt-artifact-version']['value'] ?? null) !== 'v22'
+                if (! SignatureArtifactVersion::usesOptionalBackground($row['data-rt-artifact-version']['value'] ?? null)
                     || ($cell['data-rt-signature-background']['value'] ?? null) !== '1'
                     || ! preg_match('/(?:\A|\s)rt-sign-cell(?:\s|\z)/', $cell['class']['value'] ?? '')
                     || ! isset($cell['style'])) {

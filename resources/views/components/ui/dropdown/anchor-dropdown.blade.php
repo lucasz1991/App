@@ -615,7 +615,7 @@
     x-ref="trigger"
     data-rt-dropdown-trigger
     @click="toggle()"
-    @keydown.escape.stop.prevent="close(true)"
+    @keydown.escape="if (open) { $event.stopPropagation(); $event.preventDefault(); close(true) }"
   >
     {{ $trigger }}
   </div>
@@ -642,7 +642,7 @@
         style="display:none; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); --rt-dropdown-caret-x:{{ $anchorCaretX }}; --rt-dropdown-connector-size:{{ $anchorConnectorSize }}px;"
         data-rt-dropdown-panel
         @click.outside="handleOutsideClick($event)"
-        @keydown.escape.stop.prevent="close(true)"
+        @keydown.escape="if (open) { $event.stopPropagation(); $event.preventDefault(); close(true) }"
         @if($trap) x-trap.inert.noscroll="open" @endif
       x-ref="panel"
     >

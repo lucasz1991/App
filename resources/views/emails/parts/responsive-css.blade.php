@@ -1159,23 +1159,35 @@ tr[data-rt-artifact-version="v21"] .rt-sign-train-layer[data-rt-layer-train] .rt
 }
 
 @if ($includeOptionalBackground ?? true)
-/* V22: optionale Dekoration auf derselben Zelle wie der Inhalt. Keine
+/* V22/V23: optionale Dekoration auf derselben Zelle wie der Inhalt. Keine
    zweite Bildzeile, feste Buehnenhoehe oder negative Ueberlappung. Die
    Grundanordnung bleibt auch ohne Bilder und ohne Head-CSS lesbar. */
-tr[data-rt-artifact-version="v22"] .rt-sign-content-frame {
+@foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-content-frame{{ $loop->last ? '' : ',' }}
+@endforeach
+{
   position: static !important;
   height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
 }
-tr[data-rt-artifact-version="v22"] .rt-sign-cell {
+@foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-cell{{ $loop->last ? '' : ',' }}
+@endforeach
+{
   background-position: 65% bottom !important;
   background-repeat: no-repeat !important;
 }
-tr[data-rt-artifact-version="v22"] .rt-sign-logo {
+@foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-logo{{ $loop->last ? '' : ',' }}
+@endforeach
+{
   text-align: right !important;
 }
-tr[data-rt-artifact-version="v22"] img.rt-logo {
+@foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+tr[data-rt-artifact-version="{{ $backgroundVersion }}"] img.rt-logo{{ $loop->last ? '' : ',' }}
+@endforeach
+{
   margin-left: auto !important;
   margin-right: 0 !important;
 }
@@ -1183,32 +1195,53 @@ tr[data-rt-artifact-version="v22"] img.rt-logo {
   /* Die Werte stammen aus derselben begrenzten Liste wie der Serververtrag.
      Hoehe auto wahrt die Proportionen; der 65%-Anker haelt die Lok im Bild. */
   @foreach (\App\Support\Mail\SignatureBackgroundContract::SIZES as $backgroundSize)
-  tr[data-rt-artifact-version="v22"] .rt-sign-cell[data-rt-signature-background="1"][data-rt-bg-tablet="{{ $backgroundSize }}"] {
+  @foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+  tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-cell[data-rt-signature-background="1"][data-rt-bg-tablet="{{ $backgroundSize }}"]{{ $loop->last ? '' : ',' }}
+  @endforeach
+  {
     background-size: {{ $backgroundSize }}% auto !important;
   }
   @endforeach
-  tr[data-rt-artifact-version="v22"] .rt-sign-content {
+  @foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+  tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-content{{ $loop->last ? '' : ',' }}
+  @endforeach
+  {
     padding: 18px 24px 15px !important;
   }
-  tr[data-rt-artifact-version="v22"] .rt-sign-layout > tbody > tr:first-child {
+  @foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+  tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-layout > tbody > tr:first-child{{ $loop->last ? '' : ',' }}
+  @endforeach
+  {
     display: table !important;
     width: 100% !important;
   }
 }
 @media only screen and (max-width: 480px) {
   @foreach (\App\Support\Mail\SignatureBackgroundContract::SIZES as $backgroundSize)
-  tr[data-rt-artifact-version="v22"] .rt-sign-cell[data-rt-signature-background="1"][data-rt-bg-mobile="{{ $backgroundSize }}"] {
+  @foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+  tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-cell[data-rt-signature-background="1"][data-rt-bg-mobile="{{ $backgroundSize }}"]{{ $loop->last ? '' : ',' }}
+  @endforeach
+  {
     background-size: {{ $backgroundSize }}% auto !important;
   }
   @endforeach
-  tr[data-rt-artifact-version="v22"] .rt-sign-content {
+  @foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+  tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-content{{ $loop->last ? '' : ',' }}
+  @endforeach
+  {
     padding: 18px 20px 15px !important;
   }
-  tr[data-rt-artifact-version="v22"] .rt-sign-logo {
+  @foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+  tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-logo{{ $loop->last ? '' : ',' }}
+  @endforeach
+  {
     padding: 0 0 12px !important;
     text-align: left !important;
   }
-  tr[data-rt-artifact-version="v22"] img.rt-logo {
+  @foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+  tr[data-rt-artifact-version="{{ $backgroundVersion }}"] img.rt-logo{{ $loop->last ? '' : ',' }}
+  @endforeach
+  {
     margin-left: 0 !important;
     margin-right: auto !important;
   }

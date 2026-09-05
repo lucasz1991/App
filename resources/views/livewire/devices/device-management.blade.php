@@ -52,7 +52,8 @@
         </section>
 
         @php
-            $activeFilterCount = collect([$search, $locationFilter, $lifecycleFilter, $platformFilter, $formFactorFilter, $complianceFilter])
+            $normalizedSearch = trim((string) $search);
+            $activeFilterCount = collect([$normalizedSearch, $locationFilter, $lifecycleFilter, $platformFilter, $formFactorFilter, $complianceFilter])
                 ->filter(fn ($value) => $value !== '')
                 ->count();
             $lifecycleFilterLabels = [
@@ -83,6 +84,7 @@
             :filter-count="$activeFilterCount"
             title="Geräte filtern"
             reset-action="clearFilters"
+            search-for="device-inventory-search"
         >
             <x-slot:search>
                 <x-tables.search-field
@@ -93,7 +95,7 @@
                 />
             </x-slot:search>
 
-            <x-tables.filter-field label="Standort" icon="far fa-map-marker-alt">
+            <x-tables.filter-field label="Standort" icon="far fa-map-marker-alt" for="device-location-filter">
                 <x-ui.forms.select id="device-location-filter" wire:model.live="locationFilter" aria-label="Standort" class="w-full">
                     <option value="">Alle Standorte</option>
                     @foreach($locations as $location)
@@ -102,7 +104,7 @@
                 </x-ui.forms.select>
             </x-tables.filter-field>
 
-            <x-tables.filter-field label="Gerätezustand" icon="far fa-layer-group">
+            <x-tables.filter-field label="Gerätezustand" icon="far fa-layer-group" for="device-lifecycle-filter">
                 <x-ui.forms.select id="device-lifecycle-filter" wire:model.live="lifecycleFilter" aria-label="Gerätezustand" class="w-full">
                     <option value="">Alle Gerätezustände</option>
                     @foreach($lifecycleFilterLabels as $value => $label)
@@ -111,7 +113,7 @@
                 </x-ui.forms.select>
             </x-tables.filter-field>
 
-            <x-tables.filter-field label="Plattform" icon="far fa-desktop">
+            <x-tables.filter-field label="Plattform" icon="far fa-desktop" for="device-platform-filter">
                 <x-ui.forms.select id="device-platform-filter" wire:model.live="platformFilter" aria-label="Plattform" class="w-full">
                     <option value="">Alle Plattformen</option>
                     @foreach(\App\Enums\DevicePlatform::cases() as $platform)
@@ -120,7 +122,7 @@
                 </x-ui.forms.select>
             </x-tables.filter-field>
 
-            <x-tables.filter-field label="Gerätetyp" icon="far fa-laptop">
+            <x-tables.filter-field label="Gerätetyp" icon="far fa-laptop" for="device-form-factor-filter">
                 <x-ui.forms.select id="device-form-factor-filter" wire:model.live="formFactorFilter" aria-label="Gerätetyp" class="w-full">
                     <option value="">Alle Gerätetypen</option>
                     @foreach($formFactorFilterLabels as $value => $label)
@@ -129,7 +131,7 @@
                 </x-ui.forms.select>
             </x-tables.filter-field>
 
-            <x-tables.filter-field label="Compliance" icon="far fa-shield-check">
+            <x-tables.filter-field label="Compliance" icon="far fa-shield-check" for="device-compliance-filter">
                 <x-ui.forms.select id="device-compliance-filter" wire:model.live="complianceFilter" aria-label="Compliance" class="w-full">
                     <option value="">Alle Compliance-Stati</option>
                     @foreach($complianceFilterLabels as $value => $label)
@@ -139,8 +141,8 @@
             </x-tables.filter-field>
 
             <x-slot:chips>
-                @if ($search !== '')
-                    <x-tables.filter-chip label="Suche" :value="$search" wire:click="$set('search', '')" />
+                @if ($normalizedSearch !== '')
+                    <x-tables.filter-chip label="Suche" :value="$normalizedSearch" wire:click="$set('search', '')" />
                 @endif
                 @if ($locationFilter !== '')
                     <x-tables.filter-chip label="Standort" :value="$locationFilter" wire:click="$set('locationFilter', '')" />

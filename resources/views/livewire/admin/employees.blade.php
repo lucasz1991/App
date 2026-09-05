@@ -28,6 +28,7 @@
             :filter-count="$this->activeFilterCount"
             :title="__('app.filter_employees')"
             reset-action="resetFilters"
+            search-for="employee-list-search"
         >
             <x-slot:bulk>
                 <x-tables.bulk-actions :count="count($selectedEmployees)" select-all="toggleSelectAll">
@@ -48,29 +49,30 @@
 
             <x-slot:search>
                 <x-tables.search-field
+                    id="employee-list-search"
                     resultsCount="{{ $employees->count() }}"
                     wire:model.live="search"
                 />
             </x-slot:search>
 
-            <x-tables.filter-field :label="__('app.role')" icon="far fa-user-shield">
-                <x-ui.forms.select wire:model.live="role" :aria-label="__('app.role')" class="w-full">
+            <x-tables.filter-field :label="__('app.role')" icon="far fa-user-shield" for="employee-role-filter">
+                <x-ui.forms.select id="employee-role-filter" wire:model.live="role" :aria-label="__('app.role')" class="w-full">
                     <option value="">{{ __('app.all_roles') }}</option>
                     <option value="admin">{{ __('app.role_admin') }}</option>
                     <option value="staff">{{ __('app.role_staff') }}</option>
                 </x-ui.forms.select>
             </x-tables.filter-field>
 
-            <x-tables.filter-field :label="__('app.status')" icon="far fa-signal-alt-3">
-                <x-ui.forms.select wire:model.live="accountStatus" :aria-label="__('app.status')" class="w-full">
+            <x-tables.filter-field :label="__('app.status')" icon="far fa-signal-alt-3" for="employee-status-filter">
+                <x-ui.forms.select id="employee-status-filter" wire:model.live="accountStatus" :aria-label="__('app.status')" class="w-full">
                     <option value="">{{ __('app.all_statuses') }}</option>
                     <option value="active">{{ ucfirst(__('app.active')) }}</option>
                     <option value="inactive">{{ ucfirst(__('app.inactive')) }}</option>
                 </x-ui.forms.select>
             </x-tables.filter-field>
 
-            <x-tables.filter-field :label="__('app.team')" icon="far fa-users">
-                <x-ui.forms.select wire:model.live="teamId" :aria-label="__('app.team')" class="w-full">
+            <x-tables.filter-field :label="__('app.team')" icon="far fa-users" for="employee-team-filter">
+                <x-ui.forms.select id="employee-team-filter" wire:model.live="teamId" :aria-label="__('app.team')" class="w-full">
                     <option value="">{{ __('app.all_teams') }}</option>
                     @foreach($teams as $t)
                         <option value="{{ $t->id }}">{{ $t->name }}</option>
@@ -78,8 +80,8 @@
                 </x-ui.forms.select>
             </x-tables.filter-field>
 
-            <x-tables.filter-field :label="__('app.display')" icon="far fa-list-ol">
-                <x-ui.forms.select wire:model.live="perPage" :aria-label="__('app.per_page', ['count' => $perPage])" class="w-full">
+            <x-tables.filter-field :label="__('app.display')" icon="far fa-list-ol" for="employee-page-size">
+                <x-ui.forms.select id="employee-page-size" wire:model.live="perPage" :aria-label="__('app.per_page', ['count' => $perPage])" class="w-full">
                     <option value="15">{{ __('app.per_page', ['count' => 15]) }}</option>
                     <option value="30">{{ __('app.per_page', ['count' => 30]) }}</option>
                     <option value="50">{{ __('app.per_page', ['count' => 50]) }}</option>

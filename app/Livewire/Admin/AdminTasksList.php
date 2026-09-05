@@ -70,6 +70,25 @@ class AdminTasksList extends Component
         $this->resetPage();
     }
 
+    public function getActiveFilterCountProperty(): int
+    {
+        return count(array_filter([
+            trim((string) $this->search) !== '',
+            $this->filterStatus !== null && $this->filterStatus !== '',
+            $this->filterPriority !== null && $this->filterPriority !== '',
+            $this->onlyMine,
+        ]));
+    }
+
+    public function resetFilters(): void
+    {
+        $this->search = '';
+        $this->filterStatus = null;
+        $this->filterPriority = null;
+        $this->onlyMine = false;
+        $this->resetPage();
+    }
+
     public function toggleTaskSelection(int $taskId): void
     {
         if (! AdminTask::query()->whereKey($taskId)->exists()) {

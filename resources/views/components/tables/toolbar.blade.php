@@ -6,6 +6,7 @@
     'resetLabel' => null,
     'applyLabel' => null,
     'searchLabel' => null,
+    'searchFor' => null,
     'id' => null,
 ])
 
@@ -52,7 +53,11 @@
                 this.desktopFilters = event.matches;
                 if (event.matches) this.filtersOpen = false;
             };
-            this.filterViewport.addEventListener?.('change', this.filterViewportListener);
+            if (typeof this.filterViewport.addEventListener === 'function') {
+                this.filterViewport.addEventListener('change', this.filterViewportListener);
+            } else {
+                this.filterViewport.addListener(this.filterViewportListener);
+            }
         },
         closeFilters(restoreFocus = false) {
             this.filtersOpen = false;
@@ -61,7 +66,12 @@
             }
         },
         destroy() {
-            this.filterViewport?.removeEventListener?.('change', this.filterViewportListener);
+            if (!this.filterViewport || !this.filterViewportListener) return;
+            if (typeof this.filterViewport.removeEventListener === 'function') {
+                this.filterViewport.removeEventListener('change', this.filterViewportListener);
+            } else {
+                this.filterViewport.removeListener(this.filterViewportListener);
+            }
         },
     }"
     x-on:keydown.escape.window="if (filtersOpen) closeFilters(true)"
@@ -128,7 +138,11 @@
     <div class="rt-table-toolbar__body">
         @isset($search)
             <div class="rt-table-toolbar__search-field">
-                <span class="rt-filter-field__label">{{ $resolvedSearchLabel }}</span>
+                @if (filled($searchFor))
+                    <label class="rt-filter-field__label" for="{{ $searchFor }}">{{ $resolvedSearchLabel }}</label>
+                @else
+                    <span class="rt-filter-field__label">{{ $resolvedSearchLabel }}</span>
+                @endif
                 <div class="rt-table-toolbar__search min-w-0">
                     {{ $search }}
                 </div>

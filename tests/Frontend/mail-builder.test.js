@@ -84,6 +84,37 @@ test('V22 rejects unbound sources unsupported breakpoint sizes and renewed overl
     }
 });
 
+test('V23 optional background editing and reload preserve the V18 content table and version', () => {
+    const layout = '<table class="rt-sign-layout" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td class="rt-sign-logo" colspan="2">Logo</td></tr><tr class="rt-stack rt-sign-top-row"><td class="rt-sign-identity">Person</td><td class="rt-sign-company">Firma</td></tr></table>';
+    const html = backgroundSignature().replace('v22', 'v23').replace('<p>Kontaktdaten</p>', layout);
+    const project = projectForMailDocument({ html, builderData: { pages: [{ component: html }] } }, () => [], { kind: 'signature', environment: { DOMParser } });
+    const edited = project.pages[0].component.replace('data-rt-bg-mobile="175"', 'data-rt-bg-mobile="200"');
+    const saved = serializeMailDocumentForSave({ project, html: edited, kind: 'signature', baselineHtml: html, environment: { DOMParser } });
+    assert.match(saved.html, /data-rt-artifact-version="v23"/);
+    assert.match(saved.html, /data-rt-bg-mobile="200"/);
+    assert.match(saved.html, /class="rt-sign-layout"/);
+    assert.match(saved.html, /class="rt-sign-logo" colspan="2"/);
+    assert.match(saved.html, /class="rt-sign-identity">Person/);
+    const again = projectForMailDocument({ html: saved.html, builderData: saved.project }, () => [], { kind: 'signature', environment: { DOMParser } });
+    assert.equal(serializeMailDocumentForSave({ project: again, html: again.pages[0].component, kind: 'signature', baselineHtml: saved.html, environment: { DOMParser } }).html, saved.html);
+    const disabled = saved.html.replace('data-rt-signature-background="1"', 'data-rt-signature-background="0"').replace("url('{{TRAIN_SRC}}')", 'none');
+    assert.doesNotThrow(() => projectForMailDocument({ html: disabled, builderData: { pages: [{ component: disabled }] } }, () => [], { kind: 'signature', environment: { DOMParser } }));
+});
+
+test('V22 and V23 content style controls exclude invalid fixed heights and overlaps only in their own descendants', () => {
+    for (const version of ['v20', 'v22', 'v23']) {
+        const row = { getAttributes: () => ({ 'data-rt-artifact-version': version }), parent: () => null, components: () => ({ models: [] }) };
+        const state = { tagName: 'td', attributes: { class: 'rt-sign-identity' } };
+        const cell = { get: (name) => state[name], getAttributes: () => state.attributes, parent: () => row, set: (next) => Object.assign(state, next), components: () => ({ models: [] }) };
+        protectMailSystemComponents({ getWrapper: () => cell });
+        if (version === 'v20') assert.equal(state.stylable, undefined);
+        else {
+            ['height', 'max-height', 'display', 'margin'].forEach((property) => assert(!state.stylable.includes(property)));
+            ['padding', 'font-size', 'color', 'width'].forEach((property) => assert(state.stylable.includes(property)));
+        }
+    }
+});
+
 test('V22 canvas hydrates a decorative background without changing the stored token model', () => {
     const html = backgroundSignature();
     const project = projectForMailDocument({ html, builderData: { pages: [{ component: html }] } }, () => [], { kind: 'signature', environment: { DOMParser } });
@@ -2463,6 +2494,83 @@ test('mail editor waits for the teleported fullscreen workspace before booting L
     assert.match(coreSource, /closest\?\.\('\[data-page-builder-fullscreen-root\]'\)/);
 });
 
+test('compiled preview drops stale bytes on failure, late responses and editor teardown', async () => {
+    const source = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+    const start = source.indexOf('const loadCompiledDeliveryPreview =');
+    const end = source.indexOf('const selectViewMode =', start);
+    const pending = [];
+    const renderings = [];
+    const setup = new Function('request', 'renderings', `
+        const document_ = { endpoints: { deliveryPreview: '/preview' }, contentHash: 'saved' };
+        const deliveryFrame = { srcdoc: 'old' }, deliveryState = { textContent: '' };
+        let deliveryPreviewRequest = null, deliveryPreviewGeneration = 0;
+        let compiledDeliveryHtml = 'old', selectedViewMode = 'delivery', destroyed = false;
+        const currentCandidateForServer = () => ({ builderData: {}, html: 'candidate', css: '' });
+        const showFindings = () => {};
+        const renderCompiledDeliveryHtml = () => renderings.push(compiledDeliveryHtml);
+        ${source.slice(start, end)}
+        return { load: loadCompiledDeliveryPreview,
+            state: () => ({ html: compiledDeliveryHtml, frame: deliveryFrame.srcdoc }),
+            destroy: () => { destroyed = true; } };
+    `);
+    const preview = setup(() => new Promise((resolve, reject) => pending.push({ resolve, reject })), renderings);
+    const failed = preview.load();
+    assert.deepEqual(preview.state(), { html: '', frame: '' });
+    pending.shift().reject(new Error('422'));
+    await assert.rejects(failed, /422/);
+    assert.equal(preview.state().html, '', 'robustness toggles cannot resurrect an older successful mail');
+    const older = preview.load(), newer = preview.load();
+    const previous = pending.shift(), current = pending.shift();
+    current.resolve({ preview: { rendering: 'compiled-system-mail', html: 'current' } });
+    await newer;
+    previous.resolve({ preview: { rendering: 'compiled-system-mail', html: 'obsolete' } });
+    await older;
+    assert.deepEqual(renderings, ['current']);
+    const last = preview.load();
+    preview.destroy();
+    pending.shift().resolve({ preview: { rendering: 'compiled-system-mail', html: 'after-close' } });
+    await last;
+    assert.equal(preview.state().html, '');
+    assert.deepEqual(renderings, ['current']);
+});
+
+test('server save preserves edits made during a request and detaches its update observer', async () => {
+    const source = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+    const signature = 'onSave: async ({ project, html, css, editor }) => {';
+    const start = source.indexOf(signature) + signature.length;
+    const end = source.indexOf('                                    },', start);
+    assert.ok(start > signature.length && end > start);
+    const invoke = new Function('context', `
+        const { runtimeBridge, request, editor, draft } = context;
+        const document_ = draft, config = { currentDocument: 'signature' }, window = {};
+        let lastEditorSaveError = null, activeBaselineHtml = 'old', destroyed = false;
+        const applyDocumentState = () => {}, showFindings = () => {}, setMessage = (message) => context.messages?.push(message);
+        const normalizeError = (error) => error;
+        return (async ({ project, html, css, editor }) => { ${source.slice(start, end)} })({ project: {}, html: 'sent', css: '', editor });
+    `);
+    for (const concurrent of [false, true]) {
+        const listeners = new Set();
+        const messages = [];
+        let rehydrations = 0;
+        const editor = { on: (event, callback) => listeners.add(callback), off: (event, callback) => listeners.delete(callback) };
+        const draft = { endpoints: { update: '/save' }, contentHash: 'old' };
+        const runtimeBridge = {
+            serializeForSave: () => ({ project: {}, html: 'sent', css: '' }),
+            rehydrateAuthoritative: async () => { rehydrations++; listeners.forEach((listener) => listener()); },
+        };
+        await invoke({ editor, draft, runtimeBridge, messages, request: async () => {
+            if (concurrent) listeners.forEach((listener) => listener());
+            return { document: { html: 'cleaned', css: '', builder_data: {} }, report: { findings: [{ severity: 'violation' }] } };
+        } });
+        assert.equal(rehydrations, concurrent ? 0 : 1);
+        assert.equal(draft.html, 'cleaned', 'server baseline is updated independently of newer canvas edits');
+        assert.equal(listeners.size, 0);
+        assert.equal(messages.at(-1).includes('Neuere Änderungen'), concurrent, 'server hydration is not mistaken for a newer user edit');
+        await assert.rejects(invoke({ editor, draft, runtimeBridge, request: async () => { throw new Error('network'); } }), /network/);
+        assert.equal(listeners.size, 0, 'failed saves release the observer too');
+    }
+});
+
 test('shared page builder opens from preview into a compact responsive Mail Studio', async () => {
     const { readFile } = await import('node:fs/promises');
     const [shell, mailView, mailIndex, adminSidebar, mailCss, shellCss] = await Promise.all([
@@ -2500,11 +2608,13 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /data-mail-view-mode="forward"/);
     assert.match(mailView, />Weiterleitung</);
     assert.match(mailView, /selectedViewMode === 'forward'/);
-    assert.match(mailView, /Compiler-Parität · produktive Systemmail-Quelle im Browser/);
+    assert.match(mailView, /Versandvorschau · aktueller Entwurf nach CSS-Inliner/);
     assert.match(mailView, /data-mail-compiler-parity-note/);
-    assert.match(mailView, /abschließende Word-Renderer-Prüfung erfolgt per Testmail/);
-    assert.match(mailView, /clientspezifischen Medien- und Wrapper-Anpassungen/);
-    assert.match(mailView, />Compiler-Parität</);
+    assert.match(mailView, /Keine Ansicht emuliert Outlook oder iPhone Mail/);
+    assert.match(mailView, /clientspezifische Medien- und Wrapper-Anpassungen/);
+    assert.match(mailView, />Versandvorschau</);
+    assert.match(mailView, /let selectedViewMode = 'delivery'/);
+    assert.match(mailView, /data-mail-view-shortcut/);
     assert.match(mailCss, /\[data-mail-compiler-parity-note\]\s*\{[^}]*white-space:\s*normal;/s);
     assert.match(mailView, /Kompilierte Weiterleitungsbasis im Browser/);
     assert.match(mailView, /Weiterleitungsansicht: visuelle Prüfung erforderlich/);

@@ -7,7 +7,7 @@ use DOMElement;
 use RuntimeException;
 
 /**
- * Opt-in V22: ein optionaler Zellhintergrund, niemals eine zweite Inhaltszeile.
+ * Opt-in V22/V23: optionaler Zellhintergrund, niemals eine zweite Inhaltszeile.
  *
  * Der Hintergrund ist reine Dekoration. Ein Client ohne CSS-Bildunterstuetzung
  * behaelt dieselben normal fliessenden Kontakte auf der Hintergrundfarbe.
@@ -82,7 +82,7 @@ final class SignatureBackgroundContract
     private static function inspect(string $html, bool $sourceDocument = false): array
     {
         if (! self::applies($html)) {
-            throw new RuntimeException('Der optionale Hintergrundvertrag benoetigt die Version V22.');
+            throw new RuntimeException('Der optionale Hintergrundvertrag benoetigt die Version V22 oder V23.');
         }
         $previous = libxml_use_internal_errors(true);
         try {
@@ -103,7 +103,7 @@ final class SignatureBackgroundContract
         $frames = [];
         $signatureRows = [];
         foreach ($dom->getElementsByTagName('tr') as $row) {
-            if ($row->getAttribute(SignatureArtifactVersion::ATTRIBUTE) !== SignatureArtifactVersion::V22) {
+            if (! SignatureArtifactVersion::usesOptionalBackground($row->getAttribute(SignatureArtifactVersion::ATTRIBUTE))) {
                 continue;
             }
             $signatureRows[] = $row;
@@ -134,7 +134,7 @@ final class SignatureBackgroundContract
             ]) !== [] || $element->hasAttribute('data-rt-train')
                 || $element->hasAttribute('data-rt-layer-train')
                 || $element->hasAttribute('data-rt-train-background')) {
-                throw new RuntimeException('V22 darf keine zusaetzliche Zugzeile oder alte Ueberlappung enthalten.');
+                throw new RuntimeException('Der optionale Signaturhintergrund darf keine zusaetzliche Zugzeile oder alte Ueberlappung enthalten.');
             }
             // Nur das eigentliche Signaturfragment pruefen, nicht eine
             // umgebende Mailvorlage mit eigenem, bereits validiertem Layout.
@@ -153,7 +153,7 @@ final class SignatureBackgroundContract
             $style = self::declarations($element->getAttribute('style'));
             if ((! in_array('rt-sign-cell', $classes, true) && array_key_exists('background-image', $style))
                 || preg_match('/(?:url|gradient|image-set)\s*\(/i', $style['background'] ?? '') === 1) {
-                throw new RuntimeException('V22 erlaubt das Zugbild nur im gebundenen Hintergrund.');
+                throw new RuntimeException('Das Zugbild ist nur im gebundenen Signaturhintergrund erlaubt.');
             }
             foreach ($style as $property => $value) {
                 $value = self::cssValue($value);
@@ -166,18 +166,18 @@ final class SignatureBackgroundContract
                         // Der vertrauenswuerdige Inliner setzt static/0 fuer
                         // alte Browserregeln; der Editor speichert sie nicht.
                         && ! in_array($value, $sourceDocument ? ['auto', 'none'] : ['auto', 'none', '0', '0px'], true))) {
-                    throw new RuntimeException('V22 muss die Kontaktdaten ohne feste Buehnenhoehe oder Ueberlappung darstellen.');
+                    throw new RuntimeException('Die Kontaktdaten muessen ohne feste Buehnenhoehe oder Ueberlappung dargestellt werden.');
                 }
             }
             if (strtolower($element->tagName) !== 'img' && $element->hasAttribute('height')) {
-                throw new RuntimeException('V22 darf keine feste Tabellenhoehe speichern.');
+                throw new RuntimeException('Der optionale Signaturhintergrund darf keine feste Tabellenhoehe speichern.');
             }
         }
         if (count($carriers) !== 1 || count($frames) !== 1
             || strtolower($carriers[0]->tagName) !== 'td'
             || strtolower($frames[0]->tagName) !== 'table'
             || ! $frames[0]->parentNode?->isSameNode($carriers[0])) {
-            throw new RuntimeException('V22 benoetigt einen normalen Inhaltsrahmen direkt in der Signaturzelle.');
+            throw new RuntimeException('Der optionale Hintergrund benoetigt einen normalen Inhaltsrahmen direkt in der Signaturzelle.');
         }
         $carrier = $carriers[0];
         if ($carrier->hasAttribute('background')

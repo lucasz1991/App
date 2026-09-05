@@ -30,6 +30,12 @@ class MailManagement extends Component
         $this->resetPage();
     }
 
+    public function resetFilters(): void
+    {
+        $this->search = '';
+        $this->resetPage();
+    }
+
     public function toggleMailSelection(int $id): void
     {
         if (! Mail::query()->whereKey($id)->exists()) {

@@ -2433,6 +2433,10 @@ body[data-mode='dark'] .rt-lmz-media-drawer__warning {
     transform: none;
 }
 
+.rt-lmz-editor[data-rt-lmz-focus-chrome='true'] .rt-lmz-control-dock__panels .lmz-builder__popover-close {
+    display: none;
+}
+
 .rt-lmz-control-dock__close {
     display: grid;
     place-items: center;

@@ -13,7 +13,7 @@ use RuntimeException;
 /** Gemeinsamer Save-/Publish-/Web-/Outlook-Vertrag der Signaturquelle. */
 final class SignatureDocumentContract
 {
-    /** Schema 29 ergaenzt V22 mit optionalem Hintergrund; Altvertraege bleiben bestehen. */
+    /** Schema 29 ergaenzt V22/V23 mit optionalem Hintergrund; Altvertraege bleiben bestehen. */
     public const SCHEMA = 29;
 
     /** @var list<string> */
@@ -193,6 +193,7 @@ final class SignatureDocumentContract
             SignatureArtifactVersion::V20,
             SignatureArtifactVersion::V21,
             SignatureArtifactVersion::V22,
+            SignatureArtifactVersion::V23,
         ], true)) {
             self::assertV18ForwardSafeLayout($html);
         }

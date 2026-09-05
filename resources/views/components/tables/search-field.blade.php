@@ -176,7 +176,7 @@
         'is-expanded': isExpanded(),
         'is-mobile-layer': isMobileLayerOpen(),
     }"
-    x-on:keydown.escape.stop.prevent="handleEscape()"
+    x-on:keydown.escape="if (isTopbar) { $event.stopPropagation(); $event.preventDefault(); handleEscape() }"
     x-on:dropdown-open.window="isTopbar && close(false)"
     x-on:rt-navigation:prepare.window="close(false)"
     x-on:rt-topbar-layer-open.window="handleLayerOpen($event)"
@@ -189,21 +189,19 @@
     data-search-context="{{ $searchContext }}"
     data-tables-search
 >
-    <button
-        x-ref="trigger"
-        type="button"
-        @if ($isTopbarSearch)
+    @if ($isTopbarSearch)
+        <button
+            x-ref="trigger"
+            type="button"
             x-on:click="handleTriggerClick()"
-        @else
-            x-on:click="open()"
-        @endif
-        class="rt-expandable-search__trigger"
-        aria-label="{{ $ph }}"
-        @if ($isTopbarSearch)
+            class="rt-expandable-search__trigger"
+            aria-label="{{ $ph }}"
             x-bind:aria-label="isMobileLayerOpen() ? @js(__('app.close')) : @js($ph)"
-        @endif
-        x-bind:aria-expanded="isExpanded().toString()"
-    >
+            x-bind:aria-expanded="isExpanded().toString()"
+        >
+    @else
+        <span class="rt-expandable-search__trigger" aria-hidden="true">
+    @endif
         <svg
             @if ($isTopbarSearch) x-show="!isMobileLayerOpen()" @endif
             xmlns="http://www.w3.org/2000/svg"
@@ -229,7 +227,11 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" />
             </svg>
         @endif
-    </button>
+    @if ($isTopbarSearch)
+        </button>
+    @else
+        </span>
+    @endif
 
     <input
         type="text"
@@ -238,6 +240,7 @@
         x-on:focus="expanded = true; syncPageScrollLock()"
         x-on:blur="closeWhenEmpty()"
         x-bind:tabindex="isExpanded() ? 0 : -1"
+        aria-label="{{ $ph }}"
         placeholder="{{ $ph }}"
         autocomplete="off"
         @if ($isTopbarSearch)
@@ -257,7 +260,7 @@
         x-cloak
         x-on:click="clear()"
         class="rt-expandable-search__clear"
-        aria-label="{{ __('app.clear_selection') }}"
+        aria-label="{{ __('app.clear_search') }}"
     >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />

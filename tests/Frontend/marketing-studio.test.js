@@ -2198,6 +2198,32 @@ test('shared spacing overlay stays inactive on every fixed mail signature geomet
     assert.equal(isFixedMailSignatureGeometry(coreFakeComponent(document.createElement('p'))), false);
 }));
 
+test('V22 and V23 normal-flow content exposes padding but cannot regain overlap through spacing handles', () => coreWithDom(`
+    <div id="root"><div data-tools></div></div>
+`, ({ window, document }) => {
+    for (const version of ['v22', 'v23']) {
+        const parent = coreFakeComponent(document.createElement('tr'), { attributes: { 'data-rt-artifact-version': version } });
+        const selected = coreFakeComponent(document.createElement('td'), { parent, attributes: { class: 'rt-sign-identity' } });
+        const root = document.querySelector('#root');
+        const controller = createSpacingOverlayController({
+            editor: coreFakeEditor(root, selected),
+            root,
+            environment: { document, window, requestAnimationFrame: (callback) => { callback(); return 1; }, cancelAnimationFrame() {} },
+        });
+        const margin = root.querySelector('[data-type="margin"][data-side="bottom"]');
+        const padding = root.querySelector('[data-type="padding"][data-side="bottom"]');
+        assert.equal(margin.hidden, true, version);
+        assert.equal(padding.hidden, false, version);
+        const key = new window.Event('keydown', { bubbles: true, cancelable: true });
+        Object.assign(key, { key: 'ArrowDown' });
+        margin.dispatchEvent(key);
+        margin.dispatchEvent(new window.Event('pointerdown', { bubbles: true, cancelable: true }));
+        assert.deepEqual(selected.getStyle(), {}, version);
+        assert.equal(margin.classList.contains('is-active'), false, version);
+        controller.destroy();
+    }
+}));
+
 test('spacing overlay uses the canvas tools layer without doubling the positioned selection offset', () => coreWithDom(`
     <div id="root"><div id="canvas"><div id="tools-layer" class="lmzbjs-cv-canvas__tools"><div id="tools" data-tools></div></div></div></div>
 `, ({ window, document }) => {

@@ -21,12 +21,27 @@
     @endif
 
     <div data-anim="fade-up" data-anim-delay="0.05">
-        <div class="mb-3 flex items-center justify-end">
-            <x-tables.search-field
-                :results-count="$mails->count()"
-                wire:model.live.debounce.350ms="search"
-            />
-        </div>
+        <x-tables.toolbar
+            id="mail-log-filters"
+            :filter-count="trim($search) !== '' ? 1 : 0"
+            :title="__('app.search')"
+            reset-action="resetFilters"
+            search-for="mail-log-search"
+        >
+            <x-slot:search>
+                <x-tables.search-field
+                    id="mail-log-search"
+                    :results-count="$mails->count()"
+                    wire:model.live.debounce.350ms="search"
+                />
+            </x-slot:search>
+
+            <x-slot:chips>
+                @if (trim($search) !== '')
+                    <x-tables.filter-chip :label="__('app.search')" :value="$search" wire:click="$set('search', '')" />
+                @endif
+            </x-slot:chips>
+        </x-tables.toolbar>
 
         <x-tables.table
             :columns="[

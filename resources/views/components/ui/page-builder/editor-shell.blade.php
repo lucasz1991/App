@@ -94,7 +94,7 @@
             const selector = [
                 'a[href]', 'button:not([disabled])', 'input:not([disabled])',
                 'select:not([disabled])', 'textarea:not([disabled])',
-                'iframe', '[tabindex]:not([tabindex=-1])', '[contenteditable=true]'
+                'iframe', '[tabindex]:not([tabindex=&quot;-1&quot;])', '[contenteditable=true]'
             ].join(',');
             return this.pageBuilderCompositeRoots().flatMap((root) => [...root.querySelectorAll(selector)])
                 .filter((element) => !element.closest('[inert]')

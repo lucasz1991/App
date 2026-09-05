@@ -45,44 +45,83 @@
 
 
 
-    {{-- Kopfzeile + Filter --}}
-    <div class="flex flex-wrap items-center justify-between gap-4">
-        <div>
-            <h1 class="text-2xl font-bold text-rt-text dark:text-rt-dark-text">Job's</h1>
-        </div>
+    {{-- Kopfzeile + globaler Premium-Filter --}}
+    <div>
+        <h1 class="text-2xl font-bold text-rt-text dark:text-rt-dark-text">Job's</h1>
+    </div>
 
-        <div class="flex flex-wrap items-center gap-3 text-sm">
-            {{-- Suchfeld --}}
-            <x-tables.search-field 
-                resultsCount="{{ $tasks->count() }}"
+    <x-tables.toolbar
+        id="admin-task-filters"
+        :filter-count="$this->activeFilterCount"
+        title="Aufgaben filtern"
+        reset-action="resetFilters"
+        search-for="admin-task-search"
+    >
+        <x-slot:search>
+            <x-tables.search-field
+                id="admin-task-search"
+                :results-count="$tasks->count()"
                 wire:model.live="search"
             />
-            {{-- Status-Filter --}}
-            <x-ui.forms.select wire:model.live="filterStatus" class="w-40">
+        </x-slot:search>
+
+        <x-tables.filter-field label="Status" icon="far fa-signal-alt-3" for="admin-task-status-filter">
+            <x-ui.forms.select id="admin-task-status-filter" wire:model.live="filterStatus" aria-label="Status" class="w-full">
                 <option value="">Status: Alle</option>
                 <option value="{{ \App\Models\AdminTask::STATUS_OPEN }}">Offen</option>
                 <option value="{{ \App\Models\AdminTask::STATUS_IN_PROGRESS }}">In Bearbeitung</option>
                 <option value="{{ \App\Models\AdminTask::STATUS_COMPLETED }}">Erledigt</option>
             </x-ui.forms.select>
+        </x-tables.filter-field>
 
-            {{-- Priority-Filter --}}
-            <x-ui.forms.select wire:model.live="filterPriority" class="w-40">
+        <x-tables.filter-field label="Priorität" icon="far fa-flag" for="admin-task-priority-filter">
+            <x-ui.forms.select id="admin-task-priority-filter" wire:model.live="filterPriority" aria-label="Priorität" class="w-full">
                 <option value="">Prio: Alle</option>
                 <option value="{{ \App\Models\AdminTask::PRIORITY_HIGH }}">Hoch</option>
                 <option value="{{ \App\Models\AdminTask::PRIORITY_NORMAL }}">Normal</option>
                 <option value="{{ \App\Models\AdminTask::PRIORITY_LOW }}">Niedrig</option>
             </x-ui.forms.select>
+        </x-tables.filter-field>
 
-            {{-- Nur meine Aufgaben --}}
-            <label class="inline-flex items-center gap-1">
+        <x-tables.filter-field label="Zuständigkeit" icon="far fa-user-check">
+            <div class="flex min-h-11 items-center">
+                <x-ui.forms.toggle-button model="onlyMine" label="Nur meine" />
+            </div>
+        </x-tables.filter-field>
 
-                <x-ui.forms.toggle-button 
-                    model="onlyMine"
-                    label="Nur meine"
+        <x-slot:chips>
+            @if (trim((string) $search) !== '')
+                <x-tables.filter-chip label="Suche" :value="$search" wire:click="$set('search', '')" />
+            @endif
+            @if ($filterStatus !== null && $filterStatus !== '')
+                <x-tables.filter-chip
+                    label="Status"
+                    :value="match ((int) $filterStatus) {
+                        \App\Models\AdminTask::STATUS_OPEN => 'Offen',
+                        \App\Models\AdminTask::STATUS_IN_PROGRESS => 'In Bearbeitung',
+                        \App\Models\AdminTask::STATUS_COMPLETED => 'Erledigt',
+                        default => (string) $filterStatus,
+                    }"
+                    wire:click="$set('filterStatus', null)"
                 />
-            </label>
-        </div>
-    </div>
+            @endif
+            @if ($filterPriority !== null && $filterPriority !== '')
+                <x-tables.filter-chip
+                    label="Priorität"
+                    :value="match ((int) $filterPriority) {
+                        \App\Models\AdminTask::PRIORITY_HIGH => 'Hoch',
+                        \App\Models\AdminTask::PRIORITY_NORMAL => 'Normal',
+                        \App\Models\AdminTask::PRIORITY_LOW => 'Niedrig',
+                        default => (string) $filterPriority,
+                    }"
+                    wire:click="$set('filterPriority', null)"
+                />
+            @endif
+            @if ($onlyMine)
+                <x-tables.filter-chip label="Zuständigkeit" value="Nur meine" wire:click="$set('onlyMine', false)" />
+            @endif
+        </x-slot:chips>
+    </x-tables.toolbar>
 
     {{-- Aufgaben-Tabelle --}}
     <x-tables.table

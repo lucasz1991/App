@@ -826,8 +826,10 @@ class DeviceManagementTest extends TestCase
             ->assertOk()
             ->assertSee('Virtuelles Lager')
             ->assertSee('Gerätestandorte')
-            ->assertSeeHtml('id="device-filter-dropdown"')
-            ->assertSeeHtml('aria-controls="device-filter-dropdown"')
+            ->assertSeeHtml('data-rt-premium-filter')
+            ->assertSeeHtml('id="device-inventory-filters-title"')
+            ->assertSeeHtml('aria-controls="device-inventory-filters-mobile"')
+            ->assertSeeHtml('aria-label="Suche löschen"')
             ->assertSeeHtml('id="device-provider-readiness-modal"')
             ->assertSee('Provider- und Produktionsbereitschaft')
             ->assertSee('Microsoft 365')
@@ -836,19 +838,29 @@ class DeviceManagementTest extends TestCase
             ->assertSet('showProviderReadiness', true)
             ->call('closeProviderReadiness')
             ->assertSet('showProviderReadiness', false)
+            ->set('search', '   ')
+            ->assertSee('0 aktiv')
+            ->assertDontSeeHtml('data-rt-filter-chip')
             ->set('search', 'Notebook')
             ->set('platformFilter', 'windows')
             ->set('formFactorFilter', 'laptop')
             ->set('lifecycleFilter', 'inventory')
             ->set('complianceFilter', 'warning')
             ->set('locationFilter', 'Köln Hbf')
+            ->assertSeeHtml('data-rt-filter-chip')
+            ->assertSee('Gerätetyp')
+            ->assertSee('Compliance')
             ->call('clearFilters')
             ->assertSet('search', '')
             ->assertSet('platformFilter', '')
             ->assertSet('formFactorFilter', '')
             ->assertSet('lifecycleFilter', '')
             ->assertSet('complianceFilter', '')
-            ->assertSet('locationFilter', '');
+            ->assertSet('locationFilter', '')
+            ->assertDontSeeHtml('data-rt-filter-chip');
+
+        $this->assertSame('Suche löschen', trans('app.clear_search', [], 'de'));
+        $this->assertSame('Clear search', trans('app.clear_search', [], 'en'));
     }
 
     public function test_device_inventory_uses_the_shared_responsive_table_component(): void

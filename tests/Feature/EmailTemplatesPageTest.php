@@ -65,33 +65,35 @@ class EmailTemplatesPageTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
-    public function test_v22_signature_background_is_embedded_once_and_reuses_the_img_content_id(): void
+    public function test_v22_v23_signature_background_is_embedded_once_and_reuses_the_img_content_id(): void
     {
         Http::preventStrayRequests();
         $source = URL::asset('mail-assets/zug-dampf-v19-light.gif');
-        $html = SystemMailInlineImageEmbedder::mark('<html><body><!-- RT_TEMPLATE_MARK_START -->'
-            .'<table><tr data-rt-artifact-version="v22"><td class="rt-sign-cell" data-rt-signature-background="1" '
-            .'style="background-color:#ffffff;background-image:url(&quot;'.htmlspecialchars($source.'?v=22&theme=light', ENT_QUOTES | ENT_HTML5, 'UTF-8').'&quot;);background-size:125% auto;background-position:65% bottom;">'
-            .'<p>Kontaktdaten bleiben normaler Text.</p><img src="'.$source.'" alt=""></td></tr></table>'
-            .'<!-- RT_TEMPLATE_MARK_END --></body></html>');
-        $email = (new Email)->from('sender@rail-time.test')->to('recipient@rail-time.test')->subject('V22 MIME')->html($html);
-        $embedder = app(SystemMailInlineImageEmbedder::class);
+        foreach (['v22', 'v23'] as $version) {
+            $html = SystemMailInlineImageEmbedder::mark('<html><body><!-- RT_TEMPLATE_MARK_START -->'
+                .'<table><tr data-rt-artifact-version="'.$version.'"><td class="rt-sign-cell" data-rt-signature-background="1" '
+                .'style="background-color:#ffffff;background-image:url(&quot;'.htmlspecialchars($source.'?v='.$version.'&theme=light', ENT_QUOTES | ENT_HTML5, 'UTF-8').'&quot;);background-size:125% auto;background-position:65% bottom;">'
+                .'<p>Kontaktdaten bleiben normaler Text.</p><img src="'.$source.'" alt=""></td></tr></table>'
+                .'<!-- RT_TEMPLATE_MARK_END --></body></html>');
+            $email = (new Email)->from('sender@rail-time.test')->to('recipient@rail-time.test')->subject($version.' MIME')->html($html);
+            $embedder = app(SystemMailInlineImageEmbedder::class);
 
-        $this->assertSame(1, $embedder->embed($email));
-        $attachments = $email->getAttachments();
-        $this->assertCount(1, $attachments);
-        $this->assertSame('zug-dampf-v19-light.gif', $attachments[0]->getFilename());
-        $this->assertSame('inline', $attachments[0]->getDisposition());
-        $cid = 'cid:'.$attachments[0]->getContentId();
-        $delivered = html_entity_decode((string) $email->getHtmlBody(), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $this->assertStringContainsString("background-image:url('".$cid."')", $delivered);
-        $this->assertStringContainsString('<img src="'.$cid.'"', $delivered);
-        $this->assertStringContainsString('background-size:125% auto;background-position:65% bottom;', $delivered);
-        $this->assertStringContainsString('<p>Kontaktdaten bleiben normaler Text.</p>', $delivered);
-        $this->assertStringNotContainsString($source, $delivered);
-        $this->assertStringContainsString('multipart/related', $email->toString());
-        $this->assertSame(0, $embedder->embed($email));
-        $this->assertCount(1, $email->getAttachments());
+            $this->assertSame(1, $embedder->embed($email));
+            $attachments = $email->getAttachments();
+            $this->assertCount(1, $attachments);
+            $this->assertSame('zug-dampf-v19-light.gif', $attachments[0]->getFilename());
+            $this->assertSame('inline', $attachments[0]->getDisposition());
+            $cid = 'cid:'.$attachments[0]->getContentId();
+            $delivered = html_entity_decode((string) $email->getHtmlBody(), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $this->assertStringContainsString("background-image:url('".$cid."')", $delivered);
+            $this->assertStringContainsString('<img src="'.$cid.'"', $delivered);
+            $this->assertStringContainsString('background-size:125% auto;background-position:65% bottom;', $delivered);
+            $this->assertStringContainsString('<p>Kontaktdaten bleiben normaler Text.</p>', $delivered);
+            $this->assertStringNotContainsString($source, $delivered);
+            $this->assertStringContainsString('multipart/related', $email->toString());
+            $this->assertSame(0, $embedder->embed($email));
+            $this->assertCount(1, $email->getAttachments());
+        }
         Http::assertNothingSent();
     }
 
@@ -113,6 +115,8 @@ class EmailTemplatesPageTest extends TestCase
             $carrier('background-image:url('.$invalidSource.');'),
             $carrier('background-image:url('.$encodedSource.');'),
             $carrier('background-image:url('.$localSource.');', 'v21'),
+            $carrier('background-image:url('.$localSource.');', 'v24'),
+            $carrier('background-image:url('.$foreignSource.');', 'v23'),
             $carrier('background-image:url('.$localSource.');', 'v22', 'class="rt-sign-cell"'),
             $carrier('background-image:url('.$localSource.');', 'v22', 'class="other" data-rt-signature-background="1"'),
             $carrier('background-image:url('.$localSource.');', 'v22', 'class="rt-sign-cell" data-rt-signature-background="1" data-rt-signature-background="0"'),

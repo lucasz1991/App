@@ -42,6 +42,14 @@ class MessageBox extends Component
 
     public function updatingSearch(): void
     {
+        $this->loadedPages = 1;
+        $this->resetPage();
+    }
+
+    public function resetFilters(): void
+    {
+        $this->search = '';
+        $this->loadedPages = 1;
         $this->resetPage();
     }
 
