@@ -38,6 +38,43 @@ final class OutlookAddinUserSnapshotStore
         );
     }
 
+    /**
+     * Prueft den gespeicherten Outlook-Abzug ohne ihn zu erzeugen, zu ersetzen
+     * oder bei einem Lesefehler zu entfernen. Die Mitarbeiteroberflaeche kann
+     * dadurch sicher auf den manuellen Fallback zurueckfallen.
+     */
+    public function isCurrentForUser(User|int $user): bool
+    {
+        $userId = $user instanceof User ? (int) $user->getKey() : $user;
+        if ($userId < 1) {
+            return false;
+        }
+
+        try {
+            $stored = $this->readEnvelope($userId, deleteInvalid: false);
+            if ($stored === null) {
+                return false;
+            }
+
+            $currentUser = User::query()
+                ->with('profile')
+                ->find($userId);
+            if (! $currentUser instanceof User
+                || ! $currentUser->isActive()
+                || ! in_array($currentUser->role, ['admin', 'staff'], true)) {
+                return false;
+            }
+
+            return $this->isCurrentEnvelope(
+                $stored,
+                $userId,
+                $this->payloads->sourceFingerprint($currentUser),
+            );
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
     /** @return array<string, mixed> */
     public function rebuildForUser(User|int $user): array
     {
@@ -179,7 +216,7 @@ final class OutlookAddinUserSnapshotStore
     }
 
     /** @return array<string, mixed>|null */
-    private function readEnvelope(int $userId): ?array
+    private function readEnvelope(int $userId, bool $deleteInvalid = true): ?array
     {
         $disk = $this->disk();
         $path = $this->pathForUser($userId);
@@ -208,11 +245,13 @@ final class OutlookAddinUserSnapshotStore
 
             return is_array($decoded) ? $decoded : null;
         } catch (Throwable $exception) {
-            $this->deleteSnapshotFile($userId);
-            Log::notice('Beschaedigter persoenlicher Outlook-Abzug wird neu erzeugt.', [
-                'user_id' => $userId,
-                'error' => $exception->getMessage(),
-            ]);
+            if ($deleteInvalid) {
+                $this->deleteSnapshotFile($userId);
+                Log::notice('Beschaedigter persoenlicher Outlook-Abzug wird neu erzeugt.', [
+                    'user_id' => $userId,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
 
             return null;
         }

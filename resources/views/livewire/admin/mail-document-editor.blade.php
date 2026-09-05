@@ -1072,6 +1072,7 @@
                     }
 
                     let instance = null;
+                    let editorBootState = 'loading';
                     let destroyed = false;
                     let selectedTheme = 'light';
                     let selectedDevice = 'wide';
@@ -2259,6 +2260,7 @@
                         selectDevice(selectedDevice);
                         selectDegradationMode(selectedDegradationMode);
                         await selectViewMode(selectedViewMode);
+                        if (!destroyed) editorBootState = 'ready';
                     };
 
                     // Anchor-Dropdowns teleportieren ihren Inhalt an den
@@ -2635,7 +2637,7 @@
                         };
                     };
 
-                    const validateSourceOnServer = async (source, portableMedia = []) => {
+                    const validateSourceOnServer = async (source, portableMedia = [], expectedHash = document_.contentHash || '') => {
                         if (typeof document_.endpoints?.validate !== 'string' || document_.endpoints.validate.trim() === '') {
                             throw new Error('Der sichere Prüf-Endpunkt für Codeimporte ist nicht verfügbar. Es wurde nichts übernommen.');
                         }
@@ -2645,7 +2647,7 @@
                             builder_data: candidate.project,
                             html: candidate.html,
                             css: candidate.css,
-                            expected_hash: document_.contentHash || '',
+                            expected_hash: expectedHash,
                             portable_media: portableMedia,
                         });
 
@@ -2661,93 +2663,63 @@
                             html: codeHtml?.value || '',
                             css: codeCss?.value || '',
                         });
+                        const editorInstance = instance;
+                        const builder = editorInstance?.instance;
+                        const recoveringFailedEditor = editorBootState === 'failed' && !editorInstance;
+                        if (destroyed || (!recoveringFailedEditor
+                            && (editorBootState !== 'ready' || typeof builder?.setActionLocked !== 'function'))) {
+                            throw new Error('Der sichere Importspeicher ist noch nicht vollständig geladen. Bitte versuche es erneut.');
+                        }
 
-                        // Bis hier wurde der laufende Editor nicht verändert.
-                        // Erst der serverseitig kanonisierte Stand darf auf die
-                        // Leinwand und danach durch den normalen Save-Request.
-                        setMessage('Code wird serverseitig geprüft …');
-                        const validated = await validateSourceOnServer(source, pendingPortableMedia);
-                        if (!instance?.editor?.loadProjectData) {
-                            setMessage('Reparierter Entwurf wird gespeichert …');
+                        // Ab jetzt darf der bisherige Leinwandstand nicht mehr
+                        // parallel zum Import gespeichert werden. Bei gesetzter
+                        // Aktionssperre liefert ein nichtmanueller Save nur die
+                        // vorhandene Speicherwarteschlange; er startet keinen
+                        // neuen Save des moeglicherweise defekten Altstands.
+                        // Nach einem abgeschlossenen Startfehler existiert
+                        // keine Leinwand mehr. Der beworbene Recovery-Import
+                        // geht dann ohne Editorwarteschlange an den Server.
+                        builder?.setActionLocked(true);
+                        let importSaved = false;
+                        try {
+                            if (editorInstance) await editorInstance.save('autosave-import-drain');
+                            if (destroyed) throw new Error('Der Editor wurde während des Imports geschlossen.');
+                            const expectedHash = document_.contentHash || '';
+
+                            // Der gepruefte Stand geht direkt an den normalen
+                            // Entwurfs-Endpunkt. loadProjectData() vor dem Save
+                            // wuerde kanonische Knoten erneut durch temporaere
+                            // GrapesJS-Attribute und Aenderungsereignisse fuehren.
+                            setMessage('Code wird serverseitig geprüft …');
+                            const validated = await validateSourceOnServer(source, pendingPortableMedia, expectedHash);
+                            if (destroyed) throw new Error('Der Editor wurde während des Imports geschlossen.');
+                            setMessage('Geprüfter Entwurf wird gespeichert …');
                             const payload = await request(document_.endpoints.update, 'PUT', {
                                 builder_data: validated.draft.builderData,
                                 html: validated.draft.html,
                                 css: validated.draft.css,
-                                expected_hash: document_.contentHash || '',
+                                expected_hash: expectedHash,
                             });
+                            importSaved = true;
+                            if (destroyed) return;
                             applyDocumentState(payload.document);
+                            activeBaselineHtml = String(document_.html || validated.draft.html);
                             showFindings(
                                 payload.report || validated.report,
                                 payload.compatibility ?? validated.compatibility,
                             );
                             pendingPortableMedia = [];
 
-                            const message = 'Der reparierte Entwurf wurde gespeichert. Der Editor wird neu geladen.';
+                            const message = 'Code geprüft und als Entwurf gespeichert. Die veröffentlichte Fassung bleibt unverändert. Der Editor wird neu geladen.';
                             setMessage(message);
                             toast('success', message, 'Import abgeschlossen');
                             codeDialog?.close('saved');
                             window.setTimeout(() => window.location.reload(), 250);
-
-                            return;
-                        }
-
-                        const editor = instance.editor;
-                        const previousProject = structuredClone(editor.getProjectData());
-                        const previousBaselineHtml = activeBaselineHtml;
-                        let editorWasReplaced = false;
-
-                        try {
-                            const validatedProject = runtimeBridge.projectFor(
-                                validated.draft,
-                                (canonicalCss) => editor.Parser?.parseCss?.(canonicalCss) || [],
-                                { kind: config.currentDocument, environment: window },
-                            );
-                            activeBaselineHtml = validated.draft.html;
-                            editorWasReplaced = true;
-                            await editor.loadProjectData(validatedProject);
-                            selectTheme(selectedTheme);
-                            selectDevice(selectedDevice);
-                            await saveCurrentDraft();
-
-                            if (Array.isArray(validated.report?.messages)
-                                || Array.isArray(validated.compatibility?.findings)) {
-                                showFindings(validated.report, validated.compatibility);
-                            }
-                            const reloadForPortableMedia = pendingPortableMedia.length > 0;
-                            pendingPortableMedia = [];
-
-                            const message = 'Code geprüft und als Entwurf gespeichert. Die veröffentlichte Fassung bleibt unverändert.';
-                            setMessage(message);
-                            toast('success', message, 'Import abgeschlossen');
-                            codeDialog?.close('saved');
-                            if (reloadForPortableMedia) {
-                                window.setTimeout(() => window.location.reload(), 250);
-                            }
-                        } catch (error) {
-                            activeBaselineHtml = String(document_.html || previousBaselineHtml);
-
-                            if (editorWasReplaced) {
-                                try {
-                                    await runtimeBridge.rehydrateAuthoritative({
-                                        editor,
-                                        draft: document_,
-                                        sanitizationChanged: true,
-                                        parseCss: (canonicalCss) => editor.Parser?.parseCss?.(canonicalCss) || [],
-                                        projectOptions: { kind: config.currentDocument, environment: window },
-                                    });
-                                    selectTheme(selectedTheme);
-                                    selectDevice(selectedDevice);
-                                    if (error instanceof Error) {
-                                        error.message = `${error.message} Der zuletzt gespeicherte Serverentwurf wurde wiederhergestellt.`;
-                                    }
-                                } catch (_) {
-                                    await editor.loadProjectData(previousProject);
-                                    selectTheme(selectedTheme);
-                                    selectDevice(selectedDevice);
-                                }
-                            }
-
-                            throw error;
+                        } finally {
+                            // Nach Erfolg bleibt die alte Leinwand bis zum
+                            // Reload gesperrt: sie darf den gerade importierten
+                            // Entwurf nicht mit dessen frischem Hash ersetzen.
+                            if (!importSaved) builder?.setActionLocked(editorInstance?.readOnly === true);
                         }
                     };
 
@@ -2855,18 +2827,22 @@
                         setActionsBusy(true);
                         if (codeHtml) codeHtml.readOnly = true;
                         if (codeCss) codeCss.readOnly = true;
+                        let importApplied = false;
 
                         try {
                             setCodeError();
                             await applyCodeAsDraft();
+                            importApplied = true;
                         } catch (error) {
                             const surfaced = showRequestError(error, 'Code konnte nicht übernommen werden');
                             setCodeError(surfaced.message);
                             toast('error', surfaced.message, 'Nicht gespeichert');
                         } finally {
-                            if (codeHtml) codeHtml.readOnly = false;
-                            if (codeCss) codeCss.readOnly = false;
-                            setActionsBusy(false);
+                            if (!importApplied) {
+                                if (codeHtml) codeHtml.readOnly = false;
+                                if (codeCss) codeCss.readOnly = false;
+                                setActionsBusy(false);
+                            }
                         }
                     }, { signal: controlListeners.signal });
 
@@ -2951,6 +2927,7 @@
                             // mehr vollstaendig abbauen laesst.
                         }
                         instance = null;
+                        editorBootState = 'failed';
                         root.innerHTML = '';
                         const notice = window.document.createElement('div');
                         notice.className = 'rt-mail-editor-error';

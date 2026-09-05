@@ -3578,6 +3578,23 @@ export function synchronizeMailPresentationAttributes(component, property = '') 
     const tagName = String(component.get?.('tagName') || '').toLowerCase();
     const style = component.getStyle?.() || {};
     const attributes = component.getAttributes?.() || component.get?.('attributes') || {};
+    const classes = componentClasses(component);
+    const signatureSystemNode = [
+        'rt-sign-stage',
+        'rt-sign-content-frame',
+        'rt-sign-train-layer',
+        'rt-sign-train-frame',
+        'rt-sign-train-slot',
+        'rt-sign-train',
+    ].some((className) => classes.includes(className));
+    // Diese Knoten besitzen in allen Signaturvertraegen eine vollstaendige und
+    // absichtlich exakte Attributliste. Insbesondere darf das generische
+    // text-align-Fallback kein zusaetzliches align="left" auf Zugzeile oder
+    // Zugslot schreiben. Inhaltsknoten innerhalb des geschuetzten Rahmens
+    // bleiben weiterhin normal bearbeitbar und erhalten ihre Outlook-
+    // Praesentationsattribute.
+    if (signatureSystemNode) return false;
+
     const changedProperty = String(property || '').trim().toLowerCase();
     const state = MAIL_PRESENTATION_SYNC_STATE.get(component) || new Map();
     let changed = false;

@@ -1730,6 +1730,12 @@ test('V21 editor synchronization restores flow geometry and bypasses legacy sync
         'mso-hide': 'all',
     });
 
+    [stage, content, layer, frame, slot, train].forEach((systemNode) => {
+        assert.equal(synchronizeMailPresentationAttributes(systemNode, 'text-align'), false);
+        assert.equal(systemNode.getAttributes().align, undefined);
+    });
+    assert.equal(slot.getAttributes().valign, 'bottom');
+
     const snapshot = JSON.stringify({
         stage: stage.getStyle(),
         layer: layer.getStyle(),
@@ -1846,6 +1852,23 @@ test('mail style changes keep Outlook presentation attributes in sync and undo r
     const table = createComponent('table', tableStyle, tableAttributes);
     assert.equal(synchronizeMailPresentationAttributes(table, 'text-align'), false);
     assert.equal(tableAttributes.align, 'left');
+
+    // Legacy-Signaturen haben dieselben reservierten Strukturknoten wie V21.
+    // Ein Style-Update beim Laden darf kein align ergaenzen oder vorhandene
+    // HTML-Hoehen entfernen, auch ohne einen V21-Marker am Vorfahren.
+    for (const [className, tagName] of [
+        ['rt-sign-stage', 'div'],
+        ['rt-sign-content-frame', 'table'],
+        ['rt-sign-train-layer', 'div'],
+        ['rt-sign-train-frame', 'table'],
+        ['rt-sign-train-slot', 'td'],
+        ['rt-sign-train', 'img'],
+    ]) {
+        const systemAttributes = { class: className, height: '200', valign: 'bottom' };
+        const systemNode = createComponent(tagName, { 'text-align': 'left' }, systemAttributes);
+        assert.equal(synchronizeMailPresentationAttributes(systemNode), false);
+        assert.deepEqual(systemAttributes, { class: className, height: '200', valign: 'bottom' });
+    }
 
     const reloadedStyle = {
         'background-color': '',
@@ -2432,7 +2455,9 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /explicitTitle \|\| \([\s\S]*?compatibility !== undefined && compatibilityBlocksPublication/);
     assert.match(mailView, /\^mail-imports\\\/\(\[a-f0-9\]\{64\}\)\\\.\(gif\|png\|jpg\|webp\)\$/);
     assert.match(mailView, /Das Bundle enthält nicht den vollständigen Medienbestand dieses Dokuments/);
-    assert.match(mailView, /validateSourceOnServer\(source, pendingPortableMedia\)[\s\S]*?runtimeBridge\.projectFor[\s\S]*?editor\.loadProjectData[\s\S]*?saveCurrentDraft\(\)/);
+    assert.match(mailView, /const validated = await validateSourceOnServer\(source, pendingPortableMedia, expectedHash\)[\s\S]*?document_\.endpoints\.update[\s\S]*?builder_data: validated\.draft\.builderData[\s\S]*?html: validated\.draft\.html[\s\S]*?css: validated\.draft\.css/);
+    assert.doesNotMatch(mailView, /const validatedProject = runtimeBridge\.projectFor/);
+    assert.doesNotMatch(mailView, /editorWasReplaced/);
     assert.match(mailView, /document_\.endpoints\?\.validate[\s\S]*?Es wurde nichts übernommen/);
     assert.match(mailView, /URL\.revokeObjectURL\(objectUrl\)/);
     assert.match(mailView, /await saveCurrentDraft\(\)[\s\S]*?endpoints\.publish/);
@@ -2470,6 +2495,156 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(shellCss, /\.lmz-builder\s+\.lmzbjs-layers/);
     assert.match(shellCss, /data-rt-lmz-mode='mail'[\s\S]*?\.lmz-builder__topbar\s*\{[\s\S]*?display:\s*none !important/);
     assert.match(shellCss, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmz-builder__popover/);
+});
+
+test('code import drains pending autosave and keeps the previous canvas locked through reload', async () => {
+    const mailView = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+    const start = mailView.indexOf('const applyCodeAsDraft = async () => {');
+    const end = mailView.indexOf("bindToolControl('[data-mail-code-open]'", start);
+    assert.ok(start > 0 && end > start);
+    const compile = new Function('context', `
+        const { instance, document_, codeHtml, codeCss, assertPortableSource,
+            validateSourceOnServer, request, applyDocumentState, showFindings,
+            setMessage, toast, codeDialog, window,
+            editorBootState = 'ready' } = context;
+        let destroyed = Boolean(context.destroyed);
+        let pendingPortableMedia = context.media;
+        let activeBaselineHtml = '';
+        ${mailView.slice(start, end)}
+        applyCodeAsDraft.destroy = () => { destroyed = true; };
+        return applyCodeAsDraft;
+    `);
+
+    for (const failure of [null, 'validate', 'update', 'teardown']) {
+        const events = [];
+        let releaseAutosave;
+        const pendingAutosave = new Promise((resolve) => { releaseAutosave = resolve; });
+        let releaseUpdate;
+        const pendingUpdate = new Promise((resolve) => { releaseUpdate = resolve; });
+        let signalUpdate;
+        const updateStarted = new Promise((resolve) => { signalUpdate = resolve; });
+        const document_ = { contentHash: 'before-autosave', endpoints: { update: '/draft' } };
+        const draft = { builderData: { pages: [] }, html: '<table>import</table>', css: '' };
+        const media = [{ id: 'imported-image' }];
+        let locked = false;
+        let reload;
+        const apply = compile({
+            document_, media,
+            instance: {
+                readOnly: false,
+                instance: { setActionLocked(value) { locked = value; events.push(['lock', value]); } },
+                async save(reason) {
+                    assert.equal(locked, true);
+                    assert.equal(reason, 'autosave-import-drain');
+                    events.push(['drain']);
+                    await pendingAutosave;
+                    document_.contentHash = 'after-autosave';
+                    return true;
+                },
+            },
+            codeHtml: { value: draft.html }, codeCss: { value: draft.css },
+            assertPortableSource: (source) => source,
+            async validateSourceOnServer(source, files, expectedHash) {
+                events.push(['validate', expectedHash]);
+                assert.deepEqual(source, { html: draft.html, css: draft.css });
+                assert.equal(files, media);
+                if (failure === 'validate') throw new Error('validation failed');
+                return { draft };
+            },
+            async request(url, method, payload) {
+                events.push(['update', payload.expected_hash]);
+                assert.equal(locked, true);
+                assert.equal(url, '/draft');
+                assert.equal(method, 'PUT');
+                assert.deepEqual(payload, {
+                    builder_data: draft.builderData, html: draft.html, css: draft.css,
+                    expected_hash: 'after-autosave',
+                });
+                if (failure === 'update') throw new Error('update failed');
+                if (failure === 'teardown') {
+                    signalUpdate();
+                    await pendingUpdate;
+                }
+                return { document: { content_hash: 'imported', html: draft.html } };
+            },
+            applyDocumentState(payload) { document_.contentHash = payload.content_hash; document_.html = payload.html; },
+            showFindings() {}, setMessage() {}, toast() {},
+            codeDialog: { close: (reason) => events.push(['close', reason]) },
+            window: {
+                setTimeout(callback) { reload = callback; },
+                location: { reload: () => events.push(['reload']) },
+            },
+        });
+        const applying = apply();
+        assert.deepEqual(events, [['lock', true], ['drain']]);
+        releaseAutosave();
+        if (failure === 'teardown') {
+            await updateStarted;
+            apply.destroy();
+            releaseUpdate();
+            await applying;
+            assert.equal(document_.contentHash, 'after-autosave', 'a late response must not update a destroyed page');
+            assert.equal(reload, undefined, 'a completed import must not reload the destination page after teardown');
+            assert.deepEqual(events, [
+                ['lock', true], ['drain'], ['validate', 'after-autosave'], ['update', 'after-autosave'],
+            ]);
+        } else if (failure) {
+            await assert.rejects(applying, /failed/);
+            assert.equal(locked, false, 'a rejected import releases the editor');
+            assert.equal(reload, undefined);
+        } else {
+            await applying;
+            assert.equal(locked, true, 'old canvas must not autosave using the imported hash');
+            assert.equal(document_.contentHash, 'imported');
+            assert.deepEqual(events, [
+                ['lock', true], ['drain'], ['validate', 'after-autosave'],
+                ['update', 'after-autosave'], ['close', 'saved'],
+            ]);
+            reload();
+            assert.deepEqual(events.at(-1), ['reload']);
+        }
+    }
+    for (const state of [
+        { editorBootState: 'failed', instance: null, allowed: true },
+        { editorBootState: 'loading', instance: null, allowed: false },
+        { editorBootState: 'loading', instance: { instance: { setActionLocked() { assert.fail('loading editor must not be locked'); } } }, allowed: false },
+        { editorBootState: 'ready', instance: null, allowed: false },
+        { editorBootState: 'failed', instance: null, destroyed: true, allowed: false },
+    ]) {
+        const events = [];
+        const draft = { builderData: { pages: [] }, html: '<table>repaired</table>', css: '' };
+        const apply = compile({
+            ...state,
+            document_: { contentHash: 'stored', endpoints: { update: '/draft' } },
+            media: [], codeHtml: { value: draft.html }, codeCss: { value: '' },
+            assertPortableSource: (source) => source,
+            async validateSourceOnServer(source, media, expectedHash) {
+                events.push('validate');
+                assert.equal(expectedHash, 'stored');
+                assert.deepEqual(source, { html: draft.html, css: '' });
+                return { draft };
+            },
+            async request(url, method, payload) {
+                events.push('update');
+                assert.equal(payload.expected_hash, 'stored');
+                assert.equal(payload.html, draft.html);
+                return { document: { content_hash: 'repaired', html: draft.html } };
+            },
+            applyDocumentState() {}, showFindings() {}, setMessage() {}, toast() {},
+            codeDialog: { close: () => events.push('close') },
+            window: { setTimeout: () => events.push('reload-scheduled') },
+        });
+        if (state.allowed) {
+            await apply();
+            assert.deepEqual(events, ['validate', 'update', 'close', 'reload-scheduled']);
+        } else {
+            await assert.rejects(apply, /Importspeicher/);
+            assert.deepEqual(events, [], 'pending/closed editors must not start an import');
+        }
+    }
+    assert.match(mailView, /await selectViewMode\(selectedViewMode\);\s*if \(!destroyed\) editorBootState = 'ready'/);
+    assert.match(mailView, /boot\(\)\.catch\([\s\S]*?instance = null;\s*editorBootState = 'failed'/);
+    assert.match(mailView, /if \(!importApplied\)\s*\{[\s\S]*?setActionsBusy\(false\)/);
 });
 
 test('mail editor exposes one responsive topbar with grouped controls and visible publishing actions', async () => {

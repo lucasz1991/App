@@ -20,6 +20,7 @@ use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\MailSignature;
 use App\Support\OutlookAddin\EntraAccessTokenValidator;
+use App\Support\OutlookAddin\OutlookAddinConfiguration;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
@@ -33,6 +34,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -79,13 +81,18 @@ class EmailTemplatesPageTest extends TestCase
             $hash = hash_file('sha256', public_path("outlook-addin/{$bundle}.js"));
             $this->assertIsString($hash);
 
-            $this->get(route("outlook-addin.{$bundle}"))
-                ->assertOk()
-                ->assertHeader('cache-control', 'no-store, public, max-age=0')
+            $response = $this->get(route("outlook-addin.{$bundle}"));
+            $response->assertOk()
                 ->assertSee(
                     "https://app.rail-time.de/outlook-addin/{$bundle}.js?v=".substr($hash, 0, 16),
                     escape: false,
                 );
+
+            $cacheControl = $response->headers->get('cache-control');
+            $this->assertIsString($cacheControl);
+            $this->assertStringContainsString('max-age=0', $cacheControl);
+            $this->assertStringContainsString('no-store', $cacheControl);
+            $this->assertStringContainsString('public', $cacheControl);
         }
 
         $this->getJson(route('api.outlook-addin.bootstrap'))
@@ -514,6 +521,101 @@ class EmailTemplatesPageTest extends TestCase
         );
     }
 
+    public function test_outlook_addin_current_check_uses_fresh_user_data_without_rewriting_the_snapshot(): void
+    {
+        config([
+            'app.url' => 'https://app.rail-time.de',
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+            'outlook_addin.snapshots.disk' => 'private',
+            'outlook_addin.snapshots.auto_refresh' => false,
+        ]);
+        Storage::fake('private');
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $user = User::factory()->create([
+            'name' => 'Mara Beispiel',
+            'role' => 'staff',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        UserProfile::withoutEvents(static function () use ($user): void {
+            UserProfile::query()->create([
+                'user_id' => $user->id,
+                'first_name' => 'Mara',
+                'last_name' => 'Beispiel',
+                'phone' => '04171 111111',
+                'position' => 'Disposition',
+            ]);
+        });
+        $user->load('profile');
+
+        $snapshots = app(OutlookAddinUserSnapshotStore::class);
+        $snapshots->currentForUser($user);
+        $path = $snapshots->pathForUser($user);
+        $storedBytes = Storage::disk('private')->get($path);
+
+        $this->assertTrue($snapshots->isCurrentForUser($user->id));
+        $this->assertSame($storedBytes, Storage::disk('private')->get($path));
+
+        UserProfile::withoutEvents(static function () use ($user): void {
+            UserProfile::query()
+                ->where('user_id', $user->id)
+                ->firstOrFail()
+                ->forceFill(['phone' => '04171 222222'])
+                ->save();
+        });
+
+        $this->assertSame('04171 111111', $user->profile?->phone);
+        $this->assertFalse($snapshots->isCurrentForUser($user));
+        $this->assertSame($storedBytes, Storage::disk('private')->get($path));
+
+        UserProfile::withoutEvents(static function () use ($user): void {
+            UserProfile::query()
+                ->where('user_id', $user->id)
+                ->firstOrFail()
+                ->forceFill(['phone' => '04171 111111'])
+                ->save();
+        });
+        $this->assertTrue($snapshots->isCurrentForUser($user->id));
+        User::withoutEvents(static function () use ($user): void {
+            User::query()
+                ->findOrFail($user->id)
+                ->forceFill(['role' => 'user'])
+                ->save();
+        });
+
+        $this->assertSame('staff', $user->role);
+        $this->assertFalse($snapshots->isCurrentForUser($user));
+        $this->assertSame($storedBytes, Storage::disk('private')->get($path));
+    }
+
+    public function test_outlook_addin_current_check_preserves_an_unreadable_snapshot_without_logging(): void
+    {
+        config([
+            'app.url' => 'https://app.rail-time.de',
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+            'outlook_addin.snapshots.disk' => 'private',
+            'outlook_addin.snapshots.auto_refresh' => false,
+        ]);
+        Storage::fake('private');
+        $user = User::factory()->create([
+            'role' => 'staff',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        $snapshots = app(OutlookAddinUserSnapshotStore::class);
+        $path = $snapshots->pathForUser($user);
+        $unreadableBytes = 'kein-gueltiger-verschluesselter-outlook-abzug';
+        Storage::disk('private')->put($path, $unreadableBytes);
+        Log::spy();
+
+        $this->assertFalse($snapshots->isCurrentForUser($user));
+        $this->assertTrue(Storage::disk('private')->exists($path));
+        $this->assertSame($unreadableBytes, Storage::disk('private')->get($path));
+        Log::shouldNotHaveReceived('notice');
+    }
+
     public function test_outlook_addin_fails_closed_when_active_template_status_is_not_published(): void
     {
         config([
@@ -555,6 +657,11 @@ class EmailTemplatesPageTest extends TestCase
     {
         $this->withoutMiddleware(LogActivity::class);
         $this->configureReadyOutlookAddin();
+        config(['outlook_addin.snapshots.disk' => 'private']);
+        Storage::fake('private');
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
         $admin = User::factory()->create(['role' => 'admin']);
 
         $response = $this->actingAs($admin)->get(route('admin.outlook-addin.manifest'));
@@ -574,7 +681,12 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertTrue($document->loadXML($manifest, LIBXML_NONET));
 
         $this->createOutlookIdentityAccountsTable();
-        $employee = User::factory()->create(['email' => 'employee@example.com']);
+        $employee = User::factory()->create([
+            'email' => 'employee@example.com',
+            'role' => 'staff',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
         EmployeeIdentityAccount::query()->create([
             'user_id' => $employee->id,
             'provider' => AccountProvider::Microsoft365,
@@ -584,19 +696,52 @@ class EmailTemplatesPageTest extends TestCase
             'lifecycle_status' => 'active',
             'provisioning_status' => 'active',
         ]);
+        $snapshots = app(OutlookAddinUserSnapshotStore::class);
+        $snapshotPath = $snapshots->pathForUser($employee);
+        $snapshots->forgetForUser($employee);
+        $this->assertTrue(app(OutlookAddinConfiguration::class)->availableTo($employee));
+        $this->assertFalse($snapshots->isCurrentForUser($employee));
+
         $this->actingAs($employee)
             ->get(route('email-templates.index'))
             ->assertOk()
+            ->assertSee('data-outlook-addin-pending', escape: false)
+            ->assertSee('Microsoft ist verbunden.')
+            ->assertSee('data-email-template-primary-downloads', escape: false)
+            ->assertSee('data-email-template-employee-action="signature-copy"', escape: false);
+        $this->assertFalse(Storage::disk('private')->exists($snapshotPath));
+
+        $snapshots->currentForUser($employee);
+        $this->assertTrue(Storage::disk('private')->exists($snapshotPath));
+        $snapshotBytes = Storage::disk('private')->get($snapshotPath);
+
+        $managedResponse = $this->actingAs($employee)
+            ->get(route('email-templates.index'));
+        $managedResponse
+            ->assertOk()
             ->assertSee('data-outlook-addin-managed', escape: false)
             ->assertSee('Für Outlook zentral eingerichtet')
-            ->assertSee('Sie müssen nichts herunterladen oder kopieren.');
+            ->assertSee('Sie müssen nichts herunterladen oder kopieren.')
+            ->assertDontSee('data-email-template-primary-downloads', escape: false)
+            ->assertDontSee('data-email-template-employee-action=', escape: false)
+            ->assertDontSee(route('email-templates.download', ['template' => 'vorlage-html']), escape: false)
+            ->assertDontSee(route('email-templates.download', ['template' => 'signatur-outlook-hell']), escape: false);
+        $this->assertSame($snapshotBytes, Storage::disk('private')->get($snapshotPath));
+
+        User::query()->whereKey($employee->id)->update(['name' => 'Mara Neuer Stand']);
+        $this->assertFalse($snapshots->isCurrentForUser($employee));
+        $this->assertTrue(Storage::disk('private')->exists($snapshotPath));
+        $this->assertSame($snapshotBytes, Storage::disk('private')->get($snapshotPath));
 
         $unlinkedEmployee = User::factory()->create(['email' => 'unlinked@example.com']);
         $this->actingAs($unlinkedEmployee)
             ->get(route('email-templates.index'))
             ->assertOk()
             ->assertDontSee('Für Outlook zentral eingerichtet')
-            ->assertSee('Ihr Outlook-Zugang wird noch durch die IT verknüpft.');
+            ->assertSee('Ihr Outlook-Zugang wird noch durch die IT verknüpft.')
+            ->assertSee('data-email-template-primary-downloads', escape: false)
+            ->assertSee('data-email-template-employee-action="signature-copy"', escape: false)
+            ->assertSee('data-email-template-employee-action="template-download"', escape: false);
 
         $unauthorizedEmployee = User::factory()->create(['role' => 'user']);
         $this->actingAs($unauthorizedEmployee)
