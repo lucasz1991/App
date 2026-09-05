@@ -2405,7 +2405,7 @@ function restoreNodePosition(position) {
  * Elementor-artige Kontroll-Docks. Die Knoten werden bewusst nur umgehaengt:
  * GrapesJS-Manager, Listener und Mounts bleiben dadurch dieselben Instanzen.
  */
-function installElementorEditorLayout({ root, modeIndicator }) {
+function installElementorEditorLayout({ root, modeIndicator, autoHide = false }) {
     const viewport = root.querySelector('.lmz-builder__viewport');
     const main = viewport?.querySelector(':scope > .lmz-builder__main')
         || viewport?.querySelector('.lmz-builder__main');
@@ -2586,7 +2586,7 @@ function installElementorEditorLayout({ root, modeIndicator }) {
 
     const leftTabs = availableTabs('left');
     const firstTab = leftTabs.find((toggle) => toggle.dataset.lmzPanelToggle === 'left:blocks') || leftTabs[0];
-    if (!leftTabs.some((toggle) => toggle.getAttribute('aria-expanded') === 'true')) firstTab?.click?.();
+    if (!autoHide && !leftTabs.some((toggle) => toggle.getAttribute('aria-expanded') === 'true')) firstTab?.click?.();
     syncTabs();
 
     return {
@@ -2634,6 +2634,154 @@ function installElementorEditorLayout({ root, modeIndicator }) {
             docks.forEach(({ dock }) => dock.remove());
             if (previousLayout === null) delete root.dataset.rtLmzLayout;
             else root.setAttribute('data-rt-lmz-layout', previousLayout);
+        },
+    };
+}
+
+/** Mail-only focus chrome. Reuses the vendor managers and never edits canvas data. */
+export function installMailFocusChrome({ root, editor }) {
+    const document_ = root.ownerDocument;
+    const viewport = root.querySelector('.lmz-builder__viewport');
+    const host = root.closest('[data-page-builder-fullscreen]') || root.closest('[data-page-builder-fullscreen-root]') || root;
+    const classesMount = root.querySelector('[data-lmz-mount="classes"]');
+    const traitsMount = root.querySelector('[data-lmz-mount="traits"]');
+    const classesPosition = captureNodePosition(classesMount);
+    const classesGroup = document_.createElement('details');
+    classesGroup.className = 'rt-lmz-properties-classes';
+    const summary = document_.createElement('summary');
+    summary.textContent = 'CSS-Klassen';
+    classesGroup.append(summary);
+    if (classesMount && traitsMount?.parentElement) {
+        classesGroup.append(classesMount);
+        traitsMount.parentElement.append(classesGroup);
+    }
+    const previousHost = ['data-rt-editor-chrome', 'data-rt-editor-toolbar-revealed']
+        .map((name) => [name, host.getAttribute(name)]);
+    host.setAttribute('data-rt-editor-chrome', 'auto');
+    root.dataset.rtLmzFocusChrome = 'true';
+    const launcher = document_.createElement('nav');
+    launcher.className = 'rt-lmz-glass-launcher';
+    launcher.setAttribute('aria-label', 'Editor-Navigation öffnen');
+    const launchers = ['blocks', 'layers'].map((name) => {
+        const button = document_.createElement('button');
+        button.type = 'button';
+        button.dataset.rtLmzLaunch = name;
+        button.textContent = name === 'blocks' ? 'Bausteine' : 'Ebenen';
+        button.setAttribute('aria-expanded', 'false');
+        button.addEventListener('click', () => { openPanel(root, `left:${name}`); sync(); });
+        launcher.append(button);
+        return button;
+    });
+    viewport?.append(launcher);
+    const closeButtons = [...root.querySelectorAll('[data-rt-lmz-control-dock]')].map((dock) => {
+        const close = document_.createElement('button');
+        close.type = 'button';
+        close.className = 'rt-lmz-control-dock__close';
+        close.setAttribute('aria-label', dock.dataset.rtLmzSide === 'left' ? 'Navigation schließen' : 'Eigenschaften schließen');
+        close.textContent = '×';
+        close.addEventListener('click', () => {
+            const side = dock.dataset.rtLmzSide;
+            closeVendorPopover(root, root.querySelector(`[data-lmz-popover="${side}"]`));
+            if (side === 'left') launchers[0]?.focus();
+            sync();
+        });
+        dock.querySelector('.rt-lmz-control-dock__header')?.append(close);
+        return close;
+    });
+    let pointerTop = false;
+    let pointerLeft = false;
+    let keyboard = false;
+    let destroyed = false;
+    let queued = false;
+    let frameDocument = null;
+    const coarse = document_.defaultView?.matchMedia?.('(pointer: coarse)');
+    const set = (element, name, value) => { if (element.getAttribute(name) !== value) element.setAttribute(name, value); };
+    const sync = () => {
+        if (destroyed) return;
+        const active = document_.activeElement;
+        const focusedChrome = Boolean(active && host.contains(active) && active !== host && active !== root
+            && active.tagName !== 'IFRAME' && !active.closest?.('.lmz-builder__main'));
+        const dropdown = Boolean(host.querySelector('[role="menu"]:not([hidden]), [data-anchor-dropdown][data-open="true"], .rt-page-builder-single-header [aria-expanded="true"]'));
+        set(host, 'data-rt-editor-toolbar-revealed', pointerTop || keyboard || coarse?.matches || focusedChrome || dropdown ? 'true' : 'false');
+        set(root, 'data-rt-lmz-launcher-revealed', pointerLeft || keyboard || coarse?.matches || launcher.contains(active) ? 'true' : 'false');
+        ['left', 'right'].forEach((side) => {
+            const open = Boolean(root.querySelector(`[data-lmz-popover="${side}"].is-open`));
+            set(root, `data-rt-lmz-${side}-open`, open ? 'true' : 'false');
+        });
+        launchers.forEach((button) => set(button, 'aria-expanded',
+            panelToggle(root, `left:${button.dataset.rtLmzLaunch}`)?.getAttribute('aria-expanded') === 'true' ? 'true' : 'false'));
+    };
+    const schedule = () => {
+        if (queued || destroyed) return;
+        queued = true;
+        Promise.resolve().then(() => { queued = false; sync(); });
+    };
+    const pointer = (event) => {
+        keyboard = event.pointerType === 'touch';
+        let x = event.clientX;
+        let y = event.clientY;
+        if (event.currentTarget === frameDocument) {
+            const frame = editor.Canvas?.getFrameEl?.();
+            const rect = frame?.getBoundingClientRect?.();
+            const frameWindow = frameDocument?.defaultView;
+            if (rect) { x = rect.left + x * rect.width / (frameWindow?.innerWidth || rect.width); y = rect.top + y * rect.height / (frameWindow?.innerHeight || rect.height); }
+        }
+        const top = host.getBoundingClientRect();
+        pointerTop = y >= top.top && y <= top.top + top.height * 0.25 && x >= top.left && x <= top.right;
+        const canvas = (root.querySelector('.lmz-builder__main') || viewport || root).getBoundingClientRect();
+        pointerLeft = x >= canvas.left && x <= canvas.left + canvas.width * 0.25 && y >= canvas.top && y <= canvas.top + canvas.height * 0.25;
+        sync();
+    };
+    const keydown = (event) => {
+        if (event.key === 'Tab' || event.key === 'F6') { keyboard = true; sync(); }
+        if (event.key !== 'Escape') return;
+        const left = root.querySelector('[data-lmz-popover="left"].is-open');
+        if (left && (event.currentTarget === frameDocument || launcher.contains(event.target))) {
+            consumeEscape(event); closeVendorPopover(root, left); launchers[0]?.focus(); sync();
+        }
+        schedule();
+    };
+    const leave = () => { pointerTop = false; pointerLeft = false; sync(); };
+    const bindFrame = () => {
+        frameDocument?.removeEventListener('pointermove', pointer);
+        frameDocument?.removeEventListener('pointerdown', pointer);
+        frameDocument?.removeEventListener('keydown', keydown);
+        frameDocument = editor.Canvas?.getDocument?.() || null;
+        frameDocument?.addEventListener('pointermove', pointer, { passive: true });
+        frameDocument?.addEventListener('pointerdown', pointer, { passive: true });
+        frameDocument?.addEventListener('keydown', keydown);
+    };
+    host.addEventListener('pointermove', pointer, { passive: true });
+    host.addEventListener('pointerdown', pointer, { passive: true });
+    host.addEventListener('pointerleave', leave);
+    host.addEventListener('focusin', sync);
+    host.addEventListener('focusout', schedule);
+    host.addEventListener('click', schedule);
+    document_.addEventListener('keydown', keydown);
+    editor.on?.('canvas:frame:load', bindFrame);
+    bindFrame();
+    ['left', 'right'].forEach((side) => closeVendorPopover(root, root.querySelector(`[data-lmz-popover="${side}"]`)));
+    sync();
+    return {
+        sync,
+        showClasses(visible) { classesGroup.hidden = !visible; classesMount?.removeAttribute('hidden'); },
+        destroy() {
+            destroyed = true;
+            host.removeEventListener('pointermove', pointer);
+            host.removeEventListener('pointerdown', pointer);
+            host.removeEventListener('pointerleave', leave);
+            host.removeEventListener('focusin', sync);
+            host.removeEventListener('focusout', schedule);
+            host.removeEventListener('click', schedule);
+            document_.removeEventListener('keydown', keydown);
+            frameDocument?.removeEventListener('pointermove', pointer);
+            frameDocument?.removeEventListener('pointerdown', pointer);
+            frameDocument?.removeEventListener('keydown', keydown);
+            editor.off?.('canvas:frame:load', bindFrame);
+            restoreNodePosition(classesPosition);
+            classesGroup.remove(); launcher.remove(); closeButtons.forEach((button) => button.remove());
+            previousHost.forEach(([name, value]) => value === null ? host.removeAttribute(name) : host.setAttribute(name, value));
+            ['rtLmzFocusChrome', 'rtLmzLauncherRevealed', 'rtLmzLeftOpen', 'rtLmzRightOpen'].forEach((name) => { delete root.dataset[name]; });
         },
     };
 }
@@ -4333,6 +4481,7 @@ function installStructureActionGuard(editor, root, { writable = true } = {}) {
     const selectionStructureIsProtected = () => !writable || isProtectedEditorStructureTree(editor?.getSelected?.());
     const protectedPanelIsInspectable = (panel) => {
         if (!writable) return false;
+        if (panel === 'right:traits' && isMailSignatureBackgroundComponent(editor?.getSelected?.())) return true;
         const image = resolveInspectableImageComponent(editor, editor?.getSelected?.());
         if (!image) return false;
         if (panel === 'right:traits') return true;

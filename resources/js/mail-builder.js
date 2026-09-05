@@ -2693,6 +2693,7 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         markMailPreviewImageTokens(parsed.body);
         markImportedInlineStyles(parsed.body);
         page.component = parsed.body.innerHTML;
+        delete page.frames;
     }
 
     if (options.kind === 'signature') {
@@ -2732,6 +2733,9 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
 
         markImportedInlineStyles(wrapper);
         page.component = wrapper.outerHTML;
+        // GrapesJS prioritizes exported frames over component on reload. They
+        // contain the old canvas, never the authoritative server HTML above.
+        delete page.frames;
     }
 
     return project;
@@ -2838,6 +2842,7 @@ export function serializeMailDocumentForSave({
             throw new Error('Das Vorlagenprojekt besitzt keine bearbeitbare Seite.');
         }
         canonicalProject.pages[0].component = canonicalHtml;
+        delete canonicalProject.pages[0].frames;
         canonicalProject.styles = normalizedCanvas.styles;
 
         return { project: canonicalProject, html: canonicalHtml, css: canonicalCss };
@@ -2909,6 +2914,7 @@ export function serializeMailDocumentForSave({
         throw new Error('Das Signaturprojekt besitzt keine bearbeitbare Seite.');
     }
     canonicalProject.pages[0].component = canonicalHtml;
+    delete canonicalProject.pages[0].frames;
     canonicalProject.styles = normalizedCanvas.styles;
     canonicalProject.railtime = {
         ...(canonicalProject.railtime && typeof canonicalProject.railtime === 'object'
@@ -3078,6 +3084,12 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
     canvasDocument.querySelectorAll('td.rt-sign-cell[data-rt-mail-preview-train="TRAIN_SRC"]').forEach((carrier) => {
         const enabled = carrier.getAttribute('data-rt-signature-background') === '1';
         const source = sources.TRAIN_SRC;
+        // GrapesJS may update its CSS rule while an earlier DOM hydration still
+        // owns inline styles. Refresh geometry too, without touching the model.
+        const attributes = Object.fromEntries([...carrier.attributes].map((attribute) => [attribute.name, attribute.value]));
+        Object.entries(mailSignatureBackgroundStyle(attributes, 'none')).forEach(([property, value]) => {
+            carrier.style.setProperty(property, value);
+        });
         carrier.style.backgroundImage = enabled && source ? `url(${JSON.stringify(source)})` : 'none';
         refreshPausedAnimatedPreviewElement(carrier);
         hydrated += 1;

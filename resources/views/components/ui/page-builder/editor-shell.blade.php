@@ -17,6 +17,8 @@
     // Vollbildkopf gehoert. Der Standardvertrag aller anderen Page Builder
     // bleibt unveraendert zweizeilig.
     'singleToolbar' => false,
+    // Explizites Styling-Opt-in; andere Page Builder behalten ihren Kopf.
+    'editorMode' => null,
     'workspaceClass' => 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5',
 ])
 
@@ -183,9 +185,10 @@
         body-class="min-h-0 flex-1 overflow-hidden p-0"
         content-class="h-full min-h-0 w-full max-w-none"
         :header-class="$singleToolbar ? 'rt-page-builder-single-header' : ''"
-        class="[&_header_button]:min-h-11 [&_header_button]:min-w-11"
+        :class="$editorMode === 'mail' && $singleToolbar ? 'rt-mail-editor-fullscreen' : '[&_header_button]:min-h-11 [&_header_button]:min-w-11'"
         data-page-builder-fullscreen
         data-page-builder-single-toolbar="{{ $singleToolbar ? 'true' : 'false' }}"
+        data-page-builder-editor-mode="{{ $editorMode }}"
     >
         <x-slot:header>
             @if ($singleToolbar && isset($toolbar))

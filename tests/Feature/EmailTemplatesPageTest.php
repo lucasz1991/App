@@ -2100,7 +2100,9 @@ class EmailTemplatesPageTest extends TestCase
 
         preg_match_all('/@media only screen and \(max-width: (\d+)px\)/', $regeln, $treffer);
 
-        $this->assertSame(['1000', '860', '480'], $treffer[1]);
+        // Versionsgebundene Regeln duerfen dieselbe Stufe ergaenzen,
+        // aber keinen vierten Umbruchpunkt in den gemeinsamen Vertrag bringen.
+        $this->assertSame(['1000', '860', '480'], array_values(array_unique($treffer[1])));
 
         // Gestapelt wird ab der mittleren Stufe — nicht erst auf dem Telefon.
         $stapelStufe = strpos($regeln, 'max-width: 860px');

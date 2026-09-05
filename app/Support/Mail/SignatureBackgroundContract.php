@@ -26,7 +26,7 @@ final class SignatureBackgroundContract
 
     public static function assertValid(string $html): void
     {
-        [$carrier, $styles] = self::inspect($html);
+        [$carrier, $styles] = self::inspect($html, sourceDocument: true);
         $enabled = $carrier->getAttribute('data-rt-signature-background') === '1';
         $expected = $enabled ? "url('{{TRAIN_SRC}}')" : 'none';
         if (self::cssValue($styles['background-image'] ?? '') !== $expected
@@ -79,7 +79,7 @@ final class SignatureBackgroundContract
     }
 
     /** @return array{DOMElement, array<string, string>} */
-    private static function inspect(string $html): array
+    private static function inspect(string $html, bool $sourceDocument = false): array
     {
         if (! self::applies($html)) {
             throw new RuntimeException('Der optionale Hintergrundvertrag benoetigt die Version V22.');
@@ -151,14 +151,21 @@ final class SignatureBackgroundContract
                 continue;
             }
             $style = self::declarations($element->getAttribute('style'));
+            if ((! in_array('rt-sign-cell', $classes, true) && array_key_exists('background-image', $style))
+                || preg_match('/(?:url|gradient|image-set)\s*\(/i', $style['background'] ?? '') === 1) {
+                throw new RuntimeException('V22 erlaubt das Zugbild nur im gebundenen Hintergrund.');
+            }
             foreach ($style as $property => $value) {
                 $value = self::cssValue($value);
                 if (in_array($property, ['z-index', 'transform', 'float'], true)
-                    || ($property === 'position' && $value !== 'static')
+                    || ($property === 'position' && ($sourceDocument || $value !== 'static'))
+                    || ($property === 'display' && preg_match('/^(?:inline-)?(?:flex|grid)$/i', $value) === 1)
                     || (str_starts_with($property, 'margin') && preg_match('/-\s*(?:\d|\.)/', $value) === 1)
                     || (strtolower($element->tagName) !== 'img'
                         && in_array($property, ['height', 'min-height', 'max-height'], true)
-                        && ! in_array($value, ['auto', 'none', '0', '0px'], true))) {
+                        // Der vertrauenswuerdige Inliner setzt static/0 fuer
+                        // alte Browserregeln; der Editor speichert sie nicht.
+                        && ! in_array($value, $sourceDocument ? ['auto', 'none'] : ['auto', 'none', '0', '0px'], true))) {
                     throw new RuntimeException('V22 muss die Kontaktdaten ohne feste Buehnenhoehe oder Ueberlappung darstellen.');
                 }
             }

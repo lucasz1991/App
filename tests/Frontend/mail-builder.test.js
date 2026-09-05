@@ -93,9 +93,24 @@ test('V22 canvas hydrates a decorative background without changing the stored to
     assert.match(doc.querySelector('td.rt-sign-cell').style.backgroundImage, /\/mail\/train\.gif/);
     assert.equal(JSON.stringify(project), before);
     const disabled = doc.querySelector('td.rt-sign-cell');
+    disabled.setAttribute('data-rt-bg-desktop', '125');
+    disabled.style.backgroundSize = '110% auto';
+    hydrateMailCanvasAssets({ Canvas: { getDocument: () => doc } }, 'light', { light: { train: '/mail/train.gif' } });
+    assert.equal(disabled.style.backgroundSize, '125% auto');
+    assert.equal(JSON.stringify(project), before);
     disabled.setAttribute('data-rt-signature-background', '0');
     hydrateMailCanvasAssets({ Canvas: { getDocument: () => doc } }, 'light', { light: { train: '/mail/train.gif' } });
     assert.equal(disabled.style.backgroundImage, 'none');
+});
+
+test('authoritative V22 HTML replaces stale exported GrapesJS frames on save and reload', () => {
+    const html = backgroundSignature();
+    const builderData = { pages: [{ component: html, frames: [{ component: '<div>Stale canvas</div>' }] }] };
+    const project = projectForMailDocument({ html, builderData }, () => [], { kind: 'signature', environment: { DOMParser } });
+    assert.equal(project.pages[0].frames, undefined);
+    const saved = serializeMailDocumentForSave({ project: { ...project, pages: [{ ...project.pages[0], frames: [{ component: '<div>Stale canvas</div>' }] }] }, html: project.pages[0].component, kind: 'signature', baselineHtml: html, environment: { DOMParser } });
+    assert.equal(saved.project.pages[0].frames, undefined);
+    assert.match(saved.html, /data-rt-artifact-version="v22"/);
 });
 
 test('V22 geometry synchronization keeps breakpoint settings and cannot reintroduce a fixed stage', () => {

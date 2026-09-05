@@ -3216,6 +3216,34 @@ test('official lockups and QR structures expose only read-only Assist help and n
     chrome.destroy();
 }));
 
+test('V22 background properties remain accessible through the protected structure guard', () => coreWithDom(`
+    <div id="root"><div class="lmz-builder__topbar">
+        <button data-lmz-panel-toggle="right:traits" data-lmz-panel-group="right" aria-expanded="true">Eigenschaften</button>
+        <button data-lmz-panel-toggle="right:styles" data-lmz-panel-group="right" aria-expanded="false">Stile</button>
+    </div><div class="lmz-builder__viewport"><div data-tools><div data-toolbar><button data-command="tlb-delete">Delete</button></div></div></div>
+    <section data-lmz-popover-panel="right:traits"><div><div data-lmz-mount="traits"></div></div></section></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('td'), {
+        tagName: 'td',
+        attributes: { class: 'rt-sign-cell', 'data-rt-mail-preview-train': 'TRAIN_SRC', 'data-rt-signature-background': '1', 'data-rt-bg-desktop': '110', 'data-rt-bg-tablet': '150', 'data-rt-bg-mobile': '175' },
+    });
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail' });
+    editor.emit('component:selected', selected);
+    const event = () => new document.defaultView.Event('click', { bubbles: true, cancelable: true });
+    const traitsClick = event();
+    root.querySelector('[data-lmz-panel-toggle="right:traits"]').dispatchEvent(traitsClick);
+    assert.equal(traitsClick.defaultPrevented, false);
+    assert.equal(root.querySelector('[data-rt-lmz-signature-background]').hidden, false);
+    for (const selector of ['[data-lmz-panel-toggle="right:styles"]', '[data-command="tlb-delete"]']) {
+        const click = event();
+        root.querySelector(selector).dispatchEvent(click);
+        assert.equal(click.defaultPrevented, true);
+    }
+    chrome.destroy();
+}));
+
 test('protected mail carriers remain visible as locked layers without hiding editable content children', () => {
     const carrier = coreFakeComponent({ tagName: 'TD' }, {
         tagName: 'td',

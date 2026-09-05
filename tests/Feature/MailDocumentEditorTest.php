@@ -12,6 +12,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Models\UserProfile;
 use App\Notifications\MailDocumentTestNotification;
+use App\Services\PageBuilder\PageBuilderPreviewService;
 use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\CssSemantic;
@@ -24,6 +25,7 @@ use App\Support\Mail\SignatureBackgroundContract;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
+use App\Support\Mail\TrustedEmailCss;
 use App\Support\MailSignature;
 use Illuminate\Contracts\Mail\Factory as MailFactory;
 use Illuminate\Database\Schema\Blueprint;
@@ -5283,6 +5285,12 @@ HTML;
     public function test_v22_hintergrund_weist_fremde_geometrie_und_bildbindungen_ab(): void
     {
         $source = $this->v22SignatureHtml();
+        $contentStyle = static fn (string $declaration): string => (string) preg_replace(
+            '/(<td\b[^>]*class="rt-pad rt-sign-content"[^>]*style=")/',
+            '$1'.$declaration.';',
+            $source,
+            1,
+        );
         foreach ([
             'unknown size' => str_replace('data-rt-bg-mobile="175"', 'data-rt-bg-mobile="300"', $source),
             'missing size' => str_replace('data-rt-bg-tablet="150"', '', $source),
@@ -5295,7 +5303,19 @@ HTML;
             'overlapping legal row' => str_replace('background:{{SIGNATURE_LEGAL_BG}};', 'background:{{SIGNATURE_LEGAL_BG}};margin-top:-200px;', $source),
             'duplicate background' => str_replace('background-repeat:no-repeat', 'background-repeat:repeat!important;background-repeat:no-repeat', $source),
             'positioned content' => str_replace('background-repeat:no-repeat', 'position:relative;background-repeat:no-repeat', $source),
+            'second background image' => $contentStyle('background-image:url(https://app.rail-time.de/mail-assets/contact-email.png)'),
+            'second disabled background' => $contentStyle('background-image:none'),
+            'background shorthand image' => $contentStyle('background:url(https://app.rail-time.de/mail-assets/contact-email.png)'),
+            'background shorthand gradient' => $contentStyle('background:linear-gradient(red,white)'),
+            'background shorthand image set' => $contentStyle('background:image-set(url(https://app.rail-time.de/mail-assets/contact-email.png) 1x)'),
+            'legal background image' => str_replace('background:{{SIGNATURE_LEGAL_BG}};', 'background:{{SIGNATURE_LEGAL_BG}};background-image:none;', $source),
+            'grid content' => $contentStyle('display:grid'),
+            'flex content' => $contentStyle('display:inline-flex'),
+            'source static position' => $contentStyle('position:static'),
+            'source zero minimum height' => $contentStyle('min-height:0'),
+            'source zero maximum height' => $contentStyle('max-height:0px'),
         ] as $label => $candidate) {
+            $this->assertNotSame($source, $candidate, $label.' must mutate the fixture');
             try {
                 SignatureDocumentContract::assertValid($candidate);
                 $this->fail('V22 akzeptierte '.$label);
@@ -5311,6 +5331,12 @@ HTML;
                 $this->assertNotSame('', $exception->getMessage());
             }
         }
+        $runtime = MailSignature::forCompany(remoteAssets: true)->renderDocument($source);
+        SignatureBackgroundContract::assertRuntime(str_replace(
+            'background-repeat:no-repeat',
+            'position:static;min-height:0;max-height:none;background-repeat:no-repeat',
+            $runtime,
+        ));
     }
 
     public function test_v22_speichern_publish_und_alle_renderwege_behalten_den_zellhintergrund(): void
@@ -5331,6 +5357,15 @@ HTML;
         $document->refresh();
         $this->assertSame($publishedBefore, $document->published_html);
         $this->assertStringContainsString('data-rt-bg-mobile="175"', $document->html);
+        $preview = app(PageBuilderPreviewService::class)->mail($document, $this->admin(), 'light');
+        $this->assertStringContainsString('data-rt-bg-mobile="175"', $preview['html']);
+        $this->assertTrue(preg_match('/background-size:\s*175% auto\s*!important/', $preview['html']) === 1);
+        $legacyCss = TrustedEmailCss::responsive('#dfe3e6', false);
+        $backgroundCss = TrustedEmailCss::responsive('#dfe3e6', true);
+        $this->assertStringNotContainsString('data-rt-artifact-version="v22"', $legacyCss);
+        $this->assertStringContainsString('data-rt-artifact-version="v22"', $backgroundCss);
+        TrustedEmailCss::assertResponsive($legacyCss, '#dfe3e6', false);
+        TrustedEmailCss::assertResponsive($backgroundCss, '#dfe3e6', true);
         $this->postJson(route('admin.mail-documents.publish', $document), [
             'expected_hash' => $document->content_hash,
         ])->assertOk();

@@ -21,6 +21,7 @@
     :open-url="$currentDocument !== null && ! $editorRequested ? $editorOpenUrl : null"
     :render-workspace="$currentDocument === null || $editorRequested"
     :single-toolbar="$currentDocument !== null && $editorRequested"
+    editor-mode="mail"
     workspace-class="min-h-0 flex-1 overflow-hidden p-0"
     data-mail-document-studio
     data-mail-document-back
@@ -322,10 +323,11 @@
                             x-on:click="$dispatch('mail-design-manager-open')"
                             data-mail-design-manager-trigger
                             data-mail-toolbar-menu="designs-versions"
+                            aria-label="Designs und gespeicherte Versionen verwalten"
                             title="Design-Slots und gespeicherte Versionen verwalten"
                         >
                             <i data-feather="clock" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
-                            <span class="max-w-44 truncate">Designs &amp; Versionen</span>
+                            <span class="rt-mail-studio-toolbar__menu-label">Versionen</span>
                         </x-ui.buttons.button-basic>
 
                         <x-ui.dropdown.anchor-dropdown
@@ -429,10 +431,11 @@
                             size="sm"
                             class="min-h-11 shrink-0 rounded-lg px-3"
                             data-mail-document-publish
+                            aria-label="Entwurf speichern und veröffentlichen"
                             title="Aktuellen Entwurf speichern und für Mail-Notifications sowie Systemmails veröffentlichen"
                         >
                             <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
-                            <span class="rt-mail-studio-toolbar__action-label">Speichern &amp; veröffentlichen</span>
+                            <span class="rt-mail-studio-toolbar__action-label">Veröffentlichen</span>
                         </x-ui.buttons.button-basic>
                     </div>
                 </div>
