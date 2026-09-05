@@ -2788,7 +2788,8 @@ test('signature source keeps older artifacts stable and defines the schema 28 V1
     assert.match(css, /\.rt-sign-train-layer\s*\{[^}]*display:\s*block !important;[^}]*margin-top:\s*0 !important;/s);
     const baseRuntimeCss = css.slice(css.indexOf('.rt-sign-stage {'), css.indexOf('/* V11 bis V13'));
     assert.doesNotMatch(baseRuntimeCss, /\.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;/s);
-    assert.doesNotMatch(css, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
+    assert.doesNotMatch(css, /^\s*\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0\s*!important;/ms);
+    assert.match(css, /tr\[data-rt-artifact-version="v21"\] \.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0\s*!important;/s);
     assert.match(css, /\.rt-sign-train,\s*\.rt-sign-train-mso\s*\{[^}]*position:\s*static !important;[^}]*display:\s*inline-block !important;[^}]*vertical-align:\s*bottom !important;/s);
     assert.match(css, /\.rt-train-idle-overlay\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*0 !important;[^}]*height:\s*0 !important;/s);
     assert.match(css, /@keyframes rt-train-idle-reveal/);
@@ -2830,7 +2831,12 @@ test('signature source keeps older artifacts stable and defines the schema 28 V1
     assert.match(mailBuilderSource, /failOpenStage[\s\S]*?height:\s*'auto'[\s\S]*?'min-height': MAIL_SIGNATURE_FIXED_HEIGHT[\s\S]*?overflow:\s*'visible'/);
     const v21CssStart = css.indexOf('/* V21:');
     assert.ok(v21CssStart > 0);
-    assert.doesNotMatch(css.slice(0, v21CssStart), /data-rt-artifact-version="v21"/);
+    const v21MobileRules = Array.from(
+        css.slice(0, v21CssStart).matchAll(/tr\[data-rt-artifact-version="v21"\]([^{}]*)\{([^}]*)\}/g),
+        (match) => [match[1].trim(), match[2].replace(/\s+/g, '')],
+    );
+    // Nur der positive Logoabstand ist geteilt, keine Legacy-Ueberlappung.
+    assert.deepEqual(v21MobileRules, [['.rt-sign-content', 'padding-top:14px!important;']]);
     const v21Css = css.slice(v21CssStart);
     assert.match(v21Css, /tr\[data-rt-artifact-version="v21"\] \.rt-sign-stage,\s*tr\[data-rt-artifact-version="v21"\] \.rt-sign-content-frame,\s*tr\[data-rt-artifact-version="v21"\] \.rt-sign-train-layer\s*\{[^}]*position:\s*static !important;[^}]*height:\s*auto !important;[^}]*max-height:\s*none !important;/s);
     assert.match(v21Css, /tr\[data-rt-artifact-version="v21"\] \.rt-sign-stage\s*\{\s*overflow:\s*visible !important;/s);

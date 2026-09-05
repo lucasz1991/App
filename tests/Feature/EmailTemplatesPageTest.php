@@ -28,6 +28,8 @@ use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\VerifiedEntraIdentity;
 use App\Support\PageHelpCatalog;
 use Firebase\JWT\JWT;
+use Illuminate\Contracts\View\Factory as ViewFactory;
+use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Cache;
@@ -37,6 +39,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View;
+use Mockery;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 use ZipArchive;
@@ -614,6 +618,84 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertTrue(Storage::disk('private')->exists($path));
         $this->assertSame($unreadableBytes, Storage::disk('private')->get($path));
         Log::shouldNotHaveReceived('notice');
+    }
+
+    public function test_outlook_addin_runtime_css_fingerprint_stales_and_refreshes_a_personal_snapshot(): void
+    {
+        config([
+            'app.url' => 'https://app.rail-time.de',
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+            'outlook_addin.snapshots.disk' => 'private',
+            'outlook_addin.snapshots.auto_refresh' => false,
+        ]);
+        Storage::fake('private');
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $user = User::factory()->create([
+            'name' => 'Mara Beispiel',
+            'role' => 'staff',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $realViewFactory = $this->app->make(ViewFactory::class);
+        $baseRuntimeCss = $realViewFactory
+            ->make('emails.parts.responsive-css', ['border' => '#dfe3e6'])
+            ->render();
+        $runtimeCss = $baseRuntimeCss."\n.rt-outlook-source-revision{display:block;}";
+        $runtimeView = Mockery::mock(ViewContract::class);
+        $runtimeView->shouldReceive('render')->andReturnUsing(
+            static function () use (&$runtimeCss): string {
+                return $runtimeCss;
+            },
+        );
+        $viewFactory = Mockery::mock($realViewFactory)->makePartial();
+        $viewFactory->shouldReceive('make')
+            ->withArgs(static fn (mixed $view): bool => $view === 'emails.parts.responsive-css')
+            ->andReturn($runtimeView);
+        $this->app->instance(ViewFactory::class, $viewFactory);
+        View::swap($viewFactory);
+
+        try {
+            $payloads = app(OutlookAddinPayloadService::class);
+            $fingerprintA = $payloads->sourceFingerprint($user);
+            $this->assertSame($fingerprintA, $payloads->sourceFingerprint($user));
+
+            $snapshots = app(OutlookAddinUserSnapshotStore::class);
+            $initial = $snapshots->currentForUser($user);
+            $path = $snapshots->pathForUser($user);
+            $storedBytesA = Storage::disk('private')->get($path);
+            $this->assertTrue($snapshots->isCurrentForUser($user));
+
+            $runtimeCss = $baseRuntimeCss."\n.rt-outlook-source-revision{display:none;}";
+            $fingerprintB = $payloads->sourceFingerprint($user);
+            $this->assertNotSame($fingerprintA, $fingerprintB);
+            $this->assertSame($fingerprintB, $payloads->sourceFingerprint($user));
+
+            $this->assertFalse($snapshots->isCurrentForUser($user));
+            $this->assertSame($storedBytesA, Storage::disk('private')->get($path));
+
+            $refreshed = $snapshots->currentForUser($user);
+            $storedBytesB = Storage::disk('private')->get($path);
+            $this->assertNotSame($storedBytesA, $storedBytesB);
+            $this->assertTrue($snapshots->isCurrentForUser($user));
+            $this->assertNotSame(
+                $initial['version']['signature'],
+                $refreshed['version']['signature'],
+            );
+            $this->assertSame(
+                substr($fingerprintB, 0, 16),
+                $refreshed['version']['personal'],
+            );
+            $this->assertStringContainsString(
+                '.rt-outlook-source-revision{display:none;}',
+                $refreshed['template']['html'],
+            );
+        } finally {
+            $this->app->instance(ViewFactory::class, $realViewFactory);
+            View::swap($realViewFactory);
+        }
     }
 
     public function test_outlook_addin_fails_closed_when_active_template_status_is_not_published(): void
@@ -1901,7 +1983,14 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('border-bottom: 1px solid {{ $border }} !important;', $regeln);
         $this->assertStringContainsString('.rt-sign-company {', $regeln);
         $this->assertStringContainsString('tr.rt-stack > td + td { padding-top: 12px !important; }', $regeln);
-        $this->assertDoesNotMatchRegularExpression('/\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0\s*!important;/s', $regeln);
+        $this->assertMatchesRegularExpression(
+            '/tr\[data-rt-artifact-version="v21"\]\s+\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0\s*!important;/s',
+            $regeln,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/(?:^|\})\s*\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0\s*!important;/s',
+            $regeln,
+        );
 
         // Und jede Ausgabestelle zieht daraus, statt eine eigene Kopie zu halten.
         foreach ([

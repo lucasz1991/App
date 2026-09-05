@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
+use App\Support\Mail\TrustedEmailCss;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Throwable;
@@ -73,6 +74,12 @@ final class OutlookAddinPayloadService
             $input = [
                 'payload_schema' => 1,
                 'renderer_revision' => self::RENDERER_REVISION,
+                // Signatur und Vorlagen rendert das Add-in bewusst im hellen
+                // Theme. Aendert sich dessen wirksames Server-Runtime-CSS,
+                // muessen bestehende persoenliche Dateien ebenfalls altern.
+                'runtime_css' => TrustedEmailCss::fingerprint(
+                    EmailTemplateBuilder::emailThemeValues('light')['SIGNATURE_BORDER'],
+                ),
                 'marker' => (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),
                 'user_id' => (int) $user->getKey(),
                 'user_active' => $user->isActive(),

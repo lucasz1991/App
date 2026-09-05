@@ -13,7 +13,6 @@ use App\Models\MailDocumentVersion;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\MailDocumentTestNotification;
-use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\EmailCompatibilityAuditor;
 use App\Support\Mail\EmailCompatibilityCatalogException;
@@ -31,13 +30,14 @@ use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Markdown;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
-use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -1666,10 +1666,16 @@ final class MailDocumentController extends Controller
         }
 
         try {
-            return EmailTemplateBuilder::buildSystemMailHtml(new HtmlString(
-                '<p style="margin:0 0 16px;">RailTime Kompatibilitätsprüfung</p>'
-                .'<p style="margin:0;"><a href="https://rail-time.de/">RailTime öffnen</a></p>',
-            ));
+            // Wie beim echten Notification-Versand: Die Nachrichtenschale
+            // allein ist noch nicht die Mail. Markdown fuehrt anschliessend
+            // auch den CSS-Inliner aus (einschliesslich dessen Kaskade).
+            $message = (new MailMessage)
+                ->greeting('RailTime Kompatibilitätsprüfung')
+                ->line('Vorschau der aktuellen Nachrichtenvorlage und Signatur.')
+                ->action('RailTime öffnen', 'https://rail-time.de/');
+
+            return (string) app(Markdown::class)
+                ->render($message->markdown ?: 'notifications::email', $message->data());
         } catch (\Throwable $exception) {
             throw ValidationException::withMessages([
                 'compatibility' => 'Die finale Systemmail konnte nicht kompiliert werden: '.$exception->getMessage(),

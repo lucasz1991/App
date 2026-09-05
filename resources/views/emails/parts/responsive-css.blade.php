@@ -1061,18 +1061,15 @@ tr[data-rt-artifact-version="v15"] .rt-sign-top-row > .rt-sign-identity,
 tr[data-rt-artifact-version="v15"] .rt-sign-company {
   padding-top: 6px !important;
 }
-tr[data-rt-artifact-version="v16"] .rt-sign-content {
-  padding-top: 14px !important;
-}
+tr[data-rt-artifact-version="v16"] .rt-sign-content,
 tr[data-rt-artifact-version="v17"] .rt-sign-content,
 tr[data-rt-artifact-version="v18"] .rt-sign-content,
 tr[data-rt-artifact-version="v19"] .rt-sign-content,
-tr[data-rt-artifact-version="v20"] .rt-sign-content {
+tr[data-rt-artifact-version="v20"] .rt-sign-content,
+tr[data-rt-artifact-version="v21"] .rt-sign-content {
   padding-top: 14px !important;
 }
-tr[data-rt-artifact-version="v16"] .rt-sign-logo {
-  padding-bottom: 8px !important;
-}
+tr[data-rt-artifact-version="v16"] .rt-sign-logo,
 tr[data-rt-artifact-version="v17"] .rt-sign-logo,
 tr[data-rt-artifact-version="v18"] .rt-sign-logo,
 tr[data-rt-artifact-version="v19"] .rt-sign-logo,
@@ -1140,6 +1137,13 @@ tr[data-rt-artifact-version="v21"] .rt-sign-stage { overflow: visible !important
 tr[data-rt-artifact-version="v21"] .rt-sign-train-layer {
   max-width: 720px !important;
   margin: 0 auto 0 0 !important;
+  /* Laravels CSS-Inliner verrechnet Shorthand und Longhand nicht.
+     Ohne diese Einzelwerte gelangt die alte negative margin-bottom
+     trotz des Resets als Inline-!important in die versandte Nachricht. */
+  margin-top: 0 !important;
+  margin-right: auto !important;
+  margin-bottom: 0 !important;
+  margin-left: 0 !important;
 }
 tr[data-rt-artifact-version="v21"] .rt-sign-train-frame,
 tr[data-rt-artifact-version="v21"] .rt-sign-train-slot {

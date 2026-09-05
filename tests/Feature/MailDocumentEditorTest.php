@@ -41,6 +41,7 @@ use Symfony\Component\Mime\Email;
 use Symfony\Component\Mime\Part\DataPart;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
+use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 
 /**
  * Der Editor der beiden Maildokumente: Berechtigung, optimistische Sperre,
@@ -2215,7 +2216,7 @@ HTML;
         $this->assertSame(strlen($compiled), $response->json('preview.html_bytes'));
 
         $signature = $this->document(MailDocumentKind::Signature);
-        $signatureCss = '.rt-sign-name{letter-spacing:0;}';
+        $signatureCss = '.rt-sign-name{letter-spacing:0;}.rt-company-contact-text{font-weight:bold;}';
         $signatureResponse = $this->actingAs($this->admin())
             ->postJson(route('admin.mail-documents.delivery-preview', $signature), [
                 'builder_data' => $signature->builder_data,
@@ -2228,6 +2229,21 @@ HTML;
         $compiledSignature = (string) $signatureResponse->json('preview.html');
         $this->assertStringContainsString('data-rt-mail-document-css="signature"', $compiledSignature);
         $this->assertStringContainsString($signatureCss, $compiledSignature);
+
+        // Die Versandansicht muss dieselbe CSS-Inlining-Stufe wie die echte
+        // Mail durchlaufen, nicht bloss die unveraenderte HTML-Schale zeigen.
+        $previewDom = new \DOMDocument;
+        $previousLibxmlErrors = libxml_use_internal_errors(true);
+        try {
+            $this->assertTrue($previewDom->loadHTML($compiledSignature));
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousLibxmlErrors);
+        }
+        $previewXpath = new \DOMXPath($previewDom);
+        $companyCell = $previewXpath->query('//*[contains(concat(" ", normalize-space(@class), " "), " rt-company-contact-text ")]')->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $companyCell);
+        $this->assertMatchesRegularExpression('/font-weight\s*:\s*bold/i', $companyCell->getAttribute('style'));
 
         $this->assertSame($before, $snapshot());
         $this->assertSame($versionCount, MailDocumentVersion::query()->count());
@@ -2544,6 +2560,30 @@ HTML;
 HTML;
 
         $this->assertSame($html, SignatureTrainCarrier::normalize($html));
+
+        // iPhone-Regression: Ein Shorthand-Reset allein loescht beim echten
+        // Laravel-Inliner die alte margin-bottom:-200px-Regel nicht.
+        $inliner = new CssToInlineStyles;
+        $inlined = $inliner->convert('<html><head><style>'.EmailTemplateBuilder::responsiveCss().'</style></head><body><table>'.$html.'</table></body></html>');
+        foreach ([$inlined, $inliner->convert($inlined)] as $mailHtml) {
+            $mailDom = new \DOMDocument;
+            $previousLibxmlErrors = libxml_use_internal_errors(true);
+            try {
+                $this->assertTrue($mailDom->loadHTML($mailHtml));
+            } finally {
+                libxml_clear_errors();
+                libxml_use_internal_errors($previousLibxmlErrors);
+            }
+            $mailXpath = new \DOMXPath($mailDom);
+            $layer = $mailXpath->query('//*[@class="rt-sign-train-layer"]')->item(0);
+            $this->assertInstanceOf(\DOMElement::class, $layer);
+            $layerStyle = $layer->getAttribute('style');
+            foreach (['top', 'bottom', 'left'] as $side) {
+                $this->assertMatchesRegularExpression('/margin-'.$side.'\s*:\s*0(?:px)?\s*!important/i', $layerStyle);
+            }
+            $this->assertMatchesRegularExpression('/margin-right\s*:\s*auto\s*!important/i', $layerStyle);
+            $this->assertDoesNotMatchRegularExpression('/margin-(?:top|bottom)\s*:\s*-\d/', $layerStyle);
+        }
 
         $invalid = [
             str_replace('class="rt-sign-stage"', 'class="rt-sign-stage fremd"', $html),

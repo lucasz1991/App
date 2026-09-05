@@ -289,7 +289,8 @@ test('editor and delivery enlarge the default train progressively while keeping 
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
     assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position: center center !important;[\s\S]+?background-size: 100% 100% !important;/);
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[^}]*width: 100% !important;[^}]*max-width: 1815px !important;/s);
-    assert.doesNotMatch(responsiveCss, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
+    // Der generische Legacy-Layer bleibt negativ; V21 setzt ihn gezielt zurueck.
+    assert.doesNotMatch(responsiveCss, /^\s*\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0\s*!important;/ms);
     assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]+?width: 150% !important; max-width: none !important; margin-left: 0 !important;/);
     assert.match(mobile, /data-rt-layer-mobile="stop65"\]\[data-rt-layer-size\][\s\S]+?width: 150% !important; max-width: none !important; margin-left: -25% !important;/);
     const phone = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 480px)'));
