@@ -98,6 +98,28 @@ test('V22 canvas hydrates a decorative background without changing the stored to
     assert.equal(disabled.style.backgroundImage, 'none');
 });
 
+test('V22 geometry synchronization keeps breakpoint settings and cannot reintroduce a fixed stage', () => {
+    const row = { getAttributes: () => ({ 'data-rt-artifact-version': 'v22' }), parent: () => null };
+    const attributes = { class: 'rt-sign-cell', 'data-rt-signature-background': '1', 'data-rt-bg-desktop': '150', 'data-rt-bg-tablet': '175', 'data-rt-bg-mobile': '200', 'data-rt-mail-preview-train': 'TRAIN_SRC' };
+    const style = { padding: '0', 'background-size': '110% auto' };
+    const carrier = { get: (name) => name === 'tagName' ? 'td' : null, getAttributes: () => attributes, getStyle: () => style, parent: () => row, addStyle: (value) => Object.assign(style, value) };
+    assert.equal(synchronizeMailSignatureBackground(carrier), true);
+    assert.equal(style['background-size'], '150% auto');
+    assert.equal(style['background-image'], 'none');
+    assert.equal(attributes['data-rt-bg-tablet'], '175');
+    assert.equal(attributes['data-rt-bg-mobile'], '200');
+    assert.equal(synchronizeMailSignatureBackground(carrier), false);
+    const frameAttributes = { class: 'rt-sign-content-frame', height: '200' };
+    let frameStyle = { height: '200px' };
+    const frame = { getAttributes: () => frameAttributes, getStyle: () => frameStyle, parent: () => carrier,
+        addAttributes: (value) => Object.assign(frameAttributes, value), removeAttributes: (key) => delete frameAttributes[key],
+        setStyle: (value) => { frameStyle = value; }, removeStyle: (key) => delete frameStyle[key] };
+    assert.equal(synchronizeMailSignatureFixedGeometry(frame), false);
+    assert.equal(synchronizeMailSignatureFlowGeometry(frame), true);
+    assert.equal(frameAttributes.height, undefined);
+    assert.deepEqual(frameStyle, { width: '100%', 'border-collapse': 'collapse' });
+});
+
 test('portable media requirements follow the imported signature instead of the open draft', () => {
     const requirements = {
         signature: {

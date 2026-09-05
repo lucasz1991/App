@@ -17,20 +17,20 @@ final class TrustedEmailCss
 {
     public const RUNTIME_MARKER = 'RT_SERVER_SIGNATURE_RUNTIME_START';
 
-    public static function responsive(?string $border = null): string
+    public static function responsive(?string $border = null, bool $includeOptionalBackground = true): string
     {
         $border = self::normalizeBorder($border);
-        $css = self::compiledResponsive($border);
+        $css = self::compiledResponsive($border, $includeOptionalBackground);
 
-        self::assertResponsive($css, $border);
+        self::assertResponsive($css, $border, $includeOptionalBackground);
 
         return $css;
     }
 
-    public static function assertResponsive(string $css, ?string $border = null): void
+    public static function assertResponsive(string $css, ?string $border = null, bool $includeOptionalBackground = true): void
     {
         $border = self::normalizeBorder($border);
-        $expected = self::compiledResponsive($border);
+        $expected = self::compiledResponsive($border, $includeOptionalBackground);
 
         if (substr_count($expected, self::RUNTIME_MARKER) !== 1
             || ! hash_equals($expected, $css)) {
@@ -52,10 +52,11 @@ final class TrustedEmailCss
      * Das spart pro Systemmail mehrere KiB und verhindert, dass die identische
      * Hell-/Dunkel-Vorschau den Livewire-Konfigurationsblock aufblaeht.
      */
-    private static function compiledResponsive(string $border): string
+    private static function compiledResponsive(string $border, bool $includeOptionalBackground): string
     {
         $rendered = trim(view('emails.parts.responsive-css', [
             'border' => $border,
+            'includeOptionalBackground' => $includeOptionalBackground,
         ])->render());
 
         if (substr_count($rendered, self::RUNTIME_MARKER) !== 1) {

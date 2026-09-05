@@ -1158,6 +1158,7 @@ tr[data-rt-artifact-version="v21"] .rt-sign-train-layer[data-rt-layer-train] .rt
   margin: 0 !important;
 }
 
+@if ($includeOptionalBackground ?? true)
 /* V22: optionale Dekoration auf derselben Zelle wie der Inhalt. Keine
    zweite Bildzeile, feste Buehnenhoehe oder negative Ueberlappung. Die
    Grundanordnung bleibt auch ohne Bilder und ohne Head-CSS lesbar. */
@@ -1189,6 +1190,10 @@ tr[data-rt-artifact-version="v22"] img.rt-logo {
   tr[data-rt-artifact-version="v22"] .rt-sign-content {
     padding: 18px 24px 15px !important;
   }
+  tr[data-rt-artifact-version="v22"] .rt-sign-layout > tbody > tr:first-child {
+    display: table !important;
+    width: 100% !important;
+  }
 }
 @media only screen and (max-width: 480px) {
   @foreach (\App\Support\Mail\SignatureBackgroundContract::SIZES as $backgroundSize)
@@ -1208,3 +1213,4 @@ tr[data-rt-artifact-version="v22"] img.rt-logo {
     margin-right: auto !important;
   }
 }
+@endif

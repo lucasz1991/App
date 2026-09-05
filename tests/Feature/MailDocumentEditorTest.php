@@ -20,6 +20,7 @@ use App\Support\Mail\EmailCompatibilityCatalog;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\SignatureArtifactVersion;
+use App\Support\Mail\SignatureBackgroundContract;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
@@ -5245,5 +5246,193 @@ HTML;
         $this->actingAs($user)
             ->get(route('email-templates.download', ['template' => 'signatur-hell']))
             ->assertOk();
+    }
+
+    public function test_v22_hintergrund_bleibt_optional_responsiv_und_ohne_ueberlappung(): void
+    {
+        $source = $this->v22SignatureHtml();
+        foreach (SignatureBackgroundContract::SIZES as $size) {
+            $candidate = str_replace(
+                ['data-rt-bg-desktop="110"', 'background-size:110% auto'],
+                ['data-rt-bg-desktop="'.$size.'"', 'background-size:'.$size.'% auto'],
+                $source,
+            );
+            SignatureDocumentContract::assertValid($candidate);
+            $this->assertSame($candidate, SignatureTrainCarrier::normalize($candidate));
+            $this->assertSame($candidate, app(EmailHtmlSanitizer::class)->assertClean($candidate)->html);
+        }
+        $disabled = str_replace(
+            ['data-rt-signature-background="1"', "background-image:url('{{TRAIN_SRC}}')"],
+            ['data-rt-signature-background="0"', 'background-image:none'],
+            $source,
+        );
+        SignatureDocumentContract::assertValid($disabled);
+        $this->assertSame($disabled, SignatureBackgroundContract::render($disabled, ''));
+        $this->assertStringNotContainsString('{{TRAIN_SRC}}', $disabled);
+        $rendered = MailSignature::forCompany()->renderDocument($disabled);
+        $this->assertStringContainsString('background-image:none', $rendered);
+        $this->assertStringNotContainsString('zug-dampf', $rendered);
+        $this->assertStringNotContainsString('rt-sign-train-layer', $rendered);
+
+        $this->assertSame(
+            PortableMediaCatalog::requiredSystemAssetIds('signature', SignatureArtifactVersion::V20),
+            PortableMediaCatalog::requiredSystemAssetContracts('signature')[SignatureArtifactVersion::V22],
+        );
+    }
+
+    public function test_v22_hintergrund_weist_fremde_geometrie_und_bildbindungen_ab(): void
+    {
+        $source = $this->v22SignatureHtml();
+        foreach ([
+            'unknown size' => str_replace('data-rt-bg-mobile="175"', 'data-rt-bg-mobile="300"', $source),
+            'missing size' => str_replace('data-rt-bg-tablet="150"', '', $source),
+            'conflicting size' => str_replace('background-size:110% auto', 'background-size:200% auto', $source),
+            'unknown toggle' => str_replace('data-rt-signature-background="1"', 'data-rt-signature-background="yes"', $source),
+            'disabled image' => str_replace('data-rt-signature-background="1"', 'data-rt-signature-background="0"', $source),
+            'foreign source' => str_replace('{{TRAIN_SRC}}', 'https://outside.example/train.gif', $source),
+            'fixed height' => str_replace('class="rt-sign-content-frame"', 'class="rt-sign-content-frame" height="200"', $source),
+            'negative margin' => str_replace('background-repeat:no-repeat', 'margin-bottom:-200px;background-repeat:no-repeat', $source),
+            'overlapping legal row' => str_replace('background:{{SIGNATURE_LEGAL_BG}};', 'background:{{SIGNATURE_LEGAL_BG}};margin-top:-200px;', $source),
+            'duplicate background' => str_replace('background-repeat:no-repeat', 'background-repeat:repeat!important;background-repeat:no-repeat', $source),
+            'positioned content' => str_replace('background-repeat:no-repeat', 'position:relative;background-repeat:no-repeat', $source),
+        ] as $label => $candidate) {
+            try {
+                SignatureDocumentContract::assertValid($candidate);
+                $this->fail('V22 akzeptierte '.$label);
+            } catch (\RuntimeException $exception) {
+                $this->assertNotSame('', $exception->getMessage(), $label);
+            }
+        }
+        foreach (['javascript:alert(1)', 'https://outside.example/train.gif', "https://rail-time.test/train.gif'x"] as $sourceUrl) {
+            try {
+                SignatureBackgroundContract::render($source, $sourceUrl);
+                $this->fail('V22 akzeptierte eine fremde oder unsichere Laufzeitquelle.');
+            } catch (\RuntimeException|ValidationException $exception) {
+                $this->assertNotSame('', $exception->getMessage());
+            }
+        }
+    }
+
+    public function test_v22_speichern_publish_und_alle_renderwege_behalten_den_zellhintergrund(): void
+    {
+        $this->createCanonicalMailDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $publishedBefore = $document->published_html;
+        $html = $this->v22SignatureHtml();
+        $builderData = $document->builder_data;
+        data_set($builderData, 'pages.0.component', $html);
+        data_set($builderData, 'railtime.schema', SignatureDocumentContract::SCHEMA);
+        $this->actingAs($this->admin())->putJson(route('admin.mail-documents.update', $document), [
+            'builder_data' => $builderData,
+            'html' => $html,
+            'css' => '',
+            'expected_hash' => $document->content_hash,
+        ])->assertOk();
+        $document->refresh();
+        $this->assertSame($publishedBefore, $document->published_html);
+        $this->assertStringContainsString('data-rt-bg-mobile="175"', $document->html);
+        $this->postJson(route('admin.mail-documents.publish', $document), [
+            'expected_hash' => $document->content_hash,
+        ])->assertOk();
+        $this->app->forgetScopedInstances();
+
+        $builder = new EmailTemplateBuilder(User::factory()->create(['name' => 'Mara Beispiel']));
+        foreach (['light', 'dark'] as $theme) {
+            $company = MailSignature::forCompany($theme, remoteAssets: true)->renderDocument($html);
+            SignatureBackgroundContract::assertRuntime($company);
+            $this->assertStringContainsString('zug-dampf-v19-'.$theme.'.gif', $company);
+            $this->assertStringNotContainsString('rt-sign-train-layer', $company);
+            $this->assertStringNotContainsString('rt-sign-stage', $company);
+            $this->assertStringNotContainsString('TRAIN_', $company);
+            $this->assertStringNotContainsString('margin-bottom:-', $company);
+            $this->assertStringNotContainsString('rt-sign-train-mso', $company);
+
+            foreach ([
+                $builder->buildSignatureCopyHtml($theme),
+                $builder->buildOutlookAddinSignatureHtml($theme),
+                $builder->build($theme === 'light' ? 'signatur-hell' : 'signatur-dunkel')['content'],
+                $builder->build($theme === 'light' ? 'vorlage-html' : 'vorlage-dunkel-html')['content'],
+            ] as $rendered) {
+                $this->assertStringContainsString('data-rt-artifact-version="v22"', $rendered);
+                $this->assertStringContainsString('data-rt-signature-background="1"', $rendered);
+                $this->assertStringNotContainsString('class="rt-sign-train-layer"', $rendered);
+                $this->assertStringContainsString('background-image:', $rendered);
+            }
+        }
+        $mail = (new MailMessage)->greeting('V22')->line('Normaler Inhaltsfluss');
+        $compiled = (string) app(Markdown::class)->render($mail->markdown ?: 'notifications::email', $mail->data());
+        $this->assertStringContainsString('data-rt-artifact-version="v22"', $compiled);
+        $this->assertStringContainsString('background-size: 110% auto', $compiled);
+        $this->assertStringContainsString('data-rt-bg-tablet="150"', $compiled);
+        $this->assertStringContainsString('data-rt-bg-mobile="175"', $compiled);
+        $this->assertStringNotContainsString('class="rt-sign-train-layer"', $compiled);
+    }
+
+    public function test_v22_portabler_import_behaelt_medien_und_breakpoints_als_entwurf(): void
+    {
+        Storage::fake('public');
+        $html = $this->v22SignatureHtml();
+        $response = $this->actingAs($this->admin())->postJson(route('admin.mail-documents.import'), [
+            'format' => 'railtime-mail-document',
+            'version' => 2,
+            'kind' => 'signature',
+            'html' => $html,
+            'css' => '',
+            'media' => $this->portableSystemMedia(MailDocumentKind::Signature, SignatureArtifactVersion::V22),
+        ]);
+        $response->assertCreated()->assertJsonPath('document.status', MailDocumentStatus::Draft->value);
+        $document = $this->document(MailDocumentKind::Signature);
+        $this->assertSame($html, $document->html);
+        $this->assertSame(SignatureDocumentContract::SCHEMA, data_get($document->builder_data, 'railtime.schema'));
+        $this->assertNull($document->published_html);
+        $this->assertNull($document->published_at);
+    }
+
+    /** Reale bestehende Kontakte behalten, lediglich die neue Traegerstruktur aufbauen. */
+    private function v22SignatureHtml(): string
+    {
+        $source = $this->canonicalMailDocumentHtml(MailDocumentKind::Signature);
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $dom = new \DOMDocument('1.0', 'UTF-8');
+            $this->assertTrue($dom->loadHTML('<?xml encoding="UTF-8"><table id="v22-fixture"><tbody>'.$source.'</tbody></table>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD));
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        $xpath = new \DOMXPath($dom);
+        $carrier = $xpath->query('//td[@class="rt-sign-cell"]')->item(0);
+        $frame = $xpath->query('//table[@class="rt-sign-content-frame"]')->item(0);
+        $stage = $xpath->query('//div[@class="rt-sign-stage"]')->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $carrier);
+        $this->assertInstanceOf(\DOMElement::class, $frame);
+        $this->assertInstanceOf(\DOMElement::class, $stage);
+        $carrier->replaceChild($frame, $stage);
+        $carrier->parentNode->setAttribute('data-rt-artifact-version', 'v22');
+        foreach (['signature-background' => '1', 'bg-desktop' => '110', 'bg-tablet' => '150', 'bg-mobile' => '175'] as $key => $value) {
+            $carrier->setAttribute('data-rt-'.$key, $value);
+        }
+        $carrier->setAttribute('style', "width:100%;padding:0;background-color:{{SIGNATURE_BG}};background-image:url('{{TRAIN_SRC}}');background-repeat:no-repeat;background-position:65% bottom;background-size:110% auto;border-top:5px solid #e4002b;");
+        foreach ([$carrier, ...iterator_to_array($carrier->getElementsByTagName('*'))] as $element) {
+            if (! $element instanceof \DOMElement) {
+                continue;
+            }
+            $style = $element->getAttribute('style');
+            $style = preg_replace('/(?:^|;)\s*(?:position|z-index)\s*:[^;]*/i', '', $style) ?? $style;
+            if (strtolower($element->tagName) !== 'img') {
+                $element->removeAttribute('height');
+                $style = preg_replace('/(?:^|;)\s*(?:height|min-height|max-height)\s*:[^;]*/i', '', $style) ?? $style;
+            }
+            if ($element->hasAttribute('style')) {
+                $element->setAttribute('style', ltrim($style, ';'));
+            }
+        }
+        $tbody = $dom->getElementById('v22-fixture')->firstElementChild;
+        $result = '';
+        foreach ($tbody->childNodes as $node) {
+            $result .= $dom->saveHTML($node);
+        }
+
+        return trim(str_ireplace(['%7B', '%7D'], ['{', '}'], $result));
     }
 }

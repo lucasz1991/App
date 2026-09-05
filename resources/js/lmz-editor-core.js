@@ -1221,7 +1221,8 @@ export function enforceProtectedComponentModels(editor, { readOnly = false } = {
                     : Boolean(directProtectedComponent && !protectedAncestor && isMailSystemLayer(component)),
                 { silent: true },
             );
-            if (!readOnly && directProtectedComponent && isMailTrainCarrier(component)) {
+            if (!readOnly && directProtectedComponent && isMailTrainCarrier(component)
+                && !isMailSignatureBackgroundComponent(component)) {
                 component?.set?.('stylable', ['background-position'], { silent: true });
             }
             locked += 1;
@@ -3290,7 +3291,10 @@ export function createMailSignatureBackgroundPanel({ root, editor, capabilities,
             controls.enabled.checked = String(attributes['data-rt-signature-background']) === '1';
             ['desktop', 'tablet', 'mobile'].forEach((breakpoint) => {
                 const value = String(attributes[`data-rt-bg-${breakpoint}`] || '110');
-                controls[breakpoint].querySelectorAll('option').forEach((option) => { option.selected = option.value === value; });
+                const options = [...controls[breakpoint].querySelectorAll('option')];
+                options.forEach((option) => { option.selected = false; });
+                const selected = options.find((option) => option.value === value);
+                if (selected) selected.selected = true;
             });
         }
         const definition = currentMediaItems(media.tokenMedia).find((item) => normalizedToken(item?.token) === 'TRAIN_SRC');

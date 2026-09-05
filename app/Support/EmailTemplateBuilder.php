@@ -676,9 +676,16 @@ class EmailTemplateBuilder
      * einer Mail, die beides enthaelt, sprang das Layout dadurch an zwei
      * verschiedenen Breiten.
      */
-    public static function responsiveCss(?string $border = null): string
+    public static function responsiveCss(?string $border = null, ?bool $includeOptionalBackground = null): string
     {
-        return TrustedEmailCss::responsive($border);
+        // Alte Artefakte benoetigen keine V22-Regeln und behalten ihr
+        // bisheriges HTML-Budget. Entwurfsvorschauen fordern den gesamten
+        // versionsgebundenen Katalog explizit an, auch vor Veroeffentlichung.
+        $includeOptionalBackground ??= SignatureArtifactVersion::usesOptionalBackground(
+            self::activeSignatureArtifactVersion(),
+        );
+
+        return TrustedEmailCss::responsive($border, $includeOptionalBackground);
     }
 
     /**

@@ -101,6 +101,21 @@ final class SignatureBackgroundContract
 
         $carriers = [];
         $frames = [];
+        $signatureRows = [];
+        foreach ($dom->getElementsByTagName('tr') as $row) {
+            if ($row->getAttribute(SignatureArtifactVersion::ATTRIBUTE) !== SignatureArtifactVersion::V22) {
+                continue;
+            }
+            $signatureRows[] = $row;
+            for ($next = $row->nextSibling; $next !== null; $next = $next->nextSibling) {
+                if ($next instanceof DOMElement) {
+                    if (strtolower($next->tagName) === 'tr') {
+                        $signatureRows[] = $next;
+                    }
+                    break;
+                }
+            }
+        }
         foreach ($dom->getElementsByTagName('*') as $element) {
             if (! $element instanceof DOMElement) {
                 continue;
@@ -125,9 +140,11 @@ final class SignatureBackgroundContract
             // umgebende Mailvorlage mit eigenem, bereits validiertem Layout.
             $inSignature = false;
             for ($node = $element; $node instanceof DOMElement; $node = $node->parentNode) {
-                if ($node->getAttribute(SignatureArtifactVersion::ATTRIBUTE) === SignatureArtifactVersion::V22) {
-                    $inSignature = true;
-                    break;
+                foreach ($signatureRows as $row) {
+                    if ($node->isSameNode($row)) {
+                        $inSignature = true;
+                        break 2;
+                    }
                 }
             }
             if (! $inSignature) {

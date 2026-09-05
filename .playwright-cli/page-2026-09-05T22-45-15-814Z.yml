@@ -1,0 +1,19 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]: RT / RailTime
+  - generic [ref=e3]: Layoutprüfung V22
+  - generic [ref=e4]: Prüfung des übernommenen V20-Layouts mit Hintergrund und normalem Tabellenfluss.
+  - generic [ref=e5]: Freundliche Grüße
+  - generic [ref=e6]: RailTime
+  - img "RT Rail Time GmbH" [ref=e7]
+  - generic [ref=e8]:
+    - paragraph
+    - paragraph [ref=e9]: Automatische Nachricht
+  - link "04171 546803" [ref=e10] [cursor=pointer]:
+    - /url: tel:+494171546803
+  - link "info@rail-time.de" [ref=e11] [cursor=pointer]:
+    - /url: mailto:info@rail-time.de
+  - generic [ref=e12]:
+    - text: Borsteler Weg 29–31 · 21423 Winsen (Luhe)
+    - link "rail-time.de" [ref=e13] [cursor=pointer]:
+      - /url: https://www.rail-time.de
+  - text: "Geschäftsführung: Durim Morina und Mazan Moslehe · Registergericht: Amtsgericht Tostedt · HRB 204604 · USt-IdNr. DE169651368 · Steuernummer Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht."

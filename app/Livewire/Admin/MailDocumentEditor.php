@@ -394,8 +394,8 @@ class MailDocumentEditor extends Component
             // Dadurch ist Tablet/Mobil eine echte Layoutvorschau statt nur
             // einer optisch verkleinerten Desktop-Leinwand.
             'previewResponsiveCss' => [
-                'light' => EmailTemplateBuilder::responsiveCss('#dfe3e6'),
-                'dark' => EmailTemplateBuilder::responsiveCss('#313944'),
+                'light' => EmailTemplateBuilder::responsiveCss('#dfe3e6', true),
+                'dark' => EmailTemplateBuilder::responsiveCss('#313944', true),
             ],
             'vendor' => [
                 'builderJs' => $builderRuntimeUrl,

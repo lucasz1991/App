@@ -128,7 +128,7 @@ final class PageBuilderPreviewService
             ? $signature
             : $this->renderTokenHtml((string) $document->html, $values, [
                 'SIGNATURE_BLOCK' => $signature,
-                'RESPONSIVE_CSS' => EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null),
+                'RESPONSIVE_CSS' => EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true),
                 // Die Adminvorschau zeigt das im Entwurf vorhandene Muster. Der
                 // Slot selbst wird erst beim produktiven Versand durch echten
                 // Anwendungsinhalt ersetzt und darf hier nicht doppelt erscheinen.
@@ -139,7 +139,7 @@ final class PageBuilderPreviewService
         if ($document->kind === MailDocumentKind::Template && $signatureDocument !== null) {
             $css .= "\n".$this->mailCss((string) $signatureDocument->css, $values);
         } elseif ($document->kind === MailDocumentKind::Signature) {
-            $css = EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null)
+            $css = EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true)
                 ."\n".$css;
         }
 

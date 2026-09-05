@@ -11,6 +11,7 @@ import {
     componentAnimationContext,
     createSpacingOverlayController,
     createImageAssetSelection,
+    createMailSignatureBackgroundPanel,
     createScopedAssetCallbackSelection,
     enforceProtectedComponentModels,
     handleScopedRtePaste,
@@ -1525,6 +1526,47 @@ function coreFakeComponent(element, initial = {}) {
         addStyle(styles) { Object.assign(state.style, styles); },
     };
 }
+
+test('signature background inspector saves independent breakpoints and supports disable without touching content', () => coreWithDom(`
+    <div id="root"><div data-lmz-popover-panel="right:traits"><div><div data-lmz-mount="traits"></div></div></div></div>
+`, ({ document, window }) => {
+    const root = document.querySelector('#root');
+    const attributes = { class: 'rt-sign-cell', 'data-rt-signature-background': '1', 'data-rt-bg-desktop': '110', 'data-rt-bg-tablet': '150', 'data-rt-bg-mobile': '175', 'data-rt-mail-preview-train': 'TRAIN_SRC' };
+    const component = coreFakeComponent(document.createElement('td'), { attributes, style: { padding: '0', 'background-color': '{{SIGNATURE_BG}}' } });
+    let updates = 0;
+    const editor = { getSelected: () => component, trigger(name, target) { assert.equal(name, 'component:update'); assert.equal(target, component); updates += 1; } };
+    const inspector = createMailSignatureBackgroundPanel({ root, editor, capabilities: { writable: true }, media: { tokenMedia: [{ token: 'TRAIN_SRC', src: '/media/train.gif' }] } });
+    assert.equal(inspector.refresh(), true);
+    const panel = root.querySelector('[data-rt-lmz-signature-background]');
+    assert.equal(panel.hidden, false);
+    assert.equal(panel.querySelector('[name="source"]').value, '/media/train.gif');
+    const select = (name, value) => {
+        const options = [...panel.querySelectorAll(`[name="${name}"] option`)];
+        options.forEach((option) => { option.selected = false; });
+        options.find((option) => option.value === value).selected = true;
+    };
+    select('desktop', '125'); select('tablet', '175'); select('mobile', '200');
+    panel.querySelector('[name="enabled"]').checked = false;
+    panel.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(updates, 1);
+    assert.equal(component.state.attributes['data-rt-signature-background'], '0');
+    assert.equal(component.state.attributes['data-rt-bg-desktop'], '125');
+    assert.equal(component.state.attributes['data-rt-bg-tablet'], '175');
+    assert.equal(component.state.attributes['data-rt-bg-mobile'], '200');
+    assert.equal(component.state.style['background-size'], '125% auto');
+    assert.equal(component.state.style['background-image'], 'none');
+    assert.equal(component.state.style.padding, '0');
+    assert.equal(component.state.style['background-color'], '{{SIGNATURE_BG}}');
+    inspector.destroy();
+    assert.equal(root.querySelector('[data-rt-lmz-signature-background]'), null);
+
+    const readonly = createMailSignatureBackgroundPanel({ root, editor, capabilities: { writable: false } });
+    readonly.refresh();
+    assert.equal(root.querySelector('[name="desktop"]').disabled, true);
+    root.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(updates, 1);
+    readonly.destroy();
+}));
 
 function coreFakeEditor(root, selected, vendorSelection = null) {
     const handlers = new Map();
