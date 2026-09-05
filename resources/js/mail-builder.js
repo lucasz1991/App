@@ -9,6 +9,9 @@ import {
     createLmzAssistantAdapter,
     createPageBuilderLifecycleController,
     componentAnimationContext,
+    isMailSignatureBackgroundComponent,
+    MAIL_SIGNATURE_BACKGROUND_SIZES,
+    mailSignatureBackgroundStyle,
     handleScopedRtePaste,
     pageBuilderWorkspaceIsActive,
     refreshPausedAnimatedPreviewElement,
@@ -56,7 +59,7 @@ const MAIL_TEMPLATE_APPLICATION_START = `<!-- ${MAIL_TEMPLATE_APPLICATION_START_
 const MAIL_TEMPLATE_APPLICATION_END = `<!-- ${MAIL_TEMPLATE_APPLICATION_END_NAME} -->`;
 const MAIL_TEMPLATE_APPLICATION_PLACEHOLDER = '{{APPLICATION_CONTENT}}';
 const MAIL_PREVIEW_TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
-export const MAIL_SIGNATURE_SCHEMA = 28;
+export const MAIL_SIGNATURE_SCHEMA = 29;
 const MAIL_SIGNATURE_FIXED_HEIGHT = '200px';
 const MAIL_SIGNATURE_FIXED_HEIGHT_ATTRIBUTE = '200';
 const MAIL_SIGNATURE_TRAIN_OVERLAP = '-200px';
@@ -218,6 +221,13 @@ function markMailPreviewImageTokens(root) {
         marked += 1;
     });
 
+    root?.querySelectorAll?.('td.rt-sign-cell[data-rt-signature-background]').forEach((carrier) => {
+        if (carrier.hasAttribute('data-rt-mail-preview-train')) throw new Error('Das Maildokument enthaelt einen reservierten Hintergrundvorschau-Marker.');
+        carrier.setAttribute('data-rt-mail-preview-train', 'TRAIN_SRC');
+        carrier.setAttribute('style', replaceInlineStyleDeclaration(carrier.getAttribute('style'), 'background-image', 'none'));
+        marked += 1;
+    });
+
     return marked;
 }
 
@@ -232,6 +242,18 @@ function restoreMailPreviewImageTokens(root) {
 
         image.setAttribute('src', `{{${token}}}`);
         image.removeAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE);
+        restored += 1;
+    });
+
+    root?.querySelectorAll?.('[data-rt-mail-preview-train]').forEach((carrier) => {
+        if (carrier.tagName !== 'TD' || !elementClassNames(carrier).includes('rt-sign-cell')
+            || carrier.getAttribute('data-rt-mail-preview-train') !== 'TRAIN_SRC'
+            || !['0', '1'].includes(carrier.getAttribute('data-rt-signature-background'))) {
+            throw new Error('Der Signatur-Hintergrund besitzt keine gueltige Vorschau-Bindung.');
+        }
+        carrier.setAttribute('style', replaceInlineStyleDeclaration(carrier.getAttribute('style'), 'background-image',
+            carrier.getAttribute('data-rt-signature-background') === '1' ? "url('{{TRAIN_SRC}}')" : 'none'));
+        carrier.removeAttribute('data-rt-mail-preview-train');
         restored += 1;
     });
 
@@ -1548,6 +1570,63 @@ function usesFlowSafeSignatureTrain(rows) {
         .toLowerCase() === MAIL_SIGNATURE_FLOW_SAFE_ARTIFACT;
 }
 
+function usesSignatureBackground(rows) {
+    return String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').trim().toLowerCase() === 'v22';
+}
+
+function assertSignatureBackgroundDocument(wrapper, rows) {
+    const carriers = Array.from(wrapper?.querySelectorAll?.('td.rt-sign-cell') || []);
+    const carrier = carriers[0];
+    const content = carrier?.firstElementChild;
+    const enabled = carrier?.getAttribute('data-rt-signature-background');
+    if (!usesSignatureBackground(rows) || rows.length !== 2 || rows.some((row) => row.tagName !== 'TR')
+        || carriers.length !== 1 || carrier?.parentElement !== rows[0]
+        || carrier.children.length !== 1 || content?.tagName !== 'TABLE'
+        || elementClassNames(content).join(' ') !== 'rt-sign-content-frame'
+        || !['0', '1'].includes(enabled)
+        || wrapper.querySelectorAll('.rt-sign-stage,.rt-sign-train-layer,.rt-sign-train,.rt-sign-train-frame,.rt-sign-train-slot,[data-rt-train],[data-rt-train-background],[data-rt-layer-train]').length !== 0) {
+        throw new Error('V22 benoetigt einen optionalen Hintergrund und einen normalen Inhaltsrahmen ohne Zug-Layer.');
+    }
+    const attributes = Object.fromEntries(['desktop', 'tablet', 'mobile'].map((breakpoint) => [breakpoint, carrier.getAttribute(`data-rt-bg-${breakpoint}`)]));
+    if (Object.values(attributes).some((value) => !MAIL_SIGNATURE_BACKGROUND_SIZES.includes(value))) {
+        throw new Error('Die Signatur besitzt keine gueltigen Hintergrundgroessen fuer alle drei Umbrueche.');
+    }
+    assertInlineStyles(carrier, {
+        'background-image': enabled === '1' ? "url('{{TRAIN_SRC}}')" : 'none',
+        'background-size': `${attributes.desktop}% auto`,
+        'background-position': '65% bottom',
+        'background-repeat': 'no-repeat',
+        'background-color': '{{SIGNATURE_BG}}',
+    }, 'Der Signatur-Hintergrund');
+    if (carrier.hasAttribute('background')
+        || (wrapper.outerHTML.split('{{TRAIN_SRC}}').length - 1) !== (enabled === '1' ? 1 : 0)) {
+        throw new Error('Die optionale Hintergrundquelle der Signatur ist nicht eindeutig.');
+    }
+    assertExactElementAttributes(content, ['class', 'role', 'width', 'border', 'cellspacing', 'cellpadding', 'style'], 'Der V22-Inhaltsrahmen');
+    if (content.getAttribute('role') !== 'presentation' || content.getAttribute('width') !== '100%'
+        || ['border', 'cellspacing', 'cellpadding'].some((attribute) => content.getAttribute(attribute) !== '0')) {
+        throw new Error('Der V22-Inhaltsrahmen besitzt ungueltige Tabellenattribute.');
+    }
+    assertInlineStyles(content, { width: '100%', 'border-collapse': 'collapse' }, 'Der V22-Inhaltsrahmen', { exact: true });
+    wrapper.querySelectorAll('[style]').forEach((element) => {
+        const style = String(element.getAttribute('style') || '');
+        if (['position', 'z-index', 'transform', 'float'].some((property) => inlineStyleDeclaration(style, property) !== null)
+            || ['margin', 'margin-top', 'margin-bottom', 'margin-left', 'margin-right'].some((property) => /-\s*(?:\d|\.)/.test(inlineStyleDeclaration(style, property) || ''))
+            || /^(?:inline-)?(?:flex|grid)$/i.test(inlineStyleDeclaration(style, 'display') || '')) {
+            throw new Error('Der V22-Inhalt muss ohne positionierte oder negative Ueberlappung im normalen E-Mail-Fluss bleiben.');
+        }
+        if (element !== carrier && inlineStyleDeclaration(style, 'background-image') !== null
+            || /(?:url|gradient|image-set)\s*\(/i.test(inlineStyleDeclaration(style, 'background') || '')) {
+            throw new Error('V22 erlaubt das Zugbild nur im gebundenen Hintergrund.');
+        }
+        if (element.tagName !== 'IMG' && ['height', 'min-height', 'max-height'].some((property) => {
+            const value = inlineStyleDeclaration(style, property);
+            return value !== null && !['auto', 'none'].includes(value.toLowerCase());
+        })) throw new Error('Der V22-Inhalt darf keine feste Buehnenhoehe besitzen.');
+    });
+    return { carrier, contentTable: content, background: true };
+}
+
 function elementUsesAspectSafeSignatureTrain(element) {
     return MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS.includes(
         String(element?.closest?.(`[${MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE}]`)
@@ -2450,8 +2529,14 @@ function projectSignatureTrainImage(wrapper, rows, project) {
     const failOpenStage = usesFailOpenSignatureStage(rows);
     const aspectSafeTrain = usesAspectSafeSignatureTrain(rows);
     if (Number.isInteger(declaredSchema)
-        && ![19, 20, 21, 22, 23, 24, 25, 26, 27, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
+        && ![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
         throw new Error('Die Signatur besitzt einen nicht unterstuetzten Zugvertrag.');
+    }
+
+    if (usesSignatureBackground(rows)) {
+        const canonical = assertSignatureBackgroundDocument(wrapper, rows);
+        project.railtime = { ...(project.railtime || {}), document: 'signature', schema: MAIL_SIGNATURE_SCHEMA };
+        return canonical;
     }
 
     if (usesFlowSafeSignatureTrain(rows)) {
@@ -2622,7 +2707,8 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         const signatureParser = domParserFor(options.environment || globalThis);
         const contactProjection = bindSignatureContactMarkerRows(page.component, signatureParser);
         const signature = contactProjection.html;
-        if ((signature.split('{{TRAIN_SRC}}').length - 1) !== 1) {
+        if (!/data-rt-artifact-version\s*=\s*(["'])v22\1/i.test(signature)
+            && (signature.split('{{TRAIN_SRC}}').length - 1) !== 1) {
             throw new Error('Die Signatur benötigt genau ein gebundenes Zugbild.');
         }
         const parsed = parseMailFragment(
@@ -2638,8 +2724,8 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
             || rows.some((row) => row.tagName !== 'TR')
             || trainContract.carrier?.tagName !== 'TD'
             || trainContract.carrier.parentElement !== rows[0]
-            || trainContract.image.getAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE) !== 'TRAIN_SRC'
-            || trainContract.image.getAttribute('src') !== MAIL_PREVIEW_TRANSPARENT_PIXEL) {
+            || (!trainContract.background && (trainContract.image.getAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE) !== 'TRAIN_SRC'
+                || trainContract.image.getAttribute('src') !== MAIL_PREVIEW_TRANSPARENT_PIXEL))) {
             throw new Error('Die Signatur benoetigt zwei Tabellenzeilen und genau einen gebundenen IMG-Zug.');
         }
         assertSignatureContactMarkerBindings(wrapper, contactProjection.hasMarkers);
@@ -2775,17 +2861,21 @@ export function serializeMailDocumentForSave({
     ) || [];
     if (wrappers.length !== 1 || !wrapper || !body
         || rows.length !== 2 || rows.some((row) => row.tagName !== 'TR')
-        || trainPreviewImages.length !== 1) {
+        || (usesSignatureBackground(rows)
+            ? trainPreviewImages.length !== 0 || wrapper.querySelectorAll('[data-rt-mail-preview-train="TRAIN_SRC"]').length !== 1
+            : trainPreviewImages.length !== 1)) {
         throw new Error('Die sichere Tabellenstruktur des Signatur-Editors fehlt.');
     }
     restoreMailPreviewImageTokens(wrapper);
 
     const baselineContactProjection = bindSignatureContactMarkerRows(baselineHtml, parser);
     restoreSignatureContactMarkers(wrapper, baselineContactProjection.hasMarkers);
-    const trainContract = usesFlowSafeSignatureTrain(rows)
+    const trainContract = usesSignatureBackground(rows)
+        ? assertSignatureBackgroundDocument(wrapper, rows)
+        : usesFlowSafeSignatureTrain(rows)
         ? assertFlowSafeSignatureTrainImage(wrapper, rows)
         : assertCanonicalSignatureTrainImage(wrapper, rows);
-    if (trainContract.image.getAttribute('src') !== '{{TRAIN_SRC}}'
+    if ((!trainContract.background && trainContract.image.getAttribute('src') !== '{{TRAIN_SRC}}')
         || wrapper.querySelectorAll('[data-rt-train-background]').length !== 0) {
         throw new Error('Die IMG-Bindung des RailTime-Zugmotivs wurde im Editor beschädigt.');
     }
@@ -2799,7 +2889,7 @@ export function serializeMailDocumentForSave({
     if (!uncheckedCanonicalHtml.startsWith('<tr')) {
         throw new Error('Die Signatur besitzt nach dem Speichern kein gültiges Tabellenfragment.');
     }
-    if (!uncheckedCanonicalHtml.includes('{{TRAIN_SRC}}')) {
+    if (!trainContract.background && !uncheckedCanonicalHtml.includes('{{TRAIN_SRC}}')) {
         throw new Error('Das RailTime-Zugmotiv fehlt nach dem Speichern der Signatur.');
     }
     if (/data-rt-mail-(?:signature-canvas|signature-preview|preview(?:-[\w-]+)?)/i.test(uncheckedCanonicalHtml)
@@ -2985,6 +3075,13 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
         refreshPausedAnimatedPreviewElement(image);
         hydrated += 1;
     });
+    canvasDocument.querySelectorAll('td.rt-sign-cell[data-rt-mail-preview-train="TRAIN_SRC"]').forEach((carrier) => {
+        const enabled = carrier.getAttribute('data-rt-signature-background') === '1';
+        const source = sources.TRAIN_SRC;
+        carrier.style.backgroundImage = enabled && source ? `url(${JSON.stringify(source)})` : 'none';
+        refreshPausedAnimatedPreviewElement(carrier);
+        hydrated += 1;
+    });
 
     return hydrated;
 }
@@ -3088,6 +3185,23 @@ function componentUsesFlowSafeSignatureTrain(component) {
     return false;
 }
 
+function componentUsesSignatureBackground(component) {
+    for (let current = component; current; current = current?.parent?.()) {
+        if (String((current.getAttributes?.() || current.get?.('attributes') || {})[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').toLowerCase() === 'v22') return true;
+    }
+    return false;
+}
+
+export function synchronizeMailSignatureBackground(component) {
+    if (!componentUsesSignatureBackground(component) || !isMailSignatureBackgroundComponent(component)) return false;
+    const attributes = component.getAttributes?.() || component.get?.('attributes') || {};
+    const expected = mailSignatureBackgroundStyle(attributes, attributes['data-rt-mail-preview-train'] ? 'none' : "url('{{TRAIN_SRC}}')");
+    const style = component.getStyle?.() || {};
+    if (Object.entries(expected).every(([name, value]) => style[name] === value)) return false;
+    component.addStyle?.(expected, { silent: true });
+    return true;
+}
+
 function enforceComponentStyle(component, expected) {
     const current = component?.getStyle?.() || {};
     const expectedKeys = new Set(Object.keys(expected));
@@ -3133,7 +3247,7 @@ function removeComponentAttributes(component, names) {
 }
 
 export function synchronizeMailSignatureFlowGeometry(component) {
-    if (!componentUsesFlowSafeSignatureTrain(component)) return false;
+    if (!componentUsesFlowSafeSignatureTrain(component) && !componentUsesSignatureBackground(component)) return false;
 
     const attributes = component?.getAttributes?.() || component?.get?.('attributes') || {};
     const classes = componentClasses(component);
@@ -3231,7 +3345,7 @@ export function synchronizeMailSignatureFixedGeometry(
     component,
     failOpenStage = componentUsesFailOpenSignatureStage(component),
 ) {
-    if (componentUsesFlowSafeSignatureTrain(component)) return false;
+    if (componentUsesFlowSafeSignatureTrain(component) || componentUsesSignatureBackground(component)) return false;
 
     const classes = componentClasses(component);
     const forwardSafeTrain = componentUsesForwardSafeSignatureTrain(component);
@@ -3695,6 +3809,7 @@ export function protectMailSystemComponents(editor) {
         const token = attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE];
         const preview = attributes['data-rt-mail-preview-only'];
         const block = attributes[MAIL_BLOCK_ATTRIBUTE];
+        if (isMailSignatureBackgroundComponent(component)) return 'Signatur · Zughintergrund';
         if (token === 'TRAIN_SRC') return 'Zugbild';
         if (preview === 'application') return 'Anwendungsinhalt (geschützt)';
         if (preview === 'signature') return 'Signatur-Platzhalter (geschützt)';
@@ -3750,6 +3865,11 @@ export function protectMailSystemComponents(editor) {
         setName(component, label(component, attributes));
         const tagName = String(component?.get?.('tagName') || '').toLowerCase();
         const classes = classNames(attributes);
+        if (isMailSignatureBackgroundComponent(component)) {
+            synchronizeMailSignatureBackground(component);
+            protect(component, { layerable: true });
+            component.set?.({ selectable: true, hoverable: true }, { silent: true });
+        }
         if (['rt-sign-stage', 'rt-sign-train-frame', 'rt-sign-train-slot', 'rt-sign-content-frame']
             .some((name) => classes.includes(name))) {
             synchronizeMailSignatureFlowGeometry(component);
@@ -4380,10 +4500,13 @@ export async function createMailBuilder({
         }
     };
     const onComponentUpdate = (component) => {
+        const background = isMailSignatureBackgroundComponent(component);
+        synchronizeMailSignatureBackground(component);
         synchronizeMailSignatureFlowGeometry(component);
         synchronizeMailSignatureFixedGeometry(component);
         synchronizeMailTrainLayerAlignment(component);
         synchronizeMailContentImage(component);
+        if (background) globalThis.queueMicrotask?.(() => hydrateMailCanvasAssets(editor, activeTheme, previewAssets));
     };
     const onComponentStyleUpdate = (component, changes = {}) => {
         const styleChanges = changes?.style && typeof changes.style === 'object'

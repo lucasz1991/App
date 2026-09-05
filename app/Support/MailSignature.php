@@ -6,6 +6,7 @@ use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\SignatureArtifactVersion;
+use App\Support\Mail\SignatureBackgroundContract;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use Illuminate\Support\Facades\View;
@@ -523,7 +524,9 @@ class MailSignature
         // Bereits veroeffentlichte Altstaende verlieren Raster und grosses
         // RT-Wasserzeichen vor der Tokenersetzung. Die bildfreie Fassung gilt
         // dadurch sofort, auch ohne einen spaeteren Initialisierungsjob.
-        $html = SignatureTrainCarrier::withoutDecorativeBaseBackgrounds($html);
+        if (! SignatureBackgroundContract::applies($html)) {
+            $html = SignatureTrainCarrier::withoutDecorativeBaseBackgrounds($html);
+        }
         $escapedValues = array_map(
             static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
             $values,
@@ -641,6 +644,14 @@ class MailSignature
         string $outlookFallbackSource,
         string $idleSource,
     ): string {
+        if (SignatureBackgroundContract::applies($html)) {
+            SignatureBackgroundContract::assertRuntime($html);
+
+            // Der V22-Hintergrund ist optional: Classic Outlook darf ihn
+            // auslassen, ohne Kontakte in eine feste VML-Hoehe einzusperren.
+            return $html;
+        }
+
         $html = $this->removeLegacyTrainBackground($html);
         if ($this->animated && ! $this->staticAssets && trim($idleSource) !== '') {
             $html = SignatureTrainCarrier::withIdleOverlay($html, $idleSource);
@@ -691,6 +702,10 @@ class MailSignature
     {
         $rawSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
         $padding = (string) ($layout['outlookTrainPadding'] ?? '0');
+
+        if (SignatureBackgroundContract::applies($html)) {
+            return SignatureBackgroundContract::render($html, $rawSource);
+        }
 
         return SignatureTrainCarrier::projectAsImage(
             $html,

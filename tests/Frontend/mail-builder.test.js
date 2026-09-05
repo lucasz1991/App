@@ -29,6 +29,7 @@ import {
     serializeMailDocumentForSave,
     serializeMailProjectStyles,
     synchronizeMailPresentationAttributes,
+    synchronizeMailSignatureBackground,
     synchronizeMailSignatureFlowGeometry,
     synchronizeMailSignatureFixedGeometry,
     synchronizeMailTrainLayerAlignment,
@@ -47,6 +48,55 @@ const flowSafeSignatureStage = (content = '') => '<div class="rt-sign-stage" sty
     + `<tbody><tr><td>${content}</td></tr></tbody></table>`
     + flowSafeTrain
     + '</div>';
+
+const backgroundSignature = (enabled = true) => `<tr data-rt-artifact-version="v22"><td class="rt-sign-cell" width="100%" bgcolor="{{SIGNATURE_BG}}" data-rt-signature-background="${enabled ? '1' : '0'}" data-rt-bg-desktop="110" data-rt-bg-tablet="150" data-rt-bg-mobile="175" style="width:100%;padding:0;background-color:{{SIGNATURE_BG}};background-image:${enabled ? "url('{{TRAIN_SRC}}')" : 'none'};background-size:110% auto;background-position:65% bottom;background-repeat:no-repeat;border-top:5px solid #e4002b;">`
+    + '<table class="rt-sign-content-frame" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr><td><img class="rt-logo" src="{{LOGO_SRC}}" width="200" alt="Logo"><p>Kontaktdaten</p></td></tr></table>'
+    + '</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtstext</td></tr>';
+
+test('V22 roundtrips optional responsive backgrounds without IMG layers or preview URLs', () => {
+    for (const enabled of [true, false]) {
+        const html = backgroundSignature(enabled);
+        const project = projectForMailDocument({ html, builderData: { pages: [{ component: html }] } }, () => [], { kind: 'signature', environment: { DOMParser } });
+        assert.match(project.pages[0].component, /data-rt-mail-preview-train="TRAIN_SRC"/);
+        assert.doesNotMatch(project.pages[0].component, /\{\{TRAIN_SRC\}\}/);
+        const outgoing = serializeMailDocumentForSave({ project, html: project.pages[0].component, kind: 'signature', baselineHtml: html, environment: { DOMParser } });
+        assert.equal(outgoing.project.railtime.schema, 29);
+        assert.match(outgoing.html, /data-rt-bg-desktop="110"/);
+        assert.match(outgoing.html, /data-rt-bg-tablet="150"/);
+        assert.match(outgoing.html, /data-rt-bg-mobile="175"/);
+        assert.equal((outgoing.html.match(/\{\{TRAIN_SRC\}\}/g) || []).length, enabled ? 1 : 0);
+        assert.doesNotMatch(outgoing.html, /data-rt-mail-preview|rt-sign-stage|rt-sign-train-layer|margin-bottom:\s*-/);
+        const again = projectForMailDocument({ html: outgoing.html, builderData: outgoing.project }, () => [], { kind: 'signature', environment: { DOMParser } });
+        assert.equal(serializeMailDocumentForSave({ project: again, html: again.pages[0].component, kind: 'signature', baselineHtml: outgoing.html, environment: { DOMParser } }).html, outgoing.html);
+    }
+});
+
+test('V22 rejects unbound sources unsupported breakpoint sizes and renewed overlap', () => {
+    const html = backgroundSignature();
+    for (const invalid of [
+        html.replace('data-rt-bg-mobile="175"', 'data-rt-bg-mobile="999"'),
+        html.replace("url('{{TRAIN_SRC}}')", "url('https://evil.example/train.gif')"),
+        html.replace('width:100%;padding:0;', 'width:100%;padding:0;margin-bottom:-200px;'),
+        html.replace('width:100%;border-collapse:collapse;', 'width:100%;height:200px;border-collapse:collapse;'),
+        html.replace('data-rt-signature-background="1"', 'data-rt-signature-background="0"'),
+    ]) {
+        assert.throws(() => projectForMailDocument({ html: invalid, builderData: { pages: [{ component: invalid }] } }, () => [], { kind: 'signature', environment: { DOMParser } }));
+    }
+});
+
+test('V22 canvas hydrates a decorative background without changing the stored token model', () => {
+    const html = backgroundSignature();
+    const project = projectForMailDocument({ html, builderData: { pages: [{ component: html }] } }, () => [], { kind: 'signature', environment: { DOMParser } });
+    const before = JSON.stringify(project);
+    const doc = new DOMParser().parseFromString(`<html><body>${project.pages[0].component}</body></html>`, 'text/html');
+    hydrateMailCanvasAssets({ Canvas: { getDocument: () => doc } }, 'light', { light: { train: '/mail/train.gif', logo: '/mail/logo.gif' } });
+    assert.match(doc.querySelector('td.rt-sign-cell').style.backgroundImage, /\/mail\/train\.gif/);
+    assert.equal(JSON.stringify(project), before);
+    const disabled = doc.querySelector('td.rt-sign-cell');
+    disabled.setAttribute('data-rt-signature-background', '0');
+    hydrateMailCanvasAssets({ Canvas: { getDocument: () => doc } }, 'light', { light: { train: '/mail/train.gif' } });
+    assert.equal(disabled.style.backgroundImage, 'none');
+});
 
 test('portable media requirements follow the imported signature instead of the open draft', () => {
     const requirements = {
@@ -702,8 +752,8 @@ test('schema 28 keeps V21 in strict content-first flow without overlay geometry'
     const slot = frame?.querySelector('td.rt-sign-train-slot');
     const train = slot?.querySelector(':scope > img.rt-sign-train[data-rt-train]');
 
-    assert.equal(MAIL_SIGNATURE_SCHEMA, 28);
-    assert.equal(outgoing.project.railtime.schema, 28);
+    assert.equal(MAIL_SIGNATURE_SCHEMA, 29);
+    assert.equal(outgoing.project.railtime.schema, MAIL_SIGNATURE_SCHEMA);
     assert.equal(stage?.children.length, 2);
     assert.equal(stage?.firstElementChild, content);
     assert.equal(stage?.lastElementChild, layer);
@@ -2942,7 +2992,7 @@ test('signature source keeps older artifacts stable and defines the schema 28 V1
     assert.match(carrier, /\$imageHeight = \(\$forwardSafeTrain \|\| \(\$failOpenStage && ! \$aspectSafeTrain\)\) \? ' height="61"' : '';/);
     assert.match(carrier, /usesAspectSafeTrain\(string \$html\)[\s\S]*?SignatureArtifactVersion::usesAspectSafeTrain/);
     assert.match(carrier, /canonicalStageStartMarkup\(bool \$failOpenStage\)[\s\S]*?height:auto;min-height:200px;overflow:visible;/);
-    assert.match(mailBuilderSource, /export const MAIL_SIGNATURE_SCHEMA = 28;/);
+    assert.match(mailBuilderSource, /export const MAIL_SIGNATURE_SCHEMA = 29;/);
     assert.match(mailBuilderSource, /const MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT = '61';/);
     assert.match(mailBuilderSource, /MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS = Object\.freeze\(\['v15', 'v16', 'v17', 'v18', 'v19', 'v20'\]\)/);
     assert.match(mailBuilderSource, /MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS = Object\.freeze\(\['v17', 'v18', 'v20'\]\)/);

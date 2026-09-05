@@ -980,6 +980,7 @@ function imageLayerDetail(component) {
 
 function isInternalMediaLayer(component) {
     if (!component || isImageComponent(component)) return false;
+    if (isMailSignatureBackgroundComponent(component)) return false;
     if (componentAttributes(component)['data-rt-mail-preview-train']) return true;
     if (componentClassNames(component).some((name) => INTERNAL_MEDIA_LAYER_CLASSES.has(name))) return true;
 
@@ -1015,6 +1016,7 @@ function decorateMediaLayerElement(component, element) {
         else delete name.dataset.rtLmzImageDetail;
     }
     if (name && !image) delete name.dataset.rtLmzImageDetail;
+    if (name && isMailSignatureBackgroundComponent(component)) name.textContent = 'Signatur · Zughintergrund';
 }
 
 /**
@@ -1084,6 +1086,26 @@ function hasProtectedEditorMarker(component) {
 
 function isMailTrainCarrier(component) {
     return Boolean(componentAttributes(component)['data-rt-mail-preview-train']);
+}
+
+export const MAIL_SIGNATURE_BACKGROUND_SIZES = Object.freeze(['60', '80', '100', '110', '125', '150', '175', '200']);
+
+export function isMailSignatureBackgroundComponent(component) {
+    const attributes = componentAttributes(component);
+    return String(component?.get?.('tagName') || component?.tagName || '').toLowerCase() === 'td'
+        && componentClassNames(component).includes('rt-sign-cell')
+        && ['0', '1'].includes(String(attributes['data-rt-signature-background']));
+}
+
+/** Desktop-inline geometry; the trusted mail CSS reads the other two presets. */
+export function mailSignatureBackgroundStyle(attributes = {}, source = "url('{{TRAIN_SRC}}')") {
+    const desktop = String(attributes['data-rt-bg-desktop'] || '110');
+    return {
+        'background-image': String(attributes['data-rt-signature-background']) === '1' ? source : 'none',
+        'background-size': `${MAIL_SIGNATURE_BACKGROUND_SIZES.includes(desktop) ? desktop : '110'}% auto`,
+        'background-position': '65% bottom',
+        'background-repeat': 'no-repeat',
+    };
 }
 
 function isMailSystemLayer(component) {
@@ -3226,6 +3248,91 @@ function resolveImageInspectorMetadata({ target, source, token, media = {} }) {
 
 let imagePropertiesPanelSequence = 0;
 
+/** Optional V22 decoration is not an IMG and never owns the contact layout. */
+export function createMailSignatureBackgroundPanel({ root, editor, capabilities, media = {}, onChanged }) {
+    const mount = root.querySelector('[data-lmz-popover-panel="right:traits"] [data-lmz-mount="traits"]');
+    if (!mount?.parentElement) return { refresh: () => false, destroy() {} };
+    const panel = root.ownerDocument.createElement('section');
+    panel.className = 'rt-lmz-image-properties';
+    panel.setAttribute('data-rt-lmz-signature-background', '');
+    panel.setAttribute('aria-label', 'Signatur-Hintergrund');
+    panel.hidden = true;
+    const options = MAIL_SIGNATURE_BACKGROUND_SIZES.map((value) => `<option value="${value}">${value} %</option>`).join('');
+    panel.innerHTML = `<header class="rt-lmz-image-properties__header"><span><strong>Zughintergrund</strong><small>Optional · proportional · hinter den Kontaktdaten</small></span></header>
+        <form class="rt-lmz-image-properties__form">
+            <label class="rt-lmz-image-properties__ratio"><input type="checkbox" name="enabled"><span>Hintergrund anzeigen</span></label>
+            <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide"><span>Systemmedium</span><input name="source" type="text" readonly aria-readonly="true"></label>
+            <div class="rt-lmz-image-properties__tabpanel">
+                <label class="rt-lmz-image-properties__field"><span>Desktop · über 860 px</span><select name="desktop">${options}</select></label>
+                <label class="rt-lmz-image-properties__field"><span>Tablet · bis 860 px</span><select name="tablet">${options}</select></label>
+                <label class="rt-lmz-image-properties__field"><span>Mobil · bis 480 px</span><select name="mobile">${options}</select></label>
+            </div>
+            <p class="rt-lmz-image-properties__hint">Breite relativ zur Signatur; die Höhe bleibt proportional. Verankert unten bei 65 %. Die Werte werden mit dem Entwurf gespeichert. Manche Mailclients zeigen Hintergründe oder Animationen eingeschränkt; der Text bleibt unabhängig davon sichtbar.</p>
+            <p class="rt-lmz-image-properties__message" aria-live="polite"></p>
+            <button class="rt-lmz-image-properties__apply" type="submit">Übernehmen</button>
+        </form>`;
+    mount.parentElement.insertBefore(panel, mount);
+    const form = panel.querySelector('form');
+    const controls = Object.fromEntries(['enabled', 'source', 'desktop', 'tablet', 'mobile']
+        .map((name) => [name, form.querySelector(`[name="${name}"]`)]));
+    const message = panel.querySelector('[aria-live]');
+    let target = null;
+    let dirty = false;
+    const refresh = (selection = editor.getSelected?.()) => {
+        const next = isMailSignatureBackgroundComponent(selection) ? selection : null;
+        if (next !== target) dirty = false;
+        target = next;
+        panel.hidden = !target;
+        if (!target) return false;
+        mount.hidden = true;
+        const attributes = componentAttributes(target);
+        if (!dirty) {
+            controls.enabled.checked = String(attributes['data-rt-signature-background']) === '1';
+            ['desktop', 'tablet', 'mobile'].forEach((breakpoint) => {
+                const value = String(attributes[`data-rt-bg-${breakpoint}`] || '110');
+                controls[breakpoint].querySelectorAll('option').forEach((option) => { option.selected = option.value === value; });
+            });
+        }
+        const definition = currentMediaItems(media.tokenMedia).find((item) => normalizedToken(item?.token) === 'TRAIN_SRC');
+        controls.source.value = assetSource(definition) || '{{TRAIN_SRC}}';
+        form.querySelectorAll('input, select, button').forEach((control) => { control.disabled = !capabilities.writable; });
+        return true;
+    };
+    const markDirty = () => { dirty = true; message.textContent = ''; };
+    const submit = (event) => {
+        event.preventDefault();
+        if (!target || !capabilities.writable) return;
+        const values = Object.fromEntries(['desktop', 'tablet', 'mobile'].map((breakpoint) => [breakpoint, String(controls[breakpoint].value)]));
+        if (Object.values(values).some((value) => !MAIL_SIGNATURE_BACKGROUND_SIZES.includes(value))) {
+            message.textContent = 'Bitte eine angebotene proportionale Größe auswählen.';
+            return;
+        }
+        const attributes = {
+            'data-rt-signature-background': controls.enabled.checked ? '1' : '0',
+            ...Object.fromEntries(Object.entries(values).map(([key, value]) => [`data-rt-bg-${key}`, value])),
+        };
+        target.addAttributes?.(attributes);
+        // Runtime URLs remain DOM-only. The serializer restores TRAIN_SRC.
+        target.addStyle?.(mailSignatureBackgroundStyle(attributes, 'none'));
+        editor.trigger?.('component:update', target);
+        dirty = false;
+        onChanged?.();
+        message.textContent = 'Hintergrundgrößen übernommen. Zum Veröffentlichen den Entwurf speichern.';
+    };
+    form.addEventListener('input', markDirty);
+    form.addEventListener('change', markDirty);
+    form.addEventListener('submit', submit);
+    return {
+        refresh,
+        destroy() {
+            form.removeEventListener('input', markDirty);
+            form.removeEventListener('change', markDirty);
+            form.removeEventListener('submit', submit);
+            panel.remove();
+        },
+    };
+}
+
 /**
  * Kompakter, mail-sicherer Bildinspector im Eigenschaften-Panel.
  *
@@ -3450,7 +3557,7 @@ function createImagePropertiesPanel({ root, editor, mode = 'website', capabiliti
     });
 
     const refresh = (selection = editor.getSelected?.()) => {
-        const nextTarget = resolveInspectableImageComponent(editor, selection);
+        const nextTarget = isMailSignatureBackgroundComponent(selection) ? null : resolveInspectableImageComponent(editor, selection);
         const targetChanged = nextTarget !== target;
         target = nextTarget;
         trainLayer = target ? imageParentByAttribute(target, 'data-rt-layer-train') : null;
@@ -5178,6 +5285,7 @@ export function createLmzEditorChrome({
     let mediaDrawer;
     let animationDrawer;
     let imagePropertiesPanel;
+    let signatureBackgroundPanel;
     let panelExperience;
     let lastContextSelection = null;
     const contextualElementState = new Map();
@@ -5216,12 +5324,13 @@ export function createLmzEditorChrome({
     const syncContextControls = () => {
         const selected = editor.getSelected?.() || null;
         const hasImage = imagePropertiesPanel?.refresh(selected) || false;
+        const hasBackground = signatureBackgroundPanel?.refresh(selected) || false;
         const protectedSelection = isProtectedEditorStructure(selected);
         const traitsAvailable = Boolean(
             selected
             && normalized.writable
             && normalized.traits
-            && (hasImage || (!protectedSelection && traitCount(selected) > 0))
+            && (hasImage || hasBackground || (!protectedSelection && traitCount(selected) > 0))
         );
         const stylesAvailable = Boolean(
             selected
@@ -5262,6 +5371,9 @@ export function createLmzEditorChrome({
         media,
         onChanged: refreshAll,
     });
+    if (normalizedMode === 'mail') {
+        signatureBackgroundPanel = createMailSignatureBackgroundPanel({ root: rootElement, editor, capabilities: normalized, media, onChanged: refreshAll });
+    }
     panelExperience = installEditorPanelExperience({ root: rootElement, editor });
     const detachScopedAssetAccess = installScopedAssetAccess({ editor, mediaDrawer, mode: normalizedMode });
     animationDrawer = createAnimationDrawer({ root: rootElement, editor, capabilities: normalized, mode: normalizedMode, onChanged: refreshAll });
@@ -5404,6 +5516,7 @@ export function createLmzEditorChrome({
             animationDrawer.destroy();
             panelExperience.destroy();
             imagePropertiesPanel.destroy();
+            signatureBackgroundPanel?.destroy();
             imageLayerPresentation.destroy();
             spacing.destroy();
             elementorLayout?.destroy();

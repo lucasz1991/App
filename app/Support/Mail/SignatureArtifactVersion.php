@@ -48,13 +48,15 @@ final class SignatureArtifactVersion
 
     public const V21 = 'v21';
 
+    public const V22 = 'v22';
+
     /**
      * V8 bis V21 teilen dieselbe abgeschlossene Zug-Timeline: Das Haupt-GIF
      * endet im Ankunftsbild und benoetigt deshalb kein separates Idle-Overlay.
      */
     public static function usesArrivalHoldTrain(?string $version): bool
     {
-        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17, self::V18, self::V19, self::V20, self::V21], true);
+        return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17, self::V18, self::V19, self::V20, self::V21, self::V22], true);
     }
 
     /** V12 verwendet die optimierte, sofort sichtbare Zugdatei. */
@@ -72,7 +74,7 @@ final class SignatureArtifactVersion
     /** V15 bis V21 verwenden die kleineren Wortmarkenmedien. */
     public static function usesOptimizedMailAssets(?string $version): bool
     {
-        return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19, self::V20, self::V21], true);
+        return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19, self::V20, self::V21, self::V22], true);
     }
 
     /** V15 bis V20 duerfen den Inhalt bei degradiertem Client-CSS nie abschneiden. */
@@ -104,7 +106,13 @@ final class SignatureArtifactVersion
     /** V19 bis V21 verwenden verlustarm optimierte, eigenstaendig versionierte Medien. */
     public static function usesV19MailAssets(?string $version): bool
     {
-        return in_array($version, [self::V19, self::V20, self::V21], true);
+        return in_array($version, [self::V19, self::V20, self::V21, self::V22], true);
+    }
+
+    /** V22 haelt Kontakte im Fluss und stellt Dekoration als optionales CSS dar. */
+    public static function usesOptionalBackground(?string $version): bool
+    {
+        return $version === self::V22;
     }
 
     /**

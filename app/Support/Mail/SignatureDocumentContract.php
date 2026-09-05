@@ -13,8 +13,8 @@ use RuntimeException;
 /** Gemeinsamer Save-/Publish-/Web-/Outlook-Vertrag der Signaturquelle. */
 final class SignatureDocumentContract
 {
-    /** Aktueller Vertrag: Schema 28; V21 nutzt ausschliesslich normalen Tabellenfluss. */
-    public const SCHEMA = 28;
+    /** Schema 29 ergaenzt V22 mit optionalem Hintergrund; Altvertraege bleiben bestehen. */
+    public const SCHEMA = 29;
 
     /** @var list<string> */
     private const REQUIRED_TOKENS = [
@@ -145,7 +145,9 @@ final class SignatureDocumentContract
 
         $artifactVersion = SignatureArtifactVersion::detect('signature', $html);
 
-        if (SignatureArtifactVersion::usesFlowSafeTrain($artifactVersion)) {
+        if (SignatureArtifactVersion::usesOptionalBackground($artifactVersion)) {
+            SignatureBackgroundContract::assertValid($html);
+        } elseif (SignatureArtifactVersion::usesFlowSafeTrain($artifactVersion)) {
             SignatureTrainCarrier::assertFlowSafeImage($html);
             self::assertV21FlowSafeCss($html);
         } elseif (SignatureTrainCarrier::hasCanonicalImage($html)) {
@@ -190,6 +192,7 @@ final class SignatureDocumentContract
             SignatureArtifactVersion::V19,
             SignatureArtifactVersion::V20,
             SignatureArtifactVersion::V21,
+            SignatureArtifactVersion::V22,
         ], true)) {
             self::assertV18ForwardSafeLayout($html);
         }

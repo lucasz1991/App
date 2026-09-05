@@ -1157,3 +1157,54 @@ tr[data-rt-artifact-version="v21"] .rt-sign-train-layer[data-rt-layer-train] .rt
   height: auto !important;
   margin: 0 !important;
 }
+
+/* V22: optionale Dekoration auf derselben Zelle wie der Inhalt. Keine
+   zweite Bildzeile, feste Buehnenhoehe oder negative Ueberlappung. Die
+   Grundanordnung bleibt auch ohne Bilder und ohne Head-CSS lesbar. */
+tr[data-rt-artifact-version="v22"] .rt-sign-content-frame {
+  position: static !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+tr[data-rt-artifact-version="v22"] .rt-sign-cell {
+  background-position: 65% bottom !important;
+  background-repeat: no-repeat !important;
+}
+tr[data-rt-artifact-version="v22"] .rt-sign-logo {
+  text-align: right !important;
+}
+tr[data-rt-artifact-version="v22"] img.rt-logo {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+@media only screen and (max-width: 860px) {
+  /* Die Werte stammen aus derselben begrenzten Liste wie der Serververtrag.
+     Hoehe auto wahrt die Proportionen; der 65%-Anker haelt die Lok im Bild. */
+  @foreach (\App\Support\Mail\SignatureBackgroundContract::SIZES as $backgroundSize)
+  tr[data-rt-artifact-version="v22"] .rt-sign-cell[data-rt-signature-background="1"][data-rt-bg-tablet="{{ $backgroundSize }}"] {
+    background-size: {{ $backgroundSize }}% auto !important;
+  }
+  @endforeach
+  tr[data-rt-artifact-version="v22"] .rt-sign-content {
+    padding: 18px 24px 15px !important;
+  }
+}
+@media only screen and (max-width: 480px) {
+  @foreach (\App\Support\Mail\SignatureBackgroundContract::SIZES as $backgroundSize)
+  tr[data-rt-artifact-version="v22"] .rt-sign-cell[data-rt-signature-background="1"][data-rt-bg-mobile="{{ $backgroundSize }}"] {
+    background-size: {{ $backgroundSize }}% auto !important;
+  }
+  @endforeach
+  tr[data-rt-artifact-version="v22"] .rt-sign-content {
+    padding: 18px 20px 15px !important;
+  }
+  tr[data-rt-artifact-version="v22"] .rt-sign-logo {
+    padding: 0 0 12px !important;
+    text-align: left !important;
+  }
+  tr[data-rt-artifact-version="v22"] img.rt-logo {
+    margin-left: 0 !important;
+    margin-right: auto !important;
+  }
+}

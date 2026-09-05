@@ -75,6 +75,12 @@ final class SignatureTrainCarrier
 
     public static function normalize(string $html): string
     {
+        if (SignatureBackgroundContract::applies($html)) {
+            SignatureBackgroundContract::assertValid($html);
+
+            return $html;
+        }
+
         if (self::usesFlowSafeTrain($html)) {
             self::assertFlowSafeImage($html);
 

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
+use App\Support\Mail\SignatureBackgroundContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TemplateDocumentContract;
@@ -1406,6 +1407,15 @@ class EmailTemplateBuilder
             ? ''
             : self::forceHttpsUrl($expectedIdleSource);
         $expectedMsoSource = self::forceHttpsUrl($expectedMsoSource);
+        if (SignatureBackgroundContract::applies($html)) {
+            SignatureBackgroundContract::assertRuntime($html, $expectedTrainSource);
+            foreach (self::imageSources($html) as $imageSource) {
+                self::forceHttpsUrl($imageSource);
+            }
+
+            return $html;
+        }
+
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
 

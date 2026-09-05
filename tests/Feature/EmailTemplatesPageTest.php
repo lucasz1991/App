@@ -17,6 +17,7 @@ use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
+use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\MailSignature;
 use App\Support\OutlookAddin\EntraAccessTokenValidator;
@@ -39,8 +40,10 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Mockery;
+use Symfony\Component\Mime\Email;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 use ZipArchive;
@@ -60,6 +63,85 @@ class EmailTemplatesPageTest extends TestCase
     {
         $this->get(route('email-templates.index'))
             ->assertRedirect(route('login'));
+    }
+
+    public function test_v22_signature_background_is_embedded_once_and_reuses_the_img_content_id(): void
+    {
+        Http::preventStrayRequests();
+        $source = URL::asset('mail-assets/zug-dampf-v19-light.gif');
+        $html = SystemMailInlineImageEmbedder::mark('<html><body><!-- RT_TEMPLATE_MARK_START -->'
+            .'<table><tr data-rt-artifact-version="v22"><td class="rt-sign-cell" data-rt-signature-background="1" '
+            .'style="background-color:#ffffff;background-image:url(&quot;'.htmlspecialchars($source.'?v=22&theme=light', ENT_QUOTES | ENT_HTML5, 'UTF-8').'&quot;);background-size:125% auto;background-position:65% bottom;">'
+            .'<p>Kontaktdaten bleiben normaler Text.</p><img src="'.$source.'" alt=""></td></tr></table>'
+            .'<!-- RT_TEMPLATE_MARK_END --></body></html>');
+        $email = (new Email)->from('sender@rail-time.test')->to('recipient@rail-time.test')->subject('V22 MIME')->html($html);
+        $embedder = app(SystemMailInlineImageEmbedder::class);
+
+        $this->assertSame(1, $embedder->embed($email));
+        $attachments = $email->getAttachments();
+        $this->assertCount(1, $attachments);
+        $this->assertSame('zug-dampf-v19-light.gif', $attachments[0]->getFilename());
+        $this->assertSame('inline', $attachments[0]->getDisposition());
+        $cid = 'cid:'.$attachments[0]->getContentId();
+        $delivered = html_entity_decode((string) $email->getHtmlBody(), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $this->assertStringContainsString("background-image:url('".$cid."')", $delivered);
+        $this->assertStringContainsString('<img src="'.$cid.'"', $delivered);
+        $this->assertStringContainsString('background-size:125% auto;background-position:65% bottom;', $delivered);
+        $this->assertStringContainsString('<p>Kontaktdaten bleiben normaler Text.</p>', $delivered);
+        $this->assertStringNotContainsString($source, $delivered);
+        $this->assertStringContainsString('multipart/related', $email->toString());
+        $this->assertSame(0, $embedder->embed($email));
+        $this->assertCount(1, $email->getAttachments());
+        Http::assertNothingSent();
+    }
+
+    public function test_v22_signature_background_embedding_accepts_only_scoped_local_assets(): void
+    {
+        Http::preventStrayRequests();
+        Storage::fake('public');
+        $binary = (string) file_get_contents(public_path('mail-assets/contact-email.png'));
+        $filename = hash('sha256', $binary).'.png';
+        Storage::disk('public')->put('mail-imports/'.$filename, $binary);
+        $importSource = URL::to(Storage::disk('public')->url('mail-imports/'.$filename));
+        $localSource = URL::asset('mail-assets/contact-email.png');
+        $invalidSource = str_replace('contact-email.png', '../contact-email.png', $localSource);
+        $encodedSource = str_replace('contact-email.png', '%63ontact-email.png', $localSource);
+        $foreignSource = 'https://foreign.example/mail-assets/contact-email.png';
+        $carrier = static fn (string $style, string $version = 'v22', string $attributes = 'class="rt-sign-cell" data-rt-signature-background="1"'): string => '<tr data-rt-artifact-version="'.$version.'"><td '.$attributes.' style="'.htmlspecialchars($style, ENT_QUOTES | ENT_HTML5, 'UTF-8').'"><p>Kontakt</p></td></tr>';
+        $untouched = [
+            $carrier('background-image:url('.$foreignSource.');'),
+            $carrier('background-image:url('.$invalidSource.');'),
+            $carrier('background-image:url('.$encodedSource.');'),
+            $carrier('background-image:url('.$localSource.');', 'v21'),
+            $carrier('background-image:url('.$localSource.');', 'v22', 'class="rt-sign-cell"'),
+            $carrier('background-image:url('.$localSource.');', 'v22', 'class="other" data-rt-signature-background="1"'),
+            $carrier('background-image:url('.$localSource.');', 'v22', 'class="rt-sign-cell" data-rt-signature-background="1" data-rt-signature-background="0"'),
+            $carrier('background-image:url('.$localSource.');background-image:url('.$foreignSource.');'),
+            $carrier('background-image:url('.$localSource.'),url('.$foreignSource.');'),
+            $carrier('background:url('.$localSource.');'),
+            '<tr data-rt-artifact-version="v22"><td><table>'.$carrier('background-image:url('.$localSource.');', 'v20').'</table></td></tr>',
+            '<style>.custom{background-image:url('.$localSource.');}</style>',
+        ];
+        $html = SystemMailInlineImageEmbedder::mark('<html><body><!-- RT_TEMPLATE_MARK_START -->'
+            .'<table>'.$carrier('background-image: url('.$importSource.') !important;background-size:150% auto;').implode('', $untouched).'</table>'
+            .'<!-- RT_TEMPLATE_MARK_END --></body></html>');
+        $email = (new Email)->html($html);
+        $embedder = app(SystemMailInlineImageEmbedder::class);
+
+        $this->assertSame(1, $embedder->embed($email));
+        $this->assertCount(1, $email->getAttachments());
+        $this->assertSame($filename, $email->getAttachments()[0]->getFilename());
+        $delivered = (string) $email->getHtmlBody();
+        $this->assertStringNotContainsString($importSource, $delivered);
+        foreach ($untouched as $fragment) {
+            $this->assertStringContainsString($fragment, $delivered);
+        }
+        $this->assertStringContainsString(' !important;background-size:150% auto;', $delivered);
+        $this->assertSame(0, $embedder->embed($email));
+        $unmarked = (new Email)->html(str_replace(SystemMailInlineImageEmbedder::RUNTIME_ATTRIBUTE, '', $html));
+        $this->assertSame(0, $embedder->embed($unmarked));
+        $this->assertSame([], $unmarked->getAttachments());
+        Http::assertNothingSent();
     }
 
     public function test_outlook_addin_public_config_is_fail_closed_and_contains_no_secret(): void

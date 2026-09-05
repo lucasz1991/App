@@ -191,6 +191,10 @@ final class PortableMediaCatalog
                     MailDocumentKind::Signature,
                     SignatureArtifactVersion::V21,
                 ),
+                SignatureArtifactVersion::V22 => self::requiredSystemAssetIds(
+                    MailDocumentKind::Signature,
+                    SignatureArtifactVersion::V22,
+                ),
             ],
             MailDocumentKind::Template => [
                 'default' => self::requiredSystemAssetIds(MailDocumentKind::Template),
