@@ -1037,6 +1037,20 @@
                         || workspace;
                     const config = JSON.parse(workspace.querySelector('[data-mail-document-config]')?.textContent || '{}');
                     const document_ = config.documents?.[config.currentDocument];
+                    // Der Ansicht-Inhalt liegt nach Alpines Teleport ausserhalb
+                    // des Modals. Erst bei Zugriff suchen: Eine fruehe NodeList
+                    // bleibt sonst auch nach dem Teleport dauerhaft leer.
+                    const viewPanelId = `rt-dropdown-mail-document-view-${config.currentDocument}-content`;
+                    const viewControlsRoot = () => window.document.getElementById(viewPanelId)
+                        || studioRoot.querySelector('[data-mail-toolbar-menu="view"]');
+                    const queryViewControl = (selector) => viewControlsRoot()?.querySelector(selector) || null;
+                    const queryViewControls = (selector) => Array.from(viewControlsRoot()?.querySelectorAll(selector) || []);
+                    const viewEventControl = (event, selector) => {
+                        const control = event.target?.closest?.(selector);
+                        return control && viewControlsRoot()?.contains(control)
+                            && !control.disabled && control.getAttribute('aria-disabled') !== 'true'
+                            ? control : null;
+                    };
                     const saveButton = studioRoot.querySelector('[data-mail-document-save]');
                     const publishButton = studioRoot.querySelector('[data-mail-document-publish]');
                     const messageNode = studioRoot.querySelector('[data-mail-document-message]');
@@ -1045,18 +1059,10 @@
                     const findingsTitle = studioRoot.querySelector('[data-mail-document-findings-title]');
                     const statusBadge = studioRoot.querySelector('[data-mail-document-status]');
                     const editorFrame = studioRoot.querySelector('[data-mail-editor-frame]');
-                    const previewStatus = studioRoot.querySelector('[data-mail-preview-status]');
-                    const viewModeButtons = Array.from(studioRoot.querySelectorAll('[data-mail-view-mode]'));
-                    const themeButtons = Array.from(studioRoot.querySelectorAll('[data-mail-theme-button]'));
-                    const themeControls = studioRoot.querySelector('[data-mail-theme-controls]');
-                    const deviceButtons = Array.from(studioRoot.querySelectorAll('[data-mail-preview-device]'));
-                    const previewWidthInput = studioRoot.querySelector('[data-mail-preview-width]');
                     const previewResizer = studioRoot.querySelector('[data-mail-preview-resizer]');
                     const deliveryPreview = studioRoot.querySelector('[data-mail-delivery-preview]');
                     const deliveryFrame = studioRoot.querySelector('[data-mail-delivery-frame]');
                     const deliveryState = studioRoot.querySelector('[data-mail-delivery-state]');
-                    const degradationSelect = studioRoot.querySelector('[data-mail-degradation-mode]');
-                    const replayButton = studioRoot.querySelector('[data-mail-preview-replay]');
                     const importFile = studioRoot.querySelector('[data-mail-code-import-file]');
                     const codeDialog = studioRoot.querySelector('[data-mail-code-dialog]');
                     const codeHtml = studioRoot.querySelector('[data-mail-code-html]');
@@ -1211,12 +1217,13 @@
                         const activeDevice = activeGeometry?.device || selectedDevice;
                         if (activeDevice === 'custom') selectedDevice = 'custom';
 
-                        deviceButtons.forEach((button) => {
+                        queryViewControls('[data-mail-preview-device]').forEach((button) => {
                             button.setAttribute('aria-pressed', String(
                                 activeDevice !== 'custom'
                                 && button.dataset.mailPreviewDevice === activeDevice
                             ));
                         });
+                        const previewWidthInput = queryViewControl('[data-mail-preview-width]');
                         if (previewWidthInput && window.document.activeElement !== previewWidthInput) {
                             previewWidthInput.value = String(logicalWidth);
                         }
@@ -1225,6 +1232,7 @@
                             previewResizer.setAttribute('aria-valuetext', `${logicalWidth} Pixel`);
                         }
 
+                        const previewStatus = queryViewControl('[data-mail-preview-status]');
                         if (previewStatus) {
                             const labels = {
                                 wide: 'Systemmail breit',
@@ -1265,7 +1273,7 @@
                     const selectTheme = (theme) => {
                         selectedTheme = theme === 'dark' ? 'dark' : 'light';
                         editorFrame?.setAttribute('data-preview-theme', selectedTheme);
-                        themeButtons.forEach((button) => {
+                        queryViewControls('[data-mail-theme-button]').forEach((button) => {
                             button.setAttribute('aria-pressed', String(button.dataset.mailThemeButton === selectedTheme));
                         });
                         instance?.setTheme?.(selectedTheme);
@@ -1308,7 +1316,7 @@
                     const selectDevice = (device) => {
                         selectedDevice = ['wide', 'desktop', 'tablet', 'mobile'].includes(device) ? device : 'wide';
                         editorFrame?.style.removeProperty('--rt-mail-custom-left');
-                        deviceButtons.forEach((button) => {
+                        queryViewControls('[data-mail-preview-device]').forEach((button) => {
                             button.setAttribute('aria-pressed', String(button.dataset.mailPreviewDevice === selectedDevice));
                         });
                         instance?.setPreviewDevice?.(selectedDevice);
@@ -1424,17 +1432,18 @@
                         if (enteringForward) selectDevice('mobile');
                         if (leavingForward) restoreForwardPreviewViewport();
                         editorFrame?.setAttribute('data-mail-view-mode', selectedViewMode);
-                        viewModeButtons.forEach((button) => {
+                        queryViewControls('[data-mail-view-mode]').forEach((button) => {
                             button.setAttribute('aria-pressed', String(button.dataset.mailViewMode === selectedViewMode));
                             button.setAttribute('aria-busy', String(
                                 selectedViewMode !== 'edit'
                                 && button.dataset.mailViewMode === selectedViewMode
                             ));
                         });
-                        themeButtons.forEach((button) => {
+                        queryViewControls('[data-mail-theme-button]').forEach((button) => {
                             button.disabled = selectedViewMode !== 'edit';
                         });
-                        themeControls?.setAttribute('aria-disabled', String(selectedViewMode !== 'edit'));
+                        queryViewControl('[data-mail-theme-controls]')?.setAttribute('aria-disabled', String(selectedViewMode !== 'edit'));
+                        const degradationSelect = queryViewControl('[data-mail-degradation-mode]');
                         if (degradationSelect) degradationSelect.disabled = selectedViewMode === 'forward';
 
                         if (selectedViewMode === 'edit') {
@@ -1444,7 +1453,7 @@
                             if (deliveryPreview) deliveryPreview.hidden = true;
                             if (deliveryFrame) deliveryFrame.srcdoc = '';
                             instance?.setDegradationMode?.(selectedDegradationMode);
-                            viewModeButtons.forEach((button) => button.setAttribute('aria-busy', 'false'));
+                            queryViewControls('[data-mail-view-mode]').forEach((button) => button.setAttribute('aria-busy', 'false'));
                             updatePreviewStatus(instance?.getPreviewGeometry?.());
                             return;
                         }
@@ -1463,7 +1472,7 @@
                             if (deliveryState) deliveryState.textContent = surfaced.message;
                             toast('error', surfaced.message, unavailableTitle);
                         } finally {
-                            viewModeButtons.forEach((button) => button.setAttribute('aria-busy', 'false'));
+                            queryViewControls('[data-mail-view-mode]').forEach((button) => button.setAttribute('aria-busy', 'false'));
                         }
                     };
 
@@ -1471,6 +1480,7 @@
                         selectedDegradationMode = ['normal', 'images-off', 'head-css-off', 'css-off'].includes(mode)
                             ? mode
                             : 'normal';
+                        const degradationSelect = queryViewControl('[data-mail-degradation-mode]');
                         if (degradationSelect) degradationSelect.value = selectedDegradationMode;
                         if (selectedViewMode !== 'edit') renderCompiledDeliveryHtml();
                         else instance?.setDegradationMode?.(selectedDegradationMode);
@@ -2291,27 +2301,62 @@
                         }
                     }, { signal: controlListeners.signal });
 
-                    viewModeButtons.forEach((button) => {
-                        button.addEventListener('click', () => selectViewMode(button.dataset.mailViewMode), {
-                            signal: controlListeners.signal,
-                        });
-                    });
+                    // Delegation erreicht auch einen erst spaeter teleportierten
+                    // Inhalt. Fremde Dokument-/Dropdown-Steuerungen bleiben aus.
+                    window.document.addEventListener('click', (event) => {
+                        const control = viewEventControl(event, '[data-mail-view-mode], [data-mail-theme-button], [data-mail-preview-device], [data-mail-preview-replay]');
+                        if (!control) return;
+                        if (control.hasAttribute('data-mail-view-mode')) {
+                            void selectViewMode(control.dataset.mailViewMode);
+                        } else if (control.hasAttribute('data-mail-theme-button')) {
+                            selectTheme(control.dataset.mailThemeButton);
+                        } else if (control.hasAttribute('data-mail-preview-device')) {
+                            selectDevice(control.dataset.mailPreviewDevice);
+                        } else {
+                            const restarted = Number(instance?.restartAllGifs?.() || 0);
+                            setMessage(restarted > 0
+                                ? `${restarted} Animation${restarted === 1 ? '' : 'en'} neu gestartet.`
+                                : 'In der aktuellen Vorschau wurde keine GIF-Animation gefunden.');
+                        }
+                    }, { signal: controlListeners.signal });
 
-                    themeButtons.forEach((button) => {
-                        button.addEventListener('click', () => selectTheme(button.dataset.mailThemeButton), {
-                            signal: controlListeners.signal,
-                        });
-                    });
+                    window.document.addEventListener('input', (event) => {
+                        const control = viewEventControl(event, '[data-mail-preview-width]');
+                        if (control && control.value.trim() !== '') selectPreviewWidth(control.value);
+                    }, { signal: controlListeners.signal });
 
-                    deviceButtons.forEach((button) => {
-                        button.addEventListener('click', () => selectDevice(button.dataset.mailPreviewDevice), {
-                            signal: controlListeners.signal,
-                        });
-                    });
+                    window.document.addEventListener('change', (event) => {
+                        const control = viewEventControl(event, '[data-mail-degradation-mode]');
+                        if (!control) return;
+                        try {
+                            selectDegradationMode(control.value);
+                        } catch (error) {
+                            selectDegradationMode('normal');
+                            const surfaced = showRequestError(error, 'Robustheitsvorschau nicht verfügbar');
+                            toast('error', surfaced.message, 'Vorschau nicht verfügbar');
+                        }
+                    }, { signal: controlListeners.signal });
 
-                    previewWidthInput?.addEventListener('input', () => {
-                        if (previewWidthInput.value.trim() === '') return;
-                        selectPreviewWidth(previewWidthInput.value);
+                    window.document.addEventListener('dropdown-open', (event) => {
+                        const menu = event.target?.closest?.('[data-mail-toolbar-menu="view"]');
+                        if (!menu || !studioRoot.contains(menu)) return;
+                        window.requestAnimationFrame(() => {
+                            if (destroyed) return;
+                            queryViewControls('[data-mail-view-mode]').forEach((button) => {
+                                button.setAttribute('aria-pressed', String(button.dataset.mailViewMode === selectedViewMode));
+                            });
+                            queryViewControls('[data-mail-theme-button]').forEach((button) => {
+                                button.disabled = selectedViewMode !== 'edit';
+                                button.setAttribute('aria-pressed', String(button.dataset.mailThemeButton === selectedTheme));
+                            });
+                            queryViewControl('[data-mail-theme-controls]')?.setAttribute('aria-disabled', String(selectedViewMode !== 'edit'));
+                            const degradationSelect = queryViewControl('[data-mail-degradation-mode]');
+                            if (degradationSelect) {
+                                degradationSelect.disabled = selectedViewMode === 'forward';
+                                degradationSelect.value = selectedDegradationMode;
+                            }
+                            updatePreviewStatus(instance?.getPreviewGeometry?.());
+                        });
                     }, { signal: controlListeners.signal });
 
                     const finishResizeGesture = (event = null) => {
@@ -2368,23 +2413,6 @@
 
                         event.preventDefault();
                         selectPreviewWidth(nextWidth, { prepare: false });
-                    }, { signal: controlListeners.signal });
-
-                    degradationSelect?.addEventListener('change', () => {
-                        try {
-                            selectDegradationMode(degradationSelect.value);
-                        } catch (error) {
-                            selectDegradationMode('normal');
-                            const surfaced = showRequestError(error, 'Robustheitsvorschau nicht verfügbar');
-                            toast('error', surfaced.message, 'Vorschau nicht verfügbar');
-                        }
-                    }, { signal: controlListeners.signal });
-
-                    replayButton?.addEventListener('click', () => {
-                        const restarted = Number(instance?.restartAllGifs?.() || 0);
-                        setMessage(restarted > 0
-                            ? `${restarted} Animation${restarted === 1 ? '' : 'en'} neu gestartet.`
-                            : 'In der aktuellen Vorschau wurde keine GIF-Animation gefunden.');
                     }, { signal: controlListeners.signal });
 
                     const saveCurrentDraft = async () => {

@@ -2497,6 +2497,125 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(shellCss, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmz-builder__popover/);
 });
 
+test('mail view controls work after teleport and ignore other panels and destroyed editors', async () => {
+    const source = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+    const queriesStart = source.indexOf('const viewPanelId =');
+    const queriesEnd = source.indexOf('const saveButton =', queriesStart);
+    const eventsStart = source.indexOf('// Delegation erreicht auch einen erst spaeter teleportierten');
+    const eventsEnd = source.indexOf('const finishResizeGesture =', eventsStart);
+    assert.ok(queriesStart > 0 && queriesEnd > queriesStart && eventsEnd > eventsStart);
+    const document = new DOMParser().parseFromString('<html><body><div id="studio"><div data-mail-toolbar-menu="view"><button id="trigger">Ansicht</button></div></div></body></html>', 'text/html');
+    const studioRoot = document.getElementById('studio');
+    const frames = [];
+    const calls = [];
+    const controlListeners = new AbortController();
+    const listeners = [];
+    const nativeListen = document.addEventListener.bind(document);
+    document.addEventListener = (type, listener, options) => {
+        assert.equal(options.signal, controlListeners.signal, 'every delegated listener belongs to this editor');
+        listeners.push(type);
+        nativeListen(type, listener);
+        // linkedom has no browser AbortSignal listener cleanup implementation.
+        options.signal.addEventListener('abort', () => document.removeEventListener(type, listener), { once: true });
+    };
+    const compile = new Function('context', `
+        const { window, studioRoot, controlListeners, calls } = context;
+        const config = { currentDocument: 'signature' };
+        let destroyed = false;
+        let selectedViewMode = 'edit';
+        let selectedTheme = 'light';
+        let selectedDegradationMode = 'normal';
+        const instance = { restartAllGifs: () => { calls.push(['replay']); return 2; }, getPreviewGeometry: () => ({ logicalWidth: 375 }) };
+        const selectViewMode = async (value) => { selectedViewMode = value; calls.push(['mode', value]); };
+        const selectTheme = (value) => { selectedTheme = value; calls.push(['theme', value]); };
+        const selectDevice = (value) => calls.push(['device', value]);
+        const selectPreviewWidth = (value) => calls.push(['width', value]);
+        const selectDegradationMode = (value) => { selectedDegradationMode = value; calls.push(['degradation', value]); };
+        const setMessage = (value) => calls.push(['message', value]);
+        const updatePreviewStatus = (value) => calls.push(['status', value.logicalWidth]);
+        const showRequestError = (error) => error;
+        const toast = () => {};
+        ${source.slice(queriesStart, queriesEnd)}
+        ${source.slice(eventsStart, eventsEnd)}
+        return { queryViewControl, queryViewControls, destroy: () => { destroyed = true; controlListeners.abort(); } };
+    `);
+    const bindings = compile({
+        window: { document, requestAnimationFrame: (callback) => frames.push(callback) },
+        studioRoot, controlListeners, calls,
+    });
+    assert.deepEqual(listeners.sort(), ['change', 'click', 'dropdown-open', 'input']);
+    assert.equal(bindings.queryViewControls('[data-mail-view-mode]').length, 0, 'boot can run before Alpine creates the panel');
+
+    const panel = document.createElement('div');
+    panel.id = 'rt-dropdown-mail-document-view-signature-content';
+    panel.innerHTML = '<button data-mail-view-mode="delivery"><span>Compiler-Parität</span></button>'
+        + '<button data-mail-view-mode="forward">Weiterleitung</button>'
+        + '<div data-mail-theme-controls><button data-mail-theme-button="dark">Dunkel</button></div>'
+        + '<button data-mail-preview-device="mobile">Mobil</button>'
+        + '<input data-mail-preview-width value="390">'
+        + '<select data-mail-degradation-mode><option value="normal">Normal</option><option value="images-off">Bilder aus</option></select>'
+        + '<button data-mail-preview-replay>Neustart</button>';
+    document.body.append(panel);
+    assert.equal(studioRoot.contains(panel), false);
+    assert.equal(bindings.queryViewControls('[data-mail-view-mode]').length, 2);
+    const fire = (node, type) => node.dispatchEvent(new document.defaultView.Event(type, { bubbles: true }));
+    const get = (selector) => panel.querySelector(selector);
+    get('[data-mail-view-mode] span').click();
+    await Promise.resolve();
+    assert.deepEqual(calls.pop(), ['mode', 'delivery'], 'clicks from nested labels reach the mode action');
+    get('[data-mail-theme-button]').click();
+    assert.deepEqual(calls.pop(), ['theme', 'dark']);
+    get('[data-mail-preview-device]').click();
+    assert.deepEqual(calls.pop(), ['device', 'mobile']);
+    fire(get('input'), 'input');
+    assert.deepEqual(calls.pop(), ['width', '390']);
+    get('input').value = '';
+    fire(get('input'), 'input');
+    assert.equal(calls.length, 0);
+    get('select').selectedIndex = 1;
+    // linkedom exposes a read-only select value; select the option explicitly.
+    get('select').querySelector('[value="images-off"]').selected = true;
+    fire(get('select'), 'change');
+    assert.deepEqual(calls.pop(), ['degradation', 'images-off']);
+    get('[data-mail-preview-replay]').click();
+    assert.deepEqual(calls.splice(0), [['replay'], ['message', '2 Animationen neu gestartet.']]);
+
+    const foreign = panel.cloneNode(true);
+    foreign.id = 'rt-dropdown-mail-document-view-template-content';
+    document.body.append(foreign);
+    foreign.querySelector('[data-mail-view-mode]').click();
+    fire(foreign.querySelector('input'), 'input');
+    fire(foreign.querySelector('select'), 'change');
+    assert.equal(calls.length, 0, 'another document panel cannot control this editor');
+    get('[data-mail-preview-device]').disabled = true;
+    get('[data-mail-preview-device]').click();
+    get('[data-mail-view-mode]').setAttribute('aria-disabled', 'true');
+    get('[data-mail-view-mode]').click();
+    assert.equal(calls.length, 0, 'disabled controls cannot dispatch actions');
+
+    get('[data-mail-view-mode="forward"]').click();
+    await Promise.resolve();
+    calls.length = 0;
+    // The opened panel must show the selected state, including when created late.
+    Object.defineProperty(get('select'), 'value', { writable: true, value: 'normal' });
+    fire(document.getElementById('trigger'), 'dropdown-open');
+    frames.shift()();
+    assert.equal(get('[data-mail-view-mode="forward"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(get('[data-mail-theme-button]').disabled, true);
+    assert.equal(get('[data-mail-theme-controls]').getAttribute('aria-disabled'), 'true');
+    assert.equal(get('select').disabled, true);
+    assert.equal(get('select').value, 'images-off');
+    assert.deepEqual(calls.splice(0), [['status', 375]]);
+
+    fire(document.getElementById('trigger'), 'dropdown-open');
+    bindings.destroy();
+    frames.shift()();
+    get('[data-mail-preview-replay]').click();
+    fire(get('input'), 'input');
+    fire(get('select'), 'change');
+    assert.equal(calls.length, 0, 'abort removes listeners and pending frame ignores the destroyed editor');
+});
+
 test('code import drains pending autosave and keeps the previous canvas locked through reload', async () => {
     const mailView = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
     const start = mailView.indexOf('const applyCodeAsDraft = async () => {');
@@ -2669,7 +2788,7 @@ test('mail editor exposes one responsive topbar with grouped controls and visibl
     }
 
     for (const group of ['document', 'content', 'edit', 'view', 'designs-versions', 'tools']) {
-        assert.equal((view.match(new RegExp(`data-mail-toolbar-menu="${group}"`, 'g')) || []).length, 1);
+        assert.equal((view.match(new RegExp(`^\\s*data-mail-toolbar-menu="${group}"`, 'gm')) || []).length, 1);
     }
     assert.ok((view.match(/<x-ui\.dropdown\.anchor-dropdown/g) || []).length >= 5);
     assert.match(view, /data-mail-design-manager-trigger/);
