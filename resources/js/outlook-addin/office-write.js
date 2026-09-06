@@ -54,7 +54,7 @@ export function confirmedOfficeWrite(office, item, phase, uncertainCode, invoke,
                     recordDiagnostic(phase, 'failed', error, Date.now() - start);
                     reject(error);
                 }
-                options.onSettled?.();
+                try { options.onSettled?.(); } catch { /* Pane may already be unloaded. */ }
             });
         } catch (error) {
             clearTimeout(timeout);

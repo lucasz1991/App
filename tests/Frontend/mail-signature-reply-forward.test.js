@@ -313,24 +313,25 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.match(taskpane, /failOpenSignatureCurrentState\(\);\s*silentBootstrapRefreshPromise = \(async \(\) =>/);
     assert.match(taskpane, /const bootstrap = await loadBootstrap\(currentConfig, accessToken\);[\s\S]*?await acceptBootstrap\(bootstrap\);/);
     assert.match(taskpane, /const expectedRevision = bootstrapStateRevision;[\s\S]*?expectedRevision !== bootstrapStateRevision[\s\S]*?await acceptBootstrap\(bootstrap\);[\s\S]*?catch \(error\) \{\s*if \(expectedRevision !== bootstrapStateRevision \|\| taskpaneState\.busy\) \{\s*return;/);
-    assert.match(taskpane, /await acceptBootstrap\(bootstrap\);\s*if \(bootstrapStateRevision !== expectedRevision \+ 1 \|\| taskpaneState\.busy\) \{\s*return;\s*\}\s*setStatus\('success', 'RailTime ist bereit'/);
+    assert.match(taskpane, /if \(!lastActionError && !insertionBlocked\(\)\) setStatus\('success', 'Mit RailTime verbunden'/);
     assert.match(taskpane, /authenticationWasLost\(error\)[\s\S]*?invalidateBootstrap\('locked', true\);[\s\S]*?failOpenSignatureCurrentState\(\);/);
     assert.match(taskpane, /Office\.EventType\?\.ItemChanged/);
     assert.match(taskpane, /signatureStateRefreshPromise = refreshSignatureCurrentState\(\)\.catch\(\(error\) =>/);
-    assert.match(taskpane, /function handleMailboxItemChanged\(\) \{[\s\S]*?failOpenSignatureCurrentState\(\);\s*requestSignatureCurrentStateRefresh\(\);\s*\}/);
+    assert.match(taskpane, /function handleMailboxItemChanged\(\) \{[\s\S]*?invalidateBootstrap\('locked'\);/);
     assert.match(taskpane, /Office\.EventType\.ItemChanged,\s*handleMailboxItemChanged,\s*\(result\) =>/);
-    assert.match(taskpane, /mailboxItemRevision \+= 1;\s*taskpaneState\.templatePresent = false;\s*failOpenSignatureCurrentState\(\);/);
+    assert.match(taskpane, /mailboxItemRevision \+= 1;[\s\S]*?taskpaneState\.templatePresent = false;\s*invalidateBootstrap\('locked'\);/);
     assert.match(taskpane, /const target = captureComposeTarget\(\);[\s\S]*?await callback\(bootstrap, target\);/);
     assert.match(taskpane, /function assertComposeTarget\(target\) \{[\s\S]*?target\.revision !== mailboxItemRevision[\s\S]*?Office\.context\.mailbox\.item !== target\.item[\s\S]*?throw codedError\('ITEM_CHANGED'\);/);
-    assert.match(taskpane, /await attachInlineMedia\(target, signature\.media\);\s*assertComposeTarget\(target\);\s*await setSignature\(item, signature\.html\);/);
-    assert.match(taskpane, /await prependTemplate\(Office, item, template\.html, \(\) => assertComposeTarget\(target\), \{\s*media: template\.media,\s*beforeInsert: \(\) => attachInlineMedia\(target, template\.media\)/);
+    assert.match(taskpane, /await attachInlineMedia\(target, signature\.media, bootstrap\.binding\);\s*await assertWriteTarget\(target, bootstrap\.binding\);\s*await setSignature\(item, signature\.html\);/);
+    assert.match(taskpane, /prependTemplate\(Office, item, template\.html, \(\) => assertWriteTarget\(target, bootstrap\.binding\), \{\s*media: template\.media,\s*beforeInsert: \(\) => attachInlineMedia\(target, template\.media, bootstrap\.binding\)/);
     assert.match(taskpane, /taskpaneState\.itemChangedMonitoringReady = result\?\.status === Office\.AsyncResultStatus\.Succeeded;[\s\S]*?if \(!taskpaneState\.itemChangedMonitoringReady\) \{[\s\S]*?failOpenSignatureCurrentState\(\);/);
     assert.match(taskpane, /\} else \{\s*taskpaneState\.itemChangedMonitoringReady = false;\s*failOpenSignatureCurrentState\(\);/);
     assert.doesNotMatch(taskpane, /localStorage/);
     assert.match(taskpane, /validatedDocument\(templateChoice\.document, 'template'/);
     assert.doesNotMatch(taskpane, /body\.setAsync|removeStaleManagedInlineMedia|removeAttachmentAsync|displayNewMessageForm/);
     assert.doesNotMatch(taskpane, /allowAdditional: true/);
-    assert.match(taskpane, /confirmAdditional: \(\) => window\.confirm/);
+    assert.match(taskpane, /confirmAdditional: confirmAdditionalTemplate/);
+    assert.doesNotMatch(taskpane, /window\.confirm/);
     assert.match(taskpane, /async function withAuthenticatedBootstrap\(button, callback\) \{\s*if \(taskpaneState\.busy\) return;/);
     assert.match(taskpane, /acceptBootstrap\(bootstrap, \{ inspectBody: false \}\)/);
     assert.equal(occurrences(taskpane, /await refreshSignatureCurrentState\(\);/g), 2);
@@ -528,7 +529,7 @@ test('failed session reads never proceed to body reads or native media writes', 
     let media = 0;
     await assert.rejects(composeLibrary.prependTemplate(fixture.office, fixture.item, '<p>Template</p>', () => {}, {
         beforeInsert() { media += 1; },
-    }), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
+    }), { code: 'COMPOSE_SESSION_UNREADABLE' });
     assert.equal(fixture.state.bodyReads, 0);
     assert.equal(media, 0);
     assert.equal(fixture.state.prepends.length, 0);
@@ -713,6 +714,50 @@ test('compose event stops after mailbox item changes during media insertion', as
     assert.equal(state.completed, 1);
 });
 
+test('automatic template and signature never write into a private From mailbox', async () => {
+    for (const withoutDefault of [false, true]) {
+        const fixture = await runtimeFixture({ withoutDefault });
+        fixture.item.from.getAsync = (callback) => callback({ status: 'succeeded', value: { emailAddress: 'private@personal.test' } });
+        await fixture.handler(fixture.event);
+        assert.equal(fixture.state.prepends.length, 0);
+        assert.equal(fixture.state.signatures.length, 0);
+        assert.equal(fixture.state.attachments.length, 0);
+        assert.equal(fixture.state.completed, 1);
+    }
+});
+
+test('From change while media is prepared prevents a template or signature body write', async () => {
+    for (const withoutDefault of [false, true]) {
+        const fixture = await runtimeFixture({ withoutDefault });
+        fixture.item.addFileAttachmentFromBase64Async = (_base64, _name, _options, callback) => {
+            fixture.item.from.getAsync = cb => cb({ status: 'succeeded', value: { emailAddress: 'private@personal.test' } });
+            callback({ status: 'succeeded', value: 'media' });
+        };
+        await fixture.handler(fixture.event);
+        assert.equal(fixture.state.prepends.length, 0);
+        assert.equal(fixture.state.signatures.length, 0);
+        assert.equal(fixture.state.completed, 1);
+    }
+});
+
+test('automatic preflight read failure is not cached as a completed insertion', async () => {
+    const fixture = await runtimeFixture();
+    let failed = true, session = '';
+    fixture.item.sessionData = {
+        getAsync(_key, callback) { callback(failed ? { status: 'failed' } : { status: 'succeeded', value: session }); },
+        setAsync(_key, value, callback) { session = value; callback({ status: 'succeeded' }); },
+    };
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.attachments.length, 0);
+    assert.equal(fixture.state.prepends.length, 0);
+    assert.equal(fixture.state.signatures.length, 0);
+    failed = false;
+    await fixture.handler(fixture.event);
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.prepends.length, 1);
+    assert.equal(fixture.state.completed, 3);
+});
+
 test('automatic insertion never falls back to another write after an unconfirmed native prepend', async (context) => {
     context.mock.timers.enable({ apis: ['setTimeout'] });
     const fixture = await runtimeFixture();
@@ -768,8 +813,10 @@ test('authenticated taskpane inserts once on double click with one body read and
         .replace(/import\s*\{([\s\S]*?)\}\s*from '\.\/[^']+\.js';/g, (_match, names) => `const {${names.replace(/\s+as\s+/g, ': ')}} = shared;`)
         .replace(/\bexport (?=(?:async )?function)/g, '');
     const client = new Function('Office', 'globalThis', 'document', 'window', 'fetch', 'auth', 'shared', `${script}\nreturn {
-        async setup(config, payload) { currentConfig = config; taskpaneState.configReady = true; taskpaneState.authenticated = true; taskpaneState.busy = false; await acceptBootstrap(payload, {inspectBody:false}); },
-        insertTemplate, updateSignature, taskpaneState
+        async setup(config, payload) { currentConfig = config; configPromise = Promise.resolve(config); taskpaneState.configReady = true; taskpaneState.authenticated = true; taskpaneState.busy = false; await acceptBootstrap(payload, {inspectBody:false}); },
+        insertTemplate, updateSignature, taskpaneState, runDiagnostics, bindActions, requestSilentBootstrapRefresh,
+        resetBootstrapAge() { lastBootstrapRefreshAt = 0; },
+        refreshPending() { return silentBootstrapRefreshPromise; }
     };`)(fixture.office, { Office: fixture.office }, document, window,
         async () => ({ ok: true, json: async () => bootstrap }), auth, composeLibrary);
     await client.setup(config, bootstrap);
@@ -793,6 +840,40 @@ test('authenticated taskpane inserts once on double click with one body read and
             failure === 'unreadable' ? /nicht sicher geprüft/ : /Sicherheitsbudget/);
         assert.equal(client.taskpaneState.busy, false);
     }
+
+    const personal = composeFixture();
+    personal.item.from.getAsync = cb => cb({ status: 'succeeded', value: { emailAddress: 'private@personal.test' } });
+    fixture.office.context.mailbox.item = personal.item;
+    for (const action of [client.insertTemplate, client.updateSignature]) {
+        await action(button);
+        assert.match(document.querySelector('[data-outlook-status-detail]').textContent, /nicht als Ihr RailTime-Microsoft-Postfach bestätigt/);
+        assert.equal(personal.state.prepends.length, 0);
+        assert.equal(personal.state.signatures.length, 0);
+        assert.equal(personal.state.attachments.length, 0);
+    }
+
+    const fresh = composeFixture();
+    fixture.office.context.mailbox.item = fresh.item;
+    fresh.item.sessionData = { getAsync(_key, cb) { cb({ status: 'failed', error: { code: 'READ_FAILURE' } }); } };
+    await client.setup(config, bootstrap);
+    await client.updateSignature(document.querySelector('[data-outlook-action="signature"]'));
+    const errorText = document.querySelector('[data-outlook-status-detail]').textContent;
+    assert.match(errorText, /Vorprüfung.*noch nicht gestartet/);
+    client.resetBootstrapAge();
+    client.requestSilentBootstrapRefresh();
+    await client.refreshPending();
+    assert.equal(document.querySelector('[data-outlook-status-detail]').textContent, errorText, 'silent successful refresh never overwrites an insertion error');
+    assert.equal(document.querySelector('[data-outlook-connection-chip]').textContent, 'Prüfen');
+
+    fresh.item.sessionData = undefined;
+    await client.runDiagnostics(document.querySelector('[data-outlook-diagnostics-run]'));
+    assert.equal(fresh.state.prepends.length, 0);
+    assert.equal(fresh.state.signatures.length, 0);
+    assert.equal(fresh.state.attachments.length, 0);
+    const report = JSON.parse(document.querySelector('[data-outlook-diagnostics-output]').value);
+    assert.equal(report.checks.boundMailbox, true);
+    assert.doesNotMatch(JSON.stringify(report), /employee@example|private@personal|synthetic-test-token/);
+    assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'Verbindung und Vorprüfung bestätigt');
 });
 
 test('Outlook dialogs open only on explicit clicks and restore opener focus after closing', async () => {

@@ -314,7 +314,10 @@ function loadConfig() {
             headers: {
                 Accept: 'application/json',
             },
-        }, CONFIG_TIMEOUT_MS).then(validateConfig);
+        }, CONFIG_TIMEOUT_MS).then(validateConfig).catch((error) => {
+            configPromise = null;
+            throw error;
+        });
     }
 
     return configPromise;
@@ -479,14 +482,6 @@ function validatedDocument(payload, kind, marker) {
     }
 
     return Object.freeze({ html, media });
-}
-
-function officeFailure(result, fallbackCode) {
-    if (result?.status === Office.AsyncResultStatus.Succeeded) {
-        return null;
-    }
-
-    return codedError(result?.error?.code || fallbackCode);
 }
 
 function addInlineAttachment(item, media) {
@@ -1348,6 +1343,7 @@ async function withAuthenticatedBootstrap(button, callback) {
 }
 
 async function updateSignature(button) {
+    if (taskpaneState.busy) return;
     setStatus('working', 'Signatur wird aktualisiert …', 'Bilder werden sicher in die Nachricht eingebettet.');
 
     await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
@@ -1384,6 +1380,7 @@ async function updateSignature(button) {
 }
 
 async function insertTemplate(button) {
+    if (taskpaneState.busy) return;
     const selected = selectedTemplate();
 
     setStatus(

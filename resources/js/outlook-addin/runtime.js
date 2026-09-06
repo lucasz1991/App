@@ -185,7 +185,10 @@ function loadConfig() {
             headers: {
                 Accept: 'application/json',
             },
-        }, CONFIG_TIMEOUT_MS).then(validateConfig);
+        }, CONFIG_TIMEOUT_MS).then(validateConfig).catch((error) => {
+            configPromise = null;
+            throw error;
+        });
     }
 
     return configPromise;
@@ -339,14 +342,6 @@ function validatedDocument(payload, kind, marker) {
     }
 
     return Object.freeze({ html, media });
-}
-
-function officeFailure(result, fallbackCode) {
-    if (result?.status === Office.AsyncResultStatus.Succeeded) {
-        return null;
-    }
-
-    return codedError(result?.error?.code || fallbackCode);
 }
 
 function addInlineAttachment(item, media) {
