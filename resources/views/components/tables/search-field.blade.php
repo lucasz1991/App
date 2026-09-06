@@ -2,6 +2,9 @@
     'resultsCount' => null,
     'placeholder' => null,
     'context' => 'table',
+    'status' => null,
+    'statusLabel' => null,
+    'inputAttributes' => null,
 ])
 
 @php
@@ -10,15 +13,26 @@
     $hasResultsSignal = $resultsCount !== null;
     $noResults = $hasResultsSignal && (int) $resultsCount === 0;
     $ph = $placeholder ?? __('app.search');
-    $searchContext = in_array($context, ['table', 'topbar'], true) ? $context : 'table';
+    $searchContext = in_array($context, ['table', 'topbar', 'chat', 'picker'], true) ? $context : 'table';
     $isTopbarSearch = $searchContext === 'topbar';
+    $searchAttributes = $inputAttributes instanceof \Illuminate\View\ComponentAttributeBag
+        ? $inputAttributes
+        : $attributes;
+    $wireModel = $searchAttributes->wire('model')->value();
+    $gradientId = 'rt-search-trace-'.substr(md5($searchContext.'|'.$wireModel.'|'.$searchAttributes->get('id')), 0, 12);
 @endphp
 
 <div
   x-data="{
-        value: @entangle($attributes->wire('model')),
+        value: @entangle($searchAttributes->wire('model')),
         isTopbar: @js($isTopbarSearch),
         layerId: @js($isTopbarSearch ? 'topbar-search' : null),
+        placeholderText: @js($ph),
+        placeholderValue: '',
+        placeholderIndex: 0,
+        placeholderTimer: null,
+        reducedMotionQuery: null,
+        reducedMotionListener: null,
         expanded: false,
         mobile: false,
         mobileQuery: null,
@@ -42,8 +56,42 @@
 
             this.navigationListener = () => this.close(false);
             document.addEventListener('livewire:navigating', this.navigationListener);
+
+            this.reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+            this.reducedMotionListener = (event) => {
+                if (event.matches) {
+                    this.stopPlaceholder();
+                    this.placeholderValue = this.placeholderText;
+                    return;
+                }
+
+                if (String(this.value ?? '').length === 0) {
+                    this.startPlaceholder(true);
+                }
+            };
+
+            if (typeof this.reducedMotionQuery.addEventListener === 'function') {
+                this.reducedMotionQuery.addEventListener('change', this.reducedMotionListener);
+            } else {
+                this.reducedMotionQuery.addListener(this.reducedMotionListener);
+            }
+
+            this.$watch('value', (nextValue) => {
+                if (String(nextValue ?? '').length > 0) {
+                    this.stopPlaceholder();
+                    return;
+                }
+
+                this.startPlaceholder(true);
+            });
+
+            this.$nextTick(() => {
+                if (!this.isTopbar) this.startPlaceholder(true);
+            });
         },
         destroy() {
+            this.stopPlaceholder();
+
             if (this.focusFrame !== null) {
                 window.cancelAnimationFrame(this.focusFrame);
             }
@@ -60,6 +108,14 @@
                 document.removeEventListener('livewire:navigating', this.navigationListener);
             }
 
+            if (this.reducedMotionQuery && this.reducedMotionListener) {
+                if (typeof this.reducedMotionQuery.removeEventListener === 'function') {
+                    this.reducedMotionQuery.removeEventListener('change', this.reducedMotionListener);
+                } else {
+                    this.reducedMotionQuery.removeListener(this.reducedMotionListener);
+                }
+            }
+
             if (this.isTopbar) {
                 document.documentElement.classList.remove('rt-topbar-search-open');
             }
@@ -74,6 +130,46 @@
             if (!this.isTopbar) return;
             document.documentElement.classList.toggle('rt-topbar-search-open', this.isMobileLayerOpen());
         },
+        stopPlaceholder() {
+            if (this.placeholderTimer !== null) {
+                window.clearTimeout(this.placeholderTimer);
+                this.placeholderTimer = null;
+            }
+        },
+        startPlaceholder(restart = false) {
+            if (!this.isExpanded() || String(this.value ?? '').length > 0) return;
+
+            this.stopPlaceholder();
+
+            if (this.reducedMotionQuery?.matches) {
+                this.placeholderValue = this.placeholderText;
+                return;
+            }
+
+            if (!restart && this.placeholderValue === this.placeholderText) return;
+
+            if (restart) {
+                this.placeholderValue = '';
+                this.placeholderIndex = 0;
+            }
+
+            const glyphs = Array.from(this.placeholderText);
+            const typeNext = () => {
+                if (!this.isExpanded() || String(this.value ?? '').length > 0) return;
+
+                this.placeholderIndex = Math.min(this.placeholderIndex + 1, glyphs.length);
+                this.placeholderValue = glyphs.slice(0, this.placeholderIndex).join('');
+
+                if (this.placeholderIndex < glyphs.length) {
+                    const cadence = 30 + ((this.placeholderIndex % 4) * 8);
+                    this.placeholderTimer = window.setTimeout(typeNext, cadence);
+                } else {
+                    this.placeholderTimer = null;
+                }
+            };
+
+            this.placeholderTimer = window.setTimeout(typeNext, 90);
+        },
         open() {
             if (this.isTopbar) {
                 window.dispatchEvent(new CustomEvent('rt-topbar-layer-open', {
@@ -83,6 +179,7 @@
 
             this.expanded = true;
             this.syncPageScrollLock();
+            this.startPlaceholder(true);
 
             // Alpine aktualisiert x-bind:class in einem Microtask. Fuer iOS
             // muss das Eingabefeld aber bereits innerhalb desselben
@@ -136,6 +233,7 @@
         },
         clear() {
             this.value = '';
+            this.startPlaceholder(true);
             this.$refs.input?.focus({ preventScroll: true });
         },
         handleEscape() {
@@ -175,6 +273,8 @@
     x-bind:class="{
         'is-expanded': isExpanded(),
         'is-mobile-layer': isMobileLayerOpen(),
+        'has-value': String(value ?? '').length > 0,
+        'has-no-results': @js($noResults) && String(value ?? '').length > 0,
     }"
     x-on:keydown.escape="if (isTopbar) { $event.stopPropagation(); $event.preventDefault(); handleEscape() }"
     x-on:dropdown-open.window="isTopbar && close(false)"
@@ -187,8 +287,32 @@
     x-bind:aria-modal="isMobileLayerOpen() ? 'true' : null"
     x-bind:aria-label="isMobileLayerOpen() ? @js($ph) : null"
     data-search-context="{{ $searchContext }}"
+    data-rt-premium-search
     data-tables-search
+    @if ($wireModel)
+        wire:loading.class="is-loading"
+        wire:target="{{ $wireModel }}"
+    @endif
 >
+    <span class="rt-expandable-search__surface" aria-hidden="true"></span>
+    <svg
+        class="rt-expandable-search__bezel"
+        viewBox="0 0 100 44"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+    >
+        <defs>
+            <linearGradient id="{{ $gradientId }}" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="var(--rt-search-trace-a)" />
+                <stop offset="0.36" stop-color="var(--rt-search-trace-b)" />
+                <stop offset="0.7" stop-color="var(--rt-search-trace-c)" />
+                <stop offset="1" stop-color="var(--rt-search-trace-a)" />
+            </linearGradient>
+        </defs>
+        <rect class="rt-expandable-search__bezel-track" x="1" y="1" width="98" height="42" rx="11" pathLength="100" />
+        <rect class="rt-expandable-search__bezel-trace" x="1" y="1" width="98" height="42" rx="11" pathLength="100" stroke="url(#{{ $gradientId }})" />
+    </svg>
+
     @if ($isTopbarSearch)
         <button
             x-ref="trigger"
@@ -234,25 +358,53 @@
     @endif
 
     <input
-        type="text"
+        type="search"
         x-ref="input"
         x-model="value"
-        x-on:focus="expanded = true; syncPageScrollLock()"
+        x-on:focus="expanded = true; syncPageScrollLock(); startPlaceholder(false)"
         x-on:blur="closeWhenEmpty()"
         x-bind:tabindex="isExpanded() ? 0 : -1"
         aria-label="{{ $ph }}"
-        placeholder="{{ $ph }}"
+        aria-placeholder="{{ $ph }}"
+        placeholder=""
         autocomplete="off"
+        inputmode="search"
+        enterkeyhint="search"
+        autocapitalize="none"
+        spellcheck="false"
         @if ($isTopbarSearch)
-            inputmode="search"
-            enterkeyhint="search"
             role="searchbox"
-            autocapitalize="none"
-            spellcheck="false"
         @endif
-        {{ $attributes->merge(['class' => 'rt-expandable-search__input']) }}
-        @if($noResults) :class="String(value ?? '').length > 0 && 'border-rt-red/60 ring-2 ring-rt-red/20 dark:border-rt-red/60'" @endif
+        {{ $searchAttributes->merge(['class' => 'rt-expandable-search__input']) }}
     />
+
+    <span
+        x-show="isExpanded() && String(value ?? '').length === 0"
+        class="rt-expandable-search__placeholder"
+        aria-hidden="true"
+    >
+        <span x-text="placeholderValue"></span>
+        <span class="rt-expandable-search__cursor"></span>
+    </span>
+
+    @if ($status !== null)
+        <span
+            x-show="isExpanded() && String(value ?? '').length === 0"
+            class="rt-expandable-search__status"
+            @if (filled($statusLabel)) aria-label="{{ $statusLabel }}" @endif
+        >
+            {{ $status }}
+        </span>
+    @else
+        <span
+            x-show="isExpanded() && String(value ?? '').length === 0"
+            class="rt-expandable-search__activity"
+            aria-hidden="true"
+            data-rt-search-activity
+        >
+            <span></span><span></span><span></span>
+        </span>
+    @endif
 
     <button
         type="button"
@@ -273,10 +425,10 @@
                 type="button"
                 x-show="isMobileLayerOpen()"
                 x-cloak
-                x-transition:enter="transition-opacity duration-200 ease-out"
+                x-transition:enter="rt-search-backdrop-enter"
                 x-transition:enter-start="opacity-0"
                 x-transition:enter-end="opacity-100"
-                x-transition:leave="transition-opacity duration-150 ease-in"
+                x-transition:leave="rt-search-backdrop-leave"
                 x-transition:leave-start="opacity-100"
                 x-transition:leave-end="opacity-0"
                 x-on:click="close(true)"

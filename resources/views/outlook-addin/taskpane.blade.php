@@ -624,6 +624,51 @@
             .content { padding: 12px; }
             .template-card { padding: 12px; }
         }
+
+        .brand { gap: 9px; flex-wrap: wrap; }
+        .brand h1 { font-size: 16px; }
+        .brand-tools { display: flex; gap: 6px; margin-left: auto; }
+        .glass-button {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            min-height: 44px; padding: 8px 10px; border: 1px solid var(--rt-line);
+            border-radius: 12px; background: var(--rt-subtle); color: var(--rt-ink);
+            background: color-mix(in srgb, var(--rt-surface) 78%, transparent);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 8px rgba(21,38,60,.05);
+            backdrop-filter: blur(16px); cursor: pointer; font-size: 11px; font-weight: 600;
+            text-decoration: none;
+        }
+        .glass-button:hover { border-color: var(--rt-red); }
+        .glass-button[data-tone="error"] { border-color: var(--rt-error); background: var(--rt-error-soft); color: var(--rt-error); }
+        .glass-button[data-tone="working"] { border-color: var(--rt-warning); background: var(--rt-warning-soft); }
+        .glass-button:focus-visible, .app-link:focus-visible { outline: 3px solid var(--rt-focus); outline-offset: 3px; }
+        .glass-button svg { width: 16px; height: 16px; flex: 0 0 16px; }
+        .glass-button .connection-chip { min-height: 0; padding: 0; margin: 0; border: 0; background: transparent; }
+        .glass-button .connection-chip::before { display: none; }
+        .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+        .app-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--rt-line); }
+        .app-link { display: inline-flex; align-items: center; min-height: 44px; padding: 8px; color: var(--rt-muted); font-size: 12px; font-weight: 600; text-decoration: none; }
+        .app-link:hover { color: var(--rt-red); }
+        .taskpane-dialog { width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--rt-line); border-radius: 18px; background: var(--rt-surface); color: var(--rt-ink); overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.24); }
+        .taskpane-dialog::backdrop { background: rgba(15,23,42,.45); backdrop-filter: blur(5px); }
+        .dialog-heading { display: flex; position: sticky; top: 0; z-index: 1; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--rt-line); background: var(--rt-surface); }
+        .dialog-heading h2 { margin: 0; font-size: 16px; }
+        .dialog-body { padding: 16px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+        .dialog-body p:first-child { margin-top: 0; }
+        .dialog-body ol { padding-left: 20px; }
+        .dialog-body li + li { margin-top: 10px; }
+        .dialog-body a { color: var(--rt-ink); text-underline-offset: 3px; }
+        .dialog-body .maintenance-actions { margin: 0; }
+        .dialog-feedback { padding: 10px 12px; border: 1px solid var(--rt-line); border-radius: 10px; background: var(--rt-subtle); font-size: 12px; }
+        .dialog-feedback[data-tone="error"] { border-color: var(--rt-error); background: var(--rt-error-soft); }
+        .content .template-card { margin-top: 0; }
+        @media (max-width: 360px) {
+            .brand-mark { width: 32px; height: 32px; flex-basis: 32px; }
+            .brand-copy { flex: 1; }
+            .brand h1 { font-size: 14px; }
+            .brand-kicker { letter-spacing: .06em; font-size: 8px; }
+            .glass-button { padding-inline: 8px; }
+            .brand-tools { gap: 4px; }
+        }
     </style>
 </head>
 <body data-outlook-config-url="{{ $resolvedConfigUrl }}">
@@ -635,30 +680,19 @@
                     <p class="brand-kicker">RailTime / Outlook</p>
                     <h1 id="outlook-addin-heading">Mail-Assistent</h1>
                 </div>
-                <span class="connection-chip" data-outlook-connection-chip data-tone="working">Prüfung</span>
+                <div class="brand-tools" aria-label="Verbindung und Status">
+                    <button class="glass-button" type="button" data-outlook-dialog-open="connection" aria-haspopup="dialog" aria-controls="outlook-connection-dialog" aria-label="Microsoft-Verbindung öffnen">
+                        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M1 1h8v8H1zm10 0h8v8h-8zM1 11h8v8H1zm10 0h8v8h-8z"/></svg>
+                        <span class="connection-chip" data-outlook-connection-chip data-tone="working">Prüfung</span>
+                    </button>
+                    <button class="glass-button" type="button" data-outlook-dialog-open="status" aria-haspopup="dialog" aria-controls="outlook-status-dialog" aria-label="Outlook-Status anzeigen">
+                        Status
+                        <span class="visually-hidden" data-outlook-status-summary role="status" aria-live="polite">Outlook wird vorbereitet</span>
+                    </button>
+                </div>
             </header>
 
             <div class="content">
-                <div
-                    class="status"
-                    data-outlook-status
-                    data-tone="working"
-                    role="status"
-                    aria-live="polite"
-                    aria-atomic="true"
-                    tabindex="-1"
-                >
-                    <span class="status-symbol" data-outlook-status-symbol aria-hidden="true">…</span>
-                    <div>
-                        <strong data-outlook-status-title>Outlook wird vorbereitet …</strong>
-                        <p data-outlook-status-detail>Die sichere Verbindung wird geprüft.</p>
-                    </div>
-                </div>
-
-                <p class="account" data-outlook-account hidden>
-                    <span data-outlook-account-label></span>
-                </p>
-
                 <section
                     class="template-card"
                     data-outlook-template-region
@@ -728,6 +762,18 @@
                     </p>
                 </section>
 
+                <footer class="app-links" aria-label="Outlook im Browser">
+                    <a class="app-link" href="https://outlook.office.com/mail/" target="_blank" rel="noopener noreferrer">Outlook öffnen ↗</a>
+                    <button class="glass-button" type="button" data-outlook-dialog-open="install" aria-haspopup="dialog" aria-controls="outlook-install-dialog">Als App installieren</button>
+                </footer>
+            </div>
+        </section>
+    </main>
+
+    <dialog class="taskpane-dialog" id="outlook-connection-dialog" data-outlook-dialog="connection" aria-labelledby="outlook-connection-title">
+        <div class="dialog-heading"><h2 id="outlook-connection-title">Microsoft-Verbindung</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
+        <div class="dialog-body">
+                <p data-outlook-dialog-feedback role="status" class="dialog-feedback" hidden></p>
                 <div class="maintenance-actions" data-outlook-maintenance-actions aria-label="Verbindung und Signatur">
                     <button
                         class="action action-primary"
@@ -763,8 +809,31 @@
                 <p class="footnote">
                     Sichere Microsoft-Anmeldung · keine Kennwortspeicherung · Inhalte aus Ihrer veröffentlichten RailTime-Version
                 </p>
+        </div>
+    </dialog>
+    <dialog class="taskpane-dialog" id="outlook-status-dialog" data-outlook-dialog="status" aria-labelledby="outlook-status-title">
+        <div class="dialog-heading"><h2 id="outlook-status-title">Outlook-Status</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
+        <div class="dialog-body">
+            <div class="status" data-outlook-status data-tone="working" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">
+                <span class="status-symbol" data-outlook-status-symbol aria-hidden="true">…</span>
+                <div><strong data-outlook-status-title>Outlook wird vorbereitet …</strong><p data-outlook-status-detail>Die sichere Verbindung wird geprüft.</p></div>
             </div>
-        </section>
-    </main>
+            <p class="account" data-outlook-account hidden><span data-outlook-account-label></span></p>
+            <p class="footnote">Vorlagen werden nur in unterstützten Outlook-Clients automatisch eingefügt. Vorhandene Nachrichtentexte und zitierte Antworten bleiben erhalten.</p>
+        </div>
+    </dialog>
+    <dialog class="taskpane-dialog" id="outlook-install-dialog" data-outlook-dialog="install" aria-labelledby="outlook-install-title">
+        <div class="dialog-heading"><h2 id="outlook-install-title">Outlook als Browser-App</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
+        <div class="dialog-body">
+            <p>Die Installation wird direkt auf der Microsoft-Seite bestätigt, nicht innerhalb des Add-ins.</p>
+            <ol>
+                <li><a href="https://outlook.office.com/mail/" target="_blank" rel="noopener noreferrer">Outlook in Edge öffnen</a> und mit dem Firmenkonto anmelden.</li>
+                <li>Im Browser-Menü „…“ → „Apps“ → „Diese Site als eine App installieren“ wählen.</li>
+                <li>In Chrome die angebotene Installations-Schaltfläche in der Adressleiste verwenden.</li>
+            </ol>
+            <p class="footnote">Die Installation der Browser-App weist das RailTime-Add-in nicht automatisch dem Postfach zu.</p>
+            <a href="https://support.microsoft.com/en-us/outlook/use-the-web-version-of-outlook-like-a-desktop-app" target="_blank" rel="noopener noreferrer">Microsoft-Anleitung</a>
+        </div>
+    </dialog>
 </body>
 </html>

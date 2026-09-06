@@ -194,6 +194,7 @@ test('outlook taskpane normalizes multiple templates and keeps the single-templa
                     name: 'Angebot',
                     label: 'Angebot',
                     active: false,
+                    isDefault: true,
                     html: '<p>Angebot</p>',
                     media: [],
                     version: 'fedcba9876543210',
@@ -231,6 +232,8 @@ test('outlook taskpane normalizes multiple templates and keeps the single-templa
         assert.equal(taskpane.hasCurrentSnapshot({
             version: { signature: '2222222222222222' },
         }), false);
+        assert.equal(templates[0].isDefault, false);
+        assert.equal(templates[1].isDefault, true, 'Outlook default is independent of system-active');
 
         const fallback = taskpane.normalizeTemplateChoices({
             template: { html: '<p>Legacy</p>', media: [] },
@@ -316,16 +319,317 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.match(taskpane, /void refreshSignatureCurrentState\(\)\.catch\(\(error\) =>/);
     assert.match(taskpane, /function handleMailboxItemChanged\(\) \{[\s\S]*?failOpenSignatureCurrentState\(\);\s*requestSignatureCurrentStateRefresh\(\);\s*\}/);
     assert.match(taskpane, /Office\.EventType\.ItemChanged,\s*handleMailboxItemChanged,\s*\(result\) =>/);
-    assert.match(taskpane, /mailboxItemRevision \+= 1;\s*failOpenSignatureCurrentState\(\);/);
+    assert.match(taskpane, /mailboxItemRevision \+= 1;\s*taskpaneState\.templatePresent = false;\s*failOpenSignatureCurrentState\(\);/);
     assert.match(taskpane, /const target = captureComposeTarget\(\);[\s\S]*?await callback\(bootstrap, target\);/);
     assert.match(taskpane, /function assertComposeTarget\(target\) \{[\s\S]*?target\.revision !== mailboxItemRevision[\s\S]*?Office\.context\.mailbox\.item !== target\.item[\s\S]*?throw codedError\('ITEM_CHANGED'\);/);
     assert.match(taskpane, /await attachInlineMedia\(target, signature\.media\);\s*assertComposeTarget\(target\);\s*await setSignature\(item, signature\.html\);/);
-    assert.match(taskpane, /await attachInlineMedia\(target, template\.media\);\s*assertComposeTarget\(target\);\s*await replaceBody\(item, template\.html\);/);
+    assert.match(taskpane, /await attachInlineMedia\(target, template\.media\);\s*assertComposeTarget\(target\);\s*await prependTemplate\(Office, item, template\.html, \(\) => assertComposeTarget\(target\), options\);/);
     assert.match(taskpane, /taskpaneState\.itemChangedMonitoringReady = result\?\.status === Office\.AsyncResultStatus\.Succeeded;[\s\S]*?if \(!taskpaneState\.itemChangedMonitoringReady\) \{[\s\S]*?failOpenSignatureCurrentState\(\);/);
     assert.match(taskpane, /\} else \{\s*taskpaneState\.itemChangedMonitoringReady = false;\s*failOpenSignatureCurrentState\(\);/);
     assert.doesNotMatch(taskpane, /localStorage/);
     assert.match(taskpane, /validatedDocument\(templateChoice\.document, 'template'/);
-    assert.match(taskpane, /await replaceBody\(item, template\.html\);\s*await removeStaleManagedInlineMedia\(target, template\.media, previousAttachments\);/);
+    assert.doesNotMatch(taskpane, /body\.setAsync|removeStaleManagedInlineMedia|removeAttachmentAsync|displayNewMessageForm/);
+    assert.match(taskpane, /state\.present && !window\.confirm\(/);
+    assert.match(taskpane, /allowAdditional: state\.present/);
     assert.equal(occurrences(taskpane, /await refreshSignatureCurrentState\(\);/g), 3);
     assert.doesNotMatch(taskpane, /taskpaneState\.signatureCurrent = await signatureIsCurrent/);
+});
+
+const composeLibrary = await import('../../resources/js/outlook-addin/compose-template.js');
+
+function composeFixture({ html = '<p>Existing user text</p>', composeType = 'newMail', platform = 'PC' } = {}) {
+    const state = { html, prepends: [], signatures: [], attachments: [], completed: 0 };
+    const succeeded = (value) => ({ status: 'succeeded', value });
+    const item = {
+        body: {
+            getAsync(_format, callback) { callback(succeeded(state.html)); },
+            getTypeAsync(callback) { callback(succeeded('html')); },
+            prependAsync(value, _options, callback) {
+                state.prepends.push(value);
+                state.html = value + state.html;
+                callback(succeeded());
+            },
+            setSignatureAsync(value, _options, callback) {
+                state.signatures.push(value);
+                callback(succeeded());
+            },
+            setAsync() { throw new Error('Full body replacement must never run'); },
+        },
+        getComposeTypeAsync(callback) { callback(succeeded({ composeType })); },
+        getAttachmentsAsync(callback) { callback(succeeded(state.attachments)); },
+        addFileAttachmentFromBase64Async(_base64, name, options, callback) {
+            state.attachments.push({ name, isInline: options.isInline });
+            callback(succeeded(name));
+        },
+    };
+    const office = {
+        AsyncResultStatus: { Succeeded: 'succeeded' },
+        CoercionType: { Html: 'html' },
+        context: {
+            platform,
+            requirements: { isSetSupported() { return true; } },
+            mailbox: { item, userProfile: { emailAddress: 'employee@example.test' } },
+        },
+        onReady() {},
+        actions: { associate() {} },
+    };
+    return { state, item, office, event: { completed() { state.completed += 1; } } };
+}
+
+test('explicit Outlook default does not activate a legacy system template implicitly', () => {
+    const entry = { id: 'offer', isDefault: true, html: '<p>Offer</p>' };
+    assert.equal(composeLibrary.automaticTemplate({ template: entry, templates: [entry] }), null);
+    assert.equal(composeLibrary.automaticTemplate({ automaticTemplateId: 'offer', templates: [entry] }), entry);
+    assert.equal(composeLibrary.automaticTemplate({ automaticTemplateId: 'offer', templates: [entry, entry] }), null);
+    assert.equal(composeLibrary.automaticTemplate({ automaticTemplateId: 'offer', templates: [{ ...entry, isDefault: false }] }), null);
+});
+
+test('prepend preserves reply content and quoted templates and blocks repeated automatic insertion', async () => {
+    const quoted = `<p>My reply</p><div id="divRplyFwdMsg">Original ${composeLibrary.TEMPLATE_MARKER}</div>`;
+    const { office, item, state } = composeFixture({ html: quoted, composeType: 'reply' });
+    assert.equal((await composeLibrary.readTemplateState(office, item)).present, false);
+    await composeLibrary.prependTemplate(office, item, '<table><tr><td>Template</td></tr></table>');
+    assert.ok(state.html.endsWith(quoted), 'original user text and quoted HTML stay byte-for-byte intact');
+    assert.equal(state.prepends.length, 1);
+    await assert.rejects(composeLibrary.prependTemplate(office, item, '<p>Duplicate</p>'), { code: 'TEMPLATE_ALREADY_INSERTED' });
+    assert.equal(state.prepends.length, 1);
+    await composeLibrary.prependTemplate(office, item, '<p>Explicit extra</p>', () => {}, { allowAdditional: true });
+    assert.equal(state.prepends.length, 2);
+    assert.ok(state.html.endsWith(quoted));
+});
+
+test('template insertion refuses mobile, unreadable bodies, plain text and changed items before writing', async () => {
+    for (const platform of ['iOS', 'Android']) {
+        const { office, item, state } = composeFixture({ platform });
+        await assert.rejects(composeLibrary.prependTemplate(office, item, '<p>Template</p>'), { code: 'TEMPLATE_PREPEND_UNAVAILABLE' });
+        assert.equal(state.prepends.length, 0);
+    }
+    const unreadable = composeFixture();
+    unreadable.item.body.getAsync = (_format, callback) => callback({ status: 'failed' });
+    await assert.rejects(composeLibrary.prependTemplate(unreadable.office, unreadable.item, '<p>Template</p>'), { code: 'COMPOSE_BODY_UNREADABLE' });
+    const plain = composeFixture();
+    plain.item.body.getTypeAsync = (callback) => callback({ status: 'succeeded', value: 'text' });
+    await assert.rejects(composeLibrary.prependTemplate(plain.office, plain.item, '<p>Template</p>'), { code: 'TEMPLATE_REQUIRES_HTML' });
+    const changed = composeFixture();
+    await assert.rejects(composeLibrary.prependTemplate(changed.office, changed.item, '<p>Template</p>', () => {
+        throw Object.assign(new Error('Changed'), { code: 'ITEM_CHANGED' });
+    }), { code: 'ITEM_CHANGED' });
+    assert.equal(changed.state.prepends.length, 0);
+});
+
+async function runtimeFixture(options = {}) {
+    const fixture = composeFixture(options);
+    const marker = 'RT-SIGNATURE-MANAGED-V1';
+    const media = [{ name: 'railtime-test.png', contentId: 'logo', base64: 'aW1hZ2U=' }];
+    const bootstrap = {
+        marker,
+        automaticTemplateId: options.withoutDefault ? null : 'default',
+        templates: [{ id: 'default', isDefault: true, html: '<p>Default</p><img src="cid:logo">', media }],
+        signature: { html: '<p>Signature</p><img src="cid:logo">', media },
+    };
+    const configuration = {
+        ready: true,
+        marker,
+        auth: { clientId: 'test-client', authority: 'https://login.microsoftonline.com/test', scopes: ['Signature.Read'] },
+        endpoints: { bootstrap: 'https://example.test/api/bootstrap' },
+    };
+    const runtimeSource = (await source('../../resources/js/outlook-addin/runtime.js'))
+        .replace(/import\s*\{([\s\S]*?)\}\s*from '@azure\/msal-browser';/, 'const {$1} = auth;')
+        .replace(/import\s*\{([\s\S]*?)\}\s*from '\.\/compose-template\.js';/, 'const {$1} = shared;');
+    const auth = {
+        InteractionRequiredAuthError: class extends Error {},
+        createNestablePublicClientApplication: async () => ({
+            getAllAccounts() { return []; },
+            async acquireTokenSilent() { return { accessToken: 'synthetic-test-token' }; },
+        }),
+    };
+    const createHandler = new Function('Office', 'globalThis', 'fetch', 'auth', 'shared', 'console', `${runtimeSource}\nreturn handleComposeEvent;`);
+    let failedBootstrap = false;
+    fixture.handler = createHandler(
+        fixture.office,
+        { Office: fixture.office, RAILTIME_OUTLOOK_CONFIG_URL: 'https://example.test/config.json' },
+        async (url) => {
+            if (options.failFirstBootstrap && !url.includes('config.json') && !failedBootstrap) {
+                failedBootstrap = true;
+                throw new Error('Synthetic transient network failure');
+            }
+            return { ok: true, json: async () => url.includes('config.json') ? configuration : bootstrap };
+        },
+        auth,
+        composeLibrary,
+        { info() {} },
+    );
+    return fixture;
+}
+
+test('compose event inserts explicit default once for new, reply and forward, and completes every event', async () => {
+    for (const composeType of ['newMail', 'reply', 'forward']) {
+        const existing = '<p>User text</p><div id="divRplyFwdMsg">Quoted conversation</div>';
+        const { handler, event, state } = await runtimeFixture({ composeType, html: existing });
+        await Promise.all([handler(event), handler(event)]);
+        assert.equal(state.prepends.length, 1);
+        assert.equal(state.signatures.length, 0, 'full template already includes signature');
+        assert.equal(state.completed, 2);
+        assert.equal(state.attachments.length, 1);
+        assert.ok(state.html.endsWith(existing));
+    }
+});
+
+test('compose event falls back to signature on mobile or without explicit default and never overwrites body', async () => {
+    for (const options of [{ platform: 'iOS' }, { platform: 'Android' }, { withoutDefault: true }]) {
+        const { handler, event, state } = await runtimeFixture(options);
+        await handler(event);
+        assert.equal(state.prepends.length, 0);
+        assert.equal(state.signatures.length, 1);
+        assert.equal(state.html, '<p>Existing user text</p>');
+        assert.equal(state.completed, 1);
+    }
+});
+
+test('compose event retries a failed activation and still suppresses subsequent successful duplicates', async () => {
+    const { handler, event, state } = await runtimeFixture({ failFirstBootstrap: true });
+    await handler(event);
+    assert.equal(state.prepends.length, 0);
+    assert.equal(state.completed, 1);
+    await handler(event);
+    await handler(event);
+    assert.equal(state.prepends.length, 1);
+    assert.equal(state.completed, 3);
+});
+
+test('compose event stops after mailbox item changes during media insertion', async () => {
+    const { handler, event, state, office, item } = await runtimeFixture();
+    item.addFileAttachmentFromBase64Async = (_base64, _name, _options, callback) => {
+        office.context.mailbox.item = {};
+        callback({ status: 'succeeded', value: 'attachment' });
+    };
+    await handler(event);
+    assert.equal(state.prepends.length, 0);
+    assert.equal(state.signatures.length, 0);
+    assert.equal(state.completed, 1);
+});
+
+test('Outlook dialogs open only on explicit clicks and restore opener focus after closing', async () => {
+    const { parseHTML } = await import('linkedom');
+    const { document, window } = parseHTML('<button data-outlook-dialog-open="status">Status</button><dialog data-outlook-dialog="status"><button data-outlook-dialog-close>Close</button></dialog>');
+    const previousOffice = globalThis.Office;
+    globalThis.Office = { onReady() {} };
+    try {
+        const { bindOutlookDialogs } = await import('../../resources/js/outlook-addin/taskpane.js');
+        const dialog = document.querySelector('dialog');
+        const opener = document.querySelector('button');
+        let focused = 0;
+        opener.focus = () => { focused += 1; };
+        dialog.showModal = () => { dialog.open = true; };
+        dialog.close = () => { dialog.open = false; dialog.dispatchEvent(new window.Event('close')); };
+        bindOutlookDialogs(document);
+        bindOutlookDialogs(document);
+        assert.equal(Boolean(dialog.open), false);
+        opener.click();
+        assert.equal(dialog.open, true);
+        dialog.querySelector('button').click();
+        assert.equal(dialog.open, false);
+        assert.equal(focused, 1);
+    } finally {
+        globalThis.Office = previousOffice;
+    }
+});
+
+test('hosted taskpane help and install dialogs work without Office, outside Outlook and during a delayed handshake', async () => {
+    const { parseHTML } = await import('linkedom');
+    const { startOutlookTaskpane } = await import('../../resources/js/outlook-addin/taskpane.js');
+    const markup = await source('../../resources/views/outlook-addin/taskpane.blade.php');
+    const previous = { Office: globalThis.Office, document: globalThis.document, window: globalThis.window };
+    const cases = [
+        { name: 'Office.js unavailable', office: undefined, unavailable: true },
+        { name: 'ordinary browser', office: { HostType: { Outlook: 'Outlook' }, onReady(callback) { callback({ host: null }); } }, unavailable: true },
+        { name: 'another Office host', office: { HostType: { Outlook: 'Outlook' }, onReady(callback) { callback({ host: 'Word' }); } }, unavailable: true },
+        { name: 'failed handshake', office: { onReady() { return Promise.reject(new Error('Synthetic Office.js failure')); } }, unavailable: true },
+        { name: 'handshake pending', office: { onReady() {} }, unavailable: false },
+    ];
+
+    try {
+        for (const scenario of cases) {
+            const { document, window } = parseHTML(markup);
+            globalThis.document = document;
+            globalThis.window = window;
+            globalThis.Office = scenario.office;
+            const dialogs = Array.from(document.querySelectorAll('[data-outlook-dialog]'));
+            let opened = 0;
+            dialogs.forEach((dialog) => {
+                dialog.showModal = () => { dialog.open = true; opened += 1; };
+                dialog.close = () => { dialog.open = false; dialog.dispatchEvent(new window.Event('close')); };
+            });
+
+            assert.doesNotThrow(() => startOutlookTaskpane(scenario.office), scenario.name);
+            startOutlookTaskpane(scenario.office);
+            await Promise.resolve();
+            assert.equal(opened, 0, 'no automatic help or login popup');
+            for (const name of ['install', 'status', 'connection']) {
+                const dialog = document.querySelector(`[data-outlook-dialog="${name}"]`);
+                document.querySelector(`[data-outlook-dialog-open="${name}"]`).click();
+                assert.equal(dialog.open, true, `${scenario.name}: ${name} dialog opens`);
+                dialog.querySelector('[data-outlook-dialog-close]').click();
+                assert.equal(dialog.open, false);
+            }
+            assert.equal(opened, 3, 'repeat startup does not register duplicate handlers');
+            if (scenario.unavailable) {
+                assert.equal(document.querySelector('[data-outlook-addin-taskpane]').getAttribute('aria-busy'), 'false');
+                assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'In Outlook öffnen');
+                assert.equal(document.querySelector('[data-outlook-action="template"]').disabled, true);
+                assert.equal(document.querySelector('[data-outlook-action="login"]').disabled, true);
+                assert.match(document.querySelector('[data-outlook-dialog-open="status"]').getAttribute('aria-label'), /In Outlook öffnen/);
+            }
+        }
+    } finally {
+        globalThis.Office = previous.Office;
+        globalThis.document = previous.document;
+        globalThis.window = previous.window;
+    }
+});
+
+test('Outlook connection feedback mirrors errors as text and retains focus within the open dialog', async () => {
+    const { parseHTML } = await import('linkedom');
+    const { setStatus } = await import('../../resources/js/outlook-addin/taskpane.js');
+    const { document } = parseHTML(await source('../../resources/views/outlook-addin/taskpane.blade.php'));
+    const previousDocument = globalThis.document;
+    globalThis.document = document;
+
+    try {
+        const connection = document.querySelector('[data-outlook-dialog="connection"]');
+        const feedback = connection.querySelector('[data-outlook-dialog-feedback]');
+        const statusButton = document.querySelector('[data-outlook-dialog-open="status"]');
+        const statusDialog = document.querySelector('[data-outlook-dialog="status"]');
+        let feedbackFocus = 0;
+        let buttonFocus = 0;
+        feedback.focus = () => { feedbackFocus += 1; };
+        statusButton.focus = () => { buttonFocus += 1; };
+
+        connection.open = true;
+        setStatus('error', 'Verbindung fehlgeschlagen', 'Bitte erneut versuchen. <img src="test">', true);
+        assert.equal(feedback.hidden, false);
+        assert.equal(feedback.dataset.tone, 'error');
+        assert.equal(feedback.getAttribute('role'), 'alert');
+        assert.equal(feedback.getAttribute('aria-live'), 'assertive');
+        assert.match(feedback.textContent, /Bitte erneut versuchen\. <img src="test">/);
+        assert.equal(feedback.querySelector('img'), null, 'status data is never interpreted as HTML');
+        assert.equal(feedbackFocus, 1);
+        assert.equal(buttonFocus, 0, 'do not focus an inert button behind the connection dialog');
+        assert.equal(Boolean(statusDialog.open), false, 'errors never automatically open another modal');
+        assert.equal(statusButton.dataset.tone, 'error');
+
+        setStatus('success', 'RailTime ist bereit', 'Verbindung erfolgreich.');
+        assert.equal(feedback.dataset.tone, 'success');
+        assert.equal(feedback.getAttribute('role'), 'status');
+        assert.equal(feedback.getAttribute('aria-live'), 'polite');
+        assert.match(feedback.textContent, /Verbindung erfolgreich/);
+
+        connection.open = false;
+        setStatus('error', 'Abruf fehlgeschlagen', '', true);
+        assert.equal(buttonFocus, 1, 'a closed dialog sends requested error focus to the visible status control');
+        feedback.remove();
+        assert.doesNotThrow(() => setStatus('neutral', 'Status ohne Zusatzfeld'), 'feedback remains optional');
+    } finally {
+        globalThis.document = previousDocument;
+    }
 });

@@ -2,6 +2,12 @@ import {
     InteractionRequiredAuthError,
     createNestablePublicClientApplication,
 } from '@azure/msal-browser';
+import {
+    automaticTemplate,
+    assertTemplateInsertable,
+    prependTemplate,
+    readTemplateState,
+} from './compose-template.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -10,6 +16,7 @@ const LOG_PREFIX = '[RailTime Outlook Add-in]';
 
 let configPromise;
 let authenticationClientPromise;
+const composeOperations = new WeakMap();
 
 function codedError(code) {
     const error = new Error(code);
@@ -356,9 +363,24 @@ function addInlineAttachment(item, media) {
     });
 }
 
-async function attachInlineMedia(item, media) {
+async function attachInlineMedia(item, media, assertTarget) {
+    const existingNames = await new Promise((resolve) => {
+        if (typeof item.getAttachmentsAsync !== 'function') {
+            resolve(new Set());
+            return;
+        }
+        item.getAttachmentsAsync((result) => resolve(new Set(
+            result?.status === Office.AsyncResultStatus.Succeeded && Array.isArray(result.value)
+                ? result.value.filter((entry) => entry.isInline === true)
+                    .map((entry) => String(entry.name || '').toLowerCase())
+                : [],
+        )));
+    });
     for (let index = 0; index < media.length; index += 1) {
+        assertTarget();
+        if (existingNames.has(media[index].name.toLowerCase())) continue;
         await addInlineAttachment(item, media[index]);
+        existingNames.add(media[index].name.toLowerCase());
     }
 }
 
@@ -406,18 +428,46 @@ function safeErrorCode(error) {
     return 'UNAVAILABLE';
 }
 
-async function applyPublishedSignature() {
+async function applyPublishedContent(item) {
+    const assertTarget = () => {
+        if (Office.context.mailbox.item !== item) throw codedError('ITEM_CHANGED');
+    };
     const config = await loadConfig();
     const accessToken = await acquireTokenSilently(config);
     const bootstrap = await loadBootstrap(config, accessToken);
+    assertTarget();
+
+    // A template already includes the personalized signature. Another compose
+    // event must not append a second signature or repeat the template.
+    const templateState = await readTemplateState(Office, item);
+    assertTarget();
+    if (templateState.present) return;
+
+    const selected = automaticTemplate(bootstrap);
+    if (selected) {
+        try {
+            await assertTemplateInsertable(Office, item);
+            const template = validatedDocument(selected, 'template', config.marker);
+            await attachInlineMedia(item, template.media, assertTarget);
+            await prependTemplate(Office, item, template.html, assertTarget);
+            return;
+        } catch (error) {
+            if (safeErrorCode(error) === 'ITEM_CHANGED') throw error;
+            if (safeErrorCode(error) === 'TEMPLATE_ALREADY_INSERTED') return;
+            // Unsupported mobile/prepend APIs keep the existing signature path.
+            // No setAsync fallback: it would replace typed text and quotes.
+            console.info(`${LOG_PREFIX} Default template skipped (${safeErrorCode(error)}).`);
+        }
+    }
+
     const signature = validatedDocument(bootstrap.signature, 'signature', config.marker);
-    const item = Office.context.mailbox.item;
 
     if (!item?.body?.setSignatureAsync || !item?.addFileAttachmentFromBase64Async) {
         throw codedError('COMPOSE_API_UNAVAILABLE');
     }
 
-    await attachInlineMedia(item, signature.media);
+    await attachInlineMedia(item, signature.media, assertTarget);
+    assertTarget();
     await setSignature(item, signature.html);
 }
 
@@ -425,7 +475,19 @@ async function handleComposeEvent(event) {
     const complete = completeOnce(event);
 
     try {
-        await applyPublishedSignature();
+        const item = Office.context.mailbox.item;
+        if (!item) throw codedError('COMPOSE_API_UNAVAILABLE');
+        let operation = composeOperations.get(item);
+        if (!operation) {
+            operation = applyPublishedContent(item).catch((error) => {
+                // Keep successful items idempotent, but a transient bootstrap
+                // or Office failure must not poison later activation forever.
+                composeOperations.delete(item);
+                throw error;
+            });
+            composeOperations.set(item, operation);
+        }
+        await operation;
     } catch (error) {
         // Event activation must never prevent the user from composing or sending.
         console.info(`${LOG_PREFIX} Signature skipped (${safeErrorCode(error)}).`);

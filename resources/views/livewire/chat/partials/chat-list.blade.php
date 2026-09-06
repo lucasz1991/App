@@ -39,20 +39,12 @@
     </div>
 
     <div class="shrink-0 px-3 pb-3 sm:px-4">
-        <label for="chat-search" class="sr-only">{{ __('app.search') }}</label>
-        <div class="rt-chat-search relative">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <i class="far fa-search text-xs" aria-hidden="true"></i>
-            </div>
-            <input
-                type="search"
-                id="chat-search"
-                wire:model.live.debounce.300ms="search"
-                placeholder="{{ __('app.search') }}"
-                autocomplete="off"
-                class="h-11 w-full rounded-[0.9rem] border-0 bg-transparent pl-9 pr-3 text-sm outline-none ring-0 placeholder:text-rt-soft focus:border-0 focus:ring-0 dark:text-white dark:placeholder:text-rt-dark-soft"
-            >
-        </div>
+        <x-ui.forms.search
+            id="chat-search"
+            context="chat"
+            wire:model.live.debounce.300ms="search"
+            :placeholder="__('app.search')"
+        />
     </div>
 
     <div class="rt-chat-list rt-chat-stacked-list min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 pb-3 sm:px-3">

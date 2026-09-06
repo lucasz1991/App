@@ -105,7 +105,17 @@ class MailDocumentEditor extends Component
                 return [[], []];
             }
 
+            // The overview only needs identity/status metadata. Full HTML,
+            // builder state and media are loaded after the explicit editor link.
+            $columns = ['id', 'public_id', 'kind', 'name', 'status', 'version', 'content_hash', 'published_at', 'updated_at', 'updated_by'];
+            foreach (['is_active', 'is_outlook_template'] as $column) {
+                if (Schema::hasColumn('mail_documents', $column)) {
+                    $columns[] = $column;
+                }
+            }
+
             $all = MailDocument::query()
+                ->when(! $this->editorRequested, static fn ($query) => $query->select($columns))
                 ->with('updater:id,name')
                 ->when(
                     Schema::hasTable('mail_document_versions'),

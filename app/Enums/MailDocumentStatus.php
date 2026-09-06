@@ -4,7 +4,8 @@ namespace App\Enums;
 
 /**
  * Nur zwei Zustaende pro Design-Slot: Am Entwurf wird gearbeitet oder dieser
- * Slot ist aktiv veroeffentlicht. Einen separaten Archivzustand gibt es nicht.
+ * Slot ist veroeffentlicht. Bei Outlook-Vorlagen sind Freigabe und Standard
+ * voneinander und von der aktiven Systemmail unabhaengig.
  */
 enum MailDocumentStatus: string
 {

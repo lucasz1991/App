@@ -390,6 +390,38 @@ body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'].is-ex
         transform 220ms var(--rt-shell-spring) !important;
 }
 
+/* Die Premium-Suche besitzt ihre eigene doppelte Fassung. Auf Desktop darf
+   deren SVG-Spur ueber die Topbar-Flaeche hinausglimmen; die mobile Vollbreite
+   bleibt weiterhin absichtlich beschnitten. */
+@media (min-width: 768px) {
+    .rt-shell-topbar-controls .rt-expandable-search[data-rt-premium-search][data-search-context='topbar'] {
+        border-radius: 0.9rem;
+    }
+
+    .rt-shell-topbar-controls .rt-expandable-search[data-rt-premium-search][data-search-context='topbar'].is-expanded {
+        overflow: visible;
+        border-radius: 0.9rem;
+        background: var(--rt-search-shell);
+        box-shadow:
+            0 0 0 1px color-mix(in srgb, var(--rt-search-line) 74%, transparent),
+            0 1px 0 rgba(255, 255, 255, 0.82) inset,
+            0 15px 30px -27px var(--rt-search-shadow);
+    }
+
+    .rt-shell-topbar-controls .rt-expandable-search[data-rt-premium-search][data-search-context='topbar'].is-expanded:focus-within {
+        background: var(--rt-search-shell);
+        box-shadow:
+            0 0 0 1px color-mix(in srgb, var(--rt-search-trace-b) 24%, transparent),
+            0 0 0 0.24rem color-mix(in srgb, var(--rt-search-glow) 62%, transparent),
+            0 18px 34px -26px var(--rt-search-shadow);
+    }
+
+    .rt-shell-topbar-controls .rt-expandable-search[data-rt-premium-search][data-search-context='topbar'] .rt-expandable-search__input,
+    .rt-shell-topbar-controls .rt-expandable-search[data-rt-premium-search][data-search-context='topbar'] .rt-expandable-search__surface {
+        border-radius: 0.9rem;
+    }
+}
+
 .rt-topbar-control:hover,
 .rt-topbar-profile-trigger:hover,
 .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__trigger:hover {

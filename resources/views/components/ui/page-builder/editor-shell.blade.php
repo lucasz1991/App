@@ -140,7 +140,9 @@
         data-page-builder-closed-preview
     >
         <x-slot:actions>
-            @if (filled($openUrl))
+            @if (isset($overview))
+                {{ $overviewActions ?? '' }}
+            @elseif (filled($openUrl))
                 <a
                     href="{{ $openUrl }}"
                     class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
@@ -164,6 +166,9 @@
             @endif
         </x-slot:actions>
 
+        @isset($overview)
+            {{ $overview }}
+        @else
         <x-ui.page-builder.preview-card
             :title="$title"
             :description="$description"
@@ -173,6 +178,7 @@
             :replayable="$previewReplayable"
             :loading-overlay="$previewLoadingOverlay"
         />
+        @endisset
     </x-ui.page>
 
     @if ($renderWorkspace)

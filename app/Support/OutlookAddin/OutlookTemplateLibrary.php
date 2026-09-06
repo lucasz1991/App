@@ -116,7 +116,7 @@ final class OutlookTemplateLibrary
                 throw ValidationException::withMessages(['document' => 'Nur eine für Outlook veröffentlichte Vorlage kann Standard werden.']);
             }
 
-            MailDocument::query()->where('outlook_default', true)->update(['outlook_default' => null]);
+            MailDocument::query()->whereKeyNot($locked->getKey())->where('outlook_default', true)->update(['outlook_default' => null]);
             $locked->forceFill(['outlook_default' => true, 'updated_by' => $actor->getKey()])->save();
             app(MailDocumentVersionStore::class)->capture($locked, $actor, 'outlook_default');
 

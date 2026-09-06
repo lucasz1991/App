@@ -150,7 +150,9 @@ final class MailDocumentController extends Controller
             $contentHash,
             $versions,
         ): MailDocument {
-            if (MailDocument::query()->where('kind', $kind->value)->lockForUpdate()->exists()) {
+            if (MailDocument::query()->where('kind', $kind->value)
+                ->when(Schema::hasColumn('mail_documents', 'is_outlook_template'), static fn ($query) => $query->where('is_outlook_template', false))
+                ->lockForUpdate()->exists()) {
                 throw ValidationException::withMessages([
                     'kind' => 'Dieses Maildokument ist bereits eingerichtet. Bitte lade die Importseite neu und wähle den vorhandenen Zielentwurf.',
                 ]);
@@ -1113,6 +1115,11 @@ final class MailDocumentController extends Controller
             if ($locked->isActive()) {
                 throw ValidationException::withMessages([
                     'slot' => 'Das aktive, veröffentlichte Design kann nicht gelöscht werden. Aktiviere zuerst einen anderen Slot.',
+                ]);
+            }
+            if ($locked->isOutlookTemplate() && $locked->isPublished()) {
+                throw ValidationException::withMessages([
+                    'slot' => 'Bitte ziehe die Outlook-Freigabe zuerst in der Vorlagenübersicht zurück.',
                 ]);
             }
             if ($slots->count() <= 1) {

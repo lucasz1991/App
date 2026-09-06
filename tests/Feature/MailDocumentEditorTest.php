@@ -6,6 +6,7 @@ use App\Enums\MailDocumentKind;
 use App\Enums\MailDocumentStatus;
 use App\Http\Controllers\Admin\MailDocumentController;
 use App\Livewire\Admin\MailDocumentEditor;
+use App\Livewire\Admin\MailDocumentLibrary;
 use App\Models\MailDocument;
 use App\Models\MailDocumentVersion;
 use App\Models\Setting;
@@ -20,6 +21,7 @@ use App\Support\Mail\EmailCompatibilityAuditor;
 use App\Support\Mail\EmailCompatibilityCatalog;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\PortableMediaCatalog;
+use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureBackgroundContract;
 use App\Support\Mail\SignatureDocumentContract;
@@ -27,6 +29,7 @@ use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\MailSignature;
+use App\Support\OutlookAddin\OutlookTemplateLibrary;
 use Illuminate\Contracts\Mail\Factory as MailFactory;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Mail\Markdown;
@@ -40,6 +43,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\ViewException;
+use Livewire\Livewire;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Mime\Part\DataPart;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -90,6 +94,173 @@ class MailDocumentEditorTest extends TestCase
     private function admin(): User
     {
         return User::factory()->create(['role' => 'admin', 'name' => 'Admin Beispiel']);
+    }
+
+    public function test_outlook_library_releases_and_defaults_are_isolated_from_system_mail(): void
+    {
+        config(['outlook_addin.snapshots.auto_refresh' => false]);
+        (include database_path('migrations/2026_09_06_010000_add_outlook_library_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $admin = $this->admin();
+        $system = $this->document(MailDocumentKind::Template);
+        $systemPublished = $system->published_html;
+        $library = app(OutlookTemplateLibrary::class);
+        $draft = $library->createDraft($admin, 'Mitarbeiter-Angebot');
+
+        $this->assertTrue($draft->isOutlookTemplate());
+        $this->assertFalse($draft->isActive());
+        $this->assertFalse($draft->isPublished());
+        $this->assertNull($draft->published_html);
+        $this->assertCount(1, $draft->versions);
+        $this->assertNotContains($draft->public_id, array_column(app(PublishedMailDocumentSnapshotStore::class)->freshTemplateSnapshots(), 'id'));
+
+        // The normal editor's HTTP publish route must never activate a
+        // library document as the system-message shell.
+        $this->actingAs($admin)->postJson(route('admin.mail-documents.publish', $draft), [
+            'expected_hash' => $draft->content_hash,
+        ])->assertOk()->assertJsonPath('document.is_active', false)
+            ->assertJsonPath('document.outlook_released', true);
+        $draft->refresh();
+        $this->assertTrue($draft->isPublished());
+        $library->setDefault($admin, $draft, $draft->content_hash);
+        $this->assertTrue($draft->fresh()->outlook_default);
+        $library->setDefault($admin, $draft->fresh(), $draft->content_hash);
+        $this->assertTrue($draft->fresh()->outlook_default, 'Selecting the same default must be idempotent.');
+        $this->assertTrue($system->fresh()->isActive());
+        $this->assertSame($systemPublished, $system->fresh()->published_html);
+        $snapshots = app(PublishedMailDocumentSnapshotStore::class)->freshTemplateSnapshots();
+        $this->assertCount(2, $snapshots);
+        $this->assertSame($system->public_id, collect($snapshots)->firstWhere('active', true)['id']);
+        $this->assertSame($draft->public_id, collect($snapshots)->firstWhere('isDefault', true)['id']);
+        $this->assertSame(trim($systemPublished), app(PublishedMailDocumentSnapshotStore::class)->snapshot(MailDocumentKind::Template)['html']);
+
+        $library->withdraw($admin, $draft, $draft->content_hash);
+        $this->assertFalse($draft->fresh()->isPublished());
+        $this->assertNull($draft->fresh()->outlook_default);
+        $this->assertNotNull($draft->fresh()->published_html);
+        $this->assertNotContains($draft->public_id, array_column(app(PublishedMailDocumentSnapshotStore::class)->templateSnapshots(), 'id'));
+        $this->assertTrue($system->fresh()->isActive());
+
+        $copyResponse = $this->actingAs($admin)->postJson(route('admin.mail-documents.slots.store', $draft), [
+            'name' => 'Kopie im Outlook-Ordner', 'expected_hash' => $draft->content_hash,
+        ]);
+        $copyResponse->assertCreated()->assertJsonPath('document.is_outlook_template', true)
+            ->assertJsonPath('document.outlook_released', false)->assertJsonPath('document.outlook_default', false);
+        $copy = MailDocument::query()->where('public_id', $copyResponse->json('document.id'))->firstOrFail();
+        $this->assertNull($copy->published_html);
+        $this->assertFalse($copy->isActive());
+    }
+
+    public function test_outlook_library_rejects_drafts_stale_hashes_and_unsafe_release(): void
+    {
+        config(['outlook_addin.snapshots.auto_refresh' => false]);
+        (include database_path('migrations/2026_09_06_010000_add_outlook_library_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $admin = $this->admin();
+        $library = app(OutlookTemplateLibrary::class);
+        $draft = $library->createDraft($admin, 'Entwurf');
+        foreach (['default-draft', 'stale-release', 'unsafe-release'] as $failure) {
+            try {
+                if ($failure === 'default-draft') {
+                    $library->setDefault($admin, $draft, $draft->content_hash);
+                } elseif ($failure === 'stale-release') {
+                    $library->publish($admin, $draft, str_repeat('0', 64));
+                } else {
+                    $draft->forceFill(['html' => $draft->html.'<script>alert(1)</script>'])->save();
+                    $library->publish($admin, $draft, $draft->content_hash);
+                }
+                $this->fail('Expected validation rejection: '.$failure);
+            } catch (ValidationException $exception) {
+                $this->assertNotEmpty($exception->errors());
+            }
+        }
+        $this->assertFalse($draft->fresh()->isPublished());
+        $this->assertFalse($draft->fresh()->isActive());
+        $this->assertNull($draft->fresh()->outlook_default);
+    }
+
+    public function test_outlook_library_restore_only_changes_draft_and_keeps_release(): void
+    {
+        config(['outlook_addin.snapshots.auto_refresh' => false]);
+        (include database_path('migrations/2026_09_06_010000_add_outlook_library_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $admin = $this->admin();
+        $library = app(OutlookTemplateLibrary::class);
+        $draft = $library->createDraft($admin, 'Versionierte Vorlage');
+        $original = $draft->versions()->firstOrFail();
+        $draft->forceFill(['html' => str_replace('Sicher abgestimmt.', 'Neue Fassung.', $draft->html)])->save();
+        $draft = $library->publish($admin, $draft, $draft->content_hash);
+        $draft = $library->setDefault($admin, $draft, $draft->content_hash);
+        $publishedHtml = $draft->published_html;
+        $draft = $library->restoreDraft($admin, $draft, $original, $draft->content_hash);
+
+        $this->assertSame($original->html, $draft->html);
+        $this->assertSame($publishedHtml, $draft->published_html);
+        $this->assertTrue($draft->isPublished());
+        $this->assertTrue($draft->outlook_default);
+        $this->assertTrue($draft->hasUnpublishedChanges());
+        $this->assertSame('restored', $draft->versions()->first()->action);
+    }
+
+    public function test_mail_document_library_livewire_is_admin_only_lightweight_and_creates_only_drafts(): void
+    {
+        config(['outlook_addin.snapshots.auto_refresh' => false]);
+        (include database_path('migrations/2026_09_06_010000_add_outlook_library_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $staff = User::factory()->create(['role' => 'staff']);
+        Livewire::actingAs($staff)->test(MailDocumentLibrary::class)->assertForbidden();
+        $admin = $this->admin();
+        $before = MailDocument::query()->pluck('content_hash', 'public_id')->all();
+        $component = Livewire::actingAs($admin)->test(MailDocumentLibrary::class)
+            ->assertSee('Vorlagen')->assertSee('Standardvorlage')
+            ->assertDontSee('data-page-builder-workspace')
+            ->assertDontSee('{{NACHRICHT}}');
+        $this->assertSame($before, MailDocument::query()->pluck('content_hash', 'public_id')->all());
+        $component->call('openCreate')->set('name', 'Angebot aus Übersicht')->call('createDraft')
+            ->assertHasNoErrors()->assertSet('createOpen', false)->assertSee('Angebot aus Übersicht');
+        $created = MailDocument::query()->where('name', 'Angebot aus Übersicht')->firstOrFail();
+        $this->assertTrue($created->isOutlookTemplate());
+        $this->assertNull($created->published_html);
+        $this->assertFalse($created->isActive());
+        $this->assertFalse($created->isPublished());
+        $this->assertSame($before, MailDocument::query()->where('is_outlook_template', false)->pluck('content_hash', 'public_id')->all());
+
+        $component->call('toggleHistory', $created->public_id)->assertSet('historyId', $created->public_id);
+        $signature = $this->document(MailDocumentKind::Signature);
+        $component->call('selectKind', 'signature')->call('openCreate', $signature->public_id, $signature->content_hash)
+            ->set('name', 'Signaturkopie')->call('createDraft')->assertHasNoErrors();
+        $copy = MailDocument::query()->where('name', 'Signaturkopie')->firstOrFail();
+        $this->assertSame(MailDocumentKind::Signature, $copy->kind);
+        $this->assertFalse($copy->isOutlookTemplate());
+        $this->assertFalse($copy->isActive());
+    }
+
+    public function test_mail_document_library_livewire_confirms_publication_default_withdrawal_and_rejects_stale_confirmation(): void
+    {
+        config(['outlook_addin.snapshots.auto_refresh' => false]);
+        (include database_path('migrations/2026_09_06_010000_add_outlook_library_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $admin = $this->admin();
+        $draft = app(OutlookTemplateLibrary::class)->createDraft($admin, 'Angebot');
+        $component = Livewire::actingAs($admin)->test(MailDocumentLibrary::class)
+            ->call('prepareAction', 'publish', $draft->public_id, $draft->content_hash)
+            ->assertSet('confirmOpen', true);
+        $this->assertFalse($draft->fresh()->isPublished());
+        $component->call('confirmAction')->assertHasNoErrors()->assertSet('confirmOpen', false);
+        $draft->refresh();
+        $component->call('prepareAction', 'default', $draft->public_id, $draft->content_hash)
+            ->call('confirmAction')->assertHasNoErrors();
+        $this->assertTrue($draft->fresh()->outlook_default);
+        $this->assertTrue($this->document(MailDocumentKind::Template)->isActive());
+        $component->call('prepareAction', 'withdraw', $draft->public_id, $draft->content_hash)
+            ->call('confirmAction')->assertHasNoErrors();
+        $this->assertFalse($draft->fresh()->isPublished());
+        $this->assertNull($draft->fresh()->outlook_default);
+
+        $component->call('prepareAction', 'publish', $draft->public_id, $draft->content_hash);
+        $draft->forceFill(['content_hash' => str_repeat('a', 64)])->save();
+        $component->call('confirmAction')->assertHasErrors(['operation']);
+        $this->assertFalse($draft->fresh()->isPublished());
     }
 
     /**
@@ -1886,7 +2057,7 @@ HTML;
             ->get(route('admin.mail-documents.editor'))
             ->assertOk()
             ->assertSee('pageBuilderOpen: false', escape: false)
-            ->assertSee('data-page-builder-load-on-demand', escape: false)
+            ->assertSee('data-mail-document-library', escape: false)
             ->assertSee(route('admin.mail-documents.editor', [
                 'dokument' => MailDocumentKind::Template->value,
                 'slot' => $this->document(MailDocumentKind::Template)->public_id,

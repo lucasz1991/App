@@ -59,8 +59,9 @@
         :description="__('app.email_templates_short_hint')"
         :auto-intro="false"
     >
-        @if ($user?->isAdmin())
             <x-slot:actions>
+                <x-email-templates.outlook-access :connected="$outlookAddinConnected" :current="$outlookAddinCurrent" :deployed="$outlookAddinDeployed" />
+                @if ($user?->isAdmin())
                 <a
                     href="{{ route('admin.mail-documents.import-page') }}"
                     data-email-template-import-link
@@ -70,15 +71,15 @@
                     Entwürfe importieren
                 </a>
                 <a
-                    href="{{ route('admin.mail-documents.editor', ['open' => 1]) }}"
+                    href="{{ route('admin.mail-documents.editor') }}"
                     data-email-template-editor-link
                     class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
                 >
                     <i class="far fa-pen-ruler" aria-hidden="true"></i>
-                    Vorlagen &amp; Signaturen bearbeiten
+                    Vorlagen verwalten
                 </a>
+                @endif
             </x-slot:actions>
-        @endif
 
         <div
             x-data="{
@@ -292,33 +293,6 @@
                 </aside>
             @endif
 
-            @if ($outlookAddinManaged)
-                <section
-                    class="flex flex-col gap-3 rounded-2xl bg-emerald-50 px-4 py-4 text-emerald-950 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-100 dark:ring-emerald-400/20 sm:flex-row sm:items-center sm:px-5"
-                    data-outlook-addin-managed
-                >
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
-                        <i class="far fa-check" aria-hidden="true"></i>
-                    </span>
-                    <div class="min-w-0 flex-1">
-                        <h2 class="text-sm font-semibold">Für Outlook zentral eingerichtet</h2>
-                        <p class="mt-0.5 text-xs leading-5 opacity-80">
-                            Bei neuen E-Mails, Antworten und Weiterleitungen setzt Outlook automatisch die aktuell veröffentlichte RailTime-Signatur ein. Sie müssen nichts herunterladen oder kopieren.
-                        </p>
-                    </div>
-                </section>
-            @elseif ($outlookAddinConnected)
-                <section class="flex items-center gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-amber-950 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-100 dark:ring-amber-400/20" data-outlook-addin-pending>
-                    <i class="far fa-arrows-rotate shrink-0" aria-hidden="true"></i>
-                    <p class="text-xs leading-5">Microsoft ist verbunden. Der aktuelle Outlook-Stand wurde noch nicht bestätigt. Bis dahin bleibt die manuelle Einrichtung verfügbar.</p>
-                </section>
-            @elseif ($outlookAddinDeployed)
-                <section class="flex items-center gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-amber-950 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-100 dark:ring-amber-400/20">
-                    <i class="far fa-clock shrink-0" aria-hidden="true"></i>
-                    <p class="text-xs leading-5">Ihr Outlook-Zugang wird noch durch die IT verknüpft. Bis dahin bleibt die manuelle Einrichtung verfügbar.</p>
-                </section>
-            @endif
-
             @unless ($outlookAddinManaged)
                 <details
                     open
@@ -494,6 +468,8 @@
                     </section>
                 </details>
             @endif
+
+            <x-email-templates.outlook-app-links />
 
             <x-ui.state-modal
                 id="email-template-signature-modal"

@@ -26,6 +26,15 @@
     data-mail-document-studio
     data-mail-document-back
 >
+    @unless ($editorRequested)
+        <x-slot:overviewActions>
+            <x-email-templates.outlook-access id="mail-library-outlook" />
+        </x-slot:overviewActions>
+        <x-slot:overview>
+            <livewire:admin.mail-document-library :initial-kind="$currentKind" />
+            <x-email-templates.outlook-app-links id="mail-library-app" />
+        </x-slot:overview>
+    @endunless
     @if ($currentDocument !== null && $editorRequested)
         <x-slot:toolbar>
             <div class="rt-mail-studio-toolbar" role="toolbar" aria-label="Mail- und Signatur-Editor" data-mail-studio-toolbar data-mail-toolbar-layout="responsive" data-mail-toolbar-single>

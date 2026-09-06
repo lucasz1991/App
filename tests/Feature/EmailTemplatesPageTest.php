@@ -26,6 +26,7 @@ use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
+use App\Support\OutlookAddin\OutlookTemplateLibrary;
 use App\Support\OutlookAddin\VerifiedEntraIdentity;
 use App\Support\PageHelpCatalog;
 use Firebase\JWT\JWT;
@@ -561,6 +562,43 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertNotSame($fingerprint, $payloads->sourceFingerprint($user));
     }
 
+    public function test_outlook_library_payload_default_is_explicit_and_drafts_do_not_change_employee_snapshots(): void
+    {
+        config(['app.url' => 'https://app.rail-time.de', 'outlook_addin.base_url' => 'https://app.rail-time.de', 'outlook_addin.snapshots.auto_refresh' => false]);
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_22_000200_create_mail_document_versions_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        (include database_path('migrations/2026_09_06_010000_add_outlook_library_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $user = User::factory()->create(['role' => 'staff']);
+        $payloads = app(OutlookAddinPayloadService::class);
+        $library = app(OutlookTemplateLibrary::class);
+        $before = $payloads->sourceFingerprint($user);
+        $this->assertNull($payloads->forUser($user)['automaticTemplateId']);
+        $draft = $library->createDraft($admin, 'Outlook Angebot');
+        $this->assertSame($before, $payloads->sourceFingerprint($user));
+        $draft = $library->publish($admin, $draft, $draft->content_hash);
+        $released = $payloads->forUser($user);
+        $this->assertNull($released['automaticTemplateId']);
+        $this->assertCount(2, $released['templates']);
+        $releasedFingerprint = $payloads->sourceFingerprint($user);
+
+        $draft = $library->setDefault($admin, $draft, $draft->content_hash);
+        $defaultPayload = $payloads->forUser($user);
+        $this->assertSame($draft->public_id, $defaultPayload['automaticTemplateId']);
+        $this->assertTrue(collect($defaultPayload['templates'])->firstWhere('id', $draft->public_id)['isDefault']);
+        $this->assertSame($released['template'], $defaultPayload['template']);
+        $this->assertNotSame($releasedFingerprint, $payloads->sourceFingerprint($user));
+
+        $library->withdraw($admin, $draft, $draft->content_hash);
+        $withdrawn = $payloads->forUser($user);
+        $this->assertNull($withdrawn['automaticTemplateId']);
+        $this->assertCount(1, $withdrawn['templates']);
+        $this->assertSame($released['template'], $withdrawn['template']);
+        $this->assertSame($before, $payloads->sourceFingerprint($user));
+    }
+
     public function test_outlook_addin_rebuilds_a_legacy_personal_snapshot_without_template_collection(): void
     {
         config([
@@ -874,7 +912,8 @@ class EmailTemplatesPageTest extends TestCase
             ->get(route('email-templates.index'))
             ->assertOk()
             ->assertSee('data-outlook-addin-pending', escape: false)
-            ->assertSee('Microsoft ist verbunden.')
+            ->assertSee('Microsoft verbunden')
+            ->assertSee('data-mail-outlook-access', escape: false)
             ->assertSee('data-email-template-primary-downloads', escape: false)
             ->assertSee('data-email-template-employee-action="signature-copy"', escape: false);
         $this->assertFalse(Storage::disk('private')->exists($snapshotPath));
@@ -888,8 +927,8 @@ class EmailTemplatesPageTest extends TestCase
         $managedResponse
             ->assertOk()
             ->assertSee('data-outlook-addin-managed', escape: false)
-            ->assertSee('Für Outlook zentral eingerichtet')
-            ->assertSee('Sie müssen nichts herunterladen oder kopieren.')
+            ->assertSee('Aktueller Stand')
+            ->assertSee('Die aktuelle Signatur und die bereitgestellten Vorlagen liegen für das Add-in vor.')
             ->assertDontSee('data-email-template-primary-downloads', escape: false)
             ->assertDontSee('data-email-template-employee-action=', escape: false)
             ->assertDontSee(route('email-templates.download', ['template' => 'vorlage-html']), escape: false)
@@ -905,8 +944,8 @@ class EmailTemplatesPageTest extends TestCase
         $this->actingAs($unlinkedEmployee)
             ->get(route('email-templates.index'))
             ->assertOk()
-            ->assertDontSee('Für Outlook zentral eingerichtet')
-            ->assertSee('Ihr Outlook-Zugang wird noch durch die IT verknüpft.')
+            ->assertDontSee('data-outlook-addin-managed', escape: false)
+            ->assertSee('Für Ihr Konto muss die IT die Microsoft-Zuordnung und die Add-in-Zuweisung prüfen.')
             ->assertSee('data-email-template-primary-downloads', escape: false)
             ->assertSee('data-email-template-employee-action="signature-copy"', escape: false)
             ->assertSee('data-email-template-employee-action="template-download"', escape: false);
@@ -1138,13 +1177,13 @@ class EmailTemplatesPageTest extends TestCase
             ->get(route('email-templates.index'))
             ->assertOk()
             ->assertSee(route('email-templates.index'), escape: false)
-            ->assertSee(route('admin.mail-documents.editor', ['open' => 1]), escape: false)
+            ->assertSee(route('admin.mail-documents.editor'), escape: false)
             // OHNE escape: false — Blade escaped das Trennzeichen & der
             // Query im href zu &amp;. Die rohe URL steht so nie im Markup.
             ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'template', 'slot' => $template->public_id, 'open' => 1]))
             ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'slot' => $signature->public_id, 'open' => 1]))
             ->assertSee('data-email-template-editor-link', escape: false)
-            ->assertSee('Vorlagen &amp; Signaturen bearbeiten', escape: false)
+            ->assertSee('Vorlagen verwalten', escape: false)
             ->assertSee('data-menu-active="true"', escape: false);
     }
 

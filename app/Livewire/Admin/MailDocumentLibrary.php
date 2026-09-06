@@ -4,7 +4,6 @@ namespace App\Livewire\Admin;
 
 use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
-use App\Models\MailDocumentVersion;
 use App\Models\User;
 use App\Support\OutlookAddin\OutlookTemplateLibrary;
 use Illuminate\Contracts\View\View;
@@ -207,7 +206,7 @@ class MailDocumentLibrary extends Component
     {
         $this->admin();
         $ready = Schema::hasTable('mail_documents');
-        $libraryReady = $ready && Schema::hasColumn('mail_documents', 'is_outlook_template');
+        $libraryReady = $ready && app(OutlookTemplateLibrary::class)->available();
         $historyReady = $ready && Schema::hasTable('mail_document_versions');
         $documents = $ready ? $this->readDocuments($libraryReady, $historyReady) : collect();
         $kind = MailDocumentKind::tryFrom($this->kind) ?? MailDocumentKind::Template;
@@ -277,7 +276,7 @@ class MailDocumentLibrary extends Component
                 'updated' => $document->updated_at?->format('d.m.Y · H:i'),
                 'updater' => $document->updater?->name,
                 'editor_url' => route('admin.mail-documents.editor', ['dokument' => $document->kind->value, 'slot' => $document->public_id, 'open' => 1]),
-                'preview_url' => route('admin.mail-documents.editor', ['dokument' => $document->kind->value, 'slot' => $document->public_id]),
+                'preview_url' => route('admin.mail-documents.preview', [$document->public_id, 'theme' => 'light', 'static' => 1]),
             ];
         })->sortByDesc('is_default')->values();
     }

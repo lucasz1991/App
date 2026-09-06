@@ -9,7 +9,7 @@
         "
         class="flex items-center"
     >
-        <x-tables.search-field
+        <x-ui.forms.search
             context="topbar"
             wire:model="query"
             :placeholder="__('app.global_search_placeholder')"
