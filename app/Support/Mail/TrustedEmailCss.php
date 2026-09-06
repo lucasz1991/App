@@ -45,6 +45,23 @@ final class TrustedEmailCss
         return hash('sha256', self::responsive($border));
     }
 
+    /** One document-specific projection for preview, MIME and Office fragments. */
+    public static function forDocument(string $html, ?string $border = null, bool $includeOptionalBackground = false): string
+    {
+        $css = self::responsive($border, $includeOptionalBackground);
+        $version = SignatureArtifactVersion::detect('signature', $html);
+        if (! in_array($version, [SignatureArtifactVersion::V25, SignatureArtifactVersion::V26], true)) {
+            return $css;
+        }
+
+        $css = TrustedOutlookSignatureCss::filterDocumentRuntime($css, $html);
+        if ($version === SignatureArtifactVersion::V26) {
+            $css .= SignatureImgOverlap::css($html);
+        }
+
+        return $css;
+    }
+
     /**
      * Entfernt ausschliesslich Dokumentationskommentare und Zeilenlayout aus
      * der versionierten, bereits vertrauenswuerdigen CSS-Quelle. Deklarationen,

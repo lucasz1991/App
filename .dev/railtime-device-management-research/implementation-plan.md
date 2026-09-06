@@ -22,7 +22,7 @@ Provider wird erst nach seinem eigenen Labor-Gate für Mutationen freigeschaltet
 
 ## Aktueller Freigabestatus
 
-- **Microsoft-Hintergrundbetrieb live bestätigt, Inventarpilot offen.**
+- **Microsoft-Hintergrundbetrieb, Inventar und ausgewählter Einzelpilot live bestätigt.**
   Runtime-Migration `2026_09_06_030000_create_microsoft_device_runs`, getrennte
   Schema-/Queue-/Scheduler-/Workeranzeige, sichere Abbruchzustände und
   `devices:microsoft-status --json [--probe-worker]` sind vorhanden. Plesk 8
@@ -35,14 +35,37 @@ Provider wird erst nach seinem eigenen Labor-Gate für Mutationen freigeschaltet
   bestätigt ausschließlich Application `Device.Read.All` und Adminzustimmung
   **„Gewährt für RailTime“**. Unnötiges automatisch ergänztes `User.Read` nur
   aus dieser App entfernt, keine andere App verändert. Tenant-/Client-ID im
-  RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Erfolgreiches
-  Secret-Speichern bleibt technisch unbelegt; Automatik/Intune aus. Finale
-  Liveflags: `device_count=0`, `bound_microsoft_identities=0`,
-  `secret_configured=false`, `sync_enabled=false`, `maintenance=false`.
-  Der Identitätszähler betrifft aktive Microsoft-365-Bindungen im aktuellen
-  Tenant mit externer ID. Kontobindung über explizite Tenant-/Objekt-ID oder
-  einen passenden verifizierten Microsoft-Bootstrap ist ebenfalls Pilot-Gate;
-  kein E-Mail-only-Matching. Graph, Geräteimport und Idempotenz noch offen.
+  RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Frische
+  Webansicht bestätigt inzwischen verschlüsseltes Secret und aktive
+  15-Minuten-Synchronisierung; Graph-Test **14:15 erfolgreich**. Automatischer
+  Lauf geplant 14:15:02 / Worker 14:15:05 / fertig 14:15:08: **98 gefunden, 98 neu,
+  0 aktualisiert**. Wiederholung geplant 14:16:20 / Worker 14:16:23 / fertig 14:16:26:
+  **98 gefunden, 0 neu, 98 aktualisiert**. Beide jeweils 0 zugeordnet,
+  0 Konflikte, 0 übersprungen; historische Übersicht um 14:16:
+  98 Geräte / 98 Treffer / 0 aktive Ausgaben.
+  Schema, Queue, Scheduler und Worker bereit; Intune aus, keine Schreibrechte.
+  Frühere Secret-false-/Nullbestandsflags sind ausschließlich Historie vor
+  diesem erfolgreichen Abruf. Der Nutzer wählte anschließend genau einen
+  lokalen Bestands-PC und geeigneten Mitarbeiter, kein System-/Superadmin.
+  Geräte-/Tenantidentität exakt verifiziert; Gerät mit Notiz manuell zugewiesen
+  und im Sync 14:52 unverändert erhalten. Nach direkter lesender Entra-Prüfung
+  von Gerät und bestehender identischer Kontoidentität wurde ausdrücklich
+  `tenant_initial_binding` über die UI bestätigt. Kein neues Konto/Passwort,
+  kein Microsoft-Schreibaufruf, kein E-Mail-only-Matching. Sync 14:55 und Wiederholung 14:57
+  zeigten „Microsoft-Konto und Mitarbeiter stimmen überein“; frische produktive
+  Detailseite bestätigte denselben gewählten Mitarbeiter und 98 / 1 / 97
+  (gesamt / aktive Ausgabe / unzugeordnet). Diese drei Zeiten sind nur minutengenau.
+  Damit ist dieser manuelle Einzelpilot abgenommen, keine automatische
+  Erstzuweisung durch Windows-Login. Windows-Sitzung/Workplace-Registrierung
+  unverändert, kein neuer Windows-Logintest. Standort, vollständige Inventar-
+  und echte Seriennummernprüfung sowie MDM-/Intune-/Fernwartung bleiben offen.
+  Die Geräte-Kommandotabelle ist leer; allgemeines Activity-Log nicht geprüft.
+  Doppelte Anzeigenamen allein sind kein
+  Duplikatbeleg. „Virtuelles Lager“ bezeichnet nur nicht zugewiesene Geräte,
+  keinen bestätigten physischen Lagerbestand.
+  Lokaler Gitstand `9bb35ee6` stammt aus anderem Task; letzter expliziter
+  Plesk-Dashboardbeleg bleibt `8880cf96`. Ein neuer Livecommit wurde nicht
+  geprüft; dieser Nachlauf änderte weder Quellcode noch Deployment.
 - **RailTime Control Plane: umgesetzt und lokal testbar.** Das umfasst
   Inventar/Lager, Mitarbeiterzuordnung, providerbezogene Geräteverknüpfungen,
   assignment-gebundene Enrollments, Identitätsreferenzen, versionierte Profile,

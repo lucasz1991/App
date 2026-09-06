@@ -75,6 +75,12 @@ final class SignatureTrainCarrier
 
     public static function normalize(string $html): string
     {
+        if (SignatureImgOverlap::applies($html)) {
+            SignatureImgOverlap::assertValid($html);
+
+            return $html;
+        }
+
         if (SignatureBackgroundContract::applies($html)) {
             SignatureBackgroundContract::assertValid($html);
 
@@ -235,6 +241,10 @@ final class SignatureTrainCarrier
      */
     public static function projectAsImage(string $html, string $source, string $padding = '0'): string
     {
+        if (SignatureImgOverlap::applies($html)) {
+            return SignatureImgOverlap::render($html, $source);
+        }
+
         $source = trim($source);
         if ($source === '') {
             throw new RuntimeException('Die Zuganimation besitzt keine eindeutige Bildquelle.');
@@ -339,6 +349,10 @@ final class SignatureTrainCarrier
      */
     public static function withMsoFallback(string $html, string $source): string
     {
+        if (SignatureImgOverlap::applies($html)) {
+            return SignatureImgOverlap::withMsoFallback($html, $source);
+        }
+
         $source = trim($source);
         if ($source === '' || ! self::isAllowedMailImageSource($source, staticOnly: true)) {
             throw new RuntimeException('Das Outlook-Standbild des Zuges besitzt keine Bildquelle.');
@@ -2570,6 +2584,15 @@ final class SignatureTrainCarrier
         ?string $expectedIdleSource = null,
         ?string $expectedMsoSource = null,
     ): void {
+        if (SignatureImgOverlap::applies($html)) {
+            if ($expectedIdleSource !== null && trim($expectedIdleSource) !== '') {
+                throw new RuntimeException('V26 verwendet keinen separaten Idle-Rauch.');
+            }
+            SignatureImgOverlap::assertRuntime($html, $expectedMainSource, $expectedMsoSource);
+
+            return;
+        }
+
         if (self::usesFlowSafeTrain($html)) {
             self::assertFlowSafeRuntimeImages(
                 $html,

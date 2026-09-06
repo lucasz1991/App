@@ -8,6 +8,7 @@ use App\Support\Mail\CssSemantic;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureBackgroundContract;
 use App\Support\Mail\SignatureDocumentContract;
+use App\Support\Mail\SignatureImgOverlap;
 use App\Support\Mail\SignatureTrainCarrier;
 use Illuminate\Support\Facades\View;
 
@@ -577,6 +578,9 @@ class MailSignature
         ) ?? $renderedHtml;
 
         $artifactVersion = SignatureArtifactVersion::detect(MailDocumentKind::Signature, $documentHtml);
+        if ($artifactVersion === SignatureArtifactVersion::V26) {
+            return SignatureImgOverlap::applyRuntimeDensity($renderedHtml, $this->user === null);
+        }
         if ($this->user !== null
             || ! in_array($artifactVersion, [SignatureArtifactVersion::V11, SignatureArtifactVersion::V12, SignatureArtifactVersion::V13, SignatureArtifactVersion::V14, SignatureArtifactVersion::V15, SignatureArtifactVersion::V16, SignatureArtifactVersion::V17], true)) {
             return $renderedHtml;

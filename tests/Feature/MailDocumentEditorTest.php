@@ -5894,8 +5894,8 @@ HTML;
             $this->assertStringNotContainsString('background-image', $rendered);
             $this->assertStringContainsString('rt-sign-heading-logo', $rendered);
         }
-        $withoutBackground = TrustedEmailCss::responsive('#dfe3e6', false);
-        $this->assertStringContainsString('tr[data-rt-artifact-version="v25"] .rt-sign-heading-logo', $withoutBackground);
+        $withoutBackground = TrustedEmailCss::forDocument($html, '#dfe3e6', false);
+        $this->assertStringContainsString('.rt-sign-heading-logo', $withoutBackground);
         foreach ([
             TrustedOutlookSignatureCss::responsive($html),
             TrustedOutlookSignatureCss::composeStylesheet($html, [$withoutBackground], 'rtt012345abcdef', '#dfe3e6'),

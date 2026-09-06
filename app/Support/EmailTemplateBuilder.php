@@ -784,16 +784,17 @@ class EmailTemplateBuilder
      * einer Mail, die beides enthaelt, sprang das Layout dadurch an zwei
      * verschiedenen Breiten.
      */
-    public static function responsiveCss(?string $border = null, ?bool $includeOptionalBackground = null): string
+    public static function responsiveCss(?string $border = null, ?bool $includeOptionalBackground = null, ?string $signatureHtml = null): string
     {
         // Alte Artefakte benoetigen keine V22-Regeln und behalten ihr
         // bisheriges HTML-Budget. Entwurfsvorschauen fordern den gesamten
         // versionsgebundenen Katalog explizit an, auch vor Veroeffentlichung.
+        $signatureHtml ??= (string) (self::publishedDocumentSnapshot(MailDocumentKind::Signature)['html'] ?? '');
         $includeOptionalBackground ??= SignatureArtifactVersion::usesOptionalBackground(
-            self::activeSignatureArtifactVersion(),
+            SignatureArtifactVersion::detect(MailDocumentKind::Signature, $signatureHtml),
         );
 
-        return TrustedEmailCss::responsive($border, $includeOptionalBackground);
+        return TrustedEmailCss::forDocument($signatureHtml, $border, $includeOptionalBackground);
     }
 
     /**
@@ -1573,7 +1574,8 @@ class EmailTemplateBuilder
             $html,
         );
         $usesFlowSafeTrain = SignatureArtifactVersion::usesFlowSafeTrain($artifactVersion);
-        $hasSafeStageGeometry = $usesFlowSafeTrain
+        $usesImgOverlap = $artifactVersion === SignatureArtifactVersion::V26;
+        $hasSafeStageGeometry = ($usesFlowSafeTrain || $usesImgOverlap)
             ? str_contains($stageStyle, 'display:block')
                 && str_contains($stageStyle, 'width:100%')
                 && str_contains($stageStyle, 'overflow:visible')
@@ -1586,7 +1588,7 @@ class EmailTemplateBuilder
             || $stages->length !== 1
             || ! $stage instanceof \DOMElement
             || ! $stage->parentNode?->isSameNode($carrier)
-            || (! $usesFlowSafeTrain && ! str_contains($stageStyle, 'position:relative'))
+            || (! $usesFlowSafeTrain && ! $usesImgOverlap && ! str_contains($stageStyle, 'position:relative'))
             || ! $hasSafeStageGeometry) {
             throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine sichere Zug-Buehne.');
         }

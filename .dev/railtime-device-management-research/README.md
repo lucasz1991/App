@@ -30,7 +30,7 @@ RailTime-ENV-Einrichtungsvariablen; Plesk verwaltet seine `.env.plesk` selbst.
 Die sichtbare Geräteübersicht beobachtet einen gestarteten Lauf höchstens
 60-mal alle fünf Sekunden, das Setup höchstens zwei Minuten alle zehn Sekunden.
 
-**Infrastruktur live abgenommen, Microsoft-Pilot noch offen:** Release
+**Inventarabruf und ausgewählter Einzelpilot live bestätigt:** Geräte-Release
 `8880cf96`, Runtime-Migration `030000`, Plesk v8.0.0 und Cacheaufbau sind
 bereitgestellt. Echte Workerprobe und automatischer Schedulerkontakt um
 **13:05:02** bestätigen M1/M2 einschließlich separater Webanzeige; die
@@ -40,15 +40,41 @@ registriert; ausschließlich Application `Device.Read.All` mit
 Administratorzustimmung **„Gewährt für RailTime“** ist im Portal bestätigt.
 Das unnötige automatisch ergänzte `User.Read` wurde nur dort entfernt,
 andere Apps nicht verändert. Tenant-/Client-ID sind im RailTime-Setup
-gespeichert und nach erneutem Laden bestätigt. Das vom Nutzer bestätigte
-Secret-Speichern ist technisch noch nicht nachgewiesen; Werte gehören nur
-ins geschützte Setup. Finale Liveflags: `device_count=0`,
-`bound_microsoft_identities=0`, `secret_configured=false`, `sync_enabled=false`,
-`maintenance=false`; Intune bleibt aus. Kontobindungen zählen hier nur aktive
-Microsoft-365-Identitäten im aktuellen Tenant mit externer ID. Kontobindung
-über explizite Tenant-/Objekt-ID beziehungsweise passenden verifizierten
-Microsoft-Bootstrap, Graph-Verbindung, Erstimport und Idempotenz bleiben
-Pilot-Gates. Eine gleiche E-Mail-Adresse allein erzeugt keine Bindung.
+gespeichert und nach erneutem Laden bestätigt. Die frische Webansicht
+bestätigt das verschlüsselt gespeicherte Secret und aktivierte Synchronisierung
+alle 15 Minuten. Graph-Verbindungstest **14:15 erfolgreich**; automatischer
+Erstimport **14:15:02–14:15:08: 98 gefunden, 98 neu**, anschließende Wiederholung
+**14:16:20–14:16:26: 98 gefunden, 0 neu, 98 aktualisiert**. Beide Läufe:
+0 zugeordnet, 0 Konflikte, 0 übersprungen. Die damals um 14:16 frisch geladene
+Geräteübersicht zeigte **98 Geräte / 98 Treffer / 0 aktive Ausgaben**. Wiederholung ohne neue
+Datensätze belegt die Inventar-Idempotenz dieses geprüften Laufs;
+gleiche Anzeigenamen sind nicht automatisch Duplikate. „Virtuelles Lager“
+bedeutet hier nur nicht zugewiesen, nicht physisch im Lager bestätigt.
+
+Schema, Queue, Scheduler und Worker sind bereit; Intune bleibt aus und
+Microsoft wird weiterhin nur mit Leserechten angesprochen. Frühere
+Secret-false-/Nullbestandswerte sind **Historie vor 14:15**, nicht der aktuelle
+Status. Die damalige offene Pilotauswahl ist inzwischen abgeschlossen:
+Der ausdrücklich gewählte lokale PC wurde nach exaktem Geräte-/Tenantabgleich
+einem geeigneten Mitarbeiter **manuell** mit Notiz zugewiesen, kein
+System-/Superadmin als Pilot. Eine direkte lesende Entra-Prüfung bestätigte
+das Gerät und die eindeutige bestehende Kontoidentität; deren initiale
+Tenant-Bindung wurde über die UI bestätigt. Kein neues Konto oder Passwort,
+kein Microsoft-Schreibaufruf und kein E-Mail-only-Matching.
+
+Sync **14:52** erhielt die manuelle Zuweisung. Nach der Kontobindung bestätigten
+Sync **14:55** und Wiederholung **14:57** „Microsoft-Konto und Mitarbeiter
+stimmen überein“. Eine vollständig neu geladene produktive Detailseite
+bestätigte denselben Mitarbeiter und **98 Geräte / 1 aktive Ausgabe /
+97 unzugeordnet**. Diese Zeitbelege sind nur minutengenau.
+Windows-Sitzung und Workplace-Registrierung wurden nicht verändert, kein neuer
+Windows-Logintest. Standort, vollständige Inventarprüfung und echte Seriennummer
+sowie MDM-/Intune-/Fernwartungsbereitschaft bleiben offen. Die leere
+Geräte-Kommandotabelle ist kein geprüfter allgemeiner Activity-Log.
+Der lokale Gitstand ist
+`9bb35ee6` aus einem anderen Task, kein neu geprüfter Livecommit; letzter
+expliziter Plesk-Dashboardbeleg bleibt `8880cf96`. Dieser Nachweis erforderte keinen weiteren
+Quellcode- oder Deploymentvorgang.
 
 Einrichtung, Berechtigungen, Worker und Grenzen:
 [Microsoft Entra & Windows](microsoft-entra-windows.md).

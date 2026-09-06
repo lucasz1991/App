@@ -145,7 +145,9 @@ final class SignatureDocumentContract
 
         $artifactVersion = SignatureArtifactVersion::detect('signature', $html);
 
-        if (SignatureArtifactVersion::usesOptionalBackground($artifactVersion)) {
+        if ($artifactVersion === SignatureArtifactVersion::V26) {
+            SignatureImgOverlap::assertValid($html);
+        } elseif (SignatureArtifactVersion::usesOptionalBackground($artifactVersion)) {
             SignatureBackgroundContract::assertValid($html);
         } elseif (SignatureArtifactVersion::usesFlowSafeTrain($artifactVersion)) {
             SignatureTrainCarrier::assertFlowSafeImage($html);
@@ -195,6 +197,7 @@ final class SignatureDocumentContract
             SignatureArtifactVersion::V22,
             SignatureArtifactVersion::V23,
             SignatureArtifactVersion::V25,
+            SignatureArtifactVersion::V26,
         ], true)) {
             self::assertV18ForwardSafeLayout($html);
         }

@@ -25,6 +25,12 @@ import {
     normalizeMailCompatibilityManifest,
     normalizeMailDegradationMode,
 } from './mail-compatibility.js';
+import {
+    assertImgOverlapSignature,
+    imgOverlapCss,
+    imgOverlapGeometry,
+    readImgOverlapSettings,
+} from './mail-signature-img-overlap.js';
 
 /**
  * E-Mail-Modus des LMZ Page Builders (Vendor 2.4.5).
@@ -1571,6 +1577,10 @@ function usesFlowSafeSignatureTrain(rows) {
     );
 }
 
+function usesImgOverlapSignature(rows) {
+    return String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').trim().toLowerCase() === 'v26';
+}
+
 function usesSignatureBackground(rows) {
     return ['v22', 'v23'].includes(String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').trim().toLowerCase());
 }
@@ -2533,13 +2543,19 @@ function projectPreviousSignatureTrainLayerToV18Geometry(wrapper, rows) {
     return assertCanonicalSignatureTrainImage(wrapper, rows, true);
 }
 
-function projectSignatureTrainImage(wrapper, rows, project) {
+function projectSignatureTrainImage(wrapper, rows, project, imgOverlapProfile = null) {
     const declaredSchema = project?.railtime?.schema;
     const failOpenStage = usesFailOpenSignatureStage(rows);
     const aspectSafeTrain = usesAspectSafeSignatureTrain(rows);
     if (Number.isInteger(declaredSchema)
         && ![19, 20, 21, 22, 23, 24, 25, 26, 27, 28, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
         throw new Error('Die Signatur besitzt einen nicht unterstuetzten Zugvertrag.');
+    }
+
+    if (usesImgOverlapSignature(rows)) {
+        const canonical = assertImgOverlapSignature(wrapper, rows, imgOverlapProfile);
+        project.railtime = { ...(project.railtime || {}), document: 'signature', schema: MAIL_SIGNATURE_SCHEMA };
+        return canonical;
     }
 
     if (usesSignatureBackground(rows)) {
@@ -2728,7 +2744,7 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         const wrapper = parsed.querySelector(`table[${MAIL_SIGNATURE_CANVAS_ATTRIBUTE}]`);
         const body = wrapper?.tBodies?.[0] || wrapper?.querySelector('tbody');
         const rows = Array.from(body?.children || []);
-        const trainContract = projectSignatureTrainImage(wrapper, rows, project);
+        const trainContract = projectSignatureTrainImage(wrapper, rows, project, options.imgOverlapProfile);
         markMailPreviewImageTokens(wrapper);
         if (!wrapper || !body || rows.length !== 2
             || rows.some((row) => row.tagName !== 'TR')
@@ -2763,6 +2779,7 @@ export function serializeMailDocumentForSave({
     environment = globalThis,
     baselineHtml = '',
     previewAssets = {},
+    imgOverlapProfile = null,
 } = {}) {
     const parser = domParserFor(environment);
     const normalizedCanvas = inlineGrapesImportedStyles({
@@ -2884,7 +2901,9 @@ export function serializeMailDocumentForSave({
 
     const baselineContactProjection = bindSignatureContactMarkerRows(baselineHtml, parser);
     restoreSignatureContactMarkers(wrapper, baselineContactProjection.hasMarkers);
-    const trainContract = usesSignatureBackground(rows)
+    const trainContract = usesImgOverlapSignature(rows)
+        ? assertImgOverlapSignature(wrapper, rows, imgOverlapProfile)
+        : usesSignatureBackground(rows)
         ? assertSignatureBackgroundDocument(wrapper, rows)
         : usesFlowSafeSignatureTrain(rows)
         ? assertFlowSafeSignatureTrainImage(wrapper, rows)
@@ -3002,6 +3021,22 @@ export function applyMailCanvasStyles(editor, css) {
     }
 
     return true;
+}
+
+/** Pick the actual loaded artifact after imports, not the initial page config. */
+export function resolveMailCanvasResponsiveCss(canvasDocument, {
+    theme = 'light', previewResponsiveCss = {}, previewResponsiveCssByArtifact = {}, imgOverlapProfile = null,
+} = {}) {
+    const selectedTheme = theme === 'dark' ? 'dark' : 'light';
+    const row = canvasDocument?.querySelector?.(`tr[${MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE}]`);
+    if (!row) return String(previewResponsiveCss[selectedTheme] || '');
+    const version = String(row.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').toLowerCase();
+    if (version !== 'v26') {
+        return String(previewResponsiveCssByArtifact.legacy?.[selectedTheme] ?? previewResponsiveCss[selectedTheme] ?? '');
+    }
+    const base = previewResponsiveCssByArtifact.v26?.[selectedTheme];
+    if (typeof base !== 'string') throw new Error('Die V26-Vorschau ist serverseitig nicht vollstaendig konfiguriert.');
+    return base + imgOverlapCss(canvasDocument, imgOverlapProfile);
 }
 
 /**
@@ -3214,6 +3249,14 @@ function componentUsesSignatureBackground(component) {
     return false;
 }
 
+function componentUsesImgOverlapSignature(component) {
+    for (let current = component; current; current = current?.parent?.()) {
+        const attributes = current?.getAttributes?.() || current?.get?.('attributes') || {};
+        if (String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').trim().toLowerCase() === 'v26') return true;
+    }
+    return false;
+}
+
 function componentUsesFluidSignatureTrain(component) {
     for (let current = component; current; current = current?.parent?.()) {
         const attributes = current?.getAttributes?.() || current?.get?.('attributes') || {};
@@ -3273,6 +3316,42 @@ function removeComponentAttributes(component, names) {
         }
     });
 
+    return changed;
+}
+
+/** Apply an explicit V26 settings change from its stage to its owned nodes. */
+export function synchronizeMailSignatureImgOverlap(component, imgOverlapProfile) {
+    if (!componentUsesImgOverlapSignature(component)) return false;
+    let stage = component;
+    while (stage && !componentClasses(stage).includes('rt-sign-stage')) stage = stage?.parent?.();
+    if (!stage) return false;
+    const attributes = stage.getAttributes?.() || stage.get?.('attributes') || {};
+    const settings = readImgOverlapSettings({
+        attributes: Object.keys(attributes).map((name) => ({ name })),
+        getAttribute: (name) => attributes[name] === undefined ? null : String(attributes[name]),
+    }, imgOverlapProfile);
+    const geometry = imgOverlapGeometry(settings, imgOverlapProfile);
+    const classKeys = {
+        'rt-sign-stage': 'stage', 'rt-sign-train-layer': 'layer', 'rt-sign-train-frame': 'frame',
+        'rt-sign-train-slot': 'slot', 'rt-sign-train': 'image', 'rt-sign-content-frame': 'contentTable',
+    };
+    let changed = false;
+    const visit = (current) => {
+        const key = componentClasses(current).map((name) => classKeys[name]).find(Boolean);
+        if (key) {
+            const style = Object.fromEntries(geometry.styles[key].split(';').filter(Boolean).map((declaration) => {
+                const separator = declaration.indexOf(':');
+                return [declaration.slice(0, separator), declaration.slice(separator + 1)];
+            }));
+            changed = enforceComponentStyle(current, style) || changed;
+            if (['frame', 'slot', 'contentTable'].includes(key)) {
+                changed = enforceComponentAttributes(current, { height: geometry.height }) || changed;
+            }
+            if (key === 'image') changed = removeComponentAttributes(current, ['height']) || changed;
+        }
+        mailComponentChildren(current).forEach(visit);
+    };
+    visit(stage);
     return changed;
 }
 
@@ -3378,7 +3457,8 @@ export function synchronizeMailSignatureFixedGeometry(
     component,
     failOpenStage = componentUsesFailOpenSignatureStage(component),
 ) {
-    if (componentUsesFlowSafeSignatureTrain(component) || componentUsesSignatureBackground(component)) return false;
+    if (componentUsesFlowSafeSignatureTrain(component) || componentUsesSignatureBackground(component)
+        || componentUsesImgOverlapSignature(component)) return false;
 
     const classes = componentClasses(component);
     const forwardSafeTrain = componentUsesForwardSafeSignatureTrain(component);
@@ -3450,7 +3530,7 @@ export function synchronizeMailTrainLayerAlignment(component) {
     if (!classes.includes('rt-sign-train-layer') || attributes['data-rt-layer-train'] === undefined) {
         return false;
     }
-    if (componentUsesFlowSafeSignatureTrain(component)) return false;
+    if (componentUsesFlowSafeSignatureTrain(component) || componentUsesImgOverlapSignature(component)) return false;
     const failOpenStage = componentUsesFailOpenSignatureStage(component);
     const aspectSafeTrain = componentUsesAspectSafeSignatureTrain(component);
     const forwardSafeTrain = componentUsesForwardSafeSignatureTrain(component);
@@ -3821,7 +3901,7 @@ export function synchronizeMailPresentationAttributes(component, property = '') 
     return changed;
 }
 
-export function protectMailSystemComponents(editor) {
+export function protectMailSystemComponents(editor, { imgOverlapProfile = null } = {}) {
     const root = editor?.getWrapper?.();
     if (!root) return 0;
 
@@ -3857,6 +3937,7 @@ export function protectMailSystemComponents(editor) {
                 : 'Fester Signatur-Inhaltsrahmen';
         }
         if (classes.includes('rt-sign-stage')) {
+            if (componentUsesImgOverlapSignature(component)) return 'Zug · Responsive Geometrie';
             return componentUsesFlowSafeSignatureTrain(component)
                 ? 'E-Mail-sicherer Signaturfluss'
                 : 'Signatur-Bühne';
@@ -3915,6 +3996,19 @@ export function protectMailSystemComponents(editor) {
             synchronizeMailSignatureFixedGeometry(component);
             protect(component, { layerable: true });
         }
+        if (classes.includes('rt-sign-stage') && componentUsesImgOverlapSignature(component) && imgOverlapProfile) {
+            const labels = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobil' };
+            const traits = Object.keys(imgOverlapProfile.breakpoints).flatMap((breakpoint) => [
+                { type: 'number', name: `data-rt-v26-height-${breakpoint}`, label: `${labels[breakpoint]} · Höhe (px)`,
+                    min: breakpoint === 'desktop' ? imgOverlapProfile.desktopHeightMin : imgOverlapProfile.heightMin,
+                    max: imgOverlapProfile.heightMax, step: 1 },
+                { type: 'select', name: `data-rt-v26-size-${breakpoint}`, label: `${labels[breakpoint]} · Bildgröße`,
+                    options: imgOverlapProfile.sizes.map((size) => ({ id: String(size), name: `${size} %` })) },
+                { type: 'number', name: `data-rt-v26-offset-${breakpoint}`, label: `${labels[breakpoint]} · Links angeschnitten (%)`,
+                    min: imgOverlapProfile.offsetMin, max: imgOverlapProfile.offsetMax, step: 1 },
+            ]);
+            component.set?.({ traits, selectable: true, hoverable: true }, { silent: true });
+        }
         if (tagName === 'img' && !attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE]) {
             synchronizeMailContentImage(component);
             setName(component, String(attributes.alt || '').trim() || 'Inhaltsbild');
@@ -3968,7 +4062,7 @@ export function protectMailSystemComponents(editor) {
         if (attributes['data-rt-layer-train'] !== undefined
             || classes.includes('rt-sign-train-layer')) {
             component.set?.({
-                traits: componentUsesFlowSafeSignatureTrain(component) ? [] : [
+                traits: componentUsesFlowSafeSignatureTrain(component) || componentUsesImgOverlapSignature(component) ? [] : [
                     {
                         type: 'select',
                         name: 'data-rt-layer-align',
@@ -4477,6 +4571,8 @@ export async function createMailBuilder({
     theme = 'light',
     previewAssets = {},
     previewResponsiveCss = {},
+    previewResponsiveCssByArtifact = {},
+    imgOverlapProfile = null,
     previewThemeValues = {},
     compatibilityManifest = {},
     previewDevice = 'desktop',
@@ -4502,9 +4598,9 @@ export async function createMailBuilder({
 
     let activeTheme = theme === 'dark' ? 'dark' : 'light';
     const normalizedCompatibilityManifest = normalizeMailCompatibilityManifest(compatibilityManifest);
-    const responsiveCssForTheme = (selectedTheme) => String(
-        previewResponsiveCss?.[selectedTheme === 'dark' ? 'dark' : 'light'] || '',
-    );
+    const responsiveCssForTheme = (selectedTheme, canvasDocument = null) => resolveMailCanvasResponsiveCss(canvasDocument, {
+        theme: selectedTheme, previewResponsiveCss, previewResponsiveCssByArtifact, imgOverlapProfile,
+    });
     let canvasCss = mailCanvasStyles(activeTheme, previewAssets, responsiveCssForTheme(activeTheme), previewThemeValues);
 
     const instance = await runtime.create({
@@ -4556,26 +4652,34 @@ export async function createMailBuilder({
     });
 
     const editor = instance.editor;
+    const refreshResponsiveCanvas = () => {
+        canvasCss = mailCanvasStyles(activeTheme, previewAssets,
+            responsiveCssForTheme(activeTheme, editor.Canvas?.getDocument?.()), previewThemeValues);
+        return applyMailCanvasStyles(editor, canvasCss);
+    };
     const onComponentAdd = (component) => {
         const marked = markAddedMailComponentStyles(editor, component);
-        protectMailSystemComponents(editor);
+        protectMailSystemComponents(editor, { imgOverlapProfile });
         // Bei per Block eingefuegtem HTML entsteht die cNN-Regel je nach
         // Komponententyp erst direkt nach component:add.
         if (!marked) {
             globalThis.queueMicrotask?.(() => {
                 markAddedMailComponentStyles(editor, component);
-                protectMailSystemComponents(editor);
+                protectMailSystemComponents(editor, { imgOverlapProfile });
             });
         }
     };
     const onComponentUpdate = (component) => {
         const background = isMailSignatureBackgroundComponent(component);
+        const overlap = componentUsesImgOverlapSignature(component);
+        if (overlap) synchronizeMailSignatureImgOverlap(component, imgOverlapProfile);
         synchronizeMailSignatureBackground(component);
         synchronizeMailSignatureFlowGeometry(component);
         synchronizeMailSignatureFixedGeometry(component);
         synchronizeMailTrainLayerAlignment(component);
         synchronizeMailContentImage(component);
         if (background) globalThis.queueMicrotask?.(() => hydrateMailCanvasAssets(editor, activeTheme, previewAssets));
+        if (overlap) globalThis.queueMicrotask?.(() => refreshResponsiveCanvas());
     };
     const onComponentStyleUpdate = (component, changes = {}) => {
         const styleChanges = changes?.style && typeof changes.style === 'object'
@@ -4588,11 +4692,15 @@ export async function createMailBuilder({
             synchronizeMailPresentationAttributes(component, property);
         });
         synchronizeMailContentImage(component);
+        if (componentUsesImgOverlapSignature(component)) {
+            synchronizeMailSignatureImgOverlap(component, imgOverlapProfile);
+            globalThis.queueMicrotask?.(() => refreshResponsiveCanvas());
+        }
     };
     editor.on?.('component:add', onComponentAdd);
     editor.on?.('component:update', onComponentUpdate);
     editor.on?.('component:styleUpdate', onComponentStyleUpdate);
-    protectMailSystemComponents(editor);
+    protectMailSystemComponents(editor, { imgOverlapProfile });
     const rootElement = typeof root === 'string' ? document.querySelector(root) : root;
     const frame = rootElement?.closest?.('[data-mail-editor-frame]') || null;
     let degradationOverlay = null;
@@ -4660,7 +4768,7 @@ export async function createMailBuilder({
         })
         : null;
     const onFrameLoad = () => {
-        applyMailCanvasStyles(editor, canvasCss);
+        refreshResponsiveCanvas();
         hydrateMailCanvasPlaceholders(editor);
         hydrateMailCanvasAssets(editor, activeTheme, previewAssets);
         preview?.refresh();
@@ -4682,7 +4790,7 @@ export async function createMailBuilder({
         });
     };
 
-    applyMailCanvasStyles(editor, canvasCss);
+    refreshResponsiveCanvas();
     hydrateMailCanvasPlaceholders(editor);
     hydrateMailCanvasAssets(editor, activeTheme, previewAssets);
     editor.on?.('canvas:frame:load', onFrameLoad);
@@ -4733,7 +4841,7 @@ export async function createMailBuilder({
         },
     });
     // Die gemeinsame Chrome-Haertung sperrt Systemkomponenten strukturell.
-    protectMailSystemComponents(editor);
+    protectMailSystemComponents(editor, { imgOverlapProfile });
     const detachTypographyFocus = installMailTypographyFocus(editor, editorChrome, { readOnly });
     let shellLifecycle = null;
     let assistantAdapter = null;
@@ -4871,8 +4979,7 @@ export async function createMailBuilder({
         /** Leinwandfarben wechseln; die Wahl wird nicht mitgespeichert. */
         setTheme(nextTheme = activeTheme) {
             activeTheme = nextTheme === 'dark' ? 'dark' : 'light';
-            canvasCss = mailCanvasStyles(activeTheme, previewAssets, responsiveCssForTheme(activeTheme), previewThemeValues);
-            const stylesApplied = applyMailCanvasStyles(editor, canvasCss);
+            const stylesApplied = refreshResponsiveCanvas();
             hydrateMailCanvasAssets(editor, activeTheme, previewAssets);
             return stylesApplied;
         },

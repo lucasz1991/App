@@ -12,6 +12,9 @@ use App\Support\Mail\EmailCompatibilityReport;
 use App\Support\Mail\MailDocumentAutoRepair;
 use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\SignatureArtifactVersion;
+use App\Support\Mail\SignatureImgOverlap;
+use App\Support\Mail\TrustedEmailCss;
+use App\Support\Mail\TrustedOutlookSignatureCss;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -410,8 +413,22 @@ class MailDocumentEditor extends Component
             // Dadurch ist Tablet/Mobil eine echte Layoutvorschau statt nur
             // einer optisch verkleinerten Desktop-Leinwand.
             'previewResponsiveCss' => [
-                'light' => EmailTemplateBuilder::responsiveCss('#dfe3e6', true),
-                'dark' => EmailTemplateBuilder::responsiveCss('#313944', true),
+                'light' => EmailTemplateBuilder::responsiveCss('#dfe3e6', true, (string) ($signatureDocument?->html ?? '')),
+                'dark' => EmailTemplateBuilder::responsiveCss('#313944', true, (string) ($signatureDocument?->html ?? '')),
+            ],
+            'imgOverlapProfile' => SignatureImgOverlap::editorSettings(),
+            // Import can change the artifact while the editor stays mounted.
+            // V26 geometry is then projected from its nine saved attributes,
+            // using this server-isolated base rather than legacy 200px rules.
+            'previewResponsiveCssByArtifact' => [
+                'legacy' => [
+                    'light' => TrustedEmailCss::responsive('#dfe3e6', true),
+                    'dark' => TrustedEmailCss::responsive('#313944', true),
+                ],
+                'v26' => [
+                    'light' => TrustedOutlookSignatureCss::filterDocumentRuntime(TrustedEmailCss::responsive('#dfe3e6', false), '<tr data-rt-artifact-version="v26"></tr>'),
+                    'dark' => TrustedOutlookSignatureCss::filterDocumentRuntime(TrustedEmailCss::responsive('#313944', false), '<tr data-rt-artifact-version="v26"></tr>'),
+                ],
             ],
             'vendor' => [
                 'builderJs' => $builderRuntimeUrl,

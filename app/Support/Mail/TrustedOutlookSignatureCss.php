@@ -26,6 +26,34 @@ final class TrustedOutlookSignatureCss
     private const MAX_TEMPLATE_CSS_BYTES = 24576;
 
     /**
+     * Internal compiler entry for TrustedEmailCss::forDocument(). The caller
+     * supplies the canonical responsive source, never editable document CSS.
+     * Keeping this method free of TrustedEmailCss calls avoids recursion.
+     * Do not prune by actual HTML classes here: stored signature source and
+     * rendered full mail must share the same canonical runtime bytes. Only
+     * the second, Outlook-specific pass removes unused document selectors.
+     */
+    public static function filterDocumentRuntime(string $css, string $html, bool $includeTemplate = true): string
+    {
+        if (substr_count($css, TrustedEmailCss::RUNTIME_MARKER) !== 1 || stripos($css, '</style') !== false) {
+            throw new RuntimeException('Die dokumentgebundene Mail-Runtime besitzt keine eindeutige interne Marke.');
+        }
+
+        $version = SignatureArtifactVersion::detect(MailDocumentKind::Signature, $html);
+        if (! self::hasIndependentTrainGeometry($version)) {
+            return $css;
+        }
+
+        return '/* '.TrustedEmailCss::RUNTIME_MARKER.' */'.self::filterRuntimeStylesheet(
+            $css,
+            $version,
+            self::documentTraits($html),
+            $includeTemplate,
+            filterDocumentSelectors: false,
+        );
+    }
+
+    /**
      * Nutzt denselben Selektor-Scanner wie Signaturen, bezieht aber auch die
      * tatsaechlich vorhandenen Nachrichten-/Kartenklassen ein. Nur die exakt
      * erkannte Server-Runtime darf um fremde Artefakte/Animationen gekuerzt
@@ -41,8 +69,14 @@ final class TrustedOutlookSignatureCss
 
         $version = SignatureArtifactVersion::detect(MailDocumentKind::Signature, $html);
         $traits = self::documentTraits($html);
-        $runtime = TrustedEmailCss::responsive($border, SignatureArtifactVersion::usesOptionalBackground($version));
-        $filteredRuntime = self::filterRuntimeStylesheet($runtime, $version, $traits, includeTemplate: true);
+        $runtime = TrustedEmailCss::forDocument($html, $border, SignatureArtifactVersion::usesOptionalBackground($version));
+        $filteredRuntime = self::filterRuntimeStylesheet(
+            $runtime,
+            $version,
+            $traits,
+            includeTemplate: true,
+            geometryAlreadyIsolated: self::hasIndependentTrainGeometry($version),
+        );
         $result = '';
 
         foreach ($styles as $css) {
@@ -76,9 +110,14 @@ final class TrustedOutlookSignatureCss
         );
         $documentTraits = self::documentTraits($signatureHtml);
         $runtime = self::filterRuntimeStylesheet(
-            TrustedEmailCss::responsive($border),
+            TrustedEmailCss::forDocument(
+                $signatureHtml,
+                $border,
+                SignatureArtifactVersion::usesOptionalBackground($artifactVersion),
+            ),
             $artifactVersion,
             $documentTraits,
+            geometryAlreadyIsolated: self::hasIndependentTrainGeometry($artifactVersion),
         );
         $css = '/* '.self::RUNTIME_MARKER.' */'
             .self::scopeStylesheet(
@@ -227,6 +266,8 @@ final class TrustedOutlookSignatureCss
         ?string $artifactVersion,
         array $documentTraits,
         bool $includeTemplate = false,
+        bool $geometryAlreadyIsolated = false,
+        bool $filterDocumentSelectors = true,
     ): string {
         $result = '';
         $length = strlen($css);
@@ -262,6 +303,8 @@ final class TrustedOutlookSignatureCss
                     $artifactVersion,
                     $documentTraits,
                     $includeTemplate,
+                    $geometryAlreadyIsolated,
+                    $filterDocumentSelectors,
                 );
                 if ($filteredBody !== '') {
                     $result .= self::compactPrelude($prelude).'{'.$filteredBody.'}';
@@ -281,12 +324,19 @@ final class TrustedOutlookSignatureCss
                 $artifactVersion,
                 $documentTraits,
                 $includeTemplate,
+                $filterDocumentSelectors,
             );
             if ($selectors === []) {
                 continue;
             }
 
             $body = self::compactDeclarations($body);
+            if (self::hasIndependentTrainGeometry($artifactVersion)) {
+                $result .= self::isolatedArtifactRule($selectors, $body, $artifactVersion, ! $geometryAlreadyIsolated);
+
+                continue;
+            }
+
             if (SignatureArtifactVersion::usesFlowSafeTrain($artifactVersion)
                 && self::selectorsContain($selectors, '.rt-sign-train-layer')) {
                 $body = preg_replace_callback(
@@ -299,6 +349,72 @@ final class TrustedOutlookSignatureCss
             if ($body !== '') {
                 $result .= implode(',', $selectors).'{'.$body.'}';
             }
+        }
+
+        return $result;
+    }
+
+    private static function hasIndependentTrainGeometry(?string $artifactVersion): bool
+    {
+        // Explicit opt-ins only. Older releases intentionally inherit the
+        // fixed stage, while future artifacts must choose their own policy.
+        return in_array($artifactVersion, [SignatureArtifactVersion::V25, SignatureArtifactVersion::V26], true);
+    }
+
+    /**
+     * Compile one artifact, rather than transporting legacy geometry followed
+     * by version-specific undo rules. Office can reduce data attributes during
+     * insertion; no 200/296-px train table may survive that reduction in V25.
+     *
+     * Only canonical runtime rules reach this method. Published user CSS stays
+     * on its unchanged, separately validated path. Shared typography, contact
+     * spacing and table semantics remain available at every breakpoint.
+     *
+     * @param  list<string>  $selectors
+     */
+    private static function isolatedArtifactRule(
+        array $selectors,
+        string $body,
+        string $artifactVersion,
+        bool $filterLegacyGeometry = true,
+    ): string {
+        $groups = [];
+        foreach ($selectors as $selector) {
+            $ownArtifact = str_contains($selector, 'data-rt-artifact-version');
+            $declarations = $body;
+            if ($filterLegacyGeometry && ! $ownArtifact && preg_match(
+                '/\.rt-sign-(?:stage|content-frame|train-layer|train-frame|train-slot|train|train-mso)(?:\[[^\]]+\])*\z/i',
+                $selector,
+            ) === 1) {
+                // Filter per selector: a comma-separated contact selector must
+                // not lose its own dimensions merely by sharing this rule.
+                $declarations = preg_replace(
+                    '/(?:\A|(?<=;))(?:position|z-index|(?:min-|max-)?(?:width|height)|margin(?:-(?:top|right|bottom|left))?|(?:top|right|bottom|left)|overflow(?:-[xy])?):[^;]*(?:;|\z)/i',
+                    '',
+                    $declarations,
+                ) ?? $declarations;
+            }
+            if ($declarations === '') {
+                continue;
+            }
+
+            // matchesArtifact() already selected the single current artifact.
+            // The content-bound rts/rtt scope is added afterwards, so removing
+            // this redundant source marker cannot address another signature.
+            $selector = preg_replace(
+                '/\Atr\[data-rt-artifact-version=(["\'])'.preg_quote($artifactVersion, '/').'\1\]\s+/i',
+                '',
+                $selector,
+            ) ?? $selector;
+            if ($ownArtifact) {
+                $selector = str_replace('.rt-sign-train-layer[data-rt-layer-train]', '.rt-sign-train-layer', $selector);
+            }
+            $groups[$declarations][] = $selector;
+        }
+
+        $result = '';
+        foreach ($groups as $declarations => $group) {
+            $result .= implode(',', array_unique($group)).'{'.$declarations.'}';
         }
 
         return $result;
@@ -951,6 +1067,7 @@ final class TrustedOutlookSignatureCss
         ?string $artifactVersion,
         array $documentTraits,
         bool $includeTemplate = false,
+        bool $filterDocumentSelectors = true,
     ): array {
         $selectors = self::splitSelectorList($prelude);
 
@@ -960,12 +1077,15 @@ final class TrustedOutlookSignatureCss
             if ($selector === ''
                 || (! $includeTemplate && str_contains($selector, 'data-rt-signature-density'))
                 || ! self::matchesArtifact($selector, $artifactVersion)
-                || ! self::isSignatureSelector($selector, $documentTraits)
-                || ! self::matchesDocument($selector, $documentTraits, $includeTemplate)) {
+                || (! $filterDocumentSelectors && self::hasIndependentTrainGeometry($artifactVersion)
+                    && str_contains($selector, 'rt-train-idle'))
+                || ($filterDocumentSelectors
+                    && (! self::isSignatureSelector($selector, $documentTraits)
+                        || ! self::matchesDocument($selector, $documentTraits, $includeTemplate)))) {
                 continue;
             }
 
-            if ($documentTraits['background_fit'] !== 'contain') {
+            if ($filterDocumentSelectors && $documentTraits['background_fit'] !== 'contain') {
                 $selector = str_replace(':not([data-rt-bg-desktop-fit="contain"])', '', $selector);
             }
             $relevant[] = self::compactPrelude($selector);

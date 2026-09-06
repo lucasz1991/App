@@ -1,27 +1,78 @@
 # Microsoft Entra und Windows-Geräte in RailTime
 
-Stand: 6. September 2026. Release `8880cf96` ist live. Runtime-Migration
+Stand: 6. September 2026, nach der Liveprüfung um 14:57. Geräteintegrations-
+Release `8880cf96` ist der letzte explizit im Plesk-Dashboard bestätigte Stand;
+der lokale Gitstand ist `9bb35ee6` aus einem anderen Task und wurde nicht als
+neuer Livecommit geprüft. Für diesen Prüfnachlauf erfolgte kein
+weiteres Deployment. Runtime-Migration
 `030000`, Plesk-Paket v8.0.0, kanonische Queue `microsoft_devices` und
 Cacheaufbau sind bestätigt. M1/M2 sind für Release und Hintergrundbetrieb
 belegt: echte Graph-freie Workerprobe und automatischer Schedulerkontakt
-um **13:05:02**, zusätzlich in der Webansicht bestätigt. Ein echter
-Mandantenabruf, Geräteimport und dessen Idempotenz sind noch nicht abgenommen.
+um **13:05:02**, zusätzlich in der Webansicht bestätigt. Inzwischen sind
+auch Graph-Verbindung, echter Erstimport und die wiederholte Verarbeitung
+ohne neue Inventardatensätze live nachgewiesen.
 Die separate Entra-App **„RailTime Geräteinventar“** ist
 registriert; das Portal bestätigt ausschließlich das Application-Recht
 `Device.Read.All` mit Administratorzustimmung **„Gewährt für RailTime“**.
 Das automatisch hinzugefügte, unnötige `User.Read` wurde nur aus dieser App
 entfernt; andere Apps blieben unverändert. Tenant- und Client-ID sind im
-RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Das
-Client-Geheimnis ist trotz Nutzerbestätigung noch nicht als gespeichert
-nachgewiesen (`secret_configured=false`); ein Wert gehört ausschließlich in
-das geschützte Setup, niemals in diese Dokumentation. Automatik und Intune
-sind ausgeschaltet. Abschließende sichere Liveflags: `device_count=0`,
-`bound_microsoft_identities=0`, `secret_configured=false`, `sync_enabled=false`,
-`maintenance=false`. Der Identitätszähler umfasst aktive Microsoft-365-
-Bindungen im aktuellen Tenant mit vorhandener externer ID. Die erforderliche
-Mitarbeiterkontobindung ist daher ebenfalls ein Pilot-Gate: autorisierte
-Tenant-/Objekt-ID-Zuordnung oder Bestätigung einer passenden vorhandenen
-Bindung über den verifizierten Microsoft-Bootstrap, niemals E-Mail-only-Matching.
+RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Die neue
+Webansicht bestätigt nun ausdrücklich das verschlüsselt gespeicherte
+Client-Geheimnis und die aktivierte Synchronisierung im 15-Minuten-Intervall.
+Der Microsoft-Graph-Verbindungstest war um **14:15** erfolgreich. Schema,
+Queue, Scheduler und Worker werden als bereit angezeigt. Intune bleibt
+ausgeschaltet; keine Microsoft-Schreibrechte wurden ergänzt.
+
+| Lauf | Eingeplant / Workerstart / Abschluss | Gefunden | Neu | Aktualisiert | Zugeordnet | Konflikte | Übersprungen |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Automatischer Erstimport | 14:15:02 / 14:15:05 / 14:15:08 | 98 | 98 | 0 | 0 | 0 | 0 |
+| Bewusste Wiederholung | 14:16:20 / 14:16:23 / 14:16:26 | 98 | 0 | 98 | 0 | 0 | 0 |
+
+Die nach diesen beiden Inventarläufen um 14:16 frisch geladene Geräteübersicht
+bestätigte historisch **98 Geräte insgesamt, 98 Treffer und 0 aktive Ausgaben**.
+Nach dem folgenden Einzelpilot gilt aktuell **98 insgesamt / 1 aktive Ausgabe /
+97 unzugeordnet**. Die Anzeige „virtuelles Lager“ bedeutet
+nur nicht zugewiesen, nicht physisch bestätigten Lagerbestand. Gleiche Anzeigenamen sind allein kein
+Duplikatbeleg; entscheidend sind stabile externe Geräteidentitäten.
+
+**Historie, nicht aktueller Status:** Vor dieser erfolgreichen Einrichtung
+waren `device_count=0`, `bound_microsoft_identities=0`,
+`secret_configured=false` und `sync_enabled=false` dokumentiert. Der damalige
+Identitätszähler umfasste aktive Microsoft-365-Bindungen im aktuellen Tenant
+mit vorhandener externer ID. Secret- und Nullbestandsblocker sind inzwischen
+überholt. Auch die damalige offene Pilotauswahl und der Kontenstatus
+„Objekt-ID / Mandant offen“ sind für den nachfolgend geprüften Einzelpilot Historie.
+
+### Einzelpilot: manuelle Ausgabe und bestätigte Kontobindung
+
+Der Nutzer wählte ausdrücklich den aktuellen lokalen PC und einen geeigneten
+Mitarbeiterdatensatz, kein System-/Superadmin-Konto. Die lokale Windows-
+Workplace-Gerätekennung wurde exakt mit dem bereits importierten PC im
+konfigurierten Tenant abgeglichen. Genau dieses zuvor unzugewiesene Gerät
+wurde mit Notiz manuell in RailTime zugewiesen; es wurde kein Gerät neu angelegt.
+
+Eine direkte lesende Entra-Prüfung ergab genau einen Treffer für das Gerät
+und in der ungefilterten Geräteliste des betreffenden Kontos ausschließlich
+diesen Pilot-PC. UPN, Objekt-ID und Tenant stimmten mit der bereits vorhandenen
+RailTime-Identität überein. Die initiale Tenant-Bindung (`tenant_initial_binding`)
+wurde daraufhin ausdrücklich über die UI bestätigt; Status „Verknüpft“.
+Kein neues Konto, Passwort oder Microsoft-Schreibaufruf wurde erzeugt.
+
+| Nachweis (nur minutengenau belegt) | Ergebnis |
+| --- | --- |
+| Sync 14:52 nach manueller Ausgabe | Bestehende Zuweisung erhalten; 98 / 1 / 97 |
+| Sync 14:55 nach Tenant-Bindung | „Microsoft-Konto und Mitarbeiter stimmen überein“; 98 / 1 / 97 |
+| Bewusste Wiederholung 14:57 | Gleiche Übereinstimmung und unverändert 98 / 1 / 97 |
+| Frisch neu geladene produktive Detailseite | Gleicher gewählter Mitarbeiter, Übereinstimmung von 14:57 und 98 / 1 / 97 bestätigt |
+
+Dies belegt die manuelle Einzelzuweisung, deren Erhalt und die verifizierte
+Identitätsübereinstimmung, nicht eine automatische Erstzuweisung durch eine
+Windows-Anmeldung. Windows-Workplace-Registrierung und Sitzung blieben
+unverändert; kein neuer Windows-Logintest. Vollständige Inventarprüfung,
+Standort und echte Seriennummer bleiben offen. MDM-, Intune- und
+Fernwartungsbereitschaft sind unverändert nicht abgenommen. Die Geräte-
+Kommandotabelle zeigte „Noch keine Geräteaktion protokolliert“; dies ist
+kein Nachweis einer Prüfung des allgemeinen Activity-Logs.
 
 ## Was automatisch passiert
 

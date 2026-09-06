@@ -1814,6 +1814,7 @@
                             kind: config.currentDocument,
                             baselineHtml: activeBaselineHtml,
                             previewAssets: config.previewAssets || {},
+                            imgOverlapProfile: config.imgOverlapProfile || null,
                             environment: editor.Canvas?.getWindow?.()
                                 || editor.Canvas?.getDocument?.()?.defaultView
                                 || window,
@@ -1874,6 +1875,7 @@
                         return runtimeBridge.projectFor(portableProject, (candidateCss) => editor.Parser.parseCss(candidateCss) || [], {
                             kind: config.currentDocument,
                             environment: window,
+                            imgOverlapProfile: config.imgOverlapProfile || null,
                         });
                     };
 
@@ -1906,6 +1908,7 @@
                             kind: config.currentDocument,
                             baselineHtml: checked.html,
                             previewAssets: config.previewAssets || {},
+                            imgOverlapProfile: config.imgOverlapProfile || null,
                             environment: editor.Canvas?.getWindow?.()
                                 || editor.Canvas?.getDocument?.()?.defaultView
                                 || window,
@@ -2215,6 +2218,8 @@
                                 assets: config.mailAssets || [],
                                 previewAssets: config.previewAssets || {},
                                 previewResponsiveCss: config.previewResponsiveCss || {},
+                                previewResponsiveCssByArtifact: config.previewResponsiveCssByArtifact || {},
+                                imgOverlapProfile: config.imgOverlapProfile || null,
                                 previewThemeValues: config.previewThemeValues || {},
                                 compatibilityManifest: config.compatibilityManifest || {},
                                 previewDevice: selectedDevice,
@@ -2229,7 +2234,7 @@
                                     onLoad: ({ editor }) => runtimeBridge.projectFor(
                                         document_,
                                         (css) => editor.Parser?.parseCss?.(css) || [],
-                                        { kind: config.currentDocument, environment: window },
+                                        { kind: config.currentDocument, environment: window, imgOverlapProfile: config.imgOverlapProfile || null },
                                     ),
                                     onSave: async ({ project, html, css, editor }) => {
                                     lastEditorSaveError = null;
@@ -2245,6 +2250,7 @@
                                             kind: config.currentDocument,
                                             baselineHtml: activeBaselineHtml,
                                             previewAssets: config.previewAssets || {},
+                                            imgOverlapProfile: config.imgOverlapProfile || null,
                                             environment: editor.Canvas?.getWindow?.()
                                                 || editor.Canvas?.getDocument?.()?.defaultView
                                                 || window,
@@ -2280,7 +2286,7 @@
                                             sanitizationChanged: (payload.report?.findings || [])
                                                 .some((finding) => finding.severity === 'violation'),
                                             parseCss: (canonicalCss) => editor.Parser?.parseCss?.(canonicalCss) || [],
-                                            projectOptions: { kind: config.currentDocument, environment: window },
+                                            projectOptions: { kind: config.currentDocument, environment: window, imgOverlapProfile: config.imgOverlapProfile || null },
                                         });
                                         setMessage(editedDuringSave
                                             ? 'Zwischenstand gespeichert. Neuere Änderungen bleiben im Editor und werden anschließend gespeichert.'
@@ -2705,7 +2711,7 @@
                                         draft: document_,
                                         sanitizationChanged: true,
                                         parseCss: (canonicalCss) => instance.editor.Parser?.parseCss?.(canonicalCss) || [],
-                                        projectOptions: { kind: config.currentDocument, environment: window },
+                                        projectOptions: { kind: config.currentDocument, environment: window, imgOverlapProfile: config.imgOverlapProfile || null },
                                     });
                                     window.location.reload();
                                 }).catch((error) => {

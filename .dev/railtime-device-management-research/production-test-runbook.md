@@ -13,19 +13,62 @@ ist registriert. Das Portal zeigt ausschließlich Application `Device.Read.All`
 mit Adminzustimmung **„Gewährt für RailTime“**; unnötiges automatisch ergänztes
 `User.Read` wurde nur aus dieser App entfernt, andere Apps blieben unverändert.
 Tenant- und Client-ID sind im RailTime-Setup gespeichert und nach erneutem
-Laden bestätigt. Secret-Speichern ist trotz Nutzerbestätigung technisch noch
-nicht nachgewiesen; Werte gehören ausschließlich ins geschützte Setup.
-Automatik und Intune bleiben aus. **M1/M2 live bestätigt:** Release `8880cf96`,
+Laden bestätigt. Die frische Webansicht bestätigt inzwischen ausdrücklich
+ein verschlüsselt gespeichertes Secret und aktive Synchronisierung alle
+15 Minuten. Intune bleibt aus; Microsoft-Schreibrechte wurden nicht ergänzt.
+**M1/M2 live bestätigt:** Geräteintegrationsrelease `8880cf96`,
 Runtime-Migration `030000`, Plesk v8.0.0, kanonische Queue `microsoft_devices`
 und Cacheaufbau; echte Workerprobe und automatischer Schedulerkontakt um
 **13:05:02** durch normalen Plesk-Betrieb, zusätzlich in der Webansicht belegt.
-Finale sichere Liveflags: `device_count=0`, `bound_microsoft_identities=0`,
-`secret_configured=false`, `sync_enabled=false`, `maintenance=false`.
-Der Identitätszähler umfasst aktive Microsoft-365-Bindungen im aktuellen
-Tenant mit externer ID. Kontobindung über explizite Tenant-/Objekt-ID oder
-einen passenden verifizierten Microsoft-Bootstrap ist ebenfalls Pilot-Gate;
-kein E-Mail-only-Matching. Graph-Verbindung, Erstimport und Idempotenz bleiben
-offen. Die folgenden Gates dienen weiterhin als wiederholbares Runbook,
+Schema, Queue, Scheduler und Worker sind bereit. **Graph-/Inventarnachweis
+ebenfalls erfolgt:** Verbindungstest im Web um 14:15 erfolgreich; folgende
+beiden echten Läufe sind anhand der Zeitpunkte und Ergebniszähler belegt:
+
+| Lauf | Eingeplant | Workerstart | Beendet | Gefunden | Neu | Aktualisiert | Zugeordnet / Konflikte / Übersprungen |
+| --- | --- | --- | --- | ---: | ---: | ---: | --- |
+| Automatisch | 14:15:02 | 14:15:05 | 14:15:08 | 98 | 98 | 0 | 0 / 0 / 0 |
+| Wiederholung | 14:16:20 | 14:16:23 | 14:16:26 | 98 | 0 | 98 | 0 / 0 / 0 |
+
+Die damals um 14:16 frisch geladene Geräteübersicht zeigte historisch
+98 Geräte / 98 Treffer / 0 aktive Ausgaben; der Einzelpilot unten bestätigt
+aktuell 98 Geräte / 1 aktive Ausgabe / 97 unzugeordnet.
+„Virtuelles Lager“ bedeutet nur nicht zugewiesen, nicht physisch bestätigt
+eingelagert. Gleiche Anzeigenamen sind nicht automatisch Inventarduplikate. Frühere
+`device_count=0`-/`secret_configured=false`-/Sync-aus-Werte sind **Historie vor
+14:15**. Das damalige Ergebnis 0 aktiver Microsoft-Kontobindungen war auf den
+aktuellen Tenant und vorhandene externe IDs eingeschränkt, nicht auf alle
+Mitarbeiter oder Anmeldungen.
+
+Die damals offene Pilotauswahl und „Objekt-ID / Mandant offen“ sind für den
+ausdrücklich gewählten Einzelpilot inzwischen erledigt. Der Nutzer wählte
+den aktuellen lokalen PC sowie einen geeigneten Mitarbeiter, kein System-/
+Superadmin. Die lokale Workplace-Gerätekennung wurde exakt dem importierten
+Gerät im konfigurierten Tenant zugeordnet. Genau dieses unzugewiesene Gerät
+wurde mit Notiz manuell ausgegeben. Anschließend bestätigte eine direkte,
+lesende Entra-Prüfung genau diesen PC und die identische vorhandene
+Kontoidentität einschließlich Tenant-/Objekt-ID; deren initiale Tenant-Bindung
+wurde über die UI bestätigt. Kein neues Konto, Passwort oder Microsoft-Schreibaufruf.
+
+| Einzelpilot – nur minutengenaue Nachweise | Ergebnis |
+| --- | --- |
+| Sync 14:52 nach manueller Ausgabe | Zuweisung erhalten; 98 gesamt / 1 aktive Ausgabe / 97 unzugeordnet |
+| Sync 14:55 nach initialer Tenant-Bindung | „Microsoft-Konto und Mitarbeiter stimmen überein“; 98 / 1 / 97 |
+| Bewusste Wiederholung 14:57 | Gleiche Übereinstimmung; 98 / 1 / 97 |
+| Produktive Seite vollständig neu geladen | Gleicher gewählter Mitarbeiter, Übereinstimmung 14:57 und 98 / 1 / 97 bestätigt |
+
+Dies ist der Nachweis einer manuellen Einzelzuweisung und ihres dauerhaften
+Abgleichs mit einer geprüften Kontoidentität, nicht einer automatischen
+Erstzuweisung durch Windows-Login. Windows-Sitzung und Workplace-Registrierung
+blieben unverändert; kein neuer Windows-Logintest. Standort, vollständige
+Inventarprüfung und echte Seriennummer sowie MDM-/Intune-/Remote-Bereitschaft
+bleiben offen. Der Tab „Kommandos & Audit“ zeigte in seiner Kommandotabelle
+„Noch keine Geräteaktion protokolliert“; daraus keine Sichtprüfung des
+allgemeinen Activity-Logs ableiten. Kein physischer Übergabe- oder vollständiger
+Fehlerszenario-Pilot aus diesem Einzeltest ableiten.
+Der lokale Gitstand ist `9bb35ee6` aus einem anderen Task, nicht ein neu
+geprüfter Livecommit. Letzter expliziter Plesk-Dashboardbeleg bleibt `8880cf96`;
+für diesen Nachweis erfolgte kein neues Deployment. Die folgenden Gates dienen weiterhin
+als wiederholbares Runbook,
 nicht als Aufforderung, bereits bestätigte Liveänderungen erneut auszuführen.
 
 ### Gate M1 – gemeinsamer Release und Plesk-Betrieb

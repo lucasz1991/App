@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Support\Mail\SignatureBackgroundContract;
+use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use Illuminate\Support\Facades\Http;
@@ -63,7 +64,7 @@ class OutlookSignatureBackgroundStyleTest extends TestCase
         $source = URL::asset('mail-assets/zug-dampf-v19-light.gif');
         $disabled = str_replace([htmlspecialchars("url('".$source."')", ENT_QUOTES | ENT_HTML5, 'UTF-8'), 'data-rt-signature-background="1"'], ['none', 'data-rt-signature-background="0"'], $this->rows($source));
         SignatureBackgroundContract::assertRuntime($disabled);
-        foreach ([$disabled, str_replace('data-rt-artifact-version="v23"', 'data-rt-artifact-version="v25"', $this->rows($source))] as $rows) {
+        foreach ([$disabled, $this->v25ImageRows($source)] as $rows) {
             $styles = TrustedOutlookSignatureCss::style($rows);
             $this->assertStringNotContainsString('data-rt-outlook-signature-background-css', $styles);
             $this->assertStringNotContainsString('background-image:', $styles);
@@ -149,5 +150,21 @@ class OutlookSignatureBackgroundStyleTest extends TestCase
             .'style="'.htmlspecialchars($style, ENT_QUOTES | ENT_HTML5, 'UTF-8').'">'
             .'<table class="rt-sign-content-frame"><tbody><tr><td>Kontakte bleiben normaler Text</td></tr></tbody></table>'
             .'</td></tr><tr><td>Rechtstext</td></tr>';
+    }
+
+    /** A real V25 IMG carrier, not a V23 background mislabeled as V25. */
+    private function v25ImageRows(string $source): string
+    {
+        $rows = '<tr data-rt-artifact-version="v25"><td class="rt-sign-cell">'
+            .'<div class="rt-sign-stage" style="display:block;width:100%;overflow:visible;">'
+            .'<table class="rt-sign-content-frame" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr><td class="rt-sign-content">Kontakte bleiben normaler Text</td></tr></table>'
+            .'<div class="rt-sign-train-layer" data-rt-layer-train="" data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="left" style="display:block;width:100%;max-width:none;margin:0 auto 0 0;overflow:hidden;font-size:0;line-height:0;text-align:left;">'
+            .'<table class="rt-sign-train-frame" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr>'
+            .'<td class="rt-sign-train-slot" valign="bottom" style="padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;">'
+            .'<img class="rt-sign-train" data-rt-train="" src="{{TRAIN_SRC}}" width="720" height="61" alt="" style="display:block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;">'
+            .'</td></tr></table></div></div></td></tr><tr><td>Rechtstext</td></tr>';
+        SignatureTrainCarrier::assertFlowSafeImage($rows);
+
+        return str_replace('{{TRAIN_SRC}}', $source, $rows);
     }
 }

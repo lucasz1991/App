@@ -16,7 +16,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 13;
+    private const RENDERER_REVISION = 14;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -164,13 +164,13 @@ final class OutlookAddinPayloadService
                         return '';
                     }
 
-                    public static function responsiveCss(?string $border = null, ?bool $includeOptionalBackground = null): string
+                    public static function responsiveCss(?string $border = null, ?bool $includeOptionalBackground = null, ?string $signatureHtml = null): string
                     {
                         // Ohne Signatur gibt es auch keinen optionalen
                         // V22/V23-Hintergrund im Compose-Dokument. Der
                         // vertrauenswuerdige CSS-Compiler prueft exakt diese
                         // signaturfreie Runtime-Variante.
-                        return parent::responsiveCss($border, false);
+                        return parent::responsiveCss($border, false, '');
                     }
                 },
                 $templateSnapshots,
