@@ -6401,7 +6401,7 @@ body[data-mode='dark'] .rt-expandable-search__clear:hover {
     color: #ff5a76;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
     .rt-topbar-search-slot {
         position: static;
     }
@@ -8853,7 +8853,7 @@ body[data-mode="dark"] [data-autosave-scope] [data-autosave-visual][data-autosav
 }
 
 /* Auch im Dark Mode ist die Lupe Teil des Felds, kein zweiter Kasten. */
-.rt-expandable-search[data-rt-search] span.rt-expandable-search__trigger {
+.rt-expandable-search[data-rt-search][data-search-context] span.rt-expandable-search__trigger {
     border: 0;
     background: transparent;
     box-shadow: none;

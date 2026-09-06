@@ -856,6 +856,14 @@ class EmailTemplatesPageTest extends TestCase
             $trainCid = 'railtime-'.substr(hash('sha256', $train), 0, 20).'.gif';
             if ($version === 'v23') {
                 $this->assertMatchesRegularExpression('/background-image:\s*url\([\'\"]?cid:'.preg_quote($trainCid, '/').'[\'\"]?\)/', html_entity_decode($payload['signature']['html'], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                preg_match_all('~<style\b[^>]*data-rt-outlook-signature-background-css="1"[^>]*>(.*?)</style>~is', $payload['signature']['html'], $backgroundStyles);
+                $this->assertCount(1, $backgroundStyles[1], 'The full forUser payload must retain its internal background rule after CID localization and compactSignature.');
+                $this->assertSame(1, preg_match('/<div\b[^>]*class="rt-outlook-signature (rts[0-9a-f]{10})"/', $payload['signature']['html'], $signatureScope));
+                $this->assertStringContainsString('.'.$signatureScope[1].' .rt-sign-cell{background-image:url(cid:'.$trainCid.');', $backgroundStyles[1][0], 'The internal train rule must target the actual signature wrapper scope.');
+                $trainMedia = array_values(array_filter($payload['signature']['media'], static fn (array $medium): bool => $medium['contentId'] === $trainCid));
+                $this->assertCount(1, $trainMedia, 'The inline fallback and internal CSS must reuse one embedded train GIF.');
+                $this->assertSame($train, base64_decode($trainMedia[0]['base64'], true));
+                $this->assertSame($trainCid, $trainMedia[0]['name']);
                 $stillCid = 'railtime-'.substr(hash_file('sha256', public_path('mail-assets/zug-dampf-v19-light.png')), 0, 20).'.png';
                 $this->assertNotContains($stillCid, array_column($payload['signature']['media'], 'contentId'), 'CSS-only V23 must not acquire an unreferenced second train.');
             } else {

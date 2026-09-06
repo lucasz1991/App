@@ -23,7 +23,6 @@ final class MicrosoftDeviceSyncScheduler
 
     public function __construct(
         private readonly MicrosoftDeviceSettings $settings,
-        private readonly DeviceManagementSettings $deviceSettings,
     ) {}
 
     public function queue(bool $force = false): bool
@@ -38,14 +37,10 @@ final class MicrosoftDeviceSyncScheduler
             throw new RuntimeException('Bitte zuerst eine gueltige Microsoft-Entra-Tenant-ID speichern.');
         }
 
-        $connection = (string) config('queue.default');
-        $driver = (string) config("queue.connections.{$connection}.driver");
-        if (! in_array($driver, ['database', 'redis', 'sqs', 'beanstalkd'], true)) {
-            throw new RuntimeException('Die Microsoft-Geraetesynchronisierung benoetigt eine asynchrone Queue (database oder redis) und einen laufenden Worker fuer die Geraete-Queue.');
-        }
+        $this->assertQueueReady();
 
         $fingerprint = $this->settings->fingerprint();
-        $dispatch = function () use ($tenantId, $fingerprint, $connection, $force): bool {
+        $dispatch = function () use ($tenantId, $fingerprint, $force): bool {
             // An enclosing transaction may have changed configuration before commit.
             $current = $this->settings->configuration();
             if (! ($current['enabled'] ?? false)
@@ -54,7 +49,7 @@ final class MicrosoftDeviceSyncScheduler
                 return false;
             }
 
-            return (bool) Cache::lock($this->key($tenantId, 'dispatch'), 10)->get(function () use ($tenantId, $fingerprint, $connection, $force, $current): bool {
+            return (bool) Cache::lock($this->key($tenantId, 'dispatch'), 10)->get(function () use ($tenantId, $fingerprint, $force, $current): bool {
                 if (Cache::has($this->key($tenantId, 'pending'))) {
                     return false;
                 }
@@ -71,10 +66,7 @@ final class MicrosoftDeviceSyncScheduler
                 Cache::put($this->key($tenantId, 'pending'), $reservation, self::RESERVATION_SECONDS);
 
                 try {
-                    Bus::dispatch((new SyncMicrosoftDevices($tenantId, $fingerprint, $reservation))
-                        ->onConnection($connection)
-                        ->onQueue($this->deviceSettings->queue())
-                        ->afterCommit());
+                    Bus::dispatch(new SyncMicrosoftDevices($tenantId, $fingerprint, $reservation));
                 } catch (Throwable $exception) {
                     Cache::forget($this->key($tenantId, 'pending'));
                     throw $exception;
@@ -181,6 +173,27 @@ final class MicrosoftDeviceSyncScheduler
     private function key(string $tenantId, string $suffix): string
     {
         return 'microsoft-device-sync:'.hash('sha256', strtolower($tenantId)).':'.$suffix;
+    }
+
+    private function assertQueueReady(): void
+    {
+        $configuration = config('queue.connections.'.SyncMicrosoftDevices::CONNECTION, []);
+        if (! is_array($configuration)
+            || ($configuration['driver'] ?? '') !== 'database'
+            || (int) ($configuration['retry_after'] ?? 0) <= 270) {
+            throw new RuntimeException('Die Microsoft-Geraetesynchronisierung benoetigt die Datenbankqueue microsoft_devices mit retry_after ueber 270 Sekunden. Bitte den Konfigurationscache nach dem Update erneuern.');
+        }
+
+        try {
+            $database = $configuration['connection'] ?? config('database.default');
+            $hasTable = Schema::connection($database)->hasTable((string) ($configuration['table'] ?? 'jobs'));
+        } catch (Throwable) {
+            $hasTable = false;
+        }
+
+        if (! $hasTable) {
+            throw new RuntimeException('Die Microsoft-Geraetesynchronisierung benoetigt die erreichbare jobs-Tabelle. Bitte die Datenbankverbindung und ausstehenden Migrationen pruefen.');
+        }
     }
 
     private function logDispatchFailure(): void

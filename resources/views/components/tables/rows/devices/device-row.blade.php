@@ -59,6 +59,12 @@
         <span class="mt-0.5 block truncate text-xs font-normal text-rt-muted dark:text-rt-dark-muted">
             {{ $item->asset_tag ?: $item->serial_number ?: 'Ohne Inventarkennung' }}
         </span>
+        @if($item->relationLoaded('microsoftLink') && $item->microsoftLink)
+            <span class="mt-1 inline-flex max-w-full items-center gap-1 truncate text-[11px] font-medium {{ $item->microsoftLink->assignment_status === 'matched' ? 'text-sky-700 dark:text-sky-300' : 'text-amber-700 dark:text-amber-300' }}">
+                <i class="fab fa-microsoft" aria-hidden="true"></i>
+                {{ $item->microsoftLink->intune_device_id ? 'Entra · Intune' : 'Entra' }}{{ $item->microsoftLink->assignment_status !== 'matched' ? ' · Zuordnung prüfen' : '' }}
+            </span>
+        @endif
     </button>
 </div>
 

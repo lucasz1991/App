@@ -60,6 +60,10 @@ Homestead.json
 !/tests/Feature/MailBrandAnimationGifTest.php
 !/tests/Feature/SignatureTrainTimelineTest.php
 !/tests/Feature/DeviceManagementTest.php
+!/tests/Feature/MicrosoftDeviceSyncTest.php
+!/tests/Feature/MicrosoftDeviceSyncTriggerTest.php
+!/tests/Feature/MicrosoftDeviceSettingsTest.php
+!/tests/Feature/MicrosoftEmployeeLinkTest.php
 !/tests/Feature/DeviceManagementSettingsTest.php
 !/tests/Feature/AdminSettingsOverviewAndSuperadminTest.php
 !/tests/Feature/AdminDashboardCommandBoardTest.php

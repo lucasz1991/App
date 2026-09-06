@@ -8,9 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('employee_identity_accounts', function (Blueprint $table): void {
-            $table->uuid('tenant_id')->nullable()->index('identity_tenant_idx');
-        });
+        if (! Schema::hasColumn('employee_identity_accounts', 'tenant_id')) {
+            Schema::table('employee_identity_accounts', function (Blueprint $table): void {
+                $table->uuid('tenant_id')->nullable()->index('identity_tenant_idx');
+            });
+        }
+
+        if (Schema::hasTable('microsoft_device_links')) {
+            return;
+        }
 
         Schema::create('microsoft_device_links', function (Blueprint $table): void {
             $table->id();
@@ -41,9 +47,11 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('microsoft_device_links');
-        Schema::table('employee_identity_accounts', function (Blueprint $table): void {
-            $table->dropIndex('identity_tenant_idx');
-            $table->dropColumn('tenant_id');
-        });
+        if (Schema::hasColumn('employee_identity_accounts', 'tenant_id')) {
+            if (Schema::hasIndex('employee_identity_accounts', 'identity_tenant_idx')) {
+                Schema::table('employee_identity_accounts', fn (Blueprint $table) => $table->dropIndex('identity_tenant_idx'));
+            }
+            Schema::table('employee_identity_accounts', fn (Blueprint $table) => $table->dropColumn('tenant_id'));
+        }
     }
 };

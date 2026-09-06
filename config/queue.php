@@ -42,6 +42,17 @@ return [
             'after_commit' => false,
         ],
 
+        // Microsoft discovery can take longer than an ordinary app job. Use
+        // the existing database without depending on QUEUE_CONNECTION.
+        'microsoft_devices' => [
+            'driver' => 'database',
+            'connection' => null,
+            'table' => 'jobs',
+            'queue' => 'microsoft-devices',
+            'retry_after' => 300,
+            'after_commit' => true,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => 'localhost',

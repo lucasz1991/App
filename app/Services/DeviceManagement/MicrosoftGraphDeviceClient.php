@@ -152,7 +152,7 @@ class MicrosoftGraphDeviceClient
             $parts = parse_url($next);
             if (! is_array($parts) || ($parts['scheme'] ?? '') !== 'https'
                 || ($parts['host'] ?? '') !== 'graph.microsoft.com'
-                || isset($parts['port'], $parts['user']) || isset($parts['port'])
+                || isset($parts['port'])
                 || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])
                 || ($parts['path'] ?? '') !== '/v1.0'.parse_url($path, PHP_URL_PATH)) {
                 throw new MicrosoftGraphDeviceException('invalid_pagination');

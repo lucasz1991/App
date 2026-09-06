@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use App\Support\OutlookAddin\EntraAccessTokenValidator;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
@@ -44,7 +45,7 @@ final class OutlookAddinBootstrapController extends Controller
                     'outlook_addin_client_outdated',
                 );
             }
-            app(\App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler::class)->afterMicrosoftSignIn($identity, $resolved['user']);
+            app(MicrosoftDeviceSyncScheduler::class)->afterMicrosoftSignIn($identity, $resolved['user']);
             $payload = $snapshots->currentForUser($resolved['user']);
             // Der persoenliche Snapshot ist wiederverwendbar, die Freigabe
             // fuer den aktuellen Absender dagegen strikt requestgebunden.

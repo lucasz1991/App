@@ -6,6 +6,18 @@
     page-key="device-management"
 >
     <x-slot:actions>
+        @can('devices.accounts.manage')
+            <livewire:devices.microsoft-employee-links />
+        @endcan
+        @if($microsoftEnabled)
+            @can('devices.manage')
+                <button type="button" wire:click="syncMicrosoftDevices" wire:loading.attr="disabled" wire:target="syncMicrosoftDevices"
+                    class="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text hover:bg-rt-surface-muted disabled:opacity-50 dark:border-rt-dark-border dark:text-white dark:hover:bg-rt-dark-surface-muted"
+                    title="Microsoft-Geräte synchronisieren" aria-label="Microsoft-Geräte synchronisieren">
+                    <i class="fab fa-microsoft" aria-hidden="true"></i><span class="hidden lg:inline">Abgleichen</span>
+                </button>
+            @endcan
+        @endif
         <button
             type="button"
             wire:click="openProviderReadiness"
@@ -40,6 +52,7 @@
     </x-slot:actions>
 
     <div class="space-y-4" data-device-management>
+        @error('microsoftSync')<p role="alert" class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
         <section class="flex min-w-0 items-center gap-3 rounded-xl border border-sky-200/80 bg-sky-50/75 px-3 py-2.5 text-sky-950 dark:border-sky-900/70 dark:bg-sky-950/25 dark:text-sky-100" aria-label="Sichere Bereitstellung">
             <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-900/70 dark:text-sky-200">
                 <i data-feather="shield" class="h-4 w-4" aria-hidden="true"></i>
@@ -53,7 +66,7 @@
 
         @php
             $normalizedSearch = trim((string) $search);
-            $activeFilterCount = collect([$normalizedSearch, $locationFilter, $lifecycleFilter, $platformFilter, $formFactorFilter, $complianceFilter])
+            $activeFilterCount = collect([$normalizedSearch, $locationFilter, $lifecycleFilter, $platformFilter, $formFactorFilter, $complianceFilter, $microsoftFilter])
                 ->filter(fn ($value) => $value !== '')
                 ->count();
             $lifecycleFilterLabels = [
@@ -94,6 +107,16 @@
                     placeholder="Gerät, Seriennummer oder Mitarbeiter …"
                 />
             </x-slot:search>
+
+            <x-tables.filter-field label="Microsoft-Verknüpfung" icon="fab fa-microsoft" for="device-microsoft-filter">
+                <x-ui.forms.select id="device-microsoft-filter" wire:model.live="microsoftFilter" aria-label="Microsoft-Verknüpfung" class="w-full">
+                    <option value="">Alle Geräte</option>
+                    <option value="linked">In Entra bekannt</option>
+                    <option value="intune">Mit Intune-Eintrag</option>
+                    <option value="attention">Microsoft-Zuordnung prüfen</option>
+                    <option value="unlinked">Ohne Microsoft-Verknüpfung</option>
+                </x-ui.forms.select>
+            </x-tables.filter-field>
 
             <x-tables.filter-field label="Standort" icon="far fa-map-marker-alt" for="device-location-filter">
                 <x-ui.forms.select id="device-location-filter" wire:model.live="locationFilter" aria-label="Standort" class="w-full">
@@ -341,6 +364,7 @@
 
                 <div id="device-panel-{{ $selectedDevice->public_id }}-overview" x-show.important="tab==='overview'" class="mt-5 grid gap-5 xl:grid-cols-[1.25fr_0.75fr]" role="tabpanel" aria-labelledby="device-tab-{{ $selectedDevice->public_id }}-overview" tabindex="0">
                     <div class="space-y-4">
+                        @include('livewire.devices.partials.microsoft-device-detail')
                         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                             @foreach([
                                 ['label'=>'Lebenszyklus','value'=>match($selectedDevice->lifecycle_status->value){'inventory'=>'Im Lager','preparing'=>'Vorbereitung','assigned'=>'Zugewiesen','in_service'=>'Im Einsatz','repair'=>'Reparatur','lost'=>'Verloren','retired'=>'Ausgemustert',default=>$selectedDevice->lifecycle_status->value},'icon'=>'repeat'],

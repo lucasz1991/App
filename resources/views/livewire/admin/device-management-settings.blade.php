@@ -79,6 +79,15 @@
     </div>
 
     <x-admin.settings-accordion-section
+        section="device-microsoft"
+        :label="$isGerman ? 'Microsoft Entra und Windows-Geräte' : 'Microsoft Entra and Windows devices'"
+        :description="$isGerman ? 'Vorhandene Windows-Geräte regelmäßig aus Microsoft übernehmen und Mitarbeitern zuordnen.' : 'Regularly import existing Windows devices from Microsoft and link employees.'"
+        icon="fab fa-microsoft"
+    >
+        <livewire:admin.microsoft-device-settings />
+    </x-admin.settings-accordion-section>
+
+    <x-admin.settings-accordion-section
         section="device-deployment"
         :label="$isGerman ? 'Plesk-Adresse und Betriebswerte' : 'Plesk address and runtime'"
         :description="$isGerman ? 'Öffentliche Subdomains oder private lokale Adapter-Ports mit sicheren Standardwerten festlegen.' : 'Choose public subdomains or private local adapter ports with safe defaults.'"

@@ -112,7 +112,7 @@
                             type="button"
                             x-on:click="skip()"
                             class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-3 text-white/75 ring-1 ring-white/15 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
-                            aria-label="{{ __('app.close') }}"
+                            aria-label="{{ __('app.skip_intro') }}"
                         >
                             <span class="rt-welcome-skip-label text-xs font-semibold">{{ __('app.skip_intro') }}</span>
                             <i class="far fa-times" aria-hidden="true"></i>
@@ -149,7 +149,7 @@
                     </nav>
 
                     <div class="rt-welcome-content flex min-h-0 flex-col">
-                        <div class="rt-welcome-slide-viewport min-h-0 flex-1">
+                        <div x-ref="viewport" class="rt-welcome-slide-viewport min-h-0 flex-1">
                             <template x-for="slide in [currentSlide]" :key="slide.id">
                                 <article
                                     class="rt-welcome-slide"

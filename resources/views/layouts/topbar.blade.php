@@ -185,22 +185,17 @@
                                 <x-slot name="trigger">
                                     <button
                                         type="button"
-                                        class="rt-topbar-profile-trigger group flex min-h-10 items-center gap-2 rounded-full border border-rt-border/80 bg-rt-surface/90 p-1 pe-2 text-sm text-rt-text shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-px hover:border-rt-red/25 hover:shadow-rt-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:border-rt-dark-border dark:bg-rt-dark-surface/90 dark:text-white"
+                                        class="rt-topbar-control rt-topbar-profile-trigger flex h-10 w-10 items-center justify-center rounded-xl border border-rt-border bg-rt-surface p-0 text-sm text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white"
                                         aria-label="{{ __('app.manage_account') }}"
                                         aria-haspopup="menu"
                                     >
-                                        <span class="relative">
+                                        <span class="relative flex shrink-0">
                                             <img
-                                                class="h-8 w-8 rounded-full object-cover ring-1 ring-slate-900/10 dark:ring-white/15"
+                                                class="h-7 w-7 rounded-full object-cover ring-1 ring-slate-900/10 dark:ring-white/15"
                                                 src="{{ Auth::user()->profile_photo_url }}"
                                                 alt="{{ Auth::user()->name }}"
                                             />
                                         </span>
-                                        <span class="hidden min-w-0 text-start xl:block">
-                                            <span class="block max-w-36 truncate text-xs font-semibold leading-4">{{ Auth::user()->name }}</span>
-                                            <span class="block text-[9px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.profile') }}</span>
-                                        </span>
-                                        <i class="far fa-chevron-down hidden text-[10px] text-rt-muted transition duration-200 group-aria-expanded:rotate-180 dark:text-white/70 xl:block" aria-hidden="true"></i>
                                     </button>
                                 </x-slot>
                                 <x-slot name="content">
@@ -252,7 +247,7 @@
                                 <x-slot name="trigger">
                                     <button
                                         type="button"
-                                        class="rt-topbar-profile-trigger flex h-10 w-10 items-center justify-center rounded-full border border-rt-border/80 bg-rt-surface text-rt-muted shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-px hover:border-rt-red/25 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:text-rt-dark-text"
+                                        class="rt-topbar-control rt-topbar-profile-trigger flex h-10 w-10 items-center justify-center rounded-xl border border-rt-border bg-rt-surface p-0 text-rt-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted"
                                         aria-label="{{ $area === 'admin' ? __('app.admin_login') : __('app.login') }}"
                                         aria-haspopup="menu"
                                     >

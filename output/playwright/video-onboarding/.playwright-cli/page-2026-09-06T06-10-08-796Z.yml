@@ -1,0 +1,219 @@
+- generic [ref=f1e1]:
+  - link [aria-hidden] [ref=f1e2] [cursor=pointer]:
+    - /url: "#main-content"
+    - text: Zum Inhalt springen
+  - complementary [ref=f1e3]:
+    - region [ref=f1e8]:
+      - list [ref=f1e11]:
+        - listitem [ref=f1e12]: Übersicht
+        - listitem [ref=f1e13]:
+          - link [ref=f1e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5116/dashboard
+        - listitem [ref=f1e19]: Kommunikation
+        - listitem [ref=f1e20]:
+          - link [ref=f1e21] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f1e26]: Betrieb
+        - listitem [ref=f1e27]:
+          - link [ref=f1e28] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f1e35]: Inhalte & Dateien
+        - listitem [ref=f1e36]:
+          - link [ref=f1e37] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f1e43]: Mein Bereich
+        - listitem [ref=f1e44]:
+          - link [ref=f1e45] [cursor=pointer]:
+            - /url: http://127.0.0.1:5116/meine-geraete
+        - listitem [ref=f1e49]:
+          - link [ref=f1e50] [cursor=pointer]:
+            - /url: http://127.0.0.1:5116/user/profile
+        - listitem [ref=f1e55]:
+          - link [ref=f1e56] [cursor=pointer]:
+            - /url: "#"
+  - navigation [aria-hidden] [ref=f1e67]:
+    - generic [ref=f1e68]:
+      - link [ref=f1e71] [cursor=pointer]:
+        - /url: http://127.0.0.1:5116/dashboard
+      - generic [ref=f1e74]:
+        - search [ref=f1e76]:
+          - generic [ref=f1e77]:
+            - button [ref=f1e78] [cursor=pointer]
+            - searchbox [aria-hidden]
+          - button [ref=f1e82] [cursor=pointer]: Suchen
+        - button [ref=f1e86] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f1e87]: 
+          - generic [ref=f1e88]: "1"
+        - button [ref=f1e91] [cursor=pointer]
+        - button [ref=f1e98] [cursor=pointer]:
+          - generic [ref=f1e101]:
+            - generic [ref=f1e102]: Mara König
+            - generic [ref=f1e103]: Profil
+          - generic [aria-hidden] [ref=f1e104]: 
+  - main [aria-hidden] [ref=f1e105]:
+    - generic [ref=f1e108]:
+      - generic [ref=f1e113]:
+        - region [ref=f1e114]:
+          - generic [ref=f1e116]:
+            - generic [ref=f1e121]:
+              - paragraph [ref=f1e122]: Mitarbeiter-Dashboard
+              - heading [level=1] [ref=f1e123]: Willkommen, Mara König!
+              - paragraph [ref=f1e124]: Ihr persönlicher Arbeitsbereich für Einsätze, Nachrichten und Unterlagen.
+            - complementary [ref=f1e125]:
+              - generic [ref=f1e126]:
+                - generic [ref=f1e127]:
+                  - generic [ref=f1e128]:
+                    - paragraph [ref=f1e129]: Team
+                    - paragraph [ref=f1e130]: Mitarbeiter
+                  - button [ref=f1e131] [cursor=pointer]: Einführung
+                - generic [ref=f1e132]:
+                  - paragraph [ref=f1e133]: Sonntag, 06. September 2026
+                  - paragraph [ref=f1e134]: Prüfen Sie zuerst neue Nachrichten und Ihre Einsatzunterlagen.
+          - generic [ref=f1e136]:
+            - article [ref=f1e137]:
+              - generic [ref=f1e140]:
+                - term [ref=f1e141]: Verfügbare Dateien
+                - definition [ref=f1e142]: "0"
+            - article [ref=f1e143]:
+              - generic [ref=f1e146]:
+                - term [ref=f1e147]: Ungelesene Nachrichten
+                - definition [ref=f1e148]: "0"
+            - article [ref=f1e149]:
+              - generic [ref=f1e152]:
+                - term [ref=f1e153]: Profil-Status
+                - definition [ref=f1e154]: 75 %
+        - region [ref=f1e155]:
+          - generic [ref=f1e159]:
+            - heading [level=2] [ref=f1e160]: Ihr Arbeitstag
+            - paragraph [ref=f1e161]: Öffnen Sie hier direkt Ihren Auftragsarbeitsplatz.
+          - generic [ref=f1e162]:
+            - article [ref=f1e163]:
+              - link [ref=f1e165] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/betrieb/wagenliste
+              - generic [ref=f1e166]: Wagenlisten verfügbar
+              - generic [ref=f1e171]:
+                - heading [level=3] [ref=f1e172]: Auftragsarbeitsplatz
+                - paragraph [ref=f1e173]: Entwürfe fortsetzen, Wagen erfassen und die fertige Liste exportieren.
+              - generic [ref=f1e174]:
+                - generic [ref=f1e175]: Wagenliste öffnen
+                - generic [aria-hidden] [ref=f1e176]: →
+            - article [ref=f1e177]:
+              - generic [ref=f1e182]:
+                - generic [ref=f1e183]: Demo · Vorschau
+                - generic [ref=f1e184]: Noch nicht verbunden
+              - generic [ref=f1e185]:
+                - heading [level=3] [ref=f1e186]: Schichtplanung
+                - paragraph [ref=f1e187]: Beispieldaten zur Orientierung, noch nicht live.
+              - generic [ref=f1e188]:
+                - generic [ref=f1e189]: Demo · Vorschau
+                - generic [aria-hidden] [ref=f1e190]: —
+      - generic [ref=f1e191]: RailTime v1.0.0
+  - text:                
+  - dialog [ref=f1e193]:
+    - banner [ref=f1e194]:
+      - generic [ref=f1e195]:
+        - generic [ref=f1e199]:
+          - paragraph [ref=f1e200]: Originalaufnahme aus RailTime
+          - generic [ref=f1e201]:
+            - generic [aria-hidden] [ref=f1e202]: 
+            - generic [ref=f1e203]: Mitarbeiter
+        - button "Schließen" [ref=f1e204] [cursor=pointer]:
+          - generic [ref=f1e205]: Überspringen
+          - generic [aria-hidden] [ref=f1e206]: 
+    - generic [ref=f1e207]:
+      - navigation "Themen dieses Rundgangs" [ref=f1e208]:
+        - list [ref=f1e209]:
+          - listitem [ref=f1e210]:
+            - 'button "Schritt 1 von 5 öffnen: Ein Arbeitsplatz für Verwaltung, Disposition, IT und Außenteams" [ref=f1e211] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f1e213]: 
+              - generic [ref=f1e214]:
+                - generic [ref=f1e215]: Willkommen bei RailTime
+                - generic [ref=f1e216]: 00:07
+              - generic [aria-hidden] [ref=f1e217]: 
+          - listitem [ref=f1e218]:
+            - 'button "Schritt 2 von 5 öffnen: Geschäftsführung, Verwaltung, IT und Außenteams direkt abstimmen" [ref=f1e219] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f1e221]: 
+              - generic [ref=f1e222]:
+                - generic [ref=f1e223]: Chat, Anruf & Video-Meeting
+                - generic [ref=f1e224]: 00:10
+              - generic [aria-hidden] [ref=f1e225]: 
+          - listitem [ref=f1e226]:
+            - 'button "Schritt 3 von 5 öffnen: Wagen Schritt für Schritt erfassen, prüfen und exportieren" [ref=f1e227] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f1e229]: 
+              - generic [ref=f1e230]:
+                - generic [ref=f1e231]: Wagenlisten, Kamera & RailTime Assist
+                - generic [ref=f1e232]: 00:16
+              - generic [aria-hidden] [ref=f1e233]: 
+          - listitem [ref=f1e234]:
+            - 'button "Schritt 4 von 5 öffnen: Unterlagen gezielt und rollenbezogen bereitstellen" [ref=f1e235] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f1e237]: 
+              - generic [ref=f1e238]:
+                - generic [ref=f1e239]: Dateimanagement
+                - generic [ref=f1e240]: 00:08
+              - generic [aria-hidden] [ref=f1e241]: 
+          - listitem [ref=f1e242]:
+            - 'button "Schritt 5 von 5 öffnen: Supportanfragen mit dem nötigen Arbeitskontext senden" [ref=f1e243] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f1e245]: 
+              - generic [ref=f1e246]:
+                - generic [ref=f1e247]: IT-Support
+                - generic [ref=f1e248]: 00:10
+              - generic [aria-hidden] [ref=f1e249]: 
+      - generic [ref=f1e250]:
+        - article [ref=f1e252]:
+          - region "Originalaufnahme aus RailTime" [ref=f1e253]:
+            - generic [ref=f1e254]:
+              - paragraph [ref=f1e255]: Modul 1 von 5
+              - generic [ref=f1e256]:
+                - generic [aria-hidden] [ref=f1e257]: 
+                - generic [ref=f1e258]: 00:07
+            - generic [ref=f1e259]:
+              - generic "Originalvideo zu „Ein Arbeitsplatz für Verwaltung, Disposition, IT und Außenteams“ abspielen" [ref=f1e260]
+              - text: 
+            - paragraph [ref=f1e261]:
+              - generic [aria-hidden] [ref=f1e262]: 
+              - generic [ref=f1e263]: Deutsche Sprecherstimme · Untertitel Deutsch/Englisch — Die Wiedergabe startet erst nach Ihrer Auswahl. Lautstärke, Untertitel und Vollbild steuern Sie direkt im Video.
+          - generic [ref=f1e264]:
+            - paragraph [ref=f1e265]: Willkommen bei RailTime
+            - heading "Ein Arbeitsplatz für Verwaltung, Disposition, IT und Außenteams" [active] [level=2] [ref=f1e266]
+            - paragraph [ref=f1e267]: RailTime verbindet betriebliche Planung, Zusammenarbeit, Dokumente und technische Verwaltung am Desktop und mobil. Dieser Rundgang zeigt die Funktionen in kurzen echten App-Aufnahmen.
+            - generic [ref=f1e268]:
+              - generic [ref=f1e269]:
+                - heading "So arbeitet der Bereich" [level=3] [ref=f1e270]:
+                  - generic [aria-hidden] [ref=f1e271]: 
+                  - text: So arbeitet der Bereich
+                - paragraph [ref=f1e272]: Die sichtbaren Themen werden serverseitig an Ihre Rolle und Berechtigungen angepasst. Sie können jedes Modul einzeln auswählen, Videos jederzeit pausieren und die Einführung später vom Dashboard erneut öffnen.
+              - list [ref=f1e273]:
+                - listitem [ref=f1e274]:
+                  - generic [aria-hidden] [ref=f1e276]: 
+                  - generic [ref=f1e277]: Dashboard, Seitenleiste und globale Suche führen schnell zum richtigen Arbeitsbereich.
+                - listitem [ref=f1e278]:
+                  - generic [aria-hidden] [ref=f1e280]: 
+                  - generic [ref=f1e281]: Verwaltung, Disposition, IT und Außenteams arbeiten auf einer gemeinsamen Plattform.
+                - listitem [ref=f1e282]:
+                  - generic [aria-hidden] [ref=f1e284]: 
+                  - generic [ref=f1e285]: Seiteninformationen und Hilfecenter erklären unbekannte Abläufe auch nach dem Rundgang.
+                - listitem [ref=f1e286]:
+                  - generic [aria-hidden] [ref=f1e288]: 
+                  - generic [ref=f1e289]: Desktop- und Mobilansicht werden im Video gleichzeitig und ohne nachgebaute Oberfläche gezeigt.
+              - generic [ref=f1e290]:
+                - generic [ref=f1e291]:
+                  - heading "Sichtbarkeit und Zugriff" [level=3] [ref=f1e292]:
+                    - generic [aria-hidden] [ref=f1e293]: 
+                    - text: Sichtbarkeit und Zugriff
+                  - paragraph [ref=f1e294]: Für alle angemeldeten und verifizierten Konten. Angezeigt werden nur die für Ihre Rolle vorgesehenen Themen.
+                - generic [ref=f1e295]:
+                  - heading "Wichtig für die Nutzung" [level=3] [ref=f1e296]:
+                    - generic [aria-hidden] [ref=f1e297]: 
+                    - text: Wichtig für die Nutzung
+                  - paragraph [ref=f1e298]: Die Aufnahmen verwenden ausschließlich isolierte RailTime-Demodaten. Sie ersetzen keine Berechtigung für die darin gezeigten Arbeitsbereiche.
+        - contentinfo [ref=f1e299]:
+          - generic [ref=f1e300]:
+            - progressbar [ref=f1e301]
+            - status [ref=f1e303]: Schritt 1 von 5
+          - generic [ref=f1e304]:
+            - button [disabled] [ref=f1e305]:
+              - generic [aria-hidden] [ref=f1e306]: 
+            - paragraph [ref=f1e307]: "Tipp: Mit den Pfeiltasten wechseln Sie die Seite, mit Esc schließen Sie die Einführung."
+            - button "Weiter" [ref=f1e308] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f1e310]: 
+  - text:             

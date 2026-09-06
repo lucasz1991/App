@@ -71,7 +71,7 @@ export const welcomeIntro = (config = {}) => ({
         this.step = 0;
         this.videoFailed = false;
         this.open = true;
-        this.focusHeading();
+        this.focusHeading(true);
     },
 
     closeIntro(restoreFocus = true) {
@@ -123,7 +123,7 @@ export const welcomeIntro = (config = {}) => ({
         this.focusHeading();
     },
 
-    pauseVideo(reset = true) {
+    pauseVideo(reset = true, showPoster = false) {
         const video = this.$refs.video;
 
         if (!video) {
@@ -147,11 +147,29 @@ export const welcomeIntro = (config = {}) => ({
         } catch {
             // Ein noch nicht geladener Media-Stream kann currentTime ablehnen.
         }
+
+        if (showPoster && typeof video.load === 'function') {
+            video.load();
+        }
     },
 
-    focusHeading() {
+    focusHeading(showPoster = false) {
         this.$nextTick(() => {
             window.requestAnimationFrame(() => {
+                if (this.$refs.viewport) {
+                    this.$refs.viewport.scrollTop = 0;
+                }
+
+                const activeModule = Array.from(
+                    this.$root?.querySelectorAll?.('[data-rt-welcome-module]') || [],
+                ).find((module) => module.dataset?.rtWelcomeModule === this.currentSlide.id);
+
+                activeModule?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+
+                if (showPoster) {
+                    this.pauseVideo(true, true);
+                }
+
                 this.$refs.heading?.focus({ preventScroll: true });
             });
         });

@@ -20,6 +20,10 @@ final class SyncMicrosoftDevices implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
+    public const CONNECTION = 'microsoft_devices';
+
+    public const QUEUE = 'microsoft-devices';
+
     public int $tries = 1;
 
     public int $timeout = 240;
@@ -30,7 +34,11 @@ final class SyncMicrosoftDevices implements ShouldQueue
         public readonly string $tenantId,
         public readonly string $configurationFingerprint,
         public readonly string $reservation,
-    ) {}
+    ) {
+        $this->onConnection(self::CONNECTION);
+        $this->onQueue(self::QUEUE);
+        $this->afterCommit();
+    }
 
     /** @return list<WithoutOverlapping> */
     public function middleware(): array

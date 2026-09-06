@@ -22,8 +22,11 @@ use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\DeviceProviderLinkService;
 use App\Services\DeviceManagement\DeviceProviderRegistry;
 use App\Services\DeviceManagement\DeviceReadinessService;
+use App\Services\DeviceManagement\MicrosoftDeviceSettings;
+use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
@@ -52,6 +55,26 @@ class DeviceManagement extends Component
     public string $complianceFilter = '';
 
     public string $locationFilter = '';
+
+    public string $microsoftFilter = '';
+
+    public function updatedMicrosoftFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function syncMicrosoftDevices(MicrosoftDeviceSyncScheduler $scheduler): void
+    {
+        Gate::authorize('devices.manage');
+        try {
+            $queued = $scheduler->queue(force: true);
+            $this->dispatch('swal:toast', type: $queued ? 'success' : 'info', text: $queued
+                ? 'Microsoft-Abgleich eingeplant. Die Geräteliste nach Abschluss aktualisieren.'
+                : 'Der Microsoft-Abgleich läuft bereits oder ist in den Einstellungen noch deaktiviert.');
+        } catch (Throwable) {
+            $this->addError('microsoftSync', 'Microsoft-Einstellungen und den Hintergrund-Worker prüfen. Der Abgleich konnte nicht gestartet werden.');
+        }
+    }
 
     public int $perPage = 15;
 
@@ -246,7 +269,7 @@ class DeviceManagement extends Component
     {
         Gate::authorize('devices.view');
 
-        $this->reset(['search', 'platformFilter', 'formFactorFilter', 'lifecycleFilter', 'complianceFilter', 'locationFilter']);
+        $this->reset(['search', 'platformFilter', 'formFactorFilter', 'lifecycleFilter', 'complianceFilter', 'locationFilter', 'microsoftFilter']);
         $this->resetPage();
     }
 
@@ -689,6 +712,9 @@ class DeviceManagement extends Component
             'readinessChecks',
             'providerLinks',
         ];
+        if (Schema::hasTable('microsoft_device_links')) {
+            $selectedDeviceRelations[] = 'microsoftLink.suggestedUser:id,name';
+        }
         if (Gate::allows('devices.commands.execute')) {
             $selectedDeviceRelations = array_merge($selectedDeviceRelations, [
                 'artifacts.uploader:id,name',
@@ -768,6 +794,7 @@ class DeviceManagement extends Component
             'locations' => $locations,
             'locationStats' => $locationStats,
             'stats' => $fleetSnapshot->get(),
+            'microsoftEnabled' => (bool) app(MicrosoftDeviceSettings::class)->configuration()['enabled'],
         ])->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
     }
 
@@ -777,6 +804,7 @@ class DeviceManagement extends Component
 
         return Device::query()
             ->with(['activeAssignment.user:id,name,email'])
+            ->when(Schema::hasTable('microsoft_device_links'), fn (Builder $query) => $query->with('microsoftLink.suggestedUser:id,name'))
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $like = '%'.$search.'%';
                 $query->where(function (Builder $nested) use ($like): void {
@@ -794,6 +822,15 @@ class DeviceManagement extends Component
             ->when($this->lifecycleFilter !== '', fn (Builder $query) => $query->where('lifecycle_status', $this->lifecycleFilter))
             ->when($this->complianceFilter !== '', fn (Builder $query) => $query->where('compliance_status', $this->complianceFilter))
             ->when($this->locationFilter !== '', fn (Builder $query) => $query->where('declared_location', $this->locationFilter))
+            ->when($this->microsoftFilter !== '' && Schema::hasTable('microsoft_device_links'), function (Builder $query): void {
+                match ($this->microsoftFilter) {
+                    'linked' => $query->whereHas('microsoftLink'),
+                    'intune' => $query->whereHas('microsoftLink', fn ($link) => $link->whereNotNull('intune_device_id')),
+                    'unlinked' => $query->whereDoesntHave('microsoftLink'),
+                    'attention' => $query->whereHas('microsoftLink', fn ($link) => $link->where('assignment_status', '!=', 'matched')),
+                    default => null,
+                };
+            })
             ->latest('updated_at');
     }
 

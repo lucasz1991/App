@@ -1,0 +1,114 @@
+- generic [active] [ref=f2e1]:
+  - link "Skip to content" [ref=f2e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary "Open or close navigation" [ref=f2e3]:
+    - region "scrollable content" [ref=f2e8]:
+      - list [ref=f2e11]:
+        - listitem [ref=f2e12]: Overview
+        - listitem [ref=f2e13]:
+          - link "Dashboard" [ref=f2e14] [cursor=pointer]:
+            - /url: http://127.0.0.1:5116/dashboard
+        - listitem [ref=f2e19]: Communication
+        - listitem [ref=f2e20]:
+          - link "Chat & messages" [ref=f2e21] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f2e26]: Operations
+        - listitem [ref=f2e27]:
+          - link "Operations control" [ref=f2e28] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f2e35]: Content & files
+        - listitem [ref=f2e36]:
+          - link "Files" [ref=f2e37] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f2e43]: My area
+        - listitem [ref=f2e44]:
+          - link "Meine Geräte" [ref=f2e45] [cursor=pointer]:
+            - /url: http://127.0.0.1:5116/meine-geraete
+        - listitem [ref=f2e49]:
+          - link "Profile" [ref=f2e50] [cursor=pointer]:
+            - /url: http://127.0.0.1:5116/user/profile
+        - listitem [ref=f2e55]:
+          - link "Support" [ref=f2e56] [cursor=pointer]:
+            - /url: "#"
+  - navigation "Header navigation" [ref=f2e67]:
+    - generic [ref=f2e68]:
+      - link [ref=f2e71] [cursor=pointer]:
+        - /url: http://127.0.0.1:5116/dashboard
+        - img "RailTime Logo" [ref=f2e72]
+        - generic:
+          - img "RT Rail Time GmbH"
+      - generic [ref=f2e74]:
+        - search [ref=f2e76]:
+          - generic [ref=f2e77]:
+            - button "Search RailTime" [ref=f2e78] [cursor=pointer]
+            - searchbox [aria-hidden]
+          - button "Search" [ref=f2e82] [cursor=pointer]
+        - button "Chat & messages" [ref=f2e86] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f2e87]: 
+          - generic [ref=f2e88]: "1"
+        - button "Settings" [ref=f2e91] [cursor=pointer]
+        - button "Manage account" [ref=f2e98] [cursor=pointer]:
+          - img "Mara König" [ref=f2e100]
+          - generic [ref=f2e101]:
+            - generic [ref=f2e102]: Mara König
+            - generic [ref=f2e103]: Profile
+          - generic [aria-hidden] [ref=f2e104]: 
+  - main [ref=f2e105]:
+    - generic [ref=f2e108]:
+      - generic [ref=f2e113]:
+        - region [ref=f2e114]:
+          - generic [ref=f2e116]:
+            - generic [ref=f2e121]:
+              - paragraph [ref=f2e122]: Employee dashboard
+              - heading "Welcome, Mara König!" [level=1] [ref=f2e123]
+              - paragraph [ref=f2e124]: Your personal workspace for assignments, messages and files.
+            - complementary [ref=f2e125]:
+              - generic [ref=f2e126]:
+                - generic [ref=f2e127]:
+                  - generic [ref=f2e128]:
+                    - paragraph [ref=f2e129]: Team
+                    - paragraph [ref=f2e130]: Mitarbeiter
+                  - button "Show the welcome introduction again" [ref=f2e131] [cursor=pointer]: Introduction
+                - generic [ref=f2e132]:
+                  - paragraph [ref=f2e133]: Sunday, 06. September 2026
+                  - paragraph [ref=f2e134]: Check new messages and your assignment files first.
+          - generic [ref=f2e136]:
+            - article [ref=f2e137]:
+              - generic [ref=f2e140]:
+                - term [ref=f2e141]: Available files
+                - definition [ref=f2e142]: "0"
+            - article [ref=f2e143]:
+              - generic [ref=f2e146]:
+                - term [ref=f2e147]: Unread messages
+                - definition [ref=f2e148]: "0"
+            - article [ref=f2e149]:
+              - generic [ref=f2e152]:
+                - term [ref=f2e153]: Profile status
+                - definition [ref=f2e154]: 75 %
+        - region [ref=f2e155]:
+          - generic [ref=f2e159]:
+            - heading "Your workday" [level=2] [ref=f2e160]
+            - paragraph [ref=f2e161]: Open your order workspace directly from here.
+          - generic [ref=f2e162]:
+            - article [ref=f2e163]:
+              - link "Order workspace · Open wagon list" [ref=f2e165] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/betrieb/wagenliste
+              - generic [ref=f2e166]: Wagon lists available
+              - generic [ref=f2e171]:
+                - heading "Order workspace" [level=3] [ref=f2e172]
+                - paragraph [ref=f2e173]: Resume drafts, record wagons and export the completed list.
+              - generic [ref=f2e174]:
+                - generic [ref=f2e175]: Open wagon list
+                - generic [aria-hidden] [ref=f2e176]: →
+            - article [ref=f2e177]:
+              - generic [ref=f2e182]:
+                - generic [ref=f2e183]: Demo · Preview
+                - generic [ref=f2e184]: Not connected yet
+              - generic [ref=f2e185]:
+                - heading "Shift planning" [level=3] [ref=f2e186]
+                - paragraph [ref=f2e187]: Sample data for orientation, not live yet.
+              - generic [ref=f2e188]:
+                - generic [ref=f2e189]: Demo · Preview
+                - generic [aria-hidden] [ref=f2e190]: —
+      - generic [ref=f2e191]: RailTime v1.0.0
+  - text:                                                     

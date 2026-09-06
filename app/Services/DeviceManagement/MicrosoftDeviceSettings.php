@@ -48,6 +48,10 @@ class MicrosoftDeviceSettings
         'forbidden' => 'Die erforderlichen Microsoft-Graph-Anwendungsrechte oder die Adminzustimmung fehlen.',
         'unreachable' => 'Microsoft Graph ist momentan nicht erreichbar.',
         'invalid_response' => 'Microsoft Graph lieferte keine verwertbare Antwort.',
+        'rate_limited' => 'Microsoft begrenzt derzeit die Abrufe. Der nächste geplante Lauf versucht es erneut.',
+        'http_error' => 'Microsoft Graph hat den Abruf nicht erfolgreich beantwortet.',
+        'rate_limited' => 'Microsoft hat den Abruf vorübergehend begrenzt. Versuchen Sie es später erneut.',
+        'http_error' => 'Microsoft Graph meldet einen Fehler. Prüfen Sie die Verbindung erneut.',
         'stale_configuration' => 'Die Konfiguration wurde während des Abrufs geändert. Starten Sie den Abruf erneut.',
     ];
 
@@ -59,6 +63,23 @@ class MicrosoftDeviceSettings
     public function configuration(): array
     {
         return $this->configurationFrom($this->stored());
+    }
+
+    /**
+     * Bind transport credentials and the job/result fingerprint to the same DB
+     * read. Calling configuration() and fingerprint() separately can span an
+     * administrator's credential or tenant change.
+     *
+     * @return array{configuration: array<string, mixed>, fingerprint: string}
+     */
+    public function snapshot(): array
+    {
+        $configuration = $this->configurationFrom($this->stored());
+
+        return [
+            'configuration' => $configuration,
+            'fingerprint' => $this->fingerprintFrom($configuration),
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -294,6 +315,13 @@ class MicrosoftDeviceSettings
             if (is_int($counter) && $counter >= 0 && $counter <= 10000000) {
                 $safe[$key] = $counter;
             }
+        }
+        $intuneStatus = $summary['intune_status'] ?? null;
+        if (is_string($intuneStatus) && in_array($intuneStatus, ['success', 'forbidden', 'unauthorized', 'unreachable', 'invalid_response', 'rate_limited', 'http_error'], true)) {
+            $safe['intune_status'] = $intuneStatus;
+            $safe['intune_message'] = $intuneStatus === 'forbidden'
+                ? 'Intune konnte nicht gelesen werden. Prüfen Sie die Intune-Lizenz und das Anwendungsrecht DeviceManagementManagedDevices.Read.All mit Adminzustimmung.'
+                : self::STATUS_MESSAGES[$intuneStatus];
         }
 
         return $safe;
