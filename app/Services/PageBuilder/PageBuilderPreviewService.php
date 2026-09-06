@@ -88,6 +88,18 @@ final class PageBuilderPreviewService
                     ->orderBy('id')
                     ->first());
 
+        // Only the opened document is a draft preview. As in the delivery
+        // compiler, the other component comes from its published snapshot;
+        // an unpublished draft is only an initial-setup fallback. Keep HTML,
+        // CSS and artifact-bound media on that same snapshot.
+        $signatureHtml = (string) ($signatureDocument?->html ?? '');
+        $signatureCss = (string) ($signatureDocument?->css ?? '');
+        if ($document->kind === MailDocumentKind::Template
+            && trim((string) $signatureDocument?->published_html) !== '') {
+            $signatureHtml = (string) $signatureDocument->published_html;
+            $signatureCss = (string) $signatureDocument->published_css;
+        }
+
         // Vorschau und Editor zeigen den tatsaechlichen Absenderkontext der
         // Systemnachrichten. Zuvor wurde hier das Profil des angemeldeten
         // Administrators eingesetzt, waehrend der Versand forCompany()
@@ -104,7 +116,7 @@ final class PageBuilderPreviewService
         $values = $signatureDocument === null
             ? array_merge($signatureRenderer->values(), $sampleValues)
             : $signatureRenderer->valuesForDocument(
-                (string) $signatureDocument->html,
+                $signatureHtml,
                 $sampleValues,
             );
         if ($animated) {
@@ -116,7 +128,7 @@ final class PageBuilderPreviewService
         $signature = $signatureDocument === null
             ? ''
             : $signatureRenderer->renderDocument(
-                (string) $signatureDocument->html,
+                $signatureHtml,
                 overrides: $values,
             );
 
@@ -137,7 +149,7 @@ final class PageBuilderPreviewService
 
         $css = $this->mailCss((string) $document->css, $values);
         if ($document->kind === MailDocumentKind::Template && $signatureDocument !== null) {
-            $css .= "\n".$this->mailCss((string) $signatureDocument->css, $values);
+            $css .= "\n".$this->mailCss($signatureCss, $values);
         } elseif ($document->kind === MailDocumentKind::Signature) {
             $css = EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true)
                 ."\n".$css;

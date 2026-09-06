@@ -5,13 +5,16 @@ namespace Tests\Feature;
 use App\Enums\MailDocumentKind;
 use App\Enums\MailDocumentStatus;
 use App\Enums\MarketingCreativeType;
+use App\Http\Controllers\Admin\MailDocumentController;
 use App\Http\Responses\PageBuilderPreviewResponse;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Services\Marketing\MarketingStudioService;
+use App\Services\PageBuilder\PageBuilderPreviewService;
 use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\MailSignature;
@@ -334,6 +337,87 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('@media only screen and (max-width: 860px)', $signatureHtml);
         $this->assertStringContainsString('html,body{margin:0;min-width:0;width:100%;', $signatureHtml);
         $this->assertStringNotContainsString('min-width:1920px;width:1920px', $signatureHtml);
+    }
+
+    public function test_template_preview_and_delivery_share_the_published_signature_but_signature_preview_keeps_its_draft(): void
+    {
+        config(['outlook_addin.snapshots.auto_refresh' => false]);
+        $this->createCanonicalMailDocuments();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $template = MailDocument::query()->where('kind', MailDocumentKind::Template->value)->firstOrFail();
+        $signature = MailDocument::query()->where('kind', MailDocumentKind::Signature->value)->firstOrFail();
+        $signature->forceFill([
+            'html' => str_replace('{{HRB}}', '{{HRB}} SIGNATURE_DRAFT_ONLY', $signature->html),
+            'css' => '.signature-draft-only{color:#123456;}',
+            'published_html' => str_replace('{{HRB}}', '{{HRB}} SIGNATURE_PUBLISHED_ONLY', $signature->published_html),
+            'published_css' => '.signature-published-only{color:#654321;}',
+        ])->save();
+        $template->forceFill([
+            'css' => '.template-draft-only{color:#334455;}',
+            'published_css' => '.template-published-only{color:#554433;}',
+        ])->save();
+        $before = [$template->getRawOriginal(), $signature->getRawOriginal()];
+
+        $service = app(PageBuilderPreviewService::class);
+        $preview = $service->mail($template, $admin, 'light')['html'];
+        $compiler = new \ReflectionMethod(MailDocumentController::class, 'compileFinalSystemMailCandidate');
+        $compiled = $compiler->invoke(
+            app(MailDocumentController::class),
+            app(PublishedMailDocumentSnapshotStore::class),
+            MailDocumentKind::Template,
+            $template->html,
+            $template->css,
+        );
+        $this->assertIsString($compiled);
+        foreach ([$preview, $compiled] as $html) {
+            $this->assertStringContainsString('SIGNATURE_PUBLISHED_ONLY', $html);
+            $this->assertStringContainsString('.signature-published-only', $html);
+            $this->assertStringNotContainsString('SIGNATURE_DRAFT_ONLY', $html);
+            $this->assertStringNotContainsString('.signature-draft-only', $html);
+            $this->assertStringContainsString('.template-draft-only', $html);
+            $this->assertStringNotContainsString('.template-published-only', $html);
+        }
+
+        $signaturePreview = $service->mail($signature, $admin, 'light')['html'];
+        $this->assertStringContainsString('SIGNATURE_DRAFT_ONLY', $signaturePreview);
+        $this->assertStringContainsString('.signature-draft-only', $signaturePreview);
+        $this->assertStringNotContainsString('SIGNATURE_PUBLISHED_ONLY', $signaturePreview);
+        $this->assertStringNotContainsString('.signature-published-only', $signaturePreview);
+        $this->assertSame($before, [$template->fresh()->getRawOriginal(), $signature->fresh()->getRawOriginal()]);
+    }
+
+    public function test_template_preview_keeps_the_same_unpublished_signature_setup_fallback_as_delivery(): void
+    {
+        config(['outlook_addin.snapshots.auto_refresh' => false]);
+        $this->createCanonicalMailDocuments();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $template = MailDocument::query()->where('kind', MailDocumentKind::Template->value)->firstOrFail();
+        $signature = MailDocument::query()->where('kind', MailDocumentKind::Signature->value)->firstOrFail();
+        $signature->forceFill([
+            'status' => MailDocumentStatus::Draft,
+            'html' => str_replace('{{HRB}}', '{{HRB}} SIGNATURE_SETUP_DRAFT', $signature->html),
+            'css' => '.signature-setup-draft{color:#123456;}',
+            'published_html' => '   ',
+            'published_css' => '.unusable-published-css{color:#654321;}',
+            'published_at' => null,
+        ])->save();
+        $before = [$template->getRawOriginal(), $signature->getRawOriginal()];
+        $preview = app(PageBuilderPreviewService::class)->mail($template, $admin, 'dark')['html'];
+        $compiler = new \ReflectionMethod(MailDocumentController::class, 'compileFinalSystemMailCandidate');
+        $compiled = $compiler->invoke(
+            app(MailDocumentController::class),
+            app(PublishedMailDocumentSnapshotStore::class),
+            MailDocumentKind::Template,
+            $template->html,
+            $template->css,
+        );
+        $this->assertIsString($compiled);
+        foreach ([$preview, $compiled] as $html) {
+            $this->assertStringContainsString('SIGNATURE_SETUP_DRAFT', $html);
+            $this->assertStringContainsString('.signature-setup-draft', $html);
+            $this->assertStringNotContainsString('.unusable-published-css', $html);
+        }
+        $this->assertSame($before, [$template->fresh()->getRawOriginal(), $signature->fresh()->getRawOriginal()]);
     }
 
     public function test_marketing_source_page_renders_file_library_cards_without_preview_iframes(): void

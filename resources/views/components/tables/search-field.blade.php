@@ -15,26 +15,17 @@
     $ph = $placeholder ?? __('app.search');
     $searchContext = in_array($context, ['table', 'topbar'], true) ? $context : 'table';
     $isTopbarSearch = $searchContext === 'topbar';
-    $usesPremiumSkin = $isTopbarSearch;
     $searchAttributes = $inputAttributes instanceof \Illuminate\View\ComponentAttributeBag
         ? $inputAttributes
         : $attributes;
     $wireModel = $searchAttributes->wire('model')->value();
-    $gradientId = 'rt-search-trace-'.substr(md5($searchContext.'|'.$wireModel.'|'.$searchAttributes->get('id')), 0, 12);
 @endphp
 
 <div
   x-data="{
         value: @entangle($searchAttributes->wire('model')),
         isTopbar: @js($isTopbarSearch),
-        usesPremiumSkin: @js($usesPremiumSkin),
         layerId: @js($isTopbarSearch ? 'topbar-search' : null),
-        placeholderText: @js($ph),
-        placeholderValue: '',
-        placeholderIndex: 0,
-        placeholderTimer: null,
-        reducedMotionQuery: null,
-        reducedMotionListener: null,
         expanded: false,
         mobile: false,
         mobileQuery: null,
@@ -59,42 +50,8 @@
             this.navigationListener = () => this.close(false);
             document.addEventListener('livewire:navigating', this.navigationListener);
 
-            this.reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-            this.reducedMotionListener = (event) => {
-                if (event.matches) {
-                    this.stopPlaceholder();
-                    this.placeholderValue = this.placeholderText;
-                    return;
-                }
-
-                if (String(this.value ?? '').length === 0) {
-                    this.startPlaceholder(true);
-                }
-            };
-
-            if (typeof this.reducedMotionQuery.addEventListener === 'function') {
-                this.reducedMotionQuery.addEventListener('change', this.reducedMotionListener);
-            } else {
-                this.reducedMotionQuery.addListener(this.reducedMotionListener);
-            }
-
-            this.$watch('value', (nextValue) => {
-                if (!this.usesPremiumSkin) return;
-
-                if (String(nextValue ?? '').length > 0) {
-                    this.stopPlaceholder();
-                    return;
-                }
-
-                this.startPlaceholder(true);
-            });
-
-            this.$nextTick(() => {
-                if (this.usesPremiumSkin && !this.isTopbar) this.startPlaceholder(true);
-            });
         },
         destroy() {
-            this.stopPlaceholder();
 
             if (this.focusFrame !== null) {
                 window.cancelAnimationFrame(this.focusFrame);
@@ -112,14 +69,6 @@
                 document.removeEventListener('livewire:navigating', this.navigationListener);
             }
 
-            if (this.reducedMotionQuery && this.reducedMotionListener) {
-                if (typeof this.reducedMotionQuery.removeEventListener === 'function') {
-                    this.reducedMotionQuery.removeEventListener('change', this.reducedMotionListener);
-                } else {
-                    this.reducedMotionQuery.removeListener(this.reducedMotionListener);
-                }
-            }
-
             if (this.isTopbar) {
                 document.documentElement.classList.remove('rt-topbar-search-open');
             }
@@ -134,46 +83,6 @@
             if (!this.isTopbar) return;
             document.documentElement.classList.toggle('rt-topbar-search-open', this.isMobileLayerOpen());
         },
-        stopPlaceholder() {
-            if (this.placeholderTimer !== null) {
-                window.clearTimeout(this.placeholderTimer);
-                this.placeholderTimer = null;
-            }
-        },
-        startPlaceholder(restart = false) {
-            if (!this.usesPremiumSkin || !this.isExpanded() || String(this.value ?? '').length > 0) return;
-
-            this.stopPlaceholder();
-
-            if (this.reducedMotionQuery?.matches) {
-                this.placeholderValue = this.placeholderText;
-                return;
-            }
-
-            if (!restart && this.placeholderValue === this.placeholderText) return;
-
-            if (restart) {
-                this.placeholderValue = '';
-                this.placeholderIndex = 0;
-            }
-
-            const glyphs = Array.from(this.placeholderText);
-            const typeNext = () => {
-                if (!this.isExpanded() || String(this.value ?? '').length > 0) return;
-
-                this.placeholderIndex = Math.min(this.placeholderIndex + 1, glyphs.length);
-                this.placeholderValue = glyphs.slice(0, this.placeholderIndex).join('');
-
-                if (this.placeholderIndex < glyphs.length) {
-                    const cadence = 30 + ((this.placeholderIndex % 4) * 8);
-                    this.placeholderTimer = window.setTimeout(typeNext, cadence);
-                } else {
-                    this.placeholderTimer = null;
-                }
-            };
-
-            this.placeholderTimer = window.setTimeout(typeNext, 90);
-        },
         open() {
             if (this.isTopbar) {
                 window.dispatchEvent(new CustomEvent('rt-topbar-layer-open', {
@@ -183,7 +92,6 @@
 
             this.expanded = true;
             this.syncPageScrollLock();
-            this.startPlaceholder(true);
 
             // Alpine aktualisiert x-bind:class in einem Microtask. Fuer iOS
             // muss das Eingabefeld aber bereits innerhalb desselben
@@ -237,7 +145,6 @@
         },
         clear() {
             this.value = '';
-            this.startPlaceholder(true);
             this.$refs.input?.focus({ preventScroll: true });
         },
         handleEscape() {
@@ -291,34 +198,13 @@
     x-bind:aria-modal="isMobileLayerOpen() ? 'true' : null"
     x-bind:aria-label="isMobileLayerOpen() ? @js($ph) : null"
     data-search-context="{{ $searchContext }}"
-    @if ($usesPremiumSkin) data-rt-premium-search @endif
+    data-rt-search
     data-tables-search
     @if ($wireModel)
         wire:loading.class="is-loading"
-        wire:target="{{ $wireModel }}"
+        wire:target="{{ $isTopbarSearch ? $wireModel.',openResults' : $wireModel }}"
     @endif
 >
-    @if ($usesPremiumSkin)
-        <span class="rt-expandable-search__surface" aria-hidden="true"></span>
-        <svg
-            class="rt-expandable-search__bezel"
-            viewBox="0 0 100 44"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-        >
-            <defs>
-                <linearGradient id="{{ $gradientId }}" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="var(--rt-search-trace-a)" />
-                    <stop offset="0.36" stop-color="var(--rt-search-trace-b)" />
-                    <stop offset="0.7" stop-color="var(--rt-search-trace-c)" />
-                    <stop offset="1" stop-color="var(--rt-search-trace-a)" />
-                </linearGradient>
-            </defs>
-            <rect class="rt-expandable-search__bezel-track" x="1" y="1" width="98" height="42" rx="11" pathLength="100" />
-            <rect class="rt-expandable-search__bezel-trace" x="1" y="1" width="98" height="42" rx="11" pathLength="100" stroke="url(#{{ $gradientId }})" />
-        </svg>
-    @endif
-
     @if ($isTopbarSearch)
         <button
             x-ref="trigger"
@@ -335,12 +221,15 @@
         <svg
             @if ($isTopbarSearch) x-show="!isMobileLayerOpen()" @endif
             xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 192.904 192.904"
-            class="h-4 w-4"
-            fill="currentColor"
+            viewBox="0 0 24 24"
+            class="rt-expandable-search__icon h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
             aria-hidden="true"
         >
-            <path d="m190.707 180.101-47.078-47.077c11.702-14.072 18.752-32.142 18.752-51.831C162.381 36.423 125.959 0 81.191 0 36.422 0 0 36.423 0 81.193c0 44.767 36.422 81.187 81.191 81.187 19.688 0 37.759-7.049 51.831-18.751l47.079 47.078a7.474 7.474 0 0 0 5.303 2.197 7.498 7.498 0 0 0 5.303-12.803zM15 81.193C15 44.694 44.693 15 81.191 15c36.497 0 66.189 29.694 66.189 66.193 0 36.496-29.692 66.187-66.189 66.187C44.693 147.38 15 117.689 15 81.193z"></path>
+            <circle cx="10.75" cy="10.75" r="6.75" />
+            <path stroke-linecap="round" d="m16 16 4.25 4.25" />
         </svg>
         @if ($isTopbarSearch)
             <svg
@@ -357,6 +246,11 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" />
             </svg>
         @endif
+        @if ($wireModel)
+            <svg class="rt-expandable-search__spinner h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                <path stroke-linecap="round" d="M20 12a8 8 0 1 1-8-8" />
+            </svg>
+        @endif
     @if ($isTopbarSearch)
         </button>
     @else
@@ -367,12 +261,13 @@
         type="search"
         x-ref="input"
         x-model="value"
-        x-on:focus="expanded = true; syncPageScrollLock(); startPlaceholder(false)"
+        x-on:focus="expanded = true; syncPageScrollLock()"
         x-on:blur="closeWhenEmpty()"
         x-bind:tabindex="isExpanded() ? 0 : -1"
+        x-bind:aria-hidden="isExpanded() ? null : 'true'"
         aria-label="{{ $ph }}"
         aria-placeholder="{{ $ph }}"
-        placeholder="{{ $usesPremiumSkin ? '' : $ph }}"
+        placeholder="{{ $ph }}"
         autocomplete="off"
         inputmode="search"
         enterkeyhint="search"
@@ -382,37 +277,17 @@
             role="searchbox"
         @endif
         {{ $searchAttributes->merge(['class' => 'rt-expandable-search__input']) }}
-        @if ($noResults && ! $usesPremiumSkin) :class="String(value ?? '').length > 0 && 'border-rt-red/60 ring-2 ring-rt-red/20 dark:border-rt-red/60'" @endif
+        @if ($noResults) :class="String(value ?? '').length > 0 && 'border-rt-red/60 ring-2 ring-rt-red/20 dark:border-rt-red/60'" @endif
     />
 
-    @if ($usesPremiumSkin)
+    @if ($status !== null)
         <span
             x-show="isExpanded() && String(value ?? '').length === 0"
-            class="rt-expandable-search__placeholder"
-            aria-hidden="true"
+            class="rt-expandable-search__status"
+            @if (filled($statusLabel)) aria-label="{{ $statusLabel }}" @endif
         >
-            <span x-text="placeholderValue"></span>
-            <span class="rt-expandable-search__cursor"></span>
+            {{ $status }}
         </span>
-
-        @if ($status !== null)
-            <span
-                x-show="isExpanded() && String(value ?? '').length === 0"
-                class="rt-expandable-search__status"
-                @if (filled($statusLabel)) aria-label="{{ $statusLabel }}" @endif
-            >
-                {{ $status }}
-            </span>
-        @else
-            <span
-                x-show="isExpanded() && String(value ?? '').length === 0"
-                class="rt-expandable-search__activity"
-                aria-hidden="true"
-                data-rt-search-activity
-            >
-                <span></span><span></span><span></span>
-            </span>
-        @endif
     @endif
 
     <button

@@ -3,6 +3,8 @@
 namespace App\Support\Mail;
 
 use App\Enums\MailDocumentKind;
+use DOMDocument;
+use DOMElement;
 use RuntimeException;
 
 /**
@@ -96,9 +98,71 @@ final class TrustedOutlookSignatureCss
         ?string $border = '#dfe3e6',
         ?string $scopeClass = null,
     ): string {
+        $scopeClass ??= self::scopeClass($signatureHtml, '', $border);
+
         return '<style data-rt-outlook-signature-css="1">'
             .self::responsive($signatureHtml, $border, $scopeClass)
-            .'</style>';
+            .'</style>'
+            .self::backgroundStyle($signatureHtml, $scopeClass);
+    }
+
+    /**
+     * Office.js does not guarantee inline CSS in setSignatureAsync. Preserve
+     * the verified V22/V23 source in internal CSS as well as the original
+     * inline fallback. This adds no layer, image row or free CSS permission.
+     * CID localization still runs afterwards and attaches the same GIF once.
+     */
+    private static function backgroundStyle(string $signatureHtml, string $scopeClass): string
+    {
+        $scopeClass = self::validatedScopeClass($scopeClass);
+        if (! SignatureBackgroundContract::applies($signatureHtml)) {
+            return '';
+        }
+
+        SignatureBackgroundContract::assertRuntime($signatureHtml);
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $loaded = $dom->loadHTML('<?xml encoding="UTF-8"><table><tbody>'
+                .$signatureHtml.'</tbody></table>', LIBXML_NONET);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        if (! $loaded) {
+            throw new RuntimeException('Der Outlook-Signaturhintergrund konnte nicht gelesen werden.');
+        }
+
+        foreach ($dom->getElementsByTagName('td') as $carrier) {
+            if (! $carrier instanceof DOMElement
+                || ! in_array('rt-sign-cell', preg_split('/\s+/', trim($carrier->getAttribute('class'))) ?: [], true)) {
+                continue;
+            }
+            if ($carrier->getAttribute('data-rt-signature-background') !== '1') {
+                return '';
+            }
+
+            // The contract above has already rejected duplicate declarations,
+            // ambiguous quotes, foreign URLs and CSS-breaking image sources.
+            if (preg_match('/(?:^|;)\s*background-image\s*:\s*(url\(([\'"])[^\'"]+\2\))\s*(?:!important\s*)?(?:;|$)/i',
+                $carrier->getAttribute('style'), $match) !== 1) {
+                throw new RuntimeException('Der Outlook-Signaturhintergrund besitzt keine eindeutige Bildbindung.');
+            }
+
+            // Use a class selector: Outlook may remove editor-only data
+            // attributes. Breakpoint rules remain !important and win over
+            // this canonical desktop fallback without affecting old replies.
+            $css = '.'.$scopeClass.' .rt-sign-cell{background-image:'.$match[1].';'
+                .'background-repeat:no-repeat;background-position:65% bottom;'
+                .'background-size:'.$carrier->getAttribute('data-rt-bg-desktop').'% auto;}';
+            if (strlen($css) > self::MAX_CSS_BYTES || stripos($css, '</style') !== false) {
+                throw new RuntimeException('Der Outlook-Signaturhintergrund ueberschreitet das sichere CSS-Budget.');
+            }
+
+            return '<style data-rt-outlook-signature-background-css="1">'.$css.'</style>';
+        }
+
+        throw new RuntimeException('Der Outlook-Signaturhintergrund besitzt keinen gebundenen Carrier.');
     }
 
     /**
