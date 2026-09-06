@@ -323,26 +323,27 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.match(taskpane, /const target = captureComposeTarget\(\);[\s\S]*?await callback\(bootstrap, target\);/);
     assert.match(taskpane, /function assertComposeTarget\(target\) \{[\s\S]*?target\.revision !== mailboxItemRevision[\s\S]*?Office\.context\.mailbox\.item !== target\.item[\s\S]*?throw codedError\('ITEM_CHANGED'\);/);
     assert.match(taskpane, /await attachInlineMedia\(target, signature\.media\);\s*assertComposeTarget\(target\);\s*await setSignature\(item, signature\.html\);/);
-    assert.match(taskpane, /await attachInlineMedia\(target, template\.media\);\s*assertComposeTarget\(target\);\s*await prependTemplate\(Office, item, template\.html, \(\) => assertComposeTarget\(target\), options\);/);
+    assert.match(taskpane, /await prependTemplate\(Office, item, template\.html, \(\) => assertComposeTarget\(target\), \{\s*media: template\.media,\s*beforeInsert: \(\) => attachInlineMedia\(target, template\.media\)/);
     assert.match(taskpane, /taskpaneState\.itemChangedMonitoringReady = result\?\.status === Office\.AsyncResultStatus\.Succeeded;[\s\S]*?if \(!taskpaneState\.itemChangedMonitoringReady\) \{[\s\S]*?failOpenSignatureCurrentState\(\);/);
     assert.match(taskpane, /\} else \{\s*taskpaneState\.itemChangedMonitoringReady = false;\s*failOpenSignatureCurrentState\(\);/);
     assert.doesNotMatch(taskpane, /localStorage/);
     assert.match(taskpane, /validatedDocument\(templateChoice\.document, 'template'/);
     assert.doesNotMatch(taskpane, /body\.setAsync|removeStaleManagedInlineMedia|removeAttachmentAsync|displayNewMessageForm/);
-    assert.match(taskpane, /state\.present && !window\.confirm\(/);
-    assert.match(taskpane, /allowAdditional: state\.present/);
-    assert.equal(occurrences(taskpane, /await refreshSignatureCurrentState\(\);/g), 3);
+    assert.doesNotMatch(taskpane, /allowAdditional|window\.confirm/);
+    assert.match(taskpane, /async function withAuthenticatedBootstrap\(button, callback\) \{\s*if \(taskpaneState\.busy\) return;/);
+    assert.match(taskpane, /acceptBootstrap\(bootstrap, \{ inspectBody: false \}\)/);
+    assert.equal(occurrences(taskpane, /await refreshSignatureCurrentState\(\);/g), 2);
     assert.doesNotMatch(taskpane, /taskpaneState\.signatureCurrent = await signatureIsCurrent/);
 });
 
 const composeLibrary = await import('../../resources/js/outlook-addin/compose-template.js');
 
 function composeFixture({ html = '<p>Existing user text</p>', composeType = 'newMail', platform = 'PC' } = {}) {
-    const state = { html, prepends: [], signatures: [], attachments: [], completed: 0 };
+    const state = { html, prepends: [], signatures: [], attachments: [], completed: 0, bodyReads: 0 };
     const succeeded = (value) => ({ status: 'succeeded', value });
     const item = {
         body: {
-            getAsync(_format, callback) { callback(succeeded(state.html)); },
+            getAsync(_format, callback) { state.bodyReads += 1; callback(succeeded(state.html)); },
             getTypeAsync(callback) { callback(succeeded('html')); },
             prependAsync(value, _options, callback) {
                 state.prepends.push(value);
@@ -393,8 +394,8 @@ test('prepend preserves reply content and quoted templates and blocks repeated a
     assert.equal(state.prepends.length, 1);
     await assert.rejects(composeLibrary.prependTemplate(office, item, '<p>Duplicate</p>'), { code: 'TEMPLATE_ALREADY_INSERTED' });
     assert.equal(state.prepends.length, 1);
-    await composeLibrary.prependTemplate(office, item, '<p>Explicit extra</p>', () => {}, { allowAdditional: true });
-    assert.equal(state.prepends.length, 2);
+    await assert.rejects(composeLibrary.prependTemplate(office, item, '<p>Explicit extra</p>', () => {}, { allowAdditional: true }), { code: 'TEMPLATE_ALREADY_INSERTED' });
+    assert.equal(state.prepends.length, 1);
     assert.ok(state.html.endsWith(quoted));
 });
 
@@ -576,6 +577,8 @@ test('hosted taskpane help and install dialogs work without Office, outside Outl
             if (scenario.unavailable) {
                 assert.equal(document.querySelector('[data-outlook-addin-taskpane]').getAttribute('aria-busy'), 'false');
                 assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'In Outlook öffnen');
+                assert.equal(document.querySelector('[data-outlook-connection-chip]').textContent, 'Browser');
+                assert.match(document.querySelector('[data-outlook-template-error]').textContent, /unter „Apps“ öffnen/);
                 assert.equal(document.querySelector('[data-outlook-action="template"]').disabled, true);
                 assert.equal(document.querySelector('[data-outlook-action="login"]').disabled, true);
                 assert.match(document.querySelector('[data-outlook-dialog-open="status"]').getAttribute('aria-label'), /In Outlook öffnen/);

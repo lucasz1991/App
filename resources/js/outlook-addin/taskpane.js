@@ -3,11 +3,12 @@ import {
     createNestablePublicClientApplication,
 } from '@azure/msal-browser';
 import {
-    assertTemplateInsertable,
+    isTemplateInsertionBlocked,
     currentComposeBodyHtml as scopedComposeBodyHtml,
     prependTemplate,
     readTemplateState,
     supportsTemplatePrepend,
+    templateStateFromBody,
 } from './compose-template.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
@@ -27,6 +28,8 @@ let mailboxItemRevision = 0;
 let bootstrapStateRevision = 0;
 let lastBootstrapRefreshAt = 0;
 let silentBootstrapRefreshPromise;
+let signatureStateRefreshPromise;
+const uncertainMediaItems = new WeakSet();
 const boundDialogRoots = new WeakSet();
 const startedTaskpaneRoots = new WeakSet();
 const taskpaneState = {
@@ -480,11 +483,17 @@ function officeFailure(result, fallbackCode) {
 
 function addInlineAttachment(item, media) {
     return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            uncertainMediaItems.add(item);
+            reject(codedError('INLINE_ATTACHMENT_UNCERTAIN'));
+        }, 30000);
+        try {
         item.addFileAttachmentFromBase64Async(
             media.base64,
             media.name,
             { isInline: true },
             (result) => {
+                clearTimeout(timeout);
                 const error = officeFailure(result, 'INLINE_ATTACHMENT_FAILED');
 
                 if (error) {
@@ -495,6 +504,10 @@ function addInlineAttachment(item, media) {
                 resolve(result.value);
             },
         );
+        } catch (error) {
+            clearTimeout(timeout);
+            reject(error);
+        }
     });
 }
 
@@ -524,10 +537,13 @@ function existingAttachments(item) {
         return Promise.resolve([]);
     }
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(codedError('COMPOSE_ATTACHMENTS_UNREADABLE')), 10000);
+        try {
         item.getAttachmentsAsync((result) => {
+            clearTimeout(timeout);
             if (result?.status !== Office.AsyncResultStatus.Succeeded || !Array.isArray(result.value)) {
-                resolve([]);
+                reject(codedError('COMPOSE_ATTACHMENTS_UNREADABLE'));
                 return;
             }
 
@@ -537,6 +553,10 @@ function existingAttachments(item) {
                 name: String(attachment?.name || '').trim(),
             })).filter((attachment) => attachment.name !== ''));
         });
+        } catch (error) {
+            clearTimeout(timeout);
+            reject(error);
+        }
     });
 }
 
@@ -717,11 +737,11 @@ function renderSelectedTemplate() {
     view.templateActive.hidden = !template.isDefault && !template.active;
     view.templateActive.textContent = template.isDefault ? 'Standard' : 'Systemvorlage';
     const additional = taskpaneState.templatePresent;
-    const actionLabel = additional ? 'Zusätzlich oberhalb einfügen' : 'Oberhalb einfügen';
+    const actionLabel = additional ? 'Vorlage bereits eingefügt' : 'Oberhalb einfügen';
     const actionTitle = view.template.querySelector('strong');
     if (actionTitle) actionTitle.textContent = actionLabel;
     view.templateActionDetail.textContent = additional
-        ? 'Vorhandene Vorlage, Nachricht und Zitate bleiben erhalten.'
+        ? 'Eine vollständige Vorlage pro Nachricht. Für eine andere Vorlage eine neue Nachricht öffnen.'
         : 'Wird oberhalb Ihres Textes eingefügt. Vorhandener Inhalt bleibt erhalten.';
     view.template.setAttribute('aria-label', `${template.name}: ${actionLabel}`);
 }
@@ -805,8 +825,10 @@ function readBodyHtml(item) {
     }
 
     return new Promise((resolve) => {
+        const timeout = setTimeout(() => resolve(null), 10000);
         try {
             item.body.getAsync(Office.CoercionType.Html, (result) => {
+                clearTimeout(timeout);
                 if (result?.status !== Office.AsyncResultStatus.Succeeded
                     || typeof result.value !== 'string') {
                     resolve(null);
@@ -816,6 +838,7 @@ function readBodyHtml(item) {
                 resolve(result.value);
             });
         } catch {
+            clearTimeout(timeout);
             resolve(null);
         }
     });
@@ -827,8 +850,10 @@ function readComposeType(item) {
     }
 
     return new Promise((resolve) => {
+        const timeout = setTimeout(() => resolve(null), 10000);
         try {
             item.getComposeTypeAsync((result) => {
+                clearTimeout(timeout);
                 if (result?.status !== Office.AsyncResultStatus.Succeeded) {
                     resolve(null);
                     return;
@@ -839,6 +864,7 @@ function readComposeType(item) {
                 resolve(['newMail', 'reply', 'forward'].includes(composeType) ? composeType : null);
             });
         } catch {
+            clearTimeout(timeout);
             resolve(null);
         }
     });
@@ -854,18 +880,12 @@ export function currentComposeBodyHtml(html, composeType) {
     return scopedComposeBodyHtml(html, composeType);
 }
 
-async function signatureIsCurrent(payload) {
+function signatureIsCurrent(payload, bodyHtml, composeType) {
     const expectedVersion = snapshotSignatureVersion(payload);
 
     if (!hasCurrentSnapshot(payload) || expectedVersion === '') {
         return false;
     }
-
-    const item = Office.context.mailbox?.item;
-    const [bodyHtml, composeType] = await Promise.all([
-        readBodyHtml(item),
-        readComposeType(item),
-    ]);
 
     const currentBodyHtml = currentComposeBodyHtml(bodyHtml, composeType);
     if (typeof currentBodyHtml !== 'string') {
@@ -889,8 +909,11 @@ async function refreshSignatureCurrentState() {
     let templatePresent = false;
 
     try {
-        isCurrent = await signatureIsCurrent(payload);
-        templatePresent = (await readTemplateState(Office, Office.context.mailbox.item)).present;
+        const item = Office.context.mailbox.item;
+        const [bodyHtml, composeType] = await Promise.all([readBodyHtml(item), readComposeType(item)]);
+        const templateState = templateStateFromBody(bodyHtml, composeType);
+        isCurrent = !templateState.tooLarge && signatureIsCurrent(payload, bodyHtml, composeType);
+        templatePresent = templateState.present;
     } catch {
         // Fail open: Wenn Outlook den aktuellen Compose-Zustand nicht liefern
         // kann, muss die sichere Aktualisieren-Aktion sichtbar bleiben.
@@ -911,7 +934,8 @@ async function refreshSignatureCurrentState() {
 }
 
 function requestSignatureCurrentStateRefresh() {
-    void refreshSignatureCurrentState().catch((error) => {
+    if (taskpaneState.busy || signatureStateRefreshPromise) return;
+    signatureStateRefreshPromise = refreshSignatureCurrentState().catch((error) => {
         signatureStateRevision += 1;
         taskpaneState.signatureCurrent = false;
 
@@ -923,7 +947,7 @@ function requestSignatureCurrentStateRefresh() {
         }
 
         console.warn('RailTime signature state refresh failed.', error);
-    });
+    }).finally(() => { signatureStateRefreshPromise = null; });
 }
 
 function failOpenSignatureCurrentState() {
@@ -980,6 +1004,13 @@ function syncActionState() {
     view.login.dataset.available = taskpaneState.configReady ? 'true' : 'false';
     view.signature.dataset.available = taskpaneState.authenticated ? 'true' : 'false';
     view.template.dataset.available = authenticatedBootstrap && currentTemplate ? 'true' : 'false';
+    const item = globalThis.Office?.context?.mailbox?.item;
+    if (taskpaneState.templatePresent) view.template.dataset.available = 'false';
+    if (item && (isTemplateInsertionBlocked(item) || uncertainMediaItems.has(item))) {
+        view.template.dataset.available = 'false';
+        view.signature.dataset.available = 'false';
+        view.templateActionDetail.textContent = 'Outlook hat die letzte Einfügung noch nicht eindeutig bestätigt. Nachricht prüfen; nicht erneut einfügen.';
+    }
     if (!supportsTemplatePrepend(globalThis.Office, globalThis.Office?.context?.mailbox?.item)) {
         view.template.dataset.available = 'false';
         view.templateActionDetail.textContent = 'Vollständige Vorlagen benötigen Outlook im Browser oder am Desktop. Mobil bleibt die automatische Signatur verfügbar.';
@@ -1035,14 +1066,14 @@ function clearAccount() {
     view.account.hidden = true;
 }
 
-async function acceptBootstrap(payload) {
+async function acceptBootstrap(payload, { inspectBody = true } = {}) {
     bootstrapStateRevision += 1;
     currentBootstrap = payload;
     lastBootstrapRefreshAt = Date.now();
     taskpaneState.bootstrapReady = true;
     taskpaneState.signatureVersion = snapshotSignatureVersion(payload);
     renderTemplateChoices(payload);
-    await refreshSignatureCurrentState();
+    if (inspectBody) await refreshSignatureCurrentState();
     syncActionState();
 }
 
@@ -1111,7 +1142,7 @@ function userMessage(error) {
         return 'Vollständige Vorlagen können hier nicht sicher eingefügt werden. Bitte Outlook im Browser oder am Desktop verwenden. Die automatische Signatur bleibt separat verfügbar.';
     }
     if (code === 'TEMPLATE_ALREADY_INSERTED') {
-        return 'In dieser Nachricht ist bereits eine RailTime-Vorlage. Weitere Vorlagen werden nur nach Bestätigung zusätzlich oberhalb eingefügt.';
+        return 'In dieser Nachricht ist bereits eine RailTime-Vorlage. Für eine andere vollständige Vorlage bitte eine neue Nachricht öffnen. Ihr vorhandener Inhalt bleibt erhalten.';
     }
     if (code === 'SIGNATURE_WITHIN_TEMPLATE') {
         return 'Diese Nachricht enthält bereits eine vollständige Vorlage mit Signatur. Sie bleibt unverändert, damit Ihr bearbeiteter Inhalt erhalten bleibt.';
@@ -1122,8 +1153,17 @@ function userMessage(error) {
     if (code === 'TEMPLATE_REQUIRES_HTML') {
         return 'Die Nachricht muss im HTML-Format geöffnet sein. RailTime ändert Ihr Nachrichtenformat nicht automatisch.';
     }
-    if (code === 'TEMPLATE_TOO_LARGE') {
-        return 'Die Vorlage überschreitet das Einfügelimit dieses Outlook-Clients.';
+    if (['TEMPLATE_TOO_LARGE', 'TEMPLATE_MEDIA_TOO_LARGE', 'COMPOSE_BODY_TOO_LARGE'].includes(code)) {
+        return 'Vorlage, Bilder oder Nachrichtenverlauf überschreiten das RailTime-Sicherheitsbudget für die Outlook-Einfügung. Bitte eine kompaktere Vorlage oder eine neue Nachricht verwenden.';
+    }
+    if (['TEMPLATE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(code)) {
+        return 'Outlook hat die Einfügung nicht rechtzeitig bestätigt. Sie kann bereits erfolgt sein. Bitte diese Nachricht prüfen und nicht erneut einfügen; RailTime startet keinen weiteren Schreibversuch.';
+    }
+    if (code === 'TEMPLATE_INSERT_IN_PROGRESS') {
+        return 'Für diese Nachricht läuft bereits eine Einfügung. Bitte deren Abschluss abwarten.';
+    }
+    if (code === 'COMPOSE_ATTACHMENTS_UNREADABLE') {
+        return 'Die vorhandenen Inline-Bilder konnten nicht sicher geprüft werden. Die Einfügung wurde vor dem Hinzufügen weiterer Bilder gestoppt.';
     }
 
     if (code === 'SET_SIGNATURE_UNAVAILABLE' || code === 'SET_TEMPLATE_UNAVAILABLE') {
@@ -1236,6 +1276,7 @@ function requestSilentBootstrapRefresh() {
 }
 
 async function authenticateInteractively(button) {
+    if (taskpaneState.busy) return;
     bootstrapStateRevision += 1;
     setBusy(true, button);
     setStatus('working', 'Microsoft-Anmeldung wird geöffnet …', 'Danach lädt RailTime Ihre veröffentlichten Inhalte.');
@@ -1257,6 +1298,7 @@ async function authenticateInteractively(button) {
 }
 
 async function withAuthenticatedBootstrap(button, callback) {
+    if (taskpaneState.busy) return;
     let bootstrapWasLoaded = false;
 
     bootstrapStateRevision += 1;
@@ -1264,13 +1306,19 @@ async function withAuthenticatedBootstrap(button, callback) {
 
     try {
         const target = captureComposeTarget();
+        if (isTemplateInsertionBlocked(target.item) || uncertainMediaItems.has(target.item)) {
+            throw codedError('TEMPLATE_INSERT_UNCERTAIN');
+        }
         const accessToken = await acquireAccessToken(currentConfig, true);
         taskpaneState.authenticated = true;
         displayAccount();
         const bootstrap = await loadBootstrap(currentConfig, accessToken);
 
         bootstrapWasLoaded = true;
-        await acceptBootstrap(bootstrap);
+        // The insertion owns one preflight. Avoid repeatedly serializing the
+        // complete Outlook conversation during the same button action.
+        signatureStateRevision += 1;
+        await acceptBootstrap(bootstrap, { inspectBody: false });
         setBusy(true, button);
         await callback(bootstrap, target);
         setBusy(false);
@@ -1328,22 +1376,16 @@ async function insertTemplate(button) {
         }
 
         const template = validatedDocument(templateChoice.document, 'template', currentConfig.marker);
-        const state = await readTemplateState(Office, item);
+        await prependTemplate(Office, item, template.html, () => assertComposeTarget(target), {
+            media: template.media,
+            beforeInsert: () => attachInlineMedia(target, template.media),
+        });
         assertComposeTarget(target);
-        if (state.present && !window.confirm(
-            'Es ist bereits eine RailTime-Vorlage eingefügt. Die gewählte Vorlage wird ZUSÄTZLICH oberhalb eingefügt. Vorhandene Vorlage, eigener Text und Zitate bleiben erhalten. Fortfahren?',
-        )) {
-            setStatus('neutral', 'Einfügen abgebrochen', 'Ihre Nachricht wurde nicht verändert.');
-            return;
-        }
-        const options = { allowAdditional: state.present };
-        await assertTemplateInsertable(Office, item, options);
-        await attachInlineMedia(target, template.media);
-        assertComposeTarget(target);
-        await prependTemplate(Office, item, template.html, () => assertComposeTarget(target), options);
-        assertComposeTarget(target);
-        await refreshSignatureCurrentState();
-        assertComposeTarget(target);
+        // Native success is sufficient; do not immediately pull the full body
+        // back across the Office bridge while Outlook is rendering it.
+        signatureStateRevision += 1;
+        taskpaneState.templatePresent = true;
+        renderSelectedTemplate();
 
         setStatus(
             'success',
@@ -1494,6 +1536,13 @@ export function startOutlookTaskpane(office = globalThis.Office) {
         clearTemplateChoices('error');
         setBusy(false);
         syncActionState();
+        const view = elements();
+        if (view.connectionChip) {
+            view.connectionChip.textContent = 'Browser';
+            view.connectionChip.dataset.tone = 'neutral';
+        }
+        const message = view.templateRegion?.querySelector('[data-outlook-template-error]');
+        if (message) message.textContent = 'Bitte RailTime in Outlook unter „Apps“ öffnen, um eine Vorlage in Ihre Nachricht einzufügen.';
         setStatus('neutral', 'In Outlook öffnen', 'Signaturen und Vorlagen können nur in Outlook eingefügt werden. Hilfe, Status und die Anleitung zur Browser-App sind hier weiterhin verfügbar.');
     };
 

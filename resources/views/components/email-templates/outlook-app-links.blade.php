@@ -1,21 +1,45 @@
 @props(['id' => 'mail-outlook-app'])
-<div x-data="{ installOpen: false }" class="flex flex-wrap items-center justify-center gap-2 border-t border-rt-border/60 pt-5 dark:border-rt-dark-border/60" data-outlook-app-links>
-    <a href="https://outlook.office.com/mail/" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-rt-muted transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted">
-        <i class="far fa-external-link-alt" aria-hidden="true"></i> Outlook öffnen
+<div
+    id="{{ $id }}"
+    x-data="railtimePwaInstall(@js([
+        'messages' => [
+            'installed' => __('app.help_installed'),
+            'ready' => __('app.help_install_ready'),
+            'manual' => __('app.push_install_manually_description'),
+            'accepted' => __('app.push_install_accepted'),
+            'failed' => __('app.push_install_failed'),
+        ],
+    ]))"
+    class="flex flex-wrap items-center justify-center gap-2 border-t border-rt-border/60 pt-5 dark:border-rt-dark-border/60"
+    data-outlook-app-links
+    data-railtime-app-links
+>
+    <a href="{{ route('home') }}" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-rt-muted transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted">
+        <i class="far fa-external-link-alt" aria-hidden="true"></i> RailTime öffnen
     </a>
-    <button type="button" x-on:click="installOpen = true" aria-haspopup="dialog" aria-controls="{{ $id }}-install" x-bind:aria-expanded="installOpen" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border/70 bg-rt-surface/75 px-4 text-sm font-semibold text-rt-text backdrop-blur-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/75 dark:text-rt-dark-text">
-        <i class="far fa-download" aria-hidden="true"></i> Outlook als App installieren
+    <button
+        type="button"
+        x-cloak
+        x-show="mode === 'prompt' || mode === 'installed' || busy"
+        x-on:click="installApp()"
+        x-bind:disabled="disabled"
+        x-bind:aria-busy="busy"
+        class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border/70 bg-rt-surface/75 px-4 text-sm font-semibold text-rt-text backdrop-blur-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 disabled:cursor-default disabled:opacity-60 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/75 dark:text-rt-dark-text"
+        data-railtime-install-action
+    >
+        <i class="far fa-download" aria-hidden="true"></i>
+        <span x-text="mode === 'installed' ? 'RailTime bereits installiert' : 'RailTime installieren'">RailTime installieren</span>
     </button>
-    <x-ui.state-modal :id="$id.'-install'" state="installOpen" title="Outlook als Browser-App" icon="fab fa-microsoft" max-width="2xl">
-        <div class="space-y-4 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
-            <p>Die Installation wird auf der Microsoft-Seite im Browser bestätigt. RailTime kann diesen Dialog nicht für eine fremde Website auslösen.</p>
-            <ol class="list-decimal space-y-2 pl-5">
-                <li><a href="https://outlook.office.com/mail/" target="_blank" rel="noopener noreferrer" class="font-semibold text-rt-red underline underline-offset-4">Outlook in Microsoft Edge öffnen</a> und anmelden.</li>
-                <li>Im Edge-Menü „…“ → „Apps“ → „Diese Site als eine App installieren“ wählen.</li>
-                <li>In Chrome die angebotene Installations-Schaltfläche in der Adressleiste verwenden.</li>
-            </ol>
-            <p class="text-xs">Die Browser-App ersetzt nicht die Zuweisung des RailTime-Add-ins. Auf iPhone/iPad bitte einen unterstützten Outlook-Client verwenden; Apple Mail übernimmt das Add-in nicht.</p>
-            <a href="https://support.microsoft.com/en-us/outlook/use-the-web-version-of-outlook-like-a-desktop-app" target="_blank" rel="noopener noreferrer" class="text-xs underline underline-offset-4">Microsoft-Anleitung öffnen</a>
-        </div>
-    </x-ui.state-modal>
+    <a
+        href="{{ route('help') }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        x-show="mode !== 'prompt' && mode !== 'installed' && !busy"
+        class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border/70 bg-rt-surface/75 px-4 text-sm font-semibold text-rt-text backdrop-blur-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/75 dark:text-rt-dark-text"
+        data-railtime-install-help
+    >
+        <i class="far fa-download" aria-hidden="true"></i> RailTime installieren
+    </a>
+    <p x-cloak x-show="notice" x-text="notice" role="status" aria-live="polite" class="w-full text-center text-xs text-rt-muted dark:text-rt-dark-muted"></p>
+    <p x-cloak x-show="error" x-text="error" role="alert" class="w-full text-center text-xs text-rt-red dark:text-rt-dark-accent"></p>
 </div>

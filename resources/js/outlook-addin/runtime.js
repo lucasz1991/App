@@ -4,7 +4,7 @@ import {
 } from '@azure/msal-browser';
 import {
     automaticTemplate,
-    assertTemplateInsertable,
+    isTemplateInsertionBlocked,
     prependTemplate,
     readTemplateState,
 } from './compose-template.js';
@@ -345,11 +345,14 @@ function officeFailure(result, fallbackCode) {
 
 function addInlineAttachment(item, media) {
     return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(codedError('INLINE_ATTACHMENT_UNCERTAIN')), 30000);
+        try {
         item.addFileAttachmentFromBase64Async(
             media.base64,
             media.name,
             { isInline: true },
             (result) => {
+                clearTimeout(timeout);
                 const error = officeFailure(result, 'INLINE_ATTACHMENT_FAILED');
 
                 if (error) {
@@ -360,21 +363,34 @@ function addInlineAttachment(item, media) {
                 resolve(result.value);
             },
         );
+        } catch (error) {
+            clearTimeout(timeout);
+            reject(error);
+        }
     });
 }
 
 async function attachInlineMedia(item, media, assertTarget) {
-    const existingNames = await new Promise((resolve) => {
+    const existingNames = await new Promise((resolve, reject) => {
         if (typeof item.getAttachmentsAsync !== 'function') {
             resolve(new Set());
             return;
         }
-        item.getAttachmentsAsync((result) => resolve(new Set(
-            result?.status === Office.AsyncResultStatus.Succeeded && Array.isArray(result.value)
-                ? result.value.filter((entry) => entry.isInline === true)
-                    .map((entry) => String(entry.name || '').toLowerCase())
-                : [],
-        )));
+        const timeout = setTimeout(() => reject(codedError('COMPOSE_ATTACHMENTS_UNREADABLE')), 10000);
+        try {
+            item.getAttachmentsAsync((result) => {
+                clearTimeout(timeout);
+                if (result?.status !== Office.AsyncResultStatus.Succeeded || !Array.isArray(result.value)) {
+                    reject(codedError('COMPOSE_ATTACHMENTS_UNREADABLE'));
+                    return;
+                }
+                resolve(new Set(result.value.filter((entry) => entry.isInline === true)
+                    .map((entry) => String(entry.name || '').toLowerCase())));
+            });
+        } catch (error) {
+            clearTimeout(timeout);
+            reject(error);
+        }
     });
     for (let index = 0; index < media.length; index += 1) {
         assertTarget();
@@ -437,28 +453,32 @@ async function applyPublishedContent(item) {
     const bootstrap = await loadBootstrap(config, accessToken);
     assertTarget();
 
-    // A template already includes the personalized signature. Another compose
-    // event must not append a second signature or repeat the template.
-    const templateState = await readTemplateState(Office, item);
-    assertTarget();
-    if (templateState.present) return;
+    if (isTemplateInsertionBlocked(item)) return;
 
     const selected = automaticTemplate(bootstrap);
     if (selected) {
         try {
-            await assertTemplateInsertable(Office, item);
             const template = validatedDocument(selected, 'template', config.marker);
-            await attachInlineMedia(item, template.media, assertTarget);
-            await prependTemplate(Office, item, template.html, assertTarget);
+            await prependTemplate(Office, item, template.html, assertTarget, {
+                media: template.media,
+                beforeInsert: () => attachInlineMedia(item, template.media, assertTarget),
+            });
             return;
         } catch (error) {
             if (safeErrorCode(error) === 'ITEM_CHANGED') throw error;
-            if (safeErrorCode(error) === 'TEMPLATE_ALREADY_INSERTED') return;
+            if (['TEMPLATE_ALREADY_INSERTED', 'TEMPLATE_INSERT_IN_PROGRESS',
+                'TEMPLATE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(safeErrorCode(error))) return;
             // Unsupported mobile/prepend APIs keep the existing signature path.
             // No setAsync fallback: it would replace typed text and quotes.
             console.info(`${LOG_PREFIX} Default template skipped (${safeErrorCode(error)}).`);
         }
     }
+
+    // Before a signature-only fallback, retain the guard for existing full
+    // templates. Failed or oversized body reads never trigger another write.
+    const templateState = await readTemplateState(Office, item);
+    assertTarget();
+    if (templateState.present || !templateState.readable || templateState.tooLarge) return;
 
     const signature = validatedDocument(bootstrap.signature, 'signature', config.marker);
 

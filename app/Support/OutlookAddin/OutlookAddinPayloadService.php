@@ -15,9 +15,12 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 8;
+    private const RENDERER_REVISION = 9;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
+
+    /** Absichtlich unterhalb des Office-API-Limits fuer komplexes Mail-HTML. */
+    private const MAX_TEMPLATE_CHARACTERS = 99000;
 
     private const MAX_MEDIA_BYTES = 2097152;
 
@@ -220,6 +223,9 @@ final class OutlookAddinPayloadService
                     $signatureDocument,
                 );
                 $html = $this->withSignatureVersionMarker($html, $signatureVersion);
+                if ($this->outlookStringLength($html) > self::MAX_TEMPLATE_CHARACTERS) {
+                    throw new RuntimeException('Die Outlook-Vorlage ueberschreitet das sichere Transportbudget von 99.000 Zeichen.');
+                }
 
                 $templates[] = [
                     'id' => $snapshot['id'],

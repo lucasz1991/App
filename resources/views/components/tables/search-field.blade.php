@@ -15,6 +15,7 @@
     $ph = $placeholder ?? __('app.search');
     $searchContext = in_array($context, ['table', 'topbar', 'chat', 'picker'], true) ? $context : 'table';
     $isTopbarSearch = $searchContext === 'topbar';
+    $usesPremiumSkin = $searchContext !== 'table';
     $searchAttributes = $inputAttributes instanceof \Illuminate\View\ComponentAttributeBag
         ? $inputAttributes
         : $attributes;
@@ -26,6 +27,7 @@
   x-data="{
         value: @entangle($searchAttributes->wire('model')),
         isTopbar: @js($isTopbarSearch),
+        usesPremiumSkin: @js($usesPremiumSkin),
         layerId: @js($isTopbarSearch ? 'topbar-search' : null),
         placeholderText: @js($ph),
         placeholderValue: '',
@@ -77,6 +79,8 @@
             }
 
             this.$watch('value', (nextValue) => {
+                if (!this.usesPremiumSkin) return;
+
                 if (String(nextValue ?? '').length > 0) {
                     this.stopPlaceholder();
                     return;
@@ -86,7 +90,7 @@
             });
 
             this.$nextTick(() => {
-                if (!this.isTopbar) this.startPlaceholder(true);
+                if (this.usesPremiumSkin && !this.isTopbar) this.startPlaceholder(true);
             });
         },
         destroy() {
@@ -137,7 +141,7 @@
             }
         },
         startPlaceholder(restart = false) {
-            if (!this.isExpanded() || String(this.value ?? '').length > 0) return;
+            if (!this.usesPremiumSkin || !this.isExpanded() || String(this.value ?? '').length > 0) return;
 
             this.stopPlaceholder();
 
@@ -287,31 +291,33 @@
     x-bind:aria-modal="isMobileLayerOpen() ? 'true' : null"
     x-bind:aria-label="isMobileLayerOpen() ? @js($ph) : null"
     data-search-context="{{ $searchContext }}"
-    data-rt-premium-search
+    @if ($usesPremiumSkin) data-rt-premium-search @endif
     data-tables-search
     @if ($wireModel)
         wire:loading.class="is-loading"
         wire:target="{{ $wireModel }}"
     @endif
 >
-    <span class="rt-expandable-search__surface" aria-hidden="true"></span>
-    <svg
-        class="rt-expandable-search__bezel"
-        viewBox="0 0 100 44"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-    >
-        <defs>
-            <linearGradient id="{{ $gradientId }}" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="var(--rt-search-trace-a)" />
-                <stop offset="0.36" stop-color="var(--rt-search-trace-b)" />
-                <stop offset="0.7" stop-color="var(--rt-search-trace-c)" />
-                <stop offset="1" stop-color="var(--rt-search-trace-a)" />
-            </linearGradient>
-        </defs>
-        <rect class="rt-expandable-search__bezel-track" x="1" y="1" width="98" height="42" rx="11" pathLength="100" />
-        <rect class="rt-expandable-search__bezel-trace" x="1" y="1" width="98" height="42" rx="11" pathLength="100" stroke="url(#{{ $gradientId }})" />
-    </svg>
+    @if ($usesPremiumSkin)
+        <span class="rt-expandable-search__surface" aria-hidden="true"></span>
+        <svg
+            class="rt-expandable-search__bezel"
+            viewBox="0 0 100 44"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+        >
+            <defs>
+                <linearGradient id="{{ $gradientId }}" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="var(--rt-search-trace-a)" />
+                    <stop offset="0.36" stop-color="var(--rt-search-trace-b)" />
+                    <stop offset="0.7" stop-color="var(--rt-search-trace-c)" />
+                    <stop offset="1" stop-color="var(--rt-search-trace-a)" />
+                </linearGradient>
+            </defs>
+            <rect class="rt-expandable-search__bezel-track" x="1" y="1" width="98" height="42" rx="11" pathLength="100" />
+            <rect class="rt-expandable-search__bezel-trace" x="1" y="1" width="98" height="42" rx="11" pathLength="100" stroke="url(#{{ $gradientId }})" />
+        </svg>
+    @endif
 
     @if ($isTopbarSearch)
         <button
@@ -366,7 +372,7 @@
         x-bind:tabindex="isExpanded() ? 0 : -1"
         aria-label="{{ $ph }}"
         aria-placeholder="{{ $ph }}"
-        placeholder=""
+        placeholder="{{ $usesPremiumSkin ? '' : $ph }}"
         autocomplete="off"
         inputmode="search"
         enterkeyhint="search"
@@ -376,34 +382,37 @@
             role="searchbox"
         @endif
         {{ $searchAttributes->merge(['class' => 'rt-expandable-search__input']) }}
+        @if ($noResults && ! $usesPremiumSkin) :class="String(value ?? '').length > 0 && 'border-rt-red/60 ring-2 ring-rt-red/20 dark:border-rt-red/60'" @endif
     />
 
-    <span
-        x-show="isExpanded() && String(value ?? '').length === 0"
-        class="rt-expandable-search__placeholder"
-        aria-hidden="true"
-    >
-        <span x-text="placeholderValue"></span>
-        <span class="rt-expandable-search__cursor"></span>
-    </span>
-
-    @if ($status !== null)
+    @if ($usesPremiumSkin)
         <span
             x-show="isExpanded() && String(value ?? '').length === 0"
-            class="rt-expandable-search__status"
-            @if (filled($statusLabel)) aria-label="{{ $statusLabel }}" @endif
-        >
-            {{ $status }}
-        </span>
-    @else
-        <span
-            x-show="isExpanded() && String(value ?? '').length === 0"
-            class="rt-expandable-search__activity"
+            class="rt-expandable-search__placeholder"
             aria-hidden="true"
-            data-rt-search-activity
         >
-            <span></span><span></span><span></span>
+            <span x-text="placeholderValue"></span>
+            <span class="rt-expandable-search__cursor"></span>
         </span>
+
+        @if ($status !== null)
+            <span
+                x-show="isExpanded() && String(value ?? '').length === 0"
+                class="rt-expandable-search__status"
+                @if (filled($statusLabel)) aria-label="{{ $statusLabel }}" @endif
+            >
+                {{ $status }}
+            </span>
+        @else
+            <span
+                x-show="isExpanded() && String(value ?? '').length === 0"
+                class="rt-expandable-search__activity"
+                aria-hidden="true"
+                data-rt-search-activity
+            >
+                <span></span><span></span><span></span>
+            </span>
+        @endif
     @endif
 
     <button

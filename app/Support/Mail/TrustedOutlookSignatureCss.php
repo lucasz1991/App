@@ -20,6 +20,49 @@ final class TrustedOutlookSignatureCss
 
     private const MAX_CSS_BYTES = 12000;
 
+    /** Eigenes Transportbudget fuer eine gesamte Compose-Vorlage. */
+    private const MAX_TEMPLATE_CSS_BYTES = 24576;
+
+    /**
+     * Nutzt denselben Selektor-Scanner wie Signaturen, bezieht aber auch die
+     * tatsaechlich vorhandenen Nachrichten-/Kartenklassen ein. Nur die exakt
+     * erkannte Server-Runtime darf um fremde Artefakte/Animationen gekuerzt
+     * werden; freie veroeffentlichte Regeln werden lediglich sicher gescopt.
+     *
+     * @param  list<string>  $styles
+     */
+    public static function composeStylesheet(string $html, array $styles, string $scopeClass, string $border): string
+    {
+        if (preg_match('/\Artt[0-9a-f]{12}\z/', $scopeClass) !== 1) {
+            throw new RuntimeException('Der interne Outlook-Vorlagen-Scope ist ungueltig.');
+        }
+
+        $version = SignatureArtifactVersion::detect(MailDocumentKind::Signature, $html);
+        $traits = self::documentTraits($html);
+        $runtime = TrustedEmailCss::responsive($border, SignatureArtifactVersion::usesOptionalBackground($version));
+        $filteredRuntime = self::filterRuntimeStylesheet($runtime, $version, $traits, includeTemplate: true);
+        $result = '';
+
+        foreach ($styles as $css) {
+            if (str_contains($css, TrustedEmailCss::RUNTIME_MARKER)) {
+                if (substr_count($css, $runtime) !== 1) {
+                    throw new RuntimeException('Die Outlook-Vorlage besitzt keine eindeutige kanonische Runtime-CSS.');
+                }
+                $css = str_replace($runtime, $filteredRuntime, $css);
+            }
+            if (stripos($css, '</style') !== false) {
+                throw new RuntimeException('Das Outlook-Vorlagen-CSS kann nicht sicher eingebettet werden.');
+            }
+            $result .= self::scopeStylesheet($css, '.'.$scopeClass, $traits);
+        }
+
+        if (strlen($result) > self::MAX_TEMPLATE_CSS_BYTES) {
+            throw new RuntimeException('Das Outlook-Vorlagen-CSS ueberschreitet das sichere Transportbudget von 24 KiB.');
+        }
+
+        return $result;
+    }
+
     public static function responsive(
         string $signatureHtml,
         ?string $border = '#dfe3e6',
@@ -118,6 +161,7 @@ final class TrustedOutlookSignatureCss
         string $css,
         ?string $artifactVersion,
         array $documentTraits,
+        bool $includeTemplate = false,
     ): string {
         $result = '';
         $length = strlen($css);
@@ -152,6 +196,7 @@ final class TrustedOutlookSignatureCss
                     $body,
                     $artifactVersion,
                     $documentTraits,
+                    $includeTemplate,
                 );
                 if ($filteredBody !== '') {
                     $result .= self::compactPrelude($prelude).'{'.$filteredBody.'}';
@@ -170,6 +215,7 @@ final class TrustedOutlookSignatureCss
                 $prelude,
                 $artifactVersion,
                 $documentTraits,
+                $includeTemplate,
             );
             if ($selectors === []) {
                 continue;
@@ -839,6 +885,7 @@ final class TrustedOutlookSignatureCss
         string $prelude,
         ?string $artifactVersion,
         array $documentTraits,
+        bool $includeTemplate = false,
     ): array {
         $selectors = self::splitSelectorList($prelude);
 
@@ -846,10 +893,10 @@ final class TrustedOutlookSignatureCss
         foreach ($selectors as $selector) {
             $selector = trim($selector);
             if ($selector === ''
-                || str_contains($selector, 'data-rt-signature-density')
+                || (! $includeTemplate && str_contains($selector, 'data-rt-signature-density'))
                 || ! self::matchesArtifact($selector, $artifactVersion)
                 || ! self::isSignatureSelector($selector, $documentTraits)
-                || ! self::matchesDocument($selector, $documentTraits)) {
+                || ! self::matchesDocument($selector, $documentTraits, $includeTemplate)) {
                 continue;
             }
 
@@ -1006,10 +1053,10 @@ final class TrustedOutlookSignatureCss
      *
      * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string}  $documentTraits
      */
-    private static function matchesDocument(string $selector, array $documentTraits): bool
+    private static function matchesDocument(string $selector, array $documentTraits, bool $includeTemplate = false): bool
     {
         $lowerSelector = strtolower($selector);
-        if (str_contains($lowerSelector, '.rt-card')
+        if ((! $includeTemplate && str_contains($lowerSelector, '.rt-card'))
             || (str_contains($lowerSelector, 'rt-train-idle') && ! $documentTraits['has_idle'])) {
             return false;
         }

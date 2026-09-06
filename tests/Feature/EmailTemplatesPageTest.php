@@ -471,6 +471,73 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringNotContainsString('missing-outlook-copy', $customSignature);
     }
 
+    public function test_outlook_compose_template_scopes_and_compacts_styles_without_losing_content(): void
+    {
+        config(['app.url' => 'https://app.rail-time.de', 'outlook_addin.base_url' => 'https://app.rail-time.de']);
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $template = MailDocument::query()->where('kind', MailDocumentKind::Template->value)->firstOrFail();
+        $template->forceFill([
+            'published_html' => str_replace('</body>', '<p class="compose-copy">Vorlageninhalt bleibt &amp; erhalten.</p><pre>  Erste Zeile\n  Zweite Zeile</pre></body>', $template->published_html),
+            'published_css' => 'body .compose-copy{color:#123456;font-weight:700}.unused-template-class{color:#654321}@media only screen and (max-width:480px){.compose-copy{font-size:17px}}',
+        ])->save();
+        app(PublishedMailDocumentSnapshotStore::class)->forget();
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+        $payload = app(OutlookAddinPayloadService::class)->forUser($user);
+        $html = $payload['template']['html'];
+        preg_match('/class="rt-outlook-template (rtt[0-9a-f]{12})"/', $html, $scope);
+        $this->assertNotEmpty($scope);
+        preg_match('/<style data-rt-outlook-template-css="1">(.*?)<\/style>/s', $html, $styles);
+        $this->assertNotEmpty($styles);
+        $css = $styles[1];
+        $this->assertLessThan(24577, strlen($css));
+        $this->assertLessThan(99001, strlen(mb_convert_encoding($html, 'UTF-16LE', 'UTF-8')) / 2);
+        $this->assertStringContainsString('.'.$scope[1].' .compose-copy{color:#123456;font-weight:700}', $css);
+        $this->assertStringContainsString('.'.$scope[1].' .compose-copy{font-size:17px}', $css);
+        $this->assertStringContainsString('.'.$scope[1].' .rt-card', $css);
+        $this->assertStringContainsString('max-width: 480px', $css);
+        $this->assertStringNotContainsString('.unused-template-class', $css);
+        $this->assertStringNotContainsString('data-rt-artifact-version="v14"', $css);
+        $this->assertStringNotContainsString('@keyframes', $css);
+        $this->assertStringNotContainsString('@supports', $css);
+        $this->assertDoesNotMatchRegularExpression('/(?:^|[{},])\s*(?:html|body|table|td|img|a)\s*(?:[,>{]|\s+\.)/i', $css);
+        $this->assertSame(1, substr_count($html, 'data-rt-outlook-template-css="1"'));
+        $this->assertStringContainsString('Mara Beispiel', $html);
+        $this->assertStringContainsString('Vorlageninhalt bleibt &amp; erhalten.', $html);
+        $this->assertStringContainsString('<pre>  Erste Zeile\n  Zweite Zeile</pre>', $html);
+        $this->assertMatchesRegularExpression('/<p class="compose-copy" style="[^"]*color: #123456[^\"]*">/', $html);
+        $this->assertStringContainsString('<!--[if mso]>', $html);
+        $this->assertStringContainsString('RT-SIGNATURE-VERSION:', $html);
+        $this->assertStringNotContainsString('data:image/', $html);
+        foreach ($payload['template']['media'] as $medium) {
+            $this->assertStringContainsString('cid:'.$medium['contentId'], $html);
+            $this->assertNotFalse(base64_decode($medium['base64'], true));
+        }
+        $this->assertSame($html, $payload['templates'][0]['html']);
+        $this->assertSame($html, app(OutlookAddinPayloadService::class)->forUser($user)['template']['html']);
+    }
+
+    public function test_outlook_compose_template_enforces_transport_budget_before_payload_delivery(): void
+    {
+        config(['app.url' => 'https://app.rail-time.de', 'outlook_addin.base_url' => 'https://app.rail-time.de']);
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $template = MailDocument::query()->where('kind', MailDocumentKind::Template->value)->firstOrFail();
+        $template->forceFill([
+            'published_html' => str_replace('</body>', '<p>'.str_repeat('💼', 50000).'</p></body>', $template->published_html),
+        ])->save();
+        app(PublishedMailDocumentSnapshotStore::class)->forget();
+
+        try {
+            app(OutlookAddinPayloadService::class)->forUser(User::factory()->create());
+            $this->fail('Oversized compose HTML must not be delivered to Office.');
+        } catch (OutlookAddinException $exception) {
+            $this->assertStringContainsString('99.000 Zeichen', $exception->getPrevious()?->getMessage() ?? '');
+        }
+    }
+
     public function test_outlook_addin_published_root_context_css_cannot_escape_signature_scope(): void
     {
         try {

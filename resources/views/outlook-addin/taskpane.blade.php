@@ -762,9 +762,9 @@
                     </p>
                 </section>
 
-                <footer class="app-links" aria-label="Outlook im Browser">
-                    <a class="app-link" href="https://outlook.office.com/mail/" target="_blank" rel="noopener noreferrer">Outlook öffnen ↗</a>
-                    <button class="glass-button" type="button" data-outlook-dialog-open="install" aria-haspopup="dialog" aria-controls="outlook-install-dialog">Als App installieren</button>
+                <footer class="app-links" aria-label="RailTime-App">
+                    <a class="app-link" href="{{ route('home') }}" target="_blank" rel="noopener noreferrer">RailTime öffnen ↗</a>
+                    <button class="glass-button" type="button" data-outlook-dialog-open="install" aria-haspopup="dialog" aria-controls="outlook-install-dialog">RailTime installieren</button>
                 </footer>
             </div>
         </section>
@@ -823,16 +823,15 @@
         </div>
     </dialog>
     <dialog class="taskpane-dialog" id="outlook-install-dialog" data-outlook-dialog="install" aria-labelledby="outlook-install-title">
-        <div class="dialog-heading"><h2 id="outlook-install-title">Outlook als Browser-App</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
+        <div class="dialog-heading"><h2 id="outlook-install-title">RailTime als App installieren</h2><button type="button" class="glass-button" data-outlook-dialog-close aria-label="Dialog schließen">✕</button></div>
         <div class="dialog-body">
-            <p>Die Installation wird direkt auf der Microsoft-Seite bestätigt, nicht innerhalb des Add-ins.</p>
+            <p>Installiert wird die RailTime-App von app.rail-time.de, nicht Outlook. Die Bestätigung erfolgt in Ihrem Browser außerhalb dieses Add-ins.</p>
             <ol>
-                <li><a href="https://outlook.office.com/mail/" target="_blank" rel="noopener noreferrer">Outlook in Edge öffnen</a> und mit dem Firmenkonto anmelden.</li>
-                <li>Im Browser-Menü „…“ → „Apps“ → „Diese Site als eine App installieren“ wählen.</li>
-                <li>In Chrome die angebotene Installations-Schaltfläche in der Adressleiste verwenden.</li>
+                <li><a href="{{ route('help') }}" target="_blank" rel="noopener noreferrer">RailTime-Installationsseite öffnen</a> und bei Bedarf bei RailTime anmelden.</li>
+                <li>Dort „App installieren“ auswählen und den Browserdialog bestätigen.</li>
+                <li>Wird kein Installationsdialog angeboten, der Anleitung für Ihr Gerät auf dieser Seite folgen.</li>
             </ol>
-            <p class="footnote">Die Installation der Browser-App weist das RailTime-Add-in nicht automatisch dem Postfach zu.</p>
-            <a href="https://support.microsoft.com/en-us/outlook/use-the-web-version-of-outlook-like-a-desktop-app" target="_blank" rel="noopener noreferrer">Microsoft-Anleitung</a>
+            <p class="footnote">Die RailTime-App und das Outlook-Add-in bleiben getrennt. Diese Installation ändert weder Ihre Postfächer noch die Outlook-Einstellungen.</p>
         </div>
     </dialog>
 </body>

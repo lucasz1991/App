@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
+use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 use ZipArchive;
 
 /**
@@ -331,16 +332,38 @@ class EmailTemplateBuilder
             throw new RuntimeException('Unbekannte Vorlagenvariante.');
         }
 
-        return self::outlookAddinFragment(
-            $this->buildEmailHtml(
-                inlineImages: false,
-                theme: $theme,
-                animatedSignature: false,
-                staticAnimations: true,
-                cidOutlookImages: true,
-            ),
-            includeStyles: true,
+        $document = $this->buildEmailHtml(
+            inlineImages: false,
+            theme: $theme,
+            animatedSignature: false,
+            staticAnimations: true,
+            cidOutlookImages: true,
         );
+        $body = self::outlookAddinFragment($document, includeStyles: false);
+        // Der Scope ist inhaltsgebunden: andere Vorlagen und zitierte alte
+        // Versionen im selben Compose-Body bleiben von diesen Regeln unberuehrt.
+        $scope = 'rtt'.substr(hash('sha256', $document), 0, 12);
+        preg_match_all('~<style\b[^>]*>(.*?)</style>~is', $document, $matches);
+        $css = TrustedOutlookSignatureCss::composeStylesheet(
+            $document,
+            $matches[1] ?? [],
+            $scope,
+            self::emailThemeValues($theme)['SIGNATURE_BORDER'],
+        );
+        // Auch Styles, die im Body stehen, nur einmal und ausschliesslich
+        // gescopt transportieren. Keine globalen Head-Resets ins Outlook-DOM.
+        $body = preg_replace('~<style\b[^>]*>.*?</style>~is', '', $body) ?? $body;
+        $wrapped = '<div class="rt-outlook-template '.$scope.'" style="display:block;width:100%;">'.$body.'</div>';
+        $inlined = (new CssToInlineStyles)->convert(
+            '<!doctype html><html><head><meta charset="utf-8"></head><body>'.$wrapped.'</body></html>',
+            $css,
+        );
+
+        // Basisformatierung bleibt bei Entfernung von Styles lesbar. Die
+        // gescopten Regeln bleiben parallel erhalten, weil prependAsync die
+        // Uebernahme von Inline-CSS nicht fuer jeden Client garantiert.
+        return '<style data-rt-outlook-template-css="1">'.$css.'</style>'
+            .self::outlookAddinFragment($inlined, includeStyles: false);
     }
 
     private static function outlookAddinFragment(string $document, bool $includeStyles): string
