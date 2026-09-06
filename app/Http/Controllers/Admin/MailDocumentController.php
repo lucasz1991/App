@@ -25,6 +25,7 @@ use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
+use App\Support\Mail\SignatureImgOverlapFallback;
 use App\Support\Mail\TemplateDocumentContract;
 use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
 use Illuminate\Contracts\View\View;
@@ -1733,8 +1734,10 @@ final class MailDocumentController extends Controller
                 ->line('Vorschau der aktuellen Nachrichtenvorlage und Signatur.')
                 ->action('RailTime öffnen', 'https://rail-time.de/');
 
-            return (string) app(Markdown::class)
-                ->render($message->markdown ?: 'notifications::email', $message->data());
+            return SignatureImgOverlapFallback::apply(
+                (string) app(Markdown::class)
+                    ->render($message->markdown ?: 'notifications::email', $message->data()),
+            );
         } catch (\Throwable $exception) {
             throw ValidationException::withMessages([
                 'compatibility' => 'Die finale Systemmail konnte nicht kompiliert werden: '.$exception->getMessage(),

@@ -70,6 +70,14 @@ final class SystemMailInlineImageEmbedder
             return 0;
         }
 
+        // This event runs after Laravel Markdown's CSS inliner. Applying the
+        // fallback earlier would let the inliner restore the old flow height.
+        $finalized = SignatureImgOverlapFallback::apply($html);
+        if ($finalized !== $html) {
+            $message->html($finalized, $message->getHtmlCharset() ?? 'utf-8');
+            $html = $finalized;
+        }
+
         $locations = $this->assetLocations();
         if ($locations === []) {
             return 0;
