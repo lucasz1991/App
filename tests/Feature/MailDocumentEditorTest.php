@@ -28,6 +28,7 @@ use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TrustedEmailCss;
+use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\MailSignature;
 use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookTemplateLibrary;
@@ -5680,7 +5681,7 @@ HTML;
         $this->assertStringNotContainsString('data-rt-signature-background', $nativeTemplate['composeHtml']);
         $this->assertStringNotContainsString('data-rt-artifact-version="v23"', $nativeTemplate['composeHtml']);
         $this->assertStringNotContainsString('.rt-sign-', $nativeTemplate['composeHtml']);
-        $this->assertCount(1, $nativeTemplate['composeMedia']);
+        $this->assertCount(2, $nativeTemplate['composeMedia']);
         $this->assertStringContainsString('data-rt-signature-background="1"', $outlook['signature']['html']);
         $this->assertStringContainsString('data-rt-artifact-version="v23"', $outlook['signature']['html']);
         $this->assertStringContainsString('RT-SIGNATURE-VERSION:'.$outlook['version']['signature'], $outlook['signature']['html']);
@@ -5752,6 +5753,178 @@ HTML;
                 $this->assertNotSame('', $exception->getMessage());
             }
         }
+    }
+
+    public function test_v25_import_publish_und_cid_versand_behalten_fluides_img_und_mobilen_kopf(): void
+    {
+        Storage::fake('public');
+        $this->createCanonicalMailDocument(MailDocumentKind::Template);
+        $html = $this->v25SignatureHtml();
+        SignatureDocumentContract::assertValid($html);
+        $this->assertSame($html, SignatureTrainCarrier::normalize($html));
+        $this->assertSame($html, app(EmailHtmlSanitizer::class)->assertClean($html)->html);
+        $this->assertSame(SignatureArtifactVersion::V25, SignatureArtifactVersion::detect('signature', $html));
+        $this->assertFalse(SignatureArtifactVersion::usesOptionalBackground(SignatureArtifactVersion::V25));
+        $this->assertSame(
+            PortableMediaCatalog::requiredSystemAssetContracts('signature')[SignatureArtifactVersion::V19],
+            PortableMediaCatalog::requiredSystemAssetContracts('signature')[SignatureArtifactVersion::V25],
+        );
+        $media = $this->portableSystemMedia(MailDocumentKind::Signature, SignatureArtifactVersion::V25);
+        $this->assertCount(17, $media);
+        $this->actingAs($this->admin())->postJson(route('admin.mail-documents.import'), [
+            'format' => 'railtime-mail-document', 'version' => 2, 'kind' => 'signature',
+            'html' => $html, 'css' => '', 'media' => $media,
+        ])->assertCreated()->assertJsonPath('document.status', MailDocumentStatus::Draft->value);
+        $document = $this->document(MailDocumentKind::Signature);
+        $this->assertSame($html, $document->html);
+        $this->assertSame(29, data_get($document->builder_data, 'railtime.schema'));
+        $this->assertNull($document->published_at);
+        $this->postJson(route('admin.mail-documents.publish', $document), [
+            'expected_hash' => $document->content_hash,
+        ])->assertOk();
+        $this->app->forgetScopedInstances();
+
+        foreach (['light', 'dark'] as $theme) {
+            $rendered = MailSignature::forCompany($theme, remoteAssets: true)->renderDocument($html);
+            SignatureTrainCarrier::assertRuntimeImages($rendered);
+            $this->assertStringContainsString('zug-dampf-v19-'.$theme.'.gif', $rendered);
+            $this->assertStringNotContainsString('background-image', $rendered);
+            $this->assertStringContainsString('rt-sign-heading-logo', $rendered);
+        }
+        $withoutBackground = TrustedEmailCss::responsive('#dfe3e6', false);
+        $this->assertStringContainsString('tr[data-rt-artifact-version="v25"] .rt-sign-heading-logo', $withoutBackground);
+        foreach ([
+            TrustedOutlookSignatureCss::responsive($html),
+            TrustedOutlookSignatureCss::composeStylesheet($html, [$withoutBackground], 'rtt012345abcdef', '#dfe3e6'),
+        ] as $outlookCss) {
+            $this->assertStringContainsString('.rt-sign-heading-logo', $outlookCss);
+            $this->assertStringContainsString('display:table-header-group!important', $outlookCss);
+            $this->assertStringContainsString('display:table-row-group!important', $outlookCss);
+            $this->assertDoesNotMatchRegularExpression('/margin-bottom:\s*-\d/i', $outlookCss);
+            $this->assertStringNotContainsString('data-rt-artifact-version="v21"', $outlookCss);
+        }
+
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+        $payload = app(OutlookAddinPayloadService::class)->forUser($user);
+        $this->assertStringContainsString('data-rt-artifact-version="v25"', $payload['signature']['html']);
+        $this->assertStringNotContainsString('background-image', $payload['signature']['html']);
+        $this->assertStringContainsString('class="rt-sign-train"', $payload['signature']['html']);
+        $this->assertStringContainsString('class="rt-sign-train-mso"', $payload['signature']['html']);
+        $this->assertLessThanOrEqual(30000, mb_strlen($payload['signature']['html']));
+
+        $mail = (new MailMessage)->greeting('V25')->line('Normaler Bildfluss');
+        $compiled = (string) app(Markdown::class)->render($mail->markdown ?: 'notifications::email', $mail->data());
+        $email = (new Email)->html(SystemMailInlineImageEmbedder::mark($compiled));
+        $this->assertGreaterThan(0, app(SystemMailInlineImageEmbedder::class)->embed($email));
+        $trains = array_values(array_filter($email->getAttachments(), static fn ($part): bool => $part->getFilename() === 'zug-dampf-v19-light.gif'));
+        $this->assertCount(1, $trains);
+        $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train"[^>]*src="cid:'.preg_quote($trains[0]->getContentId(), '/').'"/i', (string) $email->getHtmlBody());
+        $this->assertInstanceOf(RelatedPart::class, $email->getBody());
+    }
+
+    public function test_v25_hoehen_und_margin_resets_ueberstehen_zwei_inliner_durchlaeufe(): void
+    {
+        $html = $this->v25SignatureHtml();
+        $inliner = new CssToInlineStyles;
+        $inlined = $inliner->convert('<html><head><style>'.EmailTemplateBuilder::responsiveCss().'</style></head><body><table>'.$html.'</table></body></html>');
+        foreach ([$inlined, $inliner->convert($inlined)] as $mailHtml) {
+            $dom = new \DOMDocument;
+            $previous = libxml_use_internal_errors(true);
+            try {
+                $this->assertTrue($dom->loadHTML($mailHtml));
+            } finally {
+                libxml_clear_errors();
+                libxml_use_internal_errors($previous);
+            }
+            $xpath = new \DOMXPath($dom);
+            foreach (['rt-sign-stage', 'rt-sign-content-frame', 'rt-sign-train-layer', 'rt-sign-train-frame', 'rt-sign-train-slot'] as $class) {
+                $element = $xpath->query('//*[@class="'.$class.'"]')->item(0);
+                $this->assertInstanceOf(\DOMElement::class, $element);
+                $this->assertFalse($element->hasAttribute('height'));
+                $this->assertMatchesRegularExpression('/(?:^|;)\s*height\s*:\s*auto\s*!important/i', $element->getAttribute('style'));
+                $this->assertDoesNotMatchRegularExpression('/margin-(?:top|bottom)\s*:\s*-\d/i', $element->getAttribute('style'));
+            }
+            $layer = $xpath->query('//*[@class="rt-sign-train-layer"]')->item(0);
+            $this->assertMatchesRegularExpression('/margin-bottom\s*:\s*0(?:px)?\s*!important/i', $layer->getAttribute('style'));
+            $image = $xpath->query('//img[@class="rt-sign-train"]')->item(0);
+            $this->assertSame('720', $image->getAttribute('width'));
+            $this->assertSame('61', $image->getAttribute('height'));
+            foreach (['width' => '100%', 'max-width' => 'none', 'height' => 'auto'] as $property => $value) {
+                $this->assertMatchesRegularExpression('/(?:^|;)\s*'.$property.'\s*:\s*'.preg_quote($value, '/').'\s*(?:!important\s*)?(?:;|$)/i', $image->getAttribute('style'));
+            }
+        }
+    }
+
+    public function test_v25_rejects_background_overlap_fixed_slot_and_legacy_marker_substitution(): void
+    {
+        $html = $this->v25SignatureHtml();
+        foreach ([
+            str_replace('class="rt-sign-cell"', 'class="rt-sign-cell" background="{{TRAIN_SRC}}"', $html),
+            str_replace('margin:0 auto 0 0;', 'margin:0 auto -150px 0;', $html),
+            str_replace('class="rt-sign-train-frame"', 'class="rt-sign-train-frame" height="61"', $html),
+            str_replace('class="rt-sign-train-slot"', 'class="rt-sign-train-slot" height="61"', $html),
+            str_replace('class="rt-sign-stage"', 'class="rt-sign-stage foreign"', $html),
+            str_replace('data-rt-artifact-version="v25"', 'data-rt-artifact-version="v21"', $html),
+        ] as $invalid) {
+            $this->assertNotSame($html, $invalid);
+            try {
+                SignatureDocumentContract::assertValid($invalid);
+                $this->fail('The V25 opt-in must not relax legacy or IMG-flow safety.');
+            } catch (\RuntimeException $exception) {
+                $this->assertNotSame('', $exception->getMessage());
+            }
+        }
+    }
+
+    /** Existing contact tokens and markers, with the optional aligned header. */
+    private function v25SignatureHtml(): string
+    {
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $dom = new \DOMDocument('1.0', 'UTF-8');
+            $this->assertTrue($dom->loadHTML('<?xml encoding="UTF-8"><table id="v25-fixture"><tbody>'.$this->v22SignatureHtml().'</tbody></table>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD));
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        $xpath = new \DOMXPath($dom);
+        $carrier = $xpath->query('//td[@class="rt-sign-cell"]')->item(0);
+        $carrier->parentNode->setAttribute('data-rt-artifact-version', 'v25');
+        foreach (['data-rt-signature-background', 'data-rt-bg-desktop', 'data-rt-bg-tablet', 'data-rt-bg-mobile'] as $attribute) {
+            $carrier->removeAttribute($attribute);
+        }
+        $carrier->setAttribute('style', 'width:100%;padding:0;background-color:{{SIGNATURE_BG}};border-top:5px solid #e4002b;');
+        $frame = $xpath->query('//table[@class="rt-sign-content-frame"]')->item(0);
+        $frame->setAttribute('style', 'width:100%;border-collapse:collapse;');
+        $logo = $xpath->query('//td[@class="rt-sign-logo"]')->item(0);
+        $person = $xpath->query('//div[@class="rt-person-kopf"]')->item(0);
+        $heading = $dom->createElement('table');
+        foreach (['class' => 'rt-sign-heading-table', 'role' => 'presentation', 'width' => '100%', 'border' => '0', 'cellspacing' => '0', 'cellpadding' => '0', 'style' => 'width:100%;border-collapse:collapse;'] as $key => $value) {
+            $heading->setAttribute($key, $value);
+        }
+        $row = $heading->appendChild($dom->createElement('tbody'))->appendChild($dom->createElement('tr'));
+        $personalCell = $row->appendChild($dom->createElement('td'));
+        $logoCell = $row->appendChild($dom->createElement('td'));
+        foreach ([[$personalCell, 'rt-sign-heading-person', 'left'], [$logoCell, 'rt-sign-heading-logo', 'right']] as [$cell, $class, $align]) {
+            $cell->setAttribute('class', $class);
+            $cell->setAttribute('width', '50%');
+            $cell->setAttribute('valign', 'top');
+            $cell->setAttribute('style', 'width:50%;padding:0;text-align:'.$align.';vertical-align:top;');
+        }
+        $personalCell->appendChild($person);
+        while ($logo->firstChild) {
+            $logoCell->appendChild($logo->firstChild);
+        }
+        $logo->appendChild($heading);
+        $frameHtml = $dom->saveHTML($frame);
+        $result = '';
+        foreach ($dom->getElementById('v25-fixture')->firstElementChild->childNodes as $node) {
+            $result .= $dom->saveHTML($node);
+        }
+        $train = '<div class="rt-sign-train-layer" data-rt-layer-train="" data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="left" style="display:block;width:100%;max-width:none;margin:0 auto 0 0;overflow:hidden;font-size:0;line-height:0;text-align:left;"><table class="rt-sign-train-frame" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr><td class="rt-sign-train-slot" valign="bottom" style="padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;"><img class="rt-sign-train" data-rt-train="" src="{{TRAIN_SRC}}" width="720" height="61" alt="" style="display:block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;"></td></tr></table></div>';
+        $result = str_replace($frameHtml, '<div class="rt-sign-stage" style="display:block;width:100%;overflow:visible;">'.$frameHtml.$train.'</div>', $result);
+
+        return trim(str_ireplace(['%7B', '%7D'], ['{', '}'], $result));
     }
 
     /** Reale bestehende Kontakte behalten, lediglich die neue Traegerstruktur aufbauen. */

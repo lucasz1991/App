@@ -194,6 +194,7 @@ final class SignatureDocumentContract
             SignatureArtifactVersion::V21,
             SignatureArtifactVersion::V22,
             SignatureArtifactVersion::V23,
+            SignatureArtifactVersion::V25,
         ], true)) {
             self::assertV18ForwardSafeLayout($html);
         }

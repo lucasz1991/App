@@ -1268,3 +1268,73 @@ tr[data-rt-artifact-version="{{ $backgroundVersion }}"] img.rt-logo{{ $loop->las
   }
 }
 @endif
+
+/* V25 is an opt-in fluid IMG flow, independent of optional backgrounds.
+   Reset longhands too: the delivery inliner does not expand shorthands. */
+tr[data-rt-artifact-version="v25"] .rt-sign-stage,
+tr[data-rt-artifact-version="v25"] .rt-sign-content-frame,
+tr[data-rt-artifact-version="v25"] .rt-sign-train-layer,
+tr[data-rt-artifact-version="v25"] .rt-sign-train-frame,
+tr[data-rt-artifact-version="v25"] .rt-sign-train-slot {
+  position: static !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+tr[data-rt-artifact-version="v25"] .rt-sign-stage { overflow: visible !important; }
+tr[data-rt-artifact-version="v25"] .rt-sign-train-layer {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 auto 0 0 !important;
+  margin-top: 0 !important;
+  margin-right: auto !important;
+  margin-bottom: 0 !important;
+  margin-left: 0 !important;
+}
+tr[data-rt-artifact-version="v25"] .rt-sign-train-layer[data-rt-layer-train] .rt-sign-train,
+tr[data-rt-artifact-version="v25"] .rt-sign-train-layer[data-rt-layer-train] .rt-sign-train-mso {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+  margin-left: 0 !important;
+}
+tr[data-rt-artifact-version="v25"] .rt-sign-logo { text-align: right !important; }
+tr[data-rt-artifact-version="v25"] img.rt-logo {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+@media only screen and (max-width: 860px) {
+  tr[data-rt-artifact-version="v25"] .rt-sign-content { padding: 18px 24px 15px !important; }
+  tr[data-rt-artifact-version="v25"] .rt-sign-layout > tbody > tr:first-child,
+  tr[data-rt-artifact-version="v25"] .rt-sign-heading-table > tbody > tr {
+    display: table !important;
+    width: 100% !important;
+  }
+  tr[data-rt-artifact-version="v25"] .rt-sign-heading-person {
+    display: table-row-group !important;
+    width: 100% !important;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+  tr[data-rt-artifact-version="v25"] .rt-sign-heading-logo {
+    display: table-header-group !important;
+    width: 100% !important;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+  tr[data-rt-artifact-version="v25"] .rt-sign-heading-person .rt-person-kopf { padding-top: 14px !important; }
+  tr[data-rt-artifact-version="v25"] .rt-sign-logo { text-align: left !important; }
+  tr[data-rt-artifact-version="v25"] img.rt-logo {
+    margin-left: 0 !important;
+    margin-right: auto !important;
+  }
+}
+@media only screen and (max-width: 480px) {
+  tr[data-rt-artifact-version="v25"] .rt-sign-content { padding: 18px 20px 15px !important; }
+  tr[data-rt-artifact-version="v25"] .rt-sign-logo { padding: 0 0 12px !important; }
+}

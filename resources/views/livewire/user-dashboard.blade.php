@@ -14,7 +14,7 @@
 >
     <x-ui.page :auto-intro="false" content-class="space-y-5 sm:space-y-6">
         <x-ui.welcome-intro
-            :initially-open="\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome')"
+            :initially-open="\App\Support\PageViews::firstVisit(auth()->user(), \App\Support\WelcomeIntroCatalog::TRACKING_KEY)"
         />
 
         <x-ui.dashboard.role-hero

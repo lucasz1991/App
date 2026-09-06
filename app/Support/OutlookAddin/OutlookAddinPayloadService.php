@@ -16,7 +16,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 10;
+    private const RENDERER_REVISION = 11;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -59,7 +59,7 @@ final class OutlookAddinPayloadService
      *
      * Er basiert ausdruecklich auf den veroeffentlichten Bytes statt auf dem
      * Entwurfs-Content-Hash und schliesst die wirklich transportierten
-     * statischen Medien ein.
+     * GIFs und zugehoerigen MSO-Standbilder ein.
      */
     public function sourceFingerprint(User $user): string
     {
@@ -506,7 +506,7 @@ final class OutlookAddinPayloadService
                 return 'cid:'.$attachment['contentId'];
             }
 
-            $path = $this->preferStaticPng($this->mailAssetPath($source));
+            $path = $this->mailAssetPath($source);
             if (! array_key_exists($path, $mediaByPath)) {
                 $mediaByPath[$path] = $this->attachment($path);
                 $this->registerAttachment($mediaByContentId, $mediaByPath[$path]);
@@ -562,17 +562,6 @@ final class OutlookAddinPayloadService
         throw new RuntimeException(
             'Die Signatur enthaelt eine nicht freigegebene oder fehlende Bildquelle: '.substr($source, 0, 180),
         );
-    }
-
-    private function preferStaticPng(string $path): string
-    {
-        if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) !== 'gif') {
-            return $path;
-        }
-
-        $png = preg_replace('/\.gif$/i', '.png', $path);
-
-        return is_string($png) && is_file($png) ? $png : $path;
     }
 
     /** @return array{name: string, contentId: string, base64: string} */
@@ -682,17 +671,18 @@ final class OutlookAddinPayloadService
             MailDocumentKind::Signature,
             $signatureDocument,
         );
-        $mark = str_replace('.gif', '.png', EmailTemplateBuilder::emailMarkAsset('light', $artifactVersion));
-        $logo = str_replace('.gif', '.png', EmailTemplateBuilder::signatureLogoAsset('light', $artifactVersion));
-        $train = $this->mailAssetPath(EmailTemplateBuilder::signatureTrainStillUrl('light', $artifactVersion));
+        $mark = EmailTemplateBuilder::emailMarkAsset('light', $artifactVersion);
+        $logo = EmailTemplateBuilder::signatureLogoAsset('light', $artifactVersion);
+        $train = $this->mailAssetPath(EmailTemplateBuilder::signatureTrainUrl('light', true, $artifactVersion));
+        $trainStill = $this->mailAssetPath(EmailTemplateBuilder::signatureTrainStillUrl('light', $artifactVersion));
 
         return [
             'railtime-mark' => public_path('mail-assets/'.$mark),
-            'railtime-mark-still' => public_path('mail-assets/'.$mark),
+            'railtime-mark-still' => public_path('mail-assets/'.str_replace('.gif', '.png', $mark)),
             'railtime-logo' => public_path('mail-assets/'.$logo),
-            'railtime-logo-still' => public_path('mail-assets/'.$logo),
+            'railtime-logo-still' => public_path('mail-assets/'.str_replace('.gif', '.png', $logo)),
             'railtime-train' => $train,
-            'railtime-train-still' => $train,
+            'railtime-train-still' => $trainStill,
             'railtime-icon-location' => public_path('mail-assets/contact-location.png'),
             'railtime-icon-phone' => public_path('mail-assets/contact-phone.png'),
             'railtime-icon-mobile' => public_path('mail-assets/contact-mobile.png'),
@@ -751,7 +741,7 @@ final class OutlookAddinPayloadService
                 continue;
             }
 
-            $paths[] = $this->preferStaticPng($this->mailAssetPath($source));
+            $paths[] = $this->mailAssetPath($source);
         }
 
         foreach (array_values(array_unique($paths)) as $path) {

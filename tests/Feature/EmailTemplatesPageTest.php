@@ -43,6 +43,8 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\HtmlString;
+use Illuminate\Validation\ValidationException;
 use Mockery;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Mime\Part\DataPart;
@@ -546,6 +548,7 @@ class EmailTemplatesPageTest extends TestCase
         );
 
         foreach ([$payload['signature'], $payload['template']] as $document) {
+            $this->assertStringNotContainsString('rt-train-idle-overlay', $document['html']);
             foreach ($document['media'] as $medium) {
                 $this->assertSame($medium['name'], $medium['contentId']);
                 $this->assertNotSame('', base64_decode($medium['base64'], true));
@@ -750,7 +753,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('.'.$composeScope[1].' .compose-copy{font-size:17px}', $composeHtml);
         $this->assertLessThan(strlen($html), strlen($composeHtml));
         $this->assertLessThan(count($native['media']), count($native['composeMedia']));
-        $this->assertCount(1, $native['composeMedia'], 'Only the template header mark (also used by MSO) is needed without its signature.');
+        $this->assertCount(2, $native['composeMedia'], 'Only the animated template header mark and its separate MSO PNG are needed without its signature.');
         foreach ($native['composeMedia'] as $medium) {
             $this->assertStringContainsString('cid:'.$medium['contentId'], $composeHtml);
             $this->assertNotFalse(base64_decode($medium['base64'], true));
@@ -763,6 +766,129 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertSame($download, (new EmailTemplateBuilder($user))->build('vorlage-html')['content']);
         $this->assertSame($documentAttributes, MailDocument::query()->orderBy('id')->get()
             ->map(fn (MailDocument $document): array => $document->getRawOriginal())->all());
+    }
+
+    public function test_outlook_addin_preserves_gif_bytes_and_mso_stills_for_image_and_css_train_documents(): void
+    {
+        Http::preventStrayRequests();
+        config(['app.url' => 'https://app.rail-time.de', 'outlook_addin.base_url' => 'https://app.rail-time.de']);
+        URL::forceRootUrl('https://app.rail-time.de');
+        URL::forceScheme('https');
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+        $document = MailDocument::query()->where('kind', MailDocumentKind::Signature->value)->firstOrFail();
+        $payloads = app(OutlookAddinPayloadService::class);
+
+        foreach (['v21', 'v23', 'v25'] as $version) {
+            $html = $this->outlookGifSignatureHtml($version);
+            SignatureDocumentContract::assertValid($html);
+            $document->forceFill(['published_html' => $html])->save();
+            app(PublishedMailDocumentSnapshotStore::class)->forget(MailDocumentKind::Signature);
+            $fingerprint = $payloads->sourceFingerprint($user);
+            try {
+                $payload = $payloads->forUser($user);
+            } catch (OutlookAddinException $exception) {
+                $previous = $exception->getPrevious();
+                $this->fail($version.': '.($previous instanceof ValidationException
+                    ? json_encode($previous->errors(), JSON_UNESCAPED_UNICODE)
+                    : $previous?->getMessage() ?? $exception->getMessage()));
+            }
+            $this->assertSame($fingerprint, $payloads->sourceFingerprint($user));
+            $this->assertLessThanOrEqual(30000, strlen(mb_convert_encoding($payload['signature']['html'], 'UTF-16LE', 'UTF-8')) / 2);
+
+            $native = $payload['templates'][0];
+            $this->assertSame('native', $native['signatureMode']);
+            $this->assertStringNotContainsString('RT-SIGNATURE-VERSION:', $native['composeHtml']);
+            $this->assertStringNotContainsString('rt-sign-train', $native['composeHtml']);
+            $this->assertStringNotContainsString('data-rt-signature-background', $native['composeHtml']);
+            $this->assertCount(2, $native['composeMedia']);
+
+            $sourceHashes = (new \ReflectionMethod($payloads, 'sourceAssetHashes'))->invoke(
+                $payloads,
+                app(PublishedMailDocumentSnapshotStore::class)->freshTemplateSnapshots(),
+                app(PublishedMailDocumentSnapshotStore::class)->freshSnapshot(MailDocumentKind::Signature),
+            );
+            foreach ([$payload['signature'], $payload['template'], ['html' => $native['composeHtml'], 'media' => $native['composeMedia']]] as $rendered) {
+                $this->assertStringNotContainsString('data:image/', $rendered['html']);
+                $this->assertStringNotContainsString('rt-train-idle-overlay', $rendered['html']);
+                $this->assertDoesNotMatchRegularExpression('/(?:src=["\']|url\(["\']?)(?:https?:|data:)/i', html_entity_decode($rendered['html'], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                preg_match_all('/cid:([a-zA-Z0-9._@-]+)/', $rendered['html'], $references);
+                $this->assertEqualsCanonicalizing(array_unique($references[1]), array_column($rendered['media'], 'contentId'));
+                foreach ($rendered['media'] as $medium) {
+                    $binary = base64_decode($medium['base64'], true);
+                    $this->assertIsString($binary);
+                    $this->assertSame($medium['name'], $medium['contentId']);
+                    $image = getimagesizefromstring($binary);
+                    $this->assertIsArray($image);
+                    $this->assertSame(str_ends_with($medium['name'], '.gif') ? 'image/gif' : 'image/png', $image['mime']);
+                    $this->assertContains(hash('sha256', $binary), $sourceHashes, 'The snapshot fingerprint must track the transported bytes, not a PNG substitute.');
+                }
+            }
+
+            foreach (['wortmarke-signature-v19-light.gif', 'wortmarke-signature-v19-light.png', 'zug-dampf-v19-light.gif'] as $filename) {
+                $this->assertOutlookMediaContainsAsset($payload['signature'], $filename);
+                $this->assertOutlookMediaContainsAsset($payload['template'], $filename);
+            }
+            foreach (['icon-rt-v19-light.gif', 'icon-rt-v19-light.png'] as $filename) {
+                $this->assertOutlookMediaContainsAsset($payload['template'], $filename);
+                $this->assertOutlookMediaContainsAsset(['html' => $native['composeHtml'], 'media' => $native['composeMedia']], $filename);
+            }
+            $train = file_get_contents(public_path('mail-assets/zug-dampf-v19-light.gif'));
+            $trainCid = 'railtime-'.substr(hash('sha256', $train), 0, 20).'.gif';
+            if ($version === 'v23') {
+                $this->assertMatchesRegularExpression('/background-image:\s*url\([\'\"]?cid:'.preg_quote($trainCid, '/').'[\'\"]?\)/', html_entity_decode($payload['signature']['html'], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                $stillCid = 'railtime-'.substr(hash_file('sha256', public_path('mail-assets/zug-dampf-v19-light.png')), 0, 20).'.png';
+                $this->assertNotContains($stillCid, array_column($payload['signature']['media'], 'contentId'), 'CSS-only V23 must not acquire an unreferenced second train.');
+            } else {
+                $this->assertStringContainsString('src="cid:'.$trainCid.'"', $payload['signature']['html']);
+                $this->assertOutlookMediaContainsAsset($payload['signature'], 'zug-dampf-v19-light.png');
+                $this->assertOutlookMediaContainsAsset($payload['template'], 'zug-dampf-v19-light.png');
+            }
+            $combined = collect([...$payload['signature']['media'], ...$native['composeMedia']])->keyBy('contentId');
+            $this->assertLessThanOrEqual(2097152, $combined->sum(static fn (array $medium): int => strlen(base64_decode($medium['base64'], true))));
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_system_mail_content_uses_the_published_template_font_without_copying_other_body_styles(): void
+    {
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $template = MailDocument::query()->where('kind', MailDocumentKind::Template->value)->firstOrFail();
+        $source = (string) $template->published_html;
+        foreach (['Arial,Helvetica,sans-serif', 'Verdana,Arial,sans-serif', "'Trebuchet MS',Arial,sans-serif", "Georgia,'Times New Roman',serif", "'Times New Roman',Times,serif", 'Calibri,Arial,sans-serif'] as $font) {
+            $published = preg_replace('/font-family:Arial,Helvetica,sans-serif;/', 'font-family:'.htmlspecialchars($font, ENT_QUOTES | ENT_HTML5, 'UTF-8').';', $source, 1, $count);
+            $this->assertSame(1, $count);
+            $template->forceFill(['published_html' => $published])->save();
+            app(PublishedMailDocumentSnapshotStore::class)->forget(MailDocumentKind::Template);
+            $original = $template->getRawOriginal();
+            $content = '<p id="application-font">Normaler Inhalt</p><p style="font-family:Georgia,serif;">Explizite Kindformatierung</p>';
+            $html = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString($content));
+            $dom = new \DOMDocument('1.0', 'UTF-8');
+            $previous = libxml_use_internal_errors(true);
+            try {
+                $this->assertTrue($dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET));
+            } finally {
+                libxml_clear_errors();
+                libxml_use_internal_errors($previous);
+            }
+            $cell = $dom->getElementById('application-font')->parentNode;
+            $this->assertInstanceOf(\DOMElement::class, $cell);
+            $this->assertSame('td', $cell->tagName);
+            $this->assertStringContainsString('font-family:'.$font.';', $cell->getAttribute('style'));
+            $this->assertStringContainsString($content, $html);
+            $this->assertSame($original, $template->fresh()->getRawOriginal());
+        }
+
+        $resolve = new \ReflectionMethod(EmailTemplateBuilder::class, 'systemMailFontFamily');
+        foreach (['', 'var(--mail-font)', 'url(https://example.test/font)', "'Trebuchet MS',Arial!important", 'Arial}body{display:none', 'Arial\\22', str_repeat('A', 257)] as $invalid) {
+            $html = '<html><body style="font-family:'.htmlspecialchars($invalid, ENT_QUOTES | ENT_HTML5, 'UTF-8').';"></body></html>';
+            $this->assertSame('Arial,Helvetica,sans-serif', $resolve->invoke(null, $html));
+        }
+        $this->assertSame('Arial,Helvetica,sans-serif', $resolve->invoke(null, '<html><body></body></html>'));
+        $this->assertSame('Verdana,Arial,sans-serif', $resolve->invoke(null, '<html><body style="font-family:Arial;position:absolute;display:none;font-family:Verdana,Arial,sans-serif;"></body></html>'));
     }
 
     public function test_outlook_compose_template_enforces_transport_budget_before_payload_delivery(): void
@@ -3249,6 +3375,84 @@ class EmailTemplatesPageTest extends TestCase
             $table->timestamp('last_synced_at')->nullable();
             $table->timestamps();
         });
+    }
+
+    /** Published table content stays unchanged while the supported train carrier varies. */
+    private function outlookGifSignatureHtml(string $version): string
+    {
+        $source = $this->canonicalMailDocumentHtml(MailDocumentKind::Signature);
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $dom = new \DOMDocument('1.0', 'UTF-8');
+            $this->assertTrue($dom->loadHTML('<?xml encoding="UTF-8"><table id="gif-fixture"><tbody>'.$source.'</tbody></table>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET));
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        $xpath = new \DOMXPath($dom);
+        $carrier = $xpath->query('//td[@class="rt-sign-cell"]')->item(0);
+        $frame = $xpath->query('//table[@class="rt-sign-content-frame"]')->item(0);
+        $stage = $xpath->query('//div[@class="rt-sign-stage"]')->item(0);
+        foreach ([$carrier, $frame, $stage] as $element) {
+            $this->assertInstanceOf(\DOMElement::class, $element);
+        }
+        $carrier->parentNode->setAttribute('data-rt-artifact-version', $version);
+        foreach ([$carrier, ...iterator_to_array($carrier->getElementsByTagName('*'))] as $element) {
+            $style = preg_replace('/(?:^|;)\s*(?:position|z-index)\s*:[^;]*/i', '', $element->getAttribute('style'));
+            if (strtolower($element->tagName) !== 'img') {
+                $element->removeAttribute('height');
+                $style = preg_replace('/(?:^|;)\s*(?:height|min-height|max-height)\s*:[^;]*/i', '', $style);
+            }
+            if ($element->hasAttribute('style')) {
+                $element->setAttribute('style', ltrim($style, ';'));
+            }
+        }
+        if ($version === 'v23') {
+            $carrier->replaceChild($frame, $stage);
+            foreach (['signature-background' => '1', 'bg-desktop' => '110', 'bg-tablet' => '150', 'bg-mobile' => '175'] as $key => $value) {
+                $carrier->setAttribute('data-rt-'.$key, $value);
+            }
+            $carrier->setAttribute('style', "width:100%;padding:0;background-color:{{SIGNATURE_BG}};background-image:url('{{TRAIN_SRC}}');background-repeat:no-repeat;background-position:65% bottom;background-size:110% auto;border-top:5px solid #e4002b;");
+        } else {
+            $carrier->setAttribute('style', 'width:100%;padding:0;background-color:{{SIGNATURE_BG}};border-top:5px solid #e4002b;');
+            $stage->setAttribute('style', 'display:block;width:100%;overflow:visible;');
+            $frame->setAttribute('style', 'width:100%;border-collapse:collapse;');
+            while ($stage->firstChild !== null) {
+                $stage->removeChild($stage->firstChild);
+            }
+            $stage->appendChild($frame);
+            $train = new \DOMDocument;
+            $train->loadHTML('<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="left" style="display:block;width:100%;max-width:720px;margin:0 auto 0 0;overflow:hidden;font-size:0;line-height:0;text-align:left;"><table class="rt-sign-train-frame" role="presentation" width="100%" height="61" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:61px;border-collapse:collapse;"><tr><td class="rt-sign-train-slot" height="61" valign="bottom" style="height:61px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" height="61" alt="" style="display:block;width:100%;max-width:720px;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;"></td></tr></table></div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
+            if ($version === 'v25') {
+                foreach ($train->getElementsByTagName('*') as $element) {
+                    $style = str_replace('max-width:720px;', 'max-width:none;', $element->getAttribute('style'));
+                    if ($element->tagName !== 'img') {
+                        $element->removeAttribute('height');
+                        $style = str_replace('height:61px;', '', $style);
+                    }
+                    if ($element->hasAttribute('style')) {
+                        $element->setAttribute('style', $style);
+                    }
+                }
+            }
+            $stage->appendChild($dom->importNode($train->documentElement, true));
+        }
+        $result = '';
+        foreach ($dom->getElementById('gif-fixture')->firstElementChild->childNodes as $node) {
+            $result .= $dom->saveHTML($node);
+        }
+
+        return trim(str_ireplace(['%7B', '%7D'], ['{', '}'], $result));
+    }
+
+    private function assertOutlookMediaContainsAsset(array $document, string $filename): void
+    {
+        $binary = file_get_contents(public_path('mail-assets/'.$filename));
+        $this->assertIsString($binary);
+        $matching = array_values(array_filter($document['media'], static fn (array $medium): bool => base64_decode($medium['base64'], true) === $binary));
+        $this->assertCount(1, $matching, $filename.' must be embedded byte-for-byte exactly once.');
+        $this->assertStringEndsWith('.'.pathinfo($filename, PATHINFO_EXTENSION), $matching[0]['name']);
+        $this->assertStringContainsString('cid:'.$matching[0]['contentId'], $document['html']);
     }
 
     private function canonicalMailDocumentHtml(MailDocumentKind $kind): string

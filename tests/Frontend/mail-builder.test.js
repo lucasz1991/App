@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createContext, runInContext } from 'node:vm';
 import { DOMParser } from 'linkedom';
 
 import {
@@ -13,6 +14,7 @@ import {
     createMailNavigationController,
     createMailPreviewController,
     hydrateMailCanvasAssets,
+    installMailTypographyFocus,
     MAIL_EDITOR_MODE,
     MAIL_GJS_OPTIONS,
     MAIL_SAFE_EDITABLE_STYLE_PROPERTIES,
@@ -34,7 +36,7 @@ import {
     synchronizeMailSignatureFixedGeometry,
     synchronizeMailTrainLayerAlignment,
 } from '../../resources/js/mail-builder.js';
-import { createMailBlocks, mailCanvasStyles } from '../../resources/js/mail-builder-blocks.js';
+import { createMailBlocks, mailCanvasStyles, MAIL_DEFAULT_FONT_STACK, MAIL_PERSON_FIELDS } from '../../resources/js/mail-builder-blocks.js';
 
 const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"><table class="rt-sign-train-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;"><tbody><tr><td class="rt-sign-train-slot" height="200" valign="bottom" style="height:200px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;"></td></tr></tbody></table></div>';
 const canonicalSignatureStage = (content = '') => '<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">'
@@ -48,6 +50,11 @@ const flowSafeSignatureStage = (content = '') => '<div class="rt-sign-stage" sty
     + `<tbody><tr><td>${content}</td></tr></tbody></table>`
     + flowSafeTrain
     + '</div>';
+const fluidSignatureStage = (content = '') => flowSafeSignatureStage(content)
+    .replaceAll('max-width:720px', 'max-width:none')
+    .replaceAll(' height="61"', '')
+    .replaceAll('height:61px;', '')
+    .replace('width="720" alt=', 'width="720" height="61" alt=');
 
 const backgroundSignature = (enabled = true) => `<tr data-rt-artifact-version="v22"><td class="rt-sign-cell" width="100%" bgcolor="{{SIGNATURE_BG}}" data-rt-signature-background="${enabled ? '1' : '0'}" data-rt-bg-desktop="110" data-rt-bg-tablet="150" data-rt-bg-mobile="175" style="width:100%;padding:0;background-color:{{SIGNATURE_BG}};background-image:${enabled ? "url('{{TRAIN_SRC}}')" : 'none'};background-size:110% auto;background-position:65% bottom;background-repeat:no-repeat;border-top:5px solid #e4002b;">`
     + '<table class="rt-sign-content-frame" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr><td><img class="rt-logo" src="{{LOGO_SRC}}" width="200" alt="Logo"><p>Kontaktdaten</p></td></tr></table>'
@@ -110,7 +117,7 @@ test('V22 and V23 content style controls exclude invalid fixed heights and overl
         if (version === 'v20') assert.equal(state.stylable, undefined);
         else {
             ['height', 'max-height', 'display', 'margin'].forEach((property) => assert(!state.stylable.includes(property)));
-            ['padding', 'font-size', 'color', 'width'].forEach((property) => assert(state.stylable.includes(property)));
+            ['padding', 'font-family', 'font-size', 'color', 'width'].forEach((property) => assert(state.stylable.includes(property)));
         }
     }
 });
@@ -889,6 +896,43 @@ test('schema 28 keeps V21 in strict content-first flow without overlay geometry'
     assert.equal((outgoing.html.match(/\{\{TRAIN_SRC\}\}/g) || []).length, 1);
     assert.doesNotMatch(outgoing.html, /(?:position|z-index|background-image)\s*:/i);
     assert.doesNotMatch(outgoing.html, /margin(?:-(?:top|right|bottom|left))?\s*:\s*-/i);
+});
+
+test('V25 preserves proportional full-width train flow on save and rejects the old fixed-height frame', () => {
+    const html = `<tr data-rt-artifact-version="v25"><td class="rt-sign-cell">${fluidSignatureStage('<p>V25 Inhalt</p>')}</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtstext</td></tr>`;
+    const options = { kind: 'signature', environment: { DOMParser } };
+    const project = projectForMailDocument({ html, builderData: { pages: [{ component: html }], railtime: { schema: 29, document: 'signature' } } }, () => [], options);
+    const saved = serializeMailDocumentForSave({ ...options, project, html: project.pages[0].component, baselineHtml: html });
+    const doc = new DOMParser().parseFromString(`<html><body><table>${saved.html}</table></body></html>`, 'text/html');
+    const stage = doc.querySelector('.rt-sign-stage');
+    assert(stage.firstElementChild.classList.contains('rt-sign-content-frame'));
+    assert(stage.lastElementChild.classList.contains('rt-sign-train-layer'));
+    for (const selector of ['.rt-sign-train-frame', '.rt-sign-train-slot']) {
+        const element = doc.querySelector(selector);
+        assert(!element.hasAttribute('height'));
+        assert.doesNotMatch(element.getAttribute('style'), /(?:^|;)(?:min-|max-)?height:/);
+    }
+    const image = doc.querySelector('img.rt-sign-train');
+    assert.equal(image.getAttribute('width'), '720');
+    assert.equal(image.getAttribute('height'), '61');
+    assert.equal(image.style.width, '100%');
+    assert.equal(image.style.maxWidth, 'none');
+    assert.equal(image.style.height, 'auto');
+    assert.equal(doc.querySelector('.rt-sign-train-layer').style.maxWidth, 'none');
+    assert.doesNotMatch(saved.html, /background-image|position:|margin-bottom:-|height:200px/);
+    const reload = projectForMailDocument({ html: saved.html, builderData: saved.project }, () => [], options);
+    assert.equal(serializeMailDocumentForSave({ ...options, project: reload, html: reload.pages[0].component, baselineHtml: saved.html }).html, saved.html);
+    for (const invalid of [
+        html.replace('max-width:none', 'max-width:720px'),
+        html.replace('class="rt-sign-train-frame"', 'class="rt-sign-train-frame" height="61"'),
+        html.replace('class="rt-sign-train-slot"', 'class="rt-sign-train-slot" height="61"'),
+        html.replace('width:100%;border-collapse:collapse;', 'width:100%;height:61px;border-collapse:collapse;'),
+        html.replace('padding:0;text-align:left;', 'height:61px;padding:0;text-align:left;'),
+        html.replace('margin:0 auto 0 0;', 'margin:0 auto 0 0;margin-bottom:-61px;'),
+        html.replace('height="61" alt=', 'alt='),
+    ]) {
+        assert.throws(() => projectForMailDocument({ html: invalid, builderData: { pages: [{ component: invalid }] } }, () => [], options));
+    }
 });
 
 test('V21 rejects overlay remnants and never migrates an invalid flow into a legacy stage', () => {
@@ -1805,7 +1849,7 @@ test('fixed signature geometry resets stage and content frame directly to pixels
     });
 });
 
-test('V21 editor synchronization restores flow geometry and bypasses legacy synchronizers', () => {
+for (const version of ['v21', 'v25']) test(`${version.toUpperCase()} editor synchronization restores its flow geometry and bypasses legacy synchronizers`, () => {
     const component = (attributes = {}, tagName = 'div', children = [], style = {}) => {
         const state = { attributes, tagName, style };
         const item = {
@@ -1845,7 +1889,7 @@ test('V21 editor synchronization restores flow geometry and bypasses legacy sync
     const content = component({ class: 'rt-sign-content-frame', height: '200' }, 'table', [], { height: '200px', 'z-index': '1' });
     const stage = component({ class: 'rt-sign-stage' }, 'div', [content, layer], { position: 'relative', height: '200px' });
     const cell = component({ class: 'rt-sign-cell' }, 'td', [stage]);
-    const artifact = component({ 'data-rt-artifact-version': 'v21' }, 'tr', [cell]);
+    const artifact = component({ 'data-rt-artifact-version': version }, 'tr', [cell]);
 
     [stage, content, layer, frame, slot, train].forEach((node) => {
         assert.equal(synchronizeMailSignatureFlowGeometry(node), true);
@@ -1863,22 +1907,24 @@ test('V21 editor synchronization restores flow geometry and bypasses legacy sync
     assert.deepEqual(layer.getStyle(), {
         display: 'block',
         width: '100%',
-        'max-width': '720px',
+        'max-width': version === 'v25' ? 'none' : '720px',
         margin: '0 auto 0 0',
         overflow: 'hidden',
         'font-size': '0',
         'line-height': '0',
         'text-align': 'left',
     });
-    assert.equal(frame.getAttributes().height, '61');
-    assert.equal(slot.getAttributes().height, '61');
+    assert.equal(frame.getAttributes().height, version === 'v25' ? undefined : '61');
+    assert.equal(slot.getAttributes().height, version === 'v25' ? undefined : '61');
+    assert.equal(frame.getStyle().height, version === 'v25' ? undefined : '61px');
+    assert.equal(slot.getStyle().height, version === 'v25' ? undefined : '61px');
     assert.equal(slot.getAttributes().valign, 'bottom');
     assert.equal(train.getAttributes().width, '720');
     assert.equal(train.getAttributes().height, '61');
     assert.deepEqual(train.getStyle(), {
         display: 'block',
         width: '100%',
-        'max-width': '720px',
+        'max-width': version === 'v25' ? 'none' : '720px',
         height: 'auto',
         margin: '0',
         border: '0',
@@ -1935,10 +1981,10 @@ test('mail editor no longer offers misleading train background controls', () => 
         MAIL_SAFE_FONT_STACKS.map((font) => font.id),
         [
             'Arial,Helvetica,sans-serif',
-            'Tahoma,Verdana,sans-serif',
             'Verdana,Arial,sans-serif',
+            "'Trebuchet MS',Arial,sans-serif",
             "Georgia,'Times New Roman',serif",
-            "Consolas,'Courier New',monospace",
+            "'Times New Roman',Times,serif",
         ],
     );
     const progressiveRadius = MAIL_STYLE_SECTORS
@@ -1948,6 +1994,137 @@ test('mail editor no longer offers misleading train background controls', () => 
     assert.equal(MAIL_EDITOR_MODE.id, 'mail');
     assert.equal(MAIL_EDITOR_MODE.contentModel, 'email');
     assert.equal(MAIL_EDITOR_MODE.styleStrategy, 'inline');
+});
+
+test('the bundled GrapesJS font selector writes all five full stacks inline in desktop and mobile preview', () => {
+    // Use the shipped engine, not a substitute PropertySelect mock. Only the
+    // font sector is needed: numeric controls require rendered browser views.
+    const typography = MAIL_STYLE_SECTORS.find((sector) => sector.id === 'rt-mail-typography');
+    assert.match(typography.name, /Typografie/);
+    assert.equal(typography.open, true);
+    const context = createContext({
+        console,
+        setTimeout: () => 0,
+        clearTimeout: () => {},
+        optionsJSON: JSON.stringify({
+            ...MAIL_GJS_OPTIONS,
+            headless: true,
+            storageManager: false,
+            styleManager: { sectors: [{ ...typography, properties: typography.properties.slice(0, 1) }] },
+            deviceManager: { devices: [{ id: 'desktop', name: 'Desktop', width: '' }, { id: 'mobile', name: 'Mobil', width: '390px', widthMedia: '600px' }] },
+        }),
+    });
+    runInContext(readFileSync(new URL('../../public/vendor/lmz-builder/2.4.5/lmz-builder-core.js', import.meta.url), 'utf8'), context);
+    runInContext(`
+        const editor = grapesjs.init(JSON.parse(optionsJSON));
+        try {
+            editor.addComponents({ type: 'text', tagName: 'p', attributes: { 'data-rt-mail-inline-source': '' }, content: 'Lesbarer Mailtext', style: { color: '#112233', 'font-family': "'Trebuchet MS',Arial,sans-serif" } });
+            const text = editor.getWrapper().components().at(0);
+            const property = editor.StyleManager.getProperty('rt-mail-typography', 'font-family');
+            const results = [];
+            for (const device of ['Desktop', 'Mobil']) {
+                editor.setDevice(device);
+                editor.StyleManager.select(text);
+                for (const option of property.getOptions()) {
+                    property.upValue(option.id);
+                    results.push({ device, stack: option.id, style: editor.StyleManager.getSelected().getStyle(), html: editor.getHtml(), css: editor.getCss(), styles: editor.getProjectData().styles });
+                }
+            }
+            output = JSON.stringify({ type: property.getType(), options: property.getOptions(), results });
+        } finally { editor.destroy(); }
+    `, context);
+    const { type, options, results } = JSON.parse(context.output);
+    assert.equal(type, 'select');
+    assert.deepEqual(options, MAIL_SAFE_FONT_STACKS);
+    assert.equal(results.length, 10);
+    for (const result of results) {
+        assert.equal(result.style['font-family'], result.stack);
+        assert.equal(result.style.color, '#112233');
+        assert.equal(result.styles.length, 1, 'only the imported inline style may be represented by its temporary GrapesJS rule');
+        assert(!result.styles.some((rule) => rule.atRuleType || rule.mediaText), 'preview widths must not create competing font CSS rules');
+        const p = new DOMParser().parseFromString(result.html, 'text/html').querySelector('p');
+        assert.doesNotMatch(result.css, /@font-face|@import|@media/);
+
+        for (const kind of ['template', 'signature']) {
+            const baseline = kind === 'template'
+                ? `<!doctype html><html><head><meta charset="utf-8"></head><body><table><tr><td>${p.outerHTML}</td></tr>{{SIGNATURE_BLOCK}}</table></body></html>`
+                : backgroundSignature().replace('<p>Kontaktdaten</p>', p.outerHTML);
+            const project = projectForMailDocument({ html: baseline, builderData: { pages: [{ component: baseline }] } }, () => [], { kind, environment: { DOMParser } });
+            project.styles = result.styles;
+            const saved = serializeMailDocumentForSave({ project, html: project.pages[0].component, kind, baselineHtml: baseline, environment: { DOMParser } });
+            const reload = projectForMailDocument({ html: saved.html, builderData: saved.project }, () => [], { kind, environment: { DOMParser } });
+            const reloadedP = new DOMParser().parseFromString(`<html><body>${reload.pages[0].component}</body></html>`, 'text/html').querySelector('p');
+            assert.equal(reloadedP.style.fontFamily, result.stack, `${kind}/${result.device}: full fallback stack survives save and reopen`);
+            assert.equal(reloadedP.textContent, 'Lesbarer Mailtext');
+        }
+    }
+});
+
+test('mail text selection exposes typography without changing selection or opening styles for structural image or read-only selection', async () => {
+    const handlers = new Map();
+    let selected;
+    const opened = [];
+    const sectorChanges = [];
+    const editor = {
+        on: (event, handler) => handlers.set(event, handler),
+        off: (event, handler) => { if (handlers.get(event) === handler) handlers.delete(event); },
+        getSelected: () => selected,
+        StyleManager: { getSector: (id) => {
+            assert.equal(id, 'rt-mail-typography');
+            return { set: (...args) => sectorChanges.push(args) };
+        } },
+    };
+    const chrome = { openPanel: (panel) => opened.push(panel) };
+    const select = async (state) => {
+        selected = { get: (key) => state[key] };
+        const original = selected;
+        handlers.get('component:selected')?.(selected);
+        await Promise.resolve();
+        assert.equal(selected, original);
+    };
+    const detach = installMailTypographyFocus(editor, chrome);
+    await select({ type: 'text', tagName: 'p', stylable: true });
+    await select({ type: 'text', tagName: 'span', stylable: ['font-family', 'color'] });
+    assert.deepEqual(opened, ['styles', 'styles']);
+    assert.deepEqual(sectorChanges, [['open', true], ['open', true]]);
+    await select({ type: 'image', tagName: 'img', stylable: true });
+    await select({ type: 'tablecell', tagName: 'td', stylable: true });
+    await select({ type: 'text', tagName: 'p', stylable: false });
+    await select({ type: 'text', tagName: 'p', stylable: ['color'] });
+    assert.equal(opened.length, 2);
+    selected = { get: (key) => ({ type: 'text', tagName: 'p' })[key] };
+    handlers.get('component:selected')(selected);
+    selected = null;
+    await Promise.resolve();
+    assert.equal(opened.length, 2, 'stale selection cannot reopen the inspector');
+    selected = { get: (key) => ({ type: 'text', tagName: 'p' })[key] };
+    handlers.get('component:selected')(selected);
+    detach();
+    await Promise.resolve();
+    assert.equal(opened.length, 2, 'unmounted editor cannot reopen the inspector');
+    assert.equal(handlers.size, 0);
+    installMailTypographyFocus(editor, chrome, { readOnly: true })();
+    assert.equal(handlers.size, 0);
+});
+
+test('new mail blocks consistently use the V25 house stack but old imported fonts are not rewritten', () => {
+    assert.equal(MAIL_DEFAULT_FONT_STACK, "'Trebuchet MS',Arial,sans-serif");
+    for (const field of MAIL_PERSON_FIELDS) assert(field.style.includes(`font-family:${MAIL_DEFAULT_FONT_STACK};`));
+    let fontNodes = 0;
+    for (const block of createMailBlocks()) {
+        const document_ = new DOMParser().parseFromString(`<html><body>${block.definition.content}</body></html>`, 'text/html');
+        for (const node of document_.querySelectorAll('[style]')) {
+            if (!node.style.fontFamily) continue;
+            fontNodes += 1;
+            assert.equal(node.style.fontFamily, MAIL_DEFAULT_FONT_STACK, block.id);
+        }
+    }
+    assert(fontNodes >= 10);
+    const baseline = '<!doctype html><html><head></head><body><table><tr><td><p style="font-family:Tahoma,Verdana,sans-serif;">Bestand</p></td></tr>{{SIGNATURE_BLOCK}}</table></body></html>';
+    const project = projectForMailDocument({ html: baseline, builderData: { pages: [{ component: baseline }] } }, () => [], { kind: 'template', environment: { DOMParser } });
+    const saved = serializeMailDocumentForSave({ project, html: project.pages[0].component, kind: 'template', baselineHtml: baseline, environment: { DOMParser } });
+    assert.match(saved.html, /font-family:Tahoma,Verdana,sans-serif;/);
+    assert.doesNotMatch(saved.html, /Trebuchet/);
 });
 
 test('mail style changes keep Outlook presentation attributes in sync and undo restores the original fallback', () => {

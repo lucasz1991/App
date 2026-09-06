@@ -222,7 +222,7 @@ final class TrustedOutlookSignatureCss
             }
 
             $body = self::compactDeclarations($body);
-            if ($artifactVersion === SignatureArtifactVersion::V21
+            if (SignatureArtifactVersion::usesFlowSafeTrain($artifactVersion)
                 && self::selectorsContain($selectors, '.rt-sign-train-layer')) {
                 $body = preg_replace_callback(
                     '/(?:^|;)margin-bottom:-[^;}]+;?/i',
@@ -1317,9 +1317,9 @@ final class TrustedOutlookSignatureCss
             throw new RuntimeException('Das Outlook-Signatur-CSS enthaelt nicht die kanonische V20-stop60-Geometrie.');
         }
 
-        if ($artifactVersion === SignatureArtifactVersion::V21
+        if (SignatureArtifactVersion::usesFlowSafeTrain($artifactVersion)
             && preg_match('/margin-bottom:\s*-\d/i', $css) === 1) {
-            throw new RuntimeException('Das Outlook-Signatur-CSS darf V21 nicht ueberlagern.');
+            throw new RuntimeException('Das Outlook-Signatur-CSS darf den normalen Signaturfluss nicht ueberlagern.');
         }
     }
 }

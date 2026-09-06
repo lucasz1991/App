@@ -34,7 +34,7 @@
 
 <x-ui.page :auto-intro="false">
     <x-ui.welcome-intro
-        :initially-open="\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome')"
+        :initially-open="\App\Support\PageViews::firstVisit(auth()->user(), \App\Support\WelcomeIntroCatalog::TRACKING_KEY)"
     />
 
     <div

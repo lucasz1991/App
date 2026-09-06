@@ -360,8 +360,10 @@ final class SignatureTrainCarrier
             }
 
             $escapedSource = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+            $fluidFlow = SignatureArtifactVersion::detect('signature', $html) === SignatureArtifactVersion::V25;
+            $fallbackSize = $fluidFlow ? 'width:100%;max-width:none;' : 'width:720px;max-width:100%;';
             $fallback = '<!--[if mso]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="'.$escapedSource.'" width="720" height="61" alt="" '
-                .'style="display:block;width:720px;max-width:100%;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;"><![endif]-->';
+                .'style="display:block;'.$fallbackSize.'height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;"><![endif]-->';
             $html = substr_replace($html, $fallback, $slots[0]['endOffset'] + 1, 0);
             self::assertFlowSafeRuntimeImages($html, expectedMsoSource: $source);
 
@@ -526,6 +528,9 @@ final class SignatureTrainCarrier
      */
     public static function assertFlowSafeImage(string $html): void
     {
+        // V25 opts into a fluid IMG row. V21 keeps its exact historical
+        // 720px/61px import shape, so opening an old draft never rewrites it.
+        $fluidFlow = SignatureArtifactVersion::detect('signature', $html) === SignatureArtifactVersion::V25;
         if (! self::usesFlowSafeTrain($html)
             || substr_count($html, '{{TRAIN_SRC}}') !== 1
             || str_contains($html, '{{TRAIN_IDLE_SRC}}')) {
@@ -684,7 +689,7 @@ final class SignatureTrainCarrier
         self::assertExactSimpleStyle($layer, [
             'display' => 'block',
             'width' => '100%',
-            'max-width' => '720px',
+            'max-width' => $fluidFlow ? 'none' : '720px',
             'margin' => '0 auto 0 0',
             'overflow' => 'hidden',
             'font-size' => '0',
@@ -693,11 +698,11 @@ final class SignatureTrainCarrier
         ], 'V21-Zugzeile');
 
         self::assertExactElementAttributeNames($frame, [
-            'class', 'role', 'width', 'height', 'border', 'cellspacing', 'cellpadding', 'style',
+            'class', 'role', 'width', ...($fluidFlow ? [] : ['height']), 'border', 'cellspacing', 'cellpadding', 'style',
         ], 'V21-Zugrahmen');
         if ($frame->getAttribute('role') !== 'presentation'
             || $frame->getAttribute('width') !== '100%'
-            || $frame->getAttribute('height') !== '61'
+            || (! $fluidFlow && $frame->getAttribute('height') !== '61')
             || $frame->getAttribute('border') !== '0'
             || $frame->getAttribute('cellspacing') !== '0'
             || $frame->getAttribute('cellpadding') !== '0') {
@@ -705,15 +710,15 @@ final class SignatureTrainCarrier
         }
         self::assertExactSimpleStyle($frame, [
             'width' => '100%',
-            'height' => '61px',
+            ...($fluidFlow ? [] : ['height' => '61px']),
             'border-collapse' => 'collapse',
         ], 'V21-Zugrahmen');
-        self::assertExactElementAttributeNames($slot, ['class', 'height', 'valign', 'style'], 'V21-Zugslot');
-        if ($slot->getAttribute('height') !== '61' || $slot->getAttribute('valign') !== 'bottom') {
+        self::assertExactElementAttributeNames($slot, ['class', ...($fluidFlow ? [] : ['height']), 'valign', 'style'], 'V21-Zugslot');
+        if ((! $fluidFlow && $slot->getAttribute('height') !== '61') || $slot->getAttribute('valign') !== 'bottom') {
             throw new RuntimeException('Der V21-Zugslot muss an seiner Unterkante ausgerichtet sein.');
         }
         self::assertExactSimpleStyle($slot, [
-            'height' => '61px',
+            ...($fluidFlow ? [] : ['height' => '61px']),
             'padding' => '0',
             'text-align' => 'left',
             'vertical-align' => 'bottom',
@@ -734,7 +739,7 @@ final class SignatureTrainCarrier
         self::assertExactSimpleStyle($image, [
             'display' => 'block',
             'width' => '100%',
-            'max-width' => '720px',
+            'max-width' => $fluidFlow ? 'none' : '720px',
             'height' => 'auto',
             'margin' => '0',
             'border' => '0',
@@ -3118,6 +3123,7 @@ final class SignatureTrainCarrier
     /** @return list<string> */
     private static function flowSafeMsoTrainImageSources(string $html): array
     {
+        $fluidFlow = SignatureArtifactVersion::detect('signature', $html) === SignatureArtifactVersion::V25;
         $slots = array_values(array_filter(
             self::scanStartTags($html),
             static fn (array $tag): bool => $tag['name'] === 'td'
@@ -3160,8 +3166,8 @@ final class SignatureTrainCarrier
             }
             self::assertExactSourceTagStyle($tags[0], [
                 'display' => 'block',
-                'width' => '720px',
-                'max-width' => '100%',
+                'width' => $fluidFlow ? '100%' : '720px',
+                'max-width' => $fluidFlow ? 'none' : '100%',
                 'height' => 'auto',
                 'margin' => '0',
                 'border' => '0',

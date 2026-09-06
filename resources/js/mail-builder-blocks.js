@@ -107,6 +107,9 @@ export const MAIL_PLACEHOLDER_IMAGE =
 /** Platzhalter, den EmailTemplateBuilder durch MailSignature::render() ersetzt. */
 export const SIGNATURE_PLACEHOLDER = '{{SIGNATURE_BLOCK}}';
 
+/** Neue Mailbausteine: Systemschrift mit lokalem Fallback, keine Webfonts. */
+export const MAIL_DEFAULT_FONT_STACK = "'Trebuchet MS',Arial,sans-serif";
+
 /**
  * Personendaten mit ihren Platzhaltern und den Beispielwerten fuer den Editor.
  *
@@ -121,14 +124,14 @@ export const MAIL_PERSON_FIELDS = Object.freeze([
         label: 'Name der Person',
         sample: 'Max Mustermann',
         tone: 'primary',
-        style: 'color:{{TEXT_PRIMARY}};font-family:Arial,Helvetica,sans-serif;font-size:25px;line-height:29px;font-weight:bold;letter-spacing:-.5px;',
+        style: `color:{{TEXT_PRIMARY}};font-family:${MAIL_DEFAULT_FONT_STACK};font-size:25px;line-height:29px;font-weight:bold;letter-spacing:-.5px;`,
     }),
     Object.freeze({
         placeholder: 'POSITION',
         label: 'Funktion',
         sample: 'Disposition',
         tone: 'muted',
-        style: "color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;",
+        style: `color:{{TEXT_MUTED}};font-family:${MAIL_DEFAULT_FONT_STACK};font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;`,
     }),
     Object.freeze({
         placeholder: 'DURCHWAHL',
@@ -136,7 +139,7 @@ export const MAIL_PERSON_FIELDS = Object.freeze([
         sample: '+49 201 123456-78',
         href: 'tel:{{DURCHWAHL_TEL}}',
         tone: 'primary',
-        style: 'color:{{TEXT_PRIMARY}};font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;',
+        style: `color:{{TEXT_PRIMARY}};font-family:${MAIL_DEFAULT_FONT_STACK};font-size:16px;line-height:25px;`,
     }),
     Object.freeze({
         placeholder: 'MOBIL',
@@ -144,7 +147,7 @@ export const MAIL_PERSON_FIELDS = Object.freeze([
         sample: '+49 170 1234567',
         href: 'tel:{{MOBIL_TEL}}',
         tone: 'primary',
-        style: 'color:{{TEXT_PRIMARY}};font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;',
+        style: `color:{{TEXT_PRIMARY}};font-family:${MAIL_DEFAULT_FONT_STACK};font-size:16px;line-height:25px;`,
     }),
     Object.freeze({
         placeholder: 'E_MAIL',
@@ -152,7 +155,7 @@ export const MAIL_PERSON_FIELDS = Object.freeze([
         sample: 'max.mustermann@rail-time.de',
         href: 'mailto:{{E_MAIL}}',
         tone: 'primary',
-        style: 'color:{{TEXT_PRIMARY}};font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;',
+        style: `color:{{TEXT_PRIMARY}};font-family:${MAIL_DEFAULT_FONT_STACK};font-size:16px;line-height:25px;`,
     }),
     Object.freeze({
         placeholder: 'FIRMEN_WEBSITE_LABEL',
@@ -160,11 +163,11 @@ export const MAIL_PERSON_FIELDS = Object.freeze([
         sample: 'rail-time.de',
         href: '{{FIRMEN_WEBSITE_HREF}}',
         tone: 'primary',
-        style: 'color:{{TEXT_PRIMARY}};font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;',
+        style: `color:{{TEXT_PRIMARY}};font-family:${MAIL_DEFAULT_FONT_STACK};font-size:16px;line-height:25px;`,
     }),
 ]);
 
-const FONT_STACK = 'Arial,Helvetica,sans-serif';
+const FONT_STACK = MAIL_DEFAULT_FONT_STACK;
 const ACCENT = '#e4002b';
 
 function htmlEscape(value) {
@@ -474,7 +477,7 @@ body.rt-mail-canvas {
     padding: 0;
     background: ${palette.PAGE_BG};
     color: ${palette.TEXT_PRIMARY};
-    font-family: ${FONT_STACK};
+    font-family: Arial,Helvetica,sans-serif;
     -webkit-text-size-adjust: 100%;
     -ms-text-size-adjust: 100%;
     text-size-adjust: 100%;

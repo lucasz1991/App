@@ -28,6 +28,7 @@ use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\PwaIconController;
 use App\Http\Controllers\WagonListExportController;
 use App\Http\Controllers\WagonListMediaController;
+use App\Http\Controllers\WelcomeIntroMediaController;
 use App\Http\Controllers\Webhooks\LiveKitWebhookController;
 use App\Http\Middleware\EnsureAssistantAccess;
 use App\Http\Middleware\LogActivity;
@@ -158,6 +159,11 @@ Route::view('/email/verify', 'auth.verify-email')
     ->name('verification.notice');
 
 Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified'])->group(function () {
+    Route::get('/onboarding/media/{module}/{asset}', WelcomeIntroMediaController::class)
+        ->where('module', '[a-z0-9-]+')
+        ->where('asset', 'video|poster|captions-de|captions-en')
+        ->withoutMiddleware(LogActivity::class)
+        ->name('welcome-intro.media');
     Route::post('/assistant/audio-input/transcribe', AssistantAudioInputTranscriptionController::class)
         ->middleware(EnsureAssistantAccess::class.':assistant-stt')
         ->name('assistant.audio-input.transcribe');

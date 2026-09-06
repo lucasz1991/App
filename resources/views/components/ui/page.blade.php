@@ -44,7 +44,7 @@
     $mountManagementWelcome = $routeName === 'dashboard'
         && in_array($dashboardAudience, ['administration', 'management'], true);
     $managementWelcomeInitiallyOpen = $mountManagementWelcome
-        ? \App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome')
+        ? \App\Support\PageViews::firstVisit(auth()->user(), \App\Support\WelcomeIntroCatalog::TRACKING_KEY)
         : false;
 @endphp
 

@@ -1,5 +1,6 @@
 import {
     MAIL_BLOCK_ATTRIBUTE,
+    MAIL_DEFAULT_FONT_STACK,
     SIGNATURE_PLACEHOLDER,
     createMailBlocks,
     mailCanvasStyles,
@@ -68,7 +69,7 @@ const MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE = 'data-rt-artifact-version';
 const MAIL_SIGNATURE_FAIL_OPEN_ARTIFACTS = Object.freeze(['v15', 'v16', 'v17', 'v18', 'v19', 'v20']);
 const MAIL_SIGNATURE_ASPECT_SAFE_ARTIFACTS = Object.freeze(['v17', 'v18', 'v20']);
 const MAIL_SIGNATURE_FORWARD_SAFE_ARTIFACTS = Object.freeze(['v19']);
-const MAIL_SIGNATURE_FLOW_SAFE_ARTIFACT = 'v21';
+const MAIL_SIGNATURE_FLOW_SAFE_ARTIFACTS = Object.freeze(['v21', 'v25']);
 const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
 const MAIL_SIGNATURE_MAIN_MARKER = `<!-- ${MAIL_SIGNATURE_MAIN_MARKER_NAME} -->`;
 const MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE = 'data-rt-mail-contact-marker';
@@ -1221,11 +1222,11 @@ const MOTION_CONTROL_SELECTORS = [
  * Fluss-Sektor auf properties mit { extend: 'display', options: [...] }.
  */
 export const MAIL_SAFE_FONT_STACKS = Object.freeze([
-    Object.freeze({ id: 'Arial,Helvetica,sans-serif', label: 'Arial · Outlook-Standard' }),
-    Object.freeze({ id: 'Tahoma,Verdana,sans-serif', label: 'Tahoma · kompakt' }),
+    Object.freeze({ id: 'Arial,Helvetica,sans-serif', label: 'Arial · klassisch' }),
     Object.freeze({ id: 'Verdana,Arial,sans-serif', label: 'Verdana · gut lesbar' }),
+    Object.freeze({ id: MAIL_DEFAULT_FONT_STACK, label: 'Trebuchet MS · RailTime' }),
     Object.freeze({ id: "Georgia,'Times New Roman',serif", label: 'Georgia · Serif' }),
-    Object.freeze({ id: "Consolas,'Courier New',monospace", label: 'Consolas · Monospace' }),
+    Object.freeze({ id: "'Times New Roman',Times,serif", label: 'Times New Roman · klassisch' }),
 ]);
 
 const MAIL_SAFE_STYLE_GROUPS = Object.freeze({
@@ -1282,12 +1283,12 @@ export const MAIL_SAFE_EDITABLE_STYLE_PROPERTIES = Object.freeze(
 export const MAIL_STYLE_SECTORS = Object.freeze([
     Object.freeze({
         id: 'rt-mail-typography',
-        name: 'Schrift · Mail-sicher',
+        name: 'Typografie · Schrift & Text',
         open: true,
         properties: [
             {
                 extend: 'font-family',
-                name: 'Mail-Schrift',
+                name: 'Schriftfamilie',
                 options: MAIL_SAFE_FONT_STACKS,
             },
             ...MAIL_SAFE_STYLE_GROUPS.typography.slice(1),
@@ -1565,9 +1566,9 @@ function usesV20SignatureTrain(rows) {
 }
 
 function usesFlowSafeSignatureTrain(rows) {
-    return String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '')
-        .trim()
-        .toLowerCase() === MAIL_SIGNATURE_FLOW_SAFE_ARTIFACT;
+    return MAIL_SIGNATURE_FLOW_SAFE_ARTIFACTS.includes(
+        String(rows?.[0]?.getAttribute?.(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').trim().toLowerCase(),
+    );
 }
 
 function usesSignatureBackground(rows) {
@@ -2150,6 +2151,7 @@ function assertFlowSafeSignatureTrainImage(wrapper, rows) {
         throw new Error('Die Signatur besitzt keinen V21-Flowvertrag.');
     }
 
+    const fluid = String(rows[0].getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE)).trim().toLowerCase() === 'v25';
     const structure = assertSignatureBaseStructure(wrapper, rows);
     const layers = Array.from(wrapper.querySelectorAll(
         'div[data-rt-layer-train], div.rt-sign-train-layer',
@@ -2250,7 +2252,7 @@ function assertFlowSafeSignatureTrainImage(wrapper, rows) {
     assertInlineStyles(layer, {
         display: 'block',
         width: '100%',
-        'max-width': '720px',
+        'max-width': fluid ? 'none' : '720px',
         margin: '0 auto 0 0',
         overflow: 'hidden',
         'font-size': '0',
@@ -2265,7 +2267,7 @@ function assertFlowSafeSignatureTrainImage(wrapper, rows) {
         'class',
         'role',
         'width',
-        'height',
+        ...(fluid ? [] : ['height']),
         'border',
         'cellspacing',
         'cellpadding',
@@ -2273,7 +2275,7 @@ function assertFlowSafeSignatureTrainImage(wrapper, rows) {
     ], 'Der V21-Zugrahmen');
     if (frame.getAttribute('role') !== 'presentation'
         || frame.getAttribute('width') !== '100%'
-        || frame.getAttribute('height') !== MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT
+        || frame.getAttribute('height') !== (fluid ? null : MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT)
         || frame.getAttribute('border') !== '0'
         || frame.getAttribute('cellspacing') !== '0'
         || frame.getAttribute('cellpadding') !== '0') {
@@ -2281,18 +2283,18 @@ function assertFlowSafeSignatureTrainImage(wrapper, rows) {
     }
     assertInlineStyles(frame, {
         width: '100%',
-        height: '61px',
+        ...(fluid ? {} : { height: '61px' }),
         'border-collapse': 'collapse',
     }, 'Der V21-Zugrahmen', { exact: true });
 
     if (elementClassNames(slot).join(' ') !== 'rt-sign-train-slot'
-        || slot.getAttribute('height') !== MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT
+        || slot.getAttribute('height') !== (fluid ? null : MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT)
         || slot.getAttribute('valign') !== 'bottom') {
         throw new Error('Der V21-Zugslot muss pixelgenau unten ausgerichtet sein.');
     }
-    assertExactElementAttributes(slot, ['class', 'height', 'valign', 'style'], 'Der V21-Zugslot');
+    assertExactElementAttributes(slot, ['class', ...(fluid ? [] : ['height']), 'valign', 'style'], 'Der Flow-Zugslot');
     assertInlineStyles(slot, {
-        height: '61px',
+        ...(fluid ? {} : { height: '61px' }),
         padding: '0',
         'text-align': 'left',
         'vertical-align': 'bottom',
@@ -2320,7 +2322,7 @@ function assertFlowSafeSignatureTrainImage(wrapper, rows) {
     assertInlineStyles(image, {
         display: 'block',
         width: '100%',
-        'max-width': '720px',
+        'max-width': fluid ? 'none' : '720px',
         height: 'auto',
         margin: '0',
         border: '0',
@@ -3188,8 +3190,9 @@ function componentUsesForwardSafeSignatureTrain(component) {
 function componentUsesFlowSafeSignatureTrain(component) {
     for (let current = component; current; current = current?.parent?.()) {
         const attributes = current?.getAttributes?.() || current?.get?.('attributes') || {};
-        if (String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').trim().toLowerCase()
-            === MAIL_SIGNATURE_FLOW_SAFE_ARTIFACT) {
+        if (MAIL_SIGNATURE_FLOW_SAFE_ARTIFACTS.includes(
+            String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').trim().toLowerCase(),
+        )) {
             return true;
         }
     }
@@ -3200,6 +3203,14 @@ function componentUsesFlowSafeSignatureTrain(component) {
 function componentUsesSignatureBackground(component) {
     for (let current = component; current; current = current?.parent?.()) {
         if (['v22', 'v23'].includes(String((current.getAttributes?.() || current.get?.('attributes') || {})[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').toLowerCase())) return true;
+    }
+    return false;
+}
+
+function componentUsesFluidSignatureTrain(component) {
+    for (let current = component; current; current = current?.parent?.()) {
+        const attributes = current?.getAttributes?.() || current?.get?.('attributes') || {};
+        if (String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').trim().toLowerCase() === 'v25') return true;
     }
     return false;
 }
@@ -3261,6 +3272,7 @@ function removeComponentAttributes(component, names) {
 export function synchronizeMailSignatureFlowGeometry(component) {
     if (!componentUsesFlowSafeSignatureTrain(component) && !componentUsesSignatureBackground(component)) return false;
 
+    const fluid = componentUsesFluidSignatureTrain(component);
     const attributes = component?.getAttributes?.() || component?.get?.('attributes') || {};
     const classes = componentClasses(component);
     if (classes.includes('rt-sign-stage')) {
@@ -3294,7 +3306,7 @@ export function synchronizeMailSignatureFlowGeometry(component) {
         return enforceComponentStyle(component, {
             display: 'block',
             width: '100%',
-            'max-width': '720px',
+            'max-width': fluid ? 'none' : '720px',
             margin: '0 auto 0 0',
             overflow: 'hidden',
             'font-size': '0',
@@ -3303,33 +3315,35 @@ export function synchronizeMailSignatureFlowGeometry(component) {
         }) || attributesChanged;
     }
     if (classes.includes('rt-sign-train-frame')) {
+        const removedHeight = fluid && removeComponentAttributes(component, ['height']);
         const attributesChanged = enforceComponentAttributes(component, {
             role: 'presentation',
             width: '100%',
-            height: MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT,
+            ...(fluid ? {} : { height: MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT }),
             border: '0',
             cellspacing: '0',
             cellpadding: '0',
         });
         return enforceComponentStyle(component, {
             width: '100%',
-            height: '61px',
+            ...(fluid ? {} : { height: '61px' }),
             'border-collapse': 'collapse',
-        }) || attributesChanged;
+        }) || attributesChanged || removedHeight;
     }
     if (classes.includes('rt-sign-train-slot')) {
+        const removedHeight = fluid && removeComponentAttributes(component, ['height']);
         const attributesChanged = enforceComponentAttributes(component, {
-            height: MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT,
+            ...(fluid ? {} : { height: MAIL_SIGNATURE_FAIL_OPEN_IMAGE_HEIGHT }),
             valign: 'bottom',
         });
         return enforceComponentStyle(component, {
-            height: '61px',
+            ...(fluid ? {} : { height: '61px' }),
             padding: '0',
             'text-align': 'left',
             'vertical-align': 'bottom',
             'font-size': '0',
             'line-height': '0',
-        }) || attributesChanged;
+        }) || attributesChanged || removedHeight;
     }
     if (classes.includes('rt-sign-train') && attributes['data-rt-train'] !== undefined) {
         const attributesChanged = enforceComponentAttributes(component, {
@@ -3339,7 +3353,7 @@ export function synchronizeMailSignatureFlowGeometry(component) {
         return enforceComponentStyle(component, {
             display: 'block',
             width: '100%',
-            'max-width': '720px',
+            'max-width': fluid ? 'none' : '720px',
             height: 'auto',
             margin: '0',
             border: '0',
@@ -4395,6 +4409,34 @@ export function createMailNavigationController({
     };
 }
 
+/** Textauswahl oeffnet nur im Mail-Modus die vorhandenen Schriftsteuerungen. */
+export function installMailTypographyFocus(editor, chrome, { readOnly = false } = {}) {
+    if (readOnly) return () => {};
+    let disposed = false;
+    const onSelected = (selected) => {
+        const type = String(selected?.get?.('type') || '').toLowerCase();
+        const tag = String(selected?.get?.('tagName') || '').toLowerCase();
+        const stylable = selected?.get?.('stylable');
+        const isText = selected?.is?.('text') || type === 'text'
+            || ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'blockquote'].includes(tag);
+        if (!isText || stylable === false
+            || (Array.isArray(stylable) && !stylable.includes('font-family'))) return;
+
+        // Der gemeinsame Inspector bevorzugt Eigenschaften. Erst nach dessen
+        // Auswahlabgleich auf Stile wechseln; weder Auswahl noch Text aendern.
+        queueMicrotask(() => {
+            if (disposed || editor.getSelected?.() !== selected) return;
+            editor.StyleManager?.getSector?.('rt-mail-typography')?.set?.('open', true);
+            chrome.openPanel?.('styles');
+        });
+    };
+    editor.on?.('component:selected', onSelected);
+    return () => {
+        disposed = true;
+        editor.off?.('component:selected', onSelected);
+    };
+}
+
 /**
  * Startet den Builder im E-Mail-Modus.
  *
@@ -4684,6 +4726,7 @@ export async function createMailBuilder({
     });
     // Die gemeinsame Chrome-Haertung sperrt Systemkomponenten strukturell.
     protectMailSystemComponents(editor);
+    const detachTypographyFocus = installMailTypographyFocus(editor, editorChrome, { readOnly });
     let shellLifecycle = null;
     let assistantAdapter = null;
     let disposed = false;
@@ -4839,6 +4882,7 @@ export async function createMailBuilder({
             shellLifecycle = null;
             assistantAdapter?.destroy();
             assistantAdapter = null;
+            detachTypographyFocus();
             editorChrome.destroy();
             editor.off?.('component:add', onComponentAdd);
             editor.off?.('component:update', onComponentUpdate);

@@ -295,11 +295,13 @@ class EmailTemplateBuilder
         $signature = MailSignature::forUser(
             $this->user,
             $theme,
-            animated: false,
+            animated: true,
             remoteAssets: true,
-            staticAssets: true,
+            staticAssets: false,
         );
-        $rows = trim($signature->render());
+        // Das Haupt-GIF enthaelt seine eigene Einfahrt. Ein historischer,
+        // CSS-verzoegerter Idle-Layer bleibt im Add-in weiterhin ausgeschaltet.
+        $rows = trim($signature->render(overrides: ['TRAIN_IDLE_SRC' => '']));
         if ($rows === '' || preg_match('~<(?:html|body|script)\b~i', $rows) === 1) {
             throw new RuntimeException('Die veroeffentlichte Signatur kann nicht sicher als Outlook-Fragment ausgegeben werden.');
         }
@@ -323,9 +325,9 @@ class EmailTemplateBuilder
 
     /**
      * Aktuell veroeffentlichte Nachrichtenschale als Outlook-Compose-
-     * Fragment. Statische Bilder reduzieren Startzeit und verhindern, dass
-     * eine Animation Voraussetzung fuer das Signaturlayout wird. Die cid:-
-     * Referenzen werden vom Add-in als Inline-Anhaenge eingesetzt.
+     * Fragment. Haupt-GIFs und getrennte MSO-Standbilder bleiben erhalten.
+     * Die cid:-Referenzen werden vom Add-in als Inline-Anhaenge eingesetzt;
+     * die Sichtbarkeit des Inhalts haengt nicht von einer Animation ab.
      */
     public function buildOutlookAddinTemplateHtml(string $theme = 'light'): string
     {
@@ -336,8 +338,10 @@ class EmailTemplateBuilder
         $document = $this->buildEmailHtml(
             inlineImages: false,
             theme: $theme,
+            // cidOutlookImages bindet den Hauptzug explizit an railtime-train.
+            // false unterdrueckt lediglich das alte, CSS-getaktete Idle-Overlay.
             animatedSignature: false,
-            staticAnimations: true,
+            staticAnimations: false,
             cidOutlookImages: true,
         );
         $body = self::outlookAddinFragment($document, includeStyles: false);
@@ -622,6 +626,7 @@ class EmailTemplateBuilder
     {
         $html = self::runtimeDocument(MailDocumentKind::Template, requirePublished: true)
             ?? (string) file_get_contents(self::masterPath('email-master.html'));
+        $fontFamily = self::systemMailFontFamily($html);
         $slot = '__RT_APPLICATION_CONTENT_'.Str::random(32).'__';
         $count = 0;
         $html = preg_replace(
@@ -666,7 +671,7 @@ class EmailTemplateBuilder
         $trusted = $applicationContent->toHtml();
         $applicationRow = '<tr><td class="rt-pad" bgcolor="'.$values['SURFACE_BG'].'" '
             .'style="padding:0 36px 42px;background:'.$values['SURFACE_BG'].';'
-            .'font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:27px;'
+            .'font-family:'.htmlspecialchars($fontFamily, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8').';font-size:16px;line-height:27px;'
             .'color:'.$values['TEXT_SECONDARY'].';text-align:left;">'
             .$trusted
             .'</td></tr>'
@@ -684,6 +689,35 @@ class EmailTemplateBuilder
                 MailDocumentKind::Signature,
             ),
         );
+    }
+
+    /** Only copy a bounded literal family list, never arbitrary body CSS into the content cell. */
+    private static function systemMailFontFamily(string $html): string
+    {
+        $fallback = 'Arial,Helvetica,sans-serif';
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (! $body instanceof \DOMElement) {
+            return $fallback;
+        }
+        preg_match_all('/(?:^|;)\s*font-family\s*:\s*([^;]*)/i', $body->getAttribute('style'), $matches);
+        $value = trim((string) end($matches[1]));
+        // Existing literal stacks remain usable; CSS functions, escapes,
+        // variables, comments, !important and markup cannot cross this boundary.
+        $family = '(?:[A-Za-z][A-Za-z0-9 -]*|"[A-Za-z][A-Za-z0-9 -]*"|\'[A-Za-z][A-Za-z0-9 -]*\')';
+        if ($value === '' || strlen($value) > 256
+            || preg_match('/\A'.$family.'(?:\s*,\s*'.$family.'){0,7}\z/D', $value) !== 1) {
+            return $fallback;
+        }
+
+        return $value;
     }
 
     private static function embedPublishedCss(string $html, string $css, MailDocumentKind $kind): string
