@@ -73,6 +73,23 @@ class EmailTemplatesPageTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
+    public function test_outlook_signature_runtime_uses_the_same_theme_border_as_system_mail(): void
+    {
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $builder = new EmailTemplateBuilder(User::factory()->create());
+
+        foreach (['light', 'dark'] as $theme) {
+            $html = $builder->buildOutlookAddinSignatureHtml($theme);
+            $this->assertSame(1, preg_match('~<style data-rt-outlook-signature-css="1">(.*?)</style>~s', $html, $matches));
+            $border = EmailTemplateBuilder::emailThemeValues($theme)['SIGNATURE_BORDER'];
+            $otherBorder = EmailTemplateBuilder::emailThemeValues($theme === 'light' ? 'dark' : 'light')['SIGNATURE_BORDER'];
+            $this->assertStringContainsString($border, $matches[1]);
+            $this->assertStringNotContainsString($otherBorder, $matches[1]);
+        }
+    }
+
     public function test_v22_v23_signature_background_is_embedded_once_and_reuses_the_img_content_id(): void
     {
         Http::preventStrayRequests();

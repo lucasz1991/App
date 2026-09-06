@@ -111,9 +111,10 @@
                         <button
                             type="button"
                             x-on:click="skip()"
-                            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white/75 ring-1 ring-white/15 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                            class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-3 text-white/75 ring-1 ring-white/15 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
                             aria-label="{{ __('app.close') }}"
                         >
+                            <span class="hidden text-xs font-semibold sm:inline">{{ __('app.skip_intro') }}</span>
                             <i class="far fa-times" aria-hidden="true"></i>
                         </button>
                     </div>

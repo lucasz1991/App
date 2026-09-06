@@ -35,6 +35,8 @@ Homestead.json
 !/tests/Feature/RememberMeAuthenticationTest.php
 !/tests/Feature/EmployeeSelectionIndicatorUiTest.php
 !/tests/Feature/EmailVerificationTest.php
+!/tests/Feature/PageIntroTest.php
+!/tests/Feature/WelcomeIntroMediaTest.php
 !/tests/Feature/CompanyDataOfficialProfileTest.php
 !/tests/Feature/EmailTemplatesPageTest.php
 !/tests/Feature/EmailHtmlSanitizerTest.php
@@ -84,6 +86,7 @@ Homestead.json
 !/tests/Frontend/auth-login-ui.test.js
 !/tests/Frontend/chat-message-actions.test.js
 !/tests/Frontend/live-location.test.js
+!/tests/Frontend/welcome-intro.test.js
 !/tests/Frontend/mail-builder.test.js
 !/tests/Frontend/mail-signature-reply-forward.test.js
 !/tests/Frontend/outlook-compose-template.test.js

@@ -307,13 +307,14 @@ class EmailTemplateBuilder
         }
 
         $publishedCss = $signature->publishedCss();
-        $scopeClass = TrustedOutlookSignatureCss::scopeClass($rows, $publishedCss);
+        $border = self::emailThemeValues($theme)['SIGNATURE_BORDER'];
+        $scopeClass = TrustedOutlookSignatureCss::scopeClass($rows, $publishedCss, $border);
         $publishedStyle = TrustedOutlookSignatureCss::publishedStyle(
             $rows,
             $publishedCss,
             $scopeClass,
         );
-        $runtimeStyle = TrustedOutlookSignatureCss::style($rows, scopeClass: $scopeClass);
+        $runtimeStyle = TrustedOutlookSignatureCss::style($rows, $border, $scopeClass);
 
         return $publishedStyle
             .$runtimeStyle
