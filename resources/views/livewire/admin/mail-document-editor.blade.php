@@ -2192,6 +2192,7 @@
                                 assets: config.mailAssets || [],
                                 previewAssets: config.previewAssets || {},
                                 previewResponsiveCss: config.previewResponsiveCss || {},
+                                previewThemeValues: config.previewThemeValues || {},
                                 compatibilityManifest: config.compatibilityManifest || {},
                                 previewDevice: selectedDevice,
                                 onPreviewChange: updatePreviewStatus,

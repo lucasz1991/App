@@ -4409,6 +4409,7 @@ export function createMailNavigationController({
  * @param {'light'|'dark'} options.theme        Vorschaufarben der Leinwand
  * @param {object}   options.previewAssets      lokale Logo-/Zug-/Iconquellen nur fuer das iframe
  * @param {object}   options.previewResponsiveCss zentrale responsive Regeln nur fuer das iframe
+ * @param {object}   options.previewThemeValues serverautoritative Farben nur fuer das iframe
  * @param {object}   options.compatibilityManifest sicherer UI-Ausschnitt des CSV-Regelkatalogs
  * @param {'desktop'|'tablet'|'mobile'} options.previewDevice Vorschau-Mailclient
  * @param {Function|null} options.onPreviewChange Meldung neuer Vorschaugeometrie
@@ -4427,6 +4428,7 @@ export async function createMailBuilder({
     theme = 'light',
     previewAssets = {},
     previewResponsiveCss = {},
+    previewThemeValues = {},
     compatibilityManifest = {},
     previewDevice = 'desktop',
     onPreviewChange = null,
@@ -4454,7 +4456,7 @@ export async function createMailBuilder({
     const responsiveCssForTheme = (selectedTheme) => String(
         previewResponsiveCss?.[selectedTheme === 'dark' ? 'dark' : 'light'] || '',
     );
-    let canvasCss = mailCanvasStyles(activeTheme, previewAssets, responsiveCssForTheme(activeTheme));
+    let canvasCss = mailCanvasStyles(activeTheme, previewAssets, responsiveCssForTheme(activeTheme), previewThemeValues);
 
     const instance = await runtime.create({
         root,
@@ -4818,7 +4820,7 @@ export async function createMailBuilder({
         /** Leinwandfarben wechseln; die Wahl wird nicht mitgespeichert. */
         setTheme(nextTheme = activeTheme) {
             activeTheme = nextTheme === 'dark' ? 'dark' : 'light';
-            canvasCss = mailCanvasStyles(activeTheme, previewAssets, responsiveCssForTheme(activeTheme));
+            canvasCss = mailCanvasStyles(activeTheme, previewAssets, responsiveCssForTheme(activeTheme), previewThemeValues);
             const stylesApplied = applyMailCanvasStyles(editor, canvasCss);
             hydrateMailCanvasAssets(editor, activeTheme, previewAssets);
             return stylesApplied;

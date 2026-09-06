@@ -465,6 +465,46 @@ test('LMZ traits and mail protection do not recurse through component updates', 
     assert.doesNotMatch(masterLayoutSource.slice(bodyStart), /resources\/js\/app\.js/);
 });
 
+test('mail canvas uses authoritative theme colors without leaking CSS or changing config', () => {
+    const light = Object.freeze({
+        PAGE_BG: '#010203', SURFACE_BG: '#020304', CARD_BG: '#030405', SOFT_BG: '#040506',
+        TEXT_PRIMARY: '#050607', TEXT_SECONDARY: '#060708', TEXT_MUTED: '#070809', BORDER: '#08090a',
+        SIGNATURE_BG: '#090a0b', SIGNATURE_LEGAL_BG: '#0a0b0c', SIGNATURE_TEXT_PRIMARY: '#0b0c0d',
+        SIGNATURE_CONTACT_TEXT: '#0c0d0e', SIGNATURE_META_TEXT: '#0d0e0f', SIGNATURE_TEXT_MUTED: '#0e0f10',
+        SIGNATURE_LEGAL_TEXT: '#0f1011', SIGNATURE_ACCENT: '#101112', SIGNATURE_BORDER: '#111213',
+        SIGNATURE_RULE: '#121314', THEME_LABEL: 'not-a-color', UNKNOWN_TOKEN: '#c0ffee',
+    });
+    const dark = Object.freeze({ ...light, SIGNATURE_BG: '#131415', SIGNATURE_RULE: '#141516' });
+    const previewThemeValues = Object.freeze({ light, dark });
+    const snapshot = JSON.stringify(previewThemeValues);
+    for (const theme of ['light', 'dark']) {
+        const css = mailCanvasStyles(theme, {}, '', previewThemeValues);
+        for (const [token, value] of Object.entries(previewThemeValues[theme])) {
+            if (token === 'THEME_LABEL' || token === 'UNKNOWN_TOKEN') continue;
+            const rule = css.split('\n').find((line) => line.includes(`{{${token}}}`));
+            assert.ok(rule?.includes(`: ${value} !important;`), `${theme}/${token}`);
+        }
+        assert.doesNotMatch(css, /c0ffee|not-a-color/);
+    }
+    assert.equal(JSON.stringify(previewThemeValues), snapshot);
+    assert.equal(mailCanvasStyles('unknown', {}, '', previewThemeValues), mailCanvasStyles('light', {}, '', previewThemeValues));
+
+    for (const value of ['red; } body { display:none', 'url(https://evil.example/color)', '#000000\n}', 42, {}, null]) {
+        const css = mailCanvasStyles('light', {}, '', { light: { SIGNATURE_BG: value } });
+        const rule = css.split('\n').find((line) => line.includes('{{SIGNATURE_BG}}'));
+        assert.ok(rule.includes(': #ffffff !important;'));
+        assert.doesNotMatch(css, /evil\.example|body \{ display:none/);
+    }
+    assert.equal(mailCanvasStyles('light', {}, '', null), mailCanvasStyles('light'));
+    assert.match(mailCanvasStyles('dark'), /\{\{SIGNATURE_RULE\}\}[^\n]*: #252c35 !important;/);
+
+    // Verify both the initial iframe and later theme switches use the server input.
+    const builderSource = readFileSync(new URL('../../resources/js/mail-builder.js', import.meta.url), 'utf8');
+    const viewSource = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
+    assert.match(viewSource, /previewThemeValues:\s*config\.previewThemeValues \|\| \{\}/);
+    assert.equal((builderSource.match(/mailCanvasStyles\(activeTheme, previewAssets, responsiveCssForTheme\(activeTheme\), previewThemeValues\)/g) || []).length, 2);
+});
+
 test('mail canvas renders lightweight same-origin token assets in light and dark without mutating config', () => {
     const previewAssets = {
         light: {
@@ -493,7 +533,7 @@ test('mail canvas renders lightweight same-origin token assets in light and dark
     const editorTrainSelector = 'body.rt-mail-canvas table[data-rt-mail-signature-canvas] tr[data-rt-artifact-version="v19"] .rt-sign-stage > .rt-sign-train-layer';
 
     assert.match(light, /\[bgcolor="\{\{PAGE_BG\}\}"\]/);
-    assert.match(light, /#e7eaed/);
+    assert.match(light, /#eef1f4/);
     assert.match(light, /mail-assets\/light-logo\.gif/);
     assert.doesNotMatch(light, /mail-assets\/light-train\.gif/);
     assert.match(light, /mail-assets\/phone-icon\.png/);

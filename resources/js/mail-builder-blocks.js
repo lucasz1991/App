@@ -33,7 +33,8 @@ export const MAIL_BLOCK_ATTRIBUTE = 'data-rt-mail-block';
 /**
  * Vorschaupalette der Leinwand.
  *
- * Spiegelt EmailTemplateBuilder::emailThemeValues(). Notwendig, weil
+ * Fallback fuer aeltere Aufrufer ohne previewThemeValues. Der Editor erhaelt
+ * seine Farben aus EmailTemplateBuilder::emailThemeValues(). Notwendig, weil
  * '{{SURFACE_BG}}' im style-Attribut fuer den Browser ein ungueltiger Wert
  * ist: er verwirft die Deklaration, und ohne Ersatz saehe der Editor
  * farblos aus. Die Regeln stehen NUR im Leinwand-Stylesheet und niemals im
@@ -41,14 +42,24 @@ export const MAIL_BLOCK_ATTRIBUTE = 'data-rt-mail-block';
  */
 const MAIL_CANVAS_PALETTE = Object.freeze({
     light: Object.freeze({
-        PAGE_BG: '#e7eaed',
-        SURFACE_BG: '#f4f2ed',
+        PAGE_BG: '#eef1f4',
+        SURFACE_BG: '#ffffff',
         CARD_BG: '#ffffff',
-        SOFT_BG: '#eef1f3',
+        SOFT_BG: '#f4f5f7',
         TEXT_PRIMARY: '#111820',
         TEXT_SECONDARY: '#3f4852',
         TEXT_MUTED: '#89939e',
         BORDER: '#dfe3e6',
+        SIGNATURE_BG: '#ffffff',
+        SIGNATURE_LEGAL_BG: '#f4f5f7',
+        SIGNATURE_TEXT_PRIMARY: '#111820',
+        SIGNATURE_CONTACT_TEXT: '#5c6671',
+        SIGNATURE_META_TEXT: '#66717c',
+        SIGNATURE_TEXT_MUTED: '#7b858f',
+        SIGNATURE_LEGAL_TEXT: '#8a939d',
+        SIGNATURE_ACCENT: '#e4002b',
+        SIGNATURE_BORDER: '#dfe3e6',
+        SIGNATURE_RULE: '#dfe3e6',
     }),
     dark: Object.freeze({
         PAGE_BG: '#070a0e',
@@ -59,6 +70,16 @@ const MAIL_CANVAS_PALETTE = Object.freeze({
         TEXT_SECONDARY: '#c3ccd6',
         TEXT_MUTED: '#8f9baa',
         BORDER: '#303944',
+        SIGNATURE_BG: '#0c1017',
+        SIGNATURE_LEGAL_BG: '#080b10',
+        SIGNATURE_TEXT_PRIMARY: '#ffffff',
+        SIGNATURE_CONTACT_TEXT: '#b9c1ca',
+        SIGNATURE_META_TEXT: '#8e98a5',
+        SIGNATURE_TEXT_MUTED: '#77818d',
+        SIGNATURE_LEGAL_TEXT: '#77818d',
+        SIGNATURE_ACCENT: '#ff5570',
+        SIGNATURE_BORDER: '#313944',
+        SIGNATURE_RULE: '#252c35',
     }),
 });
 
@@ -416,9 +437,20 @@ export function createMailBlocks({
  * @param {'light'|'dark'} theme
  * @param {object} previewAssets Hell-/Dunkel-Logo, Zugbild und Kontakticons
  * @param {string} responsiveCss Serverautoritatives Vorschau-CSS; wird nie gespeichert
+ * @param {object} previewThemeValues Serverautoritatives Hell-/Dunkel-Farblexikon nur fuer das iframe
  */
-export function mailCanvasStyles(theme = 'light', previewAssets = {}, responsiveCss = '') {
-    const palette = MAIL_CANVAS_PALETTE[theme] || MAIL_CANVAS_PALETTE.light;
+export function mailCanvasStyles(theme = 'light', previewAssets = {}, responsiveCss = '', previewThemeValues = {}) {
+    const themeKey = theme === 'dark' ? 'dark' : 'light';
+    const palette = { ...MAIL_CANVAS_PALETTE[themeKey] };
+    const serverPalette = previewThemeValues?.[themeKey];
+    for (const token of Object.keys(palette)) {
+        const value = serverPalette?.[token];
+        // Keine beliebigen CSS-Werte/Selektoren aus der Konfiguration in den
+        // iframe schreiben. Die produktive Palette verwendet Hexfarben.
+        if (typeof value === 'string' && /^#(?:[\da-f]{3}|[\da-f]{6})$/i.test(value)) {
+            palette[token] = value;
+        }
+    }
     const themedAssets = previewAssets?.[theme] || {};
     const icons = previewAssets?.icons || {};
     const cssImage = (value) => String(value || '')
@@ -490,15 +522,16 @@ body.rt-mail-canvas img {
 [style*="color:{{TEXT_MUTED}}"] { color: ${palette.TEXT_MUTED} !important; }
 [style*="{{BORDER}}"] { border-color: ${palette.BORDER} !important; }
 
-[bgcolor="{{SIGNATURE_BG}}"], [style*="background:{{SIGNATURE_BG}}"] { background-color: ${theme === 'dark' ? '#0c1017' : '#f7f6f3'} !important; }
-[bgcolor="{{SIGNATURE_LEGAL_BG}}"], [style*="background:{{SIGNATURE_LEGAL_BG}}"] { background-color: ${theme === 'dark' ? '#080b10' : '#efece7'} !important; }
-[style*="color:{{SIGNATURE_TEXT_PRIMARY}}"] { color: ${theme === 'dark' ? '#ffffff' : '#111820'} !important; }
-[style*="color:{{SIGNATURE_CONTACT_TEXT}}"] { color: ${theme === 'dark' ? '#b9c1ca' : '#5c6671'} !important; }
-[style*="color:{{SIGNATURE_META_TEXT}}"] { color: ${theme === 'dark' ? '#8e98a5' : '#66717c'} !important; }
-[style*="color:{{SIGNATURE_TEXT_MUTED}}"] { color: ${theme === 'dark' ? '#77818d' : '#7b858f'} !important; }
-[style*="color:{{SIGNATURE_LEGAL_TEXT}}"] { color: ${theme === 'dark' ? '#77818d' : '#8a939d'} !important; }
-[style*="color:{{SIGNATURE_ACCENT}}"] { color: ${theme === 'dark' ? '#ff5570' : '#e4002b'} !important; }
-[style*="{{SIGNATURE_BORDER}}"], [style*="{{SIGNATURE_RULE}}"] { border-color: ${theme === 'dark' ? '#313944' : '#dfe3e6'} !important; }
+[bgcolor="{{SIGNATURE_BG}}"], [style*="background:{{SIGNATURE_BG}}"] { background-color: ${palette.SIGNATURE_BG} !important; }
+[bgcolor="{{SIGNATURE_LEGAL_BG}}"], [style*="background:{{SIGNATURE_LEGAL_BG}}"] { background-color: ${palette.SIGNATURE_LEGAL_BG} !important; }
+[style*="color:{{SIGNATURE_TEXT_PRIMARY}}"] { color: ${palette.SIGNATURE_TEXT_PRIMARY} !important; }
+[style*="color:{{SIGNATURE_CONTACT_TEXT}}"] { color: ${palette.SIGNATURE_CONTACT_TEXT} !important; }
+[style*="color:{{SIGNATURE_META_TEXT}}"] { color: ${palette.SIGNATURE_META_TEXT} !important; }
+[style*="color:{{SIGNATURE_TEXT_MUTED}}"] { color: ${palette.SIGNATURE_TEXT_MUTED} !important; }
+[style*="color:{{SIGNATURE_LEGAL_TEXT}}"] { color: ${palette.SIGNATURE_LEGAL_TEXT} !important; }
+[style*="color:{{SIGNATURE_ACCENT}}"] { color: ${palette.SIGNATURE_ACCENT} !important; }
+[style*="{{SIGNATURE_BORDER}}"] { border-color: ${palette.SIGNATURE_BORDER} !important; }
+[style*="{{SIGNATURE_RULE}}"] { border-color: ${palette.SIGNATURE_RULE} !important; }
 
 ${imageRule('LOGO_SRC', themedAssets.logo)}
 ${imageRule('ICON_PHONE_SRC', icons.phone)}

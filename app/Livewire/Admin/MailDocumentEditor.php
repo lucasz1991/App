@@ -398,6 +398,12 @@ class MailDocumentEditor extends Component
                     'web' => $contactIconUrls['ICON_WEB_SRC'] ?? '',
                 ],
             ],
+            // Die Canvas-Projektion nutzt exakt dieselbe Palette wie die Mail.
+            // Dokumenttokens und gespeicherte Layoutdaten bleiben unveraendert.
+            'previewThemeValues' => [
+                'light' => EmailTemplateBuilder::emailThemeValues('light'),
+                'dark' => EmailTemplateBuilder::emailThemeValues('dark'),
+            ],
             // Ausschliesslich fuer das GrapesJS-iframe: dieselben zentralen
             // Media Queries wie im spaeteren Versand. Sie werden nicht in
             // builder_data, HTML oder die editierbare CSS-Spalte geschrieben.

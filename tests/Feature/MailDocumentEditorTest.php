@@ -2450,6 +2450,8 @@ HTML;
         $originalTemplateBuilderData = $template->builder_data;
         $originalSignatureBuilderData = $signature->builder_data;
         $originalSignatureHtml = (string) $signature->html;
+        $originalTemplateAttributes = $template->getRawOriginal();
+        $originalSignatureAttributes = $signature->getRawOriginal();
         $repairedSignatureHtml = SignatureTrainCarrier::normalize($originalSignatureHtml);
 
         $admin = $this->admin();
@@ -2523,6 +2525,13 @@ HTML;
         }
 
         foreach (['light', 'dark'] as $theme) {
+            foreach (['template' => $config, 'signature' => $signatureConfig] as $kind => $documentConfig) {
+                $this->assertSame(
+                    EmailTemplateBuilder::emailThemeValues($theme),
+                    data_get($documentConfig, 'previewThemeValues.'.$theme),
+                    $kind.' / '.$theme,
+                );
+            }
             $responsiveCss = (string) data_get($config, 'previewResponsiveCss.'.$theme);
             $this->assertStringContainsString('@media only screen and (max-width: 860px)', $responsiveCss);
             $this->assertStringContainsString('tr.rt-stack > td', $responsiveCss);
@@ -2614,6 +2623,10 @@ HTML;
         $this->assertSame($originalTemplateBuilderData, $template->fresh()->builder_data);
         $this->assertSame($originalSignatureBuilderData, $signature->fresh()->builder_data);
         $this->assertSame($originalSignatureHtml, (string) $signature->fresh()->html);
+        // Beide GETs duerfen auch Version, Freigabe und gespeicherte Farben
+        // nicht veraendern: Die Palette ist ausschliesslich Vorschaukonfiguration.
+        $this->assertSame($originalTemplateAttributes, $template->fresh()->getRawOriginal());
+        $this->assertSame($originalSignatureAttributes, $signature->fresh()->getRawOriginal());
     }
 
     public function test_editorseite_erklaert_fehlende_dokumente_statt_abzustuerzen(): void
