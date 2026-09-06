@@ -1,0 +1,31 @@
+[Unit]
+Description=RailTime OpenUEM PostgreSQL private bridge proxy
+Requires=railtime-openuem-postgres-proxy.socket
+After=docker.service railtime-openuem-postgres-proxy.socket
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=notify
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd 172.25.0.10:5432
+DynamicUser=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+CapabilityBoundingSet=
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32 172.25.0.10/32
+UMask=0077
+MemoryMax=64M
+TasksMax=16
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=10

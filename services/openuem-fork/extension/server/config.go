@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"railtime.local/openuem-extension/inventory"
 	"railtime.local/openuem-extension/protocol"
 )
 
@@ -35,14 +36,16 @@ func (k DeviceKey) Bytes() ([]byte, error) {
 }
 
 type Config struct {
-	Native            *NativeConfig `json:"native,omitempty"`
-	Enabled           bool          `json:"enabled"`
-	Listen            string        `json:"listen"`
-	TLSCertificate    string        `json:"tls_certificate"`
-	TLSPrivateKey     string        `json:"tls_private_key"`
-	CommandTTLSeconds int           `json:"command_ttl_seconds"`
-	Principals        []Principal   `json:"principals"`
-	DeviceKeys        []DeviceKey   `json:"device_keys"`
+	Native               *NativeConfig          `json:"native,omitempty"`
+	Enabled              bool                   `json:"enabled"`
+	ProvisioningOnly     bool                   `json:"provisioning_only"`
+	Listen               string                 `json:"listen"`
+	TLSCertificate       string                 `json:"tls_certificate"`
+	TLSPrivateKey        string                 `json:"tls_private_key"`
+	CommandTTLSeconds    int                    `json:"command_ttl_seconds"`
+	Principals           []Principal            `json:"principals"`
+	DeviceKeys           []DeviceKey            `json:"device_keys"`
+	InventoryEnrollments []inventory.Enrollment `json:"inventory_enrollments,omitempty"`
 }
 
 // NativeConfig carries upstream service connection material in the same
@@ -151,8 +154,18 @@ func (c Config) Validate() error {
 	if c.CommandTTLSeconds < 30 || time.Duration(c.CommandTTLSeconds)*time.Second > 24*time.Hour {
 		return errors.New("invalid command lifetime")
 	}
-	if len(c.Principals) == 0 || len(c.Principals) > 32 || len(c.DeviceKeys) == 0 || len(c.DeviceKeys) > 10000 {
+	if len(c.Principals) == 0 || len(c.Principals) > 32 || len(c.DeviceKeys) > 10000 || len(c.InventoryEnrollments) > 10000 {
 		return errors.New("explicit principals and device keys are required")
+	}
+	// A fresh native installation has no enrolled devices. Its authenticated
+	// infrastructure check must not require invented device identities or keys.
+	// This explicit mode cannot retain any execution authority.
+	if c.ProvisioningOnly {
+		if len(c.DeviceKeys) != 0 {
+			return errors.New("provisioning-only mode forbids device keys")
+		}
+	} else if len(c.DeviceKeys) == 0 {
+		return errors.New("execution requires explicit device keys")
 	}
 	agents := map[string]bool{}
 	keyHashes := map[[32]byte]bool{}
@@ -188,8 +201,15 @@ func (c Config) Validate() error {
 		}
 		ids[p.ID] = true
 		bearers[p.BearerSHA256] = true
-		if p.TenantID <= 0 || p.SiteID <= 0 || len(p.AgentIDs) == 0 || len(p.ProfileIDs) == 0 || len(p.AgentIDs) > 10000 || len(p.ProfileIDs) > 10000 {
+		if p.TenantID <= 0 || p.SiteID <= 0 || len(p.AgentIDs) > 10000 || len(p.ProfileIDs) > 10000 {
 			return errors.New("principal requires explicit tenant, site, agents and profiles")
+		}
+		if c.ProvisioningOnly {
+			if len(p.AgentIDs) != 0 || len(p.ProfileIDs) != 0 {
+				return errors.New("provisioning-only principal must have empty execution scopes")
+			}
+		} else if len(p.AgentIDs) == 0 || len(p.ProfileIDs) == 0 {
+			return errors.New("execution requires explicit agents and profiles")
 		}
 		seenAgents := map[string]bool{}
 		for _, id := range p.AgentIDs {
@@ -204,6 +224,28 @@ func (c Config) Validate() error {
 				return errors.New("invalid or duplicate allowed profile")
 			}
 			seenProfiles[id] = true
+		}
+	}
+	// Inventory is explicitly enrolled independently of command authority. It
+	// may operate while provisioning-only still refuses every execution request.
+	seenEnrollments := map[string]bool{}
+	for _, enrollment := range c.InventoryEnrollments {
+		if err := enrollment.Validate(); err != nil {
+			return err
+		}
+		if seenEnrollments[enrollment.AgentID] {
+			return errors.New("duplicate inventory enrollment")
+		}
+		seenEnrollments[enrollment.AgentID] = true
+		allowed := false
+		for _, principal := range c.Principals {
+			if principal.TenantID == enrollment.TenantID && principal.SiteID == enrollment.SiteID {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return errors.New("inventory enrollment lacks an explicit principal tenant/site")
 		}
 	}
 	return nil

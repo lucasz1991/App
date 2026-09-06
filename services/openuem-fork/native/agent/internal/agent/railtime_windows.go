@@ -61,6 +61,10 @@ func InitializeRailTimeLedger() error {
 }
 
 func (a *Agent) subscribeRailTime() {
+	connection := a.railTimeConnection()
+	if connection == nil || !connection.IsConnected() {
+		return
+	}
 	a.railTimeMu.Lock()
 	defer a.railTimeMu.Unlock()
 	if a.railTime == nil {
@@ -78,7 +82,11 @@ func (a *Agent) subscribeRailTime() {
 			return
 		}
 		e, err := agentexec.NewEngine(cfg, j, a.executeRailTime, func(subject string, wire []byte) ([]byte, error) {
-			msg, err := a.NATSConnection.Request(subject, wire, 10*time.Second)
+			connection := a.railTimeConnection()
+			if connection == nil {
+				return nil, agentexec.ErrState
+			}
+			msg, err := connection.Request(subject, wire, 10*time.Second)
 			if err != nil {
 				return nil, agentexec.ErrState
 			}
@@ -100,7 +108,7 @@ func (a *Agent) subscribeRailTime() {
 	if err != nil {
 		return
 	}
-	sub, err := a.NATSConnection.Subscribe(subject, func(msg *nats.Msg) {
+	sub, err := connection.Subscribe(subject, func(msg *nats.Msg) {
 		cfg, _, err := a.railTimeConfig()
 		if err != nil || !cfg.SameEnrollment(a.railTime.config) {
 			return

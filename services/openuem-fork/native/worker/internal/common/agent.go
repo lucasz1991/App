@@ -23,6 +23,13 @@ import (
 )
 
 func (w *Worker) SubscribeToAgentWorkerQueues() error {
+	// Infrastructure provisioning must never enable upstream's legacy report,
+	// deployment or profile consumers while no actual device is enrolled.
+	// An explicit RailTime configuration isolates the dedicated worker from
+	// every legacy report/profile/command consumer in all execution modes.
+	if w.railTimeConfig != nil || w.RailTimeConfigPath != "" {
+		return w.startRailTimeExtension()
+	}
 	_, err := w.NATSConnection.QueueSubscribe("report", "openuem-agents", w.ReportReceivedHandler)
 	if err != nil {
 		log.Printf("[ERROR]: could not subscribe to report NATS message, reason: %v", err)

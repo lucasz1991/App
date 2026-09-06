@@ -17,7 +17,9 @@ import (
 	"github.com/open-uem/ent/site"
 	"github.com/open-uem/ent/task"
 	"github.com/open-uem/ent/tenant"
+	"github.com/open-uem/openuem-worker/internal/models"
 	"gopkg.in/yaml.v3"
+	"railtime.local/openuem-extension/inventory"
 	"railtime.local/openuem-extension/protocol"
 	"railtime.local/openuem-extension/server"
 	"railtime.local/openuem-extension/store"
@@ -62,6 +64,10 @@ func (w *Worker) startRailTimeExtension() error {
 	ledger := store.New(w.Model.DB)
 	setupCtx, setupCancel := context.WithTimeout(ctx, 30*time.Second)
 	err = ledger.Migrate(setupCtx)
+	inventoryStore := models.InventoryStore{DB: w.Model.DB}
+	if err == nil {
+		err = inventoryStore.Migrate(setupCtx)
+	}
 	if err == nil {
 		err = ledger.Health(setupCtx)
 	}
@@ -83,6 +89,34 @@ func (w *Worker) startRailTimeExtension() error {
 			_ = sub.Unsubscribe()
 		}
 		_ = api.Listener.Close()
+	}
+	for _, enrollment := range config.InventoryEnrollments {
+		e := enrollment
+		subject, subjectErr := inventory.Subject(e.AgentID)
+		if subjectErr != nil {
+			cleanup()
+			return errors.New("RailTime inventory subject invalid")
+		}
+		sub, subscribeErr := w.NATSConnection.QueueSubscribe(subject, "railtime-inventory-v1", func(msg *nats.Msg) {
+			if len(msg.Data) > inventory.MaxWireBytes || msg.Reply == "" {
+				return
+			}
+			reportCtx, reportCancel := context.WithTimeout(ctx, 30*time.Second)
+			defer reportCancel()
+			ack, receiveErr := receiveInventory(reportCtx, inventoryStore, e, msg.Subject, msg.Data, time.Now().UTC())
+			if receiveErr != nil {
+				log.Println("[WARN]: RailTime inventory not acknowledged; validation or persistence failed")
+				return
+			}
+			if msg.Respond(ack) != nil {
+				log.Println("[WARN]: RailTime committed inventory receipt not delivered; retry remains safe")
+			}
+		})
+		if subscribeErr != nil {
+			cleanup()
+			return errors.New("RailTime inventory subscription failed")
+		}
+		runtime.subscriptions = append(runtime.subscriptions, sub)
 	}
 	for _, device := range config.DeviceKeys {
 		agentID := device.AgentID
@@ -117,7 +151,7 @@ func (w *Worker) startRailTimeExtension() error {
 		return errors.New("RailTime result subscriptions not confirmed")
 	}
 	w.railTimeRuntime = runtime
-	runtime.done.Add(2)
+	runtime.done.Add(1)
 	go func() {
 		defer runtime.done.Done()
 		if err := api.Serve(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -125,24 +159,27 @@ func (w *Worker) startRailTimeExtension() error {
 			cancel()
 		}
 	}()
-	go func() {
-		defer runtime.done.Done()
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				dispatchCtx, dispatchCancel := context.WithTimeout(ctx, 20*time.Second)
-				err := service.DispatchOne(dispatchCtx)
-				dispatchCancel()
-				if err != nil && !errors.Is(err, store.ErrNotFound) {
-					log.Println("[WARN]: RailTime dispatch pending; no execution outcome inferred")
+	if !config.ProvisioningOnly {
+		runtime.done.Add(1)
+		go func() {
+			defer runtime.done.Done()
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					dispatchCtx, dispatchCancel := context.WithTimeout(ctx, 20*time.Second)
+					err := service.DispatchOne(dispatchCtx)
+					dispatchCancel()
+					if err != nil && !errors.Is(err, store.ErrNotFound) {
+						log.Println("[WARN]: RailTime dispatch pending; no execution outcome inferred")
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 	log.Println("[INFO]: RailTime run API enabled on configured loopback listener; public TLS and device execution readiness are separate gates")
 	return nil
 }

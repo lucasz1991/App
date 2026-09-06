@@ -1,0 +1,13 @@
+[Unit]
+Description=RailTime OpenUEM PostgreSQL host-loopback socket
+Requires=docker.service
+After=docker.service
+
+[Socket]
+ListenStream=127.0.0.1:15432
+Accept=no
+NoDelay=true
+Service=railtime-openuem-postgres-proxy.service
+
+[Install]
+WantedBy=sockets.target

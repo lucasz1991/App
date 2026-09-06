@@ -11,6 +11,25 @@ final class SignatureImgOverlapFallback
 {
     public const STYLE = 'display:block;width:100%;height:0;max-height:0;margin:0;overflow:visible;font-size:0;line-height:0;text-align:left;';
 
+    /** Office.js needs internal CSS as well as the final inline fallback. */
+    public static function outlookStyle(string $html, string $scope): string
+    {
+        if (! SignatureImgOverlap::applies($html)) {
+            return '';
+        }
+        SignatureImgOverlap::assertRuntime($html);
+        if (preg_match('/\Arts[0-9a-f]{10}\z/', $scope) !== 1) {
+            throw new RuntimeException('Der Outlook-IMG-Scope ist ungueltig.');
+        }
+
+        // Only the carrier loses flow height. Frame/image sizes and clipping
+        // remain under their existing breakpoint rules. Additional specificity
+        // overrides the compact and normal carrier rules, not contact geometry.
+        return '<style data-rt-outlook-img-overlap="1">.'.$scope
+            .' .rt-sign-stage .rt-sign-train-layer{'
+            .str_replace(';', '!important;', self::STYLE).'}'.'</style>';
+    }
+
     public static function apply(string $html): string
     {
         if (! SignatureImgOverlap::applies($html)) {

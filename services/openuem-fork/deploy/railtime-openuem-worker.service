@@ -1,0 +1,41 @@
+[Unit]
+Description=RailTime OpenUEM native worker
+Wants=docker.service
+Requires=railtime-openuem-postgres-proxy.socket railtime-openuem-nats-proxy.socket
+After=docker.service network.target railtime-openuem-postgres-proxy.socket railtime-openuem-nats-proxy.socket
+ConditionPathExists=/srv/railtime-openuem/worker/railtime.json
+ConditionFileIsExecutable=/srv/railtime-openuem/bin/openuem-worker
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=railtime-openuem
+Group=railtime-openuem
+WorkingDirectory=/srv/railtime-openuem/worker
+ExecStart=/srv/railtime-openuem/bin/openuem-worker agents start --railtime-config /srv/railtime-openuem/worker/railtime.json
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+ReadWritePaths=/srv/railtime-openuem/worker
+MemoryMax=512M
+TasksMax=128
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=railtime-openuem-worker
+
+[Install]
+WantedBy=multi-user.target

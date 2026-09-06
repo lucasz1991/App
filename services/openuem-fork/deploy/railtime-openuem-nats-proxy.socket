@@ -1,0 +1,13 @@
+[Unit]
+Description=RailTime OpenUEM NATS host-loopback socket
+Requires=docker.service
+After=docker.service
+
+[Socket]
+ListenStream=127.0.0.1:14443
+Accept=no
+NoDelay=true
+Service=railtime-openuem-nats-proxy.service
+
+[Install]
+WantedBy=sockets.target

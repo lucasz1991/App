@@ -16,11 +16,12 @@ import (
 )
 
 type Health struct {
-	Protocol     string   `json:"protocol"`
-	Ready        bool     `json:"ready"`
-	StorageReady bool     `json:"storage_ready"`
-	BrokerReady  bool     `json:"broker_ready"`
-	Capabilities []string `json:"capabilities"`
+	Protocol         string   `json:"protocol"`
+	Ready            bool     `json:"ready"`
+	StorageReady     bool     `json:"storage_ready"`
+	BrokerReady      bool     `json:"broker_ready"`
+	ProvisioningOnly bool     `json:"provisioning_only"`
+	Capabilities     []string `json:"capabilities"`
 }
 
 func (s *Service) Handler() http.Handler {
@@ -42,14 +43,21 @@ func (s *Service) Handler() http.Handler {
 		defer cancel()
 		switch {
 		case r.URL.Path == "/railtime/v1/health" && r.Method == http.MethodGet:
-			h := Health{Protocol: protocol.Version, StorageReady: s.Ledger.Health(ctx) == nil, BrokerReady: s.Transport.Connected(), Capabilities: []string{"profile_runs_v1"}}
-			h.Ready = h.StorageReady && h.BrokerReady
+			h := Health{Protocol: protocol.Version, StorageReady: s.Ledger.Health(ctx) == nil, BrokerReady: s.Transport.Connected(), ProvisioningOnly: s.Config.ProvisioningOnly, Capabilities: []string{}}
+			if !h.ProvisioningOnly {
+				h.Capabilities = []string{"profile_runs_v1"}
+			}
+			h.Ready = h.StorageReady && h.BrokerReady && !h.ProvisioningOnly
 			status := 200
 			if !h.Ready {
 				status = 503
 			}
 			writeJSON(w, status, h)
 		case r.URL.Path == "/railtime/v1/runs" && r.Method == http.MethodPost:
+			if s.Config.ProvisioningOnly {
+				writeError(w, 503, "provisioning_only")
+				return
+			}
 			if r.Header.Get("Content-Type") != "application/json" {
 				writeError(w, 415, "json_required")
 				return

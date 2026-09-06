@@ -22,6 +22,16 @@ or `wss://` URLs and certificate authentication. Certificate paths are absolute.
 The JSON schema consists of:
 
 - `enabled`: explicit boolean.
+- `provisioning_only`: default false. An explicitly selected first-install mode
+  requires a real authenticated principal scoped to the bootstrapped tenant/site,
+  but **empty** agent/profile allowlists and **no** device keys. It starts only
+  the infrastructure API, not legacy native consumers or the execution dispatcher.
+  Health still checks the actual database and broker, but returns HTTP 503,
+  `ready:false`, `provisioning_only:true`, and `capabilities:[]`. This is not
+  device readiness. Run creation, lookup, dispatch and result ingestion remain
+  disabled, even when called directly. Transitioning to execution requires a
+  reviewed config with real enrollment, per-device keys and dedicated profiles;
+  no synthetic agent or dummy profile is needed to initialize infrastructure.
 - `listen`: exact loopback IP and port; default `127.0.0.1:9441`.
 - `tls_certificate` and `tls_private_key`: optional **pair** of absolute paths.
   With neither set the internal hop is HTTP on loopback only. Public access must
@@ -95,6 +105,14 @@ backup/restore of enrollment keys and production monitoring are separate require
 operational procedures, not implied by the health endpoint.
 
 ## Verification boundary
+
+Inventory-only enrollment is an explicit separate scope: `inventory_enrollments`
+contains canonical real-device UUID/tenant/site tuples, each within a configured
+principal's tenant/site. It grants no profile or device-key permissions and can
+be used while `provisioning_only` remains true. The worker must accept only the
+certificate-bound exact-subject inventory contract documented in
+`../inventory/README.md`, never native generic-report consumers. HTTP503/no
+execution capability remains intentional until separate execution enrollment.
 
 The Worker tests accept a protected **test-only** JSON connection fixture through
 `-railtime-pg-fixture=<absolute-path>` and refuse any endpoint other than the

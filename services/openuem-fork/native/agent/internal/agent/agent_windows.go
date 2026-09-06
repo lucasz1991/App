@@ -35,6 +35,12 @@ import (
 )
 
 func (a *Agent) Start() {
+	if a.Config.Dedicated {
+		if err := a.startDedicated(); err != nil {
+			log.Print("[ERROR]: dedicated pilot startup refused; no legacy fallback")
+		}
+		return
+	}
 
 	log.Println("[INFO]: agent has been started!")
 
@@ -139,6 +145,9 @@ func (a *Agent) Start() {
 }
 
 func (a *Agent) startNATSConnectJob() error {
+	if a.Config.Dedicated {
+		return errDedicatedConfig
+	}
 	var err error
 
 	if a.Config.ExecuteTaskEveryXMinutes == 0 {
@@ -290,6 +299,9 @@ func (a *Agent) PowerOffSubscribe() error {
 }
 
 func (a *Agent) startCheckForWinGetProfilesJob() error {
+	if a.Config.Dedicated {
+		return errDedicatedConfig
+	}
 	var err error
 	// Create task for running the agent
 
@@ -728,35 +740,14 @@ func (a *Agent) ExecutePowerShellScript(script string) (string, string, error) {
 				return "", "", fmt.Errorf("could not close temp ps1 file, reason: %v", err)
 			}
 
-			// Get current Execution-Policy
-			out, err := exec.Command("PowerShell", "-command", "Get-ExecutionPolicy -Scope CurrentUser").CombinedOutput()
-			if err != nil {
-				log.Printf("[ERROR]: could not get current Powershell execution policy, reason: %v, %s", err, string(out))
-				return "", "", fmt.Errorf("could not get current Powershell execution policy, reason: %v, %s", err, string(out))
-			}
-			currentExecutionPolicy := strings.TrimSpace(string(out))
-
-			// Set ExecutionPolicy temporarily to RemoteSigned
-			out, err = exec.Command("PowerShell", "-command", "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser").CombinedOutput()
-			if err != nil {
-				log.Printf("[ERROR]: could not set Powershell execution policy to RemoteSigned temporarily, reason: %v, %s", err, string(out))
-				return "", "", fmt.Errorf("could not set Powershell execution policy to RemoteSigned temporarily, reason: %v, %s", err, string(out))
-			}
-			defer func() {
-				// Revert back to previous ExecutionPolicy
-				out, err = exec.Command("PowerShell", "-command", fmt.Sprintf("Set-ExecutionPolicy %s -Scope CurrentUser", currentExecutionPolicy)).CombinedOutput()
-				if err != nil {
-					log.Printf("[ERROR]: could not revert the Powershell execution policy to RemoteSigned temporarily, reason: %v, %s", err, string(out))
-				}
-			}()
-
-			// Execute script
-			cmd := exec.Command("PowerShell", "-File", file.Name())
+			// Scope policy to this child process only. Group Policy still wins;
+			// no persistent user/machine policy is changed, even after a crash.
+			cmd := powerShellScriptCommand(file.Name())
 			cmd.Stderr = &stderr
 			cmd.Stdout = &stdout
 			if err := cmd.Run(); err != nil {
-				log.Printf("[ERROR]: could not execute powershell script, reason: %v, %s", err, string(out))
-				return "", "", fmt.Errorf("could not execute powershell script, reason: %v, %s", err, string(out))
+				log.Printf("[ERROR]: could not execute powershell script, reason: %v", err)
+				return "", "", fmt.Errorf("could not execute powershell script: %w", err)
 			}
 
 			if a.Config.Debug {
@@ -772,6 +763,10 @@ func (a *Agent) ExecutePowerShellScript(script string) (string, string, error) {
 	}
 
 	return "", "", nil
+}
+
+func powerShellScriptCommand(path string) *exec.Cmd {
+	return exec.Command("PowerShell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned", "-File", path)
 }
 
 func (a *Agent) RunTasks(cfg wingetcfg.WinGetCfg, profileID int, taskControlPath string, taskControl *dsc.TaskControl, force bool) ([]openuem_nats.TaskReport, error) {

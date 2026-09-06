@@ -4,10 +4,61 @@ Local implementation and synthetic tests only. No enrolled device, real key,
 Windows service installation or production NATS execution is proven by this
 checkout. The unchanged upstream agent/MDM requirements still apply.
 
+The Windows native PowerShell runner now uses `-NoProfile -NonInteractive
+-ExecutionPolicy RemoteSigned` on its child process. It never changes or restores
+the persistent CurrentUser/LocalMachine execution policy; administrator Group
+Policy retains precedence. SFTP certificates are loaded only while SFTP is enabled
+(including configuration reloads). An enabled SFTP configuration with a missing or
+invalid certificate fails closed. Neither change enables SFTP or remote support.
+
 ## Enrollment boundary
 
+### Dedicated Windows inventory pilot
+
+The new explicit `[RailTime] Dedicated=true` INI option selects a separate
+Windows-only startup path. It defaults to false for legacy installations; errors
+in dedicated configuration never downgrade to upstream behavior. A single
+serialized inventory/reconnect job replaces legacy NATS commands, JetStream,
+remote-configuration retrieval, pending deployment acknowledgements, automatic
+WinGet profiles, SFTP and VNC/RustDesk listeners. Native inventory is collected
+from this computer, wrapped in `railtime.inventory.v1`, and published only to the
+device's exact report subject. Receipts must match protocol, report, device,
+tenant and site; legacy plain acknowledgements, malformed responses and timeouts
+are not success. Waiting/enabled/disabled server receipts do not rewrite local
+configuration or grant local command authority.
+
+The installer must create the native `config/openuem.ini` adjacent to the binary
+and explicit absolute certificate/key paths in protected directories. The INI,
+its containing directory, certificate files and their containing directories must
+allow only SYSTEM, Administrators and the final service identity, without reparse
+ancestors. Canonical nonzero UUID and positive canonical TenantID/SiteID are
+required. Set Enabled=true, Debug=false, RestartRequired=false, SFTPPort=0,
+VNCProxyPort=0, SFTPDisabled=true, RemoteAssistanceDisabled=true, and positive
+DefaultFrequency/ExecuteTaskEveryXMinutes (1..1440 minutes). Use a single explicit
+`tls://host:port` NATSServers value without credentials, path, query or fragment;
+omit WebSocketPort. AgentCert, AgentKey and CACert are required under Certificates.
+
+The client key must be private PKCS#1 RSA PEM (at least 2048 bits), with a matching
+clientAuth certificate chained to the configured CA and exactly the DNS SAN
+returned by `inventory.ClientIdentity(UUID)`. TLS validates the broker hostname
+and private CA; server discovery and the upstream WebSocket fallback are disabled.
+The broker must map this certificate identity to the exact per-device inventory
+subject. No shared agent credential is acceptable. A public, verified endpoint
+and the server's reviewed enrollment binding remain separate deployment gates.
+NATS request/reply uses the device-specific `_INBOX.railtime.<UUID>` prefix;
+grant this identity subscriptions only to `_INBOX.railtime.<UUID>.>` (and its
+exact signed command subject after separate execution enrollment), never the
+shared `_INBOX.>` namespace. Worker response publishing remains dynamically
+limited to replies to requests it actually received.
+
+Without execution.json, the dedicated mode remains inventory-only. Adding valid
+protected v1 enrollment and its existing journal enables only the signed v1 path
+described below; it does not enable a legacy command listener. No installation,
+CSR issuance, service creation, UUID generation or INI rewrite is performed by the
+dedicated agent. Restart the stopped service to apply a reviewed INI change.
+
 The native Windows service subscribes to the versioned command subject only when
-its protected enrollment exists. Legacy subjects retain their old behavior; v1
+its protected enrollment exists. Outside dedicated mode, legacy subjects retain their old behavior; v1
 does not fall back to legacy execution. The server must reject profiles that also
 apply automatically (`ApplyToAll` or tags). A shared mutex serializes the periodic
 profile path, manual legacy task path and v1 configuration execution, but it does
@@ -79,8 +130,9 @@ not a distributed claim that arbitrary Windows side effects are transactional.
 
 Run `go test ./internal/agent ./internal/service/windows` on Windows; the shared
 extension separately runs `go test ./agentexec`. Tests use disposable private
-directories, synthetic signatures and fake native callbacks; they do not execute
-PowerShell, enroll a device or create actual key material.
+directories, synthetic signatures, in-memory test-only TLS keys/certificates and
+fake native callbacks; they do not execute PowerShell, connect to a real broker,
+enroll a device or create deployable credential files.
 
 Before a live pilot: review license/upstream obligations, package signing and
 service identity/ACLs; back up the existing native task state and new journal;

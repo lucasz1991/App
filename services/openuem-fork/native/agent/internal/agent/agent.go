@@ -48,6 +48,9 @@ type Agent struct {
 	executionMu            *sync.Mutex
 	railTimeMu             *sync.Mutex
 	railTime               *railTimeRuntime
+	dedicatedMu            *sync.Mutex
+	dedicatedConnectionMu  *sync.RWMutex
+	dedicatedStopping      bool
 }
 
 type JSONActions struct {
@@ -68,6 +71,9 @@ func New() Agent {
 	if err := agent.ReadConfig(); err != nil {
 		log.Fatalf("[FATAL]: could not read agent config: %v", err)
 	}
+	if agent.Config.Dedicated {
+		return agent
+	}
 
 	// If it's the initial config, set it and write it
 	if agent.Config.UUID == "" {
@@ -83,15 +89,14 @@ func New() Agent {
 	}
 	agent.CACert = caCert
 
-	agent.SFTPCert, err = openuem_utils.ReadPEMCertificate(agent.Config.SFTPCert)
-	if err != nil {
-		log.Fatalf("[FATAL]: could not read sftp certificate")
-	}
-
 	return agent
 }
 
 func (a *Agent) Stop() {
+	if a.Config.Dedicated {
+		a.stopDedicated()
+		return
+	}
 	a.stopRailTime()
 	if a.TaskScheduler != nil {
 		if err := a.TaskScheduler.Shutdown(); err != nil {
@@ -129,6 +134,10 @@ func (a *Agent) RunReport() *report.Report {
 	}
 
 	if r.IP == "" {
+		if a.Config.Dedicated {
+			log.Print("[WARN]: dedicated inventory has no usable IP; no configuration changed")
+			return nil
+		}
 		log.Println("[WARN]: agent has no IP address, report won't be sent and we're flagging this so the watchdog can restart the service")
 
 		// Get conf file
@@ -159,6 +168,19 @@ func (a *Agent) RunReport() *report.Report {
 }
 
 func (a *Agent) SendReport(r *report.Report) error {
+	if a.Config.Dedicated {
+		return sendDedicatedReport(a.Config, r, time.Now().UTC(), func(subject string, data []byte, timeout time.Duration) ([]byte, error) {
+			connection := a.railTimeConnection()
+			if connection == nil || !connection.IsConnected() {
+				return nil, errDedicatedReport
+			}
+			message, err := connection.Request(subject, data, timeout)
+			if err != nil || message == nil {
+				return nil, errDedicatedReport
+			}
+			return message.Data, nil
+		})
+	}
 	data, err := json.Marshal(r)
 	if err != nil {
 		return err
@@ -175,6 +197,9 @@ func (a *Agent) SendReport(r *report.Report) error {
 }
 
 func (a *Agent) startReportJob() error {
+	if a.Config.Dedicated {
+		return errDedicatedConfig
+	}
 	var err error
 	// Create task for running the agent
 	if a.Config.ExecuteTaskEveryXMinutes == 0 {
@@ -196,6 +221,9 @@ func (a *Agent) startReportJob() error {
 }
 
 func (a *Agent) startPendingACKJob() error {
+	if a.Config.Dedicated {
+		return errDedicatedConfig
+	}
 	var err error
 	// Create task for running the agent
 	_, err = a.TaskScheduler.NewJob(
@@ -213,6 +241,10 @@ func (a *Agent) startPendingACKJob() error {
 }
 
 func (a *Agent) ReportTask() {
+	if a.Config.Dedicated {
+		a.dedicatedTick()
+		return
+	}
 	r := a.RunReport()
 	if r == nil {
 		return
@@ -241,6 +273,9 @@ func (a *Agent) ReportTask() {
 }
 
 func (a *Agent) PendingACKTask() {
+	if a.Config.Dedicated {
+		return
+	}
 	actions, err := ReadDeploymentNotACK()
 	if err != nil {
 		log.Printf("[ERROR]: could not read pending deployment ack, reason: %s\n", err.Error())
@@ -625,6 +660,10 @@ func (a *Agent) SendDeployResult(r *openuem_nats.DeployAction) error {
 }
 
 func (a *Agent) SubscribeToNATSSubjects() {
+	if a.Config.Dedicated {
+		a.subscribeRailTime()
+		return
+	}
 
 	// Create JetStream consumer with associated subjects
 	go func() {
@@ -753,6 +792,9 @@ func (a *Agent) SubscribeToNATSSubjects() {
 }
 
 func (a *Agent) CreateAgentJetStreamConsumer() {
+	if a.Config.Dedicated {
+		return
+	}
 	var ctx context.Context
 
 	js, err := jetstream.New(a.NATSConnection)
@@ -801,6 +843,9 @@ func (a *Agent) CreateAgentJetStreamConsumer() {
 }
 
 func (a *Agent) GetRemoteConfig() error {
+	if a.Config.Dedicated {
+		return errDedicatedConfig
+	}
 	if a.NATSConnection == nil {
 		return fmt.Errorf("NATS connection is not ready")
 	}

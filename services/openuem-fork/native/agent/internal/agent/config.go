@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"crypto/x509"
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,6 +17,7 @@ const SCHEDULETIME_5MIN = 5
 const SCHEDULETIME_30MIN = 30
 
 type Config struct {
+	Dedicated                bool
 	NATSServers              string
 	UUID                     string
 	ExecuteTaskEveryXMinutes int
@@ -56,6 +59,26 @@ func (a *Agent) ReadConfig() error {
 	if err != nil {
 		log.Println("[ERROR]: could not read INI file")
 		return err
+	}
+	// A dedicated pilot never enters the legacy parser or falls back after a
+	// protected enrollment/configuration error. Reloads cannot downgrade mode.
+	dedicated := false
+	if key, keyErr := cfg.Section("RailTime").GetKey("Dedicated"); keyErr == nil {
+		dedicated, err = key.Bool()
+		if err != nil {
+			return errDedicatedConfig
+		}
+	}
+	if a.Config.Dedicated && !dedicated {
+		return errDedicatedConfig
+	}
+	if dedicated {
+		value, err := readDedicatedConfig(configFile)
+		if err != nil {
+			return err
+		}
+		a.Config = value
+		return nil
 	}
 
 	key, err := cfg.Section("Agent").GetKey("UUID")
@@ -199,12 +222,6 @@ func (a *Agent) ReadConfig() error {
 	} else {
 		a.Config.SFTPCert = key.String()
 	}
-	_, err = openuem_utils.ReadPEMCertificate(a.Config.SFTPCert)
-	if err != nil {
-		log.Println("[ERROR]: could not read sftp certificate")
-		a.Config.SFTPCert = ""
-	}
-
 	key, err = cfg.Section("Agent").GetKey("WingetConfigureFrequency")
 	if err != nil {
 		a.Config.WingetConfigureFrequency = SCHEDULETIME_30MIN
@@ -264,11 +281,32 @@ func (a *Agent) ReadConfig() error {
 		a.Config.ScriptsRun = key.String()
 	}
 
+	// Validate after SFTPDisabled is parsed, including every config reload.
+	// Disabled SFTP needs no certificate; enabling it must still fail closed.
+	a.SFTPCert, err = sftpCertificate(a.Config, openuem_utils.ReadPEMCertificate)
+	if err != nil {
+		return err
+	}
+
 	log.Println("[INFO]: agent has read its settings from the INI file")
 	return nil
 }
 
+func sftpCertificate(config Config, read func(string) (*x509.Certificate, error)) (*x509.Certificate, error) {
+	if config.SFTPDisabled {
+		return nil, nil
+	}
+	cert, err := read(config.SFTPCert)
+	if err != nil || cert == nil {
+		return nil, errors.New("enabled SFTP requires a readable certificate")
+	}
+	return cert, nil
+}
+
 func (c *Config) WriteConfig() error {
+	if c.Dedicated {
+		return errDedicatedConfig
+	}
 	// Get conf file
 	configFile := openuem_utils.GetAgentConfigFile()
 
@@ -298,6 +336,9 @@ func (c *Config) WriteConfig() error {
 }
 
 func (c *Config) ResetRestartRequiredFlag() error {
+	if c.Dedicated {
+		return errDedicatedConfig
+	}
 	// Get conf file
 	configFile := openuem_utils.GetAgentConfigFile()
 
@@ -312,6 +353,9 @@ func (c *Config) ResetRestartRequiredFlag() error {
 }
 
 func (c *Config) SetRestartRequiredFlag() error {
+	if c.Dedicated {
+		return errDedicatedConfig
+	}
 	// Get conf file
 	configFile := openuem_utils.GetAgentConfigFile()
 
@@ -326,6 +370,9 @@ func (c *Config) SetRestartRequiredFlag() error {
 }
 
 func (a *Agent) SetInitialConfig() {
+	if a.Config.Dedicated {
+		return
+	}
 	id := uuid.New()
 	a.Config.UUID = id.String()
 	a.Config.Enabled = true

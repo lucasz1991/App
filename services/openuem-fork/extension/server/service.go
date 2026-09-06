@@ -61,6 +61,9 @@ func (s *Service) Authenticate(token string) (Principal, bool) {
 }
 
 func (s *Service) Accept(ctx context.Context, p Principal, r protocol.RunRequest) (protocol.RunView, int, error) {
+	if s.Config.ProvisioningOnly {
+		return protocol.RunView{}, http.StatusServiceUnavailable, ErrForbidden
+	}
 	if err := r.Validate(); err != nil {
 		return protocol.RunView{}, http.StatusUnprocessableEntity, err
 	}
@@ -126,6 +129,9 @@ func (s *Service) Accept(ctx context.Context, p Principal, r protocol.RunRequest
 }
 
 func (s *Service) Get(ctx context.Context, p Principal, id string) (protocol.RunView, error) {
+	if s.Config.ProvisioningOnly {
+		return protocol.RunView{}, ErrForbidden
+	}
 	r, err := s.Ledger.Get(ctx, p.ID, id)
 	if err != nil {
 		return protocol.RunView{}, err
@@ -142,6 +148,9 @@ func (s *Service) Get(ctx context.Context, p Principal, id string) (protocol.Run
 // DispatchOne claims one committed outbox row. A transport timeout changes only
 // the next retry time, never the run ID or the recorded execution outcome.
 func (s *Service) DispatchOne(ctx context.Context) error {
+	if s.Config.ProvisioningOnly {
+		return ErrForbidden
+	}
 	if !s.Transport.Connected() {
 		return errors.New("broker unavailable")
 	}
@@ -225,6 +234,9 @@ func (s *Service) DispatchOne(ctx context.Context) error {
 // ReceiveResult is called by the native subscriber with an exact configured
 // device subject. The signed payload must agree; a JSON AgentID is not authority.
 func (s *Service) ReceiveResult(ctx context.Context, subjectAgent string, wire []byte) ([]byte, error) {
+	if s.Config.ProvisioningOnly {
+		return nil, ErrForbidden
+	}
 	key, ok := s.Config.DeviceKey(subjectAgent)
 	if !ok {
 		return nil, ErrForbidden

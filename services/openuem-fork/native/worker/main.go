@@ -24,6 +24,8 @@ func main() {
 
 func getCommands() []*cli.Command {
 	return []*cli.Command{
+		commands.Bootstrap(),
+		commands.AdmitInventory(),
 		commands.AgentWorker(),
 		commands.CertManagerWorker(),
 		commands.NotificationsWorker(),

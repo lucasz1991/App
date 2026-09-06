@@ -1,0 +1,44 @@
+# Actual mTLS broker; copy to private config/nats.conf only after PKI review.
+# Bootstrap identity must have DNS SAN railtime-openuem-worker.
+server_name: railtime-openuem
+listen: "0.0.0.0:4222"
+max_connections: 256
+max_payload: 8388608
+write_deadline: "10s"
+tls {
+  cert_file: "/etc/nats/certs/server.crt"
+  key_file: "/etc/nats/certs/server.key"
+  ca_file: "/etc/nats/certs/ca.crt"
+  verify_and_map: true
+  min_version: "1.2"
+  timeout: 5
+}
+# Do not enable handshake_first: current native nats.go starts with NATS INFO.
+jetstream {
+  store_dir: "/data/jetstream"
+  max_memory_store: 67108864
+  max_file_store: 1073741824
+}
+authorization {
+  default_permissions {
+    publish: {deny: [">"]}
+    subscribe: {deny: [">"]}
+  }
+  users: [
+    {
+      user: "railtime-openuem-worker"
+      permissions {
+        publish: {allow: ["railtime.execution.v1.command.*"]}
+        subscribe: {allow: [
+          "_INBOX.>", "report", "deployresult", "ping.agentworker", "agentconfig",
+          "wingetcfg.profiles", "ansiblecfg.profiles", "wingetcfg.deploy",
+          "wingetcfg.exclude", "wingetcfg.report", "railtime.execution.v1.result.*"
+        ]}
+        allow_responses: {max: 1, expires: "60s"}
+      }
+    }
+  ]
+}
+# No agent identity or wildcard agent credential exists in this baseline.
+# Each actual enrolled agent needs its own certificate identity and exact
+# command/result subject grants. Never broaden to an unrestricted user or ">".

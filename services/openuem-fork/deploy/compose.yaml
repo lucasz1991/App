@@ -1,0 +1,122 @@
+name: railtime-openuem
+
+services:
+  postgres:
+    image: postgres:17.11-bookworm@sha256:7bade6d532592ca8ce7ee32def7399dad2607c4ea5583839fc4352a095a11ea6
+    platform: linux/amd64
+    container_name: railtime-openuem-postgres
+    user: "54321:54321"
+    entrypoint: ["/bin/sh", "/opt/railtime/postgres-start.sh"]
+    command: ["serve"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 768m
+    stop_grace_period: 90s
+    # Docker29 does not publish ports for internal-only endpoints. Host access
+    # is via the dedicated loopback-only systemd socket proxy, not Docker NAT.
+    networks:
+      backend:
+        ipv4_address: 172.25.0.10
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+      - /run/postgresql:rw,noexec,nosuid,nodev,size=16m,uid=54321,gid=54321,mode=0700
+    volumes:
+      - type: bind
+        source: /srv/railtime-openuem/postgres/data
+        target: /var/lib/postgresql/data
+        bind: {create_host_path: false}
+      - type: bind
+        source: /srv/railtime-openuem/config/postgres-start.sh
+        target: /opt/railtime/postgres-start.sh
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /srv/railtime-openuem/config/postgresql.conf
+        target: /etc/railtime/postgresql.conf
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /srv/railtime-openuem/config/pg_hba.conf
+        target: /etc/railtime/pg_hba.conf
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /srv/railtime-openuem/config/postgres.passwd
+        target: /etc/passwd
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /srv/railtime-openuem/config/postgres.group
+        target: /etc/group
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /srv/railtime-openuem/secrets/postgres-bootstrap-password
+        target: /run/railtime-secrets/postgres-bootstrap-password
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: ["CMD", "/usr/lib/postgresql/17/bin/pg_isready", "-h", "/run/postgresql", "-p", "5432", "-U", "postgres", "-d", "postgres"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      io.railtime.component: openuem-postgres
+      io.railtime.scope: dedicated-device-management
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+  nats:
+    image: nats:2.11.17-alpine3.22@sha256:a7d440bf0240e664ed74fc17c70d616e6ff4bb9890dc26f7276589daedd1e196
+    platform: linux/amd64
+    container_name: railtime-openuem-nats
+    user: "54322:54322"
+    command: ["-c", "/etc/nats/nats.conf"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 384m
+    stop_grace_period: 30s
+    networks:
+      backend:
+        ipv4_address: 172.25.0.11
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    volumes:
+      - type: bind
+        source: /srv/railtime-openuem/nats/data
+        target: /data
+        bind: {create_host_path: false}
+      - type: bind
+        source: /srv/railtime-openuem/config/nats.conf
+        target: /etc/nats/nats.conf
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /srv/railtime-openuem/secrets/nats
+        target: /etc/nats/certs
+        read_only: true
+        bind: {create_host_path: false}
+    labels:
+      io.railtime.component: openuem-nats
+      io.railtime.scope: dedicated-device-management
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+networks:
+  backend:
+    name: railtime-openuem-backend
+    driver: bridge
+    internal: true
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+          gateway: 172.25.0.1

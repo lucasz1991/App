@@ -165,11 +165,42 @@ test('session-only presence stays conservative until forceBody confirms native t
     assert.equal(verified.present, true);
     assert.equal(verified.legacySignatureEmbedded, false);
     assert.equal(state.bodyReads, 1);
-    state.html = '<p>Marker removed by client</p>';
+    state.html = '<table><tr><td>Marker removed by client</td></tr></table>';
     const missingMarker = await readTemplateState(office, item, { forceBody: true });
     assert.equal(missingMarker.present, true);
     assert.equal(missingMarker.legacySignatureEmbedded, true);
     assert.deepEqual(state.sessionWrites, []);
+});
+
+test('removed plain template allows signature refresh but retains explicit additional-insert protection', async () => {
+    const { office, item, state } = fixture({ session: '1' });
+    state.html = '<span>My replacement message</span><div></div>';
+    const result = await readTemplateState(office, item, { forceBody: true });
+    assert.equal(result.present, true);
+    assert.equal(result.legacySignatureEmbedded, false);
+    assert.deepEqual(state.sessionWrites, []);
+    await assert.rejects(prependTemplate(office, item, nativeHtml), { code: 'TEMPLATE_ALREADY_INSERTED' });
+    assert.equal(state.prepends.length, 0);
+    // Refreshing the native signature after removal must not reclassify the
+    // same item as an old embedded template. Duplicate confirmation persists.
+    state.html += '<div id="Signature">RT-SIGNATURE-MANAGED-V1<table><tr><td>Signature</td></tr></table></div>';
+    assert.equal((await readTemplateState(office, item, { forceBody: true })).legacySignatureEmbedded, false);
+    state.html += `<!--${TEMPLATE_MARKER}-->`;
+    assert.equal((await readTemplateState(office, item, { forceBody: true })).legacySignatureEmbedded, true);
+});
+
+test('missing-marker media, hidden styles, signature and ambiguous replies remain conservative', async () => {
+    for (const html of ['<img src="cid:x">', '<style>p{color:red}</style>',
+        '<span>RT-SIGNATURE-MANAGED-V1</span>', '<div style="background:url(x)">Text</div>']) {
+        const { office, item, state } = fixture({ session: '1' });
+        state.html = html;
+        assert.equal((await readTemplateState(office, item, { forceBody: true })).legacySignatureEmbedded, true);
+    }
+    for (const composeType of ['reply', 'forward', undefined]) {
+        const { office, item } = fixture({ session: '1' });
+        item.getComposeTypeAsync = callback => callback(success({ composeType }));
+        assert.equal((await readTemplateState(office, item, { forceBody: true })).legacySignatureEmbedded, true);
+    }
 });
 
 test('native template keeps duplicate protection and separate signature ownership after a confirmed prepend', async () => {

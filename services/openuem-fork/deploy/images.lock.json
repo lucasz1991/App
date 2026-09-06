@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "resolved_utc_date": "2026-09-06",
+  "platform": "linux/amd64",
+  "postgres": {
+    "image": "postgres:17.11-bookworm@sha256:7bade6d532592ca8ce7ee32def7399dad2607c4ea5583839fc4352a095a11ea6",
+    "index_digest": "sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0",
+    "source": "https://github.com/docker-library/postgres/tree/2603e26e245e558218728ee14e0a42dcb020dc7f/17/bookworm",
+    "uid": 54321,
+    "gid": 54321
+  },
+  "nats": {
+    "image": "nats:2.11.17-alpine3.22@sha256:a7d440bf0240e664ed74fc17c70d616e6ff4bb9890dc26f7276589daedd1e196",
+    "index_digest": "sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00",
+    "source": "https://github.com/nats-io/nats-docker/tree/e6bf552cc60f59021c14158a86e014f8bd8997f9/2.11.x/alpine3.22",
+    "uid": 54322,
+    "gid": 54322
+  }
+}

@@ -8,6 +8,7 @@ use App\Support\Mail\CssSemantic;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureBackgroundContract;
+use App\Support\Mail\SignatureImgOverlapFallback;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TemplateDocumentContract;
@@ -315,9 +316,12 @@ class EmailTemplateBuilder
             $scopeClass,
         );
         $runtimeStyle = TrustedOutlookSignatureCss::style($rows, $border, $scopeClass);
+        $overlapStyle = SignatureImgOverlapFallback::outlookStyle($rows, $scopeClass);
+        $rows = SignatureImgOverlapFallback::apply($rows);
 
         return $publishedStyle
             .$runtimeStyle
+            .$overlapStyle
             .'<div class="rt-outlook-signature '.$scopeClass.'" style="display:block;width:100%;">'
             .'<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" '
             .'style="width:100%;border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">'

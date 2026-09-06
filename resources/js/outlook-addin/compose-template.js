@@ -7,6 +7,7 @@ const nativeTemplateMarker = new RegExp(`${NATIVE_TEMPLATE_MARKER}${NATIVE_MARKE
 const legacyTemplateMarker = new RegExp(`${TEMPLATE_MARKER}(?!:NATIVE-SIGNATURE${NATIVE_MARKER_END})`);
 const TEMPLATE_SESSION_KEY = 'railtime.template.inserted.v1';
 const appliedItems = new WeakSet();
+const observedTemplateRemovals = new WeakSet();
 const insertionOperations = new WeakMap();
 export const TEMPLATE_INSERT_LIMITS = Object.freeze({
     htmlLength: 100000,
@@ -265,12 +266,24 @@ export async function readTemplateState(office, item, { forceBody = false } = {}
         officeRead(office, (callback) => item.getComposeTypeAsync(callback)),
     ]);
     const state = templateStateFromBody(html, compose?.composeType);
+    const current = currentComposeBodyHtml(html, compose?.composeType);
+    // A completed session is still a duplicate-prevention claim, not proof
+    // that the user left the template in the body. Only a readable, scoped,
+    // plain-text editing result can disprove an embedded signature here.
+    // Tables/media/hidden styles, unknown reply boundaries and pending claims
+    // remain conservative; never clear the session or auto-repeat a write.
+    const removed = knownPresent && state.readable && !state.tooLarge && !state.present
+        && current !== null
+        && !/<\s*(?:table|img|picture|svg|style|script|object|iframe|video|canvas|v:|o:)|RT-SIGNATURE-|\b(?:background|src)\s*=|url\s*\(/i.test(current);
+    if (removed) observedTemplateRemovals.add(item);
+    const removalConfirmed = observedTemplateRemovals.has(item) && current !== null
+        && state.readable && !state.tooLarge && !state.present;
     return {
         ...state,
         present: knownPresent || state.present,
         // Session v1 deliberately keeps its old value for cached runtimes. It
         // cannot prove whether a template had a separate or embedded signature.
-        legacySignatureEmbedded: state.legacySignatureEmbedded || (knownPresent && !state.present),
+        legacySignatureEmbedded: state.legacySignatureEmbedded || (knownPresent && !state.present && !removalConfirmed),
     };
 }
 
