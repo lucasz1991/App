@@ -4,6 +4,7 @@
     'size' => 8,
     'showEmail' => false,
     'showPresence' => true,
+    'showContext' => false,
     'selected' => false,
     'selectionIndicator' => false,
 ])
@@ -39,6 +40,9 @@
         ?: 'Unbekannt';
     $email = trim((string) ($resolvedUser->email ?? $resolvedPerson->email ?? ''));
     $isOnline = $hasUser && $showPresence && $resolvedUser->isOnline();
+    $profilePosition = trim((string) ($resolvedUser?->profile?->position ?? ''));
+    $teamName = trim((string) ($resolvedUser?->currentTeam?->name ?? ''));
+    $contextLabel = $profilePosition !== '' ? $profilePosition : $teamName;
 
     $avatarUrl = 'https://ui-avatars.com/api/?name='
         . urlencode($displayName)
@@ -104,9 +108,16 @@
         @endif
     </span>
 
-    <span class="min-w-0">
-        <span class="block truncate text-sm font-semibold leading-5 text-rt-text dark:text-rt-dark-text">
-            {{ $displayName }}
+    <span class="min-w-0 flex-1">
+        <span class="flex min-w-0 items-baseline gap-1.5">
+            <span class="min-w-0 truncate text-sm font-semibold leading-5 text-rt-text dark:text-rt-dark-text">
+                {{ $displayName }}
+            </span>
+            @if ($showContext && $contextLabel !== '')
+                <span class="rt-user-public-info__context shrink-0 truncate text-[9px] font-bold leading-4 text-rt-accent dark:text-rt-dark-accent">
+                    {{ $contextLabel }}
+                </span>
+            @endif
         </span>
         @if ($showEmail && $email !== '')
             <span class="block truncate text-xs leading-4 text-rt-muted dark:text-rt-dark-muted">

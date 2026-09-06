@@ -149,7 +149,10 @@ class HeaderInbox extends Component
         }
 
         $chats = $user->chats()
-            ->with('participants')
+            ->with([
+                'participants' => fn ($query) => $query
+                    ->withMax('activities as last_activity_at', 'created_at'),
+            ])
             ->where('chats.type', '!=', 'call')
             ->orderByDesc('chats.updated_at')
             ->limit(3)

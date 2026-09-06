@@ -19,8 +19,8 @@
                 dropdown-id="topbar-inbox"
                 layer-group="topbar"
                 wire:key="topbar-inbox-dropdown"
-                dropdown-classes="!rounded-xl !shadow-rt-md"
-                content-classes="!rounded-xl !border-rt-border/60 bg-rt-surface text-rt-text dark:!border-rt-dark-border/60 dark:bg-rt-dark-surface dark:text-white">
+                dropdown-classes="rt-inbox-dropdown !rounded-[1.2rem]"
+                content-classes="rt-inbox-panel !rounded-[1.2rem] bg-rt-surface p-1.5 text-rt-text dark:bg-rt-dark-surface dark:text-white">
         {{-- Trigger: ein Icon, ein Zaehler fuer beides --}}
         <x-slot name="trigger">
             <x-topbar.control-button
@@ -48,10 +48,11 @@
             @endphp
             <div
                 x-data="{ inboxTab: @js($inboxDefaultTab) }"
-                class="max-w-[calc(100vw-2rem)] bg-rt-surface text-[0.8125rem]/5 text-rt-text dark:bg-rt-dark-surface dark:text-white"
+                class="max-w-[calc(100vw-2rem)] text-[0.8125rem]/5"
+                data-rt-inbox-premium-list
             >
                 {{-- Tab-Leiste: Chats | Nachrichten, mit Ungelesen-Zaehlern. --}}
-                <div class="grid grid-cols-2 gap-1 border-b border-rt-border/70 p-1.5 dark:border-rt-dark-border/70" role="tablist" data-inbox-tabs>
+                <div class="rt-inbox-tabs grid grid-cols-2 gap-1 p-1" role="tablist" data-inbox-tabs>
                     @foreach ([
                         'chats' => ['label' => __('app.chats'), 'count' => $unreadChatMessagesCount],
                         'messages' => ['label' => __('app.messages'), 'count' => $unreadMessagesCount],
@@ -61,10 +62,8 @@
                             role="tab"
                             @click.stop="inboxTab = @js($tabKey)"
                             :aria-selected="(inboxTab === @js($tabKey)).toString()"
-                            :class="inboxTab === @js($tabKey)
-                                ? 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent'
-                                : 'text-rt-muted hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-white'"
-                            class="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent/35"
+                            :class="inboxTab === @js($tabKey) ? 'is-active' : ''"
+                            class="rt-inbox-tab inline-flex min-h-10 items-center justify-center gap-2 rounded-[0.72rem] px-3 text-sm font-bold outline-none"
                             data-inbox-tab="{{ $tabKey }}"
                         >
                             {{ $tab['label'] }}
@@ -82,13 +81,17 @@
                      !important, ohne den Modifier liesse sich der Tab nie
                      ausblenden. --}}
                 <div x-show.important="inboxTab === 'chats'" x-cloak data-inbox-panel="chats">
-                <div class="divide-y divide-rt-border dark:divide-rt-dark-border">
+                <div class="rt-chat-stacked-list rt-chat-stacked-list--inbox mt-1.5 space-y-1">
                     @forelse ($recentChats as $chat)
                         @php
                             $chatUnread = $unreadPerChat[$chat->id] ?? 0;
                             $chatName = $chat->displayNameFor($viewer);
                             $chatAvatar = $chat->avatarUrlFor($viewer) ?: asset('rt-brand/rt-logo.svg');
                             $lastMessage = $chat->latestMessage;
+                            $chatPerson = $chat->isGroup()
+                                ? null
+                                : $chat->participants->firstWhere('id', '!=', $viewer?->id);
+                            $chatPersonIsOnline = $chatPerson?->isOnline() ?? false;
                             // Einmal-sichtbare Nachrichten werden in der Vorschau
                             // bewusst NICHT im Klartext angezeigt.
                             $preview = null;
@@ -115,49 +118,51 @@
                             }
                         @endphp
 
-                        <a
-                            href="{{ route('chat', ['chat' => $chat->id]) }}"
+                        <x-chat.stacked-list-item
+                            :href="route('chat', ['chat' => $chat->id])"
                             wire:navigate
-                            class="flex w-full items-center gap-3 p-3 text-left transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted {{ $chatUnread > 0 ? 'bg-rt-accent-soft dark:bg-rt-dark-accent-soft' : '' }}"
+                            :unread="$chatUnread > 0"
+                            compact
                         >
-                            @if ($chat->isGroup())
-                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
-                                    <i class="far fa-users text-xs" aria-hidden="true"></i>
-                                </span>
-                            @else
-                                <img src="{{ $chatAvatar }}" class="h-8 w-8 shrink-0 rounded-full object-cover" alt="">
+                            <x-slot:avatar>
+                                <x-chat.avatar
+                                    :src="$chatAvatar"
+                                    :name="$chatName"
+                                    size="xs"
+                                    :signal="$chatPersonIsOnline"
+                                    decorative
+                                />
+                            </x-slot:avatar>
+                            <x-slot:title>{{ $chatName }}</x-slot:title>
+                            <x-slot:context>
+                                {{ $chat->isGroup() ? __('app.group_chat') : __('app.direct_chat') }}
+                            </x-slot:context>
+                            <x-slot:meta>
+                                <i class="far fa-comment-dots" aria-hidden="true"></i>
+                                <span>{{ $preview ?: __('app.no_messages_yet') }}</span>
+                            </x-slot:meta>
+                            @if ($lastMessage && $chatUnread === 0)
+                                <x-slot:time>
+                                    <span title="{{ $lastMessage->created_at->format('d.m.Y H:i') }}">
+                                        {{ $lastMessage->created_at->diffForHumans() }}
+                                    </span>
+                                </x-slot:time>
                             @endif
-
-                            <span class="min-w-0 flex-auto">
-                                <span class="flex items-center gap-2">
-                                    <span class="truncate font-medium {{ $chatUnread > 0 ? 'font-semibold' : '' }}">{{ $chatName }}</span>
-                                    @if ($lastMessage)
-                                        <span class="shrink-0 text-[11px] text-rt-muted dark:text-white/70" title="{{ $lastMessage->created_at->format('d.m.Y H:i') }}">
-                                            {{ $lastMessage->created_at->diffForHumans() }}
-                                        </span>
-                                    @endif
-                                </span>
-                                <span class="mt-0.5 block truncate text-rt-muted dark:text-white/80">
-                                    {{ $preview ?: '—' }}
-                                </span>
-                            </span>
-
                             @if ($chatUnread > 0)
-                                <span class="ml-1 shrink-0 rounded-full bg-rt-red px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                                    {{ $chatUnread > 99 ? '99+' : $chatUnread }}
-                                </span>
+                                <x-slot:badge>{{ $chatUnread > 99 ? '99+' : $chatUnread }}</x-slot:badge>
                             @endif
-                        </a>
+                        </x-chat.stacked-list-item>
                     @empty
                         <div class="p-4 text-center text-rt-muted dark:text-white/80">{{ __('app.no_chats') }}</div>
                     @endforelse
                 </div>
 
-                <div class="border-t border-rt-border px-3 py-2 dark:border-rt-dark-border">
+                <div class="rt-inbox-footer px-1 pb-1 pt-1.5">
                     <a href="{{ route('chat') }}"
                        wire:navigate
-                       class="block rounded-lg px-4 py-2 text-center font-medium text-rt-text shadow-rt-xs ring-1 ring-rt-border transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted hover:text-rt-accent active:scale-[0.98] dark:text-white dark:ring-rt-dark-border dark:hover:bg-rt-dark-surface-muted dark:hover:text-white">
-                        {{ __('app.view_all_chats') }}
+                       class="rt-inbox-view-all group flex min-h-10 items-center justify-between rounded-xl px-3.5 text-sm font-bold">
+                        <span>{{ __('app.view_all_chats') }}</span>
+                        <span class="rt-inbox-view-all__icon" aria-hidden="true"><i class="far fa-arrow-right"></i></span>
                     </a>
                 </div>
                 </div>
@@ -165,7 +170,7 @@
                 {{-- ---------------- Nachrichten ---------------- --}}
                 <div x-show.important="inboxTab === 'messages'" x-cloak data-inbox-panel="messages">
 
-                <div class="divide-y divide-rt-border dark:divide-rt-dark-border">
+                <div class="rt-chat-stacked-list rt-chat-stacked-list--inbox mt-1.5 space-y-1">
                     @forelse ($receivedMessages as $message)
                         @php
                             $isAdminSender = optional($message->sender)->role === 'admin';
@@ -176,38 +181,52 @@
                             $isUnread      = (int) $message->status === 1;
                         @endphp
 
-                        <button
-                            type="button"
-                            class="flex w-full items-center gap-3 p-3 text-left transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted {{ $isUnread ? 'bg-rt-accent-soft dark:bg-rt-dark-accent-soft' : '' }}"
+                        <x-chat.stacked-list-item
+                            :unread="$isUnread"
+                            compact
                             wire:click="$dispatch('message-viewer:open', { messageId: {{ $message->id }} })"
                         >
-                            <img src="{{ $senderAvatar }}" class="h-8 w-8 shrink-0 rounded-full object-cover" alt="">
-                            <div class="min-w-0 flex-auto">
-                                <div class="flex items-center gap-2">
-                                    <div class="truncate font-medium {{ $isUnread ? 'font-semibold' : '' }}">{{ $senderName }}</div>
-                                    <div class="shrink-0 text-[11px] text-rt-muted dark:text-white/70" title="{{ $message->created_at->format('d.m.Y H:i') }}">
+                            <x-slot:avatar>
+                                <x-chat.avatar
+                                    :src="$senderAvatar"
+                                    :name="$senderName"
+                                    size="xs"
+                                    decorative
+                                />
+                            </x-slot:avatar>
+                            <x-slot:title>{{ $senderName }}</x-slot:title>
+                            <x-slot:context>{{ __('app.message') }}</x-slot:context>
+                            <x-slot:meta>
+                                @if ($message->files_count > 0)
+                                    <i class="far fa-paperclip" aria-hidden="true"></i>
+                                @else
+                                    <i class="far fa-envelope" aria-hidden="true"></i>
+                                @endif
+                                <span class="rt-chat-stacked-item__meta-strong">{{ $message->subject }}</span>
+                                <span aria-hidden="true">·</span>
+                                <span>{{ \Illuminate\Support\Str::limit(strip_tags($message->message), 60) }}</span>
+                            </x-slot:meta>
+                            @if ($isUnread)
+                                <x-slot:status>{{ __('app.unread') }}</x-slot:status>
+                            @else
+                                <x-slot:time>
+                                    <span title="{{ $message->created_at->format('d.m.Y H:i') }}">
                                         {{ $message->created_at->diffForHumans() }}
-                                    </div>
-                                </div>
-                                <div class="truncate text-rt-text dark:text-white {{ $isUnread ? 'font-medium' : '' }}">{{ $message->subject }}</div>
-                                <div class="mt-0.5 flex items-center gap-2 text-rt-muted dark:text-white/80">
-                                    @if ($message->files_count > 0)
-                                        <i class="far fa-paperclip shrink-0 text-rt-soft dark:text-white/60" aria-hidden="true"></i>
-                                    @endif
-                                    <span class="truncate">{{ \Illuminate\Support\Str::limit(strip_tags($message->message), 60) }}</span>
-                                </div>
-                            </div>
-                        </button>
+                                    </span>
+                                </x-slot:time>
+                            @endif
+                        </x-chat.stacked-list-item>
                     @empty
                         <div class="p-4 text-center text-rt-muted dark:text-white/80">{{ __('app.no_messages') }}</div>
                     @endforelse
                 </div>
 
-                <div class="border-t border-rt-border p-3 dark:border-rt-dark-border">
+                <div class="rt-inbox-footer px-1 pb-1 pt-1.5">
                     <a href="{{ $messageRoute }}"
                        wire:navigate
-                       class="block rounded-lg px-4 py-2 text-center font-medium text-rt-text shadow-rt-xs ring-1 ring-rt-border transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted hover:text-rt-accent active:scale-[0.98] dark:text-white dark:ring-rt-dark-border dark:hover:bg-rt-dark-surface-muted dark:hover:text-white">
-                        {{ __('app.view_all_messages') }}
+                       class="rt-inbox-view-all group flex min-h-10 items-center justify-between rounded-xl px-3.5 text-sm font-bold">
+                        <span>{{ __('app.view_all_messages') }}</span>
+                        <span class="rt-inbox-view-all__icon" aria-hidden="true"><i class="far fa-arrow-right"></i></span>
                     </a>
                 </div>
                 </div>

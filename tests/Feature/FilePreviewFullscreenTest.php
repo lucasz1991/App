@@ -9,6 +9,7 @@ use App\Models\FilePool;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -62,6 +63,26 @@ class FilePreviewFullscreenTest extends TestCase
         $this->assertStringContainsString('backdrop-filter: blur(30px)', $styles);
         $this->assertStringContainsString('env(safe-area-inset-top)', $styles);
         $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $styles);
+    }
+
+    public function test_fullscreen_can_render_editor_before_header_without_changing_other_modals(): void
+    {
+        foreach ([false, true] as $bodyBeforeHeader) {
+            $html = Blade::render(
+                '<x-ui.fullscreen-modal title="Editor" :body-before-header="$bodyBeforeHeader"><div id="editor-canvas">Canvas</div><x-slot:footer><button>Footer</button></x-slot:footer></x-ui.fullscreen-modal>',
+                compact('bodyBeforeHeader'),
+            );
+
+            $this->assertSame(1, substr_count($html, 'id="editor-canvas"'));
+            $this->assertSame(1, substr_count($html, 'data-rt-fullscreen-body'));
+            $this->assertSame(1, substr_count($html, 'data-rt-fullscreen-header'));
+            $this->assertSame($bodyBeforeHeader, strpos($html, 'data-rt-fullscreen-body') < strpos($html, 'data-rt-fullscreen-header'));
+            $this->assertTrue(strpos($html, 'data-rt-overlay-portal') > strpos($html, '</footer>'));
+            if ($bodyBeforeHeader) {
+                $this->assertStringContainsString('class="order-first z-10', $html);
+                $this->assertStringContainsString('class="relative z-0', $html);
+            }
+        }
     }
 
     public function test_view_permission_does_not_expose_or_execute_download_action(): void

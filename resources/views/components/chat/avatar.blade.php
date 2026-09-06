@@ -3,6 +3,7 @@
     'name' => '',
     'size' => 'md',
     'signal' => false,
+    'decorative' => false,
 ])
 
 @php
@@ -23,7 +24,7 @@
     @if ($src)
         <img
             src="{{ $src }}"
-            alt="{{ $name }}"
+            alt="{{ $decorative ? '' : $name }}"
             class="{{ $sizes[$size] ?? $sizes['md'] }} rounded-full object-cover"
         >
     @else

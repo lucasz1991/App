@@ -179,6 +179,7 @@
     <x-ui.fullscreen-modal
         state="pageBuilderOpen"
         :trap="false"
+        :body-before-header="true"
         close-action="requestClose()"
         escape-action="if (! pageBuilderAssistantOpen() && ! pageBuilderSubdialogOpen()) requestClose()"
         labelledby="{{ $shellId }}-title"
@@ -233,20 +234,20 @@
             data-page-builder-shell-id="{{ $shellId }}"
             data-page-builder-fullscreen-content
         >
-            @if (isset($toolbar) && ! $singleToolbar)
-                <div class="shrink-0 border-b border-rt-border/70 bg-rt-surface px-3 py-2 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface sm:px-5" data-page-builder-shell-toolbar>
-                    {{ $toolbar }}
-                </div>
-            @endif
-
             <div
-                {{ $attributes->class($workspaceClass) }}
+                {{ $attributes->class(['relative z-0', $workspaceClass]) }}
                 x-bind:data-page-builder-editor-active="pageBuilderOpen ? 'true' : 'false'"
                 data-page-builder-workspace
                 data-no-sidebar-swipe
             >
                 {{ $slot }}
             </div>
+
+            @if (isset($toolbar) && ! $singleToolbar)
+                <div class="relative z-10 order-first shrink-0 border-b border-rt-border/70 bg-rt-surface px-3 py-2 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface sm:px-5" data-page-builder-shell-toolbar>
+                    {{ $toolbar }}
+                </div>
+            @endif
         </div>
     </x-ui.fullscreen-modal>
     @endif

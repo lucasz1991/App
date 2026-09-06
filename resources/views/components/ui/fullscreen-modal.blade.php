@@ -18,6 +18,9 @@
     'bodyClass' => 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5',
     'contentClass' => 'mx-auto max-w-[100rem]',
     'headerClass' => '',
+    // Page Builder: die Zeichenflaeche zuerst rendern, Bedienelemente danach.
+    // Visuell bleibt der Kopf oben; andere Modale behalten ihre DOM-Reihenfolge.
+    'bodyBeforeHeader' => false,
     // Spezialoberflaechen (z. B. der immersive Dateibetrachter) koennen
     // einen eigenen, passend positionierten Schliessen-Button bereitstellen.
     // Der Standard bleibt fuer alle bestehenden Aufrufer unveraendert aktiv.
@@ -83,7 +86,15 @@
         data-rt-overlay-layer
         data-rt-overlay-base="190"
     >
-        <header class="z-10 shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-3 py-2.5 shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 sm:px-5 sm:py-3 {{ $headerClass }}">
+        @if ($bodyBeforeHeader)
+            <div class="relative z-0 {{ $bodyClass }}" data-rt-fullscreen-body>
+                <div class="{{ $contentClass }}">
+                    {{ $slot }}
+                </div>
+            </div>
+        @endif
+
+        <header class="{{ $bodyBeforeHeader ? 'order-first' : '' }} z-10 shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-3 py-2.5 shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 sm:px-5 sm:py-3 {{ $headerClass }}" data-rt-fullscreen-header>
             <div class="mx-auto flex max-w-[100rem] items-center gap-3">
                 @isset($header)
                     {{ $header }}
@@ -118,11 +129,13 @@
             </div>
         </header>
 
-        <div class="{{ $bodyClass }}">
-            <div class="{{ $contentClass }}">
-                {{ $slot }}
+        @unless ($bodyBeforeHeader)
+            <div class="{{ $bodyClass }}" data-rt-fullscreen-body>
+                <div class="{{ $contentClass }}">
+                    {{ $slot }}
+                </div>
             </div>
-        </div>
+        @endunless
 
         @isset($footer)
             <footer class="shrink-0 border-t border-rt-border/70 bg-rt-surface/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 sm:px-5 sm:pb-3">

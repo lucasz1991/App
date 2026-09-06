@@ -2430,6 +2430,8 @@ function installElementorEditorLayout({ root, modeIndicator, autoHide = false })
     const rightPopover = root.querySelector('[data-lmz-popover="right"]');
     if (!viewport || !main || (!leftActions && !rightActions)) return null;
 
+    const topbar = root.querySelector('.lmz-builder__topbar');
+    const topbarPosition = captureNodePosition(topbar);
     const document_ = root.ownerDocument;
     const layoutId = ++lmzElementorLayoutSequence;
     const previousLayout = root.hasAttribute('data-rt-lmz-layout')
@@ -2474,8 +2476,10 @@ function installElementorEditorLayout({ root, modeIndicator, autoHide = false })
     if (leftPopover) navigation.panels.append(leftPopover);
     if (rightPopover) inspector.panels.append(rightPopover);
     if (meta) inspector.footer.append(meta);
-    viewport.insertBefore(navigation.dock, main);
-    viewport.insertBefore(inspector.dock, main.nextSibling);
+    // Canvas first, chrome afterwards: preserve the same wired nodes/managers.
+    // CSS grid assigns visual positions independently of source/paint order.
+    viewport.append(navigation.dock, inspector.dock);
+    if (topbar?.parentElement === viewport.parentElement) viewport.after(topbar);
     root.dataset.rtLmzLayout = 'elementor';
 
     const labels = Object.freeze({
@@ -2646,6 +2650,7 @@ function installElementorEditorLayout({ root, modeIndicator, autoHide = false })
             [...popoverPositions].reverse().forEach(restoreNodePosition);
             [...toolbarPositions].reverse().forEach(restoreNodePosition);
             docks.forEach(({ dock }) => dock.remove());
+            restoreNodePosition(topbarPosition);
             if (previousLayout === null) delete root.dataset.rtLmzLayout;
             else root.setAttribute('data-rt-lmz-layout', previousLayout);
         },
@@ -2709,6 +2714,23 @@ export function installMailFocusChrome({ root, editor }) {
     let queued = false;
     let frameDocument = null;
     const coarse = document_.defaultView?.matchMedia?.('(pointer: coarse)');
+    const header = host.querySelector(':scope > .rt-page-builder-single-header');
+    const previousChromeInset = root.style.getPropertyValue('--rt-lmz-chrome-top');
+    const updateChromeInset = () => {
+        const floating = header && document_.defaultView?.getComputedStyle?.(header)?.position === 'absolute';
+        // Reserve room for floating chrome only, never shrink/reflow the canvas.
+        const overlap = floating && viewport
+            ? Math.max(0, host.getBoundingClientRect().top + header.offsetHeight - viewport.getBoundingClientRect().top)
+            : 0;
+        root.style.setProperty('--rt-lmz-chrome-top', `${overlap}px`);
+    };
+    const ResizeObserverClass = document_.defaultView?.ResizeObserver;
+    const chromeResize = header && typeof ResizeObserverClass === 'function'
+        ? new ResizeObserverClass(updateChromeInset) : null;
+    if (header) chromeResize?.observe(header);
+    if (viewport) chromeResize?.observe(viewport);
+    document_.defaultView?.addEventListener('resize', updateChromeInset);
+    updateChromeInset();
     const set = (element, name, value) => { if (element.getAttribute(name) !== value) element.setAttribute(name, value); };
     const sync = () => {
         if (destroyed) return;
@@ -2784,6 +2806,10 @@ export function installMailFocusChrome({ root, editor }) {
         showClasses(visible) { classesGroup.hidden = !visible; classesMount?.removeAttribute('hidden'); },
         destroy() {
             destroyed = true;
+            chromeResize?.disconnect();
+            document_.defaultView?.removeEventListener('resize', updateChromeInset);
+            if (previousChromeInset) root.style.setProperty('--rt-lmz-chrome-top', previousChromeInset);
+            else root.style.removeProperty('--rt-lmz-chrome-top');
             host.removeEventListener('pointermove', pointer);
             host.removeEventListener('pointerdown', pointer);
             host.removeEventListener('pointerover', pointer);
@@ -4430,8 +4456,19 @@ const FOCUSABLE_SELECTOR = [
 
 function isFocusableElement(element) {
     if (!element || element.hidden || element.disabled) return false;
-    if (element.getAttribute?.('aria-hidden') === 'true') return false;
-    if (element.closest?.('[hidden], [inert]')) return false;
+    const explicitTabIndex = element.getAttribute?.('tabindex');
+    if (explicitTabIndex !== null && Number.parseInt(explicitTabIndex, 10) < 0) return false;
+    if (element.matches?.('input[type="hidden"]')) return false;
+    if (element.closest?.('[hidden], [inert], [aria-hidden="true"]')) return false;
+    const view = element.ownerDocument?.defaultView;
+    for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+        const style = view?.getComputedStyle?.(ancestor) || ancestor.style;
+        if (style?.display === 'none' || ['hidden', 'collapse'].includes(style?.visibility)
+            || style?.contentVisibility === 'hidden') return false;
+        if (ancestor.tagName === 'DETAILS' && !ancestor.hasAttribute('open') && ancestor !== element
+            && !ancestor.querySelector(':scope > summary')?.contains(element)) return false;
+    }
+    // Opacity-zero auto-reveal chrome remains keyboard reachable; focus reveals it.
     return element.tabIndex !== -1 || element.matches?.('a[href],button,input,select,textarea,iframe,[contenteditable="true"]');
 }
 
@@ -4446,17 +4483,14 @@ function installCanvasTabBoundary(editor, root) {
         const outer = [...(fullscreen.querySelectorAll?.(FOCUSABLE_SELECTOR) || [])].filter(isFocusableElement);
         const frameIndex = frameElement ? outer.indexOf(frameElement) : -1;
         if (frameIndex >= 0) {
-            const candidates = forward ? outer.slice(frameIndex + 1) : outer.slice(0, frameIndex).reverse();
-            if (candidates.length) return candidates[0];
+            // Chrome follows the canvas in source order. Wrap both directions
+            // within the visible composite dialog instead of hidden vendor controls.
+            if (outer.length < 2) return null;
+            const nextIndex = (frameIndex + (forward ? 1 : -1) + outer.length) % outer.length;
+            return outer[nextIndex];
         }
-        if (!forward) {
-            const editorControls = [...(root.querySelectorAll?.(FOCUSABLE_SELECTOR) || [])]
-                .filter((element) => isFocusableElement(element) && element !== frameElement);
-            if (editorControls.length) return editorControls.at(-1);
-        }
-        return fullscreen.querySelector?.('[data-page-builder-assist]')
-            || fullscreen.querySelector?.('[aria-label*="schliessen" i], [aria-label*="schließen" i]')
-            || null;
+        const controls = outer.filter((element) => element !== frameElement);
+        return (forward ? controls[0] : controls.at(-1)) || null;
     };
     const onFrameKeydown = (event) => {
         if (event.key !== 'Tab') return;

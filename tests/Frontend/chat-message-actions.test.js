@@ -333,3 +333,45 @@ test('reference motion and geometry stay compact, branded, and reduced-motion sa
     assert.match(app, /duration:\s*0\.18/);
     assert.match(app, /stagger:\s*0\.025/);
 });
+
+test('premium stacked lists are shared by the topbar, chat sidebar, and creation pickers', async () => {
+    const [component, inbox, list, picker, publicInfo, styles, headerInbox, chatBox] = await Promise.all([
+        readFile(new URL('../../resources/views/components/chat/stacked-list-item.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/livewire/tools/header-inbox.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/livewire/chat/partials/chat-list.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/livewire/chat/partials/member-picker.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/components/user/public-info.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/css/chat-redesign.css', import.meta.url), 'utf8'),
+        readFile(new URL('../../app/Livewire/Tools/HeaderInbox.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../app/Livewire/ChatBox.php', import.meta.url), 'utf8'),
+    ]);
+
+    assert.match(component, /data-chat-stacked-item/);
+    assert.match(component, /rt-chat-stacked-item__avatar/);
+    assert.match(component, /rt-chat-stacked-item__context/);
+    assert.match(component, /rt-chat-stacked-item__meta/);
+    assert.match(component, /rt-chat-stacked-item__rail/);
+    assert.match(component, /fa-chevron-right/);
+
+    assert.equal((inbox.match(/<x-chat\.stacked-list-item/g) || []).length, 2);
+    assert.match(inbox, /data-rt-inbox-premium-list/);
+    assert.match(inbox, /rt-chat-stacked-list--inbox/);
+    assert.match(list, /<x-chat\.stacked-list-item/);
+    assert.match(list, /__\('app\.group_chat'\)/);
+    assert.match(list, /__\('app\.direct_chat'\)/);
+
+    assert.match(picker, /rt-chat-stacked-surface/);
+    assert.match(picker, /rt-chat-member-list/);
+    assert.match(picker, /:show-context="true"/);
+    assert.match(picker, /:show-presence="true"/);
+    assert.match(picker, /<\/x-user\.person-anchor-preview>[\s\S]*?<x-ui\.forms\.checkbox/);
+    assert.match(publicInfo, /rt-user-public-info__context/);
+
+    assert.match(headerInbox, /withMax\('activities as last_activity_at', 'created_at'\)/);
+    assert.ok((chatBox.match(/withMax\('activities as last_activity_at', 'created_at'\)/g) || []).length >= 3);
+    assert.match(styles, /\.rt-chat-stacked-item__avatar/);
+    assert.match(styles, /\.rt-chat-stacked-item\.is-active \.rt-chat-stacked-item__rail/);
+    assert.match(styles, /\.rt-chat-member-row\.is-selected::before/);
+    assert.match(styles, /cubic-bezier\(0\.16, 1, 0\.3, 1\)/);
+    assert.match(styles, /prefers-reduced-motion:[\s\S]*?\.rt-chat-stacked-item/);
+});

@@ -886,6 +886,7 @@ class ChatBox extends Component
 
         return User::query()
             ->with(['profile', 'currentTeam'])
+            ->withMax('activities as last_activity_at', 'created_at')
             ->where('status', true)
             ->where('id', '!=', auth()->id())
             ->when($needle !== '', function ($query) use ($needle): void {
@@ -1201,6 +1202,7 @@ class ChatBox extends Component
 
             $groupCandidates = User::query()
                 ->with(['profile', 'currentTeam'])
+                ->withMax('activities as last_activity_at', 'created_at')
                 ->where('id', '!=', $me->id)
                 ->where(function ($query) use ($currentMemberIds): void {
                     $query->where('status', true)

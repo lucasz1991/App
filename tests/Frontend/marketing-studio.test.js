@@ -2001,8 +2001,25 @@ test('mail chrome separates vendor panels into accessible left navigation and ri
     const selected = coreFakeComponent(document.createElement('p'));
     selected.state.traits = [{ name: 'title' }];
     const editor = coreFakeEditor(root, selected);
+    const header = document.createElement('header');
+    header.className = 'rt-page-builder-single-header';
+    header.style.position = 'absolute';
+    root.append(header);
+    let headerHeight = 57;
+    Object.defineProperty(header, 'offsetHeight', { get: () => headerHeight });
+    document.defaultView.getComputedStyle = (element) => element.style;
+    root.getBoundingClientRect = () => ({ top: 0 });
+    root.querySelector('.lmz-builder__viewport').getBoundingClientRect = () => ({ top: 0 });
+    root.style.setProperty('--rt-lmz-chrome-top', '4px');
     const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail', layout: 'elementor' });
     await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(root.style.getPropertyValue('--rt-lmz-chrome-top'), '57px');
+    headerHeight = 73;
+    document.defaultView.dispatchEvent(new document.defaultView.Event('resize'));
+    assert.equal(root.style.getPropertyValue('--rt-lmz-chrome-top'), '73px');
+    header.style.position = 'relative';
+    document.defaultView.dispatchEvent(new document.defaultView.Event('resize'));
+    assert.equal(root.style.getPropertyValue('--rt-lmz-chrome-top'), '0px');
 
     const navigation = root.querySelector('[data-rt-lmz-control-dock][data-rt-lmz-side="left"]');
     const inspector = root.querySelector('[data-rt-lmz-control-dock][data-rt-lmz-side="right"]');
@@ -2012,8 +2029,9 @@ test('mail chrome separates vendor panels into accessible left navigation and ri
     assert.equal(chrome.layout, 'elementor');
     assert.equal(root.dataset.rtLmzLayout, 'elementor');
     assert.equal(navigation.parentElement, root.querySelector('.lmz-builder__viewport'));
-    assert.equal(navigation.nextElementSibling, main);
-    assert.equal(main.nextElementSibling, inspector);
+    assert.equal(main.nextElementSibling, navigation);
+    assert.equal(navigation.nextElementSibling, inspector);
+    assert.equal(root.querySelector('.lmz-builder__viewport').nextElementSibling, root.querySelector('.lmz-builder__topbar'));
     assert.equal(navigation.getAttribute('aria-label'), 'Editor-Navigation');
     assert.equal(inspector.getAttribute('aria-label'), 'Editor-Einstellungen');
     assert.equal(root.querySelector('[data-rt-lmz-mode-indicator]').parentElement.className, 'rt-lmz-control-dock__header');
@@ -2085,6 +2103,7 @@ test('mail chrome separates vendor panels into accessible left navigation and ri
     assert.equal(root.querySelector('.lmz-builder__topbar > .lmz-builder__panel-actions--left') !== null, true);
     assert.equal(root.querySelector('.lmz-builder__topbar > .lmz-builder__panel-actions--right') !== null, true);
     assert.equal(root.querySelector('.lmz-builder__topbar > .lmz-builder__meta') !== null, true);
+    assert.equal(root.querySelector('.lmz-builder__topbar').nextElementSibling, root.querySelector('.lmz-builder__viewport'));
     assert.equal(root.querySelector('.lmz-builder__viewport > [data-lmz-popover="left"]') !== null, true);
     assert.equal(root.querySelector('.lmz-builder__viewport > [data-lmz-popover="right"]') !== null, true);
     assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"] .lmz-builder__action-label').textContent, 'Eigenschaften');
@@ -2093,6 +2112,7 @@ test('mail chrome separates vendor panels into accessible left navigation and ri
     assert.equal(root.querySelector('[data-lmz-mount="classes"]').closest('[data-lmz-popover-panel]').dataset.lmzPopoverPanel, 'right:classes');
     assert.equal(root.hasAttribute('data-rt-editor-chrome'), false);
     assert.equal(root.querySelector('.rt-lmz-glass-launcher'), null);
+    assert.equal(root.style.getPropertyValue('--rt-lmz-chrome-top'), '4px');
 }));
 
 test('shared LMZ media inventory exposes missing sources without loading external previews', () => {
@@ -3583,6 +3603,57 @@ test('same-origin canvas Tab boundaries return to outer composite controls and d
     assert.equal(beforeFocus, 1);
     assert.equal(tab(frameDom.document.querySelector('#last')).defaultPrevented, true);
     assert.equal(afterFocus, 1);
+
+    // Canvas-first source order must wrap back to the real header, not the
+    // native toolbar or collapsed inspector controls that follow the iframe.
+    document.querySelector('#before-frame').hidden = true;
+    document.querySelector('#after-frame').hidden = true;
+    root.querySelector('[data-tools]').hidden = true;
+    const fullscreen = root.closest('[data-rt-fullscreen-modal]');
+    const header = document.createElement('header');
+    header.style.opacity = '0'; // Auto-reveal chrome must remain focusable.
+    header.append(document.querySelector('[data-page-builder-assist]'));
+    header.insertAdjacentHTML('beforeend', '<button id="header-close">Schließen</button>');
+    fullscreen.append(header);
+    const hiddenControls = document.createElement('div');
+    hiddenControls.innerHTML = `
+        <div class="native-hidden"><button id="native-save">Native Save</button></div>
+        <div style="display:none"><button id="closed-dock">Closed dock</button></div>
+        <div style="visibility:hidden"><button id="hidden-ancestor" style="visibility:visible">Hidden ancestor</button></div>
+        <div style="visibility:collapse"><button id="collapsed-style">Collapsed style</button></div>
+        <div style="content-visibility:hidden"><button id="hidden-content">Hidden content</button></div>
+        <div aria-hidden="true"><button id="aria-hidden">Hidden from assistive technology</button></div>
+        <div inert><button id="inert-control">Inert</button></div>
+        <details><summary>Closed section</summary><button id="closed-details">Closed details</button></details>
+        <button id="explicit-skip" tabindex="-1">Skip</button>
+        <button id="disabled-control" disabled>Disabled</button>
+        <input id="hidden-input" type="hidden">
+    `;
+    fullscreen.append(hiddenControls);
+    const previousComputedStyle = document.defaultView.getComputedStyle;
+    document.defaultView.getComputedStyle = (element) => element.classList.contains('native-hidden')
+        ? { display: 'none' }
+        : element.style;
+    const focusTargets = [];
+    fullscreen.querySelectorAll('button, input').forEach((control) => {
+        control.focus = () => focusTargets.push(control.id || 'header-assist');
+    });
+    try {
+        assert.equal(tab(frameDom.document.querySelector('#first'), true).defaultPrevented, true);
+        assert.equal(focusTargets.at(-1), 'header-close');
+        assert.equal(tab(frameDom.document.querySelector('#last')).defaultPrevented, true);
+        assert.equal(focusTargets.at(-1), 'header-assist');
+
+        fullscreen.insertBefore(header, root);
+        assert.equal(tab(frameDom.document.querySelector('#last')).defaultPrevented, true);
+        assert.equal(focusTargets.at(-1), 'header-assist');
+        assert.equal(tab(frameDom.document.querySelector('#first'), true).defaultPrevented, true);
+        assert.equal(focusTargets.at(-1), 'header-close');
+        assert.deepEqual(focusTargets, ['header-close', 'header-assist', 'header-assist', 'header-close']);
+    } finally {
+        if (previousComputedStyle === undefined) delete document.defaultView.getComputedStyle;
+        else document.defaultView.getComputedStyle = previousComputedStyle;
+    }
 
     chrome.destroy();
     assert.equal(tab(frameDom.document.querySelector('#last')).defaultPrevented, false);

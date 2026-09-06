@@ -55,7 +55,7 @@
         </div>
     </div>
 
-    <div class="rt-chat-list min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 pb-3 sm:px-3">
+    <div class="rt-chat-list rt-chat-stacked-list min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 pb-3 sm:px-3">
         @forelse ($chats as $chat)
             @php
                 $isActive = (int) $selectedChatId === (int) $chat->id;
@@ -75,40 +75,47 @@
                 wire:key="chat-item-{{ $chat->id }}"
                 class="rt-chat-list-entry group relative"
             >
-                <button
-                    type="button"
+                <x-chat.stacked-list-item
                     wire:click="openChat({{ $chat->id }})"
                     x-on:click="showChat()"
                     data-chat-list-item
-                    @if ($isActive) aria-current="page" @endif
-                    class="rt-chat-list-item {{ $isActive ? 'is-active' : '' }} flex w-full items-center gap-3 rounded-2xl py-2.5 pl-2.5 pr-12 text-left sm:pl-3"
+                    aria-current="{{ $isActive ? 'page' : 'false' }}"
+                    :active="$isActive"
+                    :unread="$unread > 0"
+                    :show-chevron="false"
+                    class="rt-chat-list-item pr-14"
                 >
-                    <x-chat.avatar
-                        :src="$avatarUrl"
-                        :name="$chat->displayNameFor($me)"
-                        :signal="$previewPersonIsOnline"
-                    />
+                    <x-slot:avatar>
+                        <x-chat.avatar
+                            :src="$avatarUrl"
+                            :name="$chat->displayNameFor($me)"
+                            :signal="$previewPersonIsOnline"
+                            decorative
+                        />
+                    </x-slot:avatar>
 
-                    <span class="min-w-0 flex-1">
-                        <span class="block truncate text-sm font-bold tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">
-                            {{ $chat->displayNameFor($me) }}
-                        </span>
-                        <span class="mt-0.5 block truncate text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">
+                    <x-slot:title>{{ $chat->displayNameFor($me) }}</x-slot:title>
+                    <x-slot:context>
+                        {{ $chat->isGroup() ? __('app.group_chat') : __('app.direct_chat') }}
+                    </x-slot:context>
+                    <x-slot:meta>
+                        <i class="far fa-comment-dots" aria-hidden="true"></i>
+                        <span>
                             @if ($latest)
                                 {{ (int) $latest->user_id === (int) $me->id ? __('app.you') . ': ' : '' }}{{ $latest->replyPreviewText() }}
+                            @else
+                                {{ __('app.no_messages_yet') }}
                             @endif
                         </span>
-                    </span>
+                    </x-slot:meta>
 
-                    <span class="flex shrink-0 flex-col items-end gap-1.5">
-                        <span class="text-[9px] font-semibold tabular-nums text-rt-soft dark:text-rt-dark-soft">{{ $timeLabel }}</span>
-                        @if ($unread > 0)
-                            <span class="rt-chat-unread min-w-5 rounded-full px-1.5 py-1 text-center text-[9px] font-extrabold leading-none text-white">
-                                {{ $unread }}
-                            </span>
-                        @endif
-                    </span>
-                </button>
+                    @if ($timeLabel !== '')
+                        <x-slot:time>{{ $timeLabel }}</x-slot:time>
+                    @endif
+                    @if ($unread > 0)
+                        <x-slot:badge>{{ $unread > 99 ? '99+' : $unread }}</x-slot:badge>
+                    @endif
+                </x-chat.stacked-list-item>
 
                 <div class="rt-chat-list-options absolute right-1.5 top-1/2 z-[2] -translate-y-1/2">
                     <x-ui.dropdown.anchor-dropdown

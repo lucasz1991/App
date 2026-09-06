@@ -40,12 +40,12 @@
     "src": "node_modules/leaflet/dist/leaflet.css"
   },
   "resources/css/app.css": {
-    "file": "assets/app-DcNYKxO_.css",
+    "file": "assets/app-Vt2FSB3F.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/css/chat-redesign.css": {
-    "file": "assets/chat-redesign-ByP3AFJv.css",
+    "file": "assets/chat-redesign-DmgAH4ak.css",
     "src": "resources/css/chat-redesign.css",
     "isEntry": true
   },

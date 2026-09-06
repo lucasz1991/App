@@ -9,7 +9,7 @@
 @endphp
 
 <section
-    class="rt-chat-member-picker min-w-0"
+    class="rt-chat-member-picker rt-chat-stacked-surface min-w-0"
     data-chat-member-picker="{{ $rowPrefix }}"
     aria-label="{{ __('app.select_participants') }}"
 >
@@ -34,7 +34,7 @@
         </span>
     </div>
 
-    <div class="mt-2 space-y-1" wire:loading.class="opacity-60" wire:target="{{ $searchModel }},previousPage,nextPage">
+    <div class="rt-chat-member-list mt-2 space-y-1" wire:loading.class="opacity-60" wire:target="{{ $searchModel }},previousPage,nextPage">
         @forelse ($pickerPaginator as $member)
             @php
                 $isSelected = in_array((int) $member->id, $selectedIds, true);
@@ -43,18 +43,8 @@
 
             <div
                 wire:key="{{ $rowPrefix }}-row-{{ $member->id }}"
-                class="rt-chat-member-row flex min-h-14 min-w-0 items-center gap-2 rounded-xl px-2 py-1.5"
+                class="rt-chat-member-row {{ $isSelected ? 'is-selected' : '' }} flex min-h-14 min-w-0 items-center gap-2 rounded-xl px-2 py-1.5"
             >
-                @if ($pickerMode === 'select' && $selectionModel)
-                    <x-ui.forms.checkbox
-                        :id="$memberInputId"
-                        value="{{ $member->id }}"
-                        wire:model.live="{{ $selectionModel }}"
-                        aria-label="{{ __('app.select_participants') }}: {{ $member->name }}"
-                        class="shrink-0"
-                    />
-                @endif
-
                 @php
                     $viewer = auth()->user();
                     $canReach = $member->isActive() && ! $member->is($viewer);
@@ -88,12 +78,25 @@
                                 :user="$member"
                                 :size="9"
                                 :show-email="true"
-                                :show-presence="false"
+                                :show-presence="true"
+                                :show-context="true"
                                 :selected="$isSelected"
                             />
                         </button>
                     </x-slot:trigger>
                 </x-user.person-anchor-preview>
+
+                @if ($pickerMode === 'select' && $selectionModel)
+                    <span class="rt-chat-member-select shrink-0">
+                        <x-ui.forms.checkbox
+                            :id="$memberInputId"
+                            value="{{ $member->id }}"
+                            wire:model.live="{{ $selectionModel }}"
+                            aria-label="{{ __('app.select_participants') }}: {{ $member->name }}"
+                            class="shrink-0"
+                        />
+                    </span>
+                @endif
 
                 @if ($pickerMode === 'direct')
                     <x-chat.icon-button
