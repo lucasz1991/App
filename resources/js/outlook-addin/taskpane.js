@@ -10,6 +10,10 @@ import {
     supportsTemplatePrepend,
     templateStateFromBody,
 } from './compose-template.js';
+import { automaticTemplate } from './compose-template.js';
+import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
+import { diagnoseStep, recordDiagnostic, diagnosticReport } from './diagnostics.js';
+import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -29,7 +33,8 @@ let bootstrapStateRevision = 0;
 let lastBootstrapRefreshAt = 0;
 let silentBootstrapRefreshPromise;
 let signatureStateRefreshPromise;
-const uncertainMediaItems = new WeakSet();
+let lastActionError = null;
+let pendingTemplateConfirmation = null;
 const boundDialogRoots = new WeakSet();
 const startedTaskpaneRoots = new WeakSet();
 const taskpaneState = {
@@ -382,7 +387,8 @@ async function acquireAccessToken(config, allowPopup) {
     return requiredString(currentTokenResult?.accessToken, 'ACCESS_TOKEN_MISSING');
 }
 
-async function loadBootstrap(config, accessToken) {
+async function loadBootstrap(config, accessToken, item = Office.context.mailbox.item) {
+    const sender = await diagnoseStep('sender-read', () => readComposeSender(Office, item));
     const payload = await fetchJson(config.endpoints.bootstrap, {
         method: 'GET',
         cache: 'no-store',
@@ -392,6 +398,7 @@ async function loadBootstrap(config, accessToken) {
             Authorization: `Bearer ${accessToken}`,
             'X-RailTime-Outlook-Context': 'taskpane',
             'X-RailTime-Outlook-Mailbox': mailboxAddress(),
+            'X-RailTime-Outlook-Sender': sender,
         },
     }, API_TIMEOUT_MS);
 
@@ -403,6 +410,7 @@ async function loadBootstrap(config, accessToken) {
         throw codedError('BOOTSTRAP_MARKER_MISMATCH');
     }
 
+    await diagnoseStep('mailbox-binding', () => assertMailboxBinding(Office, item, payload.binding));
     return payload;
 }
 
@@ -482,35 +490,12 @@ function officeFailure(result, fallbackCode) {
 }
 
 function addInlineAttachment(item, media) {
-    return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            uncertainMediaItems.add(item);
-            reject(codedError('INLINE_ATTACHMENT_UNCERTAIN'));
-        }, 30000);
-        try {
-            item.addFileAttachmentFromBase64Async(
-                media.base64,
-                media.name,
-                { isInline: true },
-                (result) => {
-                    clearTimeout(timeout);
-                    const error = officeFailure(result, 'INLINE_ATTACHMENT_FAILED');
-                    if (error) {
-                        reject(error);
-                        return;
-                    }
-                    resolve(result.value);
-                },
-            );
-        } catch {
-            clearTimeout(timeout);
-            uncertainMediaItems.add(item);
-            reject(codedError('INLINE_ATTACHMENT_UNCERTAIN'));
-        }
-    });
+    return confirmedOfficeWrite(Office, item, 'attachment-write', 'INLINE_ATTACHMENT_UNCERTAIN',
+        (callback) => item.addFileAttachmentFromBase64Async(media.base64, media.name, { isInline: true }, callback),
+        { onSettled: () => syncActionState() });
 }
 
-async function attachInlineMedia(target, media) {
+async function attachInlineMedia(target, media, binding) {
     const item = assertComposeTarget(target);
     const existingNames = new Set(
         (await existingAttachments(item)).filter((attachment) => attachment.isInline)
@@ -525,7 +510,7 @@ async function attachInlineMedia(target, media) {
             continue;
         }
 
-        assertComposeTarget(target);
+        await assertWriteTarget(target, binding);
         await addInlineAttachment(item, attachment);
         existingNames.add(normalizedName);
     }
@@ -559,24 +544,10 @@ function existingAttachments(item) {
 }
 
 function setSignature(item, html) {
-    return new Promise((resolve, reject) => {
-        const uncertain = () => {
-            uncertainMediaItems.add(item);
-            reject(codedError('SIGNATURE_INSERT_UNCERTAIN'));
-        };
-        const timeout = setTimeout(uncertain, 30000);
-        try {
-            item.body.setSignatureAsync(html, { coercionType: Office.CoercionType.Html }, (result) => {
-                clearTimeout(timeout);
-                const error = officeFailure(result, 'SET_SIGNATURE_FAILED');
-                if (error) reject(error);
-                else resolve();
-            });
-        } catch {
-            clearTimeout(timeout);
-            uncertain();
-        }
-    });
+    if (html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
+    return confirmedOfficeWrite(Office, item, 'signature-write', 'SIGNATURE_INSERT_UNCERTAIN',
+        (callback) => item.body.setSignatureAsync(html, { coercionType: Office.CoercionType.Html }, callback),
+        { onSettled: () => syncActionState() });
 }
 
 function composeItem() {
@@ -604,6 +575,17 @@ function assertComposeTarget(target) {
     }
 
     return target.item;
+}
+
+async function assertWriteTarget(target, binding) {
+    const item = assertComposeTarget(target);
+    await assertMailboxBinding(Office, item, binding);
+    return assertComposeTarget(target);
+}
+
+function insertionBlocked() {
+    const item = globalThis.Office?.context?.mailbox?.item;
+    return Boolean(item && (isTemplateInsertionBlocked(item) || hasUncertainWrite(item)));
 }
 
 function elements() {
@@ -961,9 +943,11 @@ function handleMailboxItemChanged() {
     // sofort zum vorherigen Item. Die sichere Aktion bleibt sichtbar, bis
     // Outlook den neuen Compose-Body eindeutig als aktuell bestaetigt.
     mailboxItemRevision += 1;
+    pendingTemplateConfirmation?.(false);
+    lastActionError = null;
     taskpaneState.templatePresent = false;
-    failOpenSignatureCurrentState();
-    requestSignatureCurrentStateRefresh();
+    invalidateBootstrap('locked');
+    setStatus('neutral', 'Postfach erneut prüfen', 'Für diese Nachricht muss der aktuelle Absender neu mit RailTime abgeglichen werden.');
 }
 
 function syncConnectionChip() {
@@ -973,7 +957,8 @@ function syncConnectionChip() {
     }
 
     if (taskpaneState.authenticated && taskpaneState.bootstrapReady) {
-        setConnectionChip('success', 'Bereit');
+        setConnectionChip(insertionBlocked() || lastActionError ? 'error' : 'success',
+            insertionBlocked() ? 'Einfügung unklar' : lastActionError ? 'Prüfen' : 'Verbunden');
         return;
     }
 
@@ -1002,10 +987,10 @@ function syncActionState() {
     const currentTemplate = selectedTemplate();
 
     view.login.dataset.available = taskpaneState.configReady ? 'true' : 'false';
-    view.signature.dataset.available = taskpaneState.authenticated ? 'true' : 'false';
+    view.signature.dataset.available = authenticatedBootstrap ? 'true' : 'false';
     view.template.dataset.available = authenticatedBootstrap && currentTemplate ? 'true' : 'false';
     const item = globalThis.Office?.context?.mailbox?.item;
-    if (item && (isTemplateInsertionBlocked(item) || uncertainMediaItems.has(item))) {
+    if (item && (isTemplateInsertionBlocked(item) || hasUncertainWrite(item))) {
         view.template.dataset.available = 'false';
         view.signature.dataset.available = 'false';
         view.templateActionDetail.textContent = 'Outlook hat die letzte Einfügung noch nicht eindeutig bestätigt. Nachricht prüfen; nicht erneut einfügen.';
@@ -1030,6 +1015,7 @@ function syncActionState() {
     view.signatureDetail.textContent = taskpaneState.signatureVersion !== ''
         ? `Veröffentlichte Version ${taskpaneState.signatureVersion} einsetzen`
         : 'Veröffentlichte Signatur laden und einsetzen';
+    if (insertionBlocked()) view.signatureDetail.textContent = 'Einfügung nicht eindeutig bestätigt. Unter Status die Diagnose öffnen; nicht erneut einfügen.';
 
     updateDisabledStates();
     syncConnectionChip();
@@ -1112,6 +1098,22 @@ function authenticationWasLost(error) {
 
 function userMessage(error) {
     const code = safeErrorCode(error);
+
+    if (/MAILBOX|SENDER/.test(code) || code === 'HTTP_403') {
+        return 'Der aktuelle Absender ist nicht als Ihr RailTime-Microsoft-Postfach bestätigt. In private oder andere Postfächer wird nichts eingefügt. Bitte das verknüpfte Firmenpostfach wählen und die Verbindung erneut prüfen.';
+    }
+    if (code === 'COMPOSE_SESSION_UNREADABLE') {
+        return 'Outlook konnte die sichere Vorprüfung nicht ausführen. Die Einfügung wurde noch nicht gestartet. Unter Status können Sie die Diagnose erneut prüfen.';
+    }
+    if (code === 'SIGNATURE_TOO_LARGE') {
+        return 'Die Signatur überschreitet das Outlook-Limit von 30.000 Zeichen. Die veröffentlichte Signatur muss verkleinert werden; es wurde nichts eingefügt.';
+    }
+    if (code === 'OFFICE_WRITE_FAILED') {
+        return 'Outlook hat den Schreibaufruf mit einem Fehler beantwortet. Die Diagnose unter Status zeigt den betroffenen Schritt und den Outlook-Fehlercode.';
+    }
+    if (error?.reason === 'exception' && /UNCERTAIN$/.test(code)) {
+        return 'Die Outlook-Schnittstelle hat den Schreibaufruf sofort mit einer Ausnahme unterbrochen. Ob er angekommen ist, ist unklar. Nachricht prüfen; kein automatischer weiterer Schreibversuch. Details unter Status → Diagnose.';
+    }
 
     if (code === 'NAA_NOT_SUPPORTED') {
         return 'Diese Outlook-Version unterstützt die sichere Microsoft-Anmeldung noch nicht.';
@@ -1196,10 +1198,15 @@ function readyStatusDetail() {
     const templateSupport = supportsTemplatePrepend(Office, Office.context.mailbox?.item)
         ? 'Vorlagen werden oberhalb eingefügt; Outlook kann CSS anpassen.'
         : 'Mobile/eingeschränkte Ansicht: automatische Signatur, vollständige Vorlagen nur im Browser/Desktop.';
-    return `${templateLabel} · ${signatureLabel}. ${templateSupport}`;
+    const automatic = automaticTemplate(currentBootstrap)
+        ? 'Eine veröffentlichte Outlook-Standardvorlage ist konfiguriert; der automatische Start hängt vom Outlook-Client und der Add-in-Zuweisung ab.'
+        : 'Keine veröffentlichte Outlook-Standardvorlage festgelegt; automatisch ist nur die Signatur vorgesehen.';
+    return `Anmeldung und Datenabruf bestätigt, noch keine Einfügung bestätigt. ${templateLabel} · ${signatureLabel}. ${automatic} ${templateSupport}`;
 }
 
 function handleFailure(error, bootstrapWasLoaded = false) {
+    lastActionError = error;
+    recordDiagnostic(error?.phase || 'user-action', 'failed', error);
     if (safeErrorCode(error) === 'TEMPLATE_INSERT_CANCELLED') {
         setBusy(false);
         syncActionState();
@@ -1208,7 +1215,7 @@ function handleFailure(error, bootstrapWasLoaded = false) {
     }
     const authLost = authenticationWasLost(error);
 
-    if (!bootstrapWasLoaded || authLost) {
+    if (!bootstrapWasLoaded || authLost || /MAILBOX|SENDER/.test(safeErrorCode(error))) {
         invalidateBootstrap(authLost ? 'locked' : 'error', authLost);
     }
 
@@ -1258,7 +1265,7 @@ function requestSilentBootstrapRefresh() {
                 return;
             }
 
-            setStatus('success', 'RailTime ist bereit', readyStatusDetail());
+            if (!lastActionError && !insertionBlocked()) setStatus('success', 'Mit RailTime verbunden', readyStatusDetail());
         } catch (error) {
             if (expectedRevision !== bootstrapStateRevision || taskpaneState.busy) {
                 return;
@@ -1267,6 +1274,11 @@ function requestSilentBootstrapRefresh() {
             if (authenticationWasLost(error)) {
                 invalidateBootstrap('locked', true);
                 setStatus('neutral', 'Verbindung erneuern', 'Bitte einmal erneut mit Ihrem RailTime-Firmenkonto anmelden.');
+                return;
+            }
+
+            if (/MAILBOX|SENDER/.test(safeErrorCode(error)) || safeErrorCode(error) === 'HTTP_403') {
+                handleFailure(error);
                 return;
             }
 
@@ -1296,7 +1308,7 @@ async function authenticateInteractively(button) {
         await acceptBootstrap(bootstrap);
         setBusy(false);
         syncActionState();
-        setStatus('success', 'RailTime ist bereit', readyStatusDetail());
+        if (!lastActionError && !insertionBlocked()) setStatus('success', 'Mit RailTime verbunden', readyStatusDetail());
     } catch (error) {
         handleFailure(error);
     }
@@ -1311,13 +1323,14 @@ async function withAuthenticatedBootstrap(button, callback) {
 
     try {
         const target = captureComposeTarget();
-        if (isTemplateInsertionBlocked(target.item) || uncertainMediaItems.has(target.item)) {
+        if (isTemplateInsertionBlocked(target.item) || hasUncertainWrite(target.item)) {
             throw codedError('TEMPLATE_INSERT_UNCERTAIN');
         }
-        const accessToken = await acquireAccessToken(currentConfig, true);
+        const accessToken = await diagnoseStep('authentication', () => acquireAccessToken(currentConfig, true));
         taskpaneState.authenticated = true;
         displayAccount();
-        const bootstrap = await loadBootstrap(currentConfig, accessToken);
+        const bootstrap = await diagnoseStep('bootstrap', () => loadBootstrap(currentConfig, accessToken, target.item));
+        await assertWriteTarget(target, bootstrap.binding);
 
         bootstrapWasLoaded = true;
         // The insertion owns one preflight. Avoid repeatedly serializing the
@@ -1326,6 +1339,7 @@ async function withAuthenticatedBootstrap(button, callback) {
         await acceptBootstrap(bootstrap, { inspectBody: false });
         setBusy(true, button);
         await callback(bootstrap, target);
+        lastActionError = null;
         setBusy(false);
         syncActionState();
     } catch (error) {
@@ -1338,22 +1352,23 @@ async function updateSignature(button) {
 
     await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
         const item = assertComposeTarget(target);
-        const state = await readTemplateState(Office, item);
+        const state = await diagnoseStep('compose-preflight', () => readTemplateState(Office, item));
         assertComposeTarget(target);
         if (state.uncertain) throw codedError('TEMPLATE_INSERT_UNCERTAIN');
-        if (!state.readable) throw codedError('COMPOSE_BODY_UNREADABLE');
+        if (!state.readable) throw Object.assign(codedError(state.errorCode || 'COMPOSE_BODY_UNREADABLE'), { phase: state.phase, officeCode: state.officeCode, reason: state.reason });
         if (state.tooLarge) throw codedError('COMPOSE_BODY_TOO_LARGE');
         if (state.present) {
             throw codedError('SIGNATURE_WITHIN_TEMPLATE');
         }
         const signature = validatedDocument(bootstrap.signature, 'signature', currentConfig.marker);
+        if (signature.html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
 
         if (!item.body.setSignatureAsync) {
             throw codedError('SET_SIGNATURE_UNAVAILABLE');
         }
 
-        await attachInlineMedia(target, signature.media);
-        assertComposeTarget(target);
+        await attachInlineMedia(target, signature.media, bootstrap.binding);
+        await assertWriteTarget(target, bootstrap.binding);
         await setSignature(item, signature.html);
         assertComposeTarget(target);
         await refreshSignatureCurrentState();
@@ -1386,11 +1401,11 @@ async function insertTemplate(button) {
         }
 
         const template = validatedDocument(templateChoice.document, 'template', currentConfig.marker);
-        await prependTemplate(Office, item, template.html, () => assertComposeTarget(target), {
+        await diagnoseStep('template-write', () => prependTemplate(Office, item, template.html, () => assertWriteTarget(target, bootstrap.binding), {
             media: template.media,
-            beforeInsert: () => attachInlineMedia(target, template.media),
-            confirmAdditional: () => window.confirm('Diese Nachricht enthält bereits eine RailTime-Vorlage. Die gewählte Vorlage ZUSÄTZLICH oberhalb einfügen? Vorhandener Text und Zitate bleiben erhalten.'),
-        });
+            beforeInsert: () => attachInlineMedia(target, template.media, bootstrap.binding),
+            confirmAdditional: confirmAdditionalTemplate,
+        }));
         assertComposeTarget(target);
         // Native success is sufficient; do not immediately pull the full body
         // back across the Office bridge while Outlook is rendering it.
@@ -1406,6 +1421,65 @@ async function insertTemplate(button) {
                 : templateChoice.name,
         );
     });
+}
+
+function confirmAdditionalTemplate() {
+    const region = document.querySelector('[data-outlook-template-confirmation]');
+    if (!region || pendingTemplateConfirmation) return Promise.resolve(false);
+    region.hidden = false;
+    region.querySelector('[data-outlook-template-cancel]')?.focus();
+    return new Promise((resolve) => {
+        // A vanished pane must never leave a write waiting indefinitely.
+        const timer = setTimeout(() => pendingTemplateConfirmation?.(false), 60000);
+        pendingTemplateConfirmation = (confirmed) => {
+            clearTimeout(timer);
+            pendingTemplateConfirmation = null;
+            region.hidden = true;
+            resolve(confirmed === true);
+        };
+    });
+}
+
+function showDiagnosticReport(boundMailbox = false) {
+    const output = document.querySelector('[data-outlook-diagnostics-output]');
+    if (!output) return;
+    const report = diagnosticReport(globalThis.Office, {
+        configured: taskpaneState.configReady, authenticated: taskpaneState.authenticated,
+        bootstrapReady: taskpaneState.bootstrapReady, boundMailbox,
+        automaticTemplate: Boolean(automaticTemplate(currentBootstrap)), writeBlocked: insertionBlocked(),
+    });
+    output.value = JSON.stringify(report, null, 2);
+    output.hidden = false;
+}
+
+async function runDiagnostics(button) {
+    if (taskpaneState.busy || button.disabled) return;
+    button.disabled = true;
+    setBusy(true);
+    let boundMailbox = false;
+    try {
+        const target = captureComposeTarget();
+        currentConfig = await diagnoseStep('configuration', loadConfig);
+        taskpaneState.configReady = true;
+        const accessToken = await diagnoseStep('authentication', () => acquireAccessToken(currentConfig, false));
+        taskpaneState.authenticated = true;
+        const bootstrap = await diagnoseStep('bootstrap', () => loadBootstrap(currentConfig, accessToken, target.item));
+        await assertWriteTarget(target, bootstrap.binding);
+        boundMailbox = true;
+        await acceptBootstrap(bootstrap, { inspectBody: false });
+        const state = await diagnoseStep('compose-preflight', () => readTemplateState(Office, target.item));
+        if (!state.readable) throw Object.assign(codedError(state.errorCode || (state.uncertain ? 'TEMPLATE_INSERT_UNCERTAIN' : 'COMPOSE_BODY_UNREADABLE')), { phase: state.phase, officeCode: state.officeCode, reason: state.reason });
+        if (insertionBlocked()) throw codedError('TEMPLATE_INSERT_UNCERTAIN');
+        lastActionError = null;
+        setStatus('success', 'Verbindung und Vorprüfung bestätigt', `${readyStatusDetail()} Die Diagnose hat nichts in Ihre Nachricht eingefügt.`);
+    } catch (error) {
+        handleFailure(error, boundMailbox);
+    } finally {
+        setBusy(false);
+        button.disabled = false;
+        syncActionState();
+        showDiagnosticReport(boundMailbox);
+    }
 }
 
 export function bindOutlookDialogs(root = document) {
@@ -1445,6 +1519,21 @@ function bindActions() {
     view.login.addEventListener('click', () => authenticateInteractively(view.login));
     view.signature.addEventListener('click', () => updateSignature(view.signature));
     view.template.addEventListener('click', () => insertTemplate(view.template));
+    document.querySelector('[data-outlook-template-confirm]')?.addEventListener('click', () => pendingTemplateConfirmation?.(true));
+    document.querySelector('[data-outlook-template-cancel]')?.addEventListener('click', () => pendingTemplateConfirmation?.(false));
+    const diagnosticButton = document.querySelector('[data-outlook-diagnostics-run]');
+    diagnosticButton?.addEventListener('click', () => runDiagnostics(diagnosticButton));
+    document.querySelector('[data-outlook-diagnostics-copy]')?.addEventListener('click', async () => {
+        const output = document.querySelector('[data-outlook-diagnostics-output]');
+        if (!output?.value) showDiagnosticReport();
+        try {
+            await navigator.clipboard.writeText(output.value);
+            document.querySelector('[data-outlook-diagnostics-feedback]').textContent = 'Diagnose kopiert – ohne Nachrichtentext, Adressen oder Zugangsdaten.';
+        } catch {
+            output.focus(); output.select();
+            document.querySelector('[data-outlook-diagnostics-feedback]').textContent = 'Bitte den markierten Diagnosebericht kopieren.';
+        }
+    });
     view.templateSelect.addEventListener('change', () => {
         taskpaneState.selectedTemplateId = view.templateSelect.value;
         renderSelectedTemplate();
@@ -1511,7 +1600,7 @@ async function initialize() {
             await acceptBootstrap(bootstrap);
             setBusy(false);
             syncActionState();
-            setStatus('success', 'RailTime ist bereit', readyStatusDetail());
+            setStatus('success', 'Mit RailTime verbunden', readyStatusDetail());
         } catch (error) {
             if (!isInteractionRequired(error)) {
                 throw error;

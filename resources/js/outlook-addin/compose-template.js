@@ -13,10 +13,27 @@ export const TEMPLATE_INSERT_LIMITS = Object.freeze({
     writeTimeoutMs: 30000,
 });
 
-function failure(code) {
+function failure(code, details = {}) {
     const error = new Error(code);
     error.code = code;
+    for (const name of ['phase', 'officeCode', 'reason']) {
+        if (typeof details[name] === 'string' && details[name] !== '') error[name] = details[name];
+    }
     return error;
+}
+
+function safeOfficeCode(error) {
+    try {
+        const value = String(error?.code ?? error?.name ?? '');
+        return /^[A-Za-z0-9_.:-]{1,80}$/.test(value) ? value : '';
+    } catch {
+        return '';
+    }
+}
+
+function failedOfficeResult(reason, error = null) {
+    // Host messages can contain mailbox/content details. Retain codes only.
+    return { succeeded: false, reason, officeCode: safeOfficeCode(error) };
 }
 
 export function currentComposeBodyHtml(html, composeType) {
@@ -58,18 +75,18 @@ function officeResult(office, invoke) {
             clearTimeout(timeout);
             resolve(value);
         };
-        const timeout = setTimeout(() => finish({ succeeded: false }), TEMPLATE_INSERT_LIMITS.readTimeoutMs);
+        const timeout = setTimeout(() => finish(failedOfficeResult('timeout')), TEMPLATE_INSERT_LIMITS.readTimeoutMs);
         try {
             invoke((result) => {
                 try {
                     finish(result?.status === office?.AsyncResultStatus?.Succeeded
-                        ? { succeeded: true, value: result.value } : { succeeded: false });
-                } catch {
-                    finish({ succeeded: false });
+                        ? { succeeded: true, value: result.value } : failedOfficeResult('failed', result?.error));
+                } catch (error) {
+                    finish(failedOfficeResult('exception', error));
                 }
             });
-        } catch {
-            finish({ succeeded: false });
+        } catch (error) {
+            finish(failedOfficeResult('exception', error));
         }
     });
 }
@@ -81,6 +98,27 @@ async function officeRead(office, invoke) {
 
 function pendingSession(value) {
     return typeof value === 'string' && /^(?:pending|uncertain):/.test(value);
+}
+
+function sessionAccess(office, item) {
+    // Function stubs can exist on Mailbox 1.10 hosts, although SessionData
+    // requires 1.11. An explicit unsupported result must bypass those stubs.
+    // JavaScript-only runtimes may lack the requirement checker altogether;
+    // existing APIs are then probed conservatively, never assumed successful.
+    try {
+        const requirements = office?.context?.requirements;
+        if (typeof requirements?.isSetSupported === 'function'
+            && requirements.isSetSupported('Mailbox', '1.11') === false) {
+            return { supported: false };
+        }
+        return { supported: typeof item?.sessionData?.getAsync === 'function' };
+    } catch (error) {
+        return { ...failedOfficeResult('exception', error), phase: 'session-capability' };
+    }
+}
+
+function sessionReadError(result, phase = 'session-read') {
+    return failure('COMPOSE_SESSION_UNREADABLE', { ...result, phase });
 }
 
 function readSession(office, item) {
@@ -101,31 +139,37 @@ function newOperationToken() {
 }
 
 async function claimSession(office, item, operation) {
-    if (typeof item.sessionData?.getAsync !== 'function' || typeof item.sessionData?.setAsync !== 'function') return;
+    const access = sessionAccess(office, item);
+    if (access.succeeded === false) throw sessionReadError(access, access.phase);
+    if (!access.supported || typeof item.sessionData?.setAsync !== 'function') return;
 
     // Outlook runtimes may be isolated. SessionData narrows reopen/concurrent
     // races where available, but read/set/readback is NOT an atomic CAS lock.
     const existing = await readSession(office, item);
     if (!existing.succeeded) {
-        operation.phase = 'uncertain';
-        throw failure('TEMPLATE_INSERT_UNCERTAIN');
+        // No session/media/body write has started. This is retryable reading,
+        // not evidence that an insertion may already have happened.
+        throw sessionReadError(existing);
     }
     if (existing.value === '1' && !operation.additionalConfirmed) throw failure('TEMPLATE_ALREADY_INSERTED');
     if (pendingSession(existing.value) || ![null, undefined, '', '1'].includes(existing.value)) {
-        throw failure('TEMPLATE_INSERT_UNCERTAIN');
+        throw failure('TEMPLATE_INSERT_UNCERTAIN', { phase: 'session-read', reason: 'pending' });
     }
     operation.previousSessionValue = existing.value === '1' ? '1' : '';
     operation.sessionToken = newOperationToken();
+    await operation.beforeWrite();
     const stored = await writeSession(office, item, operation.sessionToken);
     if (!stored.succeeded) {
         operation.phase = 'uncertain';
-        throw failure('TEMPLATE_INSERT_UNCERTAIN');
+        throw failure('TEMPLATE_INSERT_UNCERTAIN', { ...stored, phase: 'session-write' });
     }
     operation.sessionClaimed = true;
     const verified = await readSession(office, item);
     if (!verified.succeeded || verified.value !== operation.sessionToken) {
         operation.phase = 'uncertain';
-        throw failure('TEMPLATE_INSERT_UNCERTAIN');
+        throw failure('TEMPLATE_INSERT_UNCERTAIN', {
+            ...verified, phase: 'session-readback', reason: verified.succeeded ? 'mismatch' : verified.reason,
+        });
     }
 }
 
@@ -138,6 +182,12 @@ async function releaseDefiniteSessionFailure(office, item, operation) {
         return;
     }
     // A failed additional insertion must keep the original template's state.
+    try {
+        await operation.beforeWrite();
+    } catch {
+        operation.phase = 'uncertain';
+        return;
+    }
     const cleared = await writeSession(office, item, operation.previousSessionValue);
     if (!cleared.succeeded) operation.phase = 'uncertain';
 }
@@ -172,13 +222,22 @@ export async function readTemplateState(office, item, { forceBody = false } = {}
         return { present: false, readable: false, uncertain: true, ...unknownSize };
     }
     let knownPresent = appliedItems.has(item);
-    if (typeof item?.sessionData?.getAsync === 'function') {
+    const access = sessionAccess(office, item);
+    if (access.succeeded === false) {
+        return { present: false, readable: false, uncertain: false, ...unknownSize,
+            errorCode: 'COMPOSE_SESSION_UNREADABLE', phase: access.phase, reason: access.reason, officeCode: access.officeCode };
+    }
+    if (access.supported) {
         const session = await readSession(office, item);
-        if (!session.succeeded || pendingSession(session.value)
-            || ![null, undefined, '', '1'].includes(session.value)) {
+        if (!session.succeeded) {
+            return { present: false, readable: false, uncertain: false, ...unknownSize,
+                errorCode: 'COMPOSE_SESSION_UNREADABLE', phase: 'session-read', reason: session.reason, officeCode: session.officeCode };
+        }
+        if (pendingSession(session.value) || ![null, undefined, '', '1'].includes(session.value)) {
             // Pending/unknown claims never expire automatically. A reopened
             // taskpane must not assume that the previous native write failed.
-            return { present: false, readable: false, uncertain: true, ...unknownSize };
+            return { present: false, readable: false, uncertain: true, ...unknownSize,
+                phase: 'session-read', reason: 'pending' };
         }
         knownPresent ||= session.value === '1';
     }
@@ -210,7 +269,8 @@ export function markedTemplateHtml(html) {
 export async function assertTemplateInsertable(office, item, { allowAdditional = false } = {}) {
     if (!supportsTemplatePrepend(office, item)) throw failure('TEMPLATE_PREPEND_UNAVAILABLE');
     const state = await readTemplateState(office, item, { forceBody: allowAdditional });
-    if (state.uncertain) throw failure('TEMPLATE_INSERT_UNCERTAIN');
+    if (state.errorCode) throw failure(state.errorCode, state);
+    if (state.uncertain) throw failure('TEMPLATE_INSERT_UNCERTAIN', state);
     if (state.tooLarge) throw failure('COMPOSE_BODY_TOO_LARGE');
     if (state.present && !allowAdditional) throw failure('TEMPLATE_ALREADY_INSERTED');
     if (!state.readable) throw failure('COMPOSE_BODY_UNREADABLE');
@@ -249,11 +309,13 @@ function validatedInsertionHtml(html, media) {
     return markedHtml;
 }
 
-function markTemplateApplied(item, operation) {
+async function markTemplateApplied(item, operation) {
     appliedItems.add(item);
     operation.phase = 'applied';
     if (insertionOperations.get(item) === operation) insertionOperations.delete(item);
     try {
+        if (!operation.sessionClaimed) return;
+        await operation.beforeWrite();
         // Best effort only: a missing session callback must never hold the UI.
         // This stores neither mail text, identity data nor tokens.
         item.sessionData?.setAsync?.(TEMPLATE_SESSION_KEY, '1', () => {});
@@ -265,33 +327,34 @@ function markTemplateApplied(item, operation) {
 function nativePrepend(office, item, html, operation) {
     return new Promise((resolve, reject) => {
         let completed = false;
-        const uncertain = () => {
+        const uncertain = (details = {}) => {
             operation.phase = 'uncertain';
-            reject(failure('TEMPLATE_INSERT_UNCERTAIN'));
+            reject(failure('TEMPLATE_INSERT_UNCERTAIN', { phase: 'body-prepend', reason: 'timeout', ...details }));
         };
         const timeout = setTimeout(uncertain, TEMPLATE_INSERT_LIMITS.writeTimeoutMs);
-        const callback = (result) => {
+        const callback = async (result) => {
             if (completed) return;
             completed = true;
             clearTimeout(timeout);
             try {
                 if (result?.status === office?.AsyncResultStatus?.Succeeded) {
                     // A late success after timeout still establishes idempotency.
-                    markTemplateApplied(item, operation);
+                    await markTemplateApplied(item, operation);
                     resolve();
                 } else if (operation.phase !== 'uncertain') {
-                    reject(failure(result?.error?.code || 'SET_TEMPLATE_FAILED'));
+                    const officeCode = safeOfficeCode(result?.error);
+                    reject(failure(officeCode || 'SET_TEMPLATE_FAILED', { phase: 'body-prepend', reason: 'failed', officeCode }));
                 }
-            } catch {
-                uncertain();
+            } catch (error) {
+                uncertain({ reason: 'exception', officeCode: safeOfficeCode(error) });
             }
         };
         try {
             item.body.prependAsync(html, { coercionType: office.CoercionType.Html }, callback);
-        } catch {
+        } catch (error) {
             clearTimeout(timeout);
             // Once invoked, a thrown host error cannot prove that no write ran.
-            if (!completed) uncertain();
+            if (!completed) uncertain({ reason: 'exception', officeCode: safeOfficeCode(error) });
         }
     });
 }
@@ -309,7 +372,7 @@ export async function prependTemplate(office, item, html, beforeWrite = () => {}
     if (appliedItems.has(item) && !canConfirmAdditional) throw failure('TEMPLATE_ALREADY_INSERTED');
     const markedHtml = validatedInsertionHtml(html, options.media ?? []);
     if (!supportsTemplatePrepend(office, item)) throw failure('TEMPLATE_PREPEND_UNAVAILABLE');
-    const operation = { phase: 'preflight' };
+    const operation = { phase: 'preflight', beforeWrite };
     insertionOperations.set(item, operation);
     try {
         const state = await assertTemplateInsertable(office, item, { allowAdditional: canConfirmAdditional });

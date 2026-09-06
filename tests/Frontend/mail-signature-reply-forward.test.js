@@ -337,7 +337,16 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.doesNotMatch(taskpane, /taskpaneState\.signatureCurrent = await signatureIsCurrent/);
 });
 
-const composeLibrary = await import('../../resources/js/outlook-addin/compose-template.js');
+const composeLibrary = {
+    ...await import('../../resources/js/outlook-addin/compose-template.js'),
+    ...await import('../../resources/js/outlook-addin/mailbox-guard.js'),
+    ...await import('../../resources/js/outlook-addin/diagnostics.js'),
+    ...await import('../../resources/js/outlook-addin/office-write.js'),
+};
+const testMailboxBinding = {
+    schema: 1, mailboxAddress: 'employee@example.test', senderAddress: 'employee@example.test',
+    allowedSenderAddresses: ['employee@example.test'],
+};
 
 test('opt-in symmetric signature header changes only its mobile table groups, not source display permissions', async () => {
     const css = await source('../../resources/views/emails/parts/responsive-css.blade.php');
@@ -354,6 +363,7 @@ function composeFixture({ html = '<p>Existing user text</p>', composeType = 'new
     const state = { html, prepends: [], signatures: [], attachments: [], completed: 0, bodyReads: 0 };
     const succeeded = (value) => ({ status: 'succeeded', value });
     const item = {
+        from: { getAsync(callback) { callback(succeeded({ emailAddress: 'employee@example.test' })); } },
         body: {
             getAsync(_format, callback) { state.bodyReads += 1; callback(succeeded(state.html)); },
             getTypeAsync(callback) { callback(succeeded('html')); },
@@ -601,6 +611,7 @@ async function runtimeFixture(options = {}) {
     const media = [{ name: 'railtime-test.png', contentId: 'logo', base64: 'aW1hZ2U=' }];
     const bootstrap = {
         marker,
+        binding: testMailboxBinding,
         automaticTemplateId: options.withoutDefault ? null : 'default',
         templates: [{ id: 'default', isDefault: true, html: '<p>Default</p><img src="cid:logo">', media }],
         signature: { html: '<p>Signature</p><img src="cid:logo">', media },
@@ -614,7 +625,7 @@ async function runtimeFixture(options = {}) {
     };
     const runtimeSource = (await source('../../resources/js/outlook-addin/runtime.js'))
         .replace(/import\s*\{([\s\S]*?)\}\s*from '@azure\/msal-browser';/, 'const {$1} = auth;')
-        .replace(/import\s*\{([\s\S]*?)\}\s*from '\.\/compose-template\.js';/, 'const {$1} = shared;');
+        .replace(/import\s*\{([\s\S]*?)\}\s*from '\.\/[^']+\.js';/g, 'const {$1} = shared;');
     const auth = {
         InteractionRequiredAuthError: class extends Error {},
         createNestablePublicClientApplication: async () => ({
@@ -742,6 +753,7 @@ test('authenticated taskpane inserts once on double click with one body read and
     const config = { marker, auth: { scopes: ['Signature.Read'] }, endpoints: { bootstrap: 'https://example.test/api/bootstrap' } };
     const bootstrap = {
         marker,
+        binding: testMailboxBinding,
         templates: [{ id: 'one', name: 'Example', html: '<table><tr><td>Example</td></tr></table>', media: [] }],
     };
     const auth = {
@@ -753,7 +765,7 @@ test('authenticated taskpane inserts once on double click with one body read and
     };
     const script = (await source('../../resources/js/outlook-addin/taskpane.js'))
         .replace(/import\s*\{([\s\S]*?)\}\s*from '@azure\/msal-browser';/, 'const {$1} = auth;')
-        .replace(/import\s*\{([\s\S]*?)\}\s*from '\.\/compose-template\.js';/, (_match, names) => `const {${names.replace(/\s+as\s+/g, ': ')}} = shared;`)
+        .replace(/import\s*\{([\s\S]*?)\}\s*from '\.\/[^']+\.js';/g, (_match, names) => `const {${names.replace(/\s+as\s+/g, ': ')}} = shared;`)
         .replace(/\bexport (?=(?:async )?function)/g, '');
     const client = new Function('Office', 'globalThis', 'document', 'window', 'fetch', 'auth', 'shared', `${script}\nreturn {
         async setup(config, payload) { currentConfig = config; taskpaneState.configReady = true; taskpaneState.authenticated = true; taskpaneState.busy = false; await acceptBootstrap(payload, {inspectBody:false}); },

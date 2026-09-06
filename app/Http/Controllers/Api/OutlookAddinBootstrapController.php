@@ -32,8 +32,12 @@ final class OutlookAddinBootstrapController extends Controller
 
             $identity = $validator->validate($token);
             $mailboxAddress = trim((string) $request->header('X-RailTime-Outlook-Mailbox'));
-            $user = $identityResolver->resolve($identity, $mailboxAddress);
-            $payload = $snapshots->currentForUser($user);
+            $senderAddress = trim((string) $request->header('X-RailTime-Outlook-Sender'));
+            $resolved = $identityResolver->resolve($identity, $mailboxAddress, $senderAddress);
+            $payload = $snapshots->currentForUser($resolved['user']);
+            // Der persoenliche Snapshot ist wiederverwendbar, die Freigabe
+            // fuer den aktuellen Absender dagegen strikt requestgebunden.
+            $payload['binding'] = $resolved['binding'];
             $encoded = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             $etag = '"'.hash('sha256', $encoded).'"';
 
@@ -62,7 +66,7 @@ final class OutlookAddinBootstrapController extends Controller
             'Cache-Control' => 'private, no-store, max-age=0',
             'ETag' => $etag,
             'Referrer-Policy' => 'no-referrer',
-            'Vary' => 'Authorization',
+            'Vary' => 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender',
             'X-Content-Type-Options' => 'nosniff',
         ], static fn (?string $value): bool => $value !== null);
     }

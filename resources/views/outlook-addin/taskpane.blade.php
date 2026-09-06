@@ -40,6 +40,12 @@
 
         [hidden] { display: none !important; }
 
+        .diagnostics { border-top: 1px solid var(--rt-line); padding-top: 14px; }
+        .diagnostics summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+        .diagnostics-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+        .diagnostics textarea { width: 100%; height: 180px; resize: vertical; font: 11px/1.5 Consolas, monospace; color: var(--rt-ink); background: var(--rt-subtle); border: 1px solid var(--rt-line); border-radius: 10px; padding: 10px; }
+        .template-confirmation { margin-top: 12px; padding: 14px; background: var(--rt-warning-soft); border: 1px solid var(--rt-line); border-radius: 12px; }
+
         html,
         body { min-height: 100%; }
 
@@ -751,6 +757,14 @@
                         </div>
                     </div>
 
+                    <div class="template-confirmation" data-outlook-template-confirmation role="region" aria-label="Zusätzliche Vorlage bestätigen" hidden>
+                        <p>Diese Nachricht enthält bereits eine RailTime-Vorlage. Die gewählte Vorlage zusätzlich oberhalb einfügen? Vorhandener Text und Zitate bleiben erhalten.</p>
+                        <div class="diagnostics-actions">
+                            <button class="glass-button" type="button" data-outlook-template-cancel>Abbrechen</button>
+                            <button class="glass-button" type="button" data-outlook-template-confirm>Zusätzlich einfügen</button>
+                        </div>
+                    </div>
+
                     <p class="template-message template-empty" data-outlook-template-empty>
                         Momentan ist keine veröffentlichte Nachrichtenvorlage verfügbar.
                     </p>
@@ -820,6 +834,17 @@
             </div>
             <p class="account" data-outlook-account hidden><span data-outlook-account-label></span></p>
             <p class="footnote">Vorlagen werden nur in unterstützten Outlook-Clients automatisch eingefügt. Vorhandene Nachrichtentexte und zitierte Antworten bleiben erhalten.</p>
+            <details class="diagnostics" data-outlook-diagnostics>
+                <summary>Diagnose &amp; Hilfe</summary>
+                <p>Prüft Anmeldung, Postfachbindung und Outlook-Vorprüfung erneut. Fügt nichts ein und wiederholt keine unbestätigten Schreibaufrufe.</p>
+                <div class="diagnostics-actions">
+                    <button class="glass-button" type="button" data-outlook-diagnostics-run>Verbindung neu prüfen</button>
+                    <button class="glass-button" type="button" data-outlook-diagnostics-copy>Diagnose kopieren</button>
+                </div>
+                <textarea data-outlook-diagnostics-output readonly aria-label="Datensparsamer Diagnosebericht" hidden></textarea>
+                <p class="footnote" data-outlook-diagnostics-feedback role="status"></p>
+                <p class="footnote">Outlook kann aus dem Add-in nicht sicher automatisch neu gestartet werden. Falls nötig: Entwurf speichern, Outlook selbst schließen und neu öffnen. Vor erneutem Einfügen kontrollieren, ob die Signatur bereits vorhanden ist.</p>
+            </details>
         </div>
     </dialog>
     <dialog class="taskpane-dialog" id="outlook-install-dialog" data-outlook-dialog="install" aria-labelledby="outlook-install-title">

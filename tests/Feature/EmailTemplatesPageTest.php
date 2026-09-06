@@ -327,6 +327,79 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertSame($objectId, $identity->objectId);
         $this->assertSame('mara@example.com', $identity->principal);
         $this->assertSame('Mara Beispiel', $identity->displayName);
+
+        config([
+            'app.url' => 'https://app.rail-time.de',
+            'outlook_addin.snapshots.disk' => 'private',
+            'outlook_addin.snapshots.auto_refresh' => false,
+        ]);
+        Storage::fake('private');
+        $this->createOutlookIdentityAccountsTable();
+        $user = User::factory()->create([
+            'email' => 'mara.private@example.net',
+            'role' => 'staff',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        EmployeeIdentityAccount::query()->create([
+            'user_id' => $user->id,
+            'provider' => AccountProvider::Microsoft365,
+            'external_id' => $objectId,
+            'principal' => 'mara@example.com',
+            'email' => 'mara.alias@example.com',
+            'lifecycle_status' => 'active',
+            'provisioning_status' => 'active',
+        ]);
+        $headers = [
+            'Authorization' => 'Bearer '.$token,
+            'X-RailTime-Outlook-Mailbox' => 'mara@example.com',
+            'X-RailTime-Outlook-Sender' => 'mara@example.com',
+        ];
+        foreach ([
+            ['X-RailTime-Outlook-Mailbox', '', 'outlook_addin_mailbox_unavailable'],
+            ['X-RailTime-Outlook-Sender', '', 'outlook_addin_sender_unavailable'],
+            ['X-RailTime-Outlook-Mailbox', $user->email, 'outlook_addin_mailbox_mismatch'],
+            ['X-RailTime-Outlook-Sender', $user->email, 'outlook_addin_sender_mismatch'],
+        ] as [$header, $address, $error]) {
+            $this->getJson(route('api.outlook-addin.bootstrap'), array_replace($headers, [$header => $address]))
+                ->assertForbidden()
+                ->assertJsonPath('error', $error)
+                ->assertJsonMissingPath('signature')
+                ->assertJsonMissingPath('binding');
+        }
+        $this->assertSame([], Storage::disk('private')->allFiles());
+
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $response = $this->getJson(route('api.outlook-addin.bootstrap'), $headers)
+            ->assertOk()
+            ->assertJsonPath('binding', [
+                'schema' => 1,
+                'mailboxAddress' => 'mara@example.com',
+                'senderAddress' => 'mara@example.com',
+                'allowedSenderAddresses' => ['mara@example.com', 'mara.alias@example.com'],
+            ])
+            ->assertHeader('Vary', 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender');
+        $etag = (string) $response->headers->get('ETag');
+        $this->assertNotSame('', $etag);
+        $snapshotPath = app(OutlookAddinUserSnapshotStore::class)->pathForUser($user);
+        $snapshotBytes = Storage::disk('private')->get($snapshotPath);
+        $this->assertArrayNotHasKey('binding', app(OutlookAddinUserSnapshotStore::class)->currentForUser($user));
+        $this->getJson(route('api.outlook-addin.bootstrap'), $headers + ['If-None-Match' => $etag])
+            ->assertStatus(304);
+        $aliasResponse = $this->getJson(route('api.outlook-addin.bootstrap'), array_replace($headers, [
+            'X-RailTime-Outlook-Sender' => 'mara.alias@example.com',
+            'If-None-Match' => $etag,
+        ]))->assertOk()->assertJsonPath('binding.senderAddress', 'mara.alias@example.com');
+        $this->assertNotSame($etag, $aliasResponse->headers->get('ETag'));
+        // A previously valid response/ETag must never authorize a later private
+        // sender, and the request binding must not pollute the shared snapshot.
+        $this->getJson(route('api.outlook-addin.bootstrap'), array_replace($headers, [
+            'X-RailTime-Outlook-Sender' => $user->email,
+            'If-None-Match' => $etag,
+        ]))->assertForbidden()->assertJsonPath('error', 'outlook_addin_sender_mismatch');
+        $this->assertSame($snapshotBytes, Storage::disk('private')->get($snapshotPath));
         Http::assertSentCount(1);
     }
 
@@ -334,7 +407,7 @@ class EmailTemplatesPageTest extends TestCase
     {
         $this->createOutlookIdentityAccountsTable();
         $user = User::factory()->create([
-            'email' => 'mara@example.com',
+            'email' => 'mara.private@example.net',
             'email_verified_at' => now(),
         ]);
         $identity = new VerifiedEntraIdentity(
@@ -346,7 +419,7 @@ class EmailTemplatesPageTest extends TestCase
         $resolver = app(OutlookAddinIdentityResolver::class);
 
         try {
-            $resolver->resolve($identity, 'mara@example.com');
+            $resolver->resolve($identity, 'mara@example.com', 'mara@example.com');
             $this->fail('Eine nicht provisionierte E-Mail-Adresse darf kein Microsoft-Konto verknüpfen.');
         } catch (OutlookAddinException $exception) {
             $this->assertSame('outlook_addin_identity_not_linked', $exception->errorCode);
@@ -357,16 +430,46 @@ class EmailTemplatesPageTest extends TestCase
             'provider' => AccountProvider::Microsoft365,
             'external_id' => $identity->objectId,
             'principal' => $identity->principal,
-            'email' => $user->email,
+            'email' => 'mara.alias@example.com',
             'lifecycle_status' => 'active',
             'provisioning_status' => 'active',
         ]);
 
-        $this->assertTrue($resolver->resolve($identity, 'MARA@example.com')->is($user));
+        $resolved = $resolver->resolve($identity, ' MARA@example.com ', ' MARA.ALIAS@example.com ');
+        $this->assertTrue($resolved['user']->is($user));
+        $this->assertSame([
+            'schema' => 1,
+            'mailboxAddress' => 'mara@example.com',
+            'senderAddress' => 'mara.alias@example.com',
+            'allowedSenderAddresses' => ['mara@example.com', 'mara.alias@example.com'],
+        ], $resolved['binding']);
+
+        foreach ([
+            ['', 'mara@example.com', 'outlook_addin_mailbox_unavailable'],
+            ['mara@example.com', '', 'outlook_addin_sender_unavailable'],
+            ['mara@example.com', 'Mara <mara@example.com>', 'outlook_addin_sender_unavailable'],
+            ['fremdes-postfach@example.com', 'mara@example.com', 'outlook_addin_mailbox_mismatch'],
+            [$user->email, 'mara@example.com', 'outlook_addin_mailbox_mismatch'],
+            ['mara@example.com', $user->email, 'outlook_addin_sender_mismatch'],
+            ['mara@example.com', 'unbekannter-alias@example.com', 'outlook_addin_sender_mismatch'],
+        ] as [$mailbox, $sender, $errorCode]) {
+            try {
+                $resolver->resolve($identity, $mailbox, $sender);
+                $this->fail('Fehlender oder fremder Postfachkontext darf nicht auf die Signatur zugreifen.');
+            } catch (OutlookAddinException $exception) {
+                $this->assertSame(403, $exception->httpStatus);
+                $this->assertSame($errorCode, $exception->errorCode);
+            }
+        }
 
         try {
-            $resolver->resolve($identity, 'fremdes-postfach@example.com');
-            $this->fail('Ein fremdes Outlook-Postfach darf nicht auf die Signatur zugreifen.');
+            $resolver->resolve(new VerifiedEntraIdentity(
+                $identity->tenantId,
+                $identity->objectId,
+                $user->email,
+                $identity->displayName,
+            ), 'mara@example.com', 'mara@example.com');
+            $this->fail('Die private Profiladresse darf auch keinen Tokenprincipal autorisieren.');
         } catch (OutlookAddinException $exception) {
             $this->assertSame('outlook_addin_mailbox_mismatch', $exception->errorCode);
         }

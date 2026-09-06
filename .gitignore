@@ -86,6 +86,9 @@ Homestead.json
 !/tests/Frontend/live-location.test.js
 !/tests/Frontend/mail-builder.test.js
 !/tests/Frontend/mail-signature-reply-forward.test.js
+!/tests/Frontend/outlook-compose-template.test.js
+!/tests/Frontend/outlook-mailbox-guard.test.js
+!/tests/Frontend/outlook-write-diagnostics.test.js
 !/tests/Frontend/mail-train-runtime.test.js
 !/tests/Frontend/mail-text-eml-hardening.test.js
 !/tests/Frontend/mail-compatibility.test.js

@@ -8,6 +8,9 @@ import {
     prependTemplate,
     readTemplateState,
 } from './compose-template.js';
+import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
+import { diagnoseStep, recordDiagnostic } from './diagnostics.js';
+import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -17,7 +20,6 @@ const LOG_PREFIX = '[RailTime Outlook Add-in]';
 let configPromise;
 let authenticationClientPromise;
 const composeOperations = new WeakMap();
-const uncertainMediaItems = new WeakSet();
 
 function codedError(code) {
     const error = new Error(code);
@@ -245,7 +247,8 @@ async function acquireTokenSilently(config) {
     }
 }
 
-async function loadBootstrap(config, accessToken) {
+async function loadBootstrap(config, accessToken, item) {
+    const sender = await readComposeSender(Office, item);
     const payload = await fetchJson(config.endpoints.bootstrap, {
         method: 'GET',
         cache: 'no-store',
@@ -255,6 +258,7 @@ async function loadBootstrap(config, accessToken) {
             Authorization: `Bearer ${accessToken}`,
             'X-RailTime-Outlook-Context': 'event',
             'X-RailTime-Outlook-Mailbox': mailboxAddress(),
+            'X-RailTime-Outlook-Sender': sender,
         },
     }, API_TIMEOUT_MS);
 
@@ -266,6 +270,7 @@ async function loadBootstrap(config, accessToken) {
         throw codedError('BOOTSTRAP_MARKER_MISMATCH');
     }
 
+    await assertMailboxBinding(Office, item, payload.binding);
     return payload;
 }
 
@@ -345,32 +350,8 @@ function officeFailure(result, fallbackCode) {
 }
 
 function addInlineAttachment(item, media) {
-    return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            uncertainMediaItems.add(item);
-            reject(codedError('INLINE_ATTACHMENT_UNCERTAIN'));
-        }, 30000);
-        try {
-            item.addFileAttachmentFromBase64Async(
-                media.base64,
-                media.name,
-                { isInline: true },
-                (result) => {
-                    clearTimeout(timeout);
-                    const error = officeFailure(result, 'INLINE_ATTACHMENT_FAILED');
-                    if (error) {
-                        reject(error);
-                        return;
-                    }
-                    resolve(result.value);
-                },
-            );
-        } catch {
-            clearTimeout(timeout);
-            uncertainMediaItems.add(item);
-            reject(codedError('INLINE_ATTACHMENT_UNCERTAIN'));
-        }
-    });
+    return confirmedOfficeWrite(Office, item, 'attachment-write', 'INLINE_ATTACHMENT_UNCERTAIN',
+        (callback) => item.addFileAttachmentFromBase64Async(media.base64, media.name, { isInline: true }, callback));
 }
 
 async function attachInlineMedia(item, media, assertTarget) {
@@ -396,7 +377,7 @@ async function attachInlineMedia(item, media, assertTarget) {
         }
     });
     for (let index = 0; index < media.length; index += 1) {
-        assertTarget();
+        await assertTarget();
         if (existingNames.has(media[index].name.toLowerCase())) continue;
         await addInlineAttachment(item, media[index]);
         existingNames.add(media[index].name.toLowerCase());
@@ -404,24 +385,9 @@ async function attachInlineMedia(item, media, assertTarget) {
 }
 
 function setSignature(item, html) {
-    return new Promise((resolve, reject) => {
-        const uncertain = () => {
-            uncertainMediaItems.add(item);
-            reject(codedError('SIGNATURE_INSERT_UNCERTAIN'));
-        };
-        const timeout = setTimeout(uncertain, 30000);
-        try {
-            item.body.setSignatureAsync(html, { coercionType: Office.CoercionType.Html }, (result) => {
-                clearTimeout(timeout);
-                const error = officeFailure(result, 'SET_SIGNATURE_FAILED');
-                if (error) reject(error);
-                else resolve();
-            });
-        } catch {
-            clearTimeout(timeout);
-            uncertain();
-        }
-    });
+    if (html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
+    return confirmedOfficeWrite(Office, item, 'signature-write', 'SIGNATURE_INSERT_UNCERTAIN',
+        (callback) => item.body.setSignatureAsync(html, { coercionType: Office.CoercionType.Html }, callback));
 }
 
 function completeOnce(event) {
@@ -450,29 +416,33 @@ function safeErrorCode(error) {
 }
 
 async function applyPublishedContent(item) {
-    const assertTarget = () => {
+    let binding;
+    const assertTarget = async () => {
         if (Office.context.mailbox.item !== item) throw codedError('ITEM_CHANGED');
+        await assertMailboxBinding(Office, item, binding);
     };
-    const config = await loadConfig();
-    const accessToken = await acquireTokenSilently(config);
-    const bootstrap = await loadBootstrap(config, accessToken);
-    assertTarget();
+    const config = await diagnoseStep('configuration', loadConfig);
+    const accessToken = await diagnoseStep('authentication', () => acquireTokenSilently(config));
+    const bootstrap = await diagnoseStep('bootstrap-binding', () => loadBootstrap(config, accessToken, item));
+    binding = bootstrap.binding;
+    await assertTarget();
 
-    if (isTemplateInsertionBlocked(item) || uncertainMediaItems.has(item)) return;
+    if (isTemplateInsertionBlocked(item) || hasUncertainWrite(item)) return 'uncertain';
 
     const selected = automaticTemplate(bootstrap);
     if (selected) {
         try {
             const template = validatedDocument(selected, 'template', config.marker);
-            await prependTemplate(Office, item, template.html, assertTarget, {
+            await diagnoseStep('template-write', () => prependTemplate(Office, item, template.html, assertTarget, {
                 media: template.media,
                 beforeInsert: () => attachInlineMedia(item, template.media, assertTarget),
-            });
-            return;
+            }));
+            return 'applied';
         } catch (error) {
-            if (safeErrorCode(error) === 'ITEM_CHANGED') throw error;
+            if (safeErrorCode(error) === 'ITEM_CHANGED' || /MAILBOX|SENDER/.test(safeErrorCode(error))) throw error;
+            if (safeErrorCode(error) === 'TEMPLATE_ALREADY_INSERTED') return 'already-present';
             if (['TEMPLATE_ALREADY_INSERTED', 'TEMPLATE_INSERT_IN_PROGRESS',
-                'TEMPLATE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(safeErrorCode(error))) return;
+                'TEMPLATE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(safeErrorCode(error))) return 'uncertain';
             // Unsupported mobile/prepend APIs keep the existing signature path.
             // No setAsync fallback: it would replace typed text and quotes.
             console.info(`${LOG_PREFIX} Default template skipped (${safeErrorCode(error)}).`);
@@ -482,18 +452,24 @@ async function applyPublishedContent(item) {
     // Before a signature-only fallback, retain the guard for existing full
     // templates. Failed or oversized body reads never trigger another write.
     const templateState = await readTemplateState(Office, item);
-    assertTarget();
-    if (templateState.present || !templateState.readable || templateState.tooLarge) return;
+    await assertTarget();
+    if (templateState.present) return 'already-present';
+    if (!templateState.readable || templateState.tooLarge) {
+        recordDiagnostic('compose-preflight', 'skipped', { code: templateState.errorCode || 'COMPOSE_BODY_UNREADABLE' });
+        return 'skipped';
+    }
 
     const signature = validatedDocument(bootstrap.signature, 'signature', config.marker);
+    if (signature.html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
 
     if (!item?.body?.setSignatureAsync || !item?.addFileAttachmentFromBase64Async) {
         throw codedError('COMPOSE_API_UNAVAILABLE');
     }
 
     await attachInlineMedia(item, signature.media, assertTarget);
-    assertTarget();
+    await assertTarget();
     await setSignature(item, signature.html);
+    return 'applied';
 }
 
 async function handleComposeEvent(event) {
@@ -504,7 +480,10 @@ async function handleComposeEvent(event) {
         if (!item) throw codedError('COMPOSE_API_UNAVAILABLE');
         let operation = composeOperations.get(item);
         if (!operation) {
-            operation = applyPublishedContent(item).catch((error) => {
+            operation = applyPublishedContent(item).then((result) => {
+                if (!['applied', 'already-present'].includes(result)) composeOperations.delete(item);
+                return result;
+            }).catch((error) => {
                 // Keep successful items idempotent, but a transient bootstrap
                 // or Office failure must not poison later activation forever.
                 composeOperations.delete(item);
@@ -514,6 +493,7 @@ async function handleComposeEvent(event) {
         }
         await operation;
     } catch (error) {
+        recordDiagnostic('compose-event', 'failed', error);
         // Event activation must never prevent the user from composing or sending.
         console.info(`${LOG_PREFIX} Signature skipped (${safeErrorCode(error)}).`);
     } finally {
