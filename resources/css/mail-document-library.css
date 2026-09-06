@@ -23,8 +23,7 @@
 .rt-mail-library {
     width: 100%;
     min-width: 0;
-    max-width: 90rem;
-    margin-inline: auto;
+    max-width: none;
     border: 1px solid var(--rt-library-line);
     border-radius: 1.2rem;
     background: var(--rt-library-surface);

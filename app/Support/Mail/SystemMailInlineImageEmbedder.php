@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Mime\Part\DataPart;
+use Symfony\Component\Mime\Part\Multipart\MixedPart;
+use Symfony\Component\Mime\Part\Multipart\RelatedPart;
 
 /**
  * Ueberfuehrt die verlinkten RailTime-Bilder erst unmittelbar vor dem Versand
@@ -132,7 +134,61 @@ final class SystemMailInlineImageEmbedder
             $embedded++;
         }
 
+        $this->relateInlineAssets($message, $assets);
+
         return $embedded;
+    }
+
+    /**
+     * Symfony erkennt CID-Bilder in IMG/background-Attributen, nicht in CSS
+     * background-image. Solche DataParts landen trotz asInline() ausserhalb
+     * von multipart/related und koennen am Mailende nochmals erscheinen.
+     *
+     * Erst im finalen MessageSending-Schritt den erzeugten MIME-Baum ordnen:
+     * nur unsere gerade aufgeloesten Inline-Dateien zum Hauptinhalt ziehen.
+     * HTML, bestehende Related-Bilder, Textalternative und echte Anhaenge
+     * bleiben erhalten; kein unsichtbares Hilfs-IMG im Signaturlayout.
+     * Danach nur noch an den Transport uebergeben, nicht HTML/Anhaenge
+     * nachtraeglich aendern oder den fertigen Email-Body in Jobs persistieren.
+     *
+     * @param  array<string, array{cid: string, filename: string, mime: string, path: string}>  $assets
+     */
+    private function relateInlineAssets(Email $message, array $assets): void
+    {
+        $body = $message->getBody();
+        if (! $body instanceof MixedPart) {
+            return;
+        }
+
+        $parts = $body->getParts();
+        $content = array_shift($parts);
+        if ($content === null || $content instanceof DataPart) {
+            return;
+        }
+
+        $contentIds = array_fill_keys(array_column($assets, 'cid'), true);
+        $related = [];
+        $attachments = [];
+        foreach ($parts as $part) {
+            if ($part instanceof DataPart && $part->hasContentId()
+                && isset($contentIds[$part->getContentId()])
+                && $part->getDisposition() === 'inline') {
+                $related[] = $part;
+            } else {
+                $attachments[] = $part;
+            }
+        }
+        if ($related === []) {
+            return;
+        }
+
+        if ($content instanceof RelatedPart) {
+            $existing = $content->getParts();
+            $content = array_shift($existing);
+            $related = array_merge($existing, $related);
+        }
+        $body = new RelatedPart($content, ...$related);
+        $message->setBody($attachments === [] ? $body : new MixedPart($body, ...$attachments));
     }
 
     private function isRailTimeSystemMail(string $html): bool

@@ -13,9 +13,9 @@
     $hasResultsSignal = $resultsCount !== null;
     $noResults = $hasResultsSignal && (int) $resultsCount === 0;
     $ph = $placeholder ?? __('app.search');
-    $searchContext = in_array($context, ['table', 'topbar', 'chat', 'picker'], true) ? $context : 'table';
+    $searchContext = in_array($context, ['table', 'topbar'], true) ? $context : 'table';
     $isTopbarSearch = $searchContext === 'topbar';
-    $usesPremiumSkin = $searchContext !== 'table';
+    $usesPremiumSkin = $isTopbarSearch;
     $searchAttributes = $inputAttributes instanceof \Illuminate\View\ComponentAttributeBag
         ? $inputAttributes
         : $attributes;

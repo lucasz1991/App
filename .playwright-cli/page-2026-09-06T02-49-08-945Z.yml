@@ -1,0 +1,150 @@
+- generic [active] [ref=f2e1]:
+  - link "Zum Inhalt springen" [ref=f2e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - region "scrollable content" [ref=f2e3]:
+    - list [ref=f2e6]:
+      - listitem [ref=f2e7]: Übersicht
+      - listitem [ref=f2e8]:
+        - link "Dashboard" [ref=f2e9] [cursor=pointer]:
+          - /url: http://127.0.0.1:5107/administrator
+      - listitem [ref=f2e15]: Firma
+      - listitem [ref=f2e16]:
+        - link "Einstellungen" [ref=f2e17] [cursor=pointer]:
+          - /url: http://127.0.0.1:5107/administrator/settings
+      - listitem [ref=f2e23]: Kommunikation
+      - listitem [ref=f2e24]:
+        - link "Chat & Nachrichten" [ref=f2e25] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f2e33]: Management
+      - listitem [ref=f2e34]:
+        - link "Verwaltung" [expanded] [ref=f2e35] [cursor=pointer]:
+          - /url: "#"
+        - list [ref=f2e44]:
+          - listitem [ref=f2e45]:
+            - link "Mitarbeiter" [ref=f2e46] [cursor=pointer]:
+              - /url: http://127.0.0.1:5107/administrator/employees
+          - listitem [ref=f2e54]:
+            - link "Geräte & Lager" [ref=f2e55] [cursor=pointer]:
+              - /url: http://127.0.0.1:5107/administrator/geraete
+          - listitem [ref=f2e60]:
+            - link "Kunden" [ref=f2e61] [cursor=pointer]:
+              - /url: http://127.0.0.1:5107/administrator/betrieb/customers
+          - listitem [ref=f2e67]:
+            - link "Mailverwaltung" [ref=f2e68] [cursor=pointer]:
+              - /url: http://127.0.0.1:5107/administrator/mails
+          - listitem [ref=f2e74]:
+            - link "E-Mail-Vorlagen" [ref=f2e75] [cursor=pointer]:
+              - /url: http://127.0.0.1:5107/administrator/mail-vorlagen
+          - listitem [ref=f2e81]:
+            - link "Entwürfe importieren" [ref=f2e82] [cursor=pointer]:
+              - /url: http://127.0.0.1:5107/administrator/mail-vorlagen/import
+      - listitem [ref=f2e89]:
+        - link "Disposition" [ref=f2e90] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f2e99]:
+        - link "Marketing" [ref=f2e100] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f2e110]: Betrieb
+      - listitem [ref=f2e111]:
+        - link "Wagenliste" [ref=f2e112] [cursor=pointer]:
+          - /url: http://127.0.0.1:5107/administrator/betrieb/wagenliste
+      - listitem [ref=f2e116]: Inhalte & Dateien
+      - listitem [ref=f2e117]:
+        - link "Dateien" [ref=f2e118] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f2e126]: Mein Bereich
+      - listitem [ref=f2e127]:
+        - link "Meine Geräte" [ref=f2e128] [cursor=pointer]:
+          - /url: http://127.0.0.1:5107/meine-geraete
+      - listitem [ref=f2e133]:
+        - link "Profil" [ref=f2e134] [cursor=pointer]:
+          - /url: http://127.0.0.1:5107/user/profile
+      - listitem [ref=f2e140]:
+        - link "E-Mail und Signatur" [ref=f2e141] [cursor=pointer]:
+          - /url: http://127.0.0.1:5107/email-templates
+      - listitem [ref=f2e147]:
+        - link "Support" [ref=f2e148] [cursor=pointer]:
+          - /url: "#"
+  - navigation "Kopfnavigation" [ref=f2e162]:
+    - generic [ref=f2e163]:
+      - generic [ref=f2e164]:
+        - link "RailTime" [ref=f2e165] [cursor=pointer]:
+          - /url: http://127.0.0.1:5107/administrator
+          - img "RailTime Logo" [ref=f2e166]
+        - button "Navigation öffnen oder schließen" [ref=f2e167] [cursor=pointer]
+      - generic [ref=f2e173]:
+        - search [ref=f2e175]:
+          - generic [ref=f2e176]:
+            - button "RailTime durchsuchen" [ref=f2e177] [cursor=pointer]
+            - searchbox "RailTime durchsuchen"
+          - button "Suchen" [ref=f2e180] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f2e184] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f2e185]: 
+          - generic [ref=f2e186]: "3"
+        - button "Einstellungen" [ref=f2e189] [cursor=pointer]
+        - button "Konto verwalten" [ref=f2e196] [cursor=pointer]:
+          - img "Dashboard QA" [ref=f2e198]
+          - text: 
+  - main [ref=f2e199]:
+    - generic [ref=f2e202]:
+      - generic [ref=f2e205]:
+        - generic [ref=f2e206]:
+          - link "Zur Vorlagen-Seite" [ref=f2e207] [cursor=pointer]:
+            - /url: http://127.0.0.1:5107/email-templates
+            - generic [aria-hidden] [ref=f2e208]: 
+          - generic:
+            - heading "Mail- & Signatur-Editor" [level=1]
+          - generic [ref=f2e209]:
+            - generic [ref=f2e211]:
+              - button "Microsoft verbinden" [ref=f2e212] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f2e213]: 
+              - button "Einrichtung prüfen" [ref=f2e215] [cursor=pointer]
+            - button "Informationen zu dieser Seite" [ref=f2e218] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f2e219]: 
+        - generic [ref=f2e221]:
+          - region [ref=f2e222]:
+            - generic [ref=f2e224]:
+              - text: Mail-Bibliothek
+              - heading "Ein Ort für alle Vorlagen." [level=2] [ref=f2e225]
+              - paragraph [ref=f2e226]: Entwürfe gestalten, freigegebene Stände verwalten und frühere Versionen wiederherstellen.
+            - group "Dokumentart" [ref=f2e227]:
+              - button "Vorlagen 0" [pressed] [ref=f2e228] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f2e229]: 
+                - generic [ref=f2e230]: Vorlagen
+                - generic [ref=f2e231]: "0"
+              - button "Signaturen 0" [ref=f2e232] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f2e233]: 
+                - generic [ref=f2e234]: Signaturen
+                - generic [ref=f2e235]: "0"
+            - generic [ref=f2e236]:
+              - generic [ref=f2e237]:
+                - generic [aria-hidden] [ref=f2e238]: 
+                - generic [ref=f2e239]: Vorlagen durchsuchen
+                - searchbox "Vorlagen durchsuchen" [ref=f2e240]
+              - button "Alle Stände" [ref=f2e243] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f2e244]: 
+                - text: Alle Stände
+                - generic [aria-hidden] [ref=f2e245]: 
+            - paragraph [ref=f2e246]: Neue Outlook-Vorlagen stehen nach der Bibliotheksmigration bereit. Vorhandene Designs bleiben bearbeitbar.
+            - generic "E-Mail-Vorlagen" [ref=f2e247]:
+              - status [ref=f2e248]:
+                - generic [aria-hidden] [ref=f2e249]: 
+                - heading "Hier beginnt deine Vorlagenbibliothek." [level=3] [ref=f2e250]
+                - paragraph [ref=f2e251]: Lege einen Entwurf an. Erst nach deiner Freigabe erscheint er für Mitarbeitende in Outlook.
+            - paragraph [ref=f2e252]:
+              - generic [aria-hidden] [ref=f2e253]: 
+              - text: Outlook-Freigaben und Systemstandards sind getrennt. Eine neue Outlook-Vorlage verändert keine Systemmail.
+          - generic [ref=f2e254]:
+            - link "RailTime öffnen" [ref=f2e255] [cursor=pointer]:
+              - /url: http://127.0.0.1:5107
+              - generic [aria-hidden] [ref=f2e256]: 
+              - text: RailTime öffnen
+            - button "RailTime installieren" [ref=f2e257] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f2e258]: 
+            - link "RailTime installieren" [ref=f2e260] [cursor=pointer]:
+              - /url: http://127.0.0.1:5107/help
+              - generic [aria-hidden] [ref=f2e261]: 
+              - text: RailTime installieren
+      - generic [ref=f2e262]: RailTime v1.0.0
+  - generic: ·
+  - text:                                                  

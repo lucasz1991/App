@@ -45,6 +45,11 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Mockery;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Part\DataPart;
+use Symfony\Component\Mime\Part\Multipart\AlternativePart;
+use Symfony\Component\Mime\Part\Multipart\MixedPart;
+use Symfony\Component\Mime\Part\Multipart\RelatedPart;
+use Symfony\Component\Mime\Part\TextPart;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 use ZipArchive;
@@ -94,6 +99,72 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('multipart/related', $email->toString());
             $this->assertSame(0, $embedder->embed($email));
             $this->assertCount(1, $email->getAttachments());
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_css_only_signature_train_is_related_not_a_second_inline_attachment(): void
+    {
+        Http::preventStrayRequests();
+        $source = URL::asset('mail-assets/zug-dampf-v19-light.gif');
+        $embedder = app(SystemMailInlineImageEmbedder::class);
+
+        foreach (['v22', 'v23'] as $version) {
+            foreach ([false, true] as $withAttachments) {
+                $html = SystemMailInlineImageEmbedder::mark('<html><body><!-- RT_TEMPLATE_MARK_START -->'
+                    .'<table><tr data-rt-artifact-version="'.$version.'"><td class="rt-sign-cell" data-rt-signature-background="1" '
+                    .'style="background-image:url(\''.$source.'\');background-size:175% auto;background-position:65% bottom;background-repeat:no-repeat;">'
+                    .'<p>Kontaktdaten</p></td></tr></table><!-- RT_TEMPLATE_MARK_END --></body></html>');
+                $email = (new Email)->from('sender@rail-time.test')->to('recipient@rail-time.test')
+                    ->subject('CSS-only '.$version)->text('Kontaktdaten')->html($html)
+                    ->date(new \DateTimeImmutable('2026-09-06T00:00:00Z'));
+                $email->getHeaders()->addIdHeader('Message-ID', 'css-only@rail-time.test');
+                if ($withAttachments) {
+                    $email->html(str_replace('</body>', '<img src="cid:existing-logo@rail-time.test" alt="Logo"></body>', $html))
+                        ->addPart((new DataPart('existing logo bytes', 'logo.png', 'image/png'))->asInline()->setContentId('existing-logo@rail-time.test'))
+                        ->attach('%PDF-1.7 original document', 'document.pdf', 'application/pdf')
+                        ->addPart((new DataPart('unrelated image bytes', 'photo.png', 'image/png'))->asInline()->setContentId('unrelated@rail-time.test'));
+                }
+
+                $this->assertSame(1, $embedder->embed($email));
+                $deliveredHtml = (string) $email->getHtmlBody();
+                $this->assertSame(1, substr_count($deliveredHtml, 'background-image:'));
+                $this->assertStringNotContainsString('<img src="cid:railtime-', $deliveredHtml);
+                $this->assertStringNotContainsString(' background=', $deliveredHtml);
+                $this->assertStringContainsString('background-size:175% auto;background-position:65% bottom;background-repeat:no-repeat;', $deliveredHtml);
+
+                $body = $email->getBody();
+                if ($withAttachments) {
+                    $this->assertInstanceOf(MixedPart::class, $body);
+                    $outerParts = $body->getParts();
+                    $this->assertCount(3, $outerParts);
+                    $this->assertSame('document.pdf', $outerParts[1]->getFilename());
+                    $this->assertSame('attachment', $outerParts[1]->getDisposition());
+                    $this->assertSame('%PDF-1.7 original document', $outerParts[1]->getBody());
+                    $this->assertSame('photo.png', $outerParts[2]->getFilename());
+                    $this->assertSame('unrelated image bytes', $outerParts[2]->getBody());
+                    $body = $outerParts[0];
+                }
+                $this->assertInstanceOf(RelatedPart::class, $body);
+                $relatedParts = $body->getParts();
+                $this->assertCount($withAttachments ? 3 : 2, $relatedParts);
+                $this->assertInstanceOf(AlternativePart::class, $relatedParts[0]);
+                $alternatives = $relatedParts[0]->getParts();
+                $this->assertCount(2, $alternatives);
+                $this->assertSame('Kontaktdaten', $alternatives[0]->getBody());
+                $this->assertInstanceOf(TextPart::class, $alternatives[1]);
+                $this->assertSame('html', $alternatives[1]->getMediaSubtype());
+                $train = $relatedParts[array_key_last($relatedParts)];
+                $this->assertSame('zug-dampf-v19-light.gif', $train->getFilename());
+                $this->assertSame('inline', $train->getDisposition());
+                $this->assertStringContainsString('cid:'.$train->getContentId(), $alternatives[1]->getBody());
+                $serialized = $email->toString();
+                $this->assertSame(1, substr_count($serialized, 'Content-ID: <'.$train->getContentId().'>'));
+                $this->assertSame(0, $embedder->embed($email));
+                $this->assertSame($serialized, $email->toString());
+                $this->assertSame($serialized, implode('', iterator_to_array($email->toIterable(), false)));
+                $this->assertSame($serialized, (clone $email)->toString());
+            }
         }
         Http::assertNothingSent();
     }
@@ -2420,7 +2491,8 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('Content-ID: <railtime-train-idle>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-icon-location>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-icon-phone>', $eml);
-            $this->assertStringContainsString('Content-ID: <railtime-icon-mobile>', $eml);
+            // Ohne Mobilnummer gibt es keine Mobilzeile und keinen losen Bildanhang.
+            $this->assertSame(0, substr_count($eml, 'Content-ID: <railtime-icon-mobile>'));
             $this->assertStringContainsString('Content-ID: <railtime-icon-email>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-icon-web>', $eml);
             $this->assertStringNotContainsString('railtime-hero', $eml);
@@ -2448,6 +2520,10 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('src="cid:railtime-train-idle"', $html);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
             $this->assertStringContainsString('src="cid:railtime-icon-email"', $html);
+            $this->assertStringNotContainsString('src="cid:railtime-icon-mobile"', $html);
+            preg_match_all('/cid:(railtime-[a-z0-9-]+)/', $html, $references);
+            preg_match_all('/Content-ID: <(railtime-[a-z0-9-]+)>/', $eml, $included);
+            $this->assertEqualsCanonicalizing(array_unique($references[1]), $included[1]);
             $this->assertStringNotContainsString('data:image/', $html);
         }
     }

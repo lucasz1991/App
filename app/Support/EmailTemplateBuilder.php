@@ -2103,6 +2103,14 @@ TEXT;
             MailDocumentKind::Signature,
             $htmlDocument,
         );
+        // Include CSS backgrounds and Outlook IMG references inside conditional
+        // comments. Compare complete CIDs so train-still never selects train.
+        preg_match_all(
+            '~(?:\s(?:src|background)\s*=\s*["\']?|url\(\s*["\']?)cid:([^"\'\s<>\)]+)~i',
+            html_entity_decode($htmlDocument, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            $cidMatches,
+        );
+        $referencedContentIds = array_fill_keys($cidMatches[1], true);
         $html = chunk_split(base64_encode($htmlDocument), 76, "\r\n");
 
         $lines = [
@@ -2138,45 +2146,44 @@ TEXT;
         $inlineImages = [
             'railtime-logo' => [
                 'filename' => $logoAsset,
-                'content' => file_get_contents(self::masterPath('assets/'.$logoAsset)),
             ],
             'railtime-logo-still' => [
                 'filename' => $logoStillAsset,
-                'content' => file_get_contents(self::masterPath('assets/'.$logoStillAsset)),
             ],
             'railtime-mark' => [
                 'filename' => $markAsset,
-                'content' => file_get_contents(self::masterPath('assets/'.$markAsset)),
             ],
             'railtime-mark-still' => [
                 'filename' => str_replace('.gif', '.png', $markAsset),
-                'content' => file_get_contents(self::masterPath('assets/'.str_replace('.gif', '.png', $markAsset))),
             ],
             'railtime-train' => [
                 'filename' => $trainAsset,
-                'content' => file_get_contents(self::masterPath('assets/'.$trainAsset)),
             ],
             'railtime-train-still' => [
                 'filename' => $trainStillAsset,
-                'content' => file_get_contents(self::masterPath('assets/'.$trainStillAsset)),
             ],
         ];
 
         if (! SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)) {
             $inlineImages['railtime-train-idle'] = [
                 'filename' => $trainIdleAsset,
-                'content' => file_get_contents(self::masterPath('assets/'.$trainIdleAsset)),
             ];
         }
 
         foreach (self::CONTACT_ICON_PNG as $name => $base64) {
             $inlineImages['railtime-icon-'.$name] = [
                 'filename' => "contact-{$name}.png",
-                'content' => base64_decode($base64, true) ?: '',
+                'base64' => $base64,
             ];
         }
 
         foreach ($inlineImages as $contentId => $image) {
+            if (! isset($referencedContentIds[$contentId])) {
+                continue;
+            }
+            $content = isset($image['base64'])
+                ? (base64_decode($image['base64'], true) ?: '')
+                : file_get_contents(self::masterPath('assets/'.$image['filename']));
             array_push(
                 $lines,
                 "--{$relBoundary}",
@@ -2185,7 +2192,7 @@ TEXT;
                 "Content-ID: <{$contentId}>",
                 "Content-Disposition: inline; filename=\"{$image['filename']}\"",
                 '',
-                rtrim(chunk_split(base64_encode($image['content']), 76, "\r\n"), "\r\n")
+                rtrim(chunk_split(base64_encode($content), 76, "\r\n"), "\r\n")
             );
         }
 

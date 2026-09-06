@@ -13,14 +13,26 @@
     data-chat-member-picker="{{ $rowPrefix }}"
     aria-label="{{ __('app.select_participants') }}"
 >
-    <x-ui.forms.search
-        :id="$searchId"
-        context="picker"
-        wire:model.live.debounce.250ms="{{ $searchModel }}"
-        :placeholder="__('app.search')"
-        :status="$pickerPaginator->total()"
-        :status-label="$pickerPaginator->total().' '.__('app.group_members')"
-    />
+    <label for="{{ $searchId }}" class="sr-only">{{ __('app.search') }}</label>
+    <div class="rt-chat-member-search relative">
+        <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-rt-muted dark:text-rt-dark-muted">
+            <i class="far fa-search text-[11px]" aria-hidden="true"></i>
+        </span>
+        <input
+            id="{{ $searchId }}"
+            type="search"
+            wire:model.live.debounce.250ms="{{ $searchModel }}"
+            placeholder="{{ __('app.search') }}"
+            autocomplete="off"
+            class="h-10 w-full rounded-xl border-0 bg-transparent pl-9 pr-12 text-sm text-rt-text outline-none ring-0 placeholder:text-rt-soft focus:border-0 focus:ring-0 dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft"
+        >
+        <span
+            class="pointer-events-none absolute inset-y-0 right-0 flex min-w-10 items-center justify-center px-2 text-[10px] font-bold tabular-nums text-rt-muted dark:text-rt-dark-muted"
+            aria-label="{{ $pickerPaginator->total() }} {{ __('app.group_members') }}"
+        >
+            {{ $pickerPaginator->total() }}
+        </span>
+    </div>
 
     <div class="rt-chat-member-list mt-2 space-y-1" wire:loading.class="opacity-60" wire:target="{{ $searchModel }},previousPage,nextPage">
         @forelse ($pickerPaginator as $member)

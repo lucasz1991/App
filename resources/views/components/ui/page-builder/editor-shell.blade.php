@@ -19,6 +19,9 @@
     'singleToolbar' => false,
     // Explizites Styling-Opt-in; andere Page Builder behalten ihren Kopf.
     'editorMode' => null,
+    // Seitenspezifische Abstaende der geschlossenen Uebersicht, ohne den
+    // Vollbild-Workspace oder andere Page-Builder-Instanzen zu beeinflussen.
+    'pageClass' => null,
     'workspaceClass' => 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5',
 ])
 
@@ -137,6 +140,7 @@
         :back-label="$backLabel"
         :auto-intro="false"
         content-class="space-y-4"
+        :class="$pageClass"
         data-page-builder-closed-preview
     >
         <x-slot:actions>

@@ -46,6 +46,7 @@ use Illuminate\View\ViewException;
 use Livewire\Livewire;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Mime\Part\DataPart;
+use Symfony\Component\Mime\Part\Multipart\RelatedPart;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
@@ -5656,6 +5657,19 @@ HTML;
             $this->assertStringContainsString('data-rt-signature-background="1"', $rendered);
             $this->assertStringNotContainsString('class="rt-sign-train-layer"', $rendered);
         }
+        foreach (['vorlage-eml', 'vorlage-dunkel-eml'] as $variant) {
+            $eml = $builder->build($variant)['content'];
+            $this->assertSame(1, substr_count($eml, 'Content-ID: <railtime-train>'));
+            $this->assertSame(0, substr_count($eml, 'Content-ID: <railtime-train-still>'));
+            $this->assertSame(0, substr_count($eml, 'Content-ID: <railtime-train-idle>'));
+            preg_match('/Content-Type: text\/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n(.*?)\r\n--=_rt_rel_/s', $eml, $htmlPart);
+            $this->assertArrayHasKey(1, $htmlPart);
+            $emlHtml = base64_decode(preg_replace('/\s+/', '', $htmlPart[1]), true);
+            $this->assertIsString($emlHtml);
+            preg_match_all('/cid:(railtime-[a-z0-9-]+)/', $emlHtml, $references);
+            preg_match_all('/Content-ID: <(railtime-[a-z0-9-]+)>/', $eml, $included);
+            $this->assertEqualsCanonicalizing(array_unique($references[1]), $included[1]);
+        }
         $mail = (new MailMessage)->greeting('V23')->line('Normaler Inhaltsfluss');
         $compiled = (string) app(Markdown::class)->render($mail->markdown ?: 'notifications::email', $mail->data());
         $this->assertStringContainsString('data-rt-artifact-version="v23"', $compiled);
@@ -5668,6 +5682,24 @@ HTML;
         $trainAttachments = array_values(array_filter($email->getAttachments(), static fn ($part): bool => $part->getFilename() === 'zug-dampf-v19-light.gif'));
         $this->assertCount(1, $trainAttachments);
         $this->assertStringContainsString("background-image: url('cid:".$trainAttachments[0]->getContentId()."')", html_entity_decode((string) $email->getHtmlBody(), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        // Kein zusaetzliches IMG in V23: auch eine reine CSS-CID-Referenz
+        // muss im versandfertigen MIME zu related gehoeren, nicht zu mixed.
+        $body = $email->getBody();
+        $this->assertInstanceOf(RelatedPart::class, $body);
+        $this->assertContains($trainAttachments[0], $body->getParts());
+        $mailer = app(MailFactory::class)->mailer();
+        $transport = $mailer->getSymfonyTransport();
+        $this->assertInstanceOf(ArrayTransport::class, $transport);
+        $transport->flush();
+        $mailer->html($compiled, static function ($message): void {
+            $message->to('v23-mime@rail-time.test')->subject('CSS-Hintergrund');
+        });
+        $sent = $transport->messages()->sole();
+        $sentBody = $sent->getOriginalMessage()->getBody();
+        $this->assertInstanceOf(RelatedPart::class, $sentBody);
+        $sentTrain = array_values(array_filter($sentBody->getParts(), static fn ($part): bool => $part instanceof DataPart && $part->getFilename() === 'zug-dampf-v19-light.gif'));
+        $this->assertCount(1, $sentTrain);
+        $this->assertSame(1, substr_count($sent->toString(), 'Content-ID: <'.$sentTrain[0]->getContentId().'>'));
         $this->assertStringNotContainsString('data-rt-artifact-version="v23"', TrustedEmailCss::responsive('#dfe3e6', false));
         $this->assertStringContainsString('tr[data-rt-artifact-version="v23"]', TrustedEmailCss::responsive('#dfe3e6', true));
 

@@ -22,6 +22,7 @@
     :render-workspace="$currentDocument === null || $editorRequested"
     :single-toolbar="$currentDocument !== null && $editorRequested"
     editor-mode="mail"
+    page-class="px-3 sm:px-0"
     workspace-class="min-h-0 flex-1 overflow-hidden p-0"
     data-mail-document-studio
     data-mail-document-back
