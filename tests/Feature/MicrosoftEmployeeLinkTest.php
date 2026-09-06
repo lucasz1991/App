@@ -10,8 +10,10 @@ use App\Models\User;
 use App\Services\DeviceManagement\MicrosoftDeviceSettings;
 use App\Services\DeviceManagement\MicrosoftEmployeeLinkService;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -80,6 +82,63 @@ class MicrosoftEmployeeLinkTest extends TestCase
         $this->assertSame('assigned', $identity->license_status);
         $this->assertSame('railtime_desired_state', $identity->metadata['source']);
         $this->assertSame('administrator_mapping', $identity->metadata['microsoft_link_source']);
+    }
+
+    public function test_admin_can_confirm_missing_tenant_on_unchanged_legacy_identity_without_erasing_provider_evidence(): void
+    {
+        $admin = $this->admin();
+        $employee = User::factory()->create(['status' => true]);
+        $legacy = $this->identity($employee, [
+            'tenant_id' => null,
+            'provisioning_status' => 'ready',
+            'license_status' => 'licensed',
+            'last_synced_at' => now()->subHour(),
+            'metadata' => ['provider_evidence' => 'preserved'],
+        ]);
+
+        $identity = app(MicrosoftEmployeeLinkService::class)->bind($employee, self::OBJECT_ID, $legacy->principal, $admin);
+
+        $this->assertSame($legacy->id, $identity->id);
+        $this->assertSame(self::OBJECT_ID, $identity->external_id);
+        $this->assertSame($employee->id, $identity->user_id);
+        $this->assertSame($legacy->principal, $identity->principal);
+        $this->assertSame(self::TENANT, $identity->tenant_id);
+        $this->assertSame('ready', $identity->provisioning_status);
+        $this->assertSame('licensed', $identity->license_status);
+        $this->assertTrue($legacy->last_synced_at->equalTo($identity->last_synced_at));
+        $this->assertSame('preserved', $identity->metadata['provider_evidence']);
+        $this->assertDatabaseHas('activity_log', [
+            'description' => 'microsoft_employee_linked',
+            'subject_id' => $identity->id,
+            'causer_id' => $admin->id,
+        ]);
+        $properties = json_decode(DB::table('activity_log')->where('description', 'microsoft_employee_linked')->value('properties'), true);
+        $this->assertSame('tenant_initial_binding', $properties['binding_kind']);
+    }
+
+    public function test_tenant_change_before_transaction_work_is_read_fresh_instead_of_using_pretransaction_configuration(): void
+    {
+        $admin = $this->admin();
+        $employee = User::factory()->create(['status' => true]);
+        $changedTenant = '44444444-4444-4444-8444-444444444444';
+        $changePending = true;
+        Event::listen(TransactionBeginning::class, function () use (&$changePending, $changedTenant): void {
+            if (! $changePending) {
+                return;
+            }
+            $changePending = false;
+            // Reproduce the point at which a setting can change between an
+            // earlier read and the protected transaction's first operation.
+            Setting::query()
+                ->where('type', MicrosoftDeviceSettings::GROUP)
+                ->where('key', MicrosoftDeviceSettings::KEY)
+                ->update(['value' => ['tenant_id' => $changedTenant]]);
+        });
+
+        $identity = app(MicrosoftEmployeeLinkService::class)->bind($employee, self::OBJECT_ID, 'employee@company.test', $admin);
+
+        $this->assertFalse($changePending);
+        $this->assertSame($changedTenant, $identity->tenant_id);
     }
 
     public function test_existing_binding_cannot_be_moved_to_another_employee_principal_object_or_tenant(): void

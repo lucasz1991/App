@@ -4,6 +4,7 @@ namespace App\Services\DeviceManagement;
 
 use App\Enums\AccountProvider;
 use App\Models\EmployeeIdentityAccount;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -33,15 +34,23 @@ final class MicrosoftEmployeeLinkService
             'principal' => 'Microsoft-Anmeldename',
         ])->validate();
 
-        $tenantId = strtolower(trim((string) ($this->settings->configuration()['tenant_id'] ?? '')));
-        if (! Str::isUuid($tenantId)) {
-            throw ValidationException::withMessages([
-                'tenant_id' => 'Bitte zuerst den konkreten Microsoft-Mandanten in den Geräteeinstellungen konfigurieren.',
-            ]);
-        }
-
         try {
-            return DB::transaction(function () use ($employee, $actor, $data, $tenantId): EmployeeIdentityAccount {
+            return DB::transaction(function () use ($employee, $actor, $data): EmployeeIdentityAccount {
+                // Use the same setting lock as MicrosoftDeviceSettings::save.
+                // Read the uncached tenant only after acquiring it so a
+                // concurrent configuration update cannot leave a stale binding.
+                Setting::query()
+                    ->where('type', MicrosoftDeviceSettings::GROUP)
+                    ->where('key', MicrosoftDeviceSettings::KEY)
+                    ->lockForUpdate()
+                    ->first();
+                $tenantId = strtolower(trim((string) ($this->settings->configuration()['tenant_id'] ?? '')));
+                if (! Str::isUuid($tenantId)) {
+                    throw ValidationException::withMessages([
+                        'tenant_id' => 'Bitte zuerst den konkreten Microsoft-Mandanten in den Geräteeinstellungen konfigurieren.',
+                    ]);
+                }
+
                 $lockedEmployee = User::query()->lockForUpdate()->findOrFail($employee->getKey());
                 if (! $lockedEmployee->isActive()) {
                     throw ValidationException::withMessages([
@@ -67,6 +76,7 @@ final class MicrosoftEmployeeLinkService
                 }
 
                 $identity = $candidates->first();
+                $bindingKind = 'initial_identity_binding';
                 if ($identity) {
                     if ((int) $identity->user_id !== (int) $lockedEmployee->getKey()
                         || mb_strtolower((string) $identity->principal) !== $data['principal']) {
@@ -75,9 +85,10 @@ final class MicrosoftEmployeeLinkService
 
                     $existingObjectId = strtolower(trim((string) $identity->external_id));
                     $existingTenantId = strtolower(trim((string) $identity->tenant_id));
+                    $initialTenantBinding = $existingObjectId === $data['object_id'] && $identity->tenant_id === null;
                     if (($existingObjectId !== '' && $existingObjectId !== $data['object_id'])
                         || ($existingTenantId !== '' && $existingTenantId !== $tenantId)
-                        || ($existingObjectId !== '' && $existingTenantId === '')
+                        || ($existingObjectId !== '' && $existingTenantId === '' && ! $initialTenantBinding)
                         || $identity->lifecycle_status !== 'active') {
                         throw $this->conflict('Die bestehende Objekt-ID, der Mandant oder der Kontostatus passt nicht. Eine vorhandene Bindung wird nicht ersetzt.');
                     }
@@ -86,8 +97,12 @@ final class MicrosoftEmployeeLinkService
                         return $identity;
                     }
 
-                    if (! in_array($identity->provisioning_status, ['pending_provider', 'pending'], true)) {
+                    if (! $initialTenantBinding && ! in_array($identity->provisioning_status, ['pending_provider', 'pending'], true)) {
                         throw $this->conflict('Dieses Konto ist keine offene Erstzuordnung. Bitte die vorhandenen Providerdaten prüfen.');
+                    }
+
+                    if ($initialTenantBinding) {
+                        $bindingKind = 'tenant_initial_binding';
                     }
 
                     $identity->forceFill([
@@ -117,11 +132,12 @@ final class MicrosoftEmployeeLinkService
                         'employee_id' => $lockedEmployee->getKey(),
                         'identity_id' => $identity->getKey(),
                         'source' => 'administrator_mapping',
+                        'binding_kind' => $bindingKind,
                     ])
                     ->log('microsoft_employee_linked');
 
                 return $identity;
-            });
+            }, 3);
         } catch (UniqueConstraintViolationException) {
             throw $this->conflict('Das Microsoft-Konto wurde inzwischen anderweitig zugeordnet. Bitte die Ansicht neu laden.');
         }

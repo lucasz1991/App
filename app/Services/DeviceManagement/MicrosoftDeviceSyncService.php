@@ -224,10 +224,11 @@ class MicrosoftDeviceSyncService
             return ['skipped' => 1, 'conflicts' => 1];
         }
         $enabled = ($directory['accountEnabled'] ?? null) === true;
+        $disabled = ($directory['accountEnabled'] ?? null) === false;
         $link->fill([
             'entra_device_id' => $entraId,
             'join_type' => $this->string($directory['trustType'] ?? null, 32),
-            'directory_status' => $enabled ? 'present' : 'disabled',
+            'directory_status' => $enabled ? 'present' : ($disabled ? 'disabled' : 'unknown'),
             'owner_ids' => $ownerIds,
             'assignment_source' => $source,
             'entra_managed' => is_bool($directory['isManaged'] ?? null) ? $directory['isManaged'] : null,
@@ -248,12 +249,13 @@ class MicrosoftDeviceSyncService
                 ->where('tenant_id', $tenantId)->where('external_id', $ownerIds[0])->lockForUpdate()->first()
             : null;
         $employee = $account?->user_id ? User::query()->lockForUpdate()->find($account->user_id) : null;
-        if (! $employee?->isActive() || $employee->email_verified_at === null) {
+        if (! $employee?->isActive() || $employee->email_verified_at === null
+            || ! in_array($employee->role, ['admin', 'staff'], true) || $employee->isSuperAdmin()) {
             $employee = null;
         }
         $link->suggested_user_id = $employee?->id;
         $status = $authorityStatus ?? match (true) {
-            ! $enabled => 'directory_disabled',
+            ! $enabled => $disabled ? 'directory_disabled' : 'directory_unknown',
             count($ownerIds) === 0 => 'no_owner',
             count($ownerIds) > 1 => 'ambiguous_owner',
             $employee === null => 'identity_unlinked',

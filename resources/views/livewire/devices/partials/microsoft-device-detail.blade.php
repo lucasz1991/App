@@ -11,6 +11,7 @@
             'manual_review' => 'Vorhandene Gerätehistorie – manuelle Zuweisung erforderlich',
             'intune_unavailable' => 'Intune nicht erreichbar – Benutzerzuordnung bleibt unverändert',
             'directory_disabled' => 'Gerät in Entra deaktiviert',
+            'directory_unknown' => 'Entra-Aktivierungsstatus ist nicht belegt – Zuweisung prüfen',
             'directory_missing' => 'Gerät beim letzten vollständigen Entra-Abgleich nicht gefunden',
             'device_id_conflict' => 'Entra-Geräte-ID hat sich geändert – Verknüpfung prüfen',
             'serial_conflict' => 'Seriennummer widersprüchlich oder bereits vergeben – Bestand prüfen',

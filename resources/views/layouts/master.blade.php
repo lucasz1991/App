@@ -114,7 +114,7 @@
                     <div @class([
                         'relative z-[1] container-fluid w-full max-w-none',
                         'px-0' => $viewportMode,
-                        'px-1' => ! $viewportMode,
+                        'px-4' => ! $viewportMode,
                         'md:px-5' => ! $viewportMode,
                         'flex min-h-full flex-1 flex-col' => ! $viewportMode,
                     ])>
