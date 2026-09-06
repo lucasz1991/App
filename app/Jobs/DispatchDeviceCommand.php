@@ -10,6 +10,7 @@ use App\Models\DeviceAssignment;
 use App\Models\DeviceCommand;
 use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\DeviceProviderRegistry;
+use App\Services\DeviceManagement\OpenUemFork\PollOpenUemRun;
 use App\Services\DeviceManagement\Support\SafeProviderData;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -219,6 +220,10 @@ final class DispatchDeviceCommand implements ShouldQueue
                 ])
                 ->log($result->completed ? 'Gerätebefehl abgeschlossen' : 'Gerätebefehl vom Connector angenommen');
         });
+
+        if ($command->provider === 'openuem' && $command->type === DeviceCommandType::ApplyManagedProfile) {
+            PollOpenUemRun::dispatch((int) $command->getKey(), (int) $command->device_id)->delay(15)->afterCommit();
+        }
     }
 
     private function profilePayloadIsCurrent(
@@ -310,6 +315,23 @@ final class DispatchDeviceCommand implements ShouldQueue
                 DeviceCommandStatus::Rejected,
                 DeviceCommandStatus::Expired,
             ], true)) {
+                return;
+            }
+
+            if ($command->provider === 'openuem'
+                && $command->type === DeviceCommandType::ApplyManagedProfile
+                && in_array($command->status, [DeviceCommandStatus::Dispatched, DeviceCommandStatus::Running], true)) {
+                // A transport timeout may hide a durably accepted native run.
+                // Preserve the handover barrier until an administrator can
+                // reconcile the existing correlation ID; never auto-resubmit.
+                $command->forceFill([
+                    'status' => DeviceCommandStatus::Running,
+                    'error' => 'OpenUEM-Zustellung unklar. Bestehenden Auftrag manuell abgleichen; keine automatische Wiederholung oder Geräteübergabe.',
+                ])->save();
+                activity('device-management')->performedOn($command)->event('device-command.native-delivery-uncertain')
+                    ->withProperties(['command_id' => (string) $command->public_id, 'provider' => 'openuem', 'provider_status' => 'uncertain'])
+                    ->log('Native OpenUEM-Zustellung zur manuellen Prüfung gesperrt');
+
                 return;
             }
 

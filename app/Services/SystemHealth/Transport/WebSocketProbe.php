@@ -6,18 +6,31 @@ use RuntimeException;
 
 class WebSocketProbe
 {
-    public function check(string $host, int $port, bool $tls, string $path): void
+    public function __construct(private readonly ?BoundedSocket $channel = null) {}
+
+    public function check(string $host, int $port, bool $tls, string $path, ?string $origin = null): void
     {
         if (! str_starts_with($path, '/') || preg_match('/[\x00-\x20\x7f]/', $path)) {
             throw new RuntimeException('Invalid WebSocket path.');
         }
-        $socket = new BoundedSocket;
+        $socket = $this->channel ?? new BoundedSocket;
         $key = base64_encode(random_bytes(16));
         $authority = (str_contains($host, ':') ? '['.trim($host, '[]').']' : $host).':'.$port;
+        $originHeader = '';
+        if ($origin !== null) {
+            $parts = parse_url($origin);
+            if (! is_array($parts) || ! in_array($parts['scheme'] ?? '', ['https', 'http'], true)
+                || ! BoundedSocket::validHost((string) ($parts['host'] ?? ''))
+                || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
+                || ! in_array($parts['path'] ?? '', ['', '/'], true) || preg_match('/[\x00-\x20\x7f]/', $origin)) {
+                throw new RuntimeException('Invalid WebSocket origin.');
+            }
+            $originHeader = 'Origin: '.$origin."\r\n";
+        }
 
         try {
             $socket->open($host, $port, $tls);
-            $socket->write("GET {$path} HTTP/1.1\r\nHost: {$authority}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {$key}\r\nSec-WebSocket-Version: 13\r\n\r\n");
+            $socket->write("GET {$path} HTTP/1.1\r\nHost: {$authority}\r\n{$originHeader}Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {$key}\r\nSec-WebSocket-Version: 13\r\n\r\n");
             if (! preg_match('/^HTTP\/1\.[01] 101(?: |\r)/', $socket->line())) {
                 throw new RuntimeException('WebSocket upgrade failed.');
             }
@@ -46,6 +59,10 @@ class WebSocketProbe
             $payload = json_decode($socket->read($length), true, 32, JSON_THROW_ON_ERROR);
             if (($payload['event'] ?? null) !== 'pusher:connection_established') {
                 throw new RuntimeException('Realtime application did not accept the connection.');
+            }
+            $data = is_string($payload['data'] ?? null) ? json_decode($payload['data'], true, 16, JSON_THROW_ON_ERROR) : ($payload['data'] ?? null);
+            if (! is_array($data) || ! is_string($data['socket_id'] ?? null) || ! preg_match('/\A[0-9]+\.[0-9]+\z/', $data['socket_id'])) {
+                throw new RuntimeException('Realtime connection identity missing.');
             }
         } finally {
             $socket->close();

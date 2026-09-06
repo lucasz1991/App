@@ -281,6 +281,9 @@
                     </div>
 
                     <div class="space-y-5 p-4 sm:p-5">
+                        @if ($providerKey === 'openuem')
+                            @include('livewire.admin.partials.openuem-fork-settings')
+                        @endif
                         <div class="rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
                             <p class="text-xs font-semibold uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">
                                 {{ $isGerman ? 'Aktuell wirksame Adressen' : 'Currently effective addresses' }}
@@ -329,9 +332,13 @@
                         </div>
 
                         <p class="rounded-lg bg-amber-50/70 px-3 py-2 text-xs leading-5 text-amber-900 ring-1 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/20">
+                            @if ($providerKey === 'openuem' && ($provider['adapter'] ?? '') === 'native_fork_v1')
+                                {{ $isGerman ? 'Beim Wechsel der Anbindung oder des aktiven Ziels muss das Zugriffstoken neu eingegeben werden. Sonst wird der Provider deaktiviert. Profiländerungen sperren die Produktionsfreigabe bis zum erneuten Funktionstest.' : 'Changing the adapter or active endpoint requires a new access token; otherwise the provider is disabled. Profile changes invalidate production approval until another health check.' }}
+                            @else
                             {{ $isGerman
                                 ? 'Bei einer Änderung des aktuell verwendeten Ziels kannst du Token und Webhook-Geheimnis gemeinsam neu eingeben. Ohne vollständige Neueingabe beider Werte deaktiviert RailTime den Provider und entfernt beide Zugangsdaten sicher. Das inaktive Fallback-Feld löst keine Neu-Anmeldung aus.'
                                 : 'When changing the currently used target, you can re-enter the token and webhook secret together. Without a complete re-entry of both values, RailTime disables the provider and safely removes both credentials. Changing the inactive fallback field does not require re-authentication.' }}
+                            @endif
                         </p>
 
                         <div class="grid min-w-0 gap-4 sm:grid-cols-2">
@@ -359,6 +366,7 @@
                                     </label>
                                 @endif
                             </div>
+                            @if (! ($providerKey === 'openuem' && ($provider['adapter'] ?? '') === 'native_fork_v1'))
                             <div class="min-w-0">
                                 <x-ui.forms.label :for="'device-provider-'.$providerKey.'-webhook'" :value="$isGerman ? 'Webhook-Geheimnis' : 'Webhook secret'" />
                                 <x-ui.forms.input
@@ -383,6 +391,7 @@
                                     </label>
                                 @endif
                             </div>
+                            @endif
                         </div>
 
                         <details class="rounded-xl bg-rt-surface-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">

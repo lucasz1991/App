@@ -88,6 +88,12 @@ Provider wird erst nach seinem eigenen Labor-Gate für Mutationen freigeschaltet
 - **Externe Provider: NO-GO.** Native OpenUEM-, Headwind- und NanoMDM-Adapter
   sind noch nicht implementiert. Apple-Plattformdienste und Android EMM sind
   noch nicht qualifiziert beziehungsweise provisioniert.
+  Vertiefte OpenUEM-Prüfung06.09.: Es existieren echte Aufgabenberichte, aber
+  keine durchgängige Ausführungs-ID und keine unveränderlichen Ergebnisse pro
+  Auftrag. Ein gewöhnlicher HTTP-Adapter erfüllt deshalb den RailTime-Vertrag
+  nicht. Vor Umsetzung ist ein gepflegter Fork/Erweiterungsweg oder ein anderer
+  geeigneter Management-Baustein zu entscheiden; siehe
+  [Rückkanalprüfung](../../.lmzdev/artifacts/reports/openuem-execution-contract-audit-20260906.md).
 
 Keine dieser Aussagen ist eine Freigabe für Wipe, Lock, Kontenbereitstellung
 oder Skriptausführung auf produktiv verwendeten Mitarbeitergeräten.

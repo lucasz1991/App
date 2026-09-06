@@ -104,6 +104,18 @@
     {{-- Übersicht: Einstiegspunkt mit Teasern auf alle weiteren Bereiche. --}}
     <x-ui.accordion.tab-panel for="overview" :order="0" content-class="">
         <div class="flex flex-col gap-4 sm:gap-5">
+            @if ($isSuperAdmin)
+                <livewire:admin.system-health />
+
+                <nav class="rt-health-shortcuts" aria-label="Einstellungsbereiche">
+                    @foreach ($settingsTeasers as $teaser)
+                        <button type="button" x-on:click="selectTab(@js($teaser['tab']), true); $dispatch('rt-settings-open-section', { tab: @js($teaser['tab']), section: @js($teaser['section']) });">
+                            <span>{{ $teaser['label'] }}<small>{{ implode(' · ', $teaser['items']) }}</small></span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
+                        </button>
+                    @endforeach
+                </nav>
+            @else
             <section
                 class="relative overflow-hidden rounded-2xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70 sm:p-6"
                 data-anim="fade-up"
@@ -142,6 +154,7 @@
                     />
                 @endforeach
             </div>
+            @endif
         </div>
     </x-ui.accordion.tab-panel>
 

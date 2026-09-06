@@ -1,0 +1,12 @@
+ARG NODE_IMAGE
+FROM ${NODE_IMAGE}
+
+WORKDIR /opt/railtime-meshcentral-connector
+COPY package.json package-lock.json ./
+RUN node -e "if (process.versions.node.split('.')[0] !== '22') process.exit(1)" \
+    && npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
+    && node -e "if (require('./node_modules/meshcentral/package.json').version !== '1.2.5') process.exit(1)"
+COPY src ./src
+
+USER 1000:1000
+CMD ["node", "src/server.js", "--config", "/etc/railtime-meshcentral-connector/config.json"]

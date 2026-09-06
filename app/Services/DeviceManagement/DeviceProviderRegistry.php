@@ -3,6 +3,9 @@
 namespace App\Services\DeviceManagement;
 
 use App\Services\DeviceManagement\Contracts\DeviceProviderInterface;
+use App\Services\DeviceManagement\OpenUemFork\CommandBinding;
+use App\Services\DeviceManagement\OpenUemFork\NativeClient;
+use App\Services\DeviceManagement\OpenUemFork\NativeDeviceProvider;
 use App\Services\DeviceManagement\Providers\ConnectorDeviceProvider;
 use App\Services\DeviceManagement\Providers\SimulationDeviceProvider;
 use InvalidArgumentException;
@@ -32,14 +35,20 @@ final class DeviceProviderRegistry
 
         if (! isset($this->instances[$provider])
             || ! hash_equals($this->fingerprints[$provider] ?? '', $fingerprint)) {
-            $this->instances[$provider] = $provider === 'simulation'
-            ? new SimulationDeviceProvider($configuration)
-            : new ConnectorDeviceProvider(
-                $provider,
-                $configuration,
-                $this->http,
-                $this->settings,
-            );
+            $this->instances[$provider] = match (true) {
+                $provider === 'simulation' => new SimulationDeviceProvider($configuration),
+                $provider === 'openuem' && ($configuration['adapter'] ?? null) === 'native_fork_v1' => new NativeDeviceProvider(
+                    $configuration,
+                    new NativeClient($this->http, $this->settings),
+                    new CommandBinding($this->settings),
+                ),
+                default => new ConnectorDeviceProvider(
+                    $provider,
+                    $configuration,
+                    $this->http,
+                    $this->settings,
+                ),
+            };
             $this->fingerprints[$provider] = $fingerprint;
         }
 
@@ -64,6 +73,12 @@ final class DeviceProviderRegistry
     {
         $provider = strtolower(trim($provider));
         $runtime = $this->settings->providerRuntime($provider, fresh: true);
+
+        // The fork's authenticated result ledger is polled with pinned run
+        // identity. Legacy shared-secret callbacks must never complete it.
+        if ($provider === 'openuem' && ($runtime['adapter'] ?? null) === 'native_fork_v1') {
+            return '';
+        }
 
         return trim((string) ($runtime['webhook_secret'] ?? ''));
     }

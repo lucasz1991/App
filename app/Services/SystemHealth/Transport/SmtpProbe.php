@@ -10,13 +10,15 @@ use Symfony\Component\Mime\RawMessage;
 
 class SmtpProbe
 {
+    public function __construct(private readonly ?BoundedSocket $channel = null) {}
+
     /** @return array{authenticated: bool, tls: bool} */
     public function check(array $config): array
     {
         $host = (string) ($config['host'] ?? '');
         $port = (int) ($config['port'] ?? 587);
         $implicitTls = ($config['scheme'] ?? '') === 'smtps' || $port === 465;
-        $stream = new ProbeSmtpStream(new BoundedSocket);
+        $stream = new ProbeSmtpStream($this->channel ?? new BoundedSocket);
         $transport = new class($host, $port, $implicitTls, stream: $stream) extends EsmtpTransport
         {
             public bool $authenticated = false;

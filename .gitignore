@@ -68,6 +68,11 @@ Homestead.json
 !/tests/Feature/MicrosoftEmployeeLinkTest.php
 !/tests/Feature/DeviceManagementSettingsTest.php
 !/tests/Feature/AdminSettingsOverviewAndSuperadminTest.php
+!/tests/Feature/SystemHealthOrchestrationTest.php
+!/tests/Feature/SystemHealthInfrastructureTest.php
+!/tests/Feature/SystemHealthIntegrationsTest.php
+!/tests/Feature/SystemHealthComponentTest.php
+!/tests/Feature/SystemHealthDeviceChecksTest.php
 !/tests/Feature/AdminDashboardCommandBoardTest.php
 !/tests/Feature/DeviceProviderDiagnosticsServiceTest.php
 !/tests/Feature/DeviceIdentityPreparationTest.php
@@ -95,6 +100,7 @@ Homestead.json
 !/tests/Frontend/chat-message-actions.test.js
 !/tests/Frontend/live-location.test.js
 !/tests/Frontend/welcome-intro.test.js
+!/tests/Frontend/system-health.test.js
 !/tests/Frontend/mail-builder.test.js
 !/tests/Frontend/mail-signature-reply-forward.test.js
 !/tests/Frontend/outlook-compose-template.test.js

@@ -17,6 +17,7 @@ function assertProfile(profile) {
             .every((key) => Number.isInteger(profile[key]))
         || profile.sourceWidth < 1 || profile.sourceHeight < 1
         || !BREAKPOINT_NAMES.every((name) => Number.isInteger(profile.compactHeights?.[name]))
+        || typeof profile.layoutCss !== 'string'
         || !['stage', 'layer', 'frame', 'slot', 'image'].every((key) => typeof profile.styleTemplates?.[key] === 'string')) {
         throw new Error('Das serverseitige V26-Profil fehlt oder ist unvollstaendig.');
     }
@@ -112,7 +113,19 @@ function unique(wrapper, className) {
 }
 
 function assertStyle(element, expected) {
-    const normalize = (value) => String(value || '').trim().replace(/\s+/g, '').toLowerCase();
+    const normalize = (value) => {
+        const source = String(value || '');
+        if (/\/\*|\*\/|\\/.test(source)) throw new Error('Die V26-Geometrie besitzt mehrdeutige CSS-Deklarationen.');
+        const declarations = {};
+        for (const part of source.split(';').filter((part) => part.trim())) {
+            const separator = part.indexOf(':');
+            if (separator === -1) throw new Error('Die V26-Geometrie besitzt unvollstaendige CSS-Deklarationen.');
+            const key = part.slice(0, separator).trim().toLowerCase();
+            if (Object.hasOwn(declarations, key)) throw new Error('Die V26-Geometrie besitzt doppelte CSS-Deklarationen.');
+            declarations[key] = part.slice(separator + 1).trim().replace(/\s*!important\s*$/i, '').replace(/\s+/g, '').toLowerCase();
+        }
+        return JSON.stringify(Object.fromEntries(Object.entries(declarations).sort(([a], [b]) => a.localeCompare(b))));
+    };
     if (normalize(element.getAttribute('style')) !== normalize(expected)) {
         throw new Error(`Die V26-Geometrie besitzt vom Profil abweichende ${element.getAttribute('class')}-Stile.`);
     }
@@ -125,7 +138,7 @@ export function assertImgOverlapSignature(wrapper, rows, profile) {
         || rows[0].getAttribute('data-rt-artifact-version') !== VERSION) {
         throw new Error('Der IMG-Ueberlappungsvertrag ist ausschliesslich fuer V26 mit zwei Zeilen bestimmt.');
     }
-    if (rows[0].hasAttribute('data-rt-sign-density') || rows[0].classList.contains('rt-sign-density-compact')) {
+    if (rows[0].hasAttribute('data-rt-signature-density') || rows[0].classList.contains('rt-sign-density-compact')) {
         throw new Error('Die V26-Laufzeitdichte darf nicht in einer Importquelle gespeichert werden.');
     }
     const nodes = Object.fromEntries(Object.entries(CLASS_NAMES).map(([key, className]) => [key, unique(wrapper, className)]));
@@ -189,10 +202,7 @@ export function imgOverlapCss(htmlOrDocument, profile, { DOMParser: Parser = glo
     if (versionRows.length !== 1) throw new Error('Das V26-Dokument ist nicht eindeutig.');
     const stage = unique(versionRows[0], CLASS_NAMES.stage);
     const settings = readImgOverlapSettings(stage, profile);
-    let css = `${prefix} .rt-sign-stage{display:block!important;width:100%!important;overflow:visible!important;}`
-        + `${prefix} .rt-sign-content-frame{border-collapse:collapse!important;}`
-        + `${prefix} .rt-sign-logo{text-align:right!important;}`
-        + `${prefix} img.rt-logo{margin-left:auto!important;margin-right:0!important;}`;
+    let css = profile.layoutCss.replaceAll('{scope}', prefix);
     const important = (value) => value.replaceAll(';', '!important;');
     const compactPrefix = prefix === 'tr[data-rt-artifact-version="v26"]'
         ? `${prefix}.rt-sign-density-compact` : `${prefix} .rt-sign-density-compact`;
@@ -202,7 +212,10 @@ export function imgOverlapCss(htmlOrDocument, profile, { DOMParser: Parser = glo
             const current = { ...settings[breakpoint] };
             if (compact) current.height = Math.min(current.height, profile.compactHeights[breakpoint]);
             const styles = stylesFor(current, profile);
-            const rule = `${selector} .rt-sign-train-layer{${important(styles.layer)}}`
+            const rule = compact
+                ? `${selector} .rt-sign-train-layer{height:${current.height}px!important;max-height:${current.height}px!important;margin-bottom:-${current.height}px!important;}`
+                    + `${selector} .rt-sign-train-frame,${selector} .rt-sign-content-frame,${selector} .rt-sign-train-slot{height:${current.height}px!important;}`
+                : `${selector} .rt-sign-train-layer{${important(styles.layer)}}`
                 + `${selector} .rt-sign-train-frame,${selector} .rt-sign-content-frame{${important(styles.frame)}}`
                 + `${selector} .rt-sign-train-slot{${important(styles.slot)}}`
                 + `${selector} .rt-sign-train,${selector} .rt-sign-train-mso{${important(styles.image)}}`;

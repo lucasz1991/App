@@ -3026,15 +3026,25 @@ export function applyMailCanvasStyles(editor, css) {
 /** Pick the actual loaded artifact after imports, not the initial page config. */
 export function resolveMailCanvasResponsiveCss(canvasDocument, {
     theme = 'light', previewResponsiveCss = {}, previewResponsiveCssByArtifact = {}, imgOverlapProfile = null,
+    previewThemeValues = {},
 } = {}) {
     const selectedTheme = theme === 'dark' ? 'dark' : 'light';
+    const color = previewThemeValues[selectedTheme]?.SIGNATURE_BORDER;
+    const border = /^#[0-9a-f]{6}$/i.test(String(color || '')) ? color : selectedTheme === 'dark' ? '#313944' : '#dfe3e6';
+    const expand = (entry) => {
+        if (typeof entry?.css === 'string' && /^#[0-9a-f]{6}$/i.test(String(entry.borderToken || ''))) {
+            return entry.css.replaceAll(entry.borderToken, border);
+        }
+        return typeof entry?.[selectedTheme] === 'string' ? entry[selectedTheme] : null;
+    };
+    const legacy = expand(previewResponsiveCssByArtifact.legacy);
     const row = canvasDocument?.querySelector?.(`tr[${MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE}]`);
-    if (!row) return String(previewResponsiveCss[selectedTheme] || '');
+    if (!row) return String(previewResponsiveCss[selectedTheme] || legacy || '');
     const version = String(row.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').toLowerCase();
     if (version !== 'v26') {
-        return String(previewResponsiveCssByArtifact.legacy?.[selectedTheme] ?? previewResponsiveCss[selectedTheme] ?? '');
+        return String(legacy ?? previewResponsiveCss[selectedTheme] ?? '');
     }
-    const base = previewResponsiveCssByArtifact.v26?.[selectedTheme];
+    const base = expand(previewResponsiveCssByArtifact.v26);
     if (typeof base !== 'string') throw new Error('Die V26-Vorschau ist serverseitig nicht vollstaendig konfiguriert.');
     return base + imgOverlapCss(canvasDocument, imgOverlapProfile);
 }
@@ -4599,7 +4609,7 @@ export async function createMailBuilder({
     let activeTheme = theme === 'dark' ? 'dark' : 'light';
     const normalizedCompatibilityManifest = normalizeMailCompatibilityManifest(compatibilityManifest);
     const responsiveCssForTheme = (selectedTheme, canvasDocument = null) => resolveMailCanvasResponsiveCss(canvasDocument, {
-        theme: selectedTheme, previewResponsiveCss, previewResponsiveCssByArtifact, imgOverlapProfile,
+        theme: selectedTheme, previewResponsiveCss, previewResponsiveCssByArtifact, imgOverlapProfile, previewThemeValues,
     });
     let canvasCss = mailCanvasStyles(activeTheme, previewAssets, responsiveCssForTheme(activeTheme), previewThemeValues);
 
@@ -4679,7 +4689,7 @@ export async function createMailBuilder({
         synchronizeMailTrainLayerAlignment(component);
         synchronizeMailContentImage(component);
         if (background) globalThis.queueMicrotask?.(() => hydrateMailCanvasAssets(editor, activeTheme, previewAssets));
-        if (overlap) globalThis.queueMicrotask?.(() => refreshResponsiveCanvas());
+        if (overlap) globalThis.queueMicrotask?.(() => { if (!previewDisposed) refreshResponsiveCanvas(); });
     };
     const onComponentStyleUpdate = (component, changes = {}) => {
         const styleChanges = changes?.style && typeof changes.style === 'object'
@@ -4694,7 +4704,7 @@ export async function createMailBuilder({
         synchronizeMailContentImage(component);
         if (componentUsesImgOverlapSignature(component)) {
             synchronizeMailSignatureImgOverlap(component, imgOverlapProfile);
-            globalThis.queueMicrotask?.(() => refreshResponsiveCanvas());
+            globalThis.queueMicrotask?.(() => { if (!previewDisposed) refreshResponsiveCanvas(); });
         }
     };
     editor.on?.('component:add', onComponentAdd);

@@ -4,6 +4,7 @@ namespace App\Livewire\Admin;
 
 use App\Services\SystemHealth\SystemHealthService;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -45,7 +46,7 @@ class SystemHealth extends Component
     {
         $this->authorizeDiagnostics();
         $this->authorizeCheck($id);
-        if (! preg_match('/\A[a-zA-Z0-9_-]{1,100}\z/D', $runId)) {
+        if (! Str::isUuid($runId)) {
             throw ValidationException::withMessages(['systemHealth' => 'Ungültiger Prüflauf.']);
         }
 

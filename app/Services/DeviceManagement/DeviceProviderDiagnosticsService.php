@@ -76,7 +76,11 @@ final class DeviceProviderDiagnosticsService
             return $this->withStatus($result, 'invalid_configuration');
         }
 
-        $result['url'] = $validatedBaseUrl.self::HEALTH_PATH;
+        $nativeFork = $provider === 'openuem' && ($runtime['adapter'] ?? '') === 'native_fork_v1';
+        $result['url'] = $validatedBaseUrl.($nativeFork ? '/railtime/v1/health' : self::HEALTH_PATH);
+        if ($nativeFork) {
+            $result['contract']['expected'] = 'railtime.execution.v1';
+        }
         $result['config']['configured'] = $token !== '';
 
         if ($token === '') {
@@ -141,6 +145,26 @@ final class DeviceProviderDiagnosticsService
 
         if (! is_array($payload) || array_is_list($payload)) {
             return $this->withStatus($result, 'invalid_response');
+        }
+
+        if ($nativeFork) {
+            if (($payload['protocol'] ?? null) !== 'railtime.execution.v1'
+                || ! is_bool($payload['ready'] ?? null)
+                || ! is_bool($payload['storage_ready'] ?? null)
+                || ! is_bool($payload['broker_ready'] ?? null)
+                || ($payload['capabilities'] ?? null) !== ['profile_runs_v1']) {
+                return $this->withStatus($result, 'contract_invalid');
+            }
+            $result['contract']['reported'] = $payload['protocol'];
+            $result['contract']['provider'] = 'openuem';
+            $result['contract']['compatible'] = true;
+            $result['contract']['upstream_reachable'] = $payload['storage_ready'] && $payload['broker_ready'];
+            $result['contract']['upstream_authenticated'] = $payload['broker_ready'];
+            // Proves native server/storage/broker health only. A successful
+            // device execution is evidenced by its separately bound run result.
+            $result['healthy'] = $payload['ready'] && $payload['storage_ready'] && $payload['broker_ready'];
+
+            return $this->withStatus($result, $result['healthy'] ? 'healthy' : 'unhealthy');
         }
 
         try {

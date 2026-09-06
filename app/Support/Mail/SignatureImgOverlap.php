@@ -31,15 +31,15 @@ final class SignatureImgOverlap
 
     private const PROPERTIES = ['height', 'size', 'offset'];
 
-    private const COMPACT_HEIGHTS = ['desktop' => 176, 'tablet' => 224, 'mobile' => 224];
+    private const COMPACT_HEIGHTS = ['desktop' => 154, 'tablet' => 216, 'mobile' => 212];
 
     /** @return array<string, array{height:int,size:int,offset:int}> */
     public static function defaults(): array
     {
         return [
-            'desktop' => ['height' => 176, 'size' => 100, 'offset' => 0],
+            'desktop' => ['height' => 196, 'size' => 100, 'offset' => 0],
             'tablet' => ['height' => 304, 'size' => 150, 'offset' => 25],
-            'mobile' => ['height' => 288, 'size' => 200, 'offset' => 55],
+            'mobile' => ['height' => 296, 'size' => 200, 'offset' => 55],
         ];
     }
 
@@ -294,7 +294,7 @@ final class SignatureImgOverlap
             ? $prefix.'.rt-sign-density-compact'
             : $prefix.' .rt-sign-density-compact';
 
-        return $css.self::profileCss($settings, $prefix).self::profileCss(self::compactSettings($settings), $compactPrefix);
+        return $css.self::profileCss($settings, $prefix).self::profileCss(self::compactSettings($settings), $compactPrefix, compact: true);
     }
 
     /** The same scoped contact layout is exposed to the editor as a template. */
@@ -306,7 +306,7 @@ final class SignatureImgOverlap
             .$prefix.' .rt-sign-heading-person,'.$prefix.' .rt-sign-heading-logo{vertical-align:top!important;}'
             .$prefix.' .rt-person-kopf{margin-top:0!important;padding-top:0!important;}'
             .$prefix.' .rt-sign-logo{text-align:right!important;}'
-            .$prefix.' img.rt-logo{margin-left:auto!important;margin-right:0!important;}'
+            .$prefix.' img.rt-logo{width:200px!important;height:34px!important;margin-left:auto!important;margin-right:0!important;}'
             .'@media only screen and (max-width:860px){'
             .$prefix.' .rt-sign-content{padding:18px 24px 15px!important;}'
             .$prefix.' .rt-sign-layout,'.$prefix.' .rt-sign-layout>tbody,'.$prefix.' .rt-sign-top-row,'.$prefix.' .rt-sign-company-row{display:block!important;width:100%!important;}'
@@ -315,7 +315,7 @@ final class SignatureImgOverlap
             .$prefix.' .rt-sign-heading-logo{display:table-header-group!important;width:100%!important;padding:0!important;text-align:left!important;}'
             .$prefix.' .rt-sign-heading-person .rt-person-kopf{padding-top:14px!important;}'
             .$prefix.' .rt-sign-logo{text-align:left!important;}'
-            .$prefix.' img.rt-logo{width:150px!important;margin-left:0!important;margin-right:auto!important;}'
+            .$prefix.' img.rt-logo{width:150px!important;height:25.5px!important;margin-left:0!important;margin-right:auto!important;}'
             .$prefix.' .rt-sign-identity,'.$prefix.' .rt-sign-company{display:block!important;box-sizing:border-box!important;width:100%!important;border-left:0!important;text-align:left!important;}'
             .$prefix.' .rt-sign-identity{padding:12px 0 0!important;}'
             .$prefix.' .rt-sign-company{padding:10px 0 0!important;}'
@@ -324,15 +324,23 @@ final class SignatureImgOverlap
             .'}@media only screen and (max-width:480px){'
             .$prefix.' .rt-sign-content{padding:18px 20px 15px!important;}'
             .$prefix.' .rt-sign-logo{padding:0 0 12px!important;}'
-            .$prefix.' img.rt-logo{width:138px!important;}'
+            .$prefix.' img.rt-logo{width:138px!important;height:23.46px!important;}'
             .'}';
     }
 
-    private static function profileCss(array $settings, string $prefix): string
+    private static function profileCss(array $settings, string $prefix, bool $compact = false): string
     {
         $css = '';
         foreach (self::BREAKPOINTS as $breakpoint => $maxWidth) {
             $profile = $settings[$breakpoint];
+            if ($compact) {
+                $height = $profile['height'];
+                $rule = $prefix.' .rt-sign-train-layer{height:'.$height.'px!important;max-height:'.$height.'px!important;margin-bottom:-'.$height.'px!important;}'
+                    .$prefix.' .rt-sign-train-frame,'.$prefix.' .rt-sign-content-frame,'.$prefix.' .rt-sign-train-slot{height:'.$height.'px!important;}';
+                $css .= $maxWidth === null ? $rule : '@media only screen and (max-width:'.$maxWidth.'px){'.$rule.'}';
+
+                continue;
+            }
             $rule = $prefix.' .rt-sign-train-layer{'.self::important(self::layerStyle($profile['height'])).'}'
                 .$prefix.' .rt-sign-train-frame,'.$prefix.' .rt-sign-content-frame{'.self::important(self::frameStyle($profile['height'])).'}'
                 .$prefix.' .rt-sign-train-slot{'.self::important(self::slotStyle($profile['height'])).'}'

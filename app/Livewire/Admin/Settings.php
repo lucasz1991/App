@@ -78,7 +78,8 @@ class Settings extends Component
 
         if ($this->isSuperAdmin()) {
             $this->assistantSpeechRouting = AssistantSpeechSettings::mode(uncached: true);
-            $this->assistantSpeechStatus = app(AssistantSpeechRouter::class)->capabilities(refresh: true);
+            // Opening any settings tab must not trigger an unrelated network probe.
+            $this->assistantSpeechStatus = app(AssistantSpeechRouter::class)->capabilities(passive: true);
             $this->calls = CallSettings::all(uncached: true);
             $this->openRouter = OpenRouterSettings::forForm();
         }

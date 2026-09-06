@@ -8,6 +8,9 @@
     $localSpeech = (array) data_get($assistantSpeechStatus, 'providers.local', []);
     $externalSpeech = (array) data_get($assistantSpeechStatus, 'providers.external', []);
     $speechStateLabel = static function (array $provider): string {
+        if (($provider['state'] ?? '') === 'not_checked') {
+            return __('Noch nicht geprüft');
+        }
         $stt = (bool) ($provider['stt_available'] ?? false);
         $tts = (bool) ($provider['tts_available'] ?? false);
 
@@ -60,6 +63,7 @@
                         $providerStateLabel = $speechProvider['external']
                             ? ($providerReady ? __('app.assistant_speech_configured') : __('app.assistant_speech_not_configured'))
                             : $speechStateLabel($speechProvider['provider']);
+                        $providerUnverified = ! $speechProvider['external'] && ($speechProvider['provider']['state'] ?? '') === 'not_checked';
                     @endphp
                     <div class="rounded-xl bg-rt-surface p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                         <div class="flex items-center justify-between gap-3">
@@ -74,12 +78,16 @@
                             ])>{{ $providerStateLabel }}</span>
                         </div>
                         <div class="mt-3 flex flex-wrap gap-2 text-xs text-rt-muted dark:text-rt-dark-muted">
+                            @if ($providerUnverified)
+                                <span>{{ __('Status über „Aktualisieren“ prüfen. Beim Öffnen der Einstellungen wurde keine Verbindung aufgebaut.') }}</span>
+                            @else
                             <span class="rounded-md bg-rt-surface-muted px-2 py-1 dark:bg-rt-dark-surface-muted">
                                 {{ __('app.assistant_speech_stt') }}: {{ ($speechProvider['provider']['stt_available'] ?? false) ? ($speechProvider['external'] ? __('app.assistant_speech_configured') : __('app.assistant_speech_ready')) : ($speechProvider['external'] ? __('app.assistant_speech_not_configured') : __('app.assistant_speech_unavailable')) }}
                             </span>
                             <span class="rounded-md bg-rt-surface-muted px-2 py-1 dark:bg-rt-dark-surface-muted">
                                 {{ __('app.assistant_speech_tts') }}: {{ ($speechProvider['provider']['tts_available'] ?? false) ? ($speechProvider['external'] ? __('app.assistant_speech_configured') : __('app.assistant_speech_ready')) : ($speechProvider['external'] ? __('app.assistant_speech_not_configured') : __('app.assistant_speech_unavailable')) }}
                             </span>
+                            @endif
                         </div>
                     </div>
                 @endforeach

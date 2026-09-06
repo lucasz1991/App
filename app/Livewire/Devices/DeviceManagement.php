@@ -168,6 +168,8 @@ class DeviceManagement extends Component
 
     public ?int $commandArtifactId = null;
 
+    public ?int $commandNativeProfileId = null;
+
     public mixed $artifactUpload = null;
 
     public mixed $inventoryImport = null;
@@ -639,6 +641,13 @@ class DeviceManagement extends Component
                 'artifact_sha256' => $artifact->sha256,
                 'artifact_kind' => $artifact->kind,
             ];
+        } elseif ($type === DeviceCommandType::ApplyManagedProfile) {
+            $native = $this->validate(['commandNativeProfileId' => ['required', 'integer', 'min:1', 'max:2147483647']]);
+            $allowed = collect($this->nativeProfilesForDevice($device))->pluck('profile_id')->all();
+            if ($validated['commandProvider'] !== 'openuem' || ! in_array((int) $native['commandNativeProfileId'], $allowed, true)) {
+                throw ValidationException::withMessages(['commandNativeProfileId' => 'Dieses native Profil ist für das gewählte Gerät nicht freigegeben.']);
+            }
+            $payload = ['profile_id' => (int) $native['commandNativeProfileId']];
         } elseif ($type === DeviceCommandType::ApplyProfile) {
             $profileAssignments = $device->accountAssignments()
                 ->with(['provisioningProfile', 'identityAccount'])
@@ -817,6 +826,8 @@ class DeviceManagement extends Component
         return view('livewire.devices.device-management', [
             'devices' => $devices,
             'selectedDevice' => $selectedDevice,
+            'nativeProfileOptions' => $selectedDevice && Gate::allows('devices.commands.execute')
+                ? $this->nativeProfilesForDevice($selectedDevice) : [],
             'providerCards' => $providerCards,
             'productionCommandsEnabled' => $productionCommandsEnabled,
             'enrollmentModeOptions' => $enrollmentModeOptions,
@@ -878,8 +889,23 @@ class DeviceManagement extends Component
         return Device::query()->where('public_id', $this->selectedDevicePublicId)->firstOrFail();
     }
 
+    /** @return list<array{agent_id: string, profile_id: int, label: string}> */
+    private function nativeProfilesForDevice(Device $device): array
+    {
+        $runtime = app(DeviceManagementSettings::class)->providerRuntime('openuem', fresh: true);
+        $link = $device->providerLinkFor('openuem');
+        if (($runtime['adapter'] ?? '') !== 'native_fork_v1' || ! $link
+            || $link->status !== \App\Models\DeviceProviderLink::STATUS_ACTIVE || $device->platform !== DevicePlatform::Windows) {
+            return [];
+        }
+
+        return array_values(array_filter($runtime['native_profiles'] ?? [],
+            fn (array $profile): bool => $profile['agent_id'] === $link->external_device_id));
+    }
+
     private function setCompatibleProviderDefaults(Device $device): void
     {
+        $this->commandNativeProfileId = null;
         $platform = $device->platform instanceof DevicePlatform
             ? $device->platform->value
             : (string) $device->platform;

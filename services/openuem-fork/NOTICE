@@ -1,0 +1,8 @@
+RailTime OpenUEM execution extension
+Copyright 2026 RailTime contributors.
+
+This directory contains an independently maintained integration and source patches
+for OpenUEM. It is not an official OpenUEM release and does not imply endorsement.
+OpenUEM component copyright, Apache-2.0 licenses and upstream notices are retained
+inside the pinned native repositories. The shared execution extension is licensed
+under Apache-2.0; see LICENSE. Review transitive dependency licenses when packaging.

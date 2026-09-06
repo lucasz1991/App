@@ -13,7 +13,7 @@
   },
   "meshcentral": {
     "meshctrl_path": "/opt/railtime-meshcentral-connector/node_modules/meshcentral/meshctrl.js",
-    "url": "wss://127.0.0.1:8443",
+    "url": "wss://127.0.0.1:8444",
     "login_user": "railtime-connector",
     "login_domain": "",
     "login_key_file": "/run/railtime-meshcentral-secrets/meshcentral-login-key",

@@ -12,6 +12,7 @@ use App\Models\DeviceAssignment;
 use App\Models\DeviceCommand;
 use App\Models\DeviceProviderLink;
 use App\Models\User;
+use App\Services\DeviceManagement\OpenUemFork\CommandBinding;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -104,6 +105,15 @@ final class DeviceCommandService
                 $payload = $this->authoritativeArtifactPayload($lockedDevice, $type, $payload);
             } elseif ($type === DeviceCommandType::ApplyProfile) {
                 $payload = $this->authoritativeProfilePayload($lockedDevice, $payload, $activeAssignment);
+            } elseif ($type === DeviceCommandType::ApplyManagedProfile) {
+                if ($providerKey !== 'openuem') {
+                    throw ValidationException::withMessages(['provider' => 'Native Verwaltungsprofile benötigen den OpenUEM-Fork.']);
+                }
+                try {
+                    $payload = app(CommandBinding::class)->requestPayload($lockedDevice, $providerLink, $payload);
+                } catch (\RuntimeException $exception) {
+                    throw ValidationException::withMessages(['payload' => $exception->getMessage()]);
+                }
             } elseif (array_intersect(array_keys($payload), [
                 'artifact_public_id',
                 'artifact_sha256',
@@ -259,6 +269,12 @@ final class DeviceCommandService
 
     private function authorizeSpecificCommand(DeviceCommandType $type, User $actor): void
     {
+        if ($type === DeviceCommandType::ApplyManagedProfile) {
+            Gate::forUser($actor)->authorize('devices.manage');
+            if (! $actor->isAdmin()) {
+                throw ValidationException::withMessages(['type' => 'Native Verwaltungsprofile sind globalen Administratoren vorbehalten.']);
+            }
+        }
         if (in_array($type, [DeviceCommandType::Lock, DeviceCommandType::Unlock], true)) {
             Gate::forUser($actor)->authorize('devices.lock');
         }

@@ -14,5 +14,6 @@ enum DeviceCommandType: string
     case UninstallSoftware = 'uninstall_software';
     case CollectDiagnostics = 'collect_diagnostics';
     case ApplyProfile = 'apply_profile';
+    case ApplyManagedProfile = 'apply_managed_profile';
     case StartRemoteSupport = 'start_remote_support';
 }

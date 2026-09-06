@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "protocol": "railtime.execution.v1",
+  "go_toolchain_tested": "go1.26.8",
+  "module": "railtime.local/openuem-extension",
+  "native_relative_directory": "device_app/openuem-fork",
+  "components": [
+    {"name":"worker","repository":"https://github.com/open-uem/openuem-worker.git","tag":"v0.12.0","commit":"b81aff7cb7df1cf1b6d72869b41e39a9be817bad","patch":"worker.patch"},
+    {"name":"agent","repository":"https://github.com/open-uem/openuem-agent.git","tag":"v0.11.0","commit":"11561cf15200366c389fc1c9cb1ed24d5654ab32","patch":"agent.patch"},
+    {"name":"console","repository":"https://github.com/open-uem/openuem-console.git","tag":"v0.12.0","commit":"4f2ca78633f191929cf53d1d11a7f466bc766519","patch":"console.patch"}
+  ]
+}

@@ -6,6 +6,12 @@ Providerabhängigkeit ist in `package.json` und `package-lock.json` exakt auf
 **MeshCentral 1.2.5** fixiert; es wird kein `latest` verwendet. Der
 Connector-Code selbst verwendet ausschließlich die Node-Standardbibliothek.
 
+Deployment-Vorprüfung vom 06.09.2026: Das Node-22-Basisimage ist zusätzlich
+per SHA-256-Digest fixiert. `qs` wird gezielt auf `6.16.0` überschrieben, um
+GHSA-4mjr-xmp4-gh2g und GHSA-x5fp-wj9c-mxmx zu beheben; MeshCentral bleibt
+bei `1.2.5`. Änderungen am Lockfile sind vor einem Server-Rollout mit den
+Connector-Tests und einem nativen MeshCentral-Smoke-Test zu prüfen.
+
 ## Ehrlicher Funktionsumfang
 
 | RailTime-Funktion | Technischer Weg | Rückmeldung |
@@ -95,7 +101,9 @@ abgelehnt.
    ```
 
    Die Datei muss exakt 160 Hex-Zeichen (80 Byte) enthalten. Dieser Schlüssel
-   ist hochprivilegiert. `login_user` muss ein eigenes MeshCentral-Konto sein,
+   gilt serverweit: Wer ihn besitzt, kann andere MeshCentral-Benutzer
+   impersonieren. Die Rechte von `login_user` begrenzen daher nicht den
+   Schaden eines gestohlenen Schlüssels. `login_user` muss ein eigenes Konto sein,
    das nur die benötigte Gerätegruppe und Remote-/Dateirechte besitzt; der Key
    darf nie in RailTime, Git, Logs oder Backups ohne Secret-Schutz landen.
 
@@ -109,13 +117,18 @@ für den vorgesehenen Plesk-Linux-Betrieb ist die Prüfung vollständig aktiv.
 - MeshCentral-Server ebenfalls auf die im Labor freigegebene Version 1.2.5
   pinnen und nicht automatisch auf `latest` aktualisieren.
 - Die öffentliche Instanz unter `https://support.<domain>` mit gültigem TLS in
-  Plesk veröffentlichen.
+  Plesk vorbereiten. Vor öffentlicher Freigabe den ersten Administrator und
+  Zwei-Faktor-Anmeldung über einen beschränkten Zugang einrichten:
+  `newAccounts:false` verhindert bei leerem Benutzerbestand die erste
+  Administratorregistrierung nicht.
 - Denselben Dienst zusätzlich ausschließlich lokal per WSS erreichbar machen,
-  zum Beispiel `wss://127.0.0.1:8443`; diese Adresse steht in `url`.
+  zum Beispiel `wss://127.0.0.1:8444`; diese Adresse steht in `url`.
+  Port `8443` gehört auf einem üblichen Plesk-Host bereits dem Plesk-Panel.
 - Eine eigene Gerätegruppe für RailTime-Geräte anlegen.
 - Ein separates Konto `railtime-connector` nur für diese Gruppe berechtigen.
   Für Health, Diagnose, Upload und RunCommand werden nur die jeweils minimalen
-  Lese-, Datei-, Agent-Console- und Remote-Control-Rechte benötigt. Invite- und
+  Lese-, Datei-, Agent-Console- und Remote-Control-Rechte sowie für `RunCommand`
+  das Recht `MESHRIGHT_REMOTECOMMAND` (`131072`) benötigt. Invite- und
   Power-Rechte gehören nicht zum Connector-Servicekonto.
 
 ### Sicheres Bestandsgeräte-Onboarding

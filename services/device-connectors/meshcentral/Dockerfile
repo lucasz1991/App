@@ -1,10 +1,10 @@
-FROM node:22-bookworm-slim
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
 
 WORKDIR /opt/railtime-meshcentral-connector
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
-    && test "$(node -p \"require('./node_modules/meshcentral/package.json').version\")" = "1.2.5"
+    && node -e "if (require('./node_modules/meshcentral/package.json').version !== '1.2.5') process.exit(1)"
 
 COPY --chown=node:node src ./src
 

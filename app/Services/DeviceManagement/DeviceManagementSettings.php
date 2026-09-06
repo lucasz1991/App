@@ -72,6 +72,10 @@ final class DeviceManagementSettings
             if ($key === 'nanomdm') {
                 $providers[$key]['mobile_commands_enabled'] = $provider['mobile_commands_enabled'];
             }
+            if ($key === 'openuem') {
+                $providers[$key]['adapter'] = $provider['adapter'];
+                $providers[$key]['native_profiles'] = $provider['native_profiles'];
+            }
         }
 
         return [
@@ -206,6 +210,18 @@ final class DeviceManagementSettings
             if ($provider === 'nanomdm' && array_key_exists('mobile_commands_enabled', $values)) {
                 $next['mobile_commands_enabled'] = $this->strictBoolean($values['mobile_commands_enabled'], false);
             }
+            if ($provider === 'openuem') {
+                if (array_key_exists('adapter', $values)) {
+                    if (! in_array($values['adapter'], ['connector_v1', 'native_fork_v1'], true)) {
+                        throw new InvalidArgumentException('Unbekannte OpenUEM-Anbindung.');
+                    }
+                    $next['adapter'] = $values['adapter'];
+                }
+                if (array_key_exists('native_profiles', $values)) {
+                    $next['native_profiles'] = $this->normalizeNativeProfiles($values['native_profiles']);
+                }
+            }
+            $nativeFork = $provider === 'openuem' && ($next['adapter'] ?? '') === 'native_fork_v1';
 
             [$next['token'], $tokenChanged] = $this->updatedSecret(
                 $existing['token'] ?? null,
@@ -239,7 +255,7 @@ final class DeviceManagementSettings
                     $this->deploymentFrom($current)['mode'],
                 );
             $credentialsReentered = $this->hasFreshSecretSubmission($values, 'token', 'clear_token')
-                && $this->hasFreshSecretSubmission($values, 'webhook_secret', 'clear_webhook_secret');
+                && ($nativeFork || $this->hasFreshSecretSubmission($values, 'webhook_secret', 'clear_webhook_secret'));
             $credentialsInvalidated = $targetChanged && ! $credentialsReentered;
             if ($credentialsInvalidated) {
                 $tokenChanged = $tokenChanged || ($next['token'] ?? '') !== '';
@@ -260,7 +276,7 @@ final class DeviceManagementSettings
             }
             if ($provider !== 'simulation'
                 && $enabled
-                && (! $tokenValid || ! $webhookSecretValid || $effectiveToken === '' || $effectiveWebhookSecret === '')) {
+                && (! $tokenValid || $effectiveToken === '' || (! $nativeFork && (! $webhookSecretValid || $effectiveWebhookSecret === '')))) {
                 throw new InvalidArgumentException('Ein aktiver Connector benötigt ein gültiges Token und Webhook-Geheimnis.');
             }
             if ($provider === 'nanomdm'
@@ -278,6 +294,8 @@ final class DeviceManagementSettings
                 'webhook_secret',
                 'remote_url_template',
                 'mobile_commands_enabled',
+                'adapter',
+                'native_profiles',
             ]));
 
             $current['providers'] = is_array($current['providers'] ?? null) ? $current['providers'] : [];
@@ -462,9 +480,21 @@ final class DeviceManagementSettings
         $deployment = $this->deploymentFrom($stored);
         $configurationError = $this->storageFailed;
 
+        $adapter = $provider === 'openuem' ? ($saved['adapter'] ?? 'connector_v1') : 'connector_v1';
+        $configurationError = $configurationError || ! in_array($adapter, ['connector_v1', 'native_fork_v1'], true);
+        $nativeFork = $provider === 'openuem' && $adapter === 'native_fork_v1';
+        $nativeProfiles = [];
+        if ($provider === 'openuem') {
+            try {
+                $nativeProfiles = $this->normalizeNativeProfiles($saved['native_profiles'] ?? []);
+            } catch (InvalidArgumentException) {
+                $configurationError = true;
+            }
+        }
+
         [$token, $tokenValid] = $this->runtimeSecret($saved, $definition, 'token');
         [$webhookSecret, $webhookSecretValid] = $this->runtimeSecret($saved, $definition, 'webhook_secret');
-        $configurationError = $configurationError || ! $tokenValid || ! $webhookSecretValid;
+        $configurationError = $configurationError || ! $tokenValid || (! $nativeFork && ! $webhookSecretValid);
 
         $subdomain = $this->safeSubdomain(
             $saved['subdomain'] ?? $definition['subdomain'] ?? $provider,
@@ -490,7 +520,7 @@ final class DeviceManagementSettings
             $deployment,
             $subdomain,
         );
-        $credentialsReady = $tokenValid && $webhookSecretValid && $token !== '' && $webhookSecret !== '';
+        $credentialsReady = $tokenValid && $token !== '' && ($nativeFork || ($webhookSecretValid && $webhookSecret !== ''));
         $enabled = ! $configurationError
             && $requestedEnabled
             && ($provider !== 'simulation' || app()->environment(['local', 'testing']))
@@ -499,6 +529,11 @@ final class DeviceManagementSettings
         $capabilities = is_array($definition['capabilities'] ?? null)
             ? $definition['capabilities']
             : [];
+        $paths = is_array($definition['paths'] ?? null) ? $definition['paths'] : [];
+        if ($nativeFork) {
+            $capabilities = (array) data_get($definition, 'native_fork.capabilities', []);
+            $paths = (array) data_get($definition, 'native_fork.paths', []);
+        }
         $mobileCommandsEnabled = $provider === 'nanomdm'
             && $enabled
             && $this->strictBoolean(
@@ -539,8 +574,10 @@ final class DeviceManagementSettings
             'public_url' => $publicUrl,
             // Compatibility key consumed by ConnectorDeviceProvider.
             'connector_base_url' => $effectiveUrl,
-            'paths' => is_array($definition['paths'] ?? null) ? $definition['paths'] : [],
+            'paths' => $paths,
             'capabilities' => $capabilities,
+            'adapter' => $adapter,
+            'native_profiles' => $nativeProfiles,
             'same_server' => $deployment['mode'] === 'port',
             'configuration_error' => $configurationError,
             'mobile_commands_enabled' => $mobileCommandsEnabled,
@@ -603,6 +640,8 @@ final class DeviceManagementSettings
             'webhook_secret' => $runtime['webhook_secret'] === '' ? '' : hash('sha256', $runtime['webhook_secret']),
             'remote_url_template' => $runtime['remote_url_template'],
             'mobile_commands_enabled' => $runtime['mobile_commands_enabled'],
+            'adapter' => $runtime['adapter'],
+            'native_profiles' => $runtime['native_profiles'],
             // A deployment that changes allowed paths or capabilities must
             // earn fresh connector evidence before external mutations resume.
             'paths' => $runtime['paths'],
@@ -669,6 +708,8 @@ final class DeviceManagementSettings
             'webhook_secret' => $runtime['webhook_secret'] === '' ? '' : hash('sha256', $runtime['webhook_secret']),
             'remote_url_template' => $runtime['remote_url_template'],
             'mobile_commands_enabled' => $runtime['mobile_commands_enabled'],
+            'adapter' => $runtime['adapter'],
+            'native_profiles' => $runtime['native_profiles'],
             'paths' => $runtime['paths'],
             'capabilities' => $runtime['capabilities'],
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
@@ -1163,6 +1204,9 @@ final class DeviceManagementSettings
         array $definition,
         string $mode,
     ): bool {
+        if ($provider === 'openuem' && ($existing['adapter'] ?? 'connector_v1') !== ($next['adapter'] ?? 'connector_v1')) {
+            return true;
+        }
         $defaultSubdomain = (string) ($definition['subdomain'] ?? $provider);
         $existingSubdomain = $this->safeSubdomain(
             $existing['subdomain'] ?? $defaultSubdomain,
@@ -1334,7 +1378,40 @@ final class DeviceManagementSettings
             'timeout',
             'remote_url_template',
             'mobile_commands_enabled',
+            'adapter',
+            'native_profiles',
         ]));
+    }
+
+    /** @return list<array{agent_id: string, profile_id: int, label: string}> */
+    private function normalizeNativeProfiles(mixed $profiles): array
+    {
+        if (! is_array($profiles) || ! array_is_list($profiles) || count($profiles) > 128) {
+            throw new InvalidArgumentException('Maximal 128 explizite OpenUEM-Geräteprofilfreigaben sind zulässig.');
+        }
+        $result = [];
+        $seen = [];
+        foreach ($profiles as $profile) {
+            if (! is_array($profile) || array_diff(array_keys($profile), ['agent_id', 'profile_id', 'label']) !== []) {
+                throw new InvalidArgumentException('Ungültige OpenUEM-Profilfreigabe.');
+            }
+            $agent = $profile['agent_id'] ?? null;
+            $id = filter_var($profile['profile_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 2147483647]]);
+            $label = $profile['label'] ?? '';
+            if (! is_string($agent) || ! preg_match('/\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\z/', $agent)
+                || $id === false || ! is_string($label) || mb_strlen($label) > 120 || preg_match('/[\x00-\x1f\x7f]/', $label)) {
+                throw new InvalidArgumentException('Agent-ID, Profil-ID oder Bezeichnung der OpenUEM-Freigabe ist ungültig.');
+            }
+            $key = $agent.':'.$id;
+            if (isset($seen[$key])) {
+                throw new InvalidArgumentException('Doppelte OpenUEM-Profilfreigabe.');
+            }
+            $seen[$key] = true;
+            $result[] = ['agent_id' => $agent, 'profile_id' => $id, 'label' => trim($label)];
+        }
+        usort($result, fn (array $a, array $b): int => [$a['agent_id'], $a['profile_id']] <=> [$b['agent_id'], $b['profile_id']]);
+
+        return $result;
     }
 
     /** @param array<string, mixed> $before

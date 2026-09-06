@@ -279,6 +279,7 @@ class MicrosoftDeviceRuntime
     {
         return [
             'id' => $run->id, 'status' => $run->status,
+            'outcome' => array_key_exists($run->outcome ?? '', self::MESSAGES) ? $run->outcome : null,
             'queued_at' => $this->iso($run->queued_at), 'started_at' => $this->iso($run->started_at),
             'finished_at' => $this->iso($run->finished_at),
             'message' => self::MESSAGES[$run->outcome ?? $run->status] ?? self::MESSAGES['failed'],

@@ -53,10 +53,12 @@ class AssistantSpeechRouter
      *
      * @return array<string, mixed>
      */
-    public function capabilities(bool $refresh = false): array
+    public function capabilities(bool $refresh = false, bool $passive = false): array
     {
         $mode = AssistantSpeechSettings::mode($refresh);
-        $local = $this->localCapabilities($refresh);
+        $local = $passive
+            ? $this->localStatus(false, false, $this->local->isConfigured(), 'not_checked')
+            : $this->localCapabilities($refresh);
 
         try {
             $externalCapabilities = $this->openRouter->capabilities();

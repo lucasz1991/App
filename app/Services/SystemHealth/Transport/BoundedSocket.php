@@ -21,6 +21,7 @@ class BoundedSocket
         }
 
         $this->deadline = microtime(true) + $seconds;
+        $this->received = 0;
         $peer = trim($host, '[]');
         $address = str_contains($peer, ':') ? '['.$peer.']' : $peer;
         $context = stream_context_create(['ssl' => [

@@ -90,6 +90,20 @@ return [
     'providers' => [
         'openuem' => [
             'label' => 'OpenUEM Desktop Management',
+            // Explicitly selected in encrypted/database-backed device settings.
+            // Never infer a native fork from its URL or enable it through ENV.
+            'native_fork' => [
+                'paths' => ['health' => '/railtime/v1/health', 'command' => '/railtime/v1/runs'],
+                'capabilities' => [
+                    'platforms' => ['windows'],
+                    'inventory' => false,
+                    'enrollment' => false,
+                    'remote_support' => false,
+                    'unattended_remote_support' => false,
+                    'commands' => ['apply_managed_profile'],
+                    'readiness_checks' => [],
+                ],
+            ],
             'enabled' => false,
             'subdomain' => 'openuem',
             'adapter_port' => 9441,

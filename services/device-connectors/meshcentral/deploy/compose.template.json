@@ -1,0 +1,60 @@
+{
+  "name": "railtime-meshcentral-pilot",
+  "services": {
+    "meshcentral": {
+      "image": "railtime-meshcentral-native:1.2.5-pilot",
+      "build": {
+        "context": "__SOURCE__",
+        "dockerfile": "deploy/Dockerfile.native",
+        "args": {"NODE_IMAGE": "__NODE_IMAGE__"}
+      },
+      "user": "1000:1000",
+      "network_mode": "host",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "restart": "unless-stopped",
+      "init": true,
+      "stop_grace_period": "30s",
+      "pids_limit": 160,
+      "mem_limit": "768m",
+      "cpus": "1.0",
+      "tmpfs": ["/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777"],
+      "logging": {"driver": "local", "options": {"max-size": "10m", "max-file": "3"}},
+      "volumes": [
+        {"type": "bind", "source": "__ROOT__/native/data", "target": "/opt/meshcentral/meshcentral-data", "bind": {"create_host_path": false}},
+        {"type": "bind", "source": "__ROOT__/native/config.json", "target": "/opt/meshcentral/meshcentral-data/config.json", "read_only": true, "bind": {"create_host_path": false}},
+        {"type": "bind", "source": "__ROOT__/native/files", "target": "/opt/meshcentral/meshcentral-files", "bind": {"create_host_path": false}},
+        {"type": "bind", "source": "__ROOT__/native/backups", "target": "/opt/meshcentral/meshcentral-backups", "bind": {"create_host_path": false}}
+      ]
+    },
+    "connector": {
+      "profiles": ["connector"],
+      "image": "railtime-meshcentral-connector:1.0.0-pilot",
+      "build": {
+        "context": "__SOURCE__",
+        "dockerfile": "deploy/Dockerfile.connector",
+        "args": {"NODE_IMAGE": "__NODE_IMAGE__"}
+      },
+      "user": "1000:1000",
+      "network_mode": "host",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "restart": "unless-stopped",
+      "init": true,
+      "stop_grace_period": "30s",
+      "pids_limit": 96,
+      "mem_limit": "256m",
+      "cpus": "0.5",
+      "tmpfs": ["/tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777"],
+      "logging": {"driver": "local", "options": {"max-size": "10m", "max-file": "3"}},
+      "volumes": [
+        {"type": "bind", "source": "__ROOT__/connector/config.json", "target": "/etc/railtime-meshcentral-connector/config.json", "read_only": true, "bind": {"create_host_path": false}},
+        {"type": "bind", "source": "__ROOT__/connector/secrets", "target": "/run/railtime-meshcentral-secrets", "read_only": true, "bind": {"create_host_path": false}},
+        {"type": "bind", "source": "__ROOT__/connector/state", "target": "/var/lib/railtime-meshcentral-connector/state", "bind": {"create_host_path": false}},
+        {"type": "bind", "source": "__ROOT__/connector/tmp", "target": "/var/lib/railtime-meshcentral-connector/tmp", "bind": {"create_host_path": false}}
+      ]
+    }
+  }
+}

@@ -185,6 +185,14 @@ class DeviceManagementSettings extends Component
         if ($provider === 'nanomdm') {
             $rules["providers.{$provider}.mobile_commands_enabled"] = ['required', 'boolean'];
         }
+        if ($provider === 'openuem') {
+            $rules['providers.openuem.adapter'] = ['required', Rule::in(['connector_v1', 'native_fork_v1'])];
+            $rules['providers.openuem.native_profiles'] = ['present', 'array', 'max:128'];
+            $rules['providers.openuem.native_profiles.*'] = ['array:agent_id,profile_id,label'];
+            $rules['providers.openuem.native_profiles.*.agent_id'] = ['required', 'string', 'regex:/\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\z/'];
+            $rules['providers.openuem.native_profiles.*.profile_id'] = ['required', 'integer', 'min:1', 'max:2147483647'];
+            $rules['providers.openuem.native_profiles.*.label'] = ['nullable', 'string', 'max:120'];
+        }
 
         $validated = $this->validate($rules, [], [
             "providers.{$provider}.subdomain" => 'Subdomain',
@@ -203,18 +211,21 @@ class DeviceManagementSettings extends Component
             ? (int) ($values['adapter_port'] ?? 0) !== (int) ($storedProvider['adapter_port'] ?? 0)
             : strtolower((string) ($values['subdomain'] ?? ''))
                 !== strtolower((string) ($storedProvider['subdomain'] ?? ''));
+        $nativeFork = $provider === 'openuem' && ($values['adapter'] ?? '') === 'native_fork_v1';
+        $targetChanged = $targetChanged || ($provider === 'openuem'
+            && ($values['adapter'] ?? 'connector_v1') !== ($storedProvider['adapter'] ?? 'connector_v1'));
         $tokenReentered = ! (bool) ($values['clear_token'] ?? false)
             && $this->isNewSecret($values['token'] ?? null);
         $webhookSecretReentered = ! (bool) ($values['clear_webhook_secret'] ?? false)
             && $this->isNewSecret($values['webhook_secret'] ?? null);
-        $credentialsReentered = $tokenReentered && $webhookSecretReentered;
+        $credentialsReentered = $tokenReentered && ($nativeFork || $webhookSecretReentered);
 
         if ((bool) ($values['enabled'] ?? false) && (! $targetChanged || $credentialsReentered)) {
             $credentialErrors = [];
             if (! $this->credentialWillBeAvailable($provider, 'token', $values)) {
                 $credentialErrors["providers.{$provider}.token"] = 'Ein aktiver Connector benötigt ein gespeichertes Zugriffstoken.';
             }
-            if (! $this->credentialWillBeAvailable($provider, 'webhook_secret', $values)) {
+            if (! $nativeFork && ! $this->credentialWillBeAvailable($provider, 'webhook_secret', $values)) {
                 $credentialErrors["providers.{$provider}.webhook_secret"] = 'Ein aktiver Connector benötigt ein gespeichertes Webhook-Geheimnis.';
             }
             if ($credentialErrors !== []) {
@@ -409,6 +420,28 @@ class DeviceManagementSettings extends Component
         }
 
         return (bool) ($this->providers[$provider][$field.'_configured'] ?? false);
+    }
+
+    public function addNativeProfile(): void
+    {
+        $this->authorizeSuperAdmin();
+        $profiles = $this->providers['openuem']['native_profiles'] ?? [];
+        if (! is_array($profiles) || count($profiles) >= 128) {
+            throw ValidationException::withMessages(['providers.openuem.native_profiles' => 'Maximal 128 Freigaben sind zulässig.']);
+        }
+        $profiles[] = ['agent_id' => '', 'profile_id' => '', 'label' => ''];
+        $this->providers['openuem']['native_profiles'] = array_values($profiles);
+    }
+
+    public function removeNativeProfile(int $index): void
+    {
+        $this->authorizeSuperAdmin();
+        $profiles = $this->providers['openuem']['native_profiles'] ?? [];
+        if (! is_array($profiles) || $index < 0 || ! array_key_exists($index, $profiles)) {
+            throw ValidationException::withMessages(['providers.openuem.native_profiles' => 'Ungültige Freigabe.']);
+        }
+        unset($profiles[$index]);
+        $this->providers['openuem']['native_profiles'] = array_values($profiles);
     }
 
     /** @return array<string, mixed> */

@@ -2,6 +2,38 @@
 
 Stand: 6. September 2026
 
+## Laufende Einrichtung: MDM und Fernwartung
+
+Der ausgewählte Windows-PC ist inventarisiert und einem Mitarbeiter zugeordnet,
+aber **noch nicht mit einem neu eingerichteten MDM-/Fernwartungsagenten verbunden**.
+Die Server-Vorprüfung und die lokale MeshCentral-Härtung sind im
+[Betriebs-Vorprüfbericht](../../.lmzdev/artifacts/reports/device-mdm-support-preflight-20260906.md)
+dokumentiert. Die isolierte Servervorbereitung liegt direkt beim
+[MeshCentral-Connector](../../services/device-connectors/meshcentral/README.md).
+Plesk nutzt aktuell Apache auf 443, Plesk selbst belegt 8443; native
+MeshCentral-WSS ist deshalb intern auf 8444 vorgesehen, der Adapter auf 9442.
+
+MeshCentral 1.2.5 wurde am 06.09.2026 isoliert auf dem Plesk-Server gebaut und
+gestartet, ausschließlich an `127.0.0.1:8444`. HTTPS mit Zertifikatsprüfung
+und ein kontrollierter Neustart mit erhaltener Serveridentität sind bestanden.
+Zusätzlich wurde eine private Sicherung der noch leeren Instanz in einer
+netzwerkisolierten Kopie erfolgreich gestartet: HTTPS und Serveridentität
+erhalten. [Restore-Nachweis](../../.lmzdev/artifacts/reports/meshcentral-restore-smoke-20260906.md).
+Der Connector ist noch aus; es wurden keine Windows-Agenten installiert.
+Noch offen sind DNS/TLS (`support.app` als A-Eintrag auf `82.165.55.230`),
+geschützter Administratorzugang mit 2FA, die geprüfte Proxy-/Connector-Folgestufe,
+automatisierte verschlüsselte Backups und der Einzelgerätetest. Ein intern laufender Server ist noch
+keine betriebsbereite Fernwartung in RailTime.
+OpenUEMs native Console-Routen erfüllen nicht den bestehenden RailTime-
+Connectorvertrag. Ein eigener abgesicherter Adapter mit echten
+Ausführungsrückmeldungen bleibt erforderlich; der Platzhalter wird nicht als
+funktionierende MDM-Verbindung freigeschaltet.
+Die [vertiefte Rückkanalprüfung](../../.lmzdev/artifacts/reports/openuem-execution-contract-audit-20260906.md)
+zeigt inzwischen eine weitergehende Lücke: keine durchgängige Lauf-ID und nur
+überschriebene Ergebnisse pro Gerät/Profil/Aufgabe. Dafür reicht ein HTTP-Adapter
+allein nicht; ein gepflegter OpenUEM-Fork beziehungsweise ein anderer geeigneter
+Management-Baustein erfordert eine eigene Architekturentscheidung.
+
 ## Ergänzung: Microsoft Entra und Windows
 
 Der direkte, lesende Microsoft-Graph-Abgleich ist implementiert. Windows-Geräte

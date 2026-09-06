@@ -412,22 +412,19 @@ class MailDocumentEditor extends Component
             // builder_data, HTML oder die editierbare CSS-Spalte geschrieben.
             // Dadurch ist Tablet/Mobil eine echte Layoutvorschau statt nur
             // einer optisch verkleinerten Desktop-Leinwand.
-            'previewResponsiveCss' => [
-                'light' => EmailTemplateBuilder::responsiveCss('#dfe3e6', true, (string) ($signatureDocument?->html ?? '')),
-                'dark' => EmailTemplateBuilder::responsiveCss('#313944', true, (string) ($signatureDocument?->html ?? '')),
-            ],
+            'previewResponsiveCss' => [],
             'imgOverlapProfile' => SignatureImgOverlap::editorSettings(),
             // Import can change the artifact while the editor stays mounted.
             // V26 geometry is then projected from its nine saved attributes,
             // using this server-isolated base rather than legacy 200px rules.
             'previewResponsiveCssByArtifact' => [
                 'legacy' => [
-                    'light' => TrustedEmailCss::responsive('#dfe3e6', true),
-                    'dark' => TrustedEmailCss::responsive('#313944', true),
+                    'css' => TrustedEmailCss::responsive('#000026', true),
+                    'borderToken' => '#000026',
                 ],
                 'v26' => [
-                    'light' => TrustedOutlookSignatureCss::filterDocumentRuntime(TrustedEmailCss::responsive('#dfe3e6', false), '<tr data-rt-artifact-version="v26"></tr>'),
-                    'dark' => TrustedOutlookSignatureCss::filterDocumentRuntime(TrustedEmailCss::responsive('#313944', false), '<tr data-rt-artifact-version="v26"></tr>'),
+                    'css' => TrustedOutlookSignatureCss::filterDocumentRuntime(TrustedEmailCss::responsive('#000026', false), '<tr data-rt-artifact-version="v26"></tr>'),
+                    'borderToken' => '#000026',
                 ],
             ],
             'vendor' => [

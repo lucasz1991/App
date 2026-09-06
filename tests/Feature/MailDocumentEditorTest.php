@@ -2534,7 +2534,13 @@ HTML;
                     $kind.' / '.$theme,
                 );
             }
-            $responsiveCss = (string) data_get($config, 'previewResponsiveCss.'.$theme);
+            $previewBase = data_get($config, 'previewResponsiveCssByArtifact.legacy');
+            $responsiveCss = str_replace(
+                $previewBase['borderToken'],
+                EmailTemplateBuilder::emailThemeValues($theme)['SIGNATURE_BORDER'],
+                $previewBase['css'],
+            );
+            $this->assertSame(TrustedEmailCss::responsive(EmailTemplateBuilder::emailThemeValues($theme)['SIGNATURE_BORDER'], true), $responsiveCss);
             $this->assertStringContainsString('@media only screen and (max-width: 860px)', $responsiveCss);
             $this->assertStringContainsString('tr.rt-stack > td', $responsiveCss);
         }
@@ -2542,8 +2548,9 @@ HTML;
         // V10 bis V20 besitzen eigene mobile Geometrievertraege; V11 bis V20
         // trennen zusaetzlich die sichere Vollfassung vom kompakten
         // Systemprofil. V14 bis V21 ergaenzen explizite Medien- und Layout-
-        // Vertraege. Trotz doppelter Vorschau-CSS fuer Hell und Dunkel bleibt
-        // die komplette Editor-Konfiguration unter 176 KiB.
+        // Vertraege. Jeder CSS-Grundblock wird nur einmal transportiert;
+        // die Themefarbe wird clientseitig aus dem Serverprofil eingesetzt.
+        // Die komplette Editor-Konfiguration bleibt unter 176 KiB.
         $this->assertLessThan(176 * 1024, strlen((string) $match[1]));
 
         $mailAssets = data_get($config, 'mailAssets');

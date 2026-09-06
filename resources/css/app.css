@@ -6,6 +6,7 @@
 @import './mail-document-library.css';
 @import './filepool-upload.css';
 @import './file-preview.css';
+@import './system-health.css';
 
 @tailwind base;
 @tailwind components;

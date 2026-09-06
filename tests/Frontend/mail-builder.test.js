@@ -558,7 +558,9 @@ test('mail canvas uses authoritative theme colors without leaking CSS or changin
     const builderSource = readFileSync(new URL('../../resources/js/mail-builder.js', import.meta.url), 'utf8');
     const viewSource = readFileSync(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8');
     assert.match(viewSource, /previewThemeValues:\s*config\.previewThemeValues \|\| \{\}/);
-    assert.equal((builderSource.match(/mailCanvasStyles\(activeTheme, previewAssets, responsiveCssForTheme\(activeTheme\), previewThemeValues\)/g) || []).length, 2);
+    assert.match(builderSource, /mailCanvasStyles\(activeTheme, previewAssets, responsiveCssForTheme\(activeTheme\), previewThemeValues\)/);
+    assert.match(builderSource, /responsiveCssForTheme\(activeTheme, editor\.Canvas\?\.getDocument\?\.\(\)\), previewThemeValues\)/);
+    assert.match(builderSource, /setTheme\(nextTheme = activeTheme\)\s*\{[^}]*refreshResponsiveCanvas\(\)/);
 });
 
 test('mail canvas renders lightweight same-origin token assets in light and dark without mutating config', () => {

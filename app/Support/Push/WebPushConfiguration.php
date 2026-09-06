@@ -57,15 +57,36 @@ class WebPushConfiguration
     /** Inspect existing keys only; unlike diagnostics(), never generate or save credentials. */
     public static function inspect(): array
     {
-        return self::inspectConfiguration(['issue' => null, 'provisioned' => false]);
+        $credentials = null;
+        if ((bool) config('webpush.auto_provision', true)) {
+            $path = (string) config('webpush.auto_provision_path', storage_path('app/private/webpush-vapid.json'));
+            if (is_file($path) && is_readable($path) && filesize($path) <= 16384) {
+                try {
+                    $stored = json_decode((string) file_get_contents($path), true, 16, JSON_THROW_ON_ERROR);
+                    $candidate = [
+                        'subject' => trim((string) ($stored['subject'] ?? '')),
+                        'publicKey' => trim((string) ($stored['public_key'] ?? '')),
+                        'privateKey' => trim((string) ($stored['private_key'] ?? '')),
+                    ];
+                    if (self::isValidSubject($candidate['subject']) && $candidate['publicKey'] !== '' && $candidate['privateKey'] !== '') {
+                        VAPID::validate($candidate);
+                        $credentials = $candidate;
+                    }
+                } catch (Throwable) {
+                    // Match runtime fallback to configured keys, without repairing the file.
+                }
+            }
+        }
+
+        return self::inspectConfiguration(['issue' => null, 'provisioned' => false], $credentials);
     }
 
-    private static function inspectConfiguration(array $autoProvision): array
+    private static function inspectConfiguration(array $autoProvision, ?array $credentials = null): array
     {
         $enabled = (bool) config('webpush.enabled');
-        $subject = trim((string) config('webpush.vapid.subject'));
-        $publicKey = trim((string) config('webpush.vapid.public_key'));
-        $privateKey = trim((string) config('webpush.vapid.private_key'));
+        $subject = $credentials['subject'] ?? trim((string) config('webpush.vapid.subject'));
+        $publicKey = $credentials['publicKey'] ?? trim((string) config('webpush.vapid.public_key'));
+        $privateKey = $credentials['privateKey'] ?? trim((string) config('webpush.vapid.private_key'));
         $issues = [];
 
         if (! $enabled) {

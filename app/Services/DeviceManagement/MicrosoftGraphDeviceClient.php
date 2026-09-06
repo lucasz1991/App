@@ -18,8 +18,11 @@ class MicrosoftGraphDeviceClient
 
     private int $requests = 0;
 
-    public function begin(array $configuration): void
+    private bool $shortProbe = false;
+
+    public function begin(array $configuration, bool $shortProbe = false): void
     {
+        $this->shortProbe = $shortProbe;
         $this->token = '';
         $this->startedAt = microtime(true);
         $this->requests = 0;
@@ -30,8 +33,9 @@ class MicrosoftGraphDeviceClient
         }
 
         try {
-            $response = Http::asForm()->acceptJson()->connectTimeout(5)->timeout(20)
+            $response = Http::asForm()->acceptJson()->connectTimeout($shortProbe ? 2 : 5)->timeout($shortProbe ? 5 : 20)
                 ->withoutRedirecting()
+                ->withOptions($this->diagnosticOptions())
                 ->post('https://login.microsoftonline.com/'.$configuration['tenant_id'].'/oauth2/v2.0/token', [
                     'grant_type' => 'client_credentials',
                     'client_id' => $configuration['client_id'],
@@ -166,11 +170,12 @@ class MicrosoftGraphDeviceClient
 
     private function request(string $path, ?array $batch = null): array
     {
-        if ($this->token === '' || ++$this->requests > 500 || microtime(true) - $this->startedAt > 180) {
+        if ($this->token === '' || ++$this->requests > ($this->shortProbe ? 2 : 500) || microtime(true) - $this->startedAt > ($this->shortProbe ? 15 : 180)) {
             throw new MicrosoftGraphDeviceException('request_limit');
         }
         try {
-            $request = Http::withToken($this->token)->acceptJson()->connectTimeout(5)->timeout(20)->withoutRedirecting();
+            $request = Http::withToken($this->token)->acceptJson()->connectTimeout($this->shortProbe ? 2 : 5)->timeout($this->shortProbe ? 5 : 20)->withoutRedirecting();
+            $request->withOptions($this->diagnosticOptions());
             $response = $batch === null
                 ? $request->get(self::BASE.$path)
                 : $request->post(self::BASE.'/$batch', $batch);
@@ -184,7 +189,7 @@ class MicrosoftGraphDeviceClient
     private function decode(Response $response): array
     {
         $this->assertStatus($response->status());
-        if (strlen($response->body()) > 5 * 1024 * 1024) {
+        if (strlen($response->body()) > ($this->shortProbe ? 65536 : 5 * 1024 * 1024)) {
             throw new MicrosoftGraphDeviceException('response_limit');
         }
         $body = $response->json();
@@ -206,5 +211,18 @@ class MicrosoftGraphDeviceClient
             429 => 'rate_limited',
             default => 'http_error',
         });
+    }
+
+    private function diagnosticOptions(): array
+    {
+        if (! $this->shortProbe) {
+            return [];
+        }
+
+        return ['verify' => true, 'proxy' => '', 'progress' => static function ($total, $received): void {
+            if ($total > 65536 || $received > 65536) {
+                throw new MicrosoftGraphDeviceException('response_limit');
+            }
+        }];
     }
 }

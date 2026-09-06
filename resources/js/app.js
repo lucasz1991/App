@@ -49,6 +49,7 @@ import {
 } from './mobile-sidebar-swipe';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { railtimeTabs } from './tabs';
+import { systemHealth } from './system-health';
 import { initMobileFormFocusRecovery } from './mobile-form-focus';
 import { initKeyboardViewport } from './keyboard-viewport';
 import { welcomeIntro } from './welcome-intro';
@@ -674,6 +675,7 @@ Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtDateField', dateField);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);
+Alpine.data('systemHealth', systemHealth);
 Alpine.data('welcomeIntro', welcomeIntro);
 Alpine.data('railtimeChatbot', railtimeChatbot);
 Alpine.data('railtimeAssistantCloud', railtimeAssistantCloud);
