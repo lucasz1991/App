@@ -178,6 +178,13 @@ class EmailTemplatesPageTest extends TestCase
                     "https://app.rail-time.de/outlook-addin/{$bundle}.js?v=".substr($hash, 0, 16),
                     escape: false,
                 );
+            if ($bundle === 'taskpane') {
+                $response->assertSee('RailTime öffnen')
+                    ->assertSee('RailTime als App installieren')
+                    ->assertSee(route('home'), escape: false)
+                    ->assertSee(route('help'), escape: false)
+                    ->assertDontSee('https://outlook.office.com/mail/', escape: false);
+            }
 
             $cacheControl = $response->headers->get('cache-control');
             $this->assertIsString($cacheControl);
@@ -541,6 +548,18 @@ class EmailTemplatesPageTest extends TestCase
         } catch (OutlookAddinException $exception) {
             $this->assertStringContainsString('99.000 Zeichen', $exception->getPrevious()?->getMessage() ?? '');
         }
+
+        $template->forceFill([
+            'published_html' => $this->canonicalMailDocumentHtml(MailDocumentKind::Template),
+            'published_css' => str_repeat('.rt-title{color:#123456}', 1200),
+        ])->save();
+        app(PublishedMailDocumentSnapshotStore::class)->forget(MailDocumentKind::Template);
+        try {
+            app(OutlookAddinPayloadService::class)->forUser(User::factory()->create());
+            $this->fail('Oversized scoped CSS must not be delivered to Office.');
+        } catch (OutlookAddinException $exception) {
+            $this->assertStringContainsString('24 KiB', $exception->getPrevious()?->getMessage() ?? '');
+        }
     }
 
     public function test_outlook_addin_published_root_context_css_cannot_escape_signature_scope(): void
@@ -884,10 +903,13 @@ class EmailTemplatesPageTest extends TestCase
                 substr($fingerprintB, 0, 16),
                 $refreshed['version']['personal'],
             );
-            $this->assertStringContainsString(
-                '.rt-outlook-source-revision{display:none;}',
+            // The source still invalidates snapshots, but unused runtime
+            // selectors are no longer shipped into the compose document.
+            $this->assertStringNotContainsString(
+                '.rt-outlook-source-revision',
                 $refreshed['template']['html'],
             );
+            $this->assertStringContainsString('data-rt-outlook-template-css="1"', $refreshed['template']['html']);
         } finally {
             $this->app->instance(ViewFactory::class, $realViewFactory);
             View::swap($realViewFactory);

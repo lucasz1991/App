@@ -49,7 +49,7 @@ export function supportsTemplatePrepend(office, item) {
         && typeof item?.body?.getTypeAsync === 'function';
 }
 
-function officeRead(office, invoke) {
+function officeResult(office, invoke) {
     return new Promise((resolve) => {
         let settled = false;
         const finish = (value) => {
@@ -58,19 +58,88 @@ function officeRead(office, invoke) {
             clearTimeout(timeout);
             resolve(value);
         };
-        const timeout = setTimeout(() => finish(null), TEMPLATE_INSERT_LIMITS.readTimeoutMs);
+        const timeout = setTimeout(() => finish({ succeeded: false }), TEMPLATE_INSERT_LIMITS.readTimeoutMs);
         try {
             invoke((result) => {
                 try {
-                    finish(result?.status === office?.AsyncResultStatus?.Succeeded ? result.value : null);
+                    finish(result?.status === office?.AsyncResultStatus?.Succeeded
+                        ? { succeeded: true, value: result.value } : { succeeded: false });
                 } catch {
-                    finish(null);
+                    finish({ succeeded: false });
                 }
             });
         } catch {
-            finish(null);
+            finish({ succeeded: false });
         }
     });
+}
+
+async function officeRead(office, invoke) {
+    const result = await officeResult(office, invoke);
+    return result.succeeded ? result.value : null;
+}
+
+function pendingSession(value) {
+    return typeof value === 'string' && /^(?:pending|uncertain):/.test(value);
+}
+
+function readSession(office, item) {
+    return officeResult(office, (callback) => item.sessionData.getAsync(TEMPLATE_SESSION_KEY, callback));
+}
+
+function writeSession(office, item, value) {
+    return officeResult(office, (callback) => item.sessionData.setAsync(TEMPLATE_SESSION_KEY, value, callback));
+}
+
+function newOperationToken() {
+    try {
+        if (typeof globalThis.crypto?.randomUUID === 'function') return `pending:${globalThis.crypto.randomUUID()}`;
+    } catch {
+        // This is a non-secret ownership label, never an authorization token.
+    }
+    return `pending:${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function claimSession(office, item, operation) {
+    if (typeof item.sessionData?.getAsync !== 'function' || typeof item.sessionData?.setAsync !== 'function') return;
+
+    // Outlook runtimes may be isolated. SessionData narrows reopen/concurrent
+    // races where available, but read/set/readback is NOT an atomic CAS lock.
+    const existing = await readSession(office, item);
+    if (!existing.succeeded) {
+        operation.phase = 'uncertain';
+        throw failure('TEMPLATE_INSERT_UNCERTAIN');
+    }
+    if (existing.value === '1' && !operation.additionalConfirmed) throw failure('TEMPLATE_ALREADY_INSERTED');
+    if (pendingSession(existing.value) || ![null, undefined, '', '1'].includes(existing.value)) {
+        throw failure('TEMPLATE_INSERT_UNCERTAIN');
+    }
+    operation.previousSessionValue = existing.value === '1' ? '1' : '';
+    operation.sessionToken = newOperationToken();
+    const stored = await writeSession(office, item, operation.sessionToken);
+    if (!stored.succeeded) {
+        operation.phase = 'uncertain';
+        throw failure('TEMPLATE_INSERT_UNCERTAIN');
+    }
+    operation.sessionClaimed = true;
+    const verified = await readSession(office, item);
+    if (!verified.succeeded || verified.value !== operation.sessionToken) {
+        operation.phase = 'uncertain';
+        throw failure('TEMPLATE_INSERT_UNCERTAIN');
+    }
+}
+
+async function releaseDefiniteSessionFailure(office, item, operation) {
+    if (!operation.sessionClaimed || operation.phase === 'uncertain' || operation.phase === 'applied') return;
+    const current = await readSession(office, item);
+    if (!current.succeeded || current.value !== operation.sessionToken) {
+        // Never erase a foreign, completed or unreadable claim.
+        operation.phase = 'uncertain';
+        return;
+    }
+    // A failed additional insertion must keep the original template's state.
+    const cleared = await writeSession(office, item, operation.previousSessionValue);
+    if (!cleared.succeeded) operation.phase = 'uncertain';
 }
 
 export function isTemplateInsertionBlocked(item) {
@@ -97,22 +166,30 @@ export function templateStateFromBody(html, composeType) {
     };
 }
 
-export async function readTemplateState(office, item) {
+export async function readTemplateState(office, item, { forceBody = false } = {}) {
     const unknownSize = { bodyLength: null, tooLarge: false };
-    if (appliedItems.has(item)) return { present: true, readable: true, ...unknownSize };
     if (insertionOperations.get(item)?.phase === 'uncertain') {
         return { present: false, readable: false, uncertain: true, ...unknownSize };
     }
-    const session = typeof item?.sessionData?.getAsync === 'function'
-        ? await officeRead(office, (callback) => item.sessionData.getAsync(TEMPLATE_SESSION_KEY, callback))
-        : null;
-    if (session === '1') return { present: true, readable: true, ...unknownSize };
+    let knownPresent = appliedItems.has(item);
+    if (typeof item?.sessionData?.getAsync === 'function') {
+        const session = await readSession(office, item);
+        if (!session.succeeded || pendingSession(session.value)
+            || ![null, undefined, '', '1'].includes(session.value)) {
+            // Pending/unknown claims never expire automatically. A reopened
+            // taskpane must not assume that the previous native write failed.
+            return { present: false, readable: false, uncertain: true, ...unknownSize };
+        }
+        knownPresent ||= session.value === '1';
+    }
+    if (knownPresent && !forceBody) return { present: true, readable: true, ...unknownSize };
 
     const [html, compose] = await Promise.all([
         officeRead(office, (callback) => item.body.getAsync(office.CoercionType.Html, callback)),
         officeRead(office, (callback) => item.getComposeTypeAsync(callback)),
     ]);
-    return templateStateFromBody(html, compose?.composeType);
+    const state = templateStateFromBody(html, compose?.composeType);
+    return { ...state, present: knownPresent || state.present };
 }
 
 export function automaticTemplate(payload) {
@@ -130,12 +207,12 @@ export function markedTemplateHtml(html) {
     return `<!--${TEMPLATE_MARKER}-->${html}<span id="${TEMPLATE_MARKER}" aria-hidden="true" style="display:none;mso-hide:all"></span>`;
 }
 
-export async function assertTemplateInsertable(office, item) {
+export async function assertTemplateInsertable(office, item, { allowAdditional = false } = {}) {
     if (!supportsTemplatePrepend(office, item)) throw failure('TEMPLATE_PREPEND_UNAVAILABLE');
-    const state = await readTemplateState(office, item);
+    const state = await readTemplateState(office, item, { forceBody: allowAdditional });
     if (state.uncertain) throw failure('TEMPLATE_INSERT_UNCERTAIN');
     if (state.tooLarge) throw failure('COMPOSE_BODY_TOO_LARGE');
-    if (state.present) throw failure('TEMPLATE_ALREADY_INSERTED');
+    if (state.present && !allowAdditional) throw failure('TEMPLATE_ALREADY_INSERTED');
     if (!state.readable) throw failure('COMPOSE_BODY_UNREADABLE');
     const format = await officeRead(office, (callback) => item.body.getTypeAsync(callback));
     if (format !== office.CoercionType.Html) throw failure('TEMPLATE_REQUIRES_HTML');
@@ -222,20 +299,30 @@ function nativePrepend(office, item, html, operation) {
 /**
  * One locked preflight owns the entire insertion, including media preparation.
  * Callers must pass attachment work via beforeInsert, never perform it first.
+ * Additional templates require a fresh explicit confirmAdditional callback;
+ * a boolean allowAdditional option never authorizes another native write.
  */
 export async function prependTemplate(office, item, html, beforeWrite = () => {}, options = {}) {
-    if (appliedItems.has(item)) throw failure('TEMPLATE_ALREADY_INSERTED');
     const pending = insertionOperations.get(item);
     if (pending) throw failure(pending.phase === 'uncertain' ? 'TEMPLATE_INSERT_UNCERTAIN' : 'TEMPLATE_INSERT_IN_PROGRESS');
+    const canConfirmAdditional = typeof options.confirmAdditional === 'function';
+    if (appliedItems.has(item) && !canConfirmAdditional) throw failure('TEMPLATE_ALREADY_INSERTED');
     const markedHtml = validatedInsertionHtml(html, options.media ?? []);
     if (!supportsTemplatePrepend(office, item)) throw failure('TEMPLATE_PREPEND_UNAVAILABLE');
     const operation = { phase: 'preflight' };
     insertionOperations.set(item, operation);
     try {
-        const state = await assertTemplateInsertable(office, item);
+        const state = await assertTemplateInsertable(office, item, { allowAdditional: canConfirmAdditional });
         if (state.bodyLength + markedHtml.length > TEMPLATE_INSERT_LIMITS.bodyLength) {
             throw failure('COMPOSE_BODY_TOO_LARGE');
         }
+        await beforeWrite();
+        if (state.present) {
+            if (await options.confirmAdditional(state) !== true) throw failure('TEMPLATE_INSERT_CANCELLED');
+            operation.additionalConfirmed = true;
+            await beforeWrite();
+        }
+        await claimSession(office, item, operation);
         await beforeWrite();
         operation.phase = 'preparing';
         await options.beforeInsert?.();
@@ -244,6 +331,7 @@ export async function prependTemplate(office, item, html, beforeWrite = () => {}
         await nativePrepend(office, item, markedHtml, operation);
     } catch (error) {
         if (error?.code === 'INLINE_ATTACHMENT_UNCERTAIN') operation.phase = 'uncertain';
+        await releaseDefiniteSessionFailure(office, item, operation);
         throw error;
     } finally {
         if (operation.phase !== 'uncertain' && insertionOperations.get(item) === operation) {

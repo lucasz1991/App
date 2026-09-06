@@ -737,11 +737,11 @@ function renderSelectedTemplate() {
     view.templateActive.hidden = !template.isDefault && !template.active;
     view.templateActive.textContent = template.isDefault ? 'Standard' : 'Systemvorlage';
     const additional = taskpaneState.templatePresent;
-    const actionLabel = additional ? 'Vorlage bereits eingefügt' : 'Oberhalb einfügen';
+    const actionLabel = additional ? 'Zusätzlich oberhalb einfügen' : 'Oberhalb einfügen';
     const actionTitle = view.template.querySelector('strong');
     if (actionTitle) actionTitle.textContent = actionLabel;
     view.templateActionDetail.textContent = additional
-        ? 'Eine vollständige Vorlage pro Nachricht. Für eine andere Vorlage eine neue Nachricht öffnen.'
+        ? 'Nur nach Bestätigung; vorhandene Vorlage, Nachricht und Zitate bleiben erhalten.'
         : 'Wird oberhalb Ihres Textes eingefügt. Vorhandener Inhalt bleibt erhalten.';
     view.template.setAttribute('aria-label', `${template.name}: ${actionLabel}`);
 }
@@ -1005,7 +1005,6 @@ function syncActionState() {
     view.signature.dataset.available = taskpaneState.authenticated ? 'true' : 'false';
     view.template.dataset.available = authenticatedBootstrap && currentTemplate ? 'true' : 'false';
     const item = globalThis.Office?.context?.mailbox?.item;
-    if (taskpaneState.templatePresent) view.template.dataset.available = 'false';
     if (item && (isTemplateInsertionBlocked(item) || uncertainMediaItems.has(item))) {
         view.template.dataset.available = 'false';
         view.signature.dataset.available = 'false';
@@ -1142,7 +1141,7 @@ function userMessage(error) {
         return 'Vollständige Vorlagen können hier nicht sicher eingefügt werden. Bitte Outlook im Browser oder am Desktop verwenden. Die automatische Signatur bleibt separat verfügbar.';
     }
     if (code === 'TEMPLATE_ALREADY_INSERTED') {
-        return 'In dieser Nachricht ist bereits eine RailTime-Vorlage. Für eine andere vollständige Vorlage bitte eine neue Nachricht öffnen. Ihr vorhandener Inhalt bleibt erhalten.';
+        return 'In dieser Nachricht ist bereits eine RailTime-Vorlage. Eine weitere Vorlage benötigt Ihre ausdrückliche Bestätigung; Ihr vorhandener Inhalt bleibt erhalten.';
     }
     if (code === 'SIGNATURE_WITHIN_TEMPLATE') {
         return 'Diese Nachricht enthält bereits eine vollständige Vorlage mit Signatur. Sie bleibt unverändert, damit Ihr bearbeiteter Inhalt erhalten bleibt.';
@@ -1201,6 +1200,12 @@ function readyStatusDetail() {
 }
 
 function handleFailure(error, bootstrapWasLoaded = false) {
+    if (safeErrorCode(error) === 'TEMPLATE_INSERT_CANCELLED') {
+        setBusy(false);
+        syncActionState();
+        setStatus('neutral', 'Einfügen abgebrochen', 'Ihre Nachricht wurde nicht verändert.');
+        return;
+    }
     const authLost = authenticationWasLost(error);
 
     if (!bootstrapWasLoaded || authLost) {
@@ -1384,6 +1389,7 @@ async function insertTemplate(button) {
         await prependTemplate(Office, item, template.html, () => assertComposeTarget(target), {
             media: template.media,
             beforeInsert: () => attachInlineMedia(target, template.media),
+            confirmAdditional: () => window.confirm('Diese Nachricht enthält bereits eine RailTime-Vorlage. Die gewählte Vorlage ZUSÄTZLICH oberhalb einfügen? Vorhandener Text und Zitate bleiben erhalten.'),
         });
         assertComposeTarget(target);
         // Native success is sufficient; do not immediately pull the full body
