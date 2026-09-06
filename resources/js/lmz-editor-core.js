@@ -7,6 +7,7 @@
  */
 
 import './lmz-editor-assistant.js';
+import { normalizeMailEditingPolicy } from './mail-compatibility.js';
 
 const SIDES = Object.freeze(['top', 'right', 'bottom', 'left']);
 const IMAGE_TOKEN_PATTERN = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
@@ -257,7 +258,7 @@ export const LMZ_EDITOR_MODES = Object.freeze({
     mail: Object.freeze({
         id: 'mail',
         label: 'E-Mail Template',
-        description: 'Mailclient-sichere Bausteine, Inline-Stile und freigegebene Medien.',
+        description: 'Tabellenbasierte Bausteine, Inline-Stile und freigegebene Medien; Empfangstest erforderlich.',
         contentModel: 'email',
         contentStrategy: 'mail-document',
         styleStrategy: 'inline',
@@ -1978,6 +1979,7 @@ export function createSpacingOverlayController({
     root,
     enabled = true,
     environment = {},
+    editingPolicy = {},
 } = {}) {
     if (!editor?.Canvas) return { setEnabled() {}, refresh() {}, destroy() {} };
     const document_ = environment.document || globalThis.document;
@@ -1988,6 +1990,10 @@ export function createSpacingOverlayController({
         ? environment.ResizeObserver
         : (window_?.ResizeObserver || globalThis.ResizeObserver);
     const coarse = environment.coarsePointer ?? window_?.matchMedia?.('(pointer: coarse)')?.matches === true;
+    const warnsNegativeMargin = normalizeMailEditingPolicy(editingPolicy).negativeMargin === 'warn';
+    const spacingLabel = (type, side, value) => `${type} ${side}: ${value}px${
+        warnsNegativeMargin && type === 'margin' && value < 0
+            ? ' · Erweiterte Einstellung: Überlappung in empfangenen Mails prüfen.' : ''}`;
     let active = Boolean(enabled);
     let destroyed = false;
     let overlay = null;
@@ -2086,9 +2092,9 @@ export function createSpacingOverlayController({
             const value = rounded(geometry.spacing[type][side] / Math.max(number(position.zoom, 1), 0.01));
             handle.dataset.value = `${value}px`;
             handle.setAttribute('aria-valuenow', String(value));
-            handle.setAttribute('aria-valuetext', `${type} ${side}: ${value}px`);
+            handle.setAttribute('aria-valuetext', spacingLabel(type, side, value));
             handle.querySelector?.('.rt-lmz-spacing-overlay__label')?.replaceChildren?.(`${type} ${side}: ${value}px`);
-            handle.title = `${type} ${side}: ${value}px`;
+            handle.title = spacingLabel(type, side, value);
         }));
     };
 
@@ -2102,7 +2108,7 @@ export function createSpacingOverlayController({
     }
 
     function updateKeyboardHandle(handle, type, side, value) {
-        const label = `${type} ${side}: ${value}px`;
+        const label = spacingLabel(type, side, value);
         handle.dataset.value = `${value}px`;
         handle.setAttribute('aria-valuenow', String(value));
         handle.setAttribute('aria-valuetext', label);
@@ -3442,101 +3448,86 @@ function resolveImageInspectorMetadata({ target, source, token, media = {} }) {
 
 let imagePropertiesPanelSequence = 0;
 
-/** Optional V22 decoration is not an IMG and never owns the contact layout. */
-export function createMailSignatureBackgroundPanel({ root, editor, capabilities, media = {}, onChanged }) {
+/** Legacy backgrounds remain readable, but new train sources must be real IMG. */
+export function createMailSignatureBackgroundPanel({ root, editor, editingPolicy = {} }) {
     const mount = root.querySelector('[data-lmz-popover-panel="right:traits"] [data-lmz-mount="traits"]');
     if (!mount?.parentElement) return { refresh: () => false, destroy() {} };
     const panel = root.ownerDocument.createElement('section');
     panel.className = 'rt-lmz-image-properties';
-    panel.setAttribute('data-rt-lmz-signature-background', '');
-    panel.setAttribute('aria-label', 'Signatur-Hintergrund');
+    panel.setAttribute('data-rt-lmz-signature-background', 'legacy-readonly');
+    panel.setAttribute('aria-label', 'Zughintergrund · Altbestand');
     panel.hidden = true;
-    const options = MAIL_SIGNATURE_BACKGROUND_SIZES.map((value) => `<option value="${value}">${value} %</option>`).join('');
-    panel.innerHTML = `<header class="rt-lmz-image-properties__header"><span><strong>Zughintergrund</strong><small>Optional · proportional · hinter den Kontaktdaten</small></span></header>
-        <form class="rt-lmz-image-properties__form">
-            <label class="rt-lmz-image-properties__ratio"><input type="checkbox" name="enabled"><span>Hintergrund anzeigen</span></label>
-            <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide"><span>Systemmedium</span><input name="source" type="text" readonly aria-readonly="true"></label>
-            <label class="rt-lmz-image-properties__ratio"><input type="checkbox" name="desktopFit"><span>Desktop: vollständig unten links einpassen</span></label>
-            <div class="rt-lmz-image-properties__tabpanel">
-                <label class="rt-lmz-image-properties__field"><span>Desktop · über 860 px</span><select name="desktop">${options}</select></label>
-                <label class="rt-lmz-image-properties__field"><span>Tablet · bis 860 px</span><select name="tablet">${options}</select></label>
-                <label class="rt-lmz-image-properties__field"><span>Mobil · bis 480 px</span><select name="mobile">${options}</select></label>
-            </div>
-            <p class="rt-lmz-image-properties__hint">Einpassen begrenzt das Desktopbild auf den Inhaltsbereich, ohne zusätzliche Höhe oder Beschnitt. Der Desktop-Prozentwert bleibt für den freien Modus gespeichert. Tablet und Mobil verwenden weiterhin ihre eigene proportionale Größe und den 65%-Anker. Manche Mailclients zeigen Hintergründe oder Animationen eingeschränkt; der Text bleibt unabhängig davon sichtbar.</p>
-            <p class="rt-lmz-image-properties__message" aria-live="polite"></p>
-            <button class="rt-lmz-image-properties__apply" type="submit">Übernehmen</button>
-        </form>`;
+    panel.innerHTML = '<header class="rt-lmz-image-properties__header"><strong>Zughintergrund · Altbestand</strong></header><p class="rt-lmz-image-properties__hint">Dieser gespeicherte Hintergrund bleibt unverändert. Neue Zugdarstellungen werden ausschließlich als echtes IMG eingebunden. Hier sind keine Hintergrundänderungen oder automatische Umwandlungen möglich.</p>';
+    appendMailPolicyEvidence(panel, editingPolicy);
     mount.parentElement.insertBefore(panel, mount);
-    const form = panel.querySelector('form');
-    const controls = Object.fromEntries(['enabled', 'source', 'desktopFit', 'desktop', 'tablet', 'mobile']
-        .map((name) => [name, form.querySelector(`[name="${name}"]`)]));
-    const message = panel.querySelector('[aria-live]');
-    let target = null;
-    let dirty = false;
     const refresh = (selection = editor.getSelected?.()) => {
-        const next = isMailSignatureBackgroundComponent(selection) ? selection : null;
-        if (next !== target) dirty = false;
-        target = next;
-        panel.hidden = !target;
-        if (!target) return false;
+        panel.hidden = !isMailSignatureBackgroundComponent(selection);
+        if (panel.hidden) return false;
         mount.hidden = true;
-        const attributes = componentAttributes(target);
-        if (!dirty) {
-            controls.enabled.checked = String(attributes['data-rt-signature-background']) === '1';
-            controls.desktopFit.checked = attributes['data-rt-bg-desktop-fit'] === 'contain';
-            ['desktop', 'tablet', 'mobile'].forEach((breakpoint) => {
-                const value = String(attributes[`data-rt-bg-${breakpoint}`] || '110');
-                const options = [...controls[breakpoint].querySelectorAll('option')];
-                options.forEach((option) => { option.selected = false; });
-                const selected = options.find((option) => option.value === value);
-                if (selected) selected.selected = true;
-            });
-        }
-        const definition = currentMediaItems(media.tokenMedia).find((item) => normalizedToken(item?.token) === 'TRAIN_SRC');
-        controls.source.value = assetSource(definition) || '{{TRAIN_SRC}}';
-        form.querySelectorAll('input, select, button').forEach((control) => { control.disabled = !capabilities.writable; });
-        controls.desktop.disabled = !capabilities.writable || controls.desktopFit.checked;
         return true;
     };
-    const markDirty = () => {
-        dirty = true;
-        message.textContent = '';
-        controls.desktop.disabled = !capabilities.writable || controls.desktopFit.checked;
+    return { refresh, destroy() { panel.remove(); } };
+}
+
+function appendMailPolicyEvidence(panel, input) {
+    const policy = normalizeMailEditingPolicy(input);
+    if (!policy.evidence.length) return;
+    const details = panel.ownerDocument.createElement('details');
+    details.className = 'rt-lmz-image-properties__hint';
+    const summary = panel.ownerDocument.createElement('summary');
+    summary.textContent = 'Quellen der Mail-Richtlinie';
+    details.appendChild(summary);
+    policy.evidence.forEach((source) => {
+        const paragraph = panel.ownerDocument.createElement('p');
+        const link = panel.ownerDocument.createElement('a');
+        link.textContent = source.title;
+        link.href = source.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        paragraph.appendChild(link);
+        details.appendChild(paragraph);
+    });
+    panel.appendChild(details);
+}
+
+/** Advisory only: never rewrite the selected component or clamp old margins. */
+export function createMailEditingPolicyNotice({ root, editor, editingPolicy = {} }) {
+    const mount = root.querySelector('[data-lmz-popover-panel="right:styles"] [data-lmz-mount="styles"]');
+    if (!mount?.parentElement) return { refresh() {}, destroy() {} };
+    const policy = normalizeMailEditingPolicy(editingPolicy);
+    const notice = root.ownerDocument.createElement('section');
+    notice.className = 'rt-lmz-image-properties';
+    notice.setAttribute('data-rt-mail-editing-policy', '');
+    notice.innerHTML = '<header class="rt-lmz-image-properties__header"><strong>Mailmodus · Layout-Hinweise</strong></header>';
+    const hint = root.ownerDocument.createElement('p');
+    hint.className = 'rt-lmz-image-properties__hint';
+    hint.textContent = policy.available
+        ? 'Tabellenfluss ist die Grundlage. Minusabstände bleiben editierbar, sind aber eine erweiterte Einstellung mit Darstellungsrisiko. Überlappungen, Positionierung und Bildhintergründe sind keine verlässliche Layoutgrundlage für alle Mailclients. Die automatische Prüfung ersetzt keinen Empfangstest.'
+            + (policy.mailCss === 'critical-inline' ? ' Wichtige Mail-Stile müssen inline vorliegen.' : '')
+            + (policy.addinCss === 'separate-client-test' ? ' Für die Einfügung über das Outlook-Add-in gelten eigene API- und CSS-Grenzen.' : '')
+        : 'Die aktuelle Mail-Richtlinie ist nicht verfügbar. Bestehende Inhalte bleiben unverändert; die Darstellung muss separat in empfangenen Nachrichten geprüft werden.';
+    notice.appendChild(hint);
+    const current = root.ownerDocument.createElement('p');
+    current.className = 'rt-lmz-image-properties__hint';
+    current.setAttribute('aria-live', 'polite');
+    notice.appendChild(current);
+    appendMailPolicyEvidence(notice, policy);
+    mount.parentElement.insertBefore(notice, mount);
+    const refresh = () => {
+        const selected = editor.getSelected?.();
+        notice.hidden = !selected;
+        const style = selected?.getStyle?.() || {};
+        const hasNegativeMargin = Object.entries(style).some(([key, value]) =>
+            /^margin(?:-(?:top|right|bottom|left))?$/.test(key) && /(?:^|\s)-(?:\d|\.\d)/.test(String(value)));
+        const text = policy.available && hasNegativeMargin
+            ? 'Auswahl: negativer Abstand vorhanden. Der Wert bleibt erhalten; Überlappung bitte in den Zielclients prüfen.'
+            : '';
+        if (current.textContent !== text) current.textContent = text;
+        current.hidden = !text;
     };
-    const submit = (event) => {
-        event.preventDefault();
-        if (!target || !capabilities.writable) return;
-        const values = Object.fromEntries(['desktop', 'tablet', 'mobile'].map((breakpoint) => [breakpoint, String(controls[breakpoint].value)]));
-        if (Object.values(values).some((value) => !MAIL_SIGNATURE_BACKGROUND_SIZES.includes(value))) {
-            message.textContent = 'Bitte eine angebotene proportionale Größe auswählen.';
-            return;
-        }
-        const attributes = {
-            'data-rt-signature-background': controls.enabled.checked ? '1' : '0',
-            ...Object.fromEntries(Object.entries(values).map(([key, value]) => [`data-rt-bg-${key}`, value])),
-            ...(controls.desktopFit.checked ? { 'data-rt-bg-desktop-fit': 'contain' } : {}),
-        };
-        if (!controls.desktopFit.checked) target.removeAttributes?.('data-rt-bg-desktop-fit');
-        target.addAttributes?.(attributes);
-        // Runtime URLs remain DOM-only. The serializer restores TRAIN_SRC.
-        target.addStyle?.(mailSignatureBackgroundStyle(attributes, 'none'));
-        editor.trigger?.('component:update', target);
-        dirty = false;
-        onChanged?.();
-        message.textContent = 'Hintergrundgrößen übernommen. Zum Veröffentlichen den Entwurf speichern.';
-    };
-    form.addEventListener('input', markDirty);
-    form.addEventListener('change', markDirty);
-    form.addEventListener('submit', submit);
-    return {
-        refresh,
-        destroy() {
-            form.removeEventListener('input', markDirty);
-            form.removeEventListener('change', markDirty);
-            form.removeEventListener('submit', submit);
-            panel.remove();
-        },
-    };
+    editor.on?.('component:styleUpdate', refresh);
+    refresh();
+    return { refresh, destroy() { editor.off?.('component:styleUpdate', refresh); notice.remove(); } };
 }
 
 /**
@@ -5354,6 +5345,7 @@ export function createLmzEditorChrome({
     layout = 'default',
     capabilities = {},
     media = {},
+    editingPolicy = {},
     active = true,
 } = {}) {
     const rootElement = asElement(root);
@@ -5496,11 +5488,12 @@ export function createLmzEditorChrome({
     rootElement.addEventListener('pointerdown', rememberPanelIntent, { capture: true, signal: abortController.signal });
     rootElement.addEventListener('click', rememberPanelIntent, { capture: true, signal: abortController.signal });
 
-    const spacing = createSpacingOverlayController({ editor, root: rootElement, enabled: isOpen && normalized.spacing });
+    const spacing = createSpacingOverlayController({ editor, root: rootElement, enabled: isOpen && normalized.spacing, editingPolicy: normalizedMode === 'mail' ? editingPolicy : {} });
     let mediaDrawer;
     let animationDrawer;
     let imagePropertiesPanel;
     let signatureBackgroundPanel;
+    let mailPolicyNotice;
     let panelExperience;
     let mailFocusChrome;
     let mailSelectionActive = false;
@@ -5578,6 +5571,7 @@ export function createLmzEditorChrome({
     };
     const refreshAll = () => {
         spacing.refresh();
+        mailPolicyNotice?.refresh();
         mediaDrawer?.refresh();
         syncContextControls();
         panelExperience?.refresh();
@@ -5592,7 +5586,8 @@ export function createLmzEditorChrome({
         onChanged: refreshAll,
     });
     if (normalizedMode === 'mail') {
-        signatureBackgroundPanel = createMailSignatureBackgroundPanel({ root: rootElement, editor, capabilities: normalized, media, onChanged: refreshAll });
+        signatureBackgroundPanel = createMailSignatureBackgroundPanel({ root: rootElement, editor, editingPolicy });
+        mailPolicyNotice = createMailEditingPolicyNotice({ root: rootElement, editor, editingPolicy });
     }
     panelExperience = installEditorPanelExperience({ root: rootElement, editor });
     if (normalizedMode === 'mail' && elementorLayout) mailFocusChrome = installMailFocusChrome({ root: rootElement, editor });
@@ -5743,6 +5738,7 @@ export function createLmzEditorChrome({
             panelExperience.destroy();
             imagePropertiesPanel.destroy();
             signatureBackgroundPanel?.destroy();
+            mailPolicyNotice?.destroy();
             imageLayerPresentation.destroy();
             spacing.destroy();
             elementorLayout?.destroy();

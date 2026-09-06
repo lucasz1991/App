@@ -20,6 +20,7 @@ final class EmailCompatibilityReport implements JsonSerializable
      *     fix: string,
      *     client_profiles: list<string>
      * }>  $findings
+     * @param  array{automated: int, manual: int, manual_rule_ids: list<string>}  $checks
      */
     public function __construct(
         public readonly string $catalogVersion,
@@ -28,6 +29,7 @@ final class EmailCompatibilityReport implements JsonSerializable
         public readonly int $htmlBytes,
         public readonly int $styleBytes,
         public readonly array $findings = [],
+        public readonly array $checks = ['automated' => 0, 'manual' => 0, 'manual_rule_ids' => []],
     ) {}
 
     /** Fail-closed API-Bericht, wenn der Katalog selbst nicht verfuegbar ist. */
@@ -86,7 +88,9 @@ final class EmailCompatibilityReport implements JsonSerializable
      *         message: string,
      *         fix: string,
      *         client_profiles: list<string>
-     *     }>
+     *     }>,
+     *     checks: array{automated: int, manual: int, manual_rule_ids: list<string>},
+     *     rendering_verified: false
      * }
      */
     public function toArray(): array
@@ -99,6 +103,9 @@ final class EmailCompatibilityReport implements JsonSerializable
             'html_bytes' => $this->htmlBytes,
             'style_bytes' => $this->styleBytes,
             'findings' => $this->findings,
+            // A static report is never evidence from a received mail client.
+            'checks' => $this->checks,
+            'rendering_verified' => false,
         ];
     }
 

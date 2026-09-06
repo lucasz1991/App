@@ -90,8 +90,8 @@ final class EmailCompatibilityContractTest extends TestCase
         );
 
         $catalog = new EmailCompatibilityCatalog($path);
-        self::assertCount(1908, $catalog->rows());
-        self::assertCount(78, $catalog->activeRuleGroups());
+        self::assertCount(1911, $catalog->rows());
+        self::assertCount(81, $catalog->activeRuleGroups());
         self::assertSame(EmailCompatibilityCatalog::HEADER, array_keys($catalog->rows()[0]));
         self::assertContains('official_vendor', array_column($catalog->rows(), 'source_type'));
         self::assertContains('original_client_test', array_column($catalog->rows(), 'source_type'));

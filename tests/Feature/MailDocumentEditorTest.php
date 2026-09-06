@@ -558,7 +558,7 @@ class MailDocumentEditorTest extends TestCase
         $response->assertCreated()
             ->assertJsonPath('document.kind', MailDocumentKind::Signature->value)
             ->assertJsonPath('document.status', MailDocumentStatus::Draft->value)
-            ->assertJsonPath('compatibility.catalog_version', '1.0.0')
+            ->assertJsonPath('compatibility.catalog_version', '1.0.1')
             ->assertJsonPath('redirect', route('admin.mail-documents.editor', [
                 'dokument' => MailDocumentKind::Signature->value,
                 'slot' => $response->json('document.id'),
@@ -2731,7 +2731,10 @@ HTML;
             $this->actingAs($this->admin())
                 ->postJson(route('admin.mail-documents.validate-code', $document), $payload)
                 ->assertOk()
-                ->assertJsonPath('compatibility.status', 'pass');
+                ->assertJsonPath('compatibility.status', 'warn')
+                ->assertJsonPath('compatibility.counts.block', 0)
+                ->assertJsonPath('compatibility.rendering_verified', false)
+                ->assertJsonFragment(['rule_id' => 'EMAIL-LAYOUT-007']);
 
             $payload['portable_media'] = array_values(array_filter(
                 $media,
@@ -3412,7 +3415,7 @@ HTML;
             $shortHash = substr($contentHash, 0, 12);
             $response->assertOk()
                 ->assertJsonPath('recipient', $recipient)
-                ->assertJsonPath('compatibility.catalog_version', '1.0.0')
+                ->assertJsonPath('compatibility.catalog_version', '1.0.1')
                 ->assertJsonPath('layout_version', $version)
                 ->assertJsonPath('document_version', $documentVersion)
                 ->assertJsonPath('content_hash', $contentHash);
@@ -3700,7 +3703,7 @@ HTML;
         $this->assertSame($saved->css, $response->json('document.css'));
         $this->assertFalse($response->json('report.clean'));
         $this->assertNotEmpty($response->json('report.messages'));
-        $this->assertSame('1.0.0', $response->json('compatibility.catalog_version'));
+        $this->assertSame('1.0.1', $response->json('compatibility.catalog_version'));
         $this->assertContains($response->json('compatibility.status'), ['pass', 'warn']);
     }
 
@@ -5236,7 +5239,7 @@ HTML;
                 'expected_hash' => $document->content_hash,
             ])
             ->assertOk()
-            ->assertJsonPath('compatibility.catalog_version', '1.0.0')
+            ->assertJsonPath('compatibility.catalog_version', '1.0.1')
             ->assertJsonPath('document.status', MailDocumentStatus::Published->value)
             ->assertJsonPath('document.has_unpublished_changes', false);
 

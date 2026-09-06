@@ -50,7 +50,7 @@ export const MAIL_COMPATIBILITY_LEVELS = Object.freeze({
 });
 
 export const MAIL_COMPATIBILITY_STATUSES = Object.freeze({
-    pass: Object.freeze({ id: 'pass', label: 'Bestanden', tone: 'positive' }),
+    pass: Object.freeze({ id: 'pass', label: 'Automatische Prüfung bestanden', tone: 'positive' }),
     warn: Object.freeze({ id: 'warn', label: 'Mit Hinweisen', tone: 'caution' }),
     block: Object.freeze({ id: 'block', label: 'Veröffentlichung gesperrt', tone: 'critical' }),
 });
@@ -432,13 +432,25 @@ export function normalizeMailCompatibilityReport(input = {}) {
         if (normalized !== '' && !messages.includes(normalized)) messages.push(normalized);
     });
     const status = statusFrom(source, counts);
-    const title = cleanText(
+    const title = status === 'pass' ? MAIL_COMPATIBILITY_STATUSES.pass.label : cleanText(
         ownValue(source, 'title'),
         MAIL_COMPATIBILITY_STATUSES[status].label,
         240,
     );
 
+    const rawChecks = ownValue(source, 'checks');
+    const checks = isRecord(rawChecks)
+        && Number.isFinite(ownValue(rawChecks, 'automated')) && Number.isFinite(ownValue(rawChecks, 'manual'))
+        ? Object.freeze({
+            automated: nonNegativeInteger(ownValue(rawChecks, 'automated')),
+            manual: nonNegativeInteger(ownValue(rawChecks, 'manual')),
+            manualRuleIds: stringList(ownValue(rawChecks, 'manual_rule_ids', 'manualRuleIds')),
+        }) : null;
+
     return Object.freeze({
+        checks,
+        // Automated checks never establish a received-client rendering result.
+        renderingVerified: false,
         catalogVersion: cleanText(
             ownValue(source, 'catalog_version', 'catalogVersion'),
             'unknown',
@@ -455,6 +467,43 @@ export function normalizeMailCompatibilityReport(input = {}) {
         findings,
         messages: Object.freeze(messages),
         messagesHtml: Object.freeze(messages.map((message) => escapeMailCompatibilityText(message))),
+    });
+}
+
+export function normalizeMailEditingPolicy(input = {}) {
+    const source = recordFrom(input);
+    const version = ownValue(source, 'policy_version', 'policyVersion');
+    const expected = {
+        trainSource: ['train_source', 'img-only'],
+        negativeMargin: ['negative_margin', 'warn'],
+        positionedLayout: ['positioned_layout', 'warn'],
+        backgroundImages: ['background_images', 'warn'],
+        criticalLayout: ['critical_layout', 'table-flow'],
+    };
+    const available = version === 1 && Object.entries(expected).every(([key, [snake, value]]) =>
+        ownValue(source, snake, key) === value);
+    const evidence = [];
+    if (available) {
+        const rawEvidence = ownValue(source, 'evidence');
+        (Array.isArray(rawEvidence) ? rawEvidence : []).slice(0, 10).forEach((entry) => {
+            const record = recordFrom(entry);
+            const title = cleanText(ownValue(record, 'title'), '', 240);
+            const url = cleanText(ownValue(record, 'url'), '', 2048);
+            try {
+                const parsed = new URL(url);
+                if (title && ['https:', 'http:'].includes(parsed.protocol) && !parsed.username && !parsed.password) {
+                    evidence.push(Object.freeze({ title, url: parsed.href }));
+                }
+            } catch { /* Untrusted or relative evidence is not a clickable source. */ }
+        });
+    }
+    return Object.freeze({
+        available,
+        policyVersion: available ? 1 : null,
+        ...Object.fromEntries(Object.entries(expected).map(([key, [, value]]) => [key, available ? value : null])),
+        mailCss: available && ownValue(source, 'mail_css', 'mailCss') === 'critical-inline' ? 'critical-inline' : null,
+        addinCss: available && ownValue(source, 'addin_css', 'addinCss') === 'separate-client-test' ? 'separate-client-test' : null,
+        evidence: Object.freeze(evidence),
     });
 }
 
@@ -482,6 +531,7 @@ export function normalizeMailCompatibilityManifest(input = {}) {
             ownValue(source, 'client_profiles', 'clientProfiles', 'required_profiles', 'requiredProfiles'),
         ),
         controls: Object.freeze(controls),
+        editingPolicy: normalizeMailEditingPolicy(ownValue(source, 'editing_policy', 'editingPolicy')),
     });
 }
 

@@ -12,6 +12,7 @@ import {
     createSpacingOverlayController,
     createImageAssetSelection,
     createMailSignatureBackgroundPanel,
+    createMailEditingPolicyNotice,
     createScopedAssetCallbackSelection,
     enforceProtectedComponentModels,
     handleScopedRtePaste,
@@ -1527,95 +1528,69 @@ function coreFakeComponent(element, initial = {}) {
     };
 }
 
-test('signature background inspector saves independent breakpoints and supports disable without touching content', () => coreWithDom(`
+const mailEditingPolicy = Object.freeze({
+    policy_version: 1, train_source: 'img-only', negative_margin: 'warn',
+    positioned_layout: 'warn', background_images: 'warn', critical_layout: 'table-flow',
+    evidence: [{ title: 'Microsoft Dokumentation', url: 'https://learn.microsoft.com/' }],
+});
+
+test('legacy train background inspector is read-only and never changes source on selection or input', () => coreWithDom(`
     <div id="root"><div data-lmz-popover-panel="right:traits"><div><div data-lmz-mount="traits"></div></div></div></div>
 `, ({ document, window }) => {
     const root = document.querySelector('#root');
-    const attributes = { class: 'rt-sign-cell', 'data-rt-signature-background': '1', 'data-rt-bg-desktop': '110', 'data-rt-bg-tablet': '150', 'data-rt-bg-mobile': '175', 'data-rt-mail-preview-train': 'TRAIN_SRC' };
-    const component = coreFakeComponent(document.createElement('td'), { attributes, style: { padding: '0', 'background-color': '{{SIGNATURE_BG}}' } });
-    let updates = 0;
-    const editor = { getSelected: () => component, trigger(name, target) { assert.equal(name, 'component:update'); assert.equal(target, component); updates += 1; } };
-    const inspector = createMailSignatureBackgroundPanel({ root, editor, capabilities: { writable: true }, media: { tokenMedia: [{ token: 'TRAIN_SRC', src: '/media/train.gif' }] } });
-    assert.equal(inspector.refresh(), true);
-    const panel = root.querySelector('[data-rt-lmz-signature-background]');
-    assert.equal(panel.hidden, false);
-    assert.equal(panel.querySelector('[name="source"]').value, '/media/train.gif');
-    const select = (name, value) => {
-        const options = [...panel.querySelectorAll(`[name="${name}"] option`)];
-        options.forEach((option) => { option.selected = false; });
-        options.find((option) => option.value === value).selected = true;
-    };
-    select('desktop', '125'); select('tablet', '175'); select('mobile', '200');
-    panel.querySelector('[name="enabled"]').checked = false;
-    panel.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    assert.equal(updates, 1);
-    assert.equal(component.state.attributes['data-rt-signature-background'], '0');
-    assert.equal(component.state.attributes['data-rt-bg-desktop'], '125');
-    assert.equal(component.state.attributes['data-rt-bg-tablet'], '175');
-    assert.equal(component.state.attributes['data-rt-bg-mobile'], '200');
-    assert.equal(component.state.style['background-size'], '125% auto');
-    assert.equal(component.state.style['background-image'], 'none');
-    assert.equal(component.state.style.padding, '0');
-    assert.equal(component.state.style['background-color'], '{{SIGNATURE_BG}}');
-    inspector.destroy();
-    assert.equal(root.querySelector('[data-rt-lmz-signature-background]'), null);
-
-    const readonly = createMailSignatureBackgroundPanel({ root, editor, capabilities: { writable: false } });
-    readonly.refresh();
-    assert.equal(root.querySelector('[name="desktop"]').disabled, true);
-    root.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    assert.equal(updates, 1);
-    readonly.destroy();
+    for (const enabled of ['0', '1']) {
+        const component = coreFakeComponent(document.createElement('td'), {
+            attributes: { class: 'rt-sign-cell', 'data-rt-signature-background': enabled, 'data-rt-bg-desktop-fit': 'contain', 'data-rt-bg-desktop': '125', 'data-rt-bg-tablet': '150', 'data-rt-bg-mobile': '200' },
+            style: { padding: '12px', 'background-image': 'url({{TRAIN_SRC}})', 'background-size': 'contain' },
+        });
+        const before = JSON.stringify(component.state);
+        let selected = component;
+        const editor = { getSelected: () => selected, trigger() { assert.fail('readonly selection must not issue a model update'); } };
+        const inspector = createMailSignatureBackgroundPanel({ root, editor, capabilities: { writable: true }, editingPolicy: mailEditingPolicy });
+        assert.equal(inspector.refresh(), true);
+        const panel = root.querySelector('[data-rt-lmz-signature-background]');
+        assert.equal(panel.querySelector('form,input,select,button'), null);
+        assert.match(panel.textContent, /Altbestand/);
+        assert.match(panel.textContent, /ausschließlich als echtes IMG/);
+        assert.equal(panel.querySelector('a').href, 'https://learn.microsoft.com/');
+        ['input', 'change', 'submit'].forEach((name) => panel.dispatchEvent(new window.Event(name, { bubbles: true, cancelable: true })));
+        inspector.refresh();
+        assert.equal(JSON.stringify(component.state), before);
+        selected = coreFakeComponent(document.createElement('img'));
+        assert.equal(inspector.refresh(), false);
+        assert.equal(panel.hidden, true);
+        assert.equal(JSON.stringify(component.state), before);
+        inspector.destroy();
+        assert.equal(root.querySelector('[data-rt-lmz-signature-background]'), null);
+    }
 }));
 
-test('signature background inspector toggles desktop fit while preserving breakpoint values and read-only mode', () => coreWithDom(`
-    <div id="root"><div data-lmz-popover-panel="right:traits"><div><div data-lmz-mount="traits"></div></div></div></div>
-`, ({ document, window }) => {
+test('mail policy notice explains editable negative margins and leaves legacy styles unchanged', () => coreWithDom(`
+    <div id="root"><div data-lmz-popover-panel="right:styles"><div><div data-lmz-mount="styles"></div></div></div></div>
+`, ({ document }) => {
     const root = document.querySelector('#root');
-    const component = coreFakeComponent(document.createElement('td'), {
-        attributes: { class: 'rt-sign-cell', 'data-rt-signature-background': '1', 'data-rt-bg-desktop': '125', 'data-rt-bg-tablet': '150', 'data-rt-bg-mobile': '175' },
-        style: { padding: '0', 'background-color': '{{SIGNATURE_BG}}' },
-    });
-    let updates = 0;
-    const editor = { getSelected: () => component, trigger() { updates += 1; } };
-    const inspector = createMailSignatureBackgroundPanel({ root, editor, capabilities: { writable: true } });
-    inspector.refresh();
-    const fit = root.querySelector('[name="desktopFit"]');
-    const desktop = root.querySelector('[name="desktop"]');
-    const form = root.querySelector('form');
-    assert.equal(Boolean(fit.checked), false);
-    assert.equal(desktop.disabled, false);
-    fit.checked = true;
-    fit.dispatchEvent(new window.Event('change', { bubbles: true }));
-    inspector.refresh();
-    assert.equal(fit.checked, true);
-    assert.equal(desktop.disabled, true);
-    assert.equal(root.querySelector('[name="mobile"]').disabled, false);
-    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    assert.equal(component.state.attributes['data-rt-bg-desktop-fit'], 'contain');
-    assert.equal(component.state.attributes['data-rt-bg-desktop'], '125');
-    assert.equal(component.state.attributes['data-rt-bg-mobile'], '175');
-    assert.equal(component.state.attributes['data-rt-bg-tablet'], '150');
-    assert.equal(component.state.style['background-size'], 'contain');
-    assert.equal(component.state.style['background-position'], 'left bottom');
-    assert.equal(component.state.style.padding, '0');
-    fit.checked = false;
-    fit.dispatchEvent(new window.Event('change', { bubbles: true }));
-    assert.equal(desktop.disabled, false);
-    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    assert.equal(component.state.attributes['data-rt-bg-desktop-fit'], undefined);
-    assert.equal(component.state.style['background-size'], '125% auto');
-    assert.equal(component.state.style['background-position'], '65% bottom');
-    assert.equal(updates, 2);
-    inspector.destroy();
-    const readonly = createMailSignatureBackgroundPanel({ root, editor, capabilities: { writable: false } });
-    readonly.refresh();
-    assert.equal(root.querySelector('[name="desktopFit"]').disabled, true);
-    root.querySelector('[name="desktopFit"]').checked = true;
-    root.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    assert.equal(updates, 2);
-    assert.equal(component.state.attributes['data-rt-bg-desktop-fit'], undefined);
-    readonly.destroy();
+    let selected = coreFakeComponent(document.createElement('div'), { style: { margin: '0 0 -150px', position: 'relative' } });
+    const before = JSON.stringify(selected.state);
+    const listeners = new Map();
+    const editor = { getSelected: () => selected, on: (name, callback) => listeners.set(name, callback), off: (name) => listeners.delete(name) };
+    const notice = createMailEditingPolicyNotice({ root, editor, editingPolicy: mailEditingPolicy });
+    const panel = root.querySelector('[data-rt-mail-editing-policy]');
+    assert.match(panel.textContent, /Minusabstände bleiben editierbar/);
+    assert.match(panel.querySelector('[aria-live]').textContent, /negativer Abstand/);
+    assert.match(panel.textContent, /automatische Prüfung ersetzt keinen Empfangstest/);
+    notice.refresh();
+    assert.equal(JSON.stringify(selected.state), before);
+    selected.addStyle({ margin: '0' });
+    listeners.get('component:styleUpdate')();
+    assert.equal(panel.querySelector('[aria-live]').hidden, true);
+    selected = null;
+    notice.refresh();
+    assert.equal(panel.hidden, true);
+    notice.destroy();
+    assert.equal(listeners.size, 0);
+    const missing = createMailEditingPolicyNotice({ root, editor: { getSelected: () => ({}) } });
+    assert.match(root.textContent, /Richtlinie ist nicht verfügbar/);
+    missing.destroy();
 }));
 
 function coreFakeEditor(root, selected, vendorSelection = null) {
@@ -1876,7 +1851,8 @@ test('shared LMZ shell exposes the resolved mail profile and removes unsafe clas
     assert.equal(root.dataset.rtLmzBlockPrefix, 'rt-mail-');
     assert.equal(indicator.getAttribute('role'), 'status');
     assert.match(indicator.getAttribute('aria-label'), /Aktiver Editormodus: E-Mail Template/);
-    assert.match(indicator.textContent, /Mailclient-sichere Bausteine/);
+    assert.match(indicator.textContent, /Tabellenbasierte Bausteine/);
+    assert.match(indicator.textContent, /Empfangstest erforderlich/);
     assert.equal(classesToggle.hidden, true);
     assert.equal(chrome.openPanel('classes'), false);
     assert.equal(root.querySelector('[data-rt-lmz-panel-search="classes"]'), null);
@@ -3343,7 +3319,7 @@ test('official lockups and QR structures expose only read-only Assist help and n
     chrome.destroy();
 }));
 
-test('V22 background properties remain accessible through the protected structure guard', () => coreWithDom(`
+test('V22 legacy background explanation remains accessible but has no write controls', () => coreWithDom(`
     <div id="root"><div class="lmz-builder__topbar">
         <button data-lmz-panel-toggle="right:traits" data-lmz-panel-group="right" aria-expanded="true">Eigenschaften</button>
         <button data-lmz-panel-toggle="right:styles" data-lmz-panel-group="right" aria-expanded="false">Stile</button>
@@ -3363,6 +3339,8 @@ test('V22 background properties remain accessible through the protected structur
     root.querySelector('[data-lmz-panel-toggle="right:traits"]').dispatchEvent(traitsClick);
     assert.equal(traitsClick.defaultPrevented, false);
     assert.equal(root.querySelector('[data-rt-lmz-signature-background]').hidden, false);
+    assert.equal(root.querySelector('[data-rt-lmz-signature-background] form'), null);
+    assert.match(root.querySelector('[data-rt-lmz-signature-background]').textContent, /Altbestand/);
     for (const selector of ['[data-lmz-panel-toggle="right:styles"]', '[data-command="tlb-delete"]']) {
         const click = event();
         root.querySelector(selector).dispatchEvent(click);
@@ -3753,6 +3731,44 @@ test('spacing overlay keyboard controls expose values, commit with Enter and can
     key('Escape');
     assert.equal(changes.at(-1).style['padding-top'], '16px');
     assert.equal(handle.getAttribute('aria-valuenow'), '16');
+    controller.destroy();
+}));
+
+test('mail spacing warns about negative margins without clamping keyboard or pointer edits', () => coreWithDom(`
+    <div id="root"><div data-tools></div></div>
+`, ({ window, document }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('div'));
+    const editor = coreFakeEditor(root, selected);
+    editor.Canvas.getElementOffsets = () => ({ marginTop: -150, marginRight: 0, marginBottom: 0, marginLeft: 0 });
+    const position = editor.Canvas.getElementPos();
+    editor.Canvas.getElementPos = () => ({ ...position, zoom: 1 });
+    const controller = createSpacingOverlayController({
+        editor, root, editingPolicy: mailEditingPolicy,
+        environment: { document, window, requestAnimationFrame: (callback) => { callback(); return 1; }, cancelAnimationFrame() {} },
+    });
+    const handle = root.querySelector('[data-type="margin"][data-side="top"]');
+    assert.equal(handle.getAttribute('aria-valuenow'), '-150');
+    assert.match(handle.title, /Erweiterte Einstellung/);
+    const key = new window.Event('keydown', { bubbles: true, cancelable: true });
+    Object.defineProperty(key, 'key', { value: 'ArrowDown' });
+    handle.dispatchEvent(key);
+    assert.equal(handle.getAttribute('aria-valuenow'), '-151');
+    assert.match(handle.getAttribute('aria-valuetext'), /Überlappung/);
+    assert.equal(selected.state.style['margin-top'], '-151px');
+    const enter = new window.Event('keydown', { bubbles: true });
+    Object.defineProperty(enter, 'key', { value: 'Enter' });
+    handle.dispatchEvent(enter);
+    assert.equal(selected.state.style['margin-top'], '-151px');
+    const pointer = (type, y) => {
+        const event = new window.Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperties(event, { clientX: { value: 0 }, clientY: { value: y } });
+        (type === 'pointerdown' ? handle : document).dispatchEvent(event);
+    };
+    pointer('pointerdown', 0);
+    pointer('pointermove', 10);
+    pointer('pointerup', 10);
+    assert.equal(selected.state.style['margin-top'], '-160px');
     controller.destroy();
 }));
 

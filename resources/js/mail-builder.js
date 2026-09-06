@@ -4715,6 +4715,7 @@ export async function createMailBuilder({
         root: rootElement,
         mode: MAIL_EDITOR_MODE,
         layout: 'elementor',
+        editingPolicy: normalizedCompatibilityManifest.editingPolicy,
         active: pageBuilderWorkspaceIsActive(rootElement),
         capabilities: {
             writable: !readOnly,

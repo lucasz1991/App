@@ -7,6 +7,8 @@ namespace App\Support\Mail;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
+use Symfony\Component\CssSelector\CssSelectorConverter;
+use TijsVerkoyen\CssToInlineStyles\Css\Processor as CssProcessor;
 
 /** Kataloggesteuerter, rein lesender Kompatibilitaetsauditor. */
 final class EmailCompatibilityAuditor
@@ -31,6 +33,7 @@ final class EmailCompatibilityAuditor
         'css_forbidden_features',
         'plain_text_required',
         'fallback_required',
+        'used_layout_risk',
     ];
 
     /** @var list<array{rule_id: string, diagnostic_code: string, enforcement: string, message: string, fix: string, client_profiles: list<string>}> */
@@ -53,6 +56,17 @@ final class EmailCompatibilityAuditor
     /** @var array<string, mixed> */
     private array $context = [];
 
+    /** @var array<string, true> */
+    private array $automatedRules = [];
+
+    /** @var array<string, true> */
+    private array $manualRules = [];
+
+    /** @var list<array{0: string, 1: string}>|null */
+    private ?array $usedDeclarations = null;
+
+    private bool $unmappedCss = false;
+
     public function __construct(private readonly EmailCompatibilityCatalog $catalog) {}
 
     /**
@@ -69,6 +83,10 @@ final class EmailCompatibilityAuditor
         $this->html = $html;
         $this->css = $css;
         $this->context = $context;
+        $this->automatedRules = [];
+        $this->manualRules = [];
+        $this->usedDeclarations = null;
+        $this->unmappedCss = false;
         $this->htmlBytes = strlen($html);
         $this->document = $this->parseDocument($html);
         $this->xpath = new DOMXPath($this->document);
@@ -94,7 +112,7 @@ final class EmailCompatibilityAuditor
 
         foreach ($this->catalog->activeRuleGroups() as $group) {
             $rule = $group['definition'];
-            if (! $this->appliesToDocumentKind($rule)) {
+            if (! $this->appliesToDocumentKind($rule) || $rule['enforcement'] === 'OFF') {
                 continue;
             }
 
@@ -114,9 +132,12 @@ final class EmailCompatibilityAuditor
 
             $handler = $rule['validator_handler'];
             if ($handler === '') {
+                $this->manualRules[$rule['rule_id']] = true;
+
                 continue;
             }
             if (! in_array($handler, self::ALLOWED_HANDLERS, true)) {
+                $this->manualRules[$rule['rule_id']] = true;
                 $this->addFinding(
                     $rule,
                     $group['profiles'],
@@ -125,6 +146,21 @@ final class EmailCompatibilityAuditor
                 );
 
                 continue;
+            }
+
+            $config = EmailCompatibilityCatalog::decodeJson($rule, 'validator_config_json');
+            if (($handler === 'source_order' && empty($config['id_sequence']))
+                || ($handler === 'plain_text_required' && ! array_key_exists('plain_text', $context))
+                || ($handler === 'css_forbidden_features' && ($context['trusted_system_css'] ?? false) === true)) {
+                $this->manualRules[$rule['rule_id']] = true;
+            } else {
+                $this->automatedRules[$rule['rule_id']] = true;
+            }
+            if ($handler === 'plain_text_required'
+                && array_intersect(['preserve_links', 'require_links', 'require_legal_content'], array_keys($config)) !== []) {
+                // The handler checks non-empty text, not semantic equivalence
+                // of all personal information, links and legal content.
+                $this->manualRules[$rule['rule_id']] = true;
             }
 
             if (array_key_exists($handler, $seenSizeHandlers)) {
@@ -158,6 +194,11 @@ final class EmailCompatibilityAuditor
             $this->htmlBytes,
             $this->styleBytes,
             $this->findings,
+            [
+                'automated' => count($this->automatedRules),
+                'manual' => count($this->manualRules),
+                'manual_rule_ids' => array_keys($this->manualRules),
+            ],
         );
     }
 
@@ -193,6 +234,7 @@ final class EmailCompatibilityAuditor
             'css_forbidden_features' => $this->auditForbiddenCss($rule, $profiles),
             'plain_text_required' => $this->auditPlainText($rule, $profiles),
             'fallback_required' => $this->auditFallback($rule, $profiles),
+            'used_layout_risk' => $this->auditUsedLayoutRisk($rule, $profiles),
         };
     }
 
@@ -335,20 +377,149 @@ final class EmailCompatibilityAuditor
             if (! $image instanceof DOMElement) {
                 continue;
             }
-            if (($config['allow_system_media_exception'] ?? false) === true
-                && (str_contains($image->getAttribute('class'), 'rt-') || $image->hasAttribute('data-rt-train'))) {
-                continue;
+            $styles = [];
+            foreach ($this->cssDeclarations($image->getAttribute('style')) as [$property, $value]) {
+                $styles[strtolower($property)] = $this->bareCssValue($value);
             }
-            $missingWidth = ($config['require_width'] ?? true) === true && ! $image->hasAttribute('width');
+            $width = $image->getAttribute('width');
+            $height = $image->getAttribute('height');
+            $missingWidth = ($config['require_width'] ?? true) === true
+                && ! $this->positiveDimension($width);
+            $proportional = ($styles['height'] ?? '') === 'auto'
+                && ($this->positiveDimension($width) || $this->positiveDimension($styles['width'] ?? ''));
+            $ratio = $styles['aspect-ratio'] ?? '';
+            $hasRatio = preg_match('/^(\d+(?:\.\d+)?)(?:\s*\/\s*(\d+(?:\.\d+)?))?$/D', $ratio, $parts) === 1
+                && (float) $parts[1] > 0 && (! isset($parts[2]) || (float) $parts[2] > 0);
             $missingHeight = ($config['require_height_or_aspect_ratio'] ?? true) === true
-                && ! $image->hasAttribute('height')
-                && ! str_contains(strtolower($image->getAttribute('style')), 'aspect-ratio');
-            if ($missingWidth || $missingHeight) {
+                && ! $this->positiveDimension($height) && ! $proportional && ! $hasRatio;
+            $invalidExplicitHeight = $image->hasAttribute('height') && ! $this->positiveDimension($height);
+            if (! $proportional) {
+                // Dimensions are declarations, not the intrinsic media ratio.
+                // This auditor never fetches image sources to claim that ratio.
+                $this->manualRules[$rule['rule_id']] = true;
+            }
+            if ($missingWidth || $missingHeight || $invalidExplicitHeight) {
                 $this->addFinding($rule, $profiles);
 
                 return;
             }
         }
+    }
+
+    private function positiveDimension(string $value): bool
+    {
+        $value = trim($value);
+
+        return preg_match('/^(?:\d+(?:\.\d+)?|\.\d+)(?:px|%)?$/iD', $value) === 1
+            && (float) $value > 0;
+    }
+
+    private function bareCssValue(string $value): string
+    {
+        return strtolower(trim(preg_replace('/\s*!\s*important\s*$/i', '', $value) ?? $value));
+    }
+
+    /** Warnings inspect used markup, never every unused legacy runtime rule. */
+    private function auditUsedLayoutRisk(array $rule, array $profiles): void
+    {
+        $feature = EmailCompatibilityCatalog::decodeJson($rule, 'validator_config_json')['feature'] ?? '';
+        $declarations = $this->usedCssDeclarations();
+        if ($this->unmappedCss) {
+            $this->manualRules[$rule['rule_id']] = true;
+        }
+
+        if ($feature === 'background_image' && ($this->xpath->query('//*[@background and normalize-space(@background)!=""]')?->length ?? 0) > 0) {
+            $this->addFinding($rule, $profiles);
+
+            return;
+        }
+        foreach ($declarations as [$property, $value]) {
+            $property = strtolower($property);
+            $value = $this->bareCssValue($value);
+            $negativeMargin = false;
+            if (str_starts_with($property, 'margin')) {
+                preg_match_all('/(?:^|[\s(,])-(\d+(?:\.\d+)?|\.\d+)/', $value, $negativeParts);
+                $negativeMargin = count(array_filter($negativeParts[1], static fn (string $part): bool => (float) $part > 0)) > 0;
+                if (preg_match('/(?:calc|var|env)\s*\(/i', $value) === 1) {
+                    $this->manualRules[$rule['rule_id']] = true;
+                }
+            }
+            $positioning = ($property === 'position' && in_array($value, ['absolute', 'fixed', 'sticky'], true))
+                || ($property === 'z-index' && $value !== 'auto');
+            $background = in_array($property, ['background', 'background-image'], true)
+                && preg_match('/(?:url|(?:repeating-)?(?:linear|radial|conic)-gradient|image-set)\s*\(/i', $value) === 1;
+            if (($feature === 'negative_margin' && $negativeMargin)
+                || ($feature === 'positioning' && $positioning)
+                || ($feature === 'background_image' && $background)) {
+                $this->addFinding($rule, $profiles);
+
+                return;
+            }
+        }
+    }
+
+    /** @return list<array{0: string, 1: string}> */
+    private function usedCssDeclarations(): array
+    {
+        if ($this->usedDeclarations !== null) {
+            return $this->usedDeclarations;
+        }
+        $this->usedDeclarations = [];
+        foreach ($this->xpath->query('//*[@style]') ?: [] as $element) {
+            if ($element instanceof DOMElement) {
+                array_push($this->usedDeclarations, ...$this->cssDeclarations($element->getAttribute('style')));
+            }
+        }
+        $stylesheets = [$this->css];
+        foreach ($this->document->getElementsByTagName('style') as $style) {
+            // Canonical runtime versions are optional branches. Their actual
+            // geometry is already present inline on validated source elements.
+            if (($this->context['trusted_system_css'] ?? false) === true
+                && str_contains($style->textContent, TrustedEmailCss::RUNTIME_MARKER)) {
+                $this->unmappedCss = true;
+
+                continue;
+            }
+            $stylesheets[] = $style->textContent;
+        }
+        $converter = new CssSelectorConverter;
+        foreach ($stylesheets as $css) {
+            if (trim($css) === '') {
+                continue;
+            }
+            if (preg_match('/(?:^|[;{}])\s*@/m', $css) === 1) {
+                // Viewport and client conditions cannot be resolved statically.
+                $this->unmappedCss = true;
+
+                continue;
+            }
+            try {
+                foreach ((new CssProcessor)->getRules($css) as $cssRule) {
+                    $selector = $cssRule->getSelector();
+                    if (str_contains($selector, ':') || str_contains($selector, '\\')) {
+                        $this->unmappedCss = true;
+
+                        continue;
+                    }
+                    $nodes = $this->xpath->query($converter->toXPath($selector));
+                    if ($nodes === false) {
+                        $this->unmappedCss = true;
+
+                        continue;
+                    }
+                    if ($nodes->length === 0) {
+                        continue;
+                    }
+                    foreach ($cssRule->getProperties() as $property) {
+                        $this->usedDeclarations[] = [strtolower($property->getName()), $property->getValue()];
+                    }
+                }
+            } catch (\Exception) {
+                $this->unmappedCss = true;
+            }
+        }
+
+        return $this->usedDeclarations;
     }
 
     /** @param array<string, string> $rule @param list<array<string, string>> $profiles */
@@ -513,6 +684,20 @@ final class EmailCompatibilityAuditor
     private function auditFallback(array $rule, array $profiles): void
     {
         $config = EmailCompatibilityCatalog::decodeJson($rule, 'validator_config_json');
+        $used = $this->usedCssDeclarations();
+        $usesBackground = false;
+        $usesBackgroundColor = false;
+        foreach ($used as [$property, $value]) {
+            $property = strtolower($property);
+            $usesBackground = $usesBackground || (in_array($property, ['background', 'background-image'], true)
+                && preg_match('/(?:url|(?:repeating-)?(?:linear|radial|conic)-gradient|image-set)\s*\(/i', $value) === 1);
+            $usesBackgroundColor = $usesBackgroundColor || $property === 'background-color';
+        }
+        if ($this->unmappedCss || $usesBackground) {
+            // The static presence check cannot prove a fallback belongs to a
+            // particular layer, or that a mail client resolves its CID.
+            $this->manualRules[$rule['rule_id']] = true;
+        }
         $fallbackId = $config['fallback_id'] ?? null;
         if (is_string($fallbackId) && $fallbackId !== '' && $this->document->getElementById($fallbackId) === null) {
             $this->addFinding($rule, $profiles);
@@ -521,8 +706,8 @@ final class EmailCompatibilityAuditor
         }
         if (($config['feature'] ?? null) === 'background-image'
             && ($config['require_background_color'] ?? false) === true
-            && stripos($this->allCss, 'background-image') !== false
-            && stripos($this->allCss, 'background-color') === false) {
+            && $usesBackground
+            && ! $usesBackgroundColor) {
             $this->addFinding($rule, $profiles);
 
             return;
@@ -530,7 +715,7 @@ final class EmailCompatibilityAuditor
         $accepted = $config['accepted'] ?? [];
         if (($config['profile'] ?? null) === 'outlook-classic-windows'
             && is_array($accepted)
-            && stripos($this->allCss, 'background-image') !== false
+            && $usesBackground
             && $this->document->getElementsByTagName('v:rect')->length === 0
             && $this->document->getElementsByTagName('img')->length === 0) {
             $this->addFinding($rule, $profiles);

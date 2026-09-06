@@ -84,6 +84,7 @@ Homestead.json
 !/tests/Unit/Support/Mail/
 /tests/Unit/Support/Mail/*
 !/tests/Unit/Support/Mail/EmailCompatibilityContractTest.php
+!/tests/Unit/Support/Mail/EmailEditingPolicyTest.php
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/call-recording-gate.test.js
@@ -100,6 +101,7 @@ Homestead.json
 !/tests/Frontend/mail-train-runtime.test.js
 !/tests/Frontend/mail-text-eml-hardening.test.js
 !/tests/Frontend/mail-compatibility.test.js
+!/tests/Frontend/mail-editor-check-status.test.js
 !/tests/Frontend/marketing-render.test.js
 !/tests/Frontend/marketing-studio.test.js
 !/tests/Frontend/lmz-editor-assistant.test.js

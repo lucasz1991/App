@@ -12,9 +12,55 @@ import {
     normalizeMailCompatibilityManifest,
     normalizeMailCompatibilityPayload,
     normalizeMailCompatibilityReport,
+    normalizeMailEditingPolicy,
     normalizeMailDegradationMode,
     transformMailHtmlForDegradation,
 } from '../../resources/js/mail-compatibility.js';
+
+test('automated checks stay distinct from manual and received-client proof', () => {
+    const report = normalizeMailCompatibilityReport({
+        status: 'pass', title: 'Alle Clients verifiziert', rendering_verified: true,
+        checks: { automated: 24, manual: 13, manual_rule_ids: ['EMAIL-LAYOUT-007'] },
+    });
+    assert.equal(report.title, 'Automatische Prüfung bestanden');
+    assert.equal(report.statusMetadata.label, 'Automatische Prüfung bestanden');
+    assert.equal(report.renderingVerified, false);
+    assert.deepEqual(report.checks, { automated: 24, manual: 13, manualRuleIds: ['EMAIL-LAYOUT-007'] });
+    assert.equal(Object.isFrozen(report.checks), true);
+    assert.equal(normalizeMailCompatibilityReport({}).checks, null);
+    assert.equal(normalizeMailCompatibilityReport({ checks: { automated: '24', manual: 0 } }).checks, null);
+    assert.equal(normalizeMailCompatibilityReport({ checks: Object.create({ automated: 24, manual: 0 }) }).checks, null);
+    assert.equal(normalizeMailCompatibilityReport(Object.create({ checks: { automated: 24, manual: 0 } })).checks, null);
+});
+
+test('mail editing policy only accepts the versioned server contract and safe evidence links', () => {
+    const source = {
+        policy_version: 1, train_source: 'img-only', negative_margin: 'warn',
+        positioned_layout: 'warn', background_images: 'warn', critical_layout: 'table-flow',
+        mail_css: 'critical-inline', addin_css: 'separate-client-test',
+        evidence: [
+            { title: '<b>Quelle</b>', url: 'https://learn.microsoft.com/office/' },
+            { title: 'Script', url: 'javascript:alert(1)' },
+            { title: 'Relative', url: '/private' },
+            { title: 'Userinfo', url: 'https://secret@example.invalid/' },
+        ],
+    };
+    const before = JSON.stringify(source);
+    const policy = normalizeMailCompatibilityManifest({ editing_policy: source }).editingPolicy;
+    assert.equal(policy.available, true);
+    assert.equal(policy.trainSource, 'img-only');
+    assert.equal(policy.negativeMargin, 'warn');
+    assert.equal(policy.mailCss, 'critical-inline');
+    assert.equal(policy.addinCss, 'separate-client-test');
+    assert.deepEqual(policy.evidence, [{ title: '<b>Quelle</b>', url: 'https://learn.microsoft.com/office/' }]);
+    assert.deepEqual(normalizeMailEditingPolicy(policy), policy, 'normalization remains idempotent for the Chrome adapter');
+    assert.equal(JSON.stringify(source), before);
+    assert.equal(Object.isFrozen(policy.evidence[0]), true);
+    assert.equal(normalizeMailEditingPolicy({}).available, false);
+    assert.equal(normalizeMailEditingPolicy(Object.create(source)).available, false);
+    assert.equal(normalizeMailEditingPolicy({ ...source, train_source: 'background' }).available, false);
+    assert.equal(normalizeMailEditingPolicy({ ...source, policy_version: 2 }).available, false);
+});
 
 const environment = { DOMParser };
 

@@ -440,7 +440,7 @@ final class EmailCompatibilityCatalog implements JsonSerializable
      * mehrere hundert Kilobyte aufblasen. Auch diese Projektion wird direkt
      * aus derselben CSV erzeugt; es gibt keine zweite JS-Regelliste.
      *
-     * @return array{schema_version: string, catalog_version: string, controls: list<array<string, string>>}
+     * @return array{schema_version: string, catalog_version: string, controls: list<array<string, string>>, editing_policy: array<string, mixed>}
      */
     public function builderManifestForJs(): array
     {
@@ -482,6 +482,26 @@ final class EmailCompatibilityCatalog implements JsonSerializable
             'schema_version' => $this->schemaVersion(),
             'catalog_version' => $this->catalogVersion(),
             'controls' => $controls,
+            'editing_policy' => [
+                'policy_version' => 1,
+                'train_source' => 'img-only',
+                'negative_margin' => 'warn',
+                'positioned_layout' => 'warn',
+                'background_images' => 'warn',
+                'critical_layout' => 'table-flow',
+                'mail_css' => 'critical-inline',
+                'addin_css' => 'separate-client-test',
+                'evidence' => [
+                    [
+                        'title' => 'Microsoft: E-Mail-Darstellung und Clientgrenzen',
+                        'url' => 'https://learn.microsoft.com/en-us/troubleshoot/dynamics-365/customer-insights/journeys/email/email-troubleshoot-rendering',
+                    ],
+                    [
+                        'title' => 'Microsoft: Office.Body und Signatur-Einfuegung',
+                        'url' => 'https://learn.microsoft.com/en-us/javascript/api/outlook/office.body?view=outlook-js-preview',
+                    ],
+                ],
+            ],
         ];
     }
 
