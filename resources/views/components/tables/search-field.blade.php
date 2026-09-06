@@ -49,10 +49,8 @@
 
             this.navigationListener = () => this.close(false);
             document.addEventListener('livewire:navigating', this.navigationListener);
-
         },
         destroy() {
-
             if (this.focusFrame !== null) {
                 window.cancelAnimationFrame(this.focusFrame);
             }
@@ -237,7 +235,7 @@
                 x-cloak
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
-                class="h-[18px] w-[18px]"
+                class="rt-expandable-search__icon h-[18px] w-[18px]"
                 fill="none"
                 stroke="currentColor"
                 stroke-width="1.8"

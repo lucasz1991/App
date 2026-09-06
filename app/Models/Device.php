@@ -112,6 +112,11 @@ class Device extends Model
         return $this->hasMany(DeviceProviderLink::class)->orderBy('role')->orderBy('provider');
     }
 
+    public function microsoftLink(): HasOne
+    {
+        return $this->hasOne(MicrosoftDeviceLink::class);
+    }
+
     public function providerLinkFor(string $provider): ?DeviceProviderLink
     {
         $provider = $this->normalizedProviderKey($provider);

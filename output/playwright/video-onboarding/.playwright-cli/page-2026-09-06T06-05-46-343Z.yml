@@ -1,0 +1,269 @@
+- generic [ref=f2e1]:
+  - link [aria-hidden] [ref=f2e284] [cursor=pointer]:
+    - /url: "#main-content"
+    - text: Zum Inhalt springen
+  - region [ref=f2e285]:
+    - list [ref=f2e6]:
+      - listitem [ref=f2e7]: Übersicht
+      - listitem [ref=f2e8]:
+        - link [ref=f2e286] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/administrator
+          - generic [ref=f2e14]: Dashboard
+      - listitem [ref=f2e15]: Firma
+      - listitem [ref=f2e16]:
+        - link [ref=f2e287] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/administrator/settings
+          - generic [ref=f2e22]: Einstellungen
+      - listitem [ref=f2e23]: Kommunikation
+      - listitem [ref=f2e24]:
+        - link [ref=f2e288] [cursor=pointer]:
+          - /url: "#"
+          - generic [ref=f2e29]: Chat & Nachrichten
+      - listitem [ref=f2e33]: Management
+      - listitem [ref=f2e34]:
+        - link [ref=f2e289] [cursor=pointer]:
+          - /url: "#"
+          - generic [ref=f2e40]: Verwaltung
+      - listitem [ref=f2e44]:
+        - link [ref=f2e290] [cursor=pointer]:
+          - /url: "#"
+          - generic [ref=f2e50]: Disposition
+      - listitem [ref=f2e54]:
+        - link [ref=f2e291] [cursor=pointer]:
+          - /url: "#"
+          - generic [ref=f2e61]: Marketing
+      - listitem [ref=f2e65]: Betrieb
+      - listitem [ref=f2e66]:
+        - link [ref=f2e292] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/administrator/betrieb/wagenliste
+          - generic [ref=f2e70]: Wagenliste
+      - listitem [ref=f2e71]: Inhalte & Dateien
+      - listitem [ref=f2e72]:
+        - link [ref=f2e293] [cursor=pointer]:
+          - /url: "#"
+          - generic [ref=f2e77]: Dateien
+      - listitem [ref=f2e81]: Mein Bereich
+      - listitem [ref=f2e82]:
+        - link [ref=f2e294] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/meine-geraete
+          - generic [ref=f2e87]: Meine Geräte
+      - listitem [ref=f2e88]:
+        - link [ref=f2e295] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/user/profile
+          - generic [ref=f2e94]: Profil
+      - listitem [ref=f2e95]:
+        - link [ref=f2e296] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/email-templates
+          - generic [ref=f2e101]: E-Mail und Signatur
+      - listitem [ref=f2e102]:
+        - link [ref=f2e297] [cursor=pointer]:
+          - /url: "#"
+          - generic [ref=f2e113]: Support
+  - navigation [aria-hidden] [ref=f2e298]:
+    - generic [ref=f2e118]:
+      - generic [ref=f2e119]:
+        - link [ref=f2e299] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/administrator
+        - button [ref=f2e301] [cursor=pointer]
+      - generic [ref=f2e128]:
+        - search [ref=f2e130]:
+          - generic [ref=f2e131]:
+            - button [ref=f2e302] [cursor=pointer]
+            - searchbox [aria-hidden]
+          - button [ref=f2e303] [cursor=pointer]: Suchen
+        - button [ref=f2e304] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f2e141]: 
+          - generic [ref=f2e142]: "1"
+        - button [ref=f2e305] [cursor=pointer]
+        - button [ref=f2e306] [cursor=pointer]: 
+  - main [aria-hidden] [ref=f2e155]:
+    - generic [ref=f2e158]:
+      - generic [ref=f2e163]:
+        - heading [level=1] [ref=f2e308]: RailTime Command Center
+        - region [ref=f2e309]:
+          - generic [ref=f2e166]:
+            - generic [ref=f2e167]:
+              - paragraph [ref=f2e168]: Betriebssteuerung
+              - heading [level=2] [ref=f2e310]: Aufträge, Schichten & Wagenlisten
+            - generic [ref=f2e170]:
+              - generic [ref=f2e171]: 1 offener Hinweis
+              - button [ref=f2e312] [cursor=pointer]
+              - button [ref=f2e313] [cursor=pointer]
+          - generic [ref=f2e186]:
+            - article [ref=f2e187]:
+              - link [ref=f2e314] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/administrator/betrieb/orders
+              - generic [ref=f2e190]: 1 dringend
+              - paragraph [ref=f2e197]: "3"
+              - paragraph [ref=f2e198]: offene Aufträge
+              - generic [ref=f2e199]:
+                - heading [level=3] [ref=f2e315]: Aufträge
+                - paragraph [ref=f2e201]: Aufträge erfassen, priorisieren und vom Eingang bis zur Abrechnung steuern.
+              - generic [ref=f2e202]: Öffnen
+            - article [ref=f2e207]:
+              - link [ref=f2e316] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/administrator/betrieb/shift-management
+              - generic [ref=f2e210]: 0 unterbesetzt
+              - paragraph [ref=f2e217]: "0"
+              - paragraph [ref=f2e218]: kommende Schichten
+              - heading [level=3] [ref=f2e317]: Schichtplanung
+              - generic [ref=f2e221]: Öffnen
+            - article [ref=f2e226]:
+              - link [ref=f2e318] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/administrator/betrieb/wagenliste
+              - generic [ref=f2e229]: Wagenlisten verfügbar
+              - heading [level=3] [ref=f2e319]: Wagenliste
+              - generic [ref=f2e236]: Wagenliste öffnen
+            - article [ref=f2e241]:
+              - link [ref=f2e320] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/administrator/betrieb/calendar
+              - generic [ref=f2e244]: 3 diese Woche
+              - paragraph [ref=f2e250]: "0"
+              - paragraph [ref=f2e251]: Schichten heute
+              - heading [level=3] [ref=f2e321]: Kalender
+              - generic [ref=f2e254]: Öffnen
+            - article [ref=f2e259]:
+              - link [ref=f2e322] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/administrator/betrieb/customers
+              - generic [ref=f2e262]: 3 insgesamt
+              - paragraph [ref=f2e269]: "3"
+              - paragraph [ref=f2e270]: aktive Kunden
+              - heading [level=3] [ref=f2e323]: Kunden
+              - generic [ref=f2e273]: Öffnen
+      - generic [ref=f2e278]: RailTime v1.0.0
+  - button [ref=f2e324] [cursor=pointer]
+  - text: ·                      
+  - dialog [ref=f2e326]:
+    - banner [ref=f2e327]:
+      - generic [ref=f2e328]:
+        - generic [ref=f2e332]:
+          - paragraph [ref=f2e333]: Originalaufnahme aus RailTime
+          - generic [ref=f2e334]:
+            - generic [aria-hidden] [ref=f2e335]: 
+            - generic [ref=f2e336]: Administration
+        - button "Schließen" [ref=f2e337] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f2e338]: 
+    - generic [ref=f2e339]:
+      - navigation "Themen dieses Rundgangs" [ref=f2e340]:
+        - list [ref=f2e341]:
+          - listitem [ref=f2e342]:
+            - 'button "Schritt 1 von 9 öffnen: Ein Arbeitsplatz für Verwaltung, Disposition, IT und Außenteams" [ref=f2e343] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f2e345]: 
+              - generic [ref=f2e346]:
+                - generic [ref=f2e347]: Willkommen bei RailTime
+                - generic [ref=f2e348]: 00:07
+              - generic [aria-hidden] [ref=f2e349]: 
+          - listitem [ref=f2e350]:
+            - 'button "Schritt 2 von 9 öffnen: Geräte vom Bestand bis zur einsatzbereiten Übergabe begleiten" [ref=f2e351] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f2e353]: 
+              - generic [ref=f2e354]:
+                - generic [ref=f2e355]: Geräteverwaltung & Einrichtung
+                - generic [ref=f2e356]: 00:12
+              - generic [aria-hidden] [ref=f2e357]: 
+          - listitem [ref=f2e358]:
+            - 'button "Schritt 3 von 9 öffnen: Aufträge zentral erfassen, planen und nachverfolgen" [ref=f2e359] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f2e361]: 
+              - generic [ref=f2e362]:
+                - generic [ref=f2e363]: Auftragsabwicklung
+                - generic [ref=f2e364]: 00:08
+              - generic [aria-hidden] [ref=f2e365]: 
+          - listitem [ref=f2e366]:
+            - 'button "Schritt 4 von 9 öffnen: Personalbedarf und Besetzung gemeinsam planen" [ref=f2e367] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f2e369]: 
+              - generic [ref=f2e370]:
+                - generic [ref=f2e371]: Schichtplanung
+                - generic [ref=f2e372]: 00:09
+              - generic [aria-hidden] [ref=f2e373]: 
+          - listitem [ref=f2e374]:
+            - 'button "Schritt 5 von 9 öffnen: Geschäftsführung, Verwaltung, IT und Außenteams direkt abstimmen" [ref=f2e375] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f2e377]: 
+              - generic [ref=f2e378]:
+                - generic [ref=f2e379]: Chat, Anruf & Video-Meeting
+                - generic [ref=f2e380]: 00:10
+              - generic [aria-hidden] [ref=f2e381]: 
+          - listitem [ref=f2e382]:
+            - 'button "Schritt 6 von 9 öffnen: Wagen Schritt für Schritt erfassen, prüfen und exportieren" [ref=f2e383] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f2e385]: 
+              - generic [ref=f2e386]:
+                - generic [ref=f2e387]: Wagenlisten, Kamera & RailTime Assist
+                - generic [ref=f2e388]: 00:16
+              - generic [aria-hidden] [ref=f2e389]: 
+          - listitem [ref=f2e390]:
+            - 'button "Schritt 7 von 9 öffnen: Unterlagen gezielt und rollenbezogen bereitstellen" [ref=f2e391] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f2e393]: 
+              - generic [ref=f2e394]:
+                - generic [ref=f2e395]: Dateimanagement
+                - generic [ref=f2e396]: 00:08
+              - generic [aria-hidden] [ref=f2e397]: 
+          - listitem [ref=f2e398]:
+            - 'button "Schritt 8 von 9 öffnen: Supportanfragen mit dem nötigen Arbeitskontext senden" [ref=f2e399] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f2e401]: 
+              - generic [ref=f2e402]:
+                - generic [ref=f2e403]: IT-Support
+                - generic [ref=f2e404]: 00:10
+              - generic [aria-hidden] [ref=f2e405]: 
+          - listitem [ref=f2e406]:
+            - 'button "Schritt 9 von 9 öffnen: Einheitliche Kommunikation sicher mit externen Diensten verbinden" [ref=f2e407] [cursor=pointer]':
+              - generic [aria-hidden] [ref=f2e409]: 
+              - generic [ref=f2e410]:
+                - generic [ref=f2e411]: E-Mail, Outlook & Integrationen
+                - generic [ref=f2e412]: 00:07
+              - generic [aria-hidden] [ref=f2e413]: 
+      - generic [ref=f2e414]:
+        - article [ref=f2e416]:
+          - region "Originalaufnahme aus RailTime" [ref=f2e417]:
+            - generic [ref=f2e418]:
+              - paragraph [ref=f2e419]: Modul 1 von 9
+              - generic [ref=f2e420]:
+                - generic [aria-hidden] [ref=f2e421]: 
+                - generic [ref=f2e422]: 00:07
+            - generic [ref=f2e423]:
+              - generic "Originalvideo zu „Ein Arbeitsplatz für Verwaltung, Disposition, IT und Außenteams“ abspielen" [ref=f2e424]
+              - text: 
+            - paragraph [ref=f2e425]:
+              - generic [aria-hidden] [ref=f2e426]: 
+              - generic [ref=f2e427]: Deutsche Sprecherstimme · Untertitel Deutsch/Englisch — Die Wiedergabe startet erst nach Ihrer Auswahl. Lautstärke, Untertitel und Vollbild steuern Sie direkt im Video.
+          - generic [ref=f2e428]:
+            - paragraph [ref=f2e429]: Willkommen bei RailTime
+            - heading "Ein Arbeitsplatz für Verwaltung, Disposition, IT und Außenteams" [active] [level=2] [ref=f2e430]
+            - paragraph [ref=f2e431]: RailTime verbindet betriebliche Planung, Zusammenarbeit, Dokumente und technische Verwaltung am Desktop und mobil. Dieser Rundgang zeigt die Funktionen in kurzen echten App-Aufnahmen.
+            - generic [ref=f2e432]:
+              - generic [ref=f2e433]:
+                - heading "So arbeitet der Bereich" [level=3] [ref=f2e434]:
+                  - generic [aria-hidden] [ref=f2e435]: 
+                  - text: So arbeitet der Bereich
+                - paragraph [ref=f2e436]: Die sichtbaren Themen werden serverseitig an Ihre Rolle und Berechtigungen angepasst. Sie können jedes Modul einzeln auswählen, Videos jederzeit pausieren und die Einführung später vom Dashboard erneut öffnen.
+              - list [ref=f2e437]:
+                - listitem [ref=f2e438]:
+                  - generic [aria-hidden] [ref=f2e440]: 
+                  - generic [ref=f2e441]: Dashboard, Seitenleiste und globale Suche führen schnell zum richtigen Arbeitsbereich.
+                - listitem [ref=f2e442]:
+                  - generic [aria-hidden] [ref=f2e444]: 
+                  - generic [ref=f2e445]: Verwaltung, Disposition, IT und Außenteams arbeiten auf einer gemeinsamen Plattform.
+                - listitem [ref=f2e446]:
+                  - generic [aria-hidden] [ref=f2e448]: 
+                  - generic [ref=f2e449]: Seiteninformationen und Hilfecenter erklären unbekannte Abläufe auch nach dem Rundgang.
+                - listitem [ref=f2e450]:
+                  - generic [aria-hidden] [ref=f2e452]: 
+                  - generic [ref=f2e453]: Desktop- und Mobilansicht werden im Video gleichzeitig und ohne nachgebaute Oberfläche gezeigt.
+              - generic [ref=f2e454]:
+                - generic [ref=f2e455]:
+                  - heading "Sichtbarkeit und Zugriff" [level=3] [ref=f2e456]:
+                    - generic [aria-hidden] [ref=f2e457]: 
+                    - text: Sichtbarkeit und Zugriff
+                  - paragraph [ref=f2e458]: Für alle angemeldeten und verifizierten Konten. Angezeigt werden nur die für Ihre Rolle vorgesehenen Themen.
+                - generic [ref=f2e459]:
+                  - heading "Wichtig für die Nutzung" [level=3] [ref=f2e460]:
+                    - generic [aria-hidden] [ref=f2e461]: 
+                    - text: Wichtig für die Nutzung
+                  - paragraph [ref=f2e462]: Die Aufnahmen verwenden ausschließlich isolierte RailTime-Demodaten. Sie ersetzen keine Berechtigung für die darin gezeigten Arbeitsbereiche.
+        - contentinfo [ref=f2e463]:
+          - generic [ref=f2e464]:
+            - progressbar [ref=f2e465]
+            - status [ref=f2e467]: Schritt 1 von 9
+          - generic [ref=f2e468]:
+            - button [disabled] [ref=f2e469]:
+              - generic [aria-hidden] [ref=f2e470]: 
+            - button "Weiter" [ref=f2e471] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f2e473]: 
+  - text:             

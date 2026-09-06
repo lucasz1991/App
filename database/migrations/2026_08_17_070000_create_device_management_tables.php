@@ -34,6 +34,7 @@ return new class extends Migration
      * @var list<string>
      */
     private const LATER_DEVICE_TABLES = [
+        'microsoft_device_links',
         // Reserved for the provider webhook idempotency migration.
         'device_provider_events',
         // Added by the identity connector outbox migration. This child table

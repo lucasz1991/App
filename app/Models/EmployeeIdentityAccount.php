@@ -14,6 +14,7 @@ class EmployeeIdentityAccount extends Model
         'user_id',
         'provider',
         'external_id',
+        'tenant_id',
         'principal',
         'email',
         'lifecycle_status',

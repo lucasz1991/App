@@ -40,6 +40,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('devices:recover-identity-outbox')
             ->everyFiveMinutes()
             ->withoutOverlapping();
+
+        $schedule->command('devices:sync-microsoft')->everyFiveMinutes()->withoutOverlapping();
     }
 
     /**

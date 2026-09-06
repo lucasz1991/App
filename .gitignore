@@ -39,6 +39,7 @@ Homestead.json
 !/tests/Feature/WelcomeIntroMediaTest.php
 !/tests/Feature/CompanyDataOfficialProfileTest.php
 !/tests/Feature/EmailTemplatesPageTest.php
+!/tests/Feature/OutlookSignatureBackgroundStyleTest.php
 !/tests/Feature/EmailHtmlSanitizerTest.php
 !/tests/Feature/MailDocumentEditorTest.php
 !/tests/Feature/MarketingBuilderVendorIntegrityTest.php

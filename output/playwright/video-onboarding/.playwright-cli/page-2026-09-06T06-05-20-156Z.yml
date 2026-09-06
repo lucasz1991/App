@@ -1,0 +1,128 @@
+- generic [active] [ref=f2e1]:
+  - link "Zum Inhalt springen" [ref=f2e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - region "scrollable content" [ref=f2e3]:
+    - list [ref=f2e6]:
+      - listitem [ref=f2e7]: Übersicht
+      - listitem [ref=f2e8]:
+        - link "Dashboard" [ref=f2e9] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/administrator
+      - listitem [ref=f2e15]: Firma
+      - listitem [ref=f2e16]:
+        - link "Einstellungen" [ref=f2e17] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/administrator/settings
+      - listitem [ref=f2e23]: Kommunikation
+      - listitem [ref=f2e24]:
+        - link "Chat & Nachrichten" [ref=f2e25] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f2e33]: Management
+      - listitem [ref=f2e34]:
+        - link "Verwaltung" [ref=f2e35] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f2e44]:
+        - link "Disposition" [ref=f2e45] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f2e54]:
+        - link "Marketing" [ref=f2e55] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f2e65]: Betrieb
+      - listitem [ref=f2e66]:
+        - link "Wagenliste" [ref=f2e67] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/administrator/betrieb/wagenliste
+      - listitem [ref=f2e71]: Inhalte & Dateien
+      - listitem [ref=f2e72]:
+        - link "Dateien" [ref=f2e73] [cursor=pointer]:
+          - /url: "#"
+      - listitem [ref=f2e81]: Mein Bereich
+      - listitem [ref=f2e82]:
+        - link "Meine Geräte" [ref=f2e83] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/meine-geraete
+      - listitem [ref=f2e88]:
+        - link "Profil" [ref=f2e89] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/user/profile
+      - listitem [ref=f2e95]:
+        - link "E-Mail und Signatur" [ref=f2e96] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/email-templates
+      - listitem [ref=f2e102]:
+        - link "Support" [ref=f2e103] [cursor=pointer]:
+          - /url: "#"
+  - navigation "Kopfnavigation" [ref=f2e117]:
+    - generic [ref=f2e118]:
+      - generic [ref=f2e119]:
+        - link "RailTime" [ref=f2e120] [cursor=pointer]:
+          - /url: http://127.0.0.1:5116/administrator
+          - img "RailTime Logo" [ref=f2e121]
+        - button "Navigation öffnen oder schließen" [ref=f2e122] [cursor=pointer]
+      - generic [ref=f2e128]:
+        - search [ref=f2e130]:
+          - generic [ref=f2e131]:
+            - button "RailTime durchsuchen" [ref=f2e132] [cursor=pointer]
+            - searchbox [aria-hidden]
+          - button "Suchen" [ref=f2e136] [cursor=pointer]
+        - button "Chat & Nachrichten" [ref=f2e140] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f2e141]: 
+          - generic [ref=f2e142]: "1"
+        - button "Einstellungen" [ref=f2e145] [cursor=pointer]
+        - button "Konto verwalten" [ref=f2e152] [cursor=pointer]:
+          - img "RailTime Demo" [ref=f2e154]
+          - text: 
+  - main [ref=f2e155]:
+    - generic [ref=f2e158]:
+      - generic [ref=f2e163]:
+        - heading "RailTime Command Center" [level=1] [ref=f2e164]
+        - region [ref=f2e165]:
+          - generic [ref=f2e166]:
+            - generic [ref=f2e167]:
+              - paragraph [ref=f2e168]: Betriebssteuerung
+              - heading "Aufträge, Schichten & Wagenlisten" [level=2] [ref=f2e169]
+            - generic [ref=f2e170]:
+              - generic [ref=f2e171]: 1 offener Hinweis
+              - generic "Stand 08:05 Uhr" [ref=f2e173]
+              - button "Dashboard aktualisieren" [ref=f2e177] [cursor=pointer]
+              - button "Willkommens-Einführung erneut anzeigen" [ref=f2e183] [cursor=pointer]
+          - generic [ref=f2e186]:
+            - article [ref=f2e187]:
+              - link "Aufträge · Öffnen" [ref=f2e189] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/administrator/betrieb/orders
+              - generic [ref=f2e190]: 1 dringend
+              - paragraph [ref=f2e197]: "3"
+              - paragraph [ref=f2e198]: offene Aufträge
+              - generic [ref=f2e199]:
+                - heading "Aufträge" [level=3] [ref=f2e200]
+                - paragraph [ref=f2e201]: Aufträge erfassen, priorisieren und vom Eingang bis zur Abrechnung steuern.
+              - generic [ref=f2e202]: Öffnen
+            - article [ref=f2e207]:
+              - link "Schichtplanung · Öffnen" [ref=f2e209] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/administrator/betrieb/shift-management
+              - generic [ref=f2e210]: 0 unterbesetzt
+              - paragraph [ref=f2e217]: "0"
+              - paragraph [ref=f2e218]: kommende Schichten
+              - heading "Schichtplanung" [level=3] [ref=f2e220]
+              - generic [ref=f2e221]: Öffnen
+            - article [ref=f2e226]:
+              - link "Wagenliste · Wagenliste öffnen" [ref=f2e228] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/administrator/betrieb/wagenliste
+              - generic [ref=f2e229]: Wagenlisten verfügbar
+              - heading "Wagenliste" [level=3] [ref=f2e235]
+              - generic [ref=f2e236]: Wagenliste öffnen
+            - article [ref=f2e241]:
+              - link "Kalender · Öffnen" [ref=f2e243] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/administrator/betrieb/calendar
+              - generic [ref=f2e244]: 3 diese Woche
+              - paragraph [ref=f2e250]: "0"
+              - paragraph [ref=f2e251]: Schichten heute
+              - heading "Kalender" [level=3] [ref=f2e253]
+              - generic [ref=f2e254]: Öffnen
+            - article [ref=f2e259]:
+              - link "Kunden · Öffnen" [ref=f2e261] [cursor=pointer]:
+                - /url: http://127.0.0.1:5116/administrator/betrieb/customers
+              - generic [ref=f2e262]: 3 insgesamt
+              - paragraph [ref=f2e269]: "3"
+              - paragraph [ref=f2e270]: aktive Kunden
+              - heading "Kunden" [level=3] [ref=f2e272]
+              - generic [ref=f2e273]: Öffnen
+      - generic [ref=f2e278]: RailTime v1.0.0
+  - generic:
+    - button "RailTime Assist öffnen" [ref=f2e279] [cursor=pointer]
+    - text: ·
+  - text:                                                                   
