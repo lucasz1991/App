@@ -4,7 +4,7 @@
     $active = (bool) ($connectionStatus['enabled'] ?? false);
 @endphp
 
-<div class="min-w-0 space-y-4" wire:poll.visible.15s="$refresh" data-microsoft-device-settings>
+<div class="min-w-0 space-y-4" data-microsoft-device-settings>
     <div class="rounded-xl bg-rt-accent-soft/50 p-4 text-sm leading-6 text-rt-text ring-1 ring-rt-accent/15 dark:bg-rt-dark-accent-soft/35 dark:text-rt-dark-text">
         <p class="font-semibold">Windows-Geräte aus Microsoft Entra übernehmen</p>
         <p class="mt-1 text-rt-muted dark:text-rt-dark-muted">RailTime übernimmt bereits in Ihrem Tenant registrierte Windows-Geräte regelmäßig und ordnet sie eindeutig verknüpften Mitarbeitern zu. Eine verifizierte Microsoft-Anmeldung im RailTime-Outlook-Add-in kann den nächsten Abruf vorziehen. Eine reine Anmeldung an einer Website registriert den Laptop noch nicht in Entra.</p>
@@ -58,20 +58,21 @@
         </div>
         <x-input-error for="form" />
         <div class="flex flex-wrap items-center gap-3">
-            <x-ui.buttons.button-basic mode="primary" type="submit" class="min-h-11" wire:loading.attr="disabled" wire:target="save,testConnection,syncNow"><i class="far fa-save" aria-hidden="true"></i>Microsoft-Einstellungen speichern</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic mode="primary" type="submit" class="min-h-11" wire:loading.attr="disabled" wire:target="save,testConnection,syncNow,testBackgroundProcessing"><i class="far fa-save" aria-hidden="true"></i>Microsoft-Einstellungen speichern</x-ui.buttons.button-basic>
             <span class="text-xs text-rt-muted dark:text-rt-dark-muted">Gilt nach dem Speichern. Zusätzliche ENV-Variablen sind nicht erforderlich.</span>
         </div>
     </form>
 
+    @include('livewire.admin.partials.microsoft-device-runtime')
+
     <div class="space-y-3 rounded-xl bg-rt-surface p-4 ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70" aria-live="polite">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-                <h3 class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Verbindung und Synchronisierung</h3>
-                <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $active ? 'Automatischer Abruf aktiviert' : 'Automatischer Abruf deaktiviert' }} · Tests und Abrufe verwenden die gespeicherte Konfiguration.</p>
+                <h3 class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Microsoft-Verbindung und Graph-Rechte</h3>
+                <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Dieser Test prüft den Zugriff auf Microsoft mit der gespeicherten Konfiguration. Ein erfolgreicher Microsoft-Abruf bestätigt noch keine laufende Hintergrundverarbeitung oder vollständige Datenbankeinrichtung.</p>
             </div>
             <div class="flex flex-wrap gap-2">
-                <x-ui.buttons.button-basic type="button" mode="secondary" class="min-h-11" wire:click="testConnection" wire:loading.attr="disabled" wire:target="save,testConnection,syncNow"><i class="far fa-plug" aria-hidden="true"></i>Verbindung testen</x-ui.buttons.button-basic>
-                <x-ui.buttons.button-basic type="button" mode="secondary" class="min-h-11" wire:click="syncNow" wire:loading.attr="disabled" wire:target="save,testConnection,syncNow"><i class="far fa-sync" aria-hidden="true"></i>Jetzt synchronisieren</x-ui.buttons.button-basic>
+                <x-ui.buttons.button-basic type="button" mode="secondary" class="min-h-11" wire:click="testConnection" wire:loading.attr="disabled" wire:target="save,testConnection,syncNow,testBackgroundProcessing"><i class="far fa-plug" aria-hidden="true"></i>Verbindung testen</x-ui.buttons.button-basic>
             </div>
         </div>
         <x-input-error for="connection" />
@@ -81,21 +82,8 @@
             @if (isset($diagnostic['intune_message']) && $diagnostic['intune_status'] !== 'success')
                 <p class="break-words text-sm text-rt-muted dark:text-rt-dark-muted"><span class="font-medium">Intune:</span> {{ $diagnostic['intune_message'] }}</p>
             @endif
-        @endif
-        @if ($lastRun !== [])
-            <p class="text-sm text-rt-text dark:text-rt-dark-text"><span class="font-medium">Letzter Abruf:</span> {{ $lastRun['message'] }} @if ($connectionStatus['last_sync_at'])<span class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ \Illuminate\Support\Carbon::parse($connectionStatus['last_sync_at'])->timezone(config('app.timezone'))->format('d.m.Y. H:i') }}</span>@endif</p>
-            @if (isset($lastRun['intune_message']) && $lastRun['intune_status'] !== 'success')
-                <p class="break-words text-sm text-rt-muted dark:text-rt-dark-muted"><span class="font-medium">Intune:</span> {{ $lastRun['intune_message'] }}</p>
-            @endif
-            <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                @foreach (['discovered' => 'Gefunden', 'created' => 'Neu erfasst', 'updated' => 'Aktualisiert', 'assigned' => 'Zugeordnet', 'conflicts' => 'Zu prüfen', 'skipped' => 'Übersprungen'] as $key => $label)
-                    @if (array_key_exists($key, $lastRun))
-                        <div class="rounded-lg bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted"><dt class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $label }}</dt><dd class="mt-1 text-lg font-semibold tabular-nums text-rt-text dark:text-rt-dark-text">{{ $lastRun[$key] }}</dd></div>
-                    @endif
-                @endforeach
-            </dl>
         @else
-            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Für diese Konfiguration wurde noch kein Geräteabruf abgeschlossen.</p>
+            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Für diese Konfiguration wurde noch kein Microsoft-Verbindungstest abgeschlossen.</p>
         @endif
     </div>
 

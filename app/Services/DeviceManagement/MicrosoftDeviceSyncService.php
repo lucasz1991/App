@@ -63,7 +63,7 @@ class MicrosoftDeviceSyncService
         return $result;
     }
 
-    public function sync(): array
+    public function sync(?string $expectedFingerprint = null): array
     {
         ['configuration' => $configuration, 'fingerprint' => $fingerprint] = $this->settings->snapshot();
         $result = [
@@ -71,6 +71,9 @@ class MicrosoftDeviceSyncService
             'assigned' => 0, 'skipped' => 0, 'conflicts' => 0, 'entra_devices' => 0,
             'intune_devices' => 0, 'checked_at' => now()->toIso8601String(),
         ];
+        if ($expectedFingerprint !== null && ! hash_equals($expectedFingerprint, $fingerprint)) {
+            return [...$result, 'status' => 'stale_configuration'];
+        }
         if (! $configuration['enabled']) {
             return $result;
         }

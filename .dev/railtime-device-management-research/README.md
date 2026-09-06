@@ -8,9 +8,37 @@ Der direkte, lesende Microsoft-Graph-Abgleich ist implementiert. Windows-Geräte
 werden regelmäßig aus Entra inventarisiert und optional mit Intune-Daten
 ergänzt. Mitarbeiter werden über explizite Tenant-/Objekt-ID-Bindungen
 wiedererkannt. Einstellungen, Verbindungstest, Kontenzuordnungsmodal,
-Konflikthinweise und eine eigene Datenbank-Queue benötigen keine neuen
+Konflikthinweise, dauerhafte Auftragsnachweise und eine eigene Datenbank-Queue benötigen keine neuen
 ENV-Variablen. Die bestehende Outlook-Microsoft-Anmeldung kann einen fälligen
-Abgleich auslösen; Windows-Anmeldungen werden über den regelmäßigen Abruf erfasst.
+Abgleich auslösen; neue Windows-Entra-Einträge werden über den regelmäßigen
+Abruf erfasst, nicht über einen direkten Windows-Login-Hook.
+
+Die neue Runtime-Migration `2026_09_06_030000_create_microsoft_device_runs`
+ergänzt die Importmigration `020000`. Das Setup trennt Schema, Queue,
+Schedulerkontakt, Workerbeleg und Auftragsstatus vom Graph-Verbindungstest.
+**Hintergrundverarbeitung testen** sowie
+`php artisan devices:microsoft-status --json --probe-worker` prüfen den
+echten Queueweg ohne Microsoft-Zugriff. Ein grüner Verbindungstest, CLI-Exitcode 0
+oder nur eingeplanter Auftrag ist keine Produktionsfreigabe.
+
+Plesk 8 betreut genau einen zusätzlichen Worker für `microsoft-devices`
+(Timeout 240 Sekunden, Max Time 3600 Sekunden); die Connection
+`microsoft_devices` wird isoliert durch RailTime gewählt. Bestehende Queues
+bleiben erhalten. Kein zusätzlicher app-eigener Worker und keine neuen
+RailTime-ENV-Einrichtungsvariablen; Plesk verwaltet seine `.env.plesk` selbst.
+Die sichtbare Geräteübersicht beobachtet einen gestarteten Lauf höchstens
+60-mal alle fünf Sekunden, das Setup höchstens zwei Minuten alle zehn Sekunden.
+
+**Live-Gate noch offen:** Die separate App **„RailTime Geräteinventar“** ist
+registriert; ausschließlich Application `Device.Read.All` mit
+Administratorzustimmung **„Gewährt für RailTime“** ist im Portal bestätigt.
+Das unnötige automatisch ergänzte `User.Read` wurde nur dort entfernt,
+andere Apps nicht verändert. Tenant-/Client-ID sind im RailTime-Setup
+gespeichert und nach erneutem Laden bestätigt. Der Nutzer muss das noch
+leere Client-Geheimnis erstellen und direkt im geschützten Setup speichern;
+Automatik und Intune bleiben aus. Bestehendes Schema und `pcntl` sind lesend
+bestätigt, aber Runtime-Release, neue Plesk-Migration, echter Worker- und
+Graphnachweis sowie Windows-Pilot weiterhin offen.
 
 Einrichtung, Berechtigungen, Worker und Grenzen:
 [Microsoft Entra & Windows](microsoft-entra-windows.md).
@@ -130,6 +158,7 @@ Test am echten Gerät.
 - [UI/UX-Konzept](ui-ux-concept.md)
 - [Produktions-Testlauf](production-test-runbook.md)
 - [Plesk-Connectorbetrieb](plesk-connector-setup.md)
+- [Microsoft Entra, Windows und Plesk-Queuebetrieb](microsoft-entra-windows.md)
 - [Versionierter Connector-Vertrag (OpenAPI)](connector-contract.openapi.yaml)
 
 ## Nicht verhandelbare Sicherheitsgrenzen

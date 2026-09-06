@@ -22,6 +22,7 @@ use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\DeviceProviderLinkService;
 use App\Services\DeviceManagement\DeviceProviderRegistry;
 use App\Services\DeviceManagement\DeviceReadinessService;
+use App\Services\DeviceManagement\MicrosoftDeviceRuntime;
 use App\Services\DeviceManagement\MicrosoftDeviceSettings;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use Illuminate\Database\Eloquent\Builder;
@@ -29,6 +30,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\WithFileUploads;
 use Livewire\WithPagination;
@@ -58,6 +60,12 @@ class DeviceManagement extends Component
 
     public string $microsoftFilter = '';
 
+    #[Locked]
+    public int $microsoftPollsRemaining = 0;
+
+    #[Locked]
+    public ?string $microsoftWatchedRunId = null;
+
     public function updatedMicrosoftFilter(): void
     {
         $this->resetPage();
@@ -66,13 +74,41 @@ class DeviceManagement extends Component
     public function syncMicrosoftDevices(MicrosoftDeviceSyncScheduler $scheduler): void
     {
         Gate::authorize('devices.manage');
+        $this->resetValidation('microsoftSync');
         try {
             $queued = $scheduler->queue(force: true);
+            $run = app(MicrosoftDeviceRuntime::class)->status()['run'] ?? [];
+            if (in_array($run['status'] ?? '', ['queued', 'running'], true)) {
+                $this->microsoftWatchedRunId = $run['id'];
+                $this->microsoftPollsRemaining = 60;
+            }
             $this->dispatch('swal:toast', type: $queued ? 'success' : 'info', text: $queued
-                ? 'Microsoft-Abgleich eingeplant. Die Geräteliste nach Abschluss aktualisieren.'
+                ? 'Microsoft-Abgleich eingeplant. Die Geräteliste wird nach Abschluss aktualisiert.'
                 : 'Der Microsoft-Abgleich läuft bereits oder ist in den Einstellungen noch deaktiviert.');
         } catch (Throwable) {
             $this->addError('microsoftSync', 'Microsoft-Einstellungen und den Hintergrund-Worker prüfen. Der Abgleich konnte nicht gestartet werden.');
+        }
+    }
+
+    public function refreshMicrosoftSync(): void
+    {
+        Gate::authorize('devices.manage');
+        if ($this->microsoftPollsRemaining <= 0) {
+            return;
+        }
+        $this->microsoftPollsRemaining--;
+        $run = app(MicrosoftDeviceRuntime::class)->status()['run'] ?? [];
+        if (($run['id'] ?? null) !== $this->microsoftWatchedRunId) {
+            $this->microsoftPollsRemaining = 0;
+
+            return;
+        }
+        if (! in_array($run['status'] ?? '', ['queued', 'running'], true)) {
+            $this->microsoftPollsRemaining = 0;
+            $this->resetPage();
+            $this->dispatch('swal:toast', type: 'info', text: $run['status'] === 'completed'
+                ? 'Microsoft-Abgleich abgeschlossen. Der Gerätebestand wurde aktualisiert.'
+                : 'Microsoft-Abgleich beendet. Bitte den Laufstatus im Geräte-Setup prüfen.');
         }
     }
 
@@ -795,6 +831,7 @@ class DeviceManagement extends Component
             'locationStats' => $locationStats,
             'stats' => $fleetSnapshot->get(),
             'microsoftEnabled' => (bool) app(MicrosoftDeviceSettings::class)->configuration()['enabled'],
+            'microsoftRuntime' => Gate::allows('devices.manage') ? app(MicrosoftDeviceRuntime::class)->status() : [],
         ])->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
     }
 

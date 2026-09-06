@@ -2,15 +2,131 @@
 
 ## Microsoft-Entra-Inventar und Windows-Abgleich
 
-Der direkte Graph-Abruf hat einen eigenen [Einrichtungs- und Testweg](microsoft-entra-windows.md).
-Nach Migration, Tenant-/Client-Konfiguration, minimaler Adminzustimmung,
-Mitarbeiterkontobindung und Start des Workers `microsoft_devices` zunächst
-**Verbindung testen**, anschließend **Jetzt synchronisieren** ausführen.
-Einen bekannten Windows-Rechner samt Entra-ID, optional Intune-Seriennummer
-und Hauptbenutzer mit dem Microsoft-Admin-Center vergleichen. Ein zweiter
-Abgleich darf keine doppelten Geräte/Zuteilungen anlegen. Rückgabe oder
-abweichende lokale Zuteilung muss erhalten bleiben; ein einfacher Entra-
-Eintrag darf keine bestandene MDM-/App-/Fernsupport-Prüfung vortäuschen.
+Stand: 6. September 2026. Dieses Dokument ist das bestehende Betriebsrunbook;
+eine zusätzliche `production-runbook.md` ist nicht erforderlich. Der direkte
+Graph-Abruf hat einen [Einrichtungs- und Vertragsweg](microsoft-entra-windows.md).
+Lokale Regressionen und ein isolierter echter Workerprobe-Test ersetzen
+keinen Nachweis auf dem Zielserver.
+
+Bestätigter Einrichtungsstand: Die separate App **„RailTime Geräteinventar“**
+ist registriert. Das Portal zeigt ausschließlich Application `Device.Read.All`
+mit Adminzustimmung **„Gewährt für RailTime“**; unnötiges automatisch ergänztes
+`User.Read` wurde nur aus dieser App entfernt, andere Apps blieben unverändert.
+Tenant- und Client-ID sind im RailTime-Setup gespeichert und nach erneutem
+Laden bestätigt. Das Client-Geheimnis bleibt leer und muss vom Nutzer erstellt
+und direkt im geschützten Setup gespeichert werden. Automatik und Intune aus.
+Bestehendes Schema und `pcntl` sind lesend bestätigt; Runtime-Release, neue
+Plesk-Migration, Workerprobe und erfolgreicher Graphabruf sind weiterhin offen.
+
+### Gate M1 – gemeinsamer Release und Plesk-Betrieb
+
+1. Deploymentfenster mit parallelen RailTime-Releases abstimmen; bisherige
+   Queue-Liste, Workeranzahl und Parameter sowie Datenbank sichern. Keine
+   Migration, Cacheerneuerung oder Workerumstellung in eine fremde Release-Lane.
+2. Plesk-Paket v8.0.0 (`^8.0`), Queueadapter, Runtime und UI zusammen
+   bereitstellen. Mit der für die Domain ausgewählten Plesk-PHP-Version
+   `php artisan migrate:status` prüfen, danach nur im freigegebenen
+   Deployment die ausstehenden Migrationen ausführen. Erforderlich sind
+   `2026_09_06_020000_create_microsoft_device_links` und neu
+   `2026_09_06_030000_create_microsoft_device_runs`. Bestehende Daten erhalten;
+   kein `migrate:fresh` auf dem Zielserver.
+3. Konfigurationscache abgestimmt erneuern. `php artisan plesk-ext-laravel:list-env`
+   muss `PLESK_EXT_LARAVEL_QUEUE_MULTIPLE_SUPPORTED=true` ausweisen.
+   `php artisan schedule:list` muss die Plesk-Workerplanung und den internen
+   `devices:sync-microsoft --scheduled`-Fünfminuten-Eintrag zeigen.
+   Der bestehende äußere Scheduler läuft weiterhin jede Minute.
+4. In **Plesk → Domain → Laravel → Queue** die bestehenden Queues, insbesondere
+   `default`, `calls`, `devices`, mit allen bisherigen Parametern erhalten.
+   Zusätzlich `microsoft-devices` aktivieren: **1 Worker**, Timeout **240**,
+   Max Jobs **0**, Max Time **3600**, **Stop Worker When Empty aus**.
+   Die Plesk-UI hat kein eigenes Connectionfeld; der RailTime-Adapter routet
+   exakt diese Queue zu `microsoft_devices` mit `retry_after=300`.
+   Keine Queue-Mischliste und keine globale Änderung von `retry_after`.
+5. Alte Prozesse beim Wechsel kontrolliert auslaufen lassen. Plesk verwaltet
+   den gesamten Lifecycle und `.env.plesk`. **Keinen zusätzlichen app-eigenen
+   Worker, keinen zweiten manuellen Dauerworker und keinen parallelen
+   Konfigurationsschreiber ergänzen.** Eine leere v8-Queue-Liste würde den
+   Legacybetrieb abschalten; bestehende Queues daher vor Speichern abgleichen.
+
+### Gate M2 – echte Workerprobe ohne Microsoft
+
+Unter **Einstellungen → Geräte-Setup → Microsoft Entra & Windows** Schema-
+und Queueprobleme beheben. Die neue Runtime muss auch vor Microsoft-Einrichtung
+eine reine Workerprobe ermöglichen; das Importschema wird für den späteren
+Geräteabgleich benötigt. Optional dieselben Schritte über CLI:
+
+```bash
+php artisan devices:microsoft-status --json
+php artisan devices:microsoft-status --json --probe-worker
+```
+
+Danach nicht selbst einen zweiten Worker starten, sondern den durch Plesk
+verwalteten Prozess abwarten und erneut lesend prüfen:
+
+```bash
+php artisan devices:microsoft-status --json
+```
+
+Erforderlicher Nachweis: `worker_probe.status=completed` mit gesetztem
+`acknowledged_at`. `queued`, ein Klick auf den Testbutton oder `probe_queued=true`
+belegen nur die Einplanung. Der Test ruft weder Graph noch Mitarbeiter-/Gerätedaten
+ab. Ein frischer `scheduler.checked_at` muss aus dem tatsächlichen geplanten
+Eintrag stammen; den internen `--scheduled`-Marker nicht manuell als Ersatz
+aufrufen. `schedule:list` allein beweist noch keine laufende Scheduler-Ausführung.
+
+**Statusgrenze:** Exitcode 0 des Statuskommandos bedeutet nur, dass Schema und
+Queue bereit sind. Microsoft-Konfiguration, Scheduler, Worker und echter Import
+werden als separate Felder geprüft. `worker.state=seen` ist ein zeitlich
+begrenzter Ausführungsbeleg, kein dauerhaftes Lebenszeichen eines Prozesses.
+
+### Gate M3 – Microsoft-Verbindung und erster Import
+
+1. Genehmigte separate Single-Tenant-App und Adminzustimmung für
+   `Device.Read.All` nachweisen. Client-Geheimnis nur über den geschützten
+   Einstellungsbereich übergeben; nicht in Terminalverlauf, Plan oder Bericht
+   kopieren. Intune bleibt ohne gesonderte Lizenz und das minimale optionale
+   Leserecht ausgeschaltet.
+2. Tenant-/Client-Konfiguration speichern und **Verbindung testen**. Ein
+   erfolgreiches Graph-Ergebnis ist kein Ersatz für Gate M2. Kontobindungen
+   anhand `Tenant-ID + Benutzer-Objekt-ID` ausdrücklich herstellen, nicht nur
+   anhand gleicher E-Mail-Adresse.
+3. Automatik aktivieren und speichern, danach **Jetzt synchronisieren** oder
+   `php artisan devices:sync-microsoft --force` verwenden. Der CLI-Befehl
+   plant nur ein; er darf keine bestehende laufende Synchronisierung doppeln.
+4. Konkrete Lauf-ID, `queued_at`, `started_at`, `finished_at`, Ergebnis und
+   sichere Zähler prüfen. Der Lauf gilt nur für aktuellen Tenant und aktuellen
+   Konfigurationsfingerprint. `completed` kann Klärungsbedarf enthalten;
+   Intune-Rechte-/Lizenzfehler und Zuordnungskonflikte gesondert abnehmen.
+5. Einen bekannten Windows-Rechner samt Entra-ID, optional Intune-Seriennummer
+   und Hauptbenutzer mit dem Microsoft-Admin-Center vergleichen. Ein zweiter
+   Abgleich darf keine doppelten Geräte/Zuteilungen anlegen. Rückgabe oder
+   abweichende lokale Zuteilung muss erhalten bleiben; ein einfacher Entra-
+   Eintrag darf keine bestandene MDM-/App-/Fernsupport-Prüfung vortäuschen.
+
+### Gate M4 – Anzeige, Wiederanlauf und Fehlergrenzen
+
+- Geräteübersicht: nach Start höchstens 60 Statusabrufe alle fünf Sekunden
+  (rund fünf Minuten sichtbare Seite); bei Abschluss Liste aktualisieren und
+  Polling beenden, bei Fehler oder Lauf-ID-Wechsel ebenfalls stoppen.
+- Setup: nur bei wartendem/laufendem Auftrag alle zehn Sekunden, maximal zwei
+  Minuten; danach **Status aktualisieren**. Diese UI-Fristen stoppen keinen
+  Hintergrundauftrag und verändern nicht den üblichen 15-Minuten-Graphabruf.
+- `overdue` nach zwei Minuten Warteschlange oder fünf Minuten Laufzeit
+  signalisiert Prüfbedarf, auch bei einer Probe. Nicht blind erneut klicken
+  oder die gesamte Queue leeren. Historische erfolgreiche Importzähler
+  überstimmen einen aktuellen Abbruch nicht.
+- Fehlt die zu einer Probe gehörende echte Queuezeile, wird sie als verloren/
+  fehlgeschlagen sichtbar und der Test erneut möglich. Ein weiterhin real
+  wartender, nur überfälliger Job bleibt dedupliziert; keinen zweiten Job erzwingen.
+- Worker-/Scheduler-Ausfall, Cacheverlust, Timeout und geänderte Konfiguration
+  zuerst isoliert prüfen. Keine produktiven Mail-/Call-/Device-Worker für
+  Fehlerproben abschalten. Sichere Statusausgaben statt Rohjobs, Credentials
+  oder vollständiger Inventare dokumentieren.
+
+Gateabschluss: separate Belege für M1 bis M4, inklusive realem Worker,
+Schedulerkontakt und idempotentem Windows-Pilot. Bis dahin keine Aussage
+„produktionsbereit“ aus einem grünen Einzeltest ableiten.
+
 Die Microsoft-Synchronisierung benötigt keine Freigabe des Mutationsschalters,
 weil sie bei Microsoft ausschließlich liest und nur RailTime-Inventar schreibt.
 

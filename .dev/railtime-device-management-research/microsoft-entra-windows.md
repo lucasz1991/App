@@ -1,8 +1,19 @@
 # Microsoft Entra und Windows-Geräte in RailTime
 
-Stand: 6. September 2026. Der native Graph-Abruf ist implementiert und lokal
-mit isolierten HTTP-/Datenbanktests geprüft. Ein echter Mandantenabruf ist
-erst nach Eintragung der Zugangsdaten möglich.
+Stand: 6. September 2026. Der native Graph-Abruf, die dauerhafte
+Auftragsverwaltung und die getrennte Betriebsanzeige sind lokal implementiert.
+Ein echter Mandantenabruf und die produktive Verarbeitung sind damit noch
+nicht abgenommen. Die separate Entra-App **„RailTime Geräteinventar“** ist
+registriert; das Portal bestätigt ausschließlich das Application-Recht
+`Device.Read.All` mit Administratorzustimmung **„Gewährt für RailTime“**.
+Das automatisch hinzugefügte, unnötige `User.Read` wurde nur aus dieser App
+entfernt; andere Apps blieben unverändert. Tenant- und Client-ID sind im
+RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Das
+Client-Geheimnis bleibt leer: Der Nutzer erstellt es und speichert den Wert
+direkt im geschützten Setup, niemals in dieser Dokumentation. Automatik und
+Intune sind ausgeschaltet. Bestehendes Schema und `pcntl` wurden lesend
+bestätigt; Runtime-Release, neue Plesk-Migration, Worker- und Graphnachweis
+stehen weiterhin aus.
 
 ## Was automatisch passiert
 
@@ -31,8 +42,8 @@ Microsoft-Weblogin für die RailTime-Anmeldeseite wurde nicht eingeführt.
 
 ## Einrichtung in Microsoft und RailTime
 
-1. In Microsoft Entra eine Anwendung für **diesen einen Mandanten** verwenden
-   oder registrieren. Tenant-ID, Anwendungs-/Client-ID und ein gültiges
+1. In Microsoft Entra eine separate Anwendung für **diesen einen Mandanten**
+   registrieren. Tenant-ID, Anwendungs-/Client-ID und ein gültiges
    Client-Geheimnis werden benötigt. Das vorhandene Outlook-Add-in-Token ist
    für die RailTime-API bestimmt und wird nicht als Graph-Token verwendet.
 2. Microsoft Graph **Application permission `Device.Read.All`** erteilen und
@@ -40,9 +51,14 @@ Microsoft-Weblogin für die RailTime-Anmeldeseite wurde nicht eingeführt.
    zusätzlich **`DeviceManagementManagedDevices.Read.All`**; dafür muss eine
    aktive Intune-Lizenz vorhanden sein. Es werden keine Schreibrechte,
    `Directory.ReadWrite.All`, Mail- oder Sign-in-Log-Rechte benötigt.
-3. Nach Deployment die Migrationen mit `php artisan migrate --force`
-   ausführen. Die neue Migration ist additiv, erhält bestehende Geräte und
-   lässt bisher unbekannte Tenant-Zuordnungen zunächst leer.
+3. Im abgestimmten Deploymentfenster die ausstehenden Migrationen mit
+   `php artisan migrate --force` ausführen. Zur bisherigen Importmigration
+   `2026_09_06_020000_create_microsoft_device_links` kommt
+   `2026_09_06_030000_create_microsoft_device_runs` für die dauerhafte
+   Auftrags-, Scheduler- und Worker-Evidenz. Beide sind additiv; bestehende
+   Geräte bleiben erhalten, bislang unbekannte Tenant-Bindungen bleiben leer.
+   Ein früherer grüner Migrationscheck belegt nicht, dass die neu hinzugekommene
+   Runtime-Migration bereits auf dem Zielserver ausgeführt wurde.
 4. Unter **Einstellungen → Geräte-Setup → Microsoft Entra & Windows** die
    IDs und das Geheimnis eintragen, speichern und **Verbindung testen**.
    Erst danach die automatische Synchronisierung aktivieren. Die Werte
@@ -57,22 +73,101 @@ Microsoft-Weblogin für die RailTime-Anmeldeseite wurde nicht eingeführt.
    Tenant ausdrücklich bestätigen; vorhandene andere Bindungen werden nicht
    überschrieben. Bei passender bereits verifizierter Outlook-Anmeldung kann
    der bisher leere Tenant auch über diesen authentifizierten Weg ergänzt werden.
-6. Den dedizierten Hintergrund-Worker starten und den Laravel-Scheduler
-   regelmäßig ausführen. Anschließend **Jetzt synchronisieren** verwenden.
+6. Den bestehenden Plesk-Scheduler und den durch Plesk verwalteten dedizierten
+   Worker wie unten einrichten. Zuerst **Hintergrundverarbeitung testen**
+   verwenden und auf die tatsächliche Workerbestätigung warten. Danach
+   **Verbindung testen** und **Jetzt synchronisieren** getrennt abnehmen.
+
+## Hintergrundbetrieb mit Plesk 8
+
+RailTime verwendet `plesk/ext-laravel-integration` v8.0.0 (`^8.0`). Unter
+**Domain → Laravel → Queue** die bisherigen Queues samt Anzahl und Parametern
+erhalten und ausschließlich die folgende Queue ergänzen:
+
+| Einstellung | Wert |
+| --- | --- |
+| Queue | `microsoft-devices` |
+| Aktiv / Anzahl Worker | Ja / `1` |
+| Timeout | `240` Sekunden |
+| Stop Worker When Empty | Aus |
+| Max Jobs / Max Time | `0` / `3600` Sekunden |
+| Connection | Kein Plesk-Eingabefeld; RailTime wählt `microsoft_devices` |
+
+Plesk startet benannte Queues ohne positional Connection. Der RailTime-Adapter
+ordnet exakt `--queue=microsoft-devices` der dedizierten Connection
+`microsoft_devices` zu; andere Queues bleiben unverändert. Gemischte
+Queue-Listen oder eine ausdrücklich falsche Connection werden abgewiesen.
+Die Microsoft-Connection nutzt die vorhandene Datenbank und `jobs` mit
+`retry_after=300`; die normale Datenbankqueue behält ihre bisherigen Werte.
+
+**Keinen zusätzlichen app-eigenen oder manuell dauerhaft gestarteten Worker
+parallel anlegen.** Plesk verwaltet den Lifecycle über Laravel Schedule.
+Der bestehende Scheduler muss jede Minute laufen. Der interne
+`devices:sync-microsoft --scheduled`-Eintrag wird alle fünf Minuten ausgeführt
+und berücksichtigt das gespeicherte Abrufintervall (standardmäßig 15 Minuten).
+`--scheduled` ist ein interner Marker; ihn nicht für einen vermeintlichen
+manuellen Scheduler-Nachweis verwenden.
+
+Vor Aktivierung Paketversion, `plesk-ext-laravel:list-env` mit
+`PLESK_EXT_LARAVEL_QUEUE_MULTIPLE_SUPPORTED=true` und `schedule:list` prüfen.
+Beim Wechsel auf die v8-Queue-Liste müssen insbesondere bestehende `default`,
+`calls` und `devices` erhalten bleiben. Eine leere neue Liste deaktiviert
+die bisherigen Worker. Alte Prozesse kontrolliert auslaufen lassen; keine
+globale Queue-Leerung oder parallele zweite Workerbelegung.
+
+Plesk speichert seine UI-Werte in `.env.plesk`; diese Datei nicht durch
+RailTime oder einen zusätzlichen Scheduler parallel verwalten. Es werden
+keine neuen RailTime-`.env`-Einrichtungsvariablen benötigt. Bestehende
+Laravel-Basiswerte und die von Plesk verwaltete Betriebskonfiguration bleiben
+notwendig. Konfigurationscache im abgestimmten Deployment aktualisieren.
+
+## Betriebsnachweise und Diagnose
+
+Unter **Einstellungen → Geräte-Setup → Microsoft Entra & Windows** stehen
+Schema, Queuebereitschaft, Schedulerkontakt, tatsächlicher Workerbeleg und
+Auftragsstatus getrennt vom Microsoft-Verbindungstest. **Hintergrundverarbeitung
+testen** plant einen reinen Queueauftrag ohne Graph- oder Gerätedatenzugriff.
+Er funktioniert auch vor Eintragung der Microsoft-Zugangsdaten, sofern
+Runtime-Tabelle und Queue bereit sind. Ein eingeplanter Auftrag ist noch
+keine Ausführungsbestätigung.
 
 ```bash
-php artisan queue:work microsoft_devices --queue=microsoft-devices --timeout=240 --tries=1
-php artisan schedule:run
+php artisan devices:microsoft-status --json
+php artisan devices:microsoft-status --json --probe-worker
+php artisan devices:microsoft-status --json
 php artisan devices:sync-microsoft --force
 ```
 
-Der erste Befehl gehört in einen dauerhaft betreuten Worker-Prozess; der zweite
-in den bestehenden minutengenauen Plesk-Cron. Die neue Connection
-`microsoft_devices` verwendet die vorhandene Standarddatenbank und `jobs` mit
-`retry_after=300`. Sie funktioniert auch, wenn die allgemeine App-Queue auf
-`sync` steht. Es sind keine neuen Queue-ENV-Werte erforderlich. Bei einem
-vorhandenen Konfigurationscache muss dieser mit dem Deployment erneuert werden.
-Der manuelle CLI-Befehl stellt ebenfalls nur einen Hintergrundauftrag ein.
+`devices:microsoft-status` ist ohne `--probe-worker` lesend. Mit der Option
+wird nur die Graph-freie Probe eingeplant; der nächste Statusabruf muss deren
+`completed` **und** `acknowledged_at` zeigen. Das Kommando gibt keine Credentials
+oder Mitarbeiterdaten aus. Sein Exitcode 0 bestätigt nur Schema-/Queuechecks,
+nicht laufenden Scheduler, Worker, Graph-Rechte oder erfolgreiche Geräteimporte.
+`devices:sync-microsoft --force` plant ebenfalls nur einen Auftrag; es erzwingt
+keinen parallelen Lauf und umgeht keine deaktivierte Verbindung.
+
+| Nachweis | Bedeutung und Grenze |
+| --- | --- |
+| `schema_ready`, `queue_ready` | Tabellen und dedizierte Queuekonfiguration geprüft; kein Prozessnachweis |
+| `scheduler.state=fresh` | Interner Schedulerkontakt jünger als 10 Minuten; kein Graphnachweis |
+| `worker.state=busy/seen` | Auftrag wurde tatsächlich durch einen reservierenden Worker begonnen; `seen` ist kein dauerhafter Prozessheartbeat |
+| `worker_probe.status=completed` plus `acknowledged_at` | Ein echter Worker hat die Probe verarbeitet; Microsoft wurde dabei nicht getestet |
+| `run.status=queued/running/completed/failed` | Geräteauftrag wartet, läuft, ist beendet oder fehlgeschlagen; `completed` kann Klärungsbedarf enthalten |
+| `overdue=true` | Auftrag wartet mindestens 2 Minuten oder läuft mindestens 5 Minuten; auch Proben können betroffen sein |
+| Erfolgreicher Verbindungstest | Microsoft-Endpunkte und konfigurierte Leserechte erreichbar; kein Worker-/Import-/MDM-Nachweis |
+
+Der letzte Importlauf wird für den aktuellen Tenant und Konfigurationsfingerprint
+angezeigt. Ein Konfigurationswechsel darf keinen alten Mandantenlauf als neuen
+Erfolg darstellen. Workerprobe und technischer Workerbeleg sind dagegen
+serverbezogen. Eine alte erfolgreiche Importzusammenfassung bleibt als
+historisches Ergebnis getrennt von aktuellen Fehlern sichtbar.
+
+Die Setup-Ansicht fragt wartende/laufende Aufträge alle 10 Sekunden maximal
+zwei Minuten ab; **Status aktualisieren** öffnet ein neues begrenztes Fenster.
+Die Geräteübersicht beobachtet den angeforderten Lauf höchstens 60-mal im
+5-Sekunden-Takt (rund fünf Minuten bei sichtbarer Seite), aktualisiert die
+Liste nach Abschluss und beendet die Abfrage auch bei Fehler oder Wechsel
+der Lauf-ID. Diese Anzeigeintervalle verändern nicht das Graph-Abrufintervall.
 
 ## Oberfläche und Konflikte
 
@@ -114,17 +209,28 @@ genutzt werden; deren Provider-IDs und Freigaben bleiben eigenständig.
   Snapshot; Konfigurationsprüfung vor dem transaktionalen Import, stabile
   Entra-/Intune-Identitäten, gesperrte Konten/Zuweisungen, keine Teilimporte bei
   einem fehlerhaften Entra-/Besitzerabruf.
-- `MicrosoftDeviceSyncScheduler` / `SyncMicrosoftDevices`: Queue-/Intervall-
-  Deduplizierung, begrenzte Sperren, erneute Konfigurationsprüfung, keine
-  Passwörter oder Microsoft-Zugriffstokens in Jobs.
+- `MicrosoftDeviceRuntime` / `MicrosoftDeviceSyncScheduler` /
+  `SyncMicrosoftDevices`: dauerhafte Deduplizierung und atomare Bindung des
+  Runledgers an die echte Datenbankqueue, erneute Konfigurationsprüfung,
+  sichere Fehler-/Timeoutzustände; Cacheverlust erzeugt keinen neuen
+  Doppelauftrag. Keine Passwörter oder Microsoft-Zugriffstokens in Jobs.
+- `ProbeMicrosoftDeviceWorker`: Quittierung nur nach tatsächlicher
+  Reservierung des zugehörigen Jobs durch einen Worker; kein direkter
+  Methodenaufruf als Ersatz für eine echte Queueprobe.
+- `MicrosoftDeviceWorkCommand`: isoliertes Plesk-8-Queue-Routing, kein
+  zusätzlicher Worker-Lifecycle in der Anwendung.
 - `MicrosoftEmployeeLinkService`: `devices.accounts.manage`, explizite
   administrative Kontobindung und Audit. Konfiguration benötigt weiterhin
   `settings.manage` und den RailTime-Superadmin.
 
 Die lokalen Regressionen stehen in `MicrosoftDeviceSyncTest`,
-`MicrosoftDeviceSyncTriggerTest`, `MicrosoftDeviceSettingsTest` und
-`MicrosoftEmployeeLinkTest`. Echte Microsoft-Zugriffe sind in diesen Tests
-gesperrt und werden durch definierte Graph-Antworten ersetzt.
+`MicrosoftDeviceSyncTriggerTest`, `MicrosoftDeviceSettingsTest`,
+`MicrosoftEmployeeLinkTest`, `MicrosoftDeviceQueueRoutingTest` und
+`MicrosoftDeviceOperationsTest`. Echte Microsoft-Zugriffe sind in diesen
+Tests gesperrt und werden bei Bedarf durch definierte Antworten ersetzt.
+Der Workerprobe-Test verwendet einen echten Queueworker auf isolierter
+SQLite, nicht auf der Produktionsdatenbank. Die konkrete Live-Abnahme steht
+im [Produktions-Testlauf](production-test-runbook.md).
 
 ## Offizielle Verträge
 

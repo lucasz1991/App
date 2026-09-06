@@ -2,15 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\SyncMicrosoftDevices;
 use App\Livewire\Admin\MicrosoftDeviceSettings as MicrosoftDeviceSettingsComponent;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\DeviceManagement\MicrosoftDeviceRuntime;
 use App\Services\DeviceManagement\MicrosoftDeviceSettings;
+use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncService;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
-use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -252,9 +252,10 @@ class MicrosoftDeviceSettingsTest extends TestCase
     public function test_manual_sync_uses_the_queue_and_does_not_call_graph_in_the_ui_request(): void
     {
         $this->configure();
-        config()->set('queue.default', 'database');
-        config()->set('queue.connections.database.retry_after', 300);
-        Bus::fake([SyncMicrosoftDevices::class]);
+        $this->fakeRuntime();
+        $scheduler = Mockery::mock(app(MicrosoftDeviceSyncScheduler::class));
+        $scheduler->shouldReceive('queue')->once()->with(true)->andReturn(true);
+        app()->instance(MicrosoftDeviceSyncScheduler::class, $scheduler);
 
         Livewire::actingAs($this->administrator)
             ->test(MicrosoftDeviceSettingsComponent::class)
@@ -262,7 +263,178 @@ class MicrosoftDeviceSettingsTest extends TestCase
             ->assertHasNoErrors()
             ->assertDispatched('swal:toast', type: 'success');
 
-        Bus::assertDispatched(SyncMicrosoftDevices::class);
+        Http::assertNothingSent();
+    }
+
+    public function test_missing_schema_blocks_sync_even_when_microsoft_connection_was_successful(): void
+    {
+        $this->configure();
+        $this->settings->recordDiagnostic(['status' => 'success'], $this->settings->fingerprint());
+        $this->fakeRuntime([
+            'schema_ready' => false,
+            'issues' => [['code' => 'schema_missing', 'message' => 'Die Microsoft-Gerätetabellen fehlen. Führen Sie php artisan migrate aus.']],
+        ]);
+        $scheduler = Mockery::mock(app(MicrosoftDeviceSyncScheduler::class));
+        $scheduler->shouldNotReceive('queue');
+        app()->instance(MicrosoftDeviceSyncScheduler::class, $scheduler);
+
+        $component = Livewire::test(MicrosoftDeviceSettingsComponent::class)
+            ->assertSee('Führen Sie php artisan migrate aus.')
+            ->assertSee('Microsoft-Verbindung und Graph-Rechte')
+            ->assertSee('bestätigt noch keine laufende Hintergrundverarbeitung')
+            ->call('syncNow')
+            ->assertHasErrors(['runtime']);
+
+        $this->assertActionDisabled($component->html(), 'Jetzt synchronisieren', true);
+        Http::assertNothingSent();
+    }
+
+    public function test_worker_probe_can_run_without_microsoft_configuration_or_device_import_schema(): void
+    {
+        $runtime = $this->fakeRuntime(['schema_ready' => false]);
+        $runtime->shouldReceive('queueWorkerProbe')->once()->andReturn(true);
+        $component = Livewire::test(MicrosoftDeviceSettingsComponent::class);
+        $this->assertActionDisabled($component->html(), 'Hintergrundverarbeitung testen', false);
+        $this->assertActionDisabled($component->html(), 'Jetzt synchronisieren', true);
+
+        $component->call('testBackgroundProcessing')
+            ->assertHasNoErrors()
+            ->assertDispatched('swal:toast', type: 'success')
+            ->assertSee('ohne Microsoft-Zugriff und ohne Geräteänderung');
+
+        Http::assertNothingSent();
+        $this->assertSame('', $this->settings->configuration()['tenant_id']);
+    }
+
+    public function test_missing_queue_blocks_worker_probe_and_sync_both_in_ui_and_server_action(): void
+    {
+        $this->configure();
+        $runtime = $this->fakeRuntime(['queue_ready' => false]);
+        $runtime->shouldNotReceive('queueWorkerProbe');
+        $component = Livewire::test(MicrosoftDeviceSettingsComponent::class);
+        $this->assertActionDisabled($component->html(), 'Hintergrundverarbeitung testen', true);
+        $this->assertActionDisabled($component->html(), 'Jetzt synchronisieren', true);
+
+        $component->call('testBackgroundProcessing')->assertHasErrors(['runtime']);
+        Http::assertNothingSent();
+    }
+
+    public function test_ready_runtime_keeps_real_sync_and_probe_buttons_enabled(): void
+    {
+        $this->configure();
+        $this->fakeRuntime();
+        $component = Livewire::test(MicrosoftDeviceSettingsComponent::class);
+
+        $this->assertActionDisabled($component->html(), 'Hintergrundverarbeitung testen', false);
+        $this->assertActionDisabled($component->html(), 'Jetzt synchronisieren', false);
+    }
+
+    public function test_running_device_job_disables_duplicate_sync_and_shows_worker_evidence(): void
+    {
+        $this->configure();
+        $this->fakeRuntime([
+            'scheduler' => ['state' => 'fresh', 'checked_at' => now()->toIso8601String()],
+            'worker' => ['state' => 'busy', 'checked_at' => now()->toIso8601String()],
+            'run' => ['id' => 'synthetic-running-job', 'status' => 'running', 'queued_at' => now()->subMinute()->toIso8601String(), 'started_at' => now()->toIso8601String(), 'finished_at' => null, 'message' => 'Der Microsoft-Queue-Worker verarbeitet den Auftrag.'],
+        ]);
+        $component = Livewire::test(MicrosoftDeviceSettingsComponent::class)
+            ->assertSee('Aktueller Kontakt')
+            ->assertSee('Verarbeitet einen Auftrag')
+            ->assertSee('Geräteauftrag: Geräteabgleich läuft')
+            ->assertViewHas('runtimePolling', true);
+
+        $this->assertActionDisabled($component->html(), 'Jetzt synchronisieren', true);
+    }
+
+    public function test_runtime_actions_recheck_superadministrator_permissions_after_mount(): void
+    {
+        $otherAdmin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $runtime = $this->fakeRuntime();
+        $runtime->shouldNotReceive('queueWorkerProbe');
+        $scheduler = Mockery::mock(app(MicrosoftDeviceSyncScheduler::class));
+        $scheduler->shouldNotReceive('queue');
+        app()->instance(MicrosoftDeviceSyncScheduler::class, $scheduler);
+
+        foreach (['testBackgroundProcessing', 'syncNow', 'refreshRuntime'] as $action) {
+            $this->actingAs($this->administrator);
+            $component = Livewire::test(MicrosoftDeviceSettingsComponent::class);
+            $this->actingAs($otherAdmin);
+            $component->call($action)->assertForbidden();
+        }
+    }
+
+    public function test_pending_worker_probe_is_not_a_worker_acknowledgement_and_polling_is_bounded(): void
+    {
+        $this->freezeTime();
+        $this->fakeRuntime([
+            'worker_probe' => ['status' => 'queued', 'queued_at' => now()->toIso8601String(), 'acknowledged_at' => null],
+        ]);
+        $component = Livewire::test(MicrosoftDeviceSettingsComponent::class)
+            ->assertSee('Test wartet auf Worker')
+            ->assertSee('Kein aktueller Ausführungsnachweis')
+            ->assertDontSee('Vom Worker bestätigt:')
+            ->assertViewHas('runtimePolling', true);
+        $this->assertActionDisabled($component->html(), 'Hintergrundverarbeitung testen', true);
+
+        $this->travel(121)->seconds();
+        $component->call('$refresh')
+            ->assertViewHas('runtimePolling', false)
+            ->assertSee('automatische Statusabfrage ist pausiert');
+        $this->assertStringNotContainsString('wire:poll', $component->html());
+        $component->call('refreshRuntime')->assertViewHas('runtimePolling', true);
+
+        $this->fakeRuntime([
+            'worker' => ['state' => 'seen', 'checked_at' => now()->toIso8601String()],
+            'worker_probe' => ['status' => 'completed', 'queued_at' => now()->subMinute()->toIso8601String(), 'acknowledged_at' => now()->toIso8601String()],
+        ]);
+        $component->call('$refresh')
+            ->assertViewHas('runtimePolling', false)
+            ->assertSee('Worker hat den Test verarbeitet')
+            ->assertSee('Vom Worker bestätigt:');
+        $this->assertStringNotContainsString('wire:poll', $component->html());
+    }
+
+    public function test_failed_worker_and_overdue_job_remain_distinct_from_old_successful_import(): void
+    {
+        $this->configure();
+        $this->settings->recordRun(['status' => 'success', 'discovered' => 4], $this->settings->fingerprint());
+        $this->fakeRuntime([
+            'scheduler' => ['state' => 'stale', 'checked_at' => now()->subHour()->toIso8601String()],
+            'worker' => ['state' => 'failed', 'checked_at' => now()->subMinutes(5)->toIso8601String()],
+            'run' => ['id' => 'synthetic-run', 'status' => 'failed', 'message' => 'Der Worker hat das Zeitlimit überschritten.', 'queued_at' => now()->subMinutes(10)->toIso8601String(), 'started_at' => now()->subMinutes(5)->toIso8601String(), 'finished_at' => now()->toIso8601String()],
+            'overdue' => true,
+        ]);
+
+        Livewire::test(MicrosoftDeviceSettingsComponent::class)
+            ->assertSee('Kontakt überfällig')
+            ->assertSee('Letzte Ausführung fehlgeschlagen')
+            ->assertSee('Geräteauftrag: Abgebrochen oder fehlgeschlagen')
+            ->assertSee('Der Worker hat das Zeitlimit überschritten.')
+            ->assertSee('Ein Hintergrundauftrag ist überfällig.')
+            ->assertSee('Letztes gespeichertes Importergebnis')
+            ->assertViewHas('runtimePolling', false);
+    }
+
+    public function test_runtime_errors_are_fail_closed_and_never_expose_transport_details(): void
+    {
+        $this->configure();
+        $runtime = Mockery::mock(MicrosoftDeviceRuntime::class);
+        $runtime->shouldReceive('status')->andThrow(new RuntimeException('private-db-credentials'));
+        $runtime->shouldNotReceive('queueWorkerProbe');
+        app()->instance(MicrosoftDeviceRuntime::class, $runtime);
+
+        $component = Livewire::test(MicrosoftDeviceSettingsComponent::class)
+            ->assertSee('Der Betriebsstatus konnte nicht gelesen werden.')
+            ->assertDontSee('private-db-credentials')
+            ->call('testBackgroundProcessing')->assertHasErrors(['runtime']);
+        $this->assertActionDisabled($component->html(), 'Jetzt synchronisieren', true);
+
+        $runtime = $this->fakeRuntime();
+        $runtime->shouldReceive('queueWorkerProbe')->once()->andThrow(new RuntimeException('private-queue-transport'));
+        $component->call('testBackgroundProcessing')
+            ->assertHasErrors(['runtime'])
+            ->assertDontSee('private-queue-transport');
+        Http::assertNothingSent();
     }
 
     public function test_probe_failures_do_not_expose_transport_details_or_secrets_in_the_form(): void
@@ -279,6 +451,28 @@ class MicrosoftDeviceSettingsTest extends TestCase
             ->assertSee('Der Microsoft-Verbindungstest konnte nicht abgeschlossen werden.');
     }
 
+    public function test_lost_worker_probe_becomes_retryable_but_an_overdue_real_queue_job_does_not(): void
+    {
+        $runtime = app(MicrosoftDeviceRuntime::class);
+        $this->assertTrue($runtime->queueWorkerProbe());
+        $original = DB::table('microsoft_device_runs')->where('kind', 'probe')->sole();
+        $this->travel(3)->minutes();
+        $component = Livewire::test(MicrosoftDeviceSettingsComponent::class);
+        $this->assertActionDisabled($component->html(), 'Hintergrundverarbeitung testen', true);
+        $this->assertFalse($runtime->queueWorkerProbe());
+        $this->assertDatabaseCount('jobs', 1);
+
+        DB::table('jobs')->where('id', $original->queue_job_id)->delete();
+        $component->call('refreshRuntime')->assertSee('Ein Hintergrundauftrag ist nicht mehr in der Datenbankqueue vorhanden.');
+        $this->assertActionDisabled($component->html(), 'Hintergrundverarbeitung testen', false);
+        $this->assertDatabaseHas('microsoft_device_runs', ['id' => $original->id, 'status' => 'queued']);
+        $component->call('testBackgroundProcessing')->assertHasNoErrors();
+        $this->assertActionDisabled($component->html(), 'Hintergrundverarbeitung testen', true);
+        $this->assertDatabaseCount('jobs', 1);
+        $this->assertDatabaseHas('microsoft_device_runs', ['id' => $original->id, 'status' => 'failed', 'outcome' => 'queue_lost']);
+        Http::assertNothingSent();
+    }
+
     /** @param array<string, mixed> $overrides */
     private function configure(array $overrides = []): void
     {
@@ -288,5 +482,34 @@ class MicrosoftDeviceSettingsTest extends TestCase
             'client_id' => self::CLIENT,
             'client_secret' => 'a-test-only-client-secret',
         ], $overrides), $this->administrator);
+    }
+
+    /** @param array<string, mixed> $overrides */
+    private function fakeRuntime(array $overrides = []): Mockery\MockInterface
+    {
+        $runtime = Mockery::mock(MicrosoftDeviceRuntime::class);
+        $runtime->shouldReceive('status')->andReturn(array_replace([
+            'schema_ready' => true,
+            'queue_ready' => true,
+            'issues' => [],
+            'scheduler' => ['state' => 'unknown', 'checked_at' => null],
+            'worker' => ['state' => 'unknown', 'checked_at' => null],
+            'run' => [],
+            'overdue' => false,
+            'worker_probe' => ['status' => 'unknown', 'queued_at' => null, 'acknowledged_at' => null],
+        ], $overrides));
+        app()->instance(MicrosoftDeviceRuntime::class, $runtime);
+
+        return $runtime;
+    }
+
+    private function assertActionDisabled(string $html, string $label, bool $disabled): void
+    {
+        $document = new \DOMDocument;
+        $document->loadHTML('<?xml encoding="utf-8" ?>'.$html, LIBXML_NOERROR | LIBXML_NOWARNING);
+        $button = (new \DOMXPath($document))->query('//button[contains(normalize-space(.), "'.$label.'")]')->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $button, 'Missing action button: '.$label);
+        $this->assertSame($disabled, $button->hasAttribute('disabled'), $label.' disabled state');
+        $this->assertSame(! $disabled, $button->hasAttribute('wire:click'), $label.' handler state');
     }
 }

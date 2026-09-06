@@ -20,7 +20,7 @@
         "phpoffice/phppresentation": "^1.2",
         "phpoffice/phpspreadsheet": "^4.5",
         "phpoffice/phpword": "^1.4",
-        "plesk/ext-laravel-integration": "^7.0",
+        "plesk/ext-laravel-integration": "^8.0",
         "spatie/laravel-activitylog": "^4.12"
     },
     "require-dev": {

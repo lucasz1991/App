@@ -53,6 +53,16 @@
 
     <div class="space-y-4" data-device-management>
         @error('microsoftSync')<p role="alert" class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+        @if($microsoftWatchedRunId)
+            <div @if($microsoftPollsRemaining > 0) wire:poll.5s.visible="refreshMicrosoftSync" @endif
+                class="flex flex-wrap items-center gap-2 rounded-lg border border-rt-border px-3 py-2 text-sm dark:border-rt-dark-border" role="status" aria-live="polite">
+                <i class="fab fa-microsoft" aria-hidden="true"></i>
+                <span>Microsoft-Abgleich: {{ $microsoftRuntime['run']['message'] ?? 'Status im Geräte-Setup prüfen.' }}</span>
+                @if($microsoftPollsRemaining === 0 && in_array($microsoftRuntime['run']['status'] ?? '', ['queued', 'running'], true))
+                    <span class="text-amber-700 dark:text-amber-300">Noch offen – Hintergrundverarbeitung im Geräte-Setup prüfen.</span>
+                @endif
+            </div>
+        @endif
         <section class="flex min-w-0 items-center gap-3 rounded-xl border border-sky-200/80 bg-sky-50/75 px-3 py-2.5 text-sky-950 dark:border-sky-900/70 dark:bg-sky-950/25 dark:text-sky-100" aria-label="Sichere Bereitstellung">
             <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-900/70 dark:text-sky-200">
                 <i data-feather="shield" class="h-4 w-4" aria-hidden="true"></i>

@@ -79,6 +79,16 @@ class MicrosoftDeviceSyncTest extends TestCase
         $this->fakeGraph();
     }
 
+    public function test_queued_run_cannot_switch_to_a_different_configuration_before_graph_access(): void
+    {
+        $result = app(MicrosoftDeviceSyncService::class)->sync(expectedFingerprint: str_repeat('0', 64));
+
+        $this->assertSame('stale_configuration', $result['status']);
+        $this->assertSame(0, $result['created']);
+        $this->assertDatabaseCount('devices', 0);
+        Http::assertNothingSent();
+    }
+
     public function test_windows_inventory_and_explicit_owner_link_sync_idempotently_without_claiming_mdm_or_live_contact(): void
     {
         $first = $this->sync();

@@ -41,7 +41,7 @@ class Kernel extends ConsoleKernel
             ->everyFiveMinutes()
             ->withoutOverlapping();
 
-        $schedule->command('devices:sync-microsoft')->everyFiveMinutes()->withoutOverlapping();
+        $schedule->command('devices:sync-microsoft --scheduled')->everyFiveMinutes()->withoutOverlapping(5);
     }
 
     /**

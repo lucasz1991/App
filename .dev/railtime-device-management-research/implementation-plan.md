@@ -9,7 +9,9 @@ konfigurierten Mandanten und ergänzt optional Intune-Hauptbenutzer und
 Inventardaten. Die automatische Erstzuordnung erfolgt über Tenant-ID und
 Benutzer-Objekt-ID; bestehende Zuteilungen/Rückgaben bleiben erhalten.
 Microsoft-Einstellungen, Kontenmodal, Statusfilter, Hintergrundqueue und
-gedrosselter Outlook-Anmeldeauslöser sind implementiert. Der [Einrichtungsweg](microsoft-entra-windows.md)
+gedrosselter Outlook-Anmeldeauslöser sind implementiert. Dauerhaftes Runledger,
+atomare Queuebindung, Graph-freie Workerprobe und Betriebsanzeige ergänzen
+diesen Stand. Der [Einrichtungsweg](microsoft-entra-windows.md)
 enthält die minimalen Graph-Rechte und die Windows-/Intune-Voraussetzungen.
 Dieser Abruf ersetzt nicht den weiterhin offenen schreibenden Identity-/MDM-
 Connectorbetrieb aus den folgenden Phasen.
@@ -20,6 +22,19 @@ Provider wird erst nach seinem eigenen Labor-Gate für Mutationen freigeschaltet
 
 ## Aktueller Freigabestatus
 
+- **Microsoft-Inventar und Hintergrundbetrieb: lokal umgesetzt, Live-Gate offen.**
+  Runtime-Migration `2026_09_06_030000_create_microsoft_device_runs`, getrennte
+  Schema-/Queue-/Scheduler-/Workeranzeige, sichere Abbruchzustände und
+  `devices:microsoft-status --json [--probe-worker]` sind vorhanden. Plesk 8
+  routet ausschließlich `microsoft-devices` auf `microsoft_devices`. Die
+  separate App **„RailTime Geräteinventar“** ist real registriert; das Portal
+  bestätigt ausschließlich Application `Device.Read.All` und Adminzustimmung
+  **„Gewährt für RailTime“**. Unnötiges automatisch ergänztes `User.Read` nur
+  aus dieser App entfernt, keine andere App verändert. Tenant-/Client-ID im
+  RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Das noch leere
+  Client-Geheimnis erstellt der Nutzer und speichert es direkt im geschützten
+  Setup; Automatik/Intune aus. Bestehendes Schema/`pcntl` lesend bestätigt;
+  Runtime-Release, neue Plesk-Migration, Worker und echter Graphabruf offen.
 - **RailTime Control Plane: umgesetzt und lokal testbar.** Das umfasst
   Inventar/Lager, Mitarbeiterzuordnung, providerbezogene Geräteverknüpfungen,
   assignment-gebundene Enrollments, Identitätsreferenzen, versionierte Profile,
@@ -45,6 +60,45 @@ Provider wird erst nach seinem eigenen Labor-Gate für Mutationen freigeschaltet
 
 Keine dieser Aussagen ist eine Freigabe für Wipe, Lock, Kontenbereitstellung
 oder Skriptausführung auf produktiv verwendeten Mitarbeitergeräten.
+
+## Nächster Microsoft-Integrationsschritt – geprüfter Betriebsrollout
+
+1. Ein gemeinsames Deploymentfenster mit anderen RailTime-Releases abstimmen.
+   Änderungen, Datenbank und bisherige Plesk-Queuewerte sichern. Plesk-Paket
+   v8.0.0 und isolierten Workeradapter zusammen ausliefern; Importmigration
+   `020000` und neue Runtime-Migration `030000` prüfen beziehungsweise ausführen.
+2. Bestehende Plesk-Queues vollständig erhalten. Genau einen zusätzlichen
+   Worker `microsoft-devices` aktivieren: Timeout `240`, Max Jobs `0`,
+   Max Time `3600`, Stop When Empty aus. Connectionzuordnung erfolgt durch
+   RailTime; die bisherige Standardqueue wird nicht umgestellt. Plesk besitzt
+   den Lifecycle; kein zusätzlicher app-eigener Worker oder zweiter Prozessplan.
+3. Minutengenauen bestehenden Scheduler und den internen Fünfminuten-Eintrag
+   prüfen. Mit **Hintergrundverarbeitung testen** oder
+   `devices:microsoft-status --json --probe-worker` einen echten Workerbeleg
+   erzeugen; danach lesend `devices:microsoft-status --json` ausführen.
+   Ohne `completed` plus `acknowledged_at` ist das Worker-Gate offen.
+4. Genehmigte separate Entra-App, minimales Application-Recht `Device.Read.All`
+   und Administratorzustimmung einrichten. Secret ausschließlich im geschützten
+   RailTime-Setup übernehmen; nicht in Plan, Report, Chat oder Repository.
+   Intune nur nach separatem Lizenz-/Rechtecheck aktivieren.
+5. Graph-Verbindung prüfen, Mitarbeiter explizit über Tenant-/Objekt-ID binden,
+   danach **Jetzt synchronisieren**. Geräteübersicht folgt dem konkreten
+   Lauf bis zu 60-mal alle fünf Sekunden; Setup folgt offenen Aufträgen
+   maximal zwei Minuten alle zehn Sekunden. Danach bei Bedarf manuell
+   aktualisieren. Polling ist keine Änderung am Graph-Abrufintervall.
+6. Ein bekanntes Windows-Gerät, zweiten idempotenten Abruf und Konfliktfälle
+   gegen Microsoft und RailTime nachweisen. Aktuelle Lauf-ID, Zeiten und
+   sichere Zähler dokumentieren, keine Rohinventare oder Geheimnisse.
+   Fehlenden Worker, fehlende Rechte und Offline-/Fehlerfälle zunächst
+   isoliert prüfen, keine bestehenden produktiven Worker für einen Test stoppen.
+
+Abnahmekriterium: Schema-/Queuecheck, echte Workerquittierung, frischer
+Schedulerkontakt, Graph-Test und tatsächlicher Import werden einzeln belegt.
+`completed` kann Klärungsbedarf enthalten; `overdue` ist keine automatische
+Fehlerfreigabe und ein alter erfolgreicher Import überstimmt keinen neuen
+Abbruch. Der [Produktions-Testlauf](production-test-runbook.md) ist das
+verbindliche Betriebsrunbook. Die folgenden MDM-/Kontenbereitstellungsgates
+bleiben unabhängig vom lesenden Microsoft-Inventar bestehen.
 
 ## Phase 1 – RailTime Control Plane (umgesetzt)
 

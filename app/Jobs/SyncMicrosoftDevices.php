@@ -2,15 +2,16 @@
 
 namespace App\Jobs;
 
+use App\Services\DeviceManagement\MicrosoftDeviceRuntime;
 use App\Services\DeviceManagement\MicrosoftDeviceSettings;
-use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Queue\Jobs\DatabaseJob;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\TimeoutExceededException;
 use Throwable;
 
 final class SyncMicrosoftDevices implements ShouldQueue
@@ -40,38 +41,37 @@ final class SyncMicrosoftDevices implements ShouldQueue
         $this->afterCommit();
     }
 
-    /** @return list<WithoutOverlapping> */
-    public function middleware(): array
-    {
-        return [
-            (new WithoutOverlapping('microsoft-device-sync:'.hash('sha256', $this->tenantId)))
-                ->dontRelease()
-                ->expireAfter($this->timeout + 30),
-        ];
-    }
-
     public function handle(
         MicrosoftDeviceSettings $settings,
         MicrosoftDeviceSyncService $sync,
-        MicrosoftDeviceSyncScheduler $scheduler,
+        MicrosoftDeviceRuntime $runtime,
     ): void {
+        // Old pre-ledger payloads and repeated or direct execution fail closed.
+        // reservation is retained as the serialized field for deployment compatibility.
+        if (! $runtime->claim($this->reservation, $this->job ? (string) $this->job->getJobId() : null, 'sync', $this->job instanceof DatabaseJob ? $this->job : null)) {
+            return;
+        }
         try {
             $snapshot = $settings->snapshot();
             $configuration = $snapshot['configuration'];
             if (! ($configuration['enabled'] ?? false)
                 || ! hash_equals($this->tenantId, strtolower((string) ($configuration['tenant_id'] ?? '')))
                 || ! hash_equals($this->configurationFingerprint, $snapshot['fingerprint'])) {
+                $runtime->finish($this->reservation, 'stale_configuration');
+
                 return;
             }
 
-            $sync->sync();
-        } finally {
-            $scheduler->release($this->tenantId, $this->reservation);
+            $result = $sync->sync(expectedFingerprint: $this->configurationFingerprint);
+            $runtime->finish($this->reservation, (string) ($result['status'] ?? 'failed'));
+        } catch (Throwable $exception) {
+            $runtime->fail($this->reservation);
+            throw $exception;
         }
     }
 
     public function failed(?Throwable $exception): void
     {
-        app(MicrosoftDeviceSyncScheduler::class)->release($this->tenantId, $this->reservation);
+        app(MicrosoftDeviceRuntime::class)->fail($this->reservation, $exception instanceof TimeoutExceededException);
     }
 }

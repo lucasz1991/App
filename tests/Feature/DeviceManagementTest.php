@@ -169,6 +169,8 @@ class DeviceManagementTest extends TestCase
 
     public function test_base_migration_rolls_back_after_later_migrations_are_reversed(): void
     {
+        $microsoftRunsMigration = require database_path('migrations/2026_09_06_030000_create_microsoft_device_runs.php');
+        $microsoftRunsMigration->down();
         $microsoftMigration = require database_path('migrations/2026_09_06_020000_create_microsoft_device_links.php');
         $microsoftMigration->down();
         $identityLeaseMigration = require database_path('migrations/2026_08_23_000600_add_queue_lease_to_device_identity_syncs_table.php');

@@ -3,13 +3,10 @@
 namespace App\Services\DeviceManagement;
 
 use App\Enums\AccountProvider;
-use App\Jobs\SyncMicrosoftDevices;
 use App\Models\EmployeeIdentityAccount;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\OutlookAddin\VerifiedEntraIdentity;
-use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -20,10 +17,9 @@ use Throwable;
 /** The interactive Microsoft request only schedules work; Graph runs in a worker. */
 final class MicrosoftDeviceSyncScheduler
 {
-    public const RESERVATION_SECONDS = 900;
-
     public function __construct(
         private readonly MicrosoftDeviceSettings $settings,
+        private readonly MicrosoftDeviceRuntime $runtime,
     ) {}
 
     public function queue(bool $force = false): bool
@@ -39,11 +35,11 @@ final class MicrosoftDeviceSyncScheduler
             throw new RuntimeException('Bitte zuerst eine gueltige Microsoft-Entra-Tenant-ID speichern.');
         }
 
-        $this->assertQueueReady();
-
         $fingerprint = $snapshot['fingerprint'];
-        $dispatch = function () use ($tenantId, $fingerprint, $force): bool {
-            // An enclosing transaction may have changed configuration before commit.
+
+        return DB::transaction(function () use ($tenantId, $fingerprint, $force): bool {
+            Setting::query()->where('type', MicrosoftDeviceSettings::GROUP)
+                ->where('key', MicrosoftDeviceSettings::KEY)->lockForUpdate()->first();
             $currentSnapshot = $this->settings->snapshot();
             $current = $currentSnapshot['configuration'];
             if (! ($current['enabled'] ?? false)
@@ -52,51 +48,10 @@ final class MicrosoftDeviceSyncScheduler
                 return false;
             }
 
-            return (bool) Cache::lock($this->key($tenantId, 'dispatch'), 10)->get(function () use ($tenantId, $fingerprint, $force, $current): bool {
-                if (Cache::has($this->key($tenantId, 'pending'))) {
-                    return false;
-                }
-
-                $interval = max(5, min(1440, (int) ($current['sync_interval_minutes'] ?? 15)));
-                $last = Cache::get($this->key($tenantId, 'last_dispatch'), []);
-                if (! $force && is_array($last)
-                    && ($last['fingerprint'] ?? '') === $fingerprint
-                    && (int) ($last['at'] ?? 0) > now()->timestamp - ($interval * 60)) {
-                    return false;
-                }
-
-                $reservation = (string) Str::uuid();
-                Cache::put($this->key($tenantId, 'pending'), $reservation, self::RESERVATION_SECONDS);
-
-                try {
-                    Bus::dispatch(new SyncMicrosoftDevices($tenantId, $fingerprint, $reservation));
-                } catch (Throwable $exception) {
-                    Cache::forget($this->key($tenantId, 'pending'));
-                    throw $exception;
-                }
-
-                Cache::put($this->key($tenantId, 'last_dispatch'), [
-                    'at' => now()->timestamp,
-                    'fingerprint' => $fingerprint,
-                ], now()->addDays(2));
-
-                return true;
-            });
-        };
-
-        if (DB::transactionLevel() > 0) {
-            DB::afterCommit(function () use ($dispatch): void {
-                try {
-                    $dispatch();
-                } catch (Throwable) {
-                    $this->logDispatchFailure();
-                }
-            });
-
-            return true;
-        }
-
-        return $dispatch();
+            // Ledger and actual database queue row commit together, including
+            // an enclosing sign-in transaction. Workers cannot see either early.
+            return $this->runtime->queueSync($currentSnapshot, $force);
+        }, 3);
     }
 
     public function afterMicrosoftSignIn(VerifiedEntraIdentity $identity, User $user): void
@@ -165,48 +120,11 @@ final class MicrosoftDeviceSyncScheduler
                     return;
                 }
 
-                // Capture the queued snapshot while the settings row is locked.
-                // Dispatch happens after commit and rechecks that same fingerprint.
-                // Cached compose refreshes still respect the normal interval.
+                // Identity binding and the durable queue insert commit together.
                 $this->queue();
             });
         } catch (Throwable) {
             $this->logDispatchFailure();
-        }
-    }
-
-    public function release(string $tenantId, string $reservation): void
-    {
-        Cache::lock($this->key($tenantId, 'dispatch'), 10)->get(function () use ($tenantId, $reservation): void {
-            if (Cache::get($this->key($tenantId, 'pending')) === $reservation) {
-                Cache::forget($this->key($tenantId, 'pending'));
-            }
-        });
-    }
-
-    private function key(string $tenantId, string $suffix): string
-    {
-        return 'microsoft-device-sync:'.hash('sha256', strtolower($tenantId)).':'.$suffix;
-    }
-
-    private function assertQueueReady(): void
-    {
-        $configuration = config('queue.connections.'.SyncMicrosoftDevices::CONNECTION, []);
-        if (! is_array($configuration)
-            || ($configuration['driver'] ?? '') !== 'database'
-            || (int) ($configuration['retry_after'] ?? 0) <= 270) {
-            throw new RuntimeException('Die Microsoft-Geraetesynchronisierung benoetigt die Datenbankqueue microsoft_devices mit retry_after ueber 270 Sekunden. Bitte den Konfigurationscache nach dem Update erneuern.');
-        }
-
-        try {
-            $database = $configuration['connection'] ?? config('database.default');
-            $hasTable = Schema::connection($database)->hasTable((string) ($configuration['table'] ?? 'jobs'));
-        } catch (Throwable) {
-            $hasTable = false;
-        }
-
-        if (! $hasTable) {
-            throw new RuntimeException('Die Microsoft-Geraetesynchronisierung benoetigt die erreichbare jobs-Tabelle. Bitte die Datenbankverbindung und ausstehenden Migrationen pruefen.');
         }
     }
 
