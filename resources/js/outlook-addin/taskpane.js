@@ -38,6 +38,9 @@ let silentBootstrapRefreshPromise;
 let signatureStateRefreshPromise;
 let lastActionError = null;
 let pendingTemplateConfirmation = null;
+let observedComposeItem = null;
+// Display evidence only, never cached authorization for another Office write.
+const confirmedInsertions = new WeakMap();
 const boundDialogRoots = new WeakSet();
 const startedTaskpaneRoots = new WeakSet();
 const taskpaneState = {
@@ -544,9 +547,36 @@ function existingAttachments(item) {
 
 function setSignature(item, html) {
     if (html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
+    const binding = currentBootstrap?.binding;
     return confirmedOfficeWrite(Office, item, 'signature-write', 'SIGNATURE_INSERT_UNCERTAIN',
         (callback) => item.body.setSignatureAsync(html, { coercionType: Office.CoercionType.Html }, callback),
-        { onSettled: () => syncActionState() });
+        { onSettled: () => syncActionState() }).then((result) => {
+        rememberConfirmedInsertion(item, 'signature', binding);
+        return result;
+    });
+}
+
+function rememberConfirmedInsertion(item, kind, binding) {
+    if (!item || !binding) return;
+    const existing = confirmedInsertions.get(item);
+    const evidence = existing?.mailboxAddress === binding.mailboxAddress && existing?.senderAddress === binding.senderAddress
+        ? existing : { mailboxAddress: binding.mailboxAddress, senderAddress: binding.senderAddress };
+    evidence[kind] = true;
+    confirmedInsertions.set(item, evidence);
+}
+
+function insertionDisplayEvidence() {
+    const item = globalThis.Office?.context?.mailbox?.item;
+    const binding = currentBootstrap?.binding;
+    const evidence = item && confirmedInsertions.get(item);
+    const sameBinding = Boolean(binding && evidence
+        && evidence.mailboxAddress === binding.mailboxAddress && evidence.senderAddress === binding.senderAddress);
+    return {
+        signatureWriteConfirmed: sameBinding && evidence.signature === true,
+        templateWriteConfirmed: sameBinding && evidence.template === true,
+        signatureCurrent: observedComposeItem === item && taskpaneState.signatureCurrent,
+        templatePresent: observedComposeItem === item && taskpaneState.templatePresent,
+    };
 }
 
 function composeItem() {
@@ -886,11 +916,12 @@ async function refreshSignatureCurrentState() {
     }
 
     const revision = ++signatureStateRevision;
+    const item = Office.context.mailbox.item;
+    const itemRevision = mailboxItemRevision;
     let isCurrent = false;
     let templatePresent = false;
 
     try {
-        const item = Office.context.mailbox.item;
         const [bodyHtml, composeType] = await Promise.all([readBodyHtml(item), readComposeType(item)]);
         const templateState = templateStateFromBody(bodyHtml, composeType);
         isCurrent = !templateState.tooLarge && signatureIsCurrent(payload, bodyHtml, composeType);
@@ -902,12 +933,15 @@ async function refreshSignatureCurrentState() {
     }
 
     if (revision !== signatureStateRevision
+        || item !== Office.context.mailbox.item
+        || itemRevision !== mailboxItemRevision
         || payload !== currentBootstrap
         || !taskpaneState.authenticated
         || !taskpaneState.bootstrapReady) {
         return;
     }
 
+    observedComposeItem = item;
     taskpaneState.signatureCurrent = isCurrent;
     taskpaneState.templatePresent = templatePresent;
     renderSelectedTemplate();
@@ -1065,6 +1099,7 @@ function invalidateBootstrap(templateState, authenticationLost = false) {
     bootstrapStateRevision += 1;
     signatureStateRevision += 1;
     currentBootstrap = null;
+    observedComposeItem = null;
     taskpaneState.bootstrapReady = false;
     taskpaneState.signatureCurrent = false;
     taskpaneState.signatureVersion = '';
@@ -1189,11 +1224,12 @@ function userMessage(error) {
 }
 
 function readyStatusDetail() {
+    const evidence = insertionDisplayEvidence();
     const templateCount = taskpaneState.templates.length;
     const templateLabel = templateCount === 1
         ? '1 Vorlage verfügbar'
         : `${templateCount} Vorlagen verfügbar`;
-    const signatureLabel = taskpaneState.signatureCurrent
+    const signatureLabel = evidence.signatureCurrent
         ? 'Signatur aktuell'
         : 'Signatur prüfen';
 
@@ -1203,7 +1239,13 @@ function readyStatusDetail() {
     const automatic = automaticTemplate(currentBootstrap)
         ? 'Eine veröffentlichte Outlook-Standardvorlage ist konfiguriert; der automatische Start hängt vom Outlook-Client und der Add-in-Zuweisung ab.'
         : 'Keine veröffentlichte Outlook-Standardvorlage festgelegt; automatisch ist nur die Signatur vorgesehen.';
-    return `Anmeldung und Datenabruf bestätigt, noch keine Einfügung bestätigt. ${templateLabel} · ${signatureLabel}. ${automatic} ${templateSupport}`;
+    const confirmedParts = [evidence.signatureWriteConfirmed ? 'Signatur' : '', evidence.templateWriteConfirmed ? 'Vorlage' : ''].filter(Boolean);
+    const insertion = confirmedParts.length > 0
+        ? `Outlook hat die Einfügung von ${confirmedParts.join(' und ')} in dieser Nachricht bestätigt.`
+        : evidence.signatureCurrent || evidence.templatePresent
+            ? 'RailTime-Inhalte wurden in dieser Nachricht erkannt.'
+            : 'Anmeldung und Datenabruf bestätigt, noch keine Einfügung bestätigt.';
+    return `${insertion} ${templateLabel} · ${signatureLabel}. ${automatic} ${templateSupport}`;
 }
 
 function handleFailure(error, bootstrapWasLoaded = false) {
@@ -1438,6 +1480,8 @@ async function insertTemplate(button) {
         // Native success is sufficient; do not immediately pull the full body
         // back across the Office bridge while Outlook is rendering it.
         signatureStateRevision += 1;
+        rememberConfirmedInsertion(item, 'template', bootstrap.binding);
+        observedComposeItem = item;
         taskpaneState.templatePresent = true;
         renderSelectedTemplate();
 
@@ -1468,13 +1512,30 @@ function confirmAdditionalTemplate() {
     });
 }
 
-function showDiagnosticReport(boundMailbox = false) {
+async function showDiagnosticReport() {
     const output = document.querySelector('[data-outlook-diagnostics-output]');
     if (!output) return;
+    let boundMailbox = false;
+    let boundMailboxChecked = false;
+    if (taskpaneState.authenticated && taskpaneState.bootstrapReady && currentBootstrap) {
+        const payload = currentBootstrap;
+        try {
+            const target = captureComposeTarget();
+            boundMailboxChecked = true;
+            await diagnoseStep('diagnostic-mailbox-binding', () => assertWriteTarget(target, payload.binding));
+            boundMailbox = taskpaneState.authenticated && taskpaneState.bootstrapReady
+                && payload.binding?.mailboxAddress === currentBootstrap?.binding?.mailboxAddress
+                && payload.binding?.senderAddress === currentBootstrap?.binding?.senderAddress;
+        } catch {
+            // A failed current From read is not a successful historical check.
+            // Reporting itself never writes or grants permission to insert.
+        }
+    }
     const report = diagnosticReport(globalThis.Office, {
         configured: taskpaneState.configReady, authenticated: taskpaneState.authenticated,
-        bootstrapReady: taskpaneState.bootstrapReady, boundMailbox,
+        bootstrapReady: taskpaneState.bootstrapReady, boundMailbox, boundMailboxChecked,
         automaticTemplate: Boolean(automaticTemplate(currentBootstrap)), writeBlocked: insertionBlocked(),
+        ...(boundMailbox ? insertionDisplayEvidence() : {}),
     });
     output.value = JSON.stringify(report, null, 2);
     output.hidden = false;
@@ -1497,6 +1558,8 @@ async function runDiagnostics(button) {
         await acceptBootstrap(bootstrap, { inspectBody: false });
         const state = await diagnoseStep('compose-preflight', () => readTemplateState(Office, target.item));
         if (!state.readable) throw Object.assign(codedError(state.errorCode || (state.uncertain ? 'TEMPLATE_INSERT_UNCERTAIN' : 'COMPOSE_BODY_UNREADABLE')), { phase: state.phase, officeCode: state.officeCode, reason: state.reason });
+        if (state.tooLarge) throw codedError('COMPOSE_BODY_TOO_LARGE');
+        await assertWriteTarget(target, bootstrap.binding);
         if (insertionBlocked()) throw codedError('TEMPLATE_INSERT_UNCERTAIN');
         lastActionError = null;
         setStatus('success', 'Verbindung und Vorprüfung bestätigt', `${readyStatusDetail()} Die Diagnose hat nichts in Ihre Nachricht eingefügt.`);
@@ -1506,7 +1569,7 @@ async function runDiagnostics(button) {
         setBusy(false);
         button.disabled = false;
         syncActionState();
-        showDiagnosticReport(boundMailbox);
+        await showDiagnosticReport();
     }
 }
 
@@ -1553,7 +1616,8 @@ function bindActions() {
     diagnosticButton?.addEventListener('click', () => runDiagnostics(diagnosticButton));
     document.querySelector('[data-outlook-diagnostics-copy]')?.addEventListener('click', async () => {
         const output = document.querySelector('[data-outlook-diagnostics-output]');
-        if (!output?.value) showDiagnosticReport();
+        await showDiagnosticReport();
+        if (!output?.value) return;
         try {
             await navigator.clipboard.writeText(output.value);
             document.querySelector('[data-outlook-diagnostics-feedback]').textContent = 'Diagnose kopiert – ohne Nachrichtentext, Adressen oder Zugangsdaten.';

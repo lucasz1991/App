@@ -47,7 +47,11 @@ export function diagnosticReport(office, state = {}) {
         checks: {
             configured: state.configured === true, authenticated: state.authenticated === true,
             boundMailbox: state.boundMailbox === true, bootstrapReady: state.bootstrapReady === true,
+            boundMailboxChecked: state.boundMailboxChecked === true,
             automaticTemplate: state.automaticTemplate === true, writeBlocked: state.writeBlocked === true,
+            signatureWriteConfirmed: state.signatureWriteConfirmed === true,
+            templateWriteConfirmed: state.templateWriteConfirmed === true,
+            signatureCurrent: state.signatureCurrent === true, templatePresent: state.templatePresent === true,
         },
         events: events.map((entry) => ({ ...entry })),
     };

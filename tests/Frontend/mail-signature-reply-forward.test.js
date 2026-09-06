@@ -964,6 +964,7 @@ async function taskpaneFixture(options = {}) {
     const client = new Function('Office', 'globalThis', 'document', 'window', 'fetch', 'auth', 'shared', `${script}\nreturn {
         async setup(config, payload) { currentConfig = config; configPromise = Promise.resolve(config); taskpaneState.configReady = true; taskpaneState.authenticated = true; taskpaneState.busy = false; await acceptBootstrap(payload, {inspectBody:false}); },
         insertTemplate, updateSignature, taskpaneState, runDiagnostics, bindActions, requestSilentBootstrapRefresh,
+        showDiagnosticReport, readyStatusDetail, refreshSignatureCurrentState, handleMailboxItemChanged,
         resetBootstrapAge() { lastBootstrapRefreshAt = 0; },
         refreshPending() { return silentBootstrapRefreshPromise; }
     };`)(fixture.office, { Office: fixture.office }, document, window,
@@ -1015,6 +1016,101 @@ test('cancelling an additional native template makes no signature, media or body
     await pending;
     assert.deepEqual(fixture.state.mutations, []);
     assert.equal(fixture.state.html, html);
+});
+
+test('read-only bootstrap refresh and diagnostics retain confirmed native signature and template evidence', async () => {
+    const { fixture, client, document } = await taskpaneFixture();
+    await client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
+    const mutations = [...fixture.state.mutations];
+    assert.deepEqual(mutations, ['signature', 'template']);
+    client.resetBootstrapAge();
+    client.requestSilentBootstrapRefresh();
+    await client.refreshPending();
+    assert.match(document.querySelector('[data-outlook-status-detail]').textContent, /Einfügung von Signatur und Vorlage.*bestätigt/);
+    assert.doesNotMatch(document.querySelector('[data-outlook-status-detail]').textContent, /noch keine Einfügung/);
+    await client.runDiagnostics(document.querySelector('[data-outlook-diagnostics-run]'));
+    const report = JSON.parse(document.querySelector('[data-outlook-diagnostics-output]').value);
+    assert.equal(report.checks.boundMailbox, true);
+    assert.equal(report.checks.boundMailboxChecked, true);
+    assert.equal(report.checks.signatureWriteConfirmed, true);
+    assert.equal(report.checks.templateWriteConfirmed, true);
+    assert.deepEqual(fixture.state.mutations, mutations, 'reporting never repeats an insertion');
+    assert.doesNotMatch(document.querySelector('[data-outlook-status-detail]').textContent, /noch keine Einfügung/);
+});
+
+test('first and repeated diagnostic exports freshly validate From instead of defaulting false or copying stale success', async () => {
+    const { fixture, client, document } = await taskpaneFixture();
+    let sender = 'employee@example.test', reads = 0;
+    fixture.item.from.getAsync = callback => {
+        reads++;
+        callback({ status: 'succeeded', value: { emailAddress: sender } });
+    };
+    await client.showDiagnosticReport();
+    let report = JSON.parse(document.querySelector('[data-outlook-diagnostics-output]').value);
+    assert.equal(report.checks.boundMailbox, true);
+    assert.equal(report.checks.boundMailboxChecked, true);
+    assert.equal(reads, 1);
+    sender = 'private@personal.test';
+    await client.showDiagnosticReport();
+    report = JSON.parse(document.querySelector('[data-outlook-diagnostics-output]').value);
+    assert.equal(report.checks.boundMailbox, false);
+    assert.equal(report.checks.boundMailboxChecked, true);
+    assert.equal(reads, 2);
+    assert.doesNotMatch(JSON.stringify(report), /employee@example|private@personal|synthetic-test-token/);
+    assert.deepEqual(fixture.state.mutations, []);
+});
+
+test('confirmed insertion status does not carry over to another compose item', async () => {
+    const { fixture, client, document, bootstrap, config } = await taskpaneFixture();
+    await client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
+    const fresh = composeFixture();
+    fixture.office.context.mailbox.item = fresh.item;
+    client.handleMailboxItemChanged();
+    await client.setup(config, bootstrap);
+    assert.match(client.readyStatusDetail(), /noch keine Einfügung/);
+    await client.showDiagnosticReport();
+    const report = JSON.parse(document.querySelector('[data-outlook-diagnostics-output]').value);
+    assert.equal(report.checks.boundMailbox, true);
+    assert.equal(report.checks.signatureWriteConfirmed, false);
+    assert.equal(report.checks.templateWriteConfirmed, false);
+    assert.deepEqual(fresh.state.mutations, []);
+});
+
+test('an automatically inserted body is reported as detected without inventing taskpane write confirmations', async () => {
+    const version = '1234567890abcdef';
+    const html = `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><p>Content</p><!--RT-SIGNATURE-VERSION:${version}-->`;
+    const { fixture, client, document, config, bootstrap } = await taskpaneFixture({ html });
+    bootstrap.version = { signature: version, personal: 'abcdefgh12345678' };
+    await client.setup(config, bootstrap);
+    await client.refreshSignatureCurrentState();
+    assert.match(client.readyStatusDetail(), /Inhalte wurden in dieser Nachricht erkannt/);
+    assert.doesNotMatch(client.readyStatusDetail(), /noch keine Einfügung/);
+    await client.showDiagnosticReport();
+    const report = JSON.parse(document.querySelector('[data-outlook-diagnostics-output]').value);
+    assert.equal(report.checks.signatureCurrent, true);
+    assert.equal(report.checks.templatePresent, true);
+    assert.equal(report.checks.signatureWriteConfirmed, false);
+    assert.equal(report.checks.templateWriteConfirmed, false);
+    assert.deepEqual(fixture.state.mutations, []);
+});
+
+test('a body read that completes after the item changes cannot mark the new draft as current', async () => {
+    const { fixture, client, config, bootstrap } = await taskpaneFixture();
+    const version = '1234567890abcdef';
+    bootstrap.version = { signature: version, personal: 'abcdefgh12345678' };
+    await client.setup(config, bootstrap);
+    let callback;
+    fixture.item.body.getAsync = (_format, cb) => { callback = cb; };
+    const pending = client.refreshSignatureCurrentState();
+    const fresh = composeFixture();
+    fixture.office.context.mailbox.item = fresh.item;
+    client.handleMailboxItemChanged();
+    await client.setup(config, bootstrap);
+    callback({ status: 'succeeded', value: `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><!--RT-SIGNATURE-VERSION:${version}-->` });
+    await pending;
+    assert.equal(client.taskpaneState.signatureCurrent, false);
+    assert.equal(client.taskpaneState.templatePresent, false);
+    assert.match(client.readyStatusDetail(), /noch keine Einfügung/);
 });
 
 test('authenticated taskpane inserts once on double click with native preflights and no readback', async () => {
