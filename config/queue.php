@@ -48,7 +48,7 @@ return [
             'driver' => 'database',
             'connection' => null,
             'table' => 'jobs',
-            'queue' => 'microsoft-devices',
+            'queue' => 'microsoft_devices',
             'retry_after' => 300,
             'after_commit' => true,
         ],

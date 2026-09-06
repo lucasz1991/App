@@ -21,7 +21,8 @@ Schedulerkontakt, Workerbeleg und Auftragsstatus vom Graph-Verbindungstest.
 echten Queueweg ohne Microsoft-Zugriff. Ein grüner Verbindungstest, CLI-Exitcode 0
 oder nur eingeplanter Auftrag ist keine Produktionsfreigabe.
 
-Plesk 8 betreut genau einen zusätzlichen Worker für `microsoft-devices`
+Ziel nach dem Queue-Namenskorrekturrelease: Plesk 8 betreut genau einen
+zusätzlichen Worker für `microsoft_devices`
 (Timeout 240 Sekunden, Max Time 3600 Sekunden); die Connection
 `microsoft_devices` wird isoliert durch RailTime gewählt. Bestehende Queues
 bleiben erhalten. Kein zusätzlicher app-eigener Worker und keine neuen
@@ -37,8 +38,11 @@ andere Apps nicht verändert. Tenant-/Client-ID sind im RailTime-Setup
 gespeichert und nach erneutem Laden bestätigt. Der Nutzer muss das noch
 leere Client-Geheimnis erstellen und direkt im geschützten Setup speichern;
 Automatik und Intune bleiben aus. Bestehendes Schema und `pcntl` sind lesend
-bestätigt, aber Runtime-Release, neue Plesk-Migration, echter Worker- und
-Graphnachweis sowie Windows-Pilot weiterhin offen.
+bestätigt. Release `9bf712dd`, Runtime-Migration `030000`, Paket v8.0.0 und
+Cacheaufbau sind live erfolgt. Der Microsoft-Worker läuft noch nicht, weil
+die Plesk-UI Bindestriche im Queuenamen ablehnt. Die Korrektur auf kanonisch
+`microsoft_devices` (Queue und Connection) benötigt einen Folgerelease;
+echte Workerprobe, Graphnachweis und Windows-Pilot bleiben offen.
 
 Einrichtung, Berechtigungen, Worker und Grenzen:
 [Microsoft Entra & Windows](microsoft-entra-windows.md).

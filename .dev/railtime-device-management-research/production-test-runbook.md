@@ -15,8 +15,12 @@ mit Adminzustimmung **„Gewährt für RailTime“**; unnötiges automatisch erg
 Tenant- und Client-ID sind im RailTime-Setup gespeichert und nach erneutem
 Laden bestätigt. Das Client-Geheimnis bleibt leer und muss vom Nutzer erstellt
 und direkt im geschützten Setup gespeichert werden. Automatik und Intune aus.
-Bestehendes Schema und `pcntl` sind lesend bestätigt; Runtime-Release, neue
-Plesk-Migration, Workerprobe und erfolgreicher Graphabruf sind weiterhin offen.
+Bestehendes Schema und `pcntl` sind lesend bestätigt. Release `9bf712dd`,
+Runtime-Migration `030000`, Plesk-Paket v8.0.0 und Cacheaufbau sind live erfolgt.
+Die Queueanlage scheitert bislang am von Plesk abgelehnten Bindestrichnamen;
+der Microsoft-Worker läuft noch nicht. Korrektur auf `microsoft_devices`
+erst mit dem Folgerelease bereitstellen, dann Workerprobe abnehmen.
+Ein erfolgreicher Graphabruf ist weiterhin nicht nachgewiesen.
 
 ### Gate M1 – gemeinsamer Release und Plesk-Betrieb
 
@@ -37,10 +41,13 @@ Plesk-Migration, Workerprobe und erfolgreicher Graphabruf sind weiterhin offen.
    Der bestehende äußere Scheduler läuft weiterhin jede Minute.
 4. In **Plesk → Domain → Laravel → Queue** die bestehenden Queues, insbesondere
    `default`, `calls`, `devices`, mit allen bisherigen Parametern erhalten.
-   Zusätzlich `microsoft-devices` aktivieren: **1 Worker**, Timeout **240**,
+   Nach Bereitstellung der Namenskorrektur zusätzlich `microsoft_devices`
+   aktivieren: **1 Worker**, Timeout **240**,
    Max Jobs **0**, Max Time **3600**, **Stop Worker When Empty aus**.
    Die Plesk-UI hat kein eigenes Connectionfeld; der RailTime-Adapter routet
-   exakt diese Queue zu `microsoft_devices` mit `retry_after=300`.
+   exakt diese Queue zur gleichnamigen Connection mit `retry_after=300`.
+   Plesk erlaubt nur lateinische Buchstaben, Ziffern und Unterstriche; den
+   früheren, live abgewiesenen Bindestrichnamen nicht erneut verwenden.
    Keine Queue-Mischliste und keine globale Änderung von `retry_after`.
 5. Alte Prozesse beim Wechsel kontrolliert auslaufen lassen. Plesk verwaltet
    den gesamten Lifecycle und `.env.plesk`. **Keinen zusätzlichen app-eigenen

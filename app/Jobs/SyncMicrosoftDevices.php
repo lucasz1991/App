@@ -23,7 +23,8 @@ final class SyncMicrosoftDevices implements ShouldQueue
 
     public const CONNECTION = 'microsoft_devices';
 
-    public const QUEUE = 'microsoft-devices';
+    // Plesk queue identifiers only allow Latin letters, digits and underscores.
+    public const QUEUE = 'microsoft_devices';
 
     public int $tries = 1;
 

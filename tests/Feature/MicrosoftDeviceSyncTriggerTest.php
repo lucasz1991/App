@@ -173,7 +173,7 @@ final class MicrosoftDeviceSyncTriggerTest extends TestCase
         $this->assertTrue($this->scheduler->queue());
 
         $row = DB::table('jobs')->sole();
-        $this->assertSame('microsoft-devices', $row->queue);
+        $this->assertSame('microsoft_devices', $row->queue);
         $this->assertNull($row->reserved_at);
         $payload = json_decode($row->payload, true, flags: JSON_THROW_ON_ERROR);
         $this->assertSame(SyncMicrosoftDevices::class, $payload['displayName']);
@@ -405,9 +405,9 @@ final class MicrosoftDeviceSyncTriggerTest extends TestCase
         $sync = Mockery::mock(MicrosoftDeviceSyncService::class);
         $sync->shouldReceive('sync')->once()->andReturn(['status' => 'success']);
         $this->app->instance(MicrosoftDeviceSyncService::class, $sync);
-        Queue::connection('microsoft_devices')->pop('microsoft-devices')->fire();
+        Queue::connection('microsoft_devices')->pop('microsoft_devices')->fire();
         $this->assertSame('queued', $this->runtime->status()['run']['status']);
-        Queue::connection('microsoft_devices')->pop('microsoft-devices')->fire();
+        Queue::connection('microsoft_devices')->pop('microsoft_devices')->fire();
         $this->assertSame('completed', $this->runtime->status()['run']['status']);
         $this->assertDatabaseCount('jobs', 0);
         Http::assertNothingSent();
@@ -466,7 +466,7 @@ final class MicrosoftDeviceSyncTriggerTest extends TestCase
         $this->assertNull($this->runtime->status()['worker_probe']['acknowledged_at']);
         $this->assertSame('unknown', $this->runtime->status()['worker']['state']);
 
-        $this->artisan('queue:work microsoft_devices --queue=microsoft-devices --once --sleep=0 --timeout=30 --tries=1')->assertSuccessful();
+        $this->artisan('queue:work microsoft_devices --queue=microsoft_devices --once --sleep=0 --timeout=30 --tries=1')->assertSuccessful();
         $status = $this->runtime->status();
         $this->assertSame('completed', $status['worker_probe']['status']);
         $this->assertNotNull($status['worker_probe']['acknowledged_at']);
@@ -511,7 +511,7 @@ final class MicrosoftDeviceSyncTriggerTest extends TestCase
     public function test_an_existing_default_database_worker_cannot_acknowledge_or_run_microsoft_jobs(): void
     {
         $this->assertTrue($this->runtime->queueWorkerProbe());
-        $wrongWorkerJob = Queue::connection('database')->pop('microsoft-devices');
+        $wrongWorkerJob = Queue::connection('database')->pop('microsoft_devices');
         $this->assertInstanceOf(DatabaseJob::class, $wrongWorkerJob);
         $this->assertSame('database', $wrongWorkerJob->getConnectionName());
         $probe = unserialize($wrongWorkerJob->payload()['data']['command']);
@@ -524,7 +524,7 @@ final class MicrosoftDeviceSyncTriggerTest extends TestCase
         $wrongWorkerJob->delete();
 
         $this->assertTrue($this->scheduler->queue());
-        $wrongWorkerJob = Queue::connection('database')->pop('microsoft-devices');
+        $wrongWorkerJob = Queue::connection('database')->pop('microsoft_devices');
         $job = unserialize($wrongWorkerJob->payload()['data']['command']);
         $job->setJob($wrongWorkerJob);
         $settings = Mockery::mock(MicrosoftDeviceSettings::class);
@@ -562,7 +562,7 @@ final class MicrosoftDeviceSyncTriggerTest extends TestCase
     /** @return array{SyncMicrosoftDevices, DatabaseJob} */
     private function reserveSync(): array
     {
-        $databaseJob = Queue::connection('microsoft_devices')->pop('microsoft-devices');
+        $databaseJob = Queue::connection('microsoft_devices')->pop('microsoft_devices');
         $this->assertInstanceOf(DatabaseJob::class, $databaseJob);
         $job = unserialize($databaseJob->payload()['data']['command']);
         $this->assertInstanceOf(SyncMicrosoftDevices::class, $job);

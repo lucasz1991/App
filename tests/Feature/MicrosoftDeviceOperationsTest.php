@@ -51,7 +51,7 @@ final class MicrosoftDeviceOperationsTest extends TestCase
         $this->assertFalse($report['microsoft_configured']);
         $this->assertSame('queued', $report['worker_probe']['status']);
         $this->assertNull($report['worker_probe']['acknowledged_at']);
-        $this->assertDatabaseHas('jobs', ['queue' => 'microsoft-devices', 'reserved_at' => null]);
+        $this->assertDatabaseHas('jobs', ['queue' => 'microsoft_devices', 'reserved_at' => null]);
         $this->assertSame(1, DB::table('microsoft_device_runs')->where('kind', 'probe')->count());
         Http::assertNothingSent();
     }

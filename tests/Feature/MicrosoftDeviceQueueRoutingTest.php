@@ -54,9 +54,9 @@ class MicrosoftDeviceQueueRoutingTest extends TestCase
     public static function validWorkers(): array
     {
         return [
-            'Plesk Microsoft worker' => [['--queue' => 'microsoft-devices'], 'microsoft_devices', 'microsoft-devices'],
-            'explicit Microsoft worker' => [['connection' => 'microsoft_devices', '--queue' => 'microsoft-devices'], 'microsoft_devices', 'microsoft-devices'],
-            'explicit connection default' => [['connection' => 'microsoft_devices'], 'microsoft_devices', 'microsoft-devices'],
+            'Plesk Microsoft worker' => [['--queue' => 'microsoft_devices'], 'microsoft_devices', 'microsoft_devices'],
+            'explicit Microsoft worker' => [['connection' => 'microsoft_devices', '--queue' => 'microsoft_devices'], 'microsoft_devices', 'microsoft_devices'],
+            'explicit connection default' => [['connection' => 'microsoft_devices'], 'microsoft_devices', 'microsoft_devices'],
             'legacy default worker' => [[], 'database', 'default'],
             'existing combined worker' => [['--queue' => 'default,calls,devices'], 'database', 'default,calls,devices'],
             'calls worker' => [['--queue' => 'calls'], 'database', 'calls'],
@@ -86,14 +86,14 @@ class MicrosoftDeviceQueueRoutingTest extends TestCase
     public static function invalidWorkers(): array
     {
         return [
-            'wrong database connection' => [['connection' => 'database', '--queue' => 'microsoft-devices']],
-            'wrong Redis connection' => [['connection' => 'redis', '--queue' => 'microsoft-devices']],
-            'mixed default queue' => [['--queue' => 'microsoft-devices,default']],
-            'mixed calls queue' => [['--queue' => 'calls,microsoft-devices']],
-            'mixed and spaced' => [['--queue' => 'default, microsoft-devices']],
-            'duplicate Microsoft queue' => [['--queue' => 'microsoft-devices,microsoft-devices']],
-            'trailing separator' => [['--queue' => 'microsoft-devices,']],
-            'ambiguous whitespace' => [['--queue' => ' microsoft-devices ']],
+            'wrong database connection' => [['connection' => 'database', '--queue' => 'microsoft_devices']],
+            'wrong Redis connection' => [['connection' => 'redis', '--queue' => 'microsoft_devices']],
+            'mixed default queue' => [['--queue' => 'microsoft_devices,default']],
+            'mixed calls queue' => [['--queue' => 'calls,microsoft_devices']],
+            'mixed and spaced' => [['--queue' => 'default, microsoft_devices']],
+            'duplicate Microsoft queue' => [['--queue' => 'microsoft_devices,microsoft_devices']],
+            'trailing separator' => [['--queue' => 'microsoft_devices,']],
+            'ambiguous whitespace' => [['--queue' => ' microsoft_devices ']],
             'wrong queue on dedicated connection' => [['connection' => 'microsoft_devices', '--queue' => 'devices']],
         ];
     }
@@ -103,7 +103,9 @@ class MicrosoftDeviceQueueRoutingTest extends TestCase
         $jobDefaults = (new \ReflectionClass(SyncMicrosoftDevices::class))->getDefaultProperties();
 
         $this->assertSame('microsoft_devices', SyncMicrosoftDevices::CONNECTION);
-        $this->assertSame('microsoft-devices', SyncMicrosoftDevices::QUEUE);
+        $this->assertSame('microsoft_devices', SyncMicrosoftDevices::QUEUE);
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9_]+$/D', SyncMicrosoftDevices::QUEUE);
+        $this->assertSame(SyncMicrosoftDevices::QUEUE, config('queue.connections.microsoft_devices.queue'));
         $this->assertLessThan(config('queue.connections.microsoft_devices.retry_after'), $jobDefaults['timeout']);
     }
 

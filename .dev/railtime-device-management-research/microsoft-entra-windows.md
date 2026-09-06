@@ -9,11 +9,14 @@ registriert; das Portal bestätigt ausschließlich das Application-Recht
 Das automatisch hinzugefügte, unnötige `User.Read` wurde nur aus dieser App
 entfernt; andere Apps blieben unverändert. Tenant- und Client-ID sind im
 RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Das
-Client-Geheimnis bleibt leer: Der Nutzer erstellt es und speichert den Wert
-direkt im geschützten Setup, niemals in dieser Dokumentation. Automatik und
-Intune sind ausgeschaltet. Bestehendes Schema und `pcntl` wurden lesend
-bestätigt; Runtime-Release, neue Plesk-Migration, Worker- und Graphnachweis
-stehen weiterhin aus.
+Client-Geheimnis ist trotz Nutzerbestätigung noch nicht als gespeichert
+nachgewiesen (`secret_configured=false`); ein Wert gehört ausschließlich in
+das geschützte Setup, niemals in diese Dokumentation. Automatik und Intune
+sind ausgeschaltet. Release `9bf712dd`, Runtime-Migration `030000`, Plesk-Paket
+v8.0.0 und Cacheaufbau sind live bestätigt. Der Microsoft-Worker läuft noch
+nicht: Plesk lehnt den bisherigen Bindestrich-Queuenamen ab. Die nachfolgend
+dokumentierte Korrektur auf `microsoft_devices` muss erst bereitgestellt und
+danach mit echter Workerprobe geprüft werden. Graphnachweis bleibt offen.
 
 ## Was automatisch passiert
 
@@ -86,15 +89,21 @@ erhalten und ausschließlich die folgende Queue ergänzen:
 
 | Einstellung | Wert |
 | --- | --- |
-| Queue | `microsoft-devices` |
+| Queue | `microsoft_devices` |
 | Aktiv / Anzahl Worker | Ja / `1` |
 | Timeout | `240` Sekunden |
 | Stop Worker When Empty | Aus |
 | Max Jobs / Max Time | `0` / `3600` Sekunden |
 | Connection | Kein Plesk-Eingabefeld; RailTime wählt `microsoft_devices` |
 
+Plesk erlaubt im Queuenamen nur lateinische Buchstaben, Ziffern und Unterstriche.
+Der frühere Name mit Bindestrich wurde in der Live-UI abgewiesen; kanonischer
+Name ist deshalb `microsoft_devices` für Queue und Connection. Vor Aktivierung
+muss der entsprechende Korrekturrelease ausgerollt sein; `9bf712dd` allein
+enthält diese Namenskorrektur noch nicht.
+
 Plesk startet benannte Queues ohne positional Connection. Der RailTime-Adapter
-ordnet exakt `--queue=microsoft-devices` der dedizierten Connection
+ordnet exakt `--queue=microsoft_devices` der dedizierten Connection
 `microsoft_devices` zu; andere Queues bleiben unverändert. Gemischte
 Queue-Listen oder eine ausdrücklich falsche Connection werden abgewiesen.
 Die Microsoft-Connection nutzt die vorhandene Datenbank und `jobs` mit

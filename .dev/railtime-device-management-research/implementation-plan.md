@@ -26,7 +26,9 @@ Provider wird erst nach seinem eigenen Labor-Gate für Mutationen freigeschaltet
   Runtime-Migration `2026_09_06_030000_create_microsoft_device_runs`, getrennte
   Schema-/Queue-/Scheduler-/Workeranzeige, sichere Abbruchzustände und
   `devices:microsoft-status --json [--probe-worker]` sind vorhanden. Plesk 8
-  routet ausschließlich `microsoft-devices` auf `microsoft_devices`. Die
+  soll ausschließlich die Queue `microsoft_devices` auf die gleichnamige
+  Connection routen. Der Bindestrichname des ersten Releases wurde von der
+  Live-Plesk-UI abgewiesen; der Namenskorrekturrelease steht noch aus. Die
   separate App **„RailTime Geräteinventar“** ist real registriert; das Portal
   bestätigt ausschließlich Application `Device.Read.All` und Adminzustimmung
   **„Gewährt für RailTime“**. Unnötiges automatisch ergänztes `User.Read` nur
@@ -34,7 +36,9 @@ Provider wird erst nach seinem eigenen Labor-Gate für Mutationen freigeschaltet
   RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Das noch leere
   Client-Geheimnis erstellt der Nutzer und speichert es direkt im geschützten
   Setup; Automatik/Intune aus. Bestehendes Schema/`pcntl` lesend bestätigt;
-  Runtime-Release, neue Plesk-Migration, Worker und echter Graphabruf offen.
+  Release `9bf712dd`, Runtime-Migration `030000`, Paket v8.0.0 und Cacheaufbau
+  live bestätigt. Microsoft-Worker noch nicht gestartet; Workerprobe und
+  echter Graphabruf bleiben offen.
 - **RailTime Control Plane: umgesetzt und lokal testbar.** Das umfasst
   Inventar/Lager, Mitarbeiterzuordnung, providerbezogene Geräteverknüpfungen,
   assignment-gebundene Enrollments, Identitätsreferenzen, versionierte Profile,
@@ -68,7 +72,8 @@ oder Skriptausführung auf produktiv verwendeten Mitarbeitergeräten.
    v8.0.0 und isolierten Workeradapter zusammen ausliefern; Importmigration
    `020000` und neue Runtime-Migration `030000` prüfen beziehungsweise ausführen.
 2. Bestehende Plesk-Queues vollständig erhalten. Genau einen zusätzlichen
-   Worker `microsoft-devices` aktivieren: Timeout `240`, Max Jobs `0`,
+   Nach dem Namenskorrekturrelease Worker `microsoft_devices` aktivieren:
+   Timeout `240`, Max Jobs `0`,
    Max Time `3600`, Stop When Empty aus. Connectionzuordnung erfolgt durch
    RailTime; die bisherige Standardqueue wird nicht umgestellt. Plesk besitzt
    den Lifecycle; kein zusätzlicher app-eigener Worker oder zweiter Prozessplan.
