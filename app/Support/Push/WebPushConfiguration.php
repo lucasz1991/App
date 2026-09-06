@@ -50,6 +50,18 @@ class WebPushConfiguration
     public static function diagnostics(): array
     {
         $autoProvision = app(VapidAutoProvisioner::class)->ensureConfigured();
+
+        return self::inspectConfiguration($autoProvision);
+    }
+
+    /** Inspect existing keys only; unlike diagnostics(), never generate or save credentials. */
+    public static function inspect(): array
+    {
+        return self::inspectConfiguration(['issue' => null, 'provisioned' => false]);
+    }
+
+    private static function inspectConfiguration(array $autoProvision): array
+    {
         $enabled = (bool) config('webpush.enabled');
         $subject = trim((string) config('webpush.vapid.subject'));
         $publicKey = trim((string) config('webpush.vapid.public_key'));
