@@ -91,6 +91,46 @@ test('V22 rejects unbound sources unsupported breakpoint sizes and renewed overl
     }
 });
 
+test('optional desktop contain roundtrips without changing mobile size, content or GIF binding', () => {
+    for (const version of ['v22', 'v23']) {
+        for (const enabled of [true, false]) {
+            const html = backgroundSignature(enabled).replace('v22', version)
+                .replace('data-rt-bg-desktop="110"', 'data-rt-bg-desktop="110" data-rt-bg-desktop-fit="contain"')
+                .replace('background-size:110% auto', 'background-size:contain')
+                .replace('background-position:65% bottom', 'background-position:left bottom');
+            const project = projectForMailDocument({ html, builderData: { pages: [{ component: html }] } }, () => [], { kind: 'signature', environment: { DOMParser } });
+            const document = new DOMParser().parseFromString(`<html><body>${project.pages[0].component}</body></html>`, 'text/html');
+            const before = JSON.stringify(project);
+            hydrateMailCanvasAssets({ Canvas: { getDocument: () => document } }, 'light', { light: { train: '/mail/train.gif', logo: '/mail/logo.gif' } });
+            const carrier = document.querySelector('.rt-sign-cell');
+            assert.equal(carrier.style.backgroundSize, 'contain');
+            assert.equal(carrier.style.backgroundPosition, 'left bottom');
+            assert.equal(JSON.stringify(project), before);
+            const outgoing = serializeMailDocumentForSave({ project, html: project.pages[0].component, kind: 'signature', baselineHtml: html, environment: { DOMParser } });
+            assert.match(outgoing.html, /data-rt-bg-desktop-fit="contain"/);
+            assert.match(outgoing.html, /background-size:contain/);
+            assert.match(outgoing.html, /background-position:left bottom/);
+            assert.match(outgoing.html, /data-rt-bg-desktop="110"/);
+            assert.match(outgoing.html, /data-rt-bg-mobile="175"/);
+            assert.match(outgoing.html, /data-rt-bg-tablet="150"/);
+            assert.equal((outgoing.html.match(/\{\{TRAIN_SRC\}\}/g) || []).length, enabled ? 1 : 0);
+            assert.doesNotMatch(outgoing.html, /rt-sign-train-layer|height:|margin-bottom:\s*-/);
+            const again = projectForMailDocument({ html: outgoing.html, builderData: outgoing.project }, () => [], { kind: 'signature', environment: { DOMParser } });
+            assert.equal(serializeMailDocumentForSave({ project: again, html: again.pages[0].component, kind: 'signature', baselineHtml: outgoing.html, environment: { DOMParser } }).html, outgoing.html);
+        }
+    }
+});
+
+test('desktop contain does not permit arbitrary fit modes or mismatched source geometry', () => {
+    const html = backgroundSignature();
+    for (const value of ['', 'cover', '1440', 'Contain', 'contain;position:absolute']) {
+        const invalid = html.replace('data-rt-bg-desktop="110"', `data-rt-bg-desktop="110" data-rt-bg-desktop-fit="${value}"`);
+        assert.throws(() => projectForMailDocument({ html: invalid, builderData: { pages: [{ component: invalid }] } }, () => [], { kind: 'signature', environment: { DOMParser } }));
+    }
+    const mismatched = html.replace('data-rt-bg-desktop="110"', 'data-rt-bg-desktop="110" data-rt-bg-desktop-fit="contain"');
+    assert.throws(() => projectForMailDocument({ html: mismatched, builderData: { pages: [{ component: mismatched }] } }, () => [], { kind: 'signature', environment: { DOMParser } }));
+});
+
 test('V23 optional background editing and reload preserve the V18 content table and version', () => {
     const layout = '<table class="rt-sign-layout" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td class="rt-sign-logo" colspan="2">Logo</td></tr><tr class="rt-stack rt-sign-top-row"><td class="rt-sign-identity">Person</td><td class="rt-sign-company">Firma</td></tr></table>';
     const html = backgroundSignature().replace('v22', 'v23').replace('<p>Kontaktdaten</p>', layout);

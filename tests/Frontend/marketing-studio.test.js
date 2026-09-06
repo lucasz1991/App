@@ -1568,6 +1568,56 @@ test('signature background inspector saves independent breakpoints and supports 
     readonly.destroy();
 }));
 
+test('signature background inspector toggles desktop fit while preserving breakpoint values and read-only mode', () => coreWithDom(`
+    <div id="root"><div data-lmz-popover-panel="right:traits"><div><div data-lmz-mount="traits"></div></div></div></div>
+`, ({ document, window }) => {
+    const root = document.querySelector('#root');
+    const component = coreFakeComponent(document.createElement('td'), {
+        attributes: { class: 'rt-sign-cell', 'data-rt-signature-background': '1', 'data-rt-bg-desktop': '125', 'data-rt-bg-tablet': '150', 'data-rt-bg-mobile': '175' },
+        style: { padding: '0', 'background-color': '{{SIGNATURE_BG}}' },
+    });
+    let updates = 0;
+    const editor = { getSelected: () => component, trigger() { updates += 1; } };
+    const inspector = createMailSignatureBackgroundPanel({ root, editor, capabilities: { writable: true } });
+    inspector.refresh();
+    const fit = root.querySelector('[name="desktopFit"]');
+    const desktop = root.querySelector('[name="desktop"]');
+    const form = root.querySelector('form');
+    assert.equal(Boolean(fit.checked), false);
+    assert.equal(desktop.disabled, false);
+    fit.checked = true;
+    fit.dispatchEvent(new window.Event('change', { bubbles: true }));
+    inspector.refresh();
+    assert.equal(fit.checked, true);
+    assert.equal(desktop.disabled, true);
+    assert.equal(root.querySelector('[name="mobile"]').disabled, false);
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(component.state.attributes['data-rt-bg-desktop-fit'], 'contain');
+    assert.equal(component.state.attributes['data-rt-bg-desktop'], '125');
+    assert.equal(component.state.attributes['data-rt-bg-mobile'], '175');
+    assert.equal(component.state.attributes['data-rt-bg-tablet'], '150');
+    assert.equal(component.state.style['background-size'], 'contain');
+    assert.equal(component.state.style['background-position'], 'left bottom');
+    assert.equal(component.state.style.padding, '0');
+    fit.checked = false;
+    fit.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.equal(desktop.disabled, false);
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(component.state.attributes['data-rt-bg-desktop-fit'], undefined);
+    assert.equal(component.state.style['background-size'], '125% auto');
+    assert.equal(component.state.style['background-position'], '65% bottom');
+    assert.equal(updates, 2);
+    inspector.destroy();
+    const readonly = createMailSignatureBackgroundPanel({ root, editor, capabilities: { writable: false } });
+    readonly.refresh();
+    assert.equal(root.querySelector('[name="desktopFit"]').disabled, true);
+    root.querySelector('[name="desktopFit"]').checked = true;
+    root.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(updates, 2);
+    assert.equal(component.state.attributes['data-rt-bg-desktop-fit'], undefined);
+    readonly.destroy();
+}));
+
 function coreFakeEditor(root, selected, vendorSelection = null) {
     const handlers = new Map();
     const on = (name, callback) => {

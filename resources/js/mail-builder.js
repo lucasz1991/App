@@ -1592,10 +1592,14 @@ function assertSignatureBackgroundDocument(wrapper, rows) {
     if (Object.values(attributes).some((value) => !MAIL_SIGNATURE_BACKGROUND_SIZES.includes(value))) {
         throw new Error('Die Signatur besitzt keine gueltigen Hintergrundgroessen fuer alle drei Umbrueche.');
     }
+    const desktopFit = carrier.getAttribute('data-rt-bg-desktop-fit');
+    if (desktopFit !== null && desktopFit !== 'contain') {
+        throw new Error('Die Desktop-Einpassung des Signaturhintergrunds ist ungueltig.');
+    }
     assertInlineStyles(carrier, {
         'background-image': enabled === '1' ? "url('{{TRAIN_SRC}}')" : 'none',
-        'background-size': `${attributes.desktop}% auto`,
-        'background-position': '65% bottom',
+        'background-size': desktopFit === 'contain' ? 'contain' : `${attributes.desktop}% auto`,
+        'background-position': desktopFit === 'contain' ? 'left bottom' : '65% bottom',
         'background-repeat': 'no-repeat',
         'background-color': '{{SIGNATURE_BG}}',
     }, 'Der Signatur-Hintergrund');

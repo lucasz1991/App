@@ -1100,10 +1100,11 @@ export function isMailSignatureBackgroundComponent(component) {
 /** Desktop-inline geometry; the trusted mail CSS reads the other two presets. */
 export function mailSignatureBackgroundStyle(attributes = {}, source = "url('{{TRAIN_SRC}}')") {
     const desktop = String(attributes['data-rt-bg-desktop'] || '110');
+    const contain = attributes['data-rt-bg-desktop-fit'] === 'contain';
     return {
         'background-image': String(attributes['data-rt-signature-background']) === '1' ? source : 'none',
-        'background-size': `${MAIL_SIGNATURE_BACKGROUND_SIZES.includes(desktop) ? desktop : '110'}% auto`,
-        'background-position': '65% bottom',
+        'background-size': contain ? 'contain' : `${MAIL_SIGNATURE_BACKGROUND_SIZES.includes(desktop) ? desktop : '110'}% auto`,
+        'background-position': contain ? 'left bottom' : '65% bottom',
         'background-repeat': 'no-repeat',
     };
 }
@@ -3455,18 +3456,19 @@ export function createMailSignatureBackgroundPanel({ root, editor, capabilities,
         <form class="rt-lmz-image-properties__form">
             <label class="rt-lmz-image-properties__ratio"><input type="checkbox" name="enabled"><span>Hintergrund anzeigen</span></label>
             <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide"><span>Systemmedium</span><input name="source" type="text" readonly aria-readonly="true"></label>
+            <label class="rt-lmz-image-properties__ratio"><input type="checkbox" name="desktopFit"><span>Desktop: vollständig unten links einpassen</span></label>
             <div class="rt-lmz-image-properties__tabpanel">
                 <label class="rt-lmz-image-properties__field"><span>Desktop · über 860 px</span><select name="desktop">${options}</select></label>
                 <label class="rt-lmz-image-properties__field"><span>Tablet · bis 860 px</span><select name="tablet">${options}</select></label>
                 <label class="rt-lmz-image-properties__field"><span>Mobil · bis 480 px</span><select name="mobile">${options}</select></label>
             </div>
-            <p class="rt-lmz-image-properties__hint">Breite relativ zur Signatur; die Höhe bleibt proportional. Verankert unten bei 65 %. Die Werte werden mit dem Entwurf gespeichert. Manche Mailclients zeigen Hintergründe oder Animationen eingeschränkt; der Text bleibt unabhängig davon sichtbar.</p>
+            <p class="rt-lmz-image-properties__hint">Einpassen begrenzt das Desktopbild auf den Inhaltsbereich, ohne zusätzliche Höhe oder Beschnitt. Der Desktop-Prozentwert bleibt für den freien Modus gespeichert. Tablet und Mobil verwenden weiterhin ihre eigene proportionale Größe und den 65%-Anker. Manche Mailclients zeigen Hintergründe oder Animationen eingeschränkt; der Text bleibt unabhängig davon sichtbar.</p>
             <p class="rt-lmz-image-properties__message" aria-live="polite"></p>
             <button class="rt-lmz-image-properties__apply" type="submit">Übernehmen</button>
         </form>`;
     mount.parentElement.insertBefore(panel, mount);
     const form = panel.querySelector('form');
-    const controls = Object.fromEntries(['enabled', 'source', 'desktop', 'tablet', 'mobile']
+    const controls = Object.fromEntries(['enabled', 'source', 'desktopFit', 'desktop', 'tablet', 'mobile']
         .map((name) => [name, form.querySelector(`[name="${name}"]`)]));
     const message = panel.querySelector('[aria-live]');
     let target = null;
@@ -3481,6 +3483,7 @@ export function createMailSignatureBackgroundPanel({ root, editor, capabilities,
         const attributes = componentAttributes(target);
         if (!dirty) {
             controls.enabled.checked = String(attributes['data-rt-signature-background']) === '1';
+            controls.desktopFit.checked = attributes['data-rt-bg-desktop-fit'] === 'contain';
             ['desktop', 'tablet', 'mobile'].forEach((breakpoint) => {
                 const value = String(attributes[`data-rt-bg-${breakpoint}`] || '110');
                 const options = [...controls[breakpoint].querySelectorAll('option')];
@@ -3492,9 +3495,14 @@ export function createMailSignatureBackgroundPanel({ root, editor, capabilities,
         const definition = currentMediaItems(media.tokenMedia).find((item) => normalizedToken(item?.token) === 'TRAIN_SRC');
         controls.source.value = assetSource(definition) || '{{TRAIN_SRC}}';
         form.querySelectorAll('input, select, button').forEach((control) => { control.disabled = !capabilities.writable; });
+        controls.desktop.disabled = !capabilities.writable || controls.desktopFit.checked;
         return true;
     };
-    const markDirty = () => { dirty = true; message.textContent = ''; };
+    const markDirty = () => {
+        dirty = true;
+        message.textContent = '';
+        controls.desktop.disabled = !capabilities.writable || controls.desktopFit.checked;
+    };
     const submit = (event) => {
         event.preventDefault();
         if (!target || !capabilities.writable) return;
@@ -3506,7 +3514,9 @@ export function createMailSignatureBackgroundPanel({ root, editor, capabilities,
         const attributes = {
             'data-rt-signature-background': controls.enabled.checked ? '1' : '0',
             ...Object.fromEntries(Object.entries(values).map(([key, value]) => [`data-rt-bg-${key}`, value])),
+            ...(controls.desktopFit.checked ? { 'data-rt-bg-desktop-fit': 'contain' } : {}),
         };
+        if (!controls.desktopFit.checked) target.removeAttributes?.('data-rt-bg-desktop-fit');
         target.addAttributes?.(attributes);
         // Runtime URLs remain DOM-only. The serializer restores TRAIN_SRC.
         target.addStyle?.(mailSignatureBackgroundStyle(attributes, 'none'));

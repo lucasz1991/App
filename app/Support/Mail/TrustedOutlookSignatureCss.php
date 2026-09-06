@@ -152,9 +152,10 @@ final class TrustedOutlookSignatureCss
             // Use a class selector: Outlook may remove editor-only data
             // attributes. Breakpoint rules remain !important and win over
             // this canonical desktop fallback without affecting old replies.
+            $contain = $carrier->getAttribute('data-rt-bg-desktop-fit') === 'contain';
             $css = '.'.$scopeClass.' .rt-sign-cell{background-image:'.$match[1].';'
-                .'background-repeat:no-repeat;background-position:65% bottom;'
-                .'background-size:'.$carrier->getAttribute('data-rt-bg-desktop').'% auto;}';
+                .'background-repeat:no-repeat;background-position:'.($contain ? 'left bottom' : '65% bottom').';'
+                .'background-size:'.($contain ? 'contain' : $carrier->getAttribute('data-rt-bg-desktop').'% auto').';}';
             if (strlen($css) > self::MAX_CSS_BYTES || stripos($css, '</style') !== false) {
                 throw new RuntimeException('Der Outlook-Signaturhintergrund ueberschreitet das sichere CSS-Budget.');
             }
@@ -964,6 +965,9 @@ final class TrustedOutlookSignatureCss
                 continue;
             }
 
+            if ($documentTraits['background_fit'] !== 'contain') {
+                $selector = str_replace(':not([data-rt-bg-desktop-fit="contain"])', '', $selector);
+            }
             $relevant[] = self::compactPrelude($selector);
         }
 
@@ -1124,6 +1128,12 @@ final class TrustedOutlookSignatureCss
             || (str_contains($lowerSelector, 'rt-train-idle') && ! $documentTraits['has_idle'])) {
             return false;
         }
+        if (str_contains($lowerSelector, 'data-rt-bg-desktop-fit')) {
+            $legacyOnly = str_contains($lowerSelector, ':not([data-rt-bg-desktop-fit="contain"])');
+            if ($legacyOnly === ($documentTraits['background_fit'] === 'contain')) {
+                return false;
+            }
+        }
 
         preg_match_all('/\.([a-z_][a-z0-9_-]*)/i', $selector, $classMatches);
         foreach ($classMatches[1] ?? [] as $className) {
@@ -1178,6 +1188,7 @@ final class TrustedOutlookSignatureCss
             'align' => self::attributeValue($signatureHtml, 'data-rt-layer-align'),
             'size' => self::attributeValue($signatureHtml, 'data-rt-layer-size'),
             'mobile' => self::attributeValue($signatureHtml, 'data-rt-layer-mobile'),
+            'background_fit' => self::attributeValue($signatureHtml, 'data-rt-bg-desktop-fit'),
         ];
     }
 

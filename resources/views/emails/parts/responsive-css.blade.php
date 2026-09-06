@@ -1172,11 +1172,21 @@ tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-content-frame{{
   max-height: none !important;
 }
 @foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
-tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-cell{{ $loop->last ? '' : ',' }}
+tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-cell:not([data-rt-bg-desktop-fit="contain"]){{ $loop->last ? '' : ',' }}
 @endforeach
 {
   background-position: 65% bottom !important;
   background-repeat: no-repeat !important;
+}
+/* Opt-in: fit the complete desktop GIF canvas inside the existing contact
+   cell, without extra height. Legacy percentage geometry stays unchanged. */
+@foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-cell[data-rt-signature-background="1"][data-rt-bg-desktop-fit="contain"]{{ $loop->last ? '' : ',' }}
+@endforeach
+{
+  /* Never inline desktop !important: it would block mobile media overrides. */
+  background-size: contain;
+  background-position: left bottom;
 }
 @foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
 tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-logo{{ $loop->last ? '' : ',' }}
@@ -1192,6 +1202,12 @@ tr[data-rt-artifact-version="{{ $backgroundVersion }}"] img.rt-logo{{ $loop->las
   margin-right: 0 !important;
 }
 @media only screen and (max-width: 860px) {
+  @foreach (\App\Support\Mail\SignatureArtifactVersion::OPTIONAL_BACKGROUND_VERSIONS as $backgroundVersion)
+  tr[data-rt-artifact-version="{{ $backgroundVersion }}"] .rt-sign-cell[data-rt-signature-background="1"][data-rt-bg-desktop-fit="contain"]{{ $loop->last ? '' : ',' }}
+  @endforeach
+  {
+    background-position: 65% bottom !important;
+  }
   /* Die Werte stammen aus derselben begrenzten Liste wie der Serververtrag.
      Hoehe auto wahrt die Proportionen; der 65%-Anker haelt die Lok im Bild. */
   @foreach (\App\Support\Mail\SignatureBackgroundContract::SIZES as $backgroundSize)

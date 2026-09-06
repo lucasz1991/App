@@ -34,6 +34,8 @@ class OutlookSignatureBackgroundStyleTest extends TestCase
             $this->assertStringContainsString('<style data-rt-outlook-signature-background-css="1">.'.$scope.' .rt-sign-cell{background-image:url(\''.$source.'\');', $styles);
             $this->assertStringContainsString('background-size:110% auto;', $styles);
             $this->assertStringContainsString('background-size:175% auto!important', $styles);
+            $this->assertStringNotContainsString('data-rt-bg-desktop-fit', $styles);
+            $this->assertStringNotContainsString('background-size:contain', $styles);
             $this->assertStringNotContainsString('<img', $styles);
             $this->assertSame(1, substr_count($styles, 'background-image:'));
 
@@ -66,6 +68,38 @@ class OutlookSignatureBackgroundStyleTest extends TestCase
             $this->assertStringNotContainsString('data-rt-outlook-signature-background-css', $styles);
             $this->assertStringNotContainsString('background-image:', $styles);
         }
+    }
+
+    public function test_contain_background_keeps_scoped_geometry_and_one_original_cid_gif(): void
+    {
+        $source = URL::asset('mail-assets/zug-dampf-v19-light.gif');
+        $legacy = $this->rows($source);
+        $rows = str_replace(
+            ['data-rt-bg-desktop="110"', 'background-position:65% bottom', 'background-size:110% auto'],
+            ['data-rt-bg-desktop="110" data-rt-bg-desktop-fit="contain"', 'background-position:left bottom', 'background-size:contain'],
+            $legacy,
+        );
+        SignatureBackgroundContract::assertRuntime($rows);
+        $scope = TrustedOutlookSignatureCss::scopeClass($rows);
+        $this->assertNotSame(TrustedOutlookSignatureCss::scopeClass($legacy), $scope);
+        $styles = TrustedOutlookSignatureCss::style($rows, scopeClass: $scope);
+        $this->assertStringContainsString('background-repeat:no-repeat;background-position:left bottom;background-size:contain;', $styles);
+        $this->assertStringContainsString('background-position:65% bottom!important', $styles);
+        $this->assertStringContainsString('background-size:150% auto!important', $styles);
+        $this->assertStringContainsString('background-size:175% auto!important', $styles);
+        $this->assertStringNotContainsString(':not([data-rt-bg-desktop-fit', $styles);
+        $this->assertStringNotContainsString('background-size:contain!important', $styles);
+        $this->assertStringNotContainsString('background-position:left bottom!important', $styles);
+
+        $fragment = $styles.'<div class="'.$scope.'"><table><tbody>'.$rows.'</tbody></table></div>';
+        $service = app(OutlookAddinPayloadService::class);
+        [$localized, $media] = (new ReflectionMethod($service, 'localizeRemoteImages'))->invoke($service, $fragment);
+        $this->assertCount(1, $media);
+        $this->assertSame(file_get_contents(public_path('mail-assets/zug-dampf-v19-light.gif')), base64_decode($media[0]['base64'], true));
+        $this->assertSame(2, substr_count($localized, 'cid:'.$media[0]['contentId']));
+        $this->assertStringContainsString('<style data-rt-outlook-signature-background-css="1">.'.$scope.' .rt-sign-cell{background-image:url(cid:'.$media[0]['contentId'].');background-repeat:no-repeat;background-position:left bottom;background-size:contain;}', $localized);
+        $this->assertStringNotContainsString('<img', $localized);
+        Http::assertNothingSent();
     }
 
     #[DataProvider('unsafeSources')]

@@ -121,6 +121,9 @@ final class SignatureBackgroundContract
                 continue;
             }
             $classes = preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if ($element->hasAttribute('data-rt-bg-desktop-fit') && ! in_array('rt-sign-cell', $classes, true)) {
+                throw new RuntimeException('Die Desktop-Einpassung ist nur am gebundenen Signaturhintergrund erlaubt.');
+            }
             if (in_array('rt-sign-cell', $classes, true)) {
                 $carriers[] = $element;
             }
@@ -190,12 +193,21 @@ final class SignatureBackgroundContract
                 throw new RuntimeException('Die Hintergrundgroesse fuer '.$breakpoint.' ist kein freigegebener Wert.');
             }
         }
+        if ($carrier->hasAttribute('data-rt-bg-desktop-fit')
+            && $carrier->getAttribute('data-rt-bg-desktop-fit') !== 'contain') {
+            throw new RuntimeException('Die Desktop-Einpassung des Signaturhintergrunds ist kein freigegebener Wert.');
+        }
+        $contain = $carrier->hasAttribute('data-rt-bg-desktop-fit');
         $styles = self::declarations($carrier->getAttribute('style'));
         foreach ([
             'background-repeat' => 'no-repeat',
-            'background-position' => '65% bottom',
-            'background-size' => $carrier->getAttribute('data-rt-bg-desktop').'% auto',
+            'background-position' => $contain ? 'left bottom' : '65% bottom',
+            'background-size' => $contain ? 'contain' : $carrier->getAttribute('data-rt-bg-desktop').'% auto',
         ] as $property => $expected) {
+            if ($sourceDocument && $contain && $property !== 'background-repeat'
+                && CssSemantic::containsImportant($styles[$property] ?? '')) {
+                throw new RuntimeException('Die Desktop-Einpassung darf mobile Hintergrundregeln nicht mit !important blockieren.');
+            }
             if (self::cssValue($styles[$property] ?? '') !== $expected) {
                 throw new RuntimeException('Der Signaturhintergrund besitzt keine passende '.$property.'-Angabe.');
             }

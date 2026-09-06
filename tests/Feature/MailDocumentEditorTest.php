@@ -5736,6 +5736,106 @@ HTML;
         $this->assertSame($disabled, SignatureBackgroundContract::render($disabled, ''));
     }
 
+    public function test_v23_contain_bleibt_beim_import_rendern_und_inlining_optional_und_responsiv(): void
+    {
+        Storage::fake('public');
+        $this->createCanonicalMailDocument(MailDocumentKind::Template);
+        $legacy = str_replace('data-rt-artifact-version="v22"', 'data-rt-artifact-version="v23"', $this->v22SignatureHtml());
+        $html = str_replace(
+            ['data-rt-bg-desktop="110"', 'background-position:65% bottom', 'background-size:110% auto'],
+            ['data-rt-bg-desktop="110" data-rt-bg-desktop-fit="contain"', 'background-position:left bottom', 'background-size:contain'],
+            $legacy,
+        );
+        SignatureDocumentContract::assertValid($html);
+        $this->assertSame($html, SignatureTrainCarrier::normalize($html));
+        $this->assertSame($html, app(EmailHtmlSanitizer::class)->assertClean($html)->html);
+        $this->actingAs($this->admin())->postJson(route('admin.mail-documents.import'), [
+            'format' => 'railtime-mail-document', 'version' => 2, 'kind' => 'signature',
+            'html' => $html, 'css' => '',
+            'media' => $this->portableSystemMedia(MailDocumentKind::Signature, SignatureArtifactVersion::V23),
+        ])->assertCreated();
+        $document = $this->document(MailDocumentKind::Signature);
+        $this->assertSame($html, $document->html);
+        $this->assertSame(29, data_get($document->builder_data, 'railtime.schema'));
+        $this->postJson(route('admin.mail-documents.publish', $document), [
+            'expected_hash' => $document->content_hash,
+        ])->assertOk();
+        $this->app->forgetScopedInstances();
+
+        foreach (['light', 'dark'] as $theme) {
+            $rendered = MailSignature::forCompany($theme, remoteAssets: true)->renderDocument($html);
+            SignatureBackgroundContract::assertRuntime($rendered);
+            $this->assertStringContainsString('background-size:contain', $rendered);
+            $this->assertStringContainsString('background-position:left bottom', $rendered);
+            $this->assertStringContainsString('zug-dampf-v19-'.$theme.'.gif', $rendered);
+            $this->assertStringNotContainsString('rt-sign-train-layer', $rendered);
+            $legacyRendered = MailSignature::forCompany($theme, remoteAssets: true)->renderDocument($legacy);
+            $this->assertStringContainsString('background-size:110% auto', $legacyRendered);
+            $this->assertStringContainsString('background-position:65% bottom', $legacyRendered);
+            $this->assertStringNotContainsString('data-rt-bg-desktop-fit', $legacyRendered);
+        }
+
+        $mail = (new MailMessage)->greeting('Contain')->line('Normaler Inhaltsfluss');
+        $compiled = (string) app(Markdown::class)->render($mail->markdown ?: 'notifications::email', $mail->data());
+        $dom = new \DOMDocument;
+        @$dom->loadHTML($compiled, LIBXML_NONET);
+        $xpath = new \DOMXPath($dom);
+        $carrier = $xpath->query('//td[@data-rt-bg-desktop-fit="contain"]')->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $carrier);
+        $this->assertSame('110', $carrier->getAttribute('data-rt-bg-desktop'));
+        $this->assertMatchesRegularExpression('/(?:^|;)\s*background-size:\s*contain\s*;/', $carrier->getAttribute('style'));
+        $this->assertMatchesRegularExpression('/(?:^|;)\s*background-position:\s*left bottom\s*;/', $carrier->getAttribute('style'));
+        $this->assertStringContainsString('background-size: 150% auto !important;', $compiled);
+        $this->assertStringContainsString('background-size: 175% auto !important;', $compiled);
+        $this->assertStringContainsString('background-position: 65% bottom !important;', $compiled);
+        SignatureBackgroundContract::assertRuntime($compiled);
+
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+        $outlook = app(OutlookAddinPayloadService::class)->forUser($user);
+        $this->assertStringContainsString('background-position:left bottom;background-size:contain;', $outlook['signature']['html']);
+        $this->assertStringContainsString('data-rt-bg-desktop="110"', $outlook['signature']['html']);
+        $this->assertStringContainsString('data-rt-bg-tablet="150"', $outlook['signature']['html']);
+        $this->assertStringContainsString('data-rt-bg-mobile="175"', $outlook['signature']['html']);
+        $this->assertStringNotContainsString('background-size:contain!important', $outlook['signature']['html']);
+        $this->assertLessThanOrEqual(30000, mb_strlen($outlook['signature']['html']));
+
+        $disabled = str_replace(['data-rt-signature-background="1"', "background-image:url('{{TRAIN_SRC}}')"], ['data-rt-signature-background="0"', 'background-image:none'], $html);
+        SignatureDocumentContract::assertValid($disabled);
+        $this->assertSame($disabled, SignatureBackgroundContract::render($disabled, ''));
+        $this->assertStringNotContainsString('data-rt-outlook-signature-background-css', TrustedOutlookSignatureCss::style(MailSignature::forCompany(remoteAssets: true)->renderDocument($disabled)));
+    }
+
+    public function test_v23_contain_lehnt_ungebundene_abweichende_und_mobile_blockierende_geometrie_ab(): void
+    {
+        $legacy = str_replace('data-rt-artifact-version="v22"', 'data-rt-artifact-version="v23"', $this->v22SignatureHtml());
+        $contain = str_replace(
+            ['data-rt-bg-desktop="110"', 'background-position:65% bottom', 'background-size:110% auto'],
+            ['data-rt-bg-desktop="110" data-rt-bg-desktop-fit="contain"', 'background-position:left bottom', 'background-size:contain'],
+            $legacy,
+        );
+        foreach ([
+            'empty' => str_replace('data-rt-bg-desktop-fit="contain"', 'data-rt-bg-desktop-fit=""', $contain),
+            'cover' => str_replace('data-rt-bg-desktop-fit="contain"', 'data-rt-bg-desktop-fit="cover"', $contain),
+            'case' => str_replace('data-rt-bg-desktop-fit="contain"', 'data-rt-bg-desktop-fit="Contain"', $contain),
+            'space' => str_replace('data-rt-bg-desktop-fit="contain"', 'data-rt-bg-desktop-fit=" contain "', $contain),
+            'missing flag' => str_replace(' data-rt-bg-desktop-fit="contain"', '', $contain),
+            'wrong size' => str_replace('background-size:contain', 'background-size:110% auto', $contain),
+            'wrong position' => str_replace('background-position:left bottom', 'background-position:65% bottom', $contain),
+            'missing percent' => str_replace('data-rt-bg-desktop="110"', '', $contain),
+            'invalid retained percent' => str_replace('data-rt-bg-desktop="110"', 'data-rt-bg-desktop="999"', $contain),
+            'important size' => str_replace('background-size:contain', 'background-size:contain!important', $contain),
+            'important position' => str_replace('background-position:left bottom', 'background-position:left bottom !important', $contain),
+            'foreign carrier' => str_replace('class="rt-sign-content-frame"', 'class="rt-sign-content-frame" data-rt-bg-desktop-fit="contain"', $legacy),
+        ] as $label => $invalid) {
+            try {
+                SignatureDocumentContract::assertValid($invalid);
+                $this->fail('Contain accepted invalid geometry: '.$label);
+            } catch (\RuntimeException $exception) {
+                $this->assertNotSame('', $exception->getMessage(), $label);
+            }
+        }
+    }
+
     public function test_v23_behaelt_die_sichere_tabellenstruktur_und_weist_ueberlappungen_ab(): void
     {
         $source = str_replace('data-rt-artifact-version="v22"', 'data-rt-artifact-version="v23"', $this->v22SignatureHtml());
