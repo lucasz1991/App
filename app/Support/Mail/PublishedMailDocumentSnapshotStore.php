@@ -172,6 +172,7 @@ final class PublishedMailDocumentSnapshotStore
 
             $hasNames = Schema::hasColumn('mail_documents', 'name');
             $hasActiveFlag = Schema::hasColumn('mail_documents', 'is_active');
+            $hasLibrary = Schema::hasColumn('mail_documents', 'is_outlook_template');
             $columns = [
                 'public_id',
                 'status',
@@ -185,10 +186,16 @@ final class PublishedMailDocumentSnapshotStore
             if ($hasActiveFlag) {
                 $columns[] = 'is_active';
             }
+            if ($hasLibrary) {
+                array_push($columns, 'is_outlook_template', 'outlook_released', 'outlook_default');
+            }
 
             $documents = MailDocument::query()
                 ->withPublishedSnapshot()
                 ->where('kind', MailDocumentKind::Template->value)
+                ->when($hasLibrary, static fn ($query) => $query->where(static fn ($visible) => $visible
+                    ->where('is_outlook_template', false)
+                    ->orWhere('outlook_released', true)))
                 ->get($columns);
         } catch (Throwable) {
             return [];
@@ -218,6 +225,8 @@ final class PublishedMailDocumentSnapshotStore
                     ? $document->getAttribute('is_active') === true
                         && $document->status === MailDocumentStatus::Published
                     : $document->status === MailDocumentStatus::Published,
+                'isDefault' => $hasLibrary && $document->isOutlookTemplate()
+                    && $document->outlook_released === true && $document->outlook_default === true,
                 'html' => $html,
                 'css' => trim((string) $document->published_css),
             ];

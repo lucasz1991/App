@@ -114,6 +114,7 @@ export function normalizeTemplateChoices(payload) {
             name,
             label: firstNonEmptyString([entry.label, entry.name]) || name,
             active: entry.active === true,
+            isDefault: entry.isDefault === true,
             version: displayVersion(entry.version, entry.hash),
             hash: scalarString(entry.hash),
             document: entry,
@@ -135,6 +136,7 @@ export function normalizeTemplateChoices(payload) {
             name,
             label: firstNonEmptyString([payload.template.label, payload.template.name]) || name,
             active: true,
+            isDefault: payload.template.isDefault === true,
             version: displayVersion(payload.template.version, payload.version?.template),
             hash: scalarString(payload.template.hash),
             document: payload.template,
@@ -726,7 +728,8 @@ function renderSelectedTemplate() {
     view.templateName.textContent = template.name;
     view.templateVersion.textContent = versionLabel;
     view.templateVersion.title = template.hash || versionLabel;
-    view.templateActive.hidden = !template.active;
+    view.templateActive.hidden = !template.isDefault && !template.active;
+    view.templateActive.textContent = template.isDefault ? 'Standard' : 'Systemvorlage';
     view.templateActionDetail.textContent = `${template.name} in die Nachricht übernehmen`;
     view.template.setAttribute('aria-label', `Vorlage ${template.name} einfügen`);
 }
@@ -755,6 +758,7 @@ function renderTemplateChoices(payload) {
     });
 
     const selected = templates.find((template) => template.id === previousSelection)
+        || templates.find((template) => template.isDefault)
         || templates.find((template) => template.active)
         || templates[0];
 

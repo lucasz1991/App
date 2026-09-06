@@ -29,6 +29,9 @@ class MailDocument extends Model
         'name',
         'status',
         'is_active',
+        'is_outlook_template',
+        'outlook_released',
+        'outlook_default',
         'builder_data',
         'html',
         'css',
@@ -45,6 +48,9 @@ class MailDocument extends Model
         'kind' => MailDocumentKind::class,
         'status' => MailDocumentStatus::class,
         'is_active' => 'boolean',
+        'is_outlook_template' => 'boolean',
+        'outlook_released' => 'boolean',
+        'outlook_default' => 'boolean',
         'builder_data' => 'array',
         'published_at' => 'datetime',
         'version' => 'integer',
@@ -99,6 +105,10 @@ class MailDocument extends Model
             $query->where('is_active', true);
         }
 
+        if (Schema::hasColumn($query->getModel()->getTable(), 'is_outlook_template')) {
+            $query->where('is_outlook_template', false);
+        }
+
         return $query;
     }
 
@@ -129,6 +139,10 @@ class MailDocument extends Model
 
     public function isActive(): bool
     {
+        if ($this->isOutlookTemplate()) {
+            return false;
+        }
+
         return Schema::hasColumn($this->getTable(), 'is_active')
             ? $this->is_active === true
             : $this->status === MailDocumentStatus::Published;
@@ -136,10 +150,21 @@ class MailDocument extends Model
 
     public function isPublished(): bool
     {
+        if ($this->isOutlookTemplate()) {
+            return $this->outlook_released === true
+                && $this->published_at !== null
+                && $this->publishedHtml() !== null;
+        }
+
         return $this->isActive()
             && $this->status === MailDocumentStatus::Published
             && $this->published_at !== null
             && $this->publishedHtml() !== null;
+    }
+
+    public function isOutlookTemplate(): bool
+    {
+        return $this->kind === MailDocumentKind::Template && $this->is_outlook_template === true;
     }
 
     /**

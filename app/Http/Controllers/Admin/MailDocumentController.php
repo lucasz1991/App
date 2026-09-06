@@ -852,6 +852,22 @@ final class MailDocumentController extends Controller
             'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
         ]);
 
+        return $this->publishForActor($actor, $document, (string) $validated['expected_hash']);
+    }
+
+    /** Shared strict release path for HTTP and the lightweight Livewire library. */
+    public function publishForActor(User $actor, MailDocument $document, string $expectedHash): JsonResponse
+    {
+        abort_unless($actor->isAdmin(), 403);
+        $validated = validator(['expected_hash' => $expectedHash], [
+            'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+        ])->validate();
+        $sanitizer = app(EmailHtmlSanitizer::class);
+        $compatibilityAuditor = app(EmailCompatibilityAuditor::class);
+        $publishedDocuments = app(PublishedMailDocumentSnapshotStore::class);
+        $versions = app(MailDocumentVersionStore::class);
+        $outlookSnapshots = app(OutlookAddinSnapshotRefreshScheduler::class);
+
         [$published, $htmlReport, $cssReport, $compatibility] = DB::transaction(function () use ($document, $actor, $sanitizer, $compatibilityAuditor, $publishedDocuments, $validated, $versions): array {
             $locked = $this->lockDesignSlotsFor($document);
 
@@ -923,9 +939,13 @@ final class MailDocumentController extends Controller
                 'published_css' => $cssReport->html,
                 'published_at' => now(),
                 'status' => MailDocumentStatus::Published,
-                'is_active' => true,
+                'is_active' => $locked->isOutlookTemplate() ? null : true,
                 'updated_by' => $actor->getKey(),
             ];
+
+            if ($locked->isOutlookTemplate()) {
+                $attributes['outlook_released'] = true;
+            }
 
             // Die Freigabe darf den Inhaltsstand nur dann hochzaehlen, wenn
             // die kanonische Builder-Struktur oder die Haertung ihn aendert.
@@ -933,7 +953,7 @@ final class MailDocumentController extends Controller
                 $attributes['version'] = $locked->version + 1;
             }
 
-            if (Schema::hasColumn($locked->getTable(), 'is_active')) {
+            if (! $locked->isOutlookTemplate() && Schema::hasColumn($locked->getTable(), 'is_active')) {
                 MailDocument::query()
                     ->where('kind', $locked->kind->value)
                     ->whereKeyNot($locked->getKey())
@@ -973,6 +993,18 @@ final class MailDocumentController extends Controller
             'name' => ['required', 'string', 'max:80'],
             'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
         ]);
+
+        return $this->duplicateForActor($actor, $document, (string) $validated['name'], (string) $validated['expected_hash']);
+    }
+
+    public function duplicateForActor(User $actor, MailDocument $document, string $name, string $expectedHash): JsonResponse
+    {
+        abort_unless($actor->isAdmin(), 403);
+        $validated = validator(['name' => $name, 'expected_hash' => $expectedHash], [
+            'name' => ['required', 'string', 'max:80'],
+            'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+        ])->validate();
+        $versions = app(MailDocumentVersionStore::class);
         $name = $this->normalizedSlotName((string) $validated['name']);
 
         $created = DB::transaction(function () use ($document, $validated, $name, $actor, $versions): MailDocument {
@@ -988,7 +1020,7 @@ final class MailDocumentController extends Controller
                     'expected_hash' => 'Der Ausgangsentwurf wurde zwischenzeitlich geändert. Bitte speichere erneut.',
                 ]);
             }
-            if ($slots->count() >= 20) {
+            if (! $source->isOutlookTemplate() && $slots->filter(fn (MailDocument $slot): bool => ! $slot->isOutlookTemplate())->count() >= 20) {
                 throw ValidationException::withMessages([
                     'name' => 'Pro Dokumentart können höchstens 20 Design-Slots angelegt werden.',
                 ]);
@@ -1010,6 +1042,11 @@ final class MailDocumentController extends Controller
                 'version' => 1,
                 'created_by' => $actor->getKey(),
                 'updated_by' => $actor->getKey(),
+                ...(Schema::hasColumn('mail_documents', 'is_outlook_template') ? [
+                    'is_outlook_template' => $source->isOutlookTemplate(),
+                    'outlook_released' => false,
+                    'outlook_default' => null,
+                ] : []),
             ]);
             $versions->capture($slot, $actor, 'duplicated');
 
@@ -1140,6 +1177,18 @@ final class MailDocumentController extends Controller
         $validated = $request->validate([
             'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
         ]);
+
+        return $this->restoreForActor($actor, $document, $version, (string) $validated['expected_hash']);
+    }
+
+    public function restoreForActor(User $actor, MailDocument $document, MailDocumentVersion $version, string $expectedHash): JsonResponse
+    {
+        abort_unless($actor->isAdmin(), 403);
+        $validated = validator(['expected_hash' => $expectedHash], [
+            'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+        ])->validate();
+        $sanitizer = app(EmailHtmlSanitizer::class);
+        $versions = app(MailDocumentVersionStore::class);
         abort_unless($version->mail_document_id === $document->getKey(), 404);
 
         $restored = DB::transaction(function () use ($document, $version, $validated, $actor, $sanitizer, $versions): MailDocument {
@@ -1499,6 +1548,9 @@ final class MailDocumentController extends Controller
             'kind' => $document->kind->value,
             'name' => (string) ($document->name ?: $document->kind->label()),
             'is_active' => $document->isActive(),
+            'is_outlook_template' => $document->isOutlookTemplate(),
+            'outlook_released' => $document->isOutlookTemplate() && $document->isPublished(),
+            'outlook_default' => $document->outlook_default === true,
             'status' => $document->status->value,
             'status_label' => $document->status->label(),
             'content_hash' => (string) $document->content_hash,

@@ -15,7 +15,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 7;
+    private const RENDERER_REVISION = 8;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -94,6 +94,7 @@ final class OutlookAddinPayloadService
                         'name' => $snapshot['name'],
                         'label' => $snapshot['label'],
                         'active' => $snapshot['active'],
+                        'isDefault' => $snapshot['isDefault'] ?? false,
                         'hash' => $this->fullSnapshotHash($snapshot),
                     ], $templateSnapshots),
                 ],
@@ -164,6 +165,9 @@ final class OutlookAddinPayloadService
                     'media' => $activeTemplate['media'],
                 ],
                 'templates' => $templates,
+                // Only an explicitly selected library default opts into
+                // automatic composition; upgrading never enables it silently.
+                'automaticTemplateId' => collect($templates)->firstWhere('isDefault', true)['id'] ?? null,
                 'version' => [
                     'signature' => $signatureVersion,
                     'template' => $activeTemplate['version'],
@@ -223,6 +227,7 @@ final class OutlookAddinPayloadService
                     'name' => $snapshot['name'],
                     'label' => $snapshot['label'],
                     'active' => $snapshot['active'],
+                    'isDefault' => $snapshot['isDefault'] ?? false,
                     'html' => $html,
                     'media' => $media,
                     'version' => $this->snapshotHash($snapshot),
