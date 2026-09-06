@@ -648,7 +648,10 @@ async function runtimeFixture(options = {}) {
     fixture.handler = createHandler(
         fixture.office,
         { Office: fixture.office, RAILTIME_OUTLOOK_CONFIG_URL: 'https://example.test/config.json' },
-        async (url) => {
+        async (url, request) => {
+            if (!url.includes('config.json')) {
+                assert.equal(request.headers['X-RailTime-Compose-Contract'], 'native-signature-v1');
+            }
             if (options.failFirstBootstrap && !url.includes('config.json') && !failedBootstrap) {
                 failedBootstrap = true;
                 throw new Error('Synthetic transient network failure');
@@ -664,7 +667,7 @@ async function runtimeFixture(options = {}) {
 
 test('compose event inserts explicit default once for new, reply and forward, and completes every event', async () => {
     for (const composeType of ['newMail', 'reply', 'forward']) {
-        const existing = '<p>User text</p><div id="divRplyFwdMsg">Quoted conversation</div>';
+        const existing = `<p>User text</p><div id="divRplyFwdMsg">Quoted conversation ${composeType === 'newMail' ? '' : composeLibrary.TEMPLATE_MARKER}</div>`;
         const { handler, event, state } = await runtimeFixture({ composeType, html: existing });
         await Promise.all([handler(event), handler(event)]);
         assert.equal(state.prepends.length, 1);
@@ -817,6 +820,118 @@ test('late confirmed signature success is never reinserted by a later compose ev
     assert.equal(fixture.state.completed, 2);
 });
 
+test('late native signature confirmation allows the missing default body without another signature write', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const fixture = await runtimeFixture();
+    let callback, count = 0;
+    fixture.item.body.setSignatureAsync = (_html, _options, cb) => { callback = cb; count++; };
+    const first = fixture.handler(fixture.event);
+    for (let i = 0; i < 120 && !callback; i++) await Promise.resolve();
+    assert.equal(count, 1);
+    assert.equal(fixture.state.prepends.length, 0);
+    context.mock.timers.tick(30000);
+    await first;
+    await fixture.handler(fixture.event);
+    assert.equal(count, 1);
+    assert.equal(fixture.state.prepends.length, 0, 'an unknown signature write cannot trigger another mutation');
+    callback({ status: 'succeeded' });
+    await fixture.handler(fixture.event);
+    await fixture.handler(fixture.event);
+    assert.equal(count, 1);
+    assert.equal(fixture.state.prepends.length, 1);
+    assert.equal(fixture.state.completed, 4);
+});
+
+test('template preflight can retry after native signature success without resetting that signature', async () => {
+    const fixture = await runtimeFixture();
+    let reads = 0;
+    fixture.item.body.getAsync = (_format, callback) => {
+        callback(++reads === 2 ? { status: 'failed' } : { status: 'succeeded', value: fixture.state.html });
+    };
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.signatures.length, 1);
+    assert.equal(fixture.state.prepends.length, 0);
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.signatures.length, 1);
+    assert.equal(fixture.state.prepends.length, 1);
+});
+
+test('existing legacy full-template drafts stay untouched while native-only templates allow the signature API', async () => {
+    for (const native of [false, true]) {
+        const html = `<!--${native ? composeLibrary.NATIVE_TEMPLATE_MARKER : composeLibrary.TEMPLATE_MARKER}--><p>Existing draft</p>`;
+        const fixture = await runtimeFixture({ html });
+        await fixture.handler(fixture.event);
+        assert.equal(fixture.state.signatures.length, native ? 1 : 0);
+        assert.equal(fixture.state.prepends.length, 0);
+        assert.equal(fixture.state.html, html);
+        if (!native) assert.equal(fixture.state.attachments.length, 0);
+    }
+});
+
+test('legacy server templates never fall back to inserting a second ordinary HTML signature', async () => {
+    const fixture = await runtimeFixture();
+    delete fixture.bootstrap.templates[0].signatureMode;
+    delete fixture.bootstrap.templates[0].composeHtml;
+    delete fixture.bootstrap.templates[0].composeMedia;
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.signatures.length, 1);
+    assert.equal(fixture.state.prepends.length, 0);
+});
+
+test('From change after native signature success blocks all subsequent template media and body writes', async () => {
+    const fixture = await runtimeFixture();
+    const setSignature = fixture.item.body.setSignatureAsync;
+    fixture.item.body.setSignatureAsync = (html, options, callback) => {
+        setSignature(html, options, callback);
+        fixture.item.from.getAsync = cb => cb({ status: 'succeeded', value: { emailAddress: 'private@personal.test' } });
+    };
+    fixture.bootstrap.templates[0].composeMedia = [{ name: 'template.png', contentId: 'logo', base64: 'aW1hZ2U=' }];
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.signatures.length, 1);
+    assert.equal(fixture.state.prepends.length, 0);
+    assert.equal(fixture.state.attachments.length, 1, 'only the authorized signature media was prepared');
+});
+
+test('native signature media budgets reject excessive payloads before any Office write', async () => {
+    const fixture = await runtimeFixture();
+    fixture.bootstrap.signature.media = Array.from({ length: 21 }, (_unused, index) => ({
+        name: `signature-${index}.png`, contentId: `image${index}`, base64: 'aW1hZ2U=',
+    }));
+    await fixture.handler(fixture.event);
+    assert.deepEqual(fixture.state.mutations, []);
+});
+
+test('unsupported native signature API never falls back to a full HTML template or prepares its attachments', async () => {
+    const fixture = await runtimeFixture();
+    delete fixture.item.body.setSignatureAsync;
+    await fixture.handler(fixture.event);
+    assert.deepEqual(fixture.state.mutations, []);
+    assert.equal(fixture.state.completed, 1);
+});
+
+test('combined signature and template media budgets retain only the safe native signature fallback', async () => {
+    const fixture = await runtimeFixture();
+    fixture.bootstrap.signature.media = Array.from({ length: 11 }, (_unused, index) => ({
+        name: `signature-${index}.png`, contentId: `s${index}`, base64: 'aW1hZ2U=',
+    }));
+    fixture.bootstrap.templates[0].composeMedia = Array.from({ length: 10 }, (_unused, index) => ({
+        name: `template-${index}.png`, contentId: `t${index}`, base64: 'aW1hZ2U=',
+    }));
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.signatures.length, 1);
+    assert.equal(fixture.state.prepends.length, 0);
+    assert.equal(fixture.state.attachments.length, 11);
+    assert.ok(fixture.state.attachments.every(entry => entry.name.startsWith('signature-')));
+});
+
+test('a malformed native template contract cannot insert its legacy full-template fallback', async () => {
+    const fixture = await runtimeFixture();
+    delete fixture.bootstrap.templates[0].composeHtml;
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.signatures.length, 1);
+    assert.equal(fixture.state.prepends.length, 0);
+});
+
 async function taskpaneFixture(options = {}) {
     const { parseHTML } = await import('linkedom');
     const { document, window } = parseHTML(await source('../../resources/views/outlook-addin/taskpane.blade.php'));
@@ -856,6 +971,51 @@ async function taskpaneFixture(options = {}) {
     await client.setup(config, bootstrap);
     return { fixture, document, window, client, bootstrap, config };
 }
+
+test('taskpane native signature updates remain available beside an existing native template', async () => {
+    const html = `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><p>Draft body</p>`;
+    const { fixture, client, document } = await taskpaneFixture({ html });
+    await client.updateSignature(document.querySelector('[data-outlook-action="signature"]'));
+    assert.equal(fixture.state.signatures.length, 1);
+    assert.equal(fixture.state.prepends.length, 0);
+    assert.equal(fixture.state.html, html);
+    assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'Signatur ist aktuell');
+});
+
+test('taskpane cannot convert an existing legacy embedded signature by adding a duplicate native signature', async () => {
+    const html = `<!--${composeLibrary.TEMPLATE_MARKER}--><p>Legacy signature and content</p>`;
+    const { fixture, client, document } = await taskpaneFixture({ html });
+    await client.updateSignature(document.querySelector('[data-outlook-action="signature"]'));
+    assert.deepEqual(fixture.state.mutations, []);
+    assert.equal(fixture.state.html, html);
+    assert.match(document.querySelector('[data-outlook-status-detail]').textContent, /Vorlage mit eingebetteter Signatur/);
+});
+
+test('taskpane manual native template sets one native signature before prepending signature-free content', async () => {
+    const { fixture, client, document } = await taskpaneFixture();
+    await client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
+    assert.deepEqual(fixture.state.mutations, ['signature', 'template']);
+    assert.equal(fixture.state.signatures.length, 1);
+    assert.equal(fixture.state.prepends.length, 1);
+    assert.doesNotMatch(fixture.state.prepends[0], /Native signature|embedded signature|RT-SIGNATURE-MANAGED/);
+    assert.ok(fixture.state.html.endsWith('<p>Existing user text</p>'));
+});
+
+test('cancelling an additional native template makes no signature, media or body write', async () => {
+    const html = `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><p>Current native template</p>`;
+    const { fixture, client, document, bootstrap } = await taskpaneFixture({ html });
+    bootstrap.signature.media = [{ name: 'test.png', contentId: 'test', base64: 'aW1hZ2U=' }];
+    client.bindActions();
+    const pending = client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
+    const confirmation = document.querySelector('[data-outlook-template-confirmation]');
+    for (let i = 0; i < 150 && confirmation.hidden; i++) await Promise.resolve();
+    assert.equal(confirmation.hidden, false);
+    assert.deepEqual(fixture.state.mutations, [], 'confirmation must precede every mutation');
+    document.querySelector('[data-outlook-template-cancel]').click();
+    await pending;
+    assert.deepEqual(fixture.state.mutations, []);
+    assert.equal(fixture.state.html, html);
+});
 
 test('authenticated taskpane inserts once on double click with native preflights and no readback', async () => {
     const { fixture, document, client, bootstrap, config } = await taskpaneFixture();

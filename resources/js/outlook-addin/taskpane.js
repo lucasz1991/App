@@ -11,6 +11,7 @@ import {
     templateStateFromBody,
     nativeComposeTemplate,
     TEMPLATE_MARKER,
+    validateTemplateInsertionPayload,
 } from './compose-template.js';
 import { automaticTemplate } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
@@ -404,6 +405,7 @@ async function loadBootstrap(config, accessToken, item = Office.context.mailbox.
             'X-RailTime-Outlook-Context': 'taskpane',
             'X-RailTime-Outlook-Mailbox': mailboxAddress(),
             'X-RailTime-Outlook-Sender': sender,
+            'X-RailTime-Compose-Contract': 'native-signature-v1',
         },
     }, API_TIMEOUT_MS);
 
@@ -1420,6 +1422,7 @@ async function insertTemplate(button) {
         // Budget both independently inserted parts before the first mutation.
         // beforeInsert runs only after any additional-template confirmation.
         const media = signature ? [...signature.media, ...template.media] : template.media;
+        validateTemplateInsertionPayload((signature?.html || '') + template.html, media);
         await diagnoseStep('template-write', () => prependTemplate(Office, item, template.html, () => assertWriteTarget(target, bootstrap.binding), {
             media,
             beforeInsert: async () => {

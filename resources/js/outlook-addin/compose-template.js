@@ -125,8 +125,16 @@ function sessionReadError(result, phase = 'session-read') {
     return failure('COMPOSE_SESSION_UNREADABLE', { ...result, phase });
 }
 
-function readSession(office, item) {
-    return officeResult(office, (callback) => item.sessionData.getAsync(TEMPLATE_SESSION_KEY, callback));
+async function readSession(office, item, { allowMissing = false } = {}) {
+    const result = await officeResult(office, (callback) => item.sessionData.getAsync(TEMPLATE_SESSION_KEY, callback));
+    // Office.js maps 9050 to KeyNotFound: a fresh compose item has no key yet.
+    // Accept only this failed get result before a claim, never exceptions,
+    // timeouts, or a missing key when verifying/releasing a written claim.
+    if (allowMissing && result.succeeded === false
+        && result.reason === 'failed' && result.officeCode === '9050') {
+        return { succeeded: true, value: '' };
+    }
+    return result;
 }
 
 function writeSession(office, item, value) {
@@ -149,7 +157,7 @@ async function claimSession(office, item, operation) {
 
     // Outlook runtimes may be isolated. SessionData narrows reopen/concurrent
     // races where available, but read/set/readback is NOT an atomic CAS lock.
-    const existing = await readSession(office, item);
+    const existing = await readSession(office, item, { allowMissing: true });
     if (!existing.succeeded) {
         // No session/media/body write has started. This is retryable reading,
         // not evidence that an insertion may already have happened.
@@ -237,7 +245,7 @@ export async function readTemplateState(office, item, { forceBody = false } = {}
             errorCode: 'COMPOSE_SESSION_UNREADABLE', phase: access.phase, reason: access.reason, officeCode: access.officeCode };
     }
     if (access.supported) {
-        const session = await readSession(office, item);
+        const session = await readSession(office, item, { allowMissing: true });
         if (!session.succeeded) {
             return { present: false, readable: false, uncertain: false, ...unknownSize,
                 errorCode: 'COMPOSE_SESSION_UNREADABLE', phase: 'session-read', reason: session.reason, officeCode: session.officeCode };

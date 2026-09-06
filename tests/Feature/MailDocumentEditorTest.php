@@ -29,6 +29,7 @@ use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\MailSignature;
+use App\Support\OutlookAddin\OutlookAddinPayloadService;
 use App\Support\OutlookAddin\OutlookTemplateLibrary;
 use Illuminate\Contracts\Mail\Factory as MailFactory;
 use Illuminate\Database\Schema\Blueprint;
@@ -5664,12 +5665,25 @@ HTML;
             $this->assertStringNotContainsString('rt-sign-train-layer', $rendered);
             $this->assertStringNotContainsString('rt-sign-stage', $rendered);
         }
-        $builder = new EmailTemplateBuilder(User::factory()->create(['name' => 'Mara Beispiel']));
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+        $builder = new EmailTemplateBuilder($user);
         foreach ([$builder->buildSignatureCopyHtml('light'), $builder->buildOutlookAddinSignatureHtml('light')] as $rendered) {
             $this->assertStringContainsString('data-rt-artifact-version="v23"', $rendered);
             $this->assertStringContainsString('data-rt-signature-background="1"', $rendered);
             $this->assertStringNotContainsString('class="rt-sign-train-layer"', $rendered);
         }
+        $outlook = app(OutlookAddinPayloadService::class)->forUser($user);
+        $nativeTemplate = $outlook['templates'][0];
+        $this->assertSame('native', $nativeTemplate['signatureMode']);
+        $this->assertStringContainsString('RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE', $nativeTemplate['composeHtml']);
+        $this->assertStringNotContainsString('RT-SIGNATURE-VERSION:', $nativeTemplate['composeHtml']);
+        $this->assertStringNotContainsString('data-rt-signature-background', $nativeTemplate['composeHtml']);
+        $this->assertStringNotContainsString('data-rt-artifact-version="v23"', $nativeTemplate['composeHtml']);
+        $this->assertStringNotContainsString('.rt-sign-', $nativeTemplate['composeHtml']);
+        $this->assertCount(1, $nativeTemplate['composeMedia']);
+        $this->assertStringContainsString('data-rt-signature-background="1"', $outlook['signature']['html']);
+        $this->assertStringContainsString('data-rt-artifact-version="v23"', $outlook['signature']['html']);
+        $this->assertStringContainsString('RT-SIGNATURE-VERSION:'.$outlook['version']['signature'], $outlook['signature']['html']);
         foreach (['vorlage-eml', 'vorlage-dunkel-eml'] as $variant) {
             $eml = $builder->build($variant)['content'];
             $this->assertSame(1, substr_count($eml, 'Content-ID: <railtime-train>'));

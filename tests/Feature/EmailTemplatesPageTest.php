@@ -354,6 +354,7 @@ class EmailTemplatesPageTest extends TestCase
             'Authorization' => 'Bearer '.$token,
             'X-RailTime-Outlook-Mailbox' => 'mara@example.com',
             'X-RailTime-Outlook-Sender' => 'mara@example.com',
+            'X-RailTime-Compose-Contract' => 'native-signature-v1',
         ];
         foreach ([
             ['X-RailTime-Outlook-Mailbox', '', 'outlook_addin_mailbox_unavailable'],
@@ -365,6 +366,20 @@ class EmailTemplatesPageTest extends TestCase
                 ->assertForbidden()
                 ->assertJsonPath('error', $error)
                 ->assertJsonMissingPath('signature')
+                ->assertJsonMissingPath('binding');
+        }
+        foreach ([null, '', 'embedded-signature-v1', 'native-signature-v2'] as $contract) {
+            $clientHeaders = $headers;
+            if ($contract === null) {
+                unset($clientHeaders['X-RailTime-Compose-Contract']);
+            } else {
+                $clientHeaders['X-RailTime-Compose-Contract'] = $contract;
+            }
+            $this->getJson(route('api.outlook-addin.bootstrap'), $clientHeaders)
+                ->assertStatus(409)
+                ->assertJsonPath('error', 'outlook_addin_client_outdated')
+                ->assertJsonMissingPath('signature')
+                ->assertJsonMissingPath('templates')
                 ->assertJsonMissingPath('binding');
         }
         $this->assertSame([], Storage::disk('private')->allFiles());
@@ -380,7 +395,8 @@ class EmailTemplatesPageTest extends TestCase
                 'senderAddress' => 'mara@example.com',
                 'allowedSenderAddresses' => ['mara@example.com', 'mara.alias@example.com'],
             ])
-            ->assertHeader('Vary', 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender');
+            ->assertJsonPath('templates.0.signatureMode', 'native')
+            ->assertHeader('Vary', 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender, X-RailTime-Compose-Contract');
         $etag = (string) $response->headers->get('ETag');
         $this->assertNotSame('', $etag);
         $snapshotPath = app(OutlookAddinUserSnapshotStore::class)->pathForUser($user);
@@ -388,6 +404,11 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertArrayNotHasKey('binding', app(OutlookAddinUserSnapshotStore::class)->currentForUser($user));
         $this->getJson(route('api.outlook-addin.bootstrap'), $headers + ['If-None-Match' => $etag])
             ->assertStatus(304);
+        $this->getJson(route('api.outlook-addin.bootstrap'), array_replace($headers, [
+            'X-RailTime-Compose-Contract' => '',
+            'If-None-Match' => $etag,
+        ]))->assertStatus(409)->assertJsonPath('error', 'outlook_addin_client_outdated')
+            ->assertJsonMissingPath('signature')->assertJsonMissingPath('templates');
         $aliasResponse = $this->getJson(route('api.outlook-addin.bootstrap'), array_replace($headers, [
             'X-RailTime-Outlook-Sender' => 'mara.alias@example.com',
             'If-None-Match' => $etag,

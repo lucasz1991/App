@@ -262,6 +262,7 @@ async function loadBootstrap(config, accessToken, item) {
             Accept: 'application/json',
             Authorization: `Bearer ${accessToken}`,
             'X-RailTime-Outlook-Context': 'event',
+            'X-RailTime-Compose-Contract': 'native-signature-v1',
             'X-RailTime-Outlook-Mailbox': mailboxAddress(),
             'X-RailTime-Outlook-Sender': sender,
         },
@@ -459,7 +460,8 @@ async function applyPublishedContent(item) {
             if (composeDocument) {
                 template = validatedDocument(composeDocument, 'template', config.marker);
                 // Budget both parts before any attachment or body mutation.
-                validateTemplateInsertionPayload(template.html, [...(signature?.media || []), ...template.media]);
+                validateTemplateInsertionPayload((signature?.html || '') + template.html,
+                    [...(signature?.media || []), ...template.media]);
             }
         } catch (error) {
             template = null;

@@ -242,6 +242,85 @@ test('failed initial session read is accurately diagnosed, writes nothing and pe
     assert.equal(state.session, '1');
 });
 
+test('OfficeOnline missing session key 9050 is an empty initial state and permits one signature/template insertion', async () => {
+    const { office, item, state } = fixture();
+    office.context.mailbox.diagnostics = { hostName: 'OutlookWebApp' };
+    let signatureWrites = 0;
+    item.sessionData.getAsync = (_key, callback) => {
+        state.sessionReads += 1;
+        callback(state.session === ''
+            ? { status: 'failed', error: { code: 9050, name: 'KeyNotFound', message: 'The specified key was not found.' } }
+            : success(state.session));
+    };
+    const initial = await readTemplateState(office, item, { forceBody: true });
+    assert.equal(initial.readable, true);
+    assert.equal(initial.present, false);
+    assert.equal(initial.uncertain, undefined);
+    assert.deepEqual(state.sessionWrites, []);
+    await prependTemplate(office, item, nativeHtml, undefined, {
+        beforeInsert: () => { signatureWrites += 1; },
+    });
+    assert.equal(signatureWrites, 1);
+    assert.equal(state.prepends.length, 1);
+    assert.equal(state.session, '1');
+    await assert.rejects(prependTemplate(office, item, nativeHtml), { code: 'TEMPLATE_ALREADY_INSERTED' });
+    assert.equal(signatureWrites, 1);
+    assert.equal(state.prepends.length, 1);
+});
+
+test('only failed getAsync code 9050 denotes a missing initial key; similar codes and exceptions stay blocked', async () => {
+    for (const code of ['9051', '90500', 'KeyNotFound']) {
+        const { office, item, state } = fixture();
+        item.sessionData.getAsync = (_key, callback) => callback({ status: 'failed', error: { code } });
+        const error = await rejectedCode(prependTemplate(office, item, nativeHtml));
+        assert.equal(error.code, 'COMPOSE_SESSION_UNREADABLE');
+        assert.equal(error.officeCode, code);
+        assert.equal(state.prepends.length, 0);
+        assert.deepEqual(state.sessionWrites, []);
+    }
+    const { office, item, state } = fixture();
+    item.sessionData.getAsync = () => { throw Object.assign(new Error('Unexpected exception'), { code: 9050 }); };
+    const error = await rejectedCode(prependTemplate(office, item, nativeHtml));
+    assert.equal(error.code, 'COMPOSE_SESSION_UNREADABLE');
+    assert.equal(error.reason, 'exception');
+    assert.equal(state.prepends.length, 0);
+    assert.deepEqual(state.sessionWrites, []);
+});
+
+test('missing key 9050 after a written claim is uncertain, never an accepted empty readback', async () => {
+    const { office, item, state, media } = fixture();
+    item.sessionData.getAsync = (_key, callback) => {
+        state.sessionReads += 1;
+        callback({ status: 'failed', error: { code: '9050', name: 'KeyNotFound' } });
+    };
+    const error = await rejectedCode(prependTemplate(office, item, nativeHtml, undefined, { beforeInsert: media }));
+    assert.equal(error.code, 'TEMPLATE_INSERT_UNCERTAIN');
+    assert.equal(error.phase, 'session-readback');
+    assert.equal(error.officeCode, '9050');
+    assert.equal(error.reason, 'failed');
+    assert.match(state.session, /^pending:/);
+    assert.equal(state.sessionWrites.length, 1);
+    assert.equal(state.mediaWrites, 0);
+    assert.equal(state.prepends.length, 0);
+    assert.equal(isTemplateInsertionBlocked(item), true);
+});
+
+test('missing key 9050 during failed-operation cleanup never clears the written pending claim', async () => {
+    const { office, item, state } = fixture();
+    item.sessionData.getAsync = (_key, callback) => {
+        state.sessionReads += 1;
+        callback(state.sessionReads <= 3 ? success(state.session)
+            : { status: 'failed', error: { code: 9050, name: 'KeyNotFound' } });
+    };
+    await assert.rejects(prependTemplate(office, item, nativeHtml, undefined, {
+        beforeInsert: () => { throw Object.assign(new Error('Failed'), { code: 'INLINE_ATTACHMENT_FAILED' }); },
+    }), { code: 'INLINE_ATTACHMENT_FAILED' });
+    assert.match(state.session, /^pending:/);
+    assert.equal(state.sessionWrites.length, 1);
+    assert.equal(state.prepends.length, 0);
+    assert.equal(isTemplateInsertionBlocked(item), true);
+});
+
 test('missing requirement checker probes available session APIs without treating host exceptions as prior writes', async () => {
     const { office, item, state } = fixture();
     delete office.context.requirements;

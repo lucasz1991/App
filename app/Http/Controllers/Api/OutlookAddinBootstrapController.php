@@ -34,6 +34,16 @@ final class OutlookAddinBootstrapController extends Controller
             $mailboxAddress = trim((string) $request->header('X-RailTime-Outlook-Mailbox'));
             $senderAddress = trim((string) $request->header('X-RailTime-Outlook-Sender'));
             $resolved = $identityResolver->resolve($identity, $mailboxAddress, $senderAddress);
+            // Ein alter gecachter Client wuerde die Signatur noch aus dem
+            // Legacy-Volltemplate einfuegen. Erst nach Postfachpruefung und
+            // bestaetigtem Compose-Vertrag personenbezogene Bytes ausliefern.
+            if ($request->header('X-RailTime-Compose-Contract') !== 'native-signature-v1') {
+                throw new OutlookAddinException(
+                    'Die Outlook-App ist veraltet. Bitte Outlook und die RailTime-App neu laden.',
+                    409,
+                    'outlook_addin_client_outdated',
+                );
+            }
             $payload = $snapshots->currentForUser($resolved['user']);
             // Der persoenliche Snapshot ist wiederverwendbar, die Freigabe
             // fuer den aktuellen Absender dagegen strikt requestgebunden.
@@ -66,7 +76,7 @@ final class OutlookAddinBootstrapController extends Controller
             'Cache-Control' => 'private, no-store, max-age=0',
             'ETag' => $etag,
             'Referrer-Policy' => 'no-referrer',
-            'Vary' => 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender',
+            'Vary' => 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender, X-RailTime-Compose-Contract',
             'X-Content-Type-Options' => 'nosniff',
         ], static fn (?string $value): bool => $value !== null);
     }
