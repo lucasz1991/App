@@ -789,6 +789,22 @@ test('signature-only activation completes on a lost Office callback and does not
     assert.equal(fixture.state.completed, 2);
 });
 
+test('late confirmed signature success is never reinserted by a later compose event', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const fixture = await runtimeFixture({ withoutDefault: true });
+    let callback, count = 0;
+    fixture.item.body.setSignatureAsync = (_html, _options, cb) => { callback = cb; count++; };
+    const first = fixture.handler(fixture.event);
+    for (let index = 0; index < 100 && !callback; index++) await Promise.resolve();
+    assert.equal(count, 1);
+    context.mock.timers.tick(30000);
+    await first;
+    callback({ status: 'succeeded' });
+    await fixture.handler(fixture.event);
+    assert.equal(count, 1);
+    assert.equal(fixture.state.completed, 2);
+});
+
 test('authenticated taskpane inserts once on double click with one body read and no readback', async () => {
     const { parseHTML } = await import('linkedom');
     const { document, window } = parseHTML(await source('../../resources/views/outlook-addin/taskpane.blade.php'));
@@ -874,6 +890,23 @@ test('authenticated taskpane inserts once on double click with one body read and
     assert.equal(report.checks.boundMailbox, true);
     assert.doesNotMatch(JSON.stringify(report), /employee@example|private@personal|synthetic-test-token/);
     assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'Verbindung und Vorprüfung bestätigt');
+
+    client.bindActions();
+    await client.insertTemplate(button);
+    assert.equal(fresh.state.prepends.length, 1);
+    const confirmation = document.querySelector('[data-outlook-template-confirmation]');
+    const cancel = client.insertTemplate(button);
+    for (let i = 0; i < 120 && confirmation.hidden; i++) await Promise.resolve();
+    assert.equal(confirmation.hidden, false, 'additional insertion is a visible in-pane choice');
+    document.querySelector('[data-outlook-template-cancel]').click();
+    await cancel;
+    assert.equal(fresh.state.prepends.length, 1);
+    const extra = client.insertTemplate(button);
+    for (let i = 0; i < 120 && confirmation.hidden; i++) await Promise.resolve();
+    document.querySelector('[data-outlook-template-confirm]').click();
+    await extra;
+    assert.equal(fresh.state.prepends.length, 2);
+    assert.equal(confirmation.hidden, true);
 });
 
 test('Outlook dialogs open only on explicit clicks and restore opener focus after closing', async () => {

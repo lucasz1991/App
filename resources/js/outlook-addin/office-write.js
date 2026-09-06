@@ -1,6 +1,11 @@
 import { recordDiagnostic } from './diagnostics.js';
 
 const uncertainWrites = new WeakMap();
+const confirmedSignatures = new WeakSet();
+
+export function wasSignatureWriteConfirmed(item) {
+    return Boolean(item && confirmedSignatures.has(item));
+}
 
 export function hasUncertainWrite(item) {
     return Boolean(item && uncertainWrites.get(item)?.size);
@@ -44,6 +49,7 @@ export function confirmedOfficeWrite(office, item, phase, uncertainCode, invoke,
                 clearTimeout(timeout);
                 clear();
                 if (result?.status === office.AsyncResultStatus.Succeeded) {
+                    if (phase === 'signature-write') confirmedSignatures.add(item);
                     recordDiagnostic(phase, timedOut ? 'late-success' : 'succeeded', null, Date.now() - start);
                     resolve(result.value);
                 } else {

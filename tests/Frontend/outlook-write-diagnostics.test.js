@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { confirmedOfficeWrite, hasUncertainWrite } from '../../resources/js/outlook-addin/office-write.js';
+import { confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed } from '../../resources/js/outlook-addin/office-write.js';
 import { diagnoseStep, diagnosticReport, recordDiagnostic } from '../../resources/js/outlook-addin/diagnostics.js';
 
 const office = { AsyncResultStatus: { Succeeded: 'succeeded' } };
@@ -16,6 +16,7 @@ test('a timed out write remains blocked; late success clears only its own operat
     ]);
     assert.equal(hasUncertainWrite(item), true);
     first({ status: 'succeeded' });
+    assert.equal(wasSignatureWriteConfirmed(item), true);
     assert.equal(hasUncertainWrite(item), true);
     second({ status: 'succeeded' });
     assert.equal(hasUncertainWrite(item), false);

@@ -10,7 +10,7 @@ import {
 } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
 import { diagnoseStep, recordDiagnostic } from './diagnostics.js';
-import { confirmedOfficeWrite, hasUncertainWrite } from './office-write.js';
+import { confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed } from './office-write.js';
 
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
@@ -423,6 +423,7 @@ async function applyPublishedContent(item) {
     await assertTarget();
 
     if (isTemplateInsertionBlocked(item) || hasUncertainWrite(item)) return 'uncertain';
+    if (wasSignatureWriteConfirmed(item)) return 'already-present';
 
     const selected = automaticTemplate(bootstrap);
     if (selected) {
