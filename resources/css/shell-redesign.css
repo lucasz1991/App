@@ -1642,3 +1642,388 @@ body[data-mode='dark'] .rt-welcome-feature-icon {
         transform: none !important;
     }
 }
+
+/* Video-Onboarding V4: Die Navigation, Originalaufnahme und Erklaerung sind
+   voneinander getrennt. So bleibt das Video frei von eingeblendeten
+   Bauchbinden und jedes Modul kann unabhaengig ersetzt werden. */
+.rt-welcome-card {
+    display: flex;
+    width: min(94rem, 100%);
+    max-width: 94rem;
+    max-height: calc(100dvh - 2rem);
+    flex-direction: column;
+}
+
+.rt-welcome-hero {
+    flex: 0 0 auto;
+    min-height: 0;
+}
+
+.rt-welcome-layout {
+    display: grid;
+    height: min(47rem, calc(100dvh - 7.5rem));
+    min-height: 34rem;
+    grid-template-columns: minmax(13rem, 15rem) minmax(0, 1fr);
+}
+
+.rt-welcome-journey {
+    min-width: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-right: 1px solid var(--rt-shell-border);
+    background: #f5f7fa;
+    padding: 0.85rem;
+}
+
+.rt-welcome-module-list {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.rt-welcome-journey .rt-welcome-journey-node {
+    min-height: 3.7rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #526074;
+    padding: 0.5rem;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.rt-welcome-journey .rt-welcome-journey-node:hover {
+    border-color: rgba(228, 0, 43, 0.12);
+    background: rgba(255, 255, 255, 0.78);
+    color: #182435;
+}
+
+.rt-welcome-journey .rt-welcome-journey-node[data-state='complete'] {
+    border-color: transparent;
+    background: transparent;
+    color: #526074;
+}
+
+.rt-welcome-journey .rt-welcome-journey-node[data-state='current'] {
+    border-color: rgba(228, 0, 43, 0.16);
+    background: #ffffff;
+    color: #182435;
+    box-shadow: 0 12px 28px -24px rgba(21, 31, 45, 0.75);
+}
+
+.rt-welcome-module-icon {
+    border: 1px solid rgba(89, 103, 123, 0.12);
+    background: rgba(255, 255, 255, 0.9);
+    color: #68768a;
+    transition:
+        border-color 180ms ease,
+        background-color 180ms ease,
+        color 180ms ease;
+}
+
+.rt-welcome-journey-node[data-state='current'] .rt-welcome-module-icon {
+    border-color: rgba(228, 0, 43, 0.18);
+    background: rgba(228, 0, 43, 0.08);
+    color: #e4002b;
+}
+
+.rt-welcome-content {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.rt-welcome-slide-viewport {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.rt-welcome-slide {
+    display: grid;
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(20rem, 0.92fr) minmax(24rem, 1.08fr);
+}
+
+.rt-welcome-media-column,
+.rt-welcome-detail-column {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 1.35rem;
+}
+
+.rt-welcome-media-column {
+    border-right: 1px solid var(--rt-shell-border);
+    background: #f8fafc;
+}
+
+.rt-welcome-video-frame {
+    position: relative;
+    display: grid;
+    aspect-ratio: 16 / 9;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1rem;
+    background: #05080d;
+    box-shadow: 0 24px 46px -32px rgba(6, 13, 23, 0.82);
+}
+
+.rt-welcome-video-frame video {
+    display: block;
+    object-fit: contain;
+    background: #05080d;
+}
+
+.rt-welcome-video-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 1.5rem;
+    background:
+        radial-gradient(28rem 16rem at 50% 110%, rgba(228, 0, 43, 0.22), transparent 70%),
+        #0d1520;
+}
+
+.rt-welcome-detail-column {
+    background: #ffffff;
+}
+
+.rt-welcome-detail-scroll {
+    padding-bottom: 0.5rem;
+}
+
+.rt-welcome-explainer {
+    border: 1px solid rgba(105, 120, 140, 0.14);
+    border-radius: 0.9rem;
+    background: #f7f9fb;
+    padding: 0.85rem 0.95rem;
+}
+
+.rt-welcome-explainer--access {
+    border-color: rgba(31, 122, 91, 0.16);
+    background: rgba(31, 122, 91, 0.055);
+}
+
+.rt-welcome-explainer--note {
+    border-color: rgba(194, 126, 9, 0.17);
+    background: rgba(194, 126, 9, 0.055);
+}
+
+.rt-welcome-explainer-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: #526074;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    line-height: 1rem;
+    text-transform: uppercase;
+}
+
+.rt-welcome-feature-list .rt-welcome-feature {
+    min-height: 0;
+    border: 1px solid rgba(105, 120, 140, 0.12);
+    background: #ffffff;
+}
+
+.rt-welcome-feature-list .rt-welcome-feature:hover {
+    border-color: rgba(228, 0, 43, 0.14);
+    background: #ffffff;
+    transform: none;
+}
+
+.rt-welcome-footer {
+    flex: 0 0 auto;
+    border-top: 1px solid var(--rt-shell-border);
+    background: #ffffff;
+    padding: 0.8rem 1.35rem 0.9rem;
+}
+
+html.dark .rt-welcome-journey,
+body[data-mode='dark'] .rt-welcome-journey {
+    border-color: var(--rt-shell-border);
+    background: #0d1520;
+}
+
+html.dark .rt-welcome-journey .rt-welcome-journey-node,
+body[data-mode='dark'] .rt-welcome-journey .rt-welcome-journey-node {
+    color: #9ba8b9;
+}
+
+html.dark .rt-welcome-journey .rt-welcome-journey-node:hover,
+body[data-mode='dark'] .rt-welcome-journey .rt-welcome-journey-node:hover {
+    border-color: rgba(255, 113, 137, 0.14);
+    background: rgba(255, 255, 255, 0.035);
+    color: #edf2f7;
+}
+
+html.dark .rt-welcome-journey .rt-welcome-journey-node[data-state='current'],
+body[data-mode='dark'] .rt-welcome-journey .rt-welcome-journey-node[data-state='current'] {
+    border-color: rgba(255, 113, 137, 0.2);
+    background: #182332;
+    color: #ffffff;
+    box-shadow: 0 14px 30px -25px rgba(0, 0, 0, 0.95);
+}
+
+html.dark .rt-welcome-module-icon,
+body[data-mode='dark'] .rt-welcome-module-icon {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.035);
+    color: #9ba8b9;
+}
+
+html.dark .rt-welcome-journey-node[data-state='current'] .rt-welcome-module-icon,
+body[data-mode='dark'] .rt-welcome-journey-node[data-state='current'] .rt-welcome-module-icon {
+    border-color: rgba(255, 113, 137, 0.18);
+    background: rgba(228, 0, 43, 0.14);
+    color: #ff8ca0;
+}
+
+html.dark .rt-welcome-media-column,
+body[data-mode='dark'] .rt-welcome-media-column {
+    border-color: var(--rt-shell-border);
+    background: #0f1824;
+}
+
+html.dark .rt-welcome-detail-column,
+body[data-mode='dark'] .rt-welcome-detail-column,
+html.dark .rt-welcome-footer,
+body[data-mode='dark'] .rt-welcome-footer {
+    border-color: var(--rt-shell-border);
+    background: #111a27;
+}
+
+html.dark .rt-welcome-explainer,
+body[data-mode='dark'] .rt-welcome-explainer {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.028);
+}
+
+html.dark .rt-welcome-explainer--access,
+body[data-mode='dark'] .rt-welcome-explainer--access {
+    border-color: rgba(92, 211, 163, 0.13);
+    background: rgba(31, 122, 91, 0.08);
+}
+
+html.dark .rt-welcome-explainer--note,
+body[data-mode='dark'] .rt-welcome-explainer--note {
+    border-color: rgba(244, 180, 72, 0.13);
+    background: rgba(194, 126, 9, 0.07);
+}
+
+html.dark .rt-welcome-explainer-title,
+body[data-mode='dark'] .rt-welcome-explainer-title {
+    color: #9ba8b9;
+}
+
+html.dark .rt-welcome-feature-list .rt-welcome-feature,
+body[data-mode='dark'] .rt-welcome-feature-list .rt-welcome-feature,
+html.dark .rt-welcome-feature-list .rt-welcome-feature:hover,
+body[data-mode='dark'] .rt-welcome-feature-list .rt-welcome-feature:hover {
+    border-color: rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.024);
+}
+
+@media (max-width: 1023px) {
+    .rt-welcome-layout {
+        height: min(48rem, calc(100dvh - 7.5rem));
+        min-height: 0;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .rt-welcome-journey {
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-right: 0;
+        border-bottom: 1px solid var(--rt-shell-border);
+        padding: 0.65rem;
+    }
+
+    .rt-welcome-module-list {
+        display: flex;
+        width: max-content;
+        min-width: 100%;
+        gap: 0.35rem;
+    }
+
+    .rt-welcome-module-list > li {
+        width: 11.5rem;
+    }
+
+    .rt-welcome-journey .rt-welcome-journey-node {
+        min-height: 3.25rem;
+        padding: 0.4rem;
+    }
+}
+
+@media (max-width: 767px) {
+    .rt-welcome-card {
+        max-height: calc(100dvh - 1.25rem);
+    }
+
+    .rt-welcome-layout {
+        height: calc(100dvh - 5.9rem);
+        max-height: none;
+    }
+
+    .rt-welcome-slide-viewport {
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .rt-welcome-slide {
+        display: block;
+        height: auto;
+    }
+
+    .rt-welcome-media-column,
+    .rt-welcome-detail-column {
+        overflow: visible;
+        padding: 1rem;
+    }
+
+    .rt-welcome-media-column {
+        border-right: 0;
+        border-bottom: 1px solid var(--rt-shell-border);
+    }
+
+    .rt-welcome-detail-column {
+        padding-bottom: 1.25rem;
+    }
+
+    .rt-welcome-footer {
+        padding: 0.7rem 1rem 0.8rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .rt-welcome-hero {
+        padding: 0.75rem 0.9rem;
+    }
+
+    .rt-welcome-module-list > li {
+        width: 10.5rem;
+    }
+
+    .rt-welcome-feature-list {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .rt-welcome-detail-column #rt-welcome-description {
+        display: block;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-welcome-module-icon,
+    .rt-welcome-journey-node,
+    .rt-welcome-video-frame {
+        transition-duration: 0.01ms !important;
+    }
+}

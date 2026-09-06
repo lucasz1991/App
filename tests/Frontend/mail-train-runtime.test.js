@@ -55,7 +55,7 @@ function gifTimeline(bytes) {
     return delays;
 }
 
-test('delivered mail keeps legacy overlap contracts plus the V21 flow-safe Classic Outlook IMG', () => {
+test('delivered mail keeps legacy overlap contracts plus V21 fixed and V25 fluid flow-safe Classic Outlook IMGs', () => {
     const signature = text('app/Support/MailSignature.php');
     const signatureView = text('resources/views/emails/parts/signature.blade.php');
     const carrier = text('app/Support/Mail/SignatureTrainCarrier.php');
@@ -96,7 +96,10 @@ test('delivered mail keeps legacy overlap contracts plus the V21 flow-safe Class
     assert.doesNotMatch(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/);
     assert.match(carrier, /<!--\[if mso\]><img class="rt-sign-train-mso"/);
     assert.match(flowSafeMsoFallback, /self::assertFlowSafeRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
-    assert.match(flowSafeMsoFallback, /rt-sign-train-mso[\s\S]*?width:720px;max-width:100%;height:auto;[\s\S]*?vertical-align:bottom;/);
+    assert.match(flowSafeMsoFallback, /\$fluidFlow = SignatureArtifactVersion::detect\('signature', \$html\) === SignatureArtifactVersion::V25;/);
+    assert.match(flowSafeMsoFallback, /\$fallbackSize = \$fluidFlow \? 'width:100%;max-width:none;' : 'width:720px;max-width:100%;';/);
+    assert.match(flowSafeMsoFallback, /rt-sign-train-mso[\s\S]*?width="720" height="61"[\s\S]*?style="display:block;'\.\$fallbackSize\.'height:auto;[\s\S]*?vertical-align:bottom;/);
+    assert.match(flowSafeMsoFallback, /substr_replace\(\$html, \$fallback, \$slots\[0\]\['endOffset'\] \+ 1, 0\);\s*self::assertFlowSafeRuntimeImages\(\$html, expectedMsoSource: \$source\);/);
     assert.match(legacyMsoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
     assert.match(legacyMsoFallback, /\$fallbackStyle = \(\$aspectSafeTrain \|\| \$forwardSafeTrain\)[\s\S]*?'display:inline-block;width:720px;max-width:720px;height:61px;[^']*vertical-align:bottom;'/);
     assert.match(legacyMsoFallback, /<img class="rt-sign-train-mso"[\s\S]*?style="'\.\$fallbackStyle\.'"/);

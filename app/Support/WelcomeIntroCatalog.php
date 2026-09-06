@@ -118,8 +118,9 @@ final class WelcomeIntroCatalog
         $locale = app()->getLocale() === 'en' ? 'en' : 'de';
 
         $slides = [];
+        $moduleIds = $this->moduleIdsFor($user);
 
-        foreach ($this->moduleIdsFor($user) as $moduleId) {
+        foreach ($moduleIds as $moduleId) {
             $module = self::MODULES[$moduleId];
             $copy = $moduleContent[$moduleId] ?? null;
 
@@ -140,7 +141,7 @@ final class WelcomeIntroCatalog
                 'durationLabel' => sprintf('00:%02d', $module['duration']),
                 'moduleLabel' => __('app.welcome_intro_module', [
                     'current' => count($slides) + 1,
-                    'total' => count($this->moduleIdsFor($user)),
+                    'total' => count($moduleIds),
                 ]),
                 'videoLabel' => __('app.welcome_intro_play_video', [
                     'title' => (string) ($copy['title'] ?? ''),
@@ -229,7 +230,9 @@ final class WelcomeIntroCatalog
         $audience = $this->normalizeAudience($user->dashboardAudience());
         $modules = self::AUDIENCE_MODULES[$audience];
 
-        if (! $user->isAdmin() && ! $user->can('devices.view')) {
+        if (! $user->isAdmin() && $user->can('devices.view') && ! in_array('devices', $modules, true)) {
+            array_splice($modules, 1, 0, ['devices']);
+        } elseif (! $user->isAdmin() && ! $user->can('devices.view')) {
             $modules = array_values(array_filter(
                 $modules,
                 static fn (string $module): bool => $module !== 'devices',

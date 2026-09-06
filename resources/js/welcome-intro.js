@@ -18,6 +18,8 @@ export const welcomeIntro = (config = {}) => ({
     slides: Array.isArray(config.slides) ? config.slides : [],
     labels: config.labels || {},
     returnFocus: null,
+    videoFailed: false,
+    videoPlaying: false,
 
     init() {
         this.step = clampStep(this.step, this.slides.length);
@@ -64,13 +66,16 @@ export const welcomeIntro = (config = {}) => ({
     openIntro(event = null) {
         const trigger = event?.target;
 
+        this.pauseVideo();
         this.returnFocus = trigger instanceof HTMLElement ? trigger : document.activeElement;
         this.step = 0;
+        this.videoFailed = false;
         this.open = true;
         this.focusHeading();
     },
 
     closeIntro(restoreFocus = true) {
+        this.pauseVideo();
         this.open = false;
 
         if (!restoreFocus || !(this.returnFocus instanceof HTMLElement)) {
@@ -112,8 +117,36 @@ export const welcomeIntro = (config = {}) => ({
             return;
         }
 
+        this.pauseVideo();
         this.step = nextStep;
+        this.videoFailed = false;
         this.focusHeading();
+    },
+
+    pauseVideo(reset = true) {
+        const video = this.$refs.video;
+
+        if (!video) {
+            this.videoPlaying = false;
+
+            return;
+        }
+
+        if (typeof video.pause === 'function') {
+            video.pause();
+        }
+
+        this.videoPlaying = false;
+
+        if (!reset) {
+            return;
+        }
+
+        try {
+            video.currentTime = 0;
+        } catch {
+            // Ein noch nicht geladener Media-Stream kann currentTime ablehnen.
+        }
     },
 
     focusHeading() {
@@ -145,6 +178,15 @@ export const welcomeIntro = (config = {}) => ({
             return;
         }
 
+        const target = event.target;
+        if (
+            typeof Element !== 'undefined'
+            && target instanceof Element
+            && target.closest('video, button, a, input, textarea, select, [contenteditable="true"], [data-rt-welcome-media-controls]')
+        ) {
+            return;
+        }
+
         if (event.key === 'ArrowRight' || event.key === 'PageDown') {
             event.preventDefault();
             this.next();
@@ -158,5 +200,9 @@ export const welcomeIntro = (config = {}) => ({
             event.preventDefault();
             this.goTo(this.slides.length - 1);
         }
+    },
+
+    destroy() {
+        this.pauseVideo();
     },
 });

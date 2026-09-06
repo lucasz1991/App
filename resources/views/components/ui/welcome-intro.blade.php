@@ -1,7 +1,8 @@
 {{--
-    Rollenbezogenes RailTime-Onboarding fuer den allerersten Dashboard-Besuch.
-    Admin, Verwaltung, Mitarbeiter und Gaeste erhalten denselben stabilen
-    Dialogvertrag, aber eigene Inhalte und Prioritaeten.
+    Rollenbezogenes RailTime-Video-Onboarding fuer den ersten Dashboard-Besuch.
+    Der serverseitige Katalog liefert nur Module, die zur Rolle und zu den
+    Berechtigungen des angemeldeten Kontos passen. Videos werden erst fuer das
+    aktuell gewaehlte Modul geladen.
 
     x-show.important bleibt zwingend: Die Legacy-CSS setzt Display-Utilities
     mit !important und wuerde ein normales Alpine-x-show ueberstimmen.
@@ -11,60 +12,36 @@
 ])
 
 @php
-    $rawAudience = auth()->user()?->dashboardAudience() ?? 'guest';
-    $audience = match ($rawAudience) {
-        'admin' => 'admin',
-        'administration', 'management' => 'management',
-        'employee' => 'employee',
-        default => 'guest',
-    };
+    $intro = app(\App\Support\WelcomeIntroCatalog::class)->forUser(auth()->user());
+    $audience = $intro['audience'];
 
-    $content = trans('app.welcome_intro_content.'.$audience);
-    $content = is_array($content) ? $content : trans('app.welcome_intro_content.guest');
-
-    $visuals = [
-        'admin' => [
-            'audienceIcon' => 'fa-user-shield',
-            'slideIcons' => ['fa-route', 'fa-users-cog', 'fa-clipboard-list', 'fa-shield-check'],
-        ],
-        'management' => [
-            'audienceIcon' => 'fa-briefcase',
-            'slideIcons' => ['fa-chart-network', 'fa-users', 'fa-calendar-alt', 'fa-comments'],
-        ],
-        'employee' => [
-            'audienceIcon' => 'fa-id-badge',
-            'slideIcons' => ['fa-compass', 'fa-clock', 'fa-clipboard-check', 'fa-folder-open'],
-        ],
-        'guest' => [
-            'audienceIcon' => 'fa-sparkles',
-            'slideIcons' => ['fa-map-signs', 'fa-folder-open', 'fa-comments', 'fa-life-ring'],
-        ],
+    $audienceIcons = [
+        'admin' => 'fa-user-shield',
+        'management' => 'fa-briefcase',
+        'employee' => 'fa-id-badge',
+        'guest' => 'fa-user',
     ];
+
     $pointIcons = [
-        ['fa-compass', 'fa-search', 'fa-info-circle'],
-        ['fa-users', 'fa-user-plus', 'fa-shield-alt'],
-        ['fa-clipboard-list', 'fa-clock', 'fa-list-check'],
-        ['fa-comments', 'fa-question-circle', 'fa-check-circle'],
+        'fa-check-circle',
+        'fa-route',
+        'fa-shield-alt',
+        'fa-info-circle',
     ];
-    $visual = $visuals[$audience];
 
-    $slides = collect(array_values($content['slides'] ?? []))
-        ->map(function (array $slide, int $index) use ($visual, $pointIcons): array {
-            return [
-                'id' => (string) ($slide['id'] ?? 'step-'.($index + 1)),
-                'eyebrow' => (string) ($slide['eyebrow'] ?? ''),
-                'title' => (string) ($slide['title'] ?? ''),
-                'description' => (string) ($slide['description'] ?? ''),
-                'icon' => $visual['slideIcons'][$index] ?? 'fa-compass',
-                'points' => collect($slide['points'] ?? [])
-                    ->values()
-                    ->map(fn (string $point, int $pointIndex): array => [
-                        'icon' => $pointIcons[$index][$pointIndex] ?? 'fa-check',
-                        'text' => $point,
-                    ])
-                    ->all(),
-            ];
+    $slides = collect($intro['slides'])
+        ->map(function (array $slide) use ($pointIcons): array {
+            $slide['points'] = collect($slide['points'] ?? [])
+                ->values()
+                ->map(fn (string $point, int $index): array => [
+                    'icon' => $pointIcons[$index] ?? 'fa-check',
+                    'text' => $point,
+                ])
+                ->all();
+
+            return $slide;
         })
+        ->values()
         ->all();
 
     $introConfig = [
@@ -82,6 +59,7 @@
     x-init="init()"
     x-on:rt-welcome:open.window="openIntro($event)"
     x-on:rt-navigation:prepare.window="closeIntro(false)"
+    x-on:livewire:navigating.window="closeIntro(false)"
     x-on:keydown.escape.window="open && closeIntro()"
     data-rt-welcome-controller
     data-rt-welcome-audience="{{ $audience }}"
@@ -104,86 +82,73 @@
                 aria-labelledby="rt-welcome-title"
                 aria-describedby="rt-welcome-description"
                 x-on:keydown="handleKey($event)"
-                class="rt-welcome-card w-full max-w-5xl overflow-hidden rounded-[1.5rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-white/45 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:rounded-[1.75rem]"
+                class="rt-welcome-card w-full overflow-hidden rounded-[1.5rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-white/45 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:rounded-[1.75rem]"
             >
-                <div class="rt-welcome-layout">
-                    <div class="rt-welcome-hero relative overflow-hidden px-5 pb-6 pt-5 sm:px-7 sm:pb-7 sm:pt-7 lg:px-8 lg:pb-8">
-                        <div class="rt-welcome-glow" aria-hidden="true"></div>
+                <header class="rt-welcome-hero relative overflow-hidden px-4 py-3.5 sm:px-6 sm:py-4">
+                    <div class="rt-welcome-glow" aria-hidden="true"></div>
 
-                        <div class="relative z-[2] flex items-center justify-between gap-3">
-                            <span class="rt-welcome-logo-shell inline-flex h-12 w-12 items-center justify-center rounded-2xl ring-1 ring-white/20 sm:h-14 sm:w-14">
-                                <img
-                                    src="{{ asset('rt-brand/rt-logo.svg') }}"
-                                    alt=""
-                                    aria-hidden="true"
-                                    class="rt-welcome-logo h-8 w-8 sm:h-9 sm:w-9"
-                                >
+                    <div class="relative z-[2] flex min-w-0 items-center justify-between gap-3">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <span class="rt-welcome-logo-shell inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ring-white/20">
+                                <img src="{{ asset('rt-brand/rt-logo.svg') }}" alt="" aria-hidden="true" class="rt-welcome-logo h-7 w-7">
                             </span>
 
-                            <span class="rt-welcome-status inline-flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-[0.13em] text-white ring-1 ring-white/15">
-                                <i class="far {{ $visual['audienceIcon'] }} shrink-0 text-rt-red-light" aria-hidden="true"></i>
-                                <span class="truncate">{{ $content['label'] ?? config('app.name') }}</span>
-                            </span>
+                            <div class="min-w-0">
+                                <p class="truncate text-[10px] font-bold uppercase tracking-[0.18em] text-white/65">
+                                    {{ __('app.welcome_intro_original_recording') }}
+                                </p>
+                                <div class="mt-1 flex min-w-0 items-center gap-2 text-sm font-semibold text-white">
+                                    <i class="far {{ $audienceIcons[$audience] ?? 'fa-user' }} shrink-0 text-rt-red-light" aria-hidden="true"></i>
+                                    <span class="truncate">{{ $intro['label'] }}</span>
+                                    <span class="hidden text-white/35 sm:inline" aria-hidden="true">·</span>
+                                    <span class="hidden truncate text-xs font-medium text-white/65 sm:inline">
+                                        {{ count($slides) }} {{ __('app.welcome_intro_topics') }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="relative z-[2] mt-6 sm:mt-8">
-                            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70" x-text="currentSlide.eyebrow"></p>
-                            <h2
-                                id="rt-welcome-title"
-                                x-ref="heading"
-                                tabindex="-1"
-                                class="mt-2 max-w-xl text-balance text-2xl font-semibold leading-tight tracking-[-0.035em] text-white outline-none sm:text-3xl lg:text-[2.15rem]"
-                                x-text="currentSlide.title"
-                            ></h2>
-                            <p
-                                id="rt-welcome-description"
-                                class="mt-3 max-w-xl text-pretty text-sm leading-6 text-slate-200 sm:text-[0.9375rem]"
-                                x-text="currentSlide.description"
-                            ></p>
-                        </div>
-
-                        <div class="rt-welcome-journey relative z-[2] mt-6 sm:mt-8" aria-label="{{ __('app.welcome_intro_progress_label') }}">
-                            <span class="rt-welcome-journey-track" aria-hidden="true">
-                                <span class="rt-welcome-journey-fill" x-bind:style="`width: ${completion}%`"></span>
-                            </span>
-                            <ol class="relative grid grid-cols-4 gap-2">
-                                <template x-for="(slide, index) in slides" :key="`hero-${slide.id}`">
-                                    <li class="flex justify-center">
-                                        <button
-                                            type="button"
-                                            x-on:click="goTo(index)"
-                                            x-bind:aria-label="stepButtonLabel(index)"
-                                            x-bind:aria-current="index === step ? 'step' : null"
-                                            x-bind:data-state="index < step ? 'complete' : (index === step ? 'current' : 'upcoming')"
-                                            class="rt-welcome-journey-node inline-flex h-10 w-10 items-center justify-center rounded-xl text-xs outline-none ring-1 transition focus-visible:ring-2 focus-visible:ring-white/80"
-                                        >
-                                            <i class="far" x-bind:class="slide.icon" aria-hidden="true"></i>
-                                        </button>
-                                    </li>
-                                </template>
-                            </ol>
-                        </div>
+                        <button
+                            type="button"
+                            x-on:click="skip()"
+                            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white/75 ring-1 ring-white/15 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                            aria-label="{{ __('app.close') }}"
+                        >
+                            <i class="far fa-times" aria-hidden="true"></i>
+                        </button>
                     </div>
+                </header>
 
-                    <div class="rt-welcome-content flex min-h-0 flex-col px-5 py-5 sm:px-7 sm:py-7 lg:px-8">
-                        <div class="flex items-center justify-between gap-4">
-                            <p
-                                class="text-[10px] font-bold uppercase tracking-[0.16em] text-rt-muted dark:text-rt-dark-muted"
-                                role="status"
-                                aria-live="polite"
-                                x-text="progressText"
-                            ></p>
-                            <button
-                                type="button"
-                                x-show.important="!isLast"
-                                x-on:click="skip()"
-                                class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-3 text-xs font-semibold text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-white"
-                            >
-                                {{ __('app.skip_intro') }}
-                            </button>
-                        </div>
+                <div class="rt-welcome-layout">
+                    <nav class="rt-welcome-journey" aria-label="{{ __('app.welcome_intro_topics') }}" data-rt-welcome-module-nav>
+                        <ol class="rt-welcome-module-list">
+                            <template x-for="(slide, index) in slides" :key="`module-${slide.id}`">
+                                <li class="min-w-0">
+                                    <button
+                                        type="button"
+                                        x-on:click="goTo(index)"
+                                        x-bind:aria-label="stepButtonLabel(index)"
+                                        x-bind:aria-current="index === step ? 'step' : null"
+                                        x-bind:data-state="index < step ? 'complete' : (index === step ? 'current' : 'upcoming')"
+                                        x-bind:data-rt-welcome-module="slide.id"
+                                        class="rt-welcome-journey-node group flex w-full items-center gap-2.5 rounded-xl text-left outline-none transition focus-visible:ring-2 focus-visible:ring-rt-red/40"
+                                    >
+                                        <span class="rt-welcome-module-icon inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                                            <i class="far" x-bind:class="slide.icon" aria-hidden="true"></i>
+                                        </span>
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-xs font-semibold" x-text="slide.eyebrow"></span>
+                                            <span class="mt-0.5 block text-[10px] tabular-nums opacity-60" x-text="slide.durationLabel"></span>
+                                        </span>
+                                        <i class="far fa-chevron-right shrink-0 text-[9px] opacity-35" aria-hidden="true"></i>
+                                    </button>
+                                </li>
+                            </template>
+                        </ol>
+                    </nav>
 
-                        <div class="rt-welcome-slide-viewport mt-4 min-h-0 flex-1">
+                    <div class="rt-welcome-content flex min-h-0 flex-col">
+                        <div class="rt-welcome-slide-viewport min-h-0 flex-1">
                             <template x-for="slide in [currentSlide]" :key="slide.id">
                                 <article
                                     class="rt-welcome-slide"
@@ -191,46 +156,138 @@
                                     x-transition:enter-start="translate-x-3 opacity-0"
                                     x-transition:enter-end="translate-x-0 opacity-100"
                                 >
-                                    <div class="flex items-start gap-3">
-                                        <span class="rt-welcome-slide-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
-                                            <i class="far" x-bind:class="slide.icon" aria-hidden="true"></i>
-                                        </span>
-                                        <div class="min-w-0">
-                                            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-rt-red dark:text-rt-dark-accent">
-                                                {{ __('app.welcome_intro_at_a_glance') }}
-                                            </p>
-                                            <h3 class="mt-1 text-lg font-semibold tracking-[-0.02em] text-rt-text dark:text-rt-dark-text" x-text="slide.title"></h3>
+                                    <section class="rt-welcome-media-column" aria-label="{{ __('app.welcome_intro_original_recording') }}">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-rt-muted dark:text-rt-dark-muted" x-text="slide.moduleLabel"></p>
+                                            <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-rt-red/8 px-2.5 py-1 text-[10px] font-semibold text-rt-red dark:bg-rt-red/15 dark:text-rt-red-light">
+                                                <i class="far fa-volume-up" aria-hidden="true"></i>
+                                                <span x-text="slide.durationLabel"></span>
+                                            </span>
                                         </div>
-                                    </div>
 
-                                    <ul class="mt-4 grid gap-2.5">
-                                        <template x-for="(point, index) in slide.points" :key="`${slide.id}-${index}`">
-                                            <li class="rt-welcome-feature group flex min-h-[4.35rem] items-center gap-3.5 rounded-2xl px-3.5 py-3 text-sm leading-5">
-                                                <span class="rt-welcome-feature-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
-                                                    <i class="far" x-bind:class="point.icon" aria-hidden="true"></i>
+                                        <div class="rt-welcome-video-frame mt-3" data-rt-welcome-media-controls>
+                                            <video
+                                                x-ref="video"
+                                                x-show.important="slide.videoAvailable && !videoFailed"
+                                                x-bind:poster="slide.poster"
+                                                x-bind:aria-label="slide.videoLabel"
+                                                x-on:play="videoPlaying = true"
+                                                x-on:pause="videoPlaying = false"
+                                                x-on:ended="videoPlaying = false"
+                                                x-on:error="videoFailed = true"
+                                                controls
+                                                controlslist="nodownload"
+                                                disablepictureinpicture
+                                                playsinline
+                                                preload="metadata"
+                                                class="h-full w-full"
+                                                data-rt-welcome-video
+                                            >
+                                                <source x-bind:src="slide.video" type="video/mp4" x-on:error="videoFailed = true">
+                                                <template x-for="track in slide.tracks" :key="`${slide.id}-${track.srclang}`">
+                                                    <track
+                                                        kind="captions"
+                                                        x-bind:src="track.src"
+                                                        x-bind:srclang="track.srclang"
+                                                        x-bind:label="track.label"
+                                                        x-bind:default="track.default"
+                                                    >
+                                                </template>
+                                            </video>
+
+                                            <div x-show.important="!slide.videoAvailable || videoFailed" class="rt-welcome-video-fallback" role="status">
+                                                <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-xl text-white ring-1 ring-white/15">
+                                                    <i class="far fa-video-slash" aria-hidden="true"></i>
                                                 </span>
-                                                <span class="flex-1 text-pretty text-rt-text dark:text-rt-dark-text" x-text="point.text"></span>
-                                                <span class="text-[10px] font-bold tabular-nums text-rt-soft dark:text-rt-dark-soft" x-text="String(index + 1).padStart(2, '0')"></span>
-                                            </li>
-                                        </template>
-                                    </ul>
+                                                <h3 class="mt-3 text-base font-semibold text-white">{{ __('app.welcome_intro_video_unavailable_title') }}</h3>
+                                                <p class="mt-1 max-w-md text-center text-xs leading-5 text-slate-300">{{ __('app.welcome_intro_video_unavailable_text') }}</p>
+                                            </div>
+                                        </div>
+
+                                        <p class="mt-2.5 flex items-start gap-2 text-[10px] leading-4 text-rt-soft dark:text-rt-dark-soft">
+                                            <i class="far fa-closed-captioning mt-0.5 shrink-0" aria-hidden="true"></i>
+                                            <span>{{ __('app.welcome_intro_audio_language') }} — {{ __('app.welcome_intro_video_hint') }}</span>
+                                        </p>
+                                    </section>
+
+                                    <section class="rt-welcome-detail-column">
+                                        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-rt-red dark:text-rt-dark-accent" x-text="slide.eyebrow"></p>
+                                        <h2
+                                            id="rt-welcome-title"
+                                            x-ref="heading"
+                                            tabindex="-1"
+                                            class="mt-1.5 text-balance text-2xl font-semibold leading-tight tracking-[-0.035em] text-rt-text outline-none dark:text-rt-dark-text sm:text-[1.7rem]"
+                                            x-text="slide.title"
+                                        ></h2>
+                                        <p
+                                            id="rt-welcome-description"
+                                            class="mt-3 text-pretty text-sm leading-6 text-rt-muted dark:text-rt-dark-muted"
+                                            x-text="slide.description"
+                                        ></p>
+
+                                        <div class="rt-welcome-detail-scroll mt-5">
+                                            <section class="rt-welcome-explainer">
+                                                <h3 class="rt-welcome-explainer-title">
+                                                    <i class="far fa-cogs" aria-hidden="true"></i>
+                                                    {{ __('app.welcome_intro_details_label') }}
+                                                </h3>
+                                                <p class="mt-2 text-sm leading-6 text-rt-text dark:text-rt-dark-text" x-text="slide.details"></p>
+                                            </section>
+
+                                            <ul class="rt-welcome-feature-list mt-3 grid gap-2 sm:grid-cols-2">
+                                                <template x-for="(point, index) in slide.points" :key="`${slide.id}-${index}`">
+                                                    <li class="rt-welcome-feature group flex items-start gap-2.5 rounded-xl p-3 text-xs leading-5">
+                                                        <span class="rt-welcome-feature-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+                                                            <i class="far" x-bind:class="point.icon" aria-hidden="true"></i>
+                                                        </span>
+                                                        <span class="text-rt-text dark:text-rt-dark-text" x-text="point.text"></span>
+                                                    </li>
+                                                </template>
+                                            </ul>
+
+                                            <div class="mt-3 grid gap-2.5 sm:grid-cols-2">
+                                                <section class="rt-welcome-explainer rt-welcome-explainer--access">
+                                                    <h3 class="rt-welcome-explainer-title">
+                                                        <i class="far fa-user-lock" aria-hidden="true"></i>
+                                                        {{ __('app.welcome_intro_access_label') }}
+                                                    </h3>
+                                                    <p class="mt-2 text-xs leading-5 text-rt-text dark:text-rt-dark-text" x-text="slide.access"></p>
+                                                </section>
+                                                <section class="rt-welcome-explainer rt-welcome-explainer--note">
+                                                    <h3 class="rt-welcome-explainer-title">
+                                                        <i class="far fa-info-circle" aria-hidden="true"></i>
+                                                        {{ __('app.welcome_intro_boundaries_label') }}
+                                                    </h3>
+                                                    <p class="mt-2 text-xs leading-5 text-rt-text dark:text-rt-dark-text" x-text="slide.note"></p>
+                                                </section>
+                                            </div>
+                                        </div>
+                                    </section>
                                 </article>
                             </template>
                         </div>
 
-                        <div class="rt-welcome-footer mt-5 border-t border-rt-border/70 pt-4 dark:border-rt-dark-border/70">
-                            <div
-                                class="rt-welcome-progress h-1.5 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted"
-                                role="progressbar"
-                                aria-valuemin="0"
-                                aria-valuemax="100"
-                                x-bind:aria-valuenow="completion"
-                                x-bind:aria-valuetext="progressText"
-                            >
-                                <span class="block h-full rounded-full bg-rt-red transition-[width] duration-300" x-bind:style="`width: ${completion}%`"></span>
+                        <footer class="rt-welcome-footer">
+                            <div class="flex min-w-0 items-center gap-3">
+                                <div
+                                    class="rt-welcome-progress h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted"
+                                    role="progressbar"
+                                    aria-valuemin="0"
+                                    aria-valuemax="100"
+                                    x-bind:aria-valuenow="completion"
+                                    x-bind:aria-valuetext="progressText"
+                                >
+                                    <span class="block h-full rounded-full bg-rt-red transition-[width] duration-300" x-bind:style="`width: ${completion}%`"></span>
+                                </div>
+                                <p
+                                    class="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-rt-muted dark:text-rt-dark-muted"
+                                    role="status"
+                                    aria-live="polite"
+                                    x-text="progressText"
+                                ></p>
                             </div>
 
-                            <div class="mt-4 flex items-center justify-between gap-2.5">
+                            <div class="mt-3 flex items-center justify-between gap-2.5">
                                 <button
                                     type="button"
                                     x-on:click="previous()"
@@ -241,6 +298,10 @@
                                     <span class="hidden xs:inline">{{ __('app.previous') }}</span>
                                 </button>
 
+                                <p class="hidden text-center text-[10px] leading-4 text-rt-soft dark:text-rt-dark-soft lg:block">
+                                    {{ __('app.welcome_intro_keyboard_hint') }}
+                                </p>
+
                                 <button
                                     type="button"
                                     x-on:click="next()"
@@ -250,11 +311,7 @@
                                     <i class="far" x-bind:class="isLast ? 'fa-check' : 'fa-arrow-right'" aria-hidden="true"></i>
                                 </button>
                             </div>
-
-                            <p class="mt-3 text-center text-[10px] leading-4 text-rt-soft dark:text-rt-dark-soft">
-                                {{ __('app.welcome_intro_keyboard_hint') }}
-                            </p>
-                        </div>
+                        </footer>
                     </div>
                 </div>
             </section>
