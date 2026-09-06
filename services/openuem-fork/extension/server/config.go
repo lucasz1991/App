@@ -35,13 +35,24 @@ func (k DeviceKey) Bytes() ([]byte, error) {
 }
 
 type Config struct {
-	Enabled           bool        `json:"enabled"`
-	Listen            string      `json:"listen"`
-	TLSCertificate    string      `json:"tls_certificate"`
-	TLSPrivateKey     string      `json:"tls_private_key"`
-	CommandTTLSeconds int         `json:"command_ttl_seconds"`
-	Principals        []Principal `json:"principals"`
-	DeviceKeys        []DeviceKey `json:"device_keys"`
+	Native            *NativeConfig `json:"native,omitempty"`
+	Enabled           bool          `json:"enabled"`
+	Listen            string        `json:"listen"`
+	TLSCertificate    string        `json:"tls_certificate"`
+	TLSPrivateKey     string        `json:"tls_private_key"`
+	CommandTTLSeconds int           `json:"command_ttl_seconds"`
+	Principals        []Principal   `json:"principals"`
+	DeviceKeys        []DeviceKey   `json:"device_keys"`
+}
+
+// NativeConfig carries upstream service connection material in the same
+// protected file, never in process arguments or newly introduced ENV values.
+type NativeConfig struct {
+	DatabaseURL       string `json:"database_url"`
+	NATSServers       string `json:"nats_servers"`
+	CACertificate     string `json:"ca_certificate"`
+	ClientCertificate string `json:"client_certificate"`
+	ClientPrivateKey  string `json:"client_private_key"`
 }
 
 // Empty path is the ONLY disabled-by-absence case. An explicitly selected but

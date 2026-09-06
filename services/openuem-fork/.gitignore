@@ -1,0 +1,12 @@
+# One App repository; generated executables/runtime state are never source.
+*.exe
+*.test
+*.out
+*.log
+**/node_modules/
+**/certificates/
+**/badgerdb/
+**/journal/
+/build/
+/dist/
+go.work.sum

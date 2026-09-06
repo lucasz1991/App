@@ -31,8 +31,13 @@ funktionierende MDM-Verbindung freigeschaltet.
 Die [vertiefte Rückkanalprüfung](../../.lmzdev/artifacts/reports/openuem-execution-contract-audit-20260906.md)
 zeigt inzwischen eine weitergehende Lücke: keine durchgängige Lauf-ID und nur
 überschriebene Ergebnisse pro Gerät/Profil/Aufgabe. Dafür reicht ein HTTP-Adapter
-allein nicht; ein gepflegter OpenUEM-Fork beziehungsweise ein anderer geeigneter
-Management-Baustein erfordert eine eigene Architekturentscheidung.
+allein nicht. Der Nutzer hat den gepflegten OpenUEM-Fork gewählt. Die lokale
+Erweiterung mit Server-/Agentjournal und RailTime-Statusabfrage ist implementiert;
+die produktive Installation und der echte Windows-Pilot sind noch nicht abgenommen.
+Alle Quellen sind im bestehenden App-Repository unter
+[`services/openuem-fork`](../../services/openuem-fork/README.md) vereinheitlicht:
+Worker/Agent als native Komponenten, Console/NATS als erhaltener Referenzcode.
+Es gibt keine separaten Git-Repositories oder Submodule mehr.
 
 ## Ergänzung: Microsoft Entra und Windows
 

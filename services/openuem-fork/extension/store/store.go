@@ -110,11 +110,21 @@ func (p *Postgres) Health(ctx context.Context) error {
 		return errors.New("unsupported run ledger schema version")
 	}
 	// Refer to every required column so a stale version marker is not readiness.
-	rows, err := p.db.QueryContext(ctx, `SELECT r.run_id,r.principal,r.command_id,r.correlation_id,r.request_json,r.command_json,r.key_id,r.command_wire,r.status,r.result_json,r.result_hash,o.run_id,o.lease_id,o.lease_until,o.next_attempt,o.attempts FROM railtime_execution_runs r LEFT JOIN railtime_execution_outbox o ON o.run_id=r.run_id LIMIT 0`)
+	rows, err := p.db.QueryContext(ctx, `SELECT r.run_id,r.principal,r.command_id,r.correlation_id,r.request_json,r.command_json,r.key_id,r.command_wire,r.status,r.result_json,r.result_hash,o.run_id,o.lease_id,o.lease_until,o.next_attempt,o.attempts,e.event_id,e.run_id,e.result_hash,e.result_json,e.received_at FROM railtime_execution_runs r LEFT JOIN railtime_execution_outbox o ON o.run_id=r.run_id LEFT JOIN railtime_execution_results e ON e.run_id=r.run_id LIMIT 0`)
 	if err != nil {
 		return err
 	}
-	return rows.Close()
+	if err = rows.Close(); err != nil {
+		return err
+	}
+	var canWrite bool
+	if err = p.db.QueryRowContext(ctx, `SELECT NOT pg_is_in_recovery() AND current_setting('transaction_read_only') = 'off' AND has_table_privilege(current_user,'railtime_execution_runs','INSERT') AND has_table_privilege(current_user,'railtime_execution_runs','UPDATE') AND has_table_privilege(current_user,'railtime_execution_outbox','INSERT') AND has_table_privilege(current_user,'railtime_execution_outbox','UPDATE') AND has_table_privilege(current_user,'railtime_execution_outbox','DELETE') AND has_table_privilege(current_user,'railtime_execution_results','INSERT')`).Scan(&canWrite); err != nil {
+		return err
+	}
+	if !canWrite {
+		return errors.New("run ledger is not writable")
+	}
+	return nil
 }
 
 const recordColumns = `principal,request_json,command_json,key_id,command_wire,status,result_json`

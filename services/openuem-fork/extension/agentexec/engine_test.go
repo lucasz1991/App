@@ -2,7 +2,9 @@ package agentexec
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"github.com/dgraph-io/badger/v4"
 	"os"
 	"path/filepath"
 	"sync"
@@ -94,6 +96,77 @@ func TestDuplicateExecutesOnceAndResultRetryIsStable(t *testing.T) {
 	r, _ := j.Get(c.RunID)
 	if count != 1 || attempt != 2 || !r.Delivered {
 		t.Fatalf("count=%d attempt=%d delivered=%v", count, attempt, r.Delivered)
+	}
+}
+
+func TestDeliveredTerminalDuplicateReplaysSameSavedResult(t *testing.T) {
+	j, _, cfg := fixture(t)
+	c := command()
+	executed := 0
+	events := []string{}
+	e, _ := NewEngine(cfg, j, func(c protocol.Command, b func() error) Outcome { executed++; return success(c, b) }, func(s string, b []byte) ([]byte, error) {
+		var r protocol.Result
+		if err := protocol.Verify(protocol.ResultContext, cfg.KeyID, cfg.Key, b, &r); err != nil {
+			return nil, err
+		}
+		events = append(events, r.EventID)
+		return persisted(cfg)(s, b)
+	})
+	for i := 0; i < 2; i++ {
+		if _, err := e.Accept(wire(t, c, cfg)); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.Step(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if executed != 1 || len(events) != 2 || events[0] != events[1] {
+		t.Fatalf("executed=%d results=%d stable=%v", executed, len(events), len(events) == 2 && events[0] == events[1])
+	}
+}
+
+func TestStoppedEngineRejectsFurtherAcceptance(t *testing.T) {
+	j, _, cfg := fixture(t)
+	e, _ := NewEngine(cfg, j, success, persisted(cfg))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	e.Run(ctx)
+	if _, err := e.Accept(wire(t, command(), cfg)); err == nil {
+		t.Fatal("stopped engine accepted work")
+	}
+}
+
+func TestJournalFailurePreventsNativeEffects(t *testing.T) {
+	j, _, cfg := fixture(t)
+	c := command()
+	effects := 0
+	e, _ := NewEngine(cfg, j, func(c protocol.Command, begin func() error) Outcome {
+		_ = j.Close()
+		if begin() == nil {
+			effects++
+		}
+		return Outcome{Status: "failed"}
+	}, persisted(cfg))
+	_, _ = e.Accept(wire(t, c, cfg))
+	if e.Step() == nil {
+		t.Fatal("journal failure hidden")
+	}
+	if effects != 0 {
+		t.Fatal("effect without durable start")
+	}
+}
+
+func TestConfigChangesInvalidateEnrollment(t *testing.T) {
+	_, _, cfg := fixture(t)
+	if !cfg.SameEnrollment(cfg) {
+		t.Fatal("same config mismatch")
+	}
+	for _, change := range []func(*Config){func(c *Config) { c.Enabled = false }, func(c *Config) { c.Key = bytes.Repeat([]byte{8}, 32) }, func(c *Config) { c.KeyID = "rotated" }, func(c *Config) { c.LedgerID = "changed" }, func(c *Config) { c.TenantID++ }, func(c *Config) { c.SiteID++ }} {
+		other := cfg
+		change(&other)
+		if cfg.SameEnrollment(other) {
+			t.Fatal("changed enrollment matched")
+		}
 	}
 }
 
@@ -294,6 +367,20 @@ func TestMissingJournalAndWrongEnrollmentNeverReinitialize(t *testing.T) {
 	}
 	if _, err := os.Lstat(filepath.Join(filepath.Dir(path), "missing")); !os.IsNotExist(err) {
 		t.Fatal("missing path mutated")
+	}
+}
+
+func TestCorruptRecordFailsClosedOnRestart(t *testing.T) {
+	j, path, cfg := fixture(t)
+	c := command()
+	_, _, _ = j.Prepare(c, time.Now())
+	if err := j.db.Update(func(tx *badger.Txn) error { return tx.Set([]byte("run/"+c.RunID), []byte(`{"state":"prepared"}`)) }); err != nil {
+		t.Fatal(err)
+	}
+	_ = j.Close()
+	if reopened, err := Open(path, cfg.AgentID, cfg.LedgerID); err == nil {
+		_ = reopened.Close()
+		t.Fatal("corrupt journal accepted")
 	}
 }
 

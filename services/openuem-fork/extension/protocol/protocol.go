@@ -156,15 +156,15 @@ type Ack struct {
 }
 
 type RunView struct {
-	RunID         string  `json:"run_id"`
-	CommandID     string  `json:"command_id"`
-	CorrelationID string  `json:"correlation_id"`
-	AgentID       string  `json:"agent_id"`
-	ProfileID     int     `json:"profile_id"`
-	PayloadSHA256 string  `json:"payload_sha256"`
+	RunID         string   `json:"run_id"`
+	CommandID     string   `json:"command_id"`
+	CorrelationID string   `json:"correlation_id"`
+	AgentID       string   `json:"agent_id"`
+	ProfileID     int      `json:"profile_id"`
+	PayloadSHA256 string   `json:"payload_sha256"`
 	ExpectedTasks []string `json:"expected_tasks"`
-	Status        string  `json:"status"` // queued, accepted, succeeded, failed, uncertain
-	Result        *Result `json:"result,omitempty"`
+	Status        string   `json:"status"` // queued, accepted, succeeded, failed, uncertain
+	Result        *Result  `json:"result,omitempty"`
 }
 
 type Envelope struct {

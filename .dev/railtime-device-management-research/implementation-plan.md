@@ -85,14 +85,19 @@ Provider wird erst nach seinem eigenen Labor-Gate für Mutationen freigeschaltet
   versionierten Connector-Vertrag vorgesehen. Mesh-Enrollment und Neustart
   werden ausdrücklich nicht gemeldet und vom Endpoint abgelehnt. Ein echter
   Plesk-/MeshCentral-/Laborgeräte-End-to-End-Test steht aus.
-- **Externe Provider: NO-GO.** Native OpenUEM-, Headwind- und NanoMDM-Adapter
-  sind noch nicht implementiert. Apple-Plattformdienste und Android EMM sind
+- **Externe Provider: keine Produktionsfreigabe.** Der ausgewählte OpenUEM-
+  Erweiterungsweg ist lokal mit Worker, Windows-Agent, Journalen und Laravel-
+  Anbindung implementiert. Alle Quellen liegen im einen App-Repository unter
+  [`services/openuem-fork`](../../services/openuem-fork/README.md); separate
+  Repositories und Clone-/Restore-Abläufe sind aufgehoben. Headwind-/NanoMDM-
+  Adapter sind weiterhin nicht abgenommen. Apple-Plattformdienste und Android EMM sind
   noch nicht qualifiziert beziehungsweise provisioniert.
   Vertiefte OpenUEM-Prüfung06.09.: Es existieren echte Aufgabenberichte, aber
   keine durchgängige Ausführungs-ID und keine unveränderlichen Ergebnisse pro
   Auftrag. Ein gewöhnlicher HTTP-Adapter erfüllt deshalb den RailTime-Vertrag
-  nicht. Vor Umsetzung ist ein gepflegter Fork/Erweiterungsweg oder ein anderer
-  geeigneter Management-Baustein zu entscheiden; siehe
+  nicht. Die inzwischen gewählte native Erweiterung ergänzt deshalb durchgängige
+  Auftragskennungen und unveränderliche Ergebnisse; echte Geräteinstallation,
+  Schlüsselbereitstellung und Einzelgerätetest bleiben offen. Ausgangsbefund:
   [Rückkanalprüfung](../../.lmzdev/artifacts/reports/openuem-execution-contract-audit-20260906.md).
 
 Keine dieser Aussagen ist eine Freigabe für Wipe, Lock, Kontenbereitstellung

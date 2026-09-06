@@ -30,7 +30,7 @@ type Engine struct {
 	execute   Execute
 	transport Transport
 	mu        sync.Mutex
-	halted atomic.Bool
+	halted    atomic.Bool
 }
 
 func NewEngine(c Config, j *Journal, execute Execute, transport Transport) (*Engine, error) {
@@ -44,7 +44,9 @@ func NewEngine(c Config, j *Journal, execute Execute, transport Transport) (*Eng
 }
 
 func (e *Engine) Accept(wire []byte) ([]byte, error) {
-	if e.halted.Load(){return nil,ErrJournal}
+	if e.halted.Load() {
+		return nil, ErrJournal
+	}
 	var c protocol.Command
 	if protocol.Verify(protocol.CommandContext, e.cfg.KeyID, e.cfg.Key, wire, &c) != nil || c.Validate() != nil || c.AgentID != e.cfg.AgentID || c.TenantID != e.cfg.TenantID || c.SiteID != e.cfg.SiteID {
 		return nil, ErrState

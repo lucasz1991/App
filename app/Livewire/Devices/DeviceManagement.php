@@ -8,6 +8,7 @@ use App\Enums\DeviceCommandType;
 use App\Enums\DevicePlatform;
 use App\Models\Device;
 use App\Models\DeviceCommand;
+use App\Models\DeviceProviderLink;
 use App\Models\User;
 use App\Notifications\DeviceEnrollmentInvitation;
 use App\Services\DeviceManagement\DeviceAccountPreparationService;
@@ -895,7 +896,7 @@ class DeviceManagement extends Component
         $runtime = app(DeviceManagementSettings::class)->providerRuntime('openuem', fresh: true);
         $link = $device->providerLinkFor('openuem');
         if (($runtime['adapter'] ?? '') !== 'native_fork_v1' || ! $link
-            || $link->status !== \App\Models\DeviceProviderLink::STATUS_ACTIVE || $device->platform !== DevicePlatform::Windows) {
+            || $link->status !== DeviceProviderLink::STATUS_ACTIVE || $device->platform !== DevicePlatform::Windows) {
             return [];
         }
 

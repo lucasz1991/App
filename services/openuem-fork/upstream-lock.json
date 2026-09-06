@@ -1,12 +1,16 @@
 {
-  "format": 1,
+  "format": 2,
   "protocol": "railtime.execution.v1",
   "go_toolchain_tested": "go1.26.8",
   "module": "railtime.local/openuem-extension",
-  "native_relative_directory": "device_app/openuem-fork",
+  "repository": "App",
+  "source_layout": "ordinary directories in the App repository; no submodules or nested repositories",
+  "native_relative_directory": "services/openuem-fork/native",
+  "reference_relative_directory": "services/openuem-fork/reference",
   "components": [
-    {"name":"worker","repository":"https://github.com/open-uem/openuem-worker.git","tag":"v0.12.0","commit":"b81aff7cb7df1cf1b6d72869b41e39a9be817bad","patch":"worker.patch"},
-    {"name":"agent","repository":"https://github.com/open-uem/openuem-agent.git","tag":"v0.11.0","commit":"11561cf15200366c389fc1c9cb1ed24d5654ab32","patch":"agent.patch"},
-    {"name":"console","repository":"https://github.com/open-uem/openuem-console.git","tag":"v0.12.0","commit":"4f2ca78633f191929cf53d1d11a7f466bc766519","patch":"console.patch"}
+    {"name":"worker","role":"native","path":"native/worker","repository":"https://github.com/open-uem/openuem-worker.git","tag":"v0.12.0","commit":"b81aff7cb7df1cf1b6d72869b41e39a9be817bad"},
+    {"name":"agent","role":"native","path":"native/agent","repository":"https://github.com/open-uem/openuem-agent.git","tag":"v0.11.0","commit":"11561cf15200366c389fc1c9cb1ed24d5654ab32"},
+    {"name":"console","role":"reference","path":"reference/console","repository":"https://github.com/open-uem/openuem-console.git","tag":"v0.12.0","commit":"4f2ca78633f191929cf53d1d11a7f466bc766519"},
+    {"name":"nats","role":"reference","path":"reference/nats","repository":"https://github.com/open-uem/nats.git","tag":null,"commit":"8e457deeb73924574615a74086bc5e4be22c9cc4"}
   ]
 }

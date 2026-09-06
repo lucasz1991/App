@@ -2,6 +2,12 @@ import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 
 export default defineConfig({
+    server: {
+        watch: {
+            // Native OpenUEM sources are not part of the RailTime frontend.
+            ignored: ['**/services/openuem-fork/**'],
+        },
+    },
     build: {
         emptyOutDir: false,
     },

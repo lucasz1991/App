@@ -202,9 +202,11 @@ func (j *Journal) Prepare(c protocol.Command, now time.Time) (Record, bool, erro
 			if r.Command.PayloadSHA256 != c.PayloadSHA256 {
 				return ErrConflict
 			}
-			if r.Result!=nil && r.Delivered {
-				r.Delivered=false
-				if err:=put(tx,r);err!=nil{return err}
+			if r.Result != nil && r.Delivered {
+				r.Delivered = false
+				if err := put(tx, r); err != nil {
+					return err
+				}
 			}
 			record = r
 			return nil
