@@ -50,10 +50,10 @@
 
 {{--
     Einheitlicher Seitenrahmen fuer ALLE Admin- und Nutzerseiten.
-    Sorgt fuer identisches Padding, denselben Seitenkopf (Titel + Aktionen +
-    Info-Knopf) und vermerkt den Seitenaufruf des Nutzers.
+    Der aeussere rt-page-content besitzt das Seitenpadding. Hier liegen nur
+    der Seitenkopf (Titel + Aktionen + Info-Knopf) und das Gesehen-Tracking.
 --}}
-<div {{ $attributes->class('space-y-5 px-0 pb-4 pt-2 lg:py-5') }}>
+<div {{ $attributes->class('rt-page-section space-y-4 p-0') }}>
     @if (! is_null($title) || isset($actions))
         <x-ui.page-header
             :title="$title"

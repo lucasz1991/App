@@ -9,7 +9,7 @@
     data-operational-module="{{ $module }}"
 >
     <nav
-        class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:grid lg:grid-cols-4 lg:overflow-visible"
+        class="flex gap-2 overflow-x-auto pb-1 lg:grid lg:grid-cols-4 lg:overflow-visible"
         aria-label="Bereiche der Einsatzplanung"
         data-operations-navigation
     >

@@ -2546,20 +2546,12 @@ body[data-mode='dark'] .rt-loading-skeleton__action::after {
 
 .rt-tabs-shell[data-sticky-enabled='true'] {
     position: sticky;
-    top: calc(70px + 0.5rem);
+    top: calc(70px + var(--rt-page-gutter, 1rem));
     z-index: 24;
     backdrop-filter: blur(14px);
 }
 
-/* Mobil sitzt die klebende Tab-Leiste direkt unter der 70px hohen Topbar
-   (keine Luecke mehr) und laeuft randlos bis an beide Bildschirmkanten, damit
-   die Tabs dort sauber abschneiden statt in einer Luecke zu enden.
-   Die Seitenabstaende der Layout-Container (page-content px-1, x-ui.page px-2)
-   werden mit calc(50% - 50vw) neutralisiert — unabhaengig von den konkreten
-   Padding-Werten und damit robust fuer alle Tab-Seiten. Der Ueberhang wird von
-   body{overflow-x:hidden} (Legacy-CSS) an der Viewport-Kante abgeschnitten,
-   deshalb entsteht kein horizontaler Scrollbalken. Auf .main-content ist
-   overflow bereits durch die :has()-Regel unten auf visible gesetzt.
+/* Auch die Legacy-Tabvariante bleibt innerhalb des gemeinsamen Seitenrandes.
    Tabs in Dialogen bleiben ausgenommen (data-sticky-enabled='false'). */
 /* 767.98px statt 767px: die Desktop-Regeln der Tabs beginnen bei
    min-width:768px. Bei einer fraktionalen Viewport-Breite (Zoom, fractional
@@ -2567,9 +2559,8 @@ body[data-mode='dark'] .rt-loading-skeleton__action::after {
    zurueckkommen, die hier behoben wird. */
 @media (max-width: 767.98px) {
     .rt-tabs-shell[data-sticky-enabled='true'] {
-        top: 70px;
-        margin-left: calc(50% - 50vw);
-        margin-right: calc(50% - 50vw);
+        top: calc(70px + var(--rt-page-gutter, 1rem));
+        margin-inline: 0;
         /* !important ist hier zwingend: die Legacy-tailwind.min.css definiert
            .p-1\.5{padding:.375rem!important} und
            .rounded-2xl{border-radius:1rem!important} — beide Klassen haengen am
@@ -2579,10 +2570,7 @@ body[data-mode='dark'] .rt-loading-skeleton__action::after {
         border-radius: 0 !important;
     }
 
-    /* Auch der Scroll-Container darf seitlich nicht einruecken, sonst stoppen
-       die Tabs an den Enden ~5px vor der Bildschirmkante statt dort
-       abgeschnitten zu werden. Das vertikale Padding bleibt: es gibt der
-       aktiven Kachel und ihrem Tiefen-Effekt den noetigen Raum. */
+    /* Kein zweiter aeusserer Seitenrand innerhalb der Tabnavigation. */
     .rt-tabs-shell[data-sticky-enabled='true'] .rt-tabs-carousel {
         padding-left: 0;
         padding-right: 0;

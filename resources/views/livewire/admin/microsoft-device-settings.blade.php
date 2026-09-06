@@ -79,13 +79,13 @@
         @if ($diagnostic !== [])
             <p class="text-sm text-rt-text dark:text-rt-dark-text"><span class="font-medium">Verbindungstest:</span> {{ $diagnostic['message'] }} @if ($connectionStatus['last_diagnostic_at'])<span class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ \Illuminate\Support\Carbon::parse($connectionStatus['last_diagnostic_at'])->timezone(config('app.timezone'))->format('d.m.Y. H:i') }}</span>@endif</p>
             @if (isset($diagnostic['intune_message']) && $diagnostic['intune_status'] !== 'success')
-                <p class="text-sm text-rt-muted dark:text-rt-dark-muted"><span class="font-medium">Intune:</span> {{ $diagnostic['intune_message'] }}</p>
+                <p class="break-words text-sm text-rt-muted dark:text-rt-dark-muted"><span class="font-medium">Intune:</span> {{ $diagnostic['intune_message'] }}</p>
             @endif
         @endif
         @if ($lastRun !== [])
             <p class="text-sm text-rt-text dark:text-rt-dark-text"><span class="font-medium">Letzter Abruf:</span> {{ $lastRun['message'] }} @if ($connectionStatus['last_sync_at'])<span class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ \Illuminate\Support\Carbon::parse($connectionStatus['last_sync_at'])->timezone(config('app.timezone'))->format('d.m.Y. H:i') }}</span>@endif</p>
             @if (isset($lastRun['intune_message']) && $lastRun['intune_status'] !== 'success')
-                <p class="text-sm text-rt-muted dark:text-rt-dark-muted"><span class="font-medium">Intune:</span> {{ $lastRun['intune_message'] }}</p>
+                <p class="break-words text-sm text-rt-muted dark:text-rt-dark-muted"><span class="font-medium">Intune:</span> {{ $lastRun['intune_message'] }}</p>
             @endif
             <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 @foreach (['discovered' => 'Gefunden', 'created' => 'Neu erfasst', 'updated' => 'Aktualisiert', 'assigned' => 'Zugeordnet', 'conflicts' => 'Zu prüfen', 'skipped' => 'Übersprungen'] as $key => $label)

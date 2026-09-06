@@ -1,5 +1,19 @@
 # Produktions-Testlauf
 
+## Microsoft-Entra-Inventar und Windows-Abgleich
+
+Der direkte Graph-Abruf hat einen eigenen [Einrichtungs- und Testweg](microsoft-entra-windows.md).
+Nach Migration, Tenant-/Client-Konfiguration, minimaler Adminzustimmung,
+Mitarbeiterkontobindung und Start des Workers `microsoft_devices` zunächst
+**Verbindung testen**, anschließend **Jetzt synchronisieren** ausführen.
+Einen bekannten Windows-Rechner samt Entra-ID, optional Intune-Seriennummer
+und Hauptbenutzer mit dem Microsoft-Admin-Center vergleichen. Ein zweiter
+Abgleich darf keine doppelten Geräte/Zuteilungen anlegen. Rückgabe oder
+abweichende lokale Zuteilung muss erhalten bleiben; ein einfacher Entra-
+Eintrag darf keine bestandene MDM-/App-/Fernsupport-Prüfung vortäuschen.
+Die Microsoft-Synchronisierung benötigt keine Freigabe des Mutationsschalters,
+weil sie bei Microsoft ausschließlich liest und nur RailTime-Inventar schreibt.
+
 ## Stufe A – lokal ohne externe Mutation
 
 1. Migration nur in einer frischen Testdatenbank ausführen.

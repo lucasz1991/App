@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -19,6 +20,12 @@ final class MicrosoftEmployeeLinkService
     public function bind(User $employee, string $objectId, string $principal, User $actor): EmployeeIdentityAccount
     {
         Gate::forUser($actor)->authorize('devices.accounts.manage');
+
+        if (! Schema::hasColumn('employee_identity_accounts', 'tenant_id')) {
+            throw ValidationException::withMessages([
+                'schema' => 'Bitte zuerst die Microsoft-Gerätemigration ausführen.',
+            ]);
+        }
 
         $data = validator([
             'employee_id' => $employee->getKey(),
@@ -52,9 +59,11 @@ final class MicrosoftEmployeeLinkService
                 }
 
                 $lockedEmployee = User::query()->lockForUpdate()->findOrFail($employee->getKey());
-                if (! $lockedEmployee->isActive()) {
+                if (! $lockedEmployee->isActive()
+                    || ! in_array($lockedEmployee->role, ['admin', 'staff'], true)
+                    || $lockedEmployee->isSuperAdmin()) {
                     throw ValidationException::withMessages([
-                        'employee_id' => 'Microsoft-Konten können nur aktiven Mitarbeitern zugeordnet werden.',
+                        'employee_id' => 'Microsoft-Konten können nur aktiven Mitarbeitern zugeordnet werden. Gäste und das Systemkonto sind ausgeschlossen.',
                     ]);
                 }
 

@@ -9,6 +9,10 @@
 
         <x-slot name="content">
             <div class="space-y-6">
+                @unless($schemaReady)
+                    <p role="status" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">Microsoft-Gerätemigration zuerst ausführen. Danach können Mitarbeiterkonten zugeordnet werden.</p>
+                @endunless
+                <x-input-error for="schema" />
                 <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
                     Verbinde ein bestehendes Microsoft-Firmenkonto mit dem zugehörigen RailTime-Mitarbeiter. So kann der Geräteabgleich den Mitarbeiter anhand seiner eindeutigen Microsoft-Identität erkennen.
                 </p>
@@ -84,7 +88,7 @@
 
         <x-slot name="footer">
             <button type="button" wire:click="closeModal" class="rt-ui-button rt-ui-button-secondary min-h-11 rounded-xl px-4 text-sm font-semibold">Schließen</button>
-            <button type="submit" form="microsoft-employee-link-form" wire:loading.attr="disabled" wire:target="save" class="rt-ui-button rt-ui-button-primary min-h-11 rounded-xl px-4 text-sm font-semibold disabled:opacity-40">
+            <button type="submit" form="microsoft-employee-link-form" wire:loading.attr="disabled" wire:target="save" @disabled(! $schemaReady) class="rt-ui-button rt-ui-button-primary min-h-11 rounded-xl px-4 text-sm font-semibold disabled:opacity-40">
                 <span wire:loading.remove wire:target="save">Konto zuordnen</span>
                 <span wire:loading wire:target="save">Wird gespeichert …</span>
             </button>

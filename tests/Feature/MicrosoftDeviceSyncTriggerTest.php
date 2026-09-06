@@ -9,6 +9,8 @@ use App\Models\User;
 use App\Services\DeviceManagement\MicrosoftDeviceSettings;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncService;
+use App\Support\OutlookAddin\OutlookAddinException;
+use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
 use App\Support\OutlookAddin\VerifiedEntraIdentity;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Queue\QueueManager;
@@ -243,6 +245,70 @@ final class MicrosoftDeviceSyncTriggerTest extends TestCase
 
         $this->assertTrue($this->scheduler->queue());
         Http::assertNothingSent();
+    }
+
+    public function test_dispatch_and_worker_take_configuration_and_fingerprint_from_one_snapshot(): void
+    {
+        $initial = $this->settings->snapshot();
+        $this->settings->save(['client_secret' => 'new-credential-snapshot'], $this->admin);
+        $changed = $this->settings->snapshot();
+        $settings = Mockery::mock(MicrosoftDeviceSettings::class);
+        $settings->shouldReceive('snapshot')->twice()->andReturn($initial, $changed);
+        $settings->shouldNotReceive('configuration');
+        $settings->shouldNotReceive('fingerprint');
+
+        $scheduler = new MicrosoftDeviceSyncScheduler($settings);
+        $this->assertFalse($scheduler->queue());
+        Queue::assertNotPushed(SyncMicrosoftDevices::class);
+
+        $settings = Mockery::mock(MicrosoftDeviceSettings::class);
+        $settings->shouldReceive('snapshot')->once()->andReturn($changed);
+        $settings->shouldNotReceive('configuration');
+        $settings->shouldNotReceive('fingerprint');
+        $sync = Mockery::mock(MicrosoftDeviceSyncService::class);
+        $sync->shouldReceive('sync')->once()->andReturn(['status' => 'success']);
+        $job = new SyncMicrosoftDevices(self::TENANT, $changed['fingerprint'], 'snapshot-only-test');
+        $job->handle($settings, $sync, $this->scheduler);
+        Http::assertNothingSent();
+    }
+
+    public function test_legacy_identity_is_not_bound_if_settings_change_before_the_locked_recheck(): void
+    {
+        [$user, $account] = $this->identityAccount(null);
+        $initial = $this->settings->snapshot();
+        $this->settings->save([
+            'tenant_id' => self::OTHER_TENANT,
+            'client_secret' => 'new-tenant-credential',
+        ], $this->admin);
+        $changed = $this->settings->snapshot();
+        $settings = Mockery::mock(MicrosoftDeviceSettings::class);
+        $settings->shouldReceive('snapshot')->twice()->andReturn($initial, $changed);
+
+        (new MicrosoftDeviceSyncScheduler($settings))->afterMicrosoftSignIn($this->verifiedIdentity(), $user);
+
+        $this->assertNull($account->fresh()->tenant_id);
+        Queue::assertNotPushed(SyncMicrosoftDevices::class);
+    }
+
+    public function test_outlook_resolver_accepts_legacy_and_matching_tenant_but_rejects_a_foreign_tenant(): void
+    {
+        [$user, $account] = $this->identityAccount(null);
+        $resolver = app(OutlookAddinIdentityResolver::class);
+        $identity = $this->verifiedIdentity();
+        $this->assertSame($user->getKey(), $resolver->resolve($identity, $identity->principal, $identity->principal)['user']->getKey());
+
+        $account->forceFill(['tenant_id' => self::TENANT])->save();
+        $this->assertSame($user->getKey(), $resolver->resolve($identity, $identity->principal, $identity->principal)['user']->getKey());
+
+        $account->forceFill(['tenant_id' => self::OTHER_TENANT])->save();
+        try {
+            $resolver->resolve($identity, $identity->principal, $identity->principal);
+            $this->fail('A different tenant must not be treated as the same Outlook identity.');
+        } catch (OutlookAddinException $exception) {
+            $this->assertSame(403, $exception->httpStatus);
+            $this->assertSame('outlook_addin_identity_not_linked', $exception->errorCode);
+        }
+        $this->assertSame(self::OTHER_TENANT, $account->fresh()->tenant_id);
     }
 
     public function test_worker_uses_the_fresh_service_and_releases_failed_or_successful_reservations(): void

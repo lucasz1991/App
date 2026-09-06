@@ -50,8 +50,6 @@ class MicrosoftDeviceSettings
         'invalid_response' => 'Microsoft Graph lieferte keine verwertbare Antwort.',
         'rate_limited' => 'Microsoft begrenzt derzeit die Abrufe. Der nächste geplante Lauf versucht es erneut.',
         'http_error' => 'Microsoft Graph hat den Abruf nicht erfolgreich beantwortet.',
-        'rate_limited' => 'Microsoft hat den Abruf vorübergehend begrenzt. Versuchen Sie es später erneut.',
-        'http_error' => 'Microsoft Graph meldet einen Fehler. Prüfen Sie die Verbindung erneut.',
         'stale_configuration' => 'Die Konfiguration wurde während des Abrufs geändert. Starten Sie den Abruf erneut.',
     ];
 

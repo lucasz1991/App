@@ -37,7 +37,9 @@ final class OutlookAddinIdentityResolver
         if (! $account instanceof EmployeeIdentityAccount
             || ! $user instanceof User
             || ! $user->isActive()
-            || $user->email_verified_at === null) {
+            || $user->email_verified_at === null
+            || ($account->tenant_id !== null
+                && ! hash_equals(strtolower($identity->tenantId), strtolower((string) $account->tenant_id)))) {
             throw $this->notLinked();
         }
 

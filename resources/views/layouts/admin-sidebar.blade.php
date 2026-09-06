@@ -128,15 +128,6 @@
                         >
                             E-Mail-Vorlagen
                         </x-menu.sidebar-nav-link>
-                        <x-menu.sidebar-nav-link
-                            :href="route('admin.mail-documents.import-page')"
-                            icon="upload-cloud"
-                            :active="request()->routeIs('admin.mail-documents.import-page')"
-                            :navigate="false"
-                            class="!pl-8"
-                        >
-                            Entwürfe importieren
-                        </x-menu.sidebar-nav-link>
                     @endif
                 </x-menu.sidebar-nav-group>
 

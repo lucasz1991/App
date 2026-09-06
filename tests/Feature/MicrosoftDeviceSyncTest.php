@@ -184,6 +184,43 @@ class MicrosoftDeviceSyncTest extends TestCase
         $this->assertDatabaseCount('devices', 1);
     }
 
+    public function test_changed_entra_device_id_cannot_update_the_previous_assets_serial_or_inventory(): void
+    {
+        $this->sync();
+        $before = Device::query()->sole()->getAttributes();
+        $changedId = '88888888-8888-4888-8888-888888888888';
+        $this->directory[0]['deviceId'] = $changedId;
+        $this->directory[0]['displayName'] = 'DIFFERENT-WINDOWS-DEVICE';
+        $this->settings()->save(['intune_enabled' => true], $this->admin);
+        $this->managed = [[
+            'id' => self::INTUNE, 'azureADDeviceId' => $changedId,
+            'operatingSystem' => 'Windows', 'serialNumber' => 'SERIAL-OF-DIFFERENT-DEVICE',
+        ]];
+        $this->primaryUsers[self::INTUNE] = [self::OWNER];
+
+        $result = $this->sync();
+        $this->assertSame('success', $result['status']);
+        $this->assertSame(1, $result['conflicts']);
+        $this->assertSame($before, Device::query()->sole()->getAttributes());
+        $this->assertSame(self::DEVICE, MicrosoftDeviceLink::query()->sole()->entra_device_id);
+        $this->assertSame('device_id_conflict', MicrosoftDeviceLink::query()->sole()->assignment_status);
+        $this->assertDatabaseCount('device_assignments', 1);
+    }
+
+    public function test_explicit_intune_company_ownership_takes_precedence_over_workplace_registration(): void
+    {
+        $this->settings()->save(['intune_enabled' => true], $this->admin);
+        $this->directory[0]['trustType'] = 'Workplace';
+        $this->managed = [[
+            'id' => self::INTUNE, 'azureADDeviceId' => self::DEVICE,
+            'operatingSystem' => 'Windows', 'managedDeviceOwnerType' => 'company',
+        ]];
+        $this->primaryUsers[self::INTUNE] = [self::OWNER];
+
+        $this->assertSame('success', $this->sync()['status']);
+        $this->assertSame('corporate', Device::query()->sole()->ownership);
+    }
+
     public function test_optional_intune_failure_preserves_inventory_but_does_not_guess_the_primary_user(): void
     {
         $this->settings()->save(['intune_enabled' => true], $this->admin);

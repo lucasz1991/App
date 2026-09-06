@@ -1,6 +1,18 @@
 # Integrations- und Umsetzungsplan
 
-Stand: 23. August 2026
+Stand: 6. September 2026
+
+## Ergänzung umgesetzt: Microsoft-Entra-Inventar
+
+Ein nativer lesender Graph-Adapter synchronisiert Windows-Geräte des explizit
+konfigurierten Mandanten und ergänzt optional Intune-Hauptbenutzer und
+Inventardaten. Die automatische Erstzuordnung erfolgt über Tenant-ID und
+Benutzer-Objekt-ID; bestehende Zuteilungen/Rückgaben bleiben erhalten.
+Microsoft-Einstellungen, Kontenmodal, Statusfilter, Hintergrundqueue und
+gedrosselter Outlook-Anmeldeauslöser sind implementiert. Der [Einrichtungsweg](microsoft-entra-windows.md)
+enthält die minimalen Graph-Rechte und die Windows-/Intune-Voraussetzungen.
+Dieser Abruf ersetzt nicht den weiterhin offenen schreibenden Identity-/MDM-
+Connectorbetrieb aus den folgenden Phasen.
 
 Der Ablauf ist bewusst in prüfbare Gates unterteilt. RailTime-Code kann sofort
 lokal und gegen einen Simulationsconnector getestet werden; ein echter

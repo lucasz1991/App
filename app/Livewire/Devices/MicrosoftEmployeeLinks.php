@@ -9,6 +9,7 @@ use App\Services\DeviceManagement\MicrosoftDeviceSettings;
 use App\Services\DeviceManagement\MicrosoftEmployeeLinkService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 
 class MicrosoftEmployeeLinks extends Component
@@ -66,13 +67,15 @@ class MicrosoftEmployeeLinks extends Component
     {
         Gate::authorize('devices.accounts.manage');
         $tenantId = (string) (app(MicrosoftDeviceSettings::class)->configuration()['tenant_id'] ?? '');
+        $schemaReady = Schema::hasColumn('employee_identity_accounts', 'tenant_id');
 
         return view('livewire.devices.microsoft-employee-links', [
             'tenantId' => $tenantId,
-            'employees' => $this->showModal
-                ? User::query()->where('status', true)->orderBy('name')->get(['id', 'name'])
+            'schemaReady' => $schemaReady,
+            'employees' => $this->showModal && $schemaReady
+                ? User::query()->where('status', true)->whereIn('role', ['admin', 'staff'])->where('id', '!=', 1)->orderBy('name')->get(['id', 'name'])
                 : collect(),
-            'accounts' => $this->showModal
+            'accounts' => $this->showModal && $schemaReady
                 ? EmployeeIdentityAccount::query()
                     ->forProvider(AccountProvider::Microsoft365)
                     ->where(fn ($query) => $query->where('tenant_id', $tenantId)->orWhereNull('tenant_id'))

@@ -2063,10 +2063,6 @@ body[data-mode='dark'] .rt-chat-member-page-button {
  * Messengerfläche belegen und den Verlauf aus dem Viewport schieben.
  */
 @media (min-width: 768px) {
-    .rt-chat-page {
-        padding-inline: clamp(1rem, 2vw, 2rem) !important;
-    }
-
     .rt-chat-mobile-back {
         display: none !important;
     }
@@ -2109,27 +2105,25 @@ body[data-mode='dark'] .rt-chat-member-page-button {
     .rt-chat-page {
         position: fixed !important;
         z-index: 35;
-        top: calc(var(--rt-chat-visual-top, 0px) + var(--rt-chat-topbar-inset, 70px));
-        right: 0;
-        left: 0;
-        width: 100%;
+        top: calc(var(--rt-chat-visual-top, 0px) + var(--rt-chat-topbar-inset, 70px) + var(--rt-page-gutter, 1rem));
+        right: var(--rt-page-gutter, 1rem);
+        left: var(--rt-page-gutter, 1rem);
+        width: auto;
         height: max(
             0px,
-            calc(var(--rt-chat-visual-height, 100dvh) - var(--rt-chat-topbar-inset, 70px))
+            calc(var(--rt-chat-visual-height, 100dvh) - var(--rt-chat-topbar-inset, 70px) - var(--rt-page-gutter, 1rem) - var(--rt-page-gutter, 1rem))
         ) !important;
         margin: 0 !important;
         padding: 0 !important;
         overscroll-behavior: none;
     }
 
-    .rt-chat-shell {
-        border-radius: 0 !important;
-    }
-
     /*
      * Die Seite ist mobil immer an den VisualViewport gebunden. Ist die
-     * Topbar sichtbar, beginnt sie direkt darunter; verschwindet die Topbar
-     * beim PWA-/Tastatur-Viewport, faellt der berechnete Abstand auf null.
+     * Topbar sichtbar, beginnt sie mit dem zentralen Seitenabstand darunter.
+     * Fixed umgeht das Containerpadding, daher wird derselbe Token hier als
+     * Inset verrechnet. Beim PWA-/Tastatur-Viewport faellt nur die Topbar weg;
+     * oberer und unterer Seitenabstand bleiben innerhalb des sichtbaren Raums.
      */
     .rt-chat-page[data-keyboard-open='true'] {
         z-index: 45;

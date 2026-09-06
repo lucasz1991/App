@@ -56,10 +56,11 @@ final class SyncMicrosoftDevices implements ShouldQueue
         MicrosoftDeviceSyncScheduler $scheduler,
     ): void {
         try {
-            $configuration = $settings->configuration();
+            $snapshot = $settings->snapshot();
+            $configuration = $snapshot['configuration'];
             if (! ($configuration['enabled'] ?? false)
                 || ! hash_equals($this->tenantId, strtolower((string) ($configuration['tenant_id'] ?? '')))
-                || ! hash_equals($this->configurationFingerprint, $settings->fingerprint())) {
+                || ! hash_equals($this->configurationFingerprint, $snapshot['fingerprint'])) {
                 return;
             }
 

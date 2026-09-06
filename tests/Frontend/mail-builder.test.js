@@ -2891,7 +2891,7 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailIndex, /:navigate-edit="false"/);
     assert.doesNotMatch(mailIndex, /wire:navigate\s+data-email-template-(?:editor|import)-link/);
     assert.match(adminSidebar, /:href="route\('admin\.mail-documents\.editor'\)"[\s\S]*?:navigate="false"/);
-    assert.match(adminSidebar, /:href="route\('admin\.mail-documents\.import-page'\)"[\s\S]*?:navigate="false"/);
+    assert.doesNotMatch(adminSidebar, /admin\.mail-documents\.import-page|Entwürfe importieren/);
 
     assert.match(mailCss, /\.rt-mail-studio\s*\{[\s\S]*?overflow:\s*hidden;/);
     assert.match(mailCss, /\.rt-mail-code-dialog\s*\{/);

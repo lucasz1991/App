@@ -7,6 +7,7 @@
  */
 
 :root {
+    --rt-page-gutter: 1rem;
     --rt-shell-line: rgba(148, 163, 184, 0.28);
     --rt-shell-line-strong: rgba(100, 116, 139, 0.34);
     --rt-shell-surface: rgba(255, 255, 255, 0.93);
@@ -56,18 +57,25 @@ body[data-mode='dark'] {
     max-width: 100%;
 }
 
-/*
- * Das Legacy-Bundle bringt mobil zusaetzlich 1.125rem Seiten-Padding mit.
- * Der aktuelle Shell setzt den gemeinsamen Mobile-Gutter bereits im inneren
- * Container; beide Ebenen zusammen liessen Karten und Tabs unnoetig schmal
- * wirken. Mobil ist deshalb nur noch der kompakte Container-Gutter aktiv.
- */
-@media (max-width: 767.98px) {
-    .page-content {
-        padding-top: calc(70px + 0.75rem) !important;
-        padding-right: 0 !important;
-        padding-left: 0 !important;
-    }
+/* Ein Seitenowner fuer alle Breakpoints: die feste Topbar ist kein Gutter.
+ * Das Legacy-Padding (Desktop 18/24/60px, mobil andere Werte) darf sich nicht
+ * zum Inhaltsabstand addieren. Komponenten und Unterseiten polstern nicht nach. */
+.page-content.rt-app-page-frame {
+    padding: 70px 0 0 !important;
+}
+
+.rt-chromeless-layout .page-content.rt-app-page-frame {
+    padding-top: 0 !important;
+}
+
+.rt-page-content {
+    box-sizing: border-box;
+    min-width: 0;
+    padding: var(--rt-page-gutter) !important;
+}
+
+.rt-page-content .rt-page-section {
+    padding: 0 !important;
 }
 
 /* -------------------------------------------------------------------------- */

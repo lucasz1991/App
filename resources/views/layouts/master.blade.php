@@ -98,8 +98,7 @@
         ])>
             <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
                 <div @class([
-                    'relative isolate min-h-screen page-content bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,245,249,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] dark:bg-[linear-gradient(180deg,rgba(12,20,33,0.98),rgba(8,13,22,1))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
-                    'px-0' => $viewportMode,
+                    'relative isolate min-h-screen page-content rt-app-page-frame bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,245,249,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] dark:bg-[linear-gradient(180deg,rgba(12,20,33,0.98),rgba(8,13,22,1))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
                     'flex flex-col' => ! $viewportMode,
                 ])>
                     @persist('railtime-shell-ambient')
@@ -112,10 +111,7 @@
                         </div>
                     @endpersist
                     <div @class([
-                        'relative z-[1] container-fluid w-full max-w-none',
-                        'px-0' => $viewportMode,
-                        'px-4' => ! $viewportMode,
-                        'md:px-5' => ! $viewportMode,
+                        'relative z-[1] container-fluid rt-page-content w-full max-w-none',
                         'flex min-h-full flex-1 flex-col' => ! $viewportMode,
                     ])>
                         @if ($viewportMode)
@@ -128,7 +124,7 @@
                             </div>
 
                             {{-- Dezente Versionsanzeige als unterer Seitenabschluss --}}
-                            <div class="mt-6 border-t border-rt-border/60 py-4 text-center text-[11px] font-medium tracking-wide text-rt-soft dark:border-rt-dark-border/60 dark:text-rt-dark-soft">
+                            <div class="mt-4 border-t border-rt-border/60 pt-4 text-center text-[11px] font-medium tracking-wide text-rt-soft dark:border-rt-dark-border/60 dark:text-rt-dark-soft">
                                 {{ config('app.name') }} v{{ config('app.version') }}
                             </div>
                         @endif

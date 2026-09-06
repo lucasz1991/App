@@ -5,6 +5,7 @@ namespace App\Services\DeviceManagement;
 use App\Enums\AccountProvider;
 use App\Jobs\SyncMicrosoftDevices;
 use App\Models\EmployeeIdentityAccount;
+use App\Models\Setting;
 use App\Models\User;
 use App\Support\OutlookAddin\VerifiedEntraIdentity;
 use Illuminate\Support\Facades\Bus;
@@ -27,7 +28,8 @@ final class MicrosoftDeviceSyncScheduler
 
     public function queue(bool $force = false): bool
     {
-        $configuration = $this->settings->configuration();
+        $snapshot = $this->settings->snapshot();
+        $configuration = $snapshot['configuration'];
         if (! ($configuration['enabled'] ?? false)) {
             return false;
         }
@@ -39,12 +41,13 @@ final class MicrosoftDeviceSyncScheduler
 
         $this->assertQueueReady();
 
-        $fingerprint = $this->settings->fingerprint();
+        $fingerprint = $snapshot['fingerprint'];
         $dispatch = function () use ($tenantId, $fingerprint, $force): bool {
             // An enclosing transaction may have changed configuration before commit.
-            $current = $this->settings->configuration();
+            $currentSnapshot = $this->settings->snapshot();
+            $current = $currentSnapshot['configuration'];
             if (! ($current['enabled'] ?? false)
-                || ! hash_equals($fingerprint, $this->settings->fingerprint())
+                || ! hash_equals($fingerprint, $currentSnapshot['fingerprint'])
                 || ! hash_equals($tenantId, strtolower((string) ($current['tenant_id'] ?? '')))) {
                 return false;
             }
@@ -99,7 +102,7 @@ final class MicrosoftDeviceSyncScheduler
     public function afterMicrosoftSignIn(VerifiedEntraIdentity $identity, User $user): void
     {
         try {
-            $configuration = $this->settings->configuration();
+            $configuration = $this->settings->snapshot()['configuration'];
             if (! ($configuration['enabled'] ?? false)
                 || ! ($configuration['sync_on_sign_in'] ?? false)
                 || ! hash_equals(strtolower((string) ($configuration['tenant_id'] ?? '')), strtolower($identity->tenantId))
@@ -114,7 +117,16 @@ final class MicrosoftDeviceSyncScheduler
                 return;
             }
 
-            $bound = DB::transaction(function () use ($identity, $currentUser): bool {
+            DB::transaction(function () use ($identity, $currentUser): void {
+                $setting = Setting::query()->where('type', MicrosoftDeviceSettings::GROUP)
+                    ->where('key', MicrosoftDeviceSettings::KEY)->lockForUpdate()->first();
+                $current = $this->settings->snapshot()['configuration'];
+                if (! $setting || ! ($current['enabled'] ?? false)
+                    || ! ($current['sync_on_sign_in'] ?? false)
+                    || ! hash_equals(strtolower($identity->tenantId), strtolower((string) ($current['tenant_id'] ?? '')))) {
+                    return;
+                }
+
                 $account = EmployeeIdentityAccount::query()
                     ->forProvider(AccountProvider::Microsoft365)
                     ->active()
@@ -124,14 +136,19 @@ final class MicrosoftDeviceSyncScheduler
                     ->first();
 
                 if (! $account) {
-                    return false;
+                    return;
+                }
+
+                $lockedUser = User::query()->whereKey($currentUser->getKey())->lockForUpdate()->first();
+                if (! $lockedUser?->isActive() || $lockedUser->email_verified_at === null) {
+                    return;
                 }
 
                 $addresses = array_map(static fn (mixed $value): string => strtolower(trim((string) $value)), [
                     $account->principal, $account->email,
                 ]);
                 if (! in_array(strtolower(trim($identity->principal)), $addresses, true)) {
-                    return false;
+                    return;
                 }
 
                 $tenantId = strtolower($identity->tenantId);
@@ -139,23 +156,20 @@ final class MicrosoftDeviceSyncScheduler
                     // Existing pre-provisioned accounts predate the tenant column.
                     // Only the verified, same configured Add-in tenant may bind them.
                     if (! hash_equals($tenantId, strtolower((string) config('outlook_addin.entra.tenant_id', '')))) {
-                        return false;
+                        return;
                     }
 
                     $account->forceFill(['tenant_id' => $tenantId])->save();
 
-                    return true;
+                } elseif (! hash_equals($tenantId, strtolower((string) $account->tenant_id))) {
+                    return;
                 }
 
-                return hash_equals($tenantId, strtolower((string) $account->tenant_id));
+                // Capture the queued snapshot while the settings row is locked.
+                // Dispatch happens after commit and rechecks that same fingerprint.
+                // Cached compose refreshes still respect the normal interval.
+                $this->queue();
             });
-
-            if (! $bound) {
-                return;
-            }
-
-            // Bootstrap also runs on cached compose refreshes; respect the interval.
-            $this->queue();
         } catch (Throwable) {
             $this->logDispatchFailure();
         }

@@ -38,7 +38,7 @@
                 :signal="$headerIsOnline"
             />
 
-            <span class="min-w-0 flex-1">
+            <span class="min-w-0 flex-1 [&>[data-person-anchor-preview]]:max-w-full">
                 @php
                     $headerCanReach = $headerPerson->isActive() && ! $headerPerson->is($me);
                     $headerCanCall = $headerCanReach
@@ -48,6 +48,7 @@
 
                 <x-user.person-anchor-preview
                     :user="$headerPerson"
+                    trigger-classes="flex min-w-0 max-w-full"
                     :profile-url="$me->canViewManagementDashboard()
                         ? route($me->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $headerPerson->id)
                         : null"

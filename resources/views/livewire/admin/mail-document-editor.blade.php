@@ -22,18 +22,13 @@
     :render-workspace="$currentDocument === null || $editorRequested"
     :single-toolbar="$currentDocument !== null && $editorRequested"
     editor-mode="mail"
-    page-class="px-3 sm:px-0"
     workspace-class="min-h-0 flex-1 overflow-hidden p-0"
     data-mail-document-studio
     data-mail-document-back
 >
     @unless ($editorRequested)
-        <x-slot:overviewActions>
-            <x-email-templates.outlook-access id="mail-library-outlook" />
-        </x-slot:overviewActions>
         <x-slot:overview>
             <livewire:admin.mail-document-library :initial-kind="$currentKind" />
-            <x-email-templates.outlook-app-links id="mail-library-app" />
         </x-slot:overview>
     @endunless
     @if ($currentDocument !== null && $editorRequested)

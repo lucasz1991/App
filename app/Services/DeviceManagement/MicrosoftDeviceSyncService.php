@@ -165,6 +165,12 @@ class MicrosoftDeviceSyncService
         $entraId = strtolower($directory['deviceId']);
         $link = MicrosoftDeviceLink::query()->where('tenant_id', $tenantId)
             ->where('directory_object_id', $objectId)->lockForUpdate()->first();
+        if ($link && $link->entra_device_id !== $entraId) {
+            // Reject a contradictory identity before changing any asset data.
+            $link->update(['sync_run_id' => $runId, 'assignment_status' => 'device_id_conflict']);
+
+            return ['skipped' => 1, 'conflicts' => 1];
+        }
         $serial = $this->serial($intune['serialNumber'] ?? null);
         $device = $link ? Device::withTrashed()->lockForUpdate()->find($link->device_id) : null;
         if ($device?->trashed()) {
@@ -191,7 +197,11 @@ class MicrosoftDeviceSyncService
                 'serial_number' => $serial,
                 'platform' => DevicePlatform::Windows,
                 'form_factor' => 'other',
-                'ownership' => ($intune['managedDeviceOwnerType'] ?? null) === 'personal' || ($directory['trustType'] ?? '') === 'Workplace' ? 'byod' : 'corporate',
+                'ownership' => match ($intune['managedDeviceOwnerType'] ?? null) {
+                    'company' => 'corporate',
+                    'personal' => 'byod',
+                    default => ($directory['trustType'] ?? '') === 'Workplace' ? 'byod' : 'corporate',
+                },
                 'lifecycle_status' => DeviceLifecycleStatus::Inventory,
                 'management_status' => DeviceManagementStatus::Unmanaged,
                 'compliance_status' => DeviceComplianceStatus::Unknown,
@@ -218,11 +228,6 @@ class MicrosoftDeviceSyncService
             ])->save();
         }
         $link ??= new MicrosoftDeviceLink(['device_id' => $device->id, 'tenant_id' => $tenantId, 'directory_object_id' => $objectId]);
-        if ($link->exists && $link->entra_device_id !== $entraId) {
-            $link->update(['sync_run_id' => $runId, 'assignment_status' => 'device_id_conflict']);
-
-            return ['skipped' => 1, 'conflicts' => 1];
-        }
         $enabled = ($directory['accountEnabled'] ?? null) === true;
         $disabled = ($directory['accountEnabled'] ?? null) === false;
         $link->fill([
@@ -358,7 +363,7 @@ class MicrosoftDeviceSyncService
 
     private function publicStatus(string $reason): string
     {
-        return in_array($reason, ['missing_configuration', 'unauthorized', 'forbidden', 'unreachable', 'invalid_response', 'stale_configuration'], true)
+        return in_array($reason, ['missing_configuration', 'unauthorized', 'forbidden', 'unreachable', 'invalid_response', 'stale_configuration', 'rate_limited', 'http_error'], true)
             ? $reason : 'failed';
     }
 }

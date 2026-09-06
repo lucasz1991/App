@@ -1,6 +1,20 @@
 # RailTime Geräteverwaltung
 
-Stand: 23. August 2026
+Stand: 6. September 2026
+
+## Ergänzung: Microsoft Entra und Windows
+
+Der direkte, lesende Microsoft-Graph-Abgleich ist implementiert. Windows-Geräte
+werden regelmäßig aus Entra inventarisiert und optional mit Intune-Daten
+ergänzt. Mitarbeiter werden über explizite Tenant-/Objekt-ID-Bindungen
+wiedererkannt. Einstellungen, Verbindungstest, Kontenzuordnungsmodal,
+Konflikthinweise und eine eigene Datenbank-Queue benötigen keine neuen
+ENV-Variablen. Die bestehende Outlook-Microsoft-Anmeldung kann einen fälligen
+Abgleich auslösen; Windows-Anmeldungen werden über den regelmäßigen Abruf erfasst.
+
+Einrichtung, Berechtigungen, Worker und Grenzen:
+[Microsoft Entra & Windows](microsoft-entra-windows.md).
+Die übrigen unten dokumentierten MDM-/Fernsupport-Grenzen bestehen weiter.
 
 Dieser Ordner dokumentiert die recherchierte Zielarchitektur, den Rollout der
 bereits deutschlandweit ausgegebenen Geräte und die Umsetzung in der

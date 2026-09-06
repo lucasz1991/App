@@ -11,11 +11,13 @@ use App\Services\DeviceManagement\MicrosoftDeviceSettings;
 use App\Services\DeviceManagement\MicrosoftEmployeeLinkService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Events\TransactionBeginning;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -38,7 +40,7 @@ class MicrosoftEmployeeLinkTest extends TestCase
     public function test_binding_is_idempotent_and_does_not_claim_provisioning_or_license_success(): void
     {
         $admin = $this->admin();
-        $employee = User::factory()->create(['status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
         $service = app(MicrosoftEmployeeLinkService::class);
         $identity = $service->bind($employee, self::OBJECT_ID, ' Employee@Company.test ', $admin);
         $again = $service->bind($employee, strtoupper(self::OBJECT_ID), 'employee@company.test', $admin);
@@ -64,7 +66,7 @@ class MicrosoftEmployeeLinkTest extends TestCase
     public function test_pending_exact_principal_can_receive_its_first_object_id_without_losing_evidence(): void
     {
         $admin = $this->admin();
-        $employee = User::factory()->create(['status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
         $pending = $this->identity($employee, [
             'external_id' => null,
             'tenant_id' => null,
@@ -87,7 +89,7 @@ class MicrosoftEmployeeLinkTest extends TestCase
     public function test_admin_can_confirm_missing_tenant_on_unchanged_legacy_identity_without_erasing_provider_evidence(): void
     {
         $admin = $this->admin();
-        $employee = User::factory()->create(['status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
         $legacy = $this->identity($employee, [
             'tenant_id' => null,
             'provisioning_status' => 'ready',
@@ -119,7 +121,7 @@ class MicrosoftEmployeeLinkTest extends TestCase
     public function test_tenant_change_before_transaction_work_is_read_fresh_instead_of_using_pretransaction_configuration(): void
     {
         $admin = $this->admin();
-        $employee = User::factory()->create(['status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
         $changedTenant = '44444444-4444-4444-8444-444444444444';
         $changePending = true;
         Event::listen(TransactionBeginning::class, function () use (&$changePending, $changedTenant): void {
@@ -144,8 +146,8 @@ class MicrosoftEmployeeLinkTest extends TestCase
     public function test_existing_binding_cannot_be_moved_to_another_employee_principal_object_or_tenant(): void
     {
         $admin = $this->admin();
-        $employee = User::factory()->create(['status' => true]);
-        $other = User::factory()->create(['status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $other = User::factory()->create(['role' => 'staff', 'status' => true]);
         $identity = $this->identity($employee);
         $service = app(MicrosoftEmployeeLinkService::class);
 
@@ -172,7 +174,7 @@ class MicrosoftEmployeeLinkTest extends TestCase
     public function test_inactive_employee_or_revoked_identity_cannot_be_linked(): void
     {
         $admin = $this->admin();
-        $employee = User::factory()->create(['status' => false]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => false]);
         $service = app(MicrosoftEmployeeLinkService::class);
         $this->assertInvalid(fn () => $service->bind($employee, self::OBJECT_ID, 'employee@company.test', $admin), 'employee_id');
         $employee->forceFill(['status' => true])->save();
@@ -184,7 +186,7 @@ class MicrosoftEmployeeLinkTest extends TestCase
     public function test_concrete_tenant_and_valid_admin_inputs_are_required(): void
     {
         $admin = $this->admin();
-        $employee = User::factory()->create(['status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
         $service = app(MicrosoftEmployeeLinkService::class);
         $this->assertInvalid(fn () => $service->bind($employee, 'not-an-object-id', 'employee@company.test', $admin), 'object_id');
         $this->assertInvalid(fn () => $service->bind($employee, self::OBJECT_ID, 'invalid-principal', $admin), 'principal');
@@ -204,6 +206,45 @@ class MicrosoftEmployeeLinkTest extends TestCase
 
         $this->expectException(AuthorizationException::class);
         app(MicrosoftEmployeeLinkService::class)->bind($employee, self::OBJECT_ID, 'employee@company.test', $employee);
+    }
+
+    public function test_active_guests_and_system_account_are_not_employee_candidates(): void
+    {
+        $admin = $this->admin();
+        $guest = User::factory()->create(['role' => 'guest', 'status' => true, 'name' => 'Guest Not Employee']);
+        $service = app(MicrosoftEmployeeLinkService::class);
+
+        $this->assertInvalid(fn () => $service->bind($guest, self::OBJECT_ID, 'guest@company.test', $admin), 'employee_id');
+        $this->assertInvalid(fn () => $service->bind($admin, self::OBJECT_ID, 'system@company.test', $admin), 'employee_id');
+        Livewire::actingAs($admin)->test(MicrosoftEmployeeLinks::class)
+            ->call('openModal')
+            ->assertDontSee('Guest Not Employee')
+            ->assertDontSee($admin->name);
+        $this->assertDatabaseCount('employee_identity_accounts', 0);
+    }
+
+    public function test_missing_microsoft_migration_keeps_modal_readable_and_rejects_direct_service_writes(): void
+    {
+        $admin = $this->admin();
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        Schema::table('employee_identity_accounts', function (Blueprint $table): void {
+            $table->dropIndex('identity_tenant_idx');
+            $table->dropColumn('tenant_id');
+        });
+
+        try {
+            Livewire::actingAs($admin)->test(MicrosoftEmployeeLinks::class)
+                ->call('openModal')
+                ->assertSee('Microsoft-Gerätemigration zuerst ausführen.')
+                ->assertViewHas('schemaReady', false)
+                ->assertViewHas('accounts', fn ($accounts): bool => $accounts->isEmpty());
+            $this->assertInvalid(fn () => app(MicrosoftEmployeeLinkService::class)->bind($employee, self::OBJECT_ID, 'employee@company.test', $admin), 'schema');
+            $this->assertDatabaseCount('employee_identity_accounts', 0);
+        } finally {
+            Schema::table('employee_identity_accounts', function (Blueprint $table): void {
+                $table->uuid('tenant_id')->nullable()->index('identity_tenant_idx');
+            });
+        }
     }
 
     public function test_modal_uses_delegated_account_gate_handles_errors_and_lists_saved_binding(): void
