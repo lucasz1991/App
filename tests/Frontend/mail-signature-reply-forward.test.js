@@ -323,11 +323,12 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.match(taskpane, /const target = captureComposeTarget\(\);[\s\S]*?await callback\(bootstrap, target\);/);
     assert.match(taskpane, /function assertComposeTarget\(target\) \{[\s\S]*?target\.revision !== mailboxItemRevision[\s\S]*?Office\.context\.mailbox\.item !== target\.item[\s\S]*?throw codedError\('ITEM_CHANGED'\);/);
     assert.match(taskpane, /await attachInlineMedia\(target, signature\.media, bootstrap\.binding\);\s*await assertWriteTarget\(target, bootstrap\.binding\);\s*await setSignature\(item, signature\.html\);/);
-    assert.match(taskpane, /prependTemplate\(Office, item, template\.html, \(\) => assertWriteTarget\(target, bootstrap\.binding\), \{\s*media: template\.media,\s*beforeInsert: \(\) => attachInlineMedia\(target, template\.media, bootstrap\.binding\)/);
+    assert.match(taskpane, /prependTemplate\(Office, item, template\.html, \(\) => assertWriteTarget\(target, bootstrap\.binding\), \{\s*media,\s*beforeInsert: async \(\) =>/);
     assert.match(taskpane, /taskpaneState\.itemChangedMonitoringReady = result\?\.status === Office\.AsyncResultStatus\.Succeeded;[\s\S]*?if \(!taskpaneState\.itemChangedMonitoringReady\) \{[\s\S]*?failOpenSignatureCurrentState\(\);/);
     assert.match(taskpane, /\} else \{\s*taskpaneState\.itemChangedMonitoringReady = false;\s*failOpenSignatureCurrentState\(\);/);
     assert.doesNotMatch(taskpane, /localStorage/);
-    assert.match(taskpane, /validatedDocument\(templateChoice\.document, 'template'/);
+    assert.match(taskpane, /nativeComposeTemplate\(templateChoice\.document\)/);
+    assert.match(taskpane, /validatedDocument\(nativeDocument, 'template'/);
     assert.doesNotMatch(taskpane, /body\.setAsync|removeStaleManagedInlineMedia|removeAttachmentAsync|displayNewMessageForm/);
     assert.doesNotMatch(taskpane, /allowAdditional: true/);
     assert.match(taskpane, /confirmAdditional: confirmAdditionalTemplate/);
@@ -361,7 +362,7 @@ test('opt-in symmetric signature header changes only its mobile table groups, no
 });
 
 function composeFixture({ html = '<p>Existing user text</p>', composeType = 'newMail', platform = 'PC' } = {}) {
-    const state = { html, prepends: [], signatures: [], attachments: [], completed: 0, bodyReads: 0 };
+    const state = { html, prepends: [], signatures: [], attachments: [], mutations: [], completed: 0, bodyReads: 0 };
     const succeeded = (value) => ({ status: 'succeeded', value });
     const item = {
         from: { getAsync(callback) { callback(succeeded({ emailAddress: 'employee@example.test' })); } },
@@ -369,11 +370,13 @@ function composeFixture({ html = '<p>Existing user text</p>', composeType = 'new
             getAsync(_format, callback) { state.bodyReads += 1; callback(succeeded(state.html)); },
             getTypeAsync(callback) { callback(succeeded('html')); },
             prependAsync(value, _options, callback) {
+                state.mutations.push('template');
                 state.prepends.push(value);
                 state.html = value + state.html;
                 callback(succeeded());
             },
             setSignatureAsync(value, _options, callback) {
+                state.mutations.push('signature');
                 state.signatures.push(value);
                 callback(succeeded());
             },
@@ -382,6 +385,7 @@ function composeFixture({ html = '<p>Existing user text</p>', composeType = 'new
         getComposeTypeAsync(callback) { callback(succeeded({ composeType })); },
         getAttachmentsAsync(callback) { callback(succeeded(state.attachments)); },
         addFileAttachmentFromBase64Async(_base64, name, options, callback) {
+            state.mutations.push('attachment');
             state.attachments.push({ name, isInline: options.isInline });
             callback(succeeded(name));
         },
@@ -614,7 +618,12 @@ async function runtimeFixture(options = {}) {
         marker,
         binding: testMailboxBinding,
         automaticTemplateId: options.withoutDefault ? null : 'default',
-        templates: [{ id: 'default', isDefault: true, html: '<p>Default</p><img src="cid:logo">', media }],
+        templates: [{
+            id: 'default', isDefault: true, html: '<p>Legacy full template includes Signature</p>', media,
+            signatureMode: 'native',
+            composeHtml: `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><p>Default</p><img src="cid:logo">`,
+            composeMedia: media,
+        }],
         signature: { html: '<p>Signature</p><img src="cid:logo">', media },
     };
     fixture.bootstrap = bootstrap;
@@ -659,10 +668,13 @@ test('compose event inserts explicit default once for new, reply and forward, an
         const { handler, event, state } = await runtimeFixture({ composeType, html: existing });
         await Promise.all([handler(event), handler(event)]);
         assert.equal(state.prepends.length, 1);
-        assert.equal(state.signatures.length, 0, 'full template already includes signature');
+        assert.equal(state.signatures.length, 1, 'signature is inserted through the native Outlook API');
+        assert.deepEqual(state.mutations, ['attachment', 'signature', 'template']);
+        assert.doesNotMatch(state.prepends[0], /Signature|RT-SIGNATURE-MANAGED/);
+        assert.match(state.prepends[0], /NATIVE-SIGNATURE/);
         assert.equal(state.completed, 2);
         assert.equal(state.attachments.length, 1);
-        assert.equal(state.bodyReads, 1, 'one preflight, no full conversation readback after inserting');
+        assert.equal(state.bodyReads, 2, 'legacy guard before signature, updated-body preflight before prepend');
         assert.ok(state.html.endsWith(existing));
     }
 });
@@ -764,12 +776,12 @@ test('automatic insertion never falls back to another write after an unconfirmed
     let invoked = false;
     fixture.item.body.prependAsync = () => { invoked = true; };
     const pending = fixture.handler(fixture.event);
-    for (let index = 0; index < 80 && !invoked; index += 1) await Promise.resolve();
+    for (let index = 0; index < 180 && !invoked; index += 1) await Promise.resolve();
     assert.equal(invoked, true);
     context.mock.timers.tick(composeLibrary.TEMPLATE_INSERT_LIMITS.writeTimeoutMs);
     await pending;
     await fixture.handler(fixture.event);
-    assert.equal(fixture.state.signatures.length, 0);
+    assert.equal(fixture.state.signatures.length, 1, 'confirmed native signature stays unchanged after unknown prepend');
     assert.equal(fixture.state.attachments.length, 1);
     assert.equal(fixture.state.completed, 2);
 });
@@ -805,17 +817,23 @@ test('late confirmed signature success is never reinserted by a later compose ev
     assert.equal(fixture.state.completed, 2);
 });
 
-test('authenticated taskpane inserts once on double click with one body read and no readback', async () => {
+async function taskpaneFixture(options = {}) {
     const { parseHTML } = await import('linkedom');
     const { document, window } = parseHTML(await source('../../resources/views/outlook-addin/taskpane.blade.php'));
     Object.defineProperty(document.querySelector('select'), 'value', { writable: true, value: '' });
-    const fixture = composeFixture();
+    const fixture = composeFixture(options);
     const marker = 'RT-SIGNATURE-MANAGED-V1';
     const config = { marker, auth: { scopes: ['Signature.Read'] }, endpoints: { bootstrap: 'https://example.test/api/bootstrap' } };
     const bootstrap = {
         marker,
         binding: testMailboxBinding,
-        templates: [{ id: 'one', name: 'Example', html: '<table><tr><td>Example</td></tr></table>', media: [] }],
+        templates: [{
+            id: 'one', name: 'Example', html: '<p>Legacy full template with embedded signature</p>', media: [],
+            signatureMode: 'native',
+            composeHtml: `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><table><tr><td>Example</td></tr></table>`,
+            composeMedia: [],
+        }],
+        signature: { html: '<p>Native signature</p>', media: [] },
     };
     const auth = {
         InteractionRequiredAuthError: class extends Error {},
@@ -836,10 +854,15 @@ test('authenticated taskpane inserts once on double click with one body read and
     };`)(fixture.office, { Office: fixture.office }, document, window,
         async () => ({ ok: true, json: async () => bootstrap }), auth, composeLibrary);
     await client.setup(config, bootstrap);
+    return { fixture, document, window, client, bootstrap, config };
+}
+
+test('authenticated taskpane inserts once on double click with native preflights and no readback', async () => {
+    const { fixture, document, client, bootstrap, config } = await taskpaneFixture();
     const button = document.querySelector('[data-outlook-action="template"]');
     await Promise.all([client.insertTemplate(button), client.insertTemplate(button)]);
     assert.equal(fixture.state.prepends.length, 1);
-    assert.equal(fixture.state.bodyReads, 1);
+    assert.equal(fixture.state.bodyReads, 2);
     assert.equal(client.taskpaneState.templatePresent, true);
     assert.equal(client.taskpaneState.busy, false);
     assert.equal(button.disabled, false, 'explicit additional template selection remains available after an automatic or manual insertion');

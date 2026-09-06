@@ -2,9 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
     isTemplateInsertionBlocked,
+    markedTemplateHtml,
+    nativeComposeTemplate,
+    NATIVE_TEMPLATE_MARKER,
     prependTemplate,
     readTemplateState,
+    templateStateFromBody,
+    validateTemplateInsertionPayload,
     TEMPLATE_INSERT_LIMITS,
+    TEMPLATE_MARKER,
 } from '../../resources/js/outlook-addin/compose-template.js';
 
 const success = (value) => ({ status: 'succeeded', value });
@@ -12,6 +18,92 @@ const rejectedCode = (promise) => promise.then(() => null, (error) => error);
 const flush = async (until = () => false) => {
     for (let index = 0; index < 120 && !until(); index += 1) await Promise.resolve();
 };
+
+const nativeHtml = `<!-- ${NATIVE_TEMPLATE_MARKER} --><p>Template body only</p><span id="${NATIVE_TEMPLATE_MARKER}"></span>`;
+
+test('native compose projection selects only explicit compose fields and leaves full legacy document unchanged', () => {
+    const legacyMedia = [{ base64: 'TQ==' }];
+    const composeMedia = [{ base64: 'Tg==' }];
+    const original = Object.freeze({ id: 'template-a', signatureMode: 'native',
+        html: '<p>Legacy with embedded signature</p>', media: legacyMedia,
+        composeHtml: nativeHtml, composeMedia });
+    const selected = nativeComposeTemplate(original);
+    assert.notEqual(selected, original);
+    assert.equal(selected.html, nativeHtml);
+    assert.equal(selected.media, composeMedia);
+    assert.equal(selected.signatureMode, 'native');
+    assert.equal(selected.id, original.id);
+    assert.equal(original.html, '<p>Legacy with embedded signature</p>');
+    assert.equal(original.media, legacyMedia);
+    assert.equal(Object.isFrozen(selected), true);
+});
+
+test('legacy documents have no native projection and explicit unknown modes never fall back', () => {
+    assert.equal(nativeComposeTemplate({ html: '<p>Legacy</p>', media: [] }), null);
+    assert.equal(nativeComposeTemplate(null), null);
+    for (const signatureMode of [null, '', 'embedded', 'NATIVE', 'unknown']) {
+        assert.throws(() => nativeComposeTemplate({ signatureMode, composeHtml: nativeHtml, composeMedia: [] }),
+            { code: 'NATIVE_TEMPLATE_INVALID' });
+    }
+});
+
+test('native projection fails closed for missing, malformed, mixed or oversized compose artifacts', () => {
+    const valid = { signatureMode: 'native', html: '<p>Do not use fallback</p>', media: [],
+        composeHtml: nativeHtml, composeMedia: [] };
+    const invalid = [
+        { composeHtml: undefined }, { composeHtml: '' }, { composeHtml: '<p>Missing marker</p>' },
+        { composeHtml: `<!--${NATIVE_TEMPLATE_MARKER}-OTHER-->` },
+        { composeHtml: `${nativeHtml}<!--${TEMPLATE_MARKER}-->` },
+        { composeHtml: `${nativeHtml}${'x'.repeat(TEMPLATE_INSERT_LIMITS.htmlLength)}` },
+        { composeMedia: undefined }, { composeMedia: {} }, { composeMedia: [null] },
+        { composeMedia: [{ base64: 'not base64!' }] },
+    ];
+    for (const changes of invalid) {
+        assert.throws(() => nativeComposeTemplate({ ...valid, ...changes }), { code: 'NATIVE_TEMPLATE_INVALID' });
+    }
+});
+
+test('native marker retains the old idempotency prefix without adding an embedded signature marker', () => {
+    assert.equal(nativeHtml.includes(TEMPLATE_MARKER), true);
+    assert.equal(markedTemplateHtml(nativeHtml), nativeHtml);
+    for (const html of [nativeHtml, `<!--${NATIVE_TEMPLATE_MARKER}-->`, `<span id='${NATIVE_TEMPLATE_MARKER}'></span>`]) {
+        const state = templateStateFromBody(html, 'newMail');
+        assert.equal(state.present, true);
+        assert.equal(state.legacySignatureEmbedded, false);
+    }
+});
+
+test('only template markers classify embedded signatures; separate current-message signature markers are allowed', () => {
+    const signature = '<!--RT-SIGNATURE-MANAGED-V1--><!--RT-SIGNATURE-VERSION:0123456789abcdef-->';
+    assert.equal(templateStateFromBody(nativeHtml + signature, 'newMail').legacySignatureEmbedded, false);
+    assert.equal(templateStateFromBody(signature, 'newMail').present, false);
+    assert.equal(templateStateFromBody(signature, 'newMail').legacySignatureEmbedded, false);
+    for (const html of [
+        `<!--${TEMPLATE_MARKER}-->`, `${nativeHtml}<!--${TEMPLATE_MARKER}-->`,
+        `<!--${NATIVE_TEMPLATE_MARKER}-OTHER-->`, `<!--${NATIVE_TEMPLATE_MARKER}:OTHER-->`,
+    ]) {
+        assert.equal(templateStateFromBody(html, 'newMail').legacySignatureEmbedded, true);
+    }
+});
+
+test('native state scopes known replies but treats ambiguous quote boundaries conservatively', () => {
+    const oldQuote = `<div id="divRplyFwdMsg"><!--${TEMPLATE_MARKER}-->Old mail</div>`;
+    assert.equal(templateStateFromBody(nativeHtml + oldQuote, 'reply').legacySignatureEmbedded, false);
+    assert.equal(templateStateFromBody(nativeHtml + oldQuote, 'forward').legacySignatureEmbedded, false);
+    assert.equal(templateStateFromBody(`<p>New reply</p>${oldQuote}`, 'reply').present, false);
+    assert.equal(templateStateFromBody(nativeHtml, 'reply').legacySignatureEmbedded, true);
+    assert.equal(templateStateFromBody(nativeHtml, null).legacySignatureEmbedded, true);
+    assert.equal(templateStateFromBody(null, 'newMail').legacySignatureEmbedded, true);
+});
+
+test('pure insertion preflight uses the existing validator without rewriting already marked native HTML', () => {
+    assert.equal(validateTemplateInsertionPayload(nativeHtml, []), nativeHtml);
+    assert.equal(validateTemplateInsertionPayload('<p>Legacy</p>', []), markedTemplateHtml('<p>Legacy</p>'));
+    assert.throws(() => validateTemplateInsertionPayload(nativeHtml, [{ base64: 'invalid!' }]),
+        { code: 'TEMPLATE_MEDIA_INVALID' });
+    assert.throws(() => validateTemplateInsertionPayload('x'.repeat(TEMPLATE_INSERT_LIMITS.htmlLength + 1), []),
+        { code: 'TEMPLATE_TOO_LARGE' });
+});
 
 function fixture({ supported = true, session = '' } = {}) {
     const state = {
@@ -61,6 +153,50 @@ function fixture({ supported = true, session = '' } = {}) {
     const media = () => { state.mediaWrites += 1; };
     return { office, item, state, media };
 }
+
+test('session-only presence stays conservative until forceBody confirms native template ownership', async () => {
+    const { office, item, state } = fixture({ session: '1' });
+    state.html = nativeHtml;
+    const quick = await readTemplateState(office, item);
+    assert.equal(quick.present, true);
+    assert.equal(quick.legacySignatureEmbedded, true);
+    assert.equal(state.bodyReads, 0);
+    const verified = await readTemplateState(office, item, { forceBody: true });
+    assert.equal(verified.present, true);
+    assert.equal(verified.legacySignatureEmbedded, false);
+    assert.equal(state.bodyReads, 1);
+    state.html = '<p>Marker removed by client</p>';
+    const missingMarker = await readTemplateState(office, item, { forceBody: true });
+    assert.equal(missingMarker.present, true);
+    assert.equal(missingMarker.legacySignatureEmbedded, true);
+    assert.deepEqual(state.sessionWrites, []);
+});
+
+test('native template keeps duplicate protection and separate signature ownership after a confirmed prepend', async () => {
+    const { office, item, state } = fixture();
+    await prependTemplate(office, item, nativeHtml);
+    assert.equal(state.session, '1');
+    assert.equal((await readTemplateState(office, item)).legacySignatureEmbedded, true);
+    const actual = await readTemplateState(office, item, { forceBody: true });
+    assert.equal(actual.present, true);
+    assert.equal(actual.legacySignatureEmbedded, false);
+    await assert.rejects(prependTemplate(office, item, nativeHtml), { code: 'TEMPLATE_ALREADY_INSERTED' });
+    assert.equal(state.prepends.length, 1);
+});
+
+test('unconfirmed signature write during preparation preserves the same pending template claim', async () => {
+    const { office, item, state } = fixture();
+    await assert.rejects(prependTemplate(office, item, nativeHtml, undefined, {
+        beforeInsert: () => { throw Object.assign(new Error('Uncertain signature'), { code: 'SIGNATURE_INSERT_UNCERTAIN' }); },
+    }), { code: 'SIGNATURE_INSERT_UNCERTAIN' });
+    assert.match(state.session, /^pending:/);
+    assert.equal(state.sessionWrites.length, 1);
+    assert.equal(state.prepends.length, 0);
+    assert.equal(isTemplateInsertionBlocked(item), true);
+    await assert.rejects(prependTemplate(office, item, nativeHtml), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
+    const reopened = await import('../../resources/js/outlook-addin/compose-template.js?native-signature-pending');
+    assert.equal((await reopened.readTemplateState(office, item)).uncertain, true);
+});
 
 test('Mailbox 1.10 never calls existing unsupported SessionData stubs and keeps local duplicate protection', async () => {
     const { office, item, state, media } = fixture({ supported: false });

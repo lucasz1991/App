@@ -8,6 +8,7 @@ use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\TrustedEmailCss;
+use App\Support\MailSignature;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Throwable;
@@ -15,7 +16,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 9;
+    private const RENDERER_REVISION = 10;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -150,6 +151,28 @@ final class OutlookAddinPayloadService
 
             $templates = $this->renderTemplates(
                 $builder,
+                // Nur der Add-in-Compose-Weg laesst den bestehenden,
+                // validierten Signaturslot leer. Office verwaltet die
+                // separate Signatur danach ueber setSignatureAsync.
+                new class($user) extends EmailTemplateBuilder
+                {
+                    protected function signatureBlock(
+                        MailSignature $signature,
+                        array $layout = [],
+                        array $overrides = [],
+                    ): string {
+                        return '';
+                    }
+
+                    public static function responsiveCss(?string $border = null, ?bool $includeOptionalBackground = null): string
+                    {
+                        // Ohne Signatur gibt es auch keinen optionalen
+                        // V22/V23-Hintergrund im Compose-Dokument. Der
+                        // vertrauenswuerdige CSS-Compiler prueft exakt diese
+                        // signaturfreie Runtime-Variante.
+                        return parent::responsiveCss($border, false);
+                    }
+                },
                 $templateSnapshots,
                 $signatureSnapshot['html'],
                 $signatureVersion,
@@ -198,12 +221,16 @@ final class OutlookAddinPayloadService
      *     active: bool,
      *     html: string,
      *     media: list<array{name: string, contentId: string, base64: string}>,
+     *     signatureMode: 'native',
+     *     composeHtml: string,
+     *     composeMedia: list<array{name: string, contentId: string, base64: string}>,
      *     version: string,
      *     hash: string
      * }>
      */
     private function renderTemplates(
         EmailTemplateBuilder $builder,
+        EmailTemplateBuilder $composeBuilder,
         array $snapshots,
         string $signatureDocument,
         string $signatureVersion,
@@ -227,6 +254,14 @@ final class OutlookAddinPayloadService
                     throw new RuntimeException('Die Outlook-Vorlage ueberschreitet das sichere Transportbudget von 99.000 Zeichen.');
                 }
 
+                [$composeHtml, $composeMedia] = $this->materializeTemplateCids(
+                    $this->withNativeTemplateMarker($composeBuilder->buildOutlookAddinTemplateHtml('light')),
+                    $signatureDocument,
+                );
+                if ($this->outlookStringLength($composeHtml) > self::MAX_TEMPLATE_CHARACTERS) {
+                    throw new RuntimeException('Die Outlook-Vorlage ueberschreitet das sichere Transportbudget von 99.000 Zeichen.');
+                }
+
                 $templates[] = [
                     'id' => $snapshot['id'],
                     'key' => $snapshot['key'],
@@ -236,6 +271,12 @@ final class OutlookAddinPayloadService
                     'isDefault' => $snapshot['isDefault'] ?? false,
                     'html' => $html,
                     'media' => $media,
+                    // Legacy-Clients behalten ihr vollstaendiges Fragment.
+                    // Neue Clients nutzen ausschliesslich composeHtml/Media
+                    // und setzen die Signatur unabhaengig im nativen Slot.
+                    'signatureMode' => 'native',
+                    'composeHtml' => $composeHtml,
+                    'composeMedia' => $composeMedia,
                     'version' => $this->snapshotHash($snapshot),
                     'hash' => $this->fullSnapshotHash($snapshot),
                 ];
@@ -285,6 +326,17 @@ final class OutlookAddinPayloadService
         }
 
         return $active[0];
+    }
+
+    private function withNativeTemplateMarker(string $html): string
+    {
+        $marker = 'RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE';
+
+        return "<!-- {$marker} -->"
+            .'<span aria-hidden="true" data-rt-template-signature-mode="native" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'
+            .$marker
+            .'</span>'
+            .$html;
     }
 
     private function withMarker(string $html): string

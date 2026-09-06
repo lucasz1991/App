@@ -1,6 +1,10 @@
 // Shared by the event runtime and taskpane. Never replace a compose body:
 // Outlook may include the complete quoted conversation in body.getAsync().
 export const TEMPLATE_MARKER = 'RT-TEMPLATE-MANAGED-V1';
+export const NATIVE_TEMPLATE_MARKER = `${TEMPLATE_MARKER}:NATIVE-SIGNATURE`;
+const NATIVE_MARKER_END = '(?=-->|[\\s\"\'<>]|$)';
+const nativeTemplateMarker = new RegExp(`${NATIVE_TEMPLATE_MARKER}${NATIVE_MARKER_END}`);
+const legacyTemplateMarker = new RegExp(`${TEMPLATE_MARKER}(?!:NATIVE-SIGNATURE${NATIVE_MARKER_END})`);
 const TEMPLATE_SESSION_KEY = 'railtime.template.inserted.v1';
 const appliedItems = new WeakSet();
 const insertionOperations = new WeakMap();
@@ -199,17 +203,22 @@ export function isTemplateInsertionBlocked(item) {
 
 export function templateStateFromBody(html, composeType) {
     if (typeof html !== 'string') {
-        return { present: false, readable: false, bodyLength: null, tooLarge: false };
+        return { present: false, readable: false, bodyLength: null, tooLarge: false, legacySignatureEmbedded: true };
     }
     const bodyLength = html.length;
     if (bodyLength > TEMPLATE_INSERT_LIMITS.bodyLength) {
-        return { present: false, readable: true, bodyLength, tooLarge: true };
+        return { present: false, readable: true, bodyLength, tooLarge: true, legacySignatureEmbedded: true };
     }
     const current = currentComposeBodyHtml(html, composeType);
     // A marker from a quoted older mail is ignored only with a known boundary.
     // Ambiguous bodies stay conservative instead of duplicating a template.
+    const scopedHtml = current === null ? html : current;
+    const present = scopedHtml.includes(TEMPLATE_MARKER);
     return {
-        present: (current === null ? html : current).includes(TEMPLATE_MARKER),
+        present,
+        // Old/mixed markers can contain an embedded signature. A native marker
+        // in an unscoped reply is not proof about the current compose region.
+        legacySignatureEmbedded: present && (current === null || legacyTemplateMarker.test(scopedHtml)),
         readable: true,
         bodyLength,
         tooLarge: false,
@@ -217,7 +226,7 @@ export function templateStateFromBody(html, composeType) {
 }
 
 export async function readTemplateState(office, item, { forceBody = false } = {}) {
-    const unknownSize = { bodyLength: null, tooLarge: false };
+    const unknownSize = { bodyLength: null, tooLarge: false, legacySignatureEmbedded: true };
     if (insertionOperations.get(item)?.phase === 'uncertain') {
         return { present: false, readable: false, uncertain: true, ...unknownSize };
     }
@@ -248,7 +257,35 @@ export async function readTemplateState(office, item, { forceBody = false } = {}
         officeRead(office, (callback) => item.getComposeTypeAsync(callback)),
     ]);
     const state = templateStateFromBody(html, compose?.composeType);
-    return { ...state, present: knownPresent || state.present };
+    return {
+        ...state,
+        present: knownPresent || state.present,
+        // Session v1 deliberately keeps its old value for cached runtimes. It
+        // cannot prove whether a template had a separate or embedded signature.
+        legacySignatureEmbedded: state.legacySignatureEmbedded || (knownPresent && !state.present),
+    };
+}
+
+/**
+ * Select the server's explicit signature-free compose artifact without editing
+ * its HTML. A legacy document has no mode; callers may retain its old path.
+ * An incomplete/unknown new contract must never fall back to its full HTML.
+ */
+export function nativeComposeTemplate(document) {
+    if (document?.signatureMode === undefined) return null;
+    if (document?.signatureMode !== 'native'
+        || typeof document.composeHtml !== 'string' || document.composeHtml.trim() === ''
+        || !Array.isArray(document.composeMedia)
+        || !nativeTemplateMarker.test(document.composeHtml)
+        || legacyTemplateMarker.test(document.composeHtml)) {
+        throw failure('NATIVE_TEMPLATE_INVALID');
+    }
+    try {
+        validatedInsertionHtml(document.composeHtml, document.composeMedia);
+    } catch {
+        throw failure('NATIVE_TEMPLATE_INVALID');
+    }
+    return Object.freeze({ ...document, html: document.composeHtml, media: document.composeMedia });
 }
 
 export function automaticTemplate(payload) {
@@ -307,6 +344,12 @@ function validatedInsertionHtml(html, media) {
         if (totalBytes > TEMPLATE_INSERT_LIMITS.mediaBytes) throw failure('TEMPLATE_MEDIA_TOO_LARGE');
     }
     return markedHtml;
+}
+
+// Shared pure preflight for callers coordinating signature + template writes.
+// It uses exactly the same limits as prependTemplate and performs no host calls.
+export function validateTemplateInsertionPayload(html, media = []) {
+    return validatedInsertionHtml(html, media);
 }
 
 async function markTemplateApplied(item, operation) {
@@ -393,7 +436,7 @@ export async function prependTemplate(office, item, html, beforeWrite = () => {}
         operation.phase = 'writing';
         await nativePrepend(office, item, markedHtml, operation);
     } catch (error) {
-        if (error?.code === 'INLINE_ATTACHMENT_UNCERTAIN') operation.phase = 'uncertain';
+        if (['INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(error?.code)) operation.phase = 'uncertain';
         await releaseDefiniteSessionFailure(office, item, operation);
         throw error;
     } finally {

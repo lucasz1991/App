@@ -665,6 +665,9 @@ class EmailTemplatesPageTest extends TestCase
         ])->save();
         app(PublishedMailDocumentSnapshotStore::class)->forget(MailDocumentKind::Template);
         $user = User::factory()->create(['name' => 'Mara Beispiel']);
+        $documentAttributes = MailDocument::query()->orderBy('id')->get()
+            ->map(fn (MailDocument $document): array => $document->getRawOriginal())->all();
+        $download = (new EmailTemplateBuilder($user))->build('vorlage-html')['content'];
         $payload = app(OutlookAddinPayloadService::class)->forUser($user);
         $html = $payload['template']['html'];
         preg_match('/class="rt-outlook-template (rtt[0-9a-f]{12})"/', $html, $scope);
@@ -702,6 +705,43 @@ class EmailTemplatesPageTest extends TestCase
         }
         $this->assertSame($html, $payload['templates'][0]['html']);
         $this->assertSame($html, app(OutlookAddinPayloadService::class)->forUser($user)['template']['html']);
+
+        $native = $payload['templates'][0];
+        $composeHtml = $native['composeHtml'];
+        $this->assertSame('native', $native['signatureMode']);
+        $this->assertStringContainsString('<!-- RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE -->', $composeHtml);
+        $this->assertStringContainsString('data-rt-template-signature-mode="native"', $composeHtml);
+        $this->assertStringNotContainsString('RT-SIGNATURE-MANAGED-V1', $composeHtml);
+        $this->assertStringNotContainsString('RT-SIGNATURE-VERSION:', $composeHtml);
+        $this->assertStringNotContainsString('RT_SIGNATURE_MAIN_START', $composeHtml);
+        $this->assertStringNotContainsString('.rt-sign-', $composeHtml);
+        $this->assertStringNotContainsString('rt-outlook-signature', $composeHtml);
+        $this->assertStringNotContainsString('Diese E-Mail kann vertrauliche Informationen enthalten.', $composeHtml);
+        $this->assertStringNotContainsString('{{SIGNATURE_BLOCK}}', $composeHtml);
+        $this->assertStringNotContainsString('data:image/', $composeHtml);
+        $this->assertStringContainsString('Mara Beispiel', $composeHtml, 'Personalized content outside the signature slot must remain intact.');
+        $this->assertStringContainsString('Vorlageninhalt bleibt &amp; erhalten.', $composeHtml);
+        $this->assertStringContainsString('<pre>  Erste Zeile\n  Zweite Zeile</pre>', $composeHtml);
+        $this->assertMatchesRegularExpression('/<p class="compose-copy" style="[^"]*color: #123456[^\"]*">/', $composeHtml);
+        $this->assertStringContainsString('<!--[if mso]>', $composeHtml);
+        preg_match('/class="rt-outlook-template (rtt[0-9a-f]{12})"/', $composeHtml, $composeScope);
+        $this->assertNotEmpty($composeScope);
+        $this->assertStringContainsString('.'.$composeScope[1].' .compose-copy{font-size:17px}', $composeHtml);
+        $this->assertLessThan(strlen($html), strlen($composeHtml));
+        $this->assertLessThan(count($native['media']), count($native['composeMedia']));
+        $this->assertCount(1, $native['composeMedia'], 'Only the template header mark (also used by MSO) is needed without its signature.');
+        foreach ($native['composeMedia'] as $medium) {
+            $this->assertStringContainsString('cid:'.$medium['contentId'], $composeHtml);
+            $this->assertNotFalse(base64_decode($medium['base64'], true));
+            $this->assertStringNotContainsString('train', $medium['name']);
+        }
+        $this->assertStringContainsString('RT-SIGNATURE-VERSION:'.$payload['version']['signature'], $payload['signature']['html']);
+        $this->assertStringContainsString('Diese E-Mail kann vertrauliche Informationen enthalten.', $payload['signature']['html']);
+        $combinedMedia = collect([...$payload['signature']['media'], ...$native['composeMedia']])->keyBy('contentId');
+        $this->assertLessThanOrEqual(2097152, $combinedMedia->sum(static fn (array $medium): int => strlen(base64_decode($medium['base64'], true))));
+        $this->assertSame($download, (new EmailTemplateBuilder($user))->build('vorlage-html')['content']);
+        $this->assertSame($documentAttributes, MailDocument::query()->orderBy('id')->get()
+            ->map(fn (MailDocument $document): array => $document->getRawOriginal())->all());
     }
 
     public function test_outlook_compose_template_enforces_transport_budget_before_payload_delivery(): void
@@ -802,10 +842,19 @@ class EmailTemplatesPageTest extends TestCase
             foreach ($template['media'] as $medium) {
                 $this->assertStringContainsString('cid:'.$medium['contentId'], $template['html']);
             }
+            $this->assertSame('native', $template['signatureMode']);
+            $this->assertStringContainsString('RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE', $template['composeHtml']);
+            $this->assertStringNotContainsString('RT-SIGNATURE-VERSION:', $template['composeHtml']);
+            $this->assertStringNotContainsString('RT_SIGNATURE_MAIN_START', $template['composeHtml']);
+            foreach ($template['composeMedia'] as $medium) {
+                $this->assertStringContainsString('cid:'.$medium['contentId'], $template['composeHtml']);
+            }
         }
 
         $this->assertStringContainsString('Alpha freigegeben.', $payload['templates'][1]['html']);
         $this->assertStringNotContainsString('Alpha nur im Entwurf.', $payload['templates'][1]['html']);
+        $this->assertStringContainsString('Alpha freigegeben.', $payload['templates'][1]['composeHtml']);
+        $this->assertStringNotContainsString('Alpha nur im Entwurf.', $payload['templates'][1]['composeHtml']);
         $this->assertSame(
             hash('sha256', $alphaPublished."\0"),
             $payload['templates'][1]['hash'],

@@ -9,6 +9,8 @@ import {
     readTemplateState,
     supportsTemplatePrepend,
     templateStateFromBody,
+    nativeComposeTemplate,
+    TEMPLATE_MARKER,
 } from './compose-template.js';
 import { automaticTemplate } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
@@ -1141,7 +1143,10 @@ function userMessage(error) {
         return 'In dieser Nachricht ist bereits eine RailTime-Vorlage. Eine weitere Vorlage benötigt Ihre ausdrückliche Bestätigung; Ihr vorhandener Inhalt bleibt erhalten.';
     }
     if (code === 'SIGNATURE_WITHIN_TEMPLATE') {
-        return 'Diese Nachricht enthält bereits eine vollständige Vorlage mit Signatur. Sie bleibt unverändert, damit Ihr bearbeiteter Inhalt erhalten bleibt.';
+        return 'Diese Nachricht enthält noch eine alte vollständige Vorlage mit eingebetteter Signatur. Sie bleibt unverändert. Bitte eine neue Nachricht öffnen, um die getrennte Outlook-Signatur zu verwenden.';
+    }
+    if (code === 'NATIVE_TEMPLATE_INVALID') {
+        return 'Der getrennte Outlook-Vorlageninhalt ist unvollständig. Bitte die Verbindung neu prüfen. Es wird keine zusätzliche vollständige Vorlage eingesetzt.';
     }
     if (code === 'COMPOSE_BODY_UNREADABLE') {
         return 'Der aktuelle Nachrichtentext konnte nicht sicher geprüft werden. Es wurde kein Inhalt ersetzt. Bitte erneut versuchen.';
@@ -1348,12 +1353,12 @@ async function updateSignature(button) {
 
     await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
         const item = assertComposeTarget(target);
-        const state = await diagnoseStep('compose-preflight', () => readTemplateState(Office, item));
+        const state = await diagnoseStep('compose-preflight', () => readTemplateState(Office, item, { forceBody: true }));
         assertComposeTarget(target);
         if (state.uncertain) throw codedError('TEMPLATE_INSERT_UNCERTAIN');
         if (!state.readable) throw Object.assign(codedError(state.errorCode || 'COMPOSE_BODY_UNREADABLE'), { phase: state.phase, officeCode: state.officeCode, reason: state.reason });
         if (state.tooLarge) throw codedError('COMPOSE_BODY_TOO_LARGE');
-        if (state.present) {
+        if (state.present && state.legacySignatureEmbedded !== false) {
             throw codedError('SIGNATURE_WITHIN_TEMPLATE');
         }
         const signature = validatedDocument(bootstrap.signature, 'signature', currentConfig.marker);
@@ -1397,10 +1402,33 @@ async function insertTemplate(button) {
             throw codedError('TEMPLATE_SELECTION_MISSING');
         }
 
-        const template = validatedDocument(templateChoice.document, 'template', currentConfig.marker);
+        const nativeDocument = nativeComposeTemplate(templateChoice.document);
+        if (!nativeDocument) throw codedError('NATIVE_TEMPLATE_INVALID');
+        const usesNativeSignature = nativeDocument.signatureMode === 'native';
+        const template = validatedDocument(nativeDocument, 'template', usesNativeSignature ? TEMPLATE_MARKER : currentConfig.marker);
+        let signature = null;
+        if (usesNativeSignature) {
+            const state = await diagnoseStep('compose-preflight', () => readTemplateState(Office, item, { forceBody: true }));
+            if (state.uncertain) throw codedError('TEMPLATE_INSERT_UNCERTAIN');
+            if (!state.readable) throw Object.assign(codedError(state.errorCode || 'COMPOSE_BODY_UNREADABLE'), { phase: state.phase, officeCode: state.officeCode, reason: state.reason });
+            if (state.tooLarge) throw codedError('COMPOSE_BODY_TOO_LARGE');
+            if (state.present && state.legacySignatureEmbedded !== false) throw codedError('SIGNATURE_WITHIN_TEMPLATE');
+            signature = validatedDocument(bootstrap.signature, 'signature', currentConfig.marker);
+            if (signature.html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
+            if (typeof item.body.setSignatureAsync !== 'function') throw codedError('SET_SIGNATURE_UNAVAILABLE');
+        }
+        // Budget both independently inserted parts before the first mutation.
+        // beforeInsert runs only after any additional-template confirmation.
+        const media = signature ? [...signature.media, ...template.media] : template.media;
         await diagnoseStep('template-write', () => prependTemplate(Office, item, template.html, () => assertWriteTarget(target, bootstrap.binding), {
-            media: template.media,
-            beforeInsert: () => attachInlineMedia(target, template.media, bootstrap.binding),
+            media,
+            beforeInsert: async () => {
+                await attachInlineMedia(target, media, bootstrap.binding);
+                if (signature) {
+                    await assertWriteTarget(target, bootstrap.binding);
+                    await setSignature(item, signature.html);
+                }
+            },
             confirmAdditional: confirmAdditionalTemplate,
         }));
         assertComposeTarget(target);

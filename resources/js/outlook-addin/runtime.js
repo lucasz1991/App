@@ -5,8 +5,10 @@ import {
 import {
     automaticTemplate,
     isTemplateInsertionBlocked,
+    nativeComposeTemplate,
     prependTemplate,
     readTemplateState,
+    validateTemplateInsertionPayload,
 } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
 import { diagnoseStep, recordDiagnostic } from './diagnostics.js';
@@ -337,7 +339,8 @@ function validatedDocument(payload, kind, marker) {
 
     const markerValue = markerComment(marker, kind);
 
-    if (!html.includes(marker) && !html.includes(markerValue)) {
+    if (!(kind === 'template' && payload.signatureMode === 'native')
+        && !html.includes(marker) && !html.includes(markerValue)) {
         html += markerValue;
     }
 
@@ -423,49 +426,79 @@ async function applyPublishedContent(item) {
     await assertTarget();
 
     if (isTemplateInsertionBlocked(item) || hasUncertainWrite(item)) return 'uncertain';
-    if (wasSignatureWriteConfirmed(item)) return 'already-present';
 
-    const selected = automaticTemplate(bootstrap);
-    if (selected) {
-        try {
-            const template = validatedDocument(selected, 'template', config.marker);
-            await diagnoseStep('template-write', () => prependTemplate(Office, item, template.html, assertTarget, {
-                media: template.media,
-                beforeInsert: () => attachInlineMedia(item, template.media, assertTarget),
-            }));
-            return 'applied';
-        } catch (error) {
-            if (safeErrorCode(error) === 'ITEM_CHANGED' || /MAILBOX|SENDER/.test(safeErrorCode(error))) throw error;
-            if (safeErrorCode(error) === 'TEMPLATE_ALREADY_INSERTED') return 'already-present';
-            if (['TEMPLATE_ALREADY_INSERTED', 'TEMPLATE_INSERT_IN_PROGRESS',
-                'TEMPLATE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(safeErrorCode(error))) return 'uncertain';
-            // Unsupported mobile/prepend APIs keep the existing signature path.
-            // No setAsync fallback: it would replace typed text and quotes.
-            console.info(`${LOG_PREFIX} Default template skipped (${safeErrorCode(error)}).`);
-        }
-    }
-
-    // Before a signature-only fallback, retain the guard for existing full
-    // templates. Failed or oversized body reads never trigger another write.
-    const templateState = await readTemplateState(Office, item);
+    // Older templates contain an ordinary HTML signature. Never append a
+    // second native signature or rewrite those drafts to convert them. Read
+    // the actual body even when SessionData says a template already exists:
+    // only the new, explicit native-signature contract may share this path.
+    const templateState = await readTemplateState(Office, item, { forceBody: true });
     await assertTarget();
-    if (templateState.present) return 'already-present';
+    if (templateState.uncertain) return 'uncertain';
     if (!templateState.readable || templateState.tooLarge) {
         recordDiagnostic('compose-preflight', 'skipped', { code: templateState.errorCode || 'COMPOSE_BODY_UNREADABLE' });
         return 'skipped';
     }
+    if (templateState.legacySignatureEmbedded) return 'already-present';
 
-    const signature = validatedDocument(bootstrap.signature, 'signature', config.marker);
-    if (signature.html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
-
-    if (!item?.body?.setSignatureAsync || !item?.addFileAttachmentFromBase64Async) {
-        throw codedError('COMPOSE_API_UNAVAILABLE');
+    const signature = wasSignatureWriteConfirmed(item)
+        ? null : validatedDocument(bootstrap.signature, 'signature', config.marker);
+    if (signature) {
+        if (signature.html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
+        if (!item?.body?.setSignatureAsync || !item?.addFileAttachmentFromBase64Async) {
+            throw codedError('COMPOSE_API_UNAVAILABLE');
+        }
+        validateTemplateInsertionPayload(signature.html, signature.media);
     }
 
-    await attachInlineMedia(item, signature.media, assertTarget);
-    await assertTarget();
-    await setSignature(item, signature.html);
-    return 'applied';
+    let template = null;
+    const selected = templateState.present ? null : automaticTemplate(bootstrap);
+    if (selected) {
+        try {
+            const composeDocument = nativeComposeTemplate(selected);
+            // Legacy snapshots never fall back to their full-template HTML.
+            if (composeDocument) {
+                template = validatedDocument(composeDocument, 'template', config.marker);
+                // Budget both parts before any attachment or body mutation.
+                validateTemplateInsertionPayload(template.html, [...(signature?.media || []), ...template.media]);
+            }
+        } catch (error) {
+            template = null;
+            recordDiagnostic('template-preflight', 'skipped', error);
+            console.info(`${LOG_PREFIX} Default template skipped (${safeErrorCode(error)}).`);
+        }
+    }
+
+    if (signature) {
+        await attachInlineMedia(item, signature.media, assertTarget);
+        await assertTarget();
+        await setSignature(item, signature.html);
+    }
+
+    // Native signature success and template success are separate operations.
+    // A late signature callback must not cause a duplicate signature, but it
+    // also must not prevent a later activation from adding the missing body.
+    if (!template) return 'applied';
+
+    try {
+        await diagnoseStep('template-write', () => prependTemplate(Office, item, template.html, assertTarget, {
+            media: template.media,
+            beforeInsert: () => attachInlineMedia(item, template.media, assertTarget),
+        }));
+        return 'applied';
+    } catch (error) {
+        const code = safeErrorCode(error);
+        if (code === 'ITEM_CHANGED' || /MAILBOX|SENDER/.test(code)) throw error;
+        if (code === 'TEMPLATE_ALREADY_INSERTED') return 'already-present';
+        if (['TEMPLATE_INSERT_IN_PROGRESS', 'TEMPLATE_INSERT_UNCERTAIN',
+            'INLINE_ATTACHMENT_UNCERTAIN'].includes(code)) return 'uncertain';
+        console.info(`${LOG_PREFIX} Default template skipped (${code}).`);
+        // Native signatures remain useful on hosts without prepend support.
+        // A transient read/native failure can retry only the missing template;
+        // there is never a body replacement or another signature fallback.
+        return ['TEMPLATE_PREPEND_UNAVAILABLE', 'TEMPLATE_REQUIRES_HTML',
+            'NATIVE_TEMPLATE_INVALID', 'TEMPLATE_TOO_LARGE',
+            'TEMPLATE_MEDIA_TOO_LARGE'].includes(code) ? 'applied' : 'skipped';
+    }
 }
 
 async function handleComposeEvent(event) {
