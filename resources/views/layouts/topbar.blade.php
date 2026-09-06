@@ -7,12 +7,12 @@
     data-rt-shell-topbar
     aria-label="{{ app()->getLocale() === 'de' ? 'Kopfnavigation' : 'Header navigation' }}"
 >
-    <div class="flex justify-between w-full">
-        <div class="flex items-center topbar-brand">
+    <div class="flex h-full min-h-0 justify-between w-full">
+        <div class="flex h-full items-center topbar-brand">
             <a
                 href="{{ $brandHref }}"
                 wire:navigate
-                class="rt-shell-brand-mark flex h-[70px] w-14 shrink-0 items-center justify-center lg:hidden"
+                class="rt-shell-brand-mark flex h-full w-14 shrink-0 items-center justify-center lg:hidden"
                 aria-label="RailTime"
             >
                 <img
@@ -23,7 +23,7 @@
             </a>
 
             <div
-                class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-[70px] ltr:border-r rtl:border-l border-rt-border/60 bg-rt-topbar shadow-none dark:border-rt-dark-border/60 dark:bg-rt-dark-topbar">
+                class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-full ltr:border-r rtl:border-l border-rt-border/60 bg-rt-topbar shadow-none dark:border-rt-dark-border/60 dark:bg-rt-dark-topbar">
                 <a href="{{ $brandHref }}" wire:navigate
                     class="rt-shell-brand-link flex flex-shrink-0 items-center gap-2 text-lg font-bold leading-[69px]">
                         <img class="inline-block w-10 aspect-square align-middle dark:brightness-0 dark:invert"
@@ -39,7 +39,7 @@
             </div>
             <!-- Toggle Button: ausschliesslich Mobile/Tablet, animiert Burger <-> X. -->
             <button type="button"
-                class="vertical-menu-btn flex h-[70px] w-14 shrink-0 items-center justify-center border-b border-rt-border/60 px-3 text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/70 hover:text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent dark:border-rt-dark-border/60 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted/70 dark:hover:text-rt-dark-text lg:hidden"
+                class="vertical-menu-btn flex h-full w-14 shrink-0 items-center justify-center border-b border-rt-border/60 px-3 text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/70 hover:text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent dark:border-rt-dark-border/60 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted/70 dark:hover:text-rt-dark-text lg:hidden"
                 id="vertical-menu-btn"
                 aria-label="{{ __('app.mobile_navigation') }}"
                 aria-controls="app-sidebar"

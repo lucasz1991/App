@@ -218,6 +218,8 @@ body[data-mode='dark'] .rt-shell-ambient__orb--two {
 /* -------------------------------------------------------------------------- */
 
 .rt-shell-topbar {
+    box-sizing: border-box;
+    height: 70px;
     min-height: 70px;
     isolation: isolate;
     background:

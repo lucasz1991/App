@@ -404,6 +404,61 @@ function composeFixture({ html = '<p>Existing user text</p>', composeType = 'new
     return { state, item, office, event: { completed() { state.completed += 1; } } };
 }
 
+function backgroundSignaturePayload() {
+    const scope = 'rts0123456789';
+    const contentId = 'synthetic-train-content-id';
+    const name = 'synthetic-train-attachment.gif';
+    const base64 = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    return {
+        html: '<!--RT-SIGNATURE-VERSION:0123456789abcdef-->'
+            + `<style data-rt-outlook-signature-css="1">.${scope} .rt-contact{color:#17212b}`
+            + `@media only screen and (max-width:480px){.${scope} .rt-sign-cell{background-size:175% auto!important}}</style>`
+            + `<style data-rt-outlook-signature-background-css="1">.${scope} .rt-sign-cell{background-image:url('cid:${contentId}');background-repeat:no-repeat;background-position:65% bottom;background-size:110% auto;}</style>`
+            + `<div class="rt-outlook-signature ${scope}"><table role="presentation" width="100%"><tr>`
+            + `<td class="rt-sign-cell" data-rt-signature-background="1" style="background-image:url('cid:${contentId}');background-position:65% bottom;background-size:110% auto;">`
+            + '<p class="rt-contact">Synthetic employee</p></td></tr></table></div>',
+        media: [{ name, contentId, base64 }],
+    };
+}
+
+function captureSignatureOfficeBoundary(fixture) {
+    const calls = [];
+    const addAttachment = fixture.item.addFileAttachmentFromBase64Async;
+    const setSignature = fixture.item.body.setSignatureAsync;
+    fixture.item.addFileAttachmentFromBase64Async = (base64, name, options, callback) => {
+        calls.push({ phase: 'attachment', base64, name, options });
+        addAttachment(base64, name, options, callback);
+    };
+    fixture.item.body.setSignatureAsync = (html, options, callback) => {
+        calls.push({ phase: 'signature', html, options });
+        setSignature(html, options, callback);
+    };
+    return calls;
+}
+
+function assertBackgroundSignatureOfficeBoundary(calls, payload) {
+    const media = payload.media[0];
+    assert.deepEqual(calls.map(call => call.phase), ['attachment', 'signature'],
+        'the GIF must be attached before the signature HTML crosses the Office bridge');
+    assert.deepEqual(calls[0], {
+        phase: 'attachment', name: media.name, base64: media.base64, options: { isInline: true },
+    });
+    const gifBytes = Buffer.from(calls[0].base64, 'base64');
+    assert.equal(gifBytes.subarray(0, 6).toString('ascii'), 'GIF89a');
+    assert.equal(gifBytes.at(-1), 0x3b, 'the synthetic fixture contains a complete GIF, not a PNG stand-in');
+    assert.deepEqual(gifBytes, Buffer.from(media.base64, 'base64'));
+    const expectedHtml = payload.html.split(`cid:${media.contentId}`).join(`cid:${media.name}`)
+        + '<!--RT-SIGNATURE-MANAGED-V1:signature-->';
+    assert.equal(calls[1].html, expectedHtml,
+        'only CID aliases and the management marker may change; no style, class or inline background is stripped');
+    assert.deepEqual(calls[1].options, { coercionType: 'html' });
+    assert.equal(occurrences(calls[1].html, /<style\b/g), 2);
+    assert.match(calls[1].html, /class="rt-outlook-signature rts0123456789"/);
+    assert.equal(occurrences(calls[1].html, /background-image:url\('cid:synthetic-train-attachment\.gif'\)/g), 2,
+        'both the scoped internal rule and the inline fallback keep their embedded GIF source');
+    assert.ok(payload.html.includes(`cid:${media.contentId}`), 'validation must not mutate the server payload');
+}
+
 test('explicit Outlook default does not activate a legacy system template implicitly', () => {
     const entry = { id: 'offer', isDefault: true, html: '<p>Offer</p>' };
     assert.equal(composeLibrary.automaticTemplate({ template: entry, templates: [entry] }), null);
@@ -664,6 +719,26 @@ async function runtimeFixture(options = {}) {
     );
     return fixture;
 }
+
+test('automatic runtime preserves scoped background CSS and GIF bytes at the Office signature boundary', async () => {
+    for (const withoutDefault of [false, true]) {
+        const fixture = await runtimeFixture({ withoutDefault });
+        const payload = backgroundSignaturePayload();
+        fixture.bootstrap.signature = payload;
+        // Keep this fixture focused on the signature attachment. The default
+        // template is still inserted through its separate native compose path.
+        fixture.bootstrap.templates[0].composeHtml = `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><p>Default</p>`;
+        fixture.bootstrap.templates[0].composeMedia = [];
+        const calls = captureSignatureOfficeBoundary(fixture);
+
+        await fixture.handler(fixture.event);
+
+        assertBackgroundSignatureOfficeBoundary(calls, payload);
+        assert.deepEqual(fixture.state.mutations, withoutDefault
+            ? ['attachment', 'signature'] : ['attachment', 'signature', 'template']);
+        assert.equal(fixture.state.completed, 1);
+    }
+});
 
 test('compose event inserts explicit default once for new, reply and forward, and completes every event', async () => {
     for (const composeType of ['newMail', 'reply', 'forward']) {
@@ -972,6 +1047,35 @@ async function taskpaneFixture(options = {}) {
     await client.setup(config, bootstrap);
     return { fixture, document, window, client, bootstrap, config };
 }
+
+test('manual signature update preserves scoped background CSS and GIF bytes at the Office signature boundary', async () => {
+    const { fixture, client, document, bootstrap } = await taskpaneFixture();
+    const payload = backgroundSignaturePayload();
+    bootstrap.signature = payload;
+    const calls = captureSignatureOfficeBoundary(fixture);
+
+    await client.updateSignature(document.querySelector('[data-outlook-action="signature"]'));
+
+    assertBackgroundSignatureOfficeBoundary(calls, payload);
+    assert.deepEqual(fixture.state.mutations, ['attachment', 'signature']);
+    assert.equal(fixture.state.html, '<p>Existing user text</p>');
+});
+
+test('manual template insertion preserves scoped background CSS and GIF bytes at the Office signature boundary', async () => {
+    const { fixture, client, document, bootstrap } = await taskpaneFixture();
+    const payload = backgroundSignaturePayload();
+    bootstrap.signature = payload;
+    const calls = captureSignatureOfficeBoundary(fixture);
+
+    await client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
+
+    assertBackgroundSignatureOfficeBoundary(calls, payload);
+    assert.deepEqual(fixture.state.mutations, ['attachment', 'signature', 'template']);
+    assert.equal(fixture.state.prepends.length, 1);
+    assert.doesNotMatch(fixture.state.prepends[0], /rt-outlook-signature|rt-sign-cell|synthetic-train/,
+        'the signature HTML is passed to setSignatureAsync, not moved into the ordinary template body');
+    assert.ok(fixture.state.html.endsWith('<p>Existing user text</p>'));
+});
 
 test('taskpane native signature updates remain available beside an existing native template', async () => {
     const html = `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><p>Draft body</p>`;
