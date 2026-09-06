@@ -42,7 +42,7 @@ class SystemDashboardData
             ->where('role', '!=', 'admin')
             ->latest()
             ->limit(6)
-            ->get(['id', 'name', 'email', 'role', 'status', 'created_at']);
+            ->get(['id', 'name', 'email', 'role', 'status', 'created_at', 'profile_photo_path']);
     }
 
     /** @return Collection<int, array{user:User, lastSeen:Carbon}> */

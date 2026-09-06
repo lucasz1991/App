@@ -22,23 +22,27 @@ Provider wird erst nach seinem eigenen Labor-Gate für Mutationen freigeschaltet
 
 ## Aktueller Freigabestatus
 
-- **Microsoft-Inventar und Hintergrundbetrieb: lokal umgesetzt, Live-Gate offen.**
+- **Microsoft-Hintergrundbetrieb live bestätigt, Inventarpilot offen.**
   Runtime-Migration `2026_09_06_030000_create_microsoft_device_runs`, getrennte
   Schema-/Queue-/Scheduler-/Workeranzeige, sichere Abbruchzustände und
   `devices:microsoft-status --json [--probe-worker]` sind vorhanden. Plesk 8
-  soll ausschließlich die Queue `microsoft_devices` auf die gleichnamige
-  Connection routen. Der Bindestrichname des ersten Releases wurde von der
-  Live-Plesk-UI abgewiesen; der Namenskorrekturrelease steht noch aus. Die
+  routet ausschließlich die Queue `microsoft_devices` auf die gleichnamige
+  Connection. Namenskorrekturrelease `8880cf96`, Migration `030000`, Paket
+  v8.0.0 und Cacheaufbau sind live bestätigt. M1/M2: echte Workerprobe und
+  automatischer Schedulerkontakt um **13:05:02**, getrennt in CLI/Web belegt.
+  Der zuvor abgewiesene Bindestrichname ist damit korrigiert. Die
   separate App **„RailTime Geräteinventar“** ist real registriert; das Portal
   bestätigt ausschließlich Application `Device.Read.All` und Adminzustimmung
   **„Gewährt für RailTime“**. Unnötiges automatisch ergänztes `User.Read` nur
   aus dieser App entfernt, keine andere App verändert. Tenant-/Client-ID im
-  RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Das noch leere
-  Client-Geheimnis erstellt der Nutzer und speichert es direkt im geschützten
-  Setup; Automatik/Intune aus. Bestehendes Schema/`pcntl` lesend bestätigt;
-  Release `9bf712dd`, Runtime-Migration `030000`, Paket v8.0.0 und Cacheaufbau
-  live bestätigt. Microsoft-Worker noch nicht gestartet; Workerprobe und
-  echter Graphabruf bleiben offen.
+  RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Erfolgreiches
+  Secret-Speichern bleibt technisch unbelegt; Automatik/Intune aus. Finale
+  Liveflags: `device_count=0`, `bound_microsoft_identities=0`,
+  `secret_configured=false`, `sync_enabled=false`, `maintenance=false`.
+  Der Identitätszähler betrifft aktive Microsoft-365-Bindungen im aktuellen
+  Tenant mit externer ID. Kontobindung über explizite Tenant-/Objekt-ID oder
+  einen passenden verifizierten Microsoft-Bootstrap ist ebenfalls Pilot-Gate;
+  kein E-Mail-only-Matching. Graph, Geräteimport und Idempotenz noch offen.
 - **RailTime Control Plane: umgesetzt und lokal testbar.** Das umfasst
   Inventar/Lager, Mitarbeiterzuordnung, providerbezogene Geräteverknüpfungen,
   assignment-gebundene Enrollments, Identitätsreferenzen, versionierte Profile,

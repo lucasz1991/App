@@ -21,7 +21,7 @@ Schedulerkontakt, Workerbeleg und Auftragsstatus vom Graph-Verbindungstest.
 echten Queueweg ohne Microsoft-Zugriff. Ein grüner Verbindungstest, CLI-Exitcode 0
 oder nur eingeplanter Auftrag ist keine Produktionsfreigabe.
 
-Ziel nach dem Queue-Namenskorrekturrelease: Plesk 8 betreut genau einen
+Live nach Queue-Namenskorrekturrelease `8880cf96`: Plesk 8 betreut genau einen
 zusätzlichen Worker für `microsoft_devices`
 (Timeout 240 Sekunden, Max Time 3600 Sekunden); die Connection
 `microsoft_devices` wird isoliert durch RailTime gewählt. Bestehende Queues
@@ -30,19 +30,25 @@ RailTime-ENV-Einrichtungsvariablen; Plesk verwaltet seine `.env.plesk` selbst.
 Die sichtbare Geräteübersicht beobachtet einen gestarteten Lauf höchstens
 60-mal alle fünf Sekunden, das Setup höchstens zwei Minuten alle zehn Sekunden.
 
-**Live-Gate noch offen:** Die separate App **„RailTime Geräteinventar“** ist
+**Infrastruktur live abgenommen, Microsoft-Pilot noch offen:** Release
+`8880cf96`, Runtime-Migration `030000`, Plesk v8.0.0 und Cacheaufbau sind
+bereitgestellt. Echte Workerprobe und automatischer Schedulerkontakt um
+**13:05:02** bestätigen M1/M2 einschließlich separater Webanzeige; die
+Namenskorrektur auf `microsoft_devices` ist abgeschlossen. Die separate App
+**„RailTime Geräteinventar“** ist
 registriert; ausschließlich Application `Device.Read.All` mit
 Administratorzustimmung **„Gewährt für RailTime“** ist im Portal bestätigt.
 Das unnötige automatisch ergänzte `User.Read` wurde nur dort entfernt,
 andere Apps nicht verändert. Tenant-/Client-ID sind im RailTime-Setup
-gespeichert und nach erneutem Laden bestätigt. Der Nutzer muss das noch
-leere Client-Geheimnis erstellen und direkt im geschützten Setup speichern;
-Automatik und Intune bleiben aus. Bestehendes Schema und `pcntl` sind lesend
-bestätigt. Release `9bf712dd`, Runtime-Migration `030000`, Paket v8.0.0 und
-Cacheaufbau sind live erfolgt. Der Microsoft-Worker läuft noch nicht, weil
-die Plesk-UI Bindestriche im Queuenamen ablehnt. Die Korrektur auf kanonisch
-`microsoft_devices` (Queue und Connection) benötigt einen Folgerelease;
-echte Workerprobe, Graphnachweis und Windows-Pilot bleiben offen.
+gespeichert und nach erneutem Laden bestätigt. Das vom Nutzer bestätigte
+Secret-Speichern ist technisch noch nicht nachgewiesen; Werte gehören nur
+ins geschützte Setup. Finale Liveflags: `device_count=0`,
+`bound_microsoft_identities=0`, `secret_configured=false`, `sync_enabled=false`,
+`maintenance=false`; Intune bleibt aus. Kontobindungen zählen hier nur aktive
+Microsoft-365-Identitäten im aktuellen Tenant mit externer ID. Kontobindung
+über explizite Tenant-/Objekt-ID beziehungsweise passenden verifizierten
+Microsoft-Bootstrap, Graph-Verbindung, Erstimport und Idempotenz bleiben
+Pilot-Gates. Eine gleiche E-Mail-Adresse allein erzeugt keine Bindung.
 
 Einrichtung, Berechtigungen, Worker und Grenzen:
 [Microsoft Entra & Windows](microsoft-entra-windows.md).

@@ -380,8 +380,14 @@
                         @forelse ($recentUsers as $user)
                             <li>
                                 <a href="{{ route('admin.user-profile', $user->id) }}" wire:navigate class="rt-admin-user-row group grid min-h-14 min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 bg-white px-4 py-3 transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red sm:grid-cols-[2.25rem_minmax(0,1fr)_auto] sm:px-5 dark:bg-slate-900 dark:hover:bg-slate-800" data-dashboard-action="recent-user-{{ $user->id }}">
-                                    <span class="rt-admin-user-avatar row-span-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-semibold text-rt-text transition group-hover:border-rt-red group-hover:bg-rt-red group-hover:text-white sm:row-auto dark:border-slate-700 dark:bg-slate-800 dark:text-white">
-                                        {{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}
+                                    <span class="rt-admin-user-avatar row-span-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 transition group-hover:border-rt-red sm:row-auto dark:border-slate-700 dark:bg-slate-800">
+                                        <img
+                                            src="{{ $user->profile_photo_url }}"
+                                            alt=""
+                                            class="h-7 w-7 rounded-full object-cover ring-1 ring-slate-900/10 dark:ring-white/15"
+                                            loading="lazy"
+                                            decoding="async"
+                                        >
                                     </span>
                                     <span class="min-w-0">
                                         <span class="block truncate text-sm font-semibold text-rt-text dark:text-white">{{ $user->name }}</span>

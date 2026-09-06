@@ -1,9 +1,12 @@
 # Microsoft Entra und Windows-Geräte in RailTime
 
-Stand: 6. September 2026. Der native Graph-Abruf, die dauerhafte
-Auftragsverwaltung und die getrennte Betriebsanzeige sind lokal implementiert.
-Ein echter Mandantenabruf und die produktive Verarbeitung sind damit noch
-nicht abgenommen. Die separate Entra-App **„RailTime Geräteinventar“** ist
+Stand: 6. September 2026. Release `8880cf96` ist live. Runtime-Migration
+`030000`, Plesk-Paket v8.0.0, kanonische Queue `microsoft_devices` und
+Cacheaufbau sind bestätigt. M1/M2 sind für Release und Hintergrundbetrieb
+belegt: echte Graph-freie Workerprobe und automatischer Schedulerkontakt
+um **13:05:02**, zusätzlich in der Webansicht bestätigt. Ein echter
+Mandantenabruf, Geräteimport und dessen Idempotenz sind noch nicht abgenommen.
+Die separate Entra-App **„RailTime Geräteinventar“** ist
 registriert; das Portal bestätigt ausschließlich das Application-Recht
 `Device.Read.All` mit Administratorzustimmung **„Gewährt für RailTime“**.
 Das automatisch hinzugefügte, unnötige `User.Read` wurde nur aus dieser App
@@ -12,11 +15,13 @@ RailTime-Setup gespeichert und nach erneutem Laden bestätigt. Das
 Client-Geheimnis ist trotz Nutzerbestätigung noch nicht als gespeichert
 nachgewiesen (`secret_configured=false`); ein Wert gehört ausschließlich in
 das geschützte Setup, niemals in diese Dokumentation. Automatik und Intune
-sind ausgeschaltet. Release `9bf712dd`, Runtime-Migration `030000`, Plesk-Paket
-v8.0.0 und Cacheaufbau sind live bestätigt. Der Microsoft-Worker läuft noch
-nicht: Plesk lehnt den bisherigen Bindestrich-Queuenamen ab. Die nachfolgend
-dokumentierte Korrektur auf `microsoft_devices` muss erst bereitgestellt und
-danach mit echter Workerprobe geprüft werden. Graphnachweis bleibt offen.
+sind ausgeschaltet. Abschließende sichere Liveflags: `device_count=0`,
+`bound_microsoft_identities=0`, `secret_configured=false`, `sync_enabled=false`,
+`maintenance=false`. Der Identitätszähler umfasst aktive Microsoft-365-
+Bindungen im aktuellen Tenant mit vorhandener externer ID. Die erforderliche
+Mitarbeiterkontobindung ist daher ebenfalls ein Pilot-Gate: autorisierte
+Tenant-/Objekt-ID-Zuordnung oder Bestätigung einer passenden vorhandenen
+Bindung über den verifizierten Microsoft-Bootstrap, niemals E-Mail-only-Matching.
 
 ## Was automatisch passiert
 
@@ -98,9 +103,9 @@ erhalten und ausschließlich die folgende Queue ergänzen:
 
 Plesk erlaubt im Queuenamen nur lateinische Buchstaben, Ziffern und Unterstriche.
 Der frühere Name mit Bindestrich wurde in der Live-UI abgewiesen; kanonischer
-Name ist deshalb `microsoft_devices` für Queue und Connection. Vor Aktivierung
-muss der entsprechende Korrekturrelease ausgerollt sein; `9bf712dd` allein
-enthält diese Namenskorrektur noch nicht.
+Name ist deshalb `microsoft_devices` für Queue und Connection. Der notwendige
+Korrekturrelease `8880cf96` ist live und mit echter Workerprobe geprüft;
+der vorherige Release `9bf712dd` allein enthielt diese Namenskorrektur nicht.
 
 Plesk startet benannte Queues ohne positional Connection. Der RailTime-Adapter
 ordnet exakt `--queue=microsoft_devices` der dedizierten Connection

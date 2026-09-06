@@ -13,14 +13,20 @@ ist registriert. Das Portal zeigt ausschließlich Application `Device.Read.All`
 mit Adminzustimmung **„Gewährt für RailTime“**; unnötiges automatisch ergänztes
 `User.Read` wurde nur aus dieser App entfernt, andere Apps blieben unverändert.
 Tenant- und Client-ID sind im RailTime-Setup gespeichert und nach erneutem
-Laden bestätigt. Das Client-Geheimnis bleibt leer und muss vom Nutzer erstellt
-und direkt im geschützten Setup gespeichert werden. Automatik und Intune aus.
-Bestehendes Schema und `pcntl` sind lesend bestätigt. Release `9bf712dd`,
-Runtime-Migration `030000`, Plesk-Paket v8.0.0 und Cacheaufbau sind live erfolgt.
-Die Queueanlage scheitert bislang am von Plesk abgelehnten Bindestrichnamen;
-der Microsoft-Worker läuft noch nicht. Korrektur auf `microsoft_devices`
-erst mit dem Folgerelease bereitstellen, dann Workerprobe abnehmen.
-Ein erfolgreicher Graphabruf ist weiterhin nicht nachgewiesen.
+Laden bestätigt. Secret-Speichern ist trotz Nutzerbestätigung technisch noch
+nicht nachgewiesen; Werte gehören ausschließlich ins geschützte Setup.
+Automatik und Intune bleiben aus. **M1/M2 live bestätigt:** Release `8880cf96`,
+Runtime-Migration `030000`, Plesk v8.0.0, kanonische Queue `microsoft_devices`
+und Cacheaufbau; echte Workerprobe und automatischer Schedulerkontakt um
+**13:05:02** durch normalen Plesk-Betrieb, zusätzlich in der Webansicht belegt.
+Finale sichere Liveflags: `device_count=0`, `bound_microsoft_identities=0`,
+`secret_configured=false`, `sync_enabled=false`, `maintenance=false`.
+Der Identitätszähler umfasst aktive Microsoft-365-Bindungen im aktuellen
+Tenant mit externer ID. Kontobindung über explizite Tenant-/Objekt-ID oder
+einen passenden verifizierten Microsoft-Bootstrap ist ebenfalls Pilot-Gate;
+kein E-Mail-only-Matching. Graph-Verbindung, Erstimport und Idempotenz bleiben
+offen. Die folgenden Gates dienen weiterhin als wiederholbares Runbook,
+nicht als Aufforderung, bereits bestätigte Liveänderungen erneut auszuführen.
 
 ### Gate M1 – gemeinsamer Release und Plesk-Betrieb
 
