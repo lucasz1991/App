@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
+use TijsVerkoyen\CssToInlineStyles\Css\Property\Property;
 use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 use ZipArchive;
 
@@ -353,8 +354,25 @@ class EmailTemplateBuilder
         // Auch Styles, die im Body stehen, nur einmal und ausschliesslich
         // gescopt transportieren. Keine globalen Head-Resets ins Outlook-DOM.
         $body = preg_replace('~<style\b[^>]*>.*?</style>~is', '', $body) ?? $body;
-        $wrapped = '<div class="rt-outlook-template '.$scope.'" style="display:block;width:100%;">'.$body.'</div>';
-        $inlined = (new CssToInlineStyles)->convert(
+        $wrapped = '<div '.self::outlookTemplateRootAttributes($document, $scope).'>'.$body.'</div>';
+        $inliner = new class extends CssToInlineStyles
+        {
+            public function inlineCssOnElement(\DOMElement $element, array $properties)
+            {
+                // Die Bibliothek hat Spezifitaet/!important bereits ausgewertet.
+                // Neu erzeugte Inline-Fallbacks duerfen aber kein !important
+                // tragen: sonst koennen die mobilen Mediaqueries sie nie
+                // ueberschreiben. Bereits vorhandene Inlinewerte bleiben intakt.
+                $fallbacks = array_map(static fn (Property $property): Property => new Property(
+                    $property->getName(),
+                    preg_replace('/\s*!\s*important\s*$/i', '', $property->getValue()) ?? $property->getValue(),
+                    $property->getOriginalSpecificity(),
+                ), $properties);
+
+                return parent::inlineCssOnElement($element, $fallbacks);
+            }
+        };
+        $inlined = $inliner->convert(
             '<!doctype html><html><head><meta charset="utf-8"></head><body>'.$wrapped.'</body></html>',
             $css,
         );
@@ -364,6 +382,38 @@ class EmailTemplateBuilder
         // Uebernahme von Inline-CSS nicht fuer jeden Client garantiert.
         return '<style data-rt-outlook-template-css="1">'.$css.'</style>'
             .self::outlookAddinFragment($inlined, includeStyles: false);
+    }
+
+    /** Uebertraegt nur Darstellungs-/Sprachattribute der bisherigen Bodywurzel. */
+    private static function outlookTemplateRootAttributes(string $html, string $scope): string
+    {
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (! $body instanceof \DOMElement) {
+            throw new RuntimeException('Die Outlook-Vorlage besitzt keine gueltige Bodywurzel.');
+        }
+        $attributes = [
+            'class' => trim('rt-outlook-template '.$scope.' '.$body->getAttribute('class')),
+            'style' => 'display:block;width:100%;'.$body->getAttribute('style'),
+        ];
+        foreach (['dir', 'lang', 'data-rt-theme'] as $name) {
+            if ($body->hasAttribute($name)) {
+                $attributes[$name] = $body->getAttribute($name);
+            }
+        }
+
+        return implode(' ', array_map(
+            static fn (string $name, string $value): string => $name.'="'.htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8').'"',
+            array_keys($attributes),
+            array_values($attributes),
+        ));
     }
 
     private static function outlookAddinFragment(string $document, bool $includeStyles): string

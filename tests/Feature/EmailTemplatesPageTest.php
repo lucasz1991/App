@@ -482,7 +482,7 @@ class EmailTemplatesPageTest extends TestCase
             'published_html' => str_replace('</body>', '<p class="compose-copy">Vorlageninhalt bleibt &amp; erhalten.</p><pre>  Erste Zeile\n  Zweite Zeile</pre></body>', $template->published_html),
             'published_css' => 'body .compose-copy{color:#123456;font-weight:700}.unused-template-class{color:#654321}@media only screen and (max-width:480px){.compose-copy{font-size:17px}}',
         ])->save();
-        app(PublishedMailDocumentSnapshotStore::class)->forget();
+        app(PublishedMailDocumentSnapshotStore::class)->forget(MailDocumentKind::Template);
         $user = User::factory()->create(['name' => 'Mara Beispiel']);
         $payload = app(OutlookAddinPayloadService::class)->forUser($user);
         $html = $payload['template']['html'];
@@ -497,6 +497,11 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('.'.$scope[1].' .compose-copy{font-size:17px}', $css);
         $this->assertStringContainsString('.'.$scope[1].' .rt-card', $css);
         $this->assertStringContainsString('max-width: 480px', $css);
+        $body = preg_replace('/<style\b[^>]*>.*?<\/style>/s', '', $html);
+        $this->assertIsString($body);
+        $wrapper = substr($body, strpos($body, '<div class="rt-outlook-template '));
+        $this->assertStringNotContainsString('!important', $wrapper, 'Desktop inline fallbacks must remain overridable by responsive rules.');
+        $this->assertStringContainsString('font-family: Arial,Helvetica,sans-serif;', $wrapper);
         $this->assertStringNotContainsString('.unused-template-class', $css);
         $this->assertStringNotContainsString('data-rt-artifact-version="v14"', $css);
         $this->assertStringNotContainsString('@keyframes', $css);
@@ -528,7 +533,7 @@ class EmailTemplatesPageTest extends TestCase
         $template->forceFill([
             'published_html' => str_replace('</body>', '<p>'.str_repeat('💼', 50000).'</p></body>', $template->published_html),
         ])->save();
-        app(PublishedMailDocumentSnapshotStore::class)->forget();
+        app(PublishedMailDocumentSnapshotStore::class)->forget(MailDocumentKind::Template);
 
         try {
             app(OutlookAddinPayloadService::class)->forUser(User::factory()->create());

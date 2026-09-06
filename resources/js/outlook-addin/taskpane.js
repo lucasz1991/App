@@ -488,25 +488,24 @@ function addInlineAttachment(item, media) {
             reject(codedError('INLINE_ATTACHMENT_UNCERTAIN'));
         }, 30000);
         try {
-        item.addFileAttachmentFromBase64Async(
-            media.base64,
-            media.name,
-            { isInline: true },
-            (result) => {
-                clearTimeout(timeout);
-                const error = officeFailure(result, 'INLINE_ATTACHMENT_FAILED');
-
-                if (error) {
-                    reject(error);
-                    return;
-                }
-
-                resolve(result.value);
-            },
-        );
-        } catch (error) {
+            item.addFileAttachmentFromBase64Async(
+                media.base64,
+                media.name,
+                { isInline: true },
+                (result) => {
+                    clearTimeout(timeout);
+                    const error = officeFailure(result, 'INLINE_ATTACHMENT_FAILED');
+                    if (error) {
+                        reject(error);
+                        return;
+                    }
+                    resolve(result.value);
+                },
+            );
+        } catch {
             clearTimeout(timeout);
-            reject(error);
+            uncertainMediaItems.add(item);
+            reject(codedError('INLINE_ATTACHMENT_UNCERTAIN'));
         }
     });
 }
@@ -540,19 +539,18 @@ function existingAttachments(item) {
     return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => reject(codedError('COMPOSE_ATTACHMENTS_UNREADABLE')), 10000);
         try {
-        item.getAttachmentsAsync((result) => {
-            clearTimeout(timeout);
-            if (result?.status !== Office.AsyncResultStatus.Succeeded || !Array.isArray(result.value)) {
-                reject(codedError('COMPOSE_ATTACHMENTS_UNREADABLE'));
-                return;
-            }
-
-            resolve(result.value.map((attachment) => ({
-                id: String(attachment?.id || '').trim(),
-                isInline: attachment?.isInline === true,
-                name: String(attachment?.name || '').trim(),
-            })).filter((attachment) => attachment.name !== ''));
-        });
+            item.getAttachmentsAsync((result) => {
+                clearTimeout(timeout);
+                if (result?.status !== Office.AsyncResultStatus.Succeeded || !Array.isArray(result.value)) {
+                    reject(codedError('COMPOSE_ATTACHMENTS_UNREADABLE'));
+                    return;
+                }
+                resolve(result.value.map((attachment) => ({
+                    id: String(attachment?.id || '').trim(),
+                    isInline: attachment?.isInline === true,
+                    name: String(attachment?.name || '').trim(),
+                })).filter((attachment) => attachment.name !== ''));
+            });
         } catch (error) {
             clearTimeout(timeout);
             reject(error);
@@ -562,20 +560,22 @@ function existingAttachments(item) {
 
 function setSignature(item, html) {
     return new Promise((resolve, reject) => {
-        item.body.setSignatureAsync(
-            html,
-            { coercionType: Office.CoercionType.Html },
-            (result) => {
+        const uncertain = () => {
+            uncertainMediaItems.add(item);
+            reject(codedError('SIGNATURE_INSERT_UNCERTAIN'));
+        };
+        const timeout = setTimeout(uncertain, 30000);
+        try {
+            item.body.setSignatureAsync(html, { coercionType: Office.CoercionType.Html }, (result) => {
+                clearTimeout(timeout);
                 const error = officeFailure(result, 'SET_SIGNATURE_FAILED');
-
-                if (error) {
-                    reject(error);
-                    return;
-                }
-
-                resolve();
-            },
-        );
+                if (error) reject(error);
+                else resolve();
+            });
+        } catch {
+            clearTimeout(timeout);
+            uncertain();
+        }
     });
 }
 
@@ -1156,7 +1156,7 @@ function userMessage(error) {
     if (['TEMPLATE_TOO_LARGE', 'TEMPLATE_MEDIA_TOO_LARGE', 'COMPOSE_BODY_TOO_LARGE'].includes(code)) {
         return 'Vorlage, Bilder oder Nachrichtenverlauf überschreiten das RailTime-Sicherheitsbudget für die Outlook-Einfügung. Bitte eine kompaktere Vorlage oder eine neue Nachricht verwenden.';
     }
-    if (['TEMPLATE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN'].includes(code)) {
+    if (['TEMPLATE_INSERT_UNCERTAIN', 'INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(code)) {
         return 'Outlook hat die Einfügung nicht rechtzeitig bestätigt. Sie kann bereits erfolgt sein. Bitte diese Nachricht prüfen und nicht erneut einfügen; RailTime startet keinen weiteren Schreibversuch.';
     }
     if (code === 'TEMPLATE_INSERT_IN_PROGRESS') {
@@ -1333,7 +1333,12 @@ async function updateSignature(button) {
 
     await withAuthenticatedBootstrap(button, async (bootstrap, target) => {
         const item = assertComposeTarget(target);
-        if ((await readTemplateState(Office, item)).present) {
+        const state = await readTemplateState(Office, item);
+        assertComposeTarget(target);
+        if (state.uncertain) throw codedError('TEMPLATE_INSERT_UNCERTAIN');
+        if (!state.readable) throw codedError('COMPOSE_BODY_UNREADABLE');
+        if (state.tooLarge) throw codedError('COMPOSE_BODY_TOO_LARGE');
+        if (state.present) {
             throw codedError('SIGNATURE_WITHIN_TEMPLATE');
         }
         const signature = validatedDocument(bootstrap.signature, 'signature', currentConfig.marker);

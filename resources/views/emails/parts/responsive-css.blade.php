@@ -1215,6 +1215,27 @@ tr[data-rt-artifact-version="{{ $backgroundVersion }}"] img.rt-logo{{ $loop->las
     display: table !important;
     width: 100% !important;
   }
+  /* Opt-in V23-Kopf: Desktop bleibt eine normale zweispaltige Tabellenzeile.
+     Mobil steht das einmalige Logo vor dem Personenkopf. Ohne Head-CSS
+     bleiben beide Inhalte in der sicheren zweispaltigen Grundstruktur. */
+  tr[data-rt-artifact-version="v23"] .rt-sign-heading-table > tbody > tr {
+    display: table !important;
+    width: 100% !important;
+  }
+  tr[data-rt-artifact-version="v23"] .rt-sign-heading-person {
+    display: table-row-group !important;
+    width: 100% !important;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+  tr[data-rt-artifact-version="v23"] .rt-sign-heading-logo {
+    display: table-header-group !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  tr[data-rt-artifact-version="v23"] .rt-sign-heading-person .rt-person-kopf {
+    padding-top: 14px !important;
+  }
 }
 @media only screen and (max-width: 480px) {
   @foreach (\App\Support\Mail\SignatureBackgroundContract::SIZES as $backgroundSize)

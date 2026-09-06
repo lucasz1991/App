@@ -74,6 +74,7 @@ function officeRead(office, invoke) {
 }
 
 export function isTemplateInsertionBlocked(item) {
+    // Completed templates have their own marker state, not an uncertainty warning.
     return insertionOperations.has(item);
 }
 
@@ -142,6 +143,9 @@ export async function assertTemplateInsertable(office, item) {
 }
 
 function validatedInsertionHtml(html, media) {
+    if (typeof html === 'string' && html.length > TEMPLATE_INSERT_LIMITS.htmlLength) {
+        throw failure('TEMPLATE_TOO_LARGE');
+    }
     const markedHtml = markedTemplateHtml(html);
     if (markedHtml.length > TEMPLATE_INSERT_LIMITS.htmlLength) throw failure('TEMPLATE_TOO_LARGE');
     if (!Array.isArray(media)) throw failure('TEMPLATE_MEDIA_INVALID');

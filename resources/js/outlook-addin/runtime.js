@@ -17,6 +17,7 @@ const LOG_PREFIX = '[RailTime Outlook Add-in]';
 let configPromise;
 let authenticationClientPromise;
 const composeOperations = new WeakMap();
+const uncertainMediaItems = new WeakSet();
 
 function codedError(code) {
     const error = new Error(code);
@@ -345,27 +346,29 @@ function officeFailure(result, fallbackCode) {
 
 function addInlineAttachment(item, media) {
     return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(codedError('INLINE_ATTACHMENT_UNCERTAIN')), 30000);
+        const timeout = setTimeout(() => {
+            uncertainMediaItems.add(item);
+            reject(codedError('INLINE_ATTACHMENT_UNCERTAIN'));
+        }, 30000);
         try {
-        item.addFileAttachmentFromBase64Async(
-            media.base64,
-            media.name,
-            { isInline: true },
-            (result) => {
-                clearTimeout(timeout);
-                const error = officeFailure(result, 'INLINE_ATTACHMENT_FAILED');
-
-                if (error) {
-                    reject(error);
-                    return;
-                }
-
-                resolve(result.value);
-            },
-        );
-        } catch (error) {
+            item.addFileAttachmentFromBase64Async(
+                media.base64,
+                media.name,
+                { isInline: true },
+                (result) => {
+                    clearTimeout(timeout);
+                    const error = officeFailure(result, 'INLINE_ATTACHMENT_FAILED');
+                    if (error) {
+                        reject(error);
+                        return;
+                    }
+                    resolve(result.value);
+                },
+            );
+        } catch {
             clearTimeout(timeout);
-            reject(error);
+            uncertainMediaItems.add(item);
+            reject(codedError('INLINE_ATTACHMENT_UNCERTAIN'));
         }
     });
 }
@@ -402,20 +405,22 @@ async function attachInlineMedia(item, media, assertTarget) {
 
 function setSignature(item, html) {
     return new Promise((resolve, reject) => {
-        item.body.setSignatureAsync(
-            html,
-            { coercionType: Office.CoercionType.Html },
-            (result) => {
+        const uncertain = () => {
+            uncertainMediaItems.add(item);
+            reject(codedError('SIGNATURE_INSERT_UNCERTAIN'));
+        };
+        const timeout = setTimeout(uncertain, 30000);
+        try {
+            item.body.setSignatureAsync(html, { coercionType: Office.CoercionType.Html }, (result) => {
+                clearTimeout(timeout);
                 const error = officeFailure(result, 'SET_SIGNATURE_FAILED');
-
-                if (error) {
-                    reject(error);
-                    return;
-                }
-
-                resolve();
-            },
-        );
+                if (error) reject(error);
+                else resolve();
+            });
+        } catch {
+            clearTimeout(timeout);
+            uncertain();
+        }
     });
 }
 
@@ -453,7 +458,7 @@ async function applyPublishedContent(item) {
     const bootstrap = await loadBootstrap(config, accessToken);
     assertTarget();
 
-    if (isTemplateInsertionBlocked(item)) return;
+    if (isTemplateInsertionBlocked(item) || uncertainMediaItems.has(item)) return;
 
     const selected = automaticTemplate(bootstrap);
     if (selected) {

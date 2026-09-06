@@ -316,7 +316,7 @@ test('outlook taskpane keeps templates visible and hides resolved maintenance ac
     assert.match(taskpane, /await acceptBootstrap\(bootstrap\);\s*if \(bootstrapStateRevision !== expectedRevision \+ 1 \|\| taskpaneState\.busy\) \{\s*return;\s*\}\s*setStatus\('success', 'RailTime ist bereit'/);
     assert.match(taskpane, /authenticationWasLost\(error\)[\s\S]*?invalidateBootstrap\('locked', true\);[\s\S]*?failOpenSignatureCurrentState\(\);/);
     assert.match(taskpane, /Office\.EventType\?\.ItemChanged/);
-    assert.match(taskpane, /void refreshSignatureCurrentState\(\)\.catch\(\(error\) =>/);
+    assert.match(taskpane, /signatureStateRefreshPromise = refreshSignatureCurrentState\(\)\.catch\(\(error\) =>/);
     assert.match(taskpane, /function handleMailboxItemChanged\(\) \{[\s\S]*?failOpenSignatureCurrentState\(\);\s*requestSignatureCurrentStateRefresh\(\);\s*\}/);
     assert.match(taskpane, /Office\.EventType\.ItemChanged,\s*handleMailboxItemChanged,\s*\(result\) =>/);
     assert.match(taskpane, /mailboxItemRevision \+= 1;\s*taskpaneState\.templatePresent = false;\s*failOpenSignatureCurrentState\(\);/);
@@ -418,6 +418,82 @@ test('template insertion refuses mobile, unreadable bodies, plain text and chang
     assert.equal(changed.state.prepends.length, 0);
 });
 
+test('template budgets run before media writes and accepted insertion reads the conversation only once', async () => {
+    const limit = composeLibrary.TEMPLATE_INSERT_LIMITS;
+    const cases = [
+        { html: 'x'.repeat(limit.htmlLength), options: {}, code: 'TEMPLATE_TOO_LARGE' },
+        { html: '<img>'.repeat(limit.images + 1), options: {}, code: 'TEMPLATE_MEDIA_TOO_LARGE' },
+        { html: '<p>Template</p>', options: { media: [{ base64: Buffer.alloc(limit.mediaBytes + 1).toString('base64') }] }, code: 'TEMPLATE_MEDIA_TOO_LARGE' },
+    ];
+    for (const scenario of cases) {
+        const fixture = composeFixture();
+        let attachments = 0;
+        await assert.rejects(composeLibrary.prependTemplate(fixture.office, fixture.item, scenario.html, () => {}, {
+            ...scenario.options, beforeInsert() { attachments += 1; },
+        }), { code: scenario.code });
+        assert.equal(fixture.state.bodyReads, 0);
+        assert.equal(attachments, 0);
+        assert.equal(fixture.state.prepends.length, 0);
+    }
+    const longBody = composeFixture({ html: 'x'.repeat(limit.bodyLength) });
+    let attachments = 0;
+    await assert.rejects(composeLibrary.prependTemplate(longBody.office, longBody.item, '<p>Template</p>', () => {}, {
+        beforeInsert() { attachments += 1; },
+    }), { code: 'COMPOSE_BODY_TOO_LARGE' });
+    assert.equal(attachments, 0);
+    const normal = composeFixture();
+    await composeLibrary.prependTemplate(normal.office, normal.item, '<p>Template</p>');
+    assert.equal(normal.state.bodyReads, 1);
+    assert.equal(normal.state.prepends.length, 1);
+});
+
+test('parallel template clicks share the preflight/media lock and cannot create duplicate native writes', async () => {
+    const { office, item, state } = composeFixture();
+    let release;
+    let prepared = 0;
+    const waitForMedia = new Promise((resolve) => { release = resolve; });
+    const first = composeLibrary.prependTemplate(office, item, '<p>Template</p>', () => {}, {
+        async beforeInsert() { prepared += 1; await waitForMedia; },
+    });
+    await assert.rejects(composeLibrary.prependTemplate(office, item, '<p>Duplicate</p>'), { code: 'TEMPLATE_INSERT_IN_PROGRESS' });
+    release();
+    await first;
+    assert.equal(prepared, 1);
+    assert.equal(state.bodyReads, 1);
+    assert.equal(state.prepends.length, 1);
+    assert.equal(composeLibrary.isTemplateInsertionBlocked(item), false);
+});
+
+test('uncertain attachment results stop template writes and quarantine the compose item', async () => {
+    const { office, item, state } = composeFixture();
+    await assert.rejects(composeLibrary.prependTemplate(office, item, '<p>Template</p>', () => {}, {
+        beforeInsert() { throw Object.assign(new Error('Timeout'), { code: 'INLINE_ATTACHMENT_UNCERTAIN' }); },
+    }), { code: 'INLINE_ATTACHMENT_UNCERTAIN' });
+    assert.equal(state.prepends.length, 0);
+    assert.equal(composeLibrary.isTemplateInsertionBlocked(item), true);
+    await assert.rejects(composeLibrary.prependTemplate(office, item, '<p>Retry</p>'), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
+});
+
+test('native timeout never retries; late success establishes the duplicate guard', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const { office, item, state } = composeFixture();
+    let nativeCallback;
+    item.body.prependAsync = (html, _options, callback) => {
+        state.prepends.push(html);
+        nativeCallback = callback;
+    };
+    const operation = composeLibrary.prependTemplate(office, item, '<p>Template</p>');
+    const rejected = assert.rejects(operation, { code: 'TEMPLATE_INSERT_UNCERTAIN' });
+    for (let index = 0; index < 30 && !nativeCallback; index += 1) await Promise.resolve();
+    assert.equal(typeof nativeCallback, 'function');
+    context.mock.timers.tick(composeLibrary.TEMPLATE_INSERT_LIMITS.writeTimeoutMs);
+    await rejected;
+    await assert.rejects(composeLibrary.prependTemplate(office, item, '<p>Retry</p>'), { code: 'TEMPLATE_INSERT_UNCERTAIN' });
+    nativeCallback({ status: 'succeeded' });
+    await assert.rejects(composeLibrary.prependTemplate(office, item, '<p>Retry</p>'), { code: 'TEMPLATE_ALREADY_INSERTED' });
+    assert.equal(state.prepends.length, 1);
+});
+
 async function runtimeFixture(options = {}) {
     const fixture = composeFixture(options);
     const marker = 'RT-SIGNATURE-MANAGED-V1';
@@ -428,6 +504,7 @@ async function runtimeFixture(options = {}) {
         templates: [{ id: 'default', isDefault: true, html: '<p>Default</p><img src="cid:logo">', media }],
         signature: { html: '<p>Signature</p><img src="cid:logo">', media },
     };
+    fixture.bootstrap = bootstrap;
     const configuration = {
         ready: true,
         marker,
@@ -472,8 +549,22 @@ test('compose event inserts explicit default once for new, reply and forward, an
         assert.equal(state.signatures.length, 0, 'full template already includes signature');
         assert.equal(state.completed, 2);
         assert.equal(state.attachments.length, 1);
+        assert.equal(state.bodyReads, 1, 'one preflight, no full conversation readback after inserting');
         assert.ok(state.html.endsWith(existing));
     }
+});
+
+test('RailTime app links never install or open Outlook as the app target', async () => {
+    const view = await source('../../resources/views/outlook-addin/taskpane.blade.php');
+    const links = await source('../../resources/views/components/email-templates/outlook-app-links.blade.php');
+    for (const markup of [view, links]) {
+        assert.match(markup, /route\('home'\)/);
+        assert.match(markup, /route\('help'\)/);
+        assert.doesNotMatch(markup, /https:\/\/outlook\.office\.com|Outlook als Browser-App/);
+        assert.match(markup, /RailTime öffnen/);
+    }
+    assert.match(view, /RailTime als App installieren/);
+    assert.match(links, /installApp\(\)/);
 });
 
 test('compose event falls back to signature on mobile or without explicit default and never overwrites body', async () => {
@@ -508,6 +599,60 @@ test('compose event stops after mailbox item changes during media insertion', as
     assert.equal(state.prepends.length, 0);
     assert.equal(state.signatures.length, 0);
     assert.equal(state.completed, 1);
+});
+
+test('automatic insertion never falls back to another write after an unconfirmed native prepend', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const fixture = await runtimeFixture();
+    let invoked = false;
+    fixture.item.body.prependAsync = () => { invoked = true; };
+    const pending = fixture.handler(fixture.event);
+    for (let index = 0; index < 80 && !invoked; index += 1) await Promise.resolve();
+    assert.equal(invoked, true);
+    context.mock.timers.tick(composeLibrary.TEMPLATE_INSERT_LIMITS.writeTimeoutMs);
+    await pending;
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.signatures.length, 0);
+    assert.equal(fixture.state.attachments.length, 1);
+    assert.equal(fixture.state.completed, 2);
+});
+
+test('authenticated taskpane inserts once on double click with one body read and no readback', async () => {
+    const { parseHTML } = await import('linkedom');
+    const { document, window } = parseHTML(await source('../../resources/views/outlook-addin/taskpane.blade.php'));
+    Object.defineProperty(document.querySelector('select'), 'value', { writable: true, value: '' });
+    const fixture = composeFixture();
+    const marker = 'RT-SIGNATURE-MANAGED-V1';
+    const config = { marker, auth: { scopes: ['Signature.Read'] }, endpoints: { bootstrap: 'https://example.test/api/bootstrap' } };
+    const bootstrap = {
+        marker,
+        templates: [{ id: 'one', name: 'Example', html: '<table><tr><td>Example</td></tr></table>', media: [] }],
+    };
+    const auth = {
+        InteractionRequiredAuthError: class extends Error {},
+        createNestablePublicClientApplication: async () => ({
+            getAllAccounts() { return []; },
+            acquireTokenSilent: async () => ({ accessToken: 'synthetic-test-token' }),
+        }),
+    };
+    const script = (await source('../../resources/js/outlook-addin/taskpane.js'))
+        .replace(/import\s*\{([\s\S]*?)\}\s*from '@azure\/msal-browser';/, 'const {$1} = auth;')
+        .replace(/import\s*\{([\s\S]*?)\}\s*from '\.\/compose-template\.js';/, (_match, names) => `const {${names.replace(/\s+as\s+/g, ': ')}} = shared;`)
+        .replace(/\bexport (?=(?:async )?function)/g, '');
+    const client = new Function('Office', 'globalThis', 'document', 'window', 'fetch', 'auth', 'shared', `${script}\nreturn {
+        async setup(config, payload) { currentConfig = config; taskpaneState.configReady = true; taskpaneState.authenticated = true; taskpaneState.busy = false; await acceptBootstrap(payload, {inspectBody:false}); },
+        insertTemplate, taskpaneState
+    };`)(fixture.office, { Office: fixture.office }, document, window,
+        async () => ({ ok: true, json: async () => bootstrap }), auth, composeLibrary);
+    await client.setup(config, bootstrap);
+    const button = document.querySelector('[data-outlook-action="template"]');
+    await Promise.all([client.insertTemplate(button), client.insertTemplate(button)]);
+    assert.equal(fixture.state.prepends.length, 1);
+    assert.equal(fixture.state.bodyReads, 1);
+    assert.equal(client.taskpaneState.templatePresent, true);
+    assert.equal(client.taskpaneState.busy, false);
+    assert.equal(button.disabled, true);
+    assert.equal(document.querySelector('[data-outlook-status-title]').textContent, 'Vorlage wurde oberhalb eingefügt');
 });
 
 test('Outlook dialogs open only on explicit clicks and restore opener focus after closing', async () => {
