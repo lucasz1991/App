@@ -221,7 +221,7 @@ final class TrustedOutlookSignatureCss
         return $scopeClass;
     }
 
-    /** @param array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string} $documentTraits */
+    /** @param array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string, background_fit: ?string} $documentTraits */
     private static function filterRuntimeStylesheet(
         string $css,
         ?string $artifactVersion,
@@ -311,7 +311,7 @@ final class TrustedOutlookSignatureCss
      * begrenzen jede Regel stattdessen auf die transportierte Signaturwurzel,
      * damit weder der Compose-Body noch zitierte Nachrichten erfasst werden.
      */
-    /** @param null|array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string} $documentTraits */
+    /** @param null|array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string, background_fit: ?string} $documentTraits */
     private static function scopeStylesheet(
         string $css,
         string $scopeSelector,
@@ -869,7 +869,7 @@ final class TrustedOutlookSignatureCss
      * bleiben unangetastet, weil :is(), :not() und aehnliche Konstrukte keine
      * pauschale Klassenkonjunktion bilden.
      *
-     * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string}  $documentTraits
+     * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string, background_fit: ?string}  $documentTraits
      */
     private static function selectorDefinitelyUnused(string $selector, array $documentTraits): bool
     {
@@ -943,7 +943,7 @@ final class TrustedOutlookSignatureCss
     }
 
     /**
-     * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string}  $documentTraits
+     * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string, background_fit: ?string}  $documentTraits
      * @return list<string>
      */
     private static function relevantSelectors(
@@ -1075,7 +1075,7 @@ final class TrustedOutlookSignatureCss
     }
 
     /**
-     * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string}  $documentTraits
+     * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string, background_fit: ?string}  $documentTraits
      */
     private static function isSignatureSelector(string $selector, array $documentTraits): bool
     {
@@ -1119,7 +1119,7 @@ final class TrustedOutlookSignatureCss
      * nicht nur eine Groessenoptimierung: eine fremde Layer-Variante darf die
      * kanonische Geometrie des aktiven Artefakts nicht spaeter uebersteuern.
      *
-     * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string}  $documentTraits
+     * @param  array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string, background_fit: ?string}  $documentTraits
      */
     private static function matchesDocument(string $selector, array $documentTraits, bool $includeTemplate = false): bool
     {
@@ -1164,7 +1164,7 @@ final class TrustedOutlookSignatureCss
         return true;
     }
 
-    /** @return array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string} */
+    /** @return array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string, background_fit: ?string} */
     private static function documentTraits(string $signatureHtml): array
     {
         preg_match_all('/\bclass\s*=\s*(["\'])(.*?)\1/is', $signatureHtml, $classMatches);
@@ -1365,7 +1365,7 @@ final class TrustedOutlookSignatureCss
         throw new RuntimeException('Das kanonische Signatur-CSS besitzt eine offene Regel.');
     }
 
-    /** @param array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string} $documentTraits */
+    /** @param array{classes: array<string, true>, has_idle: bool, align: ?string, size: ?string, mobile: ?string, background_fit: ?string} $documentTraits */
     private static function assertResponsive(
         string $css,
         ?string $artifactVersion,

@@ -129,6 +129,15 @@ test('desktop contain does not permit arbitrary fit modes or mismatched source g
     }
     const mismatched = html.replace('data-rt-bg-desktop="110"', 'data-rt-bg-desktop="110" data-rt-bg-desktop-fit="contain"');
     assert.throws(() => projectForMailDocument({ html: mismatched, builderData: { pages: [{ component: mismatched }] } }, () => [], { kind: 'signature', environment: { DOMParser } }));
+    const fitted = mismatched.replace('background-size:110% auto', 'background-size:contain').replace('background-position:65% bottom', 'background-position:left bottom');
+    for (const invalid of [
+        fitted.replace('<p>Kontaktdaten', '<p data-rt-bg-desktop-fit="contain">Kontaktdaten'),
+        fitted.replace('<td>Rechtstext', '<td data-rt-bg-desktop-fit="contain">Rechtstext'),
+        fitted.replace('background-size:contain', 'background-size:contain!important'),
+        fitted.replace('background-position:left bottom', 'background-position:left bottom!important'),
+    ]) {
+        assert.throws(() => projectForMailDocument({ html: invalid, builderData: { pages: [{ component: invalid }] } }, () => [], { kind: 'signature', environment: { DOMParser } }));
+    }
 });
 
 test('V23 optional background editing and reload preserve the V18 content table and version', () => {

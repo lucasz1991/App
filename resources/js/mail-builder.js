@@ -1596,6 +1596,9 @@ function assertSignatureBackgroundDocument(wrapper, rows) {
     if (desktopFit !== null && desktopFit !== 'contain') {
         throw new Error('Die Desktop-Einpassung des Signaturhintergrunds ist ungueltig.');
     }
+    if ([...wrapper.querySelectorAll('[data-rt-bg-desktop-fit]')].some((element) => element !== carrier)) {
+        throw new Error('Die Desktop-Einpassung ist nur am gebundenen Signaturhintergrund erlaubt.');
+    }
     assertInlineStyles(carrier, {
         'background-image': enabled === '1' ? "url('{{TRAIN_SRC}}')" : 'none',
         'background-size': desktopFit === 'contain' ? 'contain' : `${attributes.desktop}% auto`,
