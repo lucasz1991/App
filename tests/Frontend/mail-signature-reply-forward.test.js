@@ -244,6 +244,10 @@ test('outlook taskpane normalizes multiple templates and keeps the single-templa
         assert.equal(fallback[0].name, 'Standardvorlage');
         assert.equal(fallback[0].active, true);
         assert.equal(fallback[0].version, '3333333333333333');
+        assert.deepEqual(taskpane.normalizeTemplateChoices({
+            templates: [],
+            template: { html: '<!-- RT-NO-OUTLOOK-TEMPLATE -->', media: [] },
+        }), [], 'An explicit empty catalog must not revive the legacy system template');
         assert.deepEqual(
             taskpane.signatureVersionsFromBody(
                 '<!-- RT-SIGNATURE-VERSION:2222222222222222 -->'
