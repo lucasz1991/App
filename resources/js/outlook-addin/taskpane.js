@@ -145,6 +145,7 @@ export function normalizeTemplateChoices(payload) {
     });
 
     if (choices.length === 0
+        && !Array.isArray(payload.templates)
         && payload.template
         && typeof payload.template === 'object'
         && scalarString(payload.template.html) !== '') {
@@ -745,8 +746,8 @@ function renderSelectedTemplate() {
     view.templateName.textContent = template.name;
     view.templateVersion.textContent = versionLabel;
     view.templateVersion.title = template.hash || versionLabel;
-    view.templateActive.hidden = !template.isDefault && !template.active;
-    view.templateActive.textContent = template.isDefault ? 'Standard' : 'Systemvorlage';
+    view.templateActive.hidden = !template.isDefault;
+    view.templateActive.textContent = 'Outlook-Standard';
     const additional = taskpaneState.templatePresent;
     const actionLabel = additional ? 'Zusätzlich oberhalb einfügen' : 'Oberhalb einfügen';
     const actionTitle = view.template.querySelector('strong');

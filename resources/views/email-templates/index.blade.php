@@ -81,6 +81,25 @@
                 @endif
             </x-slot:actions>
 
+        @if (\App\Support\Mail\MailDocumentDelivery::available())
+            @php
+                $employeeChoices = \App\Models\MailDocument::query()->withPublishedSnapshot()->where('kind', 'template')
+                    ->where('outlook_released', true)->orderByDesc('outlook_default')->orderBy('name')
+                    ->get(['name', 'outlook_default']);
+            @endphp
+            <section class="mb-6 rounded-xl border border-rt-border bg-rt-surface p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-label="Vorlagen im RailTime-Add-in">
+                <h2 class="text-sm font-semibold">Im RailTime-Add-in verfügbar</h2>
+                <p class="mt-1 text-xs text-rt-muted">Vorlagen für Ihr zugeordnetes Firmenpostfach. Der Systemmail-Standard ist davon unabhängig.</p>
+                <ul class="mt-3 flex flex-wrap gap-2">
+                    @forelse ($employeeChoices as $choice)
+                        <li class="rounded-lg border border-rt-border px-3 py-2 text-sm">{{ $choice->name }} <span class="text-xs text-rt-muted">· {{ $choice->outlook_default ? 'Outlook-Standard' : 'Manuell auswählbar' }}</span></li>
+                    @empty
+                        <li class="text-sm text-rt-muted">Aktuell keine Nachrichtenvorlagen freigegeben. Die Outlook-Signatur wird separat verwaltet.</li>
+                    @endforelse
+                </ul>
+            </section>
+        @endif
+
         <div
             x-data="{
                 previewModalOpen: false,

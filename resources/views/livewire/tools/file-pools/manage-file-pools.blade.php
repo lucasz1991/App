@@ -346,16 +346,18 @@
           @endif
           <button
               type="button"
-              x-on:click='
-                  $dispatch("rt-confirm", {
-                      title: @js(__("app.delete")),
-                      message: @js(__("app.folder_delete_confirm")),
-                      variant: "destructive",
-                      confirmLabel: @js(__("app.delete")),
-                      action: () => $wire.deleteFolder(cf)
+              data-filepool-context-delete
+              x-on:click="
+                  const folderId = cf;
+                  $dispatch('rt-confirm', {
+                      title: @js(__('app.delete')),
+                      message: @js(__('app.folder_delete_confirm')),
+                      variant: 'destructive',
+                      confirmLabel: @js(__('app.delete')),
+                      action: () => $wire.deleteFolder(folderId)
                   });
                   ctx = false;
-              '
+              "
               class="{{ $ctxItem }} text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
           >
             <i class="far fa-trash-alt w-4 text-center"></i>{{ __('app.delete') }}

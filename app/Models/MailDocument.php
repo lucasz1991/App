@@ -105,7 +105,7 @@ class MailDocument extends Model
             $query->where('is_active', true);
         }
 
-        if (Schema::hasColumn($query->getModel()->getTable(), 'is_outlook_template')) {
+        if (! \App\Support\Mail\MailDocumentDelivery::available() && Schema::hasColumn($query->getModel()->getTable(), 'is_outlook_template')) {
             $query->where('is_outlook_template', false);
         }
 
@@ -139,7 +139,7 @@ class MailDocument extends Model
 
     public function isActive(): bool
     {
-        if ($this->isOutlookTemplate()) {
+        if (! \App\Support\Mail\MailDocumentDelivery::available() && $this->isOutlookTemplate()) {
             return false;
         }
 
@@ -150,6 +150,10 @@ class MailDocument extends Model
 
     public function isPublished(): bool
     {
+        if (\App\Support\Mail\MailDocumentDelivery::available()) {
+            return $this->published_at !== null && $this->publishedHtml() !== null;
+        }
+
         if ($this->isOutlookTemplate()) {
             return $this->outlook_released === true
                 && $this->published_at !== null

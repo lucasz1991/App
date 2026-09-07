@@ -313,9 +313,9 @@
                     <p class="rt-mail-studio-toolbar__message" data-mail-document-message aria-live="polite">
                         @if ($currentDocument->isActive() && $currentDocument->isPublished())
                             @if ($currentDocument->hasUnpublishedChanges())
-                                Entwurf gespeichert — Systemmails verwenden weiterhin die Veröffentlichung vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
+                                Entwurf gespeichert — zugeordnete Verwendungsbereiche nutzen weiterhin die Veröffentlichung vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
                             @else
-                                Systemmails verwenden die Veröffentlichung vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
+                                Veröffentlichter Stand vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr. Die Verwendung steuerst du unter „Designs &amp; Versionen“.
                             @endif
                         @elseif ($activeDocument instanceof \App\Models\MailDocument)
                             Entwurf „{{ $currentDocument->name }}“ — Systemmails verwenden weiterhin „{{ $activeDocument->name }}“.
@@ -754,7 +754,7 @@
                 id="mail-design-manager-{{ $currentDocument->kind->value }}"
                 state="managerOpen"
                 title="Designs &amp; Versionen"
-                description="Verwalte getrennte Arbeitsentwürfe. Genau ein veröffentlichtes Design wird von Systemmails verwendet."
+                description="Arbeitsentwürfe und veröffentlichte Stände verwalten. Systemmail-Standard, Outlook-Standard und Mitarbeiterauswahl werden getrennt zugeordnet."
                 icon="far fa-layer-group"
                 max-width="6xl"
                 close-action="closeManager()"
@@ -824,7 +824,9 @@
                                     <div class="min-w-0">
                                         <div class="flex flex-wrap items-center gap-2">
                                             <h3 class="truncate text-base font-semibold tracking-tight" data-mail-slot-heading>{{ $slot->name ?: $slot->kind->label() }}</h3>
-                                            @if ($isActiveSlot)
+                                            @if (\App\Support\Mail\MailDocumentDelivery::available())
+                                                <livewire:admin.mail-document-delivery-controls :document-id="$slot->public_id" :key="'editor-delivery-'.$slot->public_id" />
+                                            @elseif ($isActiveSlot)
                                                 <x-ui.badge color="green" data-mail-slot-active-badge>Für Systemmails aktiv</x-ui.badge>
                                             @else
                                                 <x-ui.badge color="slate" data-mail-slot-draft-badge>Arbeitsentwurf</x-ui.badge>
@@ -861,7 +863,7 @@
                                                 <span>Im Editor öffnen</span>
                                             </x-ui.buttons.button-basic>
                                         @endunless
-                                        @unless ($isActiveSlot)
+                                        @if (! $isActiveSlot && ! \App\Support\Mail\MailDocumentDelivery::available())
                                             <x-ui.buttons.button-basic
                                                 type="button"
                                                 mode="success"
@@ -875,7 +877,7 @@
                                                 <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
                                                 <span>Aktiv veröffentlichen</span>
                                             </x-ui.buttons.button-basic>
-                                        @endunless
+                                        @endif
                                     </div>
                                 </div>
 
@@ -3002,7 +3004,7 @@
                             });
                             applyDocumentState(payload.document);
                             showFindings(payload.report, payload.compatibility);
-                            setMessage(`Veröffentlicht am ${payload.document?.published_label ?? ''} Uhr — diese Fassung wird jetzt für Systemmails verwendet.`);
+                            setMessage(`Veröffentlicht am ${payload.document?.published_label ?? ''} Uhr. Verwendung unter „Designs & Versionen“ prüfen; bestehende Zuordnungen bleiben erhalten.`);
                             const successText = config.currentDocument === 'signature'
                                 ? 'Outlook-Paket und Systemmails verwenden ab sofort diese Signatur.'
                                 : 'Mail-Notifications und Systemmails verwenden ab sofort diese Nachrichtenschale.';

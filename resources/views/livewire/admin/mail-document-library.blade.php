@@ -6,7 +6,7 @@
         'restore' => 'Version als Entwurf wiederherstellen',
         'default' => 'Outlook-Standard festlegen',
         'withdraw' => 'Outlook-Freigabe zurücknehmen',
-        default => ($pending['library'] ?? '') === 'true' ? 'Für Mitarbeitende freigeben' : 'Für Systemmails veröffentlichen',
+        default => $deliveryReady ? 'Stand veröffentlichen' : (($pending['library'] ?? '') === 'true' ? 'Für Mitarbeitende freigeben' : 'Für Systemmails veröffentlichen'),
     };
 @endphp
 
@@ -62,7 +62,7 @@
                     </button>
                 </x-slot:trigger>
                 <x-slot:content>
-                    @foreach (['all' => 'Alle Stände', 'draft' => 'Mit Entwurf', 'released' => 'Freigegeben', 'default' => 'Standard'] as $filterValue => $label)
+                    @foreach (['all' => 'Alle Stände', 'draft' => 'Mit Entwurf', 'released' => 'Veröffentlicht', 'system' => 'Systemmail-Standard', 'outlook' => 'Outlook-Standard', 'available' => 'Im Add-in verfügbar', 'hidden' => 'Im Add-in ausgeblendet'] as $filterValue => $label)
                         <button type="button" role="menuitemradio" aria-checked="{{ $filter === $filterValue ? 'true' : 'false' }}" wire:click="selectFilter('{{ $filterValue }}')" x-on:click="close()" class="rt-mail-library-menu__item">
                             <span>{{ $label }}</span>
                             @if ($filter === $filterValue)<i class="far fa-check" aria-hidden="true"></i>@endif
@@ -91,10 +91,13 @@
                             <span class="rt-mail-library__document-icon" aria-hidden="true"><i class="far {{ $isSignature ? 'fa-signature' : 'fa-file-alt' }}"></i></span>
                             <div class="rt-mail-library__name">
                                 <a href="{{ $document['editor_url'] }}" data-mail-library-edit>{{ $document['name'] }}</a>
-                                <small>{{ $document['library'] ? 'Outlook-Vorlage' : ($isSignature ? 'Systemsignatur' : 'Systemvorlage') }}<span aria-hidden="true"> · </span>Version {{ $document['version'] }}</small>
+                                <small>{{ $isSignature ? 'Signatur' : 'Vorlage' }}<span aria-hidden="true"> · </span>Version {{ $document['version'] }}</small>
                             </div>
                         </div>
                         <div class="rt-mail-library__statuses">
+                            @if ($deliveryReady)
+                                <livewire:admin.mail-document-delivery-controls :document-id="$document['id']" :key="'list-delivery-'.$document['id']" />
+                            @else
                             @if ($document['is_default'])
                                 <span class="rt-mail-library__status rt-mail-library__status--default"><i class="far fa-star" aria-hidden="true"></i>{{ $document['library'] ? 'Outlook-Standard' : 'Systemstandard' }}</span>
                             @elseif ($document['released'])
@@ -102,6 +105,7 @@
                             @endif
                             @if ($document['has_changes'])
                                 <span class="rt-mail-library__status rt-mail-library__status--draft">{{ $document['released'] ? 'Neuer Entwurf' : 'Entwurf' }}</span>
+                            @endif
                             @endif
                         </div>
                         <div class="rt-mail-library__updated"><span>{{ $document['updated'] ?? 'Noch nicht bearbeitet' }}</span><small>{{ $document['updater'] ?? '—' }}</small></div>
@@ -119,11 +123,11 @@
                                     @if ($libraryReady)
                                         <button type="button" role="menuitem" wire:click="openCreate('{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item"><i class="far fa-copy" aria-hidden="true"></i>Als Entwurf duplizieren</button>
                                         <div class="rt-mail-library-menu__divider" role="separator"></div>
-                                        <button type="button" role="menuitem" wire:click="prepareAction('publish', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item" data-mail-library-publish><i class="far fa-cloud-upload" aria-hidden="true"></i>{{ $document['library'] ? 'Für Mitarbeitende freigeben' : ($isSignature ? 'Systemsignatur veröffentlichen' : 'Systemvorlage veröffentlichen') }}</button>
-                                        @if ($document['library'] && $document['released'] && ! $document['is_default'])
+                                        <button type="button" role="menuitem" wire:click="prepareAction('publish', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item" data-mail-library-publish><i class="far fa-cloud-upload" aria-hidden="true"></i>{{ $deliveryReady ? 'Stand veröffentlichen' : ($document['library'] ? 'Für Mitarbeitende freigeben' : ($isSignature ? 'Systemsignatur veröffentlichen' : 'Systemvorlage veröffentlichen')) }}</button>
+                                        @if (! $deliveryReady && $document['library'] && $document['released'] && ! $document['is_default'])
                                             <button type="button" role="menuitem" wire:click="prepareAction('default', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item" data-mail-library-default><i class="far fa-star" aria-hidden="true"></i>Als Outlook-Standard</button>
                                         @endif
-                                        @if ($document['library'] && $document['released'])
+                                        @if (! $deliveryReady && $document['library'] && $document['released'])
                                             <button type="button" role="menuitem" wire:click="prepareAction('withdraw', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item"><i class="far fa-eye-slash" aria-hidden="true"></i>Freigabe zurücknehmen</button>
                                         @endif
                                     @endif
@@ -197,6 +201,8 @@
                     Diese freigegebene Vorlage wird bei neuen E-Mails, Antworten und Weiterleitungen in unterstützten Outlook-Clients automatisch oberhalb eingefügt. Vorhandener Text, zitierte Nachrichten und der Systemmail-Standard bleiben unverändert. Mobile Clients verwenden weiterhin die automatische Signatur.
                 @elseif ($pendingAction === 'withdraw')
                     Mitarbeitende können diese Vorlage anschließend nicht mehr neu auswählen. Bereits eingefügte Inhalte und der gespeicherte Entwurf bleiben erhalten.
+                @elseif ($deliveryReady)
+                    Der gespeicherte Entwurf wird geprüft und als veröffentlichter Stand gespeichert. Bestehende Verwendungen erhalten diesen Stand. Es wird kein neuer Standard gewählt und keine neue Mitarbeitervorlage freigeschaltet. Diese Zuordnungen steuerst du getrennt über „Verwendung ändern“.
                 @elseif (($pending['library'] ?? '') === 'true')
                     Der gespeicherte Entwurf wird vollständig geprüft und danach in der Outlook-Auswahl für Mitarbeitende bereitgestellt. Der Systemmail-Standard wird nicht verändert.
                 @else

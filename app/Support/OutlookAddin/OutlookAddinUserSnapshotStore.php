@@ -348,6 +348,9 @@ final class OutlookAddinUserSnapshotStore
      */
     private function validTemplates(array $templates, array $legacyTemplate, string $legacyVersion): bool
     {
+        if ($templates === [] && \App\Support\Mail\MailDocumentDelivery::available()) {
+            return $legacyTemplate === ['html' => '<!-- RT-NO-OUTLOOK-TEMPLATE -->', 'media' => []];
+        }
         if ($templates === [] || ! array_is_list($templates)) {
             return false;
         }

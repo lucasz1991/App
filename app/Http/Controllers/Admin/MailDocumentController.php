@@ -942,12 +942,16 @@ final class MailDocumentController extends Controller
                 'published_css' => $cssReport->html,
                 'published_at' => now(),
                 'status' => MailDocumentStatus::Published,
-                'is_active' => $locked->isOutlookTemplate() ? null : true,
+                'is_active' => \App\Support\Mail\MailDocumentDelivery::available()
+                    ? $locked->is_active : ($locked->isOutlookTemplate() ? null : true),
                 'updated_by' => $actor->getKey(),
             ];
 
-            if ($locked->isOutlookTemplate()) {
+            if (! \App\Support\Mail\MailDocumentDelivery::available() && $locked->isOutlookTemplate()) {
                 $attributes['outlook_released'] = true;
+            }
+            if (\App\Support\Mail\MailDocumentDelivery::available()) {
+                $attributes['delivery_revision'] = $locked->delivery_revision + 1;
             }
 
             // Die Freigabe darf den Inhaltsstand nur dann hochzaehlen, wenn
@@ -956,7 +960,7 @@ final class MailDocumentController extends Controller
                 $attributes['version'] = $locked->version + 1;
             }
 
-            if (! $locked->isOutlookTemplate() && Schema::hasColumn($locked->getTable(), 'is_active')) {
+            if (! \App\Support\Mail\MailDocumentDelivery::available() && ! $locked->isOutlookTemplate() && Schema::hasColumn($locked->getTable(), 'is_active')) {
                 MailDocument::query()
                     ->where('kind', $locked->kind->value)
                     ->whereKeyNot($locked->getKey())
@@ -1118,7 +1122,7 @@ final class MailDocumentController extends Controller
                     'slot' => 'Das aktive, veröffentlichte Design kann nicht gelöscht werden. Aktiviere zuerst einen anderen Slot.',
                 ]);
             }
-            if ($locked->isOutlookTemplate() && $locked->isPublished()) {
+            if ($locked->outlook_default || $locked->outlook_released || ($locked->isOutlookTemplate() && $locked->isPublished())) {
                 throw ValidationException::withMessages([
                     'slot' => 'Bitte ziehe die Outlook-Freigabe zuerst in der Vorlagenübersicht zurück.',
                 ]);
@@ -1557,7 +1561,7 @@ final class MailDocumentController extends Controller
             'name' => (string) ($document->name ?: $document->kind->label()),
             'is_active' => $document->isActive(),
             'is_outlook_template' => $document->isOutlookTemplate(),
-            'outlook_released' => $document->isOutlookTemplate() && $document->isPublished(),
+            'outlook_released' => (bool) $document->outlook_released,
             'outlook_default' => $document->outlook_default === true,
             'status' => $document->status->value,
             'status_label' => $document->status->label(),

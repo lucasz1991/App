@@ -96,6 +96,9 @@ final class PublishedMailDocumentSnapshotStore
     public function freshTemplateSnapshots(): array
     {
         $this->templateSnapshots = $this->readTemplateSnapshots();
+        if (MailDocumentDelivery::available()) {
+            return $this->templateSnapshots;
+        }
         $active = $this->activeTemplateSnapshot($this->templateSnapshots);
         $this->snapshots[MailDocumentKind::Template->value] = $active === null
             ? null
@@ -122,6 +125,18 @@ final class PublishedMailDocumentSnapshotStore
     public function useSnapshot(MailDocumentKind $kind, string $html, string $css): void
     {
         $this->snapshots[$kind->value] = ['html' => $html, 'css' => $css];
+    }
+
+    /** Outlook owns its signature default independently of system mail. */
+    public function outlookSignatureSnapshot(): ?array
+    {
+        if (! MailDocumentDelivery::available()) {
+            return $this->freshSnapshot(MailDocumentKind::Signature);
+        }
+        $document = MailDocument::query()->withPublishedSnapshot()->where('kind', 'signature')
+            ->where('outlook_default', true)->first(['published_html', 'published_css']);
+
+        return $document ? ['html' => trim($document->published_html), 'css' => trim((string) $document->published_css)] : null;
     }
 
     /** @return array{html: string, css: string}|null */
@@ -194,7 +209,8 @@ final class PublishedMailDocumentSnapshotStore
             $documents = MailDocument::query()
                 ->withPublishedSnapshot()
                 ->where('kind', MailDocumentKind::Template->value)
-                ->when($hasLibrary, static fn ($query) => $query->where(static fn ($visible) => $visible
+                ->when(MailDocumentDelivery::available(), static fn ($query) => $query->where('outlook_released', true))
+                ->when($hasLibrary && ! MailDocumentDelivery::available(), static fn ($query) => $query->where(static fn ($visible) => $visible
                     ->where('is_outlook_template', false)
                     ->orWhere('outlook_released', true)))
                 ->get($columns);
@@ -226,7 +242,7 @@ final class PublishedMailDocumentSnapshotStore
                     ? $document->getAttribute('is_active') === true
                         && $document->status === MailDocumentStatus::Published
                     : $document->status === MailDocumentStatus::Published),
-                'isDefault' => $hasLibrary && $document->isOutlookTemplate()
+                'isDefault' => $hasLibrary && (MailDocumentDelivery::available() || $document->isOutlookTemplate())
                     && $document->outlook_released === true && $document->outlook_default === true,
                 'html' => $html,
                 'css' => trim((string) $document->published_css),
@@ -242,6 +258,15 @@ final class PublishedMailDocumentSnapshotStore
 
             return $byName !== 0 ? $byName : strcmp($left['id'], $right['id']);
         });
+
+        if (MailDocumentDelivery::available()) {
+            // active is the legacy payload selection, never system-mail scope.
+            $preferred = collect($snapshots)->firstWhere('isDefault', true)['id'] ?? ($snapshots[0]['id'] ?? null);
+            foreach ($snapshots as &$snapshot) {
+                $snapshot['active'] = $snapshot['id'] === $preferred;
+            }
+            unset($snapshot);
+        }
 
         return $snapshots;
     }

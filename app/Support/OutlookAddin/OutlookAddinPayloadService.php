@@ -66,7 +66,7 @@ final class OutlookAddinPayloadService
         try {
             $templateSnapshots = $this->publishedDocuments->freshTemplateSnapshots();
             $templateSnapshot = $this->activeTemplateSnapshot($templateSnapshots);
-            $signatureSnapshot = $this->publishedDocuments->freshSnapshot(MailDocumentKind::Signature);
+            $signatureSnapshot = $this->publishedDocuments->outlookSignatureSnapshot();
 
             if ($signatureSnapshot === null) {
                 throw new RuntimeException('Vorlage und Signatur muessen aktiv veroeffentlicht sein.');
@@ -124,14 +124,16 @@ final class OutlookAddinPayloadService
     /** @return array<string, mixed> */
     public function forUser(User $user): array
     {
+        $systemSignature = $this->publishedDocuments->snapshot(MailDocumentKind::Signature);
         try {
             $templateSnapshots = $this->publishedDocuments->templateSnapshots();
-            $signatureSnapshot = $this->publishedDocuments->snapshot(MailDocumentKind::Signature);
+            $signatureSnapshot = $this->publishedDocuments->outlookSignatureSnapshot();
 
             if ($signatureSnapshot === null) {
                 throw new RuntimeException('Vorlage und Signatur muessen aktiv veroeffentlicht sein.');
             }
 
+            $this->publishedDocuments->useSnapshot(MailDocumentKind::Signature, $signatureSnapshot['html'], $signatureSnapshot['css']);
             $builder = new EmailTemplateBuilder($user);
             [$signatureHtml, $signatureMedia] = $this->localizeRemoteImages(
                 $this->withMarker(
@@ -208,6 +210,12 @@ final class OutlookAddinPayloadService
                 'outlook_addin_publication_invalid',
                 $exception,
             );
+        } finally {
+            if ($systemSignature === null) {
+                $this->publishedDocuments->forget(MailDocumentKind::Signature);
+            } else {
+                $this->publishedDocuments->useSnapshot(MailDocumentKind::Signature, $systemSignature['html'], $systemSignature['css']);
+            }
         }
     }
 
@@ -235,7 +243,7 @@ final class OutlookAddinPayloadService
         string $signatureDocument,
         string $signatureVersion,
     ): array {
-        $activeSnapshot = $this->activeTemplateSnapshot($snapshots);
+        $systemTemplate = $this->publishedDocuments->snapshot(MailDocumentKind::Template);
         $templates = [];
 
         try {
@@ -282,11 +290,11 @@ final class OutlookAddinPayloadService
                 ];
             }
         } finally {
-            $this->publishedDocuments->useSnapshot(
-                MailDocumentKind::Template,
-                $activeSnapshot['html'],
-                $activeSnapshot['css'],
-            );
+            if ($systemTemplate === null) {
+                $this->publishedDocuments->forget(MailDocumentKind::Template);
+            } else {
+                $this->publishedDocuments->useSnapshot(MailDocumentKind::Template, $systemTemplate['html'], $systemTemplate['css']);
+            }
         }
 
         return $templates;
@@ -298,6 +306,9 @@ final class OutlookAddinPayloadService
      */
     private function activeTemplateSnapshot(array $snapshots): array
     {
+        if ($snapshots === [] && \App\Support\Mail\MailDocumentDelivery::available()) {
+            return ['html' => '<!-- RT-NO-OUTLOOK-TEMPLATE -->', 'css' => ''];
+        }
         $active = array_values(array_filter(
             $snapshots,
             static fn (array $snapshot): bool => $snapshot['active'],
@@ -316,6 +327,10 @@ final class OutlookAddinPayloadService
      */
     private function activeTemplatePayload(array $templates): array
     {
+        if ($templates === [] && \App\Support\Mail\MailDocumentDelivery::available()) {
+            $empty = $this->activeTemplateSnapshot([]);
+            return ['html' => $empty['html'], 'media' => [], 'version' => $this->snapshotHash($empty)];
+        }
         $active = array_values(array_filter(
             $templates,
             static fn (array $template): bool => $template['active'],

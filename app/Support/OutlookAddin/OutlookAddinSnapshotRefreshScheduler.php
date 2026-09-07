@@ -104,6 +104,10 @@ final class OutlookAddinSnapshotRefreshScheduler
                 return false;
             }
 
+            if (\App\Support\Mail\MailDocumentDelivery::available()) {
+                return MailDocument::query()->withPublishedSnapshot()->where('kind', 'signature')->where('outlook_default', true)->exists();
+            }
+
             $publishedKinds = MailDocument::query()
                 ->published()
                 ->whereIn('kind', array_map(

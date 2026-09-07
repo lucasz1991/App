@@ -54,6 +54,35 @@ class FilePoolUploadWorkflowTest extends TestCase
         }
     }
 
+    public function test_folder_context_delete_is_a_valid_attribute_not_visible_handler_text(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $pool = $this->companyPool();
+        $this->folder($pool, 'Nur Test');
+        $component = Livewire::actingAs($admin)->test(ManageFilePools::class, [
+            'poolId' => $pool->id, 'readOnly' => false, 'allowTeamPermissions' => true,
+        ]);
+        $dom = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $dom->loadHTML('<?xml encoding="utf-8" ?>'.$component->html());
+            $buttons = (new \DOMXPath($dom))->query('//*[@data-filepool-context-delete]');
+            $this->assertCount(1, $buttons);
+            $button = $buttons->item(0);
+            $this->assertSame(__('app.delete'), trim($button->textContent));
+            $handler = $button->getAttribute('x-on:click');
+            $this->assertStringContainsString("\$dispatch('rt-confirm'", $handler);
+            $this->assertStringContainsString('const folderId = cf;', $handler);
+            $this->assertStringContainsString('action: () => $wire.deleteFolder(folderId)', $handler);
+            $this->assertStringContainsString('ctx = false;', $handler);
+            $this->assertStringContainsString('text-red-600', $button->getAttribute('class'));
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        $this->assertSame(1, FileFolder::query()->count(), 'Rendering never deletes a folder.');
+    }
+
     public function test_opening_upload_freezes_the_authorized_folder_and_ignores_client_pool_and_navigation_changes(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

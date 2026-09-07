@@ -11,6 +11,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /** Lightweight administration before opening an individual mail editor. */
@@ -47,6 +48,9 @@ class MailDocumentLibrary extends Component
         $this->admin();
     }
 
+    #[On('mail-delivery-changed')]
+    public function refreshDelivery(): void {}
+
     public function mount(string $initialKind = 'template'): void
     {
         $this->admin();
@@ -66,7 +70,7 @@ class MailDocumentLibrary extends Component
     public function selectFilter(string $filter): void
     {
         $this->admin();
-        abort_unless(in_array($filter, ['all', 'draft', 'released', 'default'], true), 422);
+        abort_unless(in_array($filter, ['all', 'draft', 'released', 'default', 'system', 'outlook', 'available', 'hidden'], true), 422);
         $this->filter = $filter;
     }
 
@@ -140,6 +144,9 @@ class MailDocumentLibrary extends Component
     {
         $this->admin();
         abort_unless(in_array($action, ['publish', 'default', 'withdraw', 'restore'], true), 422);
+        if (\App\Support\Mail\MailDocumentDelivery::available()) {
+            abort_unless(in_array($action, ['publish', 'restore'], true), 422);
+        }
         $this->resetValidation();
         $document = $this->document($documentId);
         $this->assertCurrent($document, $expectedHash);
@@ -193,9 +200,11 @@ class MailDocumentLibrary extends Component
             'restore' => 'Version '.$this->pending['revision'].' wurde als Entwurf wiederhergestellt. Die Freigabe bleibt unverändert.',
             'default' => 'Die Outlook-Standardvorlage wurde geändert. Systemmails bleiben unverändert.',
             'withdraw' => 'Die Vorlage wird Mitarbeitenden nicht mehr zur Auswahl angeboten.',
-            default => $this->pending['library'] === 'true'
+            default => \App\Support\Mail\MailDocumentDelivery::available()
+                ? 'Stand veröffentlicht. Bestehende Zuordnungen bleiben erhalten; neue Zuordnungen unter „Verwendung ändern“.'
+                : ($this->pending['library'] === 'true'
                 ? 'Die geprüfte Vorlage ist jetzt für Mitarbeitende in Outlook freigegeben.'
-                : 'Der geprüfte Stand wird jetzt für Systemmails verwendet.',
+                : 'Der geprüfte Stand wird jetzt für Systemmails verwendet.'),
         };
         $this->pending = [];
         $this->confirmOpen = false;
@@ -217,6 +226,10 @@ class MailDocumentLibrary extends Component
                 'draft' => $document['has_changes'],
                 'released' => $document['released'],
                 'default' => $document['is_default'],
+                'system' => $document['system_default'],
+                'outlook' => $document['outlook_default'],
+                'available' => $document['employee_available'],
+                'hidden' => ! $document['employee_available'],
                 default => true,
             });
         $history = collect();
@@ -229,13 +242,15 @@ class MailDocumentLibrary extends Component
         return view('livewire.admin.mail-document-library', [
             'ready' => $ready,
             'libraryReady' => $libraryReady,
+            'deliveryReady' => \App\Support\Mail\MailDocumentDelivery::available(),
             'historyReady' => $historyReady,
             'documents' => $visible->values(),
             'history' => $history,
             'currentKind' => $kind,
             'kindCounts' => $documents->countBy('kind'),
             'filterLabel' => match ($this->filter) {
-                'draft' => 'Mit Entwurf', 'released' => 'Freigegeben', 'default' => 'Standard', default => 'Alle Stände',
+                'draft' => 'Mit Entwurf', 'released' => 'Veröffentlicht', 'default' => 'Standard',
+                'system' => 'Systemmail-Standard', 'outlook' => 'Outlook-Standard', 'available' => 'Im Add-in verfügbar', 'hidden' => 'Im Add-in ausgeblendet', default => 'Alle Stände',
             },
         ]);
     }
@@ -258,9 +273,10 @@ class MailDocumentLibrary extends Component
 
         return $query->get()->map(static function (MailDocument $document): array {
             $library = (bool) $document->getAttribute('is_outlook_template');
+            $separate = \App\Support\Mail\MailDocumentDelivery::available();
             $released = (bool) $document->getAttribute('library_has_release')
-                && (! $library || (bool) $document->getAttribute('outlook_released'));
-            $default = $library ? (bool) $document->getAttribute('outlook_default') : $document->isActive();
+                && ($separate || ! $library || (bool) $document->getAttribute('outlook_released'));
+            $default = $separate ? ($document->isActive() || $document->outlook_default) : ($library ? (bool) $document->outlook_default : $document->isActive());
 
             return [
                 'id' => $document->public_id,
@@ -269,6 +285,9 @@ class MailDocumentLibrary extends Component
                 'library' => $library,
                 'released' => $released,
                 'is_default' => $default,
+                'system_default' => $document->isActive(),
+                'outlook_default' => (bool) $document->outlook_default,
+                'employee_available' => $released && ($document->kind === MailDocumentKind::Template ? (bool) $document->outlook_released : (bool) $document->outlook_default),
                 'has_changes' => ! $released || (bool) $document->getAttribute('library_has_changes'),
                 'hash' => (string) $document->content_hash,
                 'version' => (int) $document->version,
