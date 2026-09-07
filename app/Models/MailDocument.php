@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\MailDocumentKind;
 use App\Enums\MailDocumentStatus;
+use App\Support\Mail\MailDocumentDelivery;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -105,7 +106,7 @@ class MailDocument extends Model
             $query->where('is_active', true);
         }
 
-        if (! \App\Support\Mail\MailDocumentDelivery::available() && Schema::hasColumn($query->getModel()->getTable(), 'is_outlook_template')) {
+        if (! MailDocumentDelivery::available() && Schema::hasColumn($query->getModel()->getTable(), 'is_outlook_template')) {
             $query->where('is_outlook_template', false);
         }
 
@@ -139,7 +140,7 @@ class MailDocument extends Model
 
     public function isActive(): bool
     {
-        if (! \App\Support\Mail\MailDocumentDelivery::available() && $this->isOutlookTemplate()) {
+        if (! MailDocumentDelivery::available() && $this->isOutlookTemplate()) {
             return false;
         }
 
@@ -150,7 +151,7 @@ class MailDocument extends Model
 
     public function isPublished(): bool
     {
-        if (\App\Support\Mail\MailDocumentDelivery::available()) {
+        if (MailDocumentDelivery::available()) {
             return $this->published_at !== null && $this->publishedHtml() !== null;
         }
 

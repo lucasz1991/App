@@ -143,6 +143,12 @@
                                 @forelse ($history as $version)
                                     @php
                                         $versionLabel = match ($version->action) {
+                                            'delivery_system' => 'Systemmail-Standard festgelegt',
+                                            'system_replaced' => 'Systemmail-Standard abgelöst',
+                                            'delivery_outlook' => 'Outlook-Standard festgelegt',
+                                            'outlook_replaced', 'delivery_outlook-off' => 'Outlook-Standard aufgehoben',
+                                            'delivery_offer' => 'Im Add-in verfügbar',
+                                            'delivery_hide' => 'Im Add-in ausgeblendet',
                                             'imported' => 'Importiert', 'published' => 'Veröffentlicht', 'restored' => 'Wiederhergestellt', 'duplicated' => 'Dupliziert', 'created' => 'Angelegt', 'outlook_default' => 'Outlook-Standard festgelegt', 'withdrawn' => 'Freigabe zurückgenommen', default => 'Gespeichert',
                                         };
                                         $isCurrent = hash_equals($document['hash'], (string) $version->content_hash);

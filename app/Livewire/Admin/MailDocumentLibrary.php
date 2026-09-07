@@ -5,6 +5,7 @@ namespace App\Livewire\Admin;
 use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
 use App\Models\User;
+use App\Support\Mail\MailDocumentDelivery;
 use App\Support\OutlookAddin\OutlookTemplateLibrary;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
@@ -144,7 +145,7 @@ class MailDocumentLibrary extends Component
     {
         $this->admin();
         abort_unless(in_array($action, ['publish', 'default', 'withdraw', 'restore'], true), 422);
-        if (\App\Support\Mail\MailDocumentDelivery::available()) {
+        if (MailDocumentDelivery::available()) {
             abort_unless(in_array($action, ['publish', 'restore'], true), 422);
         }
         $this->resetValidation();
@@ -200,7 +201,7 @@ class MailDocumentLibrary extends Component
             'restore' => 'Version '.$this->pending['revision'].' wurde als Entwurf wiederhergestellt. Die Freigabe bleibt unverändert.',
             'default' => 'Die Outlook-Standardvorlage wurde geändert. Systemmails bleiben unverändert.',
             'withdraw' => 'Die Vorlage wird Mitarbeitenden nicht mehr zur Auswahl angeboten.',
-            default => \App\Support\Mail\MailDocumentDelivery::available()
+            default => MailDocumentDelivery::available()
                 ? 'Stand veröffentlicht. Bestehende Zuordnungen bleiben erhalten; neue Zuordnungen unter „Verwendung ändern“.'
                 : ($this->pending['library'] === 'true'
                 ? 'Die geprüfte Vorlage ist jetzt für Mitarbeitende in Outlook freigegeben.'
@@ -242,7 +243,7 @@ class MailDocumentLibrary extends Component
         return view('livewire.admin.mail-document-library', [
             'ready' => $ready,
             'libraryReady' => $libraryReady,
-            'deliveryReady' => \App\Support\Mail\MailDocumentDelivery::available(),
+            'deliveryReady' => MailDocumentDelivery::available(),
             'historyReady' => $historyReady,
             'documents' => $visible->values(),
             'history' => $history,
@@ -273,7 +274,7 @@ class MailDocumentLibrary extends Component
 
         return $query->get()->map(static function (MailDocument $document): array {
             $library = (bool) $document->getAttribute('is_outlook_template');
-            $separate = \App\Support\Mail\MailDocumentDelivery::available();
+            $separate = MailDocumentDelivery::available();
             $released = (bool) $document->getAttribute('library_has_release')
                 && ($separate || ! $library || (bool) $document->getAttribute('outlook_released'));
             $default = $separate ? ($document->isActive() || $document->outlook_default) : ($library ? (bool) $document->outlook_default : $document->isActive());

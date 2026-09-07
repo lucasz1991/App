@@ -27,6 +27,7 @@ class MailDocumentDeliveryControls extends Component
     }
 
     #[On('mail-delivery-changed')]
+    #[On('mail-document-library-changed')]
     public function refreshStatus(): void {}
 
     public function prepare(string $action, string $hash, string $state): void
@@ -45,6 +46,7 @@ class MailDocumentDeliveryControls extends Component
             $delivery->change(auth()->user(), $this->document(), $this->pending['action'], $this->pending['hash'], $this->pending['state']);
         } catch (ValidationException $exception) {
             $this->addError('delivery', collect($exception->errors())->flatten()->implode(' '));
+
             return;
         }
         $this->notice = 'Zuordnung gespeichert. Bereits eingefügte E-Mails bleiben unverändert.';
@@ -72,6 +74,7 @@ class MailDocumentDeliveryControls extends Component
     public function render()
     {
         $document = $this->document();
+
         return view('livewire.admin.mail-document-delivery-controls', [
             'document' => $document,
             'token' => app(MailDocumentDelivery::class)->token($document->kind),

@@ -3,6 +3,7 @@
 namespace App\Support\OutlookAddin;
 
 use App\Models\User;
+use App\Support\Mail\MailDocumentDelivery;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Cache;
@@ -348,7 +349,7 @@ final class OutlookAddinUserSnapshotStore
      */
     private function validTemplates(array $templates, array $legacyTemplate, string $legacyVersion): bool
     {
-        if ($templates === [] && \App\Support\Mail\MailDocumentDelivery::available()) {
+        if ($templates === [] && MailDocumentDelivery::available()) {
             return $legacyTemplate === ['html' => '<!-- RT-NO-OUTLOOK-TEMPLATE -->', 'media' => []];
         }
         if ($templates === [] || ! array_is_list($templates)) {

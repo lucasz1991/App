@@ -20,6 +20,7 @@ use App\Support\Mail\EmailCompatibilityReport;
 use App\Support\Mail\EmailHtmlReport;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentAutoRepair;
+use App\Support\Mail\MailDocumentDelivery;
 use App\Support\Mail\MailDocumentVersionStore;
 use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
@@ -942,15 +943,15 @@ final class MailDocumentController extends Controller
                 'published_css' => $cssReport->html,
                 'published_at' => now(),
                 'status' => MailDocumentStatus::Published,
-                'is_active' => \App\Support\Mail\MailDocumentDelivery::available()
+                'is_active' => MailDocumentDelivery::available()
                     ? $locked->is_active : ($locked->isOutlookTemplate() ? null : true),
                 'updated_by' => $actor->getKey(),
             ];
 
-            if (! \App\Support\Mail\MailDocumentDelivery::available() && $locked->isOutlookTemplate()) {
+            if (! MailDocumentDelivery::available() && $locked->isOutlookTemplate()) {
                 $attributes['outlook_released'] = true;
             }
-            if (\App\Support\Mail\MailDocumentDelivery::available()) {
+            if (MailDocumentDelivery::available()) {
                 $attributes['delivery_revision'] = $locked->delivery_revision + 1;
             }
 
@@ -960,7 +961,7 @@ final class MailDocumentController extends Controller
                 $attributes['version'] = $locked->version + 1;
             }
 
-            if (! \App\Support\Mail\MailDocumentDelivery::available() && ! $locked->isOutlookTemplate() && Schema::hasColumn($locked->getTable(), 'is_active')) {
+            if (! MailDocumentDelivery::available() && ! $locked->isOutlookTemplate() && Schema::hasColumn($locked->getTable(), 'is_active')) {
                 MailDocument::query()
                     ->where('kind', $locked->kind->value)
                     ->whereKeyNot($locked->getKey())

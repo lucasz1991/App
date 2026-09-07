@@ -5,6 +5,7 @@ namespace App\Support\OutlookAddin;
 use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\EmailTemplateBuilder;
+use App\Support\Mail\MailDocumentDelivery;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\TrustedEmailCss;
@@ -306,7 +307,7 @@ final class OutlookAddinPayloadService
      */
     private function activeTemplateSnapshot(array $snapshots): array
     {
-        if ($snapshots === [] && \App\Support\Mail\MailDocumentDelivery::available()) {
+        if ($snapshots === [] && MailDocumentDelivery::available()) {
             return ['html' => '<!-- RT-NO-OUTLOOK-TEMPLATE -->', 'css' => ''];
         }
         $active = array_values(array_filter(
@@ -327,8 +328,9 @@ final class OutlookAddinPayloadService
      */
     private function activeTemplatePayload(array $templates): array
     {
-        if ($templates === [] && \App\Support\Mail\MailDocumentDelivery::available()) {
+        if ($templates === [] && MailDocumentDelivery::available()) {
             $empty = $this->activeTemplateSnapshot([]);
+
             return ['html' => $empty['html'], 'media' => [], 'version' => $this->snapshotHash($empty)];
         }
         $active = array_values(array_filter(

@@ -8,6 +8,7 @@ use App\Jobs\RefreshOutlookAddinUserSnapshot;
 use App\Models\MailDocument;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\Mail\MailDocumentDelivery;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
@@ -104,7 +105,7 @@ final class OutlookAddinSnapshotRefreshScheduler
                 return false;
             }
 
-            if (\App\Support\Mail\MailDocumentDelivery::available()) {
+            if (MailDocumentDelivery::available()) {
                 return MailDocument::query()->withPublishedSnapshot()->where('kind', 'signature')->where('outlook_default', true)->exists();
             }
 
