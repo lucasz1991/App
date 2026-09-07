@@ -3,8 +3,9 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build && npm run build:outlook-addin",
-        "build:clean": "vite build && npm run build:outlook-addin && node scripts/prune-build-assets.mjs",
+        "build": "vite build && npm run verify:mail-editor-build && npm run build:outlook-addin",
+        "build:clean": "vite build && npm run verify:mail-editor-build && npm run build:outlook-addin && node scripts/prune-build-assets.mjs",
+        "verify:mail-editor-build": "node scripts/verify-mail-editor-build.mjs",
         "build:outlook-addin": "node scripts/build-outlook-addin.mjs",
         "prune:assets": "node scripts/prune-build-assets.mjs",
         "test:frontend": "node --test \"tests/Frontend/*.test.js\"",

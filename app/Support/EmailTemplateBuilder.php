@@ -1238,6 +1238,9 @@ class EmailTemplateBuilder
         ?string $artifactVersion = null,
     ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
+        if ($artifactVersion === SignatureArtifactVersion::V27) {
+            return 'zug-dampf-v27-'.$variant.'.'.($animated ? 'gif' : 'png');
+        }
         $stem = SignatureArtifactVersion::usesV19MailAssets($artifactVersion)
             ? 'zug-dampf-v19'
             : (SignatureArtifactVersion::usesV17TrainAssets($artifactVersion)
@@ -1578,7 +1581,7 @@ class EmailTemplateBuilder
             $html,
         );
         $usesFlowSafeTrain = SignatureArtifactVersion::usesFlowSafeTrain($artifactVersion);
-        $usesImgOverlap = $artifactVersion === SignatureArtifactVersion::V26;
+        $usesImgOverlap = in_array($artifactVersion, [SignatureArtifactVersion::V26, SignatureArtifactVersion::V27], true);
         $hasSafeStageGeometry = ($usesFlowSafeTrain || $usesImgOverlap)
             ? str_contains($stageStyle, 'display:block')
                 && str_contains($stageStyle, 'width:100%')

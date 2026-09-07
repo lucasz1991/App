@@ -50,13 +50,16 @@ final class TrustedEmailCss
     {
         $css = self::responsive($border, $includeOptionalBackground);
         $version = SignatureArtifactVersion::detect('signature', $html);
-        if (! in_array($version, [SignatureArtifactVersion::V25, SignatureArtifactVersion::V26], true)) {
+        if (! in_array($version, [SignatureArtifactVersion::V25, SignatureArtifactVersion::V26, SignatureArtifactVersion::V27], true)) {
             return $css;
         }
 
         $css = TrustedOutlookSignatureCss::filterDocumentRuntime($css, $html);
         if ($version === SignatureArtifactVersion::V26) {
             $css .= SignatureImgOverlap::css($html);
+        }
+        if ($version === SignatureArtifactVersion::V27) {
+            $css .= SignatureTableOverlap::css();
         }
 
         return $css;

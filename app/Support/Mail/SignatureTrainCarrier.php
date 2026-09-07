@@ -75,6 +75,11 @@ final class SignatureTrainCarrier
 
     public static function normalize(string $html): string
     {
+        if (SignatureTableOverlap::applies($html)) {
+            SignatureTableOverlap::assertValid($html);
+
+            return $html;
+        }
         if (SignatureImgOverlap::applies($html)) {
             SignatureImgOverlap::assertValid($html);
 
@@ -241,6 +246,9 @@ final class SignatureTrainCarrier
      */
     public static function projectAsImage(string $html, string $source, string $padding = '0'): string
     {
+        if (SignatureTableOverlap::applies($html)) {
+            return SignatureTableOverlap::render($html, $source);
+        }
         if (SignatureImgOverlap::applies($html)) {
             return SignatureImgOverlap::render($html, $source);
         }
@@ -349,6 +357,11 @@ final class SignatureTrainCarrier
      */
     public static function withMsoFallback(string $html, string $source): string
     {
+        if (SignatureTableOverlap::applies($html)) {
+            SignatureTableOverlap::assertRuntime($html);
+
+            return $html;
+        }
         if (SignatureImgOverlap::applies($html)) {
             return SignatureImgOverlap::withMsoFallback($html, $source);
         }
@@ -2584,6 +2597,14 @@ final class SignatureTrainCarrier
         ?string $expectedIdleSource = null,
         ?string $expectedMsoSource = null,
     ): void {
+        if (SignatureTableOverlap::applies($html)) {
+            if ($expectedIdleSource !== null && trim($expectedIdleSource) !== '') {
+                throw new RuntimeException('V27 verwendet keinen separaten Idle-Rauch.');
+            }
+            SignatureTableOverlap::assertRuntime($html, $expectedMainSource);
+
+            return;
+        }
         if (SignatureImgOverlap::applies($html)) {
             if ($expectedIdleSource !== null && trim($expectedIdleSource) !== '') {
                 throw new RuntimeException('V26 verwendet keinen separaten Idle-Rauch.');

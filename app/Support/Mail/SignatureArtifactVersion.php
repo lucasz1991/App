@@ -56,6 +56,8 @@ final class SignatureArtifactVersion
 
     public const V26 = 'v26';
 
+    public const V27 = 'v27';
+
     public const OPTIONAL_BACKGROUND_VERSIONS = [self::V22, self::V23];
 
     /**
@@ -64,6 +66,7 @@ final class SignatureArtifactVersion
      */
     public static function usesArrivalHoldTrain(?string $version): bool
     {
+        if ($version === self::V27) return true;
         return in_array($version, [self::V8, self::V9, self::V10, self::V11, self::V12, self::V13, self::V14, self::V15, self::V16, self::V17, self::V18, self::V19, self::V20, self::V21, self::V22, self::V23, self::V25, self::V26], true);
     }
 
@@ -82,6 +85,7 @@ final class SignatureArtifactVersion
     /** V15 bis V23 und V25 verwenden die kleineren Wortmarkenmedien. */
     public static function usesOptimizedMailAssets(?string $version): bool
     {
+        if ($version === self::V27) return true;
         return in_array($version, [self::V15, self::V16, self::V17, self::V18, self::V19, self::V20, self::V21, self::V22, self::V23, self::V25, self::V26], true);
     }
 
@@ -114,6 +118,7 @@ final class SignatureArtifactVersion
     /** V19 bis V23 und V25 verwenden verlustarm optimierte, versionierte Medien. */
     public static function usesV19MailAssets(?string $version): bool
     {
+        if ($version === self::V27) return true;
         return in_array($version, [self::V19, self::V20, self::V21, self::V22, self::V23, self::V25, self::V26], true);
     }
 

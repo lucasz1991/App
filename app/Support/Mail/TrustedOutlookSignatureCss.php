@@ -358,7 +358,7 @@ final class TrustedOutlookSignatureCss
     {
         // Explicit opt-ins only. Older releases intentionally inherit the
         // fixed stage, while future artifacts must choose their own policy.
-        return in_array($artifactVersion, [SignatureArtifactVersion::V25, SignatureArtifactVersion::V26], true);
+        return in_array($artifactVersion, [SignatureArtifactVersion::V25, SignatureArtifactVersion::V26, SignatureArtifactVersion::V27], true);
     }
 
     /**

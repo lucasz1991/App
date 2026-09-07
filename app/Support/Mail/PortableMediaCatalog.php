@@ -131,6 +131,7 @@ final class PortableMediaCatalog
 
         return match ($kind) {
             MailDocumentKind::Signature => [
+                SignatureArtifactVersion::V27 => self::requiredSystemAssetIds(MailDocumentKind::Signature, SignatureArtifactVersion::V27),
                 SignatureArtifactVersion::V7 => self::requiredSystemAssetIds(
                     MailDocumentKind::Signature,
                     SignatureArtifactVersion::V7,
@@ -221,6 +222,10 @@ final class PortableMediaCatalog
         ?string $artifactVersion = null,
     ): array {
         $kind = is_string($kind) ? MailDocumentKind::tryFrom($kind) : $kind;
+
+        if ($kind === MailDocumentKind::Signature && $artifactVersion === SignatureArtifactVersion::V27) {
+            return array_map(static fn (string $id): string => str_replace('zug-dampf-v19-', 'zug-dampf-v27-', $id), self::requiredSystemAssetIds($kind, SignatureArtifactVersion::V26));
+        }
 
         return match ($kind) {
             MailDocumentKind::Signature => array_merge([

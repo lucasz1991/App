@@ -31,6 +31,7 @@ import {
     imgOverlapGeometry,
     readImgOverlapSettings,
 } from './mail-signature-img-overlap.js';
+import { assertTableOverlapSignature } from './mail-signature-table-overlap.js';
 
 /**
  * E-Mail-Modus des LMZ Page Builders (Vendor 2.4.5).
@@ -2552,6 +2553,11 @@ function projectSignatureTrainImage(wrapper, rows, project, imgOverlapProfile = 
         throw new Error('Die Signatur besitzt einen nicht unterstuetzten Zugvertrag.');
     }
 
+    if (rows?.[0]?.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) === 'v27') {
+        const canonical = assertTableOverlapSignature(wrapper, rows);
+        project.railtime = { ...(project.railtime || {}), document: 'signature', schema: MAIL_SIGNATURE_SCHEMA };
+        return canonical;
+    }
     if (usesImgOverlapSignature(rows)) {
         const canonical = assertImgOverlapSignature(wrapper, rows, imgOverlapProfile);
         project.railtime = { ...(project.railtime || {}), document: 'signature', schema: MAIL_SIGNATURE_SCHEMA };
@@ -2901,7 +2907,9 @@ export function serializeMailDocumentForSave({
 
     const baselineContactProjection = bindSignatureContactMarkerRows(baselineHtml, parser);
     restoreSignatureContactMarkers(wrapper, baselineContactProjection.hasMarkers);
-    const trainContract = usesImgOverlapSignature(rows)
+    const trainContract = rows?.[0]?.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) === 'v27'
+        ? assertTableOverlapSignature(wrapper, rows)
+        : usesImgOverlapSignature(rows)
         ? assertImgOverlapSignature(wrapper, rows, imgOverlapProfile)
         : usesSignatureBackground(rows)
         ? assertSignatureBackgroundDocument(wrapper, rows)
@@ -3041,6 +3049,11 @@ export function resolveMailCanvasResponsiveCss(canvasDocument, {
     const row = canvasDocument?.querySelector?.(`tr[${MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE}]`);
     if (!row) return String(previewResponsiveCss[selectedTheme] || legacy || '');
     const version = String(row.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').toLowerCase();
+    if (version === 'v27') {
+        const css = expand(previewResponsiveCssByArtifact.v27);
+        if (typeof css !== 'string') throw new Error('Die V27-Vorschau ist serverseitig nicht konfiguriert.');
+        return css;
+    }
     if (version !== 'v26') {
         return String(legacy ?? previewResponsiveCss[selectedTheme] ?? '');
     }
@@ -3275,6 +3288,14 @@ function componentUsesFluidSignatureTrain(component) {
     return false;
 }
 
+function componentUsesTableOverlapSignature(component) {
+    for (let current = component; current; current = current?.parent?.()) {
+        const attributes = current?.getAttributes?.() || current?.get?.('attributes') || {};
+        if (String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').toLowerCase() === 'v27') return true;
+    }
+    return false;
+}
+
 export function synchronizeMailSignatureBackground(component) {
     if (!componentUsesSignatureBackground(component) || !isMailSignatureBackgroundComponent(component)) return false;
     const attributes = component.getAttributes?.() || component.get?.('attributes') || {};
@@ -3467,6 +3488,7 @@ export function synchronizeMailSignatureFixedGeometry(
     component,
     failOpenStage = componentUsesFailOpenSignatureStage(component),
 ) {
+    if (componentUsesTableOverlapSignature(component)) return false;
     if (componentUsesFlowSafeSignatureTrain(component) || componentUsesSignatureBackground(component)
         || componentUsesImgOverlapSignature(component)) return false;
 
