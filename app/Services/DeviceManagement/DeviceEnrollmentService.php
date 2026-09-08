@@ -33,6 +33,7 @@ final class DeviceEnrollmentService
         ?int $ttlMinutes = null,
     ): EnrollmentInvitation {
         Gate::forUser($creator)->authorize('devices.enrollment.manage');
+        app(DeviceWorkplaceService::class)->assertCommand($device->fresh(), 'enrollment');
         if (! $assignee->isActive()) {
             throw ValidationException::withMessages(['assignee' => 'Für ein deaktiviertes Mitarbeiterkonto kann keine Registrierung erstellt werden.']);
         }

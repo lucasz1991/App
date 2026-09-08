@@ -10,6 +10,7 @@
 @endphp
 
 <x-ui.page :title="__('app.it_support')">
+    <div class="mb-4 flex justify-end"><a href="{{ route('support.cases') }}" wire:navigate class="rounded-lg border px-4 py-2">Meine Supportfälle & Antworten</a></div>
     <div class="rt-support-app" data-it-support data-support-experience="support">
         <section class="rt-support-hero" aria-labelledby="support-hero-title" data-support-hero>
             <div class="rt-support-hero__route" aria-hidden="true">

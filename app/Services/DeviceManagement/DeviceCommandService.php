@@ -53,6 +53,7 @@ final class DeviceCommandService
         }
         $providerKey = strtolower(trim($providerKey));
         Gate::forUser($actor)->authorize('devices.commands.execute');
+        app(DeviceWorkplaceService::class)->assertCommand($device->fresh(), $type->value);
         $this->authorizeSpecificCommand($type, $actor);
         $this->validateJustification($justification);
         $this->assertSafePayload($payload);
@@ -91,6 +92,7 @@ final class DeviceCommandService
 
         return DB::transaction(function () use ($device, $providerKey, $type, $actor, $justification, $payload): DeviceCommand {
             $lockedDevice = Device::query()->whereKey($device->getKey())->lockForUpdate()->firstOrFail();
+            app(DeviceWorkplaceService::class)->assertCommand($lockedDevice, $type->value);
             $activeAssignment = $this->lockCurrentAssignment($lockedDevice);
             $providerLink = $lockedDevice->providerLinkFor($providerKey);
             if (! $providerLink

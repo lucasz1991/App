@@ -240,6 +240,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->name('chat.export');
     Route::get('/help', HelpCenter::class)->name('help');
     Route::get('/support', ItSupport::class)->name('support');
+    Route::get('/support/faelle', \App\Livewire\SupportCases::class)->name('support.cases');
     Route::prefix('settings/push')
         ->name('push.')
         ->middleware('throttle:push-subscriptions')

@@ -44,6 +44,7 @@ class RbacCatalog
                 ['key' => 'files.manage', 'label' => 'Zentrale Dateiverwaltung'],
             ],
             'Kommunikation' => [
+                ['key' => 'support.manage', 'label' => 'IT-Supportfälle bearbeiten'],
                 ['key' => 'manage.messages', 'label' => 'Nachrichten & Mails verwalten'],
                 ['key' => 'users.messages.view', 'label' => 'Benutzer-Nachrichten anzeigen'],
                 ['key' => 'users.messages.create', 'label' => 'Benutzer-Nachrichten erstellen'],

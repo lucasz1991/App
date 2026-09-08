@@ -228,8 +228,9 @@ final class DeviceDesktopService
         $payload = Validator::make($input, $rules)->validate();
         Validator::make(['justification' => trim($justification)], ['justification' => ['required', 'string', 'min:10', 'max:1000']])->validate();
 
-        return $this->withClient($client, function (DeviceDesktopClient $locked) use ($type, $payload, $justification, $actor): DeviceDesktopJob {
+        return $this->withClient($client, function (DeviceDesktopClient $locked, Device $device) use ($type, $payload, $justification, $actor): DeviceDesktopJob {
             $this->authorize($actor, 'devices.commands.execute');
+            app(\App\Services\DeviceManagement\DeviceWorkplaceService::class)->assertCommand($device, $type);
             $key = $type === 'install_software' ? 'allow_software_install' : 'allow_notifications';
             if (($locked->policy[$key] ?? false) !== true) {
                 throw ValidationException::withMessages(['policy' => 'Die Gerätrichtlinie erlaubt diesen Auftrag nicht.']);
@@ -275,7 +276,7 @@ final class DeviceDesktopService
             'sync_interval_seconds' => 60, 'setup_ready' => false, 'policy' => $policy, 'jobs' => []];
     }
 
-    private function withAuthenticated(#[\SensitiveParameter] string $token, callable $action): mixed
+    public function withAuthenticated(#[\SensitiveParameter] string $token, callable $action): mixed
     {
         $this->assertStorageReady();
         abort_unless(preg_match('/\Artdc_[A-Za-z0-9_-]{43}\z/', $token), 401);
@@ -308,7 +309,7 @@ final class DeviceDesktopService
     {
         $device = Device::query()->whereKey($deviceId)->lockForUpdate()->first();
         abort_unless($device && $device->platform === DevicePlatform::Windows, 403, 'Kein freigegebenes Windows-Endgerät.');
-        abort_unless($device->ownership === 'corporate'
+        abort_unless(in_array($device->ownership, ['corporate', 'byod'], true)
             && ! in_array($device->lifecycle_status, [DeviceLifecycleStatus::Lost, DeviceLifecycleStatus::Retired], true), 403, 'Kein verfügbares Firmengerät.');
         $metadata = $device->metadata ?? [];
         abort_if(($metadata['controller_only'] ?? false) === true || ($metadata['desktop_controller_only'] ?? false) === true
@@ -319,6 +320,7 @@ final class DeviceDesktopService
         $employee = User::query()->whereKey($assignment->user_id)->lockForUpdate()->first();
         abort_unless($employee?->isActive() && $employee->email_verified_at !== null
             && in_array($employee->role, ['staff', 'admin'], true) && ! $employee->isSuperAdmin(), 403, 'Aktiver verifizierter Mitarbeiter erforderlich.');
+        abort_unless(app(\App\Services\DeviceManagement\DeviceWorkplaceService::class)->permitted($device), 403, 'Aktuelle Eigentümerfreigabe fehlt.');
 
         return [$device, $assignment];
     }

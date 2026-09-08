@@ -36,6 +36,11 @@ Route::get('/device-management/providers/{provider}/artifacts/{artifact}', Devic
 // Native Desktopclients besitzen eigene, widerrufbare Geraetecredentials.
 // Keine Microsoft-Tokens, Connector-Geheimnisse oder Nutzerpasswoerter.
 Route::prefix('device-client/v1')->name('api.device-client.')->group(function () {
+    Route::get('/support', [DeviceDesktopClientController::class, 'supportList'])->middleware('throttle:device-desktop-client')->name('support.index');
+    Route::post('/support', [DeviceDesktopClientController::class, 'supportCreate'])->middleware('throttle:6,1')->name('support.create');
+    Route::post('/support/{supportCase}', [DeviceDesktopClientController::class, 'supportReply'])->whereUuid('supportCase')->middleware('throttle:12,1')->name('support.reply');
+    Route::get('/workplace', [DeviceDesktopClientController::class, 'workplace'])->middleware('throttle:device-desktop-client')->name('workplace');
+    Route::post('/withdraw', [DeviceDesktopClientController::class, 'withdraw'])->middleware('throttle:6,1')->name('withdraw');
     Route::post('/enroll', [DeviceDesktopClientController::class, 'enroll'])
         ->middleware('throttle:6,1')->name('enroll');
     Route::post('/sync', [DeviceDesktopClientController::class, 'sync'])

@@ -1,7 +1,7 @@
 <x-ui.page
     title="Meine Geräte"
     eyebrow="Mein Bereich"
-    description="Zugeordnete Firmen-Geräte, Einrichtungsstatus und sichere nächste Schritte."
+    description="Zugeordnete Firmen- und Privatgeräte, Einrichtungsstatus und sichere nächste Schritte."
     :count="$assignments->count()"
     page-key="my-devices"
 >
@@ -40,6 +40,7 @@
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2 lg:flex-col">
+                        <livewire:devices.workplace-consent :device-id="$device->public_id" :key="'workplace-'.$device->public_id" />
                         @if($latestEnrollment)
                             <span class="inline-flex min-h-10 items-center justify-center rounded-xl border border-rt-border px-3 text-xs font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Einrichtung: {{ str_replace('_',' ',$latestEnrollment->status->value) }}</span>
                         @else
@@ -71,8 +72,7 @@
 
         <div class="rounded-2xl border border-rt-border bg-white p-4 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface">
             <p class="font-semibold text-rt-text dark:text-white">Standort und Privatsphäre</p>
-            <p class="mt-1 leading-6 text-rt-muted dark:text-rt-dark-muted">Die Ansicht verwendet den gemeldeten Arbeits- oder Lagerstandort. Sie aktiviert keine permanente Live-Ortung Ihres Geräts. Bei einem BYOD-/Privatgerät beschränkt sich die Verwaltung auf den geschäftlichen Bereich.</p>
+            <p class="mt-1 leading-6 text-rt-muted dark:text-rt-dark-muted">Die Ansicht verwendet den gemeldeten Arbeits- oder Lagerstandort, keine permanente Live-Ortung. Verwaltete Windows-Privatgeräte benötigen Ihre ausdrückliche Zustimmung: Ein Dienst mit Systemrechten ist kein isolierter Firmencontainer. Apple und Android erhalten gesonderte, plattformspezifische Einrichtungswege.</p>
         </div>
     </div>
 </x-ui.page>
-

@@ -122,6 +122,13 @@ final class DispatchDeviceCommand implements ShouldQueue
             if (! in_array($locked->status, [DeviceCommandStatus::Queued, DeviceCommandStatus::Dispatched], true)) {
                 throw new RuntimeException('Der Gerätebefehl ist nicht versandbereit.');
             }
+            try {
+                app(\App\Services\DeviceManagement\DeviceWorkplaceService::class)->assertCommand($device, $locked->type->value);
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                $this->cancelStaleCommand($locked, 'Die Eigentümerfreigabe oder der erlaubte Verwaltungsumfang ist nicht mehr aktuell.');
+
+                return null;
+            }
             $activeAssignment = $activeAssignments->count() === 1
                 ? $activeAssignments->first()
                 : null;

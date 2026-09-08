@@ -36,6 +36,9 @@
         @endcan
 
         <x-tables.table :columns="[['label'=>'Gerät','width'=>'35%'],['label'=>'Mitarbeiter','width'=>'30%'],['label'=>'Clientstatus','width'=>'35%']]" :items="$clients" :selected-items="$selected ? [$selected->id] : []" row-view="components.tables.rows.devices.desktop-client-row" empty="Noch keine Desktopclients verbunden. Die Geräte müssen zuerst im Inventar eindeutig einem aktiven Mitarbeiter zugewiesen sein." />
+        @can('devices.manage')
+            <details class="{{ $panel }}"><summary class="cursor-pointer font-semibold">Arbeitsplatzprofile & Eigentümerfreigaben</summary><div class="mt-3 space-y-2">@foreach($devices as $profileDevice)<div class="flex flex-wrap items-center justify-between gap-2"><span class="text-sm">{{ $profileDevice->display_name }}</span><livewire:devices.workplace-consent :device-id="$profileDevice->public_id" :key="'admin-workplace-'.$profileDevice->public_id" /></div>@endforeach</div></details>
+        @endcan
 
         @if($selected)
             <section class="{{ $panel }} space-y-4" aria-label="Ausgewählter Desktopclient">
