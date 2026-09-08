@@ -85,6 +85,7 @@
         icon="fab fa-microsoft"
     >
         <livewire:admin.microsoft-device-settings />
+        <livewire:admin.microsoft-employee-import />
     </x-admin.settings-accordion-section>
 
     <x-admin.settings-accordion-section

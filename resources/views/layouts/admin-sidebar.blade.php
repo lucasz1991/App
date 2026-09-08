@@ -14,55 +14,6 @@
             </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
 
-        @can('settings.manage')
-            <x-menu.sidebar-nav :label="__('app.company')">
-                <x-menu.sidebar-nav-link
-                    :href="route('admin.settings')"
-                    icon="settings"
-                    :active="request()->routeIs('admin.settings')"
-                >
-                    {{ __('app.settings') }}
-                </x-menu.sidebar-nav-link>
-            </x-menu.sidebar-nav>
-        @endcan
-
-        <x-menu.sidebar-nav :label="__('app.communication')">
-            <x-menu.sidebar-nav-group
-                icon="message-square"
-                :active="request()->routeIs('chat', 'admin.messages', 'calls.*')"
-            >
-                <x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>
-
-                <x-menu.sidebar-nav-link
-                    :href="route('chat')"
-                    icon="message-circle"
-                    :active="request()->routeIs('chat')"
-                    class="!pl-8"
-                >
-                    {{ __('app.chat') }}
-                </x-menu.sidebar-nav-link>
-
-                <x-menu.sidebar-nav-link
-                    :href="route('admin.messages')"
-                    icon="mail"
-                    :active="request()->routeIs('admin.messages')"
-                    class="!pl-8"
-                >
-                    {{ __('app.messages') }}
-                </x-menu.sidebar-nav-link>
-            
-                <x-menu.sidebar-nav-link
-                    :href="route('calls.index')"
-                    icon="phone"
-                    :active="request()->routeIs('calls.*')"
-                    class="!pl-8"
-                >
-                    {{ __('app.calls_history') }}
-                </x-menu.sidebar-nav-link>
-
-            </x-menu.sidebar-nav-group>
-        </x-menu.sidebar-nav>
-
         @if (auth()->user()?->role === 'admin' || auth()->user()?->can('employees.view') || auth()->user()?->can('devices.view') || auth()->user()?->can('manage.messages'))
             <x-menu.sidebar-nav :label="__('app.management')">
                 <x-menu.sidebar-nav-group
@@ -245,38 +196,6 @@
                 {{ __('app.profile') }}
             </x-menu.sidebar-nav-link>
 
-            <x-menu.sidebar-nav-link
-                :href="route('email-templates.index')"
-                icon="file-text"
-                :active="request()->routeIs('email-templates.*')"
-            >
-                {{ __('app.email_templates') }}
-            </x-menu.sidebar-nav-link>
-
-            <x-menu.sidebar-nav-group
-                icon="life-buoy"
-                :active="request()->routeIs('help', 'support')"
-            >
-                <x-slot:label>{{ __('app.it_support') }}</x-slot:label>
-
-                <x-menu.sidebar-nav-link
-                    :href="route('help')"
-                    icon="help-circle"
-                    :active="request()->routeIs('help')"
-                    class="!pl-8"
-                >
-                    {{ __('app.help') }}
-                </x-menu.sidebar-nav-link>
-
-                <x-menu.sidebar-nav-link
-                    :href="route('support')"
-                    icon="life-buoy"
-                    :active="request()->routeIs('support')"
-                    class="!pl-8"
-                >
-                    {{ __('app.it_support') }}
-                </x-menu.sidebar-nav-link>
-            </x-menu.sidebar-nav-group>
         </x-menu.sidebar-nav>
     </ul>
 </div>

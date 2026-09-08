@@ -481,6 +481,8 @@ body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'] .rt-e
 /* -------------------------------------------------------------------------- */
 
 .rt-shell-sidebar {
+    display: flex;
+    flex-direction: column;
     /*
      * Kein Abstand an der Schale: Läge er hier, begänne der Scrollbereich erst
      * darunter und die Einträge verschwänden schon vor der Oberkante — sichtbar
@@ -504,6 +506,45 @@ body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'] .rt-e
         1px 0 0 rgba(255, 255, 255, 0.9) inset,
         18px 0 54px -46px rgba(15, 23, 42, 0.55) !important;
 }
+
+.rt-shell-sidebar > .rt-sidebar-scroll {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: auto;
+}
+
+.rt-sidebar-footer {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 8px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--rt-shell-line);
+}
+
+.rt-sidebar-footer__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    color: var(--rt-shell-muted);
+    background: var(--rt-shell-surface-solid);
+    border: 1px solid var(--rt-shell-line);
+    border-radius: 12px;
+}
+
+.rt-sidebar-footer__button svg { width: 19px; height: 19px; }
+.rt-sidebar-footer__button:hover,
+.rt-sidebar-footer__button[aria-current='page'],
+.rt-sidebar-footer__button[data-active='true'] { color: #e4002b; border-color: currentColor; }
+.rt-sidebar-footer__button:focus-visible { outline: 2px solid #e4002b; outline-offset: 3px; }
+.rt-sidebar-footer__menu-link { display: block; padding: 10px 16px; }
+.rt-sidebar-footer__menu-link:hover,
+.rt-sidebar-footer__menu-link:focus-visible { background: var(--rt-shell-panel); color: #e4002b; }
 
 .rt-shell-sidebar::after {
     position: absolute;

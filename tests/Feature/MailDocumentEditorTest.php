@@ -216,10 +216,12 @@ class MailDocumentEditorTest extends TestCase
         $before = MailDocument::query()->pluck('content_hash', 'public_id')->all();
         $component = Livewire::actingAs($admin)->test(MailDocumentLibrary::class)
             ->assertSee('Vorlagen')->assertSee('Standardvorlage')
+            ->assertDontSeeHtml('rt-mail-library__header')
             ->assertDontSee('data-page-builder-workspace')
             ->assertDontSee('{{NACHRICHT}}');
         $this->assertSame($before, MailDocument::query()->pluck('content_hash', 'public_id')->all());
-        $component->call('openCreate')->set('name', 'Angebot aus Übersicht')->call('createDraft')
+        $component->dispatch('mail-library-create-requested')->assertSet('createOpen', true)
+            ->set('name', 'Angebot aus Übersicht')->call('createDraft')
             ->assertHasNoErrors()->assertSet('createOpen', false)->assertSee('Angebot aus Übersicht');
         $created = MailDocument::query()->where('name', 'Angebot aus Übersicht')->firstOrFail();
         $this->assertTrue($created->isOutlookTemplate());

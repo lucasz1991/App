@@ -13,23 +13,9 @@
 <section
     class="rt-mail-library"
     data-mail-document-library
-    aria-labelledby="{{ $libraryId }}-title"
+    aria-label="Mail-Bibliothek"
     x-data="{ createDialog: $wire.entangle('createOpen').live, confirmDialog: $wire.entangle('confirmOpen').live }"
 >
-    <header class="rt-mail-library__header">
-        <div class="rt-mail-library__intro">
-            <span class="rt-mail-library__eyebrow">Mail-Bibliothek</span>
-            <h2 id="{{ $libraryId }}-title">Ein Ort für alle Vorlagen.</h2>
-            <p>Entwürfe gestalten, freigegebene Stände verwalten und frühere Versionen wiederherstellen.</p>
-        </div>
-        @if ($libraryReady && ! $isSignature)
-            <button type="button" wire:click="openCreate" wire:loading.attr="disabled" wire:target="openCreate" class="rt-mail-library__button rt-mail-library__button--primary" data-mail-library-create>
-                <i class="far fa-plus" aria-hidden="true"></i>
-                Neue Vorlage
-            </button>
-        @endif
-    </header>
-
     <div class="rt-mail-library__folders" role="group" aria-label="Dokumentart">
         @foreach (['template' => ['Vorlagen', 'fa-folder-open'], 'signature' => ['Signaturen', 'fa-signature']] as $kindValue => [$kindLabel, $kindIcon])
             <button type="button" wire:click="selectKind('{{ $kindValue }}')" class="rt-mail-library__folder" aria-pressed="{{ $currentKind->value === $kindValue ? 'true' : 'false' }}" data-mail-library-kind="{{ $kindValue }}">
@@ -96,7 +82,7 @@
                         </div>
                         <div class="rt-mail-library__statuses">
                             @if ($deliveryReady)
-                                <livewire:admin.mail-document-delivery-controls :document-id="$document['id']" :key="'list-delivery-'.$document['id']" />
+                                <livewire:admin.mail-document-delivery-controls :document-id="$document['id']" presentation="badges" :key="'list-delivery-'.$document['id']" />
                             @else
                             @if ($document['is_default'])
                                 <span class="rt-mail-library__status rt-mail-library__status--default"><i class="far fa-star" aria-hidden="true"></i>{{ $document['library'] ? 'Outlook-Standard' : 'Systemstandard' }}</span>
@@ -120,6 +106,10 @@
                                 <x-slot:content>
                                     <a href="{{ $document['editor_url'] }}" role="menuitem" class="rt-mail-library-menu__item"><i class="far fa-pen" aria-hidden="true"></i>Im Editor öffnen</a>
                                     <a href="{{ $document['preview_url'] }}" role="menuitem" class="rt-mail-library-menu__item"><i class="far fa-eye" aria-hidden="true"></i>Vorschau öffnen</a>
+                                    @if ($deliveryReady)
+                                        <div class="rt-mail-library-menu__divider" role="separator"></div>
+                                        <livewire:admin.mail-document-delivery-controls :document-id="$document['id']" presentation="menu" :key="'list-delivery-menu-'.$document['id']" />
+                                    @endif
                                     @if ($libraryReady)
                                         <button type="button" role="menuitem" wire:click="openCreate('{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item"><i class="far fa-copy" aria-hidden="true"></i>Als Entwurf duplizieren</button>
                                         <div class="rt-mail-library-menu__divider" role="separator"></div>
@@ -208,7 +198,7 @@
                 @elseif ($pendingAction === 'withdraw')
                     Mitarbeitende können diese Vorlage anschließend nicht mehr neu auswählen. Bereits eingefügte Inhalte und der gespeicherte Entwurf bleiben erhalten.
                 @elseif ($deliveryReady)
-                    Der gespeicherte Entwurf wird geprüft und als veröffentlichter Stand gespeichert. Bestehende Verwendungen erhalten diesen Stand. Es wird kein neuer Standard gewählt und keine neue Mitarbeitervorlage freigeschaltet. Diese Zuordnungen steuerst du getrennt über „Verwendung ändern“.
+                    Der gespeicherte Entwurf wird geprüft und als veröffentlichter Stand gespeichert. Bestehende Verwendungen erhalten diesen Stand. Es wird kein neuer Standard gewählt und keine neue Mitarbeitervorlage freigeschaltet. Diese Zuordnungen steuerst du getrennt über die Statussymbole oder das Aktionsmenü der Zeile.
                 @elseif (($pending['library'] ?? '') === 'true')
                     Der gespeicherte Entwurf wird vollständig geprüft und danach in der Outlook-Auswahl für Mitarbeitende bereitgestellt. Der Systemmail-Standard wird nicht verändert.
                 @else

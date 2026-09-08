@@ -20,8 +20,11 @@ class MicrosoftGraphDeviceClient
 
     private bool $shortProbe = false;
 
+    private bool $employeePilot = false;
+
     public function begin(array $configuration, bool $shortProbe = false): void
     {
+        $this->employeePilot = false;
         $this->shortProbe = $shortProbe;
         $this->token = '';
         $this->startedAt = microtime(true);
@@ -52,6 +55,25 @@ class MicrosoftGraphDeviceClient
             throw new MicrosoftGraphDeviceException('invalid_response');
         }
         $this->token = $body['access_token'];
+    }
+
+    /** Exact-ID pilot only: 15s scheduling budget, 5s maximum per request, no listing. */
+    public function beginEmployeeImport(array $configuration): void
+    {
+        $this->begin($configuration, shortProbe: true);
+        $this->employeePilot = true;
+    }
+
+    public function user(string $objectId): array
+    {
+        if (! $this->employeePilot || ! preg_match(MicrosoftEmployeeImportSettings::UUID_PATTERN, $objectId)) {
+            throw new MicrosoftGraphDeviceException('invalid_configuration');
+        }
+        $query = http_build_query([
+            '$select' => 'id,displayName,givenName,surname,userPrincipalName,mail,accountEnabled,userType',
+        ], '', '&', PHP_QUERY_RFC3986);
+
+        return $this->request('/users/'.$objectId.'?'.$query);
     }
 
     public function devices(bool $probe = false): array
@@ -170,7 +192,8 @@ class MicrosoftGraphDeviceClient
 
     private function request(string $path, ?array $batch = null): array
     {
-        if ($this->token === '' || ++$this->requests > ($this->shortProbe ? 2 : 500) || microtime(true) - $this->startedAt > ($this->shortProbe ? 15 : 180)) {
+        $limit = $this->employeePilot ? MicrosoftEmployeeImportSettings::MAX_PILOT_USERS : ($this->shortProbe ? 2 : 500);
+        if ($this->token === '' || ++$this->requests > $limit || microtime(true) - $this->startedAt > ($this->shortProbe ? 15 : 180)) {
             throw new MicrosoftGraphDeviceException('request_limit');
         }
         try {

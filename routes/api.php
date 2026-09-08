@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\DeviceArtifactDownloadController;
+use App\Http\Controllers\Api\DeviceDesktopClientController;
 use App\Http\Controllers\Api\DeviceProviderWebhookController;
 use App\Http\Controllers\Api\OutlookAddinBootstrapController;
 use Illuminate\Support\Facades\Route;
@@ -31,3 +32,14 @@ Route::get('/device-management/providers/{provider}/artifacts/{artifact}', Devic
     ->where('provider', '[a-z0-9_-]{2,64}')
     ->middleware('throttle:device-provider-webhook')
     ->name('api.device-management.artifacts.show');
+
+// Native Desktopclients besitzen eigene, widerrufbare Geraetecredentials.
+// Keine Microsoft-Tokens, Connector-Geheimnisse oder Nutzerpasswoerter.
+Route::prefix('device-client/v1')->name('api.device-client.')->group(function () {
+    Route::post('/enroll', [DeviceDesktopClientController::class, 'enroll'])
+        ->middleware('throttle:6,1')->name('enroll');
+    Route::post('/sync', [DeviceDesktopClientController::class, 'sync'])
+        ->middleware('throttle:device-desktop-client')->name('sync');
+    Route::post('/jobs/{job}/result', [DeviceDesktopClientController::class, 'result'])
+        ->whereUuid('job')->middleware('throttle:device-desktop-client')->name('result');
+});

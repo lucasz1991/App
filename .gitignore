@@ -66,6 +66,8 @@ Homestead.json
 !/tests/Feature/MicrosoftDeviceOperationsTest.php
 !/tests/Feature/MicrosoftDeviceQueueRoutingTest.php
 !/tests/Feature/MicrosoftEmployeeLinkTest.php
+!/tests/Feature/MicrosoftEmployeeImportTest.php
+!/tests/Feature/MicrosoftEmployeeImportUiTest.php
 !/tests/Feature/DeviceManagementSettingsTest.php
 !/tests/Feature/AdminSettingsOverviewAndSuperadminTest.php
 !/tests/Feature/SystemHealthOrchestrationTest.php

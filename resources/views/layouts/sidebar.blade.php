@@ -12,12 +12,13 @@
         aria-label="{{ __('app.mobile_navigation') }}"
         data-rt-shell-sidebar
     >
-        <div data-simplebar class="h-full">
+        <div data-simplebar class="rt-sidebar-scroll">
             @if (($area ?? 'admin') === 'user')
                 @include('layouts.user-sidebar')
             @else
                 @include('layouts.admin-sidebar')
             @endif
         </div>
+        @include('layouts.sidebar-footer')
     </aside>
 @endpersist

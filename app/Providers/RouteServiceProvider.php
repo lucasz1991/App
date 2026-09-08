@@ -45,6 +45,13 @@ class RouteServiceProvider extends ServiceProvider
             ];
         });
 
+        RateLimiter::for('device-desktop-client', function (Request $request) {
+            return [
+                Limit::perMinute(30)->by('desktop-token:'.hash('sha256', (string) $request->bearerToken())),
+                Limit::perMinute(300)->by('desktop-ip:'.$request->ip()),
+            ];
+        });
+
         RateLimiter::for('push-subscriptions', function (Request $request) {
             return Limit::perMinute(30)->by($request->user()?->id ?: $request->ip());
         });

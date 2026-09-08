@@ -1,0 +1,3 @@
+<div class="px-2 py-2"><button type="button" wire:click="selectClient('{{ $item->public_id }}')" class="text-left text-sm font-semibold underline decoration-rt-border underline-offset-4">{{ $item->device?->display_name ?? 'Gerät nicht verfügbar' }}</button><p class="text-xs text-rt-muted">{{ $item->client_version ? 'v'.$item->client_version : 'Noch kein Clientkontakt' }}</p></div>
+<div class="px-2 py-2 text-sm">{{ $item->assignment?->user?->name ?? 'Keine Zuweisung' }}</div>
+<div class="px-2 py-2 text-sm">{{ match($item->status) { 'active'=>'Verbunden', 'unpaired'=>'Code ausgestellt', 'revoked'=>'Widerrufen', default=>'Unbekannt' } }}<p class="text-xs text-rt-muted">{{ $item->last_seen_at?->format('d.m.Y H:i') ?? 'Wartet auf Einrichtung' }}</p></div>

@@ -6,6 +6,9 @@
     page-key="device-management"
 >
     <x-slot:actions>
+        @can('devices.view')
+            <a href="{{ route('devices.desktop-clients') }}" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text dark:text-white">Desktopclients</a>
+        @endcan
         @can('devices.accounts.manage')
             <livewire:devices.microsoft-employee-links />
         @endcan

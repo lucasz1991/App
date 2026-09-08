@@ -28,8 +28,8 @@ use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\PwaIconController;
 use App\Http\Controllers\WagonListExportController;
 use App\Http\Controllers\WagonListMediaController;
-use App\Http\Controllers\WelcomeIntroMediaController;
 use App\Http\Controllers\Webhooks\LiveKitWebhookController;
+use App\Http\Controllers\WelcomeIntroMediaController;
 use App\Http\Middleware\EnsureAssistantAccess;
 use App\Http\Middleware\LogActivity;
 use App\Http\Middleware\RedirectAdminWagonList;
@@ -48,6 +48,7 @@ use App\Livewire\Calls\CallDetails;
 use App\Livewire\Calls\CallHistory;
 use App\Livewire\Calls\CallWindow;
 use App\Livewire\ChatBox;
+use App\Livewire\Devices\DeviceDesktopClients;
 use App\Livewire\Devices\DeviceEnrollmentSetup;
 use App\Livewire\Devices\DeviceManagement;
 use App\Livewire\Devices\MyDevices;
@@ -181,6 +182,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     // Die neutrale Route bleibt fuer delegierte Verwaltungs-/Teamrechte
     // erreichbar. Jede Livewire-Aktion prueft ihr konkretes Device-Gate erneut.
     Route::get('/geraete', DeviceManagement::class)->name('devices.index');
+    Route::get('/geraete/desktop-clients', DeviceDesktopClients::class)->name('devices.desktop-clients');
     Route::get('/geraete/import-vorlage.csv', DeviceInventoryTemplateController::class)
         ->name('devices.import-template');
     Route::get('/meine-geraete', MyDevices::class)->name('devices.mine');

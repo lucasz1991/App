@@ -66,6 +66,13 @@ class MailDocumentLibrary extends Component
         $this->historyId = null;
         $this->filter = 'all';
         $this->resetValidation();
+        $this->dispatch('mail-library-toolbar-state', canCreate: $kind === MailDocumentKind::Template->value && app(OutlookTemplateLibrary::class)->available());
+    }
+
+    #[On('mail-library-create-requested')]
+    public function openCreateFromToolbar(): void
+    {
+        $this->openCreate();
     }
 
     public function selectFilter(string $filter): void
@@ -202,7 +209,7 @@ class MailDocumentLibrary extends Component
             'default' => 'Die Outlook-Standardvorlage wurde geändert. Systemmails bleiben unverändert.',
             'withdraw' => 'Die Vorlage wird Mitarbeitenden nicht mehr zur Auswahl angeboten.',
             default => MailDocumentDelivery::available()
-                ? 'Stand veröffentlicht. Bestehende Zuordnungen bleiben erhalten; neue Zuordnungen unter „Verwendung ändern“.'
+                ? 'Stand veröffentlicht. Bestehende Zuordnungen bleiben erhalten; weitere Verwendungen findest du im Aktionsmenü der Zeile.'
                 : ($this->pending['library'] === 'true'
                 ? 'Die geprüfte Vorlage ist jetzt für Mitarbeitende in Outlook freigegeben.'
                 : 'Der geprüfte Stand wird jetzt für Systemmails verwendet.'),

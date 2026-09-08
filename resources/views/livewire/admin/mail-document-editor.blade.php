@@ -27,6 +27,28 @@
     data-mail-document-back
 >
     @unless ($editorRequested)
+        <x-slot:overviewActions>
+            <span
+                x-data="{ canCreate: @js($currentKind === \App\Enums\MailDocumentKind::Template->value && app(\App\Support\OutlookAddin\OutlookTemplateLibrary::class)->available()) }"
+                x-on:mail-library-toolbar-state.window="canCreate = Boolean($event.detail.canCreate)"
+                x-show="canCreate"
+                x-cloak
+            >
+                <x-ui.buttons.button-basic
+                    type="button"
+                    mode="primary"
+                    size="sm"
+                    class="min-h-11 rounded-xl px-3.5"
+                    x-on:click="$dispatch('mail-library-create-requested')"
+                    aria-label="Neue Vorlage"
+                    title="Neue Vorlage"
+                    data-mail-library-create-trigger
+                >
+                    <i data-feather="plus" class="h-4 w-4" aria-hidden="true"></i>
+                    <span class="hidden sm:inline">Neue Vorlage</span>
+                </x-ui.buttons.button-basic>
+            </span>
+        </x-slot:overviewActions>
         <x-slot:overview>
             <livewire:admin.mail-document-library :initial-kind="$currentKind" />
         </x-slot:overview>
@@ -315,7 +337,7 @@
                             @if ($currentDocument->hasUnpublishedChanges())
                                 Entwurf gespeichert — zugeordnete Verwendungsbereiche nutzen weiterhin die Veröffentlichung vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
                             @else
-                                Veröffentlichter Stand vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr. Die Verwendung steuerst du unter „Designs &amp; Versionen“.
+                                Veröffentlichter Stand vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr. Die Verwendung steuerst du oben unter „Verwendung“.
                             @endif
                         @elseif ($activeDocument instanceof \App\Models\MailDocument)
                             Entwurf „{{ $currentDocument->name }}“ — Systemmails verwenden weiterhin „{{ $activeDocument->name }}“.
@@ -339,6 +361,45 @@
                             <i data-feather="clock" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
                             <span class="rt-mail-studio-toolbar__menu-label">Versionen</span>
                         </x-ui.buttons.button-basic>
+
+                        @if (\App\Support\Mail\MailDocumentDelivery::available())
+                            <x-ui.dropdown.anchor-dropdown
+                                align="right"
+                                width="80"
+                                :offset="8"
+                                dropdown-id="mail-document-usage-{{ $currentDocument->public_id }}"
+                                layer-group="mail-document-editor"
+                                content-role="menu"
+                                content-label="Verwendung von {{ $currentDocument->name }} ändern"
+                                content-classes="bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
+                                dropdown-classes="shadow-xl"
+                                data-mail-toolbar-menu="usage"
+                            >
+                                <x-slot:trigger>
+                                    <x-ui.buttons.button-basic
+                                        type="button"
+                                        mode="secondary"
+                                        size="sm"
+                                        class="min-h-11 shrink-0 rounded-lg px-3"
+                                        aria-label="Verwendung von {{ $currentDocument->name }} ändern"
+                                        title="Systemmail-, Outlook- und Add-in-Verwendung einstellen"
+                                        x-on:click="$dispatch('mail-editor-delivery-refresh', { documentId: @js($currentDocument->public_id) })"
+                                    >
+                                        <i data-feather="sliders" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                        <span class="rt-mail-studio-toolbar__menu-label">Verwendung</span>
+                                        <span class="inline-flex h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"><i data-feather="chevron-down" class="h-3.5 w-3.5" aria-hidden="true"></i></span>
+                                    </x-ui.buttons.button-basic>
+                                </x-slot:trigger>
+
+                                <x-slot:content>
+                                    <livewire:admin.mail-document-delivery-controls
+                                        :document-id="$currentDocument->public_id"
+                                        presentation="menu"
+                                        :key="'editor-toolbar-delivery-'.$currentDocument->public_id"
+                                    />
+                                </x-slot:content>
+                            </x-ui.dropdown.anchor-dropdown>
+                        @endif
 
                         <x-ui.dropdown.anchor-dropdown
                             align="right"
@@ -3004,7 +3065,7 @@
                             });
                             applyDocumentState(payload.document);
                             showFindings(payload.report, payload.compatibility);
-                            setMessage(`Veröffentlicht am ${payload.document?.published_label ?? ''} Uhr. Verwendung unter „Designs & Versionen“ prüfen; bestehende Zuordnungen bleiben erhalten.`);
+                            setMessage(`Veröffentlicht am ${payload.document?.published_label ?? ''} Uhr. Verwendung im gleichnamigen Menü prüfen; bestehende Zuordnungen bleiben erhalten.`);
                             const successText = config.currentDocument === 'signature'
                                 ? 'Outlook-Paket und Systemmails verwenden ab sofort diese Signatur.'
                                 : 'Mail-Notifications und Systemmails verwenden ab sofort diese Nachrichtenschale.';
