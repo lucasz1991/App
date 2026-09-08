@@ -14,7 +14,20 @@
     class="rt-mail-library"
     data-mail-document-library
     aria-label="Mail-Bibliothek"
-    x-data="{ createDialog: $wire.entangle('createOpen').live, confirmDialog: $wire.entangle('confirmOpen').live, pairingDialog: $wire.entangle('pairingOpen').live }"
+    x-data="{
+        createDialog: $wire.entangle('createOpen').live,
+        confirmDialog: $wire.entangle('confirmOpen').live,
+        pairingDialog: $wire.entangle('pairingOpen').live,
+        previewDialog: false, previewUrl: '', previewName: '', previewVersion: '', previewTimer: null,
+        openMailPreview(trigger) {
+            clearTimeout(this.previewTimer);
+            this.previewUrl = trigger.dataset.previewUrl;
+            this.previewName = trigger.dataset.previewName;
+            this.previewVersion = trigger.dataset.previewVersion;
+            this.previewDialog = true;
+        },
+        destroy() { clearTimeout(this.previewTimer) }
+    }"
 >
     <div class="rt-mail-library__folders" role="group" aria-label="Dokumentart">
         @foreach (['template' => ['Vorlagen', 'fa-folder-open'], 'signature' => ['Signaturen', 'fa-signature']] as $kindValue => [$kindLabel, $kindIcon])
@@ -74,7 +87,7 @@
                 <article class="rt-mail-library__entry" wire:key="mail-library-document-{{ $document['id'] }}" data-mail-library-document="{{ $document['id'] }}">
                     <div class="rt-mail-library__row">
                         <div class="rt-mail-library__document">
-                            <span class="rt-mail-library__document-icon" aria-hidden="true"><i class="far {{ $isSignature ? 'fa-signature' : 'fa-file-alt' }}"></i></span>
+                            <x-ui.page-builder.mail-thumbnail :url="$document['preview_url']" :name="$document['name']" :version="$document['version']" />
                             <div class="rt-mail-library__name">
                                 <a href="{{ $document['editor_url'] }}" data-mail-library-edit>{{ $document['name'] }}</a>
                                 <small>{{ $isSignature ? 'Signatur' : 'Vorlage' }}<span aria-hidden="true"> · </span>Version {{ $document['version'] }}</small>
@@ -253,5 +266,11 @@
             <button type="button" class="rt-mail-library__button" x-on:click="confirmDialog = false">Abbrechen</button>
             <button type="button" wire:click="confirmAction" class="rt-mail-library__button rt-mail-library__button--primary" wire:loading.attr="disabled" wire:target="confirmAction"><span wire:loading.remove wire:target="confirmAction">{{ $pendingAction === 'restore' ? 'Als Entwurf wiederherstellen' : ($pendingAction === 'default' ? 'Standard festlegen' : ($pendingAction === 'withdraw' ? 'Freigabe zurücknehmen' : 'Prüfen und veröffentlichen')) }}</span><span wire:loading wire:target="confirmAction">Wird geprüft …</span></button>
         </x-slot:footer>
+    </x-ui.state-modal>
+    <x-ui.state-modal :id="$libraryId.'-preview'" state="previewDialog" title="Designvorschau" description="Aktuell gespeicherter Entwurf · Browserdarstellung, kein Mailclient-Nachweis." icon="far fa-eye" max-width="6xl">
+        <p class="mb-3 text-sm font-semibold"><span x-text="previewName"></span> · Version <span x-text="previewVersion"></span></p>
+        <template x-if="previewDialog">
+            <x-ui.preview.frame title="Designvorschau des gespeicherten Entwurfs" x-bind:src="previewUrl" style="width:100%;height:65vh;min-height:260px" />
+        </template>
     </x-ui.state-modal>
 </section>

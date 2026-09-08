@@ -57,4 +57,21 @@ class DeviceProviderSetupClarityTest extends TestCase
 
         Http::assertNothingSent();
     }
+
+    public function test_setup_sections_do_not_depend_on_scroll_reveals_after_accordion_layout_changes(): void
+    {
+        $html = Livewire::test(DeviceManagementSettings::class)->html();
+        $document = new \DOMDocument;
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
+        $xpath = new \DOMXPath($document);
+
+        foreach (['deployment', 'providers', 'identities', 'safety'] as $section) {
+            $nodes = $xpath->query('//section[@data-rt-accordion-section="device-'.$section.'"]');
+            $this->assertCount(1, $nodes);
+            $this->assertFalse($nodes->item(0)->hasAttribute('data-anim'));
+            $this->assertFalse($nodes->item(0)->hasAttribute('data-anim-delay'));
+        }
+
+        Http::assertNothingSent();
+    }
 }

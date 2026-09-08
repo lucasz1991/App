@@ -93,8 +93,6 @@
         :label="$isGerman ? 'Plesk-Adresse und Betriebswerte' : 'Plesk address and runtime'"
         :description="$isGerman ? 'Öffentliche Subdomains oder private lokale Adapter-Ports mit sicheren Standardwerten festlegen.' : 'Choose public subdomains or private local adapter ports with safe defaults.'"
         icon="fad fa-server"
-        data-anim="fade-up"
-        data-anim-delay="0.04"
     >
         <section class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:p-1.5">
             <div class="space-y-5 rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
@@ -242,8 +240,6 @@
         :label="$isGerman ? 'Geräteprovider und Funktionstests' : 'Device providers and connection tests'"
         :description="$isGerman ? 'RailTime-Connectoren einrichten und ihren gespeicherten, rein lesenden Health-Endpunkt prüfen.' : 'Configure RailTime connectors and probe their saved read-only health endpoint.'"
         icon="fad fa-network-wired"
-        data-anim="fade-up"
-        data-anim-delay="0.08"
     >
         <p class="mb-4 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" data-device-provider-setup-help>
             {{ $isGerman
@@ -555,8 +551,6 @@
         :label="$isGerman ? 'Microsoft-, Google- und Apple-Domänen' : 'Microsoft, Google and Apple domains'"
         :description="$isGerman ? 'Nur Organisationsdomänen vorbereiten; Benutzerkennwörter und OAuth-Tokens werden nicht in RailTime gespeichert.' : 'Prepare organisation domains only; user passwords and OAuth tokens are never stored in RailTime.'"
         icon="fad fa-id-card"
-        data-anim="fade-up"
-        data-anim-delay="0.12"
     >
         <section class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:p-1.5">
             <div class="space-y-5 rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
@@ -609,8 +603,6 @@
         :label="$isGerman ? 'Produktionsschutz' : 'Production safety'"
         :description="$isGerman ? 'Enrollment, Konto-Synchronisationen und Gerätebefehle bleiben unabhängig von Providerzugängen standardmäßig blockiert.' : 'Enrollment, identity synchronization and device commands remain blocked by default, independently of provider credentials.'"
         icon="fad fa-shield-alt"
-        data-anim="fade-up"
-        data-anim-delay="0.16"
     >
         <section class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70">
             <div class="flex flex-col gap-5 p-4 sm:p-6 lg:flex-row lg:items-center lg:justify-between">

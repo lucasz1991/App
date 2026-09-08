@@ -1,4 +1,9 @@
 /* Mail library chrome only; never included in exported email documents. */
+.rt-mail-library-thumbnail { position:relative; flex:0 0 96px; width:96px; height:56px; overflow:hidden; border:1px solid #d7e0eb; border-radius:9px; background:#fff; cursor:zoom-in; }
+.rt-mail-library-thumbnail:focus-visible { outline:3px solid #d9002b; outline-offset:3px; }
+.rt-mail-library-thumbnail__canvas { display:block; width:1920px; height:1120px; transform:scale(.05); transform-origin:top left; pointer-events:none; }
+.rt-mail-library-thumbnail__canvas iframe { width:1920px; height:1120px; }
+.rt-mail-library-thumbnail__hint { position:absolute; right:3px; bottom:3px; display:grid; place-items:center; width:19px; height:19px; border-radius:5px; background:#fff; color:#69778b; font-size:10px; box-shadow:0 1px 4px #16223120; }
 :is(.rt-mail-library, .rt-mail-usage, .rt-mail-library-form, .rt-mail-library-menu__item, .rt-mail-library__button, .rt-mail-library__icon-button) {
     --rt-library-ink: rgb(22 34 49);
     --rt-library-muted: rgb(104 119 139);
