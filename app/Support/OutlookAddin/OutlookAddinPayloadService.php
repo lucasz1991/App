@@ -134,23 +134,8 @@ final class OutlookAddinPayloadService
                 throw new RuntimeException('Vorlage und Signatur muessen aktiv veroeffentlicht sein.');
             }
 
-            $this->publishedDocuments->useSnapshot(MailDocumentKind::Signature, $signatureSnapshot['html'], $signatureSnapshot['css']);
             $builder = new EmailTemplateBuilder($user);
-            [$signatureHtml, $signatureMedia] = $this->localizeRemoteImages(
-                $this->withMarker(
-                    $builder->buildOutlookAddinSignatureHtml('light'),
-                ),
-            );
-            $signatureHtml = $this->compactSignature($signatureHtml);
-            $signatureVersion = $this->signatureArtifactVersion($signatureHtml, $signatureMedia);
-            $signatureHtml = $this->withSignatureVersionMarker(
-                $signatureHtml,
-                $signatureVersion,
-            );
-            $signatureCharacters = $this->outlookStringLength($signatureHtml);
-            if ($signatureCharacters > self::MAX_SIGNATURE_CHARACTERS) {
-                throw new RuntimeException('Die veroeffentlichte Signatur ueberschreitet das Outlook-Limit von 30.000 Zeichen ('.$signatureCharacters.').');
-            }
+            $signature = $this->renderSignature($builder, $signatureSnapshot);
 
             $templates = $this->renderTemplates(
                 $builder,
@@ -177,8 +162,8 @@ final class OutlookAddinPayloadService
                     }
                 },
                 $templateSnapshots,
-                $signatureSnapshot['html'],
-                $signatureVersion,
+                $signatureSnapshot,
+                $signature,
             );
             $activeTemplate = $this->activeTemplatePayload($templates);
 
@@ -186,8 +171,8 @@ final class OutlookAddinPayloadService
                 'schema' => 1,
                 'marker' => (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),
                 'signature' => [
-                    'html' => $signatureHtml,
-                    'media' => $signatureMedia,
+                    'html' => $signature['html'],
+                    'media' => $signature['media'],
                 ],
                 'template' => [
                     'html' => $activeTemplate['html'],
@@ -198,7 +183,7 @@ final class OutlookAddinPayloadService
                 // automatic composition; upgrading never enables it silently.
                 'automaticTemplateId' => collect($templates)->firstWhere('isDefault', true)['id'] ?? null,
                 'version' => [
-                    'signature' => $signatureVersion,
+                    'signature' => $signature['version'],
                     'template' => $activeTemplate['version'],
                 ],
             ];
@@ -221,7 +206,44 @@ final class OutlookAddinPayloadService
     }
 
     /**
-     * @param  list<array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string}>  $snapshots
+     * @param  array{html:string,css:string}  $snapshot
+     * @return array{
+     *     html:string,
+     *     media:list<array{name:string,contentId:string,base64:string}>,
+     *     version:string
+     * }
+     */
+    private function renderSignature(EmailTemplateBuilder $builder, array $snapshot): array
+    {
+        $this->publishedDocuments->useSnapshot(
+            MailDocumentKind::Signature,
+            $snapshot['html'],
+            $snapshot['css'],
+        );
+        [$html, $media] = $this->localizeRemoteImages(
+            $this->withMarker(
+                $builder->buildOutlookAddinSignatureHtml('light'),
+            ),
+        );
+        $html = $this->compactSignature($html);
+        $version = $this->signatureArtifactVersion($html, $media);
+        $html = $this->withSignatureVersionMarker($html, $version);
+        $characters = $this->outlookStringLength($html);
+        if ($characters > self::MAX_SIGNATURE_CHARACTERS) {
+            throw new RuntimeException('Die veroeffentlichte Signatur ueberschreitet das Outlook-Limit von 30.000 Zeichen ('.$characters.').');
+        }
+
+        return [
+            'html' => $html,
+            'media' => $media,
+            'version' => $version,
+        ];
+    }
+
+    /**
+     * @param  list<array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string, publishedSignature: array{id:string,document_id:int,html:string,css:string,hash:string,paired:bool}|null}>  $snapshots
+     * @param  array{html:string,css:string}  $globalSignatureSnapshot
+     * @param  array{html:string,media:list<array{name:string,contentId:string,base64:string}>,version:string}  $globalSignature
      * @return list<array{
      *     id: string,
      *     key: string,
@@ -233,6 +255,9 @@ final class OutlookAddinPayloadService
      *     signatureMode: 'native',
      *     composeHtml: string,
      *     composeMedia: list<array{name: string, contentId: string, base64: string}>,
+     *     signature?: array{html:string,media:list<array{name:string,contentId:string,base64:string}>},
+     *     signatureVersion?: string,
+     *     signatureDocumentId?: string,
      *     version: string,
      *     hash: string
      * }>
@@ -241,14 +266,34 @@ final class OutlookAddinPayloadService
         EmailTemplateBuilder $builder,
         EmailTemplateBuilder $composeBuilder,
         array $snapshots,
-        string $signatureDocument,
-        string $signatureVersion,
+        array $globalSignatureSnapshot,
+        array $globalSignature,
     ): array {
         $systemTemplate = $this->publishedDocuments->snapshot(MailDocumentKind::Template);
         $templates = [];
+        $renderedSignatures = [
+            $this->fullSnapshotHash($globalSignatureSnapshot) => $globalSignature,
+        ];
 
         try {
             foreach ($snapshots as $snapshot) {
+                $pairedSignature = is_array($snapshot['publishedSignature'] ?? null)
+                    ? $snapshot['publishedSignature']
+                    : null;
+                $signatureSnapshot = $pairedSignature ?? $globalSignatureSnapshot;
+                $signatureKey = $this->fullSnapshotHash($signatureSnapshot);
+                $signature = $renderedSignatures[$signatureKey]
+                    ??= $this->renderSignature($builder, $signatureSnapshot);
+                $signatureDocument = $signatureSnapshot['html'];
+
+                // Beide Builder lesen denselben synchronen Snapshot-Store.
+                // Dadurch entsteht das Legacy-Fragment mit exakt demselben
+                // Partner, den der native Office-Signaturslot erhaelt.
+                $this->publishedDocuments->useSnapshot(
+                    MailDocumentKind::Signature,
+                    $signatureSnapshot['html'],
+                    $signatureSnapshot['css'],
+                );
                 $this->publishedDocuments->useSnapshot(
                     MailDocumentKind::Template,
                     $snapshot['html'],
@@ -258,7 +303,7 @@ final class OutlookAddinPayloadService
                     $this->withMarker($builder->buildOutlookAddinTemplateHtml('light')),
                     $signatureDocument,
                 );
-                $html = $this->withSignatureVersionMarker($html, $signatureVersion);
+                $html = $this->withSignatureVersionMarker($html, $signature['version']);
                 if ($this->outlookStringLength($html) > self::MAX_TEMPLATE_CHARACTERS) {
                     throw new RuntimeException('Die Outlook-Vorlage ueberschreitet das sichere Transportbudget von 99.000 Zeichen.');
                 }
@@ -271,7 +316,7 @@ final class OutlookAddinPayloadService
                     throw new RuntimeException('Die Outlook-Vorlage ueberschreitet das sichere Transportbudget von 99.000 Zeichen.');
                 }
 
-                $templates[] = [
+                $template = [
                     'id' => $snapshot['id'],
                     'key' => $snapshot['key'],
                     'name' => $snapshot['name'],
@@ -289,6 +334,20 @@ final class OutlookAddinPayloadService
                     'version' => $this->snapshotHash($snapshot),
                     'hash' => $this->fullSnapshotHash($snapshot),
                 ];
+
+                // Das optionale Feld ist bewusst nur bei einer expliziten
+                // Paarung vorhanden. Alte/unzugeordnete Vorlagen und der
+                // manuelle Signaturbutton verwenden weiter payload.signature.
+                if ($pairedSignature !== null) {
+                    $template['signature'] = [
+                        'html' => $signature['html'],
+                        'media' => $signature['media'],
+                    ];
+                    $template['signatureVersion'] = $signature['version'];
+                    $template['signatureDocumentId'] = $pairedSignature['id'];
+                }
+
+                $templates[] = $template;
             }
         } finally {
             if ($systemTemplate === null) {
@@ -709,19 +768,41 @@ final class OutlookAddinPayloadService
     }
 
     /**
-     * @param  list<array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string}>  $templateSnapshots
+     * @param  list<array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string, publishedSignature?: array{id:string,document_id:int,html:string,css:string,hash:string,paired:bool}|null}>  $templateSnapshots
      * @param  array{html: string, css: string}  $signatureSnapshot
      * @return array<string, string>
      */
     private function sourceAssetHashes(array $templateSnapshots, array $signatureSnapshot): array
     {
-        $signatureDocument = $signatureSnapshot['html'];
-        $mapping = $this->templateMediaPaths($signatureDocument);
-        $paths = array_values($mapping);
-        $sources = [
-            ...$this->imageSources($signatureSnapshot['html']),
-            ...$this->cssImageSources($signatureSnapshot['css']),
-        ];
+        $signatureSnapshots = [$signatureSnapshot];
+        foreach ($templateSnapshots as $templateSnapshot) {
+            if (is_array($templateSnapshot['publishedSignature'] ?? null)) {
+                $signatureSnapshots[] = $templateSnapshot['publishedSignature'];
+            }
+        }
+
+        $paths = [];
+        $sources = [];
+        $knownMappingIds = ['railtime-train-idle' => true];
+        $visitedSignatures = [];
+        foreach ($signatureSnapshots as $candidate) {
+            $signatureHash = $this->fullSnapshotHash($candidate);
+            if (isset($visitedSignatures[$signatureHash])) {
+                continue;
+            }
+            $visitedSignatures[$signatureHash] = true;
+
+            $mapping = $this->templateMediaPaths($candidate['html']);
+            foreach ($mapping as $contentId => $path) {
+                $knownMappingIds[strtolower($contentId)] = true;
+                $paths[] = $path;
+            }
+            $sources = [
+                ...$sources,
+                ...$this->imageSources($candidate['html']),
+                ...$this->cssImageSources($candidate['css']),
+            ];
+        }
         foreach ($templateSnapshots as $templateSnapshot) {
             $sources = [
                 ...$sources,
@@ -741,7 +822,7 @@ final class OutlookAddinPayloadService
                 $contentId = substr($source, 4);
                 $this->assertContentId($contentId);
                 $mappingId = strtolower($contentId);
-                if ($mappingId !== 'railtime-train-idle' && ! array_key_exists($mappingId, $mapping)) {
+                if (! isset($knownMappingIds[$mappingId])) {
                     throw new RuntimeException("Das Outlook-Medium {$contentId} ist nicht bekannt.");
                 }
 
@@ -1252,9 +1333,20 @@ final class OutlookAddinPayloadService
         return substr($this->fullSnapshotHash($snapshot), 0, 16);
     }
 
-    /** @param array{html: string, css: string} $snapshot */
+    /** @param array{html: string, css: string, publishedSignature?: array{id?:string,hash?:string}|null} $snapshot */
     private function fullSnapshotHash(array $snapshot): string
     {
-        return hash('sha256', $snapshot['html']."\0".$snapshot['css']);
+        $source = $snapshot['html']."\0".$snapshot['css'];
+        $publishedSignature = $snapshot['publishedSignature'] ?? null;
+
+        // Null bzw. fehlend bleibt exakt die historische Hashformel. Nur eine
+        // ausdrueckliche Freigabezuordnung invalidiert den Vorlagenabzug.
+        if (is_array($publishedSignature)) {
+            $source .= "\0published-signature\0"
+                .($publishedSignature['id'] ?? '')."\0"
+                .($publishedSignature['hash'] ?? '');
+        }
+
+        return hash('sha256', $source);
     }
 }

@@ -14,7 +14,7 @@
     class="rt-mail-library"
     data-mail-document-library
     aria-label="Mail-Bibliothek"
-    x-data="{ createDialog: $wire.entangle('createOpen').live, confirmDialog: $wire.entangle('confirmOpen').live }"
+    x-data="{ createDialog: $wire.entangle('createOpen').live, confirmDialog: $wire.entangle('confirmOpen').live, pairingDialog: $wire.entangle('pairingOpen').live }"
 >
     <div class="rt-mail-library__folders" role="group" aria-label="Dokumentart">
         @foreach (['template' => ['Vorlagen', 'fa-folder-open'], 'signature' => ['Signaturen', 'fa-signature']] as $kindValue => [$kindLabel, $kindIcon])
@@ -78,6 +78,15 @@
                             <div class="rt-mail-library__name">
                                 <a href="{{ $document['editor_url'] }}" data-mail-library-edit>{{ $document['name'] }}</a>
                                 <small>{{ $isSignature ? 'Signatur' : 'Vorlage' }}<span aria-hidden="true"> · </span>Version {{ $document['version'] }}</small>
+                                @if (! $isSignature && $pairingReady)
+                                    <small class="rt-mail-library__pairing">
+                                        <i class="far fa-link" aria-hidden="true"></i>
+                                        {{ $document['signature_name'] ?: 'Kanal-Standardsignatur' }}
+                                        @if ($document['signature_name'] && ! $document['signature_has_release'])
+                                            <span>nur Entwurf</span>
+                                        @endif
+                                    </small>
+                                @endif
                             </div>
                         </div>
                         <div class="rt-mail-library__statuses">
@@ -111,6 +120,9 @@
                                         <livewire:admin.mail-document-delivery-controls :document-id="$document['id']" presentation="menu" :key="'list-delivery-menu-'.$document['id']" />
                                     @endif
                                     @if ($libraryReady)
+                                        @if (! $isSignature && $pairingReady)
+                                            <button type="button" role="menuitem" wire:click="openPairing('{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item"><i class="far fa-link" aria-hidden="true"></i>Signatur zuordnen</button>
+                                        @endif
                                         <button type="button" role="menuitem" wire:click="openCreate('{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item"><i class="far fa-copy" aria-hidden="true"></i>Als Entwurf duplizieren</button>
                                         <div class="rt-mail-library-menu__divider" role="separator"></div>
                                         <button type="button" role="menuitem" wire:click="prepareAction('publish', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item" data-mail-library-publish><i class="far fa-cloud-upload" aria-hidden="true"></i>{{ $deliveryReady ? 'Stand veröffentlichen' : ($document['library'] ? 'Für Mitarbeitende freigeben' : ($isSignature ? 'Systemsignatur veröffentlichen' : 'Systemvorlage veröffentlichen')) }}</button>
@@ -139,7 +151,7 @@
                                             'outlook_replaced', 'delivery_outlook-off' => 'Outlook-Standard aufgehoben',
                                             'delivery_offer' => 'Im Add-in verfügbar',
                                             'delivery_hide' => 'Im Add-in ausgeblendet',
-                                            'imported' => 'Importiert', 'published' => 'Veröffentlicht', 'restored' => 'Wiederhergestellt', 'duplicated' => 'Dupliziert', 'created' => 'Angelegt', 'outlook_default' => 'Outlook-Standard festgelegt', 'withdrawn' => 'Freigabe zurückgenommen', default => 'Gespeichert',
+                                            'imported' => 'Importiert', 'published' => 'Veröffentlicht', 'restored' => 'Wiederhergestellt', 'duplicated' => 'Dupliziert', 'created' => 'Angelegt', 'signature_assigned' => 'Signatur zugeordnet', 'signature_cleared' => 'Signaturzuordnung entfernt', 'outlook_default' => 'Outlook-Standard festgelegt', 'withdrawn' => 'Freigabe zurückgenommen', default => 'Gespeichert',
                                         };
                                         $isCurrent = hash_equals($document['hash'], (string) $version->content_hash);
                                     @endphp
@@ -180,10 +192,40 @@
             <input id="{{ $libraryId }}-name" wire:model="name" type="text" maxlength="80" required autocomplete="off" placeholder="Zum Beispiel: Angebotsanschreiben" aria-describedby="{{ $libraryId }}-name-help" @error('name') aria-invalid="true" @enderror>
             <p id="{{ $libraryId }}-name-help">Ein kurzer, eindeutiger Name hilft Mitarbeitenden bei der Auswahl.</p>
             @error('name')<p class="rt-mail-library__error" role="alert">{{ $message }}</p>@enderror
+            @if ($pairingReady && $currentKind === \App\Enums\MailDocumentKind::Template)
+                <label for="{{ $libraryId }}-create-signature">Signatur dieses Entwurfs</label>
+                <x-ui.forms.select id="{{ $libraryId }}-create-signature" wire:model="createSignatureId">
+                    <option value="">Jeweiligen Kanalstandard verwenden</option>
+                    @foreach ($signatures as $signature)
+                        <option value="{{ $signature->public_id }}">{{ $signature->name ?: 'Signatur' }}{{ $signature->published_at && trim((string) $signature->published_html) !== '' ? '' : ' (nur Entwurf)' }}</option>
+                    @endforeach
+                </x-ui.forms.select>
+                <p>Die Zuordnung gilt zunächst nur für den neuen Entwurf und verändert keine aktive Signatur.</p>
+                @error('signature')<p class="rt-mail-library__error" role="alert">{{ $message }}</p>@enderror
+            @endif
         </form>
         <x-slot:footer>
             <button type="button" class="rt-mail-library__button" x-on:click="createDialog = false">Abbrechen</button>
             <button type="submit" form="{{ $libraryId }}-create-form" class="rt-mail-library__button rt-mail-library__button--primary" wire:loading.attr="disabled" wire:target="createDraft"><span wire:loading.remove wire:target="createDraft">Entwurf anlegen</span><span wire:loading wire:target="createDraft">Wird angelegt …</span></button>
+        </x-slot:footer>
+    </x-ui.state-modal>
+
+    <x-ui.state-modal :id="$libraryId.'-pairing'" state="pairingDialog" title="Signatur zuordnen" description="Vorlage und Signatur bleiben getrennte Entwürfe und werden nur gemeinsam angezeigt." icon="far fa-link" max-width="2xl">
+        <form wire:submit="savePairing" class="rt-mail-library-form" id="{{ $libraryId }}-pairing-form">
+            <p class="rt-mail-library-form__document">{{ $pairing['name'] ?? '' }}</p>
+            <label for="{{ $libraryId }}-signature">Signatur für diesen Vorlagenentwurf</label>
+            <x-ui.forms.select id="{{ $libraryId }}-signature" wire:model="pairingSignatureId">
+                <option value="">Jeweiligen Kanalstandard verwenden</option>
+                @foreach ($signatures as $signature)
+                    <option value="{{ $signature->public_id }}">{{ $signature->name ?: 'Signatur' }}{{ $signature->published_at && trim((string) $signature->published_html) !== '' ? '' : ' (nur Entwurf)' }}</option>
+                @endforeach
+            </x-ui.forms.select>
+            <p>Die Vorschau verwendet sofort den zugeordneten Signaturentwurf. Eine Veröffentlichung ist erst möglich, nachdem auch diese Signatur einen freigegebenen Stand besitzt.</p>
+            @error('signature')<p class="rt-mail-library__error" role="alert">{{ $message }}</p>@enderror
+        </form>
+        <x-slot:footer>
+            <button type="button" class="rt-mail-library__button" x-on:click="pairingDialog = false">Abbrechen</button>
+            <button type="submit" form="{{ $libraryId }}-pairing-form" class="rt-mail-library__button rt-mail-library__button--primary" wire:loading.attr="disabled" wire:target="savePairing"><span wire:loading.remove wire:target="savePairing">Zuordnung speichern</span><span wire:loading wire:target="savePairing">Wird gespeichert …</span></button>
         </x-slot:footer>
     </x-ui.state-modal>
 

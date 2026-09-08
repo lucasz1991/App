@@ -10,6 +10,7 @@ use App\Support\Mail\EmailCompatibilityCatalog;
 use App\Support\Mail\EmailCompatibilityCatalogException;
 use App\Support\Mail\EmailCompatibilityReport;
 use App\Support\Mail\MailDocumentAutoRepair;
+use App\Support\Mail\MailDocumentSignatureResolver;
 use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureImgOverlap;
@@ -111,7 +112,7 @@ class MailDocumentEditor extends Component
             // The overview only needs identity/status metadata. Full HTML,
             // builder state and media are loaded after the explicit editor link.
             $columns = ['id', 'public_id', 'kind', 'name', 'status', 'version', 'content_hash', 'published_at', 'updated_at', 'updated_by'];
-            foreach (['is_active', 'is_outlook_template'] as $column) {
+            foreach (['is_active', 'is_outlook_template', 'signature_document_id', 'published_signature_document_id'] as $column) {
                 if (Schema::hasColumn('mail_documents', $column)) {
                     $columns[] = $column;
                 }
@@ -152,6 +153,17 @@ class MailDocumentEditor extends Component
                 $selected ??= $slots->first();
                 if ($selected instanceof MailDocument) {
                     $documents[$kind->value] = $selected;
+                }
+            }
+
+            if ($this->editorRequested
+                && $this->kind === MailDocumentKind::Template->value
+                && isset($documents[MailDocumentKind::Template->value])
+                && MailDocumentSignatureResolver::available()) {
+                $signature = app(MailDocumentSignatureResolver::class)
+                    ->draftDocument($documents[MailDocumentKind::Template->value]);
+                if ($signature instanceof MailDocument) {
+                    $documents[MailDocumentKind::Signature->value] = $signature;
                 }
             }
 
@@ -420,6 +432,14 @@ class MailDocumentEditor extends Component
             'previewResponsiveCssByArtifact' => [
                 'v27' => [
                     'css' => TrustedEmailCss::forDocument('<tr data-rt-artifact-version="v27"></tr>', '#000026', false),
+                    'borderToken' => '#000026',
+                ],
+                'v28' => [
+                    'css' => TrustedEmailCss::forDocument('<tr data-rt-artifact-version="v28"></tr>', '#000026', false),
+                    'borderToken' => '#000026',
+                ],
+                'v29' => [
+                    'css' => TrustedEmailCss::forDocument('<tr data-rt-artifact-version="v29"></tr>', '#000026', false),
                     'borderToken' => '#000026',
                 ],
                 'legacy' => [

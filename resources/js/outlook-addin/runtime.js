@@ -441,16 +441,6 @@ async function applyPublishedContent(item) {
     }
     if (templateState.legacySignatureEmbedded) return 'already-present';
 
-    const signature = wasSignatureWriteConfirmed(item)
-        ? null : validatedDocument(bootstrap.signature, 'signature', config.marker);
-    if (signature) {
-        if (signature.html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
-        if (!item?.body?.setSignatureAsync || !item?.addFileAttachmentFromBase64Async) {
-            throw codedError('COMPOSE_API_UNAVAILABLE');
-        }
-        validateTemplateInsertionPayload(signature.html, signature.media);
-    }
-
     let template = null;
     const selected = templateState.present ? null : automaticTemplate(bootstrap);
     if (selected) {
@@ -459,10 +449,35 @@ async function applyPublishedContent(item) {
             // Legacy snapshots never fall back to their full-template HTML.
             if (composeDocument) {
                 template = validatedDocument(composeDocument, 'template', config.marker);
-                // Budget both parts before any attachment or body mutation.
-                validateTemplateInsertionPayload((signature?.html || '') + template.html,
-                    [...(signature?.media || []), ...template.media]);
             }
+        } catch (error) {
+            template = null;
+            recordDiagnostic('template-preflight', 'skipped', error);
+            console.info(`${LOG_PREFIX} Default template skipped (${safeErrorCode(error)}).`);
+        }
+    }
+
+    const signaturePayload = template && selected
+        && Object.prototype.hasOwnProperty.call(selected, 'signature')
+        ? selected.signature
+        : bootstrap.signature;
+    const signature = wasSignatureWriteConfirmed(item)
+        ? null : validatedDocument(signaturePayload, 'signature', config.marker);
+    if (signature) {
+        if (signature.html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
+        if (!item?.body?.setSignatureAsync || !item?.addFileAttachmentFromBase64Async) {
+            throw codedError('COMPOSE_API_UNAVAILABLE');
+        }
+        validateTemplateInsertionPayload(signature.html, signature.media);
+    }
+
+    if (template) {
+        // Budget both independently inserted artifacts before the first
+        // Office mutation. Eine explizit vorhandene, aber ungueltige
+        // Vorlagensignatur faellt dabei niemals auf den globalen Stand zurueck.
+        try {
+            validateTemplateInsertionPayload((signature?.html || '') + template.html,
+                [...(signature?.media || []), ...template.media]);
         } catch (error) {
             template = null;
             recordDiagnostic('template-preflight', 'skipped', error);

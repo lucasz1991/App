@@ -1458,7 +1458,10 @@ async function insertTemplate(button) {
             if (!state.readable) throw Object.assign(codedError(state.errorCode || 'COMPOSE_BODY_UNREADABLE'), { phase: state.phase, officeCode: state.officeCode, reason: state.reason });
             if (state.tooLarge) throw codedError('COMPOSE_BODY_TOO_LARGE');
             if (state.present && state.legacySignatureEmbedded !== false) throw codedError('SIGNATURE_WITHIN_TEMPLATE');
-            signature = validatedDocument(bootstrap.signature, 'signature', currentConfig.marker);
+            const signaturePayload = Object.prototype.hasOwnProperty.call(templateChoice.document, 'signature')
+                ? templateChoice.document.signature
+                : bootstrap.signature;
+            signature = validatedDocument(signaturePayload, 'signature', currentConfig.marker);
             if (signature.html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
             if (typeof item.body.setSignatureAsync !== 'function') throw codedError('SET_SIGNATURE_UNAVAILABLE');
         }

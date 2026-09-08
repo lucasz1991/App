@@ -374,7 +374,8 @@ final class OutlookAddinUserSnapshotStore
                 || ! is_string($template['hash'] ?? null)
                 || preg_match('/\A[0-9a-f]{64}\z/', $template['hash']) !== 1
                 || ! str_starts_with($template['hash'], $template['version'])
-                || ! $this->validDocumentPayload($template)) {
+                || ! $this->validDocumentPayload($template)
+                || ! $this->validTemplateSignature($template)) {
                 return false;
             }
 
@@ -391,6 +392,27 @@ final class OutlookAddinUserSnapshotStore
             && $legacyTemplate['html'] === $active['html']
             && $legacyTemplate['media'] === $active['media']
             && hash_equals($legacyVersion, $active['version']);
+    }
+
+    /** @param array<string, mixed> $template */
+    private function validTemplateSignature(array $template): bool
+    {
+        if (! array_key_exists('signature', $template)) {
+            return ! array_key_exists('signatureVersion', $template)
+                && ! array_key_exists('signatureDocumentId', $template);
+        }
+
+        $signature = $template['signature'];
+        $version = $template['signatureVersion'] ?? null;
+        $documentId = $template['signatureDocumentId'] ?? null;
+
+        return is_array($signature)
+            && $this->validDocumentPayload($signature)
+            && is_string($version)
+            && preg_match('/\A[0-9a-f]{16}\z/', $version) === 1
+            && str_contains($signature['html'], 'RT-SIGNATURE-VERSION:'.$version)
+            && is_string($documentId)
+            && Str::isUuid($documentId);
     }
 
     /** @param array<string, mixed> $payload */

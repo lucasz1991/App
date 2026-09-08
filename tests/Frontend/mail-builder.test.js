@@ -3290,7 +3290,7 @@ test('mail design manager uses the shared state modal and saves before slot or v
     assert.match(view, /x-on:mail-design-manager-busy\.window="managerBusy = \$event\.detail === true"/);
     assert.match(view, /<x-ui\.state-modal[\s\S]*?state="managerOpen"[\s\S]*?data-mail-design-manager[\s\S]*?data-page-builder-subdialog/);
     assert.match(view, /close-action="closeManager\(\)"/);
-    assert.match(view, /description="[^"]*Genau ein veröffentlichtes Design wird von Systemmails verwendet\."/);
+    assert.match(view, /description="[^"]*Systemmail-Standard, Outlook-Standard und Mitarbeiterauswahl werden getrennt zugeordnet\."/);
 
     for (const control of [
         'data-mail-slot-create-form',

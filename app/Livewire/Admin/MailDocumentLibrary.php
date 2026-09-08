@@ -6,6 +6,8 @@ use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Support\Mail\MailDocumentDelivery;
+use App\Support\Mail\MailDocumentSignaturePairing;
+use App\Support\Mail\MailDocumentSignatureResolver;
 use App\Support\OutlookAddin\OutlookTemplateLibrary;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
@@ -30,6 +32,12 @@ class MailDocumentLibrary extends Component
 
     public bool $confirmOpen = false;
 
+    public bool $pairingOpen = false;
+
+    public string $createSignatureId = '';
+
+    public string $pairingSignatureId = '';
+
     #[Locked]
     public ?string $historyId = null;
 
@@ -40,6 +48,10 @@ class MailDocumentLibrary extends Component
     /** @var array<string, string> */
     #[Locked]
     public array $source = [];
+
+    /** @var array<string, string> */
+    #[Locked]
+    public array $pairing = [];
 
     #[Locked]
     public string $notice = '';
@@ -100,6 +112,7 @@ class MailDocumentLibrary extends Component
         $this->admin();
         $this->resetValidation();
         $this->name = '';
+        $this->createSignatureId = '';
         $this->source = [];
         if ($sourceId !== null) {
             $document = $this->document($sourceId);
@@ -111,6 +124,9 @@ class MailDocumentLibrary extends Component
                 'kind' => $document->kind->value,
             ];
             $this->name = mb_substr((string) $document->name, 0, 68).' – Kopie';
+            if (MailDocumentSignatureResolver::available() && $document->signatureDocument instanceof MailDocument) {
+                $this->createSignatureId = (string) $document->signatureDocument->public_id;
+            }
         } else {
             // New reusable Outlook templates never replace the system default.
             abort_unless($this->kind === MailDocumentKind::Template->value, 422);
@@ -118,7 +134,7 @@ class MailDocumentLibrary extends Component
         $this->createOpen = true;
     }
 
-    public function createDraft(OutlookTemplateLibrary $library): void
+    public function createDraft(OutlookTemplateLibrary $library, MailDocumentSignaturePairing $pairing): void
     {
         $actor = $this->admin();
         abort_unless($this->createOpen, 403);
@@ -133,6 +149,15 @@ class MailDocumentLibrary extends Component
             $created = $source === null
                 ? $library->createDraft($actor, $this->name)
                 : $library->duplicateDraft($actor, $source, $this->name, $this->source['hash']);
+            if (MailDocumentSignatureResolver::available()
+                && $created->kind === MailDocumentKind::Template) {
+                $created = $pairing->assign(
+                    $actor,
+                    $created,
+                    $this->createSignatureId !== '' ? $this->createSignatureId : null,
+                    (string) $created->content_hash,
+                );
+            }
         } catch (ValidationException $exception) {
             $this->showValidation($exception, 'name');
 
@@ -140,11 +165,58 @@ class MailDocumentLibrary extends Component
         }
 
         $this->createOpen = false;
+        $this->createSignatureId = '';
         $this->source = [];
         $this->kind = $created->kind->value;
         $this->filter = 'all';
         $this->search = '';
         $this->notice = '„'.$created->name.'“ wurde als Entwurf angelegt. Es wurde nichts veröffentlicht.';
+        $this->dispatch('mail-document-library-changed');
+    }
+
+    public function openPairing(string $documentId, string $expectedHash): void
+    {
+        $this->admin();
+        abort_unless(MailDocumentSignatureResolver::available(), 422);
+        $this->resetValidation();
+        $document = $this->document($documentId);
+        abort_unless($document->kind === MailDocumentKind::Template, 422);
+        $this->assertCurrent($document, $expectedHash);
+        $document->loadMissing('signatureDocument:id,public_id,name');
+        $this->pairing = [
+            'id' => (string) $document->public_id,
+            'hash' => (string) $document->content_hash,
+            'name' => (string) $document->name,
+        ];
+        $this->pairingSignatureId = (string) ($document->signatureDocument?->public_id ?? '');
+        $this->pairingOpen = true;
+    }
+
+    public function savePairing(MailDocumentSignaturePairing $service): void
+    {
+        $actor = $this->admin();
+        abort_unless($this->pairingOpen && isset($this->pairing['id'], $this->pairing['hash']), 403);
+
+        try {
+            $updated = $service->assign(
+                $actor,
+                $this->document($this->pairing['id']),
+                $this->pairingSignatureId !== '' ? $this->pairingSignatureId : null,
+                $this->pairing['hash'],
+            );
+        } catch (ValidationException $exception) {
+            $this->showValidation($exception, 'signature');
+
+            return;
+        }
+
+        $signatureName = $updated->signatureDocument?->name;
+        $this->notice = $signatureName
+            ? '„'.$updated->name.'“ verwendet im Entwurf jetzt die Signatur „'.$signatureName.'“. Die Freigabe bleibt unverändert.'
+            : '„'.$updated->name.'“ verwendet im Entwurf wieder den jeweiligen Kanalstandard. Die Freigabe bleibt unverändert.';
+        $this->pairingOpen = false;
+        $this->pairing = [];
+        $this->pairingSignatureId = '';
         $this->dispatch('mail-document-library-changed');
     }
 
@@ -226,6 +298,12 @@ class MailDocumentLibrary extends Component
         $libraryReady = $ready && app(OutlookTemplateLibrary::class)->available();
         $historyReady = $ready && Schema::hasTable('mail_document_versions');
         $documents = $ready ? $this->readDocuments($libraryReady, $historyReady) : collect();
+        $pairingReady = $ready && MailDocumentSignatureResolver::available();
+        $signatures = $pairingReady
+            ? MailDocument::query()->where('kind', MailDocumentKind::Signature->value)
+                ->orderBy('name')->orderBy('id')
+                ->get(['id', 'public_id', 'name', 'published_at', 'published_html'])
+            : collect();
         $kind = MailDocumentKind::tryFrom($this->kind) ?? MailDocumentKind::Template;
         $query = mb_strtolower(trim(mb_substr($this->search, 0, 120)));
         $visible = $documents->filter(fn (array $document): bool => $document['kind'] === $kind->value
@@ -252,6 +330,8 @@ class MailDocumentLibrary extends Component
             'libraryReady' => $libraryReady,
             'deliveryReady' => MailDocumentDelivery::available(),
             'historyReady' => $historyReady,
+            'pairingReady' => $pairingReady,
+            'signatures' => $signatures,
             'documents' => $visible->values(),
             'history' => $history,
             'currentKind' => $kind,
@@ -273,13 +353,21 @@ class MailDocumentLibrary extends Component
         if ($libraryReady) {
             array_push($columns, 'is_outlook_template', 'outlook_released', 'outlook_default');
         }
+        $pairingReady = MailDocumentSignatureResolver::available();
+        if ($pairingReady) {
+            array_push($columns, 'signature_document_id', 'published_signature_document_id');
+        }
         $query = MailDocument::query()->select($columns)->with('updater:id,name')
             ->selectRaw("CASE WHEN published_at IS NOT NULL AND TRIM(COALESCE(published_html, '')) <> '' THEN 1 ELSE 0 END AS library_has_release")
-            ->selectRaw("CASE WHEN TRIM(COALESCE(html, '')) <> TRIM(COALESCE(published_html, '')) OR TRIM(COALESCE(css, '')) <> TRIM(COALESCE(published_css, '')) THEN 1 ELSE 0 END AS library_has_changes")
+            ->selectRaw("CASE WHEN TRIM(COALESCE(html, '')) <> TRIM(COALESCE(published_html, '')) OR TRIM(COALESCE(css, '')) <> TRIM(COALESCE(published_css, ''))".($pairingReady ? ' OR CASE WHEN signature_document_id IS NULL AND published_signature_document_id IS NULL THEN 0 WHEN signature_document_id = published_signature_document_id THEN 0 ELSE 1 END = 1' : '').' THEN 1 ELSE 0 END AS library_has_changes')
+            ->when($pairingReady, fn ($query) => $query->with([
+                'signatureDocument:id,public_id,name,published_at,published_html',
+                'publishedSignatureDocument:id,public_id,name',
+            ]))
             ->when($historyReady, fn ($query) => $query->withCount('versions'))
             ->orderBy('name')->orderBy('id');
 
-        return $query->get()->map(static function (MailDocument $document): array {
+        return $query->get()->map(static function (MailDocument $document) use ($pairingReady): array {
             $library = (bool) $document->getAttribute('is_outlook_template');
             $separate = MailDocumentDelivery::available();
             $released = (bool) $document->getAttribute('library_has_release')
@@ -297,6 +385,12 @@ class MailDocumentLibrary extends Component
                 'outlook_default' => (bool) $document->outlook_default,
                 'employee_available' => $released && ($document->kind === MailDocumentKind::Template ? (bool) $document->outlook_released : (bool) $document->outlook_default),
                 'has_changes' => ! $released || (bool) $document->getAttribute('library_has_changes'),
+                'signature_id' => $pairingReady ? $document->signatureDocument?->public_id : null,
+                'signature_name' => $pairingReady ? $document->signatureDocument?->name : null,
+                'signature_has_release' => $pairingReady && $document->signatureDocument !== null
+                    && $document->signatureDocument->published_at !== null
+                    && trim((string) $document->signatureDocument->published_html) !== '',
+                'published_signature_id' => $pairingReady ? $document->publishedSignatureDocument?->public_id : null,
                 'hash' => (string) $document->content_hash,
                 'version' => (int) $document->version,
                 'versions_count' => (int) ($document->versions_count ?? 0),

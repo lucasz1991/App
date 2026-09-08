@@ -80,6 +80,8 @@ Homestead.json
 !/tests/Feature/DeviceIdentityPreparationTest.php
 !/tests/Feature/DeviceProviderLinkTest.php
 !/tests/Feature/DeviceProviderSetupClarityTest.php
+!/tests/Feature/MailDocumentSignaturePairingTest.php
+!/tests/Feature/V28V29MailDeliveryTest.php
 !/tests/Feature/DeviceDesktopClientTest.php
 !/tests/Feature/DeviceIdentityConnectorTest.php
 !/tests/Feature/DeviceProviderWebhookHardeningTest.php
@@ -107,6 +109,12 @@ Homestead.json
 !/tests/Frontend/system-health.test.js
 !/tests/Frontend/mail-builder.test.js
 !/tests/Frontend/mail-signature-reply-forward.test.js
+!/tests/Frontend/mail-signature-mirrored-table-overlap.test.js
+!/tests/Fixtures/
+/tests/Fixtures/*
+!/tests/Fixtures/mail/
+/tests/Fixtures/mail/*
+!/tests/Fixtures/mail/signature-v27.html
 !/tests/Frontend/outlook-compose-template.test.js
 !/tests/Frontend/outlook-mailbox-guard.test.js
 !/tests/Frontend/outlook-write-diagnostics.test.js

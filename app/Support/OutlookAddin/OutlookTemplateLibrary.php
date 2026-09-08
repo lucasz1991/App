@@ -9,6 +9,7 @@ use App\Models\MailDocument;
 use App\Models\MailDocumentVersion;
 use App\Models\User;
 use App\Support\Mail\MailDocumentAutoRepair;
+use App\Support\Mail\MailDocumentSignatureResolver;
 use App\Support\Mail\MailDocumentVersionStore;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use Illuminate\Support\Facades\DB;
@@ -45,10 +46,14 @@ final class OutlookTemplateLibrary
                 $html = (string) $source->html;
                 $css = (string) $source->css;
                 $builderData = $source->builder_data ?: [];
+                $signatureDocumentId = MailDocumentSignatureResolver::available()
+                    ? $source->signature_document_id
+                    : null;
             } else {
                 $html = trim((string) file_get_contents(resource_path('mail-templates/email-master.html')));
                 $css = '';
                 $builderData = MailDocumentAutoRepair::synchronizeBuilderData(MailDocumentKind::Template, [], $html, $name);
+                $signatureDocumentId = null;
             }
 
             $document = MailDocument::query()->create([
@@ -59,13 +64,17 @@ final class OutlookTemplateLibrary
                 'is_outlook_template' => true,
                 'outlook_released' => false,
                 'outlook_default' => null,
+                ...(MailDocumentSignatureResolver::available() ? [
+                    'signature_document_id' => $signatureDocumentId,
+                    'published_signature_document_id' => null,
+                ] : []),
                 'builder_data' => $builderData,
                 'html' => $html,
                 'css' => $css,
                 'published_html' => null,
                 'published_css' => null,
                 'published_at' => null,
-                'content_hash' => MailDocument::contentHashFor($builderData, $html, $css),
+                'content_hash' => MailDocument::contentHashFor($builderData, $html, $css, $signatureDocumentId),
                 'version' => 1,
                 'created_by' => $actor->getKey(),
                 'updated_by' => $actor->getKey(),

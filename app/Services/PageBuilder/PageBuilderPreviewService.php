@@ -11,6 +11,7 @@ use App\Services\Marketing\MarketingHtmlSanitizer;
 use App\Services\Marketing\MarketingRenderAssetHydrator;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\MailDocumentSignatureResolver;
 use App\Support\MailSignature;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -77,27 +78,32 @@ final class PageBuilderPreviewService
         ?string $playbackNonce = null,
     ): array {
         $theme = $theme === 'dark' ? 'dark' : 'light';
-        $signatureDocument = $document->kind === MailDocumentKind::Signature
-            ? $document
-            : (MailDocument::query()
-                ->where('kind', MailDocumentKind::Signature->value)
-                ->active()
-                ->first()
-                ?? MailDocument::query()
+        if (MailDocumentSignatureResolver::available()) {
+            $signatureResolver = app(MailDocumentSignatureResolver::class);
+            $signatureDocument = $signatureResolver->draftDocument($document);
+            $signatureSnapshot = $signatureResolver->draftSnapshot($document);
+            $signatureHtml = (string) ($signatureSnapshot['html'] ?? '');
+            $signatureCss = (string) ($signatureSnapshot['css'] ?? '');
+        } else {
+            $signatureDocument = $document->kind === MailDocumentKind::Signature
+                ? $document
+                : (MailDocument::query()
                     ->where('kind', MailDocumentKind::Signature->value)
-                    ->orderBy('id')
-                    ->first());
+                    ->active()
+                    ->first()
+                    ?? MailDocument::query()
+                        ->where('kind', MailDocumentKind::Signature->value)
+                        ->orderBy('id')
+                        ->first());
 
-        // Only the opened document is a draft preview. As in the delivery
-        // compiler, the other component comes from its published snapshot;
-        // an unpublished draft is only an initial-setup fallback. Keep HTML,
-        // CSS and artifact-bound media on that same snapshot.
-        $signatureHtml = (string) ($signatureDocument?->html ?? '');
-        $signatureCss = (string) ($signatureDocument?->css ?? '');
-        if ($document->kind === MailDocumentKind::Template
-            && trim((string) $signatureDocument?->published_html) !== '') {
-            $signatureHtml = (string) $signatureDocument->published_html;
-            $signatureCss = (string) $signatureDocument->published_css;
+            // Legacy installations keep the former published/setup fallback.
+            $signatureHtml = (string) ($signatureDocument?->html ?? '');
+            $signatureCss = (string) ($signatureDocument?->css ?? '');
+            if ($document->kind === MailDocumentKind::Template
+                && trim((string) $signatureDocument?->published_html) !== '') {
+                $signatureHtml = (string) $signatureDocument->published_html;
+                $signatureCss = (string) $signatureDocument->published_css;
+            }
         }
 
         // Vorschau und Editor zeigen den tatsaechlichen Absenderkontext der

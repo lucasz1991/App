@@ -145,7 +145,7 @@ final class SignatureDocumentContract
 
         $artifactVersion = SignatureArtifactVersion::detect('signature', $html);
 
-        if ($artifactVersion === SignatureTableOverlap::VERSION) {
+        if (SignatureArtifactVersion::usesTableOverlapTrain($artifactVersion)) {
             SignatureTableOverlap::assertValid($html);
             self::assertV18ForwardSafeLayout($html);
 

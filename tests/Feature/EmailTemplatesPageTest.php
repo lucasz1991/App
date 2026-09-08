@@ -1048,6 +1048,138 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertNotSame($fingerprint, $payloads->sourceFingerprint($user));
     }
 
+    public function test_outlook_template_pair_uses_its_published_signature_without_changing_the_global_signature_contract(): void
+    {
+        config([
+            'app.url' => 'https://app.rail-time.de',
+            'outlook_addin.base_url' => 'https://app.rail-time.de',
+            'outlook_addin.marker' => 'RT-SIGNATURE-MANAGED-V1',
+            'outlook_addin.snapshots.disk' => 'private',
+        ]);
+        Storage::fake('private');
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_22_000200_create_mail_document_versions_table.php'))->up();
+        (include database_path('migrations/2026_08_27_000100_add_design_slots_to_mail_documents.php'))->up();
+        (include database_path('migrations/2026_09_06_010000_add_outlook_library_to_mail_documents.php'))->up();
+        (include database_path('migrations/2026_09_07_190000_separate_mail_document_delivery_channels.php'))->up();
+        (include database_path('migrations/2026_09_08_120000_add_mail_document_signature_pairing.php'))->up();
+        $this->createCanonicalMailDocuments();
+
+        $template = MailDocument::query()
+            ->where('kind', MailDocumentKind::Template->value)
+            ->firstOrFail();
+        $globalSignature = MailDocument::query()
+            ->where('kind', MailDocumentKind::Signature->value)
+            ->firstOrFail();
+        $pairedHtml = str_replace(
+            '{{VORNAME_NACHNAME}}',
+            'Gekoppelte Signatur · {{VORNAME_NACHNAME}}',
+            (string) $globalSignature->published_html,
+            $pairedCount,
+        );
+        $this->assertSame(1, $pairedCount);
+        $pairedBuilderData = $globalSignature->builder_data;
+        $pairedBuilderData['pages'][0]['component'] = $pairedHtml;
+        $pairedSignature = MailDocument::query()->create([
+            'kind' => MailDocumentKind::Signature,
+            'name' => 'Gekoppelte Outlook-Signatur',
+            'status' => MailDocumentStatus::Draft,
+            'is_active' => null,
+            'is_outlook_template' => false,
+            'outlook_released' => false,
+            'outlook_default' => null,
+            'builder_data' => $pairedBuilderData,
+            'html' => $pairedHtml,
+            'css' => '',
+            'published_html' => $pairedHtml,
+            'published_css' => '',
+            'published_at' => now(),
+            'content_hash' => MailDocument::contentHashFor($pairedBuilderData, $pairedHtml, ''),
+            'version' => 1,
+        ]);
+        $globalSignature->forceFill(['outlook_default' => true])->save();
+        $template->forceFill([
+            'outlook_released' => true,
+            'outlook_default' => true,
+            'signature_document_id' => $globalSignature->id,
+            'published_signature_document_id' => $pairedSignature->id,
+        ])->save();
+
+        $store = app(PublishedMailDocumentSnapshotStore::class);
+        $store->forget(MailDocumentKind::Template);
+        $store->forget(MailDocumentKind::Signature);
+        $user = User::factory()->create([
+            'name' => 'Mara Beispiel',
+            'role' => 'staff',
+            'status' => true,
+            'email_verified_at' => now(),
+        ]);
+        $payloads = app(OutlookAddinPayloadService::class);
+        $fingerprint = $payloads->sourceFingerprint($user);
+        $payload = $payloads->forUser($user);
+        $pairedTemplate = collect($payload['templates'])->firstWhere('id', $template->public_id);
+
+        $this->assertIsArray($pairedTemplate);
+        $this->assertArrayHasKey('signature', $pairedTemplate);
+        $this->assertSame($pairedSignature->public_id, $pairedTemplate['signatureDocumentId']);
+        $this->assertMatchesRegularExpression('/\A[0-9a-f]{16}\z/', $pairedTemplate['signatureVersion']);
+        $this->assertStringContainsString(
+            'RT-SIGNATURE-VERSION:'.$pairedTemplate['signatureVersion'],
+            $pairedTemplate['signature']['html'],
+        );
+        $this->assertStringContainsString('Gekoppelte Signatur · Mara Beispiel', $pairedTemplate['signature']['html']);
+        $this->assertStringContainsString('Gekoppelte Signatur · Mara Beispiel', $pairedTemplate['html']);
+        $this->assertStringNotContainsString('Gekoppelte Signatur', $pairedTemplate['composeHtml']);
+        $this->assertStringNotContainsString('Gekoppelte Signatur', $payload['signature']['html']);
+        $this->assertSame($payload['template'], [
+            'html' => $pairedTemplate['html'],
+            'media' => $pairedTemplate['media'],
+        ]);
+        $storedPayload = app(OutlookAddinUserSnapshotStore::class)->rebuildForUser($user);
+        $this->assertSame(
+            $pairedSignature->public_id,
+            collect($storedPayload['templates'])->firstWhere('id', $template->public_id)['signatureDocumentId'],
+        );
+        $this->assertStringContainsString('Gekoppelte Signatur', $store->freshSnapshot(MailDocumentKind::Signature)['html']);
+
+        $pairedSignature->forceFill([
+            'published_html' => str_replace('Gekoppelte Signatur', 'Gekoppelte Signatur aktualisiert', $pairedHtml),
+        ])->save();
+        $this->assertNotSame($fingerprint, $payloads->sourceFingerprint($user));
+
+        $template->forceFill([
+            'signature_document_id' => null,
+            'published_signature_document_id' => null,
+        ])->save();
+        $inactivePublishedTemplate = $this->createTemplateSlot(
+            'Inaktive Vorlage mit eigener Signatur',
+            (string) $template->html,
+            (string) $template->published_html,
+        );
+        $inactivePublishedTemplate->forceFill([
+            'status' => MailDocumentStatus::Published,
+            'is_active' => null,
+            'outlook_released' => true,
+            'published_signature_document_id' => $pairedSignature->id,
+        ])->save();
+        $store->forget(MailDocumentKind::Template);
+        $store->forget(MailDocumentKind::Signature);
+        $unpaired = $payloads->forUser($user);
+        $unpairedTemplate = collect($unpaired['templates'])->firstWhere('id', $template->public_id);
+        $this->assertArrayNotHasKey('signature', $unpairedTemplate);
+        $this->assertArrayNotHasKey('signatureVersion', $unpairedTemplate);
+        $this->assertArrayNotHasKey('signatureDocumentId', $unpairedTemplate);
+        $this->assertSame(
+            hash('sha256', trim((string) $template->published_html)."\0".trim((string) $template->published_css)),
+            $unpairedTemplate['hash'],
+        );
+        $this->assertStringContainsString(
+            'Gekoppelte Signatur aktualisiert',
+            collect($unpaired['templates'])->firstWhere('id', $inactivePublishedTemplate->public_id)['signature']['html'],
+        );
+        $this->assertStringNotContainsString('Gekoppelte Signatur', $store->freshSnapshot(MailDocumentKind::Signature)['html']);
+    }
+
     public function test_outlook_library_payload_default_is_explicit_and_drafts_do_not_change_employee_snapshots(): void
     {
         config(['app.url' => 'https://app.rail-time.de', 'outlook_addin.base_url' => 'https://app.rail-time.de', 'outlook_addin.snapshots.auto_refresh' => false]);
@@ -1574,7 +1706,7 @@ class EmailTemplatesPageTest extends TestCase
             ->assertSee('data-ui-preview-frame', escape: false)
             ->assertSee('data-email-template-preview-frame', escape: false)
             ->assertDontSee('data-email-template-accordion=', escape: false)
-            ->assertSee('data-menu-active="true"', escape: false);
+            ->assertDontSee('data-menu-active="true"', escape: false);
 
         preg_match_all('/data-template-key="([^"]+)"/', $content, $matches);
 
@@ -1673,7 +1805,7 @@ class EmailTemplatesPageTest extends TestCase
             ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'slot' => $signature->public_id, 'open' => 1]))
             ->assertSee('data-email-template-editor-link', escape: false)
             ->assertSee('Vorlagen verwalten', escape: false)
-            ->assertSee('data-menu-active="true"', escape: false);
+            ->assertDontSee('data-menu-active="true"', escape: false);
     }
 
     public function test_non_admin_does_not_see_the_mail_document_editor_action(): void

@@ -9,23 +9,30 @@ use DOMElement;
 use DOMXPath;
 use RuntimeException;
 
-/** Opt-in V27: a bottom-aligned IMG and readable contacts share one table row. */
+/** Opt-in V27/V28/V29: a bottom-aligned IMG and readable contacts share one table row. */
 final class SignatureTableOverlap
 {
     public const VERSION = 'v27';
 
     public static function applies(string $html): bool
     {
-        return SignatureArtifactVersion::detect('signature', $html) === self::VERSION;
+        return SignatureArtifactVersion::usesTableOverlapTrain(SignatureArtifactVersion::detect('signature', $html));
     }
 
     /** The cropped canvas preserves the V19 visible geometry and full smoke height. */
-    public static function profiles(): array
+    public static function profiles(string $version = self::VERSION): array
     {
+        if (! SignatureArtifactVersion::usesTableOverlapTrain($version)) {
+            throw new RuntimeException('Unbekannte Tabellen-IMG-Signaturversion.');
+        }
+        // The mirror must never extend beyond the right canvas edge. Unlike
+        // V27's leftward overflow, rightward overflow creates client scrolling.
+        $mirrored = SignatureArtifactVersion::usesMirroredTrain($version);
+
         return [
             'desktop' => ['max' => null, 'anchor' => '6031.746032', 'image' => '100'],
-            'tablet' => ['max' => 860, 'anchor' => '6547.619048', 'image' => '138.181818'],
-            'mobile' => ['max' => 480, 'anchor' => '6563.492063', 'image' => '183.796856'],
+            'tablet' => ['max' => 860, 'anchor' => '6547.619048', 'image' => $mirrored ? '100' : '138.181818'],
+            'mobile' => ['max' => 480, 'anchor' => '6563.492063', 'image' => $mirrored ? '100' : '183.796856'],
         ];
     }
 
@@ -69,23 +76,54 @@ final class SignatureTableOverlap
         return $result;
     }
 
+    /** Explicit new draft only: preserve tokens/content while opting into mirrored media. */
+    public static function mirroredFromV27(string $html, string $version): string
+    {
+        SignatureDocumentContract::assertValid($html);
+        if (SignatureArtifactVersion::detect('signature', $html) !== self::VERSION
+            || ! SignatureArtifactVersion::usesMirroredTrain($version)) {
+            throw new RuntimeException('Gespiegelte Entwuerfe benoetigen eine V27-Quelle und Ziel V28 oder V29.');
+        }
+        [$dom, $xpath] = self::document($html);
+        $row = $xpath->query('//*[@id="rt-v27-root"]/tbody/tr')->item(0);
+        $row->setAttribute(SignatureArtifactVersion::ATTRIBUTE, $version);
+        foreach (['rt-sign-content-frame' => 'rtl', 'rt-v27-image-cell' => 'rtl', 'rt-sign-content' => 'ltr'] as $class => $direction) {
+            $element = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]')->item(0);
+            $element->setAttribute('dir', $direction);
+            $element->setAttribute('style', rtrim($element->getAttribute('style'), ';').';direction:'.$direction.';');
+        }
+        foreach (['rt-v27-image-cell', 'rt-v27-anchor'] as $class) {
+            $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]')->item(0)->setAttribute('align', 'right');
+        }
+        $result = '';
+        foreach ($dom->getElementById('rt-v27-root')->firstElementChild->childNodes as $node) {
+            $result .= $dom->saveHTML($node);
+        }
+        $result = trim(str_ireplace(['%7B', '%7D'], ['{', '}'], $result));
+        SignatureDocumentContract::assertValid($result);
+
+        return $result;
+    }
+
     public static function assertValid(string $html): void
     {
         self::assertRuntime($html, '{{TRAIN_SRC}}');
         if (substr_count($html, '{{TRAIN_SRC}}') !== 1 || str_contains($html, '{{TRAIN_IDLE_SRC}}')) {
-            throw new RuntimeException('V27 benoetigt genau ein gebundenes IMG ohne Idle-Kopie.');
+            throw new RuntimeException('V27/V28/V29 benoetigen genau ein gebundenes IMG ohne Idle-Kopie.');
         }
     }
 
     public static function assertRuntime(string $html, ?string $source = null): void
     {
         if (! self::applies($html)) {
-            throw new RuntimeException('Der Tabellen-Ueberlappungsvertrag gilt nur fuer V27.');
+            throw new RuntimeException('Der Tabellen-Ueberlappungsvertrag gilt nur fuer V27, V28 und V29.');
         }
+        $version = SignatureArtifactVersion::detect('signature', $html);
+        $mirrored = SignatureArtifactVersion::usesMirroredTrain($version);
         [, $xpath] = self::document($html);
         $topRows = $xpath->query('//*[@id="rt-v27-root"]/tbody/tr');
-        if ($topRows->length !== 2 || $topRows->item(0)->getAttribute('data-rt-artifact-version') !== self::VERSION) {
-            throw new RuntimeException('V27 benoetigt genau zwei oberste Tabellenzeilen.');
+        if ($topRows->length !== 2 || $topRows->item(0)->getAttribute('data-rt-artifact-version') !== $version) {
+            throw new RuntimeException('Tabellen-IMG-Signaturen benoetigen genau zwei oberste Tabellenzeilen.');
         }
         $nodes = [];
         foreach (['rt-sign-cell', 'rt-sign-stage', 'rt-sign-content-frame', 'rt-v27-image-cell', 'rt-v27-anchor', 'rt-v27-image-slot', 'rt-sign-train', 'rt-sign-content'] as $class) {
@@ -118,8 +156,21 @@ final class SignatureTableOverlap
             || $image->hasAttribute('height')) {
             throw new RuntimeException('V27 muss IMG und lesbare Kontakte in derselben Tabellenzeile halten.');
         }
+        if ($mirrored && ($frame->getAttribute('dir') !== 'rtl'
+            || $imageCell->getAttribute('dir') !== 'rtl'
+            || $imageCell->getAttribute('align') !== 'right'
+            || $nodes['rt-v27-anchor']->getAttribute('align') !== 'right'
+            || $content->getAttribute('dir') !== 'ltr')) {
+            throw new RuntimeException('V28/V29 muessen das IMG rechts andocken und die Kontakte links-nach-rechts lesen.');
+        }
         if ($source === '{{TRAIN_SRC}}') {
-            foreach (['rt-sign-content-frame' => ['width' => '100%', 'table-layout' => 'fixed'], 'rt-v27-anchor' => ['width' => '6031.746032%', 'table-layout' => 'fixed'], 'rt-sign-train' => ['width' => '100%', 'height' => 'auto', 'display' => 'inline-block']] as $class => $properties) {
+            $expected = ['rt-sign-content-frame' => ['width' => '100%', 'table-layout' => 'fixed'], 'rt-v27-anchor' => ['width' => '6031.746032%', 'table-layout' => 'fixed'], 'rt-sign-train' => ['width' => '100%', 'height' => 'auto', 'display' => 'inline-block']];
+            if ($mirrored) {
+                $expected['rt-sign-content-frame']['direction'] = 'rtl';
+                $expected['rt-v27-image-cell'] = ['direction' => 'rtl'];
+                $expected['rt-sign-content'] = ['direction' => 'ltr'];
+            }
+            foreach ($expected as $class => $properties) {
                 $styles = [];
                 foreach (explode(';', $nodes[$class]->getAttribute('style')) as $declaration) {
                     $parts = explode(':', $declaration, 2);
@@ -136,7 +187,8 @@ final class SignatureTableOverlap
         }
         foreach ($xpath->query('//*[@style or @background]') as $element) {
             $style = $element->getAttribute('style');
-            if ($element->hasAttribute('background') || preg_match('/(?:url|gradient)\s*\(|(?:^|;)\s*(?:position|z-index|overflow|margin(?:-[a-z]+)?)\s*:[^;]*(?:absolute|hidden|-[0-9])/i', $style)) {
+            if ($element->hasAttribute('background') || preg_match('/(?:url|gradient)\s*\(|(?:^|;)\s*(?:position|z-index|overflow|margin(?:-[a-z]+)?)\s*:[^;]*(?:absolute|hidden|-[0-9])/i', $style)
+                || ($mirrored && preg_match('/(?:^|;)\s*(?:transform\s*:|display\s*:\s*(?:inline-)?(?:grid|flex)\b)/i', $style))) {
                 throw new RuntimeException('V27 erlaubt keine Bildhintergruende, Clipping- oder Minusmargin-Ersatzebenen.');
             }
         }
@@ -151,9 +203,10 @@ final class SignatureTableOverlap
         return $result;
     }
 
-    public static function css(): string
+    public static function css(string $version = self::VERSION): string
     {
-        $scope = 'tr[data-rt-artifact-version="v27"]';
+        $profiles = self::profiles($version);
+        $scope = 'tr[data-rt-artifact-version="'.$version.'"]';
         $css = str_replace('{scope}', $scope, SignatureImgOverlap::editorSettings()['layoutCss']);
         $css .= $scope.' .rt-sign-content-frame{width:100%!important;table-layout:fixed!important;height:auto!important;}'
             .$scope.' .rt-v27-image-cell{width:1%!important;padding:0!important;font-size:0!important;line-height:0!important;vertical-align:bottom!important;}'
@@ -161,7 +214,12 @@ final class SignatureTableOverlap
             .$scope.' .rt-sign-train{display:inline-block!important;height:auto!important;border:0!important;vertical-align:bottom!important;margin:0!important;}'
             .$scope.' .rt-sign-content{vertical-align:top!important;background-color:transparent!important;height:auto!important;}'
             .$scope.' .rt-contact-text,'.$scope.' .rt-company-contact-text{overflow-wrap:anywhere!important;word-break:normal!important;}';
-        foreach (self::profiles() as $profile) {
+        if (SignatureArtifactVersion::usesMirroredTrain($version)) {
+            $css .= $scope.' .rt-sign-content-frame,'.$scope.' .rt-v27-image-cell{direction:rtl!important;}'
+                .$scope.' .rt-v27-image-cell{text-align:right!important;}'
+                .$scope.' .rt-sign-content{direction:ltr!important;}';
+        }
+        foreach ($profiles as $profile) {
             $rule = $scope.' .rt-v27-anchor{width:'.$profile['anchor'].'%!important;table-layout:fixed!important;border-collapse:collapse!important;}'
                 .$scope.' .rt-sign-train{width:'.$profile['image'].'%!important;max-width:'.$profile['image'].'%!important;}';
             $css .= $profile['max'] === null ? $rule : '@media only screen and (max-width:'.$profile['max'].'px){'.$rule.'}';

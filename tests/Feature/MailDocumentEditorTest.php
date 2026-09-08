@@ -20,6 +20,7 @@ use App\Support\Mail\CssSemantic;
 use App\Support\Mail\EmailCompatibilityAuditor;
 use App\Support\Mail\EmailCompatibilityCatalog;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\MailDocumentSignaturePairing;
 use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
@@ -238,6 +239,82 @@ class MailDocumentEditorTest extends TestCase
         $this->assertSame(MailDocumentKind::Signature, $copy->kind);
         $this->assertFalse($copy->isOutlookTemplate());
         $this->assertFalse($copy->isActive());
+    }
+
+    public function test_mail_document_library_pairs_template_drafts_without_changing_any_default(): void
+    {
+        config(['outlook_addin.snapshots.auto_refresh' => false]);
+        (include database_path('migrations/2026_09_06_010000_add_outlook_library_to_mail_documents.php'))->up();
+        (include database_path('migrations/2026_09_07_190000_separate_mail_document_delivery_channels.php'))->up();
+        (include database_path('migrations/2026_09_08_120000_add_mail_document_signature_pairing.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $admin = $this->admin();
+        $systemTemplate = $this->document(MailDocumentKind::Template);
+        $systemSignature = $this->document(MailDocumentKind::Signature);
+        $pairedSignature = $this->createCanonicalMailDocument(
+            MailDocumentKind::Signature,
+            published: false,
+            name: 'Signal Signatur – Entwurf',
+            isActive: false,
+        );
+        $draft = app(OutlookTemplateLibrary::class)->createDraft($admin, 'Signal Vorlage – Entwurf');
+
+        Livewire::actingAs($admin)->test(MailDocumentLibrary::class)
+            ->call('openPairing', $draft->public_id, $draft->content_hash)
+            ->assertSet('pairingOpen', true)
+            ->set('pairingSignatureId', $pairedSignature->public_id)
+            ->call('savePairing')
+            ->assertHasNoErrors()
+            ->assertSet('pairingOpen', false)
+            ->assertSee('Signal Signatur – Entwurf');
+
+        $draft->refresh();
+        $this->assertSame($pairedSignature->id, $draft->signature_document_id);
+        $this->assertNull($draft->published_signature_document_id);
+        $this->assertTrue($systemTemplate->fresh()->isActive());
+        $this->assertTrue($systemSignature->fresh()->isActive());
+        $this->assertFalse($draft->isActive());
+        $this->assertFalse($draft->isPublished());
+        $this->assertFalse($pairedSignature->fresh()->isActive());
+        $this->assertFalse($pairedSignature->fresh()->isPublished());
+    }
+
+    public function test_publishing_a_paired_outlook_draft_snapshots_only_its_released_signature(): void
+    {
+        config(['outlook_addin.snapshots.auto_refresh' => false]);
+        (include database_path('migrations/2026_09_06_010000_add_outlook_library_to_mail_documents.php'))->up();
+        (include database_path('migrations/2026_09_07_190000_separate_mail_document_delivery_channels.php'))->up();
+        (include database_path('migrations/2026_09_08_120000_add_mail_document_signature_pairing.php'))->up();
+        $this->createCanonicalMailDocuments();
+        $admin = $this->admin();
+        $systemTemplate = $this->document(MailDocumentKind::Template);
+        $systemSignature = $this->document(MailDocumentKind::Signature);
+        $pairedSignature = $this->createCanonicalMailDocument(
+            MailDocumentKind::Signature,
+            published: true,
+            name: 'Kontur Signatur – Freigabe',
+            isActive: false,
+        );
+        $draft = app(OutlookTemplateLibrary::class)->createDraft($admin, 'Kontur Vorlage – Entwurf');
+        $draft = app(MailDocumentSignaturePairing::class)->assign(
+            $admin,
+            $draft,
+            $pairedSignature->public_id,
+            $draft->content_hash,
+        );
+
+        $this->actingAs($admin)->postJson(route('admin.mail-documents.publish', $draft), [
+            'expected_hash' => $draft->content_hash,
+        ])->assertOk()->assertJsonPath('document.published_signature.id', $pairedSignature->public_id);
+
+        $draft->refresh();
+        $this->assertSame($pairedSignature->id, $draft->signature_document_id);
+        $this->assertSame($pairedSignature->id, $draft->published_signature_document_id);
+        $this->assertTrue($draft->isPublished());
+        $this->assertFalse($draft->isActive());
+        $this->assertNull($draft->outlook_default);
+        $this->assertTrue($systemTemplate->fresh()->isActive());
+        $this->assertTrue($systemSignature->fresh()->isActive());
     }
 
     public function test_mail_document_library_livewire_confirms_publication_default_withdrawal_and_rejects_stale_confirmation(): void

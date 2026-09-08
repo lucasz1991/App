@@ -21,6 +21,7 @@ use App\Support\Mail\EmailHtmlReport;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentAutoRepair;
 use App\Support\Mail\MailDocumentDelivery;
+use App\Support\Mail\MailDocumentSignatureResolver;
 use App\Support\Mail\MailDocumentVersionStore;
 use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
@@ -419,9 +420,10 @@ final class MailDocumentController extends Controller
         );
         $finalHtml = $this->compileFinalSystemMailCandidate(
             $snapshots,
-            $document->kind,
+            $document,
             $htmlReport->html,
             $cssReport->html,
+            false,
         );
         if ($finalHtml === null) {
             throw ValidationException::withMessages([
@@ -545,6 +547,7 @@ final class MailDocumentController extends Controller
             $builderData,
             $htmlReport->html,
             $cssReport->html,
+            $document->signature_document_id,
         );
 
         return [
@@ -816,6 +819,7 @@ final class MailDocumentController extends Controller
                 $builderData,
                 $htmlReport->html,
                 $cssReport->html,
+                $locked->signature_document_id,
             );
 
             // Idempotent: ist nichts anders, wird nicht geschrieben. Sonst
@@ -920,10 +924,11 @@ final class MailDocumentController extends Controller
             $compatibility = $this->auditFinalCompatibility(
                 $compatibilityAuditor,
                 $publishedDocuments,
-                $locked->kind,
+                $locked,
                 $htmlReport->html,
                 $cssReport->html,
                 $sourceCompatibility,
+                publishing: true,
             );
             $this->assertCompatibilityPublishable($compatibility);
 
@@ -932,7 +937,27 @@ final class MailDocumentController extends Controller
                 $locked->builder_data ?: [],
                 $htmlReport->html,
             );
-            $contentHash = MailDocument::contentHashFor($builderData, $htmlReport->html, $cssReport->html);
+            $contentHash = MailDocument::contentHashFor(
+                $builderData,
+                $htmlReport->html,
+                $cssReport->html,
+                $locked->signature_document_id,
+            );
+
+            $publishedSignatureId = null;
+            if ($locked->kind === MailDocumentKind::Template
+                && MailDocumentSignatureResolver::available()
+                && $locked->signature_document_id !== null) {
+                $signature = app(MailDocumentSignatureResolver::class)->draftDocument($locked);
+                if (! $signature instanceof MailDocument
+                    || $signature->published_at === null
+                    || trim((string) $signature->published_html) === '') {
+                    throw ValidationException::withMessages([
+                        'signature' => 'Die zugeordnete Signatur muss zuerst einen veröffentlichten Stand erhalten. Der Signaturentwurf wurde nicht automatisch veröffentlicht.',
+                    ]);
+                }
+                $publishedSignatureId = $signature->getKey();
+            }
 
             $attributes = [
                 'builder_data' => $builderData,
@@ -947,6 +972,10 @@ final class MailDocumentController extends Controller
                     ? $locked->is_active : ($locked->isOutlookTemplate() ? null : true),
                 'updated_by' => $actor->getKey(),
             ];
+            if ($locked->kind === MailDocumentKind::Template
+                && MailDocumentSignatureResolver::available()) {
+                $attributes['published_signature_document_id'] = $publishedSignatureId;
+            }
 
             if (! MailDocumentDelivery::available() && $locked->isOutlookTemplate()) {
                 $attributes['outlook_released'] = true;
@@ -1040,6 +1069,10 @@ final class MailDocumentController extends Controller
                 'name' => $name,
                 'status' => MailDocumentStatus::Draft,
                 'is_active' => null,
+                ...(MailDocumentSignatureResolver::available() ? [
+                    'signature_document_id' => $source->signature_document_id,
+                    'published_signature_document_id' => null,
+                ] : []),
                 'builder_data' => $source->builder_data ?: [],
                 'html' => (string) $source->html,
                 'css' => (string) $source->css,
@@ -1133,6 +1166,15 @@ final class MailDocumentController extends Controller
                     'slot' => 'Der letzte Design-Slot dieser Dokumentart kann nicht gelöscht werden.',
                 ]);
             }
+            if ($locked->kind === MailDocumentKind::Signature
+                && MailDocumentSignatureResolver::available()
+                && MailDocument::query()->where(static fn ($query) => $query
+                    ->where('signature_document_id', $locked->getKey())
+                    ->orWhere('published_signature_document_id', $locked->getKey()))->exists()) {
+                throw ValidationException::withMessages([
+                    'slot' => 'Diese Signatur ist noch einer Vorlage zugeordnet. Löse die Zuordnung zuerst in der Vorlagenübersicht.',
+                ]);
+            }
 
             $fallback = $slots->first(fn (MailDocument $slot): bool => $slot->getKey() !== $locked->getKey() && $slot->isActive())
                 ?? $slots->first(fn (MailDocument $slot): bool => $slot->getKey() !== $locked->getKey());
@@ -1211,8 +1253,22 @@ final class MailDocumentController extends Controller
                     'expected_hash' => 'Das Dokument wurde zwischenzeitlich geändert. Bitte lade die Seite neu.',
                 ]);
             }
-            if (hash_equals((string) $locked->content_hash, (string) $version->content_hash)) {
+            $restoredSignatureId = MailDocumentSignatureResolver::available()
+                && Schema::hasColumn('mail_document_versions', 'signature_document_id')
+                    ? $version->signature_document_id
+                    : $locked->signature_document_id;
+            if (hash_equals((string) $locked->content_hash, (string) $version->content_hash)
+                && $locked->signature_document_id === $restoredSignatureId) {
                 throw ValidationException::withMessages(['version' => 'Diese Version ist bereits der aktuelle Entwurf.']);
+            }
+
+            if ($restoredSignatureId !== null) {
+                $restoredSignature = MailDocument::query()->find($restoredSignatureId);
+                try {
+                    app(MailDocumentSignatureResolver::class)->assertAssignable($locked, $restoredSignature);
+                } catch (\RuntimeException $exception) {
+                    throw ValidationException::withMessages(['version' => $exception->getMessage()]);
+                }
             }
 
             $versionHtml = MailDocumentAutoRepair::repairHtml($locked->kind, (string) $version->html);
@@ -1223,13 +1279,21 @@ final class MailDocumentController extends Controller
             }
             $this->assertDocumentStructure($locked, $htmlReport->html, $cssReport->html);
             $builderData = $this->syncBuilderData($locked, $version->builder_data ?: [], $htmlReport->html);
-            $hash = MailDocument::contentHashFor($builderData, $htmlReport->html, $cssReport->html);
+            $hash = MailDocument::contentHashFor(
+                $builderData,
+                $htmlReport->html,
+                $cssReport->html,
+                $restoredSignatureId,
+            );
 
             $locked->forceFill([
                 'builder_data' => $builderData,
                 'html' => $htmlReport->html,
                 'css' => $cssReport->html,
                 'content_hash' => $hash,
+                ...(MailDocumentSignatureResolver::available() ? [
+                    'signature_document_id' => $restoredSignatureId,
+                ] : []),
                 'version' => $locked->version + 1,
                 'updated_by' => $actor->getKey(),
             ])->save();
@@ -1284,7 +1348,7 @@ final class MailDocumentController extends Controller
         $compatibility = $this->auditFinalCompatibility(
             $compatibilityAuditor,
             $snapshots,
-            $document->kind,
+            $document,
             $html,
             $cssReport->html,
             $sourceCompatibility,
@@ -1556,6 +1620,12 @@ final class MailDocumentController extends Controller
      */
     private function payload(MailDocument $document): array
     {
+        $pairingAvailable = MailDocumentSignatureResolver::available();
+        $document->loadMissing(array_filter([
+            $pairingAvailable ? 'signatureDocument:id,public_id,name' : null,
+            $pairingAvailable ? 'publishedSignatureDocument:id,public_id,name' : null,
+        ]));
+
         return [
             'id' => $document->public_id,
             'kind' => $document->kind->value,
@@ -1567,6 +1637,14 @@ final class MailDocumentController extends Controller
             'status' => $document->status->value,
             'status_label' => $document->status->label(),
             'content_hash' => (string) $document->content_hash,
+            'signature' => $pairingAvailable && $document->signatureDocument instanceof MailDocument ? [
+                'id' => $document->signatureDocument->public_id,
+                'name' => (string) $document->signatureDocument->name,
+            ] : null,
+            'published_signature' => $pairingAvailable && $document->publishedSignatureDocument instanceof MailDocument ? [
+                'id' => $document->publishedSignatureDocument->public_id,
+                'name' => (string) $document->publishedSignatureDocument->name,
+            ] : null,
             'version' => (int) $document->version,
             // Serverautoritative Werte: nach der Haertung darf der Client
             // sein lokales, noch ungeprueftes Projekt nicht weiterverwenden.
@@ -1599,6 +1677,8 @@ final class MailDocumentController extends Controller
                     'published' => 'Veröffentlicht',
                     'restored' => 'Wiederhergestellt',
                     'duplicated' => 'Dupliziert',
+                    'signature_assigned' => 'Signatur zugeordnet',
+                    'signature_cleared' => 'Signaturzuordnung entfernt',
                     default => 'Gespeichert',
                 },
                 'created_label' => $version->created_at?->translatedFormat('d.m.Y H:i'),
@@ -1665,16 +1745,18 @@ final class MailDocumentController extends Controller
     private function auditFinalCompatibility(
         EmailCompatibilityAuditor $auditor,
         PublishedMailDocumentSnapshotStore $snapshots,
-        MailDocumentKind $candidateKind,
+        MailDocument $candidateDocument,
         string $candidateHtml,
         string $candidateCss,
         EmailCompatibilityReport $fallback,
+        bool $publishing = false,
     ): EmailCompatibilityReport {
         $finalHtml = $this->compileFinalSystemMailCandidate(
             $snapshots,
-            $candidateKind,
+            $candidateDocument,
             $candidateHtml,
             $candidateCss,
+            $publishing,
         );
         if ($finalHtml === null) {
             return $fallback;
@@ -1690,10 +1772,30 @@ final class MailDocumentController extends Controller
      */
     private function compileFinalSystemMailCandidate(
         PublishedMailDocumentSnapshotStore $snapshots,
-        MailDocumentKind $candidateKind,
+        MailDocument|MailDocumentKind $candidateDocument,
         string $candidateHtml,
         string $candidateCss,
+        bool $publishing = false,
     ): ?string {
+        // Keep the narrow legacy helper contract used by older preview tests
+        // and callers, while all current editor paths pass the exact document
+        // so an explicit signature pairing can be resolved without guessing.
+        if ($candidateDocument instanceof MailDocumentKind) {
+            $candidateDocument = MailDocument::query()
+                ->where('kind', $candidateDocument->value)
+                ->active()
+                ->first()
+                ?? MailDocument::query()
+                    ->where('kind', $candidateDocument->value)
+                    ->orderBy('id')
+                    ->first();
+
+            if (! $candidateDocument instanceof MailDocument) {
+                return null;
+            }
+        }
+
+        $candidateKind = $candidateDocument->kind;
         $documents = [];
         foreach (MailDocumentKind::cases() as $kind) {
             if ($kind === $candidateKind) {
@@ -1702,20 +1804,33 @@ final class MailDocumentController extends Controller
                 continue;
             }
 
-            $document = MailDocument::query()
-                ->where('kind', $kind->value)
-                ->active()
-                ->first()
-                ?? MailDocument::query()->where('kind', $kind->value)->orderBy('id')->first();
-            if (! $document instanceof MailDocument) {
-                return null;
-            }
+            if ($kind === MailDocumentKind::Signature
+                && $candidateKind === MailDocumentKind::Template
+                && MailDocumentSignatureResolver::available()) {
+                $signatureSnapshot = $this->signatureSnapshotForTemplateCandidate(
+                    $candidateDocument,
+                    $publishing,
+                );
+                if ($signatureSnapshot === null) {
+                    return null;
+                }
+                $documents[$kind->value] = $signatureSnapshot;
+            } else {
+                $document = MailDocument::query()
+                    ->where('kind', $kind->value)
+                    ->active()
+                    ->first()
+                    ?? MailDocument::query()->where('kind', $kind->value)->orderBy('id')->first();
+                if (! $document instanceof MailDocument) {
+                    return null;
+                }
 
-            $publishedHtml = trim((string) $document->published_html);
-            $documents[$kind->value] = [
-                'html' => $publishedHtml !== '' ? $publishedHtml : (string) $document->html,
-                'css' => $publishedHtml !== '' ? (string) $document->published_css : (string) $document->css,
-            ];
+                $publishedHtml = trim((string) $document->published_html);
+                $documents[$kind->value] = [
+                    'html' => $publishedHtml !== '' ? $publishedHtml : (string) $document->html,
+                    'css' => $publishedHtml !== '' ? (string) $document->published_css : (string) $document->css,
+                ];
+            }
         }
 
         foreach (MailDocumentKind::cases() as $kind) {
@@ -1751,6 +1866,42 @@ final class MailDocumentController extends Controller
             foreach (MailDocumentKind::cases() as $kind) {
                 $snapshots->forget($kind);
             }
+        }
+    }
+
+    /** @return array{html:string,css:string}|null */
+    private function signatureSnapshotForTemplateCandidate(MailDocument $template, bool $publishing): ?array
+    {
+        try {
+            $resolver = app(MailDocumentSignatureResolver::class);
+            if (! $publishing) {
+                $snapshot = $resolver->draftSnapshot($template);
+
+                return $snapshot === null ? null : [
+                    'html' => $snapshot['html'],
+                    'css' => $snapshot['css'],
+                ];
+            }
+
+            $signature = $resolver->draftDocument($template);
+            if (! $signature instanceof MailDocument) {
+                return null;
+            }
+            $publishedHtml = trim((string) $signature->published_html);
+            if ($template->signature_document_id !== null && $publishedHtml === '') {
+                throw ValidationException::withMessages([
+                    'signature' => 'Die zugeordnete Signatur besitzt noch keinen veröffentlichten Stand. Der Entwurf bleibt unverändert.',
+                ]);
+            }
+
+            return [
+                'html' => $publishedHtml !== '' ? $publishedHtml : (string) $signature->html,
+                'css' => $publishedHtml !== '' ? (string) $signature->published_css : (string) $signature->css,
+            ];
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (\RuntimeException $exception) {
+            throw ValidationException::withMessages(['signature' => $exception->getMessage()]);
         }
     }
 

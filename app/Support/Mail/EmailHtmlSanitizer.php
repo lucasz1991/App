@@ -779,7 +779,8 @@ final class EmailHtmlSanitizer
                 continue;
             }
 
-            if (! $this->isAllowedAttributeValue($name, $attributeName, $value)) {
+            if (! $this->isMirroredTrainAnchorAlignment($element, $attributeName, $value)
+                && ! $this->isAllowedAttributeValue($name, $attributeName, $value)) {
                 $this->violation('attribute.value', "Wert \"{$value}\" ist fuer {$attributeName} an <{$name}> nicht erlaubt.", $path);
                 $element->removeAttribute($attribute->nodeName);
             }
@@ -790,6 +791,28 @@ final class EmailHtmlSanitizer
     {
         return in_array($attribute, self::GLOBAL_ATTRIBUTES, true)
             || in_array($attribute, self::ALLOWED_TAGS[$tag] ?? [], true);
+    }
+
+    /** Only the opt-in right-docked IMG anchor may use a floating table alignment. */
+    private function isMirroredTrainAnchorAlignment(DOMElement $element, string $attribute, string $value): bool
+    {
+        $parent = $element->parentNode;
+        if ($element->tagName !== 'table' || $attribute !== 'align' || $value !== 'right'
+            || $element->getAttribute('class') !== 'rt-v27-anchor'
+            || $element->getAttribute('width') !== '6031.746032%'
+            || ! $parent instanceof DOMElement || $parent->tagName !== 'td'
+            || $parent->getAttribute('class') !== 'rt-v27-image-cell'
+            || $parent->getAttribute('dir') !== 'rtl' || $parent->getAttribute('width') !== '1%') {
+            return false;
+        }
+        for ($ancestor = $parent; $ancestor instanceof DOMElement; $ancestor = $ancestor->parentNode) {
+            if ($ancestor->hasAttribute(SignatureArtifactVersion::ATTRIBUTE)) {
+                return $ancestor->tagName === 'tr'
+                    && SignatureArtifactVersion::usesMirroredTrain($ancestor->getAttribute(SignatureArtifactVersion::ATTRIBUTE));
+            }
+        }
+
+        return false;
     }
 
     private function isAllowedAttributeValue(string $tag, string $attribute, string $value): bool

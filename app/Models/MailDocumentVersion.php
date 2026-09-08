@@ -10,13 +10,14 @@ class MailDocumentVersion extends Model
 {
     protected $fillable = [
         'public_id', 'mail_document_id', 'revision', 'action', 'builder_data',
-        'html', 'css', 'content_hash', 'was_published', 'created_by',
+        'html', 'css', 'content_hash', 'was_published', 'created_by', 'signature_document_id',
     ];
 
     protected $casts = [
         'builder_data' => 'array',
         'revision' => 'integer',
         'was_published' => 'boolean',
+        'signature_document_id' => 'integer',
     ];
 
     protected static function booted(): void
@@ -39,5 +40,10 @@ class MailDocumentVersion extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function signatureDocument(): BelongsTo
+    {
+        return $this->belongsTo(MailDocument::class, 'signature_document_id');
     }
 }

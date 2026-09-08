@@ -744,6 +744,32 @@ test('automatic runtime preserves scoped background CSS and GIF bytes at the Off
     }
 });
 
+test('automatic default uses its paired signature while an unselected pair never replaces the global fallback', async () => {
+    const paired = await runtimeFixture();
+    paired.bootstrap.signature = { html: '<p>Global signature</p>', media: [] };
+    paired.bootstrap.templates[0].signature = { html: '<p>Paired signature</p>', media: [] };
+    await paired.handler(paired.event);
+    assert.equal(paired.state.signatures.length, 1);
+    assert.match(paired.state.signatures[0], /Paired signature/);
+    assert.doesNotMatch(paired.state.signatures[0], /Global signature/);
+
+    const withoutDefault = await runtimeFixture({ withoutDefault: true });
+    withoutDefault.bootstrap.signature = { html: '<p>Global signature</p>', media: [] };
+    withoutDefault.bootstrap.templates[0].signature = { html: '<p>Unselected paired signature</p>', media: [] };
+    await withoutDefault.handler(withoutDefault.event);
+    assert.equal(withoutDefault.state.signatures.length, 1);
+    assert.match(withoutDefault.state.signatures[0], /Global signature/);
+    assert.doesNotMatch(withoutDefault.state.signatures[0], /Unselected paired signature/);
+});
+
+test('an explicitly malformed default signature never falls back to the global signature or mutates Outlook', async () => {
+    const fixture = await runtimeFixture();
+    fixture.bootstrap.templates[0].signature = null;
+    await fixture.handler(fixture.event);
+    assert.deepEqual(fixture.state.mutations, []);
+    assert.equal(fixture.state.completed, 1);
+});
+
 test('compose event inserts explicit default once for new, reply and forward, and completes every event', async () => {
     for (const composeType of ['newMail', 'reply', 'forward']) {
         const existing = `<p>User text</p><div id="divRplyFwdMsg">Quoted conversation ${composeType === 'newMail' ? '' : composeLibrary.TEMPLATE_MARKER}</div>`;
@@ -980,6 +1006,29 @@ test('native signature media budgets reject excessive payloads before any Office
     assert.deepEqual(fixture.state.mutations, []);
 });
 
+test('automatic runtime budgets the selected pair independently from the unused global signature', async () => {
+    const validPair = await runtimeFixture();
+    validPair.bootstrap.signature.media = Array.from({ length: 21 }, (_unused, index) => ({
+        name: `unused-global-${index}.png`, contentId: `unusedGlobal${index}`, base64: 'aW1hZ2U=',
+    }));
+    validPair.bootstrap.templates[0].signature = { html: '<p>Compact paired signature</p>', media: [] };
+    await validPair.handler(validPair.event);
+    assert.equal(validPair.state.signatures.length, 1);
+    assert.match(validPair.state.signatures[0], /Compact paired signature/);
+    assert.equal(validPair.state.prepends.length, 1);
+
+    const oversizedPair = await runtimeFixture();
+    oversizedPair.bootstrap.signature = { html: '<p>Compact global signature</p>', media: [] };
+    oversizedPair.bootstrap.templates[0].signature = {
+        html: '<p>Oversized paired signature</p>',
+        media: Array.from({ length: 21 }, (_unused, index) => ({
+            name: `paired-${index}.png`, contentId: `paired${index}`, base64: 'aW1hZ2U=',
+        })),
+    };
+    await oversizedPair.handler(oversizedPair.event);
+    assert.deepEqual(oversizedPair.state.mutations, []);
+});
+
 test('unsupported native signature API never falls back to a full HTML template or prepares its attachments', async () => {
     const fixture = await runtimeFixture();
     delete fixture.item.body.setSignatureAsync;
@@ -1079,6 +1128,48 @@ test('manual template insertion preserves scoped background CSS and GIF bytes at
     assert.doesNotMatch(fixture.state.prepends[0], /rt-outlook-signature|rt-sign-cell|synthetic-train/,
         'the signature HTML is passed to setSignatureAsync, not moved into the ordinary template body');
     assert.ok(fixture.state.html.endsWith('<p>Existing user text</p>'));
+});
+
+test('manual template insertion uses its paired signature but the signature button keeps the global default', async () => {
+    const paired = await taskpaneFixture();
+    paired.bootstrap.signature = { html: '<p>Global signature</p>', media: [] };
+    const pairedPayload = backgroundSignaturePayload();
+    paired.bootstrap.templates[0].signature = pairedPayload;
+    const pairedCalls = captureSignatureOfficeBoundary(paired.fixture);
+    await paired.client.insertTemplate(paired.document.querySelector('[data-outlook-action="template"]'));
+    assert.equal(paired.fixture.state.signatures.length, 1);
+    assertBackgroundSignatureOfficeBoundary(pairedCalls, pairedPayload);
+    assert.doesNotMatch(paired.fixture.state.signatures[0], /Global signature/);
+
+    const global = await taskpaneFixture();
+    global.bootstrap.signature = { html: '<p>Global signature</p>', media: [] };
+    global.bootstrap.templates[0].signature = { html: '<p>Paired signature</p>', media: [] };
+    await global.client.updateSignature(global.document.querySelector('[data-outlook-action="signature"]'));
+    assert.equal(global.fixture.state.signatures.length, 1);
+    assert.match(global.fixture.state.signatures[0], /Global signature/);
+    assert.doesNotMatch(global.fixture.state.signatures[0], /Paired signature/);
+
+    const secondChoice = await taskpaneFixture();
+    secondChoice.bootstrap.signature = { html: '<p>Global signature</p>', media: [] };
+    secondChoice.bootstrap.templates = [
+        {
+            ...secondChoice.bootstrap.templates[0],
+            signature: { html: '<p>First paired signature</p>', media: [] },
+        },
+        {
+            ...secondChoice.bootstrap.templates[0],
+            id: 'two',
+            name: 'Second template',
+            composeHtml: `<!--${composeLibrary.NATIVE_TEMPLATE_MARKER}--><p>Second template</p>`,
+            signature: { html: '<p>Second paired signature</p>', media: [] },
+        },
+    ];
+    await secondChoice.client.setup(secondChoice.config, secondChoice.bootstrap);
+    secondChoice.client.taskpaneState.selectedTemplateId = 'two';
+    await secondChoice.client.insertTemplate(secondChoice.document.querySelector('[data-outlook-action="template"]'));
+    assert.equal(secondChoice.fixture.state.signatures.length, 1);
+    assert.match(secondChoice.fixture.state.signatures[0], /Second paired signature/);
+    assert.doesNotMatch(secondChoice.fixture.state.signatures[0], /First paired signature|Global signature/);
 });
 
 test('taskpane native signature updates remain available beside an existing native template', async () => {

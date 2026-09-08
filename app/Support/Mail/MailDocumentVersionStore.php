@@ -5,6 +5,7 @@ namespace App\Support\Mail;
 use App\Models\MailDocument;
 use App\Models\MailDocumentVersion;
 use App\Models\User;
+use Illuminate\Support\Facades\Schema;
 
 /** Schreibt unveraenderliche Entwurfs-/Freigabe-Snapshots innerhalb der laufenden DB-Transaktion. */
 final class MailDocumentVersionStore
@@ -26,6 +27,9 @@ final class MailDocumentVersionStore
             'content_hash' => (string) $document->content_hash,
             'was_published' => $document->isPublished() && ! $document->hasUnpublishedChanges(),
             'created_by' => $actor?->getKey(),
+            ...(Schema::hasColumn('mail_document_versions', 'signature_document_id') ? [
+                'signature_document_id' => $document->signature_document_id,
+            ] : []),
         ]);
     }
 }

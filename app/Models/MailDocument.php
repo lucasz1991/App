@@ -33,6 +33,8 @@ class MailDocument extends Model
         'is_outlook_template',
         'outlook_released',
         'outlook_default',
+        'signature_document_id',
+        'published_signature_document_id',
         'builder_data',
         'html',
         'css',
@@ -52,6 +54,8 @@ class MailDocument extends Model
         'is_outlook_template' => 'boolean',
         'outlook_released' => 'boolean',
         'outlook_default' => 'boolean',
+        'signature_document_id' => 'integer',
+        'published_signature_document_id' => 'integer',
         'builder_data' => 'array',
         'published_at' => 'datetime',
         'version' => 'integer',
@@ -84,6 +88,16 @@ class MailDocument extends Model
     public function versions(): HasMany
     {
         return $this->hasMany(MailDocumentVersion::class)->orderByDesc('revision');
+    }
+
+    public function signatureDocument(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'signature_document_id');
+    }
+
+    public function publishedSignatureDocument(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'published_signature_document_id');
     }
 
     /**
@@ -208,7 +222,8 @@ class MailDocument extends Model
         }
 
         return trim((string) $this->published_html) !== trim((string) $this->html)
-            || trim((string) $this->published_css) !== trim((string) $this->css);
+            || trim((string) $this->published_css) !== trim((string) $this->css)
+            || $this->signature_document_id !== $this->published_signature_document_id;
     }
 
     /**
@@ -240,14 +255,21 @@ class MailDocument extends Model
      *
      * @param  array<string, mixed>  $builderData
      */
-    public static function contentHashFor(array $builderData, string $html, string $css): string
+    public static function contentHashFor(array $builderData, string $html, string $css, ?int $signatureDocumentId = null): string
     {
         try {
-            return hash('sha256', json_encode([
+            $content = [
                 'builder_data' => self::sortRecursively($builderData),
                 'html' => $html,
                 'css' => $css,
-            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            ];
+            // Unpaired documents retain the exact historical hash formula.
+            // Adding even a null key would invalidate every existing draft.
+            if ($signatureDocumentId !== null) {
+                $content['signature_document_id'] = $signatureDocumentId;
+            }
+
+            return hash('sha256', json_encode($content, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         } catch (JsonException $exception) {
             throw new RuntimeException('Die Builder-Daten des Maildokuments enthalten ungültige Zeichen.', 0, $exception);
         }

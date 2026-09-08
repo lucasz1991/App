@@ -19,6 +19,10 @@ use Throwable;
  */
 final class PublishedMailDocumentSnapshotStore
 {
+    public function __construct(
+        private readonly MailDocumentSignatureResolver $signatureResolver,
+    ) {}
+
     /** @var array<string, array{html: string, css: string}|null> */
     private array $snapshots = [];
 
@@ -30,7 +34,8 @@ final class PublishedMailDocumentSnapshotStore
      *     label: string,
      *     active: bool,
      *     html: string,
-     *     css: string
+     *     css: string,
+     *     publishedSignature: array{id:string,document_id:int,html:string,css:string,hash:string,paired:bool}|null
      * }>|null
      */
     private ?array $templateSnapshots = null;
@@ -74,7 +79,8 @@ final class PublishedMailDocumentSnapshotStore
      *     label: string,
      *     active: bool,
      *     html: string,
-     *     css: string
+     *     css: string,
+     *     publishedSignature: array{id:string,document_id:int,html:string,css:string,hash:string,paired:bool}|null
      * }>
      */
     public function templateSnapshots(): array
@@ -90,7 +96,8 @@ final class PublishedMailDocumentSnapshotStore
      *     label: string,
      *     active: bool,
      *     html: string,
-     *     css: string
+     *     css: string,
+     *     publishedSignature: array{id:string,document_id:int,html:string,css:string,hash:string,paired:bool}|null
      * }>
      */
     public function freshTemplateSnapshots(): array
@@ -142,9 +149,25 @@ final class PublishedMailDocumentSnapshotStore
     /** @return array{html: string, css: string}|null */
     private function read(MailDocumentKind $kind): ?array
     {
+        $activeSystemTemplate = null;
         try {
             if (! Schema::hasTable('mail_documents')) {
                 return null;
+            }
+
+            if ($kind === MailDocumentKind::Signature && MailDocumentSignatureResolver::available()) {
+                // Resolve the pairing from the one active system template,
+                // never from another released library entry that merely has
+                // a pairing of its own. A null pairing intentionally keeps
+                // the historical global system-signature lookup below.
+                $activeSystemTemplate = MailDocument::query()
+                    ->published()
+                    ->where('kind', MailDocumentKind::Template->value)
+                    ->when(
+                        Schema::hasColumn('mail_documents', 'is_outlook_template'),
+                        static fn ($query) => $query->where('is_outlook_template', false),
+                    )
+                    ->first();
             }
 
             $document = MailDocument::query()
@@ -153,6 +176,16 @@ final class PublishedMailDocumentSnapshotStore
                 ->first(['published_html', 'published_css']);
         } catch (Throwable) {
             return null;
+        }
+
+        if ($activeSystemTemplate instanceof MailDocument
+            && $activeSystemTemplate->published_signature_document_id !== null) {
+            $paired = $this->signatureResolver->publishedSnapshot($activeSystemTemplate, 'system');
+
+            return $paired === null ? null : [
+                'html' => $paired['html'],
+                'css' => $paired['css'],
+            ];
         }
 
         if (! $document instanceof MailDocument) {
@@ -175,7 +208,8 @@ final class PublishedMailDocumentSnapshotStore
      *     label: string,
      *     active: bool,
      *     html: string,
-     *     css: string
+     *     css: string,
+     *     publishedSignature: array{id:string,document_id:int,html:string,css:string,hash:string,paired:bool}|null
      * }>
      */
     private function readTemplateSnapshots(): array
@@ -188,6 +222,7 @@ final class PublishedMailDocumentSnapshotStore
             $hasNames = Schema::hasColumn('mail_documents', 'name');
             $hasActiveFlag = Schema::hasColumn('mail_documents', 'is_active');
             $hasLibrary = Schema::hasColumn('mail_documents', 'is_outlook_template');
+            $hasSignaturePairing = MailDocumentSignatureResolver::available();
             $columns = [
                 'public_id',
                 'kind',
@@ -204,6 +239,9 @@ final class PublishedMailDocumentSnapshotStore
             }
             if ($hasLibrary) {
                 array_push($columns, 'is_outlook_template', 'outlook_released', 'outlook_default');
+            }
+            if ($hasSignaturePairing) {
+                $columns[] = 'published_signature_document_id';
             }
 
             $documents = MailDocument::query()
@@ -246,6 +284,13 @@ final class PublishedMailDocumentSnapshotStore
                     && $document->outlook_released === true && $document->outlook_default === true,
                 'html' => $html,
                 'css' => trim((string) $document->published_css),
+                // An explicit publication binding must never silently fall
+                // back to the global Outlook signature. Invalid or missing
+                // partners therefore fail while the payload is generated.
+                'publishedSignature' => $hasSignaturePairing
+                    && $document->published_signature_document_id !== null
+                        ? $this->signatureResolver->publishedSnapshot($document, 'outlook')
+                        : null,
             ];
         }
 
@@ -272,8 +317,8 @@ final class PublishedMailDocumentSnapshotStore
     }
 
     /**
-     * @param  list<array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string}>  $snapshots
-     * @return array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string}|null
+     * @param  list<array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string, publishedSignature: array|null}>  $snapshots
+     * @return array{id: string, key: string, name: string, label: string, active: bool, html: string, css: string, publishedSignature: array|null}|null
      */
     private function activeTemplateSnapshot(array $snapshots): ?array
     {

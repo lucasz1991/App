@@ -1,7 +1,12 @@
-/** V27 owns a same-row IMG carrier; the responsive CSS is supplied by PHP. */
+/** Opt-in table IMG families; responsive geometry is supplied by PHP. */
+export function isTableOverlapSignatureVersion(version) {
+    return ['v27', 'v28', 'v29'].includes(String(version || '').toLowerCase());
+}
+
 export function assertTableOverlapSignature(wrapper, rows) {
-    if (rows.length !== 2 || rows[0]?.getAttribute('data-rt-artifact-version') !== 'v27') {
-        throw new Error('V27 benoetigt genau zwei Signaturzeilen.');
+    const version = rows[0]?.getAttribute('data-rt-artifact-version');
+    if (rows.length !== 2 || !isTableOverlapSignatureVersion(version)) {
+        throw new Error('V27/V28/V29 benoetigen genau zwei Signaturzeilen.');
     }
     const one = (selector) => {
         const nodes = wrapper.querySelectorAll(selector);
@@ -24,6 +29,18 @@ export function assertTableOverlapSignature(wrapper, rows) {
         || image.getAttribute('src') !== '{{TRAIN_SRC}}' || image.hasAttribute('height')
         || wrapper.querySelector('.rt-sign-train-layer,[background],[data-rt-train-mso]')) {
         throw new Error('V27 muss ein proportionales IMG vor den Kontakten in derselben Tabellenzeile halten.');
+    }
+    if (version !== 'v27' && (contentTable.getAttribute('dir') !== 'rtl'
+        || imageCell.getAttribute('dir') !== 'rtl' || imageCell.getAttribute('align') !== 'right'
+        || anchor.getAttribute('align') !== 'right' || content.getAttribute('dir') !== 'ltr')) {
+        throw new Error('V28/V29 muessen das IMG rechts andocken und die Kontakte links-nach-rechts lesen.');
+    }
+    if (version !== 'v27') {
+        for (const node of wrapper.querySelectorAll('[style]')) {
+            if (/(?:^|;)\s*(?:transform\s*:|display\s*:\s*(?:inline-)?(?:grid|flex)\b|position\s*:\s*absolute\b)/i.test(node.getAttribute('style') || '')) {
+                throw new Error('Gespiegelte IMG-Signaturen erlauben keine CSS-Spiegelung oder Weblayout-Ersatzbasis.');
+            }
+        }
     }
     return { carrier, stage, contentTable, content, image, imageCell, anchor, slot };
 }

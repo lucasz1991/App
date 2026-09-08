@@ -31,7 +31,7 @@ import {
     imgOverlapGeometry,
     readImgOverlapSettings,
 } from './mail-signature-img-overlap.js';
-import { assertTableOverlapSignature } from './mail-signature-table-overlap.js';
+import { assertTableOverlapSignature, isTableOverlapSignatureVersion } from './mail-signature-table-overlap.js';
 
 /**
  * E-Mail-Modus des LMZ Page Builders (Vendor 2.4.5).
@@ -2553,7 +2553,7 @@ function projectSignatureTrainImage(wrapper, rows, project, imgOverlapProfile = 
         throw new Error('Die Signatur besitzt einen nicht unterstuetzten Zugvertrag.');
     }
 
-    if (rows?.[0]?.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) === 'v27') {
+    if (isTableOverlapSignatureVersion(rows?.[0]?.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE))) {
         const canonical = assertTableOverlapSignature(wrapper, rows);
         project.railtime = { ...(project.railtime || {}), document: 'signature', schema: MAIL_SIGNATURE_SCHEMA };
         return canonical;
@@ -2907,7 +2907,7 @@ export function serializeMailDocumentForSave({
 
     const baselineContactProjection = bindSignatureContactMarkerRows(baselineHtml, parser);
     restoreSignatureContactMarkers(wrapper, baselineContactProjection.hasMarkers);
-    const trainContract = rows?.[0]?.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) === 'v27'
+    const trainContract = isTableOverlapSignatureVersion(rows?.[0]?.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE))
         ? assertTableOverlapSignature(wrapper, rows)
         : usesImgOverlapSignature(rows)
         ? assertImgOverlapSignature(wrapper, rows, imgOverlapProfile)
@@ -3049,9 +3049,9 @@ export function resolveMailCanvasResponsiveCss(canvasDocument, {
     const row = canvasDocument?.querySelector?.(`tr[${MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE}]`);
     if (!row) return String(previewResponsiveCss[selectedTheme] || legacy || '');
     const version = String(row.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').toLowerCase();
-    if (version === 'v27') {
-        const css = expand(previewResponsiveCssByArtifact.v27);
-        if (typeof css !== 'string') throw new Error('Die V27-Vorschau ist serverseitig nicht konfiguriert.');
+    if (isTableOverlapSignatureVersion(version)) {
+        const css = expand(previewResponsiveCssByArtifact[version]);
+        if (typeof css !== 'string') throw new Error(`Die ${version.toUpperCase()}-Vorschau ist serverseitig nicht konfiguriert.`);
         return css;
     }
     if (version !== 'v26') {
@@ -3291,7 +3291,7 @@ function componentUsesFluidSignatureTrain(component) {
 function componentUsesTableOverlapSignature(component) {
     for (let current = component; current; current = current?.parent?.()) {
         const attributes = current?.getAttributes?.() || current?.get?.('attributes') || {};
-        if (String(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE] || '').toLowerCase() === 'v27') return true;
+        if (isTableOverlapSignatureVersion(attributes[MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE])) return true;
     }
     return false;
 }

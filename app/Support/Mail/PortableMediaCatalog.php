@@ -132,6 +132,8 @@ final class PortableMediaCatalog
         return match ($kind) {
             MailDocumentKind::Signature => [
                 SignatureArtifactVersion::V27 => self::requiredSystemAssetIds(MailDocumentKind::Signature, SignatureArtifactVersion::V27),
+                SignatureArtifactVersion::V28 => self::requiredSystemAssetIds(MailDocumentKind::Signature, SignatureArtifactVersion::V28),
+                SignatureArtifactVersion::V29 => self::requiredSystemAssetIds(MailDocumentKind::Signature, SignatureArtifactVersion::V29),
                 SignatureArtifactVersion::V7 => self::requiredSystemAssetIds(
                     MailDocumentKind::Signature,
                     SignatureArtifactVersion::V7,
@@ -223,8 +225,14 @@ final class PortableMediaCatalog
     ): array {
         $kind = is_string($kind) ? MailDocumentKind::tryFrom($kind) : $kind;
 
-        if ($kind === MailDocumentKind::Signature && $artifactVersion === SignatureArtifactVersion::V27) {
-            return array_map(static fn (string $id): string => str_replace('zug-dampf-v19-', 'zug-dampf-v27-', $id), self::requiredSystemAssetIds($kind, SignatureArtifactVersion::V26));
+        if ($kind === MailDocumentKind::Signature && SignatureArtifactVersion::usesTableOverlapTrain($artifactVersion)) {
+            return array_map(static function (string $id) use ($artifactVersion): string {
+                $id = str_replace('zug-dampf-v19-', 'zug-dampf-v27-', $id);
+
+                return SignatureArtifactVersion::usesMirroredTrain($artifactVersion) && str_starts_with($id, 'zug-dampf-v27-')
+                    ? preg_replace('/\.(gif|png)$/', '-mirrored.$1', $id)
+                    : $id;
+            }, self::requiredSystemAssetIds($kind, SignatureArtifactVersion::V26));
         }
 
         return match ($kind) {
