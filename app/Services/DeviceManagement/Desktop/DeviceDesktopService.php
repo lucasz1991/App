@@ -14,6 +14,7 @@ use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\Support\SafeProviderData;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +29,24 @@ final class DeviceDesktopService
 
     public function __construct(private readonly DeviceManagementSettings $settings) {}
 
+    /** Missing/partially deployed storage is maintenance, never auto-migrated. */
+    public function assertStorageReady(): void
+    {
+        $ready = true;
+        try {
+            foreach (['device_desktop_clients', 'device_desktop_enrollments', 'device_desktop_jobs'] as $table) {
+                if (! Schema::hasTable($table)) {
+                    $ready = false;
+                    break;
+                }
+            }
+        } catch (\Throwable) {
+            // Never forward connection strings, query bindings or raw exceptions.
+            $ready = false;
+        }
+        abort_unless($ready, 503, 'Desktopclient-Verwaltung vorübergehend nicht verfügbar. Die freigegebene Datenbankmigration muss durch die IT geprüft werden.');
+    }
+
     public function defaults(): array
     {
         return ['allow_camera' => false, 'allow_location' => false, 'allow_notifications' => true,
@@ -38,6 +57,7 @@ final class DeviceDesktopService
     public function issue(Device $device, User $actor, bool $endpointConfirmed): array
     {
         $this->authorize($actor, 'devices.enrollment.manage');
+        $this->assertStorageReady();
         if (! $endpointConfirmed) {
             throw ValidationException::withMessages(['endpointConfirmed' => 'Ein Mitarbeiter-Endgerät muss ausdrücklich bestätigt werden; der Administrator-Haupt-PC bleibt nur Verwaltungsstation.']);
         }
@@ -65,6 +85,7 @@ final class DeviceDesktopService
 
     public function enroll(#[\SensitiveParameter] array $input): array
     {
+        $this->assertStorageReady();
         $data = Validator::make($input, [
             'enrollment_token' => ['required', 'string', 'regex:/\Artep_[A-Za-z0-9_-]{43}\z/'],
             'client_instance_id' => ['required', 'uuid'],
@@ -227,6 +248,7 @@ final class DeviceDesktopService
     public function revoke(DeviceDesktopClient $client, User $actor): void
     {
         $this->authorize($actor, 'devices.enrollment.manage');
+        $this->assertStorageReady();
         DB::transaction(function () use ($client, $actor): void {
             Device::withTrashed()->whereKey($client->device_id)->lockForUpdate()->firstOrFail();
             $locked = DeviceDesktopClient::query()->whereKey($client->id)->lockForUpdate()->firstOrFail();
@@ -255,6 +277,7 @@ final class DeviceDesktopService
 
     private function withAuthenticated(#[\SensitiveParameter] string $token, callable $action): mixed
     {
+        $this->assertStorageReady();
         abort_unless(preg_match('/\Artdc_[A-Za-z0-9_-]{43}\z/', $token), 401);
         $hash = hash('sha256', $token);
         $client = DeviceDesktopClient::query()->where('token_hash', $hash)->first();
@@ -269,6 +292,8 @@ final class DeviceDesktopService
 
     private function withClient(DeviceDesktopClient $client, callable $action, bool $allowUnpaired = false): mixed
     {
+        $this->assertStorageReady();
+
         return DB::transaction(function () use ($client, $action, $allowUnpaired): mixed {
             [$device, $assignment] = $this->context($client->device_id);
             $locked = DeviceDesktopClient::query()->whereKey($client->id)->lockForUpdate()->firstOrFail();

@@ -122,6 +122,7 @@ class DeviceDesktopClients extends Component
         $user = auth()->user()?->fresh();
         abort_unless($user?->isActive() && $user->email_verified_at !== null, 403);
         Gate::forUser($user)->authorize('devices.view');
+        app(DeviceDesktopService::class)->assertStorageReady();
 
         return $user;
     }

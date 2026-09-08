@@ -79,6 +79,8 @@ Homestead.json
 !/tests/Feature/DeviceProviderDiagnosticsServiceTest.php
 !/tests/Feature/DeviceIdentityPreparationTest.php
 !/tests/Feature/DeviceProviderLinkTest.php
+!/tests/Feature/DeviceProviderSetupClarityTest.php
+!/tests/Feature/DeviceDesktopClientTest.php
 !/tests/Feature/DeviceIdentityConnectorTest.php
 !/tests/Feature/DeviceProviderWebhookHardeningTest.php
 !/tests/Feature/DeviceProviderIdentifierTest.php

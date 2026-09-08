@@ -245,6 +245,11 @@
         data-anim="fade-up"
         data-anim-delay="0.08"
     >
+        <p class="mb-4 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" data-device-provider-setup-help>
+            {{ $isGerman
+                ? 'Provider verwenden ist eine Einstellung, kein Betriebsnachweis. Änderungen zuerst mit Provider speichern übernehmen. Der Verbindungstest prüft die gespeicherten Werte; er installiert keinen Dienst und gibt keine Geräteaktionen frei.'
+                : 'Use provider is a setting, not evidence of readiness. Apply changes with Save provider first. The connection test checks saved values; it does not install a service or enable device actions.' }}
+        </p>
         <div class="grid min-w-0 gap-4 xl:grid-cols-2">
             @foreach ($providers as $providerKey => $provider)
                 @php
@@ -276,7 +281,7 @@
                         <x-ui.forms.toggle-button
                             :id="'device-provider-'.$providerKey.'-enabled'"
                             :model="'providers.'.$providerKey.'.enabled'"
-                            :label="$isGerman ? 'Aktiviert' : 'Enabled'"
+                            :label="$isGerman ? 'Provider verwenden' : 'Use provider'"
                             class="shrink-0"
                         />
                     </div>
@@ -508,6 +513,10 @@
                                     </div>
                                 </div>
                             </div>
+                        @else
+                            <p class="text-sm leading-5 text-rt-muted dark:text-rt-dark-muted" data-device-provider-unchecked="{{ $providerKey }}">
+                                {{ $isGerman ? 'In dieser Ansicht noch kein Verbindungstest durchgeführt. Eine angezeigte Adresse bestätigt keine Erreichbarkeit.' : 'No connection test has been run in this view yet. A displayed address does not confirm reachability.' }}
+                            </p>
                         @endif
 
                         <x-input-error :for="'providers.'.$providerKey" />
