@@ -27,6 +27,7 @@
                 persist-key="employee-form.tabs"
             >
                 <x-ui.accordion.tab-panel for="teamSecurity" content-class="space-y-4">
+                    @if(!$userId)<label class="flex gap-2 rounded-xl border border-rt-border p-3 text-sm"><input type="checkbox" wire:model.live="prepareMicrosoft">Microsoft-Arbeitsplatz vorbereiten: Mitarbeiter zunächst inaktiv erfassen. Keine Willkommensmail und kein lokales Startkennwort; Freigabe und Bereitstellung anschließend im Geräte-Setup.</label>@endif
                     <div class="grid gap-4 rounded-xl bg-rt-surface-muted p-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 md:grid-cols-2">
                         <div>
                             <x-ui.forms.label :value="__('app.display_name')" />

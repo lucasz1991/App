@@ -79,7 +79,7 @@
 
         @php
             $normalizedSearch = trim((string) $search);
-            $activeFilterCount = collect([$normalizedSearch, $locationFilter, $lifecycleFilter, $platformFilter, $formFactorFilter, $complianceFilter, $microsoftFilter])
+            $activeFilterCount = collect([$normalizedSearch, $locationFilter, $lifecycleFilter, $platformFilter, $ownershipFilter, $formFactorFilter, $complianceFilter, $microsoftFilter])
                 ->filter(fn ($value) => $value !== '')
                 ->count();
             $lifecycleFilterLabels = [
@@ -140,6 +140,12 @@
                 </x-ui.forms.select>
             </x-tables.filter-field>
 
+            <x-tables.filter-field label="Eigentum" icon="far fa-user-shield" for="device-ownership-filter">
+                <x-ui.forms.select id="device-ownership-filter" wire:model.live="ownershipFilter" aria-label="Eigentum" class="w-full">
+                    <option value="">Firmen- und Privatgeräte</option><option value="corporate">Firmengeräte</option><option value="byod">Privatgeräte</option>
+                </x-ui.forms.select>
+            </x-tables.filter-field>
+
             <x-tables.filter-field label="Gerätezustand" icon="far fa-layer-group" for="device-lifecycle-filter">
                 <x-ui.forms.select id="device-lifecycle-filter" wire:model.live="lifecycleFilter" aria-label="Gerätezustand" class="w-full">
                     <option value="">Alle Gerätezustände</option>
@@ -177,6 +183,7 @@
             </x-tables.filter-field>
 
             <x-slot:chips>
+                @if ($ownershipFilter !== '')<x-tables.filter-chip label="Eigentum" :value="$ownershipFilter === 'byod' ? 'Privat' : 'Firma'" wire:click="$set('ownershipFilter', '')" />@endif
                 @if ($normalizedSearch !== '')
                     <x-tables.filter-chip label="Suche" :value="$normalizedSearch" wire:click="$set('search', '')" />
                 @endif

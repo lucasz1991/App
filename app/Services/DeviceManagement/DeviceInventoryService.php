@@ -176,6 +176,7 @@ class DeviceInventoryService
 
         DB::transaction(function () use ($device, $actor, $location, $note): void {
             $lockedDevice = Device::query()->lockForUpdate()->findOrFail($device->id);
+            abort_unless($lockedDevice->ownership === 'corporate', 422, 'Privatgeräte werden nicht ins Firmenlager übernommen. Verwaltung unter dem Arbeitsplatzprofil widerrufen.');
             $assignment = DeviceAssignment::query()
                 ->where('device_id', $lockedDevice->id)
                 ->active()

@@ -20,7 +20,8 @@
             @php
                 $device = $assignment->device;
                 $checks = $device->readinessChecks->keyBy('check_key');
-                $required = array_keys(\App\Services\DeviceManagement\DeviceReadinessService::REQUIRED_CHECKS);
+                $requiredLabels = app(\App\Services\DeviceManagement\DeviceReadinessService::class)->requiredChecks($device);
+                $required = array_keys($requiredLabels);
                 $passed = collect($required)->filter(fn($key) => in_array($checks->get($key)?->status, ['passed','not_applicable'], true))->count();
                 $latestEnrollment = $device->enrollments->first();
             @endphp
@@ -52,7 +53,7 @@
 
                 <div class="border-t border-rt-border bg-rt-surface-muted/50 px-5 py-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40">
                     <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                        @foreach(\App\Services\DeviceManagement\DeviceReadinessService::REQUIRED_CHECKS as $key => $label)
+                        @foreach($requiredLabels as $key => $label)
                             @php $status = $checks->get($key)?->status ?? 'unknown'; @endphp
                             <div class="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs dark:bg-rt-dark-surface">
                                 <span class="grid h-5 w-5 place-items-center rounded-full {{ in_array($status,['passed','not_applicable'],true) ? 'bg-emerald-100 text-emerald-700' : ($status === 'blocked' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700') }}"><i data-feather="{{ in_array($status,['passed','not_applicable'],true) ? 'check' : ($status === 'blocked' ? 'x' : 'clock') }}" class="h-3 w-3"></i></span>

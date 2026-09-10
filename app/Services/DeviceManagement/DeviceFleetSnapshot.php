@@ -33,8 +33,8 @@ final class DeviceFleetSnapshot
                 ->selectRaw('COUNT(devices.id) as aggregate_total')
                 ->selectRaw('COALESCE(SUM(CASE WHEN active_device_assignments.device_id IS NOT NULL THEN 1 ELSE 0 END), 0) as aggregate_assigned')
                 ->selectRaw(
-                    'COALESCE(SUM(CASE WHEN devices.lifecycle_status = ? THEN 1 ELSE 0 END), 0) as aggregate_inventory',
-                    [DeviceLifecycleStatus::Inventory->value],
+                    'COALESCE(SUM(CASE WHEN devices.lifecycle_status = ? AND devices.ownership = ? THEN 1 ELSE 0 END), 0) as aggregate_inventory',
+                    [DeviceLifecycleStatus::Inventory->value, 'corporate'],
                 )
                 ->selectRaw(
                     'COALESCE(SUM(CASE WHEN devices.compliance_status IN (?, ?) OR devices.management_status = ? THEN 1 ELSE 0 END), 0) as aggregate_attention',

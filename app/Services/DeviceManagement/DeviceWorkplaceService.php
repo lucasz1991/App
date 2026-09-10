@@ -4,11 +4,12 @@ namespace App\Services\DeviceManagement;
 
 use App\Models\Device;
 use App\Models\DeviceAssignment;
+use App\Models\DeviceCommand;
 use App\Models\DeviceDesktopClient;
 use App\Models\DeviceDesktopEnrollment;
-use App\Models\DeviceCommand;
 use App\Models\DeviceManagementConsent;
 use App\Models\DeviceWorkplace;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -65,6 +66,48 @@ final class DeviceWorkplaceService
         }, 3);
     }
 
+    public function updatePrograms(string $profileKey, array $programs, User $actor): void
+    {
+        $actor = $actor->fresh();
+        abort_unless($actor->isActive() && $actor->isSuperAdmin() && $actor->email_verified_at, 403);
+        Gate::forUser($actor)->authorize('settings.manage');
+        abort_unless(WorkplaceProfileCatalog::get($profileKey)['managed'], 422);
+        $programs = validator(['programs' => $programs], ['programs' => ['array', 'max:30'],
+            'programs.*' => ['array:package_id,version'],
+            'programs.*.package_id' => ['required', 'string', 'max:128', 'regex:/^[A-Za-z0-9][A-Za-z0-9_.+-]*\.[A-Za-z0-9_.+-]+$/'],
+            'programs.*.version' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9][A-Za-z0-9_.+-]*$/']])->validate()['programs'];
+        usort($programs, fn ($a, $b) => strcmp($a['package_id'].'@'.$a['version'], $b['package_id'].'@'.$b['version']));
+        DB::transaction(function () use ($profileKey, $programs, $actor): void {
+            // Serialize profile catalog edits without holding a settings secret in UI state.
+            User::query()->whereKey($actor->id)->lockForUpdate()->firstOrFail();
+            $catalog = (array) Setting::getValueUncached('device_management', 'workplace_programs');
+            if (($catalog[$profileKey] ?? []) === $programs) {
+                return;
+            }
+            $catalog[$profileKey] = $programs;
+            Setting::setValue('device_management', 'workplace_programs', $catalog);
+            foreach (DeviceWorkplace::query()->where('profile_key', $profileKey)->orderBy('device_id')->get() as $workplace) {
+                $device = Device::query()->whereKey($workplace->device_id)->lockForUpdate()->firstOrFail();
+                $workplace->increment('revision');
+                DeviceManagementConsent::query()->where('device_id', $device->id)->whereNull('revoked_at')->update(['revoked_at' => now()]);
+                $this->cancelPending($device);
+                $this->audit($device, $actor, 'program-scope-changed', ['revision' => $workplace->fresh()->revision]);
+            }
+        }, 3);
+    }
+
+    public function assertSoftware(Device $device, array $software): void
+    {
+        $this->assertCommand($device, 'install_software');
+        $workplace = DeviceWorkplace::query()->where('device_id', $device->id)->first();
+        if (! $workplace) {
+            return;
+        } // Existing corporate client contract is preserved.
+        abort_unless(collect(WorkplaceProfileCatalog::scope($workplace->profile_key)['programs'])->contains(
+            fn ($entry) => ($entry['package_id'] ?? null) === ($software['package_id'] ?? null)
+                && ($entry['version'] ?? null) === ($software['version'] ?? null)), 403, 'Paket und Version sind nicht im bestätigten Arbeitsplatzprofil enthalten.');
+    }
+
     public function permitted(Device $device): bool
     {
         if (! Schema::hasTable('device_workplaces')) {
@@ -97,7 +140,7 @@ final class DeviceWorkplaceService
         $this->assertEndpoint($device);
         abort_unless($this->permitted($device), 403, 'Aktuelle Gerätefreigabe fehlt oder wurde widerrufen.');
         if ($device->ownership === 'byod') {
-            abort_if(in_array($command, ['wipe', 'lock', 'unlock', 'start_remote_support', 'execute_script', 'restart', 'uninstall_software'], true), 403,
+            abort_unless(in_array($command, ['sync', 'collect_diagnostics', 'notification', 'install_software', 'enrollment'], true), 403,
                 'Diese Aktion benötigt einen gesonderten, bestätigten Privatgeräte-Ablauf.');
         }
         if (Schema::hasTable('device_workplaces')) {

@@ -228,6 +228,10 @@ final class ConnectorDeviceProvider implements DeviceProviderInterface
 
     public function remoteSupportUrl(Device $device): ?string
     {
+        // A persistent provider console URL cannot prove per-session private-owner consent.
+        if ($device->ownership === 'byod') {
+            return null;
+        }
         $this->assertEnabled();
         if (! ($this->capabilities()['remote_support'] ?? false)) {
             return null;

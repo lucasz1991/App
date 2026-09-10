@@ -9,8 +9,11 @@ use App\Models\DeviceAssignment;
 use App\Models\DeviceDesktopClient;
 use App\Models\DeviceDesktopEnrollment;
 use App\Models\DeviceDesktopJob;
+use App\Models\DeviceWorkplace;
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceManagementSettings;
+use App\Services\DeviceManagement\DeviceReadinessService;
+use App\Services\DeviceManagement\DeviceWorkplaceService;
 use App\Services\DeviceManagement\Support\SafeProviderData;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -137,6 +140,9 @@ final class DeviceDesktopService
             // have succeeded. Hidden/expired jobs are not proof of readiness.
             $response['setup_ready'] = ! $client->jobs()->where('type', 'install_software')
                 ->where('status', '!=', 'succeeded')->exists();
+            if (Schema::hasTable('device_workplaces') && DeviceWorkplace::query()->where('device_id', $device->id)->exists()) {
+                $response['setup_ready'] = $response['setup_ready'] && app(DeviceReadinessService::class)->isReady($device);
+            }
             if (! $this->settings->productionCommandsEnabled(fresh: true)) {
                 return $response;
             }
@@ -230,7 +236,10 @@ final class DeviceDesktopService
 
         return $this->withClient($client, function (DeviceDesktopClient $locked, Device $device) use ($type, $payload, $justification, $actor): DeviceDesktopJob {
             $this->authorize($actor, 'devices.commands.execute');
-            app(\App\Services\DeviceManagement\DeviceWorkplaceService::class)->assertCommand($device, $type);
+            app(DeviceWorkplaceService::class)->assertCommand($device, $type);
+            if ($type === 'install_software') {
+                app(DeviceWorkplaceService::class)->assertSoftware($device, $payload);
+            }
             $key = $type === 'install_software' ? 'allow_software_install' : 'allow_notifications';
             if (($locked->policy[$key] ?? false) !== true) {
                 throw ValidationException::withMessages(['policy' => 'Die Gerätrichtlinie erlaubt diesen Auftrag nicht.']);
@@ -276,7 +285,7 @@ final class DeviceDesktopService
             'sync_interval_seconds' => 60, 'setup_ready' => false, 'policy' => $policy, 'jobs' => []];
     }
 
-    public function withAuthenticated(#[\SensitiveParameter] string $token, callable $action): mixed
+    public function withAuthenticated(#[\SensitiveParameter] string $token, callable $action, bool $requireManagement = true): mixed
     {
         $this->assertStorageReady();
         abort_unless(preg_match('/\Artdc_[A-Za-z0-9_-]{43}\z/', $token), 401);
@@ -288,15 +297,15 @@ final class DeviceDesktopService
             abort_unless(is_string($locked->token_hash) && hash_equals($locked->token_hash, $hash), 401);
 
             return $action($locked, $device);
-        });
+        }, requireManagement: $requireManagement);
     }
 
-    private function withClient(DeviceDesktopClient $client, callable $action, bool $allowUnpaired = false): mixed
+    private function withClient(DeviceDesktopClient $client, callable $action, bool $allowUnpaired = false, bool $requireManagement = true): mixed
     {
         $this->assertStorageReady();
 
-        return DB::transaction(function () use ($client, $action, $allowUnpaired): mixed {
-            [$device, $assignment] = $this->context($client->device_id);
+        return DB::transaction(function () use ($client, $action, $allowUnpaired, $requireManagement): mixed {
+            [$device, $assignment] = $this->context($client->device_id, $requireManagement);
             $locked = DeviceDesktopClient::query()->whereKey($client->id)->lockForUpdate()->firstOrFail();
             abort_unless(in_array($locked->status, $allowUnpaired ? ['active', 'unpaired'] : ['active'], true)
                 && $locked->revoked_at === null && (int) $locked->device_assignment_id === (int) $assignment->id, 401);
@@ -305,7 +314,7 @@ final class DeviceDesktopService
         }, 3);
     }
 
-    private function context(int $deviceId): array
+    private function context(int $deviceId, bool $requireManagement = true): array
     {
         $device = Device::query()->whereKey($deviceId)->lockForUpdate()->first();
         abort_unless($device && $device->platform === DevicePlatform::Windows, 403, 'Kein freigegebenes Windows-Endgerät.');
@@ -320,7 +329,7 @@ final class DeviceDesktopService
         $employee = User::query()->whereKey($assignment->user_id)->lockForUpdate()->first();
         abort_unless($employee?->isActive() && $employee->email_verified_at !== null
             && in_array($employee->role, ['staff', 'admin'], true) && ! $employee->isSuperAdmin(), 403, 'Aktiver verifizierter Mitarbeiter erforderlich.');
-        abort_unless(app(\App\Services\DeviceManagement\DeviceWorkplaceService::class)->permitted($device), 403, 'Aktuelle Eigentümerfreigabe fehlt.');
+        abort_unless(! $requireManagement || app(DeviceWorkplaceService::class)->permitted($device), 403, 'Aktuelle Eigentümerfreigabe fehlt.');
 
         return [$device, $assignment];
     }

@@ -2,10 +2,12 @@
 
 namespace App\Services\Support;
 
+use App\Jobs\ProcessMailJob;
 use App\Models\Device;
 use App\Models\DeviceAssignment;
 use App\Models\DeviceDesktopClient;
 use App\Models\Mail;
+use App\Models\Setting;
 use App\Models\SupportCase;
 use App\Models\SupportCaseMessage;
 use App\Models\User;
@@ -57,7 +59,7 @@ final class SupportCaseService
             $case = SupportCase::query()->create(['user_id' => $user->id, 'device_id' => $device?->id,
                 'client_id' => $client?->id, 'request_id' => strtolower($data['request_id']), 'request_hash' => $hash,
                 'subject' => $subject, 'category' => $data['category'], 'status' => 'open',
-                'diagnostics' => $diagnostics ?: null, 'diagnostics_expires_at' => $diagnostics ? now()->addDays(30) : null]);
+                'diagnostics' => $diagnostics ?: null, 'diagnostics_expires_at' => $diagnostics ? now()->addDays(max(1, min(90, (int) (((array) Setting::getValueUncached('device_management', 'support'))['retention_days'] ?? 30)))) : null]);
             $case->messages()->create(['user_id' => $user->id, 'request_id' => strtolower($data['request_id']), 'body' => $body]);
             $this->notifySupport($case);
             $this->audit($case, $user, 'created');
@@ -101,13 +103,17 @@ final class SupportCaseService
 
     public function transition(SupportCase $case, User $actor, string $status): void
     {
-        $this->authorize($case, $actor);
         abort_unless(isset(self::STATUSES[$status]), 422);
-        if ((int) $case->user_id === (int) $actor->id && ! Gate::forUser($actor)->allows('support.manage')) {
-            abort_unless(in_array($status, ['open', 'resolved', 'closed'], true), 403);
-        }
-        $case->update(['status' => $status, 'closed_at' => $status === 'closed' ? now() : null]);
-        $this->audit($case, $actor, 'status-'.$status);
+        DB::transaction(function () use ($case, $actor, $status): void {
+            $case = SupportCase::query()->whereKey($case->id)->lockForUpdate()->firstOrFail();
+            $actor = $actor->fresh();
+            $this->authorize($case, $actor);
+            if ((int) $case->user_id === (int) $actor->id && ! Gate::forUser($actor)->allows('support.manage')) {
+                abort_unless(in_array($status, ['open', 'resolved', 'closed'], true), 403);
+            }
+            $case->update(['status' => $status, 'closed_at' => $status === 'closed' ? now() : null]);
+            $this->audit($case, $actor, 'status-'.$status);
+        }, 3);
     }
 
     public function serialize(SupportCase $case, User $actor): array
@@ -117,6 +123,7 @@ final class SupportCaseService
         return ['id' => $case->public_id, 'subject' => $case->subject, 'status' => $case->status,
             'status_label' => self::STATUSES[$case->status] ?? $case->status,
             'created_at' => $case->created_at->toIso8601String(),
+            'attachments' => $case->attachments()->where('expires_at', '>', now())->get()->map(fn ($file) => ['name' => $file->name, 'url' => route('support.attachment', $file->public_id), 'expires_at' => $file->expires_at->toIso8601String()])->all(),
             'diagnostics' => $case->diagnostics_expires_at?->isFuture() ? $case->diagnostics : null,
             'messages' => $case->messages()->latest('id')->limit(200)->get()->reverse()->values()->map(fn ($m) => [
                 'body' => $m->body, 'from_support' => $m->from_support, 'created_at' => $m->created_at->toIso8601String(),
@@ -129,11 +136,13 @@ final class SupportCaseService
         if (! $recipient) {
             return; // The durable case remains visible even if mail is not configured.
         }
-        Mail::query()->create(['type' => 'mail', 'status' => false,
+        $mail = Mail::withoutEvents(fn () => Mail::query()->create(['type' => 'mail', 'status' => false,
             'content' => ['subject' => '[IT-Support] Neue Anfrage '.$case->public_id, 'header' => 'Neue Supportanfrage',
                 'body' => 'Eine neue Anfrage liegt im geschützten RailTime-Supportbereich bereit.', 'lines' => [],
                 'link' => url('/support/faelle?fall='.$case->public_id), 'support_request' => true],
-            'recipients' => [['email' => $recipient, 'status' => false]]]);
+            'recipients' => [['email' => $recipient, 'status' => false]]]));
+        // Do not let synchronous mail processing run before the durable case commits.
+        ProcessMailJob::dispatch($mail)->afterCommit();
     }
 
     private function audit(SupportCase $case, User $actor, string $event): void

@@ -56,6 +56,7 @@
         <span class="block truncate text-sm font-semibold text-rt-text transition hover:text-rt-red dark:text-white dark:hover:text-rt-red-light">
             {{ $item->display_name ?: $item->hostname ?: 'Unbenanntes Gerät' }}
         </span>
+        <span class="mt-1 inline-flex rounded-md bg-rt-surface-muted px-2 py-0.5 text-[11px] font-semibold text-rt-muted">{{ $item->ownership === 'byod' ? 'Privatgerät' : 'Firmengerät' }}</span>
         <span class="mt-0.5 block truncate text-xs font-normal text-rt-muted dark:text-rt-dark-muted">
             {{ $item->asset_tag ?: $item->serial_number ?: 'Ohne Inventarkennung' }}
         </span>
@@ -66,6 +67,9 @@
             </span>
         @endif
     </button>
+    @if(($item->open_help_count ?? 0) > 0)
+        <a href="{{ route('support.cases', ['geraet' => $item->public_id]) }}" wire:navigate wire:click.stop class="mt-1 inline-flex rounded-md bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800">{{ $item->open_help_count }} offene Hilfe</a>
+    @endif
 </div>
 
 <div
@@ -128,4 +132,5 @@
     <span class="hidden w-full truncate text-[11px] text-rt-muted xl:block dark:text-rt-dark-muted">
         Sync: {{ $item->last_synced_at?->diffForHumans() ?? 'noch nie' }}
     </span>
+    @if($item->client_last_seen)<span class="hidden w-full truncate text-[11px] text-rt-muted xl:block">Client: {{ \Illuminate\Support\Carbon::parse($item->client_last_seen)->diffForHumans() }}</span>@endif
 </div>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\EmployeeProvisionPasswordController;
 use App\Http\Controllers\Admin\MailDocumentController;
 use App\Http\Controllers\Admin\MarketingCreativeController;
 use App\Http\Controllers\Admin\MarketingCreativeTransferController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\OutlookAddin\OutlookAddinController;
 use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\PwaIconController;
+use App\Http\Controllers\SupportAttachmentController;
 use App\Http\Controllers\WagonListExportController;
 use App\Http\Controllers\WagonListMediaController;
 use App\Http\Controllers\Webhooks\LiveKitWebhookController;
@@ -56,6 +58,7 @@ use App\Livewire\HelpCenter;
 use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
 use App\Livewire\Operations\WagonListPrototype;
+use App\Livewire\SupportCases;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
 use App\Models\MarketingCreative;
@@ -240,7 +243,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->name('chat.export');
     Route::get('/help', HelpCenter::class)->name('help');
     Route::get('/support', ItSupport::class)->name('support');
-    Route::get('/support/faelle', \App\Livewire\SupportCases::class)->name('support.cases');
+    Route::get('/support/faelle', SupportCases::class)->name('support.cases');
+    Route::get('/support/anhaenge/{attachment}', SupportAttachmentController::class)->whereUuid('attachment')->name('support.attachment');
+    Route::post('/geraete/mitarbeiter-bereitstellung/{provision}/startkennwort', EmployeeProvisionPasswordController::class)
+        ->whereNumber('provision')->middleware(['password.confirm', 'throttle:5,1'])->name('devices.provision.password');
     Route::prefix('settings/push')
         ->name('push.')
         ->middleware('throttle:push-subscriptions')

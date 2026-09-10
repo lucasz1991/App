@@ -2,6 +2,7 @@
 
 namespace App\Services\DeviceManagement;
 
+use App\Models\Setting;
 use Illuminate\Validation\ValidationException;
 
 final class WorkplaceProfileCatalog
@@ -29,6 +30,7 @@ final class WorkplaceProfileCatalog
         return ['version' => self::VERSION, 'profile' => $key, 'label' => $profile['label'],
             'inventory' => $profile['managed'], 'automatic_programs' => $profile['managed'],
             'system_service' => $profile['managed'], 'remote_support_consent' => true,
+            'programs' => (array) (((array) Setting::getValueUncached('device_management', 'workplace_programs'))[$key] ?? []),
             'file_transfer_consent' => true, 'whole_device_wipe' => false, 'continuous_location' => false,
             'notice' => $profile['managed']
                 ? 'Der Verwaltungsdienst arbeitet mit Systemrechten und kann technisch auf den gesamten Rechner zugreifen. Dies ist kein isolierter Firmencontainer. Freigegebene Firmenprogramme und Einstellungen werden automatisch angewendet. Bildschirm-Fernhilfe und Dateiübertragung benötigen eine eigene Freigabe. Die Verwaltung ist widerrufbar.'

@@ -5,6 +5,7 @@ namespace App\Support\OutlookAddin;
 use App\Enums\AccountProvider;
 use App\Models\EmployeeIdentityAccount;
 use App\Models\User;
+use App\Services\DeviceManagement\EmployeeWorkplaceProvisioner;
 use Illuminate\Support\Facades\Schema;
 
 final class OutlookAddinIdentityResolver
@@ -36,8 +37,6 @@ final class OutlookAddinIdentityResolver
 
         if (! $account instanceof EmployeeIdentityAccount
             || ! $user instanceof User
-            || ! $user->isActive()
-            || $user->email_verified_at === null
             || ($account->tenant_id !== null
                 && ! hash_equals(strtolower($identity->tenantId), strtolower((string) $account->tenant_id)))) {
             throw $this->notLinked();
@@ -64,6 +63,14 @@ final class OutlookAddinIdentityResolver
                 403,
                 'outlook_addin_sender_mismatch',
             );
+        }
+
+        // Only a validated token and a matching mailbox/sender reach activation.
+        // Legacy inactive accounts without an explicit workplace approval remain blocked.
+        app(EmployeeWorkplaceProvisioner::class)->activate($identity);
+        $user = $user->fresh();
+        if (! $user->isActive() || $user->email_verified_at === null) {
+            throw $this->notLinked();
         }
 
         return [

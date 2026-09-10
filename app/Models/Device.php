@@ -67,6 +67,16 @@ class Device extends Model
         return $this->hasMany(DeviceAssignment::class)->latest('assigned_at');
     }
 
+    public function supportCases(): HasMany
+    {
+        return $this->hasMany(SupportCase::class);
+    }
+
+    public function desktopClients(): HasMany
+    {
+        return $this->hasMany(DeviceDesktopClient::class);
+    }
+
     public function activeAssignment(): HasOne
     {
         return $this->hasOne(DeviceAssignment::class)
@@ -224,7 +234,7 @@ class Device extends Model
 
     public function scopeInInventory(Builder $query): Builder
     {
-        return $query->where('lifecycle_status', DeviceLifecycleStatus::Inventory->value);
+        return $query->where('lifecycle_status', DeviceLifecycleStatus::Inventory->value)->where('ownership', 'corporate');
     }
 
     public function scopeManaged(Builder $query): Builder

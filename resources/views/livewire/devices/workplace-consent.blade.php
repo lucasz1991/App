@@ -20,6 +20,8 @@
                     <div class="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950">
                         <p class="font-semibold">{{ $summary['scope']['label'] }} · Umfang {{ $summary['revision'] }}</p>
                         <p>{{ $summary['scope']['notice'] }}</p>
+                        <p class="font-semibold">Bestätigbare Programme und Versionen</p>
+                        <ul class="list-disc pl-5">@forelse($summary['scope']['programs'] as $program)<li>{{ $program['package_id'] }} · {{ $program['version'] }}</li>@empty<li>Keine Programminstallationen in diesem Umfang freigegeben.</li>@endforelse</ul>
                         <p>{{ $summary['scope']['system_service'] ? 'Dauerhafte Verwaltungs- und Supportdienste, Geräte- und Zustandsinventar sowie freigegebene Firmenprogramme. Ein Dienst mit Systemrechten hat technisch Zugriff auf den gesamten Rechner – kein isolierter Firmencontainer.' : 'RailTime-Client und Hilfe ohne verpflichtende Office-Lizenz und ohne automatische Systeminstallation.' }}</p>
                         <p>Keine privaten Dateien, Mailkonten oder Browserprofile werden automatisch übernommen. Keine permanente Ortung; Standort bedeutet dokumentierter Lager-/Einsatzort.</p>
                         <p>Privatgeräte: Fernhilfe mit Sitzungsfreigabe und gesonderter Dateiübertragung. Keine Komplettlöschung. Vorhandenes Office und OneDrive werden nicht ungeprüft ersetzt. Neustarts müssen angekündigt und aufschiebbar sein.</p>

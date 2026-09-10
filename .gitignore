@@ -27,6 +27,9 @@ Homestead.json
 /tests/*
 !/tests/Feature/
 /tests/Feature/*
+!/tests/Feature/WorkplaceSupportTest.php
+!/tests/Feature/EmployeeWorkplaceProvisionTest.php
+!/tests/Feature/ItSupportTest.php
 !/tests/Feature/CallRecordingTest.php
 !/tests/Feature/CallRingingSignalTest.php
 !/tests/Feature/CallChatInteractionSecurityTest.php

@@ -571,6 +571,7 @@
              und in jeder einzelnen Aktion erneut auf dem Server. --}}
         <x-ui.accordion.tab-panel for="device-management" :order="4" content-class="">
             <livewire:admin.device-management-settings />
+            @if(auth()->user()?->isSuperAdmin())<livewire:admin.workplace-support-settings />@endif
         </x-ui.accordion.tab-panel>
 
         {{-- Superadmin: Sprach-/Modellrouting, Anrufbetrieb und Wissenspool.

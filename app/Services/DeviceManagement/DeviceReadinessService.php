@@ -5,10 +5,13 @@ namespace App\Services\DeviceManagement;
 use App\Enums\DeviceComplianceStatus;
 use App\Enums\DeviceManagementStatus;
 use App\Models\Device;
+use App\Models\DeviceDesktopClient;
 use App\Models\DeviceProvisioningProfile;
 use App\Models\DeviceReadinessCheck;
+use App\Models\DeviceWorkplace;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class DeviceReadinessService
 {
@@ -30,6 +33,26 @@ class DeviceReadinessService
         'remote_support' => 'Fernsupport erreichbar',
         'compliance' => 'Keine blockierende Compliance-Abweichung',
     ];
+
+    public function requiredChecks(Device $device): array
+    {
+        $workplace = Schema::hasTable('device_workplaces') ? DeviceWorkplace::query()->where('device_id', $device->id)->first() : null;
+        if (! $workplace) {
+            return self::REQUIRED_CHECKS;
+        }
+        if ($workplace->profile_key === 'railtime_basic') {
+            return ['assignment' => 'Mitarbeiter freigegeben', 'workplace_consent' => 'Verwaltungsumfang bestätigt', 'desktop_client' => 'Client aktuell verbunden'];
+        }
+        $checks = self::REQUIRED_CHECKS + ['workplace_consent' => 'Verwaltungsumfang bestätigt'];
+        if ($device->ownership === 'byod') {
+            unset($checks['asset']);
+        }
+        if (! WorkplaceProfileCatalog::get($workplace->profile_key)['office_required']) {
+            unset($checks['identity']);
+        }
+
+        return $checks;
+    }
 
     /**
      * Aktualisiert nur Zustände, die RailTime selbst belegen kann. Technische
@@ -181,6 +204,11 @@ class DeviceReadinessService
             ]);
         }
 
+        if (Schema::hasTable('device_workplaces') && DeviceWorkplace::query()->where('device_id', $device->id)->exists()) {
+            $this->record($device, 'workplace_consent', app(DeviceWorkplaceService::class)->permitted($device) ? 'passed' : 'blocked', 'railtime', []);
+            $client = $assignment ? DeviceDesktopClient::query()->where('device_id', $device->id)->where('device_assignment_id', $assignment->id)->where('status', 'active')->whereNull('revoked_at')->latest('last_seen_at')->first() : null;
+            $this->record($device, 'desktop_client', $client?->last_seen_at?->gte(now()->subMinutes(5)) ? 'passed' : 'pending', 'railtime', []);
+        }
         $checks = $device->readinessChecks()->get();
 
         if ($actor) {
@@ -189,7 +217,7 @@ class DeviceReadinessService
                 ->performedOn($device)
                 ->withProperties([
                     'device_public_id' => $device->public_id,
-                    'ready' => $this->checksAreReady($checks),
+                    'ready' => $this->checksAreReady($checks, $device),
                 ])
                 ->log('device_readiness_refreshed');
         }
@@ -204,17 +232,17 @@ class DeviceReadinessService
         // its configured freshness window elapsed.
         $checks = $this->refresh($device->fresh());
 
-        return $this->checksAreReady($checks);
+        return $this->checksAreReady($checks, $device);
     }
 
     /**
      * @param  Collection<int, DeviceReadinessCheck>  $checks
      */
-    private function checksAreReady(Collection $checks): bool
+    private function checksAreReady(Collection $checks, Device $device): bool
     {
         $indexed = $checks->keyBy('check_key');
 
-        return collect(array_keys(self::REQUIRED_CHECKS))->every(
+        return collect(array_keys($this->requiredChecks($device)))->every(
             fn (string $key): bool => in_array($indexed->get($key)?->status, ['passed', 'not_applicable'], true),
         );
     }
@@ -288,7 +316,7 @@ class DeviceReadinessService
         DeviceReadinessCheck::query()->updateOrCreate(
             ['device_id' => $device->id, 'check_key' => $key],
             [
-                'label' => self::REQUIRED_CHECKS[$key],
+                'label' => self::REQUIRED_CHECKS[$key] ?? ['workplace_consent' => 'Verwaltungsumfang bestätigt', 'desktop_client' => 'Client aktuell verbunden'][$key],
                 'status' => $status,
                 'source' => $source,
                 'evidence' => $evidence,

@@ -9,6 +9,7 @@ use App\Support\EmployeeWelcomeService;
 use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -16,44 +17,77 @@ use Livewire\Component;
 class EmployeeFormModal extends Component
 {
     public bool $showModal = false;
+
+    public bool $prepareMicrosoft = true;
+
     public ?int $userId = null;
 
     public string $name = '';
+
     public string $email = '';
+
     public ?string $password = null;
+
     public ?string $password_confirmation = null;
+
     public ?int $primary_team_id = null;
 
     public ?string $first_name = null;
+
     public ?string $last_name = null;
+
     public ?string $phone = null;
+
     public ?string $mobile = null;
+
     public ?string $street = null;
+
     public ?string $postal_code = null;
+
     public ?string $city = null;
+
     public ?string $country = null;
+
     public ?string $birth_date = null;
+
     public ?string $birth_place = null;
+
     public ?string $birth_name = null;
+
     public ?string $nationality = null;
+
     public ?string $education = null;
 
     public ?string $position = null;
+
     public ?string $personnel_nr = null;
+
     public ?string $entry_date = null;
+
     public ?string $multiple_employment = null;
+
     public ?string $employment_type = null;
+
     public ?string $weekly_working_hours = null;
+
     public ?string $additional_information = null;
 
     public ?string $tax_identification_number = null;
+
     public ?string $social_security_number = null;
+
     public ?string $iban = null;
+
     public ?string $health_insurance = null;
+
     public ?string $tax_class = null;
+
     public ?string $children_count = null;
+
     public ?string $religion = null;
+
     public ?string $compensation_type = null;
+
     public ?string $compensation_amount = null;
 
     protected $listeners = ['open-employee-form' => 'open'];
@@ -63,7 +97,7 @@ class EmployeeFormModal extends Component
         $rules = [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->userId ?? 0)],
-            'password' => [$this->userId ? 'nullable' : 'required', 'min:8', 'confirmed'],
+            'password' => [$this->userId || $this->prepareMicrosoft ? 'nullable' : 'required', 'min:8', 'confirmed'],
             'primary_team_id' => ['required', 'integer', 'exists:teams,id'],
             'first_name' => ['nullable', 'string', 'max:120'],
             'last_name' => ['nullable', 'string', 'max:120'],
@@ -169,9 +203,13 @@ class EmployeeFormModal extends Component
         if (! $this->userId) {
             $user->role = 'staff';
             $user->locale = app()->getLocale();
+            if ($this->prepareMicrosoft) {
+                $user->status = false;
+                $user->email_verified_at = null;
+            }
         }
         if (! $this->userId || $this->password) {
-            $user->password = Hash::make((string) $this->password);
+            $user->password = Hash::make(! $this->userId && $this->prepareMicrosoft ? Str::random(64) : (string) $this->password);
         }
         $user->save();
 
@@ -214,7 +252,7 @@ class EmployeeFormModal extends Component
                 ->log('employee_master_data_updated');
         }
 
-        if ($isNewEmployee) {
+        if ($isNewEmployee && ! $this->prepareMicrosoft) {
             app(EmployeeWelcomeService::class)->send($user->fresh('currentTeam'));
         }
 

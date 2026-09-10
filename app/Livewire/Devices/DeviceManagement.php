@@ -23,6 +23,7 @@ use App\Services\DeviceManagement\DeviceManagementSettings;
 use App\Services\DeviceManagement\DeviceProviderLinkService;
 use App\Services\DeviceManagement\DeviceProviderRegistry;
 use App\Services\DeviceManagement\DeviceReadinessService;
+use App\Services\DeviceManagement\DeviceWorkplaceService;
 use App\Services\DeviceManagement\MicrosoftDeviceRuntime;
 use App\Services\DeviceManagement\MicrosoftDeviceSettings;
 use App\Services\DeviceManagement\MicrosoftDeviceSyncScheduler;
@@ -50,6 +51,13 @@ class DeviceManagement extends Component
     public string $search = '';
 
     public string $platformFilter = '';
+
+    public string $ownershipFilter = '';
+
+    public function updatedOwnershipFilter(): void
+    {
+        $this->resetPage();
+    }
 
     public string $formFactorFilter = '';
 
@@ -308,7 +316,7 @@ class DeviceManagement extends Component
     {
         Gate::authorize('devices.view');
 
-        $this->reset(['search', 'platformFilter', 'formFactorFilter', 'lifecycleFilter', 'complianceFilter', 'locationFilter', 'microsoftFilter']);
+        $this->reset(['search', 'platformFilter', 'ownershipFilter', 'formFactorFilter', 'lifecycleFilter', 'complianceFilter', 'locationFilter', 'microsoftFilter']);
         $this->resetPage();
     }
 
@@ -702,6 +710,7 @@ class DeviceManagement extends Component
     {
         Gate::authorize('devices.support');
         $device = $this->selectedDeviceOrFail();
+        app(DeviceWorkplaceService::class)->assertCommand($device, 'start_remote_support');
 
         try {
             $provider = $providers->get($providerKey);
@@ -853,6 +862,9 @@ class DeviceManagement extends Component
 
         return Device::query()
             ->with(['activeAssignment.user:id,name,email'])
+            ->when(Schema::hasTable('support_cases') && Gate::allows('support.manage'), fn (Builder $query) => $query->withCount(['supportCases as open_help_count' => fn ($cases) => $cases->whereIn('status', ['open', 'in_progress', 'waiting_user'])]))
+            ->when(Schema::hasTable('device_desktop_clients'), fn (Builder $query) => $query->withMax(['desktopClients as client_last_seen' => fn ($clients) => $clients->where('status', 'active')], 'last_seen_at'))
+            ->when(in_array($this->ownershipFilter, ['corporate', 'byod'], true), fn (Builder $query) => $query->where('ownership', $this->ownershipFilter))
             ->when(Schema::hasTable('microsoft_device_links'), fn (Builder $query) => $query->with('microsoftLink.suggestedUser:id,name'))
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $like = '%'.$search.'%';
@@ -869,6 +881,7 @@ class DeviceManagement extends Component
             ->when($this->platformFilter !== '', fn (Builder $query) => $query->where('platform', $this->platformFilter))
             ->when($this->formFactorFilter !== '', fn (Builder $query) => $query->where('form_factor', $this->formFactorFilter))
             ->when($this->lifecycleFilter !== '', fn (Builder $query) => $query->where('lifecycle_status', $this->lifecycleFilter))
+            ->when($this->lifecycleFilter === 'inventory', fn (Builder $query) => $query->where('ownership', 'corporate'))
             ->when($this->complianceFilter !== '', fn (Builder $query) => $query->where('compliance_status', $this->complianceFilter))
             ->when($this->locationFilter !== '', fn (Builder $query) => $query->where('declared_location', $this->locationFilter))
             ->when($this->microsoftFilter !== '' && Schema::hasTable('microsoft_device_links'), function (Builder $query): void {

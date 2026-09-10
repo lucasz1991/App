@@ -54,6 +54,8 @@ final class DeviceCommandService
         $providerKey = strtolower(trim($providerKey));
         Gate::forUser($actor)->authorize('devices.commands.execute');
         app(DeviceWorkplaceService::class)->assertCommand($device->fresh(), $type->value);
+        abort_if($device->fresh()->ownership === 'byod' && $type === DeviceCommandType::InstallSoftware, 403,
+            'Privatgeräte: nur die geprüften Paket-/Versionsaufträge des Desktop-Clients. Allgemeine Provider-Artefakte sind nicht im bestätigten Programmumfang enthalten.');
         $this->authorizeSpecificCommand($type, $actor);
         $this->validateJustification($justification);
         $this->assertSafePayload($payload);

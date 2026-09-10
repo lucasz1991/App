@@ -3,11 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Setting;
+use App\Models\SupportCase;
 use App\Services\DeviceManagement\Desktop\DeviceDesktopService;
+use App\Services\DeviceManagement\DeviceWorkplaceService;
+use App\Services\Support\SupportCaseService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -16,35 +21,42 @@ use Throwable;
 
 final class DeviceDesktopClientController extends Controller
 {
+    public function help(): JsonResponse
+    {
+        $contact = (array) Setting::getValueUncached('device_management', 'support');
+
+        return $this->json(['version' => 1, 'support_url' => url('/support'), 'anonymous_upload' => false, 'email' => $contact['email'] ?? '', 'phone' => $contact['phone'] ?? '']);
+    }
+
     public function supportCreate(Request $request, DeviceDesktopService $clients): JsonResponse
     {
         return $this->respond(fn () => $clients->withAuthenticated($request->bearerToken() ?? '', function ($client) use ($request): array {
-            $service = app(\App\Services\Support\SupportCaseService::class);
+            $service = app(SupportCaseService::class);
             $user = $client->assignment->user;
             $case = $service->create($user, $this->input($request, ['request_id', 'subject', 'message', 'category', 'diagnostics', 'diagnostics_confirmed']), $client);
 
             return $service->serialize($case, $user);
-        }));
+        }, requireManagement: false));
     }
 
     public function supportList(Request $request, DeviceDesktopService $clients): JsonResponse
     {
         return $this->respond(fn () => $clients->withAuthenticated($request->bearerToken() ?? '', function ($client): array {
-            $service = app(\App\Services\Support\SupportCaseService::class);
+            $service = app(SupportCaseService::class);
 
-            return ['cases' => \App\Models\SupportCase::query()->where('client_id', $client->id)
+            return ['cases' => SupportCase::query()->where('client_id', $client->id)
                 ->where('user_id', $client->assignment->user_id)->latest('updated_at')->limit(20)->get()
                 ->map(fn ($case) => $service->serialize($case, $client->assignment->user))->all()];
-        }));
+        }, requireManagement: false));
     }
 
     public function supportReply(Request $request, string $supportCase, DeviceDesktopService $clients): JsonResponse
     {
         return $this->respond(fn () => $clients->withAuthenticated($request->bearerToken() ?? '', function ($client) use ($request, $supportCase): array {
-            $case = \App\Models\SupportCase::query()->where('public_id', $supportCase)->where('client_id', $client->id)
+            $case = SupportCase::query()->where('public_id', $supportCase)->where('client_id', $client->id)
                 ->where('user_id', $client->assignment->user_id)->firstOrFail();
             $data = $this->input($request, ['request_id', 'message', 'status']);
-            $service = app(\App\Services\Support\SupportCaseService::class);
+            $service = app(SupportCaseService::class);
             $user = $client->assignment->user;
             if (isset($data['message'])) {
                 $service->reply($case, $user, (string) ($data['request_id'] ?? ''), (string) $data['message']);
@@ -53,24 +65,36 @@ final class DeviceDesktopClientController extends Controller
             }
 
             return $service->serialize($case->fresh(), $user);
-        }));
+        }, requireManagement: false));
     }
 
     public function workplace(Request $request, DeviceDesktopService $clients): JsonResponse
     {
         return $this->respond(fn () => $clients->withAuthenticated($request->bearerToken() ?? '',
-            fn ($client, $device): array => app(\App\Services\DeviceManagement\DeviceWorkplaceService::class)->summary($device)));
+            fn ($client, $device): array => app(DeviceWorkplaceService::class)->summary($device), requireManagement: false));
     }
 
     public function withdraw(Request $request, DeviceDesktopService $clients): JsonResponse
     {
-        return $this->respond(fn () => $clients->withAuthenticated($request->bearerToken() ?? '', function ($client, $device) use ($request): array {
+        return $this->respond(function () use ($request, $clients): array {
             $data = $this->input($request, ['confirmed']);
             abort_unless(($data['confirmed'] ?? null) === true, 422);
-            app(\App\Services\DeviceManagement\DeviceWorkplaceService::class)->revoke($device, $client->assignment->user);
+            $token = $request->bearerToken() ?? '';
+            abort_unless(strlen($token) >= 32 && strlen($token) <= 512, 401);
+            $hash = hash('sha256', $token);
+            $receipt = ['revoked' => true, 'cleanup_state' => 'pending', 'message' => 'Zugriff gesperrt – lokale Bereinigung ausstehend.'];
+            // A revoked bearer may only recover this minimal receipt, never authenticate elsewhere.
+            if (DB::table('device_withdrawal_receipts')->where('token_hash', $hash)->where('expires_at', '>', now())->exists()) {
+                return $receipt;
+            }
 
-            return ['revoked' => true, 'cleanup_state' => 'pending', 'message' => 'Zugriff gesperrt – lokale Bereinigung ausstehend.'];
-        }));
+            return $clients->withAuthenticated($token, function ($client, $device) use ($hash, $receipt): array {
+                app(DeviceWorkplaceService::class)->revoke($device, $client->assignment->user);
+                DB::table('device_withdrawal_receipts')->updateOrInsert(['token_hash' => $hash], ['expires_at' => now()->addDays(7)]);
+
+                return $receipt;
+            }, requireManagement: false);
+        });
     }
 
     public function enroll(Request $request, DeviceDesktopService $clients): JsonResponse

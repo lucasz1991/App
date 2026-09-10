@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command('devices:purge-support-data')->hourly()->withoutOverlapping();
         // Entfernt stuendlich abgelaufene Dateien/Ordner, die auf
         // automatisches Loeschen gesetzt sind.
         $schedule->command('files:purge-expired')
