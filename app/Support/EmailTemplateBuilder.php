@@ -474,6 +474,7 @@ class EmailTemplateBuilder
             // Firmenanschrift zeigt bewusst den Festnetzanschluss, nicht die
             // Notfall-Mobilnummer. Ohne gepflegten Anschluss entfaellt die Zeile.
             'FIRMEN_TELEFON_TEL' => self::telHref($companyValues['FIRMEN_TELEFON']),
+            'NOTFALLNUMMER_TEL' => self::telHref($companyValues['NOTFALLNUMMER']),
             'FIRMEN_WEBSITE_HREF' => self::webHref($website),
             'FIRMEN_WEBSITE_LABEL' => self::webLabel($website),
         ]);

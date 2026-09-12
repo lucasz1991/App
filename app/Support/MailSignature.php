@@ -261,6 +261,7 @@ class MailSignature
             'MOBIL_TEL' => $emergencyPhoneHref,
             'E_MAIL' => $company['FIRMEN_EMAIL'],
             'FIRMEN_TELEFON_TEL' => $companyPhoneHref,
+            'NOTFALLNUMMER_TEL' => EmailTemplateBuilder::telHref($company['NOTFALLNUMMER']),
             'FIRMEN_WEBSITE_HREF' => EmailTemplateBuilder::webHref($company['FIRMEN_WEBSITE']),
             'FIRMEN_WEBSITE_LABEL' => EmailTemplateBuilder::webLabel($company['FIRMEN_WEBSITE']),
         ];
@@ -415,12 +416,13 @@ class MailSignature
             MailDocumentKind::Signature,
             $documentHtml,
         );
+        $assetTheme = $artifactVersion === 'v27' ? 'light' : $this->theme;
         if (! SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)) {
             return $values;
         }
 
         if (SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)) {
-            $logoAsset = EmailTemplateBuilder::signatureLogoAsset($this->theme, $artifactVersion);
+            $logoAsset = EmailTemplateBuilder::signatureLogoAsset($assetTheme, $artifactVersion);
             if ($this->staticAssets) {
                 $logoAsset = str_replace('.gif', '.png', $logoAsset);
             }
@@ -442,7 +444,7 @@ class MailSignature
         }
 
         if (SignatureArtifactVersion::usesV19MailAssets($artifactVersion)) {
-            $markAsset = EmailTemplateBuilder::emailMarkAsset($this->theme, $artifactVersion);
+            $markAsset = EmailTemplateBuilder::emailMarkAsset($assetTheme, $artifactVersion);
             if ($this->staticAssets) {
                 $markAsset = str_replace('.gif', '.png', $markAsset);
             }
@@ -468,7 +470,7 @@ class MailSignature
             if (! array_key_exists('TRAIN_SRC', $overrides)) {
                 $values['TRAIN_SRC'] = $this->withRemotePlaybackNonce(
                     EmailTemplateBuilder::signatureTrainUrl(
-                        $this->theme,
+                        $assetTheme,
                         $animated,
                         $artifactVersion,
                     ),
@@ -476,14 +478,14 @@ class MailSignature
             }
             if (! array_key_exists('TRAIN_STILL_SRC', $overrides)) {
                 $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainStillUrl(
-                    $this->theme,
+                    $assetTheme,
                     $artifactVersion,
                 );
             }
         } else {
             if (! array_key_exists('TRAIN_SRC', $overrides)) {
                 $values['TRAIN_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
-                    $this->theme,
+                    $assetTheme,
                     $animated,
                     $this->playbackNonce,
                     $artifactVersion,
@@ -491,7 +493,7 @@ class MailSignature
             }
             if (! array_key_exists('TRAIN_STILL_SRC', $overrides)) {
                 $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
-                    $this->theme,
+                    $assetTheme,
                     animated: false,
                     artifactVersion: $artifactVersion,
                 );

@@ -151,7 +151,10 @@ class EmailHtmlSanitizerTest extends TestCase
 
     public function test_die_echten_umbruchregeln_ueberstehen_den_stilbogen(): void
     {
-        $css = EmailTemplateBuilder::responsiveCss('#e6e8ec');
+        // Fuer diesen Vertrauenspfad bewusst nur das kanonische Basis-CSS
+        // pruefen. Der veroeffentlichte Signaturstand kann zusaetzliche,
+        // versionsgebundene Laufzeitregeln anhaengen.
+        $css = EmailTemplateBuilder::responsiveCss('#e6e8ec', true, '');
 
         $this->assertStringContainsString('@media', $css);
         $this->assertStringContainsString('tr.rt-stack > td', $css);
@@ -440,6 +443,7 @@ class EmailHtmlSanitizerTest extends TestCase
         $html = '<a href="{{CTA_URL}}">CTA</a>'
             .'<a href="mailto:{{E_MAIL}}">Mail</a>'
             .'<a href="tel:{{DURCHWAHL_TEL}}">Telefon</a>'
+            .'<a href="tel:{{NOTFALLNUMMER_TEL}}">Notfall</a>'
             .'<img src="{{LOGO_SRC}}" alt="">'
             .'<img src="cid:{{LOGO_CID}}" alt="">'
             .'<td background="{{TRAIN_STILL_SRC}}">Outlook</td>'
@@ -448,6 +452,17 @@ class EmailHtmlSanitizerTest extends TestCase
         $report = $this->sanitizer()->clean($html);
 
         $this->assertSame([], $report->findings, implode(' | ', $report->messages()));
+        $this->assertSame($html, $report->html);
+    }
+
+    public function test_v27_responsive_klassen_sind_bekannte_mailklassen(): void
+    {
+        $html = '<div class="design-columns design-hotline-row design-hotline-actions">'
+            .'<span class="rt-address-break">21423 Winsen</span></div>';
+
+        $report = $this->sanitizer()->clean($html);
+
+        $this->assertSame([], $report->findings);
         $this->assertSame($html, $report->html);
     }
 

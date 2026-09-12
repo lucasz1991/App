@@ -344,7 +344,7 @@ final class EmailHtmlSanitizer
 
     /** Bereits normalisierte Werte hinter einem feststehenden tel:-Schema. */
     private const TEL_PLACEHOLDERS = [
-        'DURCHWAHL_TEL', 'MOBIL_TEL', 'FIRMEN_TELEFON_TEL',
+        'DURCHWAHL_TEL', 'MOBIL_TEL', 'FIRMEN_TELEFON_TEL', 'NOTFALLNUMMER_TEL',
     ];
 
     /** Ausschliesslich serverkontrollierte Bildquellen fuer src und CSS-url(). */
@@ -401,6 +401,10 @@ final class EmailHtmlSanitizer
         'rt-firma-links', 'rt-firma-rechts',
         'rt-contact', 'rt-contact-icon', 'rt-contact-text',
         'rt-company-contact', 'rt-company-contact-icon', 'rt-company-contact-text',
+        'rt-address-break', 'design-page-pad', 'design-v27', 'design-columns',
+        'design-salutation', 'design-spacer', 'design-facts', 'design-fact-row',
+        'design-closing-row', 'design-button', 'design-greeting',
+        'design-hotline-row', 'design-hotline-actions',
     ];
 
     /** @var list<string> Eigene Hosts, deren Bilder und url() durchgehen. */
