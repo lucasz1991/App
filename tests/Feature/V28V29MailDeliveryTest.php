@@ -123,6 +123,30 @@ final class V28V29MailDeliveryTest extends TestCase
         }
     }
 
+    public function test_v27_uses_light_assets_even_when_a_dark_preview_is_requested(): void
+    {
+        $user = User::factory()->create(['name' => 'Mara Beispiel', 'email' => 'mara@example.test']);
+        UserProfile::create(['user_id' => $user->id, 'first_name' => 'Mara', 'last_name' => 'Beispiel']);
+
+        $rows = MailSignature::forUser($user, 'dark', animated: true, remoteAssets: true)
+            ->renderDocument($this->source('v27'));
+
+        self::assertStringContainsString('wortmarke-signature-v19-light.gif', $rows);
+        self::assertStringContainsString('zug-dampf-v27-light.gif', $rows);
+        self::assertStringNotContainsString('wortmarke-signature-v19-dark.gif', $rows);
+        self::assertStringNotContainsString('zug-dampf-v27-dark.gif', $rows);
+    }
+
+    public function test_profile_exposes_a_normalized_emergency_phone_link_for_v27(): void
+    {
+        $values = (new EmailTemplateBuilder(User::factory()->create()))->profileValues();
+
+        self::assertSame(
+            EmailTemplateBuilder::telHref($values['NOTFALLNUMMER']),
+            $values['NOTFALLNUMMER_TEL'],
+        );
+    }
+
     public function test_mirrored_geometry_is_isolated_and_bounded_at_every_breakpoint(): void
     {
         foreach (['v28', 'v29'] as $version) {
