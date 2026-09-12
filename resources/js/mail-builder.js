@@ -509,10 +509,14 @@ function canonicalTemplateApplicationBinding(parser, root, baselineHtml) {
         `<table><tbody>${MAIL_TEMPLATE_APPLICATION_PREVIEW}</tbody></table>`,
     );
     const expectedRow = expectedDocument.querySelector('[data-rt-mail-preview-only="application"]');
+    const applicationRowIndex = shellBody
+        ? Array.from(shellBody.children || []).indexOf(row)
+        : -1;
     if (rows.length !== 1
         || row?.tagName !== 'TR'
         || !shell
-        || shellBody?.children?.[1] !== row
+        || row?.parentElement !== shellBody
+        || applicationRowIndex < 1
         || JSON.stringify(templateMarkElementSignature(row))
             !== JSON.stringify(templateMarkElementSignature(expectedRow))) {
         throw new Error('Der Anwendungsslot wurde im Editor verschoben, vervielfacht oder veraendert.');

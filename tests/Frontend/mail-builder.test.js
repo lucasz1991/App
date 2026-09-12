@@ -1595,6 +1595,37 @@ test('canonical template mark and Outlook still survive normalized or comment-fr
     }), /Anwendungsslot/);
 });
 
+test('template application slot may follow a fixed mail-safe lead row', () => {
+    const canonical = readFileSync(
+        new URL('../../resources/mail-templates/email-master.html', import.meta.url),
+        'utf8',
+    ).replace(
+        '          <!-- RT_APPLICATION_CONTENT_START -->',
+        '          <tr data-static-lead="true"><td>Sicher abgestimmt.</td></tr>\n          <!-- RT_APPLICATION_CONTENT_START -->',
+    );
+    const project = projectForMailDocument({
+        builderData: { pages: [{ component: canonical }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'template', environment: { DOMParser } });
+
+    assert.match(project.pages[0].component, /data-static-lead="true"/);
+    assert.match(project.pages[0].component, /data-rt-mail-preview-only="application"/);
+
+    const outgoing = serializeMailDocumentForSave({
+        project,
+        html: project.pages[0].component,
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    });
+
+    assert.match(outgoing.html, /data-static-lead="true"><td>Sicher abgestimmt\.<\/td><\/tr>/);
+    assert.match(
+        outgoing.html,
+        /data-static-lead="true"[\s\S]*?RT_APPLICATION_CONTENT_START[\s\S]*?\{\{APPLICATION_CONTENT\}\}/,
+    );
+});
+
 test('built-in mail blocks keep content and formatting without persisting editor metadata', () => {
     const canonical = '<!doctype html><html lang="de"><head><style>.rt-shell{width:100%}</style></head><body><table class="rt-shell"><tbody><tr><td>Inhalt<img src="{{ICON_RT_SRC}}" alt=""></td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
     const project = projectForMailDocument({
