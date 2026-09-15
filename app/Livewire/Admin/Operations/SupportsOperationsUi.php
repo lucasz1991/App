@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\Operations;
 
+use App\Support\Operations\OperationsAccess;
 use BackedEnum;
 use Illuminate\Support\Str;
 
@@ -9,7 +10,7 @@ trait SupportsOperationsUi
 {
     protected function ensureAdmin(): void
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        OperationsAccess::authorize(auth()->user(), 'operations.manage');
     }
 
     /**

@@ -8,7 +8,8 @@
     };
 @endphp
 
-<div class="space-y-4" data-operations-shifts>
+<div class="rt-ops space-y-4" data-operations-shifts>
+    <x-operations.feedback />
     <section class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Besetzungsübersicht">
         <article class="rounded-2xl border border-rt-border/70 bg-rt-surface p-4 shadow-rt-xs dark:border-rt-dark-border/70 dark:bg-rt-dark-surface">
             <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">Schichten</p>
@@ -164,6 +165,13 @@
                         </div>
                     </section>
 
+                    @if($nativeOperations)
+                        <div class="ops-panel ops-stack">
+                            <div class="ops-toolbar"><span class="ops-muted">Revision {{ $selectedShift->revision }} · {{ $selectedShift->planned_break_minutes }} min Pause</span><span class="ops-badge">{{ $selectedShift->published_revision === $selectedShift->revision ? 'Veröffentlicht' : 'Entwurf' }}</span></div>
+                            <div class="ops-actions">@foreach($selectedShift->qualifications as $qualification)<span class="ops-badge">{{ $qualification->name }}</span>@endforeach</div>
+                            @if($selectedShift->published_revision !== $selectedShift->revision && !in_array($selectedShiftStatus,['cancelled','completed']))<x-ui.buttons.button-basic mode="primary" wire:click="publish({{ $selectedShift->id }},{{ $selectedShift->revision }})" wire:confirm="Diesen Dienst veröffentlichen und Bestätigungen anfordern?" wire:loading.attr="disabled">Dienst veröffentlichen</x-ui.buttons.button-basic>@endif
+                        </div>
+                    @endif
                     @if($selectedShiftStatus === 'cancelled')
                         <section class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:!border-slate-700 dark:!bg-slate-800/60 dark:!text-slate-300">
                             <p class="font-semibold text-rt-text dark:text-white">Schicht storniert</p>
@@ -269,6 +277,10 @@
                     <x-ui.forms.textarea id="shift-notes" wire:model="notes" rows="4" class="mt-1" />
                     @error('notes') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
+                @if($nativeOperations)
+                    <x-operations.field label="Geplante Pause (min)" model="plannedBreakMinutes" type="number" min="0" max="1439" />
+                    <fieldset class="ops-field"><legend class="ops-muted">Erforderliche Nachweise</legend>@foreach($qualificationTypes as $type)<label class="ops-check"><input type="checkbox" wire:model="qualificationIds" value="{{ $type->id }}">{{ $type->name }}</label>@endforeach</fieldset>
+                @endif
             </div>
         </x-slot:content>
         <x-slot:footer>

@@ -64,6 +64,7 @@ class AdminDashboardCommandBoardTest extends TestCase
 
         Schema::create('devices', function (Blueprint $table): void {
             $table->id();
+            $table->string('ownership')->default('corporate');
             $table->string('lifecycle_status', 32)->default('inventory')->index();
             $table->string('management_status', 32)->default('unmanaged')->index();
             $table->string('compliance_status', 32)->default('unknown')->index();

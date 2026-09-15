@@ -5,15 +5,21 @@ namespace App\Livewire\Admin\Operations;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
 use App\Models\Order;
+use App\Models\QualificationType;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\ShiftSchedulingService;
+use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsDateTime;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class ShiftManagement extends Component
@@ -58,6 +64,13 @@ class ShiftManagement extends Component
 
     public string $assignmentNote = '';
 
+    #[Locked]
+    public ?int $editingRevision = null;
+
+    public int $plannedBreakMinutes = 0;
+
+    public array $qualificationIds = [];
+
     public function mount(): void
     {
         $this->ensureAdmin();
@@ -66,6 +79,9 @@ class ShiftManagement extends Component
         $this->status = $this->enumDefault(ShiftStatus::class, 'draft');
         $this->assignmentStatus = $this->enumDefault(ShiftAssignmentStatus::class, 'confirmed');
         $this->selectedShiftId = Shift::query()->orderBy('starts_at')->value('id');
+        if (request()->integer('shift') && Shift::whereKey(request()->integer('shift'))->exists()) {
+            $this->selectedShiftId = request()->integer('shift');
+        }
     }
 
     public function createShift(): void
@@ -84,6 +100,9 @@ class ShiftManagement extends Component
         $shift = Shift::query()->findOrFail($shiftId);
 
         $this->editingShiftId = $shift->id;
+        $this->editingRevision = $shift->revision;
+        $this->plannedBreakMinutes = $shift->planned_break_minutes ?? 0;
+        $this->qualificationIds = OperationsAccess::ready() ? $shift->qualifications()->pluck('qualification_types.id')->all() : [];
         $this->orderId = $shift->order_id;
         $this->title = (string) $shift->title;
         $this->roleName = (string) $shift->role_name;
@@ -137,6 +156,9 @@ class ShiftManagement extends Component
             'requiredStaff' => ['required', 'integer', 'min:1', 'max:999'],
             'status' => ['required', Rule::enum(ShiftStatus::class)],
             'notes' => ['nullable', 'string', 'max:10000'],
+            'plannedBreakMinutes' => ['required', 'integer', 'min:0', 'max:1439'],
+            'qualificationIds' => ['array', 'max:50'],
+            'qualificationIds.*' => ['integer', 'distinct', 'exists:qualification_types,id'],
         ]);
 
         $shift = $this->editingShiftId
@@ -147,17 +169,34 @@ class ShiftManagement extends Component
             'order_id' => $validated['orderId'],
             'title' => trim($validated['title']),
             'role_name' => trim($validated['roleName']) ?: null,
-            'starts_at' => Carbon::parse($validated['startsAt'], $validated['timezone'])->utc(),
-            'ends_at' => Carbon::parse($validated['endsAt'], $validated['timezone'])->utc(),
+            'starts_at' => OperationsDateTime::local($validated['startsAt'], $validated['timezone']),
+            'ends_at' => OperationsDateTime::local($validated['endsAt'], $validated['timezone'], 'endsAt'),
             'timezone' => $validated['timezone'],
             'location_name' => trim($validated['locationName']) ?: null,
             'required_staff' => $validated['requiredStaff'],
             'status' => $validated['status'],
             'notes' => trim($validated['notes']) ?: null,
         ];
+        if (OperationsAccess::ready()) {
+            $attributes['planned_break_minutes'] = $this->plannedBreakMinutes;
+            $attributes['expected_revision'] = $this->editingRevision;
+        }
 
         try {
-            $shift = $schedulingService->save($shift, $attributes, auth()->user());
+            $shift = DB::transaction(function () use ($schedulingService, $shift, $attributes) {
+                $saved = $schedulingService->save($shift, $attributes, auth()->user());
+                if (OperationsAccess::ready()) {
+                    $ids = array_map('intval', $this->qualificationIds);
+                    $currentIds = $saved->qualifications()->pluck('qualification_types.id')->all();
+                    sort($ids);
+                    sort($currentIds);
+                    if ($ids !== $currentIds) {
+                        app(PlanPublicationService::class)->requirements($saved, $saved->revision, $ids, auth()->user());
+                    }
+                }
+
+                return $saved->fresh();
+            });
         } catch (ValidationException $exception) {
             foreach ($exception->errors() as $field => $messages) {
                 foreach ($messages as $message) {
@@ -255,6 +294,8 @@ class ShiftManagement extends Component
         $requiredCount = (int) $activeShifts->sum('required_staff');
 
         return view('livewire.admin.operations.shift-management', [
+            'nativeOperations' => OperationsAccess::ready(),
+            'qualificationTypes' => OperationsAccess::ready() ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
             'shifts' => $shifts,
             'selectedShift' => $selectedShift,
             'orders' => Order::query()
@@ -277,7 +318,7 @@ class ShiftManagement extends Component
             'shiftCount' => $activeShifts->count(),
             'requiredCount' => $requiredCount,
             'reservedCount' => $reservedCount,
-            'openCount' => max(0, $requiredCount - $reservedCount),
+            'openCount' => $activeShifts->sum(fn (Shift $shift) => max(0, $shift->required_staff - $shift->assignments->filter(fn ($a) => $a->status->blocksAvailability())->count())),
         ]);
     }
 
@@ -317,8 +358,19 @@ class ShiftManagement extends Component
             'editingShiftId', 'orderId', 'title', 'roleName', 'startsAt', 'endsAt', 'locationName', 'notes',
         ]);
         $this->timezone = 'Europe/Berlin';
+        $this->editingRevision = null;
+        $this->plannedBreakMinutes = 0;
+        $this->qualificationIds = [];
         $this->requiredStaff = 1;
         $this->status = $this->enumDefault(ShiftStatus::class, 'draft');
         $this->resetValidation();
+    }
+
+    public function publish(int $id, int $revision, PlanPublicationService $service): void
+    {
+        $this->ensureAdmin();
+        OperationsAccess::requireReady();
+        $service->publish(Shift::findOrFail($id), $revision, auth()->user());
+        $this->dispatch('swal:toast', type: 'success', text: 'Dienst veröffentlicht.');
     }
 }

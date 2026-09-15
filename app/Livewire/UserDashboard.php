@@ -6,12 +6,30 @@ use App\Models\File;
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceFleetSnapshot;
 use App\Services\DeviceManagement\PersonalDeviceSnapshot;
+use App\Support\Dashboard\NativeOperationsDashboard;
 use App\Support\Dashboard\SystemDashboardData;
+use App\Support\Operations\OperationsAccess;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class UserDashboard extends Component
 {
+    #[Locked]
+    public array $system = [];
+
+    #[Locked]
+    public bool $systemLoaded = false;
+
+    public function loadSystemData(SystemDashboardData $data): void
+    {
+        abort_unless(auth()->user()?->status && auth()->user()->canViewSystemDashboard(), 403);
+        $this->system = $data->system();
+        $this->system['lastActivity'] = $this->system['lastActivityAt']?->diffForHumans() ?? '—';
+        unset($this->system['lastActivityAt']);
+        $this->systemLoaded = true;
+    }
+
     public function mount(): void
     {
         if (auth()->user()->usesAdminLayout()) {
@@ -39,6 +57,15 @@ class UserDashboard extends Component
         $audience = $user->dashboardAudience();
         $dashboardTeam = $user->dashboardTeam();
         $deviceWidget = $this->deviceWidget($user, $fleetSnapshot, $personalDeviceSnapshot);
+
+        if (OperationsAccess::ready() && $audience !== 'guest') {
+            return view('livewire.operations.dashboard', app(NativeOperationsDashboard::class)->forUser($user) + [
+                'deviceWidget' => $deviceWidget,
+                'canViewSystemData' => $user->canViewSystemDashboard(),
+                'systemLoaded' => $this->systemLoaded,
+                'system' => $this->systemLoaded ? $this->system : null,
+            ])->layout('layouts.master', ['area' => 'user']);
+        }
 
         if ($user->canViewManagementDashboard()) {
             $canViewSystemData = $user->canViewSystemDashboard();

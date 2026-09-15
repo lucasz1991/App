@@ -23,6 +23,15 @@ class RbacCatalog
             'System' => [
                 ['key' => 'settings.manage', 'label' => 'Einstellungen verwalten'],
             ],
+            'Betrieb' => [
+                ['key' => 'operations.manage', 'label' => 'Kunden, Aufträge und Schichten verwalten'],
+                ['key' => 'operations.inquiries.manage', 'label' => 'Anfragen und Angebote bearbeiten'],
+                ['key' => 'operations.qualifications.manage', 'label' => 'Qualifikationen und Einsatznachweise prüfen'],
+                ['key' => 'operations.absences.review', 'label' => 'Abwesenheiten prüfen'],
+                ['key' => 'operations.time.review', 'label' => 'Zeitmeldungen prüfen und freigeben'],
+                ['key' => 'operations.time.export', 'label' => 'Freigegebene Zeitnachweise exportieren'],
+                ['key' => 'operations.rules.manage', 'label' => 'Betriebliche Prüfregeln verwalten'],
+            ],
             'Assistenz' => [
                 ['key' => 'assistant.use', 'label' => 'Chatbot-Assistent verwenden'],
             ],

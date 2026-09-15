@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ShiftAssignment extends Model
 {
@@ -24,6 +25,7 @@ class ShiftAssignment extends Model
     protected $casts = [
         'status' => ShiftAssignmentStatus::class,
         'responded_at' => 'datetime',
+        'plan_revision' => 'integer',
     ];
 
     public function shift(): BelongsTo
@@ -34,6 +36,11 @@ class ShiftAssignment extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function timeEntry(): HasOne
+    {
+        return $this->hasOne(WorkTimeEntry::class);
     }
 
     public function assigner(): BelongsTo

@@ -7,6 +7,8 @@ use App\Enums\ShiftStatus;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Models\WorkTimeEntry;
+use App\Support\Operations\OperationsAccess;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -19,6 +21,7 @@ class ShiftAssignmentService
         ShiftAssignmentStatus|string $status = ShiftAssignmentStatus::Confirmed,
         ?string $note = null,
     ): ShiftAssignment {
+        OperationsAccess::authorize($actor, 'operations.manage');
         $assignmentStatus = $this->normalizeStatus($status);
 
         return DB::transaction(function () use ($shift, $assignee, $actor, $assignmentStatus, $note): ShiftAssignment {
@@ -37,6 +40,7 @@ class ShiftAssignmentService
             if ($assignmentStatus->blocksAvailability()) {
                 $this->assertShiftCanBeStaffed($lockedShift);
                 $this->assertNoOverlap($lockedShift, $lockedAssignee);
+                app(StaffEligibilityService::class)->assertEligible($lockedShift, $lockedAssignee);
             }
 
             $assignment = ShiftAssignment::query()
@@ -45,6 +49,12 @@ class ShiftAssignmentService
                 ->lockForUpdate()
                 ->first() ?? new ShiftAssignment;
 
+            if (OperationsAccess::ready()) {
+                if ($assignment->exists && WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists()) {
+                    throw ValidationException::withMessages(['workflow' => 'Für diesen Dienst wurden bereits Zeiten erfasst.']);
+                }
+                $assignment->plan_revision = $lockedShift->revision;
+            }
             $assignment->fill([
                 'shift_id' => $lockedShift->getKey(),
                 'user_id' => $lockedAssignee->getKey(),
@@ -53,6 +63,10 @@ class ShiftAssignmentService
                 'responded_at' => $assignmentStatus === ShiftAssignmentStatus::Requested ? null : now(),
                 'note' => $note,
             ])->save();
+
+            if (OperationsAccess::ready()) {
+                app(OperationsAuditService::class)->record($assignment, $actor, 'assignment.saved', ['status' => $assignment->status->value, 'plan_revision' => $assignment->plan_revision]);
+            }
 
             return $assignment->load(['shift.order.customer', 'user', 'assigner']);
         });
@@ -63,6 +77,8 @@ class ShiftAssignmentService
         User $actor,
         ?string $note = null,
     ): ShiftAssignment {
+        OperationsAccess::authorize($actor, 'operations.manage');
+
         return DB::transaction(function () use ($assignment, $actor, $note): ShiftAssignment {
             $lockedShift = Shift::query()
                 ->with('order.customer')
@@ -86,12 +102,20 @@ class ShiftAssignmentService
                 ]);
             }
 
+            if (OperationsAccess::ready() && WorkTimeEntry::where('shift_assignment_id', $lockedAssignment->id)->exists()) {
+                throw ValidationException::withMessages(['workflow' => 'Für diesen Dienst wurden bereits Zeiten erfasst.']);
+            }
+
             $lockedAssignment->forceFill([
                 'status' => ShiftAssignmentStatus::Cancelled,
                 'assigned_by' => $actor->getKey(),
                 'responded_at' => now(),
                 'note' => $note ?? $lockedAssignment->note,
             ])->save();
+
+            if (OperationsAccess::ready()) {
+                app(OperationsAuditService::class)->record($lockedAssignment, $actor, 'assignment.cancelled');
+            }
 
             return $lockedAssignment->load(['shift.order.customer', 'user', 'assigner']);
         });

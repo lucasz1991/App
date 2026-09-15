@@ -145,3 +145,11 @@ Homestead.json
 .env.production
 .phpactor.json
 auth.json
+
+# Native Operations regression and isolated browser acceptance
+!/tests/Feature/NativeOperationsWorkflowTest.php
+!/tests/Browser/
+/tests/Browser/*
+!/tests/Browser/operations-bootstrap.php
+!/tests/Browser/operations-router.php
+!/tests/Browser/operations-seed.php

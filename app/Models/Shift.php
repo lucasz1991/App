@@ -34,11 +34,17 @@ class Shift extends Model
         'notes',
         'created_by',
         'updated_by',
+        'planned_break_minutes',
     ];
 
     protected $casts = [
         'required_staff' => 'integer',
         'status' => ShiftStatus::class,
+        'revision' => 'integer',
+        'published_revision' => 'integer',
+        'published_at' => 'immutable_datetime',
+        'published_snapshot' => 'array',
+        'planned_break_minutes' => 'integer',
     ];
 
     protected static function booted(): void
@@ -63,6 +69,11 @@ class Shift extends Model
     public function assignments(): HasMany
     {
         return $this->hasMany(ShiftAssignment::class);
+    }
+
+    public function qualifications(): BelongsToMany
+    {
+        return $this->belongsToMany(QualificationType::class, 'shift_qualification_requirements');
     }
 
     public function assignees(): BelongsToMany

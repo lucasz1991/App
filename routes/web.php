@@ -23,6 +23,7 @@ use App\Http\Controllers\ChatExportController;
 use App\Http\Controllers\ChatLiveLocationController;
 use App\Http\Controllers\DeviceInventoryTemplateController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
+use App\Http\Controllers\OperationsEvidenceController;
 use App\Http\Controllers\OutlookAddin\OutlookAddinController;
 use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -57,11 +58,14 @@ use App\Livewire\Devices\MyDevices;
 use App\Livewire\HelpCenter;
 use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
+use App\Livewire\Operations\PersonalWorkspace;
 use App\Livewire\Operations\WagonListPrototype;
+use App\Livewire\Operations\Workspace;
 use App\Livewire\SupportCases;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
 use App\Models\MarketingCreative;
+use App\Support\Operations\OperationsNavigation;
 use App\Support\Pwa\PwaIcon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -180,6 +184,11 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->middleware(EnsureAssistantAccess::class.':assistant-pagebuilder-actions')
         ->name('assistant.pagebuilder-actions.claim');
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
+    Route::get('/mein-arbeitstag', PersonalWorkspace::class)->name('operations.mine');
+    Route::get('/arbeitsplatz/{module}', Workspace::class)
+        ->whereIn('module', array_keys(OperationsNavigation::modules()))->name('operations.workspace');
+    Route::get('/nachweise/{id}/download', OperationsEvidenceController::class)
+        ->whereNumber('id')->middleware('throttle:30,1')->name('operations.evidence');
     Route::get('/employees', Employees::class)->name('employees.index');
     Route::get('/employees/{userId}', UserProfile::class)->name('employees.show');
     // Die neutrale Route bleibt fuer delegierte Verwaltungs-/Teamrechte

@@ -4,8 +4,11 @@ namespace App\Livewire\Admin;
 
 use App\Models\User;
 use App\Services\DeviceManagement\DeviceFleetSnapshot;
+use App\Support\Dashboard\NativeOperationsDashboard;
 use App\Support\Dashboard\SystemDashboardData;
 use App\Support\Operations\OperationalPreviewCatalog;
+use App\Support\Operations\OperationsAccess;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class Dashboard extends Component
@@ -20,8 +23,10 @@ class Dashboard extends Component
     public int $totalTeams = 0;
 
     /** @var array<string, mixed> */
+    #[Locked]
     public array $system = [];
 
+    #[Locked]
     public bool $systemLoaded = false;
 
     public function mount(SystemDashboardData $dashboardData): void
@@ -39,6 +44,17 @@ class Dashboard extends Component
         abort_unless(auth()->user()?->isAdmin(), 403);
 
         $canViewSystemData = auth()->user()->canViewSystemDashboard();
+
+        if (OperationsAccess::ready()) {
+            $stats = $fleetSnapshot->get();
+
+            return view('livewire.operations.dashboard', app(NativeOperationsDashboard::class)->forUser(auth()->user()) + [
+                'deviceWidget' => ['scope' => 'fleet', 'stats' => $stats, 'href' => $stats['available'] ? route('devices.index') : null],
+                'canViewSystemData' => $canViewSystemData,
+                'system' => $this->systemLoaded ? $this->system : null,
+                'systemLoaded' => $this->systemLoaded,
+            ])->layout('layouts.master', ['area' => 'admin']);
+        }
 
         return view('livewire.admin.dashboard', [
             'recentUsers' => $dashboardData->recentUsers(),

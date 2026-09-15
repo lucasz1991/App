@@ -8,6 +8,8 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Models\WorkTimeEntry;
+use App\Support\Operations\OperationsAccess;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -19,10 +21,28 @@ class ShiftSchedulingService
      */
     public function save(Shift $shift, array $attributes, User $actor): Shift
     {
+        OperationsAccess::authorize($actor, 'operations.manage');
+
         return DB::transaction(function () use ($shift, $attributes, $actor): Shift {
             $persistedShift = $shift->exists
                 ? Shift::query()->lockForUpdate()->findOrFail($shift->getKey())
                 : $shift;
+
+            $native = OperationsAccess::ready();
+            $expected = $attributes['expected_revision'] ?? null;
+            unset($attributes['expected_revision']);
+            if ($native && $persistedShift->exists) {
+                // Keep the last released employee-facing schedule while editing a draft.
+                if ($persistedShift->published_revision > 0 && ! $persistedShift->published_snapshot) {
+                    $persistedShift->published_snapshot = $persistedShift->only(['order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'planned_break_minutes']);
+                }
+                if ($expected !== null && (int) $expected !== $persistedShift->revision) {
+                    throw ValidationException::withMessages(['workflow' => 'Schicht wurde geändert. Bitte neu laden.']);
+                }
+                if (WorkTimeEntry::whereHas('assignment', fn ($q) => $q->where('shift_id', $persistedShift->id))->exists()) {
+                    throw ValidationException::withMessages(['workflow' => 'Für diese Schicht wurden bereits Zeiten erfasst.']);
+                }
+            }
 
             $startsAt = $attributes['starts_at'] ?? $persistedShift->starts_at;
             $endsAt = $attributes['ends_at'] ?? $persistedShift->ends_at;
@@ -73,9 +93,25 @@ class ShiftSchedulingService
 
             if (! $persistedShift->exists) {
                 $persistedShift->created_by = $actor->getKey();
+                if ($native) {
+                    $persistedShift->revision = 1;
+                    $persistedShift->published_revision = 0;
+                }
+            }
+
+            if ($native && $persistedShift->exists && $persistedShift->isDirty()) {
+                $persistedShift->revision++;
+                if ($shiftStatus !== ShiftStatus::Cancelled) {
+                    foreach ($persistedShift->assignments()->blocking()->with('user')->get() as $assignment) {
+                        app(StaffEligibilityService::class)->assertEligible($persistedShift, $assignment->user);
+                    }
+                }
             }
 
             $persistedShift->save();
+            if ($native) {
+                app(OperationsAuditService::class)->record($persistedShift, $actor, 'shift.saved');
+            }
 
             return $persistedShift->load(['order.customer', 'assignments.user']);
         }, 3);

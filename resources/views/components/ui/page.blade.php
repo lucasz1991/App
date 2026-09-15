@@ -11,6 +11,7 @@
     // Beim ERSTEN Besuch die Seiteninfo automatisch oeffnen. Dashboards
     // schalten das ab, weil dort das Willkommens-Intro laeuft.
     'autoIntro' => true,
+    'welcomeIntro' => true,
     // Seiten-Skeletons sind opt-in. Ein ungezieltes wire:loading reagiert
     // sonst auch auf Autosave-Requests und darf Formfelder weder inert setzen
     // noch den nativen mobilen Fokus unterbrechen.
@@ -41,7 +42,7 @@
     // ihren Dashboard-Views ein. Die Verwaltung teilt sich die Nutzerroute
     // und erhaelt ihre eng begrenzte Einbindung deshalb im Seitenrahmen.
     $dashboardAudience = auth()->user()?->dashboardAudience();
-    $mountManagementWelcome = $routeName === 'dashboard'
+    $mountManagementWelcome = $welcomeIntro && $routeName === 'dashboard'
         && in_array($dashboardAudience, ['administration', 'management'], true);
     $managementWelcomeInitiallyOpen = $mountManagementWelcome
         ? \App\Support\PageViews::firstVisit(auth()->user(), \App\Support\WelcomeIntroCatalog::TRACKING_KEY)

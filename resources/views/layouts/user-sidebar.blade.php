@@ -3,6 +3,7 @@
      wegen !important im Legacy-Bundle nicht mehr. --}}
 <div class="metismenu" id="sidebar-menu">
     <ul id="side-menu" x-data="rtSidebarNavigation">
+        <x-operations.sidebar />
         <x-menu.sidebar-nav :label="__('app.overview')">
             <x-menu.sidebar-nav-link
                 :href="route('dashboard')"
