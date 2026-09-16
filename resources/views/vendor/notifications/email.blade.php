@@ -1,6 +1,4 @@
 <x-mail::message>
-{{-- Eyebrow im d1-Stil --}}
-<div style="margin:0 0 10px;color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.4px;text-transform:uppercase;">RT / {{ config('app.name') }}</div>
 <div class="rt-title" style="margin:0 0 20px;color:#111820;font-family:Arial,Helvetica,sans-serif;font-size:30px;line-height:35px;font-weight:400;letter-spacing:-1px;">
 @if (empty($greeting) || $greeting === 'default')
 @if ($level === 'error')

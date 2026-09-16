@@ -1,0 +1,24 @@
+tr[data-rt-artifact-version="v27"] .rt-sign-cell .rt-sign-ledger-content{padding:25px 40px 46px!important}
+tr[data-rt-artifact-version="v27"] .rt-sign-ledger img.rt-logo{width:180px!important;height:auto!important;margin:0!important}
+tr[data-rt-artifact-version="v27"] .rt-sign-ledger .rt-person-kopf{padding:0!important;margin:0!important}
+tr[data-rt-artifact-version="v27"] .rt-sign-ledger .rt-contact{margin:0!important;text-align:left!important}
+.rt-sign-ledger .rt-address-break{display:none}
+@media only screen and (max-width:860px){
+tr[data-rt-artifact-version="v27"] .rt-sign-cell .rt-sign-ledger-content{padding:24px 30px 43px!important}
+tr[data-rt-artifact-version="v27"] table.rt-sign-ledger{display:table!important;width:100%!important}
+tr[data-rt-artifact-version="v27"] table.rt-sign-ledger>tbody{display:table-row-group!important}
+tr[data-rt-artifact-version="v27"] table.rt-sign-layout.rt-sign-ledger>tbody>tr:first-child{display:table-row!important}
+.rt-sign-ledger .rt-ledger-brand{width:180px!important;padding-right:21px!important}
+.rt-sign-ledger .rt-ledger-contacts{padding-left:23px!important}
+.rt-sign-ledger .rt-address-break{display:block!important}
+}
+@media only screen and (max-width:700px){
+.rt-sign-ledger .rt-ledger-direct,.rt-sign-ledger .rt-ledger-company{display:block!important;width:100%!important;padding:0!important;box-sizing:border-box!important}
+.rt-sign-ledger .rt-ledger-company{padding-top:8px!important}
+}
+@media only screen and (max-width:520px){
+tr[data-rt-artifact-version="v27"] .rt-sign-cell .rt-sign-ledger-content{padding:23px 22px 42px!important}
+.rt-sign-ledger .rt-ledger-brand,.rt-sign-ledger .rt-ledger-contacts{display:block!important;width:100%!important;box-sizing:border-box!important;padding:0!important;border:0!important}
+.rt-sign-ledger .rt-ledger-contacts{padding-top:15px!important}
+tr[data-rt-artifact-version="v27"] .rt-sign-ledger img.rt-logo{width:175px!important}
+}

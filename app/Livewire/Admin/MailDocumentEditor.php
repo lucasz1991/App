@@ -431,7 +431,7 @@ class MailDocumentEditor extends Component
             // using this server-isolated base rather than legacy 200px rules.
             'previewResponsiveCssByArtifact' => [
                 'v27' => [
-                    'css' => TrustedEmailCss::forDocument('<tr data-rt-artifact-version="v27"></tr>', '#000026', false),
+                    'css' => TrustedEmailCss::forDocument('<tr data-rt-artifact-version="v27"></tr>', '#000026', false, includeEditorVariants: true),
                     'borderToken' => '#000026',
                 ],
                 'v28' => [

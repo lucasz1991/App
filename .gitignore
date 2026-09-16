@@ -85,6 +85,7 @@ Homestead.json
 !/tests/Feature/DeviceProviderSetupClarityTest.php
 !/tests/Feature/MailDocumentSignaturePairingTest.php
 !/tests/Feature/V28V29MailDeliveryTest.php
+!/tests/Feature/V27MailDeliveryTest.php
 !/tests/Feature/DeviceDesktopClientTest.php
 !/tests/Feature/DeviceIdentityConnectorTest.php
 !/tests/Feature/DeviceProviderWebhookHardeningTest.php
@@ -118,6 +119,7 @@ Homestead.json
 !/tests/Fixtures/mail/
 /tests/Fixtures/mail/*
 !/tests/Fixtures/mail/signature-v27.html
+!/tests/Fixtures/mail/signature-v27-ledger.html
 !/tests/Frontend/outlook-compose-template.test.js
 !/tests/Frontend/outlook-mailbox-guard.test.js
 !/tests/Frontend/outlook-write-diagnostics.test.js

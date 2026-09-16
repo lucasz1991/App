@@ -642,8 +642,8 @@
         <div class="rt-mail-studio" data-mail-studio>
             {{-- Beanstandungen der Haertung. Sie werden nie stillschweigend
                  geschluckt: was der Sanitizer entfernt hat, steht hier. --}}
-            <div class="hidden shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200" data-mail-document-findings role="alert" hidden>
-                <p class="font-semibold" data-mail-document-findings-title>Hinweise der Prüfung</p>
+            <details class="hidden shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200" data-mail-document-findings hidden>
+                <summary class="cursor-pointer font-semibold"><span role="status" aria-live="polite" data-mail-document-findings-title>Prüfstatus</span><span class="ml-2 text-xs font-normal">Details anzeigen</span></summary>
                 <p class="mt-1 leading-6" data-mail-document-check-summary hidden></p>
                 <ul class="mt-1 list-disc space-y-1 pl-5 leading-6" data-mail-document-findings-list></ul>
                 <details class="mt-2 text-xs leading-5" data-mail-document-format-rules>
@@ -658,7 +658,7 @@
                         <a class="underline underline-offset-2" href="https://learn.microsoft.com/en-us/javascript/api/outlook/office.body?view=outlook-js-preview" target="_blank" rel="noopener noreferrer">Microsoft: Add-in-Grenzen</a>
                     </p>
                 </details>
-            </div>
+            </details>
 
             <div class="rt-mail-editor-frame" data-mail-editor-frame data-preview-device="desktop">
                 <div
@@ -1651,7 +1651,7 @@
                                     : (removed
                                         ? 'Die Prüfung hat Inhalte entfernt'
                                         : (messages.length === 0 && hasCheckSummary
-                                            ? 'Automatische Prüfung abgeschlossen – Clientprüfung bleibt separat'
+                                            ? 'Automatisch geprüft · Mailclient-Prüfung offen'
                                             : 'Hinweise der Sicherheits- und Kompatibilitätsprüfung'))
                             );
                         }
@@ -1661,6 +1661,10 @@
                             item.textContent = message;
                             findingsList.appendChild(item);
                         });
+
+                        // Safety findings and request failures must stay visible;
+                        // routine coverage details start collapsed.
+                        findingsBox.open = compatibilityBlocksPublication || removed || messages.length > 0;
 
                         findingsBox.hidden = false;
                         findingsBox.classList.remove('hidden');

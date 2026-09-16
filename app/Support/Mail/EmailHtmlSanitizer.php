@@ -388,6 +388,8 @@ final class EmailHtmlSanitizer
         'rt-sign-top-row', 'rt-sign-company-row',
         'rt-sign-logo', 'rt-sign-identity', 'rt-sign-company', 'rt-sign-name',
         'rt-sign-heading-table', 'rt-sign-heading-person', 'rt-sign-heading-logo',
+        'rt-sign-ledger', 'rt-sign-ledger-content', 'rt-ledger-brand',
+        'rt-ledger-contacts', 'rt-ledger-direct', 'rt-ledger-company',
         'rt-v27-image-cell', 'rt-v27-anchor', 'rt-v27-image-slot',
         'rt-sign-stage', 'rt-sign-train', 'rt-sign-train-layer',
         'rt-sign-train-frame', 'rt-sign-train-slot', 'rt-sign-content-frame',

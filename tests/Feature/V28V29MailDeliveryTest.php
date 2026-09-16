@@ -68,6 +68,57 @@ final class V28V29MailDeliveryTest extends TestCase
         }, PortableMediaCatalog::requiredSystemAssetIds('signature', $version));
     }
 
+    public function test_v27_ledger_survives_import_save_and_reimport_without_changing_a_release(): void
+    {
+        Storage::fake('public');
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $source = trim(file_get_contents(base_path('tests/Fixtures/mail/signature-v27-ledger.html')));
+        $report = app(EmailHtmlSanitizer::class)->sanitize($source);
+        self::assertFalse($report->hasViolations());
+        SignatureDocumentContract::assertValid($report->html);
+        SignatureDocumentContract::assertValid($this->source());
+        $bundle = ['format' => 'railtime-mail-document', 'version' => 2, 'kind' => 'signature', 'html' => $source, 'css' => '', 'media' => $this->media('v27')];
+        $this->postJson(route('admin.mail-documents.import'), $bundle)->assertCreated();
+        $document = MailDocument::query()->latest('id')->firstOrFail();
+        $this->putJson(route('admin.mail-documents.update', $document), ['expected_hash' => $document->content_hash, 'builder_data' => $document->builder_data, 'html' => $document->html, 'css' => ''])->assertOk();
+        $document->refresh();
+        $saved = $document->html;
+        $bundle['html'] = $saved;
+        $this->postJson(route('admin.mail-documents.draft-import', $document), $bundle + ['expected_hash' => $document->content_hash])->assertOk();
+        $document->refresh();
+        self::assertSame($saved, $document->html);
+        self::assertStringContainsString('rt-sign-layout rt-sign-ledger', $saved);
+        self::assertNull($document->published_at);
+        self::assertNotTrue($document->is_active);
+    }
+
+    public function test_v27_ledger_has_scoped_runtime_and_embeds_its_single_train_via_cid(): void
+    {
+        $source = trim(file_get_contents(base_path('tests/Fixtures/mail/signature-v27-ledger.html')));
+        foreach ([TrustedEmailCss::forDocument($source), TrustedOutlookSignatureCss::responsive($source)] as $css) {
+            self::assertStringContainsString('.rt-sign-ledger img.rt-logo', $css);
+            self::assertStringContainsString('max-width:520px', $css);
+            self::assertStringContainsString('max-width:860px', $css);
+        }
+        self::assertStringNotContainsString('rt-sign-ledger', SignatureTableOverlap::css('v28'));
+        self::assertStringNotContainsString('rt-sign-ledger', TrustedEmailCss::forDocument($this->source()));
+        self::assertStringNotContainsString('.rt-sign-heading-logo', TrustedEmailCss::forDocument($source));
+        $rows = MailSignature::forCompany('light', remoteAssets: true)->renderDocument($source);
+        SignatureTableOverlap::assertRuntime($rows);
+        $email = (new Email)->html(SystemMailInlineImageEmbedder::mark('<html><body><!-- RT_TEMPLATE_MARK_START --><!-- RT_TEMPLATE_MARK_END --><table>'.$rows.'</table></body></html>'));
+        self::assertGreaterThan(0, app(SystemMailInlineImageEmbedder::class)->embed($email));
+        self::assertCount(1, array_filter($email->getAttachments(), static fn ($part) => $part->getFilename() === 'zug-dampf-v27-light.gif'));
+        self::assertStringContainsString('src="cid:', $email->getHtmlBody());
+        self::assertStringNotContainsString('background-image:', $email->getHtmlBody());
+    }
+
+    public function test_v27_ledger_cannot_drop_or_swap_contact_groups(): void
+    {
+        $source = trim(file_get_contents(base_path('tests/Fixtures/mail/signature-v27-ledger.html')));
+        $this->expectException(RuntimeException::class);
+        SignatureDocumentContract::assertValid(str_replace('class="rt-ledger-direct"', 'class="rt-ledger-company"', $source));
+    }
+
     public static function mirroredVersions(): array
     {
         return [['v28'], ['v29']];

@@ -811,6 +811,23 @@ test('compose event falls back to signature on mobile or without explicit defaul
     }
 });
 
+test('mobile uses the Windows default paired signature without template attachments or desktop body APIs', async () => {
+    for (const platform of ['iOS', 'Android']) {
+        const fixture = await runtimeFixture({ platform });
+        fixture.bootstrap.signature = { html: '<p>Global fallback</p>', media: [] };
+        fixture.bootstrap.templates[0].signature = { html: '<p>Published Windows pair</p>', media: [] };
+        fixture.item.body.prependAsync = () => { throw new Error('Mobile prepend must not be called'); };
+        fixture.item.body.getTypeAsync = () => { throw new Error('Mobile getType must not be called'); };
+        await fixture.handler(fixture.event);
+        await fixture.handler(fixture.event);
+        assert.deepEqual(fixture.state.mutations, ['signature']);
+        assert.match(fixture.state.signatures[0], /Published Windows pair/);
+        assert.equal(fixture.state.html, '<p>Existing user text</p>');
+        assert.equal(fixture.state.attachments.length, 0);
+        assert.equal(fixture.state.completed, 2);
+    }
+});
+
 test('compose event retries a failed activation and still suppresses subsequent successful duplicates', async () => {
     const { handler, event, state } = await runtimeFixture({ failFirstBootstrap: true });
     await handler(event);

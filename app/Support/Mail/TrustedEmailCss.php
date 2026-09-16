@@ -46,7 +46,7 @@ final class TrustedEmailCss
     }
 
     /** One document-specific projection for preview, MIME and Office fragments. */
-    public static function forDocument(string $html, ?string $border = null, bool $includeOptionalBackground = false): string
+    public static function forDocument(string $html, ?string $border = null, bool $includeOptionalBackground = false, bool $includeEditorVariants = false): string
     {
         $css = self::responsive($border, $includeOptionalBackground);
         $version = SignatureArtifactVersion::detect('signature', $html);
@@ -59,7 +59,8 @@ final class TrustedEmailCss
             $css .= SignatureImgOverlap::css($html);
         }
         if (SignatureArtifactVersion::usesTableOverlapTrain($version)) {
-            $css .= SignatureTableOverlap::css($version);
+            $layout = $includeEditorVariants ? 'editor' : (str_contains($html, 'rt-sign-ledger') ? 'ledger' : 'legacy');
+            $css .= SignatureTableOverlap::css($version, $layout);
         }
 
         return $css;

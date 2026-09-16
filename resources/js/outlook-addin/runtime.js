@@ -8,6 +8,7 @@ import {
     nativeComposeTemplate,
     prependTemplate,
     readTemplateState,
+    supportsTemplatePrepend,
     validateTemplateInsertionPayload,
 } from './compose-template.js';
 import { readComposeSender, assertMailboxBinding } from './mailbox-guard.js';
@@ -441,6 +442,7 @@ async function applyPublishedContent(item) {
     }
     if (templateState.legacySignatureEmbedded) return 'already-present';
 
+    const canInsertTemplate = supportsTemplatePrepend(Office, item);
     let template = null;
     const selected = templateState.present ? null : automaticTemplate(bootstrap);
     if (selected) {
@@ -448,6 +450,9 @@ async function applyPublishedContent(item) {
             const composeDocument = nativeComposeTemplate(selected);
             // Legacy snapshots never fall back to their full-template HTML.
             if (composeDocument) {
+                // Mobile shares the published selection and its paired
+                // signature, but must never attach unused template media or
+                // attempt desktop-only body writes.
                 template = validatedDocument(composeDocument, 'template', config.marker);
             }
         } catch (error) {
@@ -463,6 +468,10 @@ async function applyPublishedContent(item) {
         : bootstrap.signature;
     const signature = wasSignatureWriteConfirmed(item)
         ? null : validatedDocument(signaturePayload, 'signature', config.marker);
+    if (!canInsertTemplate && template) {
+        template = null;
+        recordDiagnostic('template-preflight', 'skipped', { code: 'TEMPLATE_PREPEND_UNAVAILABLE' });
+    }
     if (signature) {
         if (signature.html.length > 30000) throw codedError('SIGNATURE_TOO_LARGE');
         if (!item?.body?.setSignatureAsync || !item?.addFileAttachmentFromBase64Async) {

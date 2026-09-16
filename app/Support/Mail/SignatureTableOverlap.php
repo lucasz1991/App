@@ -203,11 +203,11 @@ final class SignatureTableOverlap
         return $result;
     }
 
-    public static function css(string $version = self::VERSION): string
+    public static function css(string $version = self::VERSION, string $layout = 'legacy'): string
     {
         $profiles = self::profiles($version);
         $scope = 'tr[data-rt-artifact-version="'.$version.'"]';
-        $css = str_replace('{scope}', $scope, SignatureImgOverlap::editorSettings()['layoutCss']);
+        $css = $layout === 'ledger' ? '' : str_replace('{scope}', $scope, SignatureImgOverlap::editorSettings()['layoutCss']);
         $css .= $scope.' .rt-sign-content-frame{width:100%!important;table-layout:fixed!important;height:auto!important;}'
             .$scope.' .rt-v27-image-cell{width:1%!important;padding:0!important;font-size:0!important;line-height:0!important;vertical-align:bottom!important;}'
             .$scope.' .rt-v27-image-slot{direction:rtl!important;text-align:right!important;vertical-align:bottom!important;font-size:0!important;line-height:0!important;padding:0!important;}'
@@ -223,6 +223,16 @@ final class SignatureTableOverlap
             $rule = $scope.' .rt-v27-anchor{width:'.$profile['anchor'].'%!important;table-layout:fixed!important;border-collapse:collapse!important;}'
                 .$scope.' .rt-sign-train{width:'.$profile['image'].'%!important;max-width:'.$profile['image'].'%!important;}';
             $css .= $profile['max'] === null ? $rule : '@media only screen and (max-width:'.$profile['max'].'px){'.$rule.'}';
+        }
+
+        if ($version === self::VERSION && in_array($layout, ['ledger', 'editor'], true)) {
+            // Only the explicit Signal ledger opts into this contact layout.
+            // These rules are shared by the editor, systemmail and Outlook CSS.
+            $ledgerCss = file_get_contents(resource_path('mail-templates/signature-v27-ledger.css'));
+            if (! is_string($ledgerCss)) {
+                throw new RuntimeException('Die Signal-Signaturregeln konnten nicht geladen werden.');
+            }
+            $css .= $ledgerCss;
         }
 
         return $css;

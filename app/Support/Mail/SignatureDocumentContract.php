@@ -274,6 +274,15 @@ final class SignatureDocumentContract
             ));
         }
 
+        // V27 Signal uses the reference layout: brand at the left of both
+        // contact groups. Keep the older two-row layouts unchanged.
+        if (in_array('rt-sign-ledger', self::classes($layout), true)
+            && SignatureArtifactVersion::detect('signature', $html) === SignatureArtifactVersion::V27) {
+            self::assertLedgerLayout($layout, $rows);
+
+            return;
+        }
+
         if (count($rows) !== 2) {
             throw new RuntimeException('Die V18-Weiterleitungsstruktur muss genau eine Logozeile und eine Datenzeile besitzen.');
         }
@@ -317,6 +326,54 @@ final class SignatureDocumentContract
             if ($element instanceof DOMElement && in_array('rt-sign-company-row', self::classes($element), true)) {
                 throw new RuntimeException('Die alte separate Firmenzeile ist in der V18-Weiterleitungsstruktur nicht zulaessig.');
             }
+        }
+    }
+
+    /** A single logical copy of brand, personal contacts and company contacts. */
+    private static function assertLedgerLayout(DOMElement $layout, array $rows): void
+    {
+        $cells = count($rows) === 1 ? self::elementChildren($rows[0]) : [];
+        if (count($cells) !== 2
+            || $cells[0]->tagName !== 'td' || $cells[1]->tagName !== 'td'
+            || ! self::hasExactClasses(self::classes($cells[0]), ['rt-ledger-brand'])
+            || ! self::hasExactClasses(self::classes($cells[1]), ['rt-ledger-contacts'])) {
+            throw new RuntimeException('Die Signal-Signatur benoetigt Logo und Kontakte nebeneinander in einer Tabellenzeile.');
+        }
+
+        // DOMDocument serializes placeholder URLs with percent-encoded braces.
+        // Normalize that representation only; the original token contract above
+        // still checks the source and its permitted attribute contexts.
+        $serialize = static fn (DOMElement $element): string => str_ireplace(
+            ['%7B', '%7D'], ['{', '}'], $element->ownerDocument->saveHTML($element),
+        );
+        $brand = $serialize($cells[0]);
+        $contacts = $serialize($cells[1]);
+        foreach (['{{LOGO_SRC}}', '{{LOGO_STILL_SRC}}', '{{VORNAME_NACHNAME}}', '{{POSITION}}'] as $token) {
+            if (substr_count($brand, $token) !== 1 || str_contains($contacts, $token)) {
+                throw new RuntimeException('Logo und Personenkopf muessen genau einmal im Signal-Markenblock liegen.');
+            }
+        }
+
+        $contactTable = self::firstElementChild($cells[1]);
+        if (! $contactTable instanceof DOMElement || ! self::isMailSafeWrapperTable($contactTable)) {
+            throw new RuntimeException('Die Signal-Kontakte benoetigen eine mail-sichere Tabelle.');
+        }
+        $contactRows = self::elementChildren($contactTable);
+        if (count($contactRows) === 1 && $contactRows[0]->tagName === 'tbody') {
+            $contactRows = self::elementChildren($contactRows[0]);
+        }
+        $groups = count($contactRows) === 1 ? self::elementChildren($contactRows[0]) : [];
+        if (count($groups) !== 2
+            || $contactRows[0]->tagName !== 'tr'
+            || $groups[0]->tagName !== 'td' || $groups[1]->tagName !== 'td'
+            || ! self::hasExactClasses(self::classes($groups[0]), ['rt-ledger-direct'])
+            || ! self::hasExactClasses(self::classes($groups[1]), ['rt-ledger-company'])
+            || ! str_contains($serialize($groups[0]), '{{E_MAIL}}')
+            || ! str_contains($serialize($groups[1]), '{{FIRMENSTRASSE}}')) {
+            throw new RuntimeException('Die Signal-Kontaktgruppen muessen Person vor Firma enthalten.');
+        }
+        foreach ([$layout, $rows[0], ...$cells, $contactTable, $contactRows[0], ...$groups] as $element) {
+            self::assertV18ElementVisible($element, 'Signal-Kontakte');
         }
     }
 
