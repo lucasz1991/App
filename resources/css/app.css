@@ -8,6 +8,7 @@
 @import './file-preview.css';
 @import './system-health.css';
 @import './operations-workspace.css';
+@import './operations-calendar.css';
 
 @tailwind base;
 @tailwind components;

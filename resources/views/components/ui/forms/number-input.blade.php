@@ -42,6 +42,9 @@
 
     $handlers = [
         'x-mask:dynamic' => $mask,
+        '@beforeinput' => 'acceptDecimalSeparator($event)',
+        '@paste' => 'acceptDecimalSeparator($event)',
+        '@input' => 'syncAria()',
         '@blur' => 'normalize()',
         '@keydown.up.prevent' => 'nudge(1)',
         '@keydown.down.prevent' => 'nudge(-1)',
@@ -137,6 +140,10 @@
         type="text"
         inputmode="{{ $inputMode }}"
         autocomplete="off"
+        role="spinbutton"
+        @if ($min !== null) aria-valuemin="{{ $min }}" @endif
+        @if ($max !== null) aria-valuemax="{{ $max }}" @endif
+        :aria-valuenow="ariaValue"
         @disabled($disabled)
         @readonly($readonly)
         @foreach ($handlers as $directive => $expression)

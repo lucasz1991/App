@@ -22,6 +22,7 @@ export const numberInput = (config = {}) => ({
     // (z. B. public int $invitationExpiryDays) bewusst false, sonst wuerde ein
     // leeres Feld beim Speichern einen Typfehler ausloesen.
     nullable: config.nullable ?? true,
+    ariaRaw: null,
 
     field() {
         return this.$refs.field ?? this.$el;
@@ -34,7 +35,7 @@ export const numberInput = (config = {}) => ({
             return null;
         }
 
-        const parsed = Number.parseFloat(text);
+        const parsed = Number(text);
 
         return Number.isFinite(parsed) ? parsed : null;
     },
@@ -64,8 +65,46 @@ export const numberInput = (config = {}) => ({
     write(value) {
         const field = this.field();
         field.value = value;
+        this.ariaRaw = value;
         field.dispatchEvent(new Event('input', { bubbles: true }));
         field.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+
+    syncAria() {
+        this.ariaRaw = this.field().value;
+    },
+
+    /** Punkt und Komma als dezimale Eingabe akzeptieren, bevor die Maske filtert. */
+    acceptDecimalSeparator(event) {
+        const field = this.field();
+
+        if (this.decimals < 1 || field.disabled || field.readOnly || event.isComposing) {
+            return;
+        }
+
+        const inserted = event.type === 'paste'
+            ? event.clipboardData?.getData('text/plain')
+            : event.inputType === 'insertText' ? event.data : null;
+        const alternate = this.separator === ',' ? '.' : ',';
+
+        // Keine Tausendertrennung raten: nur eindeutige Dezimaleingaben wandeln.
+        if (!inserted?.includes(alternate) || !/^-?\d*[.,]\d*$/.test(inserted)) {
+            return;
+        }
+
+        const start = field.selectionStart ?? field.value.length;
+        const end = field.selectionEnd ?? start;
+        const replacement = inserted.replace(alternate, this.separator);
+        const candidate = field.value.slice(0, start) + replacement + field.value.slice(end);
+
+        if (candidate.split(this.separator).length !== 2) {
+            return;
+        }
+
+        event.preventDefault();
+        field.setRangeText(replacement, start, end, 'end');
+        this.ariaRaw = field.value;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
     },
 
     nudge(direction) {
@@ -89,6 +128,11 @@ export const numberInput = (config = {}) => ({
      */
     normalize() {
         const field = this.field();
+
+        if (field.disabled || field.readOnly) {
+            return;
+        }
+
         const current = this.toNumber(field.value);
 
         if (current === null) {
@@ -114,7 +158,7 @@ export const numberInput = (config = {}) => ({
 
     /** Fuer aria-valuenow. */
     get ariaValue() {
-        const current = this.toNumber(this.field()?.value);
+        const current = this.toNumber(this.ariaRaw ?? this.field()?.value);
 
         return current === null ? null : current;
     },

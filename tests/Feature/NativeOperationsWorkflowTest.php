@@ -71,6 +71,8 @@ class NativeOperationsWorkflowTest extends TestCase
         $this->assertSame('Persönlich', array_key_last($sections));
         $this->assertSame(['Meine Geräte', 'Profil'], array_column($sections['Persönlich'], 'title'));
         $groups = ApplicationNavigation::managementGroups($sections['Management']);
+        $this->assertTrue(collect($groups['Personal']['links'])->contains(fn ($link) => ($link['parameters']['module'] ?? null) === 'rules'));
+        $this->assertEmpty($sections['System']);
         $this->assertSame(['Disposition', 'Personal', 'Zeiten & Freigaben', 'Stammdaten & Geräte'], array_keys($groups));
         $groupedLinks = collect($groups)->pluck('links')->flatten(1);
         $this->assertCount(count($sections['Management']), $groupedLinks);

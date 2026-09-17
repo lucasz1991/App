@@ -129,9 +129,10 @@
             },
             measure() {
                 if (! this.$refs.viewport || ! this.active) return;
+                if (this.$refs.viewport.clientWidth <= 0) return;
                 if (this.compact) {
                     this.scale = Math.min(this.$refs.viewport.clientWidth / this.active.width, 1);
-                    this.viewportHeight = Math.max(100, Math.ceil(this.active.height * this.scale));
+                    this.viewportHeight = Math.max(1, Math.ceil(this.active.height * this.scale));
                     return;
                 }
                 const availableWidth = Math.max(1, this.$refs.viewport.clientWidth - 24);
@@ -233,7 +234,9 @@
         <div
             x-ref="viewport"
             @class(['relative overflow-hidden bg-rt-surface-muted dark:bg-rt-dark-surface-muted', 'aspect-[16/10] min-h-52' => ! $compact])
+            @if ($compact) style="aspect-ratio: {{ $initialSource['width'] }} / {{ $initialSource['height'] }}" @endif
             x-bind:style="compact ? `height:${viewportHeight}px` : ''"
+            data-page-builder-preview-compact="{{ $compact ? 'true' : 'false' }}"
             data-page-builder-preview-viewport
         >
             @if ($previewSources !== [])

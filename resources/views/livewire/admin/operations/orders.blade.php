@@ -162,7 +162,7 @@
                 </div>
                 <div>
                     <x-ui.forms.label for="order-required-staff" value="Benötigte Mitarbeitende" />
-                    <x-ui.forms.input id="order-required-staff" type="number" min="1" wire:model="requiredStaff" class="mt-1" />
+                    <x-ui.forms.number-input id="order-required-staff" min="1" max="999" :nullable="false" wire:model="requiredStaff" />
                     @error('requiredStaff') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div class="sm:col-span-2">

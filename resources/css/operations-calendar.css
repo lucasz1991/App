@@ -1,0 +1,60 @@
+.rt-calendar-shift {
+    padding: 12px !important;
+    border: 1px solid var(--rt-shell-line) !important;
+    border-left: 3px solid var(--rt-shell-muted) !important;
+    border-radius: 12px !important;
+    background: var(--rt-shell-surface-solid) !important;
+}
+.rt-calendar-shift:hover, .rt-calendar-shift:focus-visible {
+    border-left-color: var(--rt-accent, #e4002b) !important;
+}
+.rt-calendar-month {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    border-top: 1px solid var(--rt-shell-line);
+    border-left: 1px solid var(--rt-shell-line);
+}
+.rt-calendar-weekday {
+    padding: 12px 4px;
+    font-size: 12px;
+    text-align: center;
+    color: var(--rt-shell-muted);
+    border-right: 1px solid var(--rt-shell-line);
+    border-bottom: 1px solid var(--rt-shell-line);
+}
+.rt-calendar-month-day {
+    min-width: 0;
+    min-height: 72px;
+    padding: 2px;
+    border-right: 1px solid var(--rt-shell-line);
+    border-bottom: 1px solid var(--rt-shell-line);
+}
+.rt-calendar-month-day.is-outside { background: var(--rt-shell-panel); }
+.rt-calendar-month-day.is-today { box-shadow: inset 0 3px var(--rt-accent, #e4002b); }
+.rt-calendar-date { width: 100%; min-width: 0 !important; padding-inline: 2px !important; }
+.rt-calendar-month-shift {
+    display: block !important;
+    width: 100%;
+    height: auto !important;
+    padding: 6px !important;
+    white-space: normal !important;
+    text-align: left !important;
+}
+.rt-calendar-week { display: none; }
+@media (min-width: 1024px) {
+    .rt-calendar-month-day { min-height: 164px; padding: 6px; }
+    .rt-calendar-date { width: auto; min-width: 44px !important; }
+    .rt-calendar-week {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        border-top: 1px solid var(--rt-shell-line);
+        border-left: 1px solid var(--rt-shell-line);
+    }
+    .rt-calendar-week-day {
+        min-width: 0;
+        min-height: 320px;
+        border-right: 1px solid var(--rt-shell-line);
+        border-bottom: 1px solid var(--rt-shell-line);
+    }
+    .rt-calendar-week-day.is-today { background: var(--rt-shell-panel); }
+}

@@ -1,11 +1,46 @@
 <div class="space-y-4" data-operations-shift-management>
-    <x-tables.toolbar title="Filter" id="operations-shift-management-filters">
-
+    <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all')">
+        <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" /></x-slot:search>
         <x-tables.filter-field label="Von" for="shift-range-from"><x-ui.forms.input id="shift-range-from" type="date" wire:model.live="rangeFrom" aria-label="Schichten ab" /></x-tables.filter-field>
         <x-tables.filter-field label="Bis" for="shift-range-to"><x-ui.forms.input id="shift-range-to" type="date" wire:model.live="rangeTo" aria-label="Schichten bis" /></x-tables.filter-field>
         <x-tables.filter-field label="Auftrag" for="shift-order-filter"><x-ui.forms.select id="shift-order-filter" wire:model.live="orderFilter" aria-label="Auftrag"><option value="all">Alle Aufträge</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->title }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
+        <x-tables.filter-field label="Status" for="shift-status-filter"><x-ui.forms.select id="shift-status-filter" wire:model.live="statusFilter" aria-label="Schichtstatus filtern"><option value="all">Alle Status</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
     </x-tables.toolbar>
-    <x-tables.table :columns="[['label'=>'Schicht', 'key'=>'title', 'width'=>'2fr'], ['label'=>'Kunde', 'key'=>'order.customer.company_name', 'width'=>'1.4fr'], ['label'=>'Beginn', 'key'=>'starts_at', 'width'=>'1.2fr'], ['label'=>'Ende', 'key'=>'ends_at', 'width'=>'1.2fr'], ['label'=>'Status', 'key'=>'status', 'width'=>'.8fr']]" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge gefunden." />
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Schichtplanansicht">
+            @foreach(['table' => ['Tabelle', 'fa-table-list'], 'day' => ['Tagesübersicht', 'fa-calendar-day'], 'staffing' => ['Besetzung', 'fa-users']] as $key => [$label, $icon])
+                <x-ui.buttons.button-basic type="button" :mode="$viewMode === $key ? 'primary' : 'basic'" wire:click="setView('{{ $key }}')" wire:loading.attr="disabled" wire:target="setView" aria-pressed="{{ $viewMode === $key ? 'true' : 'false' }}" class="min-h-11" wire:key="shift-view-{{ $key }}"><i class="far {{ $icon }}" aria-hidden="true"></i>{{ $label }}</x-ui.buttons.button-basic>
+            @endforeach
+        </div>
+        <p class="text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted" aria-live="polite">{{ $shifts->count() }} Schichten <span aria-hidden="true">·</span> {{ $openCount }} offene Plätze</p>
+    </div>
+    @php
+        $shiftColumns = [
+            ['label' => 'Schicht', 'key' => 'shift', 'width' => '1.5fr'],
+            ['label' => 'Kunde / Ort', 'key' => 'customer', 'width' => '1.2fr'],
+            ['label' => 'Zeitfenster', 'key' => 'schedule', 'width' => '1.3fr'],
+            ['label' => 'Besetzung', 'key' => 'staffing', 'width' => '1.1fr'],
+            ['label' => 'Planstatus', 'key' => 'status', 'width' => '1fr'],
+        ];
+    @endphp
+    <div class="space-y-6" data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="setView,search,rangeFrom,rangeTo,orderFilter,statusFilter">
+        @if($viewMode === 'table' || $shifts->isEmpty())
+            <x-tables.table :columns="$shiftColumns" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
+        @else
+            @if($viewMode === 'day')<p class="text-xs text-rt-muted dark:text-rt-dark-muted">Tageszuordnung: {{ $displayTimezone }}</p>@endif
+            @foreach($viewMode === 'day' ? $dailyGroups : $staffingGroups as $groupKey => $group)
+                @if($group['items']->isNotEmpty())
+                    <section class="min-w-0" wire:key="shift-group-{{ $viewMode }}-{{ $groupKey }}" aria-labelledby="shift-group-{{ $viewMode }}-{{ $groupKey }}" data-shift-group="{{ $groupKey }}">
+                        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-rt-surface-muted px-3 py-3 dark:bg-rt-dark-surface-muted">
+                            <h2 id="shift-group-{{ $viewMode }}-{{ $groupKey }}" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $group['label'] }}</h2>
+                            <span class="text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $group['items']->count() }} {{ $group['items']->count() === 1 ? 'Schicht' : 'Schichten' }}</span>
+                        </div>
+                        <x-tables.table :columns="$shiftColumns" :items="$group['items']" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" />
+                    </section>
+                @endif
+            @endforeach
+        @endif
+    </div>
     <x-operations.modal wire:model="detailOpen" title="Schichtdetails" max-width="4xl">
         @if($selectedShift)
                     @php
@@ -154,7 +189,7 @@
                 </div>
                 <div>
                     <x-ui.forms.label for="shift-required-staff" value="Benötigte Mitarbeitende" />
-                    <x-ui.forms.input id="shift-required-staff" type="number" min="1" wire:model="requiredStaff" class="mt-1" />
+                    <div class="mt-1"><x-ui.forms.number-input id="shift-required-staff" min="1" max="999" :nullable="false" wire:model="requiredStaff" /></div>
                     @error('requiredStaff') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>

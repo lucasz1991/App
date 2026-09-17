@@ -568,10 +568,11 @@
                 icon="fad fa-window-restore"
                 max-width="6xl"
                 close-action="closeModal('preview')"
+                body-class="min-h-0 min-w-0 flex-1 overflow-hidden p-2"
                 class="h-[calc(100dvh-1rem)] sm:h-[calc(100dvh-3rem)]"
                 data-email-template-modal="preview"
             >
-                <div class="flex h-full min-h-[26rem] flex-col gap-3 sm:gap-4">
+                <div class="flex h-full min-h-0 flex-col gap-2">
                     @if ($user?->isAdmin())
                         <div class="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div class="space-y-1.5">
@@ -629,7 +630,7 @@
                             <x-ui.preview.frame
                                 x-bind:src="previewFrameUrl()"
                                 :title="__('app.email_templates_preview_accordion')"
-                                class="h-full min-h-[22rem] w-full"
+                                class="h-full min-h-0 w-full"
                                 data-email-template-preview-frame
                             />
                         </div>

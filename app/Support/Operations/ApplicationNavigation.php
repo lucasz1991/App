@@ -24,10 +24,7 @@ final class ApplicationNavigation
         $icons = ['inquiries' => 'inbox', 'orders' => 'clipboard', 'shift-management' => 'clock', 'calendar' => 'calendar', 'customers' => 'briefcase', 'qualifications' => 'award', 'absences' => 'calendar', 'times' => 'check-circle', 'exports' => 'download', 'rules' => 'shield'];
         $opsModules = $ready ? OperationsNavigation::forUser($user) : [];
         foreach ($opsModules as $slug => $module) {
-            $section = match ($slug) {
-                'rules' => 'System',
-                default => 'Management',
-            };
+            $section = 'Management';
             $add($section, $module['title'], 'operations.workspace', $icons[$slug], ['module' => $slug]);
         }
         if (! $ready && $admin) {
@@ -75,7 +72,7 @@ final class ApplicationNavigation
         foreach ($links as $link) {
             $module = $link['parameters']['module'] ?? null;
             $group = match (true) {
-                in_array($module, ['qualifications', 'absences'], true),
+                in_array($module, ['qualifications', 'absences', 'rules'], true),
                 in_array($link['route'], ['admin.employees', 'employees.index'], true) => 'Personal',
                 in_array($module, ['times', 'exports'], true) => 'Zeiten & Freigaben',
                 $module === 'customers',

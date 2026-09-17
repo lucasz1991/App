@@ -33,6 +33,20 @@ class ShiftManagement extends Component
 
     public string $orderFilter = 'all';
 
+    public string $search = '';
+
+    public string $statusFilter = 'all';
+
+    #[Locked]
+    public string $viewMode = 'table';
+
+    public function setView(string $view): void
+    {
+        $this->ensureAdmin();
+        abort_unless(in_array($view, ['table', 'day', 'staffing'], true), 422);
+        $this->viewMode = $view;
+    }
+
     public ?int $selectedShiftId = null;
 
     public bool $formOpen = false;
@@ -287,11 +301,48 @@ class ShiftManagement extends Component
 
         $shifts = Shift::query()
             ->with(['order.customer', 'assignments.user'])
-            ->where('ends_at', '>=', $from->copy()->utc())
+            ->where('ends_at', '>', $from->copy()->utc())
             ->where('starts_at', '<=', $to->copy()->utc())
             ->when($this->orderFilter !== 'all', fn (Builder $query) => $query->where('order_id', (int) $this->orderFilter))
+            ->when($this->statusFilter !== 'all', fn (Builder $query) => $query->where('status', $this->statusFilter))
+            ->when(trim($this->search) !== '', function (Builder $query): void {
+                $term = '%'.mb_substr(trim($this->search), 0, 180).'%';
+                $query->where(fn (Builder $search) => $search
+                    ->where('title', 'like', $term)
+                    ->orWhere('role_name', 'like', $term)
+                    ->orWhere('location_name', 'like', $term)
+                    ->orWhereHas('order', fn (Builder $order) => $order
+                        ->where('title', 'like', $term)
+                        ->orWhereHas('customer', fn (Builder $customer) => $customer->where('company_name', 'like', $term))));
+            })
             ->orderBy('starts_at')
+            ->orderBy('id')
             ->get();
+
+        $dailyGroups = collect();
+        if ($this->viewMode === 'day') {
+            for ($day = $from->copy()->startOfDay(); $day->lte($to); $day->addDay()) {
+                $dayEnd = $day->copy()->addDay();
+                $items = $shifts->filter(fn (Shift $shift): bool => $shift->starts_at->lt($dayEnd) && $shift->ends_at->gt($day))->values();
+                if ($items->isNotEmpty()) {
+                    $dailyGroups->put($day->toDateString(), [
+                        'label' => $day->copy()->locale('de')->translatedFormat('l, d. F Y'),
+                        'items' => $items,
+                    ]);
+                }
+            }
+        }
+
+        $staffingGroups = $shifts->groupBy(function (Shift $shift): string {
+            if (in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true)) {
+                return 'closed';
+            }
+
+            $reserved = $shift->assignments->filter(fn (ShiftAssignment $assignment): bool => $assignment->status->blocksAvailability())->count();
+            $confirmed = $shift->assignments->where('status', ShiftAssignmentStatus::Confirmed)->count();
+
+            return $reserved < $shift->required_staff ? 'open' : ($confirmed < $shift->required_staff ? 'awaiting' : 'staffed');
+        });
 
         $selectedShift = $this->selectedShiftId
             ? Shift::query()->with(['order.customer', 'assignments.user'])->find($this->selectedShiftId)
@@ -311,6 +362,14 @@ class ShiftManagement extends Component
             'nativeOperations' => OperationsAccess::ready(),
             'qualificationTypes' => OperationsAccess::ready() ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
             'shifts' => $shifts,
+            'dailyGroups' => $dailyGroups,
+            'staffingGroups' => collect([
+                'open' => 'Besetzung offen',
+                'awaiting' => 'Bestätigung ausstehend',
+                'staffed' => 'Besetzt',
+                'closed' => 'Abgeschlossen / storniert',
+            ])->map(fn (string $label, string $key): array => ['label' => $label, 'items' => $staffingGroups->get($key, collect())]),
+            'displayTimezone' => (string) config('app.timezone', 'Europe/Berlin'),
             'selectedShift' => $selectedShift,
             'orders' => Order::query()
                 ->with('customer')
@@ -339,15 +398,16 @@ class ShiftManagement extends Component
     /** @return array{0: Carbon, 1: Carbon} */
     private function resolvedRange(): array
     {
+        $timezone = (string) config('app.timezone', 'Europe/Berlin');
         try {
-            $from = Carbon::createFromFormat('Y-m-d', $this->rangeFrom)->startOfDay();
+            $from = Carbon::createFromFormat('!Y-m-d', $this->rangeFrom, $timezone)->startOfDay();
         } catch (\Throwable) {
-            $from = now()->startOfWeek()->startOfDay();
+            $from = now($timezone)->startOfWeek()->startOfDay();
             $this->rangeFrom = $from->toDateString();
         }
 
         try {
-            $to = Carbon::createFromFormat('Y-m-d', $this->rangeTo)->endOfDay();
+            $to = Carbon::createFromFormat('!Y-m-d', $this->rangeTo, $timezone)->endOfDay();
         } catch (\Throwable) {
             $to = $from->copy()->addWeeks(2)->endOfDay();
             $this->rangeTo = $to->toDateString();
