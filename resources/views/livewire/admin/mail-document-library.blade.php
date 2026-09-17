@@ -3,6 +3,7 @@
     $isSignature = $currentKind === \App\Enums\MailDocumentKind::Signature;
     $pendingAction = $pending['action'] ?? '';
     $confirmationTitle = match ($pendingAction) {
+        'delete' => (($pending['kind'] ?? '') === 'signature' ? 'Signatur' : 'Vorlage').' endgültig löschen',
         'restore' => 'Version als Entwurf wiederherstellen',
         'default' => 'Outlook-Standard festlegen',
         'withdraw' => 'Outlook-Freigabe zurücknehmen',
@@ -146,6 +147,8 @@
                                             <button type="button" role="menuitem" wire:click="prepareAction('withdraw', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item"><i class="far fa-eye-slash" aria-hidden="true"></i>Freigabe zurücknehmen</button>
                                         @endif
                                     @endif
+                                    <div class="rt-mail-library-menu__divider" role="separator"></div>
+                                    <button type="button" role="menuitem" wire:click="prepareAction('delete', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item text-red-700 dark:text-red-300" data-mail-library-delete><i class="far fa-trash-alt" aria-hidden="true"></i>{{ $isSignature ? 'Signatur löschen' : 'Vorlage löschen' }}</button>
                                 </x-slot:content>
                             </x-ui.dropdown.anchor-dropdown>
                         </div>
@@ -252,6 +255,8 @@
                     Diese freigegebene Vorlage wird bei neuen E-Mails, Antworten und Weiterleitungen in unterstützten Outlook-Clients automatisch oberhalb eingefügt. Vorhandener Text, zitierte Nachrichten und der Systemmail-Standard bleiben unverändert. Mobile Clients verwenden weiterhin die automatische Signatur.
                 @elseif ($pendingAction === 'withdraw')
                     Mitarbeitende können diese Vorlage anschließend nicht mehr neu auswählen. Bereits eingefügte Inhalte und der gespeicherte Entwurf bleiben erhalten.
+                @elseif ($pendingAction === 'delete')
+                    Der Entwurf und sein gesamter Versionsverlauf werden dauerhaft gelöscht. Aktive Systemmail-Stände, Outlook-Standards, freigegebene Vorlagen und zugeordnete Signaturen müssen zuerst abgelöst beziehungsweise getrennt werden. Diese Aktion kann nicht rückgängig gemacht werden.
                 @elseif ($deliveryReady)
                     Der gespeicherte Entwurf wird geprüft und als veröffentlichter Stand gespeichert. Bestehende Verwendungen erhalten diesen Stand. Es wird kein neuer Standard gewählt und keine neue Mitarbeitervorlage freigeschaltet. Diese Zuordnungen steuerst du getrennt über die Statussymbole oder das Aktionsmenü der Zeile.
                 @elseif (($pending['library'] ?? '') === 'true')
@@ -264,7 +269,7 @@
         </div>
         <x-slot:footer>
             <button type="button" class="rt-mail-library__button" x-on:click="confirmDialog = false">Abbrechen</button>
-            <button type="button" wire:click="confirmAction" class="rt-mail-library__button rt-mail-library__button--primary" wire:loading.attr="disabled" wire:target="confirmAction"><span wire:loading.remove wire:target="confirmAction">{{ $pendingAction === 'restore' ? 'Als Entwurf wiederherstellen' : ($pendingAction === 'default' ? 'Standard festlegen' : ($pendingAction === 'withdraw' ? 'Freigabe zurücknehmen' : 'Prüfen und veröffentlichen')) }}</span><span wire:loading wire:target="confirmAction">Wird geprüft …</span></button>
+            <button type="button" wire:click="confirmAction" class="rt-mail-library__button {{ $pendingAction === 'delete' ? 'rt-mail-library__button--danger' : 'rt-mail-library__button--primary' }}" wire:loading.attr="disabled" wire:target="confirmAction"><span wire:loading.remove wire:target="confirmAction">{{ $pendingAction === 'delete' ? 'Endgültig löschen' : ($pendingAction === 'restore' ? 'Als Entwurf wiederherstellen' : ($pendingAction === 'default' ? 'Standard festlegen' : ($pendingAction === 'withdraw' ? 'Freigabe zurücknehmen' : 'Prüfen und veröffentlichen'))) }}</span><span wire:loading wire:target="confirmAction">Wird verarbeitet …</span></button>
         </x-slot:footer>
     </x-ui.state-modal>
     <x-ui.state-modal :id="$libraryId.'-preview'" state="previewDialog" title="Designvorschau" description="Aktuell gespeicherter Entwurf · Browserdarstellung, kein Mailclient-Nachweis." icon="far fa-eye" max-width="6xl">

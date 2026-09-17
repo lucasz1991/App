@@ -5,6 +5,7 @@ namespace App\Livewire\Admin;
 use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
 use App\Models\User;
+use App\Support\Mail\MailDocumentDeletion;
 use App\Support\Mail\MailDocumentDelivery;
 use App\Support\Mail\MailDocumentSignaturePairing;
 use App\Support\Mail\MailDocumentSignatureResolver;
@@ -223,9 +224,9 @@ class MailDocumentLibrary extends Component
     public function prepareAction(string $action, string $documentId, string $expectedHash, ?string $versionId = null): void
     {
         $this->admin();
-        abort_unless(in_array($action, ['publish', 'default', 'withdraw', 'restore'], true), 422);
+        abort_unless(in_array($action, ['publish', 'default', 'withdraw', 'restore', 'delete'], true), 422);
         if (MailDocumentDelivery::available()) {
-            abort_unless(in_array($action, ['publish', 'restore'], true), 422);
+            abort_unless(in_array($action, ['publish', 'restore', 'delete'], true), 422);
         }
         $this->resetValidation();
         $document = $this->document($documentId);
@@ -249,7 +250,7 @@ class MailDocumentLibrary extends Component
         $this->confirmOpen = true;
     }
 
-    public function confirmAction(OutlookTemplateLibrary $library): void
+    public function confirmAction(OutlookTemplateLibrary $library, MailDocumentDeletion $deletion): void
     {
         $actor = $this->admin();
         abort_unless($this->confirmOpen && isset($this->pending['document'], $this->pending['hash']), 403);
@@ -259,6 +260,7 @@ class MailDocumentLibrary extends Component
 
         try {
             match ($action) {
+                'delete' => $deletion->delete($document, $hash),
                 'publish' => $library->publish($actor, $document, $hash),
                 'default' => $library->setDefault($actor, $document, $hash),
                 'withdraw' => $library->withdraw($actor, $document, $hash),
@@ -277,6 +279,7 @@ class MailDocumentLibrary extends Component
         }
 
         $this->notice = match ($action) {
+            'delete' => '„'.$this->pending['name'].'“ wurde mit seinem Versionsverlauf gelöscht.',
             'restore' => 'Version '.$this->pending['revision'].' wurde als Entwurf wiederhergestellt. Die Freigabe bleibt unverändert.',
             'default' => 'Die Outlook-Standardvorlage wurde geändert. Systemmails bleiben unverändert.',
             'withdraw' => 'Die Vorlage wird Mitarbeitenden nicht mehr zur Auswahl angeboten.',

@@ -20,6 +20,7 @@ use App\Support\Mail\EmailCompatibilityReport;
 use App\Support\Mail\EmailHtmlReport;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentAutoRepair;
+use App\Support\Mail\MailDocumentDeletion;
 use App\Support\Mail\MailDocumentDelivery;
 use App\Support\Mail\MailDocumentSignatureResolver;
 use App\Support\Mail\MailDocumentVersionStore;
@@ -1132,56 +1133,17 @@ final class MailDocumentController extends Controller
     }
 
     /** Entfernt nur inaktive Slots und bewahrt immer mindestens einen Entwurf. */
-    public function deleteDesignSlot(Request $request, MailDocument $document): JsonResponse
-    {
+    public function deleteDesignSlot(
+        Request $request,
+        MailDocument $document,
+        MailDocumentDeletion $deletion,
+    ): JsonResponse {
         $this->mailAdmin($request);
         $validated = $request->validate([
             'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
         ]);
 
-        $redirect = DB::transaction(function () use ($document, $validated): string {
-            $slots = MailDocument::query()
-                ->where('kind', $document->kind->value)
-                ->lockForUpdate()
-                ->get();
-            $locked = $slots->firstWhere($document->getKeyName(), $document->getKey());
-            abort_unless($locked instanceof MailDocument, 404);
-            if (! $locked->matchesContentHash((string) $validated['expected_hash'])) {
-                throw ValidationException::withMessages([
-                    'expected_hash' => 'Der Design-Slot wurde zwischenzeitlich geändert. Bitte lade die Seite neu.',
-                ]);
-            }
-            if ($locked->isActive()) {
-                throw ValidationException::withMessages([
-                    'slot' => 'Das aktive, veröffentlichte Design kann nicht gelöscht werden. Aktiviere zuerst einen anderen Slot.',
-                ]);
-            }
-            if ($locked->outlook_default || $locked->outlook_released || ($locked->isOutlookTemplate() && $locked->isPublished())) {
-                throw ValidationException::withMessages([
-                    'slot' => 'Bitte ziehe die Outlook-Freigabe zuerst in der Vorlagenübersicht zurück.',
-                ]);
-            }
-            if ($slots->count() <= 1) {
-                throw ValidationException::withMessages([
-                    'slot' => 'Der letzte Design-Slot dieser Dokumentart kann nicht gelöscht werden.',
-                ]);
-            }
-            if ($locked->kind === MailDocumentKind::Signature
-                && MailDocumentSignatureResolver::available()
-                && MailDocument::query()->where(static fn ($query) => $query
-                    ->where('signature_document_id', $locked->getKey())
-                    ->orWhere('published_signature_document_id', $locked->getKey()))->exists()) {
-                throw ValidationException::withMessages([
-                    'slot' => 'Diese Signatur ist noch einer Vorlage zugeordnet. Löse die Zuordnung zuerst in der Vorlagenübersicht.',
-                ]);
-            }
-
-            $fallback = $slots->first(fn (MailDocument $slot): bool => $slot->getKey() !== $locked->getKey() && $slot->isActive())
-                ?? $slots->first(fn (MailDocument $slot): bool => $slot->getKey() !== $locked->getKey());
-            $locked->delete();
-
-            return $this->slotEditorUrl($fallback);
-        });
+        $redirect = $this->slotEditorUrl($deletion->delete($document, (string) $validated['expected_hash']));
 
         return response()->json(['redirect' => $redirect]);
     }

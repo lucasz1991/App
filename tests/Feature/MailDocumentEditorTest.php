@@ -239,6 +239,17 @@ class MailDocumentEditorTest extends TestCase
         $this->assertSame(MailDocumentKind::Signature, $copy->kind);
         $this->assertFalse($copy->isOutlookTemplate());
         $this->assertFalse($copy->isActive());
+
+        $component->assertSee('data-mail-library-delete', escape: false)
+            ->call('prepareAction', 'delete', $copy->public_id, $copy->content_hash)
+            ->assertSet('confirmOpen', true)
+            ->assertSee('Signatur endgültig löschen')
+            ->call('confirmAction')
+            ->assertHasNoErrors()
+            ->assertSet('confirmOpen', false)
+            ->assertSee('wurde mit seinem Versionsverlauf gelöscht');
+        $this->assertNull($copy->fresh());
+        $this->assertNotNull($signature->fresh());
     }
 
     public function test_mail_document_library_pairs_template_drafts_without_changing_any_default(): void
