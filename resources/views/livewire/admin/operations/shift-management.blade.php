@@ -8,7 +8,7 @@
     </x-tables.toolbar>
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap gap-2" role="group" aria-label="Schichtplanansicht">
-            @foreach(['table' => ['Tabelle', 'fa-table-list'], 'day' => ['Tagesübersicht', 'fa-calendar-day'], 'staffing' => ['Besetzung', 'fa-users']] as $key => [$label, $icon])
+            @foreach(['table' => ['Tabelle', 'fa-table-list'], 'day' => ['Tagesübersicht', 'fa-calendar-day'], 'staffing' => ['Besetzung', 'fa-users'], 'orders' => ['Leistungen', 'fa-briefcase']] as $key => [$label, $icon])
                 <x-ui.buttons.button-basic type="button" :mode="$viewMode === $key ? 'primary' : 'basic'" wire:click="setView('{{ $key }}')" wire:loading.attr="disabled" wire:target="setView" aria-pressed="{{ $viewMode === $key ? 'true' : 'false' }}" class="min-h-11" wire:key="shift-view-{{ $key }}"><i class="far {{ $icon }}" aria-hidden="true"></i>{{ $label }}</x-ui.buttons.button-basic>
             @endforeach
         </div>
@@ -28,12 +28,18 @@
             <x-tables.table :columns="$shiftColumns" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
         @else
             @if($viewMode === 'day')<p class="text-xs text-rt-muted dark:text-rt-dark-muted">Tageszuordnung: {{ $displayTimezone }}</p>@endif
-            @foreach($viewMode === 'day' ? $dailyGroups : $staffingGroups as $groupKey => $group)
+            @foreach(match($viewMode) { 'day' => $dailyGroups, 'orders' => $orderGroups, default => $staffingGroups } as $groupKey => $group)
                 @if($group['items']->isNotEmpty())
                     <section class="min-w-0" wire:key="shift-group-{{ $viewMode }}-{{ $groupKey }}" aria-labelledby="shift-group-{{ $viewMode }}-{{ $groupKey }}" data-shift-group="{{ $groupKey }}">
                         <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-rt-surface-muted px-3 py-3 dark:bg-rt-dark-surface-muted">
-                            <h2 id="shift-group-{{ $viewMode }}-{{ $groupKey }}" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $group['label'] }}</h2>
+                            <div class="min-w-0">
+                                <h2 id="shift-group-{{ $viewMode }}-{{ $groupKey }}" class="break-words text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $group['label'] }}</h2>
+                                @if($viewMode === 'orders')<p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $group['customer'] }}</p>@endif
+                            </div>
                             <span class="text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $group['items']->count() }} {{ $group['items']->count() === 1 ? 'Schicht' : 'Schichten' }}</span>
+                            @if($viewMode === 'orders')
+                                <p class="w-full text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted">Aktiv: {{ $group['summary']['required'] }} Einsatzplätze · {{ $group['summary']['reserved'] }} eingeplant · {{ $group['summary']['confirmed'] }} bestätigt · {{ $group['summary']['open'] }} offen</p>
+                            @endif
                         </div>
                         <x-tables.table :columns="$shiftColumns" :items="$group['items']" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" />
                     </section>

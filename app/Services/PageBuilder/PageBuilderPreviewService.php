@@ -12,6 +12,8 @@ use App\Services\Marketing\MarketingRenderAssetHydrator;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentSignatureResolver;
+use App\Support\Mail\SignatureHotline;
+use App\Support\Mail\TrustedEmailCss;
 use App\Support\MailSignature;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -146,7 +148,9 @@ final class PageBuilderPreviewService
             ? $signature
             : $this->renderTokenHtml((string) $document->html, $values, [
                 'SIGNATURE_BLOCK' => $signature,
-                'RESPONSIVE_CSS' => EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true),
+                'RESPONSIVE_CSS' => SignatureHotline::applies($signatureHtml)
+                    ? TrustedEmailCss::forDocument($signatureHtml, $values['SIGNATURE_BORDER'] ?? null)
+                    : EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true),
                 // Die Adminvorschau zeigt das im Entwurf vorhandene Muster. Der
                 // Slot selbst wird erst beim produktiven Versand durch echten
                 // Anwendungsinhalt ersetzt und darf hier nicht doppelt erscheinen.
@@ -157,7 +161,9 @@ final class PageBuilderPreviewService
         if ($document->kind === MailDocumentKind::Template && $signatureDocument !== null) {
             $css .= "\n".$this->mailCss($signatureCss, $values);
         } elseif ($document->kind === MailDocumentKind::Signature) {
-            $css = EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true)
+            $css = (SignatureHotline::applies($signatureHtml)
+                ? TrustedEmailCss::forDocument($signatureHtml, $values['SIGNATURE_BORDER'] ?? null)
+                : EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null, true))
                 ."\n".$css;
         }
 

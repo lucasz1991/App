@@ -217,6 +217,7 @@ final class SystemMailInlineImageEmbedder
     private function embedSignatureBackgrounds(string $html, array &$assets, array $locations): string
     {
         $isHotline = SignatureHotline::applies($html);
+
         return preg_replace_callback(
             '~(<tr\b(?:"[^"]*"|\'[^\']*\'|[^\'">])*>)(\s*)(<td\b(?:"[^"]*"|\'[^\']*\'|[^\'">])*>)~i',
             function (array $match) use (&$assets, $locations, $isHotline): string {

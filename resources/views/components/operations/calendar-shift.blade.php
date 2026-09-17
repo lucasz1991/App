@@ -7,6 +7,7 @@
 >
     <span class="block text-xs font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $shift->calendar_starts->format('d.m. H:i') }} – {{ $shift->calendar_ends->format($shift->calendar_starts->isSameDay($shift->calendar_ends) ? 'H:i' : 'd.m. H:i') }}</span>
     <span class="mt-1 block break-words text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $shift->title }}</span>
+    <span class="mt-1 block break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->order?->order_number }}@unless($compact) · {{ $shift->order?->title }}@endunless</span>
     @unless($compact)
         <span class="mt-1 block break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->order?->customer?->company_name }} · {{ $shift->location_name ?: '—' }}</span>
     @endunless

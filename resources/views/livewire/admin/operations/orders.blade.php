@@ -9,6 +9,7 @@
                     @php
                         $selectedStatus = $selectedOrder->status instanceof \BackedEnum ? $selectedOrder->status->value : (string) $selectedOrder->status;
                         $selectedPriority = $selectedOrder->priority instanceof \BackedEnum ? $selectedOrder->priority->value : (string) $selectedOrder->priority;
+                        $planningRoute = \App\Support\Operations\OperationsAccess::ready() ? 'operations.workspace' : 'admin.operations.preview';
                     @endphp
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div class="min-w-0">
@@ -20,6 +21,15 @@
                             <i class="far fa-pen" aria-hidden="true"></i>Bearbeiten
                         </x-ui.buttons.button-basic>
                     </div>
+
+                    <nav class="mt-4 flex flex-wrap gap-2" aria-label="Planung dieser Leistung">
+                        <x-ui.buttons.button-basic :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id])" class="min-h-11">
+                            <i class="far fa-table-list" aria-hidden="true"></i>Schichtplan
+                        </x-ui.buttons.button-basic>
+                        <x-ui.buttons.button-basic :href="route($planningRoute, ['module' => 'calendar', 'order' => $selectedOrder->id])" class="min-h-11">
+                            <i class="far fa-calendar-days" aria-hidden="true"></i>Kalender
+                        </x-ui.buttons.button-basic>
+                    </nav>
 
                     <div class="mt-5 rounded-xl border border-rt-border/70 bg-rt-surface-muted/50 p-3.5 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/40">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -85,7 +95,7 @@
                                     @php($shiftStatus = $shift->status instanceof \BackedEnum ? $shift->status->value : (string) $shift->status)
                                     <div class="px-3.5 py-3" wire:key="order-shift-{{ $shift->id }}">
                                         <div class="flex items-center justify-between gap-2">
-                                            <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $shift->title }}</p>
+                                            <x-ui.buttons.button-basic mode="link" :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id, 'shift' => $shift->id])" class="min-h-11 min-w-0 text-left"><span class="break-words">{{ $shift->title }}</span></x-ui.buttons.button-basic>
                                             <x-operations.status :value="$shiftStatus" />
                                         </div>
                                         <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->starts_at?->format('d.m.Y H:i') }} · {{ $shift->assignments->filter(fn ($assignment) => in_array(

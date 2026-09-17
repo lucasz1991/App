@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Operations;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
 use App\Models\Customer;
+use App\Models\Order;
 use App\Models\Shift;
 use App\Support\Operations\OperationsAccess;
 use Carbon\CarbonImmutable;
@@ -25,6 +26,8 @@ class Calendar extends Component
 
     public string $customerFilter = 'all';
 
+    public string $orderFilter = 'all';
+
     public string $statusFilter = 'active';
 
     public bool $onlyOpen = false;
@@ -33,6 +36,32 @@ class Calendar extends Component
     {
         $this->ensureAdmin();
         $this->today();
+        if (request()->integer('order')) {
+            $order = Order::query()->find(request()->integer('order'));
+            abort_unless($order, 404);
+            $this->orderFilter = (string) $order->id;
+            $this->customerFilter = (string) $order->customer_id;
+            $this->anchorDate = $order->starts_at?->setTimezone($this->displayTimezone())->toDateString() ?? $this->anchorDate;
+            $this->weekStart = $this->resolvedAnchor()->startOfWeek()->toDateString();
+            if ($order->status->value === 'cancelled') {
+                $this->statusFilter = 'all';
+            }
+        }
+    }
+
+    public function updatedCustomerFilter(): void
+    {
+        $this->ensureAdmin();
+        if ($this->orderFilter !== 'all' && $this->customerFilter !== 'all'
+            && ! Order::whereKey($this->orderFilter)->where('customer_id', $this->customerFilter)->exists()) {
+            $this->orderFilter = 'all';
+        }
+    }
+
+    public function resetFilters(): void
+    {
+        $this->ensureAdmin();
+        $this->reset(['search', 'customerFilter', 'orderFilter', 'statusFilter', 'onlyOpen']);
     }
 
     public function switchView(string $view): void
@@ -163,6 +192,7 @@ class Calendar extends Component
             ->when($this->statusFilter === 'active', fn (Builder $q) => $q->where('status', '!=', ShiftStatus::Cancelled->value))
             ->when(! in_array($this->statusFilter, ['all', 'active'], true), fn (Builder $q) => $q->where('status', $this->statusFilter))
             ->when($this->customerFilter !== 'all', fn (Builder $q) => $q->whereHas('order', fn (Builder $order) => $order->where('customer_id', $this->customerFilter)))
+            ->when($this->orderFilter !== 'all', fn (Builder $q) => $q->where('order_id', $this->orderFilter))
             ->when(filled($this->search), function (Builder $q): void {
                 $term = '%'.mb_substr(trim($this->search), 0, 100).'%';
                 $q->where(fn (Builder $q) => $q->where('title', 'like', $term)->orWhere('location_name', 'like', $term)->orWhereHas('order.customer', fn (Builder $customer) => $customer->where('company_name', 'like', $term)));
@@ -202,6 +232,7 @@ class Calendar extends Component
             },
             'displayTimezone' => $this->displayTimezone(),
             'customers' => Customer::orderBy('company_name')->get(['id', 'company_name']),
+            'orders' => Order::query()->when($this->customerFilter !== 'all', fn (Builder $q) => $q->where('customer_id', $this->customerFilter))->orderByDesc('starts_at')->get(['id', 'title', 'order_number']),
             'statusOptions' => $this->enumOptions(ShiftStatus::class),
             'shiftCount' => $shifts->count(),
             'requiredCount' => (int) $shifts->sum('required_staff'),

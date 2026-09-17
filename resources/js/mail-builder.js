@@ -2548,6 +2548,24 @@ function projectPreviousSignatureTrainLayerToV18Geometry(wrapper, rows) {
     return assertCanonicalSignatureTrainImage(wrapper, rows, true);
 }
 
+function usesHotlineSignature(rows) {
+    return rows?.[0]?.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) === 'v30';
+}
+
+function assertHotlineSignature(wrapper, rows) {
+    const carrier = rows?.[0]?.children?.[0];
+    const banners = wrapper?.querySelectorAll('table[data-rt-hotline-train]') || [];
+    const links = Array.from(banners[0]?.querySelectorAll('a') || []);
+    if (rows.length !== 2 || carrier?.tagName !== 'TD' || banners.length !== 1
+        || banners[0].querySelectorAll('img').length !== 4 || links.length !== 3
+        || links.some((link, index) => !String(link.getAttribute('href') || '').startsWith(['mailto:', 'tel:', 'mailto:'][index])
+            || link.querySelectorAll('img').length !== 1)
+        || wrapper.querySelectorAll('img.rt-sign-train,[data-rt-layer-train]').length !== 0) {
+        throw new Error('V30 benötigt drei direkt verlinkte Hotline-Waggons und eine Lok als Bilder.');
+    }
+    return { carrier, hotline: true };
+}
+
 function projectSignatureTrainImage(wrapper, rows, project, imgOverlapProfile = null) {
     const declaredSchema = project?.railtime?.schema;
     const failOpenStage = usesFailOpenSignatureStage(rows);
@@ -2557,6 +2575,11 @@ function projectSignatureTrainImage(wrapper, rows, project, imgOverlapProfile = 
         throw new Error('Die Signatur besitzt einen nicht unterstuetzten Zugvertrag.');
     }
 
+    if (usesHotlineSignature(rows)) {
+        const canonical = assertHotlineSignature(wrapper, rows);
+        project.railtime = { ...(project.railtime || {}), document: 'signature', schema: MAIL_SIGNATURE_SCHEMA };
+        return canonical;
+    }
     if (isTableOverlapSignatureVersion(rows?.[0]?.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE))) {
         const canonical = assertTableOverlapSignature(wrapper, rows);
         project.railtime = { ...(project.railtime || {}), document: 'signature', schema: MAIL_SIGNATURE_SCHEMA };
@@ -2743,7 +2766,7 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         const signatureParser = domParserFor(options.environment || globalThis);
         const contactProjection = bindSignatureContactMarkerRows(page.component, signatureParser);
         const signature = contactProjection.html;
-        if (!/data-rt-artifact-version\s*=\s*(["'])v2[23]\1/i.test(signature)
+        if (!/data-rt-artifact-version\s*=\s*(["'])v(?:2[23]|30)\1/i.test(signature)
             && (signature.split('{{TRAIN_SRC}}').length - 1) !== 1) {
             throw new Error('Die Signatur benötigt genau ein gebundenes Zugbild.');
         }
@@ -2760,7 +2783,7 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
             || rows.some((row) => row.tagName !== 'TR')
             || trainContract.carrier?.tagName !== 'TD'
             || trainContract.carrier.parentElement !== rows[0]
-            || (!trainContract.background && (trainContract.image.getAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE) !== 'TRAIN_SRC'
+            || (!trainContract.background && !trainContract.hotline && (trainContract.image.getAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE) !== 'TRAIN_SRC'
                 || trainContract.image.getAttribute('src') !== MAIL_PREVIEW_TRANSPARENT_PIXEL))) {
             throw new Error('Die Signatur benoetigt zwei Tabellenzeilen und genau einen gebundenen IMG-Zug.');
         }
@@ -2902,7 +2925,7 @@ export function serializeMailDocumentForSave({
     ) || [];
     if (wrappers.length !== 1 || !wrapper || !body
         || rows.length !== 2 || rows.some((row) => row.tagName !== 'TR')
-        || (usesSignatureBackground(rows)
+        || (usesHotlineSignature(rows) ? trainPreviewImages.length !== 0 : usesSignatureBackground(rows)
             ? trainPreviewImages.length !== 0 || wrapper.querySelectorAll('[data-rt-mail-preview-train="TRAIN_SRC"]').length !== 1
             : trainPreviewImages.length !== 1)) {
         throw new Error('Die sichere Tabellenstruktur des Signatur-Editors fehlt.');
@@ -2911,7 +2934,9 @@ export function serializeMailDocumentForSave({
 
     const baselineContactProjection = bindSignatureContactMarkerRows(baselineHtml, parser);
     restoreSignatureContactMarkers(wrapper, baselineContactProjection.hasMarkers);
-    const trainContract = isTableOverlapSignatureVersion(rows?.[0]?.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE))
+    const trainContract = usesHotlineSignature(rows)
+        ? assertHotlineSignature(wrapper, rows)
+        : isTableOverlapSignatureVersion(rows?.[0]?.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE))
         ? assertTableOverlapSignature(wrapper, rows)
         : usesImgOverlapSignature(rows)
         ? assertImgOverlapSignature(wrapper, rows, imgOverlapProfile)
@@ -2920,7 +2945,7 @@ export function serializeMailDocumentForSave({
         : usesFlowSafeSignatureTrain(rows)
         ? assertFlowSafeSignatureTrainImage(wrapper, rows)
         : assertCanonicalSignatureTrainImage(wrapper, rows);
-    if ((!trainContract.background && trainContract.image.getAttribute('src') !== '{{TRAIN_SRC}}')
+    if ((!trainContract.background && !trainContract.hotline && trainContract.image.getAttribute('src') !== '{{TRAIN_SRC}}')
         || wrapper.querySelectorAll('[data-rt-train-background]').length !== 0) {
         throw new Error('Die IMG-Bindung des RailTime-Zugmotivs wurde im Editor beschädigt.');
     }
@@ -2934,7 +2959,7 @@ export function serializeMailDocumentForSave({
     if (!uncheckedCanonicalHtml.startsWith('<tr')) {
         throw new Error('Die Signatur besitzt nach dem Speichern kein gültiges Tabellenfragment.');
     }
-    if (!trainContract.background && !uncheckedCanonicalHtml.includes('{{TRAIN_SRC}}')) {
+    if (!trainContract.background && !trainContract.hotline && !uncheckedCanonicalHtml.includes('{{TRAIN_SRC}}')) {
         throw new Error('Das RailTime-Zugmotiv fehlt nach dem Speichern der Signatur.');
     }
     if (/data-rt-mail-(?:signature-canvas|signature-preview|preview(?:-[\w-]+)?)/i.test(uncheckedCanonicalHtml)

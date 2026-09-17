@@ -8,6 +8,7 @@ use App\Support\Mail\CssSemantic;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureBackgroundContract;
+use App\Support\Mail\SignatureHotline;
 use App\Support\Mail\SignatureImgOverlapFallback;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
@@ -1526,8 +1527,8 @@ class EmailTemplateBuilder
         string $expectedIdleSource,
         string $expectedMsoSource,
     ): string {
-        if (\App\Support\Mail\SignatureHotline::applies($html)) {
-            \App\Support\Mail\SignatureHotline::assertRuntime($html);
+        if (SignatureHotline::applies($html)) {
+            SignatureHotline::assertRuntime($html);
             foreach (self::imageSources($html) as $imageSource) {
                 self::forceHttpsUrl($imageSource);
             }

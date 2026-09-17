@@ -69,7 +69,7 @@ class ShiftManagementViewsTest extends TestCase
             ->set('orderFilter', (string) $this->order->id)
             ->set('statusFilter', 'open')->set('search', 'Hamburg');
 
-        foreach (['table', 'day', 'staffing'] as $view) {
+        foreach (['table', 'day', 'staffing', 'orders'] as $view) {
             $component->call('setView', $view)
                 ->assertSet('viewMode', $view)
                 ->assertSet('statusFilter', 'open')
@@ -173,6 +173,70 @@ class ShiftManagementViewsTest extends TestCase
             ->call('setView', 'unexpected')->assertStatus(422);
     }
 
+    public function test_order_deep_link_uses_display_dates_limits_the_range_and_prefills_new_shift_context(): void
+    {
+        $this->order->update([
+            'timezone' => 'UTC', 'starts_at' => '2027-05-12 22:00:00', 'ends_at' => '2027-12-31 22:00:00',
+        ]);
+        $target = $this->shift('Zielauftrag', ['starts_at' => '2027-05-13 08:00:00', 'ends_at' => '2027-05-13 16:00:00']);
+        $otherOrder = $this->order->replicate(['public_id', 'order_number']);
+        $otherOrder->title = 'Andere Leistung';
+        $otherOrder->save();
+        $this->shift('Anderer Auftrag', ['order_id' => $otherOrder->id, 'starts_at' => '2027-05-13 08:00:00', 'ends_at' => '2027-05-13 16:00:00']);
+
+        Livewire::actingAs($this->admin)->withQueryParams(['order' => $this->order->id])->test(ShiftManagement::class)
+            ->assertSet('orderFilter', (string) $this->order->id)
+            ->assertSet('viewMode', 'orders')
+            ->assertSet('rangeFrom', '2027-05-13')
+            ->assertSet('rangeTo', '2027-08-14')
+            ->assertSet('selectedShiftId', $target->id)
+            ->assertViewHas('shifts', fn ($shifts) => $shifts->modelKeys() === [$target->id])
+            ->call('createShift')->assertSet('orderId', $this->order->id)->assertSet('formOpen', true);
+    }
+
+    public function test_order_deep_link_rejects_unknown_deleted_and_invalid_ids(): void
+    {
+        Livewire::actingAs($this->admin)->withQueryParams(['order' => 999999])->test(ShiftManagement::class)->assertNotFound();
+        Livewire::actingAs($this->admin)->withQueryParams(['order' => 'abc'])->test(ShiftManagement::class)->assertNotFound();
+        $this->order->delete();
+        Livewire::actingAs($this->admin)->withQueryParams(['order' => $this->order->id])->test(ShiftManagement::class)->assertNotFound();
+    }
+
+    public function test_order_and_shift_deep_links_cannot_mix_two_different_order_contexts(): void
+    {
+        $otherOrder = $this->order->replicate(['public_id', 'order_number']);
+        $otherOrder->title = 'Andere Leistung';
+        $otherOrder->save();
+        $shift = $this->shift('Andere Schicht', ['order_id' => $otherOrder->id]);
+
+        Livewire::actingAs($this->admin)->withQueryParams(['order' => $this->order->id, 'shift' => $shift->id])
+            ->test(ShiftManagement::class)->assertNotFound();
+    }
+
+    public function test_order_view_counts_active_shift_places_once_and_separates_reservation_from_confirmation(): void
+    {
+        $night = $this->shift('Nachtschicht', ['required_staff' => 3, 'starts_at' => '2027-05-12 22:00:00', 'ends_at' => '2027-05-13 06:00:00']);
+        $day = $this->shift('Tagschicht');
+        $this->assignment($night, 'requested');
+        $this->assignment($night, 'confirmed');
+        $this->assignment($night, 'declined');
+        $this->assignment($day, 'confirmed');
+        $this->shift('Storniert', ['required_staff' => 9, 'status' => 'cancelled']);
+        $this->shift('Erledigt', ['required_staff' => 8, 'status' => 'completed']);
+
+        Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->set('rangeFrom', '2027-05-12')->set('rangeTo', '2027-05-13')->call('setView', 'orders')
+            ->assertViewHas('orderGroups', function ($groups) {
+                $group = $groups->get($this->order->id);
+
+                return $groups->count() === 1 && $group['items']->count() === 4
+                    && $group['summary'] === ['shifts' => 2, 'required' => 4, 'reserved' => 3, 'confirmed' => 2, 'open' => 1];
+            })
+            ->assertViewHas('openCount', 1)
+            ->assertSee('4 Einsatzplätze · 3 eingeplant · 2 bestätigt · 1 offen')
+            ->assertSee($this->order->order_number)->assertSee($this->order->title)->assertSee('Testkorridor');
+    }
+
     public function test_view_state_cannot_be_directly_overwritten_by_the_client(): void
     {
         $this->expectException(CannotUpdateLockedPropertyException::class);
@@ -182,6 +246,6 @@ class ShiftManagementViewsTest extends TestCase
     public function test_shift_views_still_require_operations_management_permission(): void
     {
         $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
-        Livewire::actingAs($employee)->test(ShiftManagement::class)->assertForbidden();
+        Livewire::actingAs($employee)->withQueryParams(['order' => $this->order->id])->test(ShiftManagement::class)->assertForbidden();
     }
 }

@@ -521,6 +521,24 @@ class OperationsPlanningTest extends TestCase
             ->assertSee('Sonntag, 29. März 2026')->call('nextPeriod')->assertSee('Montag, 30. März 2026');
     }
 
+    public function test_calendar_order_scope_survives_views_and_customer_change_resets_incompatible_order(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = $this->customer();
+        $otherCustomer = $this->customer(['company_name' => 'Andere Bahn']);
+        $order = $this->order($customer, $admin);
+        $otherOrder = $this->order($customer, $admin, ['title' => 'Andere Leistung']);
+        $this->shift($order, $admin, ['title' => 'Auftrag Nord']);
+        $this->shift($otherOrder, $admin, ['title' => 'Auftrag West']);
+        Livewire::actingAs($admin)->withQueryParams(['order' => $order->id])->test(Calendar::class)
+            ->assertSet('customerFilter', (string) $customer->id)->assertSet('orderFilter', (string) $order->id)
+            ->assertSet('anchorDate', '2026-08-03')->assertSee('Auftrag Nord')->assertDontSee('Auftrag West')
+            ->call('switchView', 'month')->assertSee('Auftrag Nord')->assertDontSee('Auftrag West')
+            ->set('customerFilter', (string) $otherCustomer->id)->assertSet('orderFilter', 'all')->assertDontSee('Auftrag Nord')
+            ->call('resetFilters')->assertSet('customerFilter', 'all')->assertSet('viewMode', 'month')->assertSee('Auftrag West');
+        Livewire::actingAs($admin)->withQueryParams(['order' => 999999])->test(Calendar::class)->assertStatus(404);
+    }
+
     /** @param array<string, mixed> $overrides */
     private function order(Customer $customer, User $actor, array $overrides = []): Order
     {

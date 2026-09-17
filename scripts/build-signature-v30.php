@@ -1,9 +1,13 @@
 <?php
 
+use App\Support\Mail\SignatureDocumentContract;
+use Illuminate\Contracts\Console\Kernel;
+use Symfony\Component\Process\Process;
+
 /** Build a separate, portable v30 draft from the preserved v27 export. No DB writes. */
 require dirname(__DIR__).'/vendor/autoload.php';
 $app = require dirname(__DIR__).'/bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$app->make(Kernel::class)->bootstrap();
 
 $options = getopt('', ['source:', 'output:', 'maker:']);
 foreach (['source', 'output', 'maker'] as $key) {
@@ -18,7 +22,7 @@ if (! $source || ! $out || $source === $out) {
 }
 $signature = json_decode(file_get_contents($source.'/railtime-v27-signatur-24-7.json'), true, flags: JSON_THROW_ON_ERROR);
 $template = json_decode(file_get_contents($source.'/railtime-v27-vorlage-weiss.json'), true, flags: JSON_THROW_ON_ERROR);
-App\Support\Mail\SignatureDocumentContract::assertValid($signature['html']);
+SignatureDocumentContract::assertValid($signature['html']);
 $dom = new DOMDocument('1.0', 'UTF-8');
 libxml_use_internal_errors(true);
 $dom->loadHTML('<?xml encoding="UTF-8"><table id="source-root"><tbody>'.$signature['html'].'</tbody></table>', LIBXML_NONET | LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
@@ -36,7 +40,7 @@ foreach (['v30-zug-hotline.gif', 'v30-zug-anrufen.gif', 'v30-zug-email.gif', 'v3
 }
 $images = [
     ['hotline', 180, 'mailto:dispo@rail-time.de', '24/7 Hotline – E-Mail an die Disposition'],
-    ['anrufen', 110, 'tel:{{FIRMEN_TELEFON_TEL}}', 'Anrufen'],
+    ['anrufen', 110, 'tel:{{NOTFALLNUMMER_TEL}}', '24/7 Hotline anrufen'],
     ['email', 110, 'mailto:dispo@rail-time.de', 'E-Mail an die Disposition'],
     ['lok', 160, null, ''],
 ];
@@ -52,7 +56,7 @@ $banner = '<table role="presentation" width="100%" border="0" cellspacing="0" ce
 $html = '<tr data-rt-artifact-version="v30"><td class="rt-sign-cell" width="100%" bgcolor="#ffffff" style="width:100%;padding:0;background-color:#ffffff;">'.$banner
     .'<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr><td data-rt-v30-decoration="1" class="rt-sign-ledger-content" bgcolor="#ffffff" style="padding:26px 32px;background-color:#ffffff;background-image:url(/mail-import-source/v30/v30-streckennetz.png);background-position:right top;background-repeat:no-repeat;background-size:600px 210px;">'
     .$serialize($ledger->item(0)).'</td></tr></table></td></tr><!-- RT_SIGNATURE_MAIN_END -->'.$serialize($legal->item(0));
-App\Support\Mail\SignatureDocumentContract::assertValid($html);
+SignatureDocumentContract::assertValid($html);
 $html = str_replace('/mail-import-source/v30/v30-streckennetz.png', $mediaSources['v30-streckennetz.png'], $html);
 
 foreach (['signature' => [$html, '', 'railtime-v30-signatur'], 'template' => [$template['html'], $template['css'], 'railtime-v30-vorlage']] as $kind => [$html, $css, $name]) {
@@ -66,7 +70,7 @@ foreach (['signature' => [$html, '', 'railtime-v30-signatur'], 'template' => [$t
         }
     }
     foreach (['make' => $command, 'validate' => [PHP_BINARY, $options['maker'], 'validate', '--project', dirname(__DIR__), '--input', $out.'/'.$name.'.json']] as $operation => $args) {
-        $process = new Symfony\Component\Process\Process($args, dirname(__DIR__));
+        $process = new Process($args, dirname(__DIR__));
         $process->setTimeout(120);
         $process->run();
         file_put_contents($out.'/'.$name.'-'.$operation.'-report.json', $process->getOutput());

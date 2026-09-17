@@ -2,7 +2,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="min-w-0">
             <h2 class="text-lg font-semibold text-rt-text dark:text-rt-dark-text">{{ $periodLabel }}</h2>
-            <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $displayTimezone }} · {{ $shiftCount }} Schichten · {{ $reservedCount }}/{{ $requiredCount }} eingeplant · {{ $openCount }} offen</p>
+            <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $displayTimezone }} · {{ $shiftCount }} {{ $shiftCount === 1 ? 'Schicht' : 'Schichten' }} · {{ $reservedCount }}/{{ $requiredCount }} eingeplant · {{ $openCount }} offen</p>
         </div>
         <div class="flex flex-wrap gap-1" role="group" aria-label="Kalenderansicht">
             @foreach(['day'=>'Tag','week'=>'Woche','month'=>'Monat','list'=>'Liste'] as $key=>$label)
@@ -19,10 +19,13 @@
         </div>
     </div>
     <x-operations.feedback />
-    <x-tables.toolbar id="calendar-filters" title="Kalenderfilter" :search-in-header="true">
+    <x-tables.toolbar id="calendar-filters" title="Kalenderfilter" :search-in-header="true" reset-action="resetFilters" :filter-count="(int) ($customerFilter !== 'all') + (int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'active') + (int) $onlyOpen + (int) filled($search)">
         <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Schicht, Kunde oder Ort" /></x-slot:search>
         <x-tables.filter-field label="Kunde" for="calendar-customer">
             <x-ui.forms.select id="calendar-customer" wire:model.live="customerFilter" aria-label="Kalenderkunde"><option value="all">Alle Kunden</option>@foreach($customers as $customer)<option value="{{ $customer->id }}">{{ $customer->company_name }}</option>@endforeach</x-ui.forms.select>
+        </x-tables.filter-field>
+        <x-tables.filter-field label="Leistung / Auftrag" for="calendar-order">
+            <x-ui.forms.select id="calendar-order" wire:model.live="orderFilter" aria-label="Kalenderauftrag"><option value="all">Alle Leistungen</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->order_number }} · {{ $order->title }}</option>@endforeach</x-ui.forms.select>
         </x-tables.filter-field>
         <x-tables.filter-field label="Status" for="calendar-status">
             <x-ui.forms.select id="calendar-status" wire:model.live="statusFilter" aria-label="Kalenderstatus"><option value="active">Ohne stornierte</option><option value="all">Alle Status</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select>
@@ -66,7 +69,7 @@
         <div @class(['space-y-4', 'lg:hidden'=>$viewMode === 'week']) data-calendar-mobile-agenda>
             @foreach($days as $day)
                 <section class="space-y-3" wire:key="agenda-day-{{ $day['date']->toDateString() }}">
-                    <h3 class="border-b border-rt-border pb-2 text-sm font-semibold dark:border-rt-dark-border">{{ $day['date']->locale('de')->isoFormat('dddd, D. MMMM') }} <span class="ml-2 text-rt-muted">{{ $day['shifts']->count() }} Schichten</span></h3>
+                    <h3 class="border-b border-rt-border pb-2 text-sm font-semibold dark:border-rt-dark-border">{{ $day['date']->locale('de')->isoFormat('dddd, D. MMMM') }} <span class="ml-2 text-rt-muted">{{ $day['shifts']->count() }} {{ $day['shifts']->count() === 1 ? 'Schicht' : 'Schichten' }}</span></h3>
                     <div class="grid gap-3 md:grid-cols-2">
                         @forelse($day['shifts'] as $shift)<x-operations.calendar-shift :shift="$shift" />@empty<p class="py-4 text-sm text-rt-muted">Keine Schichten geplant.</p>@endforelse
                     </div>

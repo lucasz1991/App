@@ -16,6 +16,7 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -43,7 +44,7 @@ class ShiftManagement extends Component
     public function setView(string $view): void
     {
         $this->ensureAdmin();
-        abort_unless(in_array($view, ['table', 'day', 'staffing'], true), 422);
+        abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders'], true), 422);
         $this->viewMode = $view;
     }
 
@@ -103,9 +104,22 @@ class ShiftManagement extends Component
         $this->rangeTo = $today->copy()->endOfWeek()->addWeek()->format('Y-m-d');
         $this->status = $this->enumDefault(ShiftStatus::class, 'draft');
         $this->assignmentStatus = $this->enumDefault(ShiftAssignmentStatus::class, 'confirmed');
-        $this->selectedShiftId = Shift::query()->orderBy('starts_at')->value('id');
-        if (request()->integer('shift') && Shift::whereKey(request()->integer('shift'))->exists()) {
-            $this->selectedShiftId = request()->integer('shift');
+        if (request()->has('order')) {
+            $orderId = filter_var(request()->query('order'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            abort_unless($orderId, 404);
+            $order = Order::query()->find($orderId);
+            abort_unless($order, 404);
+            $this->orderFilter = (string) $order->id;
+            $this->rangeFrom = $order->starts_at->setTimezone($today->timezone)->toDateString();
+            $this->rangeTo = $order->ends_at->setTimezone($today->timezone)->toDateString();
+            $this->viewMode = 'orders';
+        }
+        $selection = Shift::query()->when($this->orderFilter !== 'all', fn (Builder $query) => $query->where('order_id', (int) $this->orderFilter));
+        $this->selectedShiftId = (clone $selection)->orderBy('starts_at')->value('id');
+        if (request()->integer('shift')) {
+            $selected = (clone $selection)->find(request()->integer('shift'));
+            abort_unless($selected, 404);
+            $this->selectedShiftId = $selected->id;
             $this->detailOpen = true;
         }
     }
@@ -314,6 +328,7 @@ class ShiftManagement extends Component
                     ->orWhere('location_name', 'like', $term)
                     ->orWhereHas('order', fn (Builder $order) => $order
                         ->where('title', 'like', $term)
+                        ->orWhere('order_number', 'like', $term)
                         ->orWhereHas('customer', fn (Builder $customer) => $customer->where('company_name', 'like', $term))));
             })
             ->orderBy('starts_at')
@@ -349,21 +364,24 @@ class ShiftManagement extends Component
             ? Shift::query()->with(['order.customer', 'assignments.user'])->find($this->selectedShiftId)
             : null;
 
-        $activeShifts = $shifts->reject(fn (Shift $shift): bool => $shift->status === ShiftStatus::Cancelled);
-        $reservedCount = $activeShifts->sum(fn (Shift $shift): int => $shift->assignments
-            ->filter(fn (ShiftAssignment $assignment): bool => in_array(
-                (string) ($assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status),
-                ShiftAssignmentStatus::blockingValues(),
-                true,
-            ))
-            ->count());
-        $requiredCount = (int) $activeShifts->sum('required_staff');
+        $summary = $this->staffingSummary($shifts);
+        $orderGroups = $shifts->groupBy('order_id')->map(function (Collection $items): array {
+            $order = $items->first()->order;
+
+            return [
+                'label' => $order ? $order->order_number.' · '.$order->title : 'Leistung nicht verfügbar',
+                'customer' => $order?->customer?->company_name,
+                'items' => $items,
+                'summary' => $this->staffingSummary($items),
+            ];
+        });
 
         return view('livewire.admin.operations.shift-management', [
             'nativeOperations' => OperationsAccess::ready(),
             'qualificationTypes' => OperationsAccess::ready() ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
             'shifts' => $shifts,
             'dailyGroups' => $dailyGroups,
+            'orderGroups' => $orderGroups,
             'staffingGroups' => collect([
                 'open' => 'Besetzung offen',
                 'awaiting' => 'Bestätigung ausstehend',
@@ -380,6 +398,9 @@ class ShiftManagement extends Component
                     if ($this->orderId !== null) {
                         $query->orWhere('id', $this->orderId);
                     }
+                    if ($this->orderFilter !== 'all') {
+                        $query->orWhere('id', (int) $this->orderFilter);
+                    }
                 })
                 ->orderByDesc('starts_at')
                 ->get(),
@@ -389,11 +410,30 @@ class ShiftManagement extends Component
                 ->whereIn('value', ShiftAssignmentStatus::blockingValues())
                 ->values()
                 ->all(),
-            'shiftCount' => $activeShifts->count(),
-            'requiredCount' => $requiredCount,
-            'reservedCount' => $reservedCount,
-            'openCount' => $activeShifts->sum(fn (Shift $shift) => max(0, $shift->required_staff - $shift->assignments->filter(fn ($a) => $a->status->blocksAvailability())->count())),
+            'shiftCount' => $summary['shifts'],
+            'requiredCount' => $summary['required'],
+            'reservedCount' => $summary['reserved'],
+            'openCount' => $summary['open'],
         ]);
+    }
+
+    /** @return array{shifts: int, required: int, reserved: int, confirmed: int, open: int} */
+    private function staffingSummary(Collection $shifts): array
+    {
+        $summary = ['shifts' => 0, 'required' => 0, 'reserved' => 0, 'confirmed' => 0, 'open' => 0];
+        foreach ($shifts as $shift) {
+            if (in_array($shift->status, [ShiftStatus::Completed, ShiftStatus::Cancelled], true)) {
+                continue;
+            }
+            $reserved = $shift->assignments->filter(fn (ShiftAssignment $assignment): bool => $assignment->status->blocksAvailability())->count();
+            $summary['shifts']++;
+            $summary['required'] += $shift->required_staff;
+            $summary['reserved'] += $reserved;
+            $summary['confirmed'] += $shift->assignments->where('status', ShiftAssignmentStatus::Confirmed)->count();
+            $summary['open'] += max(0, $shift->required_staff - $reserved);
+        }
+
+        return $summary;
     }
 
     /** @return array{0: Carbon, 1: Carbon} */
