@@ -12,6 +12,7 @@ use App\Services\Marketing\MarketingRenderAssetHydrator;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentSignatureResolver;
+use App\Support\Mail\MailPreviewImages;
 use App\Support\Mail\SignatureHotline;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\MailSignature;
@@ -190,7 +191,7 @@ final class PageBuilderPreviewService
         ) ?? $html;
 
         return [
-            'html' => $html,
+            'html' => MailPreviewImages::embed($html),
             'width' => 1920,
             'height' => $document->kind === MailDocumentKind::Signature ? 360 : 820,
         ];

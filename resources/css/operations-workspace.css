@@ -100,3 +100,47 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 .ops-chart-canvas { width:100%; height:196px; }
 @media(max-width:600px) { .ops-kpi, .ops-tile { min-height:68px; padding:12px 14px; } .ops-kpi-val { font-size:21px; } }
 @media(prefers-reduced-motion:reduce) { .ops-kpi, .ops-tile { transition:none; } a.ops-kpi:hover, a.ops-tile:hover { transform:none; } }
+
+/* Individuelles Dashboard: Widget-Katalog, Raster, Drag&Drop-Zustaende. */
+.rt-ops .ops-btn { display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 16px; border-radius:9px; border:1px solid var(--ops-line); background:var(--ops-sheet); color:var(--ops-ink); font-size:13px; font-weight:650; }
+.rt-ops .ops-btn svg { width:16px; height:16px; }
+.rt-ops .ops-btn.is-active { background:var(--ops-signal); border-color:var(--ops-signal); color:#fff; }
+
+.widget-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
+@media(min-width:1024px) { .widget-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(max-width:560px) { .widget-grid { grid-template-columns:1fr; } }
+.widget-card[data-widget-size="lg"] { grid-column:span 2; }
+@media(max-width:560px) { .widget-card[data-widget-size="lg"] { grid-column:span 1; } }
+.widget-empty { grid-column:1/-1; }
+
+.widget-card { min-width:0; display:flex; flex-direction:column; background:var(--ops-sheet); border:1px solid var(--ops-line); border-radius:16px; padding:18px; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 24px -18px rgba(15,23,42,.16); transition:box-shadow 200ms cubic-bezier(.32,.72,0,1), opacity 200ms; }
+.dark .widget-card { box-shadow:0 1px 2px rgba(0,0,0,.2), 0 10px 24px -18px rgba(0,0,0,.55); }
+.widget-card.is-dragging { opacity:.45; }
+.widget-card.is-drop-target { box-shadow:0 0 0 2px var(--ops-signal); }
+.widget-card-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.widget-card-head h3 { flex:1 1 auto; min-width:0; }
+.widget-card-ico { width:32px; height:32px; border-radius:9px; background:var(--ops-platform); color:var(--ops-muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.widget-card-ico svg { width:16px; height:16px; }
+.widget-card-body { min-width:0; flex:1 1 auto; }
+.widget-card-controls { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+.widget-card-controls button { display:flex; align-items:center; justify-content:center; min-width:32px; min-height:32px; border-radius:7px; color:var(--ops-muted); background:transparent; }
+.widget-card-controls button:hover { background:var(--ops-platform); color:var(--ops-ink); }
+.widget-card-controls svg { width:15px; height:15px; }
+.widget-move-buttons, .widget-size-toggle { display:flex; align-items:center; gap:2px; padding:2px; background:var(--ops-platform); border-radius:9px; }
+.widget-size-toggle button { min-width:0; padding:0 8px; font-size:11px; font-weight:650; }
+.widget-size-toggle button[aria-pressed=true] { background:var(--ops-sheet); color:var(--ops-ink); box-shadow:0 1px 3px var(--ops-line); }
+.widget-drag-handle { cursor:grab; }
+.widget-drag-handle:active { cursor:grabbing; }
+.widget-remove:hover { background:#fff1f2; color:#9e1834; }
+.dark .widget-remove:hover { background:#3e202a; color:#ffc2ce; }
+
+.widget-picker-section + .widget-picker-section { margin-top:16px; }
+.widget-picker-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:8px; }
+@media(max-width:700px) { .widget-picker-grid { grid-template-columns:1fr; } }
+.widget-picker-item { display:flex; align-items:center; gap:12px; text-align:left; padding:12px 14px; border-radius:12px; border:1px solid var(--ops-line); background:var(--ops-platform); }
+.widget-picker-item:hover { border-color:var(--ops-signal); }
+.widget-picker-item svg:last-child { width:16px; height:16px; color:var(--ops-signal); flex-shrink:0; }
+.widget-picker-text { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 auto; }
+.widget-picker-title { font-size:13.5px; font-weight:650; }
+
+@media(prefers-reduced-motion:reduce) { .widget-card { transition:none; } }

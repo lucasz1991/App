@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\EmailTemplateBuilder;
+use App\Support\Mail\MailPreviewImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -64,7 +65,7 @@ class ProfileEmailTemplateController extends Controller
             ? $builder->buildPreview($template, bin2hex(random_bytes(12)))
             : $builder->buildStaticPreview($template);
 
-        return response($file['content'], 200, [
+        return response(MailPreviewImages::embed($file['content']), 200, [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Disposition' => 'inline',
             'Cache-Control' => 'private, no-store, max-age=0',

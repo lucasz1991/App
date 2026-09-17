@@ -50,6 +50,7 @@ class NativeOperationsWorkflowTest extends TestCase
         $this->buildMinimalRailTimeSchema();
         (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
         (require database_path('migrations/2026_07_18_000001_create_activity_log_table.php'))->up();
+        (require database_path('migrations/2026_09_17_140000_create_dashboard_widget_placements_table.php'))->up();
         $this->travelTo(now()->setDate(2027, 5, 12)->setTime(7, 0)->utc());
         $this->admin = User::factory()->create(['role' => 'admin', 'status' => true]);
         $this->employee = User::factory()->create(['role' => 'staff', 'status' => true]);
@@ -259,11 +260,13 @@ class NativeOperationsWorkflowTest extends TestCase
         }
         Livewire::test(InquiryInbox::class)->call('create')->assertSee('Neue Anfrage');
         $this->actingAs($this->employee);
-        foreach (['today', 'schedule', 'time', 'records'] as $tab) {
+        foreach (['today', 'schedule', 'time', 'records', 'absences'] as $tab) {
             Livewire::test(MyWork::class)->call('showTab', $tab)->assertOk()->assertDontSee('WILSON');
         }
         $this->get(route('dashboard'))->assertOk()->assertSee('data-native-dashboard', false)->assertDontSee('planning_not_connected');
-        $this->actingAs($this->admin)->get(route('admin.dashboard'))->assertOk()->assertSee('data-operations-cockpit', false);
+        // Das Dashboard ist seit dem individuellen Widget-Raster kein festes
+        // Cockpit-Embed mehr, sondern App\Livewire\Dashboard\WidgetGrid.
+        $this->actingAs($this->admin)->get(route('admin.dashboard'))->assertOk()->assertSee('data-dashboard-widget-grid', false);
         $this->get(route('operations.workspace', 'inquiries'))->assertOk();
     }
 

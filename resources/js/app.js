@@ -1994,6 +1994,76 @@ Alpine.data('operationsCoverageChart', (config = {}) => ({
     },
 }));
 
+// Individuelles Dashboard: Reihenfolge per native Drag&Drop. Delegierte
+// Listener auf dem Raster selbst statt pro Karte - ueberlebt jedes
+// Livewire-Morph (wire:poll, Groessen-/Sichtbarkeits-Aenderung) ohne erneute
+// Bindung, weil jede Karte ihr eigenes wire:key traegt. Die Pfeil-Tasten in
+// widget-shell.blade.php rufen denselben Server-Endpunkt ohne JS auf - Ziehen
+// ist hier bewusst nur die Zugabe, nicht der einzige Weg.
+Alpine.data('dashboardWidgetGrid', () => ({
+    dragKey: null,
+
+    init() {
+        this.$root.addEventListener('dragstart', (event) => {
+            const handle = event.target.closest('.widget-drag-handle');
+            const card = handle?.closest('[data-widget-item]');
+
+            if (!handle || !card) {
+                event.preventDefault();
+
+                return;
+            }
+
+            this.dragKey = card.dataset.widgetKey;
+            card.classList.add('is-dragging');
+            event.dataTransfer.effectAllowed = 'move';
+
+            try {
+                event.dataTransfer.setDragImage(card, 24, 24);
+            } catch {
+                // Manche Browser lehnen setDragImage in bestimmten Kontexten ab - der Browser-Standardghost reicht dann.
+            }
+        });
+
+        this.$root.addEventListener('dragover', (event) => {
+            if (!this.dragKey) return;
+
+            const target = event.target.closest('[data-widget-item]');
+
+            if (!target || target.dataset.widgetKey === this.dragKey) return;
+
+            event.preventDefault();
+            this.$root.querySelectorAll('[data-widget-item]').forEach((el) => el.classList.remove('is-drop-target'));
+            target.classList.add('is-drop-target');
+        });
+
+        this.$root.addEventListener('drop', (event) => {
+            if (!this.dragKey) return;
+
+            const target = event.target.closest('[data-widget-item]');
+
+            if (!target || target.dataset.widgetKey === this.dragKey) return;
+
+            event.preventDefault();
+
+            const dragged = this.$root.querySelector(`[data-widget-item][data-widget-key="${this.dragKey}"]`);
+
+            if (!dragged) return;
+
+            const rect = target.getBoundingClientRect();
+            const before = (event.clientX - rect.left) < rect.width / 2;
+            target.parentNode.insertBefore(dragged, before ? target : target.nextSibling);
+
+            this.$wire.reorder(Array.from(this.$root.querySelectorAll('[data-widget-item]')).map((el) => el.dataset.widgetKey));
+        });
+
+        this.$root.addEventListener('dragend', () => {
+            this.$root.querySelectorAll('[data-widget-item]').forEach((el) => el.classList.remove('is-dragging', 'is-drop-target'));
+            this.dragKey = null;
+        });
+    },
+}));
+
 // ---------------------------------------------------------------
 // Fehlerton bei Validierungsfehlern: Livewire fuehrt den Fehler-Bag im
 // Snapshot-memo mit. Nach jedem Commit mit echtem Action-Aufruf (Button/
