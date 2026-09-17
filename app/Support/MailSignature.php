@@ -416,7 +416,7 @@ class MailSignature
             MailDocumentKind::Signature,
             $documentHtml,
         );
-        $assetTheme = $artifactVersion === 'v27' ? 'light' : $this->theme;
+        $assetTheme = in_array($artifactVersion, ['v27', 'v30'], true) ? 'light' : $this->theme;
         if (! SignatureArtifactVersion::usesArrivalHoldTrain($artifactVersion)) {
             return $values;
         }
@@ -527,7 +527,7 @@ class MailSignature
         // Bereits veroeffentlichte Altstaende verlieren Raster und grosses
         // RT-Wasserzeichen vor der Tokenersetzung. Die bildfreie Fassung gilt
         // dadurch sofort, auch ohne einen spaeteren Initialisierungsjob.
-        if (! SignatureBackgroundContract::applies($html)) {
+        if (! \App\Support\Mail\SignatureHotline::applies($html) && ! SignatureBackgroundContract::applies($html)) {
             $html = SignatureTrainCarrier::withoutDecorativeBaseBackgrounds($html);
         }
         $escapedValues = array_map(
@@ -650,6 +650,9 @@ class MailSignature
         string $outlookFallbackSource,
         string $idleSource,
     ): string {
+        if (\App\Support\Mail\SignatureHotline::applies($html)) {
+            return $html;
+        }
         if (SignatureBackgroundContract::applies($html)) {
             SignatureBackgroundContract::assertRuntime($html);
 
@@ -706,6 +709,9 @@ class MailSignature
      */
     private function projectPublishedTrainAsImage(string $html, array $layout): string
     {
+        if (\App\Support\Mail\SignatureHotline::applies($html)) {
+            return $html;
+        }
         $rawSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
         $padding = (string) ($layout['outlookTrainPadding'] ?? '0');
 

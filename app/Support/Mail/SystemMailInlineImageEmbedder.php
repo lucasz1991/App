@@ -216,15 +216,19 @@ final class SystemMailInlineImageEmbedder
      */
     private function embedSignatureBackgrounds(string $html, array &$assets, array $locations): string
     {
+        $isHotline = SignatureHotline::applies($html);
         return preg_replace_callback(
             '~(<tr\b(?:"[^"]*"|\'[^\']*\'|[^\'">])*>)(\s*)(<td\b(?:"[^"]*"|\'[^\']*\'|[^\'">])*>)~i',
-            function (array $match) use (&$assets, $locations): string {
+            function (array $match) use (&$assets, $locations, $isHotline): string {
                 $row = $this->tagAttributes($match[1]);
                 $cell = $this->tagAttributes($match[3]);
 
-                if (! SignatureArtifactVersion::usesOptionalBackground($row['data-rt-artifact-version']['value'] ?? null)
+                $v30Decoration = $isHotline
+                    && ($cell['data-rt-v30-decoration']['value'] ?? null) === '1'
+                    && preg_match('/(?:\A|\s)rt-sign-ledger-content(?:\s|\z)/', $cell['class']['value'] ?? '');
+                if ((! $v30Decoration && (! SignatureArtifactVersion::usesOptionalBackground($row['data-rt-artifact-version']['value'] ?? null)
                     || ($cell['data-rt-signature-background']['value'] ?? null) !== '1'
-                    || ! preg_match('/(?:\A|\s)rt-sign-cell(?:\s|\z)/', $cell['class']['value'] ?? '')
+                    || ! preg_match('/(?:\A|\s)rt-sign-cell(?:\s|\z)/', $cell['class']['value'] ?? '')))
                     || ! isset($cell['style'])) {
                     return $match[0];
                 }

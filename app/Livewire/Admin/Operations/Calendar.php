@@ -118,19 +118,27 @@ class Calendar extends Component
     private function resolvedAnchor(): CarbonImmutable
     {
         try {
-            return CarbonImmutable::createFromFormat('!Y-m-d', $this->anchorDate, $this->displayTimezone());
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $this->anchorDate, $this->displayTimezone());
+            if ($date && $date->toDateString() === $this->anchorDate) {
+                return $date;
+            }
         } catch (\Throwable) {
-            return CarbonImmutable::now($this->displayTimezone())->startOfDay();
         }
+
+        return CarbonImmutable::now($this->displayTimezone())->startOfDay();
     }
 
     private function resolvedWeekStart(): CarbonImmutable
     {
         try {
-            return CarbonImmutable::createFromFormat('!Y-m-d', $this->weekStart, $this->displayTimezone())->startOfWeek();
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $this->weekStart, $this->displayTimezone());
+            if ($date && $date->toDateString() === $this->weekStart) {
+                return $date->startOfWeek();
+            }
         } catch (\Throwable) {
-            return $this->resolvedAnchor()->startOfWeek();
         }
+
+        return $this->resolvedAnchor()->startOfWeek();
     }
 
     public function render()
@@ -164,7 +172,8 @@ class Calendar extends Component
             ->map(function (Shift $shift): Shift {
                 $reserved = $shift->assignments->filter(fn ($assignment) => in_array($assignment->status->value, ShiftAssignmentStatus::blockingValues(), true))->count();
                 $shift->setAttribute('calendar_reserved', $reserved);
-                $shift->setAttribute('calendar_open', $shift->status === ShiftStatus::Cancelled ? 0 : max(0, $shift->required_staff - $reserved));
+                $closed = in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true);
+                $shift->setAttribute('calendar_open', $closed ? 0 : max(0, $shift->required_staff - $reserved));
                 $shift->setAttribute('calendar_starts', $shift->starts_at->setTimezone($this->displayTimezone()));
                 $shift->setAttribute('calendar_ends', $shift->ends_at->setTimezone($this->displayTimezone()));
 

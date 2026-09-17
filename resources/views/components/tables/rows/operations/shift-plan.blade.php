@@ -3,6 +3,9 @@
     $confirmed = $item->assignments->where('status', \App\Enums\ShiftAssignmentStatus::Confirmed)->count();
     $missing = max(0, $item->required_staff - $reserved);
     $closed = in_array($item->status, [\App\Enums\ShiftStatus::Completed, \App\Enums\ShiftStatus::Cancelled], true);
+    $displayTimezone = (string) config('operations.display_timezone', 'Europe/Berlin');
+    $displayStart = $item->starts_at?->setTimezone($displayTimezone);
+    $displayEnd = $item->ends_at?->setTimezone($displayTimezone);
 @endphp
 @foreach($columnsMeta as $column)
     <div class="min-w-0 px-2 py-1.5 {{ $hideClass($column['hideOn']) }}">
@@ -16,9 +19,9 @@
                 <p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->location_name ?: $item->order?->location_name ?: '—' }}</p>
                 @break
             @case('schedule')
-                <p class="text-sm tabular-nums text-rt-text dark:text-rt-dark-text"><span class="mr-1 text-xs text-rt-muted md:hidden">Von:</span>{{ $item->starts_at?->format('d.m.Y H:i') }}</p>
-                <p class="mt-1 text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted">bis {{ $item->ends_at?->format('d.m.Y H:i') }}</p>
-                <p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->timezone }}</p>
+                <p class="text-sm tabular-nums text-rt-text dark:text-rt-dark-text"><span class="mr-1 text-xs text-rt-muted md:hidden">Von:</span>{{ $displayStart?->format('d.m.Y H:i') }}</p>
+                <p class="mt-1 text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted">bis {{ $displayEnd?->format('d.m.Y H:i') }}</p>
+                <p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $displayTimezone }}</p>
                 @break
             @case('staffing')
                 <p class="text-sm font-semibold tabular-nums text-rt-text dark:text-rt-dark-text">{{ $reserved }} / {{ $item->required_staff }} <span class="text-xs font-normal text-rt-muted dark:text-rt-dark-muted">eingeplant</span></p>
@@ -26,7 +29,7 @@
                 @if(!$closed && $missing > 0)<p class="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">{{ $missing }} {{ $missing === 1 ? 'Platz offen' : 'Plätze offen' }}</p>@endif
                 @break
             @case('status')
-                <x-operations.status :value="$item->status->value" />
+                <x-operations.status :value="$item->status->value" :label="$item->status->label()" />
                 @if($item->revision !== null)
                     <p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->published_revision === $item->revision ? 'Veröffentlicht' : ($item->published_revision ? 'Änderung unveröffentlicht' : 'Unveröffentlicht') }}</p>
                 @endif

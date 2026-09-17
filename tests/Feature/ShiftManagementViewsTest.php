@@ -25,7 +25,7 @@ class ShiftManagementViewsTest extends TestCase
     {
         parent::setUp();
         $this->buildMinimalRailTimeSchema();
-        config(['app.timezone' => 'Europe/Berlin']);
+        config(['app.timezone' => 'UTC', 'operations.display_timezone' => 'Europe/Berlin']);
         $this->travelTo(now()->setDate(2027, 5, 12)->startOfDay());
         $this->admin = User::factory()->create(['role' => 'admin', 'status' => true]);
         $customer = Customer::create(['company_name' => 'Testkorridor', 'is_active' => true]);
@@ -126,6 +126,45 @@ class ShiftManagementViewsTest extends TestCase
             })
             ->assertSee('Bestätigung ausstehend')
             ->assertSee('1 Platz offen');
+    }
+
+    public function test_display_timezone_controls_midnight_filters_and_display_even_when_app_and_shift_are_utc(): void
+    {
+        $shift = $this->shift('UTC-Nachtdienst', [
+            'timezone' => 'UTC', 'starts_at' => '2027-05-12 22:00:00', 'ends_at' => '2027-05-13 04:00:00',
+        ]);
+
+        Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->set('rangeFrom', '2027-05-12')->set('rangeTo', '2027-05-12')
+            ->call('setView', 'day')
+            ->assertViewHas('shifts', fn ($shifts) => $shifts->isEmpty())
+            ->set('rangeTo', '2027-05-13')->set('rangeFrom', '2027-05-13')
+            ->assertViewHas('dailyGroups', fn ($groups) => $groups->keys()->all() === ['2027-05-13']
+                && $groups['2027-05-13']['items']->modelKeys() === [$shift->id])
+            ->assertViewHas('displayTimezone', 'Europe/Berlin')
+            ->assertSee('13.05.2027 00:00')
+            ->assertSee('13.05.2027 06:00');
+    }
+
+    public function test_editing_and_saving_local_schedule_without_changes_keeps_utc_storage_unchanged(): void
+    {
+        $shift = $this->shift('Lokaler Nachtdienst', [
+            'starts_at' => '2027-05-12 23:30:00', 'ends_at' => '2027-05-13 07:30:00',
+        ]);
+        $beforeStart = $shift->fresh()->getRawOriginal('starts_at');
+        $beforeEnd = $shift->fresh()->getRawOriginal('ends_at');
+        $this->assertSame('2027-05-12 21:30:00', $beforeStart);
+        $this->assertSame('2027-05-13 05:30:00', $beforeEnd);
+
+        Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('editShift', $shift->id)
+            ->assertSet('timezone', 'Europe/Berlin')
+            ->assertSet('startsAt', '2027-05-12T23:30')
+            ->assertSet('endsAt', '2027-05-13T07:30')
+            ->call('saveShift')->assertHasNoErrors()->assertSet('formOpen', false);
+
+        $this->assertSame($beforeStart, $shift->fresh()->getRawOriginal('starts_at'));
+        $this->assertSame($beforeEnd, $shift->fresh()->getRawOriginal('ends_at'));
     }
 
     public function test_view_action_rejects_unknown_modes(): void

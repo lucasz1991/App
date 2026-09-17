@@ -149,6 +149,7 @@ Homestead.json
 auth.json
 
 # Native Operations regression and isolated browser acceptance
+!/tests/Feature/OperationsPlanningTest.php
 !/tests/Feature/OperationsNumberInputTest.php
 !/tests/Frontend/operations-number-input.test.js
 !/tests/Feature/ShiftManagementViewsTest.php

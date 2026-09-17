@@ -75,6 +75,11 @@ final class SignatureTrainCarrier
 
     public static function normalize(string $html): string
     {
+        if (SignatureHotline::applies($html)) {
+            SignatureHotline::assertValid($html);
+
+            return $html;
+        }
         if (SignatureTableOverlap::applies($html)) {
             SignatureTableOverlap::assertValid($html);
 
@@ -2597,6 +2602,11 @@ final class SignatureTrainCarrier
         ?string $expectedIdleSource = null,
         ?string $expectedMsoSource = null,
     ): void {
+        if (SignatureHotline::applies($html)) {
+            SignatureHotline::assertRuntime($html);
+
+            return;
+        }
         if (SignatureTableOverlap::applies($html)) {
             if ($expectedIdleSource !== null && trim($expectedIdleSource) !== '') {
                 throw new RuntimeException('V27 verwendet keinen separaten Idle-Rauch.');

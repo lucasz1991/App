@@ -1526,6 +1526,14 @@ class EmailTemplateBuilder
         string $expectedIdleSource,
         string $expectedMsoSource,
     ): string {
+        if (\App\Support\Mail\SignatureHotline::applies($html)) {
+            \App\Support\Mail\SignatureHotline::assertRuntime($html);
+            foreach (self::imageSources($html) as $imageSource) {
+                self::forceHttpsUrl($imageSource);
+            }
+
+            return $html;
+        }
         $expectedTrainSource = self::forceHttpsUrl($expectedTrainSource);
         $expectedIdleSource = trim($expectedIdleSource) === ''
             ? ''

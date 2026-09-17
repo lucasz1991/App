@@ -3053,7 +3053,7 @@ export function resolveMailCanvasResponsiveCss(canvasDocument, {
     const row = canvasDocument?.querySelector?.(`tr[${MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE}]`);
     if (!row) return String(previewResponsiveCss[selectedTheme] || legacy || '');
     const version = String(row.getAttribute(MAIL_SIGNATURE_ARTIFACT_ATTRIBUTE) || '').toLowerCase();
-    if (isTableOverlapSignatureVersion(version)) {
+    if (isTableOverlapSignatureVersion(version) || version === 'v30') {
         const css = expand(previewResponsiveCssByArtifact[version]);
         if (typeof css !== 'string') throw new Error(`Die ${version.toUpperCase()}-Vorschau ist serverseitig nicht konfiguriert.`);
         return css;

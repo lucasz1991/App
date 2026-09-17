@@ -145,7 +145,12 @@ final class SignatureDocumentContract
 
         $artifactVersion = SignatureArtifactVersion::detect('signature', $html);
 
-        if (SignatureArtifactVersion::usesTableOverlapTrain($artifactVersion)) {
+        if ($artifactVersion === SignatureArtifactVersion::V30) {
+            SignatureHotline::assertValid($html);
+            self::assertV18ForwardSafeLayout($html);
+
+            return;
+        } elseif (SignatureArtifactVersion::usesTableOverlapTrain($artifactVersion)) {
             SignatureTableOverlap::assertValid($html);
             self::assertV18ForwardSafeLayout($html);
 
@@ -277,7 +282,7 @@ final class SignatureDocumentContract
         // V27 Signal uses the reference layout: brand at the left of both
         // contact groups. Keep the older two-row layouts unchanged.
         if (in_array('rt-sign-ledger', self::classes($layout), true)
-            && SignatureArtifactVersion::detect('signature', $html) === SignatureArtifactVersion::V27) {
+            && in_array(SignatureArtifactVersion::detect('signature', $html), [SignatureArtifactVersion::V27, SignatureArtifactVersion::V30], true)) {
             self::assertLedgerLayout($layout, $rows);
 
             return;

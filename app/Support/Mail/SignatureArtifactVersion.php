@@ -62,6 +62,8 @@ final class SignatureArtifactVersion
 
     public const V29 = 'v29';
 
+    public const V30 = 'v30';
+
     public static function usesTableOverlapTrain(?string $version): bool
     {
         return in_array($version, [self::V27, self::V28, self::V29], true);
@@ -80,6 +82,9 @@ final class SignatureArtifactVersion
      */
     public static function usesArrivalHoldTrain(?string $version): bool
     {
+        if ($version === self::V30) {
+            return true;
+        }
         if (self::usesTableOverlapTrain($version)) {
             return true;
         }
@@ -102,6 +107,9 @@ final class SignatureArtifactVersion
     /** V15 bis V23 und V25 verwenden die kleineren Wortmarkenmedien. */
     public static function usesOptimizedMailAssets(?string $version): bool
     {
+        if ($version === self::V30) {
+            return true;
+        }
         if (self::usesTableOverlapTrain($version)) {
             return true;
         }
@@ -138,6 +146,9 @@ final class SignatureArtifactVersion
     /** V19 bis V23 und V25 verwenden verlustarm optimierte, versionierte Medien. */
     public static function usesV19MailAssets(?string $version): bool
     {
+        if ($version === self::V30) {
+            return true;
+        }
         if (self::usesTableOverlapTrain($version)) {
             return true;
         }

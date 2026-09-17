@@ -2,7 +2,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="min-w-0">
             <h2 class="text-lg font-semibold text-rt-text dark:text-rt-dark-text">{{ $periodLabel }}</h2>
-            <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $displayTimezone }} · {{ $shiftCount }} Schichten · {{ $reservedCount }}/{{ $requiredCount }} besetzt · {{ $openCount }} offen</p>
+            <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $displayTimezone }} · {{ $shiftCount }} Schichten · {{ $reservedCount }}/{{ $requiredCount }} eingeplant · {{ $openCount }} offen</p>
         </div>
         <div class="flex flex-wrap gap-1" role="group" aria-label="Kalenderansicht">
             @foreach(['day'=>'Tag','week'=>'Woche','month'=>'Monat','list'=>'Liste'] as $key=>$label)
@@ -19,8 +19,8 @@
         </div>
     </div>
     <x-operations.feedback />
-    <x-tables.toolbar id="calendar-filters" title="Kalenderfilter">
-        <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Schicht, Kunde oder Ort" /></x-slot:search>
+    <x-tables.toolbar id="calendar-filters" title="Kalenderfilter" :search-in-header="true">
+        <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Schicht, Kunde oder Ort" /></x-slot:search>
         <x-tables.filter-field label="Kunde" for="calendar-customer">
             <x-ui.forms.select id="calendar-customer" wire:model.live="customerFilter" aria-label="Kalenderkunde"><option value="all">Alle Kunden</option>@foreach($customers as $customer)<option value="{{ $customer->id }}">{{ $customer->company_name }}</option>@endforeach</x-ui.forms.select>
         </x-tables.filter-field>

@@ -98,8 +98,9 @@ class ShiftManagement extends Component
     public function mount(): void
     {
         $this->ensureAdmin();
-        $this->rangeFrom = now()->startOfWeek()->format('Y-m-d');
-        $this->rangeTo = now()->endOfWeek()->addWeek()->format('Y-m-d');
+        $today = now((string) config('operations.display_timezone', 'Europe/Berlin'));
+        $this->rangeFrom = $today->copy()->startOfWeek()->format('Y-m-d');
+        $this->rangeTo = $today->copy()->endOfWeek()->addWeek()->format('Y-m-d');
         $this->status = $this->enumDefault(ShiftStatus::class, 'draft');
         $this->assignmentStatus = $this->enumDefault(ShiftAssignmentStatus::class, 'confirmed');
         $this->selectedShiftId = Shift::query()->orderBy('starts_at')->value('id');
@@ -116,8 +117,8 @@ class ShiftManagement extends Component
         $this->detailOpen = false;
         $this->resetShiftForm();
         $this->orderId = $this->orderFilter !== 'all' ? (int) $this->orderFilter : null;
-        $this->startsAt = now()->addDay()->setTime(8, 0)->format('Y-m-d\TH:i');
-        $this->endsAt = now()->addDay()->setTime(16, 0)->format('Y-m-d\TH:i');
+        $this->startsAt = now($this->timezone)->addDay()->setTime(8, 0)->format('Y-m-d\TH:i');
+        $this->endsAt = now($this->timezone)->addDay()->setTime(16, 0)->format('Y-m-d\TH:i');
         $this->formOpen = true;
     }
 
@@ -134,9 +135,9 @@ class ShiftManagement extends Component
         $this->orderId = $shift->order_id;
         $this->title = (string) $shift->title;
         $this->roleName = (string) $shift->role_name;
-        $this->startsAt = $shift->starts_at?->format('Y-m-d\TH:i') ?? '';
-        $this->endsAt = $shift->ends_at?->format('Y-m-d\TH:i') ?? '';
         $this->timezone = (string) ($shift->timezone ?: 'Europe/Berlin');
+        $this->startsAt = $shift->starts_at?->setTimezone($this->timezone)->format('Y-m-d\TH:i') ?? '';
+        $this->endsAt = $shift->ends_at?->setTimezone($this->timezone)->format('Y-m-d\TH:i') ?? '';
         $this->locationName = (string) $shift->location_name;
         $this->requiredStaff = (int) $shift->required_staff;
         $this->status = (string) ($shift->status instanceof \BackedEnum ? $shift->status->value : $shift->status);
@@ -369,7 +370,7 @@ class ShiftManagement extends Component
                 'staffed' => 'Besetzt',
                 'closed' => 'Abgeschlossen / storniert',
             ])->map(fn (string $label, string $key): array => ['label' => $label, 'items' => $staffingGroups->get($key, collect())]),
-            'displayTimezone' => (string) config('app.timezone', 'Europe/Berlin'),
+            'displayTimezone' => (string) config('operations.display_timezone', 'Europe/Berlin'),
             'selectedShift' => $selectedShift,
             'orders' => Order::query()
                 ->with('customer')
@@ -398,7 +399,7 @@ class ShiftManagement extends Component
     /** @return array{0: Carbon, 1: Carbon} */
     private function resolvedRange(): array
     {
-        $timezone = (string) config('app.timezone', 'Europe/Berlin');
+        $timezone = (string) config('operations.display_timezone', 'Europe/Berlin');
         try {
             $from = Carbon::createFromFormat('!Y-m-d', $this->rangeFrom, $timezone)->startOfDay();
         } catch (\Throwable) {

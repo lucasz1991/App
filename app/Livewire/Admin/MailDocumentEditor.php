@@ -430,6 +430,10 @@ class MailDocumentEditor extends Component
             // V26 geometry is then projected from its nine saved attributes,
             // using this server-isolated base rather than legacy 200px rules.
             'previewResponsiveCssByArtifact' => [
+                'v30' => [
+                    'css' => TrustedEmailCss::forDocument('<tr data-rt-artifact-version="v30"></tr>', '#000026', false),
+                    'borderToken' => '#000026',
+                ],
                 'v27' => [
                     'css' => TrustedEmailCss::forDocument('<tr data-rt-artifact-version="v27"></tr>', '#000026', false, includeEditorVariants: true),
                     'borderToken' => '#000026',

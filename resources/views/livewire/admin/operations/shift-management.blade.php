@@ -1,6 +1,6 @@
 <div class="space-y-4" data-operations-shift-management>
-    <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all')">
-        <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" /></x-slot:search>
+    <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :search-in-header="true" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all')">
+        <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" /></x-slot:search>
         <x-tables.filter-field label="Von" for="shift-range-from"><x-ui.forms.input id="shift-range-from" type="date" wire:model.live="rangeFrom" aria-label="Schichten ab" /></x-tables.filter-field>
         <x-tables.filter-field label="Bis" for="shift-range-to"><x-ui.forms.input id="shift-range-to" type="date" wire:model.live="rangeTo" aria-label="Schichten bis" /></x-tables.filter-field>
         <x-tables.filter-field label="Auftrag" for="shift-order-filter"><x-ui.forms.select id="shift-order-filter" wire:model.live="orderFilter" aria-label="Auftrag"><option value="all">Alle Aufträge</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->title }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
@@ -65,14 +65,14 @@
 
                     <div class="mt-4 grid gap-3 sm:grid-cols-3">
                         <div class="rounded-xl bg-rt-surface-muted/60 p-3.5 dark:bg-rt-dark-surface-muted/50 sm:col-span-2">
-                            <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft">Zeit &amp; Ort</p>
-                            <p class="mt-2 text-sm font-semibold text-rt-text dark:text-white">{{ $selectedShift->starts_at?->format('d.m.Y H:i') }} – {{ $selectedShift->ends_at?->format('d.m.Y H:i') }}</p>
+                            <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft">Zeit &amp; Ort · {{ $displayTimezone }}</p>
+                            <p class="mt-2 text-sm font-semibold text-rt-text dark:text-white">{{ $selectedShift->starts_at?->setTimezone($displayTimezone)->format('d.m.Y H:i') }} – {{ $selectedShift->ends_at?->setTimezone($displayTimezone)->format('d.m.Y H:i') }}</p>
                             <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $selectedShift->location_name ?: $selectedShift->order?->location_name ?: 'Kein Einsatzort hinterlegt' }}</p>
                         </div>
                         <div class="rounded-xl bg-rt-surface-muted/60 p-3.5 dark:bg-rt-dark-surface-muted/50">
                             <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft">Besetzung</p>
                             <p @class(['mt-2 text-xl font-semibold tabular-nums', 'text-emerald-600 dark:text-emerald-300' => $selectedReservedCount >= $selectedShift->required_staff, 'text-rt-red' => $selectedReservedCount < $selectedShift->required_staff])>{{ $selectedReservedCount }}/{{ $selectedShift->required_staff }}</p>
-                            <x-operations.status :value="$selectedShiftStatus" />
+                            <x-operations.status :value="$selectedShiftStatus" :label="$selectedShift->status->label()" />
                         </div>
                     </div>
 
@@ -178,12 +178,12 @@
                     @error('roleName') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <x-ui.forms.label for="shift-start" value="Beginn" />
+                    <x-ui.forms.label for="shift-start" :value="'Beginn ('.$timezone.')'" />
                     <x-ui.forms.input id="shift-start" type="datetime-local" wire:model="startsAt" class="mt-1" />
                     @error('startsAt') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <x-ui.forms.label for="shift-end" value="Ende" />
+                    <x-ui.forms.label for="shift-end" :value="'Ende ('.$timezone.')'" />
                     <x-ui.forms.input id="shift-end" type="datetime-local" wire:model="endsAt" class="mt-1" />
                     @error('endsAt') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>

@@ -50,11 +50,14 @@ final class TrustedEmailCss
     {
         $css = self::responsive($border, $includeOptionalBackground);
         $version = SignatureArtifactVersion::detect('signature', $html);
-        if (! in_array($version, [SignatureArtifactVersion::V25, SignatureArtifactVersion::V26], true) && ! SignatureArtifactVersion::usesTableOverlapTrain($version)) {
+        if (! in_array($version, [SignatureArtifactVersion::V25, SignatureArtifactVersion::V26, SignatureArtifactVersion::V30], true) && ! SignatureArtifactVersion::usesTableOverlapTrain($version)) {
             return $css;
         }
 
         $css = TrustedOutlookSignatureCss::filterDocumentRuntime($css, $html);
+        if ($version === SignatureArtifactVersion::V30) {
+            $css .= file_get_contents(resource_path('mail-templates/signature-v30-hotline.css'));
+        }
         if ($version === SignatureArtifactVersion::V26) {
             $css .= SignatureImgOverlap::css($html);
         }
