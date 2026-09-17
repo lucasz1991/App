@@ -55,47 +55,47 @@ final class WidgetRegistry
             ],
             'operations_inquiries' => [
                 'title' => 'Offene Anfragen', 'description' => 'Unbearbeitete Kundenanfragen ohne Auftrag oder Dublette.',
-                'icon' => 'inbox', 'section' => 'Management', 'ability' => 'operations.inquiries.manage',
+                'icon' => 'inbox', 'section' => 'Management', 'ability' => self::opsAbility('operations.inquiries.manage'),
                 'defaultVisible' => true, 'defaultSize' => 'sm',
             ],
             'operations_orders' => [
                 'title' => 'Leistungen', 'description' => 'Auftraege in Bearbeitung.',
-                'icon' => 'clipboard', 'section' => 'Management', 'ability' => 'operations.manage',
+                'icon' => 'clipboard', 'section' => 'Management', 'ability' => self::opsAbility('operations.manage'),
                 'defaultVisible' => true, 'defaultSize' => 'sm',
             ],
             'operations_shift_coverage' => [
                 'title' => 'Besetzung diese Woche', 'description' => 'Zugesagt gegenueber benoetigt, Tag fuer Tag.',
-                'icon' => 'bar-chart-2', 'section' => 'Management', 'ability' => 'operations.manage',
+                'icon' => 'bar-chart-2', 'section' => 'Management', 'ability' => self::opsAbility('operations.manage'),
                 'defaultVisible' => true, 'defaultSize' => 'lg',
             ],
             'operations_next_shifts' => [
                 'title' => 'Nächste Dienste', 'description' => 'Die naechsten sechs Dienste aus dem Schichtplan.',
-                'icon' => 'calendar', 'section' => 'Management', 'ability' => 'operations.manage',
+                'icon' => 'calendar', 'section' => 'Management', 'ability' => self::opsAbility('operations.manage'),
                 'defaultVisible' => true, 'defaultSize' => 'lg',
             ],
             'operations_customers' => [
                 'title' => 'Kundendatenbank', 'description' => 'Anzahl aktiver Kunden.',
-                'icon' => 'briefcase', 'section' => 'Management', 'ability' => 'operations.manage',
+                'icon' => 'briefcase', 'section' => 'Management', 'ability' => self::opsAbility('operations.manage'),
                 'defaultVisible' => false, 'defaultSize' => 'sm',
             ],
             'operations_qualifications' => [
                 'title' => 'Nachweise prüfen', 'description' => 'Eingereichte Qualifikationsnachweise, die auf Pruefung warten.',
-                'icon' => 'award', 'section' => 'Management', 'ability' => 'operations.qualifications.manage',
+                'icon' => 'award', 'section' => 'Management', 'ability' => self::opsAbility('operations.qualifications.manage'),
                 'defaultVisible' => true, 'defaultSize' => 'sm',
             ],
             'operations_absences' => [
                 'title' => 'Abwesenheiten prüfen', 'description' => 'Antraege, die noch auf eine Entscheidung warten.',
-                'icon' => 'calendar', 'section' => 'Management', 'ability' => 'operations.absences.review',
+                'icon' => 'calendar', 'section' => 'Management', 'ability' => self::opsAbility('operations.absences.review'),
                 'defaultVisible' => true, 'defaultSize' => 'sm',
             ],
             'operations_times' => [
                 'title' => 'Zeiten prüfen', 'description' => 'Eingereichte Zeitmeldungen, die auf Freigabe warten.',
-                'icon' => 'check-circle', 'section' => 'Management', 'ability' => 'operations.time.review',
+                'icon' => 'check-circle', 'section' => 'Management', 'ability' => self::opsAbility('operations.time.review'),
                 'defaultVisible' => true, 'defaultSize' => 'sm',
             ],
             'operations_rules' => [
                 'title' => 'Regelprofil', 'description' => 'Das aktive betriebliche Pruefregelwerk.',
-                'icon' => 'shield', 'section' => 'Management', 'ability' => 'operations.rules.manage',
+                'icon' => 'shield', 'section' => 'Management', 'ability' => self::opsAbility('operations.rules.manage'),
                 'defaultVisible' => false, 'defaultSize' => 'sm',
             ],
             'fleet_devices' => [
@@ -152,6 +152,17 @@ final class WidgetRegistry
     public static function find(string $key): ?array
     {
         return self::all()[$key] ?? null;
+    }
+
+    /**
+     * Jedes operations_*-Widget haengt an Tabellen/Spalten aus der
+     * Operations-Migration - eine reine Rechtepruefung reicht nicht, wenn
+     * die Migration auf einer Umgebung noch nicht eingespielt ist (dieselbe
+     * Bedingung wie ApplicationNavigation und Cockpit).
+     */
+    private static function opsAbility(string $ability): \Closure
+    {
+        return static fn (User $u) => OperationsAccess::ready() && $u->can($ability);
     }
 
     /**
