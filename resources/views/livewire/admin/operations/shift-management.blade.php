@@ -1,19 +1,28 @@
-<div class="space-y-4" data-operations-shift-management>
+<div class="rt-shift-plan space-y-4" data-operations-shift-management>
+    <header class="rt-calendar-header">
+        <div class="rt-calendar-heading">
+            <div><h2 class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</h2><p class="rt-calendar-timezone">{{ $displayTimezone }}</p></div>
+            <div class="rt-calendar-summary" aria-live="polite"><span><i class="far fa-calendar-days" aria-hidden="true"></i><strong>{{ $shifts->count() }}</strong> {{ $shifts->count() === 1 ? 'Schicht' : 'Schichten' }}</span><span><i class="far fa-user-plus" aria-hidden="true"></i><strong>{{ $openCount }}</strong> offene Plätze</span></div>
+        </div>
+        <div class="rt-shift-plan-controls">
+            <div class="rt-shift-plan-range" role="group" aria-label="Planungszeitraum">
+                <div><x-ui.forms.label for="shift-range-from" value="Von" /><x-ui.forms.date-field id="shift-range-from" wire:model.live="rangeFrom" :clearable="false" aria-label="Schichten ab" /></div>
+                <span class="rt-shift-plan-range-divider" aria-hidden="true">–</span>
+                <div><x-ui.forms.label for="shift-range-to" value="Bis" /><x-ui.forms.date-field id="shift-range-to" wire:model.live="rangeTo" :clearable="false" aria-label="Schichten bis" /></div>
+            </div>
+            <x-ui.buttons.multi-toggle id="shift-plan-view-toggle" label="Schichtplanansicht" :value="$viewMode" action="setView" :options="[
+                ['value'=>'table','label'=>'Tabelle','icon'=>'fa-table-list'],
+                ['value'=>'day','label'=>'Tagesübersicht','icon'=>'fa-calendar-day'],
+                ['value'=>'staffing','label'=>'Besetzung','icon'=>'fa-users'],
+                ['value'=>'orders','label'=>'Leistungen','icon'=>'fa-briefcase'],
+            ]" />
+        </div>
+    </header>
     <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :search-in-header="true" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all')">
         <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" /></x-slot:search>
-        <x-tables.filter-field label="Von" for="shift-range-from"><x-ui.forms.input id="shift-range-from" type="date" wire:model.live="rangeFrom" aria-label="Schichten ab" /></x-tables.filter-field>
-        <x-tables.filter-field label="Bis" for="shift-range-to"><x-ui.forms.input id="shift-range-to" type="date" wire:model.live="rangeTo" aria-label="Schichten bis" /></x-tables.filter-field>
         <x-tables.filter-field label="Auftrag" for="shift-order-filter"><x-ui.forms.select id="shift-order-filter" wire:model.live="orderFilter" aria-label="Auftrag"><option value="all">Alle Aufträge</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->title }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
         <x-tables.filter-field label="Status" for="shift-status-filter"><x-ui.forms.select id="shift-status-filter" wire:model.live="statusFilter" aria-label="Schichtstatus filtern"><option value="all">Alle Status</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
     </x-tables.toolbar>
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Schichtplanansicht">
-            @foreach(['table' => ['Tabelle', 'fa-table-list'], 'day' => ['Tagesübersicht', 'fa-calendar-day'], 'staffing' => ['Besetzung', 'fa-users'], 'orders' => ['Leistungen', 'fa-briefcase']] as $key => [$label, $icon])
-                <x-ui.buttons.button-basic type="button" :mode="$viewMode === $key ? 'primary' : 'basic'" wire:click="setView('{{ $key }}')" wire:loading.attr="disabled" wire:target="setView" aria-pressed="{{ $viewMode === $key ? 'true' : 'false' }}" class="min-h-11" wire:key="shift-view-{{ $key }}"><i class="far {{ $icon }}" aria-hidden="true"></i>{{ $label }}</x-ui.buttons.button-basic>
-            @endforeach
-        </div>
-        <p class="text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted" aria-live="polite">{{ $shifts->count() }} Schichten <span aria-hidden="true">·</span> {{ $openCount }} offene Plätze</p>
-    </div>
     @php
         $shiftColumns = [
             ['label' => 'Schicht', 'key' => 'shift', 'width' => '1.5fr'],
@@ -27,11 +36,10 @@
         @if($viewMode === 'table' || $shifts->isEmpty())
             <x-tables.table :columns="$shiftColumns" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
         @else
-            @if($viewMode === 'day')<p class="text-xs text-rt-muted dark:text-rt-dark-muted">Tageszuordnung: {{ $displayTimezone }}</p>@endif
             @foreach(match($viewMode) { 'day' => $dailyGroups, 'orders' => $orderGroups, default => $staffingGroups } as $groupKey => $group)
                 @if($group['items']->isNotEmpty())
                     <section class="min-w-0" wire:key="shift-group-{{ $viewMode }}-{{ $groupKey }}" aria-labelledby="shift-group-{{ $viewMode }}-{{ $groupKey }}" data-shift-group="{{ $groupKey }}">
-                        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-rt-surface-muted px-3 py-3 dark:bg-rt-dark-surface-muted">
+                        <div class="rt-shift-plan-group">
                             <div class="min-w-0">
                                 <h2 id="shift-group-{{ $viewMode }}-{{ $groupKey }}" class="break-words text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $group['label'] }}</h2>
                                 @if($viewMode === 'orders')<p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $group['customer'] }}</p>@endif
@@ -185,12 +193,12 @@
                 </div>
                 <div>
                     <x-ui.forms.label for="shift-start" :value="'Beginn ('.$timezone.')'" />
-                    <x-ui.forms.input id="shift-start" type="datetime-local" wire:model="startsAt" class="mt-1" />
+                    <x-ui.forms.date-time-field id="shift-start" wire:model="startsAt" :aria-label="'Beginn ('.$timezone.')'" class="mt-1" required />
                     @error('startsAt') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <x-ui.forms.label for="shift-end" :value="'Ende ('.$timezone.')'" />
-                    <x-ui.forms.input id="shift-end" type="datetime-local" wire:model="endsAt" class="mt-1" />
+                    <x-ui.forms.date-time-field id="shift-end" wire:model="endsAt" :aria-label="'Ende ('.$timezone.')'" class="mt-1" required />
                     @error('endsAt') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>

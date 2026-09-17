@@ -2,23 +2,26 @@
 
 namespace App\Support\Dashboard;
 
+use App\Enums\MarketingCreativeType;
 use App\Models\AbsenceRequest;
 use App\Models\Customer;
 use App\Models\EmployeeQualification;
 use App\Models\Mail;
 use App\Models\MarketingCreative;
-use App\Models\Order;
 use App\Models\OperationInquiry;
 use App\Models\OperationsRuleProfile;
+use App\Models\Order;
 use App\Models\Room;
 use App\Models\Shift;
-use App\Models\ShiftAssignment;
 use App\Models\SupportCase;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Services\DeviceManagement\DeviceFleetSnapshot;
 use App\Services\DeviceManagement\PersonalDeviceSnapshot;
-use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsDateTime;
+use App\Support\Operations\PersonalSchedule;
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -52,23 +55,39 @@ class WidgetDataProvider
             'files' => $this->files($user, $rows),
             'my_devices' => $this->myDevices($user),
             'profile_completion' => $this->profileCompletion($user),
-            'operations_inquiries' => $this->operationsQueue('inquiries', 'Offene Anfragen', OperationInquiry::whereNull('order_id')->whereNull('duplicate_of_id')),
-            'operations_orders' => $this->operationsOrders(),
+            'operations_inquiries' => $this->operationsQueue(
+                'inquiries', 'Offene Anfragen',
+                OperationInquiry::whereNull('order_id')->whereNull('duplicate_of_id')->with('customer:id,company_name'),
+                $rows, fn (OperationInquiry $i) => ['title' => $i->title, 'meta' => $i->customer?->company_name, 'when' => $i->created_at],
+            ),
+            'operations_orders' => $this->operationsOrders($rows),
             'operations_shift_coverage' => $this->operationsShiftCoverage(),
             'operations_next_shifts' => $this->operationsNextShifts($rows),
-            'operations_customers' => $this->operationsCustomers(),
-            'operations_qualifications' => $this->operationsQueue('qualifications', 'Nachweise prüfen', EmployeeQualification::where('status', 'pending')),
-            'operations_absences' => $this->operationsQueue('absences', 'Abwesenheiten prüfen', AbsenceRequest::where('status', 'pending')),
-            'operations_times' => $this->operationsQueue('times', 'Zeiten prüfen', WorkTimeEntry::where('status', 'submitted')),
+            'operations_customers' => $this->operationsCustomers($rows),
+            'operations_qualifications' => $this->operationsQueue(
+                'qualifications', 'Nachweise prüfen',
+                EmployeeQualification::where('status', 'pending')->with(['user:id,name', 'type:id,name']),
+                $rows, fn (EmployeeQualification $q) => ['title' => $q->user?->name, 'meta' => $q->type?->name, 'when' => $q->created_at],
+            ),
+            'operations_absences' => $this->operationsQueue(
+                'absences', 'Abwesenheiten prüfen',
+                AbsenceRequest::where('status', 'pending')->with('user:id,name'),
+                $rows, fn (AbsenceRequest $a) => ['title' => $a->user?->name, 'meta' => ucfirst($a->kind), 'when' => $a->created_at],
+            ),
+            'operations_times' => $this->operationsQueue(
+                'times', 'Zeiten prüfen',
+                WorkTimeEntry::where('status', 'submitted')->with('user:id,name'),
+                $rows, fn (WorkTimeEntry $t) => ['title' => $t->user?->name, 'meta' => OperationsDateTime::duration($t->netSeconds()), 'when' => $t->submitted_at ?? $t->created_at],
+            ),
             'operations_rules' => $this->operationsRules(),
             'fleet_devices' => $this->fleetDevices($user),
-            'employees' => $this->employees($user),
+            'employees' => $this->employees($user, $rows),
             'recent_activity' => $this->recentActivity($rows),
             'account_growth' => $this->accountGrowth(),
-            'mail_management' => $this->mailManagement($user),
+            'mail_management' => $this->mailManagement($rows),
             'calls' => $this->calls($user, $rows),
             'support_cases' => $this->supportCases($user, $rows),
-            'marketing' => $this->marketing(),
+            'marketing' => $this->marketing($rows),
             'system_status' => [],
             default => [],
         };
@@ -77,22 +96,15 @@ class WidgetDataProvider
     private function myWork(User $user): array
     {
         $activeTime = WorkTimeEntry::where('user_id', $user->id)->whereIn('status', ['running', 'paused'])->first();
-        // Kleine, ungefaehrliche Menge (eine Person hat selten mehr als eine
-        // Handvoll offener Zuweisungen) - in PHP sortiert statt per
-        // Subquery-orderBy, um keine Annahme ueber die Tabellen-Alias-Form
-        // von whereHas() zu machen.
-        $nextAssignment = ShiftAssignment::where('user_id', $user->id)
-            ->whereIn('status', ['requested', 'confirmed'])
-            ->whereHas('shift', fn ($q) => $q->where('published_revision', '>', 0)->where('status', '!=', 'cancelled')->where('ends_at', '>', now()->utc()))
-            ->with('shift.order.customer')
-            ->get()
-            ->sortBy(fn (ShiftAssignment $assignment) => $assignment->shift->starts_at)
+        $nextAssignment = app(PersonalSchedule::class)
+            ->assignments($user, CarbonImmutable::now('UTC'), null)
             ->first();
 
         return [
             'activeTime' => $activeTime,
             'nextAssignment' => $nextAssignment,
             'href' => route('operations.mine'),
+            'calendarHref' => route('operations.mine', ['tab' => 'schedule']),
         ];
     }
 
@@ -152,21 +164,33 @@ class WidgetDataProvider
         return ['completion' => $completion, 'checks' => $checks, 'href' => route('profile.show')];
     }
 
-    /** Gemeinsame Form fuer die vier Cockpit-Warteschlangen (dieselben Zahlen wie Cockpit.php). */
-    private function operationsQueue(string $slug, string $label, $query): array
+    /**
+     * Gemeinsame Form fuer die vier Cockpit-Warteschlangen (dieselben Zahlen
+     * wie Cockpit.php). Bei zwei Zeilen Hoehe zeigt jede Warteschlange
+     * zusaetzlich ihre vier juengsten Eintraege - $describe formt je Modell
+     * die konkrete Zeile (Titel/Nebeninfo/Zeitpunkt), da die vier Abfragen
+     * unterschiedliche Spalten liefern.
+     */
+    private function operationsQueue(string $slug, string $label, Builder $query, int $rows, \Closure $describe): array
     {
         return [
             'label' => $label,
-            'count' => $query->count(),
+            'count' => (clone $query)->count(),
+            'items' => $rows === 2 ? (clone $query)->latest()->limit(4)->get()->map($describe) : collect(),
             'href' => route('operations.workspace', $slug),
         ];
     }
 
-    private function operationsOrders(): array
+    private function operationsOrders(int $rows): array
     {
-        $open = Order::query()->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])->count();
+        $open = Order::query()->whereNotIn('status', ['completed', 'invoiced', 'cancelled']);
 
-        return ['label' => 'Offene Leistungen', 'count' => $open, 'href' => route('operations.workspace', 'orders')];
+        return [
+            'label' => 'Offene Leistungen',
+            'count' => (clone $open)->count(),
+            'recent' => $rows === 2 ? (clone $open)->with('customer:id,company_name')->latest('starts_at')->limit(4)->get() : collect(),
+            'href' => route('operations.workspace', 'orders'),
+        ];
     }
 
     private function operationsShiftCoverage(): array
@@ -199,11 +223,12 @@ class WidgetDataProvider
         return ['shifts' => $shifts, 'href' => route('operations.workspace', 'shift-management')];
     }
 
-    private function operationsCustomers(): array
+    private function operationsCustomers(int $rows): array
     {
         return [
             'active' => Customer::query()->active()->count(),
             'total' => Customer::query()->count(),
+            'recent' => $rows === 2 ? Customer::query()->active()->latest()->limit(4)->get(['id', 'company_name', 'city']) : collect(),
             'href' => route('operations.workspace', 'customers'),
         ];
     }
@@ -215,7 +240,7 @@ class WidgetDataProvider
         return ['profile' => $profile, 'href' => route('operations.workspace', 'rules')];
     }
 
-    private function employees(User $user): array
+    private function employees(User $user, int $rows): array
     {
         $snapshot = User::query()->where('role', 'staff')
             ->selectRaw('COUNT(*) as total')
@@ -225,6 +250,7 @@ class WidgetDataProvider
         return [
             'total' => (int) ($snapshot->total ?? 0),
             'active' => (int) ($snapshot->active ?? 0),
+            'recent' => $rows === 2 ? User::query()->where('role', 'staff')->latest()->limit(4)->get(['id', 'name', 'created_at']) : collect(),
             'href' => route($user->isAdmin() ? 'admin.employees' : 'employees.index'),
         ];
     }
@@ -246,10 +272,13 @@ class WidgetDataProvider
         ];
     }
 
-    private function mailManagement(User $user): array
+    private function mailManagement(int $rows): array
     {
+        $pending = Mail::query()->where('status', false);
+
         return [
-            'pending' => Mail::query()->where('status', false)->count(),
+            'pending' => (clone $pending)->count(),
+            'recent' => $rows === 2 ? (clone $pending)->latest()->limit(4)->get() : collect(),
             'href' => route('admin.mail-management'),
         ];
     }
@@ -290,10 +319,17 @@ class WidgetDataProvider
         }
     }
 
-    private function marketing(): array
+    private function marketing(int $rows): array
     {
+        $pending = MarketingCreative::query()->where('status', 'draft');
+
         return [
-            'pending' => MarketingCreative::query()->where('status', 'draft')->count(),
+            'pending' => (clone $pending)->count(),
+            'recent' => $rows === 2 ? (clone $pending)->latest()->limit(4)->get(['id', 'title', 'type', 'created_at'])->map(fn (MarketingCreative $creative) => [
+                'title' => $creative->title,
+                'typeLabel' => $creative->type === MarketingCreativeType::Job ? 'Stellenanzeige' : 'Info-Motiv',
+                'when' => $creative->created_at,
+            ]) : collect(),
             'href' => route('admin.marketing.creatives.index'),
         ];
     }

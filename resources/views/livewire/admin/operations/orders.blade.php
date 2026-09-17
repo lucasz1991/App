@@ -155,12 +155,12 @@
                 </div>
                 <div>
                     <x-ui.forms.label for="order-start" value="Beginn" />
-                    <x-ui.forms.input id="order-start" type="datetime-local" wire:model="startsAt" class="mt-1" />
+                    <x-ui.forms.date-time-field id="order-start" wire:model="startsAt" :aria-label="'Beginn ('.$timezone.')'" class="mt-1" required />
                     @error('startsAt') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <x-ui.forms.label for="order-end" value="Ende" />
-                    <x-ui.forms.input id="order-end" type="datetime-local" wire:model="endsAt" class="mt-1" />
+                    <x-ui.forms.date-time-field id="order-end" wire:model="endsAt" :aria-label="'Ende ('.$timezone.')'" class="mt-1" required />
                     @error('endsAt') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>

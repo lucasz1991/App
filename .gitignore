@@ -149,6 +149,13 @@ Homestead.json
 auth.json
 
 # Native Operations regression and isolated browser acceptance
+!/tests/Feature/DispositionDateControlsTest.php
+!/tests/Frontend/date-time-field.test.js
+!/tests/Feature/PersonalCalendarTest.php
+!/tests/Feature/Operations/
+/tests/Feature/Operations/*
+!/tests/Feature/Operations/PersonalScheduleTest.php
+!/tests/Feature/Operations/PersonalCalendarWidgetTest.php
 !/tests/Feature/CalendarUiComponentsTest.php
 !/tests/Feature/DateFieldComponentTest.php
 !/tests/Feature/MultiToggleComponentTest.php

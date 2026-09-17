@@ -1,5 +1,10 @@
 /* Bestehende Datumskomponente; spezifische Selektoren bewahren die kompakte
    Form gegen spaetere Legacy-Regeln im gemeinsamen App-Stylesheet. */
+.rt-date-time-field { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 8px; min-width: 0; }
+.rt-date-time-field > .rt-ui-date-field { min-width: 0; }
+.rt-date-time-field .rt-date-time-field__time.rt-ui-control { min-width: 0; height: 44px; min-height: 44px; padding: 8px; border-radius: 10px; font-variant-numeric: tabular-nums; color-scheme: light; }
+html.dark .rt-date-time-field .rt-date-time-field__time { color-scheme: dark; }
+@media (max-width: 359px) { .rt-date-time-field { grid-template-columns: minmax(0, 1fr); } }
 .rt-ui-date-field,
 .rt-ui-date-panel {
     --date-surface: theme('colors.rt.surface');
@@ -95,6 +100,7 @@ body[data-mode='dark'] .rt-ui-date-panel {
 .rt-ui-date-field .rt-ui-date-field__trigger:disabled { cursor: not-allowed; }
 
 .rt-ui-date-panel.fixed {
+    pointer-events: auto;
     z-index: 240;
     display: flex;
     flex-direction: column;
@@ -109,6 +115,10 @@ body[data-mode='dark'] .rt-ui-date-panel {
 }
 
 .rt-ui-date-panel .rt-ui-date-panel__header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--date-surface);
     display: grid;
     grid-template-columns: 40px 40px minmax(0, 1fr) 40px 40px;
     flex: none;

@@ -271,14 +271,28 @@ export const dateField = (config = {}) => ({
     openPanel(trigger = null) {
         if (this.locked) return;
 
+        this.attachToOverlayPortal();
         this.returnFocusTo = trigger || this.$refs.display;
         this.syncFromValue();
         this.position();
         this.open = true;
         this.$nextTick(() => {
             this.position();
+            if (this.$refs.panel) this.$refs.panel.scrollTop = 0;
             this.focusDay();
         });
+    },
+
+    attachToOverlayPortal() {
+        const panel = this.$refs.panel;
+        const overlay = this.$refs.anchor?.closest?.('[data-rt-overlay-layer]');
+        const portal = overlay?.querySelector(':scope > [data-rt-overlay-portal]');
+        if (!panel || !portal) return;
+
+        // Same portal contract as shared dropdowns: remain inside the modal's
+        // focus trap, outside its transformed and clipped content panel.
+        if (panel.parentElement !== portal) portal.appendChild(panel);
+        panel.removeAttribute('aria-hidden');
     },
 
     closePanel(returnFocus = false) {

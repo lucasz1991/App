@@ -11,7 +11,7 @@
     <div class="min-w-0 px-2 py-1.5 {{ $hideClass($column['hideOn']) }}">
         @switch($column['key'])
             @case('shift')
-                <x-ui.buttons.button-basic type="button" mode="link" wire:click="openDetails({{ $item->id }})" class="min-h-11 max-w-full text-left font-semibold"><span class="break-words">{{ $item->title }}</span></x-ui.buttons.button-basic>
+                <x-ui.buttons.button-basic type="button" mode="link" wire:click="openDetails({{ $item->id }})" class="rt-shift-title min-h-11 max-w-full text-left font-semibold"><span class="break-words">{{ $item->title }}</span></x-ui.buttons.button-basic>
                 <p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->role_name }}</p>
                 <p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->order?->order_number }} · {{ $item->order?->title }}</p>
                 @break

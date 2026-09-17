@@ -51,6 +51,7 @@ class NativeOperationsWorkflowTest extends TestCase
         (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
         (require database_path('migrations/2026_07_18_000001_create_activity_log_table.php'))->up();
         (require database_path('migrations/2026_09_17_140000_create_dashboard_widget_placements_table.php'))->up();
+        (require database_path('migrations/2026_09_17_160000_add_rows_to_dashboard_widget_placements_table.php'))->up();
         $this->travelTo(now()->setDate(2027, 5, 12)->setTime(7, 0)->utc());
         $this->admin = User::factory()->create(['role' => 'admin', 'status' => true]);
         $this->employee = User::factory()->create(['role' => 'staff', 'status' => true]);

@@ -11,12 +11,14 @@ use App\Services\Operations\PersonnelWorkflowService;
 use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\PersonalSchedule;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class MyWork extends Component
 {
@@ -26,6 +28,15 @@ class MyWork extends Component
     public string $tab = 'today';
 
     public int $week = 0;
+
+    public string $anchorDate = '';
+
+    public string $viewMode = 'week';
+
+    public bool $calendarEventOpen = false;
+
+    #[Locked]
+    public ?string $selectedCalendarEventId = null;
 
     public bool $manualOpen = false;
 
@@ -81,6 +92,10 @@ class MyWork extends Component
     {
         $this->access();
         $this->eventKey = (string) Str::uuid();
+        $this->today();
+        if (request()->query('tab') === 'schedule') {
+            $this->tab = 'schedule';
+        }
     }
 
     private function access(): void
@@ -94,6 +109,7 @@ class MyWork extends Component
         $this->access();
         abort_unless(in_array($tab, ['today', 'schedule', 'time', 'records', 'absences'], true), 404);
         $this->tab = $tab;
+        $this->closeCalendarEvent();
         $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen']);
         $this->resetValidation();
     }
@@ -170,38 +186,186 @@ class MyWork extends Component
         session()->flash('operations.saved', 'Nachweis eingereicht.');
     }
 
+    private function displayTimezone(): string
+    {
+        return (string) config('operations.display_timezone', 'Europe/Berlin');
+    }
+
+    private function anchor(): CarbonImmutable
+    {
+        try {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $this->anchorDate, $this->displayTimezone());
+            if ($date && $date->toDateString() === $this->anchorDate) {
+                return $date;
+            }
+        } catch (\Throwable) {
+        }
+
+        return CarbonImmutable::now($this->displayTimezone())->startOfDay();
+    }
+
+    public function updatedAnchorDate(): void
+    {
+        $this->access();
+        $this->closeCalendarEvent();
+        $this->validate(['anchorDate' => 'required|date_format:Y-m-d']);
+    }
+
+    public function updatedWeek(): void
+    {
+        $this->access();
+        $this->anchorDate = CarbonImmutable::now($this->displayTimezone())->startOfWeek()->addWeeks(max(-12, min(52, $this->week)))->toDateString();
+        $this->closeCalendarEvent();
+    }
+
+    public function today(): void
+    {
+        $this->access();
+        $this->anchorDate = CarbonImmutable::now($this->displayTimezone())->toDateString();
+        $this->week = 0;
+        $this->closeCalendarEvent();
+        $this->resetValidation('anchorDate');
+    }
+
+    public function switchView(string $view): void
+    {
+        $this->access();
+        abort_unless(in_array($view, ['day', 'week', 'month', 'list'], true), 404);
+        $this->viewMode = $view;
+        $this->closeCalendarEvent();
+    }
+
+    public function showDay(string $date): void
+    {
+        $this->access();
+        $this->anchorDate = $date;
+        $this->updatedAnchorDate();
+        $this->viewMode = 'day';
+    }
+
+    public function previousPeriod(): void
+    {
+        $this->movePeriod(-1);
+    }
+
+    public function nextPeriod(): void
+    {
+        $this->movePeriod(1);
+    }
+
+    private function movePeriod(int $direction): void
+    {
+        $this->access();
+        $date = $this->anchor();
+        $this->anchorDate = match ($this->viewMode) {
+            'day' => $date->addDays($direction)->toDateString(),
+            'month' => $date->addMonthsNoOverflow($direction)->toDateString(),
+            default => $date->addWeeks($direction)->toDateString(),
+        };
+        $this->closeCalendarEvent();
+        $this->resetValidation('anchorDate');
+    }
+
+    public function openCalendarEvent(string $id): void
+    {
+        $this->access();
+        $this->calendarEvent($id);
+        $this->selectedCalendarEventId = $id;
+        $this->calendarEventOpen = true;
+        $this->resetValidation();
+    }
+
+    public function closeCalendarEvent(): void
+    {
+        $this->access();
+        $this->calendarEventOpen = false;
+        $this->selectedCalendarEventId = null;
+    }
+
+    private function event(object $record, string $kind): object
+    {
+        $scheduled = $kind === 'shift' ? $record->shift : $record;
+
+        return (object) [
+            'id' => $kind.'-'.$record->id,
+            'kind' => $kind,
+            'record' => $record,
+            'starts' => $scheduled->starts_at->setTimezone($this->displayTimezone()),
+            'ends' => $scheduled->ends_at->setTimezone($this->displayTimezone()),
+            'title' => $kind === 'shift' ? $scheduled->title : (['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit'][$record->kind] ?? 'Abwesenheit'),
+            'status' => $kind === 'shift' ? $record->status->value : $record->status,
+        ];
+    }
+
+    private function calendarEvent(string $id): object
+    {
+        abort_unless(preg_match('/\A(shift|absence)-([1-9][0-9]{0,17})\z/', $id, $match), 404);
+        if ($match[1] === 'shift') {
+            $record = app(PersonalSchedule::class)->assignment(auth()->user(), (int) $match[2]);
+            $record->setAttribute('has_active_time', WorkTimeEntry::where('user_id', auth()->id())->whereIn('status', ['running', 'paused'])->exists());
+        } else {
+            $record = AbsenceRequest::where('user_id', auth()->id())->whereIn('status', ['pending', 'approved'])->find((int) $match[2]);
+            abort_unless($record, 404);
+        }
+
+        return $this->event($record, $match[1]);
+    }
+
     public function render()
     {
         $this->access();
         abort_unless(in_array($this->tab, ['today', 'schedule', 'time', 'records', 'absences'], true), 404);
-        $from = now(config('operations.display_timezone'))->startOfWeek()->addWeeks(max(-12, min(52, $this->week)));
-        $to = $from->copy()->addWeek();
-        $rangeStart = $this->tab === 'schedule' ? $from : now(config('operations.display_timezone'))->startOfDay();
-        $rangeEnd = $this->tab === 'schedule' ? $to : now()->addDays(14);
-        $visible = ShiftAssignment::where('user_id', auth()->id())->whereIn('status', ['requested', 'confirmed'])
-            ->whereHas('shift', fn ($q) => $q->where('published_revision', '>', 0)->where('status', '!=', 'cancelled')->where(fn ($q) => $q->during($rangeStart, $rangeEnd)->orWhereColumn('published_revision', '!=', 'revision')))->with(['shift.order.customer', 'timeEntry'])->get();
-        $visible = $visible->map(function ($assignment) {
-            $shift = $assignment->shift;
-            $assignment->setAttribute('plan_is_stale', $shift->published_revision !== $shift->revision);
-            if ($assignment->plan_is_stale && $shift->published_snapshot) {
-                $snapshot = $shift->published_snapshot;
-                foreach (['starts_at', 'ends_at'] as $key) {
-                    $snapshot[$key] = CarbonImmutable::parse($snapshot[$key])->utc();
-                }
-                $shift->forceFill($snapshot);
-                if (array_key_exists('order_id', $snapshot)) {
-                    $shift->unsetRelation('order')->load('order.customer');
-                }
-            }
-
-            return $assignment;
-        })->filter(fn ($a) => $a->shift->starts_at->lt($rangeEnd) && $a->shift->ends_at->gt($rangeStart))->sortBy(fn ($a) => $a->shift->starts_at);
+        abort_unless(in_array($this->viewMode, ['day', 'week', 'month', 'list'], true), 404);
+        $anchor = $this->anchor();
+        $from = match ($this->viewMode) {
+            'day' => $anchor,
+            'month' => $anchor->startOfMonth()->startOfWeek(),
+            default => $anchor->startOfWeek(),
+        };
+        $to = match ($this->viewMode) {
+            'day' => $from->addDay(),
+            'month' => $anchor->endOfMonth()->endOfWeek()->addDay()->startOfDay(),
+            default => $from->addWeek(),
+        };
+        $rangeStart = $this->tab === 'schedule' ? $from : CarbonImmutable::now($this->displayTimezone())->startOfDay();
+        $rangeEnd = $this->tab === 'schedule' ? $to : $rangeStart->addDays(14);
+        $visible = app(PersonalSchedule::class)->assignments(auth()->user(), $rangeStart, $rangeEnd);
 
         $activeTime = WorkTimeEntry::where('user_id', auth()->id())->whereIn('status', ['running', 'paused'])->first();
         $visible->each(fn ($assignment) => $assignment->setAttribute('has_active_time', $activeTime !== null));
 
+        $events = $this->tab === 'schedule' ? $visible->map(fn ($assignment) => $this->event($assignment, 'shift'))
+            ->concat(AbsenceRequest::where('user_id', auth()->id())->whereIn('status', ['pending', 'approved'])
+                ->where('starts_at', '<', $to->utc())->where('ends_at', '>', $from->utc())->get()
+                ->map(fn ($absence) => $this->event($absence, 'absence')))
+            ->sortBy(fn ($event) => $event->starts->getTimestamp())->values() : collect();
+        $days = collect(range(0, (int) $from->diffInDays($to) - 1))->map(function ($offset) use ($from, $anchor, $events) {
+            $date = $from->addDays($offset);
+
+            return ['date' => $date, 'is_today' => $date->isToday(), 'in_month' => $date->month === $anchor->month,
+                'events' => $events->filter(fn ($event) => $event->starts->lt($date->addDay()) && $event->ends->gt($date))->values()];
+        });
+        $selected = null;
+        if ($this->calendarEventOpen && $this->selectedCalendarEventId) {
+            try {
+                $selected = $this->calendarEvent($this->selectedCalendarEventId);
+            } catch (HttpException $exception) {
+                if ($exception->getStatusCode() !== 404) {
+                    throw $exception;
+                }
+                $this->closeCalendarEvent();
+            }
+        }
+
         return view('livewire.operations.my-work', [
             'from' => $from, 'to' => $to,
+            'calendarDays' => $days, 'calendarEvents' => $events, 'selectedCalendarEvent' => $selected,
+            'displayTimezone' => $this->displayTimezone(),
+            'periodLabel' => match ($this->viewMode) {
+                'day' => $anchor->locale('de')->isoFormat('dddd, D. MMMM YYYY'),
+                'month' => $anchor->locale('de')->isoFormat('MMMM YYYY'),
+                default => $from->format('d.m.').' – '.$to->subDay()->format('d.m.Y'),
+            },
             'assignments' => $visible,
             'activeTime' => $activeTime,
             'times' => WorkTimeEntry::where('user_id', auth()->id())->latest('starts_at')->paginate(20, ['*'], 'timesPage'),

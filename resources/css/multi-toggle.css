@@ -5,6 +5,7 @@
     gap: 4px;
     max-width: 100%;
     padding: 4px;
+    border: 1px solid var(--rt-shell-line);
     border-radius: 12px;
     background: var(--rt-shell-panel);
     isolation: isolate;
@@ -18,7 +19,7 @@
     min-height: 44px;
     padding: 0 !important;
     border: 0 !important;
-    border-radius: 8px;
+    border-radius: 7px;
     color: var(--rt-shell-muted) !important;
     background: transparent !important;
     box-shadow: none !important;

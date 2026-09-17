@@ -8,6 +8,10 @@
         <x-ui.forms.select :id="$fieldId" :aria-label="$label" wire:model="{{ $model }}" {{ $attributes }}>{{ $slot }}</x-ui.forms.select>
     @elseif($type === 'textarea')
         <x-ui.forms.textarea :id="$fieldId" wire:model="{{ $model }}" {{ $attributes }} />
+    @elseif($type === 'date')
+        <x-ui.forms.date-field :id="$fieldId" :aria-label="$label" wire:model="{{ $model }}" {{ $attributes }} />
+    @elseif($type === 'datetime-local')
+        <x-ui.forms.date-time-field :id="$fieldId" :aria-label="$label" wire:model="{{ $model }}" {{ $attributes }} />
     @elseif($type === 'number')
         @php
             $numberStep = (string) $attributes->get('step', '1');

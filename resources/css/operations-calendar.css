@@ -3,6 +3,23 @@
     min-width: 0;
 }
 .rt-calendar-header { display: grid; gap: 16px; }
+.rt-shift-plan { min-width: 0; }
+.rt-shift-plan-controls { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.rt-shift-plan-range { display: grid; grid-template-columns: minmax(0, 184px) 12px minmax(0, 184px); gap: 8px; align-items: end; }
+.rt-shift-plan-range > div { display: grid; gap: 6px; min-width: 0; }
+.rt-shift-plan-range-divider { padding-bottom: 12px; color: var(--rt-shell-muted); text-align: center; }
+.rt-shift-plan-group { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 16px; border-radius: 10px; background: var(--rt-shell-panel); border-left: 3px solid var(--rt-shell-line); }
+.rt-shift-plan [data-shift-group="open"] .rt-shift-plan-group { border-left-color: var(--rt-shell-accent); }
+.rt-shift-plan .rt-shift-title.rt-ui-button { justify-content: flex-start !important; white-space: normal !important; height: auto !important; text-align: left !important; color: var(--rt-shell-text) !important; padding: 0 !important; }
+.rt-shift-plan .rt-shift-title.rt-ui-button:hover { color: var(--rt-shell-accent) !important; }
+@media (max-width: 639px) {
+    .rt-shift-plan-range { width: 100%; grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr); }
+    .rt-shift-plan-controls { gap: 12px; }
+}
+@media (max-width: 359px) {
+    .rt-shift-plan-range { grid-template-columns: minmax(0, 1fr); }
+    .rt-shift-plan-range-divider { display: none; }
+}
 .rt-calendar-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .rt-calendar-period { margin: 0; font-size: clamp(18px, 2vw, 22px); font-weight: 700; line-height: 1.35; color: var(--rt-shell-text); }
 .rt-calendar-timezone { margin-top: 4px; color: var(--rt-shell-muted); font-size: 11px; }
@@ -105,6 +122,12 @@
 .rt-calendar-agenda-day.is-empty .rt-calendar-agenda-date { display: none; }
 .rt-calendar-agenda-day.is-empty .rt-calendar-agenda-label { font-weight: 400; color: var(--rt-shell-muted); }
 .rt-calendar-agenda-shifts { display: grid; gap: 10px; padding-top: 10px; }
+
+.rt-calendar .rt-personal-calendar-event[data-event-kind="absence"] { border-left-style: dashed !important; }
+.rt-personal-month-status { display: block; margin-top: 3px; font-size: 10px; color: var(--rt-shell-muted); }
+.rt-personal-calendar-details { display: grid; gap: 16px; }
+.rt-personal-calendar-details dt { margin-bottom: 4px; font-size: 12px; color: var(--rt-shell-muted); }
+.rt-personal-calendar-details dd { font-size: 14px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 479px) {
     .rt-calendar-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }

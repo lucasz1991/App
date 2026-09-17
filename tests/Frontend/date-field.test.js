@@ -18,6 +18,27 @@ const build = (config = {}, value = '') => {
     return field;
 };
 
+test('Datumspopover nutzt den Modalportal innerhalb des Fokustraps', () => {
+    const field = build();
+    const removed = [];
+    const panel = {parentElement: null, removeAttribute: key => removed.push(key)};
+    let moves = 0;
+    const portal = {appendChild: node => { moves++; node.parentElement = portal; }};
+    field.$refs = {panel, anchor: {closest: () => ({querySelector: () => portal})}};
+    field.attachToOverlayPortal(); field.attachToOverlayPortal();
+    assert.equal(panel.parentElement, portal);
+    assert.equal(moves, 1);
+    assert.ok(removed.includes('aria-hidden'));
+});
+
+test('Datumspopover ausserhalb eines Modals behaelt sein Body-Portal', () => {
+    const field = build();
+    const original = {};
+    field.$refs = {panel: {parentElement: original}, anchor: {closest: () => null}};
+    field.attachToOverlayPortal();
+    assert.equal(field.$refs.panel.parentElement, original);
+});
+
 test('zeigt den ISO-Wert in deutscher Schreibweise', () => {
     assert.equal(build({}, '2026-08-01').display, '01.08.2026');
 });
