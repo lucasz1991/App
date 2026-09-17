@@ -92,7 +92,7 @@ class MyWork extends Component
     public function showTab(string $tab): void
     {
         $this->access();
-        abort_unless(in_array($tab, ['today', 'schedule', 'time', 'records'], true), 404);
+        abort_unless(in_array($tab, ['today', 'schedule', 'time', 'records', 'absences'], true), 404);
         $this->tab = $tab;
         $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen']);
         $this->resetValidation();
@@ -173,7 +173,7 @@ class MyWork extends Component
     public function render()
     {
         $this->access();
-        abort_unless(in_array($this->tab, ['today', 'schedule', 'time', 'records'], true), 404);
+        abort_unless(in_array($this->tab, ['today', 'schedule', 'time', 'records', 'absences'], true), 404);
         $from = now(config('operations.display_timezone'))->startOfWeek()->addWeeks(max(-12, min(52, $this->week)));
         $to = $from->copy()->addWeek();
         $rangeStart = $this->tab === 'schedule' ? $from : now(config('operations.display_timezone'))->startOfDay();

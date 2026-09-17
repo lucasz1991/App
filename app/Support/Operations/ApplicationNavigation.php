@@ -22,7 +22,8 @@ final class ApplicationNavigation
         $add('Persönlich', 'Profil', 'profile.show', 'user', [], false);
 
         $icons = ['inquiries' => 'inbox', 'orders' => 'clipboard', 'shift-management' => 'clock', 'calendar' => 'calendar', 'customers' => 'briefcase', 'qualifications' => 'award', 'absences' => 'calendar', 'times' => 'check-circle', 'exports' => 'download', 'rules' => 'shield'];
-        foreach ($ready ? OperationsNavigation::forUser($user) : [] as $slug => $module) {
+        $opsModules = $ready ? OperationsNavigation::forUser($user) : [];
+        foreach ($opsModules as $slug => $module) {
             $section = match ($slug) {
                 'rules' => 'System',
                 default => 'Management',
@@ -35,7 +36,11 @@ final class ApplicationNavigation
             }
         }
         if ($admin || in_array($user->dashboardAudience(), ['employee', 'management', 'administration'], true)) {
-            $add('Management', 'Wagenliste', $admin ? 'admin.operations.wagon-list' : 'operations.wagon-list', 'list');
+            // Ohne jede weitere Management-Berechtigung waere "Management"
+            // fuer diese Person eine Ueberschrift mit nur diesem einen
+            // Eintrag. Die Wagenliste gehoert dann zum eigenen Arbeitsplatz.
+            $hasManagementCapability = $admin || $user->can('employees.view') || $user->can('devices.view') || count($opsModules) > 0;
+            $add($hasManagementCapability ? 'Management' : 'Mein Arbeitsplatz', 'Wagenliste', $admin ? 'admin.operations.wagon-list' : 'operations.wagon-list', 'list');
         }
         if ($user->can('employees.view')) {
             $add('Management', 'Mitarbeiter', $admin ? 'admin.employees' : 'employees.index', 'users');

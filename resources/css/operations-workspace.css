@@ -1,6 +1,10 @@
 /* RailTime dispatch workbench: shared shell, quiet surfaces, service-first hierarchy. */
-.rt-ops { --ops-signal: #d50032; --ops-ink: #182230; --ops-muted: #637083; --ops-line: rgba(83,101,122,.16); --ops-platform: #f5f7f9; --ops-sheet: #fff; color:var(--ops-ink); min-width:0; font-size:14px; }
-.dark .rt-ops { --ops-ink:#edf0f5; --ops-muted:#a6b1c1; --ops-line:rgba(192,204,220,.16); --ops-platform:#17202d; --ops-sheet:#1c2736; --ops-signal:#ff5875; }
+/* --ops-signal war zuvor #d50032/#ff5875 – ein zweites, vom Marken-Rot
+   (--rt-red #e4002b / --rt-dark-accent #ff7189) abweichendes Rot. Auf ein
+   Rot vereinheitlicht, damit Topbar/Sidebar und Betriebsbereich als ein
+   System lesen. */
+.rt-ops { --ops-signal: #e4002b; --ops-ink: #182230; --ops-muted: #637083; --ops-line: rgba(83,101,122,.16); --ops-platform: #f5f7f9; --ops-sheet: #fff; color:var(--ops-ink); min-width:0; font-size:14px; }
+.dark .rt-ops { --ops-ink:#edf0f5; --ops-muted:#a6b1c1; --ops-line:rgba(192,204,220,.16); --ops-platform:#17202d; --ops-sheet:#1c2736; --ops-signal:#ff7189; }
 .rt-ops h1 { font-size:28px; font-weight:650; letter-spacing:-.035em; }
 .rt-ops h2 { font-size:20px; font-weight:650; letter-spacing:-.025em; }
 .rt-ops h3 { font-size:16px; font-weight:650; }
@@ -13,7 +17,8 @@
 @media(max-width:850px) { .rt-ops .ops-module-desktop { display:none; } .rt-ops .ops-module-mobile { display:grid; } }
 .ops-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
 .ops-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
-.ops-panel { min-width:0; background:var(--ops-sheet); border:1px solid var(--ops-line); border-radius:12px; padding:20px; }
+.ops-panel { min-width:0; background:var(--ops-sheet); border:1px solid var(--ops-line); border-radius:16px; padding:20px; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 24px -18px rgba(15,23,42,.16); }
+.dark .ops-panel { box-shadow:0 1px 2px rgba(0,0,0,.2), 0 10px 24px -18px rgba(0,0,0,.55); }
 .ops-panel + .ops-panel { margin-top:12px; }
 .ops-split { display:grid; grid-template-columns:minmax(260px,.85fr) minmax(0,1.6fr); align-items:start; gap:20px; }
 .ops-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
@@ -66,5 +71,32 @@
 .rt-ops input[type=checkbox] { accent-color:var(--ops-signal); }
 @media(max-width:850px) { .ops-split { grid-template-columns:1fr; } .ops-inbox.has-selection .ops-inbox-list { display:none; } }
 @media(min-width:851px) { .ops-mobile-back { display:none!important; } }
-@media(max-width:600px) { .ops-form { grid-template-columns:1fr; } .ops-panel { padding:16px; } .ops-stack { gap:16px; } .ops-row { align-items:flex-start; flex-wrap:wrap; } .ops-field :is(input,select,textarea) { font-size:16px; } .rt-ops h1 { font-size:24px; } .ops-personal-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); position:sticky; top:0; z-index:5; } .ops-personal-tabs button { padding:9px 2px; font-size:12px; } .ops-summary { gap:20px; } }
+@media(max-width:600px) { .ops-form { grid-template-columns:1fr; } .ops-panel { padding:16px; } .ops-stack { gap:16px; } .ops-row { align-items:flex-start; flex-wrap:wrap; } .ops-field :is(input,select,textarea) { font-size:16px; } .rt-ops h1 { font-size:24px; } .ops-personal-tabs { display:flex; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; position:sticky; top:0; z-index:5; } .ops-personal-tabs::-webkit-scrollbar { display:none; } .ops-personal-tabs button { flex:0 0 auto; padding:9px 14px; font-size:12px; } .ops-summary { gap:20px; } }
 @media(prefers-reduced-motion:reduce) { .rt-ops .rt-ui-button { transition:none; transform:none; } }
+
+/* KPI-Kacheln, Schnellzugriffe und Diagrammrahmen fuer Cockpit/Dashboard.
+   Additiv - bestehende .ops-panel/.ops-row/.ops-badge-Regeln bleiben fuer
+   die anderen Betriebsseiten (Anfragen, Nachweise, Zeitpruefung, ...)
+   unveraendert nutzbar. */
+.ops-kpi, .ops-tile { display:flex; align-items:center; gap:14px; min-height:76px; padding:14px 16px; border-radius:14px; background:var(--ops-sheet); border:1px solid var(--ops-line); text-decoration:none; color:inherit; transition:transform 220ms cubic-bezier(.32,.72,0,1), box-shadow 220ms cubic-bezier(.32,.72,0,1), border-color 220ms; }
+a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:transparent; box-shadow:0 1px 2px rgba(15,23,42,.05), 0 16px 28px -18px rgba(15,23,42,.24); }
+.dark a.ops-kpi:hover, .dark a.ops-tile:hover { box-shadow:0 1px 2px rgba(0,0,0,.3), 0 16px 28px -18px rgba(0,0,0,.6); }
+.ops-kpi-ico, .ops-tile-ico { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ops-kpi-ico svg, .ops-tile-ico svg { width:18px; height:18px; }
+.ops-kpi-val { display:block; font-size:24px; font-weight:700; letter-spacing:-.03em; line-height:1; font-variant-numeric:tabular-nums; }
+.ops-kpi-lbl, .ops-tile-sub { display:block; margin-top:3px; font-size:12px; color:var(--ops-muted); }
+.ops-kpi-lbl { font-weight:600; }
+.ops-tile-title { font-size:13.5px; font-weight:650; }
+.ops-tone-brand { background:rgba(228,0,43,.12); color:var(--ops-signal); }
+.ops-tone-warn { background:#fff3dd; color:#855d19; }
+.ops-tone-ok { background:#eaf5ee; color:#25603b; }
+.ops-tone-neutral { background:var(--ops-platform); color:var(--ops-muted); }
+.dark .ops-tone-brand { background:rgba(255,113,137,.16); }
+.dark .ops-tone-warn { background:#3b3121; color:#edcd91; }
+.dark .ops-tone-ok { background:#193c30; color:#ace2bf; }
+.ops-chart-legend { display:flex; flex-wrap:wrap; gap:14px; font-size:11px; color:var(--ops-muted); }
+.ops-chart-legend span { display:inline-flex; align-items:center; gap:6px; }
+.ops-chart-legend i { width:9px; height:9px; border-radius:2px; background:currentColor; display:inline-block; font-style:normal; }
+.ops-chart-canvas { width:100%; height:196px; }
+@media(max-width:600px) { .ops-kpi, .ops-tile { min-height:68px; padding:12px 14px; } .ops-kpi-val { font-size:21px; } }
+@media(prefers-reduced-motion:reduce) { .ops-kpi, .ops-tile { transition:none; } a.ops-kpi:hover, a.ops-tile:hover { transform:none; } }

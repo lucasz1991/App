@@ -181,6 +181,7 @@
             :default-source="$previewDefault"
             :replayable="$previewReplayable"
             :loading-overlay="$previewLoadingOverlay"
+            :compact="$editorMode === 'mail'"
         />
         @endisset
     </x-ui.page>

@@ -480,6 +480,7 @@
                                         :replayable="true"
                                         :loading-overlay="false"
                                         :navigate-edit="false"
+                                        :compact="true"
                                     />
                                 @endif
                             @endforeach

@@ -10,6 +10,7 @@
     'deferred' => false,
     'loadingOverlay' => true,
     'navigateEdit' => true,
+    'compact' => false,
 ])
 
 @php
@@ -65,6 +66,8 @@
             activeKey: @js($initialKey),
             titlePrefix: @js('Vorschau: '.$title.' – '),
             scale: 1,
+            compact: @js((bool) $compact),
+            viewportHeight: 240,
             resizeObserver: null,
             playbackId: 1,
             shouldLoad: @js(! $deferred),
@@ -126,6 +129,11 @@
             },
             measure() {
                 if (! this.$refs.viewport || ! this.active) return;
+                if (this.compact) {
+                    this.scale = Math.min(this.$refs.viewport.clientWidth / this.active.width, 1);
+                    this.viewportHeight = Math.max(100, Math.ceil(this.active.height * this.scale));
+                    return;
+                }
                 const availableWidth = Math.max(1, this.$refs.viewport.clientWidth - 24);
                 const availableHeight = Math.max(1, this.$refs.viewport.clientHeight - 24);
                 this.scale = Math.min(availableWidth / this.active.width, availableHeight / this.active.height, 1);
@@ -224,7 +232,8 @@
 
         <div
             x-ref="viewport"
-            class="relative aspect-[16/10] min-h-52 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.14),_transparent_62%)] dark:bg-[radial-gradient(circle_at_top,_rgba(71,85,105,0.24),_transparent_62%)]"
+            @class(['relative overflow-hidden bg-rt-surface-muted dark:bg-rt-dark-surface-muted', 'aspect-[16/10] min-h-52' => ! $compact])
+            x-bind:style="compact ? `height:${viewportHeight}px` : ''"
             data-page-builder-preview-viewport
         >
             @if ($previewSources !== [])
