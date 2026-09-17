@@ -1,0 +1,280 @@
+/* Bestehende Datumskomponente; spezifische Selektoren bewahren die kompakte
+   Form gegen spaetere Legacy-Regeln im gemeinsamen App-Stylesheet. */
+.rt-ui-date-field,
+.rt-ui-date-panel {
+    --date-surface: theme('colors.rt.surface');
+    --date-control: theme('colors.rt.surface-muted');
+    --date-border: theme('colors.rt.border');
+    --date-text: theme('colors.rt.text');
+    --date-muted: theme('colors.rt.muted');
+    --date-soft: theme('colors.rt.soft');
+    --date-accent: theme('colors.rt.accent');
+    --date-accent-soft: theme('colors.rt.accent-soft');
+    --date-on-accent: theme('colors.rt.surface');
+}
+
+html.dark .rt-ui-date-field,
+html.dark .rt-ui-date-panel,
+body[data-mode='dark'] .rt-ui-date-field,
+body[data-mode='dark'] .rt-ui-date-panel {
+    --date-surface: theme('colors.rt-dark.surface');
+    --date-control: theme('colors.rt-dark.surface-muted');
+    --date-border: theme('colors.rt-dark.border');
+    --date-text: theme('colors.rt-dark.text');
+    --date-muted: theme('colors.rt-dark.muted');
+    --date-soft: theme('colors.rt-dark.soft');
+    --date-accent: theme('colors.rt-dark.accent');
+    --date-accent-soft: theme('colors.rt-dark.accent-soft');
+    --date-on-accent: theme('colors.rt-dark.canvas');
+}
+
+.rt-ui-date-field .rt-ui-date-field__shell {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    height: 44px;
+    overflow: hidden;
+    border: 1px solid var(--date-border);
+    border-radius: 10px;
+    background: var(--date-control);
+    box-shadow: none;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.rt-ui-date-field .rt-ui-date-field__shell:focus-within,
+.rt-ui-date-field .rt-ui-date-field__shell[data-open='true'] {
+    border-color: var(--date-accent);
+    box-shadow: 0 0 0 3px var(--date-accent-soft);
+}
+
+.rt-ui-date-field .rt-ui-date-field__shell[data-disabled='true'] { opacity: .65; }
+
+.rt-ui-date-field .rt-ui-date-field__display {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    min-height: 42px;
+    margin: 0;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--date-text);
+    box-shadow: none;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    line-height: 24px;
+}
+
+.rt-ui-date-field .rt-ui-date-field__display::placeholder { color: var(--date-soft); }
+.rt-ui-date-field .rt-ui-date-field__display:disabled { cursor: not-allowed; }
+
+.rt-ui-date-field .rt-ui-date-field__shell > .rt-ui-date-field__trigger {
+    display: inline-flex;
+    flex: 0 0 44px;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-height: 42px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--date-muted);
+    transition: color 140ms ease, background-color 140ms ease;
+}
+
+.rt-ui-date-field .rt-ui-date-field__shell > .rt-ui-date-field__trigger:hover:not(:disabled) {
+    color: var(--date-accent);
+    background: var(--date-accent-soft);
+}
+
+.rt-ui-date-field .rt-ui-date-field__trigger:disabled { cursor: not-allowed; }
+
+.rt-ui-date-panel.fixed {
+    z-index: 240;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--date-border);
+    border-radius: 16px;
+    background: var(--date-surface);
+    color: var(--date-text);
+    box-shadow: theme('boxShadow.rt-lg');
+}
+
+.rt-ui-date-panel .rt-ui-date-panel__header {
+    display: grid;
+    grid-template-columns: 40px 40px minmax(0, 1fr) 40px 40px;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+    padding: 12px 8px 8px;
+}
+
+.rt-ui-date-panel .rt-ui-date-panel__heading {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    line-height: 18px;
+}
+
+.rt-ui-date-panel .rt-ui-date-panel__heading strong {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.rt-ui-date-panel .rt-ui-date-panel__heading span {
+    color: var(--date-muted);
+    font-size: 12px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.rt-ui-date-panel .rt-ui-date-panel__body {
+    min-height: 172px;
+    flex: 1 0 auto;
+    padding: 0 10px 10px;
+}
+
+.rt-ui-date-panel .rt-ui-date-panel__weekdays,
+.rt-ui-date-panel .rt-ui-date-panel__week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+}
+
+.rt-ui-date-panel .rt-ui-date-panel__week { margin-top: 2px; }
+
+.rt-ui-date-panel .rt-ui-date-panel__weekdays span {
+    padding: 8px 0;
+    color: var(--date-muted);
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.rt-ui-date-panel .rt-ui-date-day,
+html.dark .rt-ui-date-panel .rt-ui-date-day,
+body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--date-text);
+    box-shadow: none;
+    font-size: 13px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    transition: color 140ms ease, background-color 140ms ease;
+}
+
+.rt-ui-date-panel .rt-ui-date-day[data-outside='true'],
+html.dark .rt-ui-date-panel .rt-ui-date-day[data-outside='true'],
+body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day[data-outside='true'] { color: var(--date-soft); }
+
+.rt-ui-date-panel .rt-ui-date-day[data-today='true'],
+html.dark .rt-ui-date-panel .rt-ui-date-day[data-today='true'],
+body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day[data-today='true'] {
+    box-shadow: inset 0 0 0 1px var(--date-accent);
+    font-weight: 700;
+}
+
+.rt-ui-date-panel .rt-ui-date-nav,
+.rt-ui-date-panel .rt-ui-date-action,
+html.dark .rt-ui-date-panel .rt-ui-date-nav,
+html.dark .rt-ui-date-panel .rt-ui-date-action,
+body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-nav,
+body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 9px;
+    color: var(--date-muted);
+    background: transparent;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.rt-ui-date-panel .rt-ui-date-nav { width: 40px; height: 40px; padding: 0; }
+
+.rt-ui-date-panel .rt-ui-date-day:hover:not(:disabled),
+.rt-ui-date-panel .rt-ui-date-nav:hover:not(:disabled),
+.rt-ui-date-panel .rt-ui-date-action:hover:not(:disabled),
+html.dark .rt-ui-date-panel .rt-ui-date-day:hover:not(:disabled),
+html.dark .rt-ui-date-panel .rt-ui-date-nav:hover:not(:disabled),
+html.dark .rt-ui-date-panel .rt-ui-date-action:hover:not(:disabled),
+body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day:hover:not(:disabled),
+body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-nav:hover:not(:disabled),
+body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-action:hover:not(:disabled) {
+    background: var(--date-control);
+    color: var(--date-text);
+}
+
+.rt-ui-date-panel .rt-ui-date-day--selected,
+html.dark .rt-ui-date-panel .rt-ui-date-day--selected,
+body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-day--selected {
+    background: var(--date-accent) !important;
+    color: var(--date-on-accent) !important;
+    font-weight: 700;
+}
+
+.rt-ui-date-panel .rt-ui-date-day:focus-visible,
+.rt-ui-date-panel .rt-ui-date-nav:focus-visible,
+.rt-ui-date-panel .rt-ui-date-action:focus-visible,
+.rt-ui-date-field .rt-ui-date-field__trigger:focus-visible {
+    outline: 2px solid var(--date-accent);
+    outline-offset: -2px;
+}
+
+.rt-ui-date-panel button:disabled { cursor: not-allowed; opacity: .3; }
+
+.rt-ui-date-panel .rt-ui-date-panel__footer {
+    display: flex;
+    flex: none;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    border-top: 1px solid var(--date-border);
+}
+
+.rt-ui-date-panel .rt-ui-date-action--accent,
+html.dark .rt-ui-date-panel .rt-ui-date-action--accent,
+body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-action--accent {
+    margin-left: auto;
+    color: var(--date-accent);
+}
+
+@media (max-width: 639px) {
+    .rt-ui-date-field .rt-ui-date-field__display { font-size: 16px; }
+}
+
+@media (max-width: 359px) {
+    .rt-ui-date-panel .rt-ui-date-panel__header { grid-template-columns: 36px 36px minmax(0, 1fr) 36px 36px; padding-inline: 6px; }
+    .rt-ui-date-panel .rt-ui-date-nav { width: 36px; }
+    .rt-ui-date-panel .rt-ui-date-panel__body { padding-inline: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-ui-date-panel,
+    .rt-ui-date-panel button,
+    .rt-ui-date-field .rt-ui-date-field__shell { transition: none !important; }
+}

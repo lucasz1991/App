@@ -1,154 +1,174 @@
 @props([
-    // Untergrenze/Obergrenze als ISO-Datum (YYYY-MM-DD).
     'min' => null,
     'max' => null,
     'disabled' => false,
     'readonly' => false,
-    // Beschriftung fuer Hilfstechnik, wenn kein umschliessendes <label> greift.
+    'clearable' => true,
     'ariaLabel' => null,
 ])
 
-{{--
-    Gemeinsames Datumsfeld — Ersatz fuer <input type="date">.
-
-    Warum nicht nativ: der Browser-Datepicker ist weder gestaltbar noch
-    positionierbar, und seine Mindestbreite sprengt enge Raster. In der
-    Wagenliste stand das Feld dadurch mit Ueberlauf in der fuenfspaltigen
-    Kopfzeile, und die Auswahl liess sich im Vollbild-Modal nicht sinnvoll
-    anzeigen.
-
-    BINDUNG: ueber Alpines x-model am Aufrufer, hier drinnen x-modelable.
-    Das ist bewusst kein verstecktes <input>: schreibt die umgebende
-    Komponente von aussen (Entwurf laden, Sprachassistent), setzt Alpine bei
-    x-model nur die value-Eigenschaft des Feldes — ohne Ereignis, das dieses
-    Bauteil sehen koennte. Mit x-modelable ist der Wert eine reaktive
-    Eigenschaft und laeuft in beide Richtungen.
-
-        <x-ui.forms.date-field x-model="meta.date" />
-
-    Fuer wire:model-Felder gibt es weiterhin x-ui.forms.date-input (flatpickr).
-
-    Der Kalender haengt per x-teleport am <body> und ist fixed positioniert —
-    sonst wuerde ihn das overflow:hidden der Wizard-Folie abschneiden.
---}}
-
+{{-- Ein gemeinsames Feld: x-model bleibt fuer Alpine-Verbraucher erhalten;
+     wire:model bindet denselben ISO-Wert via Livewire entangle. --}}
 @php
     $locale = app()->getLocale() === 'de' ? 'de-DE' : 'en-GB';
+    $wireModel = $attributes->wire('model')->value();
+    $wireLive = $attributes->wire('model')->hasModifier('live');
+    $fieldId = $attributes->get('id');
+    $controlLabel = $ariaLabel ?: $attributes->get('aria-label') ?: __('app.date');
     $alpineConfig = [
         'locale' => $locale,
         'weekStart' => 1,
         'min' => $min,
         'max' => $max,
+        'disabled' => (bool) $disabled,
+        'readonly' => (bool) $readonly,
+        'clearable' => (bool) $clearable,
+        'value' => $wireModel ? '' : (string) $attributes->get('value', ''),
     ];
+    $outerAttributes = $attributes->whereDoesntStartWith('wire:model')->except([
+        'id', 'value', 'name', 'required', 'aria-label', 'aria-describedby', 'aria-invalid',
+    ]);
+    $previousYearLabel = $locale === 'de-DE' ? 'Vorheriges Jahr' : 'Previous year';
+    $nextYearLabel = $locale === 'de-DE' ? 'Nächstes Jahr' : 'Next year';
 @endphp
 
 <div
-    x-data="rtDateField({{ \Illuminate\Support\Js::from($alpineConfig) }})"
+    x-data="rtDateField({ ...{{ \Illuminate\Support\Js::from($alpineConfig) }}@if($wireModel), value: $wire.entangle({{ \Illuminate\Support\Js::from($wireModel) }}){{ $wireLive ? '.live' : '' }}@endif })"
     x-modelable="value"
-    x-on:keydown.escape.stop="closePanel(true)"
-    {{ $attributes->merge(['class' => 'rt-ui-date-field relative']) }}
+    x-id="['rt-date-panel', 'rt-date-heading']"
+    @keydown.escape="if (open) { $event.preventDefault(); $event.stopPropagation(); closePanel(true); }"
+    {{ $outerAttributes->merge(['class' => 'rt-ui-date-field relative']) }}
     data-rt-date-field
+    @if($wireModel)
+        data-autosave-field
+        data-autosave-model="{{ $wireModel }}"
+        data-autosave-field-id="{{ $fieldId ?: $wireModel }}"
+        data-autosave-state="idle"
+    @endif
 >
     <div
         x-ref="anchor"
-        class="rt-ui-date-field__shell rt-ui-field-shell flex min-h-11 w-full items-stretch overflow-hidden rounded-xl border border-rt-border bg-rt-control shadow-rt-xs transition-[border-color,box-shadow] duration-200 ease-rt-spring hover:border-rt-accent/50 focus-within:border-rt-accent focus-within:shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:hover:border-rt-dark-accent"
+        class="rt-ui-date-field__shell rt-ui-field-shell"
         :data-open="open ? 'true' : 'false'"
+        :data-disabled="locked ? 'true' : 'false'"
     >
         <input
             x-ref="display"
+            @if($fieldId) id="{{ $fieldId }}" @endif
             type="text"
             inputmode="numeric"
             autocomplete="off"
             placeholder="{{ __('app.date_format_hint') }}"
             x-model="display"
-            x-mask="99.99.9999"
             @blur="commitTyped()"
             @keydown.enter.prevent="commitTyped(); closePanel()"
-            @keydown.down.prevent="openPanel()"
+            @keydown.down.prevent="openPanel($event.currentTarget)"
             @disabled($disabled)
             @readonly($readonly)
-            @if (filled($ariaLabel)) aria-label="{{ $ariaLabel }}" @endif
-            class="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-base tabular-nums leading-6 text-rt-text outline-none placeholder:text-rt-soft focus:ring-0 disabled:cursor-not-allowed sm:text-sm sm:leading-5 dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft"
+            @if($attributes->has('required')) required @endif
+            aria-label="{{ $controlLabel }}"
+            aria-haspopup="dialog"
+            :aria-controls="$id('rt-date-panel')"
+            :aria-expanded="open"
+            @if($attributes->has('aria-describedby')) aria-describedby="{{ $attributes->get('aria-describedby') }}" @endif
+            @if($attributes->has('aria-invalid')) aria-invalid="{{ $attributes->get('aria-invalid') }}" @endif
+            class="rt-ui-date-field__display"
         >
-
         <button
             type="button"
-            @click="togglePanel()"
+            @click="togglePanel($event.currentTarget)"
             @disabled($disabled || $readonly)
-            class="flex w-10 shrink-0 items-center justify-center border-l border-rt-border text-rt-muted transition-colors hover:bg-rt-surface-muted hover:text-rt-accent active:scale-95 disabled:pointer-events-none disabled:opacity-40 dark:border-rt-dark-border dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent"
+            class="rt-ui-date-field__trigger"
             :aria-expanded="open"
+            :aria-controls="$id('rt-date-panel')"
             aria-haspopup="dialog"
-            aria-label="{{ __('app.date_choose') }}"
+            aria-label="{{ __('app.date_choose') }}: {{ $controlLabel }}"
         >
             <i class="far fa-calendar-days" aria-hidden="true"></i>
         </button>
     </div>
 
+    @if($attributes->has('name'))
+        <input type="hidden" name="{{ $attributes->get('name') }}" :value="value" @disabled($disabled) />
+    @endif
+
     <template x-teleport="body">
-        {{-- x-show.important ist Pflicht: public/build/css/tailwind.min.css
-             setzt .flex{display:flex!important}. Ohne den Modifier verliert
-             das Inline-display:none von x-show — der Kalender liesse sich
-             nie wieder schliessen. --}}
+        {{-- important bewahrt x-show gegen die Legacy-flex-Utility. --}}
         <div
             x-show.important="open"
             x-cloak
-            x-transition:enter="transition duration-150 ease-out"
-            x-transition:enter-start="opacity-0 translate-y-1"
-            x-transition:enter-end="opacity-100 translate-y-0"
-            x-transition:leave="transition duration-100 ease-in"
-            x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0"
-            @click.outside="closePanel()"
+            x-transition.opacity.duration.150ms
+            @click.outside="if (!$refs.anchor.contains($event.target)) closePanel()"
+            @keydown="handlePanelKeydown($event)"
             x-ref="panel"
+            :id="$id('rt-date-panel')"
             role="dialog"
             aria-modal="false"
-            aria-label="{{ __('app.date_choose') }}"
+            :aria-labelledby="$id('rt-date-heading')"
+            tabindex="-1"
             :style="panelStyle"
-            class="rt-ui-date-panel fixed z-[240] flex flex-col overflow-hidden rounded-2xl border border-rt-border bg-rt-surface shadow-rt-lg dark:border-rt-dark-border dark:bg-rt-dark-surface"
+            class="rt-ui-date-panel fixed"
         >
-            <div class="flex shrink-0 items-center justify-between gap-2 border-b border-rt-border/70 px-2.5 py-2 dark:border-rt-dark-border/70">
-                <button type="button" @click="shiftMonth(-1)" class="rt-ui-date-nav" aria-label="{{ __('app.date_previous_month') }}">
+            <div class="rt-ui-date-panel__header">
+                <button type="button" @click="shiftMonth(-12)" :disabled="!canShiftMonth(-12)" class="rt-ui-date-nav" aria-label="{{ $previousYearLabel }}">
+                    <i class="far fa-angles-left" aria-hidden="true"></i>
+                </button>
+                <button type="button" @click="shiftMonth(-1)" :disabled="!canShiftMonth(-1)" class="rt-ui-date-nav" aria-label="{{ __('app.date_previous_month') }}">
                     <i class="far fa-chevron-left" aria-hidden="true"></i>
                 </button>
-                <strong class="min-w-0 flex-1 truncate text-center text-sm font-semibold capitalize text-rt-text dark:text-rt-dark-text" x-text="monthLabel" aria-live="polite"></strong>
-                <button type="button" @click="shiftMonth(1)" class="rt-ui-date-nav" aria-label="{{ __('app.date_next_month') }}">
+                <div :id="$id('rt-date-heading')" class="rt-ui-date-panel__heading" aria-live="polite" aria-atomic="true">
+                    <strong x-text="monthName"></strong>
+                    <span x-text="viewYear"></span>
+                </div>
+                <button type="button" @click="shiftMonth(1)" :disabled="!canShiftMonth(1)" class="rt-ui-date-nav" aria-label="{{ __('app.date_next_month') }}">
                     <i class="far fa-chevron-right" aria-hidden="true"></i>
                 </button>
-            </div>
-
-            <div class="min-h-0 flex-1 overflow-y-auto p-2.5">
-                <div class="grid grid-cols-7 gap-1 pb-1" aria-hidden="true">
-                    <template x-for="weekday in weekdayLabels" :key="weekday">
-                        <span class="text-center text-[10px] font-bold uppercase tracking-[0.06em] text-rt-soft dark:text-rt-dark-soft" x-text="weekday"></span>
-                    </template>
-                </div>
-
-                <div class="grid grid-cols-7 gap-1" role="grid" @keydown="handleGridKeydown($event)">
-                    <template x-for="day in days" :key="day.iso">
-                        <button
-                            type="button"
-                            role="gridcell"
-                            @click="select(day.iso)"
-                            :disabled="day.disabled"
-                            :tabindex="day.focused ? 0 : -1"
-                            :data-date-focused="day.focused ? 'true' : 'false'"
-                            :data-outside="day.outside ? 'true' : 'false'"
-                            :data-today="day.today ? 'true' : 'false'"
-                            :aria-selected="day.selected"
-                            :aria-label="formatLong(day.iso)"
-                            class="rt-ui-date-day"
-                            :class="day.selected ? 'rt-ui-date-day--selected' : ''"
-                            x-text="day.label"
-                        ></button>
-                    </template>
-                </div>
-            </div>
-
-            <div class="flex shrink-0 items-center justify-between gap-2 border-t border-rt-border/70 px-2.5 py-2 dark:border-rt-dark-border/70">
-                <button type="button" @click="clear()" class="rt-ui-date-action" x-show="hasValue">
-                    {{ __('app.date_clear') }}
+                <button type="button" @click="shiftMonth(12)" :disabled="!canShiftMonth(12)" class="rt-ui-date-nav" aria-label="{{ $nextYearLabel }}">
+                    <i class="far fa-angles-right" aria-hidden="true"></i>
                 </button>
-                <button type="button" @click="selectToday()" class="rt-ui-date-action rt-ui-date-action--accent ml-auto">
+            </div>
+
+            <div class="rt-ui-date-panel__body">
+                <div class="rt-ui-date-panel__grid" role="grid" :aria-label="monthLabel" @keydown="handleGridKeydown($event)">
+                    <div class="rt-ui-date-panel__weekdays" role="row">
+                        <template x-for="weekday in weekdayLabels" :key="weekday">
+                            <span role="columnheader" x-text="weekday"></span>
+                        </template>
+                    </div>
+                    <template x-for="week in weeks" :key="week[0].iso">
+                        <div class="rt-ui-date-panel__week" role="row">
+                            <template x-for="day in week" :key="day.iso">
+                                <button
+                                    type="button"
+                                    role="gridcell"
+                                    @click="select(day.iso)"
+                                    @focus="focusedIso = day.iso"
+                                    :disabled="day.disabled"
+                                    :tabindex="day.focused ? 0 : -1"
+                                    :data-date-focused="day.focused ? 'true' : 'false'"
+                                    :data-outside="day.outside ? 'true' : 'false'"
+                                    :data-today="day.today ? 'true' : 'false'"
+                                    :aria-current="day.today ? 'date' : null"
+                                    :aria-selected="day.selected"
+                                    :aria-label="formatLong(day.iso)"
+                                    class="rt-ui-date-day"
+                                    :class="day.selected ? 'rt-ui-date-day--selected' : ''"
+                                    x-text="day.label"
+                                ></button>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="rt-ui-date-panel__footer">
+                @if($clearable)
+                    <button type="button" @click="clear()" class="rt-ui-date-action" x-show="hasValue">
+                        {{ __('app.date_clear') }}
+                    </button>
+                @endif
+                <button type="button" @click="selectToday()" :disabled="!todaySelectable" class="rt-ui-date-action rt-ui-date-action--accent">
+                    <i class="far fa-calendar-day" aria-hidden="true"></i>
                     {{ __('app.today') }}
                 </button>
             </div>

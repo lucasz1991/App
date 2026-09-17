@@ -47,6 +47,7 @@
         tooltipReady: false,
         tooltipText: '',
         tooltipTarget: null,
+        touchInteraction: false,
         focusAfterLoad: null,
         wasBusy: false,
         observer: null,
@@ -126,6 +127,8 @@
         hideTooltip() { this.tooltipOpen = false; this.tooltipReady = false; this.tooltipTarget = null; },
     }"
     x-on:keydown="handleKey($event)"
+    x-on:keydown.window="touchInteraction = false"
+    x-on:pointerdown.capture="touchInteraction = $event.pointerType === 'touch'; if (touchInteraction) hideTooltip()"
     x-on:keydown.escape="hideTooltip()"
     x-on:click.capture="rememberFocus($event)"
     x-on:resize.window="hideTooltip()"
@@ -161,7 +164,7 @@
             {{ $attributes->only([])->merge($buttonAttributes->getAttributes()) }}
             x-on:pointerenter="if ($event.pointerType !== 'touch') showTooltip($el)"
             x-on:pointerleave="if (document.activeElement !== $el) hideTooltip()"
-            x-on:focus="showTooltip($el)"
+            x-on:focus="if (!touchInteraction) showTooltip($el)"
             x-on:blur="hideTooltip()"
             x-bind:title="tooltipOpen && tooltipTarget === $el ? null : $el.dataset.tooltipText"
             x-bind:aria-describedby="tooltipOpen && tooltipTarget === $el ? $id('multi-toggle-tooltip') : null"
