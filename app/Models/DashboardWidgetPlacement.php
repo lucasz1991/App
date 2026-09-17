@@ -15,11 +15,13 @@ class DashboardWidgetPlacement extends Model
         'widget_key',
         'position',
         'size',
+        'rows',
         'hidden',
     ];
 
     protected $casts = [
         'position' => 'integer',
+        'rows' => 'integer',
         'hidden' => 'boolean',
     ];
 

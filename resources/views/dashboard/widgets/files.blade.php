@@ -1,6 +1,6 @@
 <p class="ops-kpi-val" style="font-size:28px;">{{ $data['total'] }}</p>
 <p class="ops-muted">Dateien verfügbar</p>
-@if($size === 'lg')
+@if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['recent'] as $file)
             <div class="ops-row"><span>{{ $file->name ?? $file->title ?? 'Datei' }}</span></div>

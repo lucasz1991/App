@@ -1,6 +1,6 @@
 <p class="ops-kpi-val" style="font-size:28px;">{{ $data['unread'] }}</p>
 <p class="ops-muted">ungelesen</p>
-@if($size === 'lg')
+@if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['latest'] as $message)
             <div class="ops-row"><span>{{ $message->subject }}</span><span class="ops-muted">{{ $message->sender?->name }}</span></div>

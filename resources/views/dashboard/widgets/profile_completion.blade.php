@@ -5,7 +5,7 @@
 <div style="height:6px;border-radius:999px;background:var(--ops-platform);overflow:hidden;margin-top:8px;">
     <div style="height:100%;border-radius:999px;background:var(--ops-signal);width:{{ max($data['completion'], 4) }}%;"></div>
 </div>
-@if($size === 'lg')
+@if($rows === 2)
     <ul style="margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px;">
         @foreach($data['checks'] as $key => $done)
             @continue($done)

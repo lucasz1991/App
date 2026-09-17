@@ -4,7 +4,7 @@
 @else
     <dl class="ops-meta">
         @foreach(['appVersion' => 'Anwendung', 'environment' => 'Umgebung', 'php' => 'PHP', 'database' => 'Datenbank', 'queue' => 'Queue', 'lastActivity' => 'Letzte Aktivität', 'storage' => 'Dateispeicher', 'disk' => 'Datenträger'] as $key => $label)
-            @if($size === 'lg' || in_array($key, ['environment', 'database'], true))
+            @if($rows === 2 || in_array($key, ['environment', 'database'], true))
                 <div><dt>{{ $label }}</dt><dd>{{ $systemStatus[$key] ?? '—' }}</dd></div>
             @endif
         @endforeach

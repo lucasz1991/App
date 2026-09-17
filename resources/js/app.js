@@ -1994,82 +1994,34 @@ Alpine.data('operationsCoverageChart', (config = {}) => ({
     },
 }));
 
-// Individuelles Dashboard: dicht gepacktes Bento-Raster (grid-auto-flow:
-// dense auf einer 8px-Zeileneinheit, siehe operations-workspace.css) plus
-// Umsortieren per ganzer Karte, das Nachbarn schon waehrend des Ziehens
-// live nachruecken laesst - wie beim Umsortieren von Apps auf dem iPhone.
-// Delegierte Listener auf dem Raster selbst statt pro Karte - ueberleben
-// jedes Livewire-Morph (wire:poll, Groessen-/Sichtbarkeits-Aenderung), weil
-// jede Karte ihr eigenes wire:key traegt. Pfeil-Tasten und die S/L-Buttons
-// in widget-shell.blade.php rufen denselben Server-Endpunkt ohne JS auf -
+// Individuelles Dashboard: Bento-Raster mit zwei fest gestuften Achsen
+// (Breite sm/lg, Hoehe 1/2 Zeilen auf --widget-row-h - siehe
+// operations-workspace.css; keine gemessene Hoehe mehr, jede einzeilige
+// Karte ist dadurch ueberall exakt gleich hoch). Plus Umsortieren per
+// ganzer Karte, das Nachbarn schon waehrend des Ziehens live nachruecken
+// laesst - wie beim Umsortieren von Apps auf dem iPhone. Delegierte
+// Listener auf dem Raster selbst statt pro Karte - ueberleben jedes
+// Livewire-Morph (wire:poll, Groessen-/Sichtbarkeits-Aenderung), weil jede
+// Karte ihr eigenes wire:key traegt und hier keine Karten-Attribute mehr
+// aus JS heraus dauerhaft berechnet werden. Pfeil-Tasten und die Buttons in
+// widget-shell.blade.php rufen denselben Server-Endpunkt ohne JS auf -
 // Ziehen ist hier bewusst die Zugabe, nicht der einzige Weg.
 Alpine.data('dashboardWidgetGrid', () => ({
     dragKey: null,
     lastReorderAt: 0,
     resizeCard: null,
-    resizeStartX: 0,
-    resizeStartSize: null,
-    cardObserver: null,
-    gridObserver: null,
-    recalcRaf: null,
+    resizeAxis: null,
+    resizeStart: 0,
+    resizeStartValue: null,
 
     init() {
-        this.cardObserver = typeof ResizeObserver === 'undefined'
-            ? null
-            : new ResizeObserver(() => this.scheduleRecalc());
-        this.observeCards();
-        this.recalcSpans();
-
-        // Neue/entfernte Karten (Widget hinzugefuegt/entfernt) wieder
-        // beobachten und die Packung neu berechnen.
-        this.gridObserver = new MutationObserver(() => {
-            this.observeCards();
-            this.scheduleRecalc();
-        });
-        this.gridObserver.observe(this.$root, { childList: true });
-
-        window.addEventListener('resize', () => this.scheduleRecalc());
-
         this.bindReorder();
         this.bindResize();
     },
 
-    destroy() {
-        this.cardObserver?.disconnect();
-        this.gridObserver?.disconnect();
-        window.cancelAnimationFrame(this.recalcRaf);
-    },
-
-    observeCards() {
-        this.$root.querySelectorAll('[data-widget-item]').forEach((card) => this.cardObserver?.observe(card));
-    },
-
-    scheduleRecalc() {
-        window.cancelAnimationFrame(this.recalcRaf);
-        this.recalcRaf = window.requestAnimationFrame(() => this.recalcSpans());
-    },
-
-    // Bento-Packung: die Zeilenspanne jeder Karte aus ihrer tatsaechlichen
-    // Inhaltshoehe ableiten, damit grid-auto-flow:dense kleinere Karten in
-    // die Luecke neben einer hohen ruecken laesst, statt Leerraum stehen zu
-    // lassen.
-    recalcSpans() {
-        const styles = getComputedStyle(this.$root);
-        const rowHeight = parseFloat(styles.gridAutoRows) || 8;
-        const rowGap = parseFloat(styles.rowGap) || 0;
-
-        this.$root.querySelectorAll('[data-widget-item]').forEach((card) => {
-            if (card.classList.contains('is-dragging')) return;
-
-            const height = card.getBoundingClientRect().height;
-            const span = Math.max(1, Math.ceil((height + rowGap) / (rowHeight + rowGap)));
-            card.style.gridRowEnd = `span ${span}`;
-        });
-    },
-
     bindReorder() {
         this.$root.addEventListener('dragstart', (event) => {
-            // Buttons, Links und der Rand-Resize-Griff loesen ihre eigene
+            // Buttons, Links und die Rand-Resize-Griffe loesen ihre eigene
             // Geste aus statt eines Kartenzugs.
             if (event.target.closest('.widget-resize-handle, button, a')) {
                 event.preventDefault();
@@ -2088,7 +2040,6 @@ Alpine.data('dashboardWidgetGrid', () => ({
             this.dragKey = card.dataset.widgetKey;
             card.classList.add('is-dragging');
             event.dataTransfer.effectAllowed = 'move';
-            this.cardObserver?.disconnect();
 
             try {
                 event.dataTransfer.setDragImage(card, event.offsetX, event.offsetY);
@@ -2123,8 +2074,6 @@ Alpine.data('dashboardWidgetGrid', () => ({
 
             this.dragKey = null;
             this.$root.querySelectorAll('[data-widget-item]').forEach((el) => el.classList.remove('is-dragging'));
-            this.observeCards();
-            this.recalcSpans();
             this.$wire.reorder(Array.from(this.$root.querySelectorAll('[data-widget-item]')).map((el) => el.dataset.widgetKey));
         };
 
@@ -2169,24 +2118,36 @@ Alpine.data('dashboardWidgetGrid', () => ({
         });
     },
 
-    // Rand-Griff: eigenes Pointer-Events-Gesture (nicht natives Drag) fuer
-    // Klein/Gross, live als Breiten-Vorschau waehrend des Ziehens, der
-    // eigentliche Groessenwechsel (mit mehr/weniger Detail) kommt erst mit
-    // dem Server-Aufruf beim Loslassen.
+    // Rand-Griffe: eigene Pointer-Events-Gesten (nicht natives Drag) fuer
+    // Breite (rechts, waagerecht) und Hoehe (unten, senkrecht) - live als
+    // Vorschau waehrend des Ziehens, der eigentliche Wechsel (mit mehr/
+    // weniger Detail) kommt erst mit dem Server-Aufruf beim Loslassen.
     bindResize() {
         const THRESHOLD = 56;
 
         const move = (event) => {
             if (!this.resizeCard) return;
 
-            const delta = event.clientX - this.resizeStartX;
-            const size = this.resizeStartSize === 'lg'
-                ? (delta < -THRESHOLD ? 'sm' : 'lg')
-                : (delta > THRESHOLD ? 'lg' : 'sm');
+            if (this.resizeAxis === 'width') {
+                const delta = event.clientX - this.resizeStart;
+                const size = this.resizeStartValue === 'lg'
+                    ? (delta < -THRESHOLD ? 'sm' : 'lg')
+                    : (delta > THRESHOLD ? 'lg' : 'sm');
 
-            if (this.resizeCard.dataset.widgetSize !== size) {
-                this.resizeCard.dataset.widgetSize = size;
-                this.scheduleRecalc();
+                if (this.resizeCard.dataset.widgetSize !== size) {
+                    this.resizeCard.dataset.widgetSize = size;
+                }
+
+                return;
+            }
+
+            const delta = event.clientY - this.resizeStart;
+            const rows = this.resizeStartValue === 2
+                ? (delta < -THRESHOLD ? 1 : 2)
+                : (delta > THRESHOLD ? 2 : 1);
+
+            if (Number(this.resizeCard.dataset.widgetRows) !== rows) {
+                this.resizeCard.dataset.widgetRows = String(rows);
             }
         };
 
@@ -2194,14 +2155,19 @@ Alpine.data('dashboardWidgetGrid', () => ({
             if (!this.resizeCard) return;
 
             const key = this.resizeCard.dataset.widgetKey;
-            const size = this.resizeCard.dataset.widgetSize;
-            this.resizeCard.classList.remove('is-resizing');
+            this.resizeCard.classList.remove('is-resizing-x', 'is-resizing-y');
             document.body.style.cursor = '';
-            this.resizeCard = null;
 
-            if (size !== this.resizeStartSize) {
-                this.$wire.setWidgetSize(key, size);
+            if (this.resizeAxis === 'width') {
+                const size = this.resizeCard.dataset.widgetSize;
+                if (size !== this.resizeStartValue) this.$wire.setWidgetSize(key, size);
+            } else {
+                const rows = Number(this.resizeCard.dataset.widgetRows);
+                if (rows !== this.resizeStartValue) this.$wire.setWidgetRows(key, rows);
             }
+
+            this.resizeCard = null;
+            this.resizeAxis = null;
         };
 
         this.$root.addEventListener('pointerdown', (event) => {
@@ -2212,32 +2178,53 @@ Alpine.data('dashboardWidgetGrid', () => ({
 
             event.preventDefault();
             this.resizeCard = card;
-            this.resizeStartX = event.clientX;
-            this.resizeStartSize = card.dataset.widgetSize;
-            card.classList.add('is-resizing');
-            document.body.style.cursor = 'ew-resize';
+            this.resizeAxis = handle.dataset.widgetResizeHandle;
+
+            if (this.resizeAxis === 'width') {
+                this.resizeStart = event.clientX;
+                this.resizeStartValue = card.dataset.widgetSize;
+                card.classList.add('is-resizing-x');
+                document.body.style.cursor = 'ew-resize';
+            } else {
+                this.resizeStart = event.clientY;
+                this.resizeStartValue = Number(card.dataset.widgetRows);
+                card.classList.add('is-resizing-y');
+                document.body.style.cursor = 'ns-resize';
+            }
+
             handle.setPointerCapture?.(event.pointerId);
         });
         this.$root.addEventListener('pointermove', move);
         this.$root.addEventListener('pointerup', finish);
         this.$root.addEventListener('pointercancel', finish);
 
-        // Tastatur-Gegenstueck zum Rand-Griff: Pfeil links/rechts, waehrend er fokussiert ist.
+        // Tastatur-Gegenstueck zu den Rand-Griffen: Pfeiltasten, waehrend
+        // der jeweilige Griff fokussiert ist (links/rechts = Breite,
+        // hoch/runter = Hoehe).
         this.$root.addEventListener('keydown', (event) => {
-            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-
             const handle = event.target.closest('[data-widget-resize-handle]');
             const card = handle?.closest('[data-widget-item]');
 
             if (!handle || !card) return;
 
-            event.preventDefault();
-            const size = event.key === 'ArrowRight' ? 'lg' : 'sm';
+            const axis = handle.dataset.widgetResizeHandle;
 
-            if (card.dataset.widgetSize !== size) {
-                card.dataset.widgetSize = size;
-                this.scheduleRecalc();
-                this.$wire.setWidgetSize(card.dataset.widgetKey, size);
+            if (axis === 'width' && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+                event.preventDefault();
+                const size = event.key === 'ArrowRight' ? 'lg' : 'sm';
+
+                if (card.dataset.widgetSize !== size) {
+                    card.dataset.widgetSize = size;
+                    this.$wire.setWidgetSize(card.dataset.widgetKey, size);
+                }
+            } else if (axis === 'height' && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+                event.preventDefault();
+                const rows = event.key === 'ArrowDown' ? 2 : 1;
+
+                if (Number(card.dataset.widgetRows) !== rows) {
+                    card.dataset.widgetRows = String(rows);
+                    this.$wire.setWidgetRows(card.dataset.widgetKey, rows);
+                }
             }
         });
     },

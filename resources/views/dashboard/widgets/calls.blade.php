@@ -1,6 +1,6 @@
 <p class="ops-kpi-val" style="font-size:28px;">{{ $data['thisWeek'] }}</p>
 <p class="ops-muted">Anrufe diese Woche</p>
-@if($size === 'lg')
+@if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['recent'] as $room)
             <div class="ops-row"><span>{{ $room->name ?? 'Anruf' }}</span><span class="ops-muted">{{ $room->ended_at?->diffForHumans() }}</span></div>

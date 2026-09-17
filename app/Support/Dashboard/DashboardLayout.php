@@ -18,7 +18,7 @@ final class DashboardLayout
      * sortiert nach Position. Ausgeblendete stehen hinten und speisen die
      * "Widget hinzufuegen"-Liste.
      *
-     * @return list<array{key:string,title:string,description:string,icon:string,section:string,defaultSize:'sm'|'lg',size:'sm'|'lg',hidden:bool,position:int}>
+     * @return list<array{key:string,title:string,description:string,icon:string,section:string,defaultSize:'sm'|'lg',size:'sm'|'lg',rows:1|2,hidden:bool,position:int}>
      */
     public static function forUser(User $user): array
     {
@@ -40,6 +40,12 @@ final class DashboardLayout
                 'section' => $widget['section'],
                 'defaultSize' => $widget['defaultSize'],
                 'size' => $placement->size ?? $widget['defaultSize'],
+                // "rows" ist die Hoehe in festen Zeileneinheiten (1 oder 2,
+                // siehe .widget-grid in operations-workspace.css) - unabhaengig
+                // von "size" (Breite). Kein gespeicherter Wert von 1/2
+                // abweichend wird toleriert, damit ein manipulierter Payload
+                // die Symmetrie nicht sprengen kann.
+                'rows' => in_array($placement?->rows, [1, 2], true) ? $placement->rows : $widget['defaultRows'],
                 'hidden' => $placement ? $placement->hidden : ! $widget['defaultVisible'],
                 // Nie angefasste Widgets landen hinter jeder bewusst gesetzten
                 // Position, behalten aber die Registry-Reihenfolge zueinander.
@@ -53,13 +59,13 @@ final class DashboardLayout
         return $items;
     }
 
-    /** @return list<array{key:string,title:string,description:string,icon:string,section:string,defaultSize:'sm'|'lg',size:'sm'|'lg',hidden:bool,position:int}> */
+    /** @return list<array{key:string,title:string,description:string,icon:string,section:string,defaultSize:'sm'|'lg',size:'sm'|'lg',rows:1|2,hidden:bool,position:int}> */
     public static function visible(User $user): array
     {
         return array_values(array_filter(self::forUser($user), static fn (array $item) => ! $item['hidden']));
     }
 
-    /** @return list<array{key:string,title:string,description:string,icon:string,section:string,defaultSize:'sm'|'lg',size:'sm'|'lg',hidden:bool,position:int}> */
+    /** @return list<array{key:string,title:string,description:string,icon:string,section:string,defaultSize:'sm'|'lg',size:'sm'|'lg',rows:1|2,hidden:bool,position:int}> */
     public static function hiddenCatalog(User $user): array
     {
         return array_values(array_filter(self::forUser($user), static fn (array $item) => $item['hidden']));
@@ -101,6 +107,19 @@ final class DashboardLayout
         self::upsert($user, $key, ['size' => $size]);
     }
 
+    /**
+     * Hoehe in Zeileneinheiten setzen - 1 oder 2, sonst nichts (siehe
+     * Klassenkommentar zu forUser: nur diese zwei Werte sind gueltig, damit
+     * jede einzeilige Karte im Raster exakt gleich hoch bleibt).
+     */
+    public static function setRows(User $user, string $key, int $rows): void
+    {
+        if (! in_array($rows, [1, 2], true) || ! array_key_exists($key, WidgetRegistry::availableFor($user))) {
+            return;
+        }
+        self::upsert($user, $key, ['rows' => $rows]);
+    }
+
     /** @param array<string, mixed> $changes */
     private static function upsert(User $user, string $key, array $changes): void
     {
@@ -111,6 +130,7 @@ final class DashboardLayout
             ['user_id' => $user->id, 'widget_key' => $key],
             array_merge([
                 'size' => $existing?->size ?? $widget['defaultSize'],
+                'rows' => in_array($existing?->rows, [1, 2], true) ? $existing->rows : $widget['defaultRows'],
                 'hidden' => $existing?->hidden ?? ! $widget['defaultVisible'],
                 'position' => $existing?->position ?? (DashboardWidgetPlacement::where('user_id', $user->id)->max('position') ?? -1) + 1,
             ], $changes),

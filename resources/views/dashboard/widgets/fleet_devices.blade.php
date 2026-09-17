@@ -1,7 +1,7 @@
 @if($data['stats']['available'])
     <p class="ops-kpi-val" style="font-size:28px;">{{ $data['stats']['total'] }}</p>
     <p class="ops-muted">Geräte in der Flotte</p>
-    @if($size === 'lg')
+    @if($rows === 2)
         <dl class="ops-meta" style="margin-top:10px;">
             <div><dt>Zugewiesen</dt><dd>{{ $data['stats']['assigned'] }}</dd></div>
             <div><dt>Im Lager</dt><dd>{{ $data['stats']['inventory'] }}</dd></div>

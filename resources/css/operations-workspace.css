@@ -102,47 +102,56 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 @media(prefers-reduced-motion:reduce) { .ops-kpi, .ops-tile { transition:none; } a.ops-kpi:hover, a.ops-tile:hover { transform:none; } }
 
 /* Individuelles Dashboard: Widget-Katalog, Bento-Raster, Drag&Drop-Zustaende.
-   Das Raster packt dicht (grid-auto-flow:dense) auf einer feinen 8px-
-   Zeileneinheit; app.js misst die tatsaechliche Inhaltshoehe jeder Karte und
-   setzt ihre Zeilenspanne, damit z.B. zwei kleine Karten neben einer hohen
-   in deren Luecke aufruecken - dieselbe Technik wie bei modernen
-   Bento-/Masonry-Dashboards, ohne dafuer eine Grid-Bibliothek zu laden. */
+   Beide Achsen sind zweistufig und FEST statt gemessen: Breite (sm=1/lg=2
+   Spalten) und Hoehe (1/2 Zeilen auf --widget-row-h). Eine einzeilige Karte
+   ist dadurch ueberall exakt gleich hoch, egal wie viel Inhalt sie zeigt -
+   Inhalt, der nicht passt, scrollt innerhalb der Karte statt die Zeile zu
+   strecken (siehe .widget-card-body). grid-auto-flow:dense laesst kleinere
+   Karten trotzdem in die Luecke neben einer 2-zeiligen aufruecken. */
 .rt-ops .ops-btn { display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 16px; border-radius:9px; border:1px solid var(--ops-line); background:var(--ops-sheet); color:var(--ops-ink); font-size:13px; font-weight:650; }
 .rt-ops .ops-btn svg { width:16px; height:16px; }
 .rt-ops .ops-btn.is-active { background:var(--ops-signal); border-color:var(--ops-signal); color:#fff; }
 
-.widget-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-flow:dense; grid-auto-rows:8px; align-items:start; gap:16px; }
+.widget-grid { --widget-row-h: 208px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-flow:dense; grid-auto-rows:var(--widget-row-h); gap:16px; }
 @media(min-width:1024px) { .widget-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
 .widget-card[data-widget-size="lg"] { grid-column:span 2; }
-/* Handy: ein Karten-Strang statt dichtem Packen - Zeilenspannen aus JS werden hier bewusst verworfen. */
-@media(max-width:560px) { .widget-grid { grid-template-columns:1fr; grid-auto-flow:row; grid-auto-rows:auto; } .widget-card, .widget-card[data-widget-size="lg"] { grid-column:span 1; grid-row-end:auto !important; } }
+.widget-card[data-widget-rows="2"] { grid-row:span 2; }
+/* Handy: ein Karten-Strang statt Raster - jede Karte behaelt ihre natuerliche Hoehe. */
+@media(max-width:560px) { .widget-grid { grid-template-columns:1fr; grid-auto-flow:row; grid-auto-rows:auto; } .widget-card { grid-column:span 1 !important; grid-row:auto !important; height:auto !important; } }
 .widget-empty { grid-column:1/-1; }
 
-.widget-card { position:relative; min-width:0; display:flex; flex-direction:column; background:var(--ops-sheet); border:1px solid var(--ops-line); border-radius:16px; padding:18px; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 24px -18px rgba(15,23,42,.16); transition:box-shadow 200ms cubic-bezier(.32,.72,0,1), opacity 200ms; }
+.widget-card { position:relative; min-width:0; min-height:0; display:flex; flex-direction:column; background:var(--ops-sheet); border:1px solid var(--ops-line); border-radius:16px; padding:18px; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 24px -18px rgba(15,23,42,.16); overflow:hidden; transition:box-shadow 200ms cubic-bezier(.32,.72,0,1), opacity 200ms; }
 .dark .widget-card { box-shadow:0 1px 2px rgba(0,0,0,.2), 0 10px 24px -18px rgba(0,0,0,.55); }
 .widget-card[draggable="true"] { cursor:grab; }
 .widget-card.is-dragging { opacity:.4; cursor:grabbing; box-shadow:none; z-index:2; }
-.widget-card.is-resizing { cursor:ew-resize; }
-.widget-card-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.widget-card.is-resizing-x { cursor:ew-resize; }
+.widget-card.is-resizing-y { cursor:ns-resize; }
+.widget-card-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; flex-shrink:0; }
 .widget-card-head h3 { flex:1 1 auto; min-width:0; }
 .widget-card-ico { width:32px; height:32px; border-radius:9px; background:var(--ops-platform); color:var(--ops-muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .widget-card-ico svg { width:16px; height:16px; }
-.widget-card-body { min-width:0; flex:1 1 auto; }
+.widget-card-body { min-width:0; min-height:0; flex:1 1 auto; overflow-y:auto; }
 .widget-card-controls { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
 .widget-card-controls button { display:flex; align-items:center; justify-content:center; min-width:32px; min-height:32px; border-radius:7px; color:var(--ops-muted); background:transparent; }
 .widget-card-controls button:hover { background:var(--ops-platform); color:var(--ops-ink); }
 .widget-card-controls svg { width:15px; height:15px; }
-.widget-move-buttons, .widget-size-toggle { display:flex; align-items:center; gap:2px; padding:2px; background:var(--ops-platform); border-radius:9px; }
-.widget-size-toggle button { min-width:0; padding:0 8px; font-size:11px; font-weight:650; }
-.widget-size-toggle button[aria-pressed=true] { background:var(--ops-sheet); color:var(--ops-ink); box-shadow:0 1px 3px var(--ops-line); }
+.widget-move-buttons, .widget-size-toggle, .widget-rows-toggle { display:flex; align-items:center; gap:2px; padding:2px; background:var(--ops-platform); border-radius:9px; }
+.widget-size-toggle button, .widget-rows-toggle button { min-width:0; padding:0 8px; font-size:11px; font-weight:650; }
+.widget-size-toggle button[aria-pressed=true], .widget-rows-toggle button[aria-pressed=true] { background:var(--ops-sheet); color:var(--ops-ink); box-shadow:0 1px 3px var(--ops-line); }
 .widget-remove:hover { background:#fff1f2; color:#9e1834; }
 .dark .widget-remove:hover { background:#3e202a; color:#ffc2ce; }
 
-/* Rand-Griff zum Ziehen auf Klein/Gross - eigenes Pointer-Events-Gesture,
-   kein natives Drag (das ist fuers Umsortieren reserviert). */
-.widget-resize-handle { position:absolute; top:14px; bottom:14px; right:-1px; width:14px; display:none; align-items:center; justify-content:center; cursor:ew-resize; touch-action:none; color:var(--ops-muted); }
-.widget-resize-handle::before { content:""; width:4px; height:36px; border-radius:999px; background:var(--ops-line); transition:background 150ms; }
-.widget-resize-handle:hover::before, .widget-card.is-resizing .widget-resize-handle::before { background:var(--ops-signal); }
+/* Rand-Griffe zum Ziehen auf Klein/Gross (rechts, waagerecht) und
+   1-/2-zeilig (unten, senkrecht) - eigene Pointer-Events-Gesten, kein
+   natives Drag (das ist fuers Umsortieren reserviert). */
+.widget-resize-handle { position:absolute; display:none; align-items:center; justify-content:center; touch-action:none; color:var(--ops-muted); }
+.widget-resize-handle::before { content:""; border-radius:999px; background:var(--ops-line); transition:background 150ms; }
+.widget-resize-handle:hover::before { background:var(--ops-signal); }
+.widget-resize-handle-width { top:14px; bottom:14px; right:-1px; width:14px; cursor:ew-resize; }
+.widget-resize-handle-width::before { width:4px; height:36px; }
+.widget-resize-handle-height { left:14px; right:14px; bottom:-1px; height:14px; cursor:ns-resize; }
+.widget-resize-handle-height::before { width:36px; height:4px; }
+.widget-card.is-resizing-x .widget-resize-handle-width::before, .widget-card.is-resizing-y .widget-resize-handle-height::before { background:var(--ops-signal); }
 .widget-card[data-editing="true"] .widget-resize-handle { display:flex; }
 @media(max-width:560px) { .widget-resize-handle { display:none !important; } }
 

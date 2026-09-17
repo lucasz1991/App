@@ -9,8 +9,9 @@ use Symfony\Component\Process\Process;
 require dirname(__DIR__).'/vendor/autoload.php';
 $app = require dirname(__DIR__).'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
-$options = getopt('', ['base:', 'maker:', 'v27-revision2']);
-$revision2 = array_key_exists('v27-revision2', $options);
+$options = getopt('', ['base:', 'maker:', 'v27-revision2', 'v27-revision3']);
+$revision3 = array_key_exists('v27-revision3', $options);
+$revision2 = $revision3 || array_key_exists('v27-revision2', $options);
 $base = realpath($options['base'] ?? '');
 $maker = realpath($options['maker'] ?? '');
 if (! $base || ! $maker) {
@@ -24,6 +25,9 @@ $inputs = [
 ];
 foreach ($inputs as [$version, $kind, $input]) {
     if ($revision2 && $version !== 'v27') {
+        continue;
+    }
+    if ($revision3 && $kind !== 'template') {
         continue;
     }
     $bundle = json_decode(file_get_contents($base.'/'.$input), true, flags: JSON_THROW_ON_ERROR);
@@ -60,7 +64,10 @@ foreach ($inputs as [$version, $kind, $input]) {
         if ($kind === 'template') {
             $master = file_get_contents(resource_path('mail-templates/email-master.html'));
             preg_match('/<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->/s', $master, $mark);
-            $html = preg_replace('/<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->/s', TemplateForwardingStyle::framedMarkFragment($mark[0]), $html);
+            $header = $revision3
+                ? TemplateForwardingStyle::markFragment($mark[0])
+                : TemplateForwardingStyle::framedMarkFragment($mark[0]);
+            $html = preg_replace('/<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->/s', $header, $html);
             preg_match('/<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->/s', $html, $protectedMark);
             $html = str_replace($protectedMark[0], '<!-- FORWARDING_MARK_PLACEHOLDER -->', $html);
             $colors = ['#ffffff'];
@@ -104,11 +111,11 @@ foreach ($inputs as [$version, $kind, $input]) {
             $html = preg_replace('/(<table class="rt-sign-content-frame"[^>]*style=")/', '$1background-color:#ffffff!important;', $html);
         }
     }
-    $out = $base.'/'.$version.($revision2 ? '/forwarding-r2' : '/forwarding');
+    $out = $base.'/'.$version.($revision3 ? '/forwarding-r3' : ($revision2 ? '/forwarding-r2' : '/forwarding'));
     if (! is_dir($out)) {
         mkdir($out, 0777, true);
     }
-    $name = 'railtime-'.$version.'-'.($kind === 'template' ? 'vorlage' : 'signatur').'-weiterleitung'.($revision2 ? '-r2' : '');
+    $name = 'railtime-'.$version.'-'.($kind === 'template' ? 'vorlage' : 'signatur').'-weiterleitung'.($revision3 ? '-r3' : ($revision2 ? '-r2' : ''));
     file_put_contents($out.'/'.$name.'.html', $html);
     file_put_contents($out.'/'.$name.'.css', $bundle['css']);
     $sanitized = app(EmailHtmlSanitizer::class)->clean($html);

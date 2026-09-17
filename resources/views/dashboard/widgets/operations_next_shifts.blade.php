@@ -3,7 +3,7 @@
         <div>
             <p class="ops-service-date">{{ $shift->starts_at->format('d.m. · H:i') }}</p>
             <h3 style="margin:2px 0 0;">{{ $shift->title }}</h3>
-            @if($size === 'lg')<p class="ops-muted">{{ $shift->order?->customer?->company_name }} · {{ $shift->location_name }}</p>@endif
+            @if($rows === 2)<p class="ops-muted">{{ $shift->order?->customer?->company_name }} · {{ $shift->location_name }}</p>@endif
         </div>
         <span class="ops-badge" data-state="{{ $shift->reserved >= $shift->required_staff ? 'confirmed' : 'pending' }}">{{ $shift->reserved }}/{{ $shift->required_staff }}</span>
     </a>

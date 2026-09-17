@@ -67,6 +67,11 @@ class WidgetGrid extends Component
         DashboardLayout::setSize(auth()->user(), $key, $size);
     }
 
+    public function setWidgetRows(string $key, int $rows): void
+    {
+        DashboardLayout::setRows(auth()->user(), $key, $rows);
+    }
+
     public function loadSystemStatus(SystemDashboardData $data): void
     {
         abort_unless(auth()->user()?->canViewSystemDashboard(), 403);
@@ -90,7 +95,7 @@ class WidgetGrid extends Component
         foreach ($visible as $item) {
             $widgetData[$item['key']] = $item['key'] === 'system_status'
                 ? []
-                : $provider->data($item['key'], $user, $item['size']);
+                : $provider->data($item['key'], $user, $item['size'], $item['rows']);
         }
 
         return view('livewire.dashboard.widget-grid', [

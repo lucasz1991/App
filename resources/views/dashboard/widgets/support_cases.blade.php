@@ -1,6 +1,6 @@
 <p class="ops-kpi-val" style="font-size:28px;">{{ $data['open'] }}</p>
 <p class="ops-muted">{{ $data['scope'] === 'team' ? 'offene Fälle im Team' : 'eigene offene Fälle' }}</p>
-@if($size === 'lg')
+@if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['cases'] as $case)
             <div class="ops-row"><span>{{ \Illuminate\Support\Str::limit($case->subject, 40) }}</span><span class="ops-badge">{{ str($case->status)->replace('_', ' ')->title() }}</span></div>

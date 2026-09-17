@@ -36,20 +36,26 @@ class WidgetDataProvider
         private readonly SystemDashboardData $systemDashboardData,
     ) {}
 
-    /** @return array<string, mixed> */
-    public function data(string $key, User $user, string $size): array
+    /**
+     * @param  1|2  $rows  Hoehe in Zeileneinheiten. Steuert, wie viel
+     *                     vertikaler Inhalt (Listenlaenge, Chart-Hoehe)
+     *                     angezeigt wird - unabhaengig von $size, das nur
+     *                     die Breite ist.
+     * @return array<string, mixed>
+     */
+    public function data(string $key, User $user, string $size, int $rows = 1): array
     {
         return match ($key) {
             'my_work' => $this->myWork($user),
             'wagon_list' => $this->wagonList($user),
-            'messages' => $this->messages($user, $size),
-            'files' => $this->files($user, $size),
+            'messages' => $this->messages($user, $rows),
+            'files' => $this->files($user, $rows),
             'my_devices' => $this->myDevices($user),
             'profile_completion' => $this->profileCompletion($user),
             'operations_inquiries' => $this->operationsQueue('inquiries', 'Offene Anfragen', OperationInquiry::whereNull('order_id')->whereNull('duplicate_of_id')),
             'operations_orders' => $this->operationsOrders(),
             'operations_shift_coverage' => $this->operationsShiftCoverage(),
-            'operations_next_shifts' => $this->operationsNextShifts($size),
+            'operations_next_shifts' => $this->operationsNextShifts($rows),
             'operations_customers' => $this->operationsCustomers(),
             'operations_qualifications' => $this->operationsQueue('qualifications', 'Nachweise prüfen', EmployeeQualification::where('status', 'pending')),
             'operations_absences' => $this->operationsQueue('absences', 'Abwesenheiten prüfen', AbsenceRequest::where('status', 'pending')),
@@ -57,11 +63,11 @@ class WidgetDataProvider
             'operations_rules' => $this->operationsRules(),
             'fleet_devices' => $this->fleetDevices($user),
             'employees' => $this->employees($user),
-            'recent_activity' => $this->recentActivity($size),
+            'recent_activity' => $this->recentActivity($rows),
             'account_growth' => $this->accountGrowth(),
             'mail_management' => $this->mailManagement($user),
-            'calls' => $this->calls($user, $size),
-            'support_cases' => $this->supportCases($user, $size),
+            'calls' => $this->calls($user, $rows),
+            'support_cases' => $this->supportCases($user, $rows),
             'marketing' => $this->marketing(),
             'system_status' => [],
             default => [],
@@ -95,17 +101,17 @@ class WidgetDataProvider
         return ['href' => route($user->isAdmin() ? 'admin.operations.wagon-list' : 'operations.wagon-list')];
     }
 
-    private function messages(User $user, string $size): array
+    private function messages(User $user, int $rows): array
     {
         $unread = $user->receivedMessages()->where('status', 1)->count();
-        $latest = $size === 'lg'
+        $latest = $rows === 2
             ? $user->receivedMessages()->with('sender:id,name')->latest()->limit(4)->get()
             : collect();
 
         return ['unread' => $unread, 'latest' => $latest, 'href' => route('messages')];
     }
 
-    private function files(User $user, string $size): array
+    private function files(User $user, int $rows): array
     {
         $grouped = $user->availableFilesGrouped();
         $teamFiles = collect($grouped['teams'])->flatMap(fn (array $entry) => $entry['files']);
@@ -113,7 +119,7 @@ class WidgetDataProvider
 
         return [
             'total' => $all->count(),
-            'recent' => $size === 'lg' ? $all->sortByDesc('created_at')->take(4)->values() : collect(),
+            'recent' => $rows === 2 ? $all->sortByDesc('created_at')->take(4)->values() : collect(),
             'href' => route('files'),
         ];
     }
@@ -180,14 +186,14 @@ class WidgetDataProvider
         ];
     }
 
-    private function operationsNextShifts(string $size): array
+    private function operationsNextShifts(int $rows): array
     {
         $shifts = Shift::notCancelled()
             ->during(now(config('operations.display_timezone'))->startOfDay(), now()->addDays(14))
             ->with(['order.customer'])
             ->withCount(['assignments as reserved' => fn ($q) => $q->blocking()])
             ->orderBy('starts_at')
-            ->limit($size === 'lg' ? 6 : 3)
+            ->limit($rows === 2 ? 6 : 3)
             ->get();
 
         return ['shifts' => $shifts, 'href' => route('operations.workspace', 'shift-management')];
@@ -223,9 +229,9 @@ class WidgetDataProvider
         ];
     }
 
-    private function recentActivity(string $size): array
+    private function recentActivity(int $rows): array
     {
-        return ['entries' => $this->systemDashboardData->recentActivity()->take($size === 'lg' ? 6 : 3)];
+        return ['entries' => $this->systemDashboardData->recentActivity()->take($rows === 2 ? 6 : 3)];
     }
 
     private function accountGrowth(): array
@@ -248,13 +254,13 @@ class WidgetDataProvider
         ];
     }
 
-    private function calls(User $user, string $size): array
+    private function calls(User $user, int $rows): array
     {
         $mine = fn () => Room::query()->whereHas('participants', fn ($q) => $q->where('user_id', $user->id))->where('type', 'meeting');
 
         return [
             'thisWeek' => $mine()->where('ended_at', '>=', now()->subDays(7))->count(),
-            'recent' => $size === 'lg' ? $mine()->whereNotNull('ended_at')->latest('ended_at')->limit(4)->get() : collect(),
+            'recent' => $rows === 2 ? $mine()->whereNotNull('ended_at')->latest('ended_at')->limit(4)->get() : collect(),
             'href' => route('calls.index'),
         ];
     }
@@ -265,7 +271,7 @@ class WidgetDataProvider
      * Geraete-Snapshots: eine Umgebung ohne den Support-Baustein darf das
      * ganze Dashboard nicht mitreissen.
      */
-    private function supportCases(User $user, string $size): array
+    private function supportCases(User $user, int $rows): array
     {
         $href = route('support.cases');
 
@@ -276,7 +282,7 @@ class WidgetDataProvider
             return [
                 'scope' => $canManage ? 'team' : 'personal',
                 'open' => $base()->count(),
-                'cases' => $size === 'lg' ? $base()->with('user:id,name')->latest('updated_at')->limit(4)->get() : collect(),
+                'cases' => $rows === 2 ? $base()->with('user:id,name')->latest('updated_at')->limit(4)->get() : collect(),
                 'href' => $href,
             ];
         } catch (\Throwable) {

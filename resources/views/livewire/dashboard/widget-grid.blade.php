@@ -23,7 +23,7 @@
     <div class="widget-grid" data-widget-track x-data="dashboardWidgetGrid" data-anim-stagger>
         @forelse($visible as $item)
             <x-dashboard.widget-shell :item="$item" :editing="$editing">
-                @include('dashboard.widgets.' . $item['key'], ['data' => $widgetData[$item['key']] ?? [], 'size' => $item['size']])
+                @include('dashboard.widgets.' . $item['key'], ['data' => $widgetData[$item['key']] ?? [], 'size' => $item['size'], 'rows' => $item['rows']])
             </x-dashboard.widget-shell>
         @empty
             <div class="ops-empty widget-empty">Keine Widgets ausgewählt. Über „Dashboard anpassen" welche hinzufügen.</div>

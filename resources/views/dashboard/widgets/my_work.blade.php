@@ -5,7 +5,7 @@
     <p class="ops-service-date">{{ $data['nextAssignment']->shift->starts_at->translatedFormat('D, d. M · H:i') }}</p>
     <h3 style="margin:4px 0 0;">{{ $data['nextAssignment']->shift->title }}</h3>
     <p class="ops-muted">{{ $data['nextAssignment']->shift->location_name }}</p>
-    @if($size === 'lg' && $data['nextAssignment']->shift->order?->customer)
+    @if($rows === 2 && $data['nextAssignment']->shift->order?->customer)
         <p class="ops-muted">{{ $data['nextAssignment']->shift->order->customer->company_name }}</p>
     @endif
 @else

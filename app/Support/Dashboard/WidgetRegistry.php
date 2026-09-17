@@ -16,7 +16,7 @@ use App\Support\Operations\OperationsAccess;
 final class WidgetRegistry
 {
     /**
-     * @return array<string, array{title:string, description:string, icon:string, section:string, ability:string|\Closure|null, defaultVisible:bool, defaultSize:'sm'|'lg'}>
+     * @return array<string, array{title:string, description:string, icon:string, section:string, ability:string|\Closure|null, defaultVisible:bool, defaultSize:'sm'|'lg', defaultRows:1|2}>
      */
     public static function all(): array
     {
@@ -25,126 +25,126 @@ final class WidgetRegistry
                 'title' => 'Mein Arbeitstag', 'description' => 'Laufende Zeiterfassung und die naechsten eigenen Dienste.',
                 'icon' => 'clock', 'section' => 'Mein Arbeitsplatz',
                 'ability' => static fn (User $u) => OperationsAccess::ready() && OperationsAccess::isEmployee($u),
-                'defaultVisible' => true, 'defaultSize' => 'lg',
+                'defaultVisible' => true, 'defaultSize' => 'lg', 'defaultRows' => 2,
             ],
             'wagon_list' => [
                 'title' => 'Wagenliste', 'description' => 'Schnellzugriff auf die Wagenliste des aktuellen Auftrags.',
                 'icon' => 'list', 'section' => 'Mein Arbeitsplatz',
                 'ability' => static fn (User $u) => $u->isAdmin() || in_array($u->dashboardAudience(), ['employee', 'management', 'administration'], true),
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'messages' => [
                 'title' => 'Nachrichten', 'description' => 'Ungelesene Nachrichten und die letzten drei im Posteingang.',
                 'icon' => 'message-circle', 'section' => 'Persönlich', 'ability' => null,
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'files' => [
                 'title' => 'Meine Ablage', 'description' => 'Zuletzt bereitgestellte Dateien aus Firma, Team und persoenlich.',
                 'icon' => 'download-cloud', 'section' => 'Persönlich', 'ability' => null,
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'my_devices' => [
                 'title' => 'Meine Geräte', 'description' => 'Zustand der eigenen zugewiesenen Geraete.',
                 'icon' => 'smartphone', 'section' => 'Persönlich', 'ability' => null,
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'profile_completion' => [
                 'title' => 'Profil', 'description' => 'Wie vollstaendig das eigene Profil ausgefuellt ist.',
                 'icon' => 'user-check', 'section' => 'Persönlich', 'ability' => null,
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'operations_inquiries' => [
                 'title' => 'Offene Anfragen', 'description' => 'Unbearbeitete Kundenanfragen ohne Auftrag oder Dublette.',
                 'icon' => 'inbox', 'section' => 'Management', 'ability' => self::opsAbility('operations.inquiries.manage'),
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'operations_orders' => [
                 'title' => 'Leistungen', 'description' => 'Auftraege in Bearbeitung.',
                 'icon' => 'clipboard', 'section' => 'Management', 'ability' => self::opsAbility('operations.manage'),
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'operations_shift_coverage' => [
                 'title' => 'Besetzung diese Woche', 'description' => 'Zugesagt gegenueber benoetigt, Tag fuer Tag.',
                 'icon' => 'bar-chart-2', 'section' => 'Management', 'ability' => self::opsAbility('operations.manage'),
-                'defaultVisible' => true, 'defaultSize' => 'lg',
+                'defaultVisible' => true, 'defaultSize' => 'lg', 'defaultRows' => 2,
             ],
             'operations_next_shifts' => [
                 'title' => 'Nächste Dienste', 'description' => 'Die naechsten sechs Dienste aus dem Schichtplan.',
                 'icon' => 'calendar', 'section' => 'Management', 'ability' => self::opsAbility('operations.manage'),
-                'defaultVisible' => true, 'defaultSize' => 'lg',
+                'defaultVisible' => true, 'defaultSize' => 'lg', 'defaultRows' => 2,
             ],
             'operations_customers' => [
                 'title' => 'Kundendatenbank', 'description' => 'Anzahl aktiver Kunden.',
                 'icon' => 'briefcase', 'section' => 'Management', 'ability' => self::opsAbility('operations.manage'),
-                'defaultVisible' => false, 'defaultSize' => 'sm',
+                'defaultVisible' => false, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'operations_qualifications' => [
                 'title' => 'Nachweise prüfen', 'description' => 'Eingereichte Qualifikationsnachweise, die auf Pruefung warten.',
                 'icon' => 'award', 'section' => 'Management', 'ability' => self::opsAbility('operations.qualifications.manage'),
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'operations_absences' => [
                 'title' => 'Abwesenheiten prüfen', 'description' => 'Antraege, die noch auf eine Entscheidung warten.',
                 'icon' => 'calendar', 'section' => 'Management', 'ability' => self::opsAbility('operations.absences.review'),
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'operations_times' => [
                 'title' => 'Zeiten prüfen', 'description' => 'Eingereichte Zeitmeldungen, die auf Freigabe warten.',
                 'icon' => 'check-circle', 'section' => 'Management', 'ability' => self::opsAbility('operations.time.review'),
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'operations_rules' => [
                 'title' => 'Regelprofil', 'description' => 'Das aktive betriebliche Pruefregelwerk.',
                 'icon' => 'shield', 'section' => 'Management', 'ability' => self::opsAbility('operations.rules.manage'),
-                'defaultVisible' => false, 'defaultSize' => 'sm',
+                'defaultVisible' => false, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'fleet_devices' => [
                 'title' => 'Geräte & Lager', 'description' => 'Zustand der gesamten Geraeteflotte.',
                 'icon' => 'monitor', 'section' => 'Management', 'ability' => 'devices.view',
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'employees' => [
                 'title' => 'Mitarbeiter', 'description' => 'Personal- und Kontenbestand.',
                 'icon' => 'users', 'section' => 'Management', 'ability' => 'employees.view',
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'recent_activity' => [
                 'title' => 'Zuletzt aktiv', 'description' => 'Wer sich zuletzt angemeldet hat.',
                 'icon' => 'activity', 'section' => 'Management', 'ability' => 'employees.view',
-                'defaultVisible' => false, 'defaultSize' => 'lg',
+                'defaultVisible' => false, 'defaultSize' => 'lg', 'defaultRows' => 2,
             ],
             'account_growth' => [
                 'title' => 'Kontenentwicklung', 'description' => 'Gesamtbestand an Konten, letzte 14 Tage.',
                 'icon' => 'trending-up', 'section' => 'Management',
                 'ability' => static fn (User $u) => $u->canViewManagementDashboard(),
-                'defaultVisible' => false, 'defaultSize' => 'lg',
+                'defaultVisible' => false, 'defaultSize' => 'lg', 'defaultRows' => 2,
             ],
             'mail_management' => [
                 'title' => 'Mailverwaltung', 'description' => 'Zustand des Mailversands.',
                 'icon' => 'send', 'section' => 'Kommunikation', 'ability' => 'manage.messages',
-                'defaultVisible' => false, 'defaultSize' => 'sm',
+                'defaultVisible' => false, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'calls' => [
                 'title' => 'Anrufe', 'description' => 'Zuletzt gefuehrte Videoanrufe.',
                 'icon' => 'phone', 'section' => 'Kommunikation', 'ability' => 'calls.join',
-                'defaultVisible' => false, 'defaultSize' => 'sm',
+                'defaultVisible' => false, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'support_cases' => [
                 'title' => 'IT-Support', 'description' => 'Eigene Supportfaelle, mit Freigabe die des ganzen Teams.',
                 'icon' => 'life-buoy', 'section' => 'Kommunikation', 'ability' => null,
-                'defaultVisible' => true, 'defaultSize' => 'sm',
+                'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'marketing' => [
                 'title' => 'Marketing-Motive', 'description' => 'Motive, die auf Freigabe warten.',
                 'icon' => 'image', 'section' => 'Marketing',
                 'ability' => static fn (User $u) => $u->isAdmin(),
-                'defaultVisible' => false, 'defaultSize' => 'sm',
+                'defaultVisible' => false, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
             'system_status' => [
                 'title' => 'Systemzustand', 'description' => 'Version, Umgebung, Datenbank, Speicher.',
                 'icon' => 'server', 'section' => 'System',
                 'ability' => static fn (User $u) => $u->canViewSystemDashboard(),
-                'defaultVisible' => false, 'defaultSize' => 'lg',
+                'defaultVisible' => false, 'defaultSize' => 'lg', 'defaultRows' => 2,
             ],
         ];
     }
@@ -166,7 +166,7 @@ final class WidgetRegistry
     }
 
     /**
-     * @return array<string, array{title:string, description:string, icon:string, section:string, ability:string|\Closure|null, defaultVisible:bool, defaultSize:'sm'|'lg'}>
+     * @return array<string, array{title:string, description:string, icon:string, section:string, ability:string|\Closure|null, defaultVisible:bool, defaultSize:'sm'|'lg', defaultRows:1|2}>
      */
     public static function availableFor(User $user): array
     {
