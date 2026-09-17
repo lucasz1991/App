@@ -29,6 +29,10 @@ final class OperationsNavigation
 
     public static function status(string $status): string
     {
+        if (in_array($status, ['draft', 'open', 'filled'], true)) {
+            return ['draft' => 'Entwurf', 'open' => 'Offen', 'filled' => 'Besetzt'][$status];
+        }
+
         return ['new' => 'Neu', 'verified' => 'Geprüft', 'offered' => 'Angebot', 'accepted' => 'Zugesagt', 'converted' => 'Beauftragt', 'duplicate' => 'Dublette', 'pending' => 'In Prüfung', 'approved' => 'Freigegeben', 'rejected' => 'Abgelehnt', 'revoked' => 'Widerrufen', 'withdrawn' => 'Zurückgezogen', 'running' => 'Läuft', 'paused' => 'Pause', 'completed' => 'Erfasst', 'submitted' => 'Zur Prüfung', 'returned' => 'Korrektur', 'requested' => 'Antwort offen', 'confirmed' => 'Bestätigt', 'declined' => 'Abgelehnt', 'cancelled' => 'Storniert'][$status] ?? $status;
     }
 

@@ -14,8 +14,8 @@
         <h2>Meine Zeitmeldungen</h2>
         <x-tables.toolbar title="Zeitraum" id="personal-time-filters">
             <x-slot:bulk><x-ui.buttons.button-basic wire:click="exportOwnTimes" wire:loading.attr="disabled">CSV-Zeitnachweis</x-ui.buttons.button-basic></x-slot:bulk>
-            <x-operations.field label="Von" model="timeFrom" type="date" />
-            <x-operations.field label="Bis" model="timeUntil" type="date" />
+            <div><x-ui.forms.label for="my-time-from" value="Von" /><x-ui.forms.date-field id="my-time-from" wire:model.live="timeFrom" aria-label="Meine Zeiten von" /></div>
+            <div><x-ui.forms.label for="my-time-until" value="Bis" /><x-ui.forms.date-field id="my-time-until" wire:model.live="timeUntil" aria-label="Meine Zeiten bis" /></div>
         </x-tables.toolbar>
         @if($manualAssignments->isNotEmpty())
             <x-ui.buttons.button-basic wire:click="openForm('manual')">Zeit nachtragen</x-ui.buttons.button-basic><x-operations.modal wire:model="manualOpen" title="Zeit nachtragen"><form wire:submit="saveManual" class="ops-form">

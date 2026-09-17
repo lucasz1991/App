@@ -4,8 +4,10 @@ namespace App\Livewire\Operations;
 
 use App\Models\WorkTimeEntry;
 use App\Models\WorkTimeExport;
+use App\Services\Operations\PayrollReferenceService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\ReportingPeriod;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -137,12 +139,21 @@ class TimeReview extends Component
         return response()->streamDownload(fn () => print ($csv), 'RailTime-Zeiten-'.$export->public_id.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
+    public function downloadPayroll(int $id, PayrollReferenceService $service)
+    {
+        $this->access();
+        $export = WorkTimeExport::findOrFail($id);
+        $csv = $service->csv($export, auth()->user());
+
+        return response()->streamDownload(fn () => print ($csv), 'RailTime-Lohnuebergabe-'.$export->public_id.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     public function render()
     {
         $this->access();
         $period = function ($query) {
             if ($this->from && $this->until) {
-                \App\Support\Operations\ReportingPeriod::apply($query, $this->from, $this->until);
+                ReportingPeriod::apply($query, $this->from, $this->until);
             }
         };
 

@@ -91,6 +91,12 @@ class Orders extends Component
         $this->formOpen = true;
     }
 
+    #[On('operations-plan-changed')]
+    public function refreshPlan(): void
+    {
+        $this->ensureAdmin();
+    }
+
     public function editOrder(int $orderId): void
     {
         $this->ensureAdmin();

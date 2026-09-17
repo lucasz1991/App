@@ -5,6 +5,7 @@ namespace App\Services\Operations;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
 use App\Models\Order;
+use App\Models\OrderDemand;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
@@ -90,6 +91,13 @@ class ShiftSchedulingService
             $persistedShift->fill($attributes);
             $persistedShift->status = $shiftStatus;
             $persistedShift->updated_by = $actor->getKey();
+            if ($persistedShift->order_demand_id && $shiftStatus !== ShiftStatus::Cancelled) {
+                $demand = OrderDemand::findOrFail($persistedShift->order_demand_id);
+                if ($demand->status !== 'active' || $persistedShift->order_id !== $demand->order_id || $persistedShift->role_name !== $demand->role_name
+                    || $startsAt->lt($demand->starts_at) || $endsAt->gt($demand->ends_at)) {
+                    throw ValidationException::withMessages(['workflow' => 'Dienst muss zu Auftrag, Tätigkeit und Zeitraum des verknüpften Bedarfs passen.']);
+                }
+            }
             if ($native && $persistedShift->exists && $shiftStatus !== ShiftStatus::Cancelled) {
                 app(DutyActivityService::class)->validateSections($persistedShift);
             }

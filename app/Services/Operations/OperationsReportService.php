@@ -47,7 +47,7 @@ class OperationsReportService
         }
     }
 
-    private function csv(array $headers, array $rows): string
+    public function csv(array $headers, array $rows): string
     {
         $stream = fopen('php://temp', 'w+');
         fwrite($stream, "\xEF\xBB\xBF");

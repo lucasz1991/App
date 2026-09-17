@@ -1,4 +1,4 @@
-<div class="rt-shift-plan space-y-4" data-operations-shift-management>
+<div class="rt-shift-plan min-w-0 space-y-4" data-operations-shift-management>
     <header class="rt-calendar-header">
         <div class="rt-calendar-heading">
             <div><h2 class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</h2><p class="rt-calendar-timezone">{{ $displayTimezone }}</p></div>
@@ -15,7 +15,7 @@
                 ['value'=>'day','label'=>'Tagesübersicht','icon'=>'fa-calendar-day'],
                 ['value'=>'staffing','label'=>'Besetzung','icon'=>'fa-users'],
                 ['value'=>'orders','label'=>'Leistungen','icon'=>'fa-briefcase'],
-                ['value'=>'timeline','label'=>'Mitarbeiter-Zeitleiste','icon'=>'fa-chart-gantt'],
+                ['value'=>'timeline','label'=>'Mitarbeiter-Zeitleiste','icon'=>'fa-clock'],
             ]" />
         </div>
     </header>

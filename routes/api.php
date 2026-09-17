@@ -3,12 +3,14 @@
 use App\Http\Controllers\Api\DeviceArtifactDownloadController;
 use App\Http\Controllers\Api\DeviceDesktopClientController;
 use App\Http\Controllers\Api\DeviceProviderWebhookController;
-use App\Http\Controllers\Api\OutlookAddinBootstrapController;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\OperationsController;
+use App\Http\Controllers\Api\OutlookAddinBootstrapController;
+use App\Http\Middleware\OperationsApi;
+use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1/operations')->name('api.operations.')->middleware([\App\Http\Middleware\OperationsApi::class, 'auth:sanctum', 'throttle:60,1'])->group(function () {
+Route::prefix('v1/operations')->name('api.operations.')->middleware([OperationsApi::class, 'auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('me/times', [OperationsController::class, 'ownTimes']);
+    Route::get('me/schedule', [OperationsController::class, 'schedule']);
     Route::get('me/absences', [OperationsController::class, 'ownAbsences']);
     Route::post('me/absences', [OperationsController::class, 'requestAbsence']);
     Route::post('me/absences/{id}/withdraw', [OperationsController::class, 'withdrawAbsence'])->whereNumber('id');
@@ -22,6 +24,7 @@ Route::prefix('v1/operations')->name('api.operations.')->middleware([\App\Http\M
     Route::get('absences.csv', [OperationsController::class, 'absenceCsv']);
     Route::post('absences/{id}/review', [OperationsController::class, 'reviewAbsence'])->whereNumber('id');
     Route::get('exports', [OperationsController::class, 'exports']);
+    Route::get('exports/{publicId}/payroll.csv', [OperationsController::class, 'payrollCsv'])->whereUuid('publicId');
     Route::post('exports', [OperationsController::class, 'exportTimes']);
     Route::get('exports/{publicId}', [OperationsController::class, 'download'])->whereUuid('publicId')->name('exports.show');
 });

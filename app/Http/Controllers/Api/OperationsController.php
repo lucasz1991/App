@@ -7,15 +7,32 @@ use App\Models\AbsenceRequest;
 use App\Models\WorkTimeEntry;
 use App\Models\WorkTimeExport;
 use App\Services\Operations\OperationsReportService;
+use App\Services\Operations\PayrollReferenceService;
 use App\Services\Operations\PersonnelWorkflowService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\Operations\OperationsApiAccess as Access;
+use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\ReportingPeriod;
 use Illuminate\Http\Request;
 
 class OperationsController extends Controller
 {
-    public function ownTimes(Request $request) { return $this->times($request, true); }
+    public function schedule(Request $request)
+    {
+        $actor = Access::authorize($request, 'operations:own:read');
+        $data = $this->filters($request, false);
+        [$from, $until] = ReportingPeriod::bounds($data['from'], $data['until']);
+        abort_if($from->diffInDays($until) > 32, 422, 'Dienstabruf auf 31 Tage begrenzen.');
+        $assignments = app(PersonalSchedule::class)->assignments($actor, $from, $until);
+
+        return ['data' => $assignments->map(fn ($assignment) => ['id' => $assignment->id, 'shift_id' => $assignment->shift_id, 'plan_revision' => $assignment->plan_revision, 'status' => $assignment->status->value,
+            'title' => $assignment->shift->title, 'starts_at' => $assignment->shift->starts_at->toIso8601String(), 'ends_at' => $assignment->shift->ends_at->toIso8601String(), 'timezone' => $assignment->shift->timezone])->values()];
+    }
+
+    public function ownTimes(Request $request)
+    {
+        return $this->times($request, true);
+    }
 
     public function times(Request $request, bool $own = false)
     {
@@ -29,7 +46,10 @@ class OperationsController extends Controller
         return $query->orderBy('id')->paginate($data['per_page'] ?? 50)->through(fn ($entry) => $this->time($entry));
     }
 
-    public function ownAbsences(Request $request) { return $this->absences($request, true); }
+    public function ownAbsences(Request $request)
+    {
+        return $this->absences($request, true);
+    }
 
     public function absences(Request $request, bool $own = false)
     {
@@ -47,6 +67,7 @@ class OperationsController extends Controller
     public function requestAbsence(Request $request, PersonnelWorkflowService $service)
     {
         $actor = Access::authorize($request, 'operations:own:write');
+
         // Service validation, overlap locks and ownership are shared with Livewire.
         return response()->json(['data' => $this->absence($service->requestAbsence($actor, $request->all()))], 201);
     }
@@ -140,9 +161,17 @@ class OperationsController extends Controller
     public function absenceCsv(Request $request, OperationsReportService $service)
     {
         $actor = Access::authorize($request, 'operations:absences:read');
+        $request->validate(['employee_id' => 'prohibited']);
         $data = $this->filters($request, true);
 
         return response($service->absences($actor, $data['from'], $data['until'], $data['status'] ?? 'all', $data['kind'] ?? 'all'))->header('Content-Type', 'text/csv; charset=UTF-8')->header('Content-Disposition', 'attachment; filename="RailTime-Abwesenheiten.csv"');
+    }
+
+    public function payrollCsv(Request $request, string $publicId, PayrollReferenceService $service)
+    {
+        $actor = Access::authorize($request, 'operations:times:export');
+
+        return response($service->csv(WorkTimeExport::where('public_id', $publicId)->firstOrFail(), $actor))->header('Content-Type', 'text/csv; charset=UTF-8')->header('Content-Disposition', 'attachment; filename="RailTime-Lohnuebergabe-'.$publicId.'.csv"');
     }
 
     private function filters(Request $request, bool $absence): array

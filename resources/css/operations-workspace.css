@@ -143,7 +143,11 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 /* Body als Flex-Spalte, damit ein .widget-footer (siehe unten) sich per
    margin-top:auto IMMER an den unteren Kartenrand legt statt je nach
    Inhaltsmenge unterschiedlich hoch mitten in der Karte zu enden. */
-.widget-card-body { min-width:0; min-height:0; flex:1 1 auto; overflow-y:auto; display:flex; flex-direction:column; }
+/* overflow:hidden statt auto - der Body selbst soll NICHT scrollen (sonst
+   koennte der Footer aus dem sichtbaren Bereich rutschen). Stattdessen
+   scrollt bei zu viel Inhalt .widget-detail intern (siehe dort), der
+   Footer bleibt dank margin-top:auto immer sichtbar am unteren Rand. */
+.widget-card-body { min-width:0; min-height:0; flex:1 1 auto; overflow:hidden; display:flex; flex-direction:column; }
 .widget-card-controls { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
 .widget-card-controls button { display:flex; align-items:center; justify-content:center; min-width:32px; min-height:32px; border-radius:7px; color:var(--ops-muted); background:transparent; }
 .widget-card-controls button:hover { background:var(--ops-platform); color:var(--ops-ink); }
@@ -202,7 +206,13 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 /* Detailbereich (Liste/Diagramm unterhalb des Primaerwerts) - ein
    einheitlicher Abstand statt der bisherigen, von Widget zu Widget
    verschiedenen style="margin-top:...". */
-.widget-detail { margin-top:14px; }
+/* min-height:0 erlaubt dem Flex-Item, unter seine Inhaltsgroesse zu
+   schrumpfen (Default waere min-height:auto = nie kleiner als der
+   Inhalt) - erst dadurch greift overflow-y:auto ueberhaupt, wenn eine
+   Liste laenger ist als der verbleibende Platz vor dem Footer. Bei kurzen
+   Inhalten (Donut-Zeile, Segmentbalken, Sparkline) hat das keinen
+   sichtbaren Effekt, da dort nie gescrollt werden muss. */
+.widget-detail { margin-top:14px; min-height:0; overflow-y:auto; }
 
 /* Fusszeile: IMMER der letzte Baustein im (jetzt als Flex-Spalte
    aufgebauten) .widget-card-body - margin-top:auto schiebt sie an den

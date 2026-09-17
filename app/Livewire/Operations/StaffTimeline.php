@@ -91,6 +91,6 @@ class StaffTimeline extends Component
             })];
         });
 
-        return view('livewire.operations.staff-timeline', compact('users','rows','days','zone'));
+        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone'));
     }
 }

@@ -1,4 +1,4 @@
-<div class="space-y-4">
+<div class="min-w-0 space-y-4">
 <x-operations.feedback />
 @if($module === 'rules')
 <div class="flex justify-end"><x-ui.buttons.button-basic mode="primary" wire:click="createRules">Neues Regelprofil</x-ui.buttons.button-basic></div>
@@ -14,7 +14,7 @@
 @else
 @if($module === 'absences')
 <header class="ops-toolbar"><h2>Urlaub & Abwesenheiten</h2><x-ui.buttons.multi-toggle id="absence-view" label="Abwesenheitsansicht" :value="$absenceView" action="setAbsenceView" :options="[['value'=>'list','label'=>'Liste','icon'=>'fa-table-list'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar-days']]" /></header>
-<div class="grid gap-3 sm:grid-cols-2"><x-operations.field label="Von" model="from" type="date" /><x-operations.field label="Bis" model="until" type="date" /></div>
+<div class="grid gap-3 sm:grid-cols-2"><div><x-ui.forms.label for="absence-period-from" value="Von" /><x-ui.forms.date-field id="absence-period-from" wire:model.live="from" aria-label="Abwesenheiten von" /></div><div><x-ui.forms.label for="absence-period-until" value="Bis" /><x-ui.forms.date-field id="absence-period-until" wire:model.live="until" aria-label="Abwesenheiten bis" /></div></div>
 @endif
 <x-tables.toolbar title="Filter" id="personnel-filters">
 <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" /></x-slot:search>

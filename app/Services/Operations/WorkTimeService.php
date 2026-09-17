@@ -226,7 +226,7 @@ class WorkTimeService
             }
             $export = WorkTimeExport::create(['public_id' => (string) Str::uuid(), 'created_by' => $actor->id, 'schema_version' => 1, 'created_at' => now()->utc()]);
             foreach ($entries as $entry) {
-                $export->items()->create(['work_time_entry_id' => $entry->id, 'revision' => $entry->revision, 'snapshot' => $this->values($entry) + ['employee' => $entry->user->name]]);
+                $export->items()->create(['work_time_entry_id' => $entry->id, 'revision' => $entry->revision, 'snapshot' => $this->values($entry) + ['employee' => $entry->user->name, 'employee_id' => $entry->user_id, 'payroll_reference' => app(PayrollReferenceService::class)->snapshot($entry->user_id)]]);
             }
             app(OperationsAuditService::class)->record($export, $actor, 'time.exported', ['entry_ids' => $ids, 'schema_version' => 1]);
 

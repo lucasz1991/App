@@ -7,12 +7,14 @@ use App\Models\EmployeeQualification;
 use App\Models\QualificationType;
 use App\Models\ShiftAssignment;
 use App\Models\WorkTimeEntry;
+use App\Services\Operations\OperationsReportService;
 use App\Services\Operations\PersonnelWorkflowService;
 use App\Services\Operations\PlanChangeService;
 use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\PersonalSchedule;
+use App\Support\Operations\ReportingPeriod;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
@@ -61,7 +63,7 @@ class MyWork extends Component
         $this->resetPage('timesPage');
     }
 
-    public function exportOwnTimes(\App\Services\Operations\OperationsReportService $service)
+    public function exportOwnTimes(OperationsReportService $service)
     {
         $this->access();
         $csv = $service->ownTimes(auth()->user(), $this->timeFrom, $this->timeUntil);
@@ -87,7 +89,7 @@ class MyWork extends Component
     #[Locked]
     public ?int $correctingRevision = null;
 
-    public array $correction = [];
+    public array $correction = ['starts_at' => '', 'ends_at' => '', 'pause_minutes' => 0, 'note' => ''];
 
     public array $absence = ['kind' => 'vacation', 'starts_at' => '', 'ends_at' => '', 'timezone' => 'Europe/Berlin', 'note' => ''];
 
@@ -343,7 +345,7 @@ class MyWork extends Component
         abort_unless(in_array($this->tab, ['today', 'schedule', 'time', 'records', 'absences'], true), 404);
         $timeQuery = WorkTimeEntry::where('user_id', auth()->id());
         if ($this->tab === 'time' && $this->timeFrom && $this->timeUntil) {
-            \App\Support\Operations\ReportingPeriod::apply($timeQuery, $this->timeFrom, $this->timeUntil);
+            ReportingPeriod::apply($timeQuery, $this->timeFrom, $this->timeUntil);
         }
         abort_unless(in_array($this->viewMode, ['day', 'week', 'month', 'list'], true), 404);
         $anchor = $this->anchor();

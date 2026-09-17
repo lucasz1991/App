@@ -8,9 +8,11 @@ use App\Models\OperationsRuleProfile;
 use App\Models\QualificationType;
 use App\Models\Shift;
 use App\Services\Operations\OperationsAuditService;
+use App\Services\Operations\OperationsReportService;
 use App\Services\Operations\PersonnelWorkflowService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
+use App\Support\Operations\ReportingPeriod;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -44,13 +46,22 @@ class PersonnelReview extends Component
         $this->absenceView = $view;
     }
 
-    public function updatedFrom(): void { $this->resetPage(); }
+    public function updatedFrom(): void
+    {
+        $this->resetPage();
+    }
 
-    public function updatedUntil(): void { $this->resetPage(); }
+    public function updatedUntil(): void
+    {
+        $this->resetPage();
+    }
 
-    public function updatedAbsenceKind(): void { $this->resetPage(); }
+    public function updatedAbsenceKind(): void
+    {
+        $this->resetPage();
+    }
 
-    public function exportAbsences(\App\Services\Operations\OperationsReportService $service)
+    public function exportAbsences(OperationsReportService $service)
     {
         $this->access();
         abort_unless($this->module === 'absences', 403);
@@ -177,7 +188,7 @@ class PersonnelReview extends Component
         if ($this->module === 'absences') {
             $this->validate(['absenceKind' => 'in:all,vacation,unavailable,other', 'absenceView' => 'in:list,calendar']);
             if ($this->from && $this->until) {
-                \App\Support\Operations\ReportingPeriod::apply($query, $this->from, $this->until, true);
+                ReportingPeriod::apply($query, $this->from, $this->until, true);
             }
             $query->when($this->absenceKind !== 'all', fn ($q) => $q->where('kind', $this->absenceKind));
         }

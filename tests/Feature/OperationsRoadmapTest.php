@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Livewire\Operations\DutyActivity;
+use App\Livewire\Operations\MyWork;
 use App\Livewire\Operations\OrderDemands;
+use App\Livewire\Operations\PayrollReferences;
 use App\Livewire\Operations\PersonnelReview;
 use App\Livewire\Operations\ShiftSeriesPlanner;
 use App\Livewire\Operations\StaffTimeline;
@@ -11,6 +13,7 @@ use App\Livewire\Operations\TimeReview;
 use App\Models\AbsenceRequest;
 use App\Models\Customer;
 use App\Models\DutyReport;
+use App\Models\EmployeePayrollReference;
 use App\Models\EmployeeQualification;
 use App\Models\OperationsRuleProfile;
 use App\Models\Order;
@@ -22,7 +25,10 @@ use App\Models\ShiftSeries;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Services\Operations\DutyActivityService;
+use App\Services\Operations\OperationsReportService;
 use App\Services\Operations\OrderDemandService;
+use App\Services\Operations\PayrollReferenceService;
+use App\Services\Operations\PersonnelWorkflowService;
 use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\ShiftSchedulingService;
@@ -52,6 +58,8 @@ class OperationsRoadmapTest extends TestCase
         $this->buildMinimalRailTimeSchema();
         (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
         (require database_path('migrations/2026_09_17_180000_create_operations_planning_extensions.php'))->up();
+        (require database_path('migrations/2026_09_17_190000_create_employee_payroll_references.php'))->up();
+        (require database_path('migrations/2019_12_14_000001_create_personal_access_tokens_table.php'))->up();
         $this->travelTo(CarbonImmutable::parse('2027-05-12T07:00:00+02:00'));
         $this->admin = User::factory()->create(['role' => 'admin', 'status' => true]);
         $this->employee = User::factory()->create(['role' => 'staff', 'status' => true]);
@@ -194,7 +202,7 @@ class OperationsRoadmapTest extends TestCase
         $shift = $this->shift();
         $assignment = ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $this->employee->id, 'status' => 'confirmed', 'assigned_by' => $this->admin->id]);
 
-        return WorkTimeEntry::create(['shift_assignment_id' => $assignment->id, 'user_id' => $this->employee->id, 'status' => 'submitted', 'timezone' => 'Europe/Berlin', 'starts_at' => CarbonImmutable::parse('2027-05-13T08:00:00+02:00')->addDays($offset), 'ends_at' => CarbonImmutable::parse('2027-05-13T16:00:00+02:00')->addDays($offset), 'pause_seconds' => 1800, 'plan_snapshot' => ['title' => 'Zeitprüfung QA', 'starts_at' => CarbonImmutable::parse('2027-05-13T06:00:00Z')->addDays($offset)->toIso8601String(), 'ends_at' => CarbonImmutable::parse('2027-05-13T14:00:00Z')->addDays($offset)->toIso8601String(), 'planned_break_minutes' => 30]]);
+        return WorkTimeEntry::create(['shift_assignment_id' => $assignment->id, 'user_id' => $this->employee->id, 'status' => 'submitted', 'timezone' => 'Europe/Berlin', 'starts_at' => CarbonImmutable::parse('2027-05-13T08:00:00+02:00')->addDays($offset), 'ends_at' => CarbonImmutable::parse('2027-05-13T16:00:00+02:00')->addDays($offset), 'pause_seconds' => 1800, 'plan_snapshot' => ['title' => 'Zeitprüfung QA', 'order_number' => $this->order->order_number, 'starts_at' => CarbonImmutable::parse('2027-05-13T06:00:00Z')->addDays($offset)->toIso8601String(), 'ends_at' => CarbonImmutable::parse('2027-05-13T14:00:00Z')->addDays($offset)->toIso8601String(), 'planned_break_minutes' => 30]]);
     }
 
     public function test_time_comparison_uses_instants_not_timezone_string_and_batch_is_atomic(): void
@@ -258,7 +266,7 @@ class OperationsRoadmapTest extends TestCase
         $entry = $this->timeEntry();
         Livewire::actingAs($this->admin)->test(TimeReview::class)->set('selected', [$entry->id])->call('prepareBatch')->assertSet('batchOpen', true)->assertSee('Auswahl freigeben')->call('reviewBatch', true)->assertSet('batchOpen', false);
         Livewire::actingAs($this->employee)->test(ShiftSeriesPlanner::class)->assertForbidden();
-        Livewire::actingAs($this->employee)->test(OrderDemands::class,['orderId' => $this->order->id])->assertForbidden();
+        Livewire::actingAs($this->employee)->test(OrderDemands::class, ['orderId' => $this->order->id])->assertForbidden();
     }
 
     public function test_additive_migration_rolls_back_without_removing_original_data(): void
@@ -266,8 +274,207 @@ class OperationsRoadmapTest extends TestCase
         $shift = $this->shift();
         (require database_path('migrations/2026_09_17_180000_create_operations_planning_extensions.php'))->down();
         $this->assertFalse(Schema::hasTable('shift_templates'));
-        $this->assertFalse(Schema::hasColumn('shifts','order_demand_id'));
-        $this->assertSame($shift->id,Shift::first()->id);
-        $this->assertSame(1,Order::count());
+        $this->assertFalse(Schema::hasColumn('shifts', 'order_demand_id'));
+        $this->assertSame($shift->id, Shift::first()->id);
+        $this->assertSame(1, Order::count());
+    }
+
+    private function api(User $user, array $scopes): void
+    {
+        config(['operations.api_enabled' => true]);
+        $token = $user->createToken('Test only', $scopes, now()->addDay());
+        app('auth')->forgetGuards();
+        $this->withHeader('Authorization', 'Bearer '.$token->plainTextToken);
+    }
+
+    public function test_api_requires_explicit_scope_active_verified_user_and_feature_activation(): void
+    {
+        $url = '/api/v1/operations/times?from=2027-05-01&until=2027-05-31';
+        config(['operations.api_enabled' => true]);
+        $this->getJson($url)->assertUnauthorized();
+        $this->api($this->admin, ['operations:times:read']);
+        config(['operations.api_enabled' => false]);
+        $this->getJson($url)->assertStatus(503);
+        config(['operations.api_enabled' => true]);
+        $this->api($this->admin, ['*']);
+        $this->getJson($url)->assertForbidden();
+        $this->api($this->employee, ['operations:times:read']);
+        $this->getJson($url)->assertForbidden();
+        $this->api($this->admin, ['operations:times:read']);
+        $this->getJson($url)->assertOk()->assertHeader('Cache-Control', 'no-store, private');
+        $this->admin->update(['status' => false]);
+        app('auth')->forgetGuards();
+        $this->getJson($url)->assertForbidden();
+    }
+
+    public function test_api_own_queries_cannot_read_foreign_times_or_sensitive_notes(): void
+    {
+        $entry = $this->timeEntry();
+        $entry->update(['note' => 'PRIVATE-REASON']);
+        $other = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $this->api($other, ['operations:own:read']);
+        $this->getJson('/api/v1/operations/me/times?from=2027-05-01&until=2027-05-31&employee_id='.$this->employee->id)->assertOk()->assertJsonCount(0, 'data');
+        $this->api($this->employee, ['operations:own:read']);
+        $this->getJson('/api/v1/operations/me/times?from=2027-05-01&until=2027-05-31')->assertOk()->assertJsonPath('data.0.id', $entry->id)->assertDontSee('PRIVATE-REASON')->assertJsonMissingPath('data.0.note');
+        $this->getJson('/api/v1/operations/me/times?from=2027-05-01&until=2029-05-31')->assertUnprocessable();
+        $this->postJson('/api/v1/operations/me/absences', [])->assertForbidden();
+    }
+
+    public function test_api_absence_request_review_cancellation_and_csv_use_shared_rules(): void
+    {
+        $this->api($this->employee, ['operations:own:write']);
+        $response = $this->postJson('/api/v1/operations/me/absences', ['kind' => 'vacation', 'starts_at' => '2027-06-01T00:00', 'ends_at' => '2027-06-05T00:00', 'timezone' => 'Europe/Berlin', 'note' => 'PRIVATE-ABSENCE', 'user_id' => $this->admin->id])->assertCreated()->assertJsonPath('data.employee_id', $this->employee->id);
+        $id = $response->json('data.id');
+        $this->api($this->admin, ['operations:absences:review', 'operations:absences:read']);
+        $this->postJson('/api/v1/operations/absences/'.$id.'/review', ['revision' => 1, 'action' => 'approve'])->assertOk()->assertJsonPath('data.status', 'approved');
+        $this->getJson('/api/v1/operations/absences.csv?from=2027-06-01&until=2027-06-30')->assertOk()->assertDontSee('PRIVATE-ABSENCE')->assertSee('approved');
+        $this->postJson('/api/v1/operations/absences/'.$id.'/review', ['revision' => 2, 'action' => 'cancel', 'note' => 'Urlaub verschoben'])->assertOk()->assertJsonPath('data.status', 'cancelled');
+        $this->postJson('/api/v1/operations/absences/'.$id.'/review', ['revision' => 1, 'action' => 'approve'])->assertUnprocessable();
+    }
+
+    public function test_absence_review_shows_conflicts_and_calendar_never_shows_private_notes(): void
+    {
+        $shift = $this->shift();
+        app(ShiftAssignmentService::class)->assign($shift, $this->employee, $this->admin);
+        $absence = app(PersonnelWorkflowService::class)->requestAbsence($this->employee, ['kind' => 'vacation', 'starts_at' => '2027-05-13T00:00', 'ends_at' => '2027-05-14T00:00', 'timezone' => 'Europe/Berlin', 'note' => 'PRIVATE-NOTE']);
+        Livewire::actingAs($this->admin)->test(PersonnelReview::class, ['module' => 'absences'])->call('openDetails', $absence->id)->assertSee('Umzuplanende Dienste')->assertViewHas('absenceConflicts', fn ($c) => $c->count() === 1)->call('decide', $absence->id, 1, 'approve')->assertHasErrors('workflow');
+        Livewire::actingAs($this->admin)->test(StaffTimeline::class, ['from' => '2027-05-13', 'until' => '2027-05-14', 'absencesOnly' => true])->assertSee('Urlaub')->assertDontSee('PRIVATE-NOTE')->assertDontSee('Testdienst');
+    }
+
+    public function test_api_clock_is_idempotent_and_blocks_foreign_employee(): void
+    {
+        $shift = $this->shift();
+        $assignment = app(ShiftAssignmentService::class)->assign($shift, $this->employee, $this->admin);
+        app(PlanPublicationService::class)->publish($shift, 1, $this->admin);
+        app(PlanPublicationService::class)->respond($assignment->id, 1, true, $this->employee);
+        $this->travelTo(CarbonImmutable::parse('2027-05-13T08:00:00+02:00'));
+        $this->api($this->employee, ['operations:own:write']);
+        $payload = ['assignment_id' => $assignment->id, 'plan_revision' => 1, 'event_key' => (string) Str::uuid()];
+        $id = $this->postJson('/api/v1/operations/me/times/start', $payload)->assertCreated()->json('data.id');
+        $this->postJson('/api/v1/operations/me/times/start', $payload)->assertCreated()->assertJsonPath('data.id', $id);
+        $this->travelTo(CarbonImmutable::parse('2027-05-13T12:00:00+02:00'));
+        $this->postJson('/api/v1/operations/me/times/'.$id.'/events', ['revision' => 1, 'action' => 'pause', 'event_key' => (string) Str::uuid()])->assertOk()->assertJsonPath('data.status', 'paused');
+        $other = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $this->api($other, ['operations:own:write']);
+        $this->postJson('/api/v1/operations/me/times/'.$id.'/events', ['revision' => 2, 'action' => 'stop', 'event_key' => (string) Str::uuid()])->assertNotFound();
+        $this->assertSame(1, WorkTimeEntry::count());
+    }
+
+    public function test_export_snapshots_payroll_mapping_and_is_not_silently_reassigned(): void
+    {
+        $entry = $this->timeEntry();
+        $entry->update(['status' => 'approved']);
+        $service = app(PayrollReferenceService::class);
+        $ref = ['employer_reference' => 'RT', 'personnel_number' => '00017', 'external_employee_reference' => 'lex-staff-17'];
+        $service->save($this->employee->id, null, $ref, $this->admin);
+        $export = app(WorkTimeService::class)->export([$entry->id], $this->admin);
+        $service->save($this->employee->id, 1, array_merge($ref, ['personnel_number' => '99999']), $this->admin);
+        $csv = $service->csv($export, $this->admin);
+        $this->assertStringContainsString('00017', $csv);
+        $this->assertStringNotContainsString('99999', $csv);
+        $this->assertStringContainsString('7.500000', $csv);
+        $this->api($this->admin, ['operations:times:export']);
+        $this->getJson('/api/v1/operations/exports/'.$export->public_id.'/payroll.csv')->assertOk()->assertSee('railtime.payroll-handoff.v1');
+        $this->postJson('/api/v1/operations/exports', ['ids' => [$entry->id]])->assertUnprocessable();
+    }
+
+    public function test_personal_csv_is_period_and_owner_scoped_and_protects_formulas(): void
+    {
+        $entry = $this->timeEntry();
+        $plan = $entry->plan_snapshot;
+        $plan['title'] = '=DANGEROUS()';
+        $entry->update(['plan_snapshot' => $plan]);
+        $report = app(OperationsReportService::class);
+        $csv = $report->ownTimes($this->employee, '2027-05-01', '2027-05-31');
+        $this->assertStringContainsString("'=DANGEROUS()", $csv);
+        $this->assertStringNotContainsString('DANGEROUS', $report->ownTimes($this->employee, '2027-06-01', '2027-06-30'));
+        $other = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $this->assertStringNotContainsString('DANGEROUS', $report->ownTimes($other, '2027-05-01', '2027-05-31'));
+    }
+
+    public function test_payroll_handoff_marks_month_boundary_without_splitting_time(): void
+    {
+        $entry = $this->timeEntry();
+        $entry->update(['status' => 'approved', 'starts_at' => CarbonImmutable::parse('2027-05-31T22:00:00+02:00'), 'ends_at' => CarbonImmutable::parse('2027-06-01T06:00:00+02:00')]);
+        $service = app(PayrollReferenceService::class);
+        $service->save($this->employee->id, null, ['employer_reference' => 'RT', 'personnel_number' => '00017', 'external_employee_reference' => null], $this->admin);
+        $export = app(WorkTimeService::class)->export([$entry->id], $this->admin);
+        $csv = $service->csv($export, $this->admin);
+        $this->assertStringContainsString('Monatswechsel prüfen', $csv);
+        $this->assertStringContainsString('2027-05-31T22:00:00+02:00', $csv);
+        $this->assertStringContainsString('2027-06-01T06:00:00+02:00', $csv);
+        $this->assertSame(1, $export->items()->count());
+    }
+
+    public function test_historical_export_without_payroll_mapping_keeps_standard_csv_available(): void
+    {
+        $entry = $this->timeEntry();
+        $entry->update(['status' => 'approved']);
+        $export = app(WorkTimeService::class)->export([$entry->id], $this->admin);
+        $this->api($this->admin, ['operations:times:export']);
+        $this->getJson('/api/v1/operations/exports/'.$export->public_id)->assertOk();
+        $this->getJson('/api/v1/operations/exports/'.$export->public_id.'/payroll.csv')->assertUnprocessable()->assertJsonValidationErrors('workflow');
+    }
+
+    public function test_payroll_reference_modal_and_date_filters_render(): void
+    {
+        $entry = $this->timeEntry();
+        Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'time')->assertSet('correction.starts_at', '')->assertSet('correction.ends_at', '')->assertHasNoErrors();
+        Livewire::actingAs($this->admin)->test(PayrollReferences::class)->call('edit', $this->employee->id)->set('form', ['employer_reference' => 'RT', 'personnel_number' => '00018', 'external_employee_reference' => ''])->call('save')->assertHasNoErrors()->assertSet('open', true)->assertSee('00018');
+        Livewire::actingAs($this->admin)->test(TimeReview::class)->set('from', '2027-06-01')->set('until', '2027-06-30')->assertViewHas('entries', fn ($entries) => $entries->isEmpty());
+        Livewire::actingAs($this->admin)->test(PersonnelReview::class, ['module' => 'absences'])->call('setAbsenceView', 'calendar')->assertSee('Zeitfenster nach Mitarbeiter');
+        Livewire::actingAs($this->employee)->test(PayrollReferences::class)->assertForbidden();
+    }
+
+    public function test_expired_revoked_and_unverified_api_credentials_are_rejected(): void
+    {
+        config(['operations.api_enabled' => true]);
+        $url = '/api/v1/operations/me/times?from=2027-05-01&until=2027-05-31';
+        $token = $this->employee->createToken('expired', ['operations:own:read'], now()->subMinute());
+        $this->withHeader('Authorization', 'Bearer '.$token->plainTextToken)->getJson($url)->assertUnauthorized();
+        $token = $this->employee->createToken('revoked', ['operations:own:read'], now()->addDay());
+        $token->accessToken->delete();
+        app('auth')->forgetGuards();
+        $this->withHeader('Authorization', 'Bearer '.$token->plainTextToken)->getJson($url)->assertUnauthorized();
+        $this->employee->forceFill(['email_verified_at' => null])->save();
+        $this->api($this->employee, ['operations:own:read']);
+        $this->getJson($url)->assertForbidden();
+    }
+
+    public function test_api_schedule_uses_published_snapshot_not_draft_changes(): void
+    {
+        $shift = $this->shift();
+        app(ShiftAssignmentService::class)->assign($shift, $this->employee, $this->admin);
+        app(PlanPublicationService::class)->publish($shift, 1, $this->admin);
+        app(ShiftSchedulingService::class)->save($shift->fresh(), ['title' => 'SECRET DRAFT', 'expected_revision' => 1], $this->admin);
+        $this->api($this->employee, ['operations:own:read']);
+        $this->getJson('/api/v1/operations/me/schedule?from=2027-05-01&until=2027-05-31')->assertOk()->assertJsonPath('data.0.title', 'Testdienst')->assertDontSee('SECRET DRAFT');
+    }
+
+    public function test_payroll_mapping_is_unique_and_revision_guarded(): void
+    {
+        $service = app(PayrollReferenceService::class);
+        $ref = ['employer_reference' => 'RT', 'personnel_number' => '001', 'external_employee_reference' => null];
+        $service->save($this->employee->id, null, $ref, $this->admin);
+        $other = User::factory()->create(['role' => 'staff', 'status' => true]);
+        try {
+            $service->save($other->id, null, $ref, $this->admin);
+            $this->fail();
+        } catch (ValidationException) {
+        }
+        $this->assertSame(1, EmployeePayrollReference::count());
+        $this->expectException(ValidationException::class);
+        $service->save($this->employee->id, null, $ref, $this->admin);
+    }
+
+    public function test_batch_review_refuses_own_time_and_demand_shift_cannot_change_role(): void
+    {
+        $entry = $this->timeEntry();
+        $entry->update(['user_id' => $this->admin->id]);
+        Livewire::actingAs($this->admin)->test(TimeReview::class)->set('selected', [$entry->id])->call('prepareBatch')->assertHasErrors('workflow');
+        $demand = app(OrderDemandService::class)->save($this->order->id, null, null, ['role_name' => 'Tf', 'required_staff' => 1, 'starts_at' => '2027-05-14T08:00', 'ends_at' => '2027-05-14T16:00', 'timezone' => 'Europe/Berlin'], $this->admin);
+        $shift = app(OrderDemandService::class)->generate($demand->id, 1, 30, $this->admin);
+        $this->expectException(ValidationException::class);
+        app(ShiftSchedulingService::class)->save($shift, ['role_name' => 'Andere Tätigkeit', 'expected_revision' => 1], $this->admin);
     }
 }
