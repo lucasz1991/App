@@ -91,11 +91,180 @@ test('haelt das Popover im sichtbaren Bereich und kippt es bei Platzmangel nach 
         field.panelStyle.split(';').filter(Boolean).map((part) => part.split(':')),
     );
 
-    assert.equal(style.width, '304px');
-    // 300 + 304 waere rechts draussen — die linke Kante wird zurueckgezogen.
-    assert.equal(Number.parseInt(style.left, 10) + 304 <= 390, true);
+    assert.equal(style.width, '336px');
+    // Der Anker rechts darf das breitere Wochenraster nicht hinausschieben.
+    assert.equal(Number.parseInt(style.left, 10) + 336 <= 390, true);
     // Unterhalb bleiben nur 100 px, oberhalb 700 — also nach oben kippen.
     assert.equal(Number.parseInt(style.top, 10) < 700, true);
 
     delete global.window;
+});
+
+test('uebernimmt initialen ISO-Wert aus Livewire-Konfiguration', () => {
+    const field = dateField({ value: '2026-09-17', locale: 'de-DE' });
+    field.$refs = {};
+    field.syncFromValue();
+
+    assert.equal(field.value, '2026-09-17');
+    assert.equal(field.display, '17.09.2026');
+});
+
+test('externe Serveraktionen aktualisieren Anzeige und Kalender auch bei offenem Popover', () => {
+    const field = build({}, '2026-09-17');
+    const watchers = new Map();
+    field.$watch = (key, callback) => watchers.set(key, callback);
+    field.init();
+    field.open = true;
+    field.value = '2026-10-02';
+    watchers.get('value')();
+
+    assert.equal(field.display, '02.10.2026');
+    assert.equal(field.viewMonth, 9);
+    assert.equal(field.focusedIso, '2026-10-02');
+    assert.equal(field.open, true);
+    field.open = false;
+    field.value = '2026-08-31';
+    watchers.get('value')();
+    assert.equal(field.display, '31.08.2026');
+    assert.equal(field.viewMonth, 7);
+});
+
+test('clearable=false verhindert Leeren ueber Fussaktion und Texteingabe', () => {
+    const field = build({ clearable: false }, '2026-09-17');
+    field.clear();
+    assert.equal(field.value, '2026-09-17');
+    field.display = '';
+    field.commitTyped();
+    assert.equal(field.value, '2026-09-17');
+    assert.equal(field.display, '17.09.2026');
+});
+
+test('readonly und disabled gelten fuer Tastatur, Oeffnen und Auswahl', () => {
+    for (const locked of ['readonly', 'disabled']) {
+        const field = build({ [locked]: true }, '2026-09-17');
+        field.display = '18.09.2026';
+        field.commitTyped();
+        field.select('2026-09-18');
+        field.clear();
+        field.openPanel();
+        field.shiftMonth(1);
+        assert.equal(field.value, '2026-09-17');
+        assert.equal(field.viewMonth, 8);
+        assert.equal(field.open, false);
+    }
+});
+
+test('Monats- und Jahresspruenge erhalten den Tag soweit der Zielmonat ihn besitzt', () => {
+    const field = build({}, '2028-01-31');
+    field.shiftMonth(1);
+    assert.equal(field.focusedIso, '2028-02-29');
+    field.shiftMonth(12);
+    assert.equal(field.focusedIso, '2029-02-28');
+    assert.equal(field.value, '2028-01-31', 'Navigation allein darf keine Auswahl speichern.');
+});
+
+test('Pfeiltasten sowie Home und End verwenden die laufende Kalenderwoche', () => {
+    const field = build({}, '2026-09-17');
+    const press = (key) => field.handleGridKeydown({ key, preventDefault() {} });
+    press('Home');
+    assert.equal(field.focusedIso, '2026-09-14');
+    press('End');
+    assert.equal(field.focusedIso, '2026-09-20');
+    press('ArrowRight');
+    assert.equal(field.focusedIso, '2026-09-21');
+    press('ArrowUp');
+    assert.equal(field.focusedIso, '2026-09-14');
+    assert.equal(field.value, '2026-09-17');
+});
+
+test('PageUp/PageDown und Umschalt wechseln Monate und Jahre mit Fokus', () => {
+    const field = build({}, '2028-02-29');
+    field.handleGridKeydown({ key: 'PageDown', shiftKey: true, preventDefault() {} });
+    assert.equal(field.focusedIso, '2029-02-28');
+    field.handleGridKeydown({ key: 'PageUp', preventDefault() {} });
+    assert.equal(field.focusedIso, '2029-01-28');
+});
+
+test('Tastaturnavigation bleibt auf auswaehlbaren Tagen innerhalb min/max', () => {
+    const field = build({ min: '2026-09-16', max: '2026-09-18' }, '2026-09-17');
+    field.handleGridKeydown({ key: 'Home', preventDefault() {} });
+    assert.equal(field.focusedIso, '2026-09-16');
+    field.handleGridKeydown({ key: 'End', preventDefault() {} });
+    assert.equal(field.focusedIso, '2026-09-18');
+    assert.equal(field.canShiftMonth(1), false);
+    assert.equal(field.canShiftMonth(-1), false);
+    assert.equal(field.days.filter(day => day.focused && !day.disabled).length, 1);
+    assert.equal(field.isSelectable('2026-02-31'), false);
+});
+
+test('Escape schliesst von jeder Popoverzone und stellt den Ausloeserfokus wieder her', () => {
+    const field = build({}, '2026-09-17');
+    let focused = 0;
+    let prevented = 0;
+    field.returnFocusTo = { focus: () => focused++ };
+    field.open = true;
+    field.handlePanelKeydown({ key: 'Escape', preventDefault: () => prevented++, stopPropagation() {} });
+    assert.equal(field.open, false);
+    assert.equal(focused, 1);
+    assert.equal(prevented, 1);
+});
+
+test('auch ein niedriger oder durch Bildschirmtastatur begrenzter Viewport wird eingehalten', () => {
+    const field = build({}, '2026-09-17');
+    global.window = { innerWidth: 390, innerHeight: 844, visualViewport: { offsetLeft: 0, offsetTop: 100, width: 320, height: 240 } };
+    field.$refs.anchor = { getBoundingClientRect: () => ({ left: 280, top: 200, bottom: 244 }) };
+    field.position();
+    const style = Object.fromEntries(field.panelStyle.split(';').filter(Boolean).map(part => part.split(':')));
+    const top = Number.parseInt(style.top, 10);
+    const height = Number.parseInt(style['max-height'], 10);
+    assert.equal(style.width, '304px');
+    assert.ok(top >= 108);
+    assert.ok(top + height <= 332);
+    assert.ok(height < 220, 'Kein Mindesthoehen-Fallback darf den mobilen Viewport sprengen.');
+    delete global.window;
+});
+
+test('liefert sechs semantische Wochenreihen und markiert die Auswahl genau einmal', () => {
+    const field = build({}, '2026-09-17');
+    assert.equal(field.weeks.length, 6);
+    assert.ok(field.weeks.every(week => week.length === 7));
+    assert.equal(field.days.filter(day => day.selected).length, 1);
+});
+
+test('Fokus ausserhalb schliesst ohne Fokusdiebstahl und entfernt globale Listener', () => {
+    const field = build({}, '2026-09-17');
+    const listeners = new Map();
+    const removed = [];
+    const host = {
+        addEventListener: (name, callback) => listeners.set(name, callback),
+        removeEventListener: (name) => removed.push(name),
+    };
+    global.window = { ...host, visualViewport: { ...host } };
+    global.document = { ...host };
+    field.$refs.anchor = { contains: () => false };
+    field.$refs.panel = { contains: () => false };
+    field.returnFocusTo = { focus: () => assert.fail('Aussenfokus darf nicht zum Ausloeser zurueckspringen.') };
+    field.open = true;
+    field.bindReposition();
+    listeners.get('focusin')({ target: {} });
+    assert.equal(field.open, false);
+    assert.equal(field.repositionHandler, null);
+    assert.equal(field.focusHandler, null);
+    assert.ok(removed.includes('focusin'));
+    assert.equal(removed.filter(name => name === 'resize').length, 2);
+    delete global.window;
+    delete global.document;
+});
+
+test('Tab verlaesst den Popover am Rand zum Ausloeser', () => {
+    const field = build({}, '2026-09-17');
+    const first = { getClientRects: () => [1] };
+    const last = { getClientRects: () => [1] };
+    let returned = false;
+    field.$refs.panel = { querySelectorAll: () => [first, last] };
+    field.returnFocusTo = { focus: () => { returned = true; } };
+    field.open = true;
+    field.handlePanelKeydown({ key: 'Tab', target: last, preventDefault() {} });
+    assert.equal(field.open, false);
+    assert.equal(returned, true);
 });

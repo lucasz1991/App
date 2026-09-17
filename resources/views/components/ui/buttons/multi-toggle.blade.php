@@ -31,7 +31,7 @@
         ];
     }
     $enabledOptions = collect($normalizedOptions)->reject(fn ($option) => $option['disabled']);
-    $tabValue = $enabledOptions->firstWhere('value', $selectedValue)['value'] ?? $enabledOptions->first()['value'] ?? null;
+    $tabValue = $enabledOptions->first(fn ($option) => $option['value'] === $selectedValue)['value'] ?? $enabledOptions->first()['value'] ?? null;
 @endphp
 
 <div

@@ -63,6 +63,16 @@ class MultiToggleComponentTest extends TestCase
         $this->assertSame(0, $allDisabled->query('//button[@tabindex="0"]')->length);
     }
 
+    public function test_numeric_looking_values_are_compared_strictly_for_selected_focus(): void
+    {
+        $xpath = $this->xpath($this->render([
+            ['value' => '01', 'label' => 'Erste Ansicht', 'icon' => 'fa-calendar-day'],
+            ['value' => 1, 'label' => 'Zweite Ansicht', 'icon' => 'fa-calendar-week'],
+        ], ['value' => 1]));
+        $this->assertSame(1, $xpath->query('//button[@data-toggle-value="1" and @aria-pressed="true" and @tabindex="0"]')->length);
+        $this->assertSame(1, $xpath->query('//button[@data-toggle-value="01" and @aria-pressed="false" and @tabindex="-1"]')->length);
+    }
+
     public function test_invalid_action_is_inert_and_malformed_or_duplicate_options_are_omitted(): void
     {
         $html = $this->render(attributes: ['action' => 'switchView();alert(1)']);

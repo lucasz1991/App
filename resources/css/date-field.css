@@ -268,9 +268,9 @@ body[data-mode='dark'] .rt-ui-date-panel .rt-ui-date-action--accent {
 }
 
 @media (max-width: 359px) {
-    .rt-ui-date-panel .rt-ui-date-panel__header { grid-template-columns: 36px 36px minmax(0, 1fr) 36px 36px; padding-inline: 6px; }
-    .rt-ui-date-panel .rt-ui-date-nav { width: 36px; }
     .rt-ui-date-panel .rt-ui-date-panel__body { padding-inline: 6px; }
+    .rt-ui-date-panel .rt-ui-date-panel__week,
+    .rt-ui-date-panel .rt-ui-date-panel__weekdays { gap: 1px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
