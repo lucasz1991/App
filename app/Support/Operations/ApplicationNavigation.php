@@ -18,8 +18,8 @@ final class ApplicationNavigation
         if ($ready && OperationsAccess::isEmployee($user)) {
             $add('Mein Arbeitsplatz', 'Mein Arbeitstag', 'operations.mine', 'clock');
         }
-        $add('Mein Arbeitsplatz', 'Meine Geräte', 'devices.mine', 'smartphone');
-        $add('Mein Arbeitsplatz', 'Profil', 'profile.show', 'user', [], false);
+        $add('Persönlich', 'Meine Geräte', 'devices.mine', 'smartphone');
+        $add('Persönlich', 'Profil', 'profile.show', 'user', [], false);
 
         $icons = ['inquiries' => 'inbox', 'orders' => 'clipboard', 'shift-management' => 'clock', 'calendar' => 'calendar', 'customers' => 'briefcase', 'qualifications' => 'award', 'absences' => 'calendar', 'times' => 'check-circle', 'exports' => 'download', 'rules' => 'shield'];
         foreach ($ready ? OperationsNavigation::forUser($user) : [] as $slug => $module) {
@@ -56,7 +56,31 @@ final class ApplicationNavigation
             $add('Dateien', 'Download-Center', 'files', 'download-cloud');
         }
 
-        return array_replace(array_fill_keys(['Übersicht', 'Mein Arbeitsplatz', 'Management', 'Kommunikation', 'Marketing', 'Dateien', 'System'], []), $sections);
+        return array_replace(array_fill_keys(['Übersicht', 'Mein Arbeitsplatz', 'Management', 'Kommunikation', 'Marketing', 'Dateien', 'System', 'Persönlich'], []), $sections);
+    }
+
+    public static function managementGroups(array $links): array
+    {
+        $groups = [
+            'Disposition' => ['icon' => 'calendar', 'links' => []],
+            'Personal' => ['icon' => 'users', 'links' => []],
+            'Zeiten & Freigaben' => ['icon' => 'clock', 'links' => []],
+            'Stammdaten & Geräte' => ['icon' => 'briefcase', 'links' => []],
+        ];
+        foreach ($links as $link) {
+            $module = $link['parameters']['module'] ?? null;
+            $group = match (true) {
+                in_array($module, ['qualifications', 'absences'], true),
+                in_array($link['route'], ['admin.employees', 'employees.index'], true) => 'Personal',
+                in_array($module, ['times', 'exports'], true) => 'Zeiten & Freigaben',
+                $module === 'customers',
+                in_array($link['route'], ['admin.devices', 'devices.index'], true) => 'Stammdaten & Geräte',
+                default => 'Disposition',
+            };
+            $groups[$group]['links'][] = $link;
+        }
+
+        return array_filter($groups, fn (array $group) => count($group['links']) > 0);
     }
 
     public static function active(array $link): bool

@@ -481,7 +481,7 @@ body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'] .rt-e
 /* -------------------------------------------------------------------------- */
 
 .rt-shell-sidebar {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     /*
      * Kein Abstand an der Schale: Läge er hier, begänne der Scrollbereich erst
@@ -510,7 +510,18 @@ body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'] .rt-e
 .rt-shell-sidebar > .rt-sidebar-scroll {
     flex: 1 1 0%;
     min-height: 0;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    max-height: 100%;
+}
+
+.rt-shell-sidebar .rt-sidebar-scroll .simplebar-content-wrapper {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+}
+
+.rt-shell-sidebar > .rt-sidebar-scroll[data-simplebar='init'] {
+    overflow: hidden;
 }
 
 .rt-sidebar-footer {
