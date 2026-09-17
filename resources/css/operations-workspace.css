@@ -8,6 +8,7 @@
 .rt-ops .ops-muted { color:var(--ops-muted); font-size:12px; line-height:1.6; }
 .rt-ops .ops-kicker { color:var(--ops-muted); font-size:11px; text-transform:uppercase; letter-spacing:.12em; font-weight:650; }
 .ops-stack { display:grid; gap:20px; min-width:0; }
+@media(min-width:851px) { .ops-module-navigation--mobile-only { display:none; } }
 .rt-ops .ops-module-mobile { display:none; }
 @media(max-width:850px) { .rt-ops .ops-module-desktop { display:none; } .rt-ops .ops-module-mobile { display:grid; } }
 .ops-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }

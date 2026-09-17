@@ -1,7 +1,7 @@
 <div class="space-y-4">
 <x-tables.toolbar title="Filter" id="inquiry-filters">
 <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Anfrage oder Kunde suchen" /></x-slot:search>
-<x-tables.filter-field label="Vorgänge" for="inquiry-status-filter"><x-ui.forms.select id="inquiry-status-filter" wire:model.live="filter" aria-label="Anfragen filtern"><option value="active">Offene Vorgänge</option><option value="all">Alle Vorgänge</option><option value="email">E-Mail</option><option value="phone">Telefon</option><option value="portal">Portal</option><option value="manual">Manuell</option></x-ui.forms.select></x-tables.filter-field>
+<x-tables.filter-field label="Vorgänge" for="inquiry-status-filter"><x-ui.forms.select id="inquiry-status-filter" wire:model.live="filter" aria-label="Anfragen filtern"><option value="active" data-icon-class="far fa-inbox">Offene Vorgänge</option><option value="all" data-icon-class="far fa-layer-group">Alle Vorgänge</option><option value="email" data-icon-class="far fa-envelope">E-Mail</option><option value="phone" data-icon-class="far fa-phone">Telefon</option><option value="portal" data-icon-class="far fa-globe">Portal</option><option value="manual" data-icon-class="far fa-pen-to-square">Manuell</option></x-ui.forms.select></x-tables.filter-field>
 </x-tables.toolbar>
 <x-operations.feedback />
 <x-tables.table :columns="[['label'=>'Anfrage','key'=>'title','width'=>'2fr'],['label'=>'Nummer','key'=>'number'],['label'=>'Kunde','key'=>'customer.company_name'],['label'=>'Eingang','key'=>'channel'],['label'=>'Status','key'=>'status']]" :items="$inquiries" detail-action="select" row-view="components.tables.rows.operations.record" empty="Keine Anfragen." />

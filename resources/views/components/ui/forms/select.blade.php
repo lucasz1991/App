@@ -13,6 +13,7 @@
             'value' => '',
             'label' => (string) $placeholder,
             'icon' => null,
+            'iconClass' => 'far fa-list-ul',
             'disabled' => false,
             'selected' => false,
         ];
@@ -34,6 +35,7 @@
                 'value' => $option->hasAttribute('value') ? $option->getAttribute('value') : $label,
                 'label' => $label,
                 'icon' => $option->hasAttribute('data-icon') ? $option->getAttribute('data-icon') : null,
+                'iconClass' => $option->getAttribute('data-icon-class') ?: 'far fa-list-ul',
                 'disabled' => $option->hasAttribute('disabled'),
                 'selected' => $option->hasAttribute('selected'),
             ];
@@ -67,6 +69,9 @@
         get selectedIcon() {
             const current = this.options.find(option => String(option.value) === String(this.selected ?? ''));
             return current?.icon || null;
+        },
+        get selectedIconClass() {
+            return this.options.find(option => String(option.value) === String(this.selected ?? ''))?.iconClass || 'far fa-list-ul';
         },
         choose(option) {
             if (!option || option.disabled) return;
@@ -163,6 +168,7 @@
                 class="rt-ui-control rt-ui-field-control group flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-left text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-[border-color,box-shadow,background-color,color] duration-200 ease-rt-spring hover:border-rt-accent/50 hover:shadow-rt-sm focus:border-rt-accent disabled:cursor-not-allowed disabled:bg-rt-surface-muted disabled:text-rt-soft disabled:opacity-60 disabled:shadow-none sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text dark:hover:border-rt-dark-accent dark:disabled:bg-rt-dark-canvas"
             >
                 <span class="flex min-w-0 flex-1 items-center gap-2.5">
+                    <i x-show="!selectedIcon" :class="selectedIconClass" class="w-5 shrink-0 text-center" aria-hidden="true"></i>
                     <img
                         x-show="selectedIcon"
                         x-cloak
@@ -184,7 +190,7 @@
                 id="{{ $listboxId }}"
                 role="listbox"
                 :aria-labelledby="@js($id)"
-                class="max-h-72 space-y-1 overflow-y-auto p-1.5"
+                class="rt-select-options space-y-1 overflow-y-auto p-1.5"
                 @keydown.arrow-down.prevent.stop="moveActive(1)"
                 @keydown.arrow-up.prevent.stop="moveActive(-1)"
                 @keydown.home.prevent.stop="activeIndex = 0; moveActive(0)"
@@ -208,6 +214,7 @@
                         class="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium outline-none transition focus:ring-2 focus:ring-inset focus:ring-rt-accent/35 disabled:cursor-not-allowed disabled:opacity-45 dark:focus:ring-rt-dark-accent/40"
                     >
                         <span class="flex h-5 w-7 shrink-0 items-center justify-center">
+                            <i x-show="!option.icon" :class="option.iconClass" aria-hidden="true"></i>
                             <img
                                 x-show="option.icon"
                                 :src="option.icon || ''"

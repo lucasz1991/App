@@ -29,7 +29,7 @@ final class MailDocumentDelivery
     {
         abort_unless($actor->isAdmin(), 403);
         abort_unless(self::available(), 409);
-        abort_unless(in_array($action, ['system', 'outlook', 'outlook-off', 'offer', 'hide'], true), 422);
+        abort_unless(in_array($action, ['system', 'outlook', 'outlook-off', 'offer', 'hide', 'withdraw'], true), 422);
 
         DB::transaction(function () use ($actor, $document, $action, $expectedHash, $expectedState): void {
             $slots = MailDocument::query()->where('kind', $document->kind->value)->orderBy('id')->lockForUpdate()->get();
@@ -41,7 +41,7 @@ final class MailDocumentDelivery
             if ($locked->published_at === null || $locked->publishedHtml() === null) {
                 throw ValidationException::withMessages(['delivery' => 'Zuerst einen geprüften Stand veröffentlichen. Ein Entwurf kann nicht zugeordnet werden.']);
             }
-            if (in_array($action, ['offer', 'hide'], true)) {
+            if (in_array($action, ['offer', 'hide', 'withdraw'], true)) {
                 abort_unless($locked->kind === MailDocumentKind::Template, 422);
             }
             if ($action === 'hide' && $locked->outlook_default) {
@@ -60,6 +60,7 @@ final class MailDocumentDelivery
                 'outlook-off' => ['outlook_default' => null],
                 'offer' => ['outlook_released' => true],
                 'hide' => ['outlook_released' => false],
+                'withdraw' => ['outlook_released' => false, 'outlook_default' => null],
             };
             if (in_array($action, ['system', 'outlook'], true)) {
                 $field = $action === 'system' ? 'is_active' : 'outlook_default';

@@ -52,11 +52,10 @@
                         <svg class="h-[18px] w-[18px] shrink-0 text-rt-muted dark:text-rt-dark-muted" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.005 11.19V12l6.998 4.042L19 12v-.81M5 16.15v.81L11.997 21l6.998-4.042v-.81M12.003 3 5.005 7.042l6.998 4.042L19 7.042 12.003 3Z" />
                         </svg>
-                        <span class="hidden whitespace-nowrap sm:inline">{{ __('app.bulk_actions') }}</span>
+                        <span class="sr-only">{{ __('app.bulk_actions') }}</span>
                         <span class="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-rt-red px-1.5 py-0.5 text-xs font-bold leading-none text-white">
                             {{ $count }}
                         </span>
-                        <i class="far fa-chevron-down text-xs text-rt-muted transition-transform dark:text-rt-dark-muted" :class="open && 'rotate-180'" aria-hidden="true"></i>
                     </button>
                 </x-slot:trigger>
 
@@ -65,5 +64,9 @@
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
         </div>
+    @else
+        <button type="button" disabled class="rt-table-bulk-trigger rt-table-bulk-icon" aria-label="{{ __('app.bulk_actions') }} – {{ $isEmpty ? 'Zuerst Einträge auswählen' : 'Keine Aktionen verfügbar' }}" title="{{ $isEmpty ? 'Zuerst Einträge auswählen' : 'Keine Aktionen verfügbar' }}">
+            <i class="far fa-layer-group" aria-hidden="true"></i>
+        </button>
     @endif
 </div>

@@ -226,12 +226,14 @@ class MailDocumentLibrary extends Component
         $this->admin();
         abort_unless(in_array($action, ['publish', 'default', 'withdraw', 'restore', 'delete'], true), 422);
         if (MailDocumentDelivery::available()) {
-            abort_unless(in_array($action, ['publish', 'restore', 'delete'], true), 422);
+            abort_unless(in_array($action, ['publish', 'restore', 'delete', 'withdraw'], true), 422);
         }
         $this->resetValidation();
         $document = $this->document($documentId);
         $this->assertCurrent($document, $expectedHash);
-        if (in_array($action, ['default', 'withdraw'], true)) {
+        if ($action === 'withdraw' && MailDocumentDelivery::available()) {
+            abort_unless($document->kind === MailDocumentKind::Template, 422);
+        } elseif (in_array($action, ['default', 'withdraw'], true)) {
             abort_unless((bool) $document->getAttribute('is_outlook_template'), 422);
         }
         $this->pending = [
@@ -242,6 +244,9 @@ class MailDocumentLibrary extends Component
             'kind' => $document->kind->value,
             'library' => $document->getAttribute('is_outlook_template') ? 'true' : 'false',
         ];
+        if ($action === 'withdraw' && MailDocumentDelivery::available()) {
+            $this->pending['delivery_token'] = app(MailDocumentDelivery::class)->token($document->kind);
+        }
         if ($action === 'restore') {
             $version = $document->versions()->where('public_id', $versionId)->firstOrFail();
             $this->pending['version'] = $version->public_id;
@@ -263,7 +268,9 @@ class MailDocumentLibrary extends Component
                 'delete' => $deletion->delete($document, $hash),
                 'publish' => $library->publish($actor, $document, $hash),
                 'default' => $library->setDefault($actor, $document, $hash),
-                'withdraw' => $library->withdraw($actor, $document, $hash),
+                'withdraw' => MailDocumentDelivery::available()
+                    ? app(MailDocumentDelivery::class)->change($actor, $document, 'withdraw', $hash, $this->pending['delivery_token'] ?? '')
+                    : $library->withdraw($actor, $document, $hash),
                 'restore' => $library->restoreDraft(
                     $actor,
                     $document,
@@ -282,7 +289,7 @@ class MailDocumentLibrary extends Component
             'delete' => '„'.$this->pending['name'].'“ wurde mit seinem Versionsverlauf gelöscht.',
             'restore' => 'Version '.$this->pending['revision'].' wurde als Entwurf wiederhergestellt. Die Freigabe bleibt unverändert.',
             'default' => 'Die Outlook-Standardvorlage wurde geändert. Systemmails bleiben unverändert.',
-            'withdraw' => 'Die Vorlage wird Mitarbeitenden nicht mehr zur Auswahl angeboten.',
+            'withdraw' => 'Die Outlook-Freigabe und eine mögliche Outlook-Standardzuordnung wurden zurückgenommen. Der Entwurf bleibt erhalten.',
             default => MailDocumentDelivery::available()
                 ? 'Stand veröffentlicht. Bestehende Zuordnungen bleiben erhalten; weitere Verwendungen findest du im Aktionsmenü der Zeile.'
                 : ($this->pending['library'] === 'true'
@@ -291,6 +298,12 @@ class MailDocumentLibrary extends Component
         };
         $this->pending = [];
         $this->confirmOpen = false;
+        if ($action === 'withdraw') {
+            $this->dispatch('mail-delivery-changed');
+        }
+        if ($action === 'delete' && $this->historyId === $document->public_id) {
+            $this->historyId = null;
+        }
         $this->dispatch('mail-document-library-changed');
     }
 

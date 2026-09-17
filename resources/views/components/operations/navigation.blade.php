@@ -1,5 +1,5 @@
 @props(['modules', 'current' => null])
-<div>
+<div @class(['ops-module-navigation', 'ops-module-navigation--mobile-only' => (bool) $current])>
     @if(!$current)
     <nav class="ops-tabs ops-module-desktop" aria-label="Arbeitsbereiche">
         @foreach($modules as $slug=>$item)<a href="{{ route('operations.workspace',$slug) }}" wire:navigate @if($slug === $current) aria-current="page" @endif>{{ $item['title'] }}</a>@endforeach

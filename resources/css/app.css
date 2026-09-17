@@ -6462,14 +6462,11 @@ html.rt-topbar-search-open body {
     --rt-table-border: rgba(91, 107, 130, 0.2);
     --rt-table-divider: rgba(125, 143, 168, 0.18);
     --rt-table-row-hover: rgba(228, 0, 43, 0.045);
-    padding: 0.375rem;
-    border: 1px solid var(--rt-table-border);
+    padding: 0;
+    border: 0;
     border-radius: 1.125rem !important;
-    background: linear-gradient(145deg, #edf1f6 0%, #fbfcfe 72%);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.96),
-        0 1px 2px rgba(15, 23, 42, 0.04),
-        0 18px 46px -34px rgba(15, 23, 42, 0.42) !important;
+    background: transparent;
+    box-shadow: none !important;
     isolation: isolate;
 }
 
@@ -6477,9 +6474,7 @@ html.rt-topbar-search-open body {
     position: relative;
     border-radius: 0.8125rem;
     background: rgba(255, 255, 255, 0.98);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.98),
-        0 0 0 1px rgba(215, 224, 234, 0.7);
+    box-shadow: none;
 }
 
 .rt-table-head {
@@ -6729,10 +6724,10 @@ html.rt-topbar-search-open body {
    Fassung und die innere Arbeitsflaeche bilden die doppelte Referenz-Surface;
    Alpine mountet weiterhin nur eine Filterinstanz pro Breakpoint. */
 .rt-table-toolbar {
-    @apply border-rt-border/70 bg-rt-surface;
+    background: transparent;
     position: relative;
     padding: 0;
-    border-width: 1px;
+    border-width: 0;
     border-radius: 1rem;
     box-shadow: none;
     isolation: isolate;
@@ -6769,6 +6764,7 @@ html.rt-topbar-search-open body {
 
 .rt-table-toolbar__heading,
 .rt-table-toolbar__actions {
+    margin-inline-start: auto;
     display: flex;
     min-width: 0;
     align-items: center;
@@ -6843,7 +6839,7 @@ html.rt-topbar-search-open body {
     flex-wrap: wrap;
     align-items: end;
     gap: 0.75rem;
-    padding: 1rem;
+    padding: 0;
 }
 
 .rt-table-toolbar__search-field {
@@ -7286,18 +7282,14 @@ body[data-mode='dark'] .rt-table-frame {
     --rt-table-border: rgba(128, 151, 181, 0.2);
     --rt-table-divider: rgba(88, 110, 139, 0.24);
     --rt-table-row-hover: rgba(255, 79, 112, 0.09);
-    background: linear-gradient(145deg, #1a2636, #0c1420);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.055),
-        0 20px 48px -34px rgba(0, 0, 0, 0.94) !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 html.dark .rt-table-core,
 body[data-mode='dark'] .rt-table-core {
     background: rgba(15, 24, 37, 0.98);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.045),
-        0 0 0 1px rgba(51, 65, 85, 0.78);
+    box-shadow: none;
 }
 
 html.dark .rt-table-head,
@@ -7390,7 +7382,7 @@ body[data-mode='dark'] .rt-table-frame [data-person-anchor-preview] img {
 
 html.dark .rt-table-toolbar,
 body[data-mode='dark'] .rt-table-toolbar {
-    @apply border-rt-dark-border/70 bg-rt-dark-surface;
+    background: transparent;
     box-shadow: none;
 }
 
@@ -7558,7 +7550,7 @@ body[data-mode='dark'] .rt-pagination [aria-current='page'] > span {
 }
 
 @media (max-width: 1023.98px) {
-    .rt-table-toolbar__body {
+.rt-table-toolbar__body {
         flex-wrap: wrap;
     }
 
@@ -7653,6 +7645,38 @@ body[data-mode='dark'] .rt-pagination [aria-current='page'] > span {
     }
 }
 
+.rt-select-options {
+    max-height: min(24rem, calc(100dvh - 2rem));
+}
+
+.rt-table-bulk-trigger.rt-table-bulk-icon,
+.rt-table-bulk .rt-table-bulk-trigger {
+    position: relative;
+    display: inline-flex;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 0.75rem;
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+}
+
+.rt-table-bulk-trigger:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.rt-table-bulk .rt-table-bulk-trigger > span:not(.sr-only) {
+    position: absolute;
+    top: 0;
+    right: 0;
+    pointer-events: none;
+}
+
 @media (max-width: 639px) {
     .rt-table-toolbar {
         padding: 0;
@@ -7663,7 +7687,7 @@ body[data-mode='dark'] .rt-pagination [aria-current='page'] > span {
     }
 
     .rt-table-toolbar__body {
-        padding: 0.75rem;
+        padding: 0;
     }
 
     .rt-table-toolbar__filters--mobile {
@@ -7675,7 +7699,7 @@ body[data-mode='dark'] .rt-pagination [aria-current='page'] > span {
     }
 
     .rt-table-frame {
-        padding: 0.25rem;
+        padding: 0;
         border-radius: 1rem !important;
     }
 

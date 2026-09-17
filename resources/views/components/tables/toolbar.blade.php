@@ -93,8 +93,7 @@
             </div>
         @endisset
 
-        @if ($hasBulk || $filterCount > 0 || $hasFilters)
-        <div class="rt-table-toolbar__actions" @if(!$hasBulk && $filterCount === 0) x-show="!desktopFilters" @endif>
+        <div class="rt-table-toolbar__actions">
             @if ($hasBulk)
                 <div class="rt-table-toolbar__bulk">
                     {{ $bulk }}
@@ -132,8 +131,12 @@
                     </button>
                 </template>
             @endif
+            @if (!$hasBulk || !str_contains((string) $bulk, 'data-tables-bulk'))
+                <button type="button" disabled aria-label="{{ __('app.bulk_actions') }} – keine Sammelaktionen verfügbar" title="Keine Sammelaktionen für diese Liste verfügbar" class="rt-table-bulk-trigger rt-table-bulk-icon" data-tables-bulk-unavailable>
+                    <i class="far fa-layer-group" aria-hidden="true"></i>
+                </button>
+            @endif
         </div>
-        @endif
 
         @if ($hasFilters)
             <template x-if="desktopFilters">

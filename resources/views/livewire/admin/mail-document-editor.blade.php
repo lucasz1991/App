@@ -2718,7 +2718,7 @@
                             if (control.matches('[data-mail-slot-delete]')) {
                                 dispatchConfirmation({
                                     title: 'Design-Slot löschen?',
-                                    message: `„${control.dataset.slotName || 'Dieser Entwurf'}“ und seine Versionshistorie werden gelöscht. Das aktive Design bleibt unverändert.`,
+                                    message: `„${control.dataset.slotName || 'Dieser Entwurf'}“ und seine Versionshistorie werden gelöscht. Die Outlook-Freigabe und die Outlook-Standardzuordnung einer Vorlage werden automatisch aufgehoben. Aktive Systemmail-Stände bleiben geschützt.`,
                                     confirmLabel: 'Design löschen',
                                     variant: 'destructive',
                                     action: () => withBusy(async () => {

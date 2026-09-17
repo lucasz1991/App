@@ -143,8 +143,8 @@
                                         @if (! $deliveryReady && $document['library'] && $document['released'] && ! $document['is_default'])
                                             <button type="button" role="menuitem" wire:click="prepareAction('default', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item" data-mail-library-default><i class="far fa-star" aria-hidden="true"></i>Als Outlook-Standard</button>
                                         @endif
-                                        @if (! $deliveryReady && $document['library'] && $document['released'])
-                                            <button type="button" role="menuitem" wire:click="prepareAction('withdraw', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item"><i class="far fa-eye-slash" aria-hidden="true"></i>Freigabe zurücknehmen</button>
+                                        @if (! $isSignature && ($deliveryReady || $document['library']) && ($document['employee_available'] || $document['outlook_default']))
+                                            <button type="button" role="menuitem" wire:click="prepareAction('withdraw', '{{ $document['id'] }}', '{{ $document['hash'] }}')" x-on:click="close()" class="rt-mail-library-menu__item" data-mail-library-withdraw><i class="far fa-eye-slash" aria-hidden="true"></i>Outlook-Freigabe zurückziehen</button>
                                         @endif
                                     @endif
                                     <div class="rt-mail-library-menu__divider" role="separator"></div>
@@ -167,7 +167,7 @@
                                             'outlook_replaced', 'delivery_outlook-off' => 'Outlook-Standard aufgehoben',
                                             'delivery_offer' => 'Im Add-in verfügbar',
                                             'delivery_hide' => 'Im Add-in ausgeblendet',
-                                            'imported' => 'Importiert', 'published' => 'Veröffentlicht', 'restored' => 'Wiederhergestellt', 'duplicated' => 'Dupliziert', 'created' => 'Angelegt', 'signature_assigned' => 'Signatur zugeordnet', 'signature_cleared' => 'Signaturzuordnung entfernt', 'outlook_default' => 'Outlook-Standard festgelegt', 'withdrawn' => 'Freigabe zurückgenommen', default => 'Gespeichert',
+                                            'imported' => 'Importiert', 'published' => 'Veröffentlicht', 'restored' => 'Wiederhergestellt', 'duplicated' => 'Dupliziert', 'created' => 'Angelegt', 'signature_assigned' => 'Signatur zugeordnet', 'signature_cleared' => 'Signaturzuordnung entfernt', 'outlook_default' => 'Outlook-Standard festgelegt', 'withdrawn', 'delivery_withdraw' => 'Outlook-Freigabe zurückgenommen', default => 'Gespeichert',
                                         };
                                         $isCurrent = hash_equals($document['hash'], (string) $version->content_hash);
                                     @endphp
@@ -254,9 +254,9 @@
                 @elseif ($pendingAction === 'default')
                     Diese freigegebene Vorlage wird bei neuen E-Mails, Antworten und Weiterleitungen in unterstützten Outlook-Clients automatisch oberhalb eingefügt. Vorhandener Text, zitierte Nachrichten und der Systemmail-Standard bleiben unverändert. Mobile Clients verwenden weiterhin die automatische Signatur.
                 @elseif ($pendingAction === 'withdraw')
-                    Mitarbeitende können diese Vorlage anschließend nicht mehr neu auswählen. Bereits eingefügte Inhalte und der gespeicherte Entwurf bleiben erhalten.
+                    Die Vorlage wird aus der Outlook-Auswahl entfernt und nicht mehr als Outlook-Standard eingefügt. Der Entwurf, sein Versionsverlauf und eine Verwendung für Systemmails bleiben erhalten.
                 @elseif ($pendingAction === 'delete')
-                    Der Entwurf und sein gesamter Versionsverlauf werden dauerhaft gelöscht. Aktive Systemmail-Stände, Outlook-Standards, freigegebene Vorlagen und zugeordnete Signaturen müssen zuerst abgelöst beziehungsweise getrennt werden. Diese Aktion kann nicht rückgängig gemacht werden.
+                    Der Entwurf und sein gesamter Versionsverlauf werden dauerhaft gelöscht. Eine Outlook-Freigabe und die Outlook-Standardzuordnung einer Vorlage werden dabei automatisch aufgehoben. Aktive Systemmail-Stände, die Outlook-Standardsignatur und noch zugeordnete Signaturen müssen zuerst abgelöst beziehungsweise getrennt werden. Diese Aktion kann nicht rückgängig gemacht werden.
                 @elseif ($deliveryReady)
                     Der gespeicherte Entwurf wird geprüft und als veröffentlichter Stand gespeichert. Bestehende Verwendungen erhalten diesen Stand. Es wird kein neuer Standard gewählt und keine neue Mitarbeitervorlage freigeschaltet. Diese Zuordnungen steuerst du getrennt über die Statussymbole oder das Aktionsmenü der Zeile.
                 @elseif (($pending['library'] ?? '') === 'true')

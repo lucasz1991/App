@@ -54,7 +54,7 @@
     Der aeussere rt-page-content besitzt das Seitenpadding. Hier liegen nur
     der Seitenkopf (Titel + Aktionen + Info-Knopf) und das Gesehen-Tracking.
 --}}
-<div {{ $attributes->class('rt-page-section space-y-4 p-0') }}>
+<div {{ $attributes->class('rt-page-section space-y-3 p-0') }}>
     @if (! is_null($title) || isset($actions))
         <x-ui.page-header
             :title="$title"

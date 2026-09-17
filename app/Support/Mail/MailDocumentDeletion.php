@@ -4,6 +4,7 @@ namespace App\Support\Mail;
 
 use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
+use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -12,9 +13,10 @@ final class MailDocumentDeletion
 {
     public function delete(MailDocument $document, string $expectedHash): MailDocument
     {
-        return DB::transaction(function () use ($document, $expectedHash): MailDocument {
+        $fallback = DB::transaction(function () use ($document, $expectedHash): MailDocument {
             $slots = MailDocument::query()
                 ->where('kind', $document->kind->value)
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
             $locked = $slots->firstWhere($document->getKeyName(), $document->getKey());
@@ -30,9 +32,9 @@ final class MailDocumentDeletion
                     'slot' => 'Das aktive, veröffentlichte Design kann nicht gelöscht werden. Aktiviere zuerst einen anderen Entwurf.',
                 ]);
             }
-            if ($locked->outlook_default || $locked->outlook_released || ($locked->isOutlookTemplate() && $locked->isPublished())) {
+            if ($locked->kind === MailDocumentKind::Signature && $locked->outlook_default) {
                 throw ValidationException::withMessages([
-                    'slot' => 'Bitte ziehe die Outlook-Freigabe zuerst in der Vorlagenübersicht zurück.',
+                    'slot' => 'Bitte wähle zuerst eine andere Outlook-Standardsignatur.',
                 ]);
             }
             if ($slots->count() <= 1) {
@@ -53,9 +55,17 @@ final class MailDocumentDeletion
             $fallback = $slots->first(fn (MailDocument $slot): bool => $slot->getKey() !== $locked->getKey() && $slot->isActive())
                 ?? $slots->first(fn (MailDocument $slot): bool => $slot->getKey() !== $locked->getKey());
             abort_unless($fallback instanceof MailDocument, 409);
+            // Deleting the row atomically removes its Outlook release and
+            // default assignment too; a separate withdrawal must not commit
+            // before the remaining deletion guards have succeeded.
             $locked->delete();
 
             return $fallback;
         });
+
+        app(PublishedMailDocumentSnapshotStore::class)->forget($document->kind);
+        app(OutlookAddinSnapshotRefreshScheduler::class)->scheduleAll();
+
+        return $fallback;
     }
 }
