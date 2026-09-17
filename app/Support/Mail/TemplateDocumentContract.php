@@ -68,7 +68,8 @@ final class TemplateDocumentContract
 
         if ($masterFragment === null
             || $documentFragment === null
-            || ! hash_equals($masterFragment, $documentFragment)
+            || (! hash_equals($masterFragment, $documentFragment)
+                && ! hash_equals(TemplateForwardingStyle::markFragment($masterFragment), $documentFragment))
             || substr_count($html, '{{ICON_RT_SRC}}') !== 1
             || substr_count($html, '{{ICON_RT_STILL_SRC}}') !== 1
             || $applicationSlot === false
