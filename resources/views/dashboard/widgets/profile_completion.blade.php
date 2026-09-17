@@ -1,9 +1,11 @@
-<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">
-    <span class="ops-muted">Vollständigkeit</span>
-    <span class="ops-kpi-val" style="font-size:20px;">{{ $data['completion'] }} %</span>
-</div>
-<div style="height:6px;border-radius:999px;background:var(--ops-platform);overflow:hidden;margin-top:8px;">
-    <div style="height:100%;border-radius:999px;background:var(--ops-signal);width:{{ max($data['completion'], 4) }}%;"></div>
+<div class="widget-stat">
+    <div class="widget-ring" style="--ring-pct:{{ $data['completion'] }};">
+        <span class="widget-ring-val">{{ $data['completion'] }}%</span>
+    </div>
+    <span>
+        <span class="ops-kpi-lbl">Profil-Vollständigkeit</span>
+        <span class="ops-muted">{{ $data['completion'] === 100 ? 'Vollständig ausgefüllt' : 'Noch nicht vollständig' }}</span>
+    </span>
 </div>
 @if($rows === 2)
     <ul style="margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px;">

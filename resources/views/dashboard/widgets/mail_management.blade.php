@@ -1,5 +1,10 @@
-<p class="ops-kpi-val" style="font-size:30px;">{{ $data['pending'] }}</p>
-<p class="ops-muted">Mails im Versand ausstehend</p>
+<div class="widget-stat">
+    <span class="ops-kpi-ico ops-tone-{{ $data['pending'] === 0 ? 'ok' : 'warn' }}"><i data-feather="send"></i></span>
+    <span>
+        <span class="ops-kpi-val">{{ $data['pending'] }}</span>
+        <span class="ops-kpi-lbl">Mails im Versand ausstehend</span>
+    </span>
+</div>
 @if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['recent'] as $mail)

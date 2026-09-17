@@ -1,5 +1,10 @@
-<p class="ops-kpi-val" style="font-size:30px;">{{ $data['active'] }}</p>
-<p class="ops-muted">aktive Kunden von {{ $data['total'] }} gesamt</p>
+<div class="widget-stat">
+    <span class="ops-kpi-ico ops-tone-brand"><i data-feather="briefcase"></i></span>
+    <span>
+        <span class="ops-kpi-val">{{ $data['active'] }}</span>
+        <span class="ops-kpi-lbl">aktive Kunden von {{ $data['total'] }} gesamt</span>
+    </span>
+</div>
 @if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['recent'] as $customer)

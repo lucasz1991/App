@@ -1,5 +1,10 @@
-<p class="ops-kpi-val" style="font-size:28px;">{{ $data['total'] }}</p>
-<p class="ops-muted">Dateien verfügbar</p>
+<div class="widget-stat">
+    <span class="ops-kpi-ico ops-tone-brand"><i data-feather="download-cloud"></i></span>
+    <span>
+        <span class="ops-kpi-val">{{ $data['total'] }}</span>
+        <span class="ops-kpi-lbl">Dateien verfügbar</span>
+    </span>
+</div>
 @if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['recent'] as $file)

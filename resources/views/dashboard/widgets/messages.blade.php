@@ -1,5 +1,10 @@
-<p class="ops-kpi-val" style="font-size:28px;">{{ $data['unread'] }}</p>
-<p class="ops-muted">ungelesen</p>
+<div class="widget-stat">
+    <span class="ops-kpi-ico ops-tone-{{ $data['unread'] === 0 ? 'ok' : 'warn' }}"><i data-feather="message-circle"></i></span>
+    <span>
+        <span class="ops-kpi-val">{{ $data['unread'] }}</span>
+        <span class="ops-kpi-lbl">ungelesen</span>
+    </span>
+</div>
 @if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['latest'] as $message)

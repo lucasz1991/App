@@ -1,5 +1,10 @@
-<p class="ops-kpi-val" style="font-size:28px;">{{ $data['thisWeek'] }}</p>
-<p class="ops-muted">Anrufe diese Woche</p>
+<div class="widget-stat">
+    <span class="ops-kpi-ico ops-tone-brand"><i data-feather="phone"></i></span>
+    <span>
+        <span class="ops-kpi-val">{{ $data['thisWeek'] }}</span>
+        <span class="ops-kpi-lbl">Anrufe diese Woche</span>
+    </span>
+</div>
 @if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['recent'] as $room)

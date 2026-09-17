@@ -1,12 +1,23 @@
 @if($data['stats']['available'])
-    <p class="ops-kpi-val" style="font-size:28px;">{{ $data['stats']['total'] }}</p>
-    <p class="ops-muted">Geräte in der Flotte</p>
+    @php($total = max(1, $data['stats']['total']))
+    <div class="widget-stat">
+        <span class="ops-kpi-ico ops-tone-{{ $data['stats']['attention'] > 0 ? 'warn' : 'ok' }}"><i data-feather="monitor"></i></span>
+        <span>
+            <span class="ops-kpi-val">{{ $data['stats']['total'] }}</span>
+            <span class="ops-kpi-lbl">Geräte in der Flotte</span>
+        </span>
+    </div>
     @if($rows === 2)
-        <dl class="ops-meta" style="margin-top:10px;">
-            <div><dt>Zugewiesen</dt><dd>{{ $data['stats']['assigned'] }}</dd></div>
-            <div><dt>Im Lager</dt><dd>{{ $data['stats']['inventory'] }}</dd></div>
-            <div><dt>Benötigt Aufmerksamkeit</dt><dd>{{ $data['stats']['attention'] }}</dd></div>
-        </dl>
+        <div class="widget-segment-bar" style="margin-top:14px;">
+            <span class="widget-segment-ok" style="width:{{ $data['stats']['assigned'] / $total * 100 }}%"></span>
+            <span class="widget-segment-neutral" style="width:{{ $data['stats']['inventory'] / $total * 100 }}%"></span>
+            <span class="widget-segment-warn" style="width:{{ $data['stats']['attention'] / $total * 100 }}%"></span>
+        </div>
+        <div class="widget-segment-legend">
+            <span><i class="widget-segment-ok"></i>Zugewiesen {{ $data['stats']['assigned'] }}</span>
+            <span><i class="widget-segment-neutral"></i>Im Lager {{ $data['stats']['inventory'] }}</span>
+            <span><i class="widget-segment-warn"></i>Aufmerksamkeit {{ $data['stats']['attention'] }}</span>
+        </div>
     @endif
     @if($data['href'])<a class="ops-link" href="{{ $data['href'] }}" wire:navigate style="margin-top:8px;display:inline-block;">Geräte & Lager öffnen →</a>@endif
 @else

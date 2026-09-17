@@ -1,5 +1,10 @@
-<p class="ops-kpi-val" style="font-size:28px;">{{ $data['open'] }}</p>
-<p class="ops-muted">{{ $data['scope'] === 'team' ? 'offene Fälle im Team' : 'eigene offene Fälle' }}</p>
+<div class="widget-stat">
+    <span class="ops-kpi-ico ops-tone-{{ $data['open'] === 0 ? 'ok' : 'warn' }}"><i data-feather="life-buoy"></i></span>
+    <span>
+        <span class="ops-kpi-val">{{ $data['open'] }}</span>
+        <span class="ops-kpi-lbl">{{ $data['scope'] === 'team' ? 'offene Fälle im Team' : 'eigene offene Fälle' }}</span>
+    </span>
+</div>
 @if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['cases'] as $case)

@@ -1,5 +1,10 @@
-<p class="ops-kpi-val" style="font-size:30px;">{{ $data['pending'] }}</p>
-<p class="ops-muted">Motive warten auf Freigabe</p>
+<div class="widget-stat">
+    <span class="ops-kpi-ico ops-tone-{{ $data['pending'] === 0 ? 'ok' : 'warn' }}"><i data-feather="image"></i></span>
+    <span>
+        <span class="ops-kpi-val">{{ $data['pending'] }}</span>
+        <span class="ops-kpi-lbl">Motive warten auf Freigabe</span>
+    </span>
+</div>
 @if($rows === 2)
     <div style="margin-top:10px;">
         @forelse($data['recent'] as $creative)

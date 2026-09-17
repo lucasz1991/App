@@ -56,7 +56,7 @@ class WidgetDataProvider
             'my_devices' => $this->myDevices($user),
             'profile_completion' => $this->profileCompletion($user),
             'operations_inquiries' => $this->operationsQueue(
-                'inquiries', 'Offene Anfragen',
+                'inquiries', 'Offene Anfragen', 'inbox',
                 OperationInquiry::whereNull('order_id')->whereNull('duplicate_of_id')->with('customer:id,company_name'),
                 $rows, fn (OperationInquiry $i) => ['title' => $i->title, 'meta' => $i->customer?->company_name, 'when' => $i->created_at],
             ),
@@ -65,17 +65,17 @@ class WidgetDataProvider
             'operations_next_shifts' => $this->operationsNextShifts($rows),
             'operations_customers' => $this->operationsCustomers($rows),
             'operations_qualifications' => $this->operationsQueue(
-                'qualifications', 'Nachweise prüfen',
+                'qualifications', 'Nachweise prüfen', 'award',
                 EmployeeQualification::where('status', 'pending')->with(['user:id,name', 'type:id,name']),
                 $rows, fn (EmployeeQualification $q) => ['title' => $q->user?->name, 'meta' => $q->type?->name, 'when' => $q->created_at],
             ),
             'operations_absences' => $this->operationsQueue(
-                'absences', 'Abwesenheiten prüfen',
+                'absences', 'Abwesenheiten prüfen', 'calendar',
                 AbsenceRequest::where('status', 'pending')->with('user:id,name'),
                 $rows, fn (AbsenceRequest $a) => ['title' => $a->user?->name, 'meta' => ucfirst($a->kind), 'when' => $a->created_at],
             ),
             'operations_times' => $this->operationsQueue(
-                'times', 'Zeiten prüfen',
+                'times', 'Zeiten prüfen', 'check-circle',
                 WorkTimeEntry::where('status', 'submitted')->with('user:id,name'),
                 $rows, fn (WorkTimeEntry $t) => ['title' => $t->user?->name, 'meta' => OperationsDateTime::duration($t->netSeconds()), 'when' => $t->submitted_at ?? $t->created_at],
             ),
@@ -171,10 +171,11 @@ class WidgetDataProvider
      * die konkrete Zeile (Titel/Nebeninfo/Zeitpunkt), da die vier Abfragen
      * unterschiedliche Spalten liefern.
      */
-    private function operationsQueue(string $slug, string $label, Builder $query, int $rows, \Closure $describe): array
+    private function operationsQueue(string $slug, string $label, string $icon, Builder $query, int $rows, \Closure $describe): array
     {
         return [
             'label' => $label,
+            'icon' => $icon,
             'count' => (clone $query)->count(),
             'items' => $rows === 2 ? (clone $query)->latest()->limit(4)->get()->map($describe) : collect(),
             'href' => route('operations.workspace', $slug),

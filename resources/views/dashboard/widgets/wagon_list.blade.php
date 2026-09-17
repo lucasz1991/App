@@ -16,8 +16,13 @@
         },
     }"
 >
-    <p class="ops-kpi-val" style="font-size:28px;" x-text="drafts.length"></p>
-    <p class="ops-muted">lokale Entwürfe auf diesem Gerät</p>
+    <div class="widget-stat">
+        <span class="ops-kpi-ico ops-tone-neutral"><i data-feather="list"></i></span>
+        <span>
+            <span class="ops-kpi-val" x-text="drafts.length"></span>
+            <span class="ops-kpi-lbl">lokale Entwürfe auf diesem Gerät</span>
+        </span>
+    </div>
     @if($rows === 2)
         <div style="margin-top:10px;" x-show="drafts.length" x-cloak>
             <template x-for="draft in drafts.slice(0, 3)" :key="draft.id">
