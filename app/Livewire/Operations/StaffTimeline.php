@@ -23,6 +23,15 @@ class StaffTimeline extends Component
 
     public string $search = '';
 
+    #[Locked]
+    public bool $absencesOnly = false;
+
+    #[Locked]
+    public string $absenceKind = 'all';
+
+    #[Locked]
+    public string $absenceStatus = 'all';
+
     public function updatedSearch(): void
     {
         $this->resetPage('staffPage');
@@ -30,7 +39,7 @@ class StaffTimeline extends Component
 
     public function render()
     {
-        OperationsAccess::authorize(auth()->user(), 'operations.manage');
+        OperationsAccess::authorize(auth()->user(), $this->absencesOnly ? 'operations.absences.review' : 'operations.manage');
         OperationsAccess::requireReady();
         $this->validate(['from' => 'required|date_format:Y-m-d', 'until' => 'required|date_format:Y-m-d|after_or_equal:from']);
         $zone = config('operations.display_timezone', 'Europe/Berlin');
@@ -39,8 +48,11 @@ class StaffTimeline extends Component
         abort_if($from->diffInDays($until) > 94, 422);
         $users = User::where('role', 'staff')->where(fn ($q) => $q->where('status', true)->orWhereIn('id', ShiftAssignment::blocking()->whereHas('shift', fn ($q) => $q->notCancelled()->during($from, $until))->select('user_id')))
             ->when(filled($this->search), fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))->orderBy('name')->paginate(12, ['id', 'name', 'status'], 'staffPage');
-        $assignments = ShiftAssignment::blocking()->whereIn('user_id', $users->pluck('id'))->whereHas('shift', fn ($q) => $q->notCancelled()->during($from, $until))->with('shift.order.customer')->get()->groupBy('user_id');
-        $absences = AbsenceRequest::whereIn('user_id', $users->pluck('id'))->whereIn('status', ['pending', 'approved'])->where('starts_at', '<', $until->utc())->where('ends_at', '>', $from->utc())->get()->groupBy('user_id');
+        $assignments = $this->absencesOnly ? collect() : ShiftAssignment::blocking()->whereIn('user_id', $users->pluck('id'))->whereHas('shift', fn ($q) => $q->notCancelled()->during($from, $until))->with('shift.order.customer')->get()->groupBy('user_id');
+        $absences = AbsenceRequest::whereIn('user_id', $users->pluck('id'))->whereIn('status', ['pending', 'approved'])
+            ->when($this->absencesOnly && $this->absenceKind !== 'all', fn ($q) => $q->where('kind', $this->absenceKind))
+            ->when($this->absencesOnly && $this->absenceStatus !== 'all', fn ($q) => $q->where('status', $this->absenceStatus))
+            ->where('starts_at', '<', $until->utc())->where('ends_at', '>', $from->utc())->get()->groupBy('user_id');
         $days = collect();
         for ($day = $from; $day->lt($until); $day = $day->addDay()) {
             $days->push($day);
@@ -57,7 +69,7 @@ class StaffTimeline extends Component
                 }
                 foreach ($absences->get($user->id, collect()) as $absence) {
                     if ($absence->starts_at->lt($end) && $absence->ends_at->gt($day)) {
-                        $events->push(['id' => 'absence-'.$absence->id, 'kind' => 'absence', 'title' => ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit'][$absence->kind], 'start' => $absence->starts_at, 'end' => $absence->ends_at, 'detail' => '', 'status' => $absence->status === 'approved' ? 'Genehmigt' : 'Beantragt', 'shift_id' => null]);
+                        $events->push(['id' => 'absence-'.$absence->id, 'absence_id' => $absence->id, 'kind' => 'absence', 'title' => ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit'][$absence->kind], 'start' => $absence->starts_at, 'end' => $absence->ends_at, 'detail' => '', 'status' => $absence->status === 'approved' ? 'Genehmigt' : 'Beantragt', 'shift_id' => null]);
                     }
                 }
                 $events = $events->sortBy(fn ($e) => $e['start']->timestamp)->values();

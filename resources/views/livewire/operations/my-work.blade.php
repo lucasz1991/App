@@ -12,6 +12,11 @@
         @if($tab === 'today' && $times->contains(fn($entry) => in_array($entry->status,['completed','returned'],true)))<button class="ops-panel ops-toolbar" type="button" wire:click="showTab('time')"><strong>Zeitmeldungen bearbeiten</strong><span class="ops-link">Öffnen →</span></button>@endif
     @elseif($tab === 'time')
         <h2>Meine Zeitmeldungen</h2>
+        <x-tables.toolbar title="Zeitraum" id="personal-time-filters">
+            <x-slot:bulk><x-ui.buttons.button-basic wire:click="exportOwnTimes" wire:loading.attr="disabled">CSV-Zeitnachweis</x-ui.buttons.button-basic></x-slot:bulk>
+            <x-operations.field label="Von" model="timeFrom" type="date" />
+            <x-operations.field label="Bis" model="timeUntil" type="date" />
+        </x-tables.toolbar>
         @if($manualAssignments->isNotEmpty())
             <x-ui.buttons.button-basic wire:click="openForm('manual')">Zeit nachtragen</x-ui.buttons.button-basic><x-operations.modal wire:model="manualOpen" title="Zeit nachtragen"><form wire:submit="saveManual" class="ops-form">
                 <x-operations.field label="Dienst" model="manualAssignmentId" type="select" :wide="true" required><option value="">Dienst auswählen</option>@foreach($manualAssignments as $item)<option value="{{ $item->id }}">{{ $item->shift->starts_at->format('d.m.Y') }} · {{ $item->shift->title }} · {{ $item->shift->timezone }}</option>@endforeach</x-operations.field>

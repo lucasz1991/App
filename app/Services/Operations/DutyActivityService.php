@@ -32,6 +32,10 @@ class DutyActivityService
             $shift = Shift::lockForUpdate()->findOrFail($shiftId);
             $this->check($shift->revision === $revision && ! in_array($shift->status->value, ['cancelled', 'completed']), 'Dienst wurde geändert oder abgeschlossen.');
             $this->check(! WorkTimeEntry::whereHas('assignment', fn ($q) => $q->where('shift_id', $shiftId))->exists(), 'Für diesen Dienst sind bereits Zeiten erfasst.');
+            if ($shift->published_revision > 0 && ! $shift->published_snapshot) {
+                $shift->published_snapshot = $shift->only(['order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'planned_break_minutes']) + ['sections' => $this->snapshot($shift)];
+                $shift->save();
+            }
             $section = $id ? ShiftSection::where('shift_id', $shiftId)->findOrFail($id) : new ShiftSection;
             if ($data === null) {
                 abort_unless($id, 422);

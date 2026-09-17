@@ -8,7 +8,7 @@
     </span>
 </div>
 @if($rows === 2)
-    <ul style="margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px;">
+    <ul class="widget-detail" style="padding:0;list-style:none;display:grid;gap:6px;">
         @foreach($data['checks'] as $key => $done)
             @continue($done)
             <li class="ops-muted" style="display:flex;align-items:center;gap:8px;">
@@ -18,4 +18,4 @@
         @endforeach
     </ul>
 @endif
-<a class="ops-link" href="{{ $data['href'] }}" wire:navigate style="margin-top:8px;display:inline-block;">Profil öffnen →</a>
+<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Profil öffnen →</a>

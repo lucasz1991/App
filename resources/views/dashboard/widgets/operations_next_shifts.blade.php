@@ -10,4 +10,4 @@
 @empty
     <div class="ops-empty">Keine Dienste in den nächsten 14 Tagen.</div>
 @endforelse
-<a class="ops-link" href="{{ $data['href'] }}" wire:navigate style="margin-top:8px;display:inline-block;">Schichtplan öffnen →</a>
+<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Schichtplan öffnen →</a>

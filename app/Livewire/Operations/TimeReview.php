@@ -22,6 +22,20 @@ class TimeReview extends Component
 
     public string $search = '';
 
+    public string $from = '';
+
+    public string $until = '';
+
+    public function updatedFrom(): void
+    {
+        $this->updatedFilter();
+    }
+
+    public function updatedUntil(): void
+    {
+        $this->updatedFilter();
+    }
+
     public array $notes = [];
 
     public array $selected = [];
@@ -126,11 +140,16 @@ class TimeReview extends Component
     public function render()
     {
         $this->access();
+        $period = function ($query) {
+            if ($this->from && $this->until) {
+                \App\Support\Operations\ReportingPeriod::apply($query, $this->from, $this->until);
+            }
+        };
 
         return view('livewire.operations.time-review', [
             'batchEntries' => $this->batchOpen ? WorkTimeEntry::with('user:id,name')->whereIn('id', array_column($this->batchRows, 'id'))->get() : collect(),
             'detailEntry' => $this->detailId ? WorkTimeEntry::with('user:id,name')->when($this->exports, fn ($q) => $q->where('status', 'approved'))->find($this->detailId) : null,
-            'entries' => WorkTimeEntry::with('user:id,name')->when($this->exports, fn ($q) => $q->where('status', 'approved')->whereNotExists(fn ($q) => $q->selectRaw('1')->from('work_time_export_items')->whereColumn('work_time_entry_id', 'work_time_entries.id')->whereColumn('work_time_export_items.revision', 'work_time_entries.revision')))
+            'entries' => WorkTimeEntry::with('user:id,name')->tap($period)->when($this->exports, fn ($q) => $q->where('status', 'approved')->whereNotExists(fn ($q) => $q->selectRaw('1')->from('work_time_export_items')->whereColumn('work_time_entry_id', 'work_time_entries.id')->whereColumn('work_time_export_items.revision', 'work_time_entries.revision')))
                 ->when(! $this->exports && $this->filter !== 'all', fn ($q) => $q->where('status', $this->filter))->when(filled($this->search), fn ($q) => $q->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%')))->latest()->paginate(15),
             'history' => $this->exports ? WorkTimeExport::latest('id')->limit(20)->get() : collect(),
         ]);

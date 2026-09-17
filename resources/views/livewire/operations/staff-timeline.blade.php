@@ -11,11 +11,11 @@
             @foreach($cell['events'] as $event)
                 <div class="rt-personnel-timeline-event" data-kind="{{ $event['kind'] }}">
                     <span class="rt-personnel-timeline-time">{{ $event['start']->setTimezone($zone)->format('H:i') }} – {{ $event['end']->setTimezone($zone)->format('H:i') }}</span>
-                    @if($event['shift_id'])<a href="{{ route('operations.workspace',['module'=>'shift-management','shift'=>$event['shift_id']]) }}">{{ $event['title'] }}</a>@else<strong>{{ $event['title'] }}</strong>@endif
+                    @if($event['shift_id'])<a href="{{ route('operations.workspace',['module'=>'shift-management','shift'=>$event['shift_id']]) }}">{{ $event['title'] }}</a>@elseif($absencesOnly)<button type="button" class="text-left font-semibold underline underline-offset-4" wire:click="$dispatch('operations-open-absence', {id: {{ $event['absence_id'] }}})">{{ $event['title'] }}</button>@else<strong>{{ $event['title'] }}</strong>@endif
                     <span>{{ $event['detail'] }}</span><span>{{ $event['status'] }}</span>
                 </div>
             @endforeach
-            @foreach($cell['free'] as [$start,$end])<p class="rt-personnel-timeline-free">Unbelegt {{ \Carbon\CarbonImmutable::createFromTimestamp($start,$zone)->format('H:i') }} – {{ $end===$cell['date']->addDay()->timestamp ? '24:00' : \Carbon\CarbonImmutable::createFromTimestamp($end,$zone)->format('H:i') }}</p>@endforeach
+            @if(!$absencesOnly)@foreach($cell['free'] as [$start,$end])<p class="rt-personnel-timeline-free">Unbelegt {{ \Carbon\CarbonImmutable::createFromTimestamp($start,$zone)->format('H:i') }} – {{ $end===$cell['date']->addDay()->timestamp ? '24:00' : \Carbon\CarbonImmutable::createFromTimestamp($end,$zone)->format('H:i') }}</p>@endforeach @elseif($cell['events']->isEmpty())<span class="ops-muted">—</span>@endif
             </div>
         @endforeach
     @empty<div class="p-4">Keine Mitarbeiter gefunden.</div>@endforelse

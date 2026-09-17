@@ -44,16 +44,17 @@ class PersonnelWorkflowService
             OperationsAccess::authorize($actor, 'operations.absences.review');
             abort_if($actor->id === $request->user_id, 403);
         }
-        $this->check(in_array($action, ['approve', 'reject', 'withdraw'], true), 'Ungültige Aktion.');
-        Validator::make(['note' => $note], ['note' => ($action === 'reject' ? 'required' : 'nullable').'|string|max:1000'])->validate();
+        $this->check(in_array($action, ['approve', 'reject', 'withdraw', 'cancel'], true), 'Ungültige Aktion.');
+        Validator::make(['note' => $note], ['note' => (in_array($action, ['reject', 'cancel'], true) ? 'required|min:5' : 'nullable').'|string|max:1000'])->validate();
         DB::transaction(function () use ($request, $revision, $action, $note, $actor) {
             User::lockForUpdate()->findOrFail($request->user_id);
             $record = AbsenceRequest::lockForUpdate()->findOrFail($request->id);
-            $this->check($record->revision === $revision && $record->status === 'pending', 'Antrag wurde bereits bearbeitet. Bitte neu laden.');
+            $this->check($record->revision === $revision && $record->status === ($action === 'cancel' ? 'approved' : 'pending'), 'Antrag wurde bereits bearbeitet. Bitte neu laden.');
+            $this->check($action !== 'cancel' || $record->starts_at->isFuture(), 'Begonnene Abwesenheiten können nicht storniert werden.');
             if ($action === 'approve') {
                 $this->check(! ShiftAssignment::blocking()->where('user_id', $record->user_id)->whereHas('shift', fn ($q) => $q->notCancelled()->during($record->starts_at, $record->ends_at))->exists(), 'Zugewiesene Dienste müssen zuerst umgeplant werden.');
             }
-            $record->forceFill(['status' => ['approve' => 'approved', 'reject' => 'rejected', 'withdraw' => 'withdrawn'][$action], 'revision' => $revision + 1, 'reviewed_by' => $actor->id, 'reviewed_at' => now()->utc(), 'review_note' => $note])->save();
+            $record->forceFill(['status' => ['approve' => 'approved', 'reject' => 'rejected', 'withdraw' => 'withdrawn', 'cancel' => 'cancelled'][$action], 'revision' => $revision + 1, 'reviewed_by' => $actor->id, 'reviewed_at' => now()->utc(), 'review_note' => $note])->save();
             $this->audit->record($record, $actor, 'absence.'.$action, ['note' => $note]);
         }, 3);
     }

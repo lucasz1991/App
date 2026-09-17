@@ -6,7 +6,6 @@
     <x-tables.table :columns="[['label'=>'Leistung', 'key'=>'title', 'width'=>'2fr'], ['label'=>'Kunde', 'key'=>'customer.company_name', 'width'=>'1.4fr'], ['label'=>'Beginn', 'key'=>'starts_at', 'width'=>'1.2fr'], ['label'=>'Ende', 'key'=>'ends_at', 'width'=>'1.2fr'], ['label'=>'Status', 'key'=>'status', 'width'=>'.8fr']]" :items="$orders" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge gefunden." />
     <x-operations.modal wire:model="detailOpen" title="Leistungsdetails" max-width="4xl">
         @if($selectedOrder)
-            @if($detailOpen && \App\Support\Operations\PlanningSchema::ready())<livewire:operations.order-demands :order-id="$selectedOrder->id" :key="'demand-'.$selectedOrder->id" />@endif
                     @php
                         $selectedStatus = $selectedOrder->status instanceof \BackedEnum ? $selectedOrder->status->value : (string) $selectedOrder->status;
                         $selectedPriority = $selectedOrder->priority instanceof \BackedEnum ? $selectedOrder->priority->value : (string) $selectedOrder->priority;
@@ -71,6 +70,7 @@
                         </div>
                     </dl>
 
+                    @if($detailOpen && \App\Support\Operations\PlanningSchema::ready())<livewire:operations.order-demands :order-id="$selectedOrder->id" :key="'demand-'.$selectedOrder->id" />@endif
                     @if($selectedOrder->description || $selectedOrder->notes)
                         <div class="mt-4 grid gap-3 sm:grid-cols-2">
                             @if($selectedOrder->description)

@@ -133,7 +133,12 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
    Werte, keine zweite (immer graue) Iconflaeche mehr darunter. Groesse
    angeglichen an .ops-kpi-ico, damit Cockpit-Kacheln und Widget-Header
    dieselbe Bildsprache teilen. */
-.widget-card-ico { width:38px; height:38px; border-radius:11px; background:var(--ops-platform); color:var(--ops-muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background 200ms, color 200ms; }
+/* Farbe/Hintergrund kommen ausschliesslich von .ops-tone-* (immer gesetzt,
+   Default 'neutral' in widget-shell.blade.php) - hier NICHT nochmal
+   color/background definieren, sonst gewinnt diese Regel bei gleicher
+   Spezifitaet rein durch spaetere Reihenfolge im Stylesheet und die
+   Zustandsfarbe (ok/warn/brand) wuerde nie sichtbar. */
+.widget-card-ico { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background 200ms, color 200ms; }
 .widget-card-ico svg { width:17px; height:17px; }
 /* Body als Flex-Spalte, damit ein .widget-footer (siehe unten) sich per
    margin-top:auto IMMER an den unteren Kartenrand legt statt je nach
@@ -206,6 +211,17 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
    Button-Fall (system_status "Systemdaten anzeigen"). */
 .widget-footer { margin-top:auto; padding-top:14px; flex-shrink:0; display:flex; align-items:center; gap:6px; font-size:13px; font-weight:650; color:var(--ops-signal); text-decoration:none; background:none; border:0; width:fit-content; }
 .widget-footer:hover { text-decoration:underline; }
+/* Fuer die seltenen Faelle mit mehr als einem Fuss-Link (z.B. my_work:
+   "Mein Arbeitstag" + "Mein Kalender") - die Gruppe traegt das
+   margin-top:auto, die einzelnen .widget-footer-Links darin nicht mehr. */
+.widget-footer-links { margin-top:auto; padding-top:14px; flex-shrink:0; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.widget-footer-links .widget-footer { margin-top:0; padding-top:0; }
+
+/* Fuer Widgets, deren Blade-Inhalt in einen eigenen x-data-Wrapper
+   eingepackt ist (z.B. wagon_list per localStorage) - der Wrapper muss
+   selbst die Flex-Spalte des Bodys weiterreichen, sonst greift
+   .widget-footer's margin-top:auto nicht bis zum Kartenrand durch. */
+.widget-fill { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
 
 /* Ring-Fortschritt fuer Anteilswerte (z.B. Profilvollstaendigkeit) - eine
    zweite Bauform neben dem linearen Balken, damit Prozent-Widgets sich von

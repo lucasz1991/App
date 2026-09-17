@@ -6,7 +6,7 @@
     direkt per Alpine, statt eine Zahl vorzutaeuschen, die der Server
     gar nicht kennen kann.
 --}}
-<div x-data="{
+<div class="widget-fill" x-data="{
         drafts: [],
         init() {
             try {
@@ -16,15 +16,10 @@
         },
     }"
 >
-    <div class="widget-stat">
-        <span class="ops-kpi-ico ops-tone-neutral"><i data-feather="list"></i></span>
-        <span>
-            <span class="ops-kpi-val" x-text="drafts.length"></span>
-            <span class="ops-kpi-lbl">lokale Entwürfe auf diesem Gerät</span>
-        </span>
-    </div>
+    <span class="widget-primary-val" x-text="drafts.length"></span>
+    <span class="widget-primary-lbl">lokale Entwürfe auf diesem Gerät</span>
     @if($rows === 2)
-        <div style="margin-top:10px;" x-show="drafts.length" x-cloak>
+        <div class="widget-detail" x-show="drafts.length" x-cloak>
             <template x-for="draft in drafts.slice(0, 3)" :key="draft.id">
                 <div class="ops-row">
                     <span x-text="(draft.meta?.trainNumber || 'Ohne Zugnummer') + (draft.meta?.origin && draft.meta?.destination ? ' · ' + draft.meta.origin + ' → ' + draft.meta.destination : '')"></span>
@@ -32,7 +27,7 @@
                 </div>
             </template>
         </div>
-        <div class="ops-empty" style="margin-top:10px;" x-show="!drafts.length" x-cloak>Noch keine Wagenliste begonnen.</div>
+        <div class="ops-empty widget-detail" x-show="!drafts.length" x-cloak>Noch keine Wagenliste begonnen.</div>
     @endif
-    <a class="ops-link" href="{{ $data['href'] }}" wire:navigate style="margin-top:8px;display:inline-block;">Wagenliste öffnen →</a>
+    <a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Wagenliste öffnen →</a>
 </div>

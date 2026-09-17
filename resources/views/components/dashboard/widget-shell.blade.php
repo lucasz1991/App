@@ -18,7 +18,7 @@
     wire:key="widget-{{ $item['key'] }}"
 >
     <header class="widget-card-head">
-        <span class="widget-card-ico{{ $tone ? ' ops-tone-'.$tone : '' }}"><i data-feather="{{ $item['icon'] }}"></i></span>
+        <span class="widget-card-ico ops-tone-{{ $tone ?? 'neutral' }}"><i data-feather="{{ $item['icon'] }}"></i></span>
         <h3>{{ $item['title'] }}</h3>
         @if($editing)
             <div class="widget-card-controls">

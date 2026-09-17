@@ -40,7 +40,24 @@ class ShiftSeriesPlanner extends Component
 
     public array $series = ['template_id' => '', 'order_id' => '', 'from' => '', 'until' => '', 'weekdays' => [1, 2, 3, 4, 5]];
 
-    public string $exceptions = '';
+    public array $exceptions = [];
+
+    public string $exceptionDate = '';
+
+    public function addException(): void
+    {
+        $this->access();
+        $this->validate(['exceptionDate' => 'required|date_format:Y-m-d', 'exceptions' => 'array|max:365']);
+        $this->exceptions = array_values(array_unique([...$this->exceptions, $this->exceptionDate]));
+        $this->reset(['exceptionDate', 'fingerprint', 'previewRows']);
+    }
+
+    public function removeException(string $date): void
+    {
+        $this->access();
+        $this->exceptions = array_values(array_diff($this->exceptions, [$date]));
+        $this->reset(['fingerprint', 'previewRows']);
+    }
 
     private function access(): void
     {
@@ -90,7 +107,7 @@ class ShiftSeriesPlanner extends Component
 
     private function requestData(): array
     {
-        return $this->series + ['exceptions' => array_values(array_filter(preg_split('/[\s,;]+/', trim($this->exceptions))))];
+        return $this->series + ['exceptions' => $this->exceptions];
     }
 
     public function preview(ShiftSeriesService $service): void

@@ -5,6 +5,26 @@ use App\Http\Controllers\Api\DeviceDesktopClientController;
 use App\Http\Controllers\Api\DeviceProviderWebhookController;
 use App\Http\Controllers\Api\OutlookAddinBootstrapController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\OperationsController;
+
+Route::prefix('v1/operations')->name('api.operations.')->middleware([\App\Http\Middleware\OperationsApi::class, 'auth:sanctum', 'throttle:60,1'])->group(function () {
+    Route::get('me/times', [OperationsController::class, 'ownTimes']);
+    Route::get('me/absences', [OperationsController::class, 'ownAbsences']);
+    Route::post('me/absences', [OperationsController::class, 'requestAbsence']);
+    Route::post('me/absences/{id}/withdraw', [OperationsController::class, 'withdrawAbsence'])->whereNumber('id');
+    Route::post('me/times/start', [OperationsController::class, 'start']);
+    Route::post('me/times/manual', [OperationsController::class, 'manual']);
+    Route::post('me/times/{id}/events', [OperationsController::class, 'clock'])->whereNumber('id');
+    Route::patch('me/times/{id}', [OperationsController::class, 'correct'])->whereNumber('id');
+    Route::get('times', [OperationsController::class, 'times']);
+    Route::post('times/{id}/review', [OperationsController::class, 'reviewTime'])->whereNumber('id');
+    Route::get('absences', [OperationsController::class, 'absences']);
+    Route::get('absences.csv', [OperationsController::class, 'absenceCsv']);
+    Route::post('absences/{id}/review', [OperationsController::class, 'reviewAbsence'])->whereNumber('id');
+    Route::get('exports', [OperationsController::class, 'exports']);
+    Route::post('exports', [OperationsController::class, 'exportTimes']);
+    Route::get('exports/{publicId}', [OperationsController::class, 'download'])->whereUuid('publicId')->name('exports.show');
+});
 
 /*
 |--------------------------------------------------------------------------

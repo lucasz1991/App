@@ -28,7 +28,8 @@
     <x-operations.field label="Auftrag" model="series.order_id" type="select" required><option value="">Auswählen</option>@foreach($orders as $item)<option value="{{ $item->id }}">{{ $item->order_number }} · {{ $item->title }}</option>@endforeach</x-operations.field>
     <x-operations.field label="Von" model="series.from" type="date" required /><x-operations.field label="Bis" model="series.until" type="date" required />
     <fieldset class="ops-full ops-actions"><legend>Wochentage</legend>@foreach([1=>'Mo',2=>'Di',3=>'Mi',4=>'Do',5=>'Fr',6=>'Sa',7=>'So'] as $day=>$label)<x-ui.forms.checkbox wire:model="series.weekdays" :value="$day" :label="$label" />@endforeach</fieldset>
-    <x-operations.field label="Ausnahmen (JJJJ-MM-TT, mit Komma trennen)" model="exceptions" :wide="true" />
+    <x-operations.field label="Ausnahmetag" model="exceptionDate" type="date" /><div class="self-end"><x-ui.buttons.button-basic wire:click="addException">Tag ausnehmen</x-ui.buttons.button-basic></div>
+    <div class="ops-full ops-actions">@foreach($exceptions as $exception)<x-ui.buttons.button-basic wire:click="removeException('{{ $exception }}')" aria-label="Ausnahme {{ $exception }} entfernen">{{ \Carbon\CarbonImmutable::parse($exception)->format('d.m.Y') }} ×</x-ui.buttons.button-basic>@endforeach</div>
     <div class="ops-full"><x-ui.buttons.button-basic wire:click="preview" wire:loading.attr="disabled">Vorschau prüfen</x-ui.buttons.button-basic></div>
 </div>
 @if($previewRows)

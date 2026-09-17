@@ -11,7 +11,7 @@
 @else
     <p class="ops-empty" style="padding:16px 0;">Kein bevorstehender Dienst.</p>
 @endif
-<div class="ops-actions">
-    <a class="ops-link" href="{{ $data['href'] }}" wire:navigate>Mein Arbeitstag öffnen →</a>
-    <a class="ops-link inline-flex items-center gap-2" href="{{ $data['calendarHref'] }}" wire:navigate><i class="far fa-calendar-days" aria-hidden="true"></i>Mein Kalender</a>
+<div class="widget-footer-links">
+    <a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Mein Arbeitstag öffnen →</a>
+    <a class="widget-footer" href="{{ $data['calendarHref'] }}" wire:navigate><i class="far fa-calendar-days" aria-hidden="true"></i>Mein Kalender</a>
 </div>

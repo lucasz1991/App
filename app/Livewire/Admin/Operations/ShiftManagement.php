@@ -69,7 +69,7 @@ class ShiftManagement extends Component
         $this->ensureAdmin();
         abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders', 'timeline'], true), 422);
         if ($view === 'timeline') {
-            $this->reset(['search', 'statusFilter', 'orderFilter']);
+            $this->reset(['search', 'statusFilter', 'orderFilter', 'attentionFilter']);
         }
         $this->viewMode = $view;
     }

@@ -47,6 +47,28 @@ class MyWork extends Component
 
     public bool $absenceOpen = false;
 
+    public string $timeFrom = '';
+
+    public string $timeUntil = '';
+
+    public function updatedTimeFrom(): void
+    {
+        $this->resetPage('timesPage');
+    }
+
+    public function updatedTimeUntil(): void
+    {
+        $this->resetPage('timesPage');
+    }
+
+    public function exportOwnTimes(\App\Services\Operations\OperationsReportService $service)
+    {
+        $this->access();
+        $csv = $service->ownTimes(auth()->user(), $this->timeFrom, $this->timeUntil);
+
+        return response()->streamDownload(fn () => print ($csv), 'RailTime-Meine-Zeiten-'.$this->timeFrom.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     public function openForm(string $form): void
     {
         $this->access();
@@ -319,6 +341,10 @@ class MyWork extends Component
     {
         $this->access();
         abort_unless(in_array($this->tab, ['today', 'schedule', 'time', 'records', 'absences'], true), 404);
+        $timeQuery = WorkTimeEntry::where('user_id', auth()->id());
+        if ($this->tab === 'time' && $this->timeFrom && $this->timeUntil) {
+            \App\Support\Operations\ReportingPeriod::apply($timeQuery, $this->timeFrom, $this->timeUntil);
+        }
         abort_unless(in_array($this->viewMode, ['day', 'week', 'month', 'list'], true), 404);
         $anchor = $this->anchor();
         $from = match ($this->viewMode) {
@@ -373,7 +399,7 @@ class MyWork extends Component
             },
             'assignments' => $visible,
             'activeTime' => $activeTime,
-            'times' => WorkTimeEntry::where('user_id', auth()->id())->latest('starts_at')->paginate(20, ['*'], 'timesPage'),
+            'times' => $timeQuery->latest('starts_at')->paginate(20, ['*'], 'timesPage'),
             'qualifications' => EmployeeQualification::where('user_id', auth()->id())->with('type')->latest()->paginate(20, ['*'], 'qualificationsPage'),
             'absences' => AbsenceRequest::where('user_id', auth()->id())->latest()->paginate(20, ['*'], 'absencesPage'),
             'types' => QualificationType::where('is_active', true)->orderBy('name')->get(),
