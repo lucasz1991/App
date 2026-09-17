@@ -1,4 +1,5 @@
 <div data-mail-delivery-controls="{{ $documentId }}" data-presentation="{{ $presentation }}" x-data="{ deliveryDialog: $wire.entangle('open').live }" class="min-w-0">
+    @if ($document !== null)
     @if ($presentation !== 'menu')
         <div class="rt-mail-usage rt-mail-usage__badges" role="group" aria-label="Verwendung von {{ $document->name }}"
             x-data="{ tooltipDismissed: false }"
@@ -71,4 +72,5 @@
             <button type="button" class="rt-mail-library__button rt-mail-library__button--primary" wire:click="confirm" wire:loading.attr="disabled" wire:target="confirm">{{ ($pending['action'] ?? '') === 'publish' ? 'Gespeicherten Stand veröffentlichen' : 'Zuordnung bestätigen' }}</button>
         </x-slot:footer>
     </x-ui.state-modal>
+    @endif
 </div>

@@ -6782,6 +6782,15 @@ html.rt-topbar-search-open body {
     gap: 0.5rem;
 }
 
+.rt-table-toolbar__bulk {
+    display: flex;
+    order: -1;
+    flex: 0 0 auto;
+    align-items: center;
+    align-self: end;
+    gap: 0.5rem;
+}
+
 .rt-table-toolbar__mark {
     display: grid;
     width: 2rem;

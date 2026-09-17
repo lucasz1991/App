@@ -162,7 +162,15 @@ class MailDocumentDeliveryControls extends Component
 
     public function render()
     {
-        $document = $this->document();
+        // A library-change event may reach a child after its parent deleted
+        // the row. This is a normal teardown race, not a missing-page error.
+        $document = MailDocument::query()->where('public_id', $this->documentId)->first();
+        if ($document === null) {
+            $this->open = false;
+            $this->pending = [];
+
+            return view('livewire.admin.mail-document-delivery-controls', ['document' => null]);
+        }
         $availableActions = $this->availableActions($document);
 
         return view('livewire.admin.mail-document-delivery-controls', [

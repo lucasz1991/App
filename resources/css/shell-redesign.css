@@ -78,6 +78,28 @@ body[data-mode='dark'] {
     padding: 0 !important;
 }
 
+.rt-page-header-search:empty {
+    display: none;
+}
+
+.rt-page-header-search .rt-expandable-search[data-search-context='topbar'].is-expanded:not(.is-mobile-layer) {
+    width: clamp(10rem, 24vw, 20rem);
+}
+
+@media (max-width: 767.98px) {
+    [data-page-header]:has([data-page-list-search] .is-expanded) {
+        padding-bottom: 3.25rem;
+    }
+
+    .rt-page-header-search .rt-expandable-search[data-search-context='topbar'].is-expanded:not(.is-mobile-layer) {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+    }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Global content ambience                                                     */
 /* -------------------------------------------------------------------------- */

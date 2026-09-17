@@ -7,6 +7,7 @@
     'applyLabel' => null,
     'searchLabel' => null,
     'searchFor' => null,
+    'searchInHeader' => false,
     'id' => null,
 ])
 
@@ -82,7 +83,22 @@
 >
     <h2 id="{{ $panelId }}-title" class="sr-only">{{ $resolvedTitle }}</h2>
     <div class="rt-table-toolbar__body">
+        <div class="rt-table-toolbar__bulk">
+            @if ($hasBulk)
+                {{ $bulk }}
+            @endif
+            @if (!$hasBulk || !str_contains((string) $bulk, 'data-tables-bulk'))
+                <button type="button" disabled aria-label="{{ __('app.bulk_actions') }} – keine Sammelaktionen verfügbar" title="Keine Sammelaktionen für diese Liste verfügbar" class="rt-table-bulk-trigger rt-table-bulk-icon" data-tables-bulk-unavailable>
+                    <i class="far fa-layer-group" aria-hidden="true"></i>
+                </button>
+            @endif
+        </div>
         @isset($search)
+            @if ($searchInHeader)
+                <template x-teleport="[data-page-header-search]">
+                    <div data-page-list-search>{{ $search }}</div>
+                </template>
+            @else
             <div class="rt-table-toolbar__search-field">
                 @if (filled($searchFor))
                     <label class="rt-filter-field__label" for="{{ $searchFor }}">{{ $resolvedSearchLabel }}</label>
@@ -91,15 +107,10 @@
                 @endif
                 <div class="rt-table-toolbar__search min-w-0">{{ $search }}</div>
             </div>
+            @endif
         @endisset
 
         <div class="rt-table-toolbar__actions">
-            @if ($hasBulk)
-                <div class="rt-table-toolbar__bulk">
-                    {{ $bulk }}
-                </div>
-            @endif
-
             @if ($filterCount > 0)
                 <span class="rt-table-toolbar__count" data-tables-filter-count aria-live="polite" aria-atomic="true">{{ $filterCount }} {{ __('app.active') }}</span>
             @endif
@@ -130,11 +141,6 @@
                         <i class="far fa-chevron-down" x-bind:class="filtersOpen && 'rotate-180'" aria-hidden="true"></i>
                     </button>
                 </template>
-            @endif
-            @if (!$hasBulk || !str_contains((string) $bulk, 'data-tables-bulk'))
-                <button type="button" disabled aria-label="{{ __('app.bulk_actions') }} – keine Sammelaktionen verfügbar" title="Keine Sammelaktionen für diese Liste verfügbar" class="rt-table-bulk-trigger rt-table-bulk-icon" data-tables-bulk-unavailable>
-                    <i class="far fa-layer-group" aria-hidden="true"></i>
-                </button>
             @endif
         </div>
 

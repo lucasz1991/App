@@ -233,6 +233,11 @@
                                     <span>Leinwand-Vorschau</span>
                                 </x-ui.buttons.button-basic>
 
+                    <x-ui.buttons.button-basic type="button" mode="secondary" size="sm" class="min-h-11 w-full justify-start rounded-lg px-3" data-mail-findings-open>
+                        <i data-feather="shield" class="h-4 w-4" aria-hidden="true"></i>
+                        <span>Prüfhinweise anzeigen</span>
+                    </x-ui.buttons.button-basic>
+
                     <div class="rt-mail-preview-toggle" role="group" aria-label="Editoransicht">
                         <button type="button" data-mail-view-mode="edit" aria-pressed="false" title="Autorenansicht mit Platzhaltern; keine Mailclient-Emulation">
                             <i data-feather="edit-3" class="h-4 w-4" aria-hidden="true"></i>
@@ -642,8 +647,8 @@
         <div class="rt-mail-studio" data-mail-studio>
             {{-- Beanstandungen der Haertung. Sie werden nie stillschweigend
                  geschluckt: was der Sanitizer entfernt hat, steht hier. --}}
-            <details class="hidden shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200" data-mail-document-findings hidden>
-                <summary class="cursor-pointer font-semibold"><span role="status" aria-live="polite" data-mail-document-findings-title>Prüfstatus</span><span class="ml-2 text-xs font-normal">Details anzeigen</span></summary>
+            <div data-mail-document-findings hidden>
+                <h3 data-mail-document-findings-title>Prüfstatus</h3>
                 <p class="mt-1 leading-6" data-mail-document-check-summary hidden></p>
                 <ul class="mt-1 list-disc space-y-1 pl-5 leading-6" data-mail-document-findings-list></ul>
                 <details class="mt-2 text-xs leading-5" data-mail-document-format-rules>
@@ -658,7 +663,7 @@
                         <a class="underline underline-offset-2" href="https://learn.microsoft.com/en-us/javascript/api/outlook/office.body?view=outlook-js-preview" target="_blank" rel="noopener noreferrer">Microsoft: Add-in-Grenzen</a>
                     </p>
                 </details>
-            </details>
+            </div>
 
             <div class="rt-mail-editor-frame" data-mail-editor-frame data-preview-device="desktop">
                 <div
@@ -1586,6 +1591,29 @@
                         updatePreviewStatus(instance?.getPreviewGeometry?.());
                     };
 
+                    let lastFindingsAlert = '';
+                    const openFindingsAlert = () => {
+                        const content = findingsBox.cloneNode(true);
+                        content.hidden = false;
+                        content.querySelector('[data-mail-document-findings-title]')?.remove();
+                        if (window.Swal?.fire) {
+                            window.Swal.fire({
+                                titleText: findingsTitle.textContent,
+                                html: content,
+                                icon: compatibilityBlocksPublication ? 'error' : (findingsList.children.length ? 'warning' : 'info'),
+                                confirmButtonText: 'Verstanden',
+                                returnFocus: true,
+                            });
+                        } else {
+                            window.alert(`${findingsTitle.textContent}\n\n${content.textContent}`);
+                        }
+                    };
+                    window.document.addEventListener('click', (event) => {
+                        if (!viewEventControl(event, '[data-mail-findings-open]')) return;
+                        event.preventDefault();
+                        openFindingsAlert();
+                    }, { signal: controlListeners.signal });
+
                     const showFindings = (report, compatibility = undefined) => {
                         if (!findingsBox || !findingsList) return;
 
@@ -1652,7 +1680,7 @@
                                         ? 'Die Prüfung hat Inhalte entfernt'
                                         : (messages.length === 0 && hasCheckSummary
                                             ? 'Automatisch geprüft · Mailclient-Prüfung offen'
-                                            : 'Hinweise der Sicherheits- und Kompatibilitätsprüfung'))
+                                            : 'Hinweise zur E-Mail'))
                             );
                         }
 
@@ -1662,12 +1690,17 @@
                             findingsList.appendChild(item);
                         });
 
-                        // Safety findings and request failures must stay visible;
-                        // routine coverage details start collapsed.
-                        findingsBox.open = compatibilityBlocksPublication || removed || messages.length > 0;
-
-                        findingsBox.hidden = false;
-                        findingsBox.classList.remove('hidden');
+                        // Keep the canvas unobstructed. New findings alert once;
+                        // details remain available from the View menu. Publication
+                        // blocking above is independent from dismissing this alert.
+                        findingsBox.hidden = true;
+                        const fingerprint = JSON.stringify([findingsTitle.textContent, messages]);
+                        if ((messages.length > 0 || removed || compatibilityBlocksPublication) && fingerprint !== lastFindingsAlert) {
+                            lastFindingsAlert = fingerprint;
+                            openFindingsAlert();
+                        } else if (messages.length === 0 && !compatibilityBlocksPublication) {
+                            lastFindingsAlert = '';
+                        }
                     };
 
                     // Bereits der serverseitig geladene Entwurf zeigt seinen
@@ -2727,7 +2760,8 @@
                                             expected_hash: expectedHashFor(control),
                                         });
                                         toast('success', 'Der inaktive Design-Slot wurde gelöscht.', 'Design gelöscht');
-                                        window.location.assign(payload.redirect || window.location.href);
+                                        window.RailTimeMailDocumentEditor?.destroy?.();
+                                        window.location.assign(payload.redirect || @js(route('admin.mail-documents.editor')));
                                     }).catch((error) => {
                                         fail(error, 'Design konnte nicht gelöscht werden');
                                         throw error;

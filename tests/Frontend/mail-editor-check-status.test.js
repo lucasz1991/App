@@ -24,22 +24,25 @@ function harness() {
         runtimeBridge: { normalizeCompatibilityReport: (value) => value },
         compatibilityBlocksPublication: false, publishButton: { setAttribute() {} },
         setActionsBusy() {}, actionsBusy: false,
+        lastFindingsAlert: '', alerts: 0,
+        openFindingsAlert() { context.alerts++; },
         window: { document: { createElement: () => ({ textContent: '' }) } },
     });
     vm.runInContext(`${functionSource}\nglobalThis.showFindings = showFindings;`, context);
     return { context, summary, findingsBox, findingsList, findingsTitle };
 }
 
-test('manual catalog checks remain visible after an automated pass without blocking publication', () => {
+test('manual catalog checks remain available without a permanent banner or publication block', () => {
     const h = harness();
     h.context.showFindings(null, { status: 'pass', findings: [], checks: { automated: 24, manual: 54 } });
-    assert.equal(h.findingsBox.hidden, false);
+    assert.equal(h.findingsBox.hidden, true);
+    assert.equal(h.context.alerts, 0);
     assert.equal(h.summary.hidden, false);
     assert.match(h.summary.textContent, /24 Regeln automatisch geprüft/);
     assert.match(h.summary.textContent, /54 Regeln benötigen eine manuelle Prüfung/);
     assert.match(h.summary.textContent, /nicht verifiziert/);
     assert.equal(h.context.compatibilityBlocksPublication, false);
-    assert.match(h.findingsTitle.textContent, /Clientprüfung bleibt separat/);
+    assert.match(h.findingsTitle.textContent, /Mailclient-Prüfung offen/);
 });
 
 test('old reports do not invent automated coverage and an actual BLOCK still blocks publication', () => {
@@ -52,6 +55,10 @@ test('old reports do not invent automated coverage and an actual BLOCK still blo
     assert.equal(h.context.compatibilityBlocksPublication, true);
     assert.match(h.findingsTitle.textContent, /blockiert/);
     assert.equal(h.findingsList.items[0].textContent, '[EMAIL-X] Fehlt');
+    assert.equal(h.findingsBox.hidden, true);
+    assert.equal(h.context.alerts, 1);
+    h.context.showFindings(null, { status: 'block', findings: [{ rule_id: 'EMAIL-X', message: 'Fehlt' }], checks: { automated: 1, manual: 1 } });
+    assert.equal(h.context.alerts, 1, 'unchanged polling must not repeatedly open the alert');
 });
 
 test('findings use text nodes and malformed counts cannot inject markup', () => {

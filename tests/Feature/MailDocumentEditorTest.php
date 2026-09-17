@@ -240,6 +240,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertFalse($copy->isOutlookTemplate());
         $this->assertFalse($copy->isActive());
 
+        $staleControls = Livewire::actingAs($admin)->test(\App\Livewire\Admin\MailDocumentDeliveryControls::class, ['documentId' => $copy->public_id]);
         $component->assertSee('data-mail-library-delete', escape: false)
             ->call('prepareAction', 'delete', $copy->public_id, $copy->content_hash)
             ->assertSet('confirmOpen', true)
@@ -249,6 +250,7 @@ class MailDocumentEditorTest extends TestCase
             ->assertSet('confirmOpen', false)
             ->assertSee('wurde mit seinem Versionsverlauf gelöscht');
         $this->assertNull($copy->fresh());
+        $staleControls->dispatch('mail-document-library-changed')->assertOk()->assertDontSee('Verwendung von');
         $this->assertNotNull($signature->fresh());
     }
 
@@ -2374,8 +2376,6 @@ HTML;
         ])->assertOk()
             ->assertJsonPath('redirect', route('admin.mail-documents.editor', [
                 'dokument' => MailDocumentKind::Template->value,
-                'slot' => $active->public_id,
-                'open' => 1,
             ]));
 
         $this->assertNull($draft->fresh());

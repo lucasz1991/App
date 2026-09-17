@@ -13,7 +13,8 @@
     $hasResultsSignal = $resultsCount !== null;
     $noResults = $hasResultsSignal && (int) $resultsCount === 0;
     $ph = $placeholder ?? __('app.search');
-    $searchContext = in_array($context, ['table', 'topbar'], true) ? $context : 'table';
+    $isPageSearch = $context === 'page';
+    $searchContext = $isPageSearch ? 'topbar' : (in_array($context, ['table', 'topbar'], true) ? $context : 'table');
     $isTopbarSearch = $searchContext === 'topbar';
     $searchAttributes = $inputAttributes instanceof \Illuminate\View\ComponentAttributeBag
         ? $inputAttributes
@@ -25,7 +26,8 @@
   x-data="{
         value: @entangle($searchAttributes->wire('model')),
         isTopbar: @js($isTopbarSearch),
-        layerId: @js($isTopbarSearch ? 'topbar-search' : null),
+        isPageSearch: @js($isPageSearch),
+        layerId: @js($isPageSearch ? 'page-list-search' : ($isTopbarSearch ? 'topbar-search' : null)),
         expanded: false,
         mobile: false,
         mobileQuery: null,
@@ -75,7 +77,7 @@
             return !this.isTopbar || this.expanded;
         },
         isMobileLayerOpen() {
-            return this.isTopbar && this.mobile && this.expanded;
+            return this.isTopbar && !this.isPageSearch && this.mobile && this.expanded;
         },
         syncPageScrollLock() {
             if (!this.isTopbar) return;
@@ -200,7 +202,7 @@
     data-tables-search
     @if ($wireModel)
         wire:loading.class="is-loading"
-        wire:target="{{ $isTopbarSearch ? $wireModel.',openResults' : $wireModel }}"
+        wire:target="{{ $isTopbarSearch && !$isPageSearch ? $wireModel.',openResults' : $wireModel }}"
     @endif
 >
     @if ($isTopbarSearch)

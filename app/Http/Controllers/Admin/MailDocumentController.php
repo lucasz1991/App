@@ -1143,7 +1143,10 @@ final class MailDocumentController extends Controller
             'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
         ]);
 
-        $redirect = $this->slotEditorUrl($deletion->delete($document, (string) $validated['expected_hash']));
+        $fallback = $deletion->delete($document, (string) $validated['expected_hash']);
+        // Return to the lightweight library, never reload a deleted slot or
+        // start another heavy editor while the deleted editor is tearing down.
+        $redirect = route('admin.mail-documents.editor', ['dokument' => $fallback->kind->value]);
 
         return response()->json(['redirect' => $redirect]);
     }
