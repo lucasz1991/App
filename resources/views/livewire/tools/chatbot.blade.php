@@ -721,12 +721,14 @@
                         @if ($role === 'assistant')
                             <span
                                 class="rt-chatbot__message-pet"
+                                data-assistant-cloud-slot="message"
+                                wire:ignore
                                 x-bind:data-state="ttsActiveKey === @js($messageKey)
                                     ? (speaking ? 'speaking' : 'thinking')
                                     : 'idle'"
                                 aria-hidden="true"
                             >
-                                <x-railtime-assistant-pet />
+                                <span class="rt-assistant-cloud__fallback"></span>
                             </span>
                         @endif
                         <div class="rt-chatbot__message-stack">
@@ -928,8 +930,8 @@
                     </div>
                 @empty
                     <div class="rt-chatbot__empty">
-                        <span class="rt-chatbot__empty-pet" aria-hidden="true">
-                            <x-railtime-assistant-pet />
+                        <span class="rt-chatbot__empty-pet" data-assistant-cloud-slot="message" wire:ignore aria-hidden="true">
+                            <span class="rt-assistant-cloud__fallback"></span>
                         </span>
                         <strong>{{ $isGerman ? 'Womit fahren wir los?' : 'Where should we start?' }}</strong>
                     </div>
@@ -942,8 +944,8 @@
                     role="status"
                     aria-live="polite"
                 >
-                    <span class="rt-chatbot__message-pet" aria-hidden="true">
-                        <x-railtime-assistant-pet />
+                    <span class="rt-chatbot__message-pet" data-assistant-cloud-slot="message" wire:ignore aria-hidden="true">
+                        <span class="rt-assistant-cloud__fallback"></span>
                     </span>
                     <div class="rt-chatbot__message-stack">
                         <article class="rt-chatbot__message">
@@ -972,8 +974,8 @@
                     wire:target="sendMessage,quickAction"
                     style="display: none"
                 >
-                    <span class="rt-chatbot__message-pet rt-chatbot__message-pet--thinking" data-state="thinking" aria-hidden="true">
-                        <x-railtime-assistant-pet />
+                    <span class="rt-chatbot__message-pet rt-chatbot__message-pet--thinking" data-assistant-cloud-slot="message" wire:ignore data-state="thinking" aria-hidden="true">
+                        <span class="rt-assistant-cloud__fallback"></span>
                     </span>
                     <div class="rt-chatbot__message" aria-label="{{ $isGerman ? 'Antwort wird erstellt' : 'Preparing response' }}">
                         <p class="rt-chatbot__message-content rt-chatbot__stream" wire:stream="assistant-response-stream"></p>

@@ -92,17 +92,17 @@
 .rt-chatbot__pet-halo {
     position: absolute;
     inset: 0.25rem;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 0;
     border-radius: 50%;
-    background: #101113;
-    box-shadow: 0 10px 24px -12px rgba(10, 18, 29, 0.5);
+    background: transparent;
+    box-shadow: 0 12px 28px -15px rgba(10, 18, 29, 0.22);
     opacity: 1;
     transform: scale(1);
     transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease;
 }
 
 .dark .rt-chatbot__pet-halo {
-    box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 12px 28px -15px rgba(0, 0, 0, 0.32);
 }
 
 .rt-chatbot__pet-renderer {
@@ -174,7 +174,7 @@
 .rt-assistant-cloud__fallback {
     position: absolute;
     inset: 24%;
-    background: #f4f4f5;
+    background: var(--rt-chatbot-text);
     opacity: 1;
     transition: opacity 180ms ease;
     -webkit-mask: url('/icons/mask-icon.svg') center / contain no-repeat;
@@ -567,9 +567,10 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
     flex: 0 0 auto;
     place-items: center;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 0;
     border-radius: 1.05rem;
-    background: #101113;
+    background: transparent;
+    box-shadow: 0 5px 13px -9px rgba(10, 18, 29, 0.18);
 }
 
 .rt-chatbot__avatar-pet {
@@ -1269,12 +1270,10 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
     height: 5.6rem;
     place-items: center;
     margin-bottom: 0.3rem;
-    border: 1px solid color-mix(in srgb, var(--rt-chatbot-accent) 18%, var(--rt-chatbot-border));
+    border: 0;
     border-radius: 1.75rem;
-    background:
-        radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rt-chatbot-accent) 12%, transparent), transparent 64%),
-        var(--rt-chatbot-panel);
-    box-shadow: 0 18px 34px -28px rgba(18, 32, 50, 0.7);
+    background: transparent;
+    box-shadow: 0 8px 20px -14px rgba(18, 32, 50, 0.18);
 }
 
 .rt-chatbot__empty-pet .rt-assistant-pet {
@@ -1351,9 +1350,10 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
     flex: 0 0 auto;
     place-items: center;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--rt-chatbot-accent) 18%, var(--rt-chatbot-border));
+    border: 0;
     border-radius: 0.72rem;
-    background: var(--rt-chatbot-panel);
+    background: transparent;
+    box-shadow: 0 4px 10px -8px rgba(10, 18, 29, 0.18);
 }
 
 .rt-chatbot__message-pet .rt-assistant-pet {

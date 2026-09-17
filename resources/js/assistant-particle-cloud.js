@@ -84,18 +84,32 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
     const root = controllerElement.closest('.rt-chatbot') || documentObject;
     const surfaces = [];
 
-    root.querySelectorAll('[data-assistant-cloud-slot]').forEach((slot) => {
-        const canvas = documentObject.createElement('canvas');
-        canvas.className = 'rt-assistant-cloud__canvas';
-        canvas.setAttribute('aria-hidden', 'true');
-        let context;
-        try { context = canvas.getContext('2d', { alpha: true }); } catch (_) { return; }
-        if (!context) return;
-        slot.appendChild(canvas);
-        slot.classList.add('is-cloud-ready');
-        surfaces.push({ slot, canvas, context, visible: true, role: slot.dataset.assistantCloudSlot });
-    });
-    if (!surfaces.length) return null;
+    // Messages are inserted/removed by Livewire; all slots share one clock.
+    function syncSurfaces() {
+        for (let index = surfaces.length - 1; index >= 0; index--) {
+            const surface = surfaces[index];
+            if (surface.slot.isConnected) continue;
+            resizeObserver?.unobserve(surface.slot);
+            intersectionObserver?.unobserve(surface.slot);
+            surface.canvas.remove();
+            surface.slot.classList.remove('is-cloud-ready');
+            surfaces.splice(index, 1);
+        }
+        root.querySelectorAll('[data-assistant-cloud-slot]').forEach((slot) => {
+            if (surfaces.some((surface) => surface.slot === slot)) return;
+            const canvas = documentObject.createElement('canvas');
+            canvas.className = 'rt-assistant-cloud__canvas';
+            canvas.setAttribute('aria-hidden', 'true');
+            let context;
+            try { context = canvas.getContext('2d', { alpha: true }); } catch (_) { return; }
+            if (!context) return;
+            slot.appendChild(canvas);
+            slot.classList.add('is-cloud-ready');
+            surfaces.push({ slot, canvas, context, visible: true, role: slot.dataset.assistantCloudSlot });
+            resizeObserver?.observe(slot);
+            intersectionObserver?.observe(slot);
+        });
+    }
 
     let started = false;
     let destroyed = false;
@@ -113,23 +127,30 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
             && surface.slot.getClientRects().length > 0;
     }
 
-    function drawSurface(surface, state, alpha, staticFrame) {
+    function drawSurface(surface, state, alpha, staticFrame, dark) {
         const { context, cssSize } = surface;
         const preset = resolveAssistantOrb(state, cssSize);
         const time = staticFrame || preset.pace === 0 ? 0.6 : clock * preset.speed * preset.pace;
         context.globalAlpha = alpha * (state === 'offline' ? 0.55 : 1);
-        paintFrame(context, preset.frame(cssSize, time, preset.opts), true);
+        paintFrame(context, preset.frame(cssSize, time, preset.opts), dark);
         context.globalAlpha = 1;
     }
 
     function draw() {
         const staticFrame = reducedMotion.matches;
+        const dark = documentObject.documentElement.classList.contains('dark');
         const blend = staticFrame ? 1 : assistantCloudStyleBlend(clock * 1000 - stateChangedAt);
         surfaces.filter(isVisible).forEach((surface) => {
             const size = Math.min(surface.slot.clientWidth, surface.slot.clientHeight);
             if (!size) return;
             const dpr = Math.min(Number(view.devicePixelRatio) || 1, 2);
             const pixels = Math.max(1, Math.round(size * dpr));
+            const messageState = surface.role === 'message' ? (surface.slot.dataset.state || 'idle') : null;
+            const restingMessage = messageState === 'idle' || messageState === 'offline';
+            const cacheKey = staticFrame || restingMessage
+                ? `${size}-${dpr}-${dark}-${messageState || currentState}` : null;
+            if (cacheKey && surface.staticKey === cacheKey) return;
+            surface.staticKey = cacheKey;
             if (surface.canvas.width !== pixels || surface.cssSize !== size) {
                 surface.canvas.width = pixels;
                 surface.canvas.height = pixels;
@@ -137,17 +158,23 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
             }
             surface.context.setTransform(dpr, 0, 0, dpr, 0, 0);
             surface.context.clearRect(0, 0, size, size);
-            if (blend < 1 && previousState !== currentState) {
-                drawSurface(surface, previousState, 1 - blend, staticFrame);
+            if (messageState) {
+                drawSurface(surface, messageState, 1, staticFrame || restingMessage, dark);
+                return;
             }
-            drawSurface(surface, currentState, blend < 1 && previousState !== currentState ? blend : 1, staticFrame);
+            if (blend < 1 && previousState !== currentState) {
+                drawSurface(surface, previousState, 1 - blend, staticFrame, dark);
+            }
+            drawSurface(surface, currentState, blend < 1 && previousState !== currentState ? blend : 1, staticFrame, dark);
         });
     }
 
     function canAnimate() {
         return started && !destroyed && !reducedMotion.matches && !forcedColors.matches
             && documentObject.visibilityState !== 'hidden' && surfaces.some(isVisible)
-            && (currentState !== 'offline' || clock * 1000 - stateChangedAt < ASSISTANT_CLOUD_TRANSITION_MS);
+            && (currentState !== 'offline' || clock * 1000 - stateChangedAt < ASSISTANT_CLOUD_TRANSITION_MS
+                || surfaces.some((surface) => surface.role === 'message' && isVisible(surface)
+                    && surface.slot.dataset.state && !['idle', 'offline'].includes(surface.slot.dataset.state)));
     }
 
     function queueFrame() {
@@ -191,17 +218,25 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
         });
         reconcile();
     }) : null;
-    surfaces.forEach(({ slot }) => {
-        resizeObserver?.observe(slot);
-        intersectionObserver?.observe(slot);
+    const slotObserver = new view.MutationObserver((records) => {
+        const slotsChanged = records.some((record) => record.type === 'childList'
+            && [...record.addedNodes, ...record.removedNodes].some((node) =>
+                node.nodeType === 1 && (node.matches('[data-assistant-cloud-slot]')
+                    || node.querySelector('[data-assistant-cloud-slot]'))));
+        if (slotsChanged) syncSurfaces();
+        if (slotsChanged || records.some((record) => record.type === 'attributes')) reconcile();
     });
+    slotObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-state'] });
+    const themeObserver = new view.MutationObserver(reconcile);
+    themeObserver.observe(documentObject.documentElement, { attributes: true, attributeFilter: ['class'] });
+    syncSurfaces();
     documentObject.addEventListener('visibilitychange', reconcile);
     reducedMotion.addEventListener('change', reconcile);
     forcedColors.addEventListener('change', reconcile);
     view.addEventListener('resize', reconcile);
 
     return {
-        surfaceCount: surfaces.length,
+        get surfaceCount() { return surfaces.length; },
         start() {
             if (started || destroyed) return;
             started = true;
@@ -212,6 +247,8 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
             started = false;
             if (animationFrame !== null) view.cancelAnimationFrame(animationFrame);
             stateObserver.disconnect();
+            slotObserver.disconnect();
+            themeObserver.disconnect();
             resizeObserver?.disconnect();
             intersectionObserver?.disconnect();
             documentObject.removeEventListener('visibilitychange', reconcile);

@@ -240,13 +240,14 @@ class ChatbotViewMarkupTest extends TestCase
     {
         $this->assertStringContainsString('class="rt-chatbot__pet-stage"', $this->view);
         $this->assertStringContainsString('class="rt-chatbot__pet-launcher"', $this->view);
-        $this->assertStringContainsString('<x-railtime-assistant-pet', $this->view);
+        $this->assertStringNotContainsString('<x-railtime-assistant-pet', $this->view);
+        $this->assertSame(4, substr_count($this->view, 'data-assistant-cloud-slot="message"'));
         $this->assertStringContainsString('x-on:click="handlePetClick()"', $this->view);
         $this->assertStringContainsString('x-show="petBubbleVisible"', $this->view);
         $this->assertStringContainsString('x-for="action in petBubbleActions"', $this->view);
         $this->assertStringContainsString('x-on:click.stop="runPetBubbleAction(action)"', $this->view);
         $this->assertStringContainsString('async handlePetClick()', $this->javascript);
-        // Der Launcher traegt die AI-Partikelwolke (RT-Morph); das fruehere
+        // Launcher und Chat verwenden denselben Thinking Orb; das fruehere
         // 3D-Maskottchen bleibt als Backup in assistant-pet-3d.js liegen.
         $this->assertStringContainsString('x-data="railtimeAssistantCloud()"', $this->view);
         $this->assertStringContainsString('data-assistant-cloud-slot="launcher"', $this->view);
