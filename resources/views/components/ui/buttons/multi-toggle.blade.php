@@ -137,7 +137,8 @@
 >
     @foreach($normalizedOptions as $option)
         @php
-            $buttonAttributes = new \Illuminate\View\ComponentAttributeBag([
+            // Keep values raw until the single attribute-bag merge below.
+            $buttonAttributes = [
                 'type' => 'button',
                 'class' => 'rt-multi-toggle__button',
                 'data-multi-toggle-option' => '',
@@ -147,21 +148,21 @@
                 'aria-pressed' => $selectedValue === $option['value'] ? 'true' : 'false',
                 'tabindex' => !$option['disabled'] && $option['value'] === $tabValue ? '0' : '-1',
                 'title' => $option['label'],
-            ]);
-            if ($id) $buttonAttributes = $buttonAttributes->merge(['wire:key' => $id.'-'.substr(hash('sha256', $option['value']), 0, 16)]);
+            ];
+            if ($id) $buttonAttributes['wire:key'] = $id.'-'.substr(hash('sha256', $option['value']), 0, 16);
             if ($option['disabled']) {
-                $buttonAttributes = $buttonAttributes->merge(['disabled' => true, 'aria-disabled' => 'true']);
+                $buttonAttributes += ['disabled' => true, 'aria-disabled' => 'true'];
             } else {
-                $buttonAttributes = $buttonAttributes->merge([
+                $buttonAttributes += [
                     'wire:click' => $safeAction.'('.\Illuminate\Support\Js::from($option['value'])->toHtml().')',
                     'wire:loading.attr' => 'disabled',
                     'wire:target' => $safeAction,
-                ]);
+                ];
             }
         @endphp
         <x-ui.buttons.button-basic
             mode="basic"
-            {{ $attributes->only([])->merge($buttonAttributes->getAttributes()) }}
+            {{ $attributes->only([])->merge($buttonAttributes) }}
             x-on:pointerenter="if ($event.pointerType !== 'touch') showTooltip($el)"
             x-on:pointerleave="if (document.activeElement !== $el) hideTooltip()"
             x-on:focus="if (!touchInteraction) showTooltip($el)"
@@ -173,7 +174,7 @@
             <span class="sr-only">{{ $option['label'] }}</span>
         </x-ui.buttons.button-basic>
     @endforeach
-    <template x-teleport="body">
+    <template x-teleport="body" wire:ignore>
         <span
             x-ref="tooltip"
             x-bind:id="$id('multi-toggle-tooltip')"

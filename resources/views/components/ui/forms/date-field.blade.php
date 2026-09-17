@@ -92,7 +92,10 @@
         <input type="hidden" name="{{ $attributes->get('name') }}" :value="value" @disabled($disabled) />
     @endif
 
-    <template x-teleport="body">
+    {{-- Der Teleport-Inhalt gehoert Alpine. Livewire darf den Body-Klon nicht
+         anhand seiner erst zur Laufzeit gebundenen Dialog-ID ersetzen. Das
+         sichtbare Feld und der entangled ISO-Wert bleiben normal morphbar. --}}
+    <template x-teleport="body" wire:ignore>
         {{-- important bewahrt x-show gegen die Legacy-flex-Utility. --}}
         <div
             x-show.important="open"

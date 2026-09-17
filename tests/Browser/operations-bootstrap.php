@@ -37,6 +37,7 @@ $qaBuildDirectory = getenv('RAILTIME_OPERATIONS_QA_BUILD_DIR') ?: 'operations-qa
 if (! preg_match('/\Aoperations-qa(?:-[a-z0-9-]+)?-build\z/', $qaBuildDirectory)) {
     throw new RuntimeException('An isolated Operations QA build directory is required.');
 }
-app(Vite::class)->useBuildDirectory($qaBuildDirectory);
+// A parallel developer's public/hot must never redirect this acceptance build to HMR.
+app(Vite::class)->useHotFile($qaDirectory.'/vite.hot')->useBuildDirectory($qaBuildDirectory);
 
 return $app;

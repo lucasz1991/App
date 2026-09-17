@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Js;
 use Tests\TestCase;
 
 class MultiToggleComponentTest extends TestCase
@@ -46,6 +47,10 @@ class MultiToggleComponentTest extends TestCase
         $this->assertStringContainsString('rt-ui-button', $html);
         $this->assertStringContainsString('wire:loading.attr="disabled"', $html);
         $this->assertStringContainsString('wire:target="switchView"', $html);
+        foreach ($xpath->query('//button[@data-multi-toggle-option]') as $button) {
+            $this->assertSame("switchView('".$button->getAttribute('data-toggle-value')."')", $button->getAttribute('wire:click'));
+            $this->assertDoesNotMatchRegularExpression('/&(?:#\d+|#x[0-9a-f]+|quot|apos|amp);/i', $button->getAttribute('wire:click'));
+        }
     }
 
     public function test_disabled_options_are_not_actions_or_tab_stops_and_selection_does_not_move(): void
@@ -101,6 +106,8 @@ class MultiToggleComponentTest extends TestCase
         $button = $xpath->query('//button')->item(0);
         $this->assertSame($label, $button->getAttribute('aria-label'));
         $this->assertSame($value, $button->getAttribute('data-toggle-value'));
+        $this->assertSame('switchView('.Js::from($value)->toHtml().')', $button->getAttribute('wire:click'));
+        $this->assertDoesNotMatchRegularExpression('/&(?:#\d+|#x[0-9a-f]+|quot|apos|amp);/i', $button->getAttribute('wire:click'));
         $this->assertStringContainsString('\\u0027', $button->getAttribute('wire:click'));
         $this->assertStringNotContainsString('<script>', $button->getAttribute('wire:click'));
         $this->assertSame('true', $button->getAttribute('aria-pressed'));
@@ -115,6 +122,8 @@ class MultiToggleComponentTest extends TestCase
         foreach (['x-teleport="body"', 'role="tooltip"', 'x-on:focus=', 'x-on:keydown.escape=', 'getBoundingClientRect()', 'window.visualViewport', 'x-text="tooltipText"', 'wire:loading.attr="aria-busy"'] as $contract) {
             $this->assertStringContainsString($contract, $html);
         }
+        $this->assertSame(1, $this->xpath($html)->query('//template[@*[name()="x-teleport"]="body" and @*[name()="wire:ignore"]]')->length);
+        $this->assertSame(0, $this->xpath($html)->query('//*[@data-multi-toggle and @*[name()="wire:ignore"]]')->length);
         $styles = file_get_contents(resource_path('css/multi-toggle.css'));
         foreach (['width: 44px', 'height: 44px', ':focus-visible', 'prefers-reduced-motion', 'var(--rt-shell-panel)', 'position: fixed', "[aria-pressed='true']"] as $contract) {
             $this->assertStringContainsString($contract, $styles);

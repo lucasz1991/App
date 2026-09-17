@@ -268,3 +268,37 @@ test('Tab verlaesst den Popover am Rand zum Ausloeser', () => {
     assert.equal(field.open, false);
     assert.equal(returned, true);
 });
+
+test('Popoverhoehe enthaelt die Kontur und erzeugt bei genug Platz keinen 2px-Scrollbereich', () => {
+    const field = build({}, '2026-09-17');
+    global.window = { innerWidth: 1280, innerHeight: 900 };
+    field.$refs.anchor = { getBoundingClientRect: () => ({ left: 350, top: 150, bottom: 194 }) };
+    field.$refs.panel = { scrollHeight: 408, offsetHeight: 408, clientHeight: 406 };
+    field.position();
+    assert.match(field.panelStyle, /max-height:410px;/);
+
+    // Nach Anwendung der neuen Hoehe bleibt der Messwert stabil.
+    field.$refs.panel = { scrollHeight: 408, offsetHeight: 410, clientHeight: 408 };
+    field.position();
+    assert.match(field.panelStyle, /max-height:410px;/);
+
+    // Reduzierte Testdoubles ohne Box-Masse erzeugen keinen NaN-Wert.
+    field.$refs.panel = { scrollHeight: 408 };
+    field.position();
+    assert.match(field.panelStyle, /max-height:408px;/);
+    assert.doesNotMatch(field.panelStyle, /NaN/);
+    delete global.window;
+});
+
+test('nach Livewire-Morph gelten aktuelle disabled/readonly-Attribute statt alter Initialkonfiguration', () => {
+    const field = build({ disabled: true, readonly: true }, '2026-09-17');
+    field.$refs.display = { disabled: false, readOnly: false };
+    assert.equal(field.locked, false, 'Serverseitiges Freigeben muss ohne neue Alpine-Instanz wirken.');
+    field.$refs.display.disabled = true;
+    assert.equal(field.locked, true);
+    field.$refs.display.disabled = false;
+    field.$refs.display.readOnly = true;
+    assert.equal(field.locked, true);
+    field.select('2026-09-18');
+    assert.equal(field.value, '2026-09-17');
+});

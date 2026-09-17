@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\EmailTemplateBuilder;
+use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\TemplateForwardingStyle;
 use Illuminate\Contracts\Console\Kernel;
 use Symfony\Component\Process\Process;
@@ -7,7 +9,8 @@ use Symfony\Component\Process\Process;
 require dirname(__DIR__).'/vendor/autoload.php';
 $app = require dirname(__DIR__).'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
-$options = getopt('', ['base:', 'maker:']);
+$options = getopt('', ['base:', 'maker:', 'v27-revision2']);
+$revision2 = array_key_exists('v27-revision2', $options);
 $base = realpath($options['base'] ?? '');
 $maker = realpath($options['maker'] ?? '');
 if (! $base || ! $maker) {
@@ -20,6 +23,9 @@ $inputs = [
     ['v30', 'template', 'v30/railtime-v30-vorlage.json'],
 ];
 foreach ($inputs as [$version, $kind, $input]) {
+    if ($revision2 && $version !== 'v27') {
+        continue;
+    }
     $bundle = json_decode(file_get_contents($base.'/'.$input), true, flags: JSON_THROW_ON_ERROR);
     $html = $bundle['html'];
     // Only reinforce existing white surfaces. Do not paint overlay contact
@@ -50,13 +56,65 @@ foreach ($inputs as [$version, $kind, $input]) {
     if ($kind === 'template') {
         $html = preg_replace_callback('/<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->/s', static fn (array $m): string => TemplateForwardingStyle::markFragment($m[0]), $html);
     }
-    $out = $base.'/'.$version.'/forwarding';
+    if ($revision2) {
+        if ($kind === 'template') {
+            $master = file_get_contents(resource_path('mail-templates/email-master.html'));
+            preg_match('/<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->/s', $master, $mark);
+            $html = preg_replace('/<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->/s', TemplateForwardingStyle::framedMarkFragment($mark[0]), $html);
+            preg_match('/<!-- RT_TEMPLATE_MARK_START -->.*?<!-- RT_TEMPLATE_MARK_END -->/s', $html, $protectedMark);
+            $html = str_replace($protectedMark[0], '<!-- FORWARDING_MARK_PLACEHOLDER -->', $html);
+            $colors = ['#ffffff'];
+            $html = preg_replace_callback('/<\/?(?:table|td)\b[^>]*>/i', static function (array $m) use (&$colors): string {
+                $tag = $m[0];
+                if (str_starts_with($tag, '</')) {
+                    array_pop($colors);
+
+                    return $tag;
+                }
+                $color = end($colors) ?: '#ffffff';
+                if (preg_match('/bgcolor="(#[a-f0-9]{6})"|(?:background|background-color):\s*(#[a-f0-9]{6})/i', $tag, $found)) {
+                    $color = $found[1] ?: $found[2];
+                }
+                $colors[] = $color;
+                if (! str_contains($tag, 'bgcolor=')) {
+                    $tag = substr($tag, 0, -1).' bgcolor="'.$color.'">';
+                }
+                if (! preg_match('/background(?:-color)?:/i', $tag)) {
+                    $tag = str_contains($tag, 'style="')
+                        ? str_replace('style="', 'style="background-color:'.$color.'!important;', $tag)
+                        : substr($tag, 0, -1).' style="background-color:'.$color.'!important;">';
+                }
+
+                return $tag;
+            }, $html);
+            $html = str_replace('<!-- FORWARDING_MARK_PLACEHOLDER -->', $protectedMark[0], $html);
+        } else {
+            $asset = EmailTemplateBuilder::signatureLogoAsset('light', 'v27');
+            [$naturalWidth, $naturalHeight] = getimagesize(public_path('mail-assets/'.$asset));
+            $height = (int) round(180 * $naturalHeight / $naturalWidth);
+            $html = preg_replace_callback('/<img\b[^>]*src="\{\{LOGO(?:_STILL)?_SRC\}\}"[^>]*>/', static function (array $match) use ($height): string {
+                $tag = preg_replace('/\bstyle="([^"]*)"/', 'style="display:block;width:180px!important;max-width:180px!important;height:'.$height.'px!important;max-height:'.$height.'px!important;border:0;margin:0;'.(str_contains($match[0], 'mso-hide:all') ? 'mso-hide:all;' : '').'"', $match[0]);
+
+                return str_replace('width="180"', 'width="180" height="'.$height.'"', $tag);
+            }, $html);
+            $html = preg_replace('/(<img class="rt-logo".*?<!\[endif\]-->)/s', '<table role="presentation" width="180" border="0" cellspacing="0" cellpadding="0" bgcolor="#ffffff" style="width:180px;max-width:180px;table-layout:fixed;background-color:#ffffff!important;"><tr><td width="180" height="'.$height.'" style="width:180px;height:'.$height.'px;padding:0;font-size:0;line-height:0;">$1</td></tr></table>', $html, 1);
+            // This table lies behind BOTH the train and content; painting the
+            // overlaid contact cell instead would hide the train.
+            $html = str_replace('class="rt-sign-content-frame"', 'class="rt-sign-content-frame" bgcolor="#ffffff"', $html);
+            $html = preg_replace('/(<table class="rt-sign-content-frame"[^>]*style=")/', '$1background-color:#ffffff!important;', $html);
+        }
+    }
+    $out = $base.'/'.$version.($revision2 ? '/forwarding-r2' : '/forwarding');
     if (! is_dir($out)) {
         mkdir($out, 0777, true);
     }
-    $name = 'railtime-'.$version.'-'.($kind === 'template' ? 'vorlage' : 'signatur').'-weiterleitung';
+    $name = 'railtime-'.$version.'-'.($kind === 'template' ? 'vorlage' : 'signatur').'-weiterleitung'.($revision2 ? '-r2' : '');
     file_put_contents($out.'/'.$name.'.html', $html);
     file_put_contents($out.'/'.$name.'.css', $bundle['css']);
+    $sanitized = app(EmailHtmlSanitizer::class)->clean($html);
+    if ($sanitized->hasViolations()) {
+        throw new RuntimeException(json_encode($sanitized->violationMessages(), JSON_UNESCAPED_UNICODE));
+    }
     $args = [PHP_BINARY, $maker, 'make', '--project', dirname(__DIR__), '--kind', $kind, '--html', $out.'/'.$name.'.html', '--css', $out.'/'.$name.'.css', '--output', $out.'/'.$name.'.json', '--force'];
     foreach ($bundle['media'] as $media) {
         if (! str_starts_with($media['id'], 'mail-imports/')) {

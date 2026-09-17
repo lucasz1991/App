@@ -98,7 +98,7 @@
 .rt-calendar-agenda-date strong { color: var(--rt-shell-text); font-size: 17px; font-variant-numeric: tabular-nums; }
 .rt-calendar-agenda-label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; font-size: 12px; font-weight: 600; color: var(--rt-shell-text); }
 .rt-calendar-agenda-count { margin-left: auto; color: var(--rt-shell-muted); font-size: 11px; font-weight: 400; text-align: right; flex: 0 0 auto; }
-.rt-calendar-today-label { font-size: 10px; font-weight: 600; color: var(--calendar-accent); }
+.rt-calendar-today-label { font-size: 10px; font-weight: 600; color: var(--rt-shell-accent, var(--calendar-accent)); }
 .rt-calendar-agenda-day.is-today .rt-calendar-agenda-date { background: var(--calendar-accent); color: #fff; }
 .rt-calendar-agenda-day.is-today .rt-calendar-agenda-date strong { color: #fff; }
 .rt-calendar-agenda-day.is-empty .rt-calendar-agenda-heading { min-height: 44px; padding-block: 6px; }

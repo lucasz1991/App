@@ -67,4 +67,18 @@ class DateFieldComponentTest extends TestCase
         $this->assertMatchesRegularExpression('/<input\b[^>]*\bdisabled\b[^>]*\breadonly\b/s', $html);
         $this->assertMatchesRegularExpression('/<button\b[^>]*\bdisabled\b[^>]*class="rt-ui-date-field__trigger"/s', $html);
     }
+
+    public function test_only_the_alpine_owned_teleport_is_protected_from_livewire_morphing(): void
+    {
+        $html = Blade::render('<x-ui.forms.date-field wire:model.live="anchorDate" :clearable="false" />');
+
+        // Der Body-Klon bekommt seine ID erst durch Alpine. Ohne ignore kann
+        // Livewire beim naechsten Serverrender dessen Scope-freien Klon einsetzen.
+        $this->assertMatchesRegularExpression('/<template\b[^>]*x-teleport="body"[^>]*wire:ignore/s', $html);
+        $this->assertSame(1, substr_count($html, 'wire:ignore'));
+        $this->assertDoesNotMatchRegularExpression('/<div\b[^>]*wire:ignore/s', $html);
+        $this->assertDoesNotMatchRegularExpression('/<input\b[^>]*wire:ignore/s', $html);
+        $this->assertStringContainsString('$wire.entangle', $html);
+        $this->assertStringContainsString('x-model="display"', $html);
+    }
 }

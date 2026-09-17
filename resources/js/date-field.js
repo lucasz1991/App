@@ -62,8 +62,10 @@ export const dateField = (config = {}) => ({
     },
 
     get locked() {
-        return this.disabled || this.readonly
-            || Boolean(this.$refs.display?.disabled || this.$refs.display?.readOnly);
+        const field = this.$refs.display;
+        // Das sichtbare Feld bleibt Livewire-owned; dessen Attribute koennen
+        // sich nach dem initialen x-data-Aufbau serverseitig aendern.
+        return field ? Boolean(field.disabled || field.readOnly) : this.disabled || this.readonly;
     },
 
     get hasValue() {
@@ -307,7 +309,11 @@ export const dateField = (config = {}) => ({
         const bottomEdge = viewportTop + viewportHeight - VIEWPORT_MARGIN;
         const spaceBelow = Math.max(0, bottomEdge - rect.bottom - 6);
         const spaceAbove = Math.max(0, rect.top - topEdge - 6);
-        const actualHeight = this.$refs.panel?.scrollHeight || PANEL_HEIGHT;
+        const panel = this.$refs.panel;
+        const borderHeight = Number.isFinite(panel?.offsetHeight) && Number.isFinite(panel?.clientHeight)
+            ? Math.max(0, panel.offsetHeight - panel.clientHeight) : 0;
+        // scrollHeight misst den Inhalt; max-height gilt hier fuer border-box.
+        const actualHeight = (panel?.scrollHeight || PANEL_HEIGHT) + borderHeight;
         const placeAbove = spaceBelow < actualHeight && spaceAbove > spaceBelow;
         const available = Math.min(viewportHeight - VIEWPORT_MARGIN * 2, placeAbove ? spaceAbove : spaceBelow);
         const height = Math.max(0, Math.min(actualHeight, available));
