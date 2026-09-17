@@ -1,52 +1,46 @@
-// ---------------------------------------------------------------
-// Logik fuer das gemeinsame Datumsfeld (x-ui.forms.date-field).
-//
-// Ersetzt <input type="date">: der Browser-Datepicker laesst sich weder
-// gestalten noch zuverlaessig positionieren, und seine Mindestbreite sprengt
-// enge Raster (Wagenliste: fuenfspaltige Kopfzeile, zweispaltiges Mobilraster).
-//
-// BINDUNG ueber x-modelable, nicht ueber ein verstecktes Feld: der Wert muss
-// in BEIDE Richtungen fliessen. Schreibt die umgebende Komponente von aussen
-// (Entwurf laden, Sprachassistent), meldet ein DOM-Feld das nicht zurueck —
-// Alpine setzt bei x-model nur die value-Eigenschaft, ohne Ereignis. Mit
-// x-modelable ist `value` eine reaktive Eigenschaft dieser Komponente, und
-// $watch sieht jede Aenderung, egal woher sie kommt.
-//
-// Der Kalender haengt per x-teleport am <body> und wird fixed positioniert.
-// Grund: das Feld steht in Flaechen mit overflow:hidden (Vollbild-Modal,
-// Wizard-Folien) — ein absolut positioniertes Popover waere dort abgeschnitten.
-// ---------------------------------------------------------------
+// Gemeinsamer ISO-Datumswert fuer Alpine x-modelable und Livewire entangle.
+// Das sichtbare Feld bleibt lokal formatiert; der Server erhaelt YYYY-MM-DD.
+// Das bestehende Body-Popover bleibt auch in schmalen Rastern/Overlays nutzbar.
 
 const ISO_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const PANEL_WIDTH = 304;
-const PANEL_HEIGHT = 372;
+const PANEL_WIDTH = 336;
+const PANEL_HEIGHT = 400;
 const VIEWPORT_MARGIN = 8;
-
 const pad = (value) => String(value).padStart(2, '0');
-
 const toIso = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
 const parseIso = (value) => {
     if (!ISO_PATTERN.test(String(value ?? ''))) return null;
 
     const [year, month, day] = String(value).split('-').map(Number);
-    const date = new Date(year, month - 1, day);
+    if (year < 1) return null;
+    const date = new Date(0);
+    date.setFullYear(year, month - 1, day);
+    date.setHours(12, 0, 0, 0);
 
-    // Verwirft Scheindaten wie 2026-02-31, die der Date-Konstruktor still
-    // in den Folgemonat schiebt.
     return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
         ? date
         : null;
 };
 
+const shiftDateMonth = (date, delta) => {
+    const target = new Date(date.getFullYear(), date.getMonth() + delta, 1, 12);
+    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0, 12).getDate();
+    target.setDate(Math.min(date.getDate(), lastDay));
+
+    return target;
+};
+
 export const dateField = (config = {}) => ({
-    // Von x-modelable nach aussen gespiegelt — ISO (YYYY-MM-DD) oder ''.
-    value: '',
+    value: config.value ?? '',
     locale: config.locale || 'de-DE',
-    // Erster Wochentag: 1 = Montag.
-    weekStart: Number.isInteger(config.weekStart) ? config.weekStart : 1,
-    min: ISO_PATTERN.test(String(config.min ?? '')) ? String(config.min) : null,
-    max: ISO_PATTERN.test(String(config.max ?? '')) ? String(config.max) : null,
+    weekStart: Number.isInteger(config.weekStart) && config.weekStart >= 0 && config.weekStart <= 6
+        ? config.weekStart : 1,
+    min: parseIso(config.min) ? String(config.min) : null,
+    max: parseIso(config.max) ? String(config.max) : null,
+    disabled: config.disabled ?? false,
+    readonly: config.readonly ?? false,
+    clearable: config.clearable ?? true,
     open: false,
     display: '',
     viewYear: new Date().getFullYear(),
@@ -54,15 +48,12 @@ export const dateField = (config = {}) => ({
     focusedIso: null,
     panelStyle: '',
     repositionHandler: null,
+    focusHandler: null,
+    returnFocusTo: null,
 
     init() {
-        // x-modelable traegt den Startwert erst nach dem Aufbau der Komponente
-        // ein — deshalb einmal nachziehen, sobald Alpine damit fertig ist.
         this.$nextTick(() => this.syncFromValue());
-
-        this.$watch('value', () => {
-            if (this.display !== this.formatDisplay(this.value)) this.syncFromValue();
-        });
+        this.$watch('value', () => this.syncFromValue());
         this.$watch('open', (isOpen) => (isOpen ? this.bindReposition() : this.unbindReposition()));
     },
 
@@ -70,8 +61,17 @@ export const dateField = (config = {}) => ({
         this.unbindReposition();
     },
 
+    get locked() {
+        return this.disabled || this.readonly
+            || Boolean(this.$refs.display?.disabled || this.$refs.display?.readOnly);
+    },
+
     get hasValue() {
         return parseIso(this.value) !== null;
+    },
+
+    get todaySelectable() {
+        return !this.locked && this.isSelectable(toIso(new Date()));
     },
 
     formatDisplay(iso) {
@@ -79,9 +79,7 @@ export const dateField = (config = {}) => ({
         if (!date) return '';
 
         return new Intl.DateTimeFormat(this.locale, {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
+            day: '2-digit', month: '2-digit', year: 'numeric',
         }).format(date);
     },
 
@@ -90,41 +88,37 @@ export const dateField = (config = {}) => ({
         if (!date) return '';
 
         return new Intl.DateTimeFormat(this.locale, {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
         }).format(date);
     },
 
     syncFromValue() {
-        const date = parseIso(this.value) || new Date();
         this.display = this.formatDisplay(this.value);
+        const source = parseIso(this.value) ? this.value : toIso(new Date());
+        this.focusedIso = this.nearestSelectable(source);
+        const date = parseIso(this.focusedIso) || parseIso(source) || new Date();
         this.viewYear = date.getFullYear();
         this.viewMonth = date.getMonth();
-        this.focusedIso = this.hasValue ? this.value : toIso(date);
     },
 
     write(iso) {
+        if (this.locked || (iso === '' ? !this.clearable : !this.isSelectable(iso))) return;
+
         this.value = iso;
         this.display = this.formatDisplay(iso);
     },
 
-    /**
-     * Getippten Text auswerten. Akzeptiert 1.8.26, 01.08.2026 und 2026-08-01;
-     * Unlesbares stellt still den letzten gueltigen Wert wieder her, statt den
-     * Entwurf mit Datenmuell zu fuellen.
-     */
     commitTyped() {
+        if (this.locked) return;
         const raw = String(this.display ?? '').trim();
 
         if (raw === '') {
             this.write('');
+            this.syncFromValue();
             return;
         }
 
         const iso = this.parseTyped(raw);
-
         if (!iso || !this.isSelectable(iso)) {
             this.display = this.formatDisplay(this.value);
             return;
@@ -136,22 +130,35 @@ export const dateField = (config = {}) => ({
 
     parseTyped(raw) {
         if (ISO_PATTERN.test(raw)) return parseIso(raw) ? raw : null;
+        if (!/^\d{1,2}[.\-/\s]\d{1,2}[.\-/\s]\d{2,4}$/.test(raw)) return null;
 
-        const parts = raw.split(/[.\-/\s]+/).filter(Boolean).map(Number);
-        if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return null;
-
-        const [day, month, shortYear] = parts;
+        const [day, month, shortYear] = raw.split(/[.\-/\s]/).map(Number);
         const year = shortYear < 100 ? 2000 + shortYear : shortYear;
-        const candidate = `${year}-${pad(month)}-${pad(day)}`;
+        const candidate = `${String(year).padStart(4, '0')}-${pad(month)}-${pad(day)}`;
 
         return parseIso(candidate) ? candidate : null;
     },
 
     isSelectable(iso) {
+        if (!parseIso(iso)) return false;
         if (this.min && iso < this.min) return false;
         if (this.max && iso > this.max) return false;
 
         return true;
+    },
+
+    nearestSelectable(iso) {
+        if (this.min && this.max && this.min > this.max) return null;
+        if (!parseIso(iso)) return null;
+        if (this.min && iso < this.min) return this.min;
+        if (this.max && iso > this.max) return this.max;
+
+        return iso;
+    },
+
+    get monthName() {
+        return new Intl.DateTimeFormat(this.locale, { month: 'long' })
+            .format(new Date(this.viewYear, this.viewMonth, 1));
     },
 
     get monthLabel() {
@@ -161,25 +168,21 @@ export const dateField = (config = {}) => ({
 
     get weekdayLabels() {
         const formatter = new Intl.DateTimeFormat(this.locale, { weekday: 'short' });
-
-        // 2024-01-01 war ein Montag — als stabiler Anker fuer die Reihenfolge.
         return Array.from({ length: 7 }, (_, index) => {
             const day = new Date(2024, 0, 1 + ((index + this.weekStart + 6) % 7));
-
             return formatter.format(day).replace('.', '');
         });
     },
 
     get days() {
-        const first = new Date(this.viewYear, this.viewMonth, 1);
+        const first = new Date(this.viewYear, this.viewMonth, 1, 12);
         const offset = (first.getDay() - this.weekStart + 7) % 7;
-        const start = new Date(this.viewYear, this.viewMonth, 1 - offset);
+        const start = new Date(this.viewYear, this.viewMonth, 1 - offset, 12);
         const todayIso = toIso(new Date());
 
         return Array.from({ length: 42 }, (_, index) => {
-            const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index);
+            const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index, 12);
             const iso = toIso(date);
-
             return {
                 iso,
                 label: date.getDate(),
@@ -192,14 +195,51 @@ export const dateField = (config = {}) => ({
         });
     },
 
-    shiftMonth(delta) {
-        const date = new Date(this.viewYear, this.viewMonth + delta, 1);
+    get weeks() {
+        const days = this.days;
+        return Array.from({ length: 6 }, (_, index) => days.slice(index * 7, (index + 1) * 7));
+    },
+
+    canShiftMonth(delta) {
+        const first = new Date(this.viewYear, this.viewMonth + delta, 1, 12);
+        const last = new Date(first.getFullYear(), first.getMonth() + 1, 0, 12);
+        if (this.locked || first.getFullYear() < 1 || first.getFullYear() > 9999) return false;
+        if (this.min && toIso(last) < this.min) return false;
+        if (this.max && toIso(first) > this.max) return false;
+
+        return true;
+    },
+
+    shiftMonth(delta, focusDay = false) {
+        if (!this.canShiftMonth(delta)) return;
+
+        const current = parseIso(this.focusedIso) || new Date(this.viewYear, this.viewMonth, 1, 12);
+        const source = new Date(this.viewYear, this.viewMonth, 1, 12);
+        source.setDate(Math.min(current.getDate(), new Date(this.viewYear, this.viewMonth + 1, 0).getDate()));
+        this.moveFocus(toIso(shiftDateMonth(source, delta)), focusDay);
+    },
+
+    moveFocus(iso, focusDay = true) {
+        const next = this.nearestSelectable(iso);
+        if (!next) return;
+
+        this.focusedIso = next;
+        const date = parseIso(next);
         this.viewYear = date.getFullYear();
         this.viewMonth = date.getMonth();
+        if (focusDay) this.focusDay();
+    },
+
+    focusDay() {
+        this.$nextTick(() => {
+            const panel = this.$refs.panel;
+            const target = panel?.querySelector('[data-date-focused="true"]:not(:disabled)');
+            (target || panel)?.focus({ preventScroll: true });
+        });
     },
 
     select(iso) {
-        if (!this.isSelectable(iso)) return;
+        if (this.locked || !this.isSelectable(iso)) return;
 
         this.write(iso);
         this.focusedIso = iso;
@@ -207,126 +247,151 @@ export const dateField = (config = {}) => ({
     },
 
     selectToday() {
-        const today = new Date();
-        this.viewYear = today.getFullYear();
-        this.viewMonth = today.getMonth();
-        this.select(toIso(today));
+        if (this.todaySelectable) this.select(toIso(new Date()));
     },
 
     clear() {
+        if (this.locked || !this.clearable) return;
+
         this.write('');
         this.syncFromValue();
         this.closePanel(true);
     },
 
-    togglePanel() {
+    togglePanel(trigger = null) {
         if (this.open) {
             this.closePanel(true);
             return;
         }
-
-        this.openPanel();
+        this.openPanel(trigger);
     },
 
-    openPanel() {
-        if (this.$refs.display?.disabled) return;
+    openPanel(trigger = null) {
+        if (this.locked) return;
 
+        this.returnFocusTo = trigger || this.$refs.display;
         this.syncFromValue();
         this.position();
         this.open = true;
-        this.$nextTick(() => this.$refs.panel?.querySelector('[data-date-focused="true"]')?.focus());
+        this.$nextTick(() => {
+            this.position();
+            this.focusDay();
+        });
     },
 
     closePanel(returnFocus = false) {
         if (!this.open) return;
 
         this.open = false;
-        if (returnFocus) this.$nextTick(() => this.$refs.display?.focus());
+        this.unbindReposition();
+        if (returnFocus) {
+            this.$nextTick(() => {
+                const target = this.returnFocusTo?.isConnected === false ? this.$refs.display : this.returnFocusTo;
+                (target || this.$refs.display)?.focus({ preventScroll: true });
+            });
+        }
     },
 
-    /**
-     * Fixed statt absolut: das Feld steht in Flaechen mit overflow:hidden.
-     * Oeffnet nach unten, kippt nach oben, sobald es unten nicht mehr passt,
-     * und bleibt in jedem Fall innerhalb des sichtbaren Bereichs.
-     */
     position() {
         const anchor = this.$refs.anchor;
-        if (!anchor) return;
+        if (!anchor || typeof window === 'undefined') return;
 
         const rect = anchor.getBoundingClientRect();
-        const width = Math.min(PANEL_WIDTH, window.innerWidth - (VIEWPORT_MARGIN * 2));
-        const spaceBelow = window.innerHeight - rect.bottom;
-        const placeAbove = spaceBelow < PANEL_HEIGHT && rect.top > spaceBelow;
-
+        const viewport = window.visualViewport;
+        const viewportLeft = viewport?.offsetLeft || 0;
+        const viewportTop = viewport?.offsetTop || 0;
+        const viewportWidth = viewport?.width || window.innerWidth;
+        const viewportHeight = viewport?.height || window.innerHeight;
+        const width = Math.max(0, Math.min(PANEL_WIDTH, viewportWidth - VIEWPORT_MARGIN * 2));
+        const topEdge = viewportTop + VIEWPORT_MARGIN;
+        const bottomEdge = viewportTop + viewportHeight - VIEWPORT_MARGIN;
+        const spaceBelow = Math.max(0, bottomEdge - rect.bottom - 6);
+        const spaceAbove = Math.max(0, rect.top - topEdge - 6);
+        const actualHeight = this.$refs.panel?.scrollHeight || PANEL_HEIGHT;
+        const placeAbove = spaceBelow < actualHeight && spaceAbove > spaceBelow;
+        const available = Math.min(viewportHeight - VIEWPORT_MARGIN * 2, placeAbove ? spaceAbove : spaceBelow);
+        const height = Math.max(0, Math.min(actualHeight, available));
         const left = Math.min(
-            Math.max(VIEWPORT_MARGIN, rect.left),
-            Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN),
+            Math.max(viewportLeft + VIEWPORT_MARGIN, rect.left),
+            Math.max(viewportLeft + VIEWPORT_MARGIN, viewportLeft + viewportWidth - width - VIEWPORT_MARGIN),
         );
-        const top = placeAbove
-            ? Math.max(VIEWPORT_MARGIN, rect.top - PANEL_HEIGHT - 6)
-            : Math.min(rect.bottom + 6, window.innerHeight - VIEWPORT_MARGIN);
-        const maxHeight = placeAbove
-            ? rect.top - VIEWPORT_MARGIN - 6
-            : window.innerHeight - top - VIEWPORT_MARGIN;
+        const desiredTop = placeAbove ? rect.top - height - 6 : rect.bottom + 6;
+        const top = Math.max(topEdge, Math.min(desiredTop, bottomEdge - height));
 
-        this.panelStyle = `left:${Math.round(left)}px;top:${Math.round(top)}px;width:${Math.round(width)}px;max-height:${Math.round(Math.max(220, maxHeight))}px;`;
+        this.panelStyle = `left:${Math.round(left)}px;top:${Math.round(top)}px;width:${Math.round(width)}px;max-height:${Math.round(height)}px;`;
     },
 
     bindReposition() {
-        if (this.repositionHandler) return;
+        if (this.repositionHandler || typeof window === 'undefined') return;
 
         this.repositionHandler = () => this.position();
+        this.focusHandler = (event) => {
+            if (this.open && !this.$refs.panel?.contains(event.target) && !this.$refs.anchor?.contains(event.target)) {
+                this.closePanel();
+            }
+        };
         window.addEventListener('resize', this.repositionHandler, { passive: true });
-        // capture: auch das Scrollen innerhalb der Wizard-Folie mitbekommen.
         window.addEventListener('scroll', this.repositionHandler, { passive: true, capture: true });
+        window.visualViewport?.addEventListener('resize', this.repositionHandler, { passive: true });
+        window.visualViewport?.addEventListener('scroll', this.repositionHandler, { passive: true });
+        document.addEventListener('focusin', this.focusHandler);
     },
 
     unbindReposition() {
-        if (!this.repositionHandler) return;
+        if (!this.repositionHandler || typeof window === 'undefined') return;
 
         window.removeEventListener('resize', this.repositionHandler);
         window.removeEventListener('scroll', this.repositionHandler, { capture: true });
+        window.visualViewport?.removeEventListener('resize', this.repositionHandler);
+        window.visualViewport?.removeEventListener('scroll', this.repositionHandler);
+        document.removeEventListener('focusin', this.focusHandler);
         this.repositionHandler = null;
+        this.focusHandler = null;
     },
 
-    handleGridKeydown(event) {
-        const moves = {
-            ArrowLeft: -1,
-            ArrowRight: 1,
-            ArrowUp: -7,
-            ArrowDown: 7,
-        };
-
+    handlePanelKeydown(event) {
         if (event.key === 'Escape') {
             event.preventDefault();
+            event.stopPropagation();
             this.closePanel(true);
             return;
         }
 
-        if (event.key === 'Enter' || event.key === ' ') {
+        if (event.key !== 'Tab') return;
+        const controls = [...(this.$refs.panel?.querySelectorAll('button:not(:disabled):not([tabindex="-1"])') || [])]
+            .filter((control) => control.getClientRects().length);
+        const boundary = event.shiftKey ? controls[0] : controls.at(-1);
+        if (event.target === boundary || !controls.length) {
             event.preventDefault();
+            this.closePanel(true);
+        }
+    },
+
+    handleGridKeydown(event) {
+        const moves = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+        const handled = [...Object.keys(moves), 'Home', 'End', 'PageUp', 'PageDown', 'Enter', ' ', 'Escape'];
+        if (!handled.includes(event.key)) return;
+
+        event.preventDefault();
+        event.stopPropagation?.();
+        if (event.key === 'Escape') {
+            this.closePanel(true);
+            return;
+        }
+        if (this.locked) return;
+        if (event.key === 'Enter' || event.key === ' ') {
             if (this.focusedIso) this.select(this.focusedIso);
             return;
         }
-
         if (event.key === 'PageUp' || event.key === 'PageDown') {
-            event.preventDefault();
-            this.shiftMonth(event.key === 'PageUp' ? -1 : 1);
-            this.focusedIso = toIso(new Date(this.viewYear, this.viewMonth, 1));
-            this.$nextTick(() => this.$refs.panel?.querySelector('[data-date-focused="true"]')?.focus());
+            this.shiftMonth((event.key === 'PageUp' ? -1 : 1) * (event.shiftKey ? 12 : 1), true);
             return;
         }
 
-        if (!(event.key in moves)) return;
-
-        event.preventDefault();
-
         const current = parseIso(this.focusedIso) || new Date();
-        const next = new Date(current.getFullYear(), current.getMonth(), current.getDate() + moves[event.key]);
-        this.focusedIso = toIso(next);
-        this.viewYear = next.getFullYear();
-        this.viewMonth = next.getMonth();
-
-        this.$nextTick(() => this.$refs.panel?.querySelector('[data-date-focused="true"]')?.focus());
+        const weekdayOffset = (current.getDay() - this.weekStart + 7) % 7;
+        const delta = event.key === 'Home' ? -weekdayOffset
+            : event.key === 'End' ? 6 - weekdayOffset : moves[event.key];
+        this.moveFocus(toIso(new Date(current.getFullYear(), current.getMonth(), current.getDate() + delta, 12)));
     },
 });

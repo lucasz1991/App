@@ -1,8 +1,9 @@
 @props(['shift', 'compact' => false])
 <x-ui.buttons.button-basic
     mode="link"
+    type="button"
     wire:click="openShift({{ $shift->id }})"
-    class="rt-calendar-shift !block !h-auto w-full !whitespace-normal !text-left"
+    class="rt-calendar-shift {{ $compact ? 'rt-calendar-shift-compact' : '' }} !block !h-auto w-full !whitespace-normal !text-left"
     data-calendar-shift="{{ $shift->id }}"
 >
     <span class="block text-xs font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $shift->calendar_starts->format('d.m. H:i') }} – {{ $shift->calendar_ends->format($shift->calendar_starts->isSameDay($shift->calendar_ends) ? 'H:i' : 'd.m. H:i') }}</span>

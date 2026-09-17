@@ -33,6 +33,10 @@ config(['database.connections.mysql' => config('database.connections.sqlite')]);
 app('session')->forgetDrivers();
 $app->forgetInstance('session.store');
 app('auth')->forgetGuards();
-app(Vite::class)->useBuildDirectory('operations-qa-build');
+$qaBuildDirectory = getenv('RAILTIME_OPERATIONS_QA_BUILD_DIR') ?: 'operations-qa-build';
+if (! preg_match('/\Aoperations-qa(?:-[a-z0-9-]+)?-build\z/', $qaBuildDirectory)) {
+    throw new RuntimeException('An isolated Operations QA build directory is required.');
+}
+app(Vite::class)->useBuildDirectory($qaBuildDirectory);
 
 return $app;
