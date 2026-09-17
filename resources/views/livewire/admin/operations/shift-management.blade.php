@@ -1,8 +1,9 @@
 <div class="space-y-4" data-operations-shift-management>
     <x-tables.toolbar title="Filter" id="operations-shift-management-filters">
 
-        <x-slot:bulk><x-ui.buttons.button-basic mode="primary" wire:click="createShift" wire:loading.attr="disabled">Neue Schicht</x-ui.buttons.button-basic></x-slot:bulk>
-        <x-ui.forms.input type="date" wire:model.live="rangeFrom" aria-label="Schichten ab" /><x-ui.forms.input type="date" wire:model.live="rangeTo" aria-label="Schichten bis" /><x-ui.forms.select wire:model.live="orderFilter" aria-label="Auftrag"><option value="all">Alle Aufträge</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->title }}</option>@endforeach</x-ui.forms.select>
+        <x-tables.filter-field label="Von" for="shift-range-from"><x-ui.forms.input id="shift-range-from" type="date" wire:model.live="rangeFrom" aria-label="Schichten ab" /></x-tables.filter-field>
+        <x-tables.filter-field label="Bis" for="shift-range-to"><x-ui.forms.input id="shift-range-to" type="date" wire:model.live="rangeTo" aria-label="Schichten bis" /></x-tables.filter-field>
+        <x-tables.filter-field label="Auftrag" for="shift-order-filter"><x-ui.forms.select id="shift-order-filter" wire:model.live="orderFilter" aria-label="Auftrag"><option value="all">Alle Aufträge</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->title }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
     </x-tables.toolbar>
     <x-tables.table :columns="[['label'=>'Schicht', 'key'=>'title', 'width'=>'2fr'], ['label'=>'Kunde', 'key'=>'order.customer.company_name', 'width'=>'1.4fr'], ['label'=>'Beginn', 'key'=>'starts_at', 'width'=>'1.2fr'], ['label'=>'Ende', 'key'=>'ends_at', 'width'=>'1.2fr'], ['label'=>'Status', 'key'=>'status', 'width'=>'.8fr']]" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge gefunden." />
     <x-operations.modal wire:model="detailOpen" title="Schichtdetails" max-width="4xl">

@@ -1,5 +1,6 @@
 @section('title', $modules[$module]['title'])
 <x-ui.page :title="$modules[$module]['title']" :auto-intro="false" content-class="rt-ops ops-stack">
+    <x-slot:actions><x-operations.create-action :module="$module" /></x-slot:actions>
     <x-operations.navigation :modules="$modules" :current="$module" />
     @if($module === 'inquiries')<livewire:operations.inquiry-inbox />
     @elseif(in_array($module, ['qualifications', 'absences', 'rules']))<livewire:operations.personnel-review :module="$module" :key="$module" />

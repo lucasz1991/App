@@ -40,7 +40,7 @@
     "src": "node_modules/leaflet/dist/leaflet.css"
   },
   "resources/css/app.css": {
-    "file": "assets/app-C7SCiDh6.css",
+    "file": "assets/app-3F4ghX_n.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -54,7 +54,7 @@
     "src": "resources/css/chatbot.css"
   },
   "resources/css/shell-redesign.css": {
-    "file": "assets/shell-redesign-D_TMRPZw.css",
+    "file": "assets/shell-redesign-DlrBfYLB.css",
     "src": "resources/css/shell-redesign.css",
     "isEntry": true
   },

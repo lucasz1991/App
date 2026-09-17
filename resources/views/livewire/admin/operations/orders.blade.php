@@ -1,8 +1,7 @@
 <div class="space-y-4" data-operations-orders>
     <x-tables.toolbar title="Filter" id="operations-orders-filters">
         <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Leistungen suchen" /></x-slot:search>
-        <x-slot:bulk><x-ui.buttons.button-basic mode="primary" wire:click="createOrder" wire:loading.attr="disabled">Neue Leistung</x-ui.buttons.button-basic></x-slot:bulk>
-        <x-ui.forms.select wire:model.live="statusFilter" aria-label="Leistungsstatus"><option value="all">Alle</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select>
+        <x-tables.filter-field label="Leistungsstatus" for="order-status-filter"><x-ui.forms.select id="order-status-filter" wire:model.live="statusFilter" aria-label="Leistungsstatus"><option value="all">Alle</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
     </x-tables.toolbar>
     <x-tables.table :columns="[['label'=>'Leistung', 'key'=>'title', 'width'=>'2fr'], ['label'=>'Kunde', 'key'=>'customer.company_name', 'width'=>'1.4fr'], ['label'=>'Beginn', 'key'=>'starts_at', 'width'=>'1.2fr'], ['label'=>'Ende', 'key'=>'ends_at', 'width'=>'1.2fr'], ['label'=>'Status', 'key'=>'status', 'width'=>'.8fr']]" :items="$orders" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge gefunden." />
     <x-operations.modal wire:model="detailOpen" title="Leistungsdetails" max-width="4xl">

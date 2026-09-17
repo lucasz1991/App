@@ -79,6 +79,7 @@ class Orders extends Component
         $this->selectedOrderId = Order::query()->latest('starts_at')->value('id');
     }
 
+    #[\Livewire\Attributes\On('operations-create')]
     public function createOrder(): void
     {
         $this->ensureAdmin();

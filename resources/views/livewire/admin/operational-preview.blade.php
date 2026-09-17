@@ -8,6 +8,7 @@
     content-class="space-y-5"
     data-operational-module="{{ $module }}"
 >
+    <x-slot:actions><x-operations.create-action :module="$module" /></x-slot:actions>
     <nav
         class="flex gap-2 overflow-x-auto pb-1 lg:grid lg:grid-cols-4 lg:overflow-visible"
         aria-label="Bereiche der Einsatzplanung"

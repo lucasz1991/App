@@ -94,6 +94,7 @@ class ShiftManagement extends Component
         }
     }
 
+    #[\Livewire\Attributes\On('operations-create')]
     public function createShift(): void
     {
         $this->ensureAdmin();

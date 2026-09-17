@@ -79,31 +79,30 @@
     data-rt-premium-filter
     aria-labelledby="{{ $panelId }}-title"
 >
-    <header class="rt-table-toolbar__header">
-        <div class="rt-table-toolbar__heading">
-            <span class="rt-table-toolbar__mark" aria-hidden="true">
-                <i class="far fa-sliders-h"></i>
-            </span>
-            <div class="min-w-0">
-                <h2 id="{{ $panelId }}-title" class="rt-table-toolbar__title">{{ $resolvedTitle }}</h2>
-                <p class="rt-table-toolbar__hint">{{ __('app.filter_list_hint') }}</p>
+    <h2 id="{{ $panelId }}-title" class="sr-only">{{ $resolvedTitle }}</h2>
+    <div class="rt-table-toolbar__body">
+        @isset($search)
+            <div class="rt-table-toolbar__search-field">
+                @if (filled($searchFor))
+                    <label class="rt-filter-field__label" for="{{ $searchFor }}">{{ $resolvedSearchLabel }}</label>
+                @else
+                    <span class="rt-filter-field__label">{{ $resolvedSearchLabel }}</span>
+                @endif
+                <div class="rt-table-toolbar__search min-w-0">{{ $search }}</div>
             </div>
-            <span
-                class="rt-table-toolbar__count"
-                data-tables-filter-count
-                aria-live="polite"
-                aria-atomic="true"
-            >
-                {{ $filterCount }} {{ __('app.active') }}
-            </span>
-        </div>
+        @endisset
 
-        <div class="rt-table-toolbar__actions">
+        @if (isset($bulk) || $filterCount > 0 || $hasFilters)
+        <div class="rt-table-toolbar__actions" @if(!isset($bulk) && $filterCount === 0) x-show="!desktopFilters" @endif>
             @isset($bulk)
                 <div class="rt-table-toolbar__bulk">
                     {{ $bulk }}
                 </div>
             @endisset
+
+            @if ($filterCount > 0)
+                <span class="rt-table-toolbar__count" data-tables-filter-count aria-live="polite" aria-atomic="true">{{ $filterCount }} {{ __('app.active') }}</span>
+            @endif
 
             @if ($safeResetAction && $filterCount > 0)
                 <button
@@ -133,21 +132,7 @@
                 </template>
             @endif
         </div>
-    </header>
-
-    <div class="rt-table-toolbar__body">
-        @isset($search)
-            <div class="rt-table-toolbar__search-field">
-                @if (filled($searchFor))
-                    <label class="rt-filter-field__label" for="{{ $searchFor }}">{{ $resolvedSearchLabel }}</label>
-                @else
-                    <span class="rt-filter-field__label">{{ $resolvedSearchLabel }}</span>
-                @endif
-                <div class="rt-table-toolbar__search min-w-0">
-                    {{ $search }}
-                </div>
-            </div>
-        @endisset
+        @endif
 
         @if ($hasFilters)
             <template x-if="desktopFilters">

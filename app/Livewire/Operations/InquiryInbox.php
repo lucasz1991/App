@@ -65,6 +65,7 @@ class InquiryInbox extends Component
         $this->detailOpen = false;
     }
 
+    #[\Livewire\Attributes\On('operations-create')]
     public function create(): void
     {
         $this->access();

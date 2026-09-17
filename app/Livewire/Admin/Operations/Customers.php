@@ -55,6 +55,7 @@ class Customers extends Component
         $this->selectedCustomerId = Customer::query()->orderByDesc('is_active')->orderBy('company_name')->value('id');
     }
 
+    #[\Livewire\Attributes\On('operations-create')]
     public function createCustomer(): void
     {
         $this->ensureAdmin();

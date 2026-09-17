@@ -15,7 +15,7 @@
 <x-tables.toolbar title="Filter" id="personnel-filters">
 <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" /></x-slot:search>
 <x-slot:bulk>@if($module === 'qualifications')<x-ui.buttons.button-basic wire:click="$set('typesOpen', true)">Nachweisarten</x-ui.buttons.button-basic>@endif</x-slot:bulk>
-<x-ui.forms.select wire:model.live="filter" aria-label="Prüfstatus"><option value="pending">In Prüfung</option><option value="approved">Freigegeben</option><option value="all">Alle</option></x-ui.forms.select>
+<x-tables.filter-field label="Prüfstatus" for="personnel-status-filter"><x-ui.forms.select id="personnel-status-filter" wire:model.live="filter" aria-label="Prüfstatus"><option value="pending">In Prüfung</option><option value="approved">Freigegeben</option><option value="all">Alle</option></x-ui.forms.select></x-tables.filter-field>
 </x-tables.toolbar>
 <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Art','key'=>$module === 'qualifications' ? 'qualification_label' : 'absence_label'],['label'=>'Beginn','key'=>$module === 'qualifications' ? 'valid_from' : 'starts_at'],['label'=>'Ende','key'=>$module === 'qualifications' ? 'valid_until' : 'ends_at'],['label'=>'Status','key'=>'status']]" :items="$records" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge in dieser Ansicht." />
 {{ $records->links() }}

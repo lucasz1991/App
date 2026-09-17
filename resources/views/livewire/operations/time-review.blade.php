@@ -2,7 +2,7 @@
 <x-tables.toolbar title="Filter" id="time-filters">
 <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" /></x-slot:search>
 <x-slot:bulk>@if($exports)<x-ui.buttons.button-basic mode="primary" wire:click="export" wire:loading.attr="disabled">Auswahl exportieren</x-ui.buttons.button-basic>@endif</x-slot:bulk>
-@if(!$exports)<x-ui.forms.select wire:model.live="filter" aria-label="Zeitstatus"><option value="submitted">Zur Prüfung</option><option value="returned">Zurückgegeben</option><option value="approved">Freigegeben</option><option value="all">Alle</option></x-ui.forms.select>@endif
+@if(!$exports)<x-tables.filter-field label="Zeitstatus" for="time-status-filter"><x-ui.forms.select id="time-status-filter" wire:model.live="filter" aria-label="Zeitstatus"><option value="submitted">Zur Prüfung</option><option value="returned">Zurückgegeben</option><option value="approved">Freigegeben</option><option value="all">Alle</option></x-ui.forms.select></x-tables.filter-field>@endif
 </x-tables.toolbar>
 <x-operations.feedback />
 <x-tables.table :columns="[['label'=>'Dienst','key'=>'plan_snapshot.title','width'=>'2fr'],['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Netto','key'=>'net_time'],['label'=>'Status','key'=>'status']]" :items="$entries" :selected-items="$selected" detail-action="openDetails" row-view="components.tables.rows.operations.record" :actions-view="$exports ? 'components.tables.rows.operations.export-selection' : null" empty="Keine Zeitmeldungen in dieser Ansicht." />

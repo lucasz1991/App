@@ -1,8 +1,7 @@
 <div class="space-y-4" data-operations-customers>
     <x-tables.toolbar title="Filter" id="operations-customers-filters">
         <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Kunden suchen" /></x-slot:search>
-        <x-slot:bulk><x-ui.buttons.button-basic mode="primary" wire:click="createCustomer" wire:loading.attr="disabled">Neuer Kunde</x-ui.buttons.button-basic></x-slot:bulk>
-        <x-ui.forms.select wire:model.live="activeFilter" aria-label="Kundenstatus"><option value="active">Aktiv</option><option value="inactive">Inaktiv</option><option value="all">Alle</option></x-ui.forms.select>
+        <x-tables.filter-field label="Kundenstatus" for="customer-status-filter"><x-ui.forms.select id="customer-status-filter" wire:model.live="activeFilter" aria-label="Kundenstatus"><option value="active">Aktiv</option><option value="inactive">Inaktiv</option><option value="all">Alle</option></x-ui.forms.select></x-tables.filter-field>
     </x-tables.toolbar>
     <x-tables.table :columns="[['label'=>'Kunde', 'key'=>'company_name', 'width'=>'2fr'], ['label'=>'Kontakt', 'key'=>'contact_name', 'width'=>'1.3fr'], ['label'=>'E-Mail', 'key'=>'email', 'width'=>'1.5fr'], ['label'=>'Aufträge', 'key'=>'orders_count', 'width'=>'.6fr'], ['label'=>'Status', 'key'=>'is_active', 'width'=>'.7fr']]" :items="$customers" :selected-items="[$selectedCustomerId]" selection-action="selectCustomer" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge gefunden." />
     <x-operations.modal wire:model="detailOpen" title="Kundendetails" max-width="4xl">
