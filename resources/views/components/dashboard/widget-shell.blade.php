@@ -1,4 +1,4 @@
-@props(['item', 'editing' => false])
+@props(['item', 'editing' => false, 'tone' => null])
 {{--
     Im Anpassen-Modus ist die ganze Karte der Ziehgriff (natives HTML5-Drag,
     siehe dashboardWidgetGrid in app.js) - Nachbarn ruecken schon waehrend
@@ -18,21 +18,13 @@
     wire:key="widget-{{ $item['key'] }}"
 >
     <header class="widget-card-head">
-        <span class="widget-card-ico"><i data-feather="{{ $item['icon'] }}"></i></span>
+        <span class="widget-card-ico{{ $tone ? ' ops-tone-'.$tone : '' }}"><i data-feather="{{ $item['icon'] }}"></i></span>
         <h3>{{ $item['title'] }}</h3>
         @if($editing)
             <div class="widget-card-controls">
                 <div class="widget-move-buttons">
                     <button type="button" wire:click="moveWidget('{{ $item['key'] }}', -1)" aria-label="{{ $item['title'] }} nach vorn"><i data-feather="chevron-left"></i></button>
                     <button type="button" wire:click="moveWidget('{{ $item['key'] }}', 1)" aria-label="{{ $item['title'] }} nach hinten"><i data-feather="chevron-right"></i></button>
-                </div>
-                <div class="widget-size-toggle" role="group" aria-label="Breite von {{ $item['title'] }}">
-                    <button type="button" wire:click="setWidgetSize('{{ $item['key'] }}','sm')" aria-pressed="{{ $item['size'] === 'sm' ? 'true' : 'false' }}">Klein</button>
-                    <button type="button" wire:click="setWidgetSize('{{ $item['key'] }}','lg')" aria-pressed="{{ $item['size'] === 'lg' ? 'true' : 'false' }}">Groß</button>
-                </div>
-                <div class="widget-rows-toggle" role="group" aria-label="Höhe von {{ $item['title'] }}">
-                    <button type="button" wire:click="setWidgetRows('{{ $item['key'] }}', 1)" aria-pressed="{{ $item['rows'] === 1 ? 'true' : 'false' }}">1 Zeile</button>
-                    <button type="button" wire:click="setWidgetRows('{{ $item['key'] }}', 2)" aria-pressed="{{ $item['rows'] === 2 ? 'true' : 'false' }}">2 Zeilen</button>
                 </div>
                 <button type="button" class="widget-remove" wire:click="hideWidget('{{ $item['key'] }}')" aria-label="{{ $item['title'] }} vom Dashboard entfernen">
                     <i data-feather="x"></i>

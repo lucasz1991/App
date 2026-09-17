@@ -81,6 +81,7 @@
         @if($selectedCalendarEvent)
             @if($selectedCalendarEvent->kind === 'shift')
                 @include('components.tables.rows.operations.personal-shift', ['item'=>$selectedCalendarEvent->record])
+                @if(\App\Support\Operations\PlanningSchema::ready())<livewire:operations.duty-activity :shift-id="$selectedCalendarEvent->record->shift_id" :employee-mode="true" :key="'employee-duty-'.$selectedCalendarEvent->record->id.'-'.$selectedCalendarEvent->record->plan_revision" />@endif
                 @if(count($selectedPlanChanges))
                     <h3 class="text-sm font-semibold">Veröffentlichte Änderungen · Revision {{ $selectedCalendarEvent->record->plan_revision }}</h3>
                     <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Aktuell','key'=>'after']]" :items="collect($selectedPlanChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />

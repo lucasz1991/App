@@ -6,6 +6,7 @@ use App\Models\AbsenceRequest;
 use App\Models\EmployeeQualification;
 use App\Models\OperationsRuleProfile;
 use App\Models\QualificationType;
+use App\Models\Shift;
 use App\Services\Operations\OperationsAuditService;
 use App\Services\Operations\PersonnelWorkflowService;
 use App\Support\Operations\OperationsAccess;
@@ -150,6 +151,13 @@ class PersonnelReview extends Component
 
         return view('livewire.operations.personnel-review', [
             'selectedRecord' => $selected,
+            'affectedShifts' => $this->module === 'qualifications' && $this->detailOpen && $selected ? Shift::notCancelled()->upcoming()
+                ->whereHas('assignments', fn ($q) => $q->blocking()->where('user_id', $selected->user_id))
+                ->whereHas('qualifications', fn ($q) => $q->where('qualification_types.id', $selected->qualification_type_id))
+                ->with('order.customer')->orderBy('starts_at')->get()->filter(function ($shift) use ($selected) {
+                    return ! EmployeeQualification::where('user_id', $selected->user_id)->where('qualification_type_id', $selected->qualification_type_id)
+                        ->where('status', 'approved')->whereDate('valid_from', '<=', $shift->starts_at->toDateString())->whereDate('valid_until', '>=', $shift->ends_at->toDateString())->exists();
+                })->values() : collect(),
             'records' => $this->module === 'rules' ? null : $query->when($this->filter !== 'all', fn ($q) => $q->where('status', $this->filter))->when(filled($this->search), fn ($q) => $q->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%')))->latest()->paginate(15),
             'types' => $this->module === 'qualifications' ? QualificationType::orderBy('name')->get() : collect(),
             'activeRules' => $this->module === 'rules' ? OperationsRuleProfile::where('is_active', true)->first() : null,

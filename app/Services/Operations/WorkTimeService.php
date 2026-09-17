@@ -12,6 +12,7 @@ use App\Models\WorkTimeExport;
 use App\Models\WorkTimeExportItem;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -179,11 +180,36 @@ class WorkTimeService
             $warnings[] = 'Pause unterschritten';
         }
         $plan = $entry->plan_snapshot;
-        if ($entry->ends_at && ($entry->starts_at->toIso8601String() !== ($plan['starts_at'] ?? '') || $entry->ends_at->toIso8601String() !== ($plan['ends_at'] ?? ''))) {
+        if ($entry->ends_at && (! $entry->starts_at->equalTo(CarbonImmutable::parse($plan['starts_at'])) || ! $entry->ends_at->equalTo(CarbonImmutable::parse($plan['ends_at'])) || $entry->pause_seconds !== (int) ($plan['planned_break_minutes'] ?? 0) * 60)) {
             $warnings[] = 'Planabweichung';
         }
 
         return $warnings;
+    }
+
+    public function comparison(WorkTimeEntry $entry): array
+    {
+        $plan = $entry->plan_snapshot;
+        $seconds = max(0, (int) CarbonImmutable::parse($plan['starts_at'])->diffInSeconds(CarbonImmutable::parse($plan['ends_at'])) - (int) ($plan['planned_break_minutes'] ?? 0) * 60);
+
+        return ['planned' => $seconds, 'actual' => $entry->netSeconds(), 'delta' => $entry->ends_at ? $entry->netSeconds() - $seconds : null, 'warnings' => $this->warnings($entry)];
+    }
+
+    public function reviewBatch(array $rows, bool $approve, string $note, User $actor): void
+    {
+        OperationsAccess::authorize($actor, 'operations.time.review');
+        Validator::make(['rows' => $rows, 'note' => $note], ['rows' => 'required|array|min:1|max:50', 'rows.*.id' => 'required|integer|distinct', 'rows.*.revision' => 'required|integer|min:1', 'note' => ($approve ? 'nullable' : 'required|min:5').'|string|max:1000'])->validate();
+        DB::transaction(function () use ($rows, $approve, $note, $actor) {
+            $expected = collect($rows)->keyBy('id');
+            $entries = WorkTimeEntry::whereIn('id', $expected->keys())->orderBy('id')->lockForUpdate()->get();
+            $this->check($entries->count() === count($rows), 'Zeitmeldung nicht gefunden.');
+            foreach ($entries as $entry) {
+                abort_if($entry->user_id === $actor->id, 403);
+                $this->check($entry->status === 'submitted' && $entry->revision === (int) $expected[$entry->id]['revision'], 'Auswahl wurde geändert. Bitte neu prüfen.');
+                $this->check(! $approve || $this->warnings($entry) === [], 'Abweichende Zeitmeldungen bitte einzeln prüfen.');
+                $this->review($entry->id, $entry->revision, $approve, $note, $actor);
+            }
+        }, 3);
     }
 
     public function export(array $ids, User $actor): WorkTimeExport

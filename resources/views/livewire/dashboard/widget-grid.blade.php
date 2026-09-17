@@ -1,28 +1,40 @@
-<div class="rt-ops ops-stack" data-dashboard-widget-grid wire:poll.60s x-data="{ pickerOpen: false }" @keydown.escape.window="pickerOpen = false">
+<div
+    class="rt-ops ops-stack"
+    data-dashboard-widget-grid
+    data-editing="{{ $editing ? 'true' : 'false' }}"
+    wire:poll.60s
+    x-data="{ pickerOpen: false }"
+    @keydown.escape.window="pickerOpen = false; if ($el.dataset.editing === 'true') $wire.toggleEditing()"
+    @click="if ($el.dataset.editing === 'true' && ! $event.target.closest('[data-widget-item], .widget-sidebar, .widget-sidebar-backdrop, button, a')) $wire.toggleEditing()"
+>
     {{--
-        "Anpassen" (editing, Server) und die Hinzufuegen-Schublade (pickerOpen,
-        rein clientseitig) sind bewusst getrennte Zustaende: die Schublade
-        deckt das Raster mit einem Overlay ab, das Anpassen selbst tut das
-        nicht - sonst waeren Ziehen/Groesse/Entfernen am Raster blockiert,
-        sobald man in den Anpassen-Modus wechselt.
+        Anpassen-Modus wird per Gedruecktkhalten auf einer Karte betreten
+        (bindLongPress() in app.js, dashboardWidgetGrid) statt ueber einen
+        Kopf-Button - Klick ausserhalb einer Karte oder Escape verlassen ihn
+        wieder (siehe @click/@keydown.escape oben). Die Hinzufuegen-
+        Schublade (pickerOpen, rein clientseitig) bleibt ein eigener
+        Zustand: sie deckt das Raster mit einem Overlay ab, das Anpassen
+        selbst tut das nicht - sonst waeren Ziehen/Groesse/Entfernen am
+        Raster blockiert, sobald man in den Anpassen-Modus wechselt.
     --}}
     <header class="ops-toolbar" data-anim="fade-up">
         <div><p class="ops-kicker">{{ now(config('operations.display_timezone'))->translatedFormat('D, d. M Y') }}</p><h1>Willkommen, {{ auth()->user()->name }}</h1></div>
-        <div class="ops-actions">
-            @if($editing)
+        @if($editing)
+            <div class="ops-actions">
                 <button type="button" class="ops-btn" @click="pickerOpen = true">
                     <i data-feather="plus"></i>Widget hinzufügen
                 </button>
-            @endif
-            <button type="button" class="ops-btn{{ $editing ? ' is-active' : '' }}" wire:click="toggleEditing" @click="pickerOpen = false">
-                <i data-feather="{{ $editing ? 'check' : 'sliders' }}"></i>{{ $editing ? 'Fertig' : 'Dashboard anpassen' }}
-            </button>
-        </div>
+            </div>
+        @endif
     </header>
 
-    <div class="widget-grid" data-widget-track x-data="dashboardWidgetGrid" data-anim-stagger>
+    @unless($editing)
+        <p class="ops-muted" data-widget-grid-hint style="margin-top:-12px;">Kachel gedrückt halten, um Widgets anzupassen.</p>
+    @endunless
+
+    <div class="widget-grid" data-widget-track data-editing="{{ $editing ? 'true' : 'false' }}" x-data="dashboardWidgetGrid" data-anim-stagger>
         @forelse($visible as $item)
-            <x-dashboard.widget-shell :item="$item" :editing="$editing">
+            <x-dashboard.widget-shell :item="$item" :editing="$editing" :tone="$widgetData[$item['key']]['tone'] ?? null">
                 @include('dashboard.widgets.' . $item['key'], ['data' => $widgetData[$item['key']] ?? [], 'size' => $item['size'], 'rows' => $item['rows']])
             </x-dashboard.widget-shell>
         @empty

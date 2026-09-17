@@ -6,6 +6,7 @@ use App\Models\WorkTimeEntry;
 use App\Models\WorkTimeExport;
 use App\Services\Operations\WorkTimeService;
 use App\Support\Operations\OperationsAccess;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -24,6 +25,36 @@ class TimeReview extends Component
     public array $notes = [];
 
     public array $selected = [];
+
+    public bool $batchOpen = false;
+
+    #[Locked]
+    public array $batchRows = [];
+
+    public string $batchNote = '';
+
+    public function prepareBatch(): void
+    {
+        $this->access();
+        abort_if($this->exports, 403);
+        $this->validate(['selected' => 'required|array|min:1|max:50', 'selected.*' => 'integer|distinct']);
+        $entries = WorkTimeEntry::whereIn('id', $this->selected)->where('status', 'submitted')->where('user_id', '!=', auth()->id())->get();
+        if ($entries->count() !== count($this->selected)) {
+            throw ValidationException::withMessages(['workflow' => 'Nur fremde eingereichte Zeitmeldungen auswählen.']);
+        }
+        $this->batchRows = $entries->map(fn ($entry) => ['id' => $entry->id, 'revision' => $entry->revision])->all();
+        $this->batchNote = '';
+        $this->batchOpen = true;
+    }
+
+    public function reviewBatch(bool $approve, WorkTimeService $service): void
+    {
+        $this->access();
+        abort_if($this->exports, 403);
+        $service->reviewBatch($this->batchRows, $approve, $this->batchNote, auth()->user());
+        $this->reset(['selected', 'batchRows', 'batchNote', 'batchOpen']);
+        session()->flash('operations.saved', 'Auswahl bearbeitet.');
+    }
 
     public bool $detailOpen = false;
 
@@ -62,6 +93,7 @@ class TimeReview extends Component
     public function updatedSearch(): void
     {
         $this->resetPage();
+        $this->selected = [];
     }
 
     public function decide(int $id, int $revision, bool $approve, WorkTimeService $service): void
@@ -96,6 +128,7 @@ class TimeReview extends Component
         $this->access();
 
         return view('livewire.operations.time-review', [
+            'batchEntries' => $this->batchOpen ? WorkTimeEntry::with('user:id,name')->whereIn('id', array_column($this->batchRows, 'id'))->get() : collect(),
             'detailEntry' => $this->detailId ? WorkTimeEntry::with('user:id,name')->when($this->exports, fn ($q) => $q->where('status', 'approved'))->find($this->detailId) : null,
             'entries' => WorkTimeEntry::with('user:id,name')->when($this->exports, fn ($q) => $q->where('status', 'approved')->whereNotExists(fn ($q) => $q->selectRaw('1')->from('work_time_export_items')->whereColumn('work_time_entry_id', 'work_time_entries.id')->whereColumn('work_time_export_items.revision', 'work_time_entries.revision')))
                 ->when(! $this->exports && $this->filter !== 'all', fn ($q) => $q->where('status', $this->filter))->when(filled($this->search), fn ($q) => $q->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%')))->latest()->paginate(15),

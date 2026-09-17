@@ -67,8 +67,17 @@ class ShiftManagement extends Component
     public function setView(string $view): void
     {
         $this->ensureAdmin();
-        abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders'], true), 422);
+        abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders', 'timeline'], true), 422);
+        if ($view === 'timeline') {
+            $this->reset(['search', 'statusFilter', 'orderFilter']);
+        }
         $this->viewMode = $view;
+    }
+
+    #[On('operations-plan-changed')]
+    public function refreshPlan(): void
+    {
+        $this->ensureAdmin();
     }
 
     public ?int $selectedShiftId = null;

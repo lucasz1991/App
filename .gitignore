@@ -168,6 +168,7 @@ auth.json
 !/tests/Feature/ShiftManagementViewsTest.php
 !/tests/Feature/NativeOperationsWorkflowTest.php
 !/tests/Feature/OperationsPlanningAssistanceTest.php
+!/tests/Feature/OperationsRoadmapTest.php
 !/tests/Browser/
 /tests/Browser/*
 !/tests/Browser/operations-bootstrap.php

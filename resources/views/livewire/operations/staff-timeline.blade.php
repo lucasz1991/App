@@ -1,0 +1,25 @@
+<section class="space-y-3" aria-label="Mitarbeiter-Zeitleiste">
+<x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
+<div class="rt-personnel-timeline" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, horizontal scrollbar">
+<div class="rt-personnel-timeline-grid" style="--timeline-days:{{ $days->count() }}">
+    <div class="rt-personnel-timeline-name rt-personnel-timeline-head">Mitarbeiter</div>
+    @foreach($days as $day)<div class="rt-personnel-timeline-head">{{ $day->locale('de')->translatedFormat('D, d.m.') }}</div>@endforeach
+    @forelse($rows as $row)
+        <div class="rt-personnel-timeline-name"><strong>{{ $row['user']->name }}</strong>@if(!$row['user']->status)<span class="ops-muted">Inaktiv</span>@endif</div>
+        @foreach($row['days'] as $cell)
+            <div class="rt-personnel-timeline-day" wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
+            @foreach($cell['events'] as $event)
+                <div class="rt-personnel-timeline-event" data-kind="{{ $event['kind'] }}">
+                    <span class="rt-personnel-timeline-time">{{ $event['start']->setTimezone($zone)->format('H:i') }} – {{ $event['end']->setTimezone($zone)->format('H:i') }}</span>
+                    @if($event['shift_id'])<a href="{{ route('operations.workspace',['module'=>'shift-management','shift'=>$event['shift_id']]) }}">{{ $event['title'] }}</a>@else<strong>{{ $event['title'] }}</strong>@endif
+                    <span>{{ $event['detail'] }}</span><span>{{ $event['status'] }}</span>
+                </div>
+            @endforeach
+            @foreach($cell['free'] as [$start,$end])<p class="rt-personnel-timeline-free">Unbelegt {{ \Carbon\CarbonImmutable::createFromTimestamp($start,$zone)->format('H:i') }} – {{ $end===$cell['date']->addDay()->timestamp ? '24:00' : \Carbon\CarbonImmutable::createFromTimestamp($end,$zone)->format('H:i') }}</p>@endforeach
+            </div>
+        @endforeach
+    @empty<div class="p-4">Keine Mitarbeiter gefunden.</div>@endforelse
+</div>
+</div>
+{{ $users->links() }}
+</section>

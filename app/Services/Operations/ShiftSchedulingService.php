@@ -90,6 +90,9 @@ class ShiftSchedulingService
             $persistedShift->fill($attributes);
             $persistedShift->status = $shiftStatus;
             $persistedShift->updated_by = $actor->getKey();
+            if ($native && $persistedShift->exists && $shiftStatus !== ShiftStatus::Cancelled) {
+                app(DutyActivityService::class)->validateSections($persistedShift);
+            }
 
             if (! $persistedShift->exists) {
                 $persistedShift->created_by = $actor->getKey();

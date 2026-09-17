@@ -48,13 +48,14 @@ class PlanPublicationService
                 return;
             }
             $changes = app(PlanChangeService::class)->changes($record);
+            app(DutyActivityService::class)->validateSections($record);
             foreach ($record->assignments()->blocking()->orderBy('user_id')->get() as $assignment) {
                 $user = User::lockForUpdate()->findOrFail($assignment->user_id);
                 app(StaffEligibilityService::class)->assertEligible($record, $user);
                 // Published changes require the employee to respond to the new revision.
                 $assignment->forceFill(['status' => ShiftAssignmentStatus::Requested, 'plan_revision' => $revision, 'responded_at' => null])->save();
             }
-            $record->forceFill(['published_revision' => $revision, 'published_at' => now()->utc(), 'published_snapshot' => $record->only(['order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'planned_break_minutes']), 'status' => $record->status->value === 'draft' ? 'open' : $record->status])->save();
+            $record->forceFill(['published_revision' => $revision, 'published_at' => now()->utc(), 'published_snapshot' => $record->only(['order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'planned_break_minutes']) + ['sections' => app(DutyActivityService::class)->snapshot($record)], 'status' => $record->status->value === 'draft' ? 'open' : $record->status])->save();
             app(OperationsAuditService::class)->record($record, $actor, 'shift.published', ['changes' => $changes, 'snapshot' => $record->published_snapshot, 'requirements' => $record->qualifications()->orderBy('name')->pluck('name')->implode(', ') ?: '—']);
         }, 3);
     }

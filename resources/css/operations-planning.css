@@ -1,0 +1,15 @@
+.rt-personnel-timeline { overflow: auto; max-width: 100%; border: 1px solid var(--rt-border, #e4e7ec); border-radius: 12px; }
+.rt-personnel-timeline-grid { display: grid; grid-template-columns: 180px repeat(var(--timeline-days), minmax(190px, 1fr)); min-width: max-content; }
+.rt-personnel-timeline-head { padding: 12px; font-size: 12px; font-weight: 600; background: var(--rt-surface-muted, #f7f8fa); border-bottom: 1px solid var(--rt-border, #e4e7ec); }
+.rt-personnel-timeline-name { position: sticky; left: 0; z-index: 1; display: flex; flex-direction: column; gap: 4px; padding: 16px 12px; background: var(--rt-surface, #fff); border-right: 1px solid var(--rt-border, #e4e7ec); border-bottom: 1px solid var(--rt-border, #e4e7ec); font-size: 14px; }
+.rt-personnel-timeline-day { min-width: 0; padding: 8px; border-bottom: 1px solid var(--rt-border, #e4e7ec); border-right: 1px solid var(--rt-border, #e4e7ec); }
+.rt-personnel-timeline-event { display: flex; flex-direction: column; gap: 4px; padding: 10px; margin-bottom: 8px; border-left: 3px solid var(--rt-red, #df0037); background: var(--rt-surface-muted, #f7f8fa); border-radius: 6px; font-size: 12px; }
+.rt-personnel-timeline-event a { font-size: 14px; font-weight: 600; min-height: 44px; display: flex; align-items: center; max-width: 180px; overflow-wrap: anywhere; }
+.rt-personnel-timeline-event[data-kind="absence"] { border-left-color: #b7791f; }
+.rt-personnel-timeline-time { font-variant-numeric: tabular-nums; font-weight: 600; }
+.rt-personnel-timeline-free { padding: 8px 4px; font-size: 11px; color: var(--rt-muted, #667085); font-variant-numeric: tabular-nums; }
+.dark .rt-personnel-timeline, .dark .rt-personnel-timeline-name, .dark .rt-personnel-timeline-head, .dark .rt-personnel-timeline-day { border-color: var(--rt-dark-border, #303846); }
+.dark .rt-personnel-timeline-name { background: var(--rt-dark-surface, #171d28); }
+.dark .rt-personnel-timeline-head, .dark .rt-personnel-timeline-event { background: var(--rt-dark-surface-muted, #222b39); }
+.dark .rt-personnel-timeline-free { color: var(--rt-dark-muted, #a5afbd); }
+@media(max-width: 640px) { .rt-personnel-timeline-grid { grid-template-columns: 124px repeat(var(--timeline-days), 190px); } .rt-personnel-timeline-name { padding: 12px 8px; font-size: 12px; overflow-wrap: anywhere; } }

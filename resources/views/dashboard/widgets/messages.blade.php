@@ -1,16 +1,11 @@
-<div class="widget-stat">
-    <span class="ops-kpi-ico ops-tone-{{ $data['unread'] === 0 ? 'ok' : 'warn' }}"><i data-feather="message-circle"></i></span>
-    <span>
-        <span class="ops-kpi-val">{{ $data['unread'] }}</span>
-        <span class="ops-kpi-lbl">ungelesen</span>
-    </span>
-</div>
+<span class="widget-primary-val">{{ $data['unread'] }}</span>
+<span class="widget-primary-lbl">ungelesen</span>
 @if($rows === 2)
-    <div style="margin-top:14px;">
+    <div class="widget-detail">
         <x-dashboard.sparkline :values="$data['sparkline']" :labels="$data['sparklineLabels']" />
         <p class="ops-muted" style="margin-top:4px;">Eingang, letzte 7 Tage</p>
     </div>
-    <div style="margin-top:10px;">
+    <div class="widget-detail">
         @forelse($data['latest'] as $message)
             <div class="ops-row"><span>{{ $message->subject }}</span><span class="ops-muted">{{ $message->sender?->name }}</span></div>
         @empty
@@ -18,4 +13,4 @@
         @endforelse
     </div>
 @endif
-<a class="ops-link" href="{{ $data['href'] }}" wire:navigate>Posteingang öffnen →</a>
+<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Posteingang öffnen →</a>

@@ -27,6 +27,10 @@
                     @if($module === 'qualifications')<div class="ops-toolbar"><p>Gültig {{ $record->valid_from->format('d.m.Y') }} – {{ $record->valid_until->format('d.m.Y') }}</p>@if($record->evidence_path)<a class="ops-link" href="{{ route('operations.evidence', $record->id) }}">Nachweis öffnen ↗</a>@else<span class="ops-muted">Datei fehlt</span>@endif</div>
                     @else<p>{{ $record->starts_at->format('d.m.Y H:i') }} – {{ $record->ends_at->format('d.m.Y H:i') }} <span class="ops-muted">{{ $record->timezone }}</span></p>@if($record->note)<p>{{ $record->note }}</p>@endif @endif
                     @if($record->review_note)<p class="ops-muted">{{ $record->review_note }}</p>@endif
+                    @if($module === 'qualifications')
+                        <h3 class="text-sm font-semibold">Betroffene zukünftige Dienste</h3>
+                        <x-tables.table :columns="[['label'=>'Dienst','key'=>'title'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Ende','key'=>'ends_at']]" :items="$affectedShifts" row-view="components.tables.rows.operations.affected-shift" empty="Keine zukünftigen Dienste ohne gültigen Nachweis." />
+                    @endif
                     @if(($record->status === 'pending' || ($module === 'qualifications' && $record->status === 'approved')) && $record->user_id !== auth()->id())
                         <x-operations.field label="Prüfvermerk" :model="'notes.'.$record->id" maxlength="1000" />
                         <div class="ops-actions">

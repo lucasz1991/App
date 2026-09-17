@@ -2015,10 +2015,13 @@ Alpine.data('dashboardWidgetGrid', () => ({
     resizeAxis: null,
     resizeStart: 0,
     resizeStartValue: null,
+    pressTimer: null,
+    pressStart: null,
 
     init() {
         this.bindReorder();
         this.bindResize();
+        this.bindLongPress();
     },
 
     bindReorder() {
@@ -2120,6 +2123,41 @@ Alpine.data('dashboardWidgetGrid', () => ({
         });
     },
 
+    // FLIP fuer Groessenaenderungen: Vorher/Nachher-Rechtecke ALLER Karten
+    // messen (dense-Packing kann beim Aendern einer Karte auch Nachbarn
+    // verschieben), dann die Differenz per transform wegtranslieren/-skalieren
+    // und im naechsten Frame auf 0 zuruecktransitionieren - dieselbe Technik
+    // wie reorderLive(), nur zusaetzlich mit Skalierung fuer die Karte, die
+    // selbst die Groesse aendert (Breite/Hoehe sind diskret sm/lg bzw.
+    // 1/2 Zeilen, daher genuegt eine Animation pro tatsaechlichem Wechsel).
+    flipGrid(mutate) {
+        const items = Array.from(this.$root.querySelectorAll('[data-widget-item]'));
+        const firstRects = new Map(items.map((el) => [el, el.getBoundingClientRect()]));
+
+        mutate();
+
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        items.forEach((el) => {
+            const first = firstRects.get(el);
+            const last = el.getBoundingClientRect();
+            const dx = first.left - last.left;
+            const dy = first.top - last.top;
+            const sx = first.width / last.width;
+            const sy = first.height / last.height;
+
+            if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01) return;
+
+            el.style.transformOrigin = 'top left';
+            el.style.transition = 'none';
+            el.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+            requestAnimationFrame(() => {
+                el.style.transition = 'transform 320ms cubic-bezier(.32,.72,0,1)';
+                el.style.transform = '';
+            });
+        });
+    },
+
     // Rand-Griffe: eigene Pointer-Events-Gesten (nicht natives Drag) fuer
     // Breite (rechts, waagerecht) und Hoehe (unten, senkrecht) - live als
     // Vorschau waehrend des Ziehens, der eigentliche Wechsel (mit mehr/
@@ -2129,6 +2167,7 @@ Alpine.data('dashboardWidgetGrid', () => ({
 
         const move = (event) => {
             if (!this.resizeCard) return;
+            const card = this.resizeCard;
 
             if (this.resizeAxis === 'width') {
                 const delta = event.clientX - this.resizeStart;
@@ -2136,8 +2175,8 @@ Alpine.data('dashboardWidgetGrid', () => ({
                     ? (delta < -THRESHOLD ? 'sm' : 'lg')
                     : (delta > THRESHOLD ? 'lg' : 'sm');
 
-                if (this.resizeCard.dataset.widgetSize !== size) {
-                    this.resizeCard.dataset.widgetSize = size;
+                if (card.dataset.widgetSize !== size) {
+                    this.flipGrid(() => { card.dataset.widgetSize = size; });
                 }
 
                 return;
@@ -2148,8 +2187,8 @@ Alpine.data('dashboardWidgetGrid', () => ({
                 ? (delta < -THRESHOLD ? 1 : 2)
                 : (delta > THRESHOLD ? 2 : 1);
 
-            if (Number(this.resizeCard.dataset.widgetRows) !== rows) {
-                this.resizeCard.dataset.widgetRows = String(rows);
+            if (Number(card.dataset.widgetRows) !== rows) {
+                this.flipGrid(() => { card.dataset.widgetRows = String(rows); });
             }
         };
 
@@ -2216,7 +2255,7 @@ Alpine.data('dashboardWidgetGrid', () => ({
                 const size = event.key === 'ArrowRight' ? 'lg' : 'sm';
 
                 if (card.dataset.widgetSize !== size) {
-                    card.dataset.widgetSize = size;
+                    this.flipGrid(() => { card.dataset.widgetSize = size; });
                     this.$wire.setWidgetSize(card.dataset.widgetKey, size);
                 }
             } else if (axis === 'height' && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
@@ -2224,10 +2263,60 @@ Alpine.data('dashboardWidgetGrid', () => ({
                 const rows = event.key === 'ArrowDown' ? 2 : 1;
 
                 if (Number(card.dataset.widgetRows) !== rows) {
-                    card.dataset.widgetRows = String(rows);
+                    this.flipGrid(() => { card.dataset.widgetRows = String(rows); });
                     this.$wire.setWidgetRows(card.dataset.widgetKey, rows);
                 }
             }
+        });
+    },
+
+    // Anpassen-Modus per Gedruecktkhalten betreten (ersetzt den frueheren
+    // Kopf-Button, siehe widget-grid.blade.php) - nur zum EINTRETEN: im
+    // Anpassen-Modus sind Karten nativ draggable, ein zweites
+    // Gedruecktkhalten wuerde dort mit dem Drag-Start kollidieren.
+    // Verlassen passiert per Klick ausserhalb einer Karte oder Escape
+    // (@click/@keydown.escape auf dem Wurzelelement in widget-grid.blade.php).
+    bindLongPress() {
+        const HOLD_MS = 550;
+        const MOVE_TOLERANCE = 10;
+
+        const cancel = () => {
+            if (this.pressTimer) {
+                clearTimeout(this.pressTimer);
+                this.pressTimer = null;
+            }
+            this.pressStart = null;
+        };
+
+        this.$root.addEventListener('pointerdown', (event) => {
+            if (this.$root.dataset.editing === 'true') return;
+            if (event.target.closest('.widget-resize-handle, button, a')) return;
+
+            const card = event.target.closest('[data-widget-item]');
+            if (!card) return;
+
+            this.pressStart = { x: event.clientX, y: event.clientY };
+            this.pressTimer = setTimeout(() => {
+                this.pressTimer = null;
+                navigator.vibrate?.(12);
+                this.$wire.toggleEditing();
+            }, HOLD_MS);
+        });
+
+        this.$root.addEventListener('pointermove', (event) => {
+            if (!this.pressTimer || !this.pressStart) return;
+
+            if (Math.hypot(event.clientX - this.pressStart.x, event.clientY - this.pressStart.y) > MOVE_TOLERANCE) {
+                cancel();
+            }
+        });
+        this.$root.addEventListener('pointerup', cancel);
+        this.$root.addEventListener('pointercancel', cancel);
+
+        // Auf Touch loest langes Halten oft zusaetzlich das native
+        // Kontextmenue aus - das wuerde die Geste unterbrechen.
+        this.$root.addEventListener('contextmenu', (event) => {
+            if (event.target.closest('[data-widget-item]')) event.preventDefault();
         });
     },
 }));

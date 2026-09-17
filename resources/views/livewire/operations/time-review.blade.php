@@ -1,12 +1,21 @@
 <div class="space-y-4">
 <x-tables.toolbar title="Filter" id="time-filters">
 <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" /></x-slot:search>
-<x-slot:bulk>@if($exports)<x-ui.buttons.button-basic mode="primary" wire:click="export" wire:loading.attr="disabled">Auswahl exportieren</x-ui.buttons.button-basic>@endif</x-slot:bulk>
+<x-slot:bulk>@if($exports)<x-ui.buttons.button-basic mode="primary" wire:click="export" wire:loading.attr="disabled">Auswahl exportieren</x-ui.buttons.button-basic>@else<x-ui.buttons.button-basic wire:click="prepareBatch" wire:loading.attr="disabled">Auswahl prüfen</x-ui.buttons.button-basic>@endif</x-slot:bulk>
 @if(!$exports)<x-tables.filter-field label="Zeitstatus" for="time-status-filter"><x-ui.forms.select id="time-status-filter" wire:model.live="filter" aria-label="Zeitstatus"><option value="submitted">Zur Prüfung</option><option value="returned">Zurückgegeben</option><option value="approved">Freigegeben</option><option value="all">Alle</option></x-ui.forms.select></x-tables.filter-field>@endif
 </x-tables.toolbar>
 <x-operations.feedback />
-<x-tables.table :columns="[['label'=>'Dienst','key'=>'plan_snapshot.title','width'=>'2fr'],['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Beginn','key'=>'starts_at'],['label'=>'Netto','key'=>'net_time'],['label'=>'Status','key'=>'status']]" :items="$entries" :selected-items="$selected" detail-action="openDetails" row-view="components.tables.rows.operations.record" :actions-view="$exports ? 'components.tables.rows.operations.export-selection' : null" empty="Keine Zeitmeldungen in dieser Ansicht." />
+<x-tables.table :columns="[['label'=>'Dienst','key'=>'plan_snapshot.title','width'=>'2fr'],['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Plan netto','key'=>'planned_net'],['label'=>'Ist netto','key'=>'net_time'],['label'=>'Abweichung','key'=>'time_delta'],['label'=>'Status','key'=>'status']]" :items="$entries" :selected-items="$selected" detail-action="openDetails" row-view="components.tables.rows.operations.record" :actions-view="$exports ? 'components.tables.rows.operations.export-selection' : 'components.tables.rows.operations.review-selection'" empty="Keine Zeitmeldungen in dieser Ansicht." />
 {{ $entries->links() }}
+<x-operations.modal wire:model="batchOpen" title="Auswahl prüfen" max-width="4xl">
+    <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Dienst','key'=>'plan_snapshot.title'],['label'=>'Abweichung','key'=>'time_delta']]" :items="$batchEntries" row-view="components.tables.rows.operations.record" />
+    <x-operations.feedback />
+    <x-operations.field label="Prüfvermerk / Korrekturgrund" model="batchNote" maxlength="1000" />
+    <div class="ops-actions">
+        @if($batchEntries->isNotEmpty() && $batchEntries->every(fn ($entry) => app(\App\Services\Operations\WorkTimeService::class)->warnings($entry) === []))<x-ui.buttons.button-basic mode="primary" wire:click="reviewBatch(true)" wire:loading.attr="disabled">Auswahl freigeben</x-ui.buttons.button-basic>@endif
+        <x-ui.buttons.button-basic wire:click="reviewBatch(false)" wire:loading.attr="disabled">Zur Korrektur zurückgeben</x-ui.buttons.button-basic>
+    </div>
+</x-operations.modal>
 <x-operations.modal wire:model="detailOpen" title="Zeitmeldung" max-width="4xl">
 @if($detailEntry)
 @php

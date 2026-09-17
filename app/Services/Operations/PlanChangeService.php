@@ -39,6 +39,12 @@ class PlanChangeService
         if ($oldRequirements !== null && $requirements !== $oldRequirements) {
             $changes[] = ['field' => 'requirements', 'label' => 'Nachweise', 'before' => $oldRequirements, 'after' => $requirements];
         }
+        $sections = app(DutyActivityService::class)->snapshot($shift);
+        $beforeSections = $before['sections'] ?? [];
+        if ($sections !== $beforeSections) {
+            $describe = fn ($items) => collect($items)->map(fn ($item) => (DutyActivityService::KINDS[$item['kind']] ?? $item['kind']).' '.CarbonImmutable::parse($item['starts_at'])->setTimezone($item['timezone'])->format('d.m. H:i').'–'.CarbonImmutable::parse($item['ends_at'])->setTimezone($item['timezone'])->format('H:i').(filled($item['label'] ?? null) ? ' · '.$item['label'] : ''))->implode('; ') ?: '—';
+            $changes[] = ['field' => 'sections', 'label' => 'Dienstabschnitte', 'before' => $describe($beforeSections), 'after' => $describe($sections)];
+        }
 
         return $changes;
     }

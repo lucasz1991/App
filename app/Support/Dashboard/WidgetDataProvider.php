@@ -110,7 +110,9 @@ class WidgetDataProvider
 
     private function wagonList(User $user): array
     {
-        return ['href' => route($user->isAdmin() ? 'admin.operations.wagon-list' : 'operations.wagon-list')];
+        // Zaehlung passiert clientseitig aus localStorage (siehe wagon_list.blade.php)
+        // - der Kopf kann hier also keinen datenabhaengigen Zustand zeigen.
+        return ['tone' => 'neutral', 'href' => route($user->isAdmin() ? 'admin.operations.wagon-list' : 'operations.wagon-list')];
     }
 
     private function messages(User $user, int $rows): array
@@ -120,7 +122,7 @@ class WidgetDataProvider
             ? $user->receivedMessages()->with('sender:id,name')->latest()->limit(4)->get()
             : collect();
 
-        return ['unread' => $unread, 'latest' => $latest]
+        return ['unread' => $unread, 'latest' => $latest, 'tone' => $unread === 0 ? 'ok' : 'warn']
             + $this->dailySparkline(fn () => $user->receivedMessages())
             + ['href' => route('messages')];
     }
@@ -134,6 +136,7 @@ class WidgetDataProvider
         return [
             'total' => $all->count(),
             'recent' => $rows === 2 ? $all->sortByDesc('created_at')->take(4)->values() : collect(),
+            'tone' => 'brand',
             'href' => route('files'),
         ];
     }
@@ -142,14 +145,22 @@ class WidgetDataProvider
     {
         $stats = $this->personalDeviceSnapshot->get($user);
 
-        return ['stats' => $stats, 'href' => $stats['available'] ? route('devices.mine') : null];
+        return [
+            'stats' => $stats,
+            'tone' => $stats['available'] ? ($stats['blocked'] > 0 ? 'warn' : 'ok') : null,
+            'href' => $stats['available'] ? route('devices.mine') : null,
+        ];
     }
 
     private function fleetDevices(User $user): array
     {
         $stats = $this->fleetSnapshot->get();
 
-        return ['stats' => $stats, 'href' => $stats['available'] ? route($user->isAdmin() ? 'admin.devices' : 'devices.index') : null];
+        return [
+            'stats' => $stats,
+            'tone' => $stats['available'] ? ($stats['attention'] > 0 ? 'warn' : 'ok') : null,
+            'href' => $stats['available'] ? route($user->isAdmin() ? 'admin.devices' : 'devices.index') : null,
+        ];
     }
 
     private function profileCompletion(User $user): array
@@ -175,10 +186,13 @@ class WidgetDataProvider
      */
     private function operationsQueue(string $slug, string $label, string $icon, Builder $query, int $rows, \Closure $describe): array
     {
+        $count = (clone $query)->count();
+
         return [
             'label' => $label,
             'icon' => $icon,
-            'count' => (clone $query)->count(),
+            'count' => $count,
+            'tone' => $count === 0 ? 'ok' : 'warn',
             'items' => $rows === 2 ? (clone $query)->latest()->limit(4)->get()->map($describe) : collect(),
             'href' => route('operations.workspace', $slug),
         ];
@@ -193,6 +207,7 @@ class WidgetDataProvider
             'label' => 'Offene Leistungen',
             'count' => (clone $open)->count(),
             'byStatus' => $byStatus,
+            'tone' => 'brand',
             'recent' => $rows === 2 ? (clone $open)->with('customer:id,company_name')->latest('starts_at')->limit(4)->get() : collect(),
             'href' => route('operations.workspace', 'orders'),
         ];
@@ -237,6 +252,7 @@ class WidgetDataProvider
             'active' => $active,
             'total' => $total,
             'inactive' => $total - $active,
+            'tone' => 'brand',
             'recent' => $rows === 2 ? Customer::query()->active()->latest()->limit(4)->get(['id', 'company_name', 'city']) : collect(),
             'href' => route('operations.workspace', 'customers'),
         ];
@@ -263,6 +279,7 @@ class WidgetDataProvider
             'total' => $total,
             'active' => $active,
             'inactive' => $total - $active,
+            'tone' => 'brand',
             'recent' => $rows === 2 ? User::query()->where('role', 'staff')->latest()->limit(4)->get(['id', 'name', 'created_at']) : collect(),
             'href' => route($user->isAdmin() ? 'admin.employees' : 'employees.index'),
         ];
@@ -288,9 +305,11 @@ class WidgetDataProvider
     private function mailManagement(int $rows): array
     {
         $pending = Mail::query()->where('status', false);
+        $count = (clone $pending)->count();
 
         return [
-            'pending' => (clone $pending)->count(),
+            'pending' => $count,
+            'tone' => $count === 0 ? 'ok' : 'warn',
             'recent' => $rows === 2 ? (clone $pending)->latest()->limit(4)->get() : collect(),
             'href' => route('admin.mail-management'),
         ];
@@ -302,6 +321,7 @@ class WidgetDataProvider
 
         return [
             'thisWeek' => $mine()->where('ended_at', '>=', now()->subDays(7))->count(),
+            'tone' => 'brand',
             'recent' => $rows === 2 ? $mine()->whereNotNull('ended_at')->latest('ended_at')->limit(4)->get() : collect(),
         ] + $this->dailySparkline(fn () => $mine()->whereNotNull('ended_at'), 'ended_at')
             + ['href' => route('calls.index')];
@@ -343,16 +363,18 @@ class WidgetDataProvider
         try {
             $canManage = Gate::forUser($user)->allows('support.manage');
             $base = fn () => SupportCase::query()->when(! $canManage, fn ($q) => $q->where('user_id', $user->id))->whereNull('closed_at');
+            $open = $base()->count();
 
             return [
                 'scope' => $canManage ? 'team' : 'personal',
-                'open' => $base()->count(),
+                'open' => $open,
+                'tone' => $open === 0 ? 'ok' : 'warn',
                 'byStatus' => $base()->selectRaw('status, COUNT(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status'),
                 'cases' => $rows === 2 ? $base()->with('user:id,name')->latest('updated_at')->limit(4)->get() : collect(),
                 'href' => $href,
             ];
         } catch (\Throwable) {
-            return ['scope' => 'personal', 'open' => 0, 'byStatus' => collect(), 'cases' => collect(), 'href' => $href];
+            return ['scope' => 'personal', 'open' => 0, 'tone' => 'ok', 'byStatus' => collect(), 'cases' => collect(), 'href' => $href];
         }
     }
 
@@ -360,9 +382,11 @@ class WidgetDataProvider
     {
         $pending = MarketingCreative::query()->where('status', 'draft');
         $byType = (clone $pending)->selectRaw('type, COUNT(*) as aggregate')->groupBy('type')->pluck('aggregate', 'type');
+        $count = (clone $pending)->count();
 
         return [
-            'pending' => (clone $pending)->count(),
+            'pending' => $count,
+            'tone' => $count === 0 ? 'ok' : 'warn',
             'byType' => $byType,
             'recent' => $rows === 2 ? (clone $pending)->latest()->limit(4)->get(['id', 'title', 'type', 'created_at'])->map(fn (MarketingCreative $creative) => [
                 'title' => $creative->title,

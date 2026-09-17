@@ -15,15 +15,19 @@
                 ['value'=>'day','label'=>'Tagesübersicht','icon'=>'fa-calendar-day'],
                 ['value'=>'staffing','label'=>'Besetzung','icon'=>'fa-users'],
                 ['value'=>'orders','label'=>'Leistungen','icon'=>'fa-briefcase'],
+                ['value'=>'timeline','label'=>'Mitarbeiter-Zeitleiste','icon'=>'fa-chart-gantt'],
             ]" />
         </div>
     </header>
+    @if(\App\Support\Operations\PlanningSchema::ready())<livewire:operations.shift-series-planner />@endif
+    @if($viewMode !== 'timeline')
     <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :search-in-header="true" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all') + (int) ($attentionFilter !== 'all')">
         <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" /></x-slot:search>
         <x-tables.filter-field label="Auftrag" for="shift-order-filter"><x-ui.forms.select id="shift-order-filter" wire:model.live="orderFilter" aria-label="Auftrag"><option value="all">Alle Aufträge</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->title }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
         <x-tables.filter-field label="Status" for="shift-status-filter"><x-ui.forms.select id="shift-status-filter" wire:model.live="statusFilter" aria-label="Schichtstatus filtern"><option value="all">Alle Status</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
         @if($nativeOperations)<x-tables.filter-field label="Handlungsbedarf" for="shift-attention"><x-ui.forms.select id="shift-attention" wire:model.live="attentionFilter" aria-label="Handlungsbedarf"><option value="all">Alle Schichten</option><option value="conflicts">Besetzung mit Konflikten</option><option value="unpublished">Unveröffentlichte Änderungen</option><option value="awaiting">Rückmeldung ausstehend</option><option value="declined">Abgelehnte Dienste</option></x-ui.forms.select></x-tables.filter-field>@endif
     </x-tables.toolbar>
+    @endif
     @php
         $shiftColumns = [
             ['label' => 'Schicht', 'key' => 'shift', 'width' => '1.5fr'],
@@ -34,7 +38,9 @@
         ];
     @endphp
     <div class="space-y-6" data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="setView,search,rangeFrom,rangeTo,orderFilter,statusFilter">
-        @if($viewMode === 'table' || $shifts->isEmpty())
+        @if($viewMode === 'timeline')
+            <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
+        @elseif($viewMode === 'table' || $shifts->isEmpty())
             <x-tables.table :columns="$shiftColumns" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
         @else
             @foreach(match($viewMode) { 'day' => $dailyGroups, 'orders' => $orderGroups, default => $staffingGroups } as $groupKey => $group)
@@ -118,6 +124,7 @@
 
                     @endif
                     @if($nativeOperations)
+                        @if($detailOpen && \App\Support\Operations\PlanningSchema::ready())<livewire:operations.duty-activity :shift-id="$selectedShift->id" :key="'duty-'.$selectedShift->id" />@endif
                         <section class="mt-5 space-y-3" aria-label="Rückmeldungen">
                             <h3 class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Rückmeldungen</h3>
                             <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Antwort','key'=>'response'],['label'=>'Im Kalender geöffnet','key'=>'opened'],['label'=>'Aktion','key'=>'action']]" :items="$feedback" row-view="components.tables.rows.operations.plan-feedback" empty="Noch keine Rückmeldungen." />
