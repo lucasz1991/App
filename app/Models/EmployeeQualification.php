@@ -15,6 +15,25 @@ class EmployeeQualification extends Model
 
     protected $hidden = ['evidence_path'];
 
+    public function validityLabel(): string
+    {
+        if ($this->status !== 'approved') {
+            return '—';
+        }
+        $today = now(config('operations.display_timezone', 'Europe/Berlin'))->toDateString();
+        if ($this->valid_until->toDateString() < $today) {
+            return 'Abgelaufen';
+        }
+        if ($this->valid_from->toDateString() > $today) {
+            return 'Künftig gültig';
+        }
+        if ($this->valid_until->toDateString() <= now(config('operations.display_timezone', 'Europe/Berlin'))->addDays(30)->toDateString()) {
+            return 'Läuft in 30 Tagen ab';
+        }
+
+        return 'Gültig';
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

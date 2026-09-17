@@ -94,12 +94,11 @@ class PersonnelWorkflowService
                 $this->check($record->evidence_path && str_starts_with($record->evidence_path, 'operations/evidence/') && Storage::disk('local')->exists($record->evidence_path), 'Nachweisdatei fehlt. Bitte erneut einreichen lassen.');
             }
             $record->forceFill(['status' => ['approve' => 'approved', 'reject' => 'rejected', 'revoke' => 'revoked'][$action], 'revision' => $revision + 1, 'reviewed_by' => $actor->id, 'reviewed_at' => now()->utc(), 'review_note' => $note])->save();
-            if ($action === 'revoke') {
-                foreach (ShiftAssignment::blocking()->where('user_id', $record->user_id)->whereHas('shift', fn ($q) => $q->notCancelled()->upcoming())->with('shift')->get() as $assignment) {
-                    app(StaffEligibilityService::class)->assertEligible($assignment->shift, $assignment->user);
-                }
-            }
-            $this->audit->record($record, $actor, 'qualification.'.$action, ['note' => $note]);
+            // Revocation must persist even when an assigned service needs replanning.
+            $affected = $action === 'revoke' ? ShiftAssignment::blocking()->where('user_id', $record->user_id)
+                ->whereHas('shift', fn ($q) => $q->notCancelled()->upcoming()->whereHas('qualifications', fn ($q) => $q->where('qualification_types.id', $record->qualification_type_id)))
+                ->pluck('id')->all() : [];
+            $this->audit->record($record, $actor, 'qualification.'.$action, ['note' => $note, 'affected_assignment_ids' => $affected]);
         }, 3);
     }
 

@@ -81,6 +81,10 @@
         @if($selectedCalendarEvent)
             @if($selectedCalendarEvent->kind === 'shift')
                 @include('components.tables.rows.operations.personal-shift', ['item'=>$selectedCalendarEvent->record])
+                @if(count($selectedPlanChanges))
+                    <h3 class="text-sm font-semibold">Veröffentlichte Änderungen · Revision {{ $selectedCalendarEvent->record->plan_revision }}</h3>
+                    <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Aktuell','key'=>'after']]" :items="collect($selectedPlanChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />
+                @endif
             @else
                 <div class="ops-toolbar"><h3>{{ $selectedCalendarEvent->title }}</h3><x-operations.status :value="$selectedCalendarEvent->status" /></div>
                 <dl class="rt-personal-calendar-details">

@@ -828,6 +828,31 @@ test('mobile uses the Windows default paired signature without template attachme
     }
 });
 
+test('mobile runtime exposes a fixed failure category without leaking exceptions or blocking completion', async () => {
+    const fixture = await runtimeFixture({ platform: 'iOS', failFirstBootstrap: true });
+    const notifications = [];
+    fixture.item.notificationMessages = { replaceAsync(key, value, callback) {
+        notifications.push({ key, ...value }); callback({ status: 'succeeded' });
+    } };
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.completed, 1);
+    assert.equal(notifications.length, 1);
+    assert.match(notifications[0].message, /RT-COMPOSE/);
+    assert.doesNotMatch(notifications[0].message, /Synthetic|token|@/);
+    assert.deepEqual(fixture.state.mutations, []);
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.completed, 2);
+    assert.equal(notifications.length, 1, 'successful retry must not emit another failure');
+});
+
+test('broken mobile notification API does not prevent event completion', async () => {
+    const fixture = await runtimeFixture({ platform: 'Android', failFirstBootstrap: true });
+    fixture.item.notificationMessages = { replaceAsync() { throw new Error('Unsupported'); } };
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.completed, 1);
+    assert.deepEqual(fixture.state.mutations, []);
+});
+
 test('compose event retries a failed activation and still suppresses subsequent successful duplicates', async () => {
     const { handler, event, state } = await runtimeFixture({ failFirstBootstrap: true });
     await handler(event);

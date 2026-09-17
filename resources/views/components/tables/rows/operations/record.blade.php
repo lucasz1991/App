@@ -3,6 +3,7 @@
         $key = $column['key'];
         $value = match($key) {
             'qualification_label' => $item->type?->name,
+            'validity' => $item->validityLabel(),
             'absence_label' => ['vacation'=>'Urlaub', 'unavailable'=>'Nicht verfügbar', 'other'=>'Abwesenheit'][$item->kind] ?? $item->kind,
             'net_time' => \App\Support\Operations\OperationsDateTime::duration($item->netSeconds()),
             'channel' => ['email'=>'E-Mail', 'phone'=>'Telefon', 'portal'=>'Portal', 'manual'=>'Manuell'][$item->channel] ?? $item->channel,

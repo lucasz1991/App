@@ -25,6 +25,18 @@ class PersonnelReview extends Component
 
     public string $search = '';
 
+    public string $validity = 'all';
+
+    public function updatedValidity(): void
+    {
+        $this->access();
+        abort_unless(in_array($this->validity, ['all', 'expired', '30', '90', 'future'], true), 422);
+        if ($this->validity !== 'all') {
+            $this->filter = 'approved';
+        }
+        $this->resetPage();
+    }
+
     public array $notes = [];
 
     public bool $detailOpen = false;
@@ -68,6 +80,7 @@ class PersonnelReview extends Component
 
     public function updatedFilter(): void
     {
+        $this->validity = 'all';
         $this->resetPage();
     }
 
@@ -122,9 +135,21 @@ class PersonnelReview extends Component
     {
         $this->access();
         $query = $this->module === 'absences' ? AbsenceRequest::with('user:id,name') : EmployeeQualification::with(['user:id,name', 'type']);
+        $today = now(config('operations.display_timezone', 'Europe/Berlin'))->startOfDay();
+        $selected = $this->selectedId && $this->module !== 'rules' ? (clone $query)->find($this->selectedId) : null;
+        if ($this->module === 'qualifications' && $this->validity !== 'all') {
+            $query->where('status', 'approved');
+            if ($this->validity === 'expired') {
+                $query->whereDate('valid_until', '<', $today->toDateString());
+            } elseif ($this->validity === 'future') {
+                $query->whereDate('valid_from', '>', $today->toDateString());
+            } elseif (in_array($this->validity, ['30', '90'], true)) {
+                $query->whereDate('valid_until', '>=', $today->toDateString())->whereDate('valid_until', '<=', $today->copy()->addDays((int) $this->validity)->toDateString());
+            }
+        }
 
         return view('livewire.operations.personnel-review', [
-            'selectedRecord' => $this->selectedId && $this->module !== 'rules' ? (clone $query)->find($this->selectedId) : null,
+            'selectedRecord' => $selected,
             'records' => $this->module === 'rules' ? null : $query->when($this->filter !== 'all', fn ($q) => $q->where('status', $this->filter))->when(filled($this->search), fn ($q) => $q->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%')))->latest()->paginate(15),
             'types' => $this->module === 'qualifications' ? QualificationType::orderBy('name')->get() : collect(),
             'activeRules' => $this->module === 'rules' ? OperationsRuleProfile::where('is_active', true)->first() : null,

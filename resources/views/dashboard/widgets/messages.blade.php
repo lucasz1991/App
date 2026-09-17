@@ -6,6 +6,10 @@
     </span>
 </div>
 @if($rows === 2)
+    <div style="margin-top:14px;">
+        <x-dashboard.sparkline :values="$data['sparkline']" :labels="$data['sparklineLabels']" />
+        <p class="ops-muted" style="margin-top:4px;">Eingang, letzte 7 Tage</p>
+    </div>
     <div style="margin-top:10px;">
         @forelse($data['latest'] as $message)
             <div class="ops-row"><span>{{ $message->subject }}</span><span class="ops-muted">{{ $message->sender?->name }}</span></div>

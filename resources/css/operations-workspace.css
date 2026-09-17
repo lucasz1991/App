@@ -3,8 +3,8 @@
    (--rt-red #e4002b / --rt-dark-accent #ff7189) abweichendes Rot. Auf ein
    Rot vereinheitlicht, damit Topbar/Sidebar und Betriebsbereich als ein
    System lesen. */
-.rt-ops { --ops-signal: #e4002b; --ops-ink: #182230; --ops-muted: #637083; --ops-line: rgba(83,101,122,.16); --ops-platform: #f5f7f9; --ops-sheet: #fff; color:var(--ops-ink); min-width:0; font-size:14px; }
-.dark .rt-ops { --ops-ink:#edf0f5; --ops-muted:#a6b1c1; --ops-line:rgba(192,204,220,.16); --ops-platform:#17202d; --ops-sheet:#1c2736; --ops-signal:#ff7189; }
+.rt-ops { --ops-signal: #e4002b; --ops-ink: #182230; --ops-muted: #637083; --ops-line: rgba(83,101,122,.16); --ops-platform: #f5f7f9; --ops-sheet: #fff; --ops-ok: #25603b; --ops-warn: #855d19; color:var(--ops-ink); min-width:0; font-size:14px; }
+.dark .rt-ops { --ops-ink:#edf0f5; --ops-muted:#a6b1c1; --ops-line:rgba(192,204,220,.16); --ops-platform:#17202d; --ops-sheet:#1c2736; --ops-signal:#ff7189; --ops-ok:#ace2bf; --ops-warn:#edcd91; }
 .rt-ops h1 { font-size:28px; font-weight:650; letter-spacing:-.035em; }
 .rt-ops h2 { font-size:20px; font-weight:650; letter-spacing:-.025em; }
 .rt-ops h3 { font-size:16px; font-weight:650; }
@@ -195,12 +195,27 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
    von .ops-tone-* fuer denselben Zustand. */
 .widget-segment-bar { display:flex; width:100%; height:8px; border-radius:999px; overflow:hidden; background:var(--ops-line); }
 .widget-segment-bar > span { display:block; height:100%; }
-.widget-segment-ok { background:#25603b; }
-.widget-segment-warn { background:#855d19; }
+.widget-segment-ok { background:var(--ops-ok); }
+.widget-segment-warn { background:var(--ops-warn); }
 .widget-segment-danger { background:var(--ops-signal); }
 .widget-segment-neutral { background:var(--ops-muted); }
-.dark .widget-segment-ok { background:#ace2bf; }
-.dark .widget-segment-warn { background:#edcd91; }
 .widget-segment-legend { display:flex; flex-wrap:wrap; gap:10px 16px; margin-top:10px; font-size:11px; color:var(--ops-muted); }
 .widget-segment-legend span { display:inline-flex; align-items:center; gap:6px; }
 .widget-segment-legend i { width:8px; height:8px; border-radius:2px; display:inline-block; font-style:normal; flex-shrink:0; }
+
+/* Donut fuer Anteils-Diagramme mit mehr als zwei Segmenten (z.B. Auftraege
+   nach Status) - dieselbe Ring-Technik wie .widget-ring, aber mit mehreren
+   Farbabschnitten statt nur einem Fortschrittswert. Der Hintergrund
+   (conic-gradient) kommt inline von der Blade-Seite, weil die Stopps aus
+   echten, je Widget unterschiedlichen Zaehlwerten berechnet werden. */
+.widget-donut { --size:64px; width:var(--size); height:var(--size); border-radius:50%; flex-shrink:0; position:relative; }
+.widget-donut::before { content:""; position:absolute; inset:9px; border-radius:50%; background:var(--ops-sheet); }
+.widget-donut-val { position:absolute; inset:9px; z-index:1; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; }
+
+/* Sparkline fuer kurze Zeitreihen (z.B. Anrufe/Nachrichten der letzten 7
+   Tage) - bewusst reines CSS statt ECharts: fuer eine Handvoll Balken in
+   einer kleinen Kachel waere eine ganze Chart-Instanz pro Widget unnoetig
+   schwer. Der letzte (heutige) Balken sticht per voller Deckkraft hervor. */
+.widget-sparkline { display:flex; align-items:flex-end; gap:4px; height:44px; }
+.widget-sparkline > span { flex:1 1 0; min-height:3px; border-radius:3px 3px 0 0; background:var(--ops-signal); opacity:.28; }
+.widget-sparkline > span:last-child { opacity:1; }

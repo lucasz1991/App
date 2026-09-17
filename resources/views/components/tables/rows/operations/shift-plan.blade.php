@@ -28,6 +28,9 @@
                 <p class="text-sm font-semibold tabular-nums text-rt-text dark:text-rt-dark-text">{{ $reserved }} / {{ $item->required_staff }} <span class="text-xs font-normal text-rt-muted dark:text-rt-dark-muted">eingeplant</span></p>
                 <p class="mt-1 text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $confirmed }} bestätigt @if($reserved > $confirmed) · {{ $reserved - $confirmed }} angefragt @endif</p>
                 @if(!$closed && $missing > 0)<p class="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">{{ $missing }} {{ $missing === 1 ? 'Platz offen' : 'Plätze offen' }}</p>@endif
+                @if($item->planning_conflict_count)<p class="mt-1 text-xs font-semibold text-red-700 dark:text-red-300"><i class="far fa-triangle-exclamation" aria-hidden="true"></i> {{ $item->planning_conflict_count }} mit Konflikt</p>@endif
+                @if($item->feedback_pending)<p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->feedback_pending }} {{ $item->feedback_pending === 1 ? 'Rückmeldung offen' : 'Rückmeldungen offen' }}</p>@endif
+                @if($item->feedback_declined)<p class="mt-1 text-xs font-semibold text-red-700 dark:text-red-300">{{ $item->feedback_declined }} abgelehnt</p>@endif
                 @break
             @case('status')
                 <x-operations.status :value="$item->status->value" :label="$item->status->label()" />

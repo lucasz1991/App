@@ -18,10 +18,11 @@
             ]" />
         </div>
     </header>
-    <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :search-in-header="true" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all')">
+    <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :search-in-header="true" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all') + (int) ($attentionFilter !== 'all')">
         <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" /></x-slot:search>
         <x-tables.filter-field label="Auftrag" for="shift-order-filter"><x-ui.forms.select id="shift-order-filter" wire:model.live="orderFilter" aria-label="Auftrag"><option value="all">Alle Aufträge</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->title }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
         <x-tables.filter-field label="Status" for="shift-status-filter"><x-ui.forms.select id="shift-status-filter" wire:model.live="statusFilter" aria-label="Schichtstatus filtern"><option value="all">Alle Status</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
+        @if($nativeOperations)<x-tables.filter-field label="Handlungsbedarf" for="shift-attention"><x-ui.forms.select id="shift-attention" wire:model.live="attentionFilter" aria-label="Handlungsbedarf"><option value="all">Alle Schichten</option><option value="conflicts">Besetzung mit Konflikten</option><option value="unpublished">Unveröffentlichte Änderungen</option><option value="awaiting">Rückmeldung ausstehend</option><option value="declined">Abgelehnte Dienste</option></x-ui.forms.select></x-tables.filter-field>@endif
     </x-tables.toolbar>
     @php
         $shiftColumns = [
@@ -90,6 +91,7 @@
                         </div>
                     </div>
 
+                    @if(!$nativeOperations)
                     <section class="mt-5">
                         <div class="flex items-center justify-between gap-3">
                             <h3 class="text-sm font-semibold text-rt-text dark:text-white">Eingeteilte Mitarbeitende</h3>
@@ -114,10 +116,19 @@
                         </div>
                     </section>
 
+                    @endif
                     @if($nativeOperations)
+                        <section class="mt-5 space-y-3" aria-label="Rückmeldungen">
+                            <h3 class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Rückmeldungen</h3>
+                            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Antwort','key'=>'response'],['label'=>'Im Kalender geöffnet','key'=>'opened'],['label'=>'Aktion','key'=>'action']]" :items="$feedback" row-view="components.tables.rows.operations.plan-feedback" empty="Noch keine Rückmeldungen." />
+                        </section>
                         <div class="ops-panel ops-stack">
                             <div class="ops-toolbar"><span class="ops-muted">Revision {{ $selectedShift->revision }} · {{ $selectedShift->planned_break_minutes }} min Pause</span><span class="ops-badge">{{ $selectedShift->published_revision === $selectedShift->revision ? 'Veröffentlicht' : 'Entwurf' }}</span></div>
                             <div class="ops-actions">@foreach($selectedShift->qualifications as $qualification)<span class="ops-badge">{{ $qualification->name }}</span>@endforeach</div>
+                            @if(count($planChanges))
+                                <h3 class="text-sm font-semibold">{{ $selectedShift->published_revision === $selectedShift->revision ? 'Zuletzt veröffentlichte Änderungen' : ($selectedShift->published_revision ? 'Änderungen zur Veröffentlichung' : 'Erste Veröffentlichung') }}</h3>
+                                <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />
+                            @endif
                             @if($selectedShift->published_revision !== $selectedShift->revision && !in_array($selectedShiftStatus,['cancelled','completed']))<x-ui.buttons.button-basic mode="primary" wire:click="publish({{ $selectedShift->id }},{{ $selectedShift->revision }})" wire:confirm="Diesen Dienst veröffentlichen und Bestätigungen anfordern?" wire:loading.attr="disabled">Dienst veröffentlichen</x-ui.buttons.button-basic>@endif
                         </div>
                     @endif
@@ -127,9 +138,13 @@
                             <p class="mt-1 leading-5">Für eine stornierte Schicht können keine weiteren Mitarbeitenden reserviert werden.</p>
                         </section>
                     @else
-                    <section class="mt-5 rounded-xl border border-rose-200 bg-rose-50/60 p-4 dark:border-rose-900 dark:bg-rose-500/10">
+                    <section class="mt-5 space-y-3 border-t border-rt-border pt-5 dark:border-rt-dark-border">
                         <h3 class="text-sm font-semibold text-rt-text dark:text-white">Mitarbeiter zuweisen</h3>
-                        <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Zeitüberschneidungen mit aktiven Einsätzen werden vor dem Speichern geprüft.</p>
+                        @if($nativeOperations && $candidates)
+                            <x-tables.search-field wire:model.live.debounce.300ms="candidateSearch" placeholder="Mitarbeiter suchen" aria-label="Kandidaten suchen" />
+                            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Eignung','key'=>'eligibility'],['label'=>'Auswahl','key'=>'action']]" :items="$candidates" row-view="components.tables.rows.operations.candidate" empty="Keine Mitarbeiter gefunden." />
+                            {{ $candidates->links() }}
+                        @endif
                         <div class="mt-3 grid gap-3 sm:grid-cols-2">
                             <div>
                                 <x-ui.forms.label for="assignment-employee" value="Mitarbeiter" />

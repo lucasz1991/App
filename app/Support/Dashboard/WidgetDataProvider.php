@@ -120,7 +120,9 @@ class WidgetDataProvider
             ? $user->receivedMessages()->with('sender:id,name')->latest()->limit(4)->get()
             : collect();
 
-        return ['unread' => $unread, 'latest' => $latest, 'href' => route('messages')];
+        return ['unread' => $unread, 'latest' => $latest]
+            + $this->dailySparkline(fn () => $user->receivedMessages())
+            + ['href' => route('messages')];
     }
 
     private function files(User $user, int $rows): array
@@ -185,10 +187,12 @@ class WidgetDataProvider
     private function operationsOrders(int $rows): array
     {
         $open = Order::query()->whereNotIn('status', ['completed', 'invoiced', 'cancelled']);
+        $byStatus = (clone $open)->selectRaw('status, COUNT(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status');
 
         return [
             'label' => 'Offene Leistungen',
             'count' => (clone $open)->count(),
+            'byStatus' => $byStatus,
             'recent' => $rows === 2 ? (clone $open)->with('customer:id,company_name')->latest('starts_at')->limit(4)->get() : collect(),
             'href' => route('operations.workspace', 'orders'),
         ];
@@ -226,9 +230,13 @@ class WidgetDataProvider
 
     private function operationsCustomers(int $rows): array
     {
+        $active = Customer::query()->active()->count();
+        $total = Customer::query()->count();
+
         return [
-            'active' => Customer::query()->active()->count(),
-            'total' => Customer::query()->count(),
+            'active' => $active,
+            'total' => $total,
+            'inactive' => $total - $active,
             'recent' => $rows === 2 ? Customer::query()->active()->latest()->limit(4)->get(['id', 'company_name', 'city']) : collect(),
             'href' => route('operations.workspace', 'customers'),
         ];
@@ -248,9 +256,13 @@ class WidgetDataProvider
             ->selectRaw('COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) as active')
             ->first();
 
+        $total = (int) ($snapshot->total ?? 0);
+        $active = (int) ($snapshot->active ?? 0);
+
         return [
-            'total' => (int) ($snapshot->total ?? 0),
-            'active' => (int) ($snapshot->active ?? 0),
+            'total' => $total,
+            'active' => $active,
+            'inactive' => $total - $active,
             'recent' => $rows === 2 ? User::query()->where('role', 'staff')->latest()->limit(4)->get(['id', 'name', 'created_at']) : collect(),
             'href' => route($user->isAdmin() ? 'admin.employees' : 'employees.index'),
         ];
@@ -291,7 +303,30 @@ class WidgetDataProvider
         return [
             'thisWeek' => $mine()->where('ended_at', '>=', now()->subDays(7))->count(),
             'recent' => $rows === 2 ? $mine()->whereNotNull('ended_at')->latest('ended_at')->limit(4)->get() : collect(),
-            'href' => route('calls.index'),
+        ] + $this->dailySparkline(fn () => $mine()->whereNotNull('ended_at'), 'ended_at')
+            + ['href' => route('calls.index')];
+    }
+
+    /**
+     * Tageszaehlung der letzten $days Tage (heute eingeschlossen), fuer die
+     * kleinen Sparkline-Diagramme. $query liefert je Aufruf frisch eine neue
+     * Query (Relations wie receivedMessages() koennen nicht sicher geklont
+     * werden), damit dieselbe Basis hier unabhaengig von deren sonstiger
+     * Verwendung weitergefiltert werden kann.
+     *
+     * @return array{sparkline: array<int, int>, sparklineLabels: array<int, string>}
+     */
+    private function dailySparkline(\Closure $query, string $column = 'created_at', int $days = 7): array
+    {
+        $since = now()->subDays($days - 1)->startOfDay();
+        $byDay = $query()->where($column, '>=', $since)
+            ->selectRaw("DATE({$column}) as day, COUNT(*) as aggregate")
+            ->groupBy('day')->pluck('aggregate', 'day');
+        $range = collect(range($days - 1, 0))->map(fn (int $daysAgo) => now()->subDays($daysAgo));
+
+        return [
+            'sparkline' => $range->map(fn ($day) => (int) ($byDay[$day->toDateString()] ?? 0))->values()->all(),
+            'sparklineLabels' => $range->map(fn ($day) => $day->translatedFormat('d.m.'))->values()->all(),
         ];
     }
 
@@ -312,20 +347,23 @@ class WidgetDataProvider
             return [
                 'scope' => $canManage ? 'team' : 'personal',
                 'open' => $base()->count(),
+                'byStatus' => $base()->selectRaw('status, COUNT(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status'),
                 'cases' => $rows === 2 ? $base()->with('user:id,name')->latest('updated_at')->limit(4)->get() : collect(),
                 'href' => $href,
             ];
         } catch (\Throwable) {
-            return ['scope' => 'personal', 'open' => 0, 'cases' => collect(), 'href' => $href];
+            return ['scope' => 'personal', 'open' => 0, 'byStatus' => collect(), 'cases' => collect(), 'href' => $href];
         }
     }
 
     private function marketing(int $rows): array
     {
         $pending = MarketingCreative::query()->where('status', 'draft');
+        $byType = (clone $pending)->selectRaw('type, COUNT(*) as aggregate')->groupBy('type')->pluck('aggregate', 'type');
 
         return [
             'pending' => (clone $pending)->count(),
+            'byType' => $byType,
             'recent' => $rows === 2 ? (clone $pending)->latest()->limit(4)->get(['id', 'title', 'type', 'created_at'])->map(fn (MarketingCreative $creative) => [
                 'title' => $creative->title,
                 'typeLabel' => $creative->type === MarketingCreativeType::Job ? 'Stellenanzeige' : 'Info-Motiv',

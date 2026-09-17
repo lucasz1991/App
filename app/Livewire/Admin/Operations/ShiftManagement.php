@@ -9,11 +9,14 @@ use App\Models\QualificationType;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Operations\PlanChangeService;
 use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\ShiftSchedulingService;
+use App\Services\Operations\StaffEligibilityService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -23,10 +26,30 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 class ShiftManagement extends Component
 {
     use SupportsOperationsUi;
+    use WithPagination;
+
+    public string $attentionFilter = 'all';
+
+    public string $candidateSearch = '';
+
+    public function updatedCandidateSearch(): void
+    {
+        $this->resetPage('candidatesPage');
+    }
+
+    public function chooseCandidate(int $id): void
+    {
+        $this->ensureAdmin();
+        $shift = Shift::findOrFail($this->selectedShiftId);
+        $user = User::where('status', true)->where('role', 'staff')->findOrFail($id);
+        app(StaffEligibilityService::class)->assertEligible($shift, $user);
+        $this->employeeId = $id;
+    }
 
     public string $rangeFrom = '';
 
@@ -165,6 +188,8 @@ class ShiftManagement extends Component
         $this->ensureAdmin();
         Shift::query()->findOrFail($shiftId);
         $this->selectedShiftId = $shiftId;
+        $this->reset(['candidateSearch', 'employeeId']);
+        $this->resetPage('candidatesPage');
         $this->resetValidation('assignment');
     }
 
@@ -335,6 +360,23 @@ class ShiftManagement extends Component
             ->orderBy('id')
             ->get();
 
+        $native = OperationsAccess::ready();
+        foreach ($shifts as $shift) {
+            $active = $shift->assignments->filter(fn ($assignment) => $assignment->status->blocksAvailability());
+            $issues = $native && ! in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true)
+                ? app(StaffEligibilityService::class)->assessMany($shift, $active->pluck('user')->filter()) : [];
+            $shift->setAttribute('planning_conflict_count', collect($issues)->filter(fn ($reasons) => $reasons !== [])->count());
+            $shift->setAttribute('feedback_pending', $shift->assignments->filter(fn ($a) => $a->status === ShiftAssignmentStatus::Requested && $a->plan_revision > 0 && $a->plan_revision === $shift->published_revision)->count());
+            $shift->setAttribute('feedback_declined', $shift->assignments->filter(fn ($a) => $a->status === ShiftAssignmentStatus::Declined && $a->plan_revision > 0 && $a->plan_revision === $shift->published_revision)->count());
+        }
+        $shifts = $shifts->filter(fn (Shift $shift) => match ($this->attentionFilter) {
+            'conflicts' => $shift->planning_conflict_count > 0,
+            'unpublished' => $shift->revision !== $shift->published_revision && ! in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true),
+            'awaiting' => $shift->feedback_pending > 0 && ! in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true),
+            'declined' => $shift->feedback_declined > 0 && ! in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true),
+            default => true,
+        })->values();
+
         $dailyGroups = collect();
         if ($this->viewMode === 'day') {
             for ($day = $from->copy()->startOfDay(); $day->lte($to); $day->addDay()) {
@@ -365,6 +407,25 @@ class ShiftManagement extends Component
             : null;
 
         $summary = $this->staffingSummary($shifts);
+        $candidates = $this->detailOpen && $selectedShift ? User::where('status', true)->where('role', 'staff')
+            ->when(trim($this->candidateSearch) !== '', fn ($q) => $q->where('name', 'like', '%'.mb_substr(trim($this->candidateSearch), 0, 100).'%'))
+            ->orderBy('name')->orderBy('id')->paginate(8, ['id', 'name', 'role', 'status'], 'candidatesPage') : null;
+        if ($candidates) {
+            $eligibility = app(StaffEligibilityService::class)->assessMany($selectedShift, $candidates->getCollection());
+            $candidates->getCollection()->each(function ($user) use ($eligibility) {
+                $user->setAttribute('planning_issues', $eligibility[$user->id]);
+            });
+        }
+        $assignmentIssues = $native && $this->detailOpen && $selectedShift
+            ? app(StaffEligibilityService::class)->assessMany($selectedShift, $selectedShift->assignments->filter(fn ($a) => $a->status->blocksAvailability())->pluck('user')->filter()) : [];
+        $openings = $native && $this->detailOpen && $selectedShift ? app(PlanChangeService::class)->openings($selectedShift->assignments, (int) $selectedShift->published_revision) : collect();
+        $feedback = $native && $this->detailOpen && $selectedShift ? $selectedShift->assignments->whereIn('status', [ShiftAssignmentStatus::Requested, ShiftAssignmentStatus::Confirmed, ShiftAssignmentStatus::Declined])->map(function ($assignment) use ($selectedShift, $assignmentIssues, $openings) {
+            $assignment->setAttribute('planning_issues', $assignmentIssues[$assignment->user_id] ?? []);
+            $opened = $assignment->plan_revision > 0 && $assignment->plan_revision === $selectedShift->published_revision ? $openings->get($assignment->id) : null;
+            $assignment->setAttribute('plan_opened_at', $opened ? CarbonImmutable::parse($opened->getRawOriginal('created_at'), 'UTC') : null);
+
+            return $assignment;
+        }) : collect();
         $orderGroups = $shifts->groupBy('order_id')->map(function (Collection $items): array {
             $order = $items->first()->order;
 
@@ -390,6 +451,10 @@ class ShiftManagement extends Component
             ])->map(fn (string $label, string $key): array => ['label' => $label, 'items' => $staffingGroups->get($key, collect())]),
             'displayTimezone' => (string) config('operations.display_timezone', 'Europe/Berlin'),
             'selectedShift' => $selectedShift,
+            'candidates' => $candidates,
+            'feedback' => $feedback,
+            'planChanges' => $native && $this->detailOpen && $selectedShift
+                ? ($selectedShift->revision !== $selectedShift->published_revision ? app(PlanChangeService::class)->changes($selectedShift) : app(PlanChangeService::class)->publishedChanges($selectedShift->id, $selectedShift->published_revision)) : [],
             'orders' => Order::query()
                 ->with('customer')
                 ->where(function (Builder $query): void {

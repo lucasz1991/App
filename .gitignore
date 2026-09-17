@@ -167,6 +167,7 @@ auth.json
 !/tests/Frontend/operations-number-input.test.js
 !/tests/Feature/ShiftManagementViewsTest.php
 !/tests/Feature/NativeOperationsWorkflowTest.php
+!/tests/Feature/OperationsPlanningAssistanceTest.php
 !/tests/Browser/
 /tests/Browser/*
 !/tests/Browser/operations-bootstrap.php

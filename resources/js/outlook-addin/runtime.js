@@ -527,11 +527,42 @@ async function applyPublishedContent(item) {
     }
 }
 
+// Mobile has no compose taskpane. Surface only fixed diagnostic categories,
+// never exception messages, tokens, addresses or message content.
+async function notifyMobileFailure(item, error = null) {
+    const platform = Office.context?.diagnostics?.platform || Office.context?.platform;
+    if (!/^(ios|android)$/i.test(String(platform))
+        || Office.context.mailbox.item !== item
+        || typeof item?.notificationMessages?.replaceAsync !== 'function') return;
+
+    const code = safeErrorCode(error);
+    const reason = code === 'AUTH_INTERACTION_REQUIRED'
+        ? 'Microsoft-Anmeldung erforderlich (RT-AUTH).'
+        : code === 'NAA_NOT_SUPPORTED'
+            ? 'Microsoft-Anmeldung hier nicht verfügbar (RT-NAA).'
+            : /^(HTTP_401|HTTP_403)$/.test(code)
+                ? 'Zugriff nicht bestätigt (RT-ACCESS).'
+                : /^(MAILBOX|SENDER|ITEM_CHANGED)/.test(code)
+                    ? 'Absenderprüfung fehlgeschlagen (RT-SENDER).'
+                    : 'Einfügung nicht bestätigt (RT-COMPOSE).';
+
+    await new Promise((resolve) => {
+        const timer = setTimeout(resolve, 1000);
+        const done = () => { clearTimeout(timer); resolve(); };
+        try {
+            item.notificationMessages.replaceAsync('railtime-signature-status', {
+                type: 'informationalMessage', icon: 'none', persistent: false,
+                message: `RailTime: ${reason} Signatur vor dem Senden prüfen.`,
+            }, done);
+        } catch { done(); }
+    });
+}
+
 async function handleComposeEvent(event) {
     const complete = completeOnce(event);
+    const item = Office.context.mailbox.item;
 
     try {
-        const item = Office.context.mailbox.item;
         if (!item) throw codedError('COMPOSE_API_UNAVAILABLE');
         let operation = composeOperations.get(item);
         if (!operation) {
@@ -546,11 +577,13 @@ async function handleComposeEvent(event) {
             });
             composeOperations.set(item, operation);
         }
-        await operation;
+        const result = await operation;
+        if (['skipped', 'uncertain'].includes(result)) await notifyMobileFailure(item);
     } catch (error) {
         recordDiagnostic('compose-event', 'failed', error);
         // Event activation must never prevent the user from composing or sending.
         console.info(`${LOG_PREFIX} Signature skipped (${safeErrorCode(error)}).`);
+        await notifyMobileFailure(item, error);
     } finally {
         complete();
     }

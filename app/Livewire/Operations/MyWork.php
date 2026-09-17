@@ -8,6 +8,7 @@ use App\Models\QualificationType;
 use App\Models\ShiftAssignment;
 use App\Models\WorkTimeEntry;
 use App\Services\Operations\PersonnelWorkflowService;
+use App\Services\Operations\PlanChangeService;
 use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\Operations\OperationsAccess;
@@ -269,7 +270,10 @@ class MyWork extends Component
     public function openCalendarEvent(string $id): void
     {
         $this->access();
-        $this->calendarEvent($id);
+        $event = $this->calendarEvent($id);
+        if ($event->kind === 'shift') {
+            app(PlanChangeService::class)->opened($event->record->id, $event->record->plan_revision, auth()->user());
+        }
         $this->selectedCalendarEventId = $id;
         $this->calendarEventOpen = true;
         $this->resetValidation();
@@ -360,6 +364,7 @@ class MyWork extends Component
         return view('livewire.operations.my-work', [
             'from' => $from, 'to' => $to,
             'calendarDays' => $days, 'calendarEvents' => $events, 'selectedCalendarEvent' => $selected,
+            'selectedPlanChanges' => $selected?->kind === 'shift' ? app(PlanChangeService::class)->publishedChanges($selected->record->shift_id, $selected->record->plan_revision) : [],
             'displayTimezone' => $this->displayTimezone(),
             'periodLabel' => match ($this->viewMode) {
                 'day' => $anchor->locale('de')->isoFormat('dddd, D. MMMM YYYY'),
