@@ -1994,21 +1994,92 @@ Alpine.data('operationsCoverageChart', (config = {}) => ({
     },
 }));
 
-// Individuelles Dashboard: Reihenfolge per native Drag&Drop. Delegierte
-// Listener auf dem Raster selbst statt pro Karte - ueberlebt jedes
-// Livewire-Morph (wire:poll, Groessen-/Sichtbarkeits-Aenderung) ohne erneute
-// Bindung, weil jede Karte ihr eigenes wire:key traegt. Die Pfeil-Tasten in
-// widget-shell.blade.php rufen denselben Server-Endpunkt ohne JS auf - Ziehen
-// ist hier bewusst nur die Zugabe, nicht der einzige Weg.
+// Individuelles Dashboard: dicht gepacktes Bento-Raster (grid-auto-flow:
+// dense auf einer 8px-Zeileneinheit, siehe operations-workspace.css) plus
+// Umsortieren per ganzer Karte, das Nachbarn schon waehrend des Ziehens
+// live nachruecken laesst - wie beim Umsortieren von Apps auf dem iPhone.
+// Delegierte Listener auf dem Raster selbst statt pro Karte - ueberleben
+// jedes Livewire-Morph (wire:poll, Groessen-/Sichtbarkeits-Aenderung), weil
+// jede Karte ihr eigenes wire:key traegt. Pfeil-Tasten und die S/L-Buttons
+// in widget-shell.blade.php rufen denselben Server-Endpunkt ohne JS auf -
+// Ziehen ist hier bewusst die Zugabe, nicht der einzige Weg.
 Alpine.data('dashboardWidgetGrid', () => ({
     dragKey: null,
+    lastReorderAt: 0,
+    resizeCard: null,
+    resizeStartX: 0,
+    resizeStartSize: null,
+    cardObserver: null,
+    gridObserver: null,
+    recalcRaf: null,
 
     init() {
-        this.$root.addEventListener('dragstart', (event) => {
-            const handle = event.target.closest('.widget-drag-handle');
-            const card = handle?.closest('[data-widget-item]');
+        this.cardObserver = typeof ResizeObserver === 'undefined'
+            ? null
+            : new ResizeObserver(() => this.scheduleRecalc());
+        this.observeCards();
+        this.recalcSpans();
 
-            if (!handle || !card) {
+        // Neue/entfernte Karten (Widget hinzugefuegt/entfernt) wieder
+        // beobachten und die Packung neu berechnen.
+        this.gridObserver = new MutationObserver(() => {
+            this.observeCards();
+            this.scheduleRecalc();
+        });
+        this.gridObserver.observe(this.$root, { childList: true });
+
+        window.addEventListener('resize', () => this.scheduleRecalc());
+
+        this.bindReorder();
+        this.bindResize();
+    },
+
+    destroy() {
+        this.cardObserver?.disconnect();
+        this.gridObserver?.disconnect();
+        window.cancelAnimationFrame(this.recalcRaf);
+    },
+
+    observeCards() {
+        this.$root.querySelectorAll('[data-widget-item]').forEach((card) => this.cardObserver?.observe(card));
+    },
+
+    scheduleRecalc() {
+        window.cancelAnimationFrame(this.recalcRaf);
+        this.recalcRaf = window.requestAnimationFrame(() => this.recalcSpans());
+    },
+
+    // Bento-Packung: die Zeilenspanne jeder Karte aus ihrer tatsaechlichen
+    // Inhaltshoehe ableiten, damit grid-auto-flow:dense kleinere Karten in
+    // die Luecke neben einer hohen ruecken laesst, statt Leerraum stehen zu
+    // lassen.
+    recalcSpans() {
+        const styles = getComputedStyle(this.$root);
+        const rowHeight = parseFloat(styles.gridAutoRows) || 8;
+        const rowGap = parseFloat(styles.rowGap) || 0;
+
+        this.$root.querySelectorAll('[data-widget-item]').forEach((card) => {
+            if (card.classList.contains('is-dragging')) return;
+
+            const height = card.getBoundingClientRect().height;
+            const span = Math.max(1, Math.ceil((height + rowGap) / (rowHeight + rowGap)));
+            card.style.gridRowEnd = `span ${span}`;
+        });
+    },
+
+    bindReorder() {
+        this.$root.addEventListener('dragstart', (event) => {
+            // Buttons, Links und der Rand-Resize-Griff loesen ihre eigene
+            // Geste aus statt eines Kartenzugs.
+            if (event.target.closest('.widget-resize-handle, button, a')) {
+                event.preventDefault();
+
+                return;
+            }
+
+            const card = event.target.closest('[data-widget-item][draggable="true"]');
+
+            if (!card) {
                 event.preventDefault();
 
                 return;
@@ -2017,9 +2088,10 @@ Alpine.data('dashboardWidgetGrid', () => ({
             this.dragKey = card.dataset.widgetKey;
             card.classList.add('is-dragging');
             event.dataTransfer.effectAllowed = 'move';
+            this.cardObserver?.disconnect();
 
             try {
-                event.dataTransfer.setDragImage(card, 24, 24);
+                event.dataTransfer.setDragImage(card, event.offsetX, event.offsetY);
             } catch {
                 // Manche Browser lehnen setDragImage in bestimmten Kontexten ab - der Browser-Standardghost reicht dann.
             }
@@ -2028,38 +2100,145 @@ Alpine.data('dashboardWidgetGrid', () => ({
         this.$root.addEventListener('dragover', (event) => {
             if (!this.dragKey) return;
 
-            const target = event.target.closest('[data-widget-item]');
-
-            if (!target || target.dataset.widgetKey === this.dragKey) return;
-
+            // Muss auf jedem dragover laufen, sonst bleibt Drop verboten.
             event.preventDefault();
-            this.$root.querySelectorAll('[data-widget-item]').forEach((el) => el.classList.remove('is-drop-target'));
-            target.classList.add('is-drop-target');
-        });
 
-        this.$root.addEventListener('drop', (event) => {
-            if (!this.dragKey) return;
+            const now = performance.now();
+            if (now - this.lastReorderAt < 90) return;
 
             const target = event.target.closest('[data-widget-item]');
 
             if (!target || target.dataset.widgetKey === this.dragKey) return;
-
-            event.preventDefault();
 
             const dragged = this.$root.querySelector(`[data-widget-item][data-widget-key="${this.dragKey}"]`);
 
             if (!dragged) return;
 
-            const rect = target.getBoundingClientRect();
-            const before = (event.clientX - rect.left) < rect.width / 2;
-            target.parentNode.insertBefore(dragged, before ? target : target.nextSibling);
-
-            this.$wire.reorder(Array.from(this.$root.querySelectorAll('[data-widget-item]')).map((el) => el.dataset.widgetKey));
+            this.lastReorderAt = now;
+            this.reorderLive(dragged, target, event);
         });
 
-        this.$root.addEventListener('dragend', () => {
-            this.$root.querySelectorAll('[data-widget-item]').forEach((el) => el.classList.remove('is-dragging', 'is-drop-target'));
+        const finish = () => {
+            if (!this.dragKey) return;
+
             this.dragKey = null;
+            this.$root.querySelectorAll('[data-widget-item]').forEach((el) => el.classList.remove('is-dragging'));
+            this.observeCards();
+            this.recalcSpans();
+            this.$wire.reorder(Array.from(this.$root.querySelectorAll('[data-widget-item]')).map((el) => el.dataset.widgetKey));
+        };
+
+        this.$root.addEventListener('drop', (event) => {
+            event.preventDefault();
+            finish();
+        });
+        this.$root.addEventListener('dragend', finish);
+    },
+
+    // FLIP: erst die aktuellen Positionen aller Karten messen, dann die
+    // gezogene Karte an ihre neue Stelle im DOM verschieben, dann jede
+    // verschobene Nachbarkarte von ihrer alten Position weg zur neuen
+    // zurueckanimieren - so gleiten die anderen Kacheln schon waehrend des
+    // Ziehens sichtbar auf, statt erst beim Loslassen zu springen.
+    reorderLive(dragged, target, event) {
+        const items = Array.from(this.$root.querySelectorAll('[data-widget-item]'));
+        const firstRects = new Map(items.map((el) => [el, el.getBoundingClientRect()]));
+
+        const rect = target.getBoundingClientRect();
+        const before = (event.clientX - rect.left) < rect.width / 2;
+        target.parentNode.insertBefore(dragged, before ? target : target.nextSibling);
+
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        items.forEach((el) => {
+            if (el === dragged) return;
+
+            const first = firstRects.get(el);
+            const last = el.getBoundingClientRect();
+            const dx = first.left - last.left;
+            const dy = first.top - last.top;
+
+            if (!dx && !dy) return;
+
+            el.style.transition = 'none';
+            el.style.transform = `translate(${dx}px, ${dy}px)`;
+            requestAnimationFrame(() => {
+                el.style.transition = 'transform 240ms cubic-bezier(.2,.8,.2,1)';
+                el.style.transform = '';
+            });
+        });
+    },
+
+    // Rand-Griff: eigenes Pointer-Events-Gesture (nicht natives Drag) fuer
+    // Klein/Gross, live als Breiten-Vorschau waehrend des Ziehens, der
+    // eigentliche Groessenwechsel (mit mehr/weniger Detail) kommt erst mit
+    // dem Server-Aufruf beim Loslassen.
+    bindResize() {
+        const THRESHOLD = 56;
+
+        const move = (event) => {
+            if (!this.resizeCard) return;
+
+            const delta = event.clientX - this.resizeStartX;
+            const size = this.resizeStartSize === 'lg'
+                ? (delta < -THRESHOLD ? 'sm' : 'lg')
+                : (delta > THRESHOLD ? 'lg' : 'sm');
+
+            if (this.resizeCard.dataset.widgetSize !== size) {
+                this.resizeCard.dataset.widgetSize = size;
+                this.scheduleRecalc();
+            }
+        };
+
+        const finish = () => {
+            if (!this.resizeCard) return;
+
+            const key = this.resizeCard.dataset.widgetKey;
+            const size = this.resizeCard.dataset.widgetSize;
+            this.resizeCard.classList.remove('is-resizing');
+            document.body.style.cursor = '';
+            this.resizeCard = null;
+
+            if (size !== this.resizeStartSize) {
+                this.$wire.setWidgetSize(key, size);
+            }
+        };
+
+        this.$root.addEventListener('pointerdown', (event) => {
+            const handle = event.target.closest('[data-widget-resize-handle]');
+            const card = handle?.closest('[data-widget-item]');
+
+            if (!handle || !card) return;
+
+            event.preventDefault();
+            this.resizeCard = card;
+            this.resizeStartX = event.clientX;
+            this.resizeStartSize = card.dataset.widgetSize;
+            card.classList.add('is-resizing');
+            document.body.style.cursor = 'ew-resize';
+            handle.setPointerCapture?.(event.pointerId);
+        });
+        this.$root.addEventListener('pointermove', move);
+        this.$root.addEventListener('pointerup', finish);
+        this.$root.addEventListener('pointercancel', finish);
+
+        // Tastatur-Gegenstueck zum Rand-Griff: Pfeil links/rechts, waehrend er fokussiert ist.
+        this.$root.addEventListener('keydown', (event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+
+            const handle = event.target.closest('[data-widget-resize-handle]');
+            const card = handle?.closest('[data-widget-item]');
+
+            if (!handle || !card) return;
+
+            event.preventDefault();
+            const size = event.key === 'ArrowRight' ? 'lg' : 'sm';
+
+            if (card.dataset.widgetSize !== size) {
+                card.dataset.widgetSize = size;
+                this.scheduleRecalc();
+                this.$wire.setWidgetSize(card.dataset.widgetKey, size);
+            }
         });
     },
 }));

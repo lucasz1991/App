@@ -6,9 +6,28 @@
         </button>
     </header>
 
-    @if($editing)
-        <section class="ops-panel widget-picker" data-anim="fade-up">
-            <header class="ops-toolbar"><h2>Widget hinzufügen</h2><span class="ops-muted">Jede Kachel gibt es in Klein und Groß · per Pfeil, Ziehen oder Tastatur anordnen</span></header>
+    <div class="widget-grid" data-widget-track x-data="dashboardWidgetGrid" data-anim-stagger>
+        @forelse($visible as $item)
+            <x-dashboard.widget-shell :item="$item" :editing="$editing">
+                @include('dashboard.widgets.' . $item['key'], ['data' => $widgetData[$item['key']] ?? [], 'size' => $item['size']])
+            </x-dashboard.widget-shell>
+        @empty
+            <div class="ops-empty widget-empty">Keine Widgets ausgewählt. Über „Dashboard anpassen" welche hinzufügen.</div>
+        @endforelse
+    </div>
+
+    {{--
+        Rechte Schublade zum Hinzufuegen statt eines eingeschobenen Panels -
+        bleibt immer im DOM (fuer die Ein-/Ausfahr-Animation) und blendet nur
+        per Klasse ein, waehrend "Dashboard anpassen" aktiv ist.
+    --}}
+    <div class="widget-sidebar-backdrop{{ $editing ? ' is-open' : '' }}" wire:click="toggleEditing"></div>
+    <aside class="widget-sidebar{{ $editing ? ' is-open' : '' }}" aria-hidden="{{ $editing ? 'false' : 'true' }}" aria-label="Widget hinzufügen">
+        <div class="widget-sidebar-head">
+            <div><h2 style="font-size:16px;">Widget hinzufügen</h2><p class="ops-muted" style="margin-top:2px;">Jede Kachel gibt es in Klein und Groß.</p></div>
+            <button type="button" class="widget-sidebar-close" wire:click="toggleEditing" aria-label="Schließen"><i data-feather="x"></i></button>
+        </div>
+        <div class="widget-sidebar-body">
             @if($hasHidden)
                 @foreach($hiddenBySection as $section => $items)
                     <div class="widget-picker-section">
@@ -27,16 +46,6 @@
             @else
                 <p class="ops-muted">Alle für dich verfügbaren Widgets sind schon auf dem Dashboard.</p>
             @endif
-        </section>
-    @endif
-
-    <div class="widget-grid" data-widget-track x-data="dashboardWidgetGrid" data-anim-stagger>
-        @forelse($visible as $item)
-            <x-dashboard.widget-shell :item="$item" :editing="$editing">
-                @include('dashboard.widgets.' . $item['key'], ['data' => $widgetData[$item['key']] ?? [], 'size' => $item['size']])
-            </x-dashboard.widget-shell>
-        @empty
-            <div class="ops-empty widget-empty">Keine Widgets ausgewählt. Über „Dashboard anpassen" welche hinzufügen.</div>
-        @endforelse
-    </div>
+        </div>
+    </aside>
 </div>
