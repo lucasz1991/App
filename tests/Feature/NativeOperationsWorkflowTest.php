@@ -92,7 +92,7 @@ class NativeOperationsWorkflowTest extends TestCase
     {
         $this->assignment();
         Livewire::actingAs($this->admin)->test(InquiryInbox::class)
-            ->assertSet('detailOpen', false)->call('create')->assertSet('detailOpen', true)
+            ->assertSet('detailOpen', false)->dispatch('operations-create')->assertSet('detailOpen', true)
             ->assertSeeHtml('role="dialog"')->call('close')->assertSet('detailOpen', false);
         Livewire::actingAs($this->admin)->test(PersonnelReview::class, ['module' => 'rules'])
             ->assertSet('formOpen', false)->call('createRules')->assertSet('formOpen', true);

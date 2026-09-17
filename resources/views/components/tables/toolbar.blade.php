@@ -14,6 +14,7 @@
     $filterCount = max(0, (int) $filterCount);
     $singleLine = filter_var($singleLine, FILTER_VALIDATE_BOOL);
     $hasFilters = trim((string) $slot) !== '';
+    $hasBulk = isset($bulk) && trim((string) $bulk) !== '';
     $hasChips = isset($chips) && trim((string) $chips) !== '';
     $safeResetAction = is_string($resetAction)
         && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $resetAction)
@@ -92,13 +93,13 @@
             </div>
         @endisset
 
-        @if (isset($bulk) || $filterCount > 0 || $hasFilters)
-        <div class="rt-table-toolbar__actions" @if(!isset($bulk) && $filterCount === 0) x-show="!desktopFilters" @endif>
-            @isset($bulk)
+        @if ($hasBulk || $filterCount > 0 || $hasFilters)
+        <div class="rt-table-toolbar__actions" @if(!$hasBulk && $filterCount === 0) x-show="!desktopFilters" @endif>
+            @if ($hasBulk)
                 <div class="rt-table-toolbar__bulk">
                     {{ $bulk }}
                 </div>
-            @endisset
+            @endif
 
             @if ($filterCount > 0)
                 <span class="rt-table-toolbar__count" data-tables-filter-count aria-live="polite" aria-atomic="true">{{ $filterCount }} {{ __('app.active') }}</span>

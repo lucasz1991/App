@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class ShiftManagement extends Component
@@ -94,7 +95,7 @@ class ShiftManagement extends Component
         }
     }
 
-    #[\Livewire\Attributes\On('operations-create')]
+    #[On('operations-create')]
     public function createShift(): void
     {
         $this->ensureAdmin();

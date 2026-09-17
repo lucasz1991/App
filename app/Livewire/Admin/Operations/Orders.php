@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class Orders extends Component
@@ -79,7 +80,7 @@ class Orders extends Component
         $this->selectedOrderId = Order::query()->latest('starts_at')->value('id');
     }
 
-    #[\Livewire\Attributes\On('operations-create')]
+    #[On('operations-create')]
     public function createOrder(): void
     {
         $this->ensureAdmin();

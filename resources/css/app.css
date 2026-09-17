@@ -6916,6 +6916,22 @@ html.rt-topbar-search-open body {
     background: #fff;
 }
 
+.rt-table-toolbar .rt-filter-field input.rt-ui-field-control {
+    height: 2.75rem;
+    min-height: 2.75rem;
+    padding-block: 0.5rem;
+}
+
+[data-operations-create] .rt-operations-create-label {
+    display: inline;
+}
+
+@media (max-width: 639px) {
+    [data-operations-create] .rt-operations-create-label {
+        display: none;
+    }
+}
+
 .rt-table-toolbar__reset {
     display: inline-flex;
     min-height: 2.75rem;

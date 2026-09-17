@@ -4,6 +4,7 @@ namespace App\Livewire\Admin\Operations;
 
 use App\Models\Customer;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class Customers extends Component
@@ -55,7 +56,7 @@ class Customers extends Component
         $this->selectedCustomerId = Customer::query()->orderByDesc('is_active')->orderBy('company_name')->value('id');
     }
 
-    #[\Livewire\Attributes\On('operations-create')]
+    #[On('operations-create')]
     public function createCustomer(): void
     {
         $this->ensureAdmin();

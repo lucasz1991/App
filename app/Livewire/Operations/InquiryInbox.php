@@ -8,6 +8,7 @@ use App\Models\OperationInquiry;
 use App\Services\Operations\InquiryWorkflowService;
 use App\Support\Operations\OperationsAccess;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -65,7 +66,7 @@ class InquiryInbox extends Component
         $this->detailOpen = false;
     }
 
-    #[\Livewire\Attributes\On('operations-create')]
+    #[On('operations-create')]
     public function create(): void
     {
         $this->access();
