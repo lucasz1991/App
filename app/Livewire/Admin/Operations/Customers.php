@@ -18,6 +18,15 @@ class Customers extends Component
 
     public bool $formOpen = false;
 
+    public bool $detailOpen = false;
+
+    public function openDetails(int $id): void
+    {
+        $this->selectCustomer($id);
+        $this->formOpen = false;
+        $this->detailOpen = true;
+    }
+
     public ?int $editingCustomerId = null;
 
     public string $companyName = '';
@@ -49,6 +58,7 @@ class Customers extends Component
     public function createCustomer(): void
     {
         $this->ensureAdmin();
+        $this->detailOpen = false;
         $this->resetCustomerForm();
         $this->formOpen = true;
     }
@@ -56,6 +66,7 @@ class Customers extends Component
     public function editCustomer(int $customerId): void
     {
         $this->ensureAdmin();
+        $this->detailOpen = false;
         $customer = Customer::query()->findOrFail($customerId);
 
         $this->editingCustomerId = $customer->id;

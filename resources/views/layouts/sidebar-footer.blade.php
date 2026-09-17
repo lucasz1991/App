@@ -10,7 +10,7 @@
             <a href="{{ route('support') }}" role="menuitem" class="rt-sidebar-footer__menu-link">{{ __('app.it_support') }}</a>
         </x-slot:content>
     </x-ui.dropdown.anchor-dropdown>
-    @can('settings.manage')
+    @if(auth()->user()?->isAdmin())
         <a href="{{ route('admin.settings') }}" class="rt-sidebar-footer__button" aria-label="{{ __('app.settings') }}" title="{{ __('app.settings') }}" @if(request()->routeIs('admin.settings')) aria-current="page" @endif>
             <i data-feather="settings" aria-hidden="true"></i>
         </a>
@@ -18,5 +18,5 @@
         <a href="{{ route('profile.show') }}" class="rt-sidebar-footer__button" aria-label="{{ __('app.settings') }}" title="{{ __('app.settings') }}" @if(request()->routeIs('profile.show')) aria-current="page" @endif>
             <i data-feather="settings" aria-hidden="true"></i>
         </a>
-    @endcan
+    @endif
 </nav>

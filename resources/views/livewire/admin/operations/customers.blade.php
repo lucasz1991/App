@@ -1,86 +1,12 @@
 <div class="space-y-4" data-operations-customers>
-    <section class="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Kundenübersicht">
-        <article class="rounded-2xl border border-rt-border/70 bg-rt-surface p-4 shadow-rt-xs dark:border-rt-dark-border/70 dark:bg-rt-dark-surface">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">Aktive Kunden</p>
-            <p class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $activeCount }}</p>
-        </article>
-        <article class="rounded-2xl border border-rt-border/70 bg-rt-surface p-4 shadow-rt-xs dark:border-rt-dark-border/70 dark:bg-rt-dark-surface">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">Gesamt</p>
-            <p class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $totalCount }}</p>
-        </article>
-        <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-rt-xs dark:!border-rose-900 dark:!bg-rose-500/10">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-red dark:text-rose-300">Planungsbasis</p>
-            <p class="mt-2 text-sm font-semibold text-rt-text dark:text-white">Kunden &amp; Aufträge verbunden</p>
-        </article>
-    </section>
-
-    <section class="overflow-hidden rounded-2xl border border-rt-border/70 bg-rt-surface shadow-rt-sm dark:border-rt-dark-border/70 dark:bg-rt-dark-surface">
-        <header class="flex flex-col gap-3 border-b border-rt-border/70 p-4 dark:border-rt-dark-border/70 sm:flex-row sm:items-center sm:justify-between">
-            <div class="grid flex-1 gap-2 sm:grid-cols-[minmax(15rem,1fr)_11rem]">
-                <label class="relative block">
-                    <span class="sr-only">Kunden durchsuchen</span>
-                    <i class="far fa-search pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-rt-soft" aria-hidden="true"></i>
-                    <input
-                        type="search"
-                        wire:model.live.debounce.300ms="search"
-                        class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control py-2.5 pl-10 pr-3.5 text-base text-rt-text shadow-rt-xs outline-none placeholder:text-rt-soft focus:border-rt-red sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white"
-                        placeholder="Firma, Kontakt oder E-Mail"
-                    >
-                </label>
-                <select wire:model.live="activeFilter" class="min-h-11 rounded-xl border border-rt-border bg-rt-control px-3.5 text-base text-rt-text shadow-rt-xs outline-none focus:border-rt-red sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white">
-                    <option value="active">Aktiv</option>
-                    <option value="inactive">Inaktiv</option>
-                    <option value="all">Alle</option>
-                </select>
-            </div>
-            <button type="button" wire:click="createCustomer" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2.5 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark disabled:opacity-60">
-                <i class="far fa-plus" aria-hidden="true"></i>
-                Neuer Kunde
-            </button>
-        </header>
-
-        <div class="grid min-h-[30rem] xl:grid-cols-[minmax(19rem,.78fr)_minmax(0,1.22fr)]">
-            <div class="border-b border-rt-border/70 dark:border-rt-dark-border/70 xl:border-b-0 xl:border-r">
-                <div class="max-h-[46rem] divide-y divide-rt-border/60 overflow-y-auto dark:divide-rt-dark-border/60">
-                    @forelse ($customers as $customer)
-                        <button
-                            type="button"
-                            wire:click="selectCustomer({{ $customer->id }})"
-                            wire:key="customer-list-{{ $customer->id }}"
-                            @class([
-                                'block min-h-20 w-full border-l-4 px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red/35',
-                                'border-rt-red bg-rose-50/80 dark:bg-rose-500/10' => $selectedCustomer?->id === $customer->id,
-                                'border-transparent hover:bg-rt-surface-muted/70 dark:hover:bg-rt-dark-surface-muted/60' => $selectedCustomer?->id !== $customer->id,
-                            ])
-                        >
-                            <span class="flex items-start justify-between gap-3">
-                                <span class="min-w-0">
-                                    <span class="block truncate text-sm font-semibold text-rt-text dark:text-white">{{ $customer->company_name }}</span>
-                                    <span class="mt-1 block truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ $customer->customer_number }}@if($customer->contact_name) · {{ $customer->contact_name }}@endif</span>
-                                </span>
-                                <span @class([
-                                    'shrink-0 rounded-lg border px-2 py-1 text-[10px] font-semibold',
-                                    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300' => $customer->is_active,
-                                    'border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300' => ! $customer->is_active,
-                                ])>{{ $customer->is_active ? 'Aktiv' : 'Inaktiv' }}</span>
-                            </span>
-                            <span class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-rt-muted dark:text-rt-dark-muted">
-                                <i class="far fa-clipboard-list" aria-hidden="true"></i>
-                                {{ $customer->orders_count }} {{ $customer->orders_count === 1 ? 'Auftrag' : 'Aufträge' }}
-                            </span>
-                        </button>
-                    @empty
-                        <div class="px-6 py-14 text-center">
-                            <i class="fad fa-building text-3xl text-rt-soft" aria-hidden="true"></i>
-                            <h3 class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Keine Kunden gefunden</h3>
-                            <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Passe die Suche an oder lege den ersten Kunden an.</p>
-                        </div>
-                    @endforelse
-                </div>
-            </div>
-
-            <aside class="min-w-0 p-4 sm:p-5" data-customer-detail>
-                @if ($selectedCustomer)
+    <x-tables.toolbar title="Filter" id="operations-customers-filters">
+        <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Kunden suchen" /></x-slot:search>
+        <x-slot:bulk><x-ui.buttons.button-basic mode="primary" wire:click="createCustomer" wire:loading.attr="disabled">Neuer Kunde</x-ui.buttons.button-basic></x-slot:bulk>
+        <x-ui.forms.select wire:model.live="activeFilter" aria-label="Kundenstatus"><option value="active">Aktiv</option><option value="inactive">Inaktiv</option><option value="all">Alle</option></x-ui.forms.select>
+    </x-tables.toolbar>
+    <x-tables.table :columns="[['label'=>'Kunde', 'key'=>'company_name', 'width'=>'2fr'], ['label'=>'Kontakt', 'key'=>'contact_name', 'width'=>'1.3fr'], ['label'=>'E-Mail', 'key'=>'email', 'width'=>'1.5fr'], ['label'=>'Aufträge', 'key'=>'orders_count', 'width'=>'.6fr'], ['label'=>'Status', 'key'=>'is_active', 'width'=>'.7fr']]" :items="$customers" :selected-items="[$selectedCustomerId]" selection-action="selectCustomer" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge gefunden." />
+    <x-operations.modal wire:model="detailOpen" title="Kundendetails" max-width="4xl">
+        @if ($selectedCustomer)
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase tracking-[0.14em] text-rt-red">{{ $selectedCustomer->customer_number }}</p>
@@ -90,12 +16,12 @@
                             @endif
                         </div>
                         <div class="flex gap-2">
-                            <button type="button" wire:click="editCustomer({{ $selectedCustomer->id }})" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
+                            <x-ui.buttons.button-basic type="button" wire:click="editCustomer({{ $selectedCustomer->id }})" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
                                 <i class="far fa-pen" aria-hidden="true"></i><span class="hidden sm:inline">Bearbeiten</span>
-                            </button>
-                            <button type="button" wire:click="toggleCustomerActive({{ $selectedCustomer->id }})" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-muted transition hover:text-rt-text disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:text-white">
+                            </x-ui.buttons.button-basic>
+                            <x-ui.buttons.button-basic type="button" wire:click="toggleCustomerActive({{ $selectedCustomer->id }})" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-muted transition hover:text-rt-text disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:text-white">
                                 <i class="far {{ $selectedCustomer->is_active ? 'fa-eye-slash' : 'fa-eye' }}" aria-hidden="true"></i><span class="hidden sm:inline">{{ $selectedCustomer->is_active ? 'Deaktivieren' : 'Aktivieren' }}</span>
-                            </button>
+                            </x-ui.buttons.button-basic>
                         </div>
                     </div>
 
@@ -152,10 +78,7 @@
                         <p class="mt-1 max-w-sm text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Wähle links einen Kunden aus, um Kontaktdaten und Aufträge zu sehen.</p>
                     </div>
                 @endif
-            </aside>
-        </div>
-    </section>
-
+    </x-operations.modal>
     <x-dialog-modal wire:model="formOpen" maxWidth="2xl">
         <x-slot:title>{{ $editingCustomerId ? 'Kunde bearbeiten' : 'Neuen Kunden anlegen' }}</x-slot:title>
         <x-slot:content>
@@ -218,12 +141,12 @@
             </div>
         </x-slot:content>
         <x-slot:footer>
-            <button type="button" x-on:click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Abbrechen</button>
-            <button type="button" wire:click="saveCustomer" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:opacity-60">
+            <x-ui.buttons.button-basic type="button" x-on:click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Abbrechen</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic type="button" wire:click="saveCustomer" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:opacity-60">
                 <i wire:loading.remove wire:target="saveCustomer" class="far fa-check" aria-hidden="true"></i>
                 <i wire:loading wire:target="saveCustomer" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
                 Speichern
-            </button>
+            </x-ui.buttons.button-basic>
         </x-slot:footer>
     </x-dialog-modal>
 </div>

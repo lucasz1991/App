@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Support\Operations\OperationalPreviewCatalog;
+use App\Support\Operations\OperationsAccess;
 use Livewire\Component;
 
 class OperationalPreview extends Component
@@ -15,6 +16,9 @@ class OperationalPreview extends Component
         abort_unless(in_array($module, OperationalPreviewCatalog::slugs(), true), 404);
 
         $this->module = $module;
+        if (OperationsAccess::ready()) {
+            $this->redirectRoute('operations.workspace', ['module' => $module]);
+        }
     }
 
     public function render(OperationalPreviewCatalog $catalog)

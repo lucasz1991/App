@@ -36,6 +36,15 @@ class ShiftManagement extends Component
 
     public bool $formOpen = false;
 
+    public bool $detailOpen = false;
+
+    public function openDetails(int $id): void
+    {
+        $this->selectShift($id);
+        $this->formOpen = false;
+        $this->detailOpen = true;
+    }
+
     public ?int $editingShiftId = null;
 
     public ?int $orderId = null;
@@ -81,12 +90,14 @@ class ShiftManagement extends Component
         $this->selectedShiftId = Shift::query()->orderBy('starts_at')->value('id');
         if (request()->integer('shift') && Shift::whereKey(request()->integer('shift'))->exists()) {
             $this->selectedShiftId = request()->integer('shift');
+            $this->detailOpen = true;
         }
     }
 
     public function createShift(): void
     {
         $this->ensureAdmin();
+        $this->detailOpen = false;
         $this->resetShiftForm();
         $this->orderId = $this->orderFilter !== 'all' ? (int) $this->orderFilter : null;
         $this->startsAt = now()->addDay()->setTime(8, 0)->format('Y-m-d\TH:i');
@@ -97,6 +108,7 @@ class ShiftManagement extends Component
     public function editShift(int $shiftId): void
     {
         $this->ensureAdmin();
+        $this->detailOpen = false;
         $shift = Shift::query()->findOrFail($shiftId);
 
         $this->editingShiftId = $shift->id;

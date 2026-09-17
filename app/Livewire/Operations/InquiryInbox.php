@@ -27,6 +27,8 @@ class InquiryInbox extends Component
 
     public bool $editing = false;
 
+    public bool $detailOpen = false;
+
     public array $form = [];
 
     public string $amount = '';
@@ -60,6 +62,7 @@ class InquiryInbox extends Component
         $this->access();
         $this->selectedId = null;
         $this->editing = false;
+        $this->detailOpen = false;
     }
 
     public function create(): void
@@ -68,6 +71,7 @@ class InquiryInbox extends Component
         $this->reset(['selectedId', 'revision', 'amount', 'terms', 'acceptance', 'authorized', 'duplicateId']);
         $this->form = ['channel' => 'manual', 'source_reference' => '', 'title' => '', 'original' => '', 'customer_id' => '', 'contact_name' => '', 'contact_email' => '', 'contact_phone' => '', 'starts_at' => '', 'ends_at' => '', 'timezone' => 'Europe/Berlin', 'location_name' => '', 'role_name' => '', 'required_staff' => 1];
         $this->editing = true;
+        $this->detailOpen = true;
         $this->resetValidation();
     }
 
@@ -76,6 +80,7 @@ class InquiryInbox extends Component
         $this->access();
         $record = OperationInquiry::findOrFail($id);
         $this->selectedId = $id;
+        $this->detailOpen = true;
         $this->revision = $record->revision;
         $this->editing = false;
         $this->form = $record->only(['channel', 'source_reference', 'title', 'original', 'customer_id', 'contact_name', 'contact_email', 'contact_phone', 'timezone', 'location_name', 'role_name', 'required_staff']);

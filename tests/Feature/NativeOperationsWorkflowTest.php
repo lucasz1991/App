@@ -22,6 +22,7 @@ use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\ShiftSchedulingService;
 use App\Services\Operations\WorkTimeService;
+use App\Support\Operations\ApplicationNavigation;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -61,6 +62,38 @@ class NativeOperationsWorkflowTest extends TestCase
         $order = Order::create(['customer_id' => $customer->id, 'title' => 'Testleistung', 'service_type' => 'Tf', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => now()->subDay(), 'ends_at' => now()->addDays(3), 'required_staff' => 1, 'created_by' => $this->admin->id, 'updated_by' => $this->admin->id]);
 
         return app(ShiftSchedulingService::class)->save(new Shift, array_merge(['order_id' => $order->id, 'title' => 'Testdienst', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => now()->addHour(), 'ends_at' => now()->addHours(9), 'required_staff' => 1, 'planned_break_minutes' => 30, 'status' => 'open', 'location_name' => 'Hamburg'], $attributes), $this->admin);
+    }
+
+    public function test_navigation_has_one_destination_per_module_and_respects_employee_rights(): void
+    {
+        $adminLinks = collect(ApplicationNavigation::sections($this->admin))->flatten(1);
+        $sections = ApplicationNavigation::sections($this->admin);
+        $this->assertArrayNotHasKey('Betrieb', $sections);
+        $this->assertArrayNotHasKey('Verwaltung', $sections);
+        $this->assertTrue(collect($sections['Management'])->contains('title', 'Kunden'));
+        $this->assertTrue(collect($sections['Management'])->contains('title', 'Wagenliste'));
+        $this->assertSame(1, $adminLinks->where('title', 'Kunden')->count());
+        $this->assertSame(1, $adminLinks->where('title', 'Leistungen')->count());
+        $this->assertSame(1, $adminLinks->where('title', 'Schichtplan')->count());
+        $this->assertFalse($adminLinks->contains('route', 'admin.operations.preview'));
+        $employeeLinks = collect(ApplicationNavigation::sections($this->employee))->flatten(1);
+        $this->assertTrue($employeeLinks->contains('route', 'operations.mine'));
+        $this->assertFalse($employeeLinks->contains('route', 'operations.workspace'));
+    }
+
+    public function test_operations_create_and_personal_forms_open_in_standard_dialogs(): void
+    {
+        $this->assignment();
+        Livewire::actingAs($this->admin)->test(InquiryInbox::class)
+            ->assertSet('detailOpen', false)->call('create')->assertSet('detailOpen', true)
+            ->assertSeeHtml('role="dialog"')->call('close')->assertSet('detailOpen', false);
+        Livewire::actingAs($this->admin)->test(PersonnelReview::class, ['module' => 'rules'])
+            ->assertSet('formOpen', false)->call('createRules')->assertSet('formOpen', true);
+        Livewire::actingAs($this->employee)->test(MyWork::class)
+            ->assertSee('Testdienst')->assertSeeHtml('data-rt-premium-table')
+            ->call('showTab', 'records')->call('openForm', 'absence')->assertSet('absenceOpen', true)
+            ->call('openForm', 'qualification')->assertSet('qualificationOpen', true)->assertSet('absenceOpen', false)
+            ->call('showTab', 'today')->assertSet('qualificationOpen', false);
     }
 
     private function assignment(): ShiftAssignment

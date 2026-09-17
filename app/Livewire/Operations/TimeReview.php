@@ -25,6 +25,21 @@ class TimeReview extends Component
 
     public array $selected = [];
 
+    public bool $detailOpen = false;
+
+    #[Locked]
+    public ?int $detailId = null;
+
+    public function openDetails(int $id): void
+    {
+        $this->access();
+        WorkTimeEntry::when($this->exports, fn ($q) => $q->where('status', 'approved'))->findOrFail($id);
+        $this->detailId = $id;
+        $this->notes = [];
+        $this->resetValidation();
+        $this->detailOpen = true;
+    }
+
     public function mount(bool $exports = false): void
     {
         $this->exports = $exports;
@@ -54,6 +69,7 @@ class TimeReview extends Component
         $this->access();
         $service->review($id, $revision, $approve, $this->notes[$id] ?? '', auth()->user());
         unset($this->notes[$id]);
+        $this->detailOpen = false;
         $this->resetValidation();
     }
 
@@ -80,6 +96,7 @@ class TimeReview extends Component
         $this->access();
 
         return view('livewire.operations.time-review', [
+            'detailEntry' => $this->detailId ? WorkTimeEntry::with('user:id,name')->when($this->exports, fn ($q) => $q->where('status', 'approved'))->find($this->detailId) : null,
             'entries' => WorkTimeEntry::with('user:id,name')->when($this->exports, fn ($q) => $q->where('status', 'approved')->whereNotExists(fn ($q) => $q->selectRaw('1')->from('work_time_export_items')->whereColumn('work_time_entry_id', 'work_time_entries.id')->whereColumn('work_time_export_items.revision', 'work_time_entries.revision')))
                 ->when(! $this->exports && $this->filter !== 'all', fn ($q) => $q->where('status', $this->filter))->when(filled($this->search), fn ($q) => $q->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%')))->latest()->paginate(15),
             'history' => $this->exports ? WorkTimeExport::latest('id')->limit(20)->get() : collect(),

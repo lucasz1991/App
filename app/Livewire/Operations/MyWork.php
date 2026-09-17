@@ -27,6 +27,23 @@ class MyWork extends Component
 
     public int $week = 0;
 
+    public bool $manualOpen = false;
+
+    public bool $correctionOpen = false;
+
+    public bool $qualificationOpen = false;
+
+    public bool $absenceOpen = false;
+
+    public function openForm(string $form): void
+    {
+        $this->access();
+        abort_unless(in_array($form, ['manual', 'qualification', 'absence'], true), 404);
+        $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen']);
+        $this->resetValidation();
+        $this->{$form.'Open'} = true;
+    }
+
     #[Locked]
     public string $eventKey;
 
@@ -56,6 +73,7 @@ class MyWork extends Component
         $service->manual($assignment->id, $assignment->plan_revision, $this->manualTime, $this->eventKey, auth()->user());
         $this->eventKey = (string) Str::uuid();
         $this->reset(['manualTime', 'manualAssignmentId']);
+        $this->manualOpen = false;
         session()->flash('operations.saved', 'Zeit nachgetragen.');
     }
 
@@ -76,6 +94,7 @@ class MyWork extends Component
         $this->access();
         abort_unless(in_array($tab, ['today', 'schedule', 'time', 'records'], true), 404);
         $this->tab = $tab;
+        $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen']);
         $this->resetValidation();
     }
 
@@ -105,6 +124,8 @@ class MyWork extends Component
         $entry = WorkTimeEntry::where('user_id', auth()->id())->findOrFail($id);
         abort_unless(in_array($entry->status, ['completed', 'returned'], true), 403);
         $this->correctingId = $entry->id;
+        $this->resetValidation();
+        $this->correctionOpen = true;
         $this->correctingRevision = $entry->revision;
         $this->correction = ['starts_at' => $entry->starts_at->format('Y-m-d\TH:i'), 'ends_at' => $entry->ends_at->format('Y-m-d\TH:i'), 'pause_minutes' => intdiv($entry->pause_seconds, 60), 'note' => ''];
     }
@@ -114,12 +135,14 @@ class MyWork extends Component
         $this->access();
         $service->correct($this->correctingId, $this->correctingRevision, $this->correction, auth()->user());
         $this->correctingId = null;
+        $this->correctionOpen = false;
     }
 
     public function cancelCorrection(): void
     {
         $this->access();
         $this->correctingId = null;
+        $this->correctionOpen = false;
     }
 
     public function requestAbsence(PersonnelWorkflowService $service): void
@@ -127,6 +150,7 @@ class MyWork extends Component
         $this->access();
         $service->requestAbsence(auth()->user(), $this->absence);
         $this->reset('absence');
+        $this->absenceOpen = false;
         session()->flash('operations.saved', 'Antrag eingereicht.');
     }
 
@@ -142,6 +166,7 @@ class MyWork extends Component
         $this->validate(['evidence' => 'required|file|mimes:pdf,jpg,jpeg,png|max:'.config('operations.evidence_max_kilobytes')]);
         $service->submitQualification(auth()->user(), $this->qualification, $this->evidence);
         $this->reset(['evidence', 'qualification']);
+        $this->qualificationOpen = false;
         session()->flash('operations.saved', 'Nachweis eingereicht.');
     }
 
@@ -172,10 +197,13 @@ class MyWork extends Component
             return $assignment;
         })->filter(fn ($a) => $a->shift->starts_at->lt($rangeEnd) && $a->shift->ends_at->gt($rangeStart))->sortBy(fn ($a) => $a->shift->starts_at);
 
+        $activeTime = WorkTimeEntry::where('user_id', auth()->id())->whereIn('status', ['running', 'paused'])->first();
+        $visible->each(fn ($assignment) => $assignment->setAttribute('has_active_time', $activeTime !== null));
+
         return view('livewire.operations.my-work', [
             'from' => $from, 'to' => $to,
             'assignments' => $visible,
-            'activeTime' => WorkTimeEntry::where('user_id', auth()->id())->whereIn('status', ['running', 'paused'])->first(),
+            'activeTime' => $activeTime,
             'times' => WorkTimeEntry::where('user_id', auth()->id())->latest('starts_at')->paginate(20, ['*'], 'timesPage'),
             'qualifications' => EmployeeQualification::where('user_id', auth()->id())->with('type')->latest()->paginate(20, ['*'], 'qualificationsPage'),
             'absences' => AbsenceRequest::where('user_id', auth()->id())->latest()->paginate(20, ['*'], 'absencesPage'),

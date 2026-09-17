@@ -1,12 +1,13 @@
 @props(['label', 'model', 'type' => 'text', 'wide' => false])
 @php($fieldId = 'ops-'.str_replace('.', '-', $model))
-<div @class(['ops-field', 'ops-full' => $wide])>
-    <label for="{{ $fieldId }}">{{ $label }}</label>
+<div @class(['min-w-0 space-y-1.5', 'ops-full' => $wide])>
+    <x-ui.forms.label :for="$fieldId" :value="$label" />
     @if($type === 'select')
-        <select id="{{ $fieldId }}" wire:model="{{ $model }}" {{ $attributes }}>{{ $slot }}</select>
+        <x-ui.forms.select :id="$fieldId" :aria-label="$label" wire:model="{{ $model }}" {{ $attributes }}>{{ $slot }}</x-ui.forms.select>
     @elseif($type === 'textarea')
-        <textarea id="{{ $fieldId }}" wire:model="{{ $model }}" {{ $attributes }}></textarea>
+        <x-ui.forms.textarea :id="$fieldId" wire:model="{{ $model }}" {{ $attributes }} />
     @else
         <x-ui.forms.input :id="$fieldId" :type="$type" wire:model="{{ $model }}" {{ $attributes }} />
     @endif
+    <x-ui.forms.input-error :for="$model" />
 </div>

@@ -27,6 +27,35 @@ class PersonnelReview extends Component
 
     public array $notes = [];
 
+    public bool $detailOpen = false;
+
+    public bool $formOpen = false;
+
+    public bool $typesOpen = false;
+
+    #[Locked]
+    public ?int $selectedId = null;
+
+    public function openDetails(int $id): void
+    {
+        $this->access();
+        abort_if($this->module === 'rules', 404);
+        ($this->module === 'qualifications' ? EmployeeQualification::query() : AbsenceRequest::query())->findOrFail($id);
+        $this->selectedId = $id;
+        $this->notes = [];
+        $this->resetValidation();
+        $this->detailOpen = true;
+    }
+
+    public function createRules(): void
+    {
+        $this->access();
+        OperationsAccess::authorize(auth()->user(), 'operations.rules.manage');
+        $this->reset('rules');
+        $this->resetValidation();
+        $this->formOpen = true;
+    }
+
     public string $typeName = '';
 
     public array $rules = ['name' => '', 'minimum_rest_minutes' => '', 'maximum_shift_minutes' => '', 'break_after_minutes' => '', 'minimum_break_minutes' => '', 'confirmed' => false];
@@ -65,6 +94,7 @@ class PersonnelReview extends Component
             abort(404);
         }
         unset($this->notes[$id]);
+        $this->detailOpen = false;
         $this->resetValidation();
     }
 
@@ -84,6 +114,7 @@ class PersonnelReview extends Component
         $this->access();
         $service->saveRules($this->rules, auth()->user());
         $this->rules['confirmed'] = false;
+        $this->formOpen = false;
         session()->flash('operations.saved', 'Regelprofil gespeichert.');
     }
 
@@ -93,6 +124,7 @@ class PersonnelReview extends Component
         $query = $this->module === 'absences' ? AbsenceRequest::with('user:id,name') : EmployeeQualification::with(['user:id,name', 'type']);
 
         return view('livewire.operations.personnel-review', [
+            'selectedRecord' => $this->selectedId && $this->module !== 'rules' ? (clone $query)->find($this->selectedId) : null,
             'records' => $this->module === 'rules' ? null : $query->when($this->filter !== 'all', fn ($q) => $q->where('status', $this->filter))->when(filled($this->search), fn ($q) => $q->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%')))->latest()->paginate(15),
             'types' => $this->module === 'qualifications' ? QualificationType::orderBy('name')->get() : collect(),
             'activeRules' => $this->module === 'rules' ? OperationsRuleProfile::where('is_active', true)->first() : null,

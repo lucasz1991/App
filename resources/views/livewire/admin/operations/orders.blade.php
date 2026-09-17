@@ -1,93 +1,12 @@
-@php
-    $statusClass = static fn (string $status): string => match ($status) {
-        'confirmed', 'completed', 'invoiced' => 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:!border-emerald-800 dark:!bg-emerald-500/10 dark:!text-emerald-300',
-        'planned', 'requested' => 'border-amber-200 bg-amber-50 text-amber-700 dark:!border-amber-800 dark:!bg-amber-500/10 dark:!text-amber-300',
-        'in_progress' => 'border-sky-200 bg-sky-50 text-sky-700 dark:!border-sky-800 dark:!bg-sky-500/10 dark:!text-sky-300',
-        'cancelled' => 'border-slate-200 bg-slate-100 text-slate-500 dark:!border-slate-700 dark:!bg-slate-800 dark:!text-slate-300',
-        default => 'border-rose-200 bg-rose-50 text-rt-red dark:!border-rose-900 dark:!bg-rose-500/10 dark:!text-rose-300',
-    };
-@endphp
-
 <div class="space-y-4" data-operations-orders>
-    <section class="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Auftragsübersicht">
-        <article class="rounded-2xl border border-rt-border/70 bg-rt-surface p-4 shadow-rt-xs dark:border-rt-dark-border/70 dark:bg-rt-dark-surface">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">Offene Aufträge</p>
-            <p class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $openCount }}</p>
-        </article>
-        <article class="rounded-2xl border border-rt-border/70 bg-rt-surface p-4 shadow-rt-xs dark:border-rt-dark-border/70 dark:bg-rt-dark-surface">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">Nächste 7 Tage</p>
-            <p class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $startsSoonCount }}</p>
-        </article>
-        <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-rt-xs dark:!border-rose-900 dark:!bg-rose-500/10">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-red dark:text-rose-300">In dieser Auswahl</p>
-            <p class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $orders->count() }}</p>
-        </article>
-    </section>
-
-    <section class="overflow-hidden rounded-2xl border border-rt-border/70 bg-rt-surface shadow-rt-sm dark:border-rt-dark-border/70 dark:bg-rt-dark-surface">
-        <header class="flex flex-col gap-3 border-b border-rt-border/70 p-4 dark:border-rt-dark-border/70 sm:flex-row sm:items-center sm:justify-between">
-            <div class="grid flex-1 gap-2 sm:grid-cols-[minmax(15rem,1fr)_12rem]">
-                <label class="relative block">
-                    <span class="sr-only">Aufträge durchsuchen</span>
-                    <i class="far fa-search pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-rt-soft" aria-hidden="true"></i>
-                    <input type="search" wire:model.live.debounce.300ms="search" class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control py-2.5 pl-10 pr-3.5 text-base text-rt-text shadow-rt-xs outline-none placeholder:text-rt-soft focus:border-rt-red sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white" placeholder="Nummer, Kunde oder Leistung">
-                </label>
-                <select wire:model.live="statusFilter" class="min-h-11 rounded-xl border border-rt-border bg-rt-control px-3.5 text-base text-rt-text shadow-rt-xs outline-none focus:border-rt-red sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white">
-                    <option value="all">Alle Status</option>
-                    @foreach($statusOptions as $option)
-                        <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <button type="button" wire:click="createOrder" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2.5 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark disabled:opacity-60">
-                <i class="far fa-plus" aria-hidden="true"></i>
-                Neuer Auftrag
-            </button>
-        </header>
-
-        <div class="grid min-h-[34rem] xl:grid-cols-[minmax(21rem,.82fr)_minmax(0,1.18fr)]">
-            <div class="border-b border-rt-border/70 dark:border-rt-dark-border/70 xl:border-b-0 xl:border-r">
-                <div class="max-h-[52rem] divide-y divide-rt-border/60 overflow-y-auto dark:divide-rt-dark-border/60">
-                    @forelse($orders as $order)
-                        @php
-                            $orderStatus = $order->status instanceof \BackedEnum ? $order->status->value : (string) $order->status;
-                            $orderStatusLabel = method_exists($order->status, 'label') ? $order->status->label() : \Illuminate\Support\Str::headline($orderStatus);
-                        @endphp
-                        <button
-                            type="button"
-                            wire:click="selectOrder({{ $order->id }})"
-                            wire:key="order-list-{{ $order->id }}"
-                            @class([
-                                'block min-h-24 w-full border-l-4 px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red/35',
-                                'border-rt-red bg-rose-50/80 dark:bg-rose-500/10' => $selectedOrder?->id === $order->id,
-                                'border-transparent hover:bg-rt-surface-muted/70 dark:hover:bg-rt-dark-surface-muted/60' => $selectedOrder?->id !== $order->id,
-                            ])
-                        >
-                            <span class="flex items-start justify-between gap-3">
-                                <span class="min-w-0">
-                                    <span class="text-xs font-semibold tabular-nums text-rt-red">{{ $order->order_number }}</span>
-                                    <span class="mt-1 block truncate text-sm font-semibold text-rt-text dark:text-white">{{ $order->title }}</span>
-                                </span>
-                                <span class="shrink-0 rounded-lg border px-2 py-1 text-[10px] font-semibold {{ $statusClass($orderStatus) }}">{{ $orderStatusLabel }}</span>
-                            </span>
-                            <span class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-rt-muted dark:text-rt-dark-muted">
-                                <span class="truncate"><i class="far fa-building mr-1" aria-hidden="true"></i>{{ $order->customer?->company_name ?? 'Kein Kunde' }}</span>
-                                <span><i class="far fa-calendar mr-1" aria-hidden="true"></i>{{ $order->starts_at?->format('d.m.Y H:i') }}</span>
-                                <span><i class="far fa-users mr-1" aria-hidden="true"></i>{{ $order->required_staff }}</span>
-                            </span>
-                        </button>
-                    @empty
-                        <div class="px-6 py-16 text-center">
-                            <i class="fad fa-clipboard-list text-3xl text-rt-soft" aria-hidden="true"></i>
-                            <h3 class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Keine Aufträge gefunden</h3>
-                            <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Passe die Filter an oder lege den ersten Auftrag an.</p>
-                        </div>
-                    @endforelse
-                </div>
-            </div>
-
-            <aside class="min-w-0 p-4 sm:p-5" data-order-detail>
-                @if($selectedOrder)
+    <x-tables.toolbar title="Filter" id="operations-orders-filters">
+        <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Leistungen suchen" /></x-slot:search>
+        <x-slot:bulk><x-ui.buttons.button-basic mode="primary" wire:click="createOrder" wire:loading.attr="disabled">Neue Leistung</x-ui.buttons.button-basic></x-slot:bulk>
+        <x-ui.forms.select wire:model.live="statusFilter" aria-label="Leistungsstatus"><option value="all">Alle</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select>
+    </x-tables.toolbar>
+    <x-tables.table :columns="[['label'=>'Leistung', 'key'=>'title', 'width'=>'2fr'], ['label'=>'Kunde', 'key'=>'customer.company_name', 'width'=>'1.4fr'], ['label'=>'Beginn', 'key'=>'starts_at', 'width'=>'1.2fr'], ['label'=>'Ende', 'key'=>'ends_at', 'width'=>'1.2fr'], ['label'=>'Status', 'key'=>'status', 'width'=>'.8fr']]" :items="$orders" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge gefunden." />
+    <x-operations.modal wire:model="detailOpen" title="Leistungsdetails" max-width="4xl">
+        @if($selectedOrder)
                     @php
                         $selectedStatus = $selectedOrder->status instanceof \BackedEnum ? $selectedOrder->status->value : (string) $selectedOrder->status;
                         $selectedPriority = $selectedOrder->priority instanceof \BackedEnum ? $selectedOrder->priority->value : (string) $selectedOrder->priority;
@@ -98,26 +17,26 @@
                             <h2 class="mt-1 break-words text-xl font-semibold tracking-tight text-rt-text dark:text-white">{{ $selectedOrder->title }}</h2>
                             <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $selectedOrder->customer?->company_name }}</p>
                         </div>
-                        <button type="button" wire:click="editOrder({{ $selectedOrder->id }})" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
+                        <x-ui.buttons.button-basic type="button" wire:click="editOrder({{ $selectedOrder->id }})" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
                             <i class="far fa-pen" aria-hidden="true"></i>Bearbeiten
-                        </button>
+                        </x-ui.buttons.button-basic>
                     </div>
 
                     <div class="mt-5 rounded-xl border border-rt-border/70 bg-rt-surface-muted/50 p-3.5 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/40">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                             <div>
                                 <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft">Aktueller Status</p>
-                                <span class="mt-1.5 inline-flex rounded-lg border px-2.5 py-1 text-xs font-semibold {{ $statusClass($selectedStatus) }}">{{ method_exists($selectedOrder->status, 'label') ? $selectedOrder->status->label() : \Illuminate\Support\Str::headline($selectedStatus) }}</span>
+                                <x-operations.status :value="$selectedStatus" />
                             </div>
-                            <label class="block w-full sm:w-56">
+                            <div class="block w-full sm:w-56" wire:key="order-status-{{ $selectedOrder->id }}-{{ $selectedStatus }}">
                                 <span class="mb-1 block text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">Status ändern</span>
-                                <select wire:key="order-status-transition-{{ $selectedStatus }}" wire:change="changeStatus($event.target.value)" wire:loading.attr="disabled" @disabled(empty($transitionOptions)) class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3 text-base text-rt-text outline-none focus:border-rt-red disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white">
+                                <x-ui.forms.select wire:key="order-status-transition-{{ $selectedStatus }}" change="$wire.changeStatus($event.target.value)" :disabled="empty($transitionOptions)" aria-label="Status ändern">
                                     <option value="" selected disabled>{{ empty($transitionOptions) ? 'Kein Folgestatus verfügbar' : 'Folgestatus auswählen' }}</option>
                                     @foreach($transitionOptions as $option)
                                         <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
                                     @endforeach
-                                </select>
-                            </label>
+                                </x-ui.forms.select>
+                            </div>
                         </div>
                         @error('statusChange') <p class="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">{{ $message }}</p> @enderror
                     </div>
@@ -168,7 +87,7 @@
                                     <div class="px-3.5 py-3" wire:key="order-shift-{{ $shift->id }}">
                                         <div class="flex items-center justify-between gap-2">
                                             <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $shift->title }}</p>
-                                            <span class="rounded-md border px-2 py-0.5 text-[10px] font-semibold {{ $statusClass($shiftStatus) }}">{{ method_exists($shift->status, 'label') ? $shift->status->label() : \Illuminate\Support\Str::headline($shiftStatus) }}</span>
+                                            <x-operations.status :value="$shiftStatus" />
                                         </div>
                                         <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->starts_at?->format('d.m.Y H:i') }} · {{ $shift->assignments->filter(fn ($assignment) => in_array(
                                             $assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status,
@@ -203,10 +122,7 @@
                         <p class="mt-1 max-w-sm text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Wähle einen Auftrag aus, um Details und Planungsstatus zu sehen.</p>
                     </div>
                 @endif
-            </aside>
-        </div>
-    </section>
-
+    </x-operations.modal>
     <x-dialog-modal wire:model="formOpen" maxWidth="4xl">
         <x-slot:title>{{ $editingOrderId ? 'Auftrag bearbeiten' : 'Neuen Auftrag anlegen' }}</x-slot:title>
         <x-slot:content>
@@ -300,12 +216,12 @@
             </div>
         </x-slot:content>
         <x-slot:footer>
-            <button type="button" x-on:click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Abbrechen</button>
-            <button type="button" wire:click="saveOrder" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:opacity-60">
+            <x-ui.buttons.button-basic type="button" x-on:click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Abbrechen</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic type="button" wire:click="saveOrder" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:opacity-60">
                 <i wire:loading.remove wire:target="saveOrder" class="far fa-check" aria-hidden="true"></i>
                 <i wire:loading wire:target="saveOrder" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
                 Speichern
-            </button>
+            </x-ui.buttons.button-basic>
         </x-slot:footer>
     </x-dialog-modal>
 </div>

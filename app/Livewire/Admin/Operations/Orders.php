@@ -26,6 +26,15 @@ class Orders extends Component
 
     public bool $formOpen = false;
 
+    public bool $detailOpen = false;
+
+    public function openDetails(int $id): void
+    {
+        $this->selectOrder($id);
+        $this->formOpen = false;
+        $this->detailOpen = true;
+    }
+
     public ?int $editingOrderId = null;
 
     public ?int $customerId = null;
@@ -73,6 +82,7 @@ class Orders extends Component
     public function createOrder(): void
     {
         $this->ensureAdmin();
+        $this->detailOpen = false;
         $this->resetOrderForm();
         $this->startsAt = now()->addDay()->setTime(8, 0)->format('Y-m-d\TH:i');
         $this->endsAt = now()->addDay()->setTime(16, 0)->format('Y-m-d\TH:i');
@@ -82,6 +92,7 @@ class Orders extends Component
     public function editOrder(int $orderId): void
     {
         $this->ensureAdmin();
+        $this->detailOpen = false;
         $order = Order::query()->findOrFail($orderId);
 
         $this->editingOrderId = $order->id;
