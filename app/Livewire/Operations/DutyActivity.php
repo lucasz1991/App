@@ -142,7 +142,10 @@ class DutyActivity extends Component
 
         return view('livewire.operations.duty-activity', [
             'sections' => $sections, 'currentRevision' => $shift->revision,
-            'reports' => DutyReport::where('shift_id', $shift->id)->when($this->employeeMode, fn ($q) => $q->where('user_id', auth()->id()))->with('user:id,name')->latest()->get(),
+            'reports' => DutyReport::where('shift_id', $shift->id)
+                ->when($this->employeeMode, fn ($q) => $q->where('user_id', auth()->id()))
+                ->with(['user:id,name,email,current_team_id,profile_photo_path', 'user.profile', 'user.currentTeam'])
+                ->latest()->get(),
             'sectionKinds' => DutyActivityService::KINDS, 'reportKinds' => DutyActivityService::REPORTS,
         ]);
     }

@@ -8,35 +8,52 @@
     $displayEnd = $item->ends_at?->setTimezone($displayTimezone);
 @endphp
 @foreach($columnsMeta as $column)
-    <div class="min-w-0 px-2 py-1.5 {{ $hideClass($column['hideOn']) }}">
+    <div class="rt-table-cell {{ $column['key'] === 'shift' ? 'rt-table-cell--primary' : '' }} {{ $column['key'] === 'status' ? 'rt-table-cell--status' : '' }} {{ $hideClass($column['hideOn']) }}" data-rt-table-label="{{ $column['label'] }}">
         @switch($column['key'])
             @case('shift')
-                <x-ui.buttons.button-basic type="button" mode="link" wire:click="openDetails({{ $item->id }})" class="rt-shift-title min-h-11 max-w-full text-left font-semibold"><span class="break-words">{{ $item->title }}</span></x-ui.buttons.button-basic>
-                <p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->role_name }}</p>
-                <p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->order?->order_number }} · {{ $item->order?->title }}</p>
+                <div class="rt-table-record">
+                    <span class="rt-table-record__icon" aria-hidden="true"><i class="far fa-calendar-day"></i></span>
+                    <div class="rt-table-record__body">
+                        <span class="rt-table-record__eyebrow">{{ $item->order?->order_number }}</span>
+                        <x-ui.buttons.button-basic type="button" mode="link" wire:click="openDetails({{ $item->id }})" wire:loading.attr="disabled" wire:target="openDetails" class="rt-table-record__title">{{ $item->title }}</x-ui.buttons.button-basic>
+                        <span class="rt-table-record__meta">{{ $item->role_name }}</span>
+                        @if($item->order?->title && $item->order->title !== $item->title)<span class="rt-table-record__meta">{{ $item->order->title }}</span>@endif
+                    </div>
+                </div>
                 @break
             @case('customer')
-                <p class="break-words text-sm text-rt-text dark:text-rt-dark-text">{{ $item->order?->customer?->company_name ?? '—' }}</p>
-                <p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->location_name ?: $item->order?->location_name ?: '—' }}</p>
+                <div>
+                    <span class="rt-table-value">{{ $item->order?->customer?->company_name ?? 'Kein Kunde hinterlegt' }}</span>
+                    <span class="rt-table-meta">{{ $item->location_name ?: $item->order?->location_name ?: 'Einsatzort offen' }}</span>
+                </div>
                 @break
             @case('schedule')
-                <p class="text-sm tabular-nums text-rt-text dark:text-rt-dark-text"><span class="mr-1 text-xs text-rt-muted md:hidden">Von:</span>{{ $displayStart?->format('d.m.Y H:i') }}</p>
-                <p class="mt-1 text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted">bis {{ $displayEnd?->format('d.m.Y H:i') }}</p>
-                <p class="mt-1 break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $displayTimezone }}</p>
+                <div>
+                    <span class="rt-table-value tabular-nums">{{ $displayStart?->format('d.m.Y H:i') }}</span>
+                    <span class="rt-table-meta tabular-nums">bis {{ $displayEnd?->format('d.m.Y H:i') }}</span>
+                    <span class="rt-table-meta">{{ $displayTimezone }}</span>
+                </div>
                 @break
             @case('staffing')
-                <p class="text-sm font-semibold tabular-nums text-rt-text dark:text-rt-dark-text">{{ $reserved }} / {{ $item->required_staff }} <span class="text-xs font-normal text-rt-muted dark:text-rt-dark-muted">eingeplant</span></p>
-                <p class="mt-1 text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $confirmed }} bestätigt @if($reserved > $confirmed) · {{ $reserved - $confirmed }} angefragt @endif</p>
-                @if(!$closed && $missing > 0)<p class="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">{{ $missing }} {{ $missing === 1 ? 'Platz offen' : 'Plätze offen' }}</p>@endif
-                @if($item->planning_conflict_count)<p class="mt-1 text-xs font-semibold text-red-700 dark:text-red-300"><i class="far fa-triangle-exclamation" aria-hidden="true"></i> {{ $item->planning_conflict_count }} mit Konflikt</p>@endif
-                @if($item->feedback_pending)<p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->feedback_pending }} {{ $item->feedback_pending === 1 ? 'Rückmeldung offen' : 'Rückmeldungen offen' }}</p>@endif
-                @if($item->feedback_declined)<p class="mt-1 text-xs font-semibold text-red-700 dark:text-red-300">{{ $item->feedback_declined }} abgelehnt</p>@endif
+                <div>
+                    <span class="rt-table-value tabular-nums">{{ $reserved }} / {{ $item->required_staff }} <span class="rt-table-label">eingeplant</span></span>
+                    @if(!$closed && $item->required_staff > 0)
+                        <progress class="rt-table-coverage" max="{{ $item->required_staff }}" value="{{ min($reserved, $item->required_staff) }}" aria-label="Besetzung: {{ $reserved }} von {{ $item->required_staff }} eingeplant"></progress>
+                    @endif
+                    <span class="rt-table-meta tabular-nums">{{ $confirmed }} bestätigt @if($reserved > $confirmed) · {{ $reserved - $confirmed }} angefragt @endif</span>
+                    @if(!$closed && $missing > 0)<p class="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">{{ $missing }} {{ $missing === 1 ? 'Platz offen' : 'Plätze offen' }}</p>@endif
+                    @if($item->planning_conflict_count)<p class="mt-1 text-xs font-semibold text-red-700 dark:text-red-300"><i class="far fa-triangle-exclamation" aria-hidden="true"></i> {{ $item->planning_conflict_count }} mit Konflikt</p>@endif
+                    @if($item->feedback_pending)<span class="rt-table-meta">{{ $item->feedback_pending }} {{ $item->feedback_pending === 1 ? 'Rückmeldung offen' : 'Rückmeldungen offen' }}</span>@endif
+                    @if($item->feedback_declined)<p class="mt-1 text-xs font-semibold text-red-700 dark:text-red-300">{{ $item->feedback_declined }} abgelehnt</p>@endif
+                </div>
                 @break
             @case('status')
-                <x-operations.status :value="$item->status->value" :label="$item->status->label()" />
-                @if($item->revision !== null)
-                    <p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->published_revision === $item->revision ? 'Veröffentlicht' : ($item->published_revision ? 'Änderung unveröffentlicht' : 'Unveröffentlicht') }}</p>
-                @endif
+                <div>
+                    <x-operations.status :value="$item->status->value" :label="$item->status->label()" />
+                    @if($item->revision !== null)
+                        <span class="rt-table-meta">{{ $item->published_revision === $item->revision ? 'Veröffentlicht' : ($item->published_revision ? 'Änderung unveröffentlicht' : 'Unveröffentlicht') }}</span>
+                    @endif
+                </div>
                 @break
         @endswitch
     </div>

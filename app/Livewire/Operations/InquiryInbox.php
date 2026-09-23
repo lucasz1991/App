@@ -23,6 +23,14 @@ class InquiryInbox extends Component
     public string $statusFilter = 'all';
 
     #[Locked]
+    public string $sortBy = 'updated_at';
+
+    #[Locked]
+    public string $sortDir = 'desc';
+
+    private const SORTABLE_COLUMNS = ['title', 'customer', 'schedule', 'status', 'updated_at'];
+
+    #[Locked]
     public ?int $selectedId = null;
 
     #[Locked]
@@ -62,6 +70,17 @@ class InquiryInbox extends Component
 
     public function updatedStatusFilter(): void
     {
+        $this->resetPage();
+    }
+
+    public function tableSort(string $key, ?string $dir = null): void
+    {
+        $this->access();
+        abort_unless(in_array($key, self::SORTABLE_COLUMNS, true), 422);
+        abort_unless($dir === null || in_array($dir, ['asc', 'desc'], true), 422);
+        $direction = $dir ?? ($this->sortBy === $key && $this->sortDir === 'asc' ? 'desc' : 'asc');
+        $this->sortBy = $key;
+        $this->sortDir = $direction;
         $this->resetPage();
     }
 
@@ -126,6 +145,14 @@ class InquiryInbox extends Component
             ->when(in_array($this->statusFilter, ['new', 'accepted'], true), fn ($q) => $q->where('status', $this->statusFilter))
             ->when(filled($this->search), fn ($q) => $q->where(fn ($q) => $q->where('title', 'like', '%'.mb_substr($this->search, 0, 100).'%')->orWhereHas('customer', fn ($q) => $q->where('company_name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))));
 
+        $sortColumn = match ($this->sortBy) {
+            'customer' => Customer::query()->select('company_name')->whereColumn('customers.id', 'operation_inquiries.customer_id')->limit(1),
+            'schedule' => 'starts_at',
+            'title', 'status' => $this->sortBy,
+            default => 'updated_at',
+        };
+        $query->orderBy($sortColumn, $this->sortDir === 'asc' ? 'asc' : 'desc')->orderBy('id');
+
         return view('livewire.operations.inquiry-inbox', [
             'summary' => [
                 'active' => (int) $statusCounts->sum(),
@@ -137,10 +164,10 @@ class InquiryInbox extends Component
                 ->orderByRaw("CASE WHEN status = 'accepted' THEN 0 ELSE 1 END")
                 ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
                 ->orderBy('starts_at')->oldest('updated_at')->orderBy('id')->limit(3)->get(),
-            'inquiries' => $query->latest('updated_at')->paginate(15),
+            'inquiries' => $query->paginate(15),
             'selected' => $this->selectedId ? OperationInquiry::with(['customer', 'order', 'duplicateOf'])->find($this->selectedId) : null,
             'customers' => Customer::where('is_active', true)->orderBy('company_name')->get(['id', 'company_name']),
-            'history' => $this->selectedId ? OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $this->selectedId)->with('actor:id,name')->latest('id')->limit(30)->get() : collect(),
+            'history' => $this->selectedId ? OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $this->selectedId)->with(['actor.profile', 'actor.currentTeam'])->latest('id')->limit(30)->get() : collect(),
         ]);
     }
 }

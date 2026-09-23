@@ -9,6 +9,9 @@
     'messageAction' => 'openMessage',
     'selected' => false,
     'selectionIndicator' => false,
+    'showPresence' => true,
+    'showEmail' => true,
+    'size' => 10,
     'triggerClasses' => 'inline-flex',
 ])
 
@@ -45,8 +48,9 @@
             >
                 <x-user.public-info
                     :user="$user"
-                    :size="10"
-                    :show-email="true"
+                    :size="$size"
+                    :show-email="$showEmail"
+                    :show-presence="$showPresence"
                     :selected="$selected"
                     :selection-indicator="$selectionIndicator"
                 />

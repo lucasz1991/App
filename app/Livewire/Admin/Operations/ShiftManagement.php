@@ -4,6 +4,7 @@ namespace App\Livewire\Admin\Operations;
 
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\QualificationType;
 use App\Models\Shift;
@@ -60,6 +61,24 @@ class ShiftManagement extends Component
     public string $search = '';
 
     public string $statusFilter = 'all';
+
+    #[Locked]
+    public string $sortBy = 'schedule';
+
+    #[Locked]
+    public string $sortDir = 'asc';
+
+    private const SORTABLE_COLUMNS = ['shift', 'customer', 'schedule', 'staffing', 'status'];
+
+    public function tableSort(string $key, ?string $dir = null): void
+    {
+        $this->ensureAdmin();
+        abort_unless(in_array($key, self::SORTABLE_COLUMNS, true), 422);
+        abort_unless($dir === null || in_array($dir, ['asc', 'desc'], true), 422);
+        $direction = $dir ?? ($this->sortBy === $key && $this->sortDir === 'asc' ? 'desc' : 'asc');
+        $this->sortBy = $key;
+        $this->sortDir = $direction;
+    }
 
     #[Locked]
     public string $viewMode = 'day';
@@ -366,8 +385,8 @@ class ShiftManagement extends Component
 
         [$from, $to] = $this->resolvedRange();
 
-        $shifts = Shift::query()
-            ->with(['order.customer', 'assignments.user'])
+        $shiftQuery = Shift::query()
+            ->with(['order.customer', 'assignments.user.profile', 'assignments.user.currentTeam'])
             ->where('ends_at', '>', $from->copy()->utc())
             ->where('starts_at', '<=', $to->copy()->utc())
             ->when($this->orderFilter !== 'all', fn (Builder $query) => $query->where('order_id', (int) $this->orderFilter))
@@ -382,10 +401,36 @@ class ShiftManagement extends Component
                         ->where('title', 'like', $term)
                         ->orWhere('order_number', 'like', $term)
                         ->orWhereHas('customer', fn (Builder $customer) => $customer->where('company_name', 'like', $term))));
-            })
-            ->orderBy('starts_at')
-            ->orderBy('id')
-            ->get();
+            });
+
+        if (in_array($this->viewMode, ['table', 'orders'], true) && $this->sortBy !== 'staffing') {
+            $sortColumn = match ($this->sortBy) {
+                'shift' => 'title',
+                'customer' => Customer::query()->select('company_name')
+                    ->where('id', Order::query()->select('customer_id')->whereColumn('orders.id', 'shifts.order_id')->limit(1))->limit(1),
+                'status' => 'status',
+                default => 'starts_at',
+            };
+            $shiftQuery->orderBy($sortColumn, $this->sortDir === 'desc' ? 'desc' : 'asc');
+        } else {
+            // Day, board and timeline views always retain chronological ordering.
+            $shiftQuery->orderBy('starts_at');
+        }
+        $shifts = $shiftQuery->orderBy('id')->get();
+
+        if (in_array($this->viewMode, ['table', 'orders'], true) && $this->sortBy === 'staffing') {
+            // Compare the actual reserved/required coverage, not confirmed replies.
+            // Cross-products avoid rounding and remain portable across SQL engines.
+            $direction = $this->sortDir === 'desc' ? -1 : 1;
+            $reserved = $shifts->mapWithKeys(fn (Shift $shift): array => [
+                $shift->id => $shift->assignments->filter(fn (ShiftAssignment $assignment): bool => $assignment->status->blocksAvailability())->count(),
+            ]);
+            $shifts = $shifts->sort(function (Shift $left, Shift $right) use ($direction, $reserved): int {
+                $coverage = ($reserved[$left->id] * max(1, $right->required_staff)) <=> ($reserved[$right->id] * max(1, $left->required_staff));
+
+                return $coverage === 0 ? $left->id <=> $right->id : $coverage * $direction;
+            })->values();
+        }
 
         $native = OperationsAccess::ready();
         foreach ($shifts as $shift) {
@@ -430,13 +475,13 @@ class ShiftManagement extends Component
         });
 
         $selectedShift = $this->selectedShiftId
-            ? Shift::query()->with(['order.customer', 'assignments.user'])->find($this->selectedShiftId)
+            ? Shift::query()->with(['order.customer', 'assignments.user.profile', 'assignments.user.currentTeam'])->find($this->selectedShiftId)
             : null;
 
         $summary = $this->staffingSummary($shifts);
-        $candidates = $this->detailOpen && $selectedShift ? User::where('status', true)->where('role', 'staff')
+        $candidates = $this->detailOpen && $selectedShift ? User::with(['profile', 'currentTeam'])->where('status', true)->where('role', 'staff')
             ->when(trim($this->candidateSearch) !== '', fn ($q) => $q->where('name', 'like', '%'.mb_substr(trim($this->candidateSearch), 0, 100).'%'))
-            ->orderBy('name')->orderBy('id')->paginate(8, ['id', 'name', 'role', 'status'], 'candidatesPage') : null;
+            ->orderBy('name')->orderBy('id')->paginate(8, ['id', 'name', 'email', 'profile_photo_path', 'current_team_id', 'role', 'status'], 'candidatesPage') : null;
         if ($candidates) {
             $eligibility = app(StaffEligibilityService::class)->assessMany($selectedShift, $candidates->getCollection());
             $candidates->getCollection()->each(function ($user) use ($eligibility) {
@@ -496,7 +541,7 @@ class ShiftManagement extends Component
                 })
                 ->orderByDesc('starts_at')
                 ->get(),
-            'employees' => User::query()->with('profile')->where('status', true)->where('role', 'staff')->orderBy('name')->get(),
+            'employees' => User::query()->with(['profile', 'currentTeam'])->where('status', true)->where('role', 'staff')->orderBy('name')->get(),
             'statusOptions' => $this->enumOptions(ShiftStatus::class),
             'assignmentStatusOptions' => collect($this->enumOptions(ShiftAssignmentStatus::class))
                 ->whereIn('value', ShiftAssignmentStatus::blockingValues())

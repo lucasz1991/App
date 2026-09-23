@@ -56,15 +56,6 @@
 .rt-disposition-segments button { min-height: 44px; padding: 8px 12px; border-radius: 8px; color: var(--dispo-muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .rt-disposition-segments button[aria-pressed='true'] { color: var(--dispo-text); background: var(--dispo-subtle); box-shadow: inset 0 0 0 1px var(--dispo-line); }
 .rt-disposition-segments button:hover { color: var(--dispo-text); background: var(--dispo-subtle); }
-.rt-disposition .rt-disposition-table .rt-table-frame { border-radius: 0 !important; --rt-table-divider: var(--dispo-line); --rt-table-row-hover: var(--dispo-subtle); }
-.rt-disposition .rt-disposition-table .rt-table-core { border: 0; border-radius: 0; background: transparent; }
-.rt-disposition .rt-disposition-table .rt-table-head { min-height: 40px; border-block: 1px solid var(--dispo-line) !important; border-radius: 0 !important; background: var(--dispo-subtle) !important; color: var(--dispo-muted) !important; box-shadow: none; }
-.rt-disposition .rt-disposition-table .rt-table-head-cell { font-size: 10px; font-weight: 600; letter-spacing: .045em; }
-.rt-disposition .rt-disposition-table .rt-table-body { padding: 0; }
-.rt-disposition .rt-disposition-table .rt-table-row { background: var(--dispo-surface); animation: none; transition: background-color 140ms ease; }
-.rt-disposition .rt-disposition-table .rt-table-row:hover { transform: none; box-shadow: none; }
-.rt-disposition .rt-disposition-table .rt-table-row-grid { align-items: center; padding-block: 12px; }
-.rt-disposition .rt-disposition-table .rt-table-empty { padding-block: 56px; color: var(--dispo-muted); font-size: 13px; }
 .rt-disposition-record-title { display: block; min-height: 44px; align-content: center; color: var(--dispo-text); font-size: 13px; font-weight: 650; line-height: 1.55; overflow-wrap: anywhere; text-align: left; }
 .rt-disposition .rt-disposition-record-title.rt-ui-button { justify-content: flex-start !important; height: auto !important; padding: 4px 0 !important; color: var(--dispo-text) !important; white-space: normal !important; text-align: left !important; }
 .rt-disposition .rt-disposition-record-title.rt-ui-button:hover { color: var(--rt-red, #e4002b) !important; background: transparent !important; }
@@ -123,19 +114,12 @@
 .rt-disposition-drawer .rt-disposition-drawer__panel::before,
 .rt-disposition-drawer .rt-disposition-drawer__panel::after { display: none; }
 .rt-disposition-drawer .rt-modal-backdrop > div { background: rgb(20 30 42 / .3); backdrop-filter: blur(2px); }
-.rt-disposition-drawer .rt-disposition .rt-table-head { min-height: 40px; border-block: 1px solid var(--dispo-line) !important; border-radius: 0 !important; background: var(--dispo-subtle) !important; color: var(--dispo-muted) !important; box-shadow: none; }
-.rt-disposition-drawer .rt-disposition .rt-table-core { border-radius: 0; background: transparent; }
-.rt-disposition-drawer .rt-disposition .rt-table-row { animation: none; }
-.rt-disposition-drawer .rt-disposition .rt-table-head-cell { font-size: 10px; font-weight: 600; }
 .rt-disposition-drawer .rt-disposition-drawer__panel.rt-motion-modal-enter { transition: transform 460ms cubic-bezier(.4, 0, .2, 1), opacity 460ms ease; will-change: transform, opacity; }
 .rt-disposition-drawer .rt-disposition-drawer__panel.rt-motion-modal-leave { transition: transform 320ms cubic-bezier(.2, .35, .6, .75), opacity 320ms ease; will-change: transform, opacity; }
 .rt-disposition-drawer .rt-disposition-drawer__panel.rt-motion-modal-enter-from,
 .rt-disposition-drawer .rt-disposition-drawer__panel.rt-motion-modal-leave-to { transform: translateX(32px); opacity: 0; }
 @media (min-width: 1240px) {
     .rt-disposition-workgrid { grid-template-columns: minmax(0, 1fr) 248px; }
-}
-@media (min-width: 768px) {
-    .rt-disposition .rt-table-row-actions { top: 0; bottom: 0; }
 }
 @media (min-width: 1400px) {
     .rt-disposition-board { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -165,7 +149,6 @@
     .rt-disposition-shift:not(.rt-disposition-shift--compact) .rt-disposition-shift__time { grid-column: 1 / -1; display: flex; justify-content: space-between; }
     .rt-disposition-shift:not(.rt-disposition-shift--compact) .rt-disposition-shift__task { grid-column: 1 / -1; }
     .rt-disposition-shift:not(.rt-disposition-shift--compact) .rt-disposition-shift__state { grid-column: 2; flex-direction: column; align-items: end; max-width: 140px; text-align: right; }
-    .rt-disposition .rt-disposition-table .rt-table-row-grid { padding-block: 8px; }
     .rt-disposition-workflow-step { font-size: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {

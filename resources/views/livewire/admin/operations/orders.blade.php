@@ -21,14 +21,14 @@
     <section class="rt-disposition-panel" aria-labelledby="orders-list-heading">
         <div class="rt-disposition-section-heading">
             <h2 id="orders-list-heading">Leistungsübersicht <span class="text-rt-muted dark:text-rt-dark-muted">{{ number_format($orders->total(), 0, ',', '.') }}</span></h2>
-            <span>Nach Beginn sortiert</span>
+            <span>Bedarf, Termine und Umsetzung</span>
         </div>
         <x-tables.toolbar title="Leistungen filtern" id="operations-orders-filters" :search-in-header="true" :filter-count="(int) ($statusFilter !== 'all') + (int) (trim($search) !== '')" reset-action="resetFilters">
             <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Leistungen suchen" aria-label="Leistungen suchen" /></x-slot:search>
             <x-tables.filter-field label="Leistungsstatus" for="order-status-filter"><x-ui.forms.select id="order-status-filter" wire:model.live="statusFilter" aria-label="Leistungsstatus"><option value="all">Alle Leistungen</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
         </x-tables.toolbar>
-        <div class="rt-disposition-table" wire:loading.class="opacity-60" wire:target="search,statusFilter,resetFilters,gotoPage,nextPage,previousPage">
-            <x-tables.table :columns="[['label'=>'Leistung / Kunde', 'key'=>'title', 'width'=>'minmax(0, 1.7fr)'], ['label'=>'Zeitraum / Ort', 'key'=>'period', 'width'=>'minmax(0, 1.2fr)'], ['label'=>'Auftragsbedarf', 'key'=>'staff', 'width'=>'minmax(0, 1fr)'], ['label'=>'Status', 'key'=>'status', 'width'=>'minmax(0, .85fr)']]" :items="$orders" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" row-view="components.tables.rows.operations.order" actions-view="components.tables.rows.operations.order-actions" empty="Keine Leistungen für diese Auswahl gefunden." />
+        <div wire:loading.class="opacity-60" wire:target="tableSort,search,statusFilter,resetFilters,gotoPage,nextPage,previousPage">
+            <x-tables.table :columns="[['label'=>'Leistung / Kunde', 'key'=>'title', 'width'=>'minmax(0, 1.7fr)','sortable'=>true], ['label'=>'Zeitraum / Ort', 'key'=>'period', 'width'=>'minmax(0, 1.2fr)','sortable'=>true], ['label'=>'Auftragsbedarf', 'key'=>'staff', 'width'=>'minmax(0, 1fr)','sortable'=>true], ['label'=>'Status', 'key'=>'status', 'width'=>'minmax(0, .85fr)','sortable'=>true]]" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="orders" :flush-top="true" :items="$orders" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" row-view="components.tables.rows.operations.order" actions-view="components.tables.rows.operations.order-actions" empty="Keine Leistungen für diese Auswahl gefunden." />
         </div>
         <div class="rt-disposition-table-footer">
             <p aria-live="polite">{{ $orders->firstItem() ?? 0 }}–{{ $orders->lastItem() ?? 0 }} von {{ number_format($orders->total(), 0, ',', '.') }} Leistungen</p>
@@ -153,7 +153,8 @@
                                 @forelse($selectedOrder->statusHistory->take(6) as $history)
                                     <div class="rounded-xl border border-rt-border/70 px-3.5 py-3 dark:border-rt-dark-border/70" wire:key="order-history-{{ $history->id }}">
                                         <p class="text-xs font-semibold text-rt-text dark:text-white">{{ method_exists($history->to_status, 'label') ? $history->to_status->label() : \Illuminate\Support\Str::headline((string) ($history->to_status instanceof \BackedEnum ? $history->to_status->value : $history->to_status)) }}</p>
-                                        <p class="mt-1 text-[11px] text-rt-muted dark:text-rt-dark-muted">{{ $history->changed_at?->format('d.m.Y H:i') ?? $history->created_at?->format('d.m.Y H:i') }} · {{ $history->changedBy?->name ?? 'System' }}</p>
+                                        <p class="mt-1 text-[11px] text-rt-muted dark:text-rt-dark-muted">{{ $history->changed_at?->format('d.m.Y H:i') ?? $history->created_at?->format('d.m.Y H:i') }}</p>
+                                        @if($history->changedBy)<x-user.public-info :user="$history->changedBy" :size="6" :show-presence="false" class="mt-2" />@else<span class="ops-muted">System</span>@endif
                                         @if($history->note)<p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $history->note }}</p>@endif
                                     </div>
                                 @empty

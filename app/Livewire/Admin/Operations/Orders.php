@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -24,6 +25,25 @@ class Orders extends Component
     public string $search = '';
 
     public string $statusFilter = 'all';
+
+    #[Locked]
+    public string $sortBy = 'period';
+
+    #[Locked]
+    public string $sortDir = 'asc';
+
+    private const SORTABLE_COLUMNS = ['title', 'period', 'staff', 'status'];
+
+    public function tableSort(string $key, ?string $dir = null): void
+    {
+        $this->ensureAdmin();
+        abort_unless(in_array($key, self::SORTABLE_COLUMNS, true), 422);
+        abort_unless($dir === null || in_array($dir, ['asc', 'desc'], true), 422);
+        $direction = $dir ?? ($this->sortBy === $key && $this->sortDir === 'asc' ? 'desc' : 'asc');
+        $this->sortBy = $key;
+        $this->sortDir = $direction;
+        $this->resetPage('ordersPage');
+    }
 
     public function updatedSearch(): void
     {
@@ -280,12 +300,16 @@ class Orders extends Component
                 });
             })
             ->when($this->statusFilter !== 'all', fn (Builder $query) => $query->where('status', $this->statusFilter))
-            ->orderBy('starts_at')
+            ->orderBy(match ($this->sortBy) {
+                'title', 'status' => $this->sortBy,
+                'staff' => 'required_staff',
+                default => 'starts_at',
+            }, $this->sortDir === 'desc' ? 'desc' : 'asc')
             ->orderBy('id')
             ->paginate(25, ['*'], 'ordersPage');
 
         $selectedOrder = $this->selectedOrderId
-            ? Order::query()->with(['customer', 'shifts.assignments', 'statusHistory.changedBy'])->find($this->selectedOrderId)
+            ? Order::query()->with(['customer', 'shifts.assignments', 'statusHistory.changedBy.profile', 'statusHistory.changedBy.currentTeam'])->find($this->selectedOrderId)
             : null;
 
         $transitionOptions = $selectedOrder

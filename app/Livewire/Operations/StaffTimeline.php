@@ -46,8 +46,9 @@ class StaffTimeline extends Component
         $from = CarbonImmutable::parse($this->from, $zone);
         $until = CarbonImmutable::parse($this->until, $zone)->addDay();
         abort_if($from->diffInDays($until) > 94, 422);
-        $users = User::where('role', 'staff')->where(fn ($q) => $q->where('status', true)->orWhereIn('id', ShiftAssignment::blocking()->whereHas('shift', fn ($q) => $q->notCancelled()->during($from, $until))->select('user_id')))
-            ->when(filled($this->search), fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))->orderBy('name')->paginate(12, ['id', 'name', 'status'], 'staffPage');
+        $users = User::with(['profile', 'currentTeam'])
+            ->where('role', 'staff')->where(fn ($q) => $q->where('status', true)->orWhereIn('id', ShiftAssignment::blocking()->whereHas('shift', fn ($q) => $q->notCancelled()->during($from, $until))->select('user_id')))
+            ->when(filled($this->search), fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))->orderBy('name')->paginate(12, ['id', 'name', 'email', 'status', 'current_team_id', 'profile_photo_path'], 'staffPage');
         $assignments = $this->absencesOnly ? collect() : ShiftAssignment::blocking()->whereIn('user_id', $users->pluck('id'))->whereHas('shift', fn ($q) => $q->notCancelled()->during($from, $until))->with('shift.order.customer')->get()->groupBy('user_id');
         $absences = AbsenceRequest::whereIn('user_id', $users->pluck('id'))->whereIn('status', ['pending', 'approved'])
             ->when($this->absencesOnly && $this->absenceKind !== 'all', fn ($q) => $q->where('kind', $this->absenceKind))

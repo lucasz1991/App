@@ -13,6 +13,7 @@
 @import './date-field.css';
 @import './multi-toggle.css';
 @import './disposition-workspace.css';
+@import './table-records.css';
 
 @tailwind base;
 @tailwind components;

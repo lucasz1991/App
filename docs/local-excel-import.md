@@ -34,6 +34,7 @@ Der Import unterscheidet den Status der Leistung vom Veröffentlichungsstatus ih
 - Ein übernommenes, bereits vergangenes Istende oder ein ausdrücklicher Abschlussvermerk (`erledigt`, `abgeschlossen`, `durchgeführt`, optional mit `Status:`) in Bemerkungen/Infos belegt den Abschluss. Ein solcher Vermerk muss das vollständige Feld bilden; verneinte oder beiläufige Texte gelten nicht als Abschluss. Bei mehreren aktiven Schichten muss der Abschluss für alle belegt sein.
 - Ein ausdrücklich in Excel markierter Entwurf bleibt **angefragt**. Die bloße technische Anlage als unveröffentlichte Schicht bedeutet dagegen keinen Excel-Entwurf.
 - Statuswechsel werden mit Herkunft „Excel-Import“ im vorhandenen Verlauf protokolliert. Manuelle Statusentscheidungen und Endzustände werden bei Wiederholungen geschützt. Unveränderte Kopien erzeugen keine zusätzlichen Statuswechsel.
+- Abschlussbelege müssen zum übernommenen Datum und den Planzeiten passen. Nach einer Umplanung in der App wird eine alte Excel-Istzeit nicht auf den neuen Termin übertragen.
 - Daraus entstehen weder Veröffentlichungen, Mitarbeiterbestätigungen, Zeitfreigaben noch Abrechnungen.
 
 Am 23.09.2026 wurde der lokale Altbestand korrigiert: zuvor 1403 Leistungen pauschal **angefragt**, danach 1399 **storniert** und 4 **geplant**. Bei den vier nicht stornierten Leistungen fehlt der Abschlussbeleg. Die Korrektur änderte keine Schichten oder Zuordnungen und versandte keine E-Mails. Zurückgehaltene Importzeilen benötigen weiterhin das Regelprofil bzw. geklärte Zuordnungen.

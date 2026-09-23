@@ -19,7 +19,7 @@
         <section class="rt-disposition-panel" aria-labelledby="inquiries-list-heading">
             <div class="rt-disposition-section-heading">
                 <h2 id="inquiries-list-heading">Posteingang <span class="rt-disposition-count">{{ $inquiries->total() }}</span></h2>
-                <span>Zuletzt bearbeitet zuerst</span>
+                <span>Vorgänge prüfen und weiterplanen</span>
             </div>
             <x-tables.toolbar title="Anfragen filtern" id="inquiry-filters" :search-in-header="true">
                 <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Anfrage oder Kunde suchen" /></x-slot:search>
@@ -41,9 +41,10 @@
                     </x-ui.forms.select>
                 </x-tables.filter-field>
             </x-tables.toolbar>
-            <div class="rt-disposition-table" wire:loading.class="opacity-60" wire:target="search,filter,statusFilter,gotoPage,nextPage,previousPage">
+            <div wire:loading.class="opacity-60" wire:target="tableSort,search,filter,statusFilter,gotoPage,nextPage,previousPage">
                 <x-tables.table
-                    :columns="[['label'=>'Vorgang','key'=>'title','width'=>'minmax(0,1.8fr)'],['label'=>'Kunde','key'=>'customer','width'=>'minmax(0,1.15fr)'],['label'=>'Einsatz','key'=>'schedule','width'=>'minmax(0,1.05fr)'],['label'=>'Status','key'=>'status','width'=>'minmax(0,.8fr)']]"
+                    :columns="[['label'=>'Vorgang','key'=>'title','width'=>'minmax(0,1.8fr)','sortable'=>true],['label'=>'Kunde','key'=>'customer','width'=>'minmax(0,1.15fr)','sortable'=>true],['label'=>'Einsatz','key'=>'schedule','width'=>'minmax(0,1.05fr)','sortable'=>true],['label'=>'Status','key'=>'status','width'=>'minmax(0,.8fr)','sortable'=>true]]"
+                    sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="inquiries"
                     :items="$inquiries"
                     detail-action="select"
                     row-view="components.tables.rows.operations.inquiries-row"
@@ -128,7 +129,7 @@
                     @if(!$selected->offer)<details><summary>Dublette zuordnen</summary><form wire:submit="transition('duplicate')" class="ops-actions"><x-operations.field label="Nummer des älteren Originals" model="duplicateId" type="number" min="1" required /><x-ui.buttons.button-basic type="submit">Verknüpfen</x-ui.buttons.button-basic></form></details>@endif
                 @elseif($selected->order)@can('operations.manage')<a class="ops-link" href="{{ route('operations.workspace','orders') }}" wire:navigate>Auftrag {{ $selected->order->order_number }} →</a>@else<span>Auftrag {{ $selected->order->order_number }}</span>@endcan
                 @else<p>Original: {{ $selected->duplicateOf?->number }}</p>@endif
-                <details class="rt-disposition-detail-section"><summary>Verlauf</summary>@forelse($history as $event)<div class="ops-row" wire:key="inquiry-event-{{ $event->id }}"><span>{{ \App\Support\Operations\OperationsNavigation::auditLabel($event->action) }}</span><span class="ops-muted">{{ $event->actor?->name }} · {{ $event->created_at->setTimezone(config('operations.display_timezone'))->format('d.m. H:i') }}</span></div>@empty<p class="ops-muted">Noch keine Einträge.</p>@endforelse</details>
+                <details class="rt-disposition-detail-section"><summary>Verlauf</summary>@forelse($history as $event)<div class="ops-row" wire:key="inquiry-event-{{ $event->id }}"><span>{{ \App\Support\Operations\OperationsNavigation::auditLabel($event->action) }}</span><div class="min-w-0 space-y-1">@if($event->actor)<x-user.public-info :user="$event->actor" :size="6" :show-presence="false" />@endif<span class="ops-muted">{{ $event->created_at->setTimezone(config('operations.display_timezone'))->format('d.m. H:i') }}</span></div></div>@empty<p class="ops-muted">Noch keine Einträge.</p>@endforelse</details>
             @else<div class="ops-empty">Anfrage auswählen.</div>@endif
 
 </x-operations.modal>

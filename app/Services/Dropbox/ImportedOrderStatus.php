@@ -67,8 +67,11 @@ class ImportedOrderStatus
                         }
                         // Use the accepted merge once per record. An unchanged copy must
                         // not veto newer evidence, and app-only data is not Excel evidence.
+                        $sameSchedule = $values->filter(fn ($v) => ($v['date'] ?? null) === ($current['date'] ?? null)
+                            && ($v['starts'] ?? null) === ($current['starts'] ?? null)
+                            && ($v['ends'] ?? null) === ($current['ends'] ?? null));
                         foreach (['actual_end', 'notes', 'information'] as $field) {
-                            if (! $values->contains(fn ($v) => ($v[$field] ?? null) === ($current[$field] ?? null))) {
+                            if (! $sameSchedule->contains(fn ($v) => ($v[$field] ?? null) === ($current[$field] ?? null))) {
                                 $current[$field] = null;
                             }
                         }

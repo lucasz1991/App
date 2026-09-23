@@ -30,6 +30,8 @@ Homestead.json
 !/tests/Feature/DropboxSyncTest.php
 !/tests/Feature/LocalExcelImportTest.php
 !/tests/Feature/ImportedOrderStatusTest.php
+!/tests/Feature/DispositionTableSortingTest.php
+!/tests/Feature/SharedTableSortingUiTest.php
 !/tests/TestCase.php
 !/tests/Support/
 /tests/Support/*

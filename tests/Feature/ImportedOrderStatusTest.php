@@ -253,6 +253,48 @@ class ImportedOrderStatusTest extends TestCase
         }
     }
 
+    public function test_app_reschedule_to_another_date_does_not_reuse_source_completion_evidence(): void
+    {
+        foreach ([['actual_end' => '11:30'], ['notes' => 'Status: abgeschlossen']] as $evidence) {
+            [$record, $order, $shift] = $this->importRow(array_merge(['date' => '2026-10-01'], $evidence));
+            $service = app(ImportedOrderStatus::class);
+            $service->reconcile($record, $this->actor);
+            $this->assertSame(OrderStatus::Planned, $order->fresh()->status);
+            $schedule = [
+                'starts_at' => CarbonImmutable::parse('2026-09-15 08:00:00', 'Europe/Berlin')->utc(),
+                'ends_at' => CarbonImmutable::parse('2026-09-15 10:00:00', 'Europe/Berlin')->utc(),
+            ];
+            $order->update($schedule);
+            $shift->update($schedule);
+
+            $service->reconcile($record->fresh(), $this->actor);
+
+            $this->assertSame(OrderStatus::Planned, $order->fresh()->status);
+        }
+    }
+
+    public function test_app_reschedule_on_same_date_does_not_reuse_old_plan_completion_evidence(): void
+    {
+        foreach ([['actual_end' => '11:30'], ['information' => 'Status: abgeschlossen']] as $evidence) {
+            [$record, $order, $shift] = $this->importRow(array_merge([
+                'date' => '2026-09-23', 'starts' => '18:00', 'ends' => '20:00',
+            ], $evidence));
+            $service = app(ImportedOrderStatus::class);
+            $service->reconcile($record, $this->actor);
+            $this->assertSame(OrderStatus::Planned, $order->fresh()->status);
+            $schedule = [
+                'starts_at' => CarbonImmutable::parse('2026-09-23 08:00:00', 'Europe/Berlin')->utc(),
+                'ends_at' => CarbonImmutable::parse('2026-09-23 10:00:00', 'Europe/Berlin')->utc(),
+            ];
+            $order->update($schedule);
+            $shift->update($schedule);
+
+            $service->reconcile($record->fresh(), $this->actor);
+
+            $this->assertSame(OrderStatus::Planned, $order->fresh()->status);
+        }
+    }
+
     public function test_manual_status_after_import_is_not_overridden_by_later_source_evidence(): void
     {
         [$record, $order, , $appearance] = $this->importRow();
@@ -304,8 +346,8 @@ class ImportedOrderStatusTest extends TestCase
                 'customer_id' => Customer::create(['company_name' => 'Testkunde', 'is_active' => true])->id,
                 'title' => 'Importierte Leistung', 'service_type' => 'WGM', 'status' => OrderStatus::Requested,
                 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'required_staff' => 1,
-                'starts_at' => CarbonImmutable::parse($values['date'].' 08:00:00', 'Europe/Berlin')->utc(),
-                'ends_at' => CarbonImmutable::parse($values['date'].' 10:00:00', 'Europe/Berlin')->utc(),
+                'starts_at' => CarbonImmutable::parse($values['date'].' '.$values['starts'], 'Europe/Berlin')->utc(),
+                'ends_at' => CarbonImmutable::parse($values['date'].' '.$values['ends'], 'Europe/Berlin')->utc(),
                 'created_by' => $this->actor->id, 'updated_by' => $this->actor->id,
             ]);
         }

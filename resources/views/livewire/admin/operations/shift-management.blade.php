@@ -49,18 +49,18 @@
     @endif
     @php
         $shiftColumns = [
-            ['label' => 'Schicht', 'key' => 'shift', 'width' => '1.5fr'],
-            ['label' => 'Kunde / Ort', 'key' => 'customer', 'width' => '1.2fr'],
-            ['label' => 'Zeitfenster', 'key' => 'schedule', 'width' => '1.3fr'],
-            ['label' => 'Besetzung', 'key' => 'staffing', 'width' => '1.1fr'],
-            ['label' => 'Planstatus', 'key' => 'status', 'width' => '1fr'],
+            ['label' => 'Schicht', 'key' => 'shift', 'width' => 'minmax(0,1.5fr)', 'sortable' => true],
+            ['label' => 'Kunde / Ort', 'key' => 'customer', 'width' => 'minmax(0,1.2fr)', 'sortable' => true],
+            ['label' => 'Zeitfenster', 'key' => 'schedule', 'width' => 'minmax(0,1.3fr)', 'sortable' => true],
+            ['label' => 'Besetzung', 'key' => 'staffing', 'width' => 'minmax(0,1.1fr)', 'sortable' => true],
+            ['label' => 'Planstatus', 'key' => 'status', 'width' => 'minmax(0,1fr)', 'sortable' => true],
         ];
     @endphp
-    <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
+    <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="tableSort,setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
         @if($viewMode === 'timeline')
             <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
         @elseif($viewMode === 'table' || $shifts->isEmpty())
-            <div class="rt-disposition-table"><x-tables.table :columns="$shiftColumns" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." /></div>
+            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="shift-plan" :flush-top="true" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
         @else
             @foreach(match($viewMode) { 'day' => $dailyGroups, 'orders' => $orderGroups, default => $staffingGroups } as $groupKey => $group)
                 @if($group['items']->isNotEmpty())
@@ -82,7 +82,7 @@
                                 @endforeach
                             </div>
                         @else
-                            <div class="rt-disposition-table"><x-tables.table :columns="$shiftColumns" :items="$group['items']" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" /></div>
+                            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" :table-key="'shift-order-'.$groupKey" :flush-top="true" :items="$group['items']" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" />
                         @endif
                     </section>
                 @endif
@@ -134,9 +134,8 @@
                             @forelse($selectedAssignments as $assignment)
                                 @php($assignmentValue = $assignment->status instanceof \BackedEnum ? $assignment->status->value : (string) $assignment->status)
                                 <div class="flex min-h-16 items-center gap-3 px-3.5 py-2.5" wire:key="shift-assignment-{{ $assignment->id }}">
-                                    <img src="{{ $assignment->user?->profile_photo_url }}" alt="" class="h-9 w-9 shrink-0 rounded-full object-cover">
                                     <div class="min-w-0 flex-1">
-                                        <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $assignment->user?->name ?? 'Unbekannter Mitarbeiter' }}</p>
+                                        @if($assignment->user)<x-user.person-anchor-preview :user="$assignment->user" :show-presence="false" :show-email="false" :size="9" />@else<span class="ops-muted">Unbekannter Mitarbeiter</span>@endif
                                         <p class="mt-0.5 truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ method_exists($assignment->status, 'label') ? $assignment->status->label() : \Illuminate\Support\Str::headline($assignmentValue) }}@if($assignment->note) · {{ $assignment->note }}@endif</p>
                                     </div>
                                     <x-ui.buttons.button-basic type="button" wire:click="removeAssignment({{ $assignment->id }})" wire:confirm="Zuweisung wirklich entfernen?" wire:loading.attr="disabled" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-rt-muted transition hover:bg-red-50 hover:text-rt-red disabled:opacity-60 dark:text-rt-dark-muted dark:hover:bg-red-500/10" aria-label="{{ $assignment->user?->name }} aus der Schicht entfernen" title="Entfernen">
