@@ -1,11 +1,13 @@
 <?php
 
 return [
-    'previous' => '&laquo; Vorherige Seite',
-    'next' => 'Nächste Seite &raquo;',
-    'pagination_navigation' => 'Seitennavigation',
-    'showing_results' => 'Zeigt',
-    'to' => 'bis',
-    'of' => 'von',
-    'results' => 'Ergebnisse',
+    'previous' => '&laquo; Previous',
+    'next' => 'Next &raquo;',
+    'pagination_navigation' => 'Pagination',
+    'orders_list' => 'Orders',
+    'go_to_page' => 'Go to page :page',
+    'showing_results' => 'Showing :from to :to of :total results',
+    'to' => 'to',
+    'of' => 'of',
+    'results' => 'results',
 ];

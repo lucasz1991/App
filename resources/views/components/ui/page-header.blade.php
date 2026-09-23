@@ -25,6 +25,8 @@
         <div class="rt-page-header-search min-w-0 shrink-0" data-page-header-search></div>
     </div>
 
+    <div class="rt-page-header-metrics min-w-0 flex-1" data-page-header-metrics></div>
+
     @if (isset($actions) || $help)
         <div class="flex shrink-0 flex-nowrap items-center justify-end gap-1.5" data-page-header-actions>
             @isset($actions)

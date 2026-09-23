@@ -102,7 +102,7 @@
     @endif
     <div class="rt-table-core" role="table" aria-label="{{ $label }}">
     {{-- Header (nur md+) --}}
-    <div class="rt-ui-surface-muted rt-table-head hidden md:grid rounded-t-xl bg-rt-surface-muted p-2 pr-16 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
+    <div class="rt-ui-surface-muted rt-table-head hidden md:grid bg-rt-surface-muted p-2 pr-16 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
          role="row" style="grid-template-columns: {{ $gridTemplate }};">
         @foreach($columns as $col)
             @php $hidden = $hideClass($col['hideOn']); @endphp
