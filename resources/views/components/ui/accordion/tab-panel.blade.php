@@ -13,15 +13,11 @@
     $resolvedContentClass = $contentClass ?? (is_null($panelClass) ? 'space-y-6' : '');
 @endphp
 
+{{-- Alle Panels liegen nebeneinander in der Inhaltsbahn (rt-tab-panels-track)
+     und werden gemeinsam mit der Navigation verschoben. Sichtbarkeit steuert
+     die Bahnposition, nicht x-show; inaktive Panels sind inert. --}}
 <div
-    x-show="mobileTabs || openTab === @js((string) $for)"
     x-cloak
-    x-transition:enter="rt-tab-panel-transition"
-    x-transition:enter-start="rt-tab-panel-enter-start"
-    x-transition:enter-end="rt-tab-panel-enter-end"
-    x-transition:leave="rt-tab-panel-transition rt-tab-panel-leave"
-    x-transition:leave-start="rt-tab-panel-leave-start"
-    x-transition:leave-end="rt-tab-panel-leave-end"
     role="tabpanel"
     id="panel-{{ $for }}"
     data-tab-panel-id="{{ (string) $for }}"

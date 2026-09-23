@@ -602,6 +602,15 @@
                 <span>{{ __('app.settings_superadmin_hint') }}</span>
             </div>
 
+            @if(auth()->user()?->isSuperAdmin())
+                <x-admin.settings-accordion-section section="local-excel" label="Lokaler Excel-Import" description="Dateien vom Gerät einmalig in die App übernehmen" icon="fas fa-file-excel">
+                    <livewire:admin.local-excel-import />
+                </x-admin.settings-accordion-section>
+                <x-admin.settings-accordion-section section="dropbox" label="Dropbox / Excel-Synchronisierung" description="Verbindung, beidseitiger Abgleich und Konflikte" icon="fab fa-dropbox">
+                    <livewire:admin.dropbox-settings />
+                </x-admin.settings-accordion-section>
+            @endif
+
             <x-admin.settings-accordion-section
                 section="assistant-runtime"
                 :label="__('app.assistant_runtime_settings')"

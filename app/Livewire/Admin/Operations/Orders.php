@@ -14,14 +14,32 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 class Orders extends Component
 {
     use SupportsOperationsUi;
+    use WithPagination;
 
     public string $search = '';
 
     public string $statusFilter = 'all';
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage('ordersPage');
+    }
+
+    public function updatedStatusFilter(): void
+    {
+        $this->resetPage('ordersPage');
+    }
+
+    public function resetFilters(): void
+    {
+        $this->reset(['search', 'statusFilter']);
+        $this->resetPage('ordersPage');
+    }
 
     public ?int $selectedOrderId = null;
 
@@ -263,7 +281,8 @@ class Orders extends Component
             })
             ->when($this->statusFilter !== 'all', fn (Builder $query) => $query->where('status', $this->statusFilter))
             ->orderBy('starts_at')
-            ->get();
+            ->orderBy('id')
+            ->paginate(25, ['*'], 'ordersPage');
 
         $selectedOrder = $this->selectedOrderId
             ? Order::query()->with(['customer', 'shifts.assignments', 'statusHistory.changedBy'])->find($this->selectedOrderId)
@@ -293,7 +312,15 @@ class Orders extends Component
             'priorityOptions' => $this->enumOptions(OrderPriority::class),
             'transitionOptions' => $transitionOptions,
             'openCount' => Order::query()->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])->count(),
-            'startsSoonCount' => Order::query()->whereBetween('starts_at', [now()->utc(), now()->addDays(7)->utc()])->count(),
+            'startsSoonCount' => Order::query()
+                ->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])
+                ->whereBetween('starts_at', [now()->utc(), now()->addDays(7)->utc()])
+                ->count(),
+            'inProgressCount' => Order::query()->where('status', OrderStatus::InProgress)->count(),
+            'withoutShiftsCount' => Order::query()
+                ->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])
+                ->whereDoesntHave('shifts')
+                ->count(),
         ]);
     }
 

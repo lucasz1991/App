@@ -1,10 +1,47 @@
-<div class="space-y-4" data-operations-orders>
-    <x-tables.toolbar title="Filter" id="operations-orders-filters">
-        <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Leistungen suchen" /></x-slot:search>
-        <x-tables.filter-field label="Leistungsstatus" for="order-status-filter"><x-ui.forms.select id="order-status-filter" wire:model.live="statusFilter" aria-label="Leistungsstatus"><option value="all">Alle</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
-    </x-tables.toolbar>
-    <x-tables.table :columns="[['label'=>'Leistung', 'key'=>'title', 'width'=>'2fr'], ['label'=>'Kunde', 'key'=>'customer.company_name', 'width'=>'1.4fr'], ['label'=>'Beginn', 'key'=>'starts_at', 'width'=>'1.2fr'], ['label'=>'Ende', 'key'=>'ends_at', 'width'=>'1.2fr'], ['label'=>'Status', 'key'=>'status', 'width'=>'.8fr']]" :items="$orders" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge gefunden." />
-    <x-operations.modal wire:model="detailOpen" title="Leistungsdetails" max-width="4xl">
+<div class="rt-disposition rt-disposition--orders space-y-6" data-operations-orders>
+    <section class="rt-disposition-summary" aria-label="Leistungen im gesamten Bestand">
+        <div class="rt-disposition-summary__item">
+            <span class="rt-disposition-summary__value">{{ number_format($openCount, 0, ',', '.') }}</span>
+            <div><span class="rt-disposition-summary__label">Aktive Leistungen</span><span class="rt-disposition-summary__detail">im gesamten Bestand</span></div>
+        </div>
+        <div class="rt-disposition-summary__item">
+            <span class="rt-disposition-summary__value">{{ number_format($startsSoonCount, 0, ',', '.') }}</span>
+            <div><span class="rt-disposition-summary__label">Beginnen in Kürze</span><span class="rt-disposition-summary__detail">in den nächsten 7 Tagen</span></div>
+        </div>
+        <div class="rt-disposition-summary__item">
+            <span class="rt-disposition-summary__value">{{ number_format($inProgressCount, 0, ',', '.') }}</span>
+            <div><span class="rt-disposition-summary__label">In Durchführung</span><span class="rt-disposition-summary__detail">laut Leistungsstatus</span></div>
+        </div>
+        <div class="rt-disposition-summary__item">
+            <span class="rt-disposition-summary__value">{{ number_format($withoutShiftsCount, 0, ',', '.') }}</span>
+            <div><span class="rt-disposition-summary__label">Ohne Schichten</span><span class="rt-disposition-summary__detail">aktive Leistungen</span></div>
+        </div>
+    </section>
+
+    <section class="rt-disposition-panel" aria-labelledby="orders-list-heading">
+        <div class="rt-disposition-section-heading">
+            <h2 id="orders-list-heading">Leistungsübersicht <span class="text-rt-muted dark:text-rt-dark-muted">{{ number_format($orders->total(), 0, ',', '.') }}</span></h2>
+            <span>Nach Beginn sortiert</span>
+        </div>
+        <x-tables.toolbar title="Leistungen filtern" id="operations-orders-filters" :search-in-header="true" :filter-count="(int) ($statusFilter !== 'all') + (int) (trim($search) !== '')" reset-action="resetFilters">
+            <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Leistungen suchen" aria-label="Leistungen suchen" /></x-slot:search>
+            <x-tables.filter-field label="Leistungsstatus" for="order-status-filter"><x-ui.forms.select id="order-status-filter" wire:model.live="statusFilter" aria-label="Leistungsstatus"><option value="all">Alle Leistungen</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
+        </x-tables.toolbar>
+        <div class="rt-disposition-table" wire:loading.class="opacity-60" wire:target="search,statusFilter,resetFilters,gotoPage,nextPage,previousPage">
+            <x-tables.table :columns="[['label'=>'Leistung / Kunde', 'key'=>'title', 'width'=>'minmax(0, 1.7fr)'], ['label'=>'Zeitraum / Ort', 'key'=>'period', 'width'=>'minmax(0, 1.2fr)'], ['label'=>'Auftragsbedarf', 'key'=>'staff', 'width'=>'minmax(0, 1fr)'], ['label'=>'Status', 'key'=>'status', 'width'=>'minmax(0, .85fr)']]" :items="$orders" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" row-view="components.tables.rows.operations.order" actions-view="components.tables.rows.operations.order-actions" empty="Keine Leistungen für diese Auswahl gefunden." />
+        </div>
+        <div class="rt-disposition-table-footer">
+            <p aria-live="polite">{{ $orders->firstItem() ?? 0 }}–{{ $orders->lastItem() ?? 0 }} von {{ number_format($orders->total(), 0, ',', '.') }} Leistungen</p>
+            <span>Bedarf und Umsetzung</span>
+        </div>
+        @if($orders->hasPages())
+            <div class="mt-3">{{ $orders->links(data: ['scrollTo' => '[data-operations-orders]']) }}</div>
+        @endif
+    </section>
+
+    <p class="rt-disposition-note"><i class="far fa-circle-info" aria-hidden="true"></i><span>Der Auftragsbedarf beschreibt die benötigten Mitarbeitenden. Besetzung, Rückmeldungen und Veröffentlichung werden je Schicht geprüft.</span></p>
+
+    <x-operations.modal wire:model="detailOpen" title="Leistungsdetails" max-width="4xl" variant="drawer">
         @if($selectedOrder)
                     @php
                         $selectedStatus = $selectedOrder->status instanceof \BackedEnum ? $selectedOrder->status->value : (string) $selectedOrder->status;
@@ -35,7 +72,7 @@
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                             <div>
                                 <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft">Aktueller Status</p>
-                                <x-operations.status :value="$selectedStatus" />
+                                <x-operations.status :value="$selectedStatus" :label="$selectedOrder->status->label()" />
                             </div>
                             <div class="block w-full sm:w-56" wire:key="order-status-{{ $selectedOrder->id }}-{{ $selectedStatus }}">
                                 <span class="mb-1 block text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">Status ändern</span>

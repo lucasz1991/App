@@ -48,6 +48,7 @@
     :data-tabs-mobile="mobileTabs ? 'true' : 'false'"
     :data-tabs-scrubbing="scrubbingTabs ? 'true' : 'false'"
     :data-tabs-input-policy="mobileTabs ? 'free-scroll-linked' : 'click-only'"
+    :data-tabs-ready="tabsReady ? 'true' : 'false'"
     {{ $attributes->class('w-full min-w-0')->merge([
         'data-anim' => 'fade-up',
         'data-anim-delay' => '0.06',
@@ -90,6 +91,16 @@
                 x-ref="carouselTrack"
                 class="rt-tabs-carousel-track"
             >
+                {{-- Ein gemeinsamer Indikator fuer alle Tabs: die Pill gleitet mit
+                     der Bruchposition, der Aktivpunkt darunter dehnt sich unterwegs
+                     (renderIndicator in tabs.js). --}}
+                <span x-ref="pill" class="rt-tab-pill" aria-hidden="true"></span>
+                <span
+                    x-ref="dot"
+                    class="rt-tab-active-mark"
+                    data-rt-tab-active-mark
+                    aria-hidden="true"
+                ><i></i></span>
                 <template x-for="tab in items" :key="tab.id">
                     <button
                         type="button"
@@ -120,12 +131,6 @@
                             </template>
                         </span>
                         <span class="rt-carousel-tab-label" x-text="tab.label"></span>
-                        <span
-                            class="rt-tab-active-mark"
-                            :data-active="openTab === tab.id ? 'true' : 'false'"
-                            data-rt-tab-active-mark
-                            aria-hidden="true"
-                        ></span>
                     </button>
                 </template>
             </div>

@@ -30,6 +30,15 @@ return [
 
     'connections' => [
 
+        'dropbox' => [
+            'driver' => 'redis',
+            'connection' => 'dropbox',
+            'queue' => 'dropbox-events',
+            'retry_after' => 360,
+            'block_for' => 5,
+            'after_commit' => true,
+        ],
+
         'sync' => [
             'driver' => 'sync',
         ],

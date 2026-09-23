@@ -62,7 +62,7 @@ class ShiftManagement extends Component
     public string $statusFilter = 'all';
 
     #[Locked]
-    public string $viewMode = 'table';
+    public string $viewMode = 'day';
 
     public function setView(string $view): void
     {
@@ -72,6 +72,24 @@ class ShiftManagement extends Component
             $this->reset(['search', 'statusFilter', 'orderFilter', 'attentionFilter']);
         }
         $this->viewMode = $view;
+    }
+
+    public function movePeriod(int $direction): void
+    {
+        $this->ensureAdmin();
+        abort_unless(in_array($direction, [-1, 1], true), 422);
+        [$from, $to] = $this->resolvedRange();
+        $days = (int) $from->diffInDays($to->copy()->startOfDay()) + 1;
+        $this->rangeFrom = $from->addDays($days * $direction)->toDateString();
+        $this->rangeTo = $to->addDays($days * $direction)->toDateString();
+    }
+
+    public function currentWeek(): void
+    {
+        $this->ensureAdmin();
+        $today = now((string) config('operations.display_timezone', 'Europe/Berlin'));
+        $this->rangeFrom = $today->copy()->startOfWeek()->toDateString();
+        $this->rangeTo = $today->copy()->endOfWeek()->toDateString();
     }
 
     #[On('operations-plan-changed')]
@@ -133,7 +151,7 @@ class ShiftManagement extends Component
         $this->ensureAdmin();
         $today = now((string) config('operations.display_timezone', 'Europe/Berlin'));
         $this->rangeFrom = $today->copy()->startOfWeek()->format('Y-m-d');
-        $this->rangeTo = $today->copy()->endOfWeek()->addWeek()->format('Y-m-d');
+        $this->rangeTo = $today->copy()->endOfWeek()->format('Y-m-d');
         $this->status = $this->enumDefault(ShiftStatus::class, 'draft');
         $this->assignmentStatus = $this->enumDefault(ShiftAssignmentStatus::class, 'confirmed');
         if (request()->has('order')) {
@@ -487,6 +505,7 @@ class ShiftManagement extends Component
             'shiftCount' => $summary['shifts'],
             'requiredCount' => $summary['required'],
             'reservedCount' => $summary['reserved'],
+            'confirmedCount' => $summary['confirmed'],
             'openCount' => $summary['open'],
         ]);
     }

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\CapturesDropboxChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EmployeeQualification extends Model
 {
+    use CapturesDropboxChanges;
+
     protected $attributes = ['revision' => 1, 'status' => 'pending'];
 
     protected $guarded = ['id'];

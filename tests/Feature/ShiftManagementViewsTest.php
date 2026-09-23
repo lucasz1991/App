@@ -62,9 +62,9 @@ class ShiftManagementViewsTest extends TestCase
         $this->shift('Süddienst', ['status' => 'draft', 'location_name' => 'München']);
 
         $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
-            ->assertSet('viewMode', 'table')
-            ->assertSeeHtml('data-shift-view="table"')
-            ->assertSeeHtml('data-rt-premium-table')
+            ->assertSet('viewMode', 'day')
+            ->assertSeeHtml('data-shift-view="day"')
+            ->assertSeeHtml('rt-disposition-shift')
             ->set('rangeFrom', '2027-05-12')->set('rangeTo', '2027-05-13')
             ->set('orderFilter', (string) $this->order->id)
             ->set('statusFilter', 'open')->set('search', 'Hamburg');

@@ -20,6 +20,8 @@ class InquiryInbox extends Component
 
     public string $filter = 'active';
 
+    public string $statusFilter = 'all';
+
     #[Locked]
     public ?int $selectedId = null;
 
@@ -54,6 +56,11 @@ class InquiryInbox extends Component
     }
 
     public function updatedFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedStatusFilter(): void
     {
         $this->resetPage();
     }
@@ -112,11 +119,24 @@ class InquiryInbox extends Component
     public function render()
     {
         $this->access();
+        $active = OperationInquiry::query()->whereNull('order_id')->whereNull('duplicate_of_id');
+        $statusCounts = (clone $active)->selectRaw('status, COUNT(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status');
         $query = OperationInquiry::with('customer')->when($this->filter === 'active', fn ($q) => $q->whereNull('order_id')->whereNull('duplicate_of_id'))
             ->when($this->filter !== 'active' && $this->filter !== 'all', fn ($q) => $q->where('channel', $this->filter))
+            ->when(in_array($this->statusFilter, ['new', 'accepted'], true), fn ($q) => $q->where('status', $this->statusFilter))
             ->when(filled($this->search), fn ($q) => $q->where(fn ($q) => $q->where('title', 'like', '%'.mb_substr($this->search, 0, 100).'%')->orWhereHas('customer', fn ($q) => $q->where('company_name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))));
 
         return view('livewire.operations.inquiry-inbox', [
+            'summary' => [
+                'active' => (int) $statusCounts->sum(),
+                'new' => (int) $statusCounts->get('new', 0),
+                'accepted' => (int) $statusCounts->get('accepted', 0),
+                'offered' => (int) $statusCounts->get('offered', 0),
+            ],
+            'nextInquiries' => (clone $active)->with('customer:id,company_name')->whereIn('status', ['new', 'verified', 'offered', 'accepted'])
+                ->orderByRaw("CASE WHEN status = 'accepted' THEN 0 ELSE 1 END")
+                ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('starts_at')->oldest('updated_at')->orderBy('id')->limit(3)->get(),
             'inquiries' => $query->latest('updated_at')->paginate(15),
             'selected' => $this->selectedId ? OperationInquiry::with(['customer', 'order', 'duplicateOf'])->find($this->selectedId) : null,
             'customers' => Customer::where('is_active', true)->orderBy('company_name')->get(['id', 'company_name']),

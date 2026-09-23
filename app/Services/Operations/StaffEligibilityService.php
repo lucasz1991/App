@@ -8,6 +8,7 @@ use App\Models\OperationsRuleProfile;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Dropbox\CompetencyRestrictions;
 use App\Support\Operations\OperationsAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -47,8 +48,9 @@ class StaffEligibilityService
         $conflicts = $query(ShiftAssignment::blocking()->whereIn('user_id', $ids)->where('shift_id', '!=', $shift->id)
             ->whereHas('shift', fn ($q) => $q->notCancelled()->during($start->subMinutes($rest), $end->addMinutes($rest))))->get()->keyBy('user_id');
         $minutes = $start->diffInMinutes($end);
+        $externalRestrictions = app(CompetencyRestrictions::class)->forShift($shift, $users, $lock);
         foreach ($users as $user) {
-            $issues = [];
+            $issues = $externalRestrictions[$user->id] ?? [];
             $check = function (bool $ok, string $code, string $message) use (&$issues): void {
                 if (! $ok) {
                     $issues[] = compact('code', 'message');

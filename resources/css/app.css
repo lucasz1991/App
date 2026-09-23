@@ -12,6 +12,7 @@
 @import './operations-planning.css';
 @import './date-field.css';
 @import './multi-toggle.css';
+@import './disposition-workspace.css';
 
 @tailwind base;
 @tailwind components;

@@ -121,6 +121,17 @@ return [
 
     'redis' => [
 
+        'dropbox' => [
+            'url' => env('DROPBOX_REDIS_URL'),
+            'host' => env('DROPBOX_REDIS_HOST', env('REDIS_HOST', '127.0.0.1')),
+            'username' => env('DROPBOX_REDIS_USERNAME', env('REDIS_USERNAME')),
+            'password' => env('DROPBOX_REDIS_PASSWORD', env('REDIS_PASSWORD')),
+            'port' => env('DROPBOX_REDIS_PORT', env('REDIS_PORT', '6379')),
+            'database' => env('DROPBOX_REDIS_DB', '2'),
+            'timeout' => 1,
+            'read_timeout' => 6,
+        ],
+
         'client' => env('REDIS_CLIENT', 'phpredis'),
 
         'options' => [

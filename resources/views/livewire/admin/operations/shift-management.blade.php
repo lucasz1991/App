@@ -1,15 +1,22 @@
-<div class="rt-shift-plan min-w-0 space-y-4" data-operations-shift-management>
-    <header class="rt-calendar-header">
+<div class="rt-disposition rt-disposition--shifts rt-shift-plan min-w-0 space-y-4" data-operations-shift-management>
+    <header class="rt-calendar-header rt-disposition-period">
         <div class="rt-calendar-heading">
-            <div><h2 class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</h2><p class="rt-calendar-timezone">{{ $displayTimezone }}</p></div>
-            <div class="rt-calendar-summary" aria-live="polite"><span><i class="far fa-calendar-days" aria-hidden="true"></i><strong>{{ $shifts->count() }}</strong> {{ $shifts->count() === 1 ? 'Schicht' : 'Schichten' }}</span><span><i class="far fa-user-plus" aria-hidden="true"></i><strong>{{ $openCount }}</strong> offene Plätze</span></div>
+            <div><h2 class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</h2><p class="rt-calendar-timezone">Planungszeitraum · {{ $displayTimezone }}</p></div>
+            <div class="rt-disposition-period__navigation" role="group" aria-label="Planungszeitraum wechseln">
+                <x-ui.buttons.button-basic wire:click="movePeriod(-1)" aria-label="Vorheriger Zeitraum" wire:loading.attr="disabled"><i class="far fa-chevron-left" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                <x-ui.buttons.button-basic wire:click="currentWeek" wire:loading.attr="disabled">Diese Woche</x-ui.buttons.button-basic>
+                <x-ui.buttons.button-basic wire:click="movePeriod(1)" aria-label="Nächster Zeitraum" wire:loading.attr="disabled"><i class="far fa-chevron-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+            </div>
         </div>
         <div class="rt-shift-plan-controls">
-            <div class="rt-shift-plan-range" role="group" aria-label="Planungszeitraum">
+            <details class="rt-disposition-range">
+                <summary><i class="far fa-calendar-range" aria-hidden="true"></i>Zeitraum anpassen</summary>
+                <div class="rt-shift-plan-range" role="group" aria-label="Planungszeitraum">
                 <div><x-ui.forms.label for="shift-range-from" value="Von" /><x-ui.forms.date-field id="shift-range-from" wire:model.live="rangeFrom" :clearable="false" aria-label="Schichten ab" /></div>
                 <span class="rt-shift-plan-range-divider" aria-hidden="true">–</span>
                 <div><x-ui.forms.label for="shift-range-to" value="Bis" /><x-ui.forms.date-field id="shift-range-to" wire:model.live="rangeTo" :clearable="false" aria-label="Schichten bis" /></div>
-            </div>
+                </div>
+            </details>
             <x-ui.buttons.multi-toggle id="shift-plan-view-toggle" label="Schichtplanansicht" :value="$viewMode" action="setView" :options="[
                 ['value'=>'table','label'=>'Tabelle','icon'=>'fa-table-list'],
                 ['value'=>'day','label'=>'Tagesübersicht','icon'=>'fa-calendar-day'],
@@ -19,14 +26,26 @@
             ]" />
         </div>
     </header>
-    @if(\App\Support\Operations\PlanningSchema::ready())<livewire:operations.shift-series-planner />@endif
+    <section class="rt-disposition-summary" aria-label="Aktive Schichten in der aktuellen Auswahl" aria-live="polite">
+        <div class="rt-disposition-summary__item"><span class="rt-disposition-summary__value">{{ $shiftCount }}</span><div><span class="rt-disposition-summary__label">Aktive Schichten</span><span class="rt-disposition-summary__detail">in dieser Auswahl</span></div></div>
+        <div class="rt-disposition-summary__item"><span class="rt-disposition-summary__value">{{ $reservedCount }}<small>/{{ $requiredCount }}</small></span><div><span class="rt-disposition-summary__label">Eingeplante Plätze</span><span class="rt-disposition-summary__detail">inklusive angefragter Personen</span></div></div>
+        <div class="rt-disposition-summary__item" data-tone="success"><span class="rt-disposition-summary__value">{{ $confirmedCount }}</span><div><span class="rt-disposition-summary__label">Bestätigte Plätze</span><span class="rt-disposition-summary__detail">laut Rückmeldestatus</span></div></div>
+        <div class="rt-disposition-summary__item" data-tone="warning"><span class="rt-disposition-summary__value">{{ $openCount }}</span><div><span class="rt-disposition-summary__label">Noch zu besetzen</span><span class="rt-disposition-summary__detail">in aktiven Schichten</span></div></div>
+    </section>
     @if($viewMode !== 'timeline')
     <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :search-in-header="true" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all') + (int) ($attentionFilter !== 'all')">
+        <x-slot:bulk>
+            @if(\App\Support\Operations\PlanningSchema::ready())
+                <div data-tables-bulk><livewire:operations.shift-series-planner /></div>
+            @endif
+        </x-slot:bulk>
         <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" /></x-slot:search>
         <x-tables.filter-field label="Auftrag" for="shift-order-filter"><x-ui.forms.select id="shift-order-filter" wire:model.live="orderFilter" aria-label="Auftrag"><option value="all">Alle Aufträge</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->title }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
         <x-tables.filter-field label="Status" for="shift-status-filter"><x-ui.forms.select id="shift-status-filter" wire:model.live="statusFilter" aria-label="Schichtstatus filtern"><option value="all">Alle Status</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
         @if($nativeOperations)<x-tables.filter-field label="Handlungsbedarf" for="shift-attention"><x-ui.forms.select id="shift-attention" wire:model.live="attentionFilter" aria-label="Handlungsbedarf"><option value="all">Alle Schichten</option><option value="conflicts">Besetzung mit Konflikten</option><option value="unpublished">Unveröffentlichte Änderungen</option><option value="awaiting">Rückmeldung ausstehend</option><option value="declined">Abgelehnte Dienste</option></x-ui.forms.select></x-tables.filter-field>@endif
     </x-tables.toolbar>
+    @elseif(\App\Support\Operations\PlanningSchema::ready())
+        <livewire:operations.shift-series-planner />
     @endif
     @php
         $shiftColumns = [
@@ -37,15 +56,15 @@
             ['label' => 'Planstatus', 'key' => 'status', 'width' => '1fr'],
         ];
     @endphp
-    <div class="space-y-6" data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="setView,search,rangeFrom,rangeTo,orderFilter,statusFilter">
+    <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
         @if($viewMode === 'timeline')
             <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
         @elseif($viewMode === 'table' || $shifts->isEmpty())
-            <x-tables.table :columns="$shiftColumns" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
+            <div class="rt-disposition-table"><x-tables.table :columns="$shiftColumns" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." /></div>
         @else
             @foreach(match($viewMode) { 'day' => $dailyGroups, 'orders' => $orderGroups, default => $staffingGroups } as $groupKey => $group)
                 @if($group['items']->isNotEmpty())
-                    <section class="min-w-0" wire:key="shift-group-{{ $viewMode }}-{{ $groupKey }}" aria-labelledby="shift-group-{{ $viewMode }}-{{ $groupKey }}" data-shift-group="{{ $groupKey }}">
+                    <section class="rt-disposition-panel min-w-0" wire:key="shift-group-{{ $viewMode }}-{{ $groupKey }}" aria-labelledby="shift-group-{{ $viewMode }}-{{ $groupKey }}" data-shift-group="{{ $groupKey }}">
                         <div class="rt-shift-plan-group">
                             <div class="min-w-0">
                                 <h2 id="shift-group-{{ $viewMode }}-{{ $groupKey }}" class="break-words text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $group['label'] }}</h2>
@@ -56,13 +75,21 @@
                                 <p class="w-full text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted">Aktiv: {{ $group['summary']['required'] }} Einsatzplätze · {{ $group['summary']['reserved'] }} eingeplant · {{ $group['summary']['confirmed'] }} bestätigt · {{ $group['summary']['open'] }} offen</p>
                             @endif
                         </div>
-                        <x-tables.table :columns="$shiftColumns" :items="$group['items']" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" />
+                        @if(in_array($viewMode, ['day', 'staffing'], true))
+                            <div class="rt-disposition-shift-list">
+                                @foreach($group['items'] as $shift)
+                                    <x-operations.shift-card :shift="$shift" :timezone="$displayTimezone" :compact="$viewMode === 'staffing'" wire:key="shift-card-{{ $viewMode }}-{{ $groupKey }}-{{ $shift->id }}" />
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="rt-disposition-table"><x-tables.table :columns="$shiftColumns" :items="$group['items']" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" /></div>
+                        @endif
                     </section>
                 @endif
             @endforeach
         @endif
     </div>
-    <x-operations.modal wire:model="detailOpen" title="Schichtdetails" max-width="4xl">
+    <x-operations.modal wire:model="detailOpen" title="Schichtdetails" max-width="4xl" variant="drawer">
         @if($selectedShift)
                     @php
                         $selectedShiftStatus = $selectedShift->status instanceof \BackedEnum ? $selectedShift->status->value : (string) $selectedShift->status;

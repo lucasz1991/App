@@ -5,12 +5,14 @@ namespace App\Models;
 use App\Casts\EncryptedBoolean;
 use App\Casts\EncryptedDate;
 use App\Casts\EncryptedDecimal;
+use App\Models\Concerns\CapturesDropboxChanges;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserProfile extends Model
 {
+    use CapturesDropboxChanges;
     use HasFactory;
 
     /**

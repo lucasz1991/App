@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ShiftStatus;
+use App\Models\Concerns\CapturesDropboxChanges;
 use App\Models\Concerns\HasZonedSchedule;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,11 +17,13 @@ use Illuminate\Support\Str;
 
 class Shift extends Model
 {
+    use CapturesDropboxChanges;
     use HasFactory;
     use HasZonedSchedule;
     use SoftDeletes;
 
     protected $fillable = [
+        'disposition_details',
         'public_id',
         'order_id',
         'title',
@@ -38,6 +41,7 @@ class Shift extends Model
     ];
 
     protected $casts = [
+        'disposition_details' => 'array',
         'required_staff' => 'integer',
         'status' => ShiftStatus::class,
         'revision' => 'integer',

@@ -3,10 +3,12 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 /**
  * Coupled RailTime tabs for Blade + Alpine.
  *
- * Desktop remains click/keyboard driven. Mobile uses one canonical fractional
- * position for both rails. Navigation and panel gestures write that position
- * in the same animation frame, preventing the visual rail, `openTab` and the
- * rendered panel from drifting apart.
+ * Eine kanonische Bruchposition treibt auf jeder Breite Navigationsleiste,
+ * Aktiv-Indikator (Pill + Punkt) und Inhaltsbahn im selben Frame. Gesten auf
+ * Leiste oder Inhalt schreiben dieselbe Position, Klick und Tastatur laufen
+ * ueber dieselbe Settle-Animation - Leiste, Indikator und Inhalt koennen so
+ * nicht auseinanderdriften. Mobil sind alle Zeigerarten erlaubt, auf dem
+ * Desktop nur Touch und Stift (die Maus bleibt klick-/tastaturgesteuert).
  */
 export function railtimeTabs(config = {}) {
     return {
@@ -21,6 +23,7 @@ export function railtimeTabs(config = {}) {
         panelHeight: 0,
         atScrollStart: true,
         atScrollEnd: true,
+        tabsReady: false,
         items: Array.isArray(config.items) ? config.items : [],
         loadedTabs: [],
         loadingTabs: [],
@@ -70,9 +73,13 @@ export function railtimeTabs(config = {}) {
                 this.observePanelSizes();
                 this.observeNavigationSize();
                 this.observePanelChanges();
-                this.renderCoupledPosition(this.panelPosition);
+                this.renderCoupledPosition(this.panelPosition, true);
                 this.updatePanelHeight(false);
                 this.queueAdjacentPreload();
+                window.requestAnimationFrame(() => {
+                    this.renderCoupledPosition(this.panelPosition, true);
+                    this.tabsReady = true;
+                });
             });
         },
 
@@ -211,29 +218,14 @@ export function railtimeTabs(config = {}) {
             const nextIndex = this.items.findIndex((item) => item.id === id);
             if (nextIndex < 0) return;
 
-            if (this.mobileTabs) {
-                this.settleToIndex(nextIndex, {
-                    focusTab,
-                });
-                return;
+            if (focusTab) {
+                // Fokus synchron zur Eingabe setzen: nach einem Klick zeigt der
+                // Browser keinen Fokusring, nach einem Tastendruck schon. Ein
+                // spaeterer, skriptgesteuerter Fokus wuerde diese Kopplung verlieren.
+                this.tabElement(id)?.focus({ preventScroll: true });
             }
 
-            const currentIndex = this.activeIndex();
-            this.tabDirection = nextIndex >= currentIndex ? 'next' : 'previous';
-            this.openTab = id;
-            this.panelPosition = nextIndex;
-            this.scrubbingTabs = false;
-            this.loadTab(id);
-
-            this.$nextTick(() => {
-                this.updatePanelHeight(true);
-                this.animateSelection();
-                this.queueAdjacentPreload();
-
-                if (focusTab) {
-                    this.tabElement(id)?.focus({ preventScroll: true });
-                }
-            });
+            this.settleToIndex(nextIndex);
         },
 
         moveTab(direction) {
@@ -258,17 +250,7 @@ export function railtimeTabs(config = {}) {
 
             this.$nextTick(() => {
                 this.syncPanelOrder();
-
-                if (this.mobileTabs) {
-                    this.renderCoupledPosition(this.panelPosition);
-                } else {
-                    if (this.$refs.carousel) {
-                        this.$refs.carousel.scrollLeft = 0;
-                    }
-                    this.$refs.carouselTrack?.style.removeProperty('transform');
-                    this.$refs.panelTrack?.style.removeProperty('transform');
-                }
-
+                this.renderCoupledPosition(this.panelPosition, true);
                 this.updatePanelHeight(false);
                 this.syncScrollEdges();
             });
@@ -368,9 +350,7 @@ export function railtimeTabs(config = {}) {
         },
 
         applyCoupledTransforms(position) {
-            if (!this.mobileTabs) return;
-
-            // Der gekoppelte Transform ist mobil die einzige Positionsquelle.
+            // Der gekoppelte Transform ist die einzige Positionsquelle.
             // Browser duerfen beim Fokussieren eines teilweise verdeckten
             // Buttons den overflow-hidden Container trotzdem intern scrollen;
             // ein solcher Restwert wuerde jeden mittleren Stopp verschieben.
@@ -388,12 +368,47 @@ export function railtimeTabs(config = {}) {
                 this.$refs.panelTrack.style.transform = `translate3d(${-100 * position}%, 0, 0)`;
             }
 
+            this.renderIndicator(position);
             this.syncScrollEdges(navigationOffset);
         },
 
-        renderCoupledPosition(position, immediate = false) {
-            if (!this.mobileTabs) return;
+        renderIndicator(position) {
+            const tabs = Array.from(this.$refs.carouselTrack?.querySelectorAll('[role=tab]') ?? []);
+            const pill = this.$refs.pill;
+            const dot = this.$refs.dot;
+            if (!tabs.length || !pill || !dot) return;
 
+            const last = tabs.length - 1;
+            const bounded = clamp(position, 0, last);
+            const lower = Math.floor(bounded);
+            const upper = Math.min(last, Math.ceil(bounded));
+            const progress = bounded - lower;
+            const from = tabs[lower];
+            const to = tabs[upper];
+
+            // Pill zwischen den beiden Nachbar-Tabs interpolieren (Lage + Breite).
+            const x = from.offsetLeft + ((to.offsetLeft - from.offsetLeft) * progress);
+            const width = from.offsetWidth + ((to.offsetWidth - from.offsetWidth) * progress);
+            pill.style.transform = `translate3d(${x}px, 0, 0)`;
+            pill.style.width = `${width}px`;
+
+            // Der Aktivpunkt wandert linear mit und dehnt sich auf halbem Weg
+            // zum Strich; am Ziel zieht er sich wieder zum Punkt zusammen.
+            const fromCenter = from.offsetLeft + (from.offsetWidth / 2);
+            const toCenter = to.offsetLeft + (to.offsetWidth / 2);
+            const center = fromCenter + ((toCenter - fromCenter) * progress);
+            const stretch = 4 * progress * (1 - progress);
+            const dotWidth = 4 + (stretch * clamp(Math.abs(toCenter - fromCenter) * 0.45, 12, 64));
+            dot.style.transform = `translate3d(${center - (dotWidth / 2)}px, 0, 0)`;
+            dot.style.width = `${dotWidth}px`;
+
+            // Aktivitaetsgrad je Tab (0…1) fuer die stufenlose Farbmischung im CSS.
+            tabs.forEach((tab, index) => {
+                tab.style.setProperty('--a', Math.max(0, 1 - Math.abs(bounded - index)).toFixed(3));
+            });
+        },
+
+        renderCoupledPosition(position, immediate = false) {
             window.cancelAnimationFrame(this.renderFrame || 0);
             if (immediate) {
                 this.renderFrame = null;
@@ -408,7 +423,7 @@ export function railtimeTabs(config = {}) {
         },
 
         panelViewportStyle() {
-            if (!this.mobileTabs || !this.panelHeight) return '';
+            if (!this.panelHeight) return '';
             return `height: ${this.panelHeight}px;`;
         },
 
@@ -441,8 +456,10 @@ export function railtimeTabs(config = {}) {
         },
 
         beginCoupledDrag(event, source) {
-            if (!this.mobileTabs || !event.isPrimary) return;
-            if (event.pointerType === 'mouse' && event.button !== 0) return;
+            if (!event.isPrimary) return;
+            // Die Maus zieht nur im mobilen Layout; auf dem Desktop bleibt sie
+            // klick-/tastaturgesteuert, Touch und Stift duerfen ueberall ziehen.
+            if (event.pointerType === 'mouse' && (!this.mobileTabs || event.button !== 0)) return;
             if (source === 'content' && this.isInteractiveGestureTarget(event.target)) return;
 
             this.cancelSettleAnimation();
@@ -562,12 +579,12 @@ export function railtimeTabs(config = {}) {
         },
 
         onNavigationWheel(event) {
-            if (!this.mobileTabs) return;
-
             const delta = Math.abs(event.deltaX) >= Math.abs(event.deltaY)
                 ? event.deltaX
                 : (event.shiftKey ? event.deltaY : 0);
             if (!delta) return;
+            // Passt die Leiste komplett ins Fenster, bleibt das Rad der Seite.
+            if (!this.mobileTabs && (this.navigationStops().at(-1) ?? 0) <= 0) return;
 
             event.preventDefault();
             this.cancelSettleAnimation();
@@ -612,7 +629,8 @@ export function railtimeTabs(config = {}) {
             const complete = () => {
                 this.panelPosition = targetIndex;
                 this.renderCoupledPosition(targetIndex, true);
-                this.commitActiveIndex(targetIndex, false);
+                // duringGesture=true: Hoehe und Pop folgen gleich darunter genau einmal.
+                this.commitActiveIndex(targetIndex, true);
                 this.scrubbingTabs = false;
                 this.programmaticNavigation = false;
                 this.updatePanelHeight(true);
@@ -687,8 +705,7 @@ export function railtimeTabs(config = {}) {
             if (!window.ResizeObserver || !this.$refs.carousel || !this.$refs.carouselTrack) return;
 
             this.navigationResizeObserver = new ResizeObserver(() => {
-                if (!this.mobileTabs) return;
-                this.renderCoupledPosition(this.panelPosition);
+                this.renderCoupledPosition(this.panelPosition, true);
             });
             this.navigationResizeObserver.observe(this.$refs.carousel);
             this.navigationResizeObserver.observe(this.$refs.carouselTrack);
@@ -708,30 +725,16 @@ export function railtimeTabs(config = {}) {
         },
 
         animateSelection() {
-            if (!window.gsap || this.reducedMotion()) return;
+            if (this.reducedMotion()) return;
 
-            const active = this.tabElement(this.openTab);
-            const marker = active?.querySelector('[data-rt-tab-active-mark]');
-            if (!active || !marker) return;
+            // Kurzer Pop des Aktivpunkts beim Einrasten (CSS-Keyframes).
+            const core = this.$refs.dot?.firstElementChild;
+            if (!core) return;
 
-            window.gsap.killTweensOf([active, marker]);
-            window.gsap.fromTo(
-                active,
-                { scale: 0.985 },
-                { scale: 1, duration: 0.24, ease: 'power2.out', overwrite: 'auto', clearProps: 'transform' },
-            );
-            window.gsap.fromTo(
-                marker,
-                { scaleY: 0.42, autoAlpha: 0.45 },
-                {
-                    scaleY: 1,
-                    autoAlpha: 1,
-                    duration: 0.34,
-                    ease: 'power3.out',
-                    overwrite: 'auto',
-                    clearProps: 'transform,opacity,visibility',
-                },
-            );
+            core.classList.remove('is-pop');
+            void core.offsetWidth;
+            core.classList.add('is-pop');
+            core.addEventListener('animationend', () => core.classList.remove('is-pop'), { once: true });
         },
 
         animateLoadedPanel(id) {
@@ -781,9 +784,7 @@ export function railtimeTabs(config = {}) {
             this.panelMutationObserver?.disconnect();
 
             if (window.gsap) {
-                window.gsap.killTweensOf(
-                    this.$root.querySelectorAll('.rt-carousel-tab, [data-rt-tab-active-mark], [data-rt-tab-content]'),
-                );
+                window.gsap.killTweensOf(this.$root.querySelectorAll('[data-rt-tab-content]'));
             }
         },
     };

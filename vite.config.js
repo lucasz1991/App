@@ -4,8 +4,8 @@ import laravel from 'laravel-vite-plugin';
 export default defineConfig({
     server: {
         watch: {
-            // Native OpenUEM sources are not part of the RailTime frontend.
-            ignored: ['**/services/openuem-fork/**'],
+            // Runtime caches/logs change on requests and must never trigger HMR.
+            ignored: ['**/storage/**', '**/bootstrap/cache/**', '**/services/openuem-fork/**'],
         },
     },
     build: {

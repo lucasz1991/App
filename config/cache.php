@@ -33,6 +33,12 @@ return [
 
     'stores' => [
 
+        'dropbox' => [
+            'driver' => 'redis',
+            'connection' => 'dropbox',
+            'lock_connection' => 'dropbox',
+        ],
+
         'apc' => [
             'driver' => 'apc',
         ],

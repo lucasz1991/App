@@ -27,6 +27,13 @@ Homestead.json
 /tests/*
 !/tests/Feature/
 /tests/Feature/*
+!/tests/Feature/DropboxSyncTest.php
+!/tests/Feature/LocalExcelImportTest.php
+!/tests/Feature/ImportedOrderStatusTest.php
+!/tests/TestCase.php
+!/tests/Support/
+/tests/Support/*
+!/tests/Support/FakeDropboxClient.php
 !/tests/Feature/WorkplaceSupportTest.php
 !/tests/Feature/EmployeeWorkplaceProvisionTest.php
 !/tests/Feature/ItSupportTest.php

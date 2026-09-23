@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\DropboxOAuthController;
+use App\Http\Controllers\DropboxWebhookController;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
 use Illuminate\Http\Request;
@@ -110,6 +112,14 @@ class RouteServiceProvider extends ServiceProvider
         });
 
         $this->routes(function () {
+            Route::match(['GET', 'POST'], '/api/webhooks/dropbox', DropboxWebhookController::class)
+                ->middleware('throttle:600,1')->name('dropbox.webhook');
+
+            Route::middleware(['web', 'auth', 'verified'])->group(function () {
+                Route::get('/admin/settings/dropbox/connect', [DropboxOAuthController::class, 'connect'])->name('dropbox.connect');
+                Route::get('/admin/settings/dropbox/callback', [DropboxOAuthController::class, 'callback'])->name('dropbox.callback');
+            });
+
             Route::middleware('api')
                 ->prefix('api')
                 ->group(base_path('routes/api.php'));

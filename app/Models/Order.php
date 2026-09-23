@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\OrderPriority;
 use App\Enums\OrderStatus;
+use App\Models\Concerns\CapturesDropboxChanges;
 use App\Models\Concerns\HasZonedSchedule;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,6 +18,7 @@ use Illuminate\Support\Str;
 
 class Order extends Model
 {
+    use CapturesDropboxChanges;
     use HasFactory;
     use HasZonedSchedule;
     use SoftDeletes;

@@ -1,5 +1,5 @@
 @section('title', $modules[$module]['title'])
-<x-ui.page :title="$modules[$module]['title']" :auto-intro="false" content-class="rt-ops ops-stack">
+<x-ui.page :title="$modules[$module]['title']" :auto-intro="false" content-class="rt-ops ops-stack" :class="in_array($module, ['inquiries', 'orders', 'shift-management', 'calendar'], true) ? 'rt-disposition-page' : ''">
     <x-slot:actions><x-operations.create-action :module="$module" /></x-slot:actions>
     <x-operations.navigation :modules="$modules" :current="$module" />
     @if($module === 'inquiries')<livewire:operations.inquiry-inbox />

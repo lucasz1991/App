@@ -1,4 +1,4 @@
-@props(['id', 'maxWidth'])
+@props(['id', 'maxWidth', 'placement' => 'center'])
 
 @php
 $id = $id ?? md5($attributes->wire('model'));
@@ -17,6 +17,7 @@ $dialogRole = $attributes->get('role', 'dialog');
 $labelledBy = $attributes->get('aria-labelledby');
 $describedBy = $attributes->get('aria-describedby');
 $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
+$isDrawer = $placement === 'right';
 @endphp
 
 <div
@@ -31,7 +32,7 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
             x-on:close.stop="show = false"
             x-trap.inert.noscroll="show"
             id="{{ $id }}"
-            class="rt-ui-modal rt-modal-shell rt-modal-center-shell jetstream-modal fixed inset-0 z-[190] overflow-x-hidden overflow-y-auto overscroll-contain p-3 sm:p-6"
+            class="rt-ui-modal rt-modal-shell {{ $isDrawer ? 'rt-disposition-drawer' : 'rt-modal-center-shell' }} jetstream-modal fixed inset-0 z-[190] overflow-x-hidden overflow-y-auto overscroll-contain p-3 sm:p-6"
             style="display: none;"
             data-rt-modal-shell
             data-rt-overlay-layer
@@ -57,7 +58,7 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
                             @if (filled($describedBy))
                                 aria-describedby="{{ $describedBy }}"
                             @endif
-                            class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative my-auto flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidth }}"
+                            class="rt-ui-surface rt-ui-modal-panel rt-modal-frame {{ $isDrawer ? 'rt-disposition-drawer__panel' : '' }} relative my-auto flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidth }}"
                             x-transition:enter="rt-motion-modal-enter"
                             x-transition:enter-start="rt-motion-modal-enter-from"
                             x-transition:enter-end="rt-motion-modal-enter-to"
