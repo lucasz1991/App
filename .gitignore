@@ -132,6 +132,10 @@ Homestead.json
 !/tests/Frontend/outlook-compose-template.test.js
 !/tests/Frontend/outlook-mailbox-guard.test.js
 !/tests/Frontend/outlook-write-diagnostics.test.js
+!/tests/Frontend/outlook-runtime-startup.test.js
+!/tests/Unit/
+/tests/Unit/*
+!/tests/Unit/OutlookAddinMobileManifestTest.php
 !/tests/Frontend/mail-train-runtime.test.js
 !/tests/Frontend/mail-text-eml-hardening.test.js
 !/tests/Frontend/mail-compatibility.test.js

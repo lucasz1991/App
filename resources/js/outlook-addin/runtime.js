@@ -589,16 +589,22 @@ async function handleComposeEvent(event) {
     }
 }
 
+let associatedActions;
 function associateHandlers() {
-    if (!globalThis.Office?.actions?.associate) {
-        console.info(`${LOG_PREFIX} Office.actions is unavailable.`);
-        return;
-    }
+    const actions = globalThis.Office?.actions;
+    if (typeof actions?.associate !== 'function' || actions === associatedActions) return;
 
-    Office.actions.associate('onMessageComposeHandler', handleComposeEvent);
-    Office.actions.associate('onNewMessageComposeHandler', handleComposeEvent);
+    actions.associate('onMessageComposeHandler', handleComposeEvent);
+    actions.associate('onNewMessageComposeHandler', handleComposeEvent);
+    associatedActions = actions;
 }
 
-// Initializes Office.js on Outlook on the web while handler registration stays synchronous.
-Office.onReady(() => {});
+// Mobile HTML runtimes can resolve the manifest's FunctionName on window.
+// Vite's IIFE otherwise hides it, even though the script loaded successfully.
+// Keep the Office action mapping too: the Windows JS-only runtime requires it.
+globalThis.onMessageComposeHandler = handleComposeEvent;
+globalThis.onNewMessageComposeHandler = handleComposeEvent;
 associateHandlers();
+// Do not postpone the first registration until onReady (JS-only activation).
+// Retry only the mapping if an HTML host exposes Office.actions later.
+Office.onReady(associateHandlers);

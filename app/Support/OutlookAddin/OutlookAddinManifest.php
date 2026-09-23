@@ -12,7 +12,7 @@ use DOMDocument;
  */
 final class OutlookAddinManifest
 {
-    public const ADDIN_VERSION = '1.0.0.0';
+    public const ADDIN_VERSION = '1.0.1.0';
 
     public const MANIFEST_SCHEMA = '1.1';
 
@@ -142,7 +142,7 @@ final class OutlookAddinManifest
 
         return [
             'taskpane' => $baseUrl.'/outlook-addin/taskpane',
-            'runtime' => $baseUrl.'/outlook-addin/runtime',
+            'runtime' => $baseUrl.'/outlook-addin/runtime?revision='.self::ADDIN_VERSION,
             'runtime_js' => $baseUrl.'/outlook-addin/runtime.js',
             'icon_16' => $baseUrl.'/outlook-addin/assets/icon-16.png',
             'icon_32' => $baseUrl.'/outlook-addin/assets/icon-32.png',
@@ -175,6 +175,7 @@ final class OutlookAddinManifest
         $id = $this->xml($this->addinId());
         $urls = array_map($this->xml(...), $this->urls());
         $appDomain = $this->xml($this->appDomain());
+        $version = self::ADDIN_VERSION;
 
         $xml = <<<XML
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -184,7 +185,7 @@ final class OutlookAddinManifest
            xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
            xsi:type="MailApp">
   <Id>{$id}</Id>
-  <Version>1.0.0.0</Version>
+  <Version>{$version}</Version>
   <ProviderName>RT Rail Time GmbH</ProviderName>
   <DefaultLocale>de-DE</DefaultLocale>
   <DisplayName DefaultValue="RailTime Outlook"/>

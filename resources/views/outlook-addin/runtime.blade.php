@@ -10,7 +10,7 @@
     <meta name="railtime-outlook-config-url" content="{{ $resolvedConfigUrl }}">
     <title>RailTime Outlook Runtime</title>
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js" type="text/javascript"></script>
-    <script src="{{ $resolvedScriptUrl }}" type="text/javascript" defer></script>
+    <script src="{{ $resolvedScriptUrl }}" type="text/javascript"></script>
 </head>
 <body data-outlook-config-url="{{ $resolvedConfigUrl }}" hidden>
     <p>RailTime Outlook Runtime</p>

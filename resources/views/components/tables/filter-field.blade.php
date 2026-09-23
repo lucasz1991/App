@@ -2,13 +2,14 @@
     'label',
     'icon' => null,
     'for' => null,
+    'labelHidden' => false,
 ])
 
 <div {{ $attributes->class(['rt-filter-field min-w-0']) }}>
     @if (filled($for))
-        <label class="rt-filter-field__label" for="{{ $for }}">
+        <label class="rt-filter-field__label {{ $labelHidden ? 'sr-only' : '' }}" for="{{ $for }}">
     @else
-        <span class="rt-filter-field__label">
+        <span class="rt-filter-field__label {{ $labelHidden ? 'sr-only' : '' }}">
     @endif
         @if ($icon)
             <i class="{{ $icon }}" aria-hidden="true"></i>

@@ -671,6 +671,13 @@ test('native timeout never retries; late success establishes the duplicate guard
 
 async function runtimeFixture(options = {}) {
     const fixture = composeFixture(options);
+    fixture.associations = new Map();
+    fixture.ready = null;
+    fixture.office.onReady = (callback) => { fixture.ready = callback; };
+    fixture.office.actions = options.delayedActions ? undefined : {
+        associate(name, handler) { fixture.associations.set(name, handler); },
+    };
+    fixture.runtimeGlobal = { Office: fixture.office, RAILTIME_OUTLOOK_CONFIG_URL: 'https://example.test/config.json' };
     const marker = 'RT-SIGNATURE-MANAGED-V1';
     const media = [{ name: 'railtime-test.png', contentId: 'logo', base64: 'aW1hZ2U=' }];
     const bootstrap = {
@@ -706,7 +713,7 @@ async function runtimeFixture(options = {}) {
     let failedBootstrap = false;
     fixture.handler = createHandler(
         fixture.office,
-        { Office: fixture.office, RAILTIME_OUTLOOK_CONFIG_URL: 'https://example.test/config.json' },
+        fixture.runtimeGlobal,
         async (url, request) => {
             if (!url.includes('config.json')) {
                 assert.equal(request.headers['X-RailTime-Compose-Contract'], 'native-signature-v1');
@@ -723,6 +730,31 @@ async function runtimeFixture(options = {}) {
     );
     return fixture;
 }
+
+test('mobile HTML runtime exposes the exact manifest entry point before Office is ready', async () => {
+    for (const platform of ['iOS', 'Android']) {
+        const fixture = await runtimeFixture({ platform, delayedActions: true });
+        assert.equal(fixture.runtimeGlobal.onNewMessageComposeHandler, fixture.handler);
+        await fixture.runtimeGlobal.onNewMessageComposeHandler(fixture.event);
+        assert.equal(fixture.state.signatures.length, 1);
+        assert.equal(fixture.state.prepends.length, 0);
+        assert.equal(fixture.state.completed, 1);
+    }
+});
+
+test('event registration supports synchronous desktop activation and delayed Office actions', async () => {
+    for (const delayedActions of [false, true]) {
+        const fixture = await runtimeFixture({ delayedActions });
+        if (!delayedActions) assert.equal(fixture.associations.get('onNewMessageComposeHandler'), fixture.handler);
+        if (delayedActions) fixture.office.actions = {
+            associate(name, handler) { fixture.associations.set(name, handler); },
+        };
+        fixture.ready();
+        assert.equal(fixture.associations.get('onNewMessageComposeHandler'), fixture.handler);
+        assert.equal(fixture.associations.get('onMessageComposeHandler'), fixture.handler);
+        assert.equal(fixture.state.mutations.length, 0, 'registration alone must not write an email');
+    }
+});
 
 test('automatic runtime preserves scoped background CSS and GIF bytes at the Office signature boundary', async () => {
     for (const withoutDefault of [false, true]) {

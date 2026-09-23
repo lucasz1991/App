@@ -1,4 +1,16 @@
 <div class="rt-disposition rt-disposition--orders space-y-6" data-operations-orders>
+    @php
+        $statusFilterIcons = [
+            'all' => 'far fa-list text-rt-muted dark:text-rt-dark-muted',
+            'requested' => 'far fa-inbox text-amber-600 dark:text-amber-400',
+            'confirmed' => 'far fa-check-circle text-emerald-600 dark:text-emerald-400',
+            'planned' => 'far fa-calendar-check text-amber-600 dark:text-amber-400',
+            'in_progress' => 'far fa-spinner text-sky-600 dark:text-sky-400',
+            'completed' => 'far fa-check-double text-emerald-600 dark:text-emerald-400',
+            'invoiced' => 'far fa-file-invoice text-emerald-600 dark:text-emerald-400',
+            'cancelled' => 'far fa-ban text-slate-500 dark:text-slate-400',
+        ];
+    @endphp
     <template x-teleport="[data-page-header-metrics]">
         <section class="rt-disposition-summary" aria-label="Leistungen im gesamten Bestand">
             <div class="rt-disposition-summary__item">
@@ -23,7 +35,7 @@
         <section class="rt-disposition-panel" aria-label="{{ __('pagination.orders_list') }}">
         <x-tables.toolbar title="Leistungen filtern" id="operations-orders-filters" :search-in-header="true" :filter-count="(int) ($statusFilter !== 'all') + (int) (trim($search) !== '')" reset-action="resetFilters">
             <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Leistungen suchen" aria-label="Leistungen suchen" /></x-slot:search>
-            <x-tables.filter-field label="Leistungsstatus" for="order-status-filter"><x-ui.forms.select id="order-status-filter" wire:model.live="statusFilter" aria-label="Leistungsstatus"><option value="all">Alle Leistungen</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
+            <x-tables.filter-field label="Leistungsstatus" for="order-status-filter" label-hidden><x-ui.forms.select id="order-status-filter" wire:model.live="statusFilter" aria-label="Leistungsstatus"><option value="all" data-icon-class="{{ $statusFilterIcons['all'] }}">Alle Leistungen</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}" data-icon-class="{{ $statusFilterIcons[$option['value']] ?? 'far fa-circle text-rt-muted dark:text-rt-dark-muted' }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
         </x-tables.toolbar>
         <div wire:loading.class="opacity-60" wire:target="tableSort,search,statusFilter,resetFilters,gotoPage,nextPage,previousPage">
             <x-tables.table :columns="[['label'=>'Leistung / Kunde', 'key'=>'title', 'width'=>'minmax(0, 1.7fr)','sortable'=>true], ['label'=>'Zeitraum / Ort', 'key'=>'period', 'width'=>'minmax(0, 1.2fr)','sortable'=>true], ['label'=>'Auftragsbedarf', 'key'=>'staff', 'width'=>'minmax(0, 1fr)','sortable'=>true], ['label'=>'Status', 'key'=>'status', 'width'=>'minmax(0, .85fr)','sortable'=>true]]" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="orders" :flush-top="true" :items="$orders" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" row-view="components.tables.rows.operations.order" actions-view="components.tables.rows.operations.order-actions" empty="Keine Leistungen für diese Auswahl gefunden." />
