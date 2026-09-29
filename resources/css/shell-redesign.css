@@ -547,6 +547,11 @@ body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'] .rt-e
 }
 
 .rt-sidebar-footer {
+    /* Sticky positioning: Footer bleibt beim Scrollen des Inhalts
+       am unteren Rand sichtbar, unabhängig von Bildschirmgröße. */
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
     display: flex;
     flex: 0 0 auto;
     flex-wrap: wrap;
@@ -555,6 +560,9 @@ body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'] .rt-e
     gap: 8px;
     padding: 12px 8px calc(12px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--rt-shell-line);
+    /* Hintergrund passend zum unteren Ende der Sidebar-Gradient,
+       damit der Footer nahtlos integriert ist. */
+    background: var(--rt-shell-canvas);
 }
 
 .rt-sidebar-footer__button {
