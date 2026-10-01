@@ -31,6 +31,9 @@ class StaffTimeline extends Component
     public bool $absencesOnly = false;
 
     #[Locked]
+    public bool $searchInHeader = false;
+
+    #[Locked]
     public string $absenceKind = 'all';
 
     #[Locked]

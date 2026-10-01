@@ -111,6 +111,23 @@ class ShiftManagement extends Component
         $this->rangeTo = $today->copy()->endOfWeek()->toDateString();
     }
 
+    public function applyPeriod(string $from, string $until): void
+    {
+        $this->ensureAdmin();
+        $validated = validator(['rangeFrom' => $from, 'rangeTo' => $until], [
+            'rangeFrom' => ['required', 'date_format:Y-m-d'],
+            'rangeTo' => ['required', 'date_format:Y-m-d', 'after_or_equal:rangeFrom'],
+        ])->validate();
+        $start = CarbonImmutable::createFromFormat('!Y-m-d', $validated['rangeFrom']);
+        $end = CarbonImmutable::createFromFormat('!Y-m-d', $validated['rangeTo']);
+        if ($start->diffInDays($end) > 93) {
+            throw ValidationException::withMessages(['rangeTo' => 'Bitte höchstens 94 Tage auswählen.']);
+        }
+        $this->rangeFrom = $validated['rangeFrom'];
+        $this->rangeTo = $validated['rangeTo'];
+        $this->resetValidation(['rangeFrom', 'rangeTo']);
+    }
+
     #[On('operations-plan-changed')]
     public function refreshPlan(): void
     {

@@ -1,5 +1,13 @@
 <section class="rt-staff-timeline-layout min-w-0" aria-label="Mitarbeiter-Zeitleiste">
-@if(!$absencesOnly)<x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />@endif
+@if(!$absencesOnly)
+    @if($searchInHeader)
+        <template x-teleport="[data-shift-plan-timeline-search]">
+            <x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" aria-label="Mitarbeiter suchen" />
+        </template>
+    @else
+        <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
+    @endif
+@endif
 <div class="rt-personnel-timeline" style="--timeline-days:{{ $days->count() }}" x-data="{
     gutterObserver: null,
     init() {

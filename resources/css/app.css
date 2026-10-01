@@ -11,6 +11,7 @@
 @import './operations-calendar.css';
 @import './operations-planning.css';
 @import './date-field.css';
+@import './date-range-picker.css';
 @import './multi-toggle.css';
 @import './disposition-workspace.css';
 @import './table-records.css';

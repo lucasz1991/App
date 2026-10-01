@@ -80,8 +80,34 @@ class DispositionDateControlsTest extends TestCase
         $this->assertStringNotContainsString('<details class="rt-disposition-range">', $source);
         $this->assertStringContainsString('<template x-teleport="[data-page-header-actions]">', $source);
         $this->assertStringContainsString('<livewire:operations.shift-series-planner :show-trigger="false" />', $source);
-        $this->assertStringContainsString(':keep-dropdown-open="true"', $source);
-        $this->assertSame(2, substr_count($source, 'x-ui.forms.date-field id="shift-range-'));
+        $this->assertStringContainsString('x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod"', $source);
+        $this->assertStringNotContainsString('wire:click="currentWeek"', $source);
+        $this->assertStringNotContainsString('wire:click="movePeriod(', $source);
+    }
+
+    public function test_planning_range_is_applied_together_and_invalid_input_keeps_the_previous_range(): void
+    {
+        $this->buildMinimalRailTimeSchema();
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $component = Livewire::actingAs($admin)->test(ShiftManagement::class)
+            ->call('applyPeriod', '2026-09-28', '2026-10-04')
+            ->assertHasNoErrors()->assertSet('rangeFrom', '2026-09-28')->assertSet('rangeTo', '2026-10-04');
+
+        foreach ([['2026-02-30', '2026-03-01', 'rangeFrom'], ['2026-10-04', '2026-09-28', 'rangeTo'], ['2026-01-01', '2026-04-05', 'rangeTo']] as [$from, $until, $error]) {
+            $component->call('applyPeriod', $from, $until)->assertHasErrors($error)
+                ->assertSet('rangeFrom', '2026-09-28')->assertSet('rangeTo', '2026-10-04');
+        }
+        $component->call('applyPeriod', '2026-10-01', '2026-10-01')->assertHasNoErrors()
+            ->assertSet('rangeFrom', '2026-10-01')->assertSet('rangeTo', '2026-10-01');
+    }
+
+    public function test_range_picker_supports_a_plain_reusable_contract_without_livewire(): void
+    {
+        $html = html_entity_decode(Blade::render('<x-ui.forms.date-range-picker from="2026-09-28" until="2026-10-04" :max-days="94" />'), ENT_QUOTES);
+        $this->assertStringContainsString('rtDateRangePicker', $html);
+        $this->assertStringContainsString('data-range-calendar="0"', $html);
+        $this->assertStringContainsString('data-range-calendar="1"', $html);
+        $this->assertStringNotContainsString('$wire.', $html);
     }
 
     public function test_shared_date_field_can_keep_an_anchored_parent_open_while_using_its_calendar(): void

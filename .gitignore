@@ -116,6 +116,7 @@ Homestead.json
 !/tests/Frontend/call-recording-gate.test.js
 !/tests/Frontend/call-self-preview.test.js
 !/tests/Frontend/auth-login-ui.test.js
+!/tests/Frontend/date-range-picker.test.js
 !/tests/Frontend/chat-message-actions.test.js
 !/tests/Frontend/live-location.test.js
 !/tests/Frontend/welcome-intro.test.js

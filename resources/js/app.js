@@ -30,6 +30,7 @@ import {
 } from './microphone-stream';
 import { numberInput } from './number-input';
 import { dateField } from './date-field';
+import { dateRangePicker } from './date-range-picker';
 import { dateTimeField } from './date-time-field';
 import { createWagonListMotion } from './wagon-list-motion';
 import {
@@ -675,6 +676,7 @@ Alpine.data('wagonListPrototype', wagonListPrototype);
 Alpine.data('wagonVideoCapture', wagonVideoCapture);
 Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtDateField', dateField);
+Alpine.data('rtDateRangePicker', dateRangePicker);
 Alpine.data('rtDateTimeField', dateTimeField);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);

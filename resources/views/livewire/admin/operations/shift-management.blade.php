@@ -2,7 +2,7 @@
     <template x-teleport="[data-page-header-search]">
         <div class="rt-shift-plan-header-controls" data-shift-plan-header-controls>
             <div class="rt-shift-plan-period-controls">
-                <x-ui.dropdown.anchor-dropdown align="left" width="96" offset="6" dropdown-id="shift-plan-period-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Planungszeitraum anpassen" content-classes="p-3 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
+                <x-ui.dropdown.anchor-dropdown align="left" width="auto" offset="6" dropdown-id="shift-plan-period-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Planungszeitraum anpassen" dropdown-classes="rt-shift-plan-range-dropdown" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                     <x-slot:trigger>
                         <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-period-trigger" aria-label="Planungszeitraum auswählen">
                             <i class="far fa-calendar-range" aria-hidden="true"></i>
@@ -11,18 +11,9 @@
                         </x-ui.buttons.button-basic>
                     </x-slot:trigger>
                     <x-slot:content>
-                        <div class="rt-shift-plan-range" role="group" aria-label="Planungszeitraum">
-                            <div class="rt-shift-plan-date-field" data-rt-dropdown-keep-open><x-ui.forms.label for="shift-range-from" value="Von" /><x-ui.forms.date-field id="shift-range-from" wire:model.live="rangeFrom" :clearable="false" :keep-dropdown-open="true" aria-label="Schichten ab" /></div>
-                            <span class="rt-shift-plan-range-divider" aria-hidden="true">–</span>
-                            <div class="rt-shift-plan-date-field" data-rt-dropdown-keep-open><x-ui.forms.label for="shift-range-to" value="Bis" /><x-ui.forms.date-field id="shift-range-to" wire:model.live="rangeTo" :clearable="false" :keep-dropdown-open="true" aria-label="Schichten bis" /></div>
-                        </div>
+                        <x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod" :max-days="94" :reset-on-open="true" x-on:date-range-applied="close(true)" x-on:date-range-cancel="close(true)" />
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>
-                <div class="rt-disposition-period__navigation" role="group" aria-label="Planungszeitraum wechseln">
-                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-week-button rt-shift-plan-week-button--icon" wire:click="movePeriod(-1)" aria-label="Vorheriger Zeitraum" title="Vorheriger Zeitraum" wire:loading.attr="disabled"><i class="far fa-chevron-left" aria-hidden="true"></i></x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-week-button" wire:click="currentWeek" wire:loading.attr="disabled">Diese Woche</x-ui.buttons.button-basic>
-                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-week-button rt-shift-plan-week-button--icon" wire:click="movePeriod(1)" aria-label="Nächster Zeitraum" title="Nächster Zeitraum" wire:loading.attr="disabled"><i class="far fa-chevron-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
-                </div>
             </div>
             <x-ui.dropdown.anchor-dropdown align="left" width="56" offset="6" dropdown-id="shift-plan-view-{{ $this->getId() }}" layer-group="operations-shift-plan" content-label="Schichtplanansicht auswählen" content-classes="p-1.5 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                 <x-slot:trigger>
@@ -43,9 +34,11 @@
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
             @if($viewMode !== 'timeline')
-                <div class="rt-shift-plan-header-search" data-page-list-search>
+                <div class="rt-shift-plan-header-search" data-page-list-search wire:key="shift-plan-list-search">
                     <x-tables.search-field context="page" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" />
                 </div>
+            @elseif($nativeOperations)
+                <div class="rt-shift-plan-header-search" data-shift-plan-timeline-search wire:key="shift-plan-timeline-search" wire:ignore></div>
             @endif
         </div>
     </template>
@@ -87,7 +80,7 @@
     <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="tableSort,setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
         @if($viewMode === 'timeline')
             @if($nativeOperations)
-                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
+                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :search-in-header="true" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
             @else
                 <div class="rt-shift-plan-unavailable" role="status"><i class="far fa-clock" aria-hidden="true"></i><span>Die Zeitleiste ist verfügbar, sobald der Mitarbeiter- und Abwesenheitsbereich eingerichtet ist.</span></div>
             @endif
