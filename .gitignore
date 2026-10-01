@@ -32,6 +32,7 @@ Homestead.json
 !/tests/Feature/ImportedOrderStatusTest.php
 !/tests/Feature/DispositionTableSortingTest.php
 !/tests/Feature/SharedTableSortingUiTest.php
+!/tests/Feature/MobileSidebarSwipeUiTest.php
 !/tests/TestCase.php
 !/tests/Support/
 /tests/Support/*
@@ -113,6 +114,7 @@ Homestead.json
 !/tests/Unit/Support/Mail/EmailEditingPolicyTest.php
 !/tests/Frontend/
 /tests/Frontend/*
+!/tests/Frontend/mobile-sidebar-swipe.test.js
 !/tests/Frontend/call-recording-gate.test.js
 !/tests/Frontend/call-self-preview.test.js
 !/tests/Frontend/auth-login-ui.test.js

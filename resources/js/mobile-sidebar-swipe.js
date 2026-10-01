@@ -13,6 +13,24 @@ export const MOBILE_SIDEBAR_SWIPE_EXCLUSION_SELECTOR = [
     '[data-no-sidebar-swipe]',
 ].join(', ');
 
+// Nur einmal am Gestenstart pruefen, nicht bei jedem Touchmove. Der komplette
+// Scrollcontainer besitzt seine Geste, auch wenn er bereits am Anschlag steht.
+export function isMobileSidebarSwipeExcluded(target) {
+    if (!target || target.closest(MOBILE_SIDEBAR_SWIPE_EXCLUSION_SELECTOR)) {
+        return true;
+    }
+
+    const view = target.ownerDocument.defaultView;
+    for (let element = target; element && element !== target.ownerDocument.body; element = element.parentElement) {
+        if (element.scrollWidth > element.clientWidth + 1
+            && /^(auto|scroll|overlay)$/.test(view.getComputedStyle(element).overflowX)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 export function mobileSidebarSwipeThreshold(viewportWidth) {
     const width = Number(viewportWidth);
 
@@ -35,10 +53,8 @@ export function mobileSidebarWidth(viewportWidth) {
     return Math.min(width * 0.86, 300);
 }
 
-// Ab dieser Randnaehe darf eine Oeffnen-Geste die Sidebar direkt am Finger
-// fuehren. Weiter innen bleibt die klassische Schwellen-Geste aktiv, damit
-// horizontale Scrollflaechen (Tabellen) nicht faelschlich die Navigation
-// anziehen.
+// Beide Erkennungspfade (Fingerfuehrung und Loslassen) duerfen die Sidebar
+// ausschliesslich vom linken Bildschirmrand aus oeffnen.
 export const MOBILE_SIDEBAR_EDGE_ZONE_PX = 28;
 
 /**
@@ -66,6 +82,8 @@ export function beginSidebarDrag({
         || width >= MOBILE_SIDEBAR_BREAKPOINT
         || !Number.isFinite(x)
         || !Number.isFinite(y)
+        || x < 0
+        || x > width
     ) {
         return null;
     }
@@ -182,6 +200,11 @@ export function resolveMobileSidebarSwipe({
     }
 
     const [resolvedStartX, resolvedStartY, resolvedEndX, resolvedEndY] = coordinates;
+    if (resolvedStartX < 0 || resolvedStartX > width
+        || (!sidebarOpen && resolvedStartX > MOBILE_SIDEBAR_EDGE_ZONE_PX)) {
+        return null;
+    }
+
     const deltaX = resolvedEndX - resolvedStartX;
     const deltaY = resolvedEndY - resolvedStartY;
     const threshold = mobileSidebarSwipeThreshold(width);

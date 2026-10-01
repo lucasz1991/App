@@ -43,7 +43,7 @@ import { createNotificationPresentationContext } from './notification-presentati
 import { incomingNotificationSound } from './realtime-notification-sound';
 import {
     MOBILE_SIDEBAR_BREAKPOINT,
-    MOBILE_SIDEBAR_SWIPE_EXCLUSION_SELECTOR,
+    isMobileSidebarSwipeExcluded,
     advanceSidebarDrag,
     beginSidebarDrag,
     resolveMobileSidebarSwipe,
@@ -2964,32 +2964,34 @@ function initMobileSidebarSwipe() {
         clearSidebarDragPresentation();
     };
 
+    const cancelSidebarSwipe = () => {
+        // Der Body behaelt waehrend des Ziehens seinen bisherigen Zustand.
+        // Nur die Praesentation loesen, nie einen inzwischen geaenderten
+        // Zustand (Menuebutton, Navigation oder Desktopwechsel) ueberschreiben.
+        sidebarSwipeStart = null;
+        clearSidebarDragPresentation();
+    };
+
+    const sidebarGestureIsCurrent = () => sidebarSwipeStart
+        && window.innerWidth < MOBILE_SIDEBAR_BREAKPOINT
+        && document.getElementById('app-sidebar')?.isConnected === true
+        && document.body.classList.contains('sidebar-enable') === sidebarSwipeStart.sidebarOpen;
+
     document.addEventListener('touchstart', (event) => {
+        cancelSidebarSwipe();
         if (
             window.innerWidth >= MOBILE_SIDEBAR_BREAKPOINT
+            || event.defaultPrevented
             || event.touches.length !== 1
             || document.getElementById('app-sidebar')?.isConnected !== true
         ) {
-            sidebarSwipeStart = null;
-            sidebarDragState = null;
             return;
         }
 
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || target.closest(MOBILE_SIDEBAR_SWIPE_EXCLUSION_SELECTOR)) {
-            sidebarSwipeStart = null;
-            sidebarDragState = null;
-            return;
-        }
-
         const touch = event.touches[0];
         const sidebarOpen = document.body.classList.contains('sidebar-enable');
 
-        sidebarSwipeStart = {
-            x: touch.clientX,
-            y: touch.clientY,
-            sidebarOpen,
-        };
         sidebarDragState = beginSidebarDrag({
             startX: touch.clientX,
             startY: touch.clientY,
@@ -2997,10 +2999,30 @@ function initMobileSidebarSwipe() {
             viewportWidth: window.innerWidth,
             timestamp: event.timeStamp,
         });
+
+        if (!sidebarDragState || isMobileSidebarSwipeExcluded(target)) {
+            cancelSidebarSwipe();
+            return;
+        }
+
+        sidebarSwipeStart = {
+            x: touch.clientX,
+            y: touch.clientY,
+            identifier: touch.identifier,
+            target,
+            sidebarOpen,
+        };
     }, { passive: true });
 
     document.addEventListener('touchmove', (event) => {
-        if (!sidebarDragState || event.touches.length !== 1) {
+        if (!sidebarDragState) {
+            return;
+        }
+
+        if (!sidebarGestureIsCurrent() || event.touches.length !== 1
+            || event.touches[0].identifier !== sidebarSwipeStart.identifier
+            || event.defaultPrevented || (!sidebarDragState.claimed && !event.cancelable)) {
+            cancelSidebarSwipe();
             return;
         }
 
@@ -3012,9 +3034,7 @@ function initMobileSidebarSwipe() {
         });
 
         if (!sidebarDragState || sidebarDragState.rejected) {
-            if (sidebarDragPainted) {
-                clearSidebarDragPresentation();
-            }
+            cancelSidebarSwipe();
             return;
         }
 
@@ -3039,6 +3059,14 @@ function initMobileSidebarSwipe() {
     }, { passive: false });
 
     document.addEventListener('touchend', (event) => {
+        if (!sidebarGestureIsCurrent() || event.touches.length !== 0
+            || event.changedTouches.length !== 1
+            || event.changedTouches[0].identifier !== sidebarSwipeStart.identifier
+            || event.defaultPrevented) {
+            cancelSidebarSwipe();
+            return;
+        }
+
         if (sidebarDragPainted && sidebarDragState?.claimed) {
             const action = settleSidebarDrag(sidebarDragState);
 
@@ -3090,15 +3118,18 @@ function initMobileSidebarSwipe() {
     }, { passive: false });
 
     document.addEventListener('touchcancel', () => {
-        // Abbruch: zurueck in den Ausgangszustand der Geste federn.
-        if (sidebarDragPainted && sidebarDragState) {
-            settleSidebarTo(sidebarDragState.sidebarOpen);
-        } else {
-            clearSidebarDragPresentation();
-        }
-
-        sidebarSwipeStart = null;
+        cancelSidebarSwipe();
     }, { passive: true });
+
+    // Natives Scrollen hat Vorrang, bevor die Sidebar eine Geste uebernimmt.
+    document.addEventListener('scroll', (event) => {
+        if (sidebarSwipeStart && !sidebarDragState?.claimed
+            && (event.target === document || event.target?.contains?.(sidebarSwipeStart.target))) {
+            cancelSidebarSwipe();
+        }
+    }, { passive: true, capture: true });
+
+    window.addEventListener('resize', cancelSidebarSwipe, { passive: true });
 
     // Tippen auf den Schleier schliesst die Navigation — konsistent mit
     // jedem Drawer-Muster und noetig, seit der Schleier Zeigerereignisse
@@ -3113,8 +3144,7 @@ function initMobileSidebarSwipe() {
     });
 
     document.addEventListener('livewire:navigating', () => {
-        sidebarSwipeStart = null;
-        clearSidebarDragPresentation();
+        cancelSidebarSwipe();
     });
 }
 
