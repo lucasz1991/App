@@ -15,7 +15,7 @@
         @forelse($data['recent'] as $customer)
             <div class="ops-row"><span>{{ $customer->company_name }}</span><span class="ops-muted">{{ $customer->city }}</span></div>
         @empty
-            <div class="ops-empty">Keine Kunden.</div>
+            <x-dashboard.empty icon="briefcase">Keine Kunden.</x-dashboard.empty>
         @endforelse
     </div>
 @endif

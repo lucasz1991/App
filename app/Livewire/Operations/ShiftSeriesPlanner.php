@@ -11,10 +11,14 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\PlanningSchema;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class ShiftSeriesPlanner extends Component
 {
+    #[Locked]
+    public bool $showTrigger = true;
+
     public bool $open = false;
 
     public bool $templateOpen = false;
@@ -43,6 +47,18 @@ class ShiftSeriesPlanner extends Component
     public array $exceptions = [];
 
     public string $exceptionDate = '';
+
+    public function mount(bool $showTrigger = true): void
+    {
+        $this->showTrigger = $showTrigger;
+    }
+
+    #[On('open-shift-series-planner')]
+    public function openPlanner(): void
+    {
+        $this->access();
+        $this->open = true;
+    }
 
     public function addException(): void
     {

@@ -81,7 +81,7 @@ class ShiftManagement extends Component
     }
 
     #[Locked]
-    public string $viewMode = 'day';
+    public string $viewMode = 'timeline';
 
     public function setView(string $view): void
     {

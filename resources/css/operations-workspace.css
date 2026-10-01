@@ -120,8 +120,13 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 @media(max-width:560px) { .widget-grid { grid-template-columns:1fr; grid-auto-flow:row; grid-auto-rows:auto; } .widget-card { grid-column:span 1 !important; grid-row:auto !important; height:auto !important; } }
 .widget-empty { grid-column:1/-1; }
 
-.widget-card { position:relative; min-width:0; min-height:0; display:flex; flex-direction:column; background:var(--ops-sheet); border:1px solid var(--ops-line); border-radius:16px; padding:18px; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 24px -18px rgba(15,23,42,.16); overflow:hidden; transition:box-shadow 200ms cubic-bezier(.32,.72,0,1), opacity 200ms; }
+.widget-card { position:relative; min-width:0; min-height:0; display:flex; flex-direction:column; background:var(--ops-sheet); border:1px solid var(--ops-line); border-radius:16px; padding:18px; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 24px -18px rgba(15,23,42,.16); overflow:hidden; transition:box-shadow 220ms cubic-bezier(.32,.72,0,1), transform 220ms cubic-bezier(.32,.72,0,1), opacity 200ms; }
 .dark .widget-card { box-shadow:0 1px 2px rgba(0,0,0,.2), 0 10px 24px -18px rgba(0,0,0,.55); }
+/* Dezenter Hover-Lift - rein optisch (die Karte selbst ist kein einzelner
+   Link), signalisiert aber "lebendige" Flaeche statt starrer Kachel. */
+.widget-card:hover { box-shadow:0 2px 6px rgba(15,23,42,.06), 0 22px 36px -18px rgba(15,23,42,.22); transform:translateY(-2px); }
+.dark .widget-card:hover { box-shadow:0 2px 6px rgba(0,0,0,.32), 0 22px 36px -18px rgba(0,0,0,.65); }
+@media(prefers-reduced-motion:reduce) { .widget-card:hover { transform:none; } }
 .widget-card[draggable="true"] { cursor:grab; }
 .widget-card.is-dragging { opacity:.4; cursor:grabbing; box-shadow:none; z-index:2; }
 .widget-card.is-resizing-x { cursor:ew-resize; }
@@ -226,6 +231,14 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
    margin-top:auto, die einzelnen .widget-footer-Links darin nicht mehr. */
 .widget-footer-links { margin-top:auto; padding-top:14px; flex-shrink:0; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
 .widget-footer-links .widget-footer { margin-top:0; padding-top:0; }
+
+/* Leerzustand mit Icon statt nackter Textzeile (x-dashboard.empty) - damit
+   "noch nichts da" genauso durchdacht aussieht wie ein gefuelltes Widget.
+   Ersetzt .ops-empty innerhalb der Widget-Details (die Klasse selbst bleibt
+   fuer andere Betriebsseiten unveraendert nutzbar). */
+.widget-empty { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:20px 16px; color:var(--ops-muted); text-align:center; }
+.widget-empty svg { width:26px; height:26px; opacity:.4; }
+.widget-empty p { margin:0; font-size:13px; line-height:1.5; max-width:22ch; }
 
 /* Fuer Widgets, deren Blade-Inhalt in einen eigenen x-data-Wrapper
    eingepackt ist (z.B. wagon_list per localStorage) - der Wrapper muss

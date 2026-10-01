@@ -254,14 +254,42 @@ class OperationsRoadmapTest extends TestCase
         $shift = $this->shift();
         app(ShiftAssignmentService::class)->assign($shift, $this->employee, $this->admin);
         AbsenceRequest::create(['user_id' => $this->employee->id, 'kind' => 'vacation', 'starts_at' => CarbonImmutable::parse('2027-05-14T00:00:00+02:00'), 'ends_at' => CarbonImmutable::parse('2027-05-15T00:00:00+02:00'), 'timezone' => 'Europe/Berlin', 'status' => 'approved']);
-        Livewire::actingAs($this->admin)->test(StaffTimeline::class, ['from' => '2027-05-13', 'until' => '2027-05-14'])->assertSee('Testdienst')->assertSee('Urlaub')->assertSee('Unbelegt 00:00 – 08:00');
+        Livewire::actingAs($this->admin)->test(StaffTimeline::class, ['from' => '2027-05-12', 'until' => '2027-05-14'])
+            ->assertSee('Testdienst')->assertSee('Urlaub')->assertSee('Unbelegt 00:00 – 08:00')
+            ->assertSee('Kein Eintrag')->assertDontSee('Unbelegt 00:00 – 24:00');
         Livewire::actingAs($this->employee)->test(StaffTimeline::class, ['from' => '2027-05-13', 'until' => '2027-05-14'])->assertForbidden();
+    }
+
+    public function test_staff_timeline_loads_livewire_pages_as_infinite_scroll_batches_without_page_links(): void
+    {
+        foreach (range(1, 48) as $index) {
+            User::factory()->create(['name' => sprintf('Batch Staff %02d', $index), 'role' => 'staff', 'status' => true]);
+        }
+
+        $timeline = Livewire::actingAs($this->admin)->test(StaffTimeline::class, ['from' => '2027-05-12', 'until' => '2027-05-18'])
+            ->assertViewHas('rows', fn ($rows) => $rows->count() === 24)
+            ->assertViewHas('users', fn ($users) => $users->hasMorePages())
+            ->assertSeeHtml('staff-timeline-load-more-1')
+            ->assertDontSee('pagination');
+
+        $timeline->call('loadMore')
+            ->assertViewHas('rows', fn ($rows) => $rows->count() === 48)
+            ->assertSeeHtml('staff-timeline-load-more-2');
+
+        $timeline->call('loadMore')
+            ->assertViewHas('rows', fn ($rows) => $rows->count() === 49)
+            ->assertViewHas('users', fn ($users) => ! $users->hasMorePages())
+            ->assertDontSee('staff-timeline-load-more')
+            ->assertDontSee('pagination');
     }
 
     public function test_new_management_components_render_and_enforce_roles(): void
     {
         $this->template();
-        Livewire::actingAs($this->admin)->test(ShiftSeriesPlanner::class)->call('newSeries')->assertSet('seriesOpen', true)->assertSee('Vorschau prüfen');
+        Livewire::actingAs($this->admin)->test(ShiftSeriesPlanner::class, ['showTrigger' => false])
+            ->assertSet('showTrigger', false)
+            ->dispatch('open-shift-series-planner')->assertSet('open', true)
+            ->call('newSeries')->assertSet('seriesOpen', true)->assertSee('Vorschau prüfen');
         Livewire::actingAs($this->admin)->test(OrderDemands::class, ['orderId' => $this->order->id])->call('edit')->assertSet('formOpen', true);
         $entry = $this->timeEntry();
         Livewire::actingAs($this->admin)->test(TimeReview::class)->set('selected', [$entry->id])->call('prepareBatch')->assertSet('batchOpen', true)->assertSee('Auswahl freigeben')->call('reviewBatch', true)->assertSet('batchOpen', false);

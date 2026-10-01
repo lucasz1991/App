@@ -123,10 +123,6 @@
                                 {{ $slot ?? '' }}
                             </div>
 
-                            {{-- Dezente Versionsanzeige als unterer Seitenabschluss --}}
-                            <div class="mt-4 border-t border-rt-border/60 pt-4 text-center text-[11px] font-medium tracking-wide text-rt-soft dark:border-rt-dark-border/60 dark:text-rt-dark-soft">
-                                {{ config('app.name') }} v{{ config('app.version') }}
-                            </div>
                         @endif
                     </div>
                 </div>

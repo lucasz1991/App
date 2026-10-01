@@ -5,6 +5,7 @@
     'readonly' => false,
     'clearable' => true,
     'ariaLabel' => null,
+    'keepDropdownOpen' => false,
 ])
 
 {{-- Ein gemeinsames Feld: x-model bleibt fuer Alpine-Verbraucher erhalten;
@@ -111,6 +112,7 @@
             tabindex="-1"
             :style="panelStyle"
             class="rt-ui-date-panel fixed"
+            @if($keepDropdownOpen) data-rt-dropdown-keep-open @endif
         >
             <div class="rt-ui-date-panel__header">
                 <button type="button" @click="shiftMonth(-12)" :disabled="!canShiftMonth(-12)" class="rt-ui-date-nav" aria-label="{{ $previousYearLabel }}">

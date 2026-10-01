@@ -62,26 +62,29 @@ class ShiftManagementViewsTest extends TestCase
         $this->shift('Süddienst', ['status' => 'draft', 'location_name' => 'München']);
 
         $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
-            ->assertSet('viewMode', 'day')
-            ->assertSeeHtml('data-shift-view="day"')
-            ->assertSeeHtml('rt-disposition-shift')
+            ->assertSet('viewMode', 'timeline')
+            ->assertSeeHtml('data-shift-view="timeline"')
+            ->assertSee('Die Zeitleiste ist verfügbar, sobald der Mitarbeiter- und Abwesenheitsbereich eingerichtet ist.')
             ->set('rangeFrom', '2027-05-12')->set('rangeTo', '2027-05-13')
             ->set('orderFilter', (string) $this->order->id)
             ->set('statusFilter', 'open')->set('search', 'Hamburg');
 
-        foreach (['table', 'day', 'staffing', 'orders'] as $view) {
+        foreach (['table', 'day', 'staffing', 'orders', 'timeline'] as $view) {
             $component->call('setView', $view)
                 ->assertSet('viewMode', $view)
-                ->assertSet('statusFilter', 'open')
-                ->assertSet('search', 'Hamburg')
-                ->assertViewHas('shifts', fn ($shifts) => $shifts->modelKeys() === [$target->id])
+                ->assertSet('statusFilter', $view === 'timeline' ? 'all' : 'open')
+                ->assertSet('search', $view === 'timeline' ? '' : 'Hamburg')
+                ->assertSet('orderFilter', $view === 'timeline' ? 'all' : (string) $this->order->id)
+                ->assertViewHas('shifts', fn ($shifts) => $view === 'timeline'
+                    ? $shifts->contains('id', $target->id)
+                    : $shifts->modelKeys() === [$target->id])
                 ->call('openDetails', $target->id)->assertSet('detailOpen', true)
                 ->assertSet('selectedShiftId', $target->id)
                 ->call('editShift', $target->id)->assertSet('formOpen', true)->assertSet('detailOpen', false)
                 ->set('formOpen', false);
         }
 
-        $component->set('search', 'kein-treffer')
+        $component->call('setView', 'table')->set('search', 'kein-treffer')
             ->assertViewHas('shifts', fn ($shifts) => $shifts->isEmpty())
             ->assertSee('Keine Schichten für diese Filter gefunden.');
     }

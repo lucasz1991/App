@@ -2022,6 +2022,77 @@ Alpine.data('dashboardWidgetGrid', () => ({
         this.bindReorder();
         this.bindResize();
         this.bindLongPress();
+        this.playEntrance();
+    },
+
+    // Start-Animation beim ersten Laden: Zahlen zaehlen sichtbar von 0 auf
+    // ihren echten Wert hoch, leicht nach der Kartenreihenfolge gestaffelt
+    // (passend zum bestehenden Karten-Fade-Up aus data-anim-stagger/gsap.js -
+    // dort werden die Karten selbst animiert, hier zusaetzlich ihr
+    // Kennzahlenwert). Laeuft nur beim ersten Mount der Komponente, nicht
+    // bei jedem wire:poll-Refresh, weil init() durch Livewires gekeyten
+    // Morph nicht erneut aufgerufen wird.
+    playEntrance() {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        const items = Array.from(this.$root.querySelectorAll('[data-widget-item]'));
+
+        items.forEach((card, index) => {
+            const targets = card.querySelectorAll('.widget-primary-val, .ops-kpi-val, .widget-donut-val, .widget-ring-val');
+
+            targets.forEach((el) => {
+                const text = el.textContent.trim();
+                const match = text.match(/\d+/);
+                if (!match) return;
+
+                const end = Number.parseInt(match[0], 10);
+                if (! Number.isFinite(end) || end === 0) return;
+
+                const prefix = text.slice(0, match.index);
+                const suffix = text.slice(match.index + match[0].length);
+                const duration = 640;
+                const initialDelay = Math.min(index * 55, 440);
+                const startAt = performance.now() + initialDelay;
+
+                el.textContent = prefix + '0' + suffix;
+
+                // rAF kann in Hintergrund-/verdeckten Tabs stillstehen (siehe
+                // bindLongPress-Kommentar zu Pointer-Events an anderer
+                // Stelle) - ein setTimeout-Watchdog schliesst deshalb IMMER
+                // final auf den echten Wert ab, unabhaengig davon, ob die
+                // rAF-Schleife ueberhaupt lief.
+                let finished = false;
+                const finish = () => {
+                    if (finished) return;
+                    finished = true;
+                    el.textContent = prefix + end + suffix;
+                };
+
+                const tick = (now) => {
+                    if (finished) return;
+
+                    const elapsed = now - startAt;
+                    if (elapsed < 0) {
+                        requestAnimationFrame(tick);
+
+                        return;
+                    }
+
+                    const progress = Math.min(1, elapsed / duration);
+                    const eased = 1 - (1 - progress) ** 3;
+                    el.textContent = prefix + Math.round(end * eased) + suffix;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(tick);
+                    } else {
+                        finish();
+                    }
+                };
+
+                requestAnimationFrame(tick);
+                setTimeout(finish, initialDelay + duration + 200);
+            });
+        });
     },
 
     bindReorder() {

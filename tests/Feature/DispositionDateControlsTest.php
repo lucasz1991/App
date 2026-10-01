@@ -65,7 +65,7 @@ class DispositionDateControlsTest extends TestCase
         $this->assertMatchesRegularExpression('/type="time"\s+disabled\s+readonly/s', $html);
     }
 
-    public function test_disposition_templates_have_no_legacy_date_inputs_and_use_shared_view_toggle(): void
+    public function test_disposition_templates_use_shared_dates_and_anchor_dropdowns(): void
     {
         foreach (['shift-management', 'orders'] as $page) {
             $source = file_get_contents(resource_path('views/livewire/admin/operations/'.$page.'.blade.php'));
@@ -73,8 +73,21 @@ class DispositionDateControlsTest extends TestCase
             $this->assertStringContainsString('x-ui.forms.date-time-field', $source);
         }
         $source = file_get_contents(resource_path('views/livewire/admin/operations/shift-management.blade.php'));
-        $this->assertStringContainsString('x-ui.buttons.multi-toggle id="shift-plan-view-toggle"', $source);
-        $this->assertStringContainsString('action="setView"', $source);
+        $this->assertStringContainsString('content-label="Planungszeitraum anpassen"', $source);
+        $this->assertStringContainsString('content-label="Schichtplanansicht auswählen"', $source);
+        $this->assertStringContainsString("'timeline' => ['Zeitleiste', 'fa-clock']", $source);
+        $this->assertStringNotContainsString('x-ui.buttons.multi-toggle id="shift-plan-view-toggle"', $source);
+        $this->assertStringNotContainsString('<details class="rt-disposition-range">', $source);
+        $this->assertStringContainsString('<template x-teleport="[data-page-header-actions]">', $source);
+        $this->assertStringContainsString('<livewire:operations.shift-series-planner :show-trigger="false" />', $source);
+        $this->assertStringContainsString(':keep-dropdown-open="true"', $source);
         $this->assertSame(2, substr_count($source, 'x-ui.forms.date-field id="shift-range-'));
+    }
+
+    public function test_shared_date_field_can_keep_an_anchored_parent_open_while_using_its_calendar(): void
+    {
+        $html = Blade::render('<x-ui.forms.date-field id="range" :keep-dropdown-open="true" />');
+
+        $this->assertStringContainsString('data-rt-dropdown-keep-open', $html);
     }
 }

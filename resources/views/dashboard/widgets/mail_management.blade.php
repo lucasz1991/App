@@ -5,7 +5,7 @@
         @forelse($data['recent'] as $mail)
             <div class="ops-row"><span>{{ $mail->content['subject'] ?? ucfirst($mail->type) }}</span><span class="ops-muted">{{ count($mail->recipients ?? []) }} Empfänger</span></div>
         @empty
-            <div class="ops-empty">Alles versendet.</div>
+            <x-dashboard.empty icon="check-circle">Alles versendet.</x-dashboard.empty>
         @endforelse
     </div>
 @endif

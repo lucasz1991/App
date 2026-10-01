@@ -7,13 +7,17 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Support\Operations\OperationsAccess;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Livewire\WithoutUrlPagination;
 use Livewire\WithPagination;
 
 class StaffTimeline extends Component
 {
-    use WithPagination;
+    use WithoutUrlPagination, WithPagination;
+
+    private const INITIAL_BATCH_SIZE = 24;
 
     #[Locked]
     public string $from;
@@ -32,9 +36,31 @@ class StaffTimeline extends Component
     #[Locked]
     public string $absenceStatus = 'all';
 
+    public function mount(): void
+    {
+        $this->resetPage('staffPage');
+    }
+
     public function updatedSearch(): void
     {
         $this->resetPage('staffPage');
+    }
+
+    public function loadMore(): void
+    {
+        OperationsAccess::authorize(auth()->user(), $this->absencesOnly ? 'operations.absences.review' : 'operations.manage');
+        OperationsAccess::requireReady();
+        $this->validate(['from' => 'required|date_format:Y-m-d', 'until' => 'required|date_format:Y-m-d|after_or_equal:from']);
+
+        $zone = config('operations.display_timezone', 'Europe/Berlin');
+        $from = CarbonImmutable::parse($this->from, $zone);
+        $until = CarbonImmutable::parse($this->until, $zone)->addDay();
+        abort_if($from->diffInDays($until) > 94, 422);
+
+        $loadedThrough = max(1, $this->getPage('staffPage')) * self::INITIAL_BATCH_SIZE;
+        if ($loadedThrough < $this->staffQuery($from, $until)->count()) {
+            $this->nextPage('staffPage');
+        }
     }
 
     public function render()
@@ -46,9 +72,12 @@ class StaffTimeline extends Component
         $from = CarbonImmutable::parse($this->from, $zone);
         $until = CarbonImmutable::parse($this->until, $zone)->addDay();
         abort_if($from->diffInDays($until) > 94, 422);
-        $users = User::with(['profile', 'currentTeam'])
-            ->where('role', 'staff')->where(fn ($q) => $q->where('status', true)->orWhereIn('id', ShiftAssignment::blocking()->whereHas('shift', fn ($q) => $q->notCancelled()->during($from, $until))->select('user_id')))
-            ->when(filled($this->search), fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))->orderBy('name')->paginate(12, ['id', 'name', 'email', 'status', 'current_team_id', 'profile_photo_path'], 'staffPage');
+        $staffQuery = $this->staffQuery($from, $until);
+        $staffTotal = (clone $staffQuery)->count();
+        $currentBlock = max(1, $this->getPage('staffPage'));
+        $maxBlocks = max(1, (int) ceil($staffTotal / self::INITIAL_BATCH_SIZE));
+        $visibleLimit = self::INITIAL_BATCH_SIZE * min($currentBlock, $maxBlocks);
+        $users = $staffQuery->paginate($visibleLimit, ['id', 'name', 'email', 'status', 'current_team_id', 'profile_photo_path'], 'staffPage', 1);
         $assignments = $this->absencesOnly ? collect() : ShiftAssignment::blocking()->whereIn('user_id', $users->pluck('id'))->whereHas('shift', fn ($q) => $q->notCancelled()->during($from, $until))->with('shift.order.customer')->get()->groupBy('user_id');
         $absences = AbsenceRequest::whereIn('user_id', $users->pluck('id'))->whereIn('status', ['pending', 'approved'])
             ->when($this->absencesOnly && $this->absenceKind !== 'all', fn ($q) => $q->where('kind', $this->absenceKind))
@@ -93,5 +122,17 @@ class StaffTimeline extends Component
         });
 
         return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone'));
+    }
+
+    private function staffQuery(CarbonImmutable $from, CarbonImmutable $until): Builder
+    {
+        return User::with(['profile', 'currentTeam'])
+            ->where('role', 'staff')
+            ->where(fn ($query) => $query->where('status', true)
+                ->orWhereIn('id', ShiftAssignment::blocking()
+                    ->whereHas('shift', fn ($shiftQuery) => $shiftQuery->notCancelled()->during($from, $until))
+                    ->select('user_id')))
+            ->when(filled($this->search), fn ($query) => $query->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))
+            ->orderBy('name');
     }
 }

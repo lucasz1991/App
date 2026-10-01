@@ -27,7 +27,7 @@
         @forelse($data['recent'] as $order)
             <div class="ops-row"><span>{{ $order->title }}</span><span class="ops-muted">{{ $order->customer?->company_name }}</span></div>
         @empty
-            <div class="ops-empty">Keine offenen Leistungen.</div>
+            <x-dashboard.empty icon="check-circle">Keine offenen Leistungen.</x-dashboard.empty>
         @endforelse
     </div>
 @endif

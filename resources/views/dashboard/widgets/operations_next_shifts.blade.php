@@ -8,6 +8,6 @@
         <span class="ops-badge" data-state="{{ $shift->reserved >= $shift->required_staff ? 'confirmed' : 'pending' }}">{{ $shift->reserved }}/{{ $shift->required_staff }}</span>
     </a>
 @empty
-    <div class="ops-empty">Keine Dienste in den nächsten 14 Tagen.</div>
+    <x-dashboard.empty icon="calendar">Keine Dienste in den nächsten 14 Tagen.</x-dashboard.empty>
 @endforelse
 <a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Schichtplan öffnen →</a>

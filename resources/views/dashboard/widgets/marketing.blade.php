@@ -22,7 +22,7 @@
         @forelse($data['recent'] as $creative)
             <div class="ops-row"><span>{{ $creative['title'] }}</span><span class="ops-muted">{{ $creative['typeLabel'] }}</span></div>
         @empty
-            <div class="ops-empty">Nichts wartet auf Freigabe.</div>
+            <x-dashboard.empty icon="check-circle">Nichts wartet auf Freigabe.</x-dashboard.empty>
         @endforelse
     </div>
 @endif

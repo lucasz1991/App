@@ -5,7 +5,7 @@
         @forelse($data['recent'] as $file)
             <div class="ops-row"><span>{{ $file->name ?? $file->title ?? 'Datei' }}</span></div>
         @empty
-            <div class="ops-empty">Keine Dateien.</div>
+            <x-dashboard.empty icon="file">Keine Dateien.</x-dashboard.empty>
         @endforelse
     </div>
 @endif

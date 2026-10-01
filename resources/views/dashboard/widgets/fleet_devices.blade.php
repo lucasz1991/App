@@ -16,5 +16,5 @@
     @endif
     @if($data['href'])<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Geräte & Lager öffnen →</a>@endif
 @else
-    <p class="ops-empty" style="padding:16px 0;">Keine Gerätedaten verfügbar.</p>
+    <x-dashboard.empty icon="monitor">Keine Gerätedaten verfügbar.</x-dashboard.empty>
 @endif

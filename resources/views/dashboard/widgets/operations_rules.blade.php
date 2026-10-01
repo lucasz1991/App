@@ -8,6 +8,6 @@
         </dl>
     @endif
 @else
-    <p class="ops-empty" style="padding:16px 0;">Kein aktives Regelprofil.</p>
+    <x-dashboard.empty icon="shield">Kein aktives Regelprofil.</x-dashboard.empty>
 @endif
 <a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Regelprofil öffnen →</a>

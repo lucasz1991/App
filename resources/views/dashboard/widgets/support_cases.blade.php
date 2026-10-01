@@ -27,7 +27,7 @@
         @forelse($data['cases'] as $case)
             <div class="ops-row"><span>{{ \Illuminate\Support\Str::limit($case->subject, 40) }}</span><span class="ops-badge">{{ str($case->status)->replace('_', ' ')->title() }}</span></div>
         @empty
-            <div class="ops-empty">Keine offenen Fälle.</div>
+            <x-dashboard.empty icon="check-circle">Keine offenen Fälle.</x-dashboard.empty>
         @endforelse
     </div>
 @endif

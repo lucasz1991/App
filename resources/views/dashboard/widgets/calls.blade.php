@@ -9,7 +9,7 @@
         @forelse($data['recent'] as $room)
             <div class="ops-row"><span>{{ $room->name ?? 'Anruf' }}</span><span class="ops-muted">{{ $room->ended_at?->diffForHumans() }}</span></div>
         @empty
-            <div class="ops-empty">Keine abgeschlossenen Anrufe.</div>
+            <x-dashboard.empty icon="phone">Keine abgeschlossenen Anrufe.</x-dashboard.empty>
         @endforelse
     </div>
 @endif

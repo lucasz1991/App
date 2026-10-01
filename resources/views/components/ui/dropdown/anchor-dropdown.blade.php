@@ -501,6 +501,7 @@
 
     handleOutsideClick(event) {
       const target = event.target;
+      if (target instanceof Element && target.closest('[data-rt-dropdown-keep-open]')) return;
       const positionAnchor = this.resolvePositionAnchor();
       if (
         !this.$refs.trigger?.contains(target)

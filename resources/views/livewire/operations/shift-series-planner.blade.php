@@ -1,5 +1,7 @@
 <div>
+@if($showTrigger)
 <x-ui.buttons.button-basic wire:click="$set('open', true)"><i class="far fa-repeat" aria-hidden="true"></i>Vorlagen & Serien</x-ui.buttons.button-basic>
+@endif
 <x-operations.modal wire:model="open" title="Vorlagen & Serien" max-width="4xl">
     <div class="ops-actions"><x-ui.buttons.button-basic wire:click="editTemplate">Neue Vorlage</x-ui.buttons.button-basic><x-ui.buttons.button-basic mode="primary" wire:click="newSeries">Serie planen</x-ui.buttons.button-basic></div>
     <x-tables.table :columns="[['label'=>'Vorlage','key'=>'name'],['label'=>'Revision','key'=>'revision']]" :items="$templates" detail-action="editTemplate" row-view="components.tables.rows.operations.record" empty="Noch keine Vorlagen." />

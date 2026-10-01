@@ -15,7 +15,7 @@
         @forelse($data['recent'] as $employee)
             <div class="ops-row"><span>{{ $employee->name }}</span><span class="ops-muted">seit {{ $employee->created_at->translatedFormat('d.m.Y') }}</span></div>
         @empty
-            <div class="ops-empty">Keine Mitarbeiter.</div>
+            <x-dashboard.empty icon="users">Keine Mitarbeiter.</x-dashboard.empty>
         @endforelse
     </div>
 @endif

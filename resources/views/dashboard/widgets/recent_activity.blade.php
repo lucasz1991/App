@@ -7,5 +7,5 @@
         <span class="ops-muted" style="white-space:nowrap;">{{ $entry['lastSeen']->diffForHumans() }}</span>
     </div>
 @empty
-    <div class="ops-empty">Noch keine Aktivität.</div>
+    <x-dashboard.empty icon="activity">Noch keine Aktivität.</x-dashboard.empty>
 @endforelse

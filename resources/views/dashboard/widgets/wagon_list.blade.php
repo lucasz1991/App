@@ -27,7 +27,7 @@
                 </div>
             </template>
         </div>
-        <div class="ops-empty widget-detail" x-show="!drafts.length" x-cloak>Noch keine Wagenliste begonnen.</div>
+        <x-dashboard.empty icon="list" class="widget-detail" x-show="!drafts.length" x-cloak>Noch keine Wagenliste begonnen.</x-dashboard.empty>
     @endif
     <a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Wagenliste öffnen →</a>
 </div>

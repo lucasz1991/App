@@ -1,48 +1,66 @@
-<div class="rt-disposition rt-disposition--shifts rt-shift-plan min-w-0 space-y-4" data-operations-shift-management>
-    <template x-teleport="[data-page-header-metrics]">
-        <section class="rt-disposition-summary" aria-label="Schichten in der aktuellen Auswahl" aria-live="polite">
-            <div class="rt-disposition-summary__item"><span class="rt-disposition-summary__value">{{ $shiftCount }}</span><span class="rt-disposition-summary__label">Aktiv</span></div>
-            <div class="rt-disposition-summary__item"><span class="rt-disposition-summary__value">{{ $reservedCount }}<small>/{{ $requiredCount }}</small></span><span class="rt-disposition-summary__label">Eingeplant</span></div>
-            <div class="rt-disposition-summary__item" data-tone="success"><span class="rt-disposition-summary__value">{{ $confirmedCount }}</span><span class="rt-disposition-summary__label">Bestätigt</span></div>
-            <div class="rt-disposition-summary__item" data-tone="warning"><span class="rt-disposition-summary__value">{{ $openCount }}</span><span class="rt-disposition-summary__label">Offen</span></div>
-        </section>
-    </template>
-    <header class="rt-calendar-header rt-disposition-period">
-        <div class="rt-shift-plan-period-row">
-            <details class="rt-disposition-range">
-                <summary aria-label="Planungszeitraum auswählen">
-                    <i class="far fa-calendar-range" aria-hidden="true"></i>
-                    <span><strong class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</strong><small class="rt-calendar-timezone">Planungszeitraum · {{ $displayTimezone }}</small></span>
-                    <i class="far fa-chevron-down rt-disposition-range__chevron" aria-hidden="true"></i>
-                </summary>
-                <div class="rt-shift-plan-range" role="group" aria-label="Planungszeitraum">
-                <div><x-ui.forms.label for="shift-range-from" value="Von" /><x-ui.forms.date-field id="shift-range-from" wire:model.live="rangeFrom" :clearable="false" aria-label="Schichten ab" /></div>
-                <span class="rt-shift-plan-range-divider" aria-hidden="true">–</span>
-                <div><x-ui.forms.label for="shift-range-to" value="Bis" /><x-ui.forms.date-field id="shift-range-to" wire:model.live="rangeTo" :clearable="false" aria-label="Schichten bis" /></div>
+<div class="rt-disposition rt-disposition--shifts rt-shift-plan min-w-0" data-operations-shift-management>
+    <template x-teleport="[data-page-header-search]">
+        <div class="rt-shift-plan-header-controls" data-shift-plan-header-controls>
+            <div class="rt-shift-plan-period-controls">
+                <x-ui.dropdown.anchor-dropdown align="left" width="96" offset="6" dropdown-id="shift-plan-period-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Planungszeitraum anpassen" content-classes="p-3 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
+                    <x-slot:trigger>
+                        <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-period-trigger" aria-label="Planungszeitraum auswählen">
+                            <i class="far fa-calendar-range" aria-hidden="true"></i>
+                            <span><strong class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</strong><small class="rt-calendar-timezone">{{ $displayTimezone }}</small></span>
+                            <i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i>
+                        </x-ui.buttons.button-basic>
+                    </x-slot:trigger>
+                    <x-slot:content>
+                        <div class="rt-shift-plan-range" role="group" aria-label="Planungszeitraum">
+                            <div class="rt-shift-plan-date-field" data-rt-dropdown-keep-open><x-ui.forms.label for="shift-range-from" value="Von" /><x-ui.forms.date-field id="shift-range-from" wire:model.live="rangeFrom" :clearable="false" :keep-dropdown-open="true" aria-label="Schichten ab" /></div>
+                            <span class="rt-shift-plan-range-divider" aria-hidden="true">–</span>
+                            <div class="rt-shift-plan-date-field" data-rt-dropdown-keep-open><x-ui.forms.label for="shift-range-to" value="Bis" /><x-ui.forms.date-field id="shift-range-to" wire:model.live="rangeTo" :clearable="false" :keep-dropdown-open="true" aria-label="Schichten bis" /></div>
+                        </div>
+                    </x-slot:content>
+                </x-ui.dropdown.anchor-dropdown>
+                <div class="rt-disposition-period__navigation" role="group" aria-label="Planungszeitraum wechseln">
+                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-week-button rt-shift-plan-week-button--icon" wire:click="movePeriod(-1)" aria-label="Vorheriger Zeitraum" title="Vorheriger Zeitraum" wire:loading.attr="disabled"><i class="far fa-chevron-left" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-week-button" wire:click="currentWeek" wire:loading.attr="disabled">Diese Woche</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-week-button rt-shift-plan-week-button--icon" wire:click="movePeriod(1)" aria-label="Nächster Zeitraum" title="Nächster Zeitraum" wire:loading.attr="disabled"><i class="far fa-chevron-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
                 </div>
-            </details>
-            <div class="rt-disposition-period__navigation" role="group" aria-label="Planungszeitraum wechseln">
-                <x-ui.buttons.button-basic wire:click="movePeriod(-1)" aria-label="Vorheriger Zeitraum" title="Vorheriger Zeitraum" wire:loading.attr="disabled"><i class="far fa-chevron-left" aria-hidden="true"></i></x-ui.buttons.button-basic>
-                <x-ui.buttons.button-basic wire:click="currentWeek" wire:loading.attr="disabled">Diese Woche</x-ui.buttons.button-basic>
-                <x-ui.buttons.button-basic wire:click="movePeriod(1)" aria-label="Nächster Zeitraum" title="Nächster Zeitraum" wire:loading.attr="disabled"><i class="far fa-chevron-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
             </div>
-            <x-ui.buttons.multi-toggle id="shift-plan-view-toggle" label="Schichtplanansicht" :value="$viewMode" action="setView" :options="[
-                ['value'=>'table','label'=>'Tabelle','icon'=>'fa-table-list'],
-                ['value'=>'day','label'=>'Tagesübersicht','icon'=>'fa-calendar-day'],
-                ['value'=>'staffing','label'=>'Besetzung','icon'=>'fa-users'],
-                ['value'=>'orders','label'=>'Leistungen','icon'=>'fa-briefcase'],
-                ['value'=>'timeline','label'=>'Mitarbeiter-Zeitleiste','icon'=>'fa-clock'],
-            ]" />
-        </div>
-    </header>
-    @if($viewMode !== 'timeline')
-    <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :search-in-header="true" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all') + (int) ($attentionFilter !== 'all')">
-        <x-slot:bulk>
-            @if(\App\Support\Operations\PlanningSchema::ready())
-                <div data-tables-bulk><livewire:operations.shift-series-planner /></div>
+            <x-ui.dropdown.anchor-dropdown align="left" width="56" offset="6" dropdown-id="shift-plan-view-{{ $this->getId() }}" layer-group="operations-shift-plan" content-label="Schichtplanansicht auswählen" content-classes="p-1.5 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
+                <x-slot:trigger>
+                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-view-trigger"><i class="far fa-eye" aria-hidden="true"></i><span>Ansicht</span><i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                </x-slot:trigger>
+                <x-slot:content>
+                    @foreach([
+                        'table' => ['Tabelle', 'fa-table-list'],
+                        'day' => ['Tagesübersicht', 'fa-calendar-day'],
+                        'staffing' => ['Besetzung', 'fa-users'],
+                        'orders' => ['Leistungen', 'fa-briefcase'],
+                        'timeline' => ['Zeitleiste', 'fa-clock'],
+                    ] as $view => [$label, $icon])
+                        <button type="button" role="menuitemradio" aria-checked="{{ $viewMode === $view ? 'true' : 'false' }}" wire:click="setView('{{ $view }}')" x-on:click="close()" class="rt-shift-plan-view-option">
+                            <i class="far {{ $icon }}" aria-hidden="true"></i><span>{{ $label }}</span>@if($viewMode === $view)<i class="far fa-check rt-shift-plan-view-option__check" aria-hidden="true"></i>@endif
+                        </button>
+                    @endforeach
+                </x-slot:content>
+            </x-ui.dropdown.anchor-dropdown>
+            @if($viewMode !== 'timeline')
+                <div class="rt-shift-plan-header-search" data-page-list-search>
+                    <x-tables.search-field context="page" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" />
+                </div>
             @endif
-        </x-slot:bulk>
-        <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" /></x-slot:search>
+        </div>
+    </template>
+    <template x-teleport="[data-page-header-actions]">
+        @if(\App\Support\Operations\PlanningSchema::ready())
+            <div class="rt-shift-plan-header-action" data-shift-plan-header-actions>
+                <x-ui.buttons.button-basic type="button" size="sm" wire:click="$dispatch('open-shift-series-planner')" aria-label="Vorlagen und Serien" title="Vorlagen und Serien"><i class="far fa-repeat" aria-hidden="true"></i><span>Vorlagen &amp; Serien</span></x-ui.buttons.button-basic>
+            </div>
+        @endif
+    </template>
+    @if(\App\Support\Operations\PlanningSchema::ready())
+        <livewire:operations.shift-series-planner :show-trigger="false" />
+    @endif
+    @if($viewMode !== 'timeline')
+    <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all') + (int) ($attentionFilter !== 'all')">
         <details class="rt-shift-filters" x-bind:open="!desktopFilters">
             <summary class="rt-shift-filters__trigger" aria-label="Schichtfilter öffnen" title="Schichtfilter">
                 <i class="far fa-sliders" aria-hidden="true"></i><span>Filter</span>
@@ -56,8 +74,6 @@
             </div>
         </details>
     </x-tables.toolbar>
-    @elseif(\App\Support\Operations\PlanningSchema::ready())
-        <livewire:operations.shift-series-planner />
     @endif
     @php
         $shiftColumns = [
@@ -70,9 +86,13 @@
     @endphp
     <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="tableSort,setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
         @if($viewMode === 'timeline')
-            <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
+            @if($nativeOperations)
+                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
+            @else
+                <div class="rt-shift-plan-unavailable" role="status"><i class="far fa-clock" aria-hidden="true"></i><span>Die Zeitleiste ist verfügbar, sobald der Mitarbeiter- und Abwesenheitsbereich eingerichtet ist.</span></div>
+            @endif
         @elseif($viewMode === 'table' || $shifts->isEmpty())
-            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="shift-plan" :flush-top="true" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
+            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="shift-plan" class="rt-shift-plan-table" :flush-top="true" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
         @else
             @foreach(match($viewMode) { 'day' => $dailyGroups, 'orders' => $orderGroups, default => $staffingGroups } as $groupKey => $group)
                 @if($group['items']->isNotEmpty())

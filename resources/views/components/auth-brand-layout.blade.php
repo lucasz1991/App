@@ -84,9 +84,6 @@
         </div>
     @endunless
 
-    <div class="mt-3.5 text-center text-[11px] font-medium tracking-wide text-slate-500 dark:text-white/40">
-        {{ config('app.name') }} v{{ config('app.version') }}
-    </div>
 </div>
 
 {{-- Logo-Reveal wie im Layout-3-Hero + 3D-Logo-Engine --}}

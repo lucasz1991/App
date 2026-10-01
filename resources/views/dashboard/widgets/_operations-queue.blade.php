@@ -6,7 +6,7 @@
         @forelse($data['items'] as $item)
             <div class="ops-row"><span>{{ $item['title'] }}{{ $item['meta'] ? ' · '.$item['meta'] : '' }}</span><span class="ops-muted">{{ $item['when']?->diffForHumans() }}</span></div>
         @empty
-            <div class="ops-empty">Nichts Offenes.</div>
+            <x-dashboard.empty icon="check-circle">Nichts Offenes.</x-dashboard.empty>
         @endforelse
     </div>
 @endif

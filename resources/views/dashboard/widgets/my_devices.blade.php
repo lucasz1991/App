@@ -16,5 +16,5 @@
     @endif
     @if($data['href'])<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Meine Geräte öffnen →</a>@endif
 @else
-    <p class="ops-empty" style="padding:16px 0;">Keine eigenen Geräte zugewiesen.</p>
+    <x-dashboard.empty icon="smartphone">Keine eigenen Geräte zugewiesen.</x-dashboard.empty>
 @endif

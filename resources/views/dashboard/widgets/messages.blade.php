@@ -9,7 +9,7 @@
         @forelse($data['latest'] as $message)
             <div class="ops-row"><span>{{ $message->subject }}</span><span class="ops-muted">{{ $message->sender?->name }}</span></div>
         @empty
-            <div class="ops-empty">Keine Nachrichten.</div>
+            <x-dashboard.empty icon="message-circle">Keine Nachrichten.</x-dashboard.empty>
         @endforelse
     </div>
 @endif

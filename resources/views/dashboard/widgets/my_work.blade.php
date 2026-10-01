@@ -9,7 +9,7 @@
         <p class="ops-muted">{{ $data['nextAssignment']->shift->order->customer->company_name }}</p>
     @endif
 @else
-    <p class="ops-empty" style="padding:16px 0;">Kein bevorstehender Dienst.</p>
+    <x-dashboard.empty icon="coffee">Kein bevorstehender Dienst.</x-dashboard.empty>
 @endif
 <div class="widget-footer-links">
     <a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Mein Arbeitstag öffnen →</a>
