@@ -9,21 +9,48 @@ export function timelineDayOffset(offset, width, direction, maximum) {
     return Math.max(0, Math.min(maximum, (Math.round(offset / width) + direction) * width));
 }
 
+// Labels may extend beyond a short duty, but the colored mark always keeps its true duration.
+export function timelineEventLanes(events, dayWidth) {
+    const lanes = [];
+    const results = new Map();
+    const width = Math.max(1, dayWidth);
+    const ordered = events.map((event, index) => ({ ...event, index }))
+        .sort((a, b) => a.start - b.start || b.duration - a.duration);
+    for (const event of ordered) {
+        const start = Math.max(0, Math.min(width, event.start * width / 100));
+        const end = Math.max(start, Math.min(width, (event.start + event.duration) * width / 100));
+        const labelWidth = Math.min(Math.max(0, event.labelWidth), Math.max(0, width - 8));
+        const half = labelWidth / 2;
+        const center = Math.max(half + 4, Math.min(width - half - 4, (start + end) / 2));
+        const occupiedStart = Math.min(start, center - half);
+        const occupiedEnd = Math.max(end, center + half);
+        let lane = Math.max(0, event.lane || 0);
+        while (lanes[lane]?.some(([from, until]) => occupiedStart < until + 4 && occupiedEnd + 4 > from)) lane++;
+        (lanes[lane] ||= []).push([occupiedStart, occupiedEnd]);
+        results.set(event.index, { lane, labelOffset: center - start });
+    }
+    return events.map((_, index) => results.get(index));
+}
+
 export function staffTimeline() {
     return {
         canScrollLeft: false,
         canScrollRight: false,
         observer: null,
+        contentObserver: null,
         resizeFrame: null,
         mirroredScrollbarLeft: 0,
         init() {
             this.observer = new ResizeObserver(() => this.queueMeasure());
             this.observer.observe(this.$refs.timelineBody);
             this.observer.observe(this.$refs.timelineGrid);
+            this.contentObserver = new MutationObserver(() => this.queueMeasure());
+            this.contentObserver.observe(this.$refs.timelineGrid, { childList: true, subtree: true });
             this.$nextTick(() => this.measure());
         },
         destroy() {
             this.observer?.disconnect();
+            this.contentObserver?.disconnect();
             if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
         },
         queueMeasure() {
@@ -43,7 +70,25 @@ export function staffTimeline() {
                 parseInt(style.getPropertyValue('--timeline-days'), 10) || 1);
             this.$el.style.setProperty('--timeline-day-width', `${width}px`);
             this.$el.style.setProperty('--timeline-gutter', `${body.offsetWidth - body.clientWidth}px`);
+            this.measureEventLabels(width);
             this.syncHorizontal(body);
+        },
+        measureEventLabels(dayWidth) {
+            for (const cell of this.$refs.timelineGrid.querySelectorAll('.rt-personnel-timeline-day')) {
+                const events = [...cell.querySelectorAll('.rt-personnel-timeline-event')];
+                if (!events.length) continue;
+                const positions = timelineEventLanes(events.map(event => ({
+                    start: parseFloat(event.dataset.timeStart) || 0,
+                    duration: parseFloat(event.dataset.timeWidth) || 0,
+                    lane: parseInt(event.dataset.timeLane, 10) || 0,
+                    labelWidth: event.querySelector('.rt-personnel-timeline-time')?.getBoundingClientRect().width || 0,
+                })), dayWidth);
+                positions.forEach((position, index) => {
+                    events[index].style.setProperty('--event-lane', position.lane);
+                    events[index].style.setProperty('--time-label-offset', `${position.labelOffset}px`);
+                });
+                cell.style.setProperty('--timeline-lanes', Math.max(...positions.map(position => position.lane)) + 1);
+            }
         },
         syncHorizontal(source) {
             const { timelineBody: body, timelineHeader: header, timelineScrollbar: scrollbar } = this.$refs;

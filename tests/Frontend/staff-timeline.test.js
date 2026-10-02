@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { staffTimeline, timelineDayWidth, timelineDayOffset } from '../../resources/js/staff-timeline.js';
+import { staffTimeline, timelineDayWidth, timelineDayOffset, timelineEventLanes } from '../../resources/js/staff-timeline.js';
 
 test('responsive widths fit complete days, including narrow phones and single-day ranges', () => {
     for (const [available, minimum, days, expected] of [[1200, 190, 7, 200], [147, 190, 7, 147], [440, 190, 1, 440], [570, 190, 7, 190], [500, 190, 94, 250]]) {
@@ -15,6 +15,32 @@ test('day navigation snaps to full columns and clamps both range edges', () => {
     assert.equal(timelineDayOffset(205, 200, 1, 400), 400);
     assert.equal(timelineDayOffset(400, 200, 1, 400), 400);
     assert.equal(timelineDayOffset(200, 200, -1, 400), 0);
+});
+
+test('short duty labels stay within the day without stretching the colored duty', () => {
+    const [start, finish] = timelineEventLanes([
+        { start: 0, duration: 2, labelWidth: 76, lane: 0 },
+        { start: 98, duration: 2, labelWidth: 76, lane: 0 },
+    ], 200);
+    assert.deepEqual(start, { lane: 0, labelOffset: 42 });
+    assert.deepEqual(finish, { lane: 0, labelOffset: -38 });
+});
+
+test('overlapping time labels get separate compact lanes while separated duties share a lane', () => {
+    const positions = timelineEventLanes([
+        { start: 25, duration: 8, labelWidth: 80, lane: 0 },
+        { start: 34, duration: 8, labelWidth: 80, lane: 0 },
+        { start: 75, duration: 8, labelWidth: 80, lane: 0 },
+    ], 240);
+    assert.deepEqual(positions.map(position => position.lane), [0, 1, 0]);
+});
+
+test('true overlap lanes remain distinct regardless of label width and input order', () => {
+    const positions = timelineEventLanes([
+        { start: 50, duration: 25, labelWidth: 40, lane: 1 },
+        { start: 25, duration: 50, labelWidth: 40, lane: 0 },
+    ], 300);
+    assert.deepEqual(positions.map(position => position.lane), [1, 0]);
 });
 
 function harness() {

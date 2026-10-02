@@ -16,6 +16,9 @@
   'dropdownId'        => null,
   'layerGroup'        => null,
   'anchorSelector'    => null,
+  'openOnHover'       => false,
+  'hoverOpenDelay'    => 100,
+  'hoverCloseDelay'   => 180,
 ])
 
 @php
@@ -62,6 +65,14 @@
   data-rt-dropdown-id="{{ $resolvedDropdownId }}"
   x-data="{
     open: false,
+    pinned: false,
+    pointerOverTrigger: false,
+    pointerOverPanel: false,
+    hoverOpenTimer: null,
+    hoverCloseTimer: null,
+    openOnHover: @js((bool) $openOnHover),
+    hoverOpenDelay: @js(max(0, (int) $hoverOpenDelay)),
+    hoverCloseDelay: @js(max(0, (int) $hoverCloseDelay)),
     placement: 'bottom',
     positionFrame: null,
     positionObserver: null,
@@ -106,6 +117,7 @@
     },
 
     destroy() {
+      this.clearHoverTimers();
       this.clearExternalAnchorAccessibility();
       this.stopPositionTracking();
     },
@@ -136,10 +148,25 @@
     },
 
     toggle() {
+      this.clearHoverTimers();
+
+      // A click pins an already visible hover preview; a second click closes it.
+      if (this.open && this.openOnHover && !this.pinned) {
+        this.pinned = true;
+        return;
+      }
+
       if (this.open) {
         this.close();
         return;
       }
+
+      this.openDropdown(true);
+    },
+
+    openDropdown(pinned = false) {
+      this.pinned = pinned;
+      if (this.open) return;
 
       if (this.$refs.panel) {
         this.$refs.panel.style.visibility = 'hidden';
@@ -154,7 +181,80 @@
       }
     },
 
+    focusHoverPanel() {
+      if (!this.openOnHover) return;
+      this.clearHoverTimers();
+      this.openDropdown(true);
+      this.$nextTick(() => {
+        this.$refs.panel?.querySelector('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])')?.focus({ preventScroll: true });
+      });
+    },
+
+    clearHoverTimers() {
+      if (this.hoverOpenTimer !== null) window.clearTimeout(this.hoverOpenTimer);
+      if (this.hoverCloseTimer !== null) window.clearTimeout(this.hoverCloseTimer);
+      this.hoverOpenTimer = null;
+      this.hoverCloseTimer = null;
+    },
+
+    enterHover(event, area) {
+      // Touch keeps normal click semantics and never opens a ghost preview.
+      if (!this.openOnHover || event.pointerType !== 'mouse') return;
+
+      this.clearHoverTimers();
+      if (area === 'trigger') this.pointerOverTrigger = true;
+      if (area === 'panel') this.pointerOverPanel = true;
+      if (this.open || area !== 'trigger') return;
+
+      this.hoverOpenTimer = window.setTimeout(() => {
+        this.hoverOpenTimer = null;
+        if (this.pointerOverTrigger) this.openDropdown(false);
+      }, this.hoverOpenDelay);
+    },
+
+    leaveHover(event, area) {
+      if (!this.openOnHover || event.pointerType !== 'mouse') return;
+
+      if (area === 'trigger') this.pointerOverTrigger = false;
+      if (area === 'panel') this.pointerOverPanel = false;
+      this.scheduleHoverClose();
+    },
+
+    hasHoverFocus() {
+      const active = document.activeElement;
+      return Boolean(active && (
+        this.$refs.trigger?.contains(active)
+        || this.$refs.panel?.contains(active)
+        || this.ownsNestedTeleportedTarget(active)
+      ));
+    },
+
+    retainHoverFocus() {
+      if (!this.openOnHover || this.hoverCloseTimer === null) return;
+      window.clearTimeout(this.hoverCloseTimer);
+      this.hoverCloseTimer = null;
+    },
+
+    scheduleHoverClose() {
+      if (!this.openOnHover) return;
+      this.clearHoverTimers();
+      if (this.pinned) return;
+
+      // The panel is teleported and separated from its trigger by an anchor
+      // gap. Give the pointer time to cross it, and retain focused controls.
+      this.hoverCloseTimer = window.setTimeout(() => {
+        this.hoverCloseTimer = null;
+        if (!this.pinned && !this.pointerOverTrigger && !this.pointerOverPanel && !this.hasHoverFocus()) {
+          this.close();
+        }
+      }, this.hoverCloseDelay);
+    },
+
     close(restoreFocus = false) {
+      this.clearHoverTimers();
+      this.pinned = false;
+      this.pointerOverTrigger = false;
+      this.pointerOverPanel = false;
       if (!this.open) return;
 
       this.$refs.panel
@@ -616,6 +716,11 @@
     x-ref="trigger"
     data-rt-dropdown-trigger
     @click="toggle()"
+    @pointerenter="enterHover($event, 'trigger')"
+    @pointerleave="leaveHover($event, 'trigger')"
+    @focusin="retainHoverFocus()"
+    @focusout="scheduleHoverClose()"
+    @if($openOnHover) @keydown.arrow-down.prevent.stop="focusHoverPanel()" @endif
     @keydown.escape="if (open) { $event.stopPropagation(); $event.preventDefault(); close(true) }"
   >
     {{ $trigger }}
@@ -643,6 +748,10 @@
         style="display:none; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); --rt-dropdown-caret-x:{{ $anchorCaretX }}; --rt-dropdown-connector-size:{{ $anchorConnectorSize }}px;"
         data-rt-dropdown-panel
         @click.outside="handleOutsideClick($event)"
+        @pointerenter="enterHover($event, 'panel')"
+        @pointerleave="leaveHover($event, 'panel')"
+        @focusin="retainHoverFocus()"
+        @focusout="scheduleHoverClose()"
         @keydown.escape="if (open) { $event.stopPropagation(); $event.preventDefault(); close(true) }"
         @if($trap) x-trap.inert.noscroll="open" @endif
       x-ref="panel"

@@ -69,8 +69,11 @@ final class OutlookMobileSignature
         if (preg_match('/(?:^|\s)(rts[0-9a-f]{10})(?:\s|$)/', $scope->getAttribute('class'), $match) !== 1) {
             throw new RuntimeException('Der mobile Signatur-Scope fehlt.');
         }
-        $scope->setAttribute('class', $scope->getAttribute('class').' rt-mobile-ledger rtm');
-        $selector = '.'.$match[1].'.rtm';
+        // Encode all 40 scope bits more compactly; keep three-class rule
+        // specificity so retained desktop rules cannot regain precedence.
+        $mobileScope = 'm'.base_convert(substr($match[1], 3), 16, 36);
+        $scope->setAttribute('class', $scope->getAttribute('class').' rt-mobile-ledger rtm '.$mobileScope);
+        $selector = '.'.$mobileScope.'.rtm';
         // Version metadata is outside the visual wrapper. Keep it hidden when
         // Office.js drops inline styles but retains the internal stylesheet.
         $markerClass = $match[1].'vm';
@@ -132,8 +135,9 @@ final class OutlookMobileSignature
             if (str_contains(strtolower($declarations), '</style')) {
                 throw new RuntimeException('Die mobile Signatur enthaelt ungueltige Stilwerte.');
             }
+            $declarations = self::compactRepeatedTypography($declarations);
             if (! isset($styleClasses[$declarations])) {
-                $styleClasses[$declarations] = 'rtm'.++$index;
+                $styleClasses[$declarations] = 'm'.base_convert((string) ++$index, 10, 36);
                 $css .= $selector.' .'.$styleClasses[$declarations].'{'
                     .str_replace(';', '!important;', $declarations).'!important;}';
             }
@@ -169,6 +173,54 @@ final class OutlookMobileSignature
     private static function classQuery(string $class, string $tag = '*'): string
     {
         return '//'.$tag.'[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]';
+    }
+
+    /** Remove exact repeated numeric typography only; preserve fallback values. */
+    private static function compactRepeatedTypography(string $declarations): string
+    {
+        // Semicolons inside values are not declaration boundaries. Avoid
+        // parsing escaped/complex separators; ordinary quoted fonts are safe.
+        if (str_contains($declarations, '\\')) {
+            return $declarations;
+        }
+        $quote = null;
+        $depth = 0;
+        for ($offset = 0, $length = strlen($declarations); $offset < $length; $offset++) {
+            $character = $declarations[$offset];
+            if ($character === ';' && ($quote !== null || $depth > 0)) {
+                return $declarations;
+            }
+            if ($quote !== null) {
+                if ($character === $quote) {
+                    $quote = null;
+                }
+            } elseif ($character === '"' || $character === "'") {
+                $quote = $character;
+            } elseif ($character === '(') {
+                $depth++;
+            } elseif ($character === ')') {
+                $depth--;
+            }
+        }
+        if ($quote !== null || $depth !== 0) {
+            return $declarations;
+        }
+        $parts = explode(';', $declarations);
+        $seen = [];
+        for ($index = count($parts) - 1; $index >= 0; $index--) {
+            $part = trim($parts[$index]);
+            if (preg_match('/\A(?:font-size|line-height):(?:\d+(?:\.\d+)?(?:px|pt|em|rem|%)?|normal)\z/i', $part) !== 1) {
+                continue;
+            }
+            $key = strtolower($part);
+            if (isset($seen[$key])) {
+                unset($parts[$index]);
+            } else {
+                $seen[$key] = true;
+            }
+        }
+
+        return implode(';', $parts);
     }
 
     /** Move cells, not their contents, preserving text, links and embedded IMG. */

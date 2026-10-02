@@ -5,6 +5,7 @@ namespace App\Livewire\Operations;
 use App\Models\AbsenceRequest;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Operations\StaffTimelineLayout;
 use App\Support\Operations\OperationsAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -81,7 +82,9 @@ class StaffTimeline extends Component
         $maxBlocks = max(1, (int) ceil($staffTotal / self::INITIAL_BATCH_SIZE));
         $visibleLimit = self::INITIAL_BATCH_SIZE * min($currentBlock, $maxBlocks);
         $users = $staffQuery->paginate($visibleLimit, ['id', 'name', 'email', 'status', 'current_team_id', 'profile_photo_path'], 'staffPage', 1);
-        $assignments = $this->absencesOnly ? collect() : ShiftAssignment::blocking()->whereIn('user_id', $users->pluck('id'))->whereHas('shift', fn ($q) => $q->notCancelled()->during($from, $until))->with('shift.order.customer')->get()->groupBy('user_id');
+        $weekFrom = $from->startOfWeek(CarbonImmutable::MONDAY);
+        $weekUntil = $until->subDay()->startOfWeek(CarbonImmutable::MONDAY)->addWeek();
+        $assignments = $this->absencesOnly ? collect() : ShiftAssignment::blocking()->whereIn('user_id', $users->pluck('id'))->whereHas('shift', fn ($q) => $q->notCancelled()->during($weekFrom, $weekUntil))->with('shift.order.customer')->get()->groupBy('user_id');
         $absences = AbsenceRequest::whereIn('user_id', $users->pluck('id'))->whereIn('status', ['pending', 'approved'])
             ->when($this->absencesOnly && $this->absenceKind !== 'all', fn ($q) => $q->where('kind', $this->absenceKind))
             ->when($this->absencesOnly && $this->absenceStatus !== 'all', fn ($q) => $q->where('status', $this->absenceStatus))
@@ -90,38 +93,27 @@ class StaffTimeline extends Component
         for ($day = $from; $day->lt($until); $day = $day->addDay()) {
             $days->push($day);
         }
-        $rows = $users->getCollection()->map(function ($user) use ($days, $assignments, $absences) {
-            return ['user' => $user, 'days' => $days->map(function ($day) use ($user, $assignments, $absences) {
-                $end = $day->addDay();
-                $events = collect();
-                foreach ($assignments->get($user->id, collect()) as $assignment) {
-                    $shift = $assignment->shift;
-                    if ($shift->starts_at->lt($end) && $shift->ends_at->gt($day)) {
-                        $events->push(['id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $shift->title, 'start' => $shift->starts_at, 'end' => $shift->ends_at, 'detail' => $shift->order?->customer?->company_name, 'status' => $assignment->status->label(), 'shift_id' => $shift->id]);
+        $layout = app(StaffTimelineLayout::class);
+        $rows = $users->getCollection()->map(function ($user) use ($days, $assignments, $absences, $layout) {
+            return ['user' => $user, 'weekly_working_hours' => $this->absencesOnly ? null : $user->profile?->weekly_working_hours,
+                'planned_hours_by_week' => $layout->plannedHoursByWeek($assignments->get($user->id, collect()), $days),
+                'days' => $days->map(function ($day) use ($user, $assignments, $absences, $layout) {
+                    $end = $day->addDay();
+                    $events = collect();
+                    foreach ($assignments->get($user->id, collect()) as $assignment) {
+                        $shift = $assignment->shift;
+                        if ($shift->starts_at->lt($end) && $shift->ends_at->gt($day)) {
+                            $events->push(['id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $shift->title, 'start' => $shift->starts_at, 'end' => $shift->ends_at, 'detail' => $shift->order?->customer?->company_name, 'status' => $assignment->status->label(), 'status_value' => $assignment->status->value, 'shift_status' => $shift->status->value, 'shift_status_label' => $shift->status->label(), 'role_name' => $shift->role_name, 'location_name' => $shift->location_name ?: $shift->order?->location_name, 'planned_break_minutes' => $shift->planned_break_minutes, 'shift_id' => $shift->id]);
+                        }
                     }
-                }
-                foreach ($absences->get($user->id, collect()) as $absence) {
-                    if ($absence->starts_at->lt($end) && $absence->ends_at->gt($day)) {
-                        $events->push(['id' => 'absence-'.$absence->id, 'absence_id' => $absence->id, 'kind' => 'absence', 'title' => ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit'][$absence->kind], 'start' => $absence->starts_at, 'end' => $absence->ends_at, 'detail' => '', 'status' => $absence->status === 'approved' ? 'Genehmigt' : 'Beantragt', 'shift_id' => null]);
+                    foreach ($absences->get($user->id, collect()) as $absence) {
+                        if ($absence->starts_at->lt($end) && $absence->ends_at->gt($day)) {
+                            $events->push(['id' => 'absence-'.$absence->id, 'absence_id' => $absence->id, 'kind' => 'absence', 'title' => ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit'][$absence->kind], 'start' => $absence->starts_at, 'end' => $absence->ends_at, 'detail' => '', 'status' => $absence->status === 'approved' ? 'Genehmigt' : 'Beantragt', 'status_value' => $absence->status, 'shift_status' => null, 'shift_id' => null]);
+                        }
                     }
-                }
-                $events = $events->sortBy(fn ($e) => $e['start']->timestamp)->values();
-                $cursor = $day->timestamp;
-                $free = [];
-                foreach ($events as $event) {
-                    $start = max($day->timestamp, $event['start']->timestamp);
-                    $finish = min($end->timestamp, $event['end']->timestamp);
-                    if ($start > $cursor) {
-                        $free[] = [$cursor, $start];
-                    }
-                    $cursor = max($cursor, $finish);
-                }
-                if ($cursor < $end->timestamp) {
-                    $free[] = [$cursor, $end->timestamp];
-                }
 
-                return ['date' => $day, 'events' => $events, 'free' => $free];
-            })];
+                    return $layout->cell($day, $events);
+                })];
         });
 
         return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone'));

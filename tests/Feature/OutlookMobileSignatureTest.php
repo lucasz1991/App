@@ -42,7 +42,7 @@ class OutlookMobileSignatureTest extends TestCase
             $after->query('//table[contains(@class,"rt-v27-anchor")]')->item(0)->getAttribute('style'),
         );
         $this->assertStringContainsString('data-rt-outlook-mobile-css="1"', $mobile['signature']['html']);
-        $this->assertStringContainsString('.rts0123456789.rtm .rtm', $mobile['signature']['html']);
+        $this->assertStringContainsString('.m28tfc09.rtm .m', $mobile['signature']['html']);
         $this->assertStringContainsString('.rts0123456789vm{display:none!important', $mobile['signature']['html']);
         $this->assertStringContainsString('font-size:13px!important', $mobile['signature']['html']);
         $this->assertStringNotContainsString('background-image:', $mobile['signature']['html']);
@@ -101,6 +101,28 @@ class OutlookMobileSignatureTest extends TestCase
                 $this->assertNotEmpty($error->getMessage());
             }
         }
+    }
+
+    public function test_css_compaction_preserves_scope_specificity_and_different_fallback_values(): void
+    {
+        $method = new ReflectionMethod(OutlookMobileSignature::class, 'compactRepeatedTypography');
+        $this->assertSame(
+            'font-size:10px;line-height:normal;font-size:13px;line-height:20px;color:red;color:blue',
+            $method->invoke(null, 'font-size:10px;font-size:13px;line-height:20px;line-height:normal;font-size:13px;line-height:20px;color:red;color:blue'),
+        );
+        $complex = 'font-family:"Odd;line-height:20px;Family";line-height:20px';
+        $this->assertSame($complex, $method->invoke(null, $complex));
+        $this->assertSame(
+            'font-family:"Arial";font-size:13px;line-height:20px',
+            $method->invoke(null, 'font-family:"Arial";font-size:13px;line-height:20px;font-size:13px;line-height:20px'),
+        );
+        $payload = $this->fixture();
+        $payload['signature']['html'] = str_replace('rts0123456789', 'rtsffffffffff', $payload['signature']['html']);
+        unset($payload['templates'][0]['signature'], $payload['templates'][0]['signatureVersion']);
+        $mobile = OutlookMobileSignature::payload($payload);
+        $this->assertStringContainsString('.me13wu1of.rtm .m', $mobile['signature']['html']);
+        $this->assertStringContainsString('rt-mobile-ledger rtm me13wu1of', $mobile['signature']['html']);
+        $this->assertStringNotContainsString('.rtsffffffffff.rtm .rtm', $mobile['signature']['html']);
     }
 
     public function fixture(): array
