@@ -160,4 +160,43 @@ class StaffTimelineLayoutTest extends TestCase
                 return true;
             })->assertDontSee('PRIVATE-NOTE')->assertDontSee('Unbelegt');
     }
+
+    public function test_rendered_dst_night_keeps_full_details_split_marks_and_no_false_hours_in_absence_mode(): void
+    {
+        $this->buildMinimalRailTimeSchema();
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $person = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $person->profile()->create(['weekly_working_hours' => '38.50']);
+        $customer = Customer::create(['company_name' => 'Test Rail', 'is_active' => true]);
+        $order = Order::create(['customer_id' => $customer->id, 'title' => 'Nachtleistung', 'service_type' => 'Tf', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => '2026-10-24T00:00', 'ends_at' => '2026-10-26T00:00', 'required_staff' => 1, 'created_by' => $admin->id]);
+        $shift = Shift::create(['order_id' => $order->id, 'title' => 'Nacht der Zeitumstellung', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2026-10-24T22:00:00+02:00', 'ends_at' => '2026-10-25T06:00:00+01:00', 'required_staff' => 1, 'planned_break_minutes' => 30, 'status' => 'confirmed', 'created_by' => $admin->id]);
+        ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $person->id, 'status' => 'confirmed', 'assigned_by' => $admin->id]);
+
+        $timeline = Livewire::actingAs($admin)->test(StaffTimeline::class, ['from' => '2026-10-25', 'until' => '2026-10-25'])
+            ->assertViewHas('rows', function ($rows): bool {
+                $event = $rows[0]['days'][0]['events'][0];
+                $this->assertSame('← 00:00 – 06:00', $event['local_label']);
+                $this->assertEquals(420, $event['elapsed_minutes']);
+                $this->assertCount(2, $event['time_segments']);
+
+                return true;
+            })
+            ->assertSee('24.10. 22:00 +02:00 – 25.10. 06:00 +01:00')
+            ->assertSee('9,0 h tatsächliche Dauer')
+            ->assertDontSee('7,0 h tatsächliche Dauer')
+            ->assertSee('38,5 h/Woche')->assertSee('8,5 h');
+
+        preg_match_all('/<span class="rt-personnel-timeline-mark" style="left:([^%]+)%;width:([^%]+)%" aria-hidden="true"><\/span>/', $timeline->html(), $marks);
+        $this->assertCount(2, $marks[0]);
+        $this->assertEqualsWithDelta(0, (float) $marks[1][0], 0.0001);
+        $this->assertEqualsWithDelta(50, (float) $marks[2][0], 0.0001);
+        $this->assertEqualsWithDelta(100 / 3, (float) $marks[1][1], 0.0001);
+        $this->assertEqualsWithDelta(200 / 3, (float) $marks[2][1], 0.0001);
+
+        AbsenceRequest::create(['user_id' => $person->id, 'kind' => 'vacation', 'status' => 'approved', 'timezone' => 'Europe/Berlin', 'starts_at' => '2026-10-25T12:00', 'ends_at' => '2026-10-25T14:00']);
+        Livewire::actingAs($admin)->test(StaffTimeline::class, ['from' => '2026-10-25', 'until' => '2026-10-25', 'absencesOnly' => true])
+            ->assertSee('Urlaub')->assertDontSee('Nacht der Zeitumstellung')
+            ->assertDontSee('Eingeplant')->assertDontSee('Regelarbeitszeit')->assertDontSee('h/Woche');
+    }
 }

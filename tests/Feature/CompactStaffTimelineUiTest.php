@@ -9,7 +9,7 @@ class CompactStaffTimelineUiTest extends TestCase
     public function test_timeline_uses_shared_people_compact_rows_and_native_snapping_without_empty_markers(): void
     {
         $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
-        foreach (['rtStaffTimeline', 'snap-both snap-mandatory', 'snap-start', 'data-no-sidebar-swipe', 'canScrollLeft', 'canScrollRight', 'x-user.public-info', 'x-user.person-anchor-preview', 'x-intersect.once="$wire.loadMore()"'] as $contract) {
+        foreach (['rtStaffTimeline', 'snap-x snap-mandatory', 'snap-start', 'data-no-sidebar-swipe', 'canScrollLeft', 'canScrollRight', 'x-user.public-info', 'x-user.person-anchor-preview', 'x-intersect.once="$wire.loadMore()"'] as $contract) {
             $this->assertStringContainsString($contract, $view);
         }
         $this->assertStringNotContainsString('rt-personnel-timeline-no-entry', $view);
