@@ -53,7 +53,7 @@
                     <x-ui.dropdown.anchor-dropdown align="left" width="72" :open-on-hover="true" :offset="6" content-role="dialog" content-label="Dienstdetails" layer-group="staff-timeline-events" :dropdown-id="'staff-event-'.$eventKey" trigger-classes="rt-personnel-timeline-event-trigger" class="rt-personnel-timeline-event-anchor" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text" data-timeline-event-dropdown>
                         <x-slot:trigger>
                             <button type="button" class="rt-personnel-timeline-bar" aria-label="{{ $event['local_label'] }} · {{ $event['title'] }} · {{ $event['status'] }}" aria-expanded="false" x-bind:aria-expanded="open ? 'true' : 'false'" aria-haspopup="dialog" aria-controls="rt-dropdown-staff-event-{{ $eventKey }}-content" data-table-row-ignore>
-                                <span class="rt-personnel-timeline-time">{{ $event['local_label'] }}</span>
+                                <span class="rt-personnel-timeline-time"><span class="rt-personnel-timeline-time-text">{{ $event['local_label'] }}</span></span>
                                 @foreach($event['time_segments'] as $segment)
                                     <span class="rt-personnel-timeline-mark" style="left:{{ ($segment['left_percent'] - $event['left_percent']) / $event['width_percent'] * 100 }}%;width:{{ $segment['width_percent'] / $event['width_percent'] * 100 }}%" aria-hidden="true"></span>
                                 @endforeach
@@ -80,7 +80,7 @@
                                     @if($detailDstChanged)<div><dt>Zeitumstellung</dt><dd>{{ number_format(abs($detailStart->diffInMinutes($detailEnd)) / 60, 1, ',', '.') }} h tatsächliche Dauer</dd></div>@endif
                                 </dl>
                                 @if($event['shift_id'])
-                                    <footer class="rt-personnel-timeline-detail-footer"><x-ui.buttons.button-basic size="sm" href="{{ route('operations.workspace',['module'=>'shift-management','shift'=>$event['shift_id']]) }}">Schicht öffnen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic></footer>
+                                    <footer class="rt-personnel-timeline-detail-footer"><x-ui.buttons.button-basic size="sm" type="button" x-on:click="$dispatch('operations-shift-detail-request', { id: {{ $event['shift_id'] }} }); close()" data-shift-detail-open="{{ $event['shift_id'] }}">Schicht öffnen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic></footer>
                                 @elseif($absencesOnly)
                                     <footer class="rt-personnel-timeline-detail-footer"><x-ui.buttons.button-basic size="sm" type="button" wire:click="$dispatch('operations-open-absence', {id: {{ $event['absence_id'] }}})">Abwesenheit öffnen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic></footer>
                                 @endif

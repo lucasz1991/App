@@ -51,6 +51,7 @@ import {
 } from './mobile-sidebar-swipe';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { staffTimeline } from './staff-timeline';
+import { shiftDetailDrawer } from './shift-detail-drawer';
 import { railtimeTabs } from './tabs';
 import { systemHealth } from './system-health';
 import { initMobileFormFocusRecovery } from './mobile-form-focus';
@@ -680,6 +681,7 @@ Alpine.data('rtDateField', dateField);
 Alpine.data('rtDateRangePicker', dateRangePicker);
 Alpine.data('rtDateTimeField', dateTimeField);
 Alpine.data('rtStaffTimeline', staffTimeline);
+Alpine.data('rtShiftDetailDrawer', shiftDetailDrawer);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);
 Alpine.data('systemHealth', systemHealth);

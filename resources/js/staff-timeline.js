@@ -9,7 +9,7 @@ export function timelineDayOffset(offset, width, direction, maximum) {
     return Math.max(0, Math.min(maximum, (Math.round(offset / width) + direction) * width));
 }
 
-// Labels may extend beyond a short duty, but the colored mark always keeps its true duration.
+// Readable time badges may extend beyond a short duty; their solid strip keeps the true duration.
 export function timelineEventLanes(events, dayWidth) {
     const lanes = [];
     const results = new Map();
@@ -19,7 +19,7 @@ export function timelineEventLanes(events, dayWidth) {
     for (const event of ordered) {
         const start = Math.max(0, Math.min(width, event.start * width / 100));
         const end = Math.max(start, Math.min(width, (event.start + event.duration) * width / 100));
-        const labelWidth = Math.min(Math.max(0, event.labelWidth), Math.max(0, width - 8));
+        const labelWidth = Math.min(Math.max(end - start, event.labelWidth || 0), Math.max(0, width - 8));
         const half = labelWidth / 2;
         const center = Math.max(half + 4, Math.min(width - half - 4, (start + end) / 2));
         const occupiedStart = Math.min(start, center - half);
@@ -27,7 +27,7 @@ export function timelineEventLanes(events, dayWidth) {
         let lane = Math.max(0, event.lane || 0);
         while (lanes[lane]?.some(([from, until]) => occupiedStart < until + 4 && occupiedEnd + 4 > from)) lane++;
         (lanes[lane] ||= []).push([occupiedStart, occupiedEnd]);
-        results.set(event.index, { lane, labelOffset: center - start });
+        results.set(event.index, { lane, labelOffset: center - start, badgeWidth: labelWidth });
     }
     return events.map((_, index) => results.get(index));
 }
@@ -81,11 +81,12 @@ export function staffTimeline() {
                     start: parseFloat(event.dataset.timeStart) || 0,
                     duration: parseFloat(event.dataset.timeWidth) || 0,
                     lane: parseInt(event.dataset.timeLane, 10) || 0,
-                    labelWidth: event.querySelector('.rt-personnel-timeline-time')?.getBoundingClientRect().width || 0,
+                    labelWidth: (event.querySelector('.rt-personnel-timeline-time-text')?.getBoundingClientRect().width || 0) + 12,
                 })), dayWidth);
                 positions.forEach((position, index) => {
                     events[index].style.setProperty('--event-lane', position.lane);
                     events[index].style.setProperty('--time-label-offset', `${position.labelOffset}px`);
+                    events[index].style.setProperty('--time-badge-width', `${position.badgeWidth}px`);
                 });
                 cell.style.setProperty('--timeline-lanes', Math.max(...positions.map(position => position.lane)) + 1);
             }

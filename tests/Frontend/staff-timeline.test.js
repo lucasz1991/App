@@ -17,16 +17,25 @@ test('day navigation snaps to full columns and clamps both range edges', () => {
     assert.equal(timelineDayOffset(200, 200, -1, 400), 0);
 });
 
-test('short duty labels stay within the day without stretching the colored duty', () => {
+test('short duty badges keep readable time text inside the day without stretching the colored duty', () => {
     const [start, finish] = timelineEventLanes([
         { start: 0, duration: 2, labelWidth: 76, lane: 0 },
         { start: 98, duration: 2, labelWidth: 76, lane: 0 },
     ], 200);
-    assert.deepEqual(start, { lane: 0, labelOffset: 42 });
-    assert.deepEqual(finish, { lane: 0, labelOffset: -38 });
+    assert.deepEqual(start, { lane: 0, labelOffset: 42, badgeWidth: 76 });
+    assert.deepEqual(finish, { lane: 0, labelOffset: -38, badgeWidth: 76 });
 });
 
-test('overlapping time labels get separate compact lanes while separated duties share a lane', () => {
+test('long duty badges span the actual duration while full-day badges keep their text inside the edges', () => {
+    const positions = timelineEventLanes([
+        { start: 25, duration: 50, labelWidth: 76, lane: 0 },
+        { start: 0, duration: 100, labelWidth: 60, lane: 1 },
+    ], 240);
+    assert.deepEqual(positions[0], { lane: 0, labelOffset: 60, badgeWidth: 120 });
+    assert.deepEqual(positions[1], { lane: 1, labelOffset: 120, badgeWidth: 232 });
+});
+
+test('overlapping readable time badges get separate compact lanes while separated duties share a lane', () => {
     const positions = timelineEventLanes([
         { start: 25, duration: 8, labelWidth: 80, lane: 0 },
         { start: 34, duration: 8, labelWidth: 80, lane: 0 },

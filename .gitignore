@@ -168,6 +168,8 @@ auth.json
 
 # Native Operations regression and isolated browser acceptance
 !/tests/Frontend/staff-timeline.test.js
+!/tests/Frontend/shift-detail-drawer.test.js
+!/tests/Feature/ShiftDetailDrawerTest.php
 !/tests/Frontend/anchor-dropdown-hover.test.js
 !/tests/Feature/StaffTimelineLayoutTest.php
 !/tests/Frontend/sidebar-drawer.test.js

@@ -1,6 +1,7 @@
 @props([
     'id' => null,
     'maxWidth' => null,
+    'showExpression' => null,
     // Schaltet die Inhaltsschleuse ab. Nur fuer Dialoge sinnvoll, deren
     // Inhalt selbst schon eine eigene Ladedarstellung mitbringt.
     'instant' => false,
@@ -16,6 +17,7 @@
 <x-modal
     :id="$modalId"
     :maxWidth="$maxWidth"
+    :show-expression="$showExpression"
     role="dialog"
     aria-labelledby="{{ $titleId }}"
     aria-describedby="{{ $contentId }}"

@@ -15,7 +15,7 @@
                     <span class="rt-table-record__icon" aria-hidden="true"><i class="far fa-calendar-day"></i></span>
                     <div class="rt-table-record__body">
                         <span class="rt-table-record__eyebrow">{{ $item->order?->order_number }}</span>
-                        <x-ui.buttons.button-basic type="button" mode="link" wire:click="openDetails({{ $item->id }})" wire:loading.attr="disabled" wire:target="openDetails" class="rt-table-record__title">{{ $item->title }}</x-ui.buttons.button-basic>
+                        <x-ui.buttons.button-basic type="button" mode="link" x-on:click="$dispatch('operations-shift-detail-request', { id: {{ $item->id }} })" class="rt-table-record__title">{{ $item->title }}</x-ui.buttons.button-basic>
                         <span class="rt-table-record__meta">{{ $item->role_name }}</span>
                         @if($item->order?->title && $item->order->title !== $item->title)<span class="rt-table-record__meta">{{ $item->order->title }}</span>@endif
                     </div>

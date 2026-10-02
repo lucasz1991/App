@@ -105,12 +105,12 @@
     height: 32px;
 }
 .rt-personnel-timeline-event-anchor, .rt-personnel-timeline-event-trigger { display: block; width: 100%; height: 100%; }
-.rt-personnel-timeline-bar { position: relative; display: block; width: 100%; height: 32px; padding: 0; border: 0; background: transparent; color: var(--rt-text, #182435); cursor: pointer; }
-.rt-personnel-timeline-time { position: absolute; top: 0; left: var(--time-label-offset, 50%); width: max-content; max-width: var(--timeline-day-width); transform: translateX(-50%); font-size: 11px; line-height: 18px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.rt-personnel-timeline-mark { position: absolute; top: 23px; inset-inline: 0; height: 6px; min-width: 2px; border-radius: 2px; background: var(--timeline-state-color); transition: height 120ms ease, top 120ms ease; }
-.rt-personnel-timeline-bar:hover .rt-personnel-timeline-mark, .rt-personnel-timeline-bar[aria-expanded="true"] .rt-personnel-timeline-mark { top: 21px; height: 8px; }
+.rt-personnel-timeline-bar { position: relative; display: block; width: 100%; height: 32px; padding: 0; border: 0; background: transparent; color: var(--timeline-state-color); cursor: pointer; }
+.rt-personnel-timeline-time { position: absolute; top: 1px; left: var(--time-label-offset, 50%); display: inline-flex; height: 24px; width: var(--time-badge-width, max-content); max-width: calc(var(--timeline-day-width) - 8px); align-items: center; justify-content: center; padding: 0 5px 2px; border: 1px solid color-mix(in srgb, var(--timeline-state-color) 24%, var(--rt-border, #e4e7ec)); border-radius: 5px; background: color-mix(in srgb, var(--timeline-state-color) 8%, var(--rt-surface, #fff)); transform: translateX(-50%); font-size: 10px; line-height: 14px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; transition: background-color 120ms ease, border-color 120ms ease; }
+.rt-personnel-timeline-mark { position: absolute; top: 22px; inset-inline: 0; height: 3px; min-width: 2px; border-radius: 0 0 2px 2px; background: var(--timeline-state-color); }
+.rt-personnel-timeline-bar:hover .rt-personnel-timeline-time, .rt-personnel-timeline-bar[aria-expanded="true"] .rt-personnel-timeline-time { border-color: color-mix(in srgb, var(--timeline-state-color) 50%, var(--rt-border, #e4e7ec)); background: color-mix(in srgb, var(--timeline-state-color) 13%, var(--rt-surface, #fff)); }
 .rt-personnel-timeline-bar:focus-visible { outline: none; }
-.rt-personnel-timeline-bar:focus-visible .rt-personnel-timeline-mark { outline: 2px solid var(--rt-text, #182435); outline-offset: 2px; }
+.rt-personnel-timeline-bar:focus-visible .rt-personnel-timeline-time { outline: 2px solid var(--rt-text, #182435); outline-offset: 2px; }
 :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail) { --timeline-state-color: var(--rt-muted, #667085); }
 :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail)[data-state="confirmed"], :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail)[data-state="accepted"] { --timeline-state-color: #25603b; }
 :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail)[data-state="requested"], :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail)[data-state="pending"] { --timeline-state-color: #855d19; }
@@ -155,13 +155,17 @@
 .dark .rt-personnel-timeline-day { background-color: var(--rt-dark-surface, #171d28); background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(25% - 1px), var(--rt-dark-border, #303846) calc(25% - 1px), var(--rt-dark-border, #303846) 25%); }
 .dark .rt-personnel-timeline-day--weekend, .dark .rt-personnel-timeline-day:hover, .dark .rt-personnel-timeline-day:focus-within { background-color: var(--rt-dark-surface-muted, #222b39); }
 .dark .rt-personnel-timeline-direction { border-color: var(--rt-dark-border, #303846); background: var(--rt-dark-surface, #171d28); color: var(--rt-dark-text, #edf2f8); }
-.dark .rt-personnel-timeline-bar { color: var(--rt-dark-text, #edf2f8); }
+.dark .rt-personnel-timeline-time { border-color: color-mix(in srgb, var(--timeline-state-color) 24%, var(--rt-dark-border, #303846)); background: color-mix(in srgb, var(--timeline-state-color) 8%, var(--rt-dark-surface, #171d28)); }
+.dark .rt-personnel-timeline-bar:hover .rt-personnel-timeline-time, .dark .rt-personnel-timeline-bar[aria-expanded="true"] .rt-personnel-timeline-time { border-color: color-mix(in srgb, var(--timeline-state-color) 50%, var(--rt-dark-border, #303846)); background: color-mix(in srgb, var(--timeline-state-color) 13%, var(--rt-dark-surface, #171d28)); }
+.dark .rt-personnel-timeline-bar:focus-visible .rt-personnel-timeline-time { outline-color: var(--rt-dark-text, #edf2f8); }
+.dark :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail) { --timeline-state-color: var(--rt-dark-muted, #a5afbd); }
 .dark :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail)[data-state="confirmed"], .dark :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail)[data-state="accepted"] { --timeline-state-color: #ace2bf; }
 .dark :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail)[data-state="requested"], .dark :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail)[data-state="pending"] { --timeline-state-color: #edcd91; }
 .dark :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail)[data-state="in_progress"] { --timeline-state-color: #8ccdec; }
+.dark :is(.rt-personnel-timeline-event, .rt-personnel-timeline-detail)[data-state="completed"] { --timeline-state-color: var(--rt-dark-muted, #a5afbd); }
 .dark .rt-personnel-timeline-detail-status, .dark .rt-personnel-timeline-detail-person, .dark .rt-personnel-timeline-detail-data dt { color: var(--rt-dark-muted, #a5afbd); }
 .dark .rt-personnel-timeline-detail-footer { border-color: var(--rt-dark-border, #303846); }
-@media (prefers-reduced-motion: reduce) { .rt-personnel-timeline-mark { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .rt-personnel-timeline-time { transition: none; } }
 @media (max-width: 640px) {
     .rt-personnel-timeline { --timeline-name-width: 124px; }
     .rt-personnel-timeline-name { padding: 1px 8px; font-size: 12px; overflow-wrap: anywhere; }

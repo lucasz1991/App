@@ -1,4 +1,4 @@
-@props(['id', 'maxWidth', 'placement' => 'center'])
+@props(['id', 'maxWidth', 'placement' => 'center', 'showExpression' => null])
 
 @php
 $id = $id ?? md5($attributes->wire('model'));
@@ -21,7 +21,12 @@ $isDrawer = $placement === 'right';
 @endphp
 
 <div
-    x-data="{ show: @entangle($attributes->wire('model')) }"
+    @if($showExpression)
+        x-data="{ show: false }"
+        x-init="show = !!({{ $showExpression }}); $watch('{{ $showExpression }}', value => show = !!value); $watch('show', value => {{ $showExpression }} = value)"
+    @else
+        x-data="{ show: @entangle($attributes->wire('model')) }"
+    @endif
     x-on:close.stop="show = false"
     x-on:rt-navigation:prepare.window="show = false"
     x-on:keydown.escape.window="show = false"

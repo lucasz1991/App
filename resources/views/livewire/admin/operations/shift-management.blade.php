@@ -1,4 +1,5 @@
-<div class="rt-disposition rt-disposition--shifts rt-shift-plan min-w-0" data-operations-shift-management>
+<div class="rt-disposition rt-disposition--shifts rt-shift-plan min-w-0" data-operations-shift-management
+    x-data="rtShiftDetailDrawer" x-on:operations-shift-detail-request.window="openShiftDetail($event.detail.id)">
     <template x-teleport="[data-page-header-search]">
         <div class="rt-shift-plan-header-controls" data-shift-plan-header-controls>
             <div class="rt-shift-plan-period-controls">
@@ -85,7 +86,7 @@
                 <div class="rt-shift-plan-unavailable" role="status"><i class="far fa-clock" aria-hidden="true"></i><span>Die Zeitleiste ist verfügbar, sobald der Mitarbeiter- und Abwesenheitsbereich eingerichtet ist.</span></div>
             @endif
         @elseif($viewMode === 'table' || $shifts->isEmpty())
-            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="shift-plan" class="rt-shift-plan-table" :flush-top="true" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
+            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="shift-plan" class="rt-shift-plan-table" :flush-top="true" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-event="operations-shift-detail-request" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
         @else
             @foreach(match($viewMode) { 'day' => $dailyGroups, 'orders' => $orderGroups, default => $staffingGroups } as $groupKey => $group)
                 @if($group['items']->isNotEmpty())
@@ -107,14 +108,23 @@
                                 @endforeach
                             </div>
                         @else
-                            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" :table-key="'shift-order-'.$groupKey" :flush-top="true" :items="$group['items']" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-action="openDetails" row-view="components.tables.rows.operations.shift-plan" />
+                            <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" :table-key="'shift-order-'.$groupKey" :flush-top="true" :items="$group['items']" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-event="operations-shift-detail-request" row-view="components.tables.rows.operations.shift-plan" />
                         @endif
                     </section>
                 @endif
             @endforeach
         @endif
     </div>
-    <x-operations.modal wire:model="detailOpen" title="Schichtdetails" max-width="4xl" variant="drawer">
+    <x-operations.modal id="shift-plan-detail-{{ $this->getId() }}" wire:model="detailOpen" show-expression="detailVisible" :instant="true" title="Schichtdetails" max-width="4xl" variant="drawer">
+        <div x-show="loading" x-cloak data-shift-detail-loading>
+            <p class="mb-4 flex items-center gap-2 text-sm text-rt-muted dark:text-rt-dark-muted" role="status"><i class="far fa-spinner-third fa-spin" aria-hidden="true"></i>Schichtdetails werden geladen …</p>
+            <x-ui.loading.skeleton variant="list" :rows="4" />
+        </div>
+        <div x-show="!loading && error" x-cloak class="space-y-4 py-6" data-shift-detail-error>
+            <p class="text-sm text-rt-muted dark:text-rt-dark-muted" x-text="error" role="alert"></p>
+            <x-ui.buttons.button-basic type="button" size="sm" x-on:click="openShiftDetail(requestedShiftId)"><i class="far fa-arrow-rotate-right" aria-hidden="true"></i>Erneut versuchen</x-ui.buttons.button-basic>
+        </div>
+        <div x-show="!loading && !error" x-bind:aria-busy="loading" data-shift-detail-content>
         @if($selectedShift)
                     @php
                         $selectedShiftStatus = $selectedShift->status instanceof \BackedEnum ? $selectedShift->status->value : (string) $selectedShift->status;
@@ -239,6 +249,7 @@
                         <p class="mt-1 max-w-sm text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Wähle eine Schicht aus, um die Besetzung zu planen.</p>
                     </div>
                 @endif
+        </div>
     </x-operations.modal>
     <x-dialog-modal wire:model="formOpen" maxWidth="3xl">
         <x-slot:title>{{ $editingShiftId ? 'Schicht bearbeiten' : 'Neue Schicht anlegen' }}</x-slot:title>

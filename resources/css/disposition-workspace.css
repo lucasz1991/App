@@ -173,6 +173,11 @@
 .rt-disposition-drawer .rt-disposition-drawer__panel.rt-motion-modal-leave { transition: transform 320ms cubic-bezier(.2, .35, .6, .75), opacity 320ms ease; will-change: transform, opacity; }
 .rt-disposition-drawer .rt-disposition-drawer__panel.rt-motion-modal-enter-from,
 .rt-disposition-drawer .rt-disposition-drawer__panel.rt-motion-modal-leave-to { transform: translateX(32px); opacity: 0; }
+/* Shift details open locally before their Livewire request finishes. */
+[id^='shift-plan-detail-'] .rt-disposition-drawer__panel.rt-motion-modal-enter { transition: transform 240ms cubic-bezier(.2, .7, .2, 1); }
+[id^='shift-plan-detail-'] .rt-disposition-drawer__panel.rt-motion-modal-leave { transition: transform 200ms ease-in; }
+[id^='shift-plan-detail-'] .rt-disposition-drawer__panel.rt-motion-modal-enter-from,
+[id^='shift-plan-detail-'] .rt-disposition-drawer__panel.rt-motion-modal-leave-to { transform: translateX(100%); opacity: 1; }
 @media (min-width: 1240px) {
     .rt-disposition-workgrid { grid-template-columns: minmax(0, 1fr) 248px; }
 }

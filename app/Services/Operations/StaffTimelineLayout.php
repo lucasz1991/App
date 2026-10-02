@@ -11,18 +11,20 @@ class StaffTimelineLayout
      * The axis always shows the local civil clock from 00:00 to 24:00.
      * An elapsed-seconds/day-length ratio would move an 08:00 shift on DST days.
      */
-    public function cell(CarbonImmutable $day, Collection $events): array
+    public function cell(CarbonImmutable $day, Collection $events, ?int $rowLaneCount = null): array
     {
         $end = $day->addDay();
         $lanes = [];
         $items = $events->sortBy(fn (array $event) => $event['start']->timestamp)->values()->map(function (array $event) use ($day, $end, &$lanes): array {
             $start = $event['start']->max($day);
             $finish = $event['end']->min($end);
-            $lane = 0;
-            while (isset($lanes[$lane]) && $lanes[$lane] > $start->timestamp) {
-                $lane++;
+            $lane = $event['lane'] ?? 0;
+            if (! array_key_exists('lane', $event)) {
+                while (isset($lanes[$lane]) && $lanes[$lane] > $start->timestamp) {
+                    $lane++;
+                }
             }
-            $lanes[$lane] = $finish->timestamp;
+            $lanes[$lane] = max($lanes[$lane] ?? 0, $finish->timestamp);
             $segments = $this->clockSegments($day, $start, $finish);
             $left = min(array_column($segments, 'left_percent'));
             $right = max(array_map(fn (array $segment) => $segment['left_percent'] + $segment['width_percent'], $segments));
@@ -31,6 +33,10 @@ class StaffTimelineLayout
             $allDay = $event['start']->lte($day) && $event['end']->gte($end);
             $startLabel = $start->setTimezone($day->timezone)->format('H:i');
             $endLabel = $finish->eq($end) ? '24:00' : $finish->setTimezone($day->timezone)->format('H:i');
+            $localLabel = $allDay ? 'Ganztägig' : ($before ? '← ' : '').$startLabel.' – '.$endLabel.($after ? ' →' : '');
+            $timelineLabel = ($event['kind'] ?? null) === 'shift'
+                ? ($before ? '' : $startLabel.' – '.($after ? $event['end']->setTimezone($day->timezone)->format('H:i') : $endLabel))
+                : $localLabel;
 
             return $event + [
                 'visible_start' => $start,
@@ -42,7 +48,8 @@ class StaffTimelineLayout
                 'continues_before' => $before,
                 'continues_after' => $after,
                 'all_day' => $allDay,
-                'local_label' => $allDay ? 'Ganztägig' : ($before ? '← ' : '').$startLabel.' – '.$endLabel.($after ? ' →' : ''),
+                'local_label' => $localLabel,
+                'timeline_label' => $timelineLabel,
                 'elapsed_minutes' => $start->diffInSeconds($finish) / 60,
                 'dst_changed' => $start->setTimezone($day->timezone)->offset !== $finish->setTimezone($day->timezone)->offset,
                 'iso_week' => $day->format('o-W'),
@@ -52,11 +59,27 @@ class StaffTimelineLayout
         return [
             'date' => $day,
             'events' => $items,
-            'lane_count' => max(1, count($lanes)),
+            'lane_count' => max($rowLaneCount ?? 1, $items->isEmpty() ? 1 : (int) $items->max('lane') + 1),
             // Weekly contract totals and imported prose do not define daily windows.
             'working_windows' => [],
             'day_elapsed_minutes' => $day->diffInSeconds($end) / 60,
         ];
+    }
+
+    /** Assign one stable vertical lane to each event across the visible timeline. */
+    public function assignLanes(Collection $events): Collection
+    {
+        $lanes = [];
+
+        return $events->sortBy(fn (array $event) => $event['start']->timestamp)->values()->map(function (array $event) use (&$lanes): array {
+            $lane = 0;
+            while (isset($lanes[$lane]) && $lanes[$lane] > $event['start']->timestamp) {
+                $lane++;
+            }
+            $lanes[$lane] = $event['end']->timestamp;
+
+            return $event + ['lane' => $lane];
+        });
     }
 
     /** Actual elapsed time, with breaks allocated proportionally at week boundaries. */

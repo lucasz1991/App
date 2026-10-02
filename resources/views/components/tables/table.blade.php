@@ -19,6 +19,7 @@
     // Doppelklick = vorhandene Detailansicht bzw. Detailroute.
     'selectionAction' => null,
     'detailAction' => null,
+    'detailEvent' => null,
     'detailRoute' => null,
     // Optional fuer Listen mit einem separaten, direkt angrenzenden Mobile-Header.
     'flushTop' => false,
@@ -141,6 +142,9 @@
         $safeDetailAction = is_string($detailAction) && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $detailAction)
             ? $detailAction
             : null;
+        $safeDetailEvent = is_string($detailEvent) && preg_match('/^[a-z][a-z0-9-]*$/', $detailEvent)
+            ? $detailEvent
+            : null;
     @endphp
     <div
         @if($tableKey) wire:key="{{ $tableKey }}-row-{{ $rowId }}" @endif
@@ -148,7 +152,7 @@
         role="row"
         tabindex="0"
         data-table-row-interactive="true"
-        data-detail-available="{{ ($rowDetailUrl || $safeDetailAction) ? 'true' : 'false' }}"
+        data-detail-available="{{ ($rowDetailUrl || $safeDetailAction || $safeDetailEvent) ? 'true' : 'false' }}"
         data-selected="{{ $isSelected ? 'true' : 'false' }}"
         aria-selected="{{ $isSelected ? 'true' : 'false' }}"
         x-data="{
@@ -156,6 +160,7 @@
             rowId: {{ $rowId }},
             selectionAction: @js($safeSelectionAction),
             detailAction: @js($safeDetailAction),
+            detailEvent: @js($safeDetailEvent),
             detailUrl: @js($rowDetailUrl),
             isControl(event) {
                 return event.target instanceof Element
@@ -172,8 +177,13 @@
                 this.clickTimer = window.setTimeout(() => this.toggleSelection(), 220);
             },
             openDetails(event) {
-                if (this.isControl(event) || (!this.detailUrl && !this.detailAction)) return;
+                if (this.isControl(event) || (!this.detailUrl && !this.detailAction && !this.detailEvent)) return;
                 window.clearTimeout(this.clickTimer);
+
+                if (this.detailEvent) {
+                    this.$dispatch(this.detailEvent, { id: this.rowId });
+                    return;
+                }
 
                 if (this.detailUrl) {
                     window.location.assign(this.detailUrl);
@@ -184,7 +194,7 @@
             },
             handleKeyboard(event) {
                 if (this.isControl(event)) return;
-                if ((event.ctrlKey || event.metaKey) && (this.detailUrl || this.detailAction)) {
+                if ((event.ctrlKey || event.metaKey) && (this.detailUrl || this.detailAction || this.detailEvent)) {
                     this.openDetails(event);
                     return;
                 }
