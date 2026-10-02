@@ -256,7 +256,7 @@ class OperationsRoadmapTest extends TestCase
         AbsenceRequest::create(['user_id' => $this->employee->id, 'kind' => 'vacation', 'starts_at' => CarbonImmutable::parse('2027-05-14T00:00:00+02:00'), 'ends_at' => CarbonImmutable::parse('2027-05-15T00:00:00+02:00'), 'timezone' => 'Europe/Berlin', 'status' => 'approved']);
         Livewire::actingAs($this->admin)->test(StaffTimeline::class, ['from' => '2027-05-12', 'until' => '2027-05-14'])
             ->assertSee('Testdienst')->assertSee('Urlaub')->assertSee('Unbelegt 00:00 – 08:00')
-            ->assertSee('Kein Eintrag')->assertDontSee('Unbelegt 00:00 – 24:00');
+            ->assertDontSee('Kein Eintrag')->assertDontSee('Unbelegt 00:00 – 24:00');
         Livewire::actingAs($this->employee)->test(StaffTimeline::class, ['from' => '2027-05-13', 'until' => '2027-05-14'])->assertForbidden();
     }
 

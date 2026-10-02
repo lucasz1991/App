@@ -8,34 +8,21 @@
         <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
     @endif
 @endif
-<div class="rt-personnel-timeline" style="--timeline-days:{{ $days->count() }}" x-data="{
-    gutterObserver: null,
-    init() {
-        this.gutterObserver = new ResizeObserver(() => this.updateGutter());
-        this.gutterObserver.observe(this.$refs.timelineBody);
-        this.$nextTick(() => this.updateGutter());
-    },
-    destroy() { this.gutterObserver?.disconnect(); },
-    updateGutter() {
-        this.$el.style.setProperty('--timeline-gutter', `${this.$refs.timelineBody.offsetWidth - this.$refs.timelineBody.clientWidth}px`);
-    },
-    syncHorizontal(source) {
-        const offset = source.scrollLeft;
-        for (const target of [this.$refs.timelineBody, this.$refs.timelineHeader, this.$refs.timelineScrollbar]) {
-            if (target !== source && target.scrollLeft !== offset) target.scrollLeft = offset;
-        }
-    }
-}">
+<div class="rt-personnel-timeline" style="--timeline-days:{{ $days->count() }}" x-data="rtStaffTimeline" data-no-sidebar-swipe>
     <div class="rt-personnel-timeline-header">
         <div class="rt-personnel-timeline-name rt-personnel-timeline-head">Mitarbeiter</div>
+        <div class="rt-personnel-timeline-header-viewport">
         <div class="rt-personnel-timeline-header-scroll" x-ref="timelineHeader">
             <div class="rt-personnel-timeline-header-days">
-                @foreach($days as $day)<div class="rt-personnel-timeline-head" @class(['rt-personnel-timeline-head--weekend' => $day->isWeekend()])>{{ $day->locale('de')->translatedFormat('D, d.m.') }}</div>@endforeach
+                @foreach($days as $day)<div @class(['rt-personnel-timeline-head', 'rt-personnel-timeline-head--weekend' => $day->isWeekend()])>{{ $day->locale('de')->translatedFormat('D, d.m.') }}</div>@endforeach
             </div>
         </div>
+        <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--previous" x-cloak x-show="canScrollLeft" x-on:click="scrollDay(-1)" aria-label="Weitere Tage links anzeigen" title="Weitere Tage links"><i class="far fa-chevron-left" aria-hidden="true"></i></button>
+        <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--next" x-cloak x-show="canScrollRight" x-on:click="scrollDay(1)" aria-label="Weitere Tage rechts anzeigen" title="Weitere Tage rechts"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
+        </div>
     </div>
-    <div class="rt-personnel-timeline-body" x-ref="timelineBody" x-on:scroll="syncHorizontal($event.target)" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; horizontale Navigation unter der Tabelle">
-    <div class="rt-personnel-timeline-grid">
+    <div class="rt-personnel-timeline-body snap-both snap-mandatory" x-ref="timelineBody" x-on:scroll.passive="syncHorizontal($event.target)" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile oder die horizontale Bildlaufleiste">
+    <div class="rt-personnel-timeline-grid" x-ref="timelineGrid">
     @forelse($rows as $row)
         <div class="rt-personnel-timeline-name min-w-0" wire:key="staff-person-{{ $row['user']->id }}">
             <x-user.person-anchor-preview :user="$row['user']" trigger-classes="flex min-w-0 w-full">
@@ -48,10 +35,7 @@
             @if(!$row['user']->status)<span class="ops-muted">Inaktiv</span>@endif
         </div>
         @foreach($row['days'] as $cell)
-            <div @class(['rt-personnel-timeline-day', 'rt-personnel-timeline-day--weekend' => $cell['date']->isWeekend(), 'rt-personnel-timeline-day--empty' => $cell['events']->isEmpty()]) wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
-            @if($cell['events']->isEmpty())
-                <span class="rt-personnel-timeline-no-entry" role="img" aria-label="Kein Eintrag" title="Kein Eintrag"><i class="far fa-calendar-minus" aria-hidden="true"></i></span>
-            @endif
+            <div @class(['rt-personnel-timeline-day snap-start', 'rt-personnel-timeline-day--weekend' => $cell['date']->isWeekend(), 'rt-personnel-timeline-day--empty' => $cell['events']->isEmpty()]) wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
             @foreach($cell['events'] as $event)
                 <div class="rt-personnel-timeline-event" data-kind="{{ $event['kind'] }}">
                     <span class="rt-personnel-timeline-time">@if($event['start']->lte($cell['date']) && $event['end']->gte($cell['date']->addDay()))Ganztägig @else{{ $event['start']->lt($cell['date']) ? '← 00:00' : $event['start']->setTimezone($zone)->format('H:i') }} – {{ $event['end']->gte($cell['date']->addDay()) ? '24:00 →' : $event['end']->setTimezone($zone)->format('H:i') }}@endif</span>

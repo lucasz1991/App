@@ -136,6 +136,8 @@ Homestead.json
 !/tests/Frontend/outlook-mailbox-guard.test.js
 !/tests/Frontend/outlook-write-diagnostics.test.js
 !/tests/Frontend/outlook-runtime-startup.test.js
+!/tests/Feature/OutlookAddinRuntimePolicyTest.php
+!/tests/Feature/OutlookMobileSignatureTest.php
 !/tests/Unit/
 /tests/Unit/*
 !/tests/Unit/OutlookAddinMobileManifestTest.php
@@ -165,6 +167,9 @@ Homestead.json
 auth.json
 
 # Native Operations regression and isolated browser acceptance
+!/tests/Frontend/staff-timeline.test.js
+!/tests/Frontend/sidebar-drawer.test.js
+!/tests/Feature/CompactStaffTimelineUiTest.php
 !/tests/Feature/DispositionDateControlsTest.php
 !/tests/Frontend/date-time-field.test.js
 !/tests/Feature/PersonalCalendarTest.php
@@ -183,6 +188,7 @@ auth.json
 !/tests/Frontend/operations-number-input.test.js
 !/tests/Feature/ShiftManagementViewsTest.php
 !/tests/Feature/NativeOperationsWorkflowTest.php
+!/tests/Feature/LocalOperationsDemoTest.php
 !/tests/Feature/OperationsPlanningAssistanceTest.php
 !/tests/Feature/OperationsRoadmapTest.php
 !/tests/Browser/

@@ -12,7 +12,7 @@ use DOMDocument;
  */
 final class OutlookAddinManifest
 {
-    public const ADDIN_VERSION = '1.0.1.0';
+    public const ADDIN_VERSION = '1.0.2.0';
 
     public const MANIFEST_SCHEMA = '1.1';
 

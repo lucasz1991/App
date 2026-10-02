@@ -97,7 +97,9 @@ final class OutlookAddinController extends Controller
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set(
             'Content-Security-Policy',
-            "default-src 'none'; script-src 'self' https://appsforoffice.microsoft.com; connect-src 'self' https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+            // Office.js can select this exact Microsoft AJAX fallback on iOS.
+            // Keep the exception path-scoped; do not enable arbitrary scripts/eval.
+            "default-src 'none'; script-src 'self' https://appsforoffice.microsoft.com https://ajax.aspnetcdn.com/ajax/3.5/MicrosoftAjax.js; connect-src 'self' https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'",
         );
 
         return $response;

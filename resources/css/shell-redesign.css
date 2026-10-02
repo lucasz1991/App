@@ -502,6 +502,64 @@ body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'] .rt-e
 /* Sidebar                                                                     */
 /* -------------------------------------------------------------------------- */
 
+/* The app shell uses the same overlay navigation on desktop and mobile.
+ * Explicit selectors also neutralize the legacy bundle's 960px/1140px offsets. */
+body[data-sidebar-drawer='true'] .main-content { margin-left: 0 !important; margin-right: 0 !important; }
+body[data-sidebar-drawer='true'] .rt-shell-ambient { left: 0; }
+body[data-sidebar-drawer='true'] .vertical-menu-btn,
+body[data-sidebar-drawer='true'] .rt-shell-brand-mark { display: flex !important; }
+body[data-sidebar-drawer='true'] .topbar-brand .navbar-brand { display: none !important; }
+body[data-sidebar-drawer='true'] .vertical-menu {
+    display: flex !important;
+    width: min(86vw, 300px) !important;
+    visibility: hidden;
+    transform: translateX(-104%);
+    will-change: transform;
+    transition: transform 460ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 460ms ease, visibility 0s linear 460ms;
+}
+body[data-sidebar-drawer='true'].sidebar-enable .vertical-menu {
+    visibility: visible;
+    transform: translateX(0);
+    box-shadow: 24px 0 60px -18px rgb(2 8 20 / 40%) !important;
+    transition: transform 460ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 460ms ease;
+}
+body[data-sidebar-drawer='true'].rt-sidebar-dragging .vertical-menu {
+    visibility: visible;
+    transform: translateX(calc((1 - var(--rt-sidebar-drag-progress, 0)) * -104%));
+    box-shadow: 24px 0 60px -18px rgb(2 8 20 / calc(var(--rt-sidebar-drag-progress, 0) * 40%)) !important;
+    transition: none;
+}
+body[data-sidebar-drawer='true'] .rt-mobile-sidebar-backdrop {
+    display: block;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 360ms ease, visibility 0s linear 360ms;
+}
+body[data-sidebar-drawer='true'].sidebar-enable .rt-mobile-sidebar-backdrop {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 360ms ease;
+}
+body[data-sidebar-drawer='true'].rt-sidebar-dragging .rt-mobile-sidebar-backdrop {
+    opacity: var(--rt-sidebar-drag-progress, 0);
+    visibility: visible;
+    pointer-events: none;
+    transition: none;
+}
+body[data-sidebar-drawer='true'].sidebar-enable { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) {
+    body[data-sidebar-drawer='true'] .vertical-menu,
+    body[data-sidebar-drawer='true'].sidebar-enable .vertical-menu,
+    body[data-sidebar-drawer='true'] .rt-mobile-sidebar-backdrop,
+    body[data-sidebar-drawer='true'] .rt-menu-icon > span { transition: none; }
+}
+@media print {
+    body[data-sidebar-drawer='true'] .vertical-menu,
+    body[data-sidebar-drawer='true'] .rt-mobile-sidebar-backdrop { display: none !important; }
+}
+
 .rt-shell-sidebar {
     display: flex !important;
     flex-direction: column;

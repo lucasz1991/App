@@ -18,11 +18,58 @@ import { confirmedOfficeWrite, hasUncertainWrite, wasSignatureWriteConfirmed } f
 const CONFIG_META_NAME = 'railtime-outlook-config-url';
 const CONFIG_TIMEOUT_MS = 8000;
 const API_TIMEOUT_MS = 12000;
+const AUTH_TIMEOUT_MS = 15000;
+const CONTEXT_TIMEOUT_MS = 5000;
 const LOG_PREFIX = '[RailTime Outlook Add-in]';
 
 let configPromise;
 let authenticationClientPromise;
 const composeOperations = new WeakMap();
+const reportedRuntimePhases = new Set();
+const RUNTIME_PHASES = new Set([
+    'runtime-loaded', 'office-ready', 'handler-entered', 'context-ready',
+    'configuration-started', 'authentication-started', 'bootstrap-started',
+    'compose-started', 'compose-applied', 'compose-skipped', 'event-completed',
+    'configuration-failed', 'authentication-failed', 'bootstrap-failed', 'compose-failed',
+]);
+
+// Temporary startup evidence in the existing public config access log. Only
+// fixed labels/revision: no mailbox, token, message, exception or device data.
+// Never await a probe, and never let diagnosis block composing/sending.
+function reportRuntimePhase(phase) {
+    if (typeof document === 'undefined' || typeof fetch !== 'function'
+        || !RUNTIME_PHASES.has(phase) || reportedRuntimePhases.has(phase)) return;
+    reportedRuntimePhases.add(phase);
+    try {
+        const url = new URL(configuredUrl());
+        url.searchParams.set('rt_phase', phase);
+        url.searchParams.set('rt_rev', 'mobile-init-20261002');
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        const timer = controller ? setTimeout(() => controller.abort(), 2000) : null;
+        Promise.resolve().then(() => fetch(url.toString(), {
+            method: 'GET', cache: 'no-store', credentials: 'omit',
+            referrerPolicy: 'no-referrer', signal: controller?.signal,
+        })).catch(() => {}).finally(() => { if (timer !== null) clearTimeout(timer); });
+    } catch { /* Startup diagnostics are best-effort only. */ }
+}
+
+function withDeadline(operation, timeoutMs, code) {
+    let timer;
+    return Promise.race([
+        Promise.resolve().then(operation),
+        new Promise((_resolve, reject) => { timer = setTimeout(() => reject(codedError(code)), timeoutMs); }),
+    ]).finally(() => clearTimeout(timer));
+}
+
+async function composeItemWhenReady() {
+    const deadline = Date.now() + CONTEXT_TIMEOUT_MS;
+    do {
+        const item = globalThis.Office?.context?.mailbox?.item;
+        if (item) return item;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    } while (Date.now() < deadline);
+    throw codedError('COMPOSE_CONTEXT_UNAVAILABLE');
+}
 
 function codedError(code) {
     const error = new Error(code);
@@ -255,6 +302,8 @@ async function acquireTokenSilently(config) {
 
 async function loadBootstrap(config, accessToken, item) {
     const sender = await readComposeSender(Office, item);
+    const mobile = ['ios', 'android'].includes(String(Office?.context?.platform || '').toLowerCase())
+        || /^(?:Outlook)?(?:iOS|Android)$/i.test(String(Office?.context?.mailbox?.diagnostics?.hostName || ''));
     const payload = await fetchJson(config.endpoints.bootstrap, {
         method: 'GET',
         cache: 'no-store',
@@ -264,6 +313,7 @@ async function loadBootstrap(config, accessToken, item) {
             Authorization: `Bearer ${accessToken}`,
             'X-RailTime-Outlook-Context': 'event',
             'X-RailTime-Compose-Contract': 'native-signature-v1',
+            ...(mobile ? { 'X-RailTime-Outlook-Profile': 'mobile-ledger-v1' } : {}),
             'X-RailTime-Outlook-Mailbox': mailboxAddress(),
             'X-RailTime-Outlook-Sender': sender,
         },
@@ -355,6 +405,7 @@ function addInlineAttachment(item, media) {
 }
 
 async function attachInlineMedia(item, media, assertTarget) {
+    if (media.length === 0) return;
     const existingNames = await new Promise((resolve, reject) => {
         if (typeof item.getAttachmentsAsync !== 'function') {
             resolve(new Set());
@@ -421,11 +472,25 @@ async function applyPublishedContent(item) {
         if (Office.context.mailbox.item !== item) throw codedError('ITEM_CHANGED');
         await assertMailboxBinding(Office, item, binding);
     };
-    const config = await diagnoseStep('configuration', loadConfig);
-    const accessToken = await diagnoseStep('authentication', () => acquireTokenSilently(config));
-    const bootstrap = await diagnoseStep('bootstrap-binding', () => loadBootstrap(config, accessToken, item));
+    reportRuntimePhase('configuration-started');
+    const config = await diagnoseStep('configuration', loadConfig).catch((error) => {
+        reportRuntimePhase('configuration-failed'); throw error;
+    });
+    reportRuntimePhase('authentication-started');
+    const accessToken = await diagnoseStep('authentication', () => withDeadline(
+        () => acquireTokenSilently(config), AUTH_TIMEOUT_MS, 'AUTH_TIMEOUT',
+    )).catch((error) => {
+        // The native bridge can otherwise remain pending for the entire event.
+        if (error?.code === 'AUTH_TIMEOUT') authenticationClientPromise = null;
+        reportRuntimePhase('authentication-failed'); throw error;
+    });
+    reportRuntimePhase('bootstrap-started');
+    const bootstrap = await diagnoseStep('bootstrap-binding', () => loadBootstrap(config, accessToken, item)).catch((error) => {
+        reportRuntimePhase('bootstrap-failed'); throw error;
+    });
     binding = bootstrap.binding;
     await assertTarget();
+    reportRuntimePhase('compose-started');
 
     if (isTemplateInsertionBlocked(item) || hasUncertainWrite(item)) return 'uncertain';
 
@@ -530,9 +595,10 @@ async function applyPublishedContent(item) {
 // Mobile has no compose taskpane. Surface only fixed diagnostic categories,
 // never exception messages, tokens, addresses or message content.
 async function notifyMobileFailure(item, error = null) {
-    const platform = Office.context?.diagnostics?.platform || Office.context?.platform;
+    const context = globalThis.Office?.context;
+    const platform = context?.diagnostics?.platform || context?.platform;
     if (!/^(ios|android)$/i.test(String(platform))
-        || Office.context.mailbox.item !== item
+        || !item || context?.mailbox?.item !== item
         || typeof item?.notificationMessages?.replaceAsync !== 'function') return;
 
     const code = safeErrorCode(error);
@@ -560,10 +626,12 @@ async function notifyMobileFailure(item, error = null) {
 
 async function handleComposeEvent(event) {
     const complete = completeOnce(event);
-    const item = Office.context.mailbox.item;
+    let item;
+    reportRuntimePhase('handler-entered');
 
     try {
-        if (!item) throw codedError('COMPOSE_API_UNAVAILABLE');
+        item = await composeItemWhenReady();
+        reportRuntimePhase('context-ready');
         let operation = composeOperations.get(item);
         if (!operation) {
             operation = applyPublishedContent(item).then((result) => {
@@ -578,14 +646,17 @@ async function handleComposeEvent(event) {
             composeOperations.set(item, operation);
         }
         const result = await operation;
+        reportRuntimePhase(['applied', 'already-present'].includes(result) ? 'compose-applied' : 'compose-skipped');
         if (['skipped', 'uncertain'].includes(result)) await notifyMobileFailure(item);
     } catch (error) {
+        reportRuntimePhase('compose-failed');
         recordDiagnostic('compose-event', 'failed', error);
         // Event activation must never prevent the user from composing or sending.
         console.info(`${LOG_PREFIX} Signature skipped (${safeErrorCode(error)}).`);
         await notifyMobileFailure(item, error);
     } finally {
         complete();
+        reportRuntimePhase('event-completed');
     }
 }
 
@@ -604,7 +675,11 @@ function associateHandlers() {
 // Keep the Office action mapping too: the Windows JS-only runtime requires it.
 globalThis.onMessageComposeHandler = handleComposeEvent;
 globalThis.onNewMessageComposeHandler = handleComposeEvent;
+reportRuntimePhase('runtime-loaded');
 associateHandlers();
 // Do not postpone the first registration until onReady (JS-only activation).
 // Retry only the mapping if an HTML host exposes Office.actions later.
-Office.onReady(associateHandlers);
+Office.onReady(() => {
+    reportRuntimePhase('office-ready');
+    associateHandlers();
+});

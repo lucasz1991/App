@@ -50,6 +50,7 @@ import {
     settleSidebarDrag,
 } from './mobile-sidebar-swipe';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
+import { staffTimeline } from './staff-timeline';
 import { railtimeTabs } from './tabs';
 import { systemHealth } from './system-health';
 import { initMobileFormFocusRecovery } from './mobile-form-focus';
@@ -678,6 +679,7 @@ Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtDateField', dateField);
 Alpine.data('rtDateRangePicker', dateRangePicker);
 Alpine.data('rtDateTimeField', dateTimeField);
+Alpine.data('rtStaffTimeline', staffTimeline);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);
 Alpine.data('systemHealth', systemHealth);
@@ -2739,7 +2741,8 @@ function clearSidebarExpandTimer() {
 }
 
 function isDesktopHoverSidebar() {
-    return window.innerWidth >= 1024 && Boolean(document.querySelector('.vertical-menu'));
+    return document.body.dataset.sidebarDrawer !== 'true'
+        && window.innerWidth >= 1024 && Boolean(document.querySelector('.vertical-menu'));
 }
 
 function isSidebarHoveredOrFocused() {
@@ -2788,10 +2791,13 @@ function restoreDesktopSidebarState() {
 
 function setMobileSidebarOpen(open) {
     const sidebar = document.getElementById('app-sidebar');
-    const canOpen = window.innerWidth < MOBILE_SIDEBAR_BREAKPOINT
+    const canOpen = (document.body.dataset.sidebarDrawer === 'true' || window.innerWidth < MOBILE_SIDEBAR_BREAKPOINT)
         && sidebar?.isConnected === true;
 
     document.body.classList.toggle('sidebar-enable', Boolean(open) && canOpen);
+    if (!open && sidebar?.contains(document.activeElement)) {
+        document.getElementById('vertical-menu-btn')?.focus({ preventScroll: true });
+    }
     syncSidebarToggleState();
 }
 
@@ -3156,6 +3162,11 @@ function syncSidebarToggleState() {
     document.querySelectorAll('.vertical-menu-btn').forEach((button) => {
         button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     });
+    const sidebar = document.getElementById('app-sidebar');
+    if (sidebar && document.body.dataset.sidebarDrawer === 'true') {
+        sidebar.inert = !expanded;
+        sidebar.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+    }
 }
 
 function scheduleDesktopSidebarCollapse() {
@@ -3239,6 +3250,9 @@ function initLeftMenuCollapse() {
 
             setMobileSidebarOpen(!document.body.classList.contains('sidebar-enable'));
             initMenuItemScroll();
+            if (event.detail === 0 && document.body.classList.contains('sidebar-enable')) {
+                document.querySelector('#app-sidebar a[href]')?.focus({ preventScroll: true });
+            }
         });
     });
 }

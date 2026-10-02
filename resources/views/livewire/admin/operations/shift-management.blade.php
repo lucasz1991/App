@@ -6,7 +6,7 @@
                     <x-slot:trigger>
                         <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-period-trigger" aria-label="Planungszeitraum auswählen">
                             <i class="far fa-calendar-range" aria-hidden="true"></i>
-                            <span><strong class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</strong><small class="rt-calendar-timezone">{{ $displayTimezone }}</small></span>
+                            <span><strong class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</strong></span>
                             <i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i>
                         </x-ui.buttons.button-basic>
                     </x-slot:trigger>

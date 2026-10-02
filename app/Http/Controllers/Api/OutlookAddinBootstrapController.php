@@ -8,6 +8,7 @@ use App\Support\OutlookAddin\EntraAccessTokenValidator;
 use App\Support\OutlookAddin\OutlookAddinException;
 use App\Support\OutlookAddin\OutlookAddinIdentityResolver;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
+use App\Support\OutlookAddin\OutlookMobileSignature;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -47,6 +48,11 @@ final class OutlookAddinBootstrapController extends Controller
             }
             app(MicrosoftDeviceSyncScheduler::class)->afterMicrosoftSignIn($identity, $resolved['user']);
             $payload = $snapshots->currentForUser($resolved['user']);
+            // Presentation hint only, after all identity checks and after the
+            // desktop snapshot cache. Never changes publication or eligibility.
+            if ($request->header('X-RailTime-Outlook-Profile') === OutlookMobileSignature::PROFILE) {
+                $payload = OutlookMobileSignature::payload($payload);
+            }
             // Der persoenliche Snapshot ist wiederverwendbar, die Freigabe
             // fuer den aktuellen Absender dagegen strikt requestgebunden.
             $payload['binding'] = $resolved['binding'];
@@ -78,7 +84,7 @@ final class OutlookAddinBootstrapController extends Controller
             'Cache-Control' => 'private, no-store, max-age=0',
             'ETag' => $etag,
             'Referrer-Policy' => 'no-referrer',
-            'Vary' => 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender, X-RailTime-Compose-Contract',
+            'Vary' => 'Authorization, X-RailTime-Outlook-Mailbox, X-RailTime-Outlook-Sender, X-RailTime-Compose-Contract, X-RailTime-Outlook-Profile',
             'X-Content-Type-Options' => 'nosniff',
         ], static fn (?string $value): bool => $value !== null);
     }

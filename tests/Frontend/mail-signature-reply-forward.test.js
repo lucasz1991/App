@@ -704,11 +704,12 @@ async function runtimeFixture(options = {}) {
         .replace(/import\s*\{([\s\S]*?)\}\s*from '\.\/[^']+\.js';/g, 'const {$1} = shared;');
     const auth = {
         InteractionRequiredAuthError: class extends Error {},
-        createNestablePublicClientApplication: async () => ({
+        createNestablePublicClientApplication: async () => fixture.authFactory ? fixture.authFactory() : ({
             getAllAccounts() { return []; },
             async acquireTokenSilent() { return { accessToken: 'synthetic-test-token' }; },
         }),
     };
+    fixture.auth = auth;
     const createHandler = new Function('Office', 'globalThis', 'fetch', 'auth', 'shared', 'console', `${runtimeSource}\nreturn handleComposeEvent;`);
     let failedBootstrap = false;
     fixture.handler = createHandler(
@@ -717,6 +718,7 @@ async function runtimeFixture(options = {}) {
         async (url, request) => {
             if (!url.includes('config.json')) {
                 assert.equal(request.headers['X-RailTime-Compose-Contract'], 'native-signature-v1');
+                fixture.bootstrapHeaders = request.headers;
             }
             if (options.failFirstBootstrap && !url.includes('config.json') && !failedBootstrap) {
                 failedBootstrap = true;
@@ -730,6 +732,16 @@ async function runtimeFixture(options = {}) {
     );
     return fixture;
 }
+
+test('only native mobile hosts request structural mobile signature delivery', async () => {
+    for (const platform of ['iOS', 'Android', 'PC', 'OfficeOnline']) {
+        const fixture = await runtimeFixture({ platform });
+        await fixture.handler(fixture.event);
+        assert.equal(fixture.bootstrapHeaders['X-RailTime-Outlook-Profile'],
+            ['iOS', 'Android'].includes(platform) ? 'mobile-ledger-v1' : undefined);
+        assert.equal(fixture.state.completed, 1);
+    }
+});
 
 test('mobile HTML runtime exposes the exact manifest entry point before Office is ready', async () => {
     for (const platform of ['iOS', 'Android']) {
@@ -753,6 +765,68 @@ test('event registration supports synchronous desktop activation and delayed Off
         assert.equal(fixture.associations.get('onNewMessageComposeHandler'), fixture.handler);
         assert.equal(fixture.associations.get('onMessageComposeHandler'), fixture.handler);
         assert.equal(fixture.state.mutations.length, 0, 'registration alone must not write an email');
+    }
+});
+
+test('mobile waits for compose context inside the completion guard', async (context) => {
+    const fixture = await runtimeFixture({ platform: 'iOS' });
+    context.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    const mailbox = fixture.office.context.mailbox;
+    fixture.office.context.mailbox = undefined;
+    const pending = fixture.handler(fixture.event);
+    assert.equal(fixture.state.completed, 0);
+    fixture.office.context.mailbox = mailbox;
+    context.mock.timers.tick(50);
+    await pending;
+    assert.equal(fixture.state.signatures.length, 1);
+    assert.equal(fixture.state.completed, 1);
+});
+
+test('missing Office context completes once without a write or an unhandled rejection', async (context) => {
+    const fixture = await runtimeFixture({ platform: 'Android' });
+    context.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    fixture.office.context = undefined;
+    const pending = fixture.handler(fixture.event);
+    context.mock.timers.tick(5001);
+    await pending;
+    assert.deepEqual(fixture.state.mutations, []);
+    assert.equal(fixture.state.completed, 1);
+});
+
+test('a stalled authentication bridge completes safely and late tokens cannot insert content', async (context) => {
+    const fixture = await runtimeFixture({ platform: 'iOS' });
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    let resolveToken;
+    fixture.authFactory = async () => ({
+        getAllAccounts() { return []; },
+        acquireTokenSilent() { return new Promise((resolve) => { resolveToken = resolve; }); },
+    });
+    const pending = fixture.handler(fixture.event);
+    for (let index = 0; index < 100 && !resolveToken; index += 1) await Promise.resolve();
+    assert.equal(typeof resolveToken, 'function');
+    context.mock.timers.tick(15001);
+    await pending;
+    assert.equal(fixture.state.completed, 1);
+    resolveToken({ accessToken: 'late-synthetic-token' });
+    for (let index = 0; index < 30; index += 1) await Promise.resolve();
+    assert.deepEqual(fixture.state.mutations, []);
+    fixture.authFactory = async () => ({
+        getAllAccounts() { return []; },
+        async acquireTokenSilent() { return { accessToken: 'fresh-synthetic-token' }; },
+    });
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.completed, 2);
+    assert.equal(fixture.state.signatures.length, 1);
+});
+
+test('signature without media never invokes optional attachment enumeration on mobile', async () => {
+    for (const platform of ['iOS', 'Android']) {
+        const fixture = await runtimeFixture({ platform, withoutDefault: true });
+        fixture.bootstrap.signature = { html: '<p>Published signature</p>', media: [] };
+        fixture.item.getAttachmentsAsync = () => { throw new Error('Must not enumerate empty media'); };
+        await fixture.handler(fixture.event);
+        assert.deepEqual(fixture.state.mutations, ['signature']);
+        assert.equal(fixture.state.completed, 1);
     }
 });
 

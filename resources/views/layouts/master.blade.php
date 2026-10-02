@@ -67,7 +67,8 @@
         x-bind:data-sidebar-expanded="$store.shell?.desktopSidebarExpanded ? 'true' : 'false'"
         data-mode="light"
         data-sidebar-size="lg"
-        data-sidebar-collapsible="true"
+        data-sidebar-collapsible="false"
+        data-sidebar-drawer="true"
         data-sidebar-expanded="false"
         class="group font-sans bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text"
     >

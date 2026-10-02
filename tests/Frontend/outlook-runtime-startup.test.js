@@ -24,3 +24,29 @@ test('hidden mobile HTML loads its entry point synchronously after Office.js', a
     assert.match(html, /office\.js[\s\S]*<script src="\{\{ \$resolvedScriptUrl \}\}" type="text\/javascript"><\/script>/);
     assert.doesNotMatch(html, /\bdefer\b|\basync\b/);
 });
+
+test('actual HTML bundle startup probes contain only fixed labels and no credentials', async () => {
+    const bundle = await readFile(process.env.OUTLOOK_RUNTIME_TEST_BUNDLE
+        || new URL('../../public/outlook-addin/runtime.js', import.meta.url), 'utf8');
+    const requests = [];
+    const office = { onReady(callback) { callback(); }, actions: { associate() {} } };
+    const context = vm.createContext({
+        Office: office, console, setTimeout, clearTimeout, URL, AbortController,
+        document: { querySelector() { return { getAttribute() { return 'https://example.test/outlook-addin/config.json'; } }; } },
+        fetch(url, options) { requests.push({ url, options }); return Promise.resolve({ ok: true }); },
+    });
+    vm.runInContext(bundle, context);
+    for (let index = 0; index < 10; index += 1) await Promise.resolve();
+    assert.equal(requests.length, 2);
+    assert.deepEqual(requests.map(({ url }) => new URL(url).searchParams.get('rt_phase')),
+        ['runtime-loaded', 'office-ready']);
+    for (const { url, options } of requests) {
+        assert.equal(new URL(url).origin, 'https://example.test');
+        assert.equal(new URL(url).pathname, '/outlook-addin/config.json');
+        assert.equal(new URL(url).searchParams.get('rt_rev'), 'mobile-init-20261002');
+        assert.equal(options.credentials, 'omit');
+        assert.equal(options.referrerPolicy, 'no-referrer');
+        assert.equal(options.headers, undefined);
+        assert.equal(options.body, undefined);
+    }
+});
