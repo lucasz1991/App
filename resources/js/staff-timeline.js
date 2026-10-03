@@ -9,7 +9,7 @@ export function timelineDayOffset(offset, width, direction, maximum) {
     return Math.max(0, Math.min(maximum, (Math.round(offset / width) + direction) * width));
 }
 
-// Readable time badges may extend beyond a short duty; their solid strip keeps the true duration.
+// Readable badges span the complete duty; their strip keeps short duties precise.
 export function timelineEventLanes(events, dayWidth) {
     const lanes = [];
     const results = new Map();
@@ -70,25 +70,28 @@ export function staffTimeline() {
                 parseInt(style.getPropertyValue('--timeline-days'), 10) || 1);
             this.$el.style.setProperty('--timeline-day-width', `${width}px`);
             this.$el.style.setProperty('--timeline-gutter', `${body.offsetWidth - body.clientWidth}px`);
-            this.measureEventLabels(width);
+            this.measureEventLabels(width * (parseInt(style.getPropertyValue('--timeline-days'), 10) || 1));
             this.syncHorizontal(body);
         },
-        measureEventLabels(dayWidth) {
-            for (const cell of this.$refs.timelineGrid.querySelectorAll('.rt-personnel-timeline-day')) {
-                const events = [...cell.querySelectorAll('.rt-personnel-timeline-event')];
+        measureEventLabels(periodWidth) {
+            for (const track of this.$refs.timelineGrid.querySelectorAll('.rt-personnel-timeline-track')) {
+                const events = [...track.querySelectorAll('.rt-personnel-timeline-event')];
                 if (!events.length) continue;
                 const positions = timelineEventLanes(events.map(event => ({
                     start: parseFloat(event.dataset.timeStart) || 0,
                     duration: parseFloat(event.dataset.timeWidth) || 0,
                     lane: parseInt(event.dataset.timeLane, 10) || 0,
-                    labelWidth: (event.querySelector('.rt-personnel-timeline-time-text')?.getBoundingClientRect().width || 0) + 12,
-                })), dayWidth);
+                    labelWidth: event.querySelector('.rt-personnel-timeline-time-text')
+                        ? event.querySelector('.rt-personnel-timeline-time-text').getBoundingClientRect().width + 16
+                        : 0,
+                })), periodWidth);
                 positions.forEach((position, index) => {
                     events[index].style.setProperty('--event-lane', position.lane);
                     events[index].style.setProperty('--time-label-offset', `${position.labelOffset}px`);
                     events[index].style.setProperty('--time-badge-width', `${position.badgeWidth}px`);
                 });
-                cell.style.setProperty('--timeline-lanes', Math.max(...positions.map(position => position.lane)) + 1);
+                const rowLaneCount = parseInt(track.dataset.timelineLanes, 10) || 1;
+                track.style.setProperty('--timeline-lanes', Math.max(rowLaneCount, Math.max(...positions.map(position => position.lane)) + 1));
             }
         },
         syncHorizontal(source) {

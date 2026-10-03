@@ -94,25 +94,27 @@ class StaffTimeline extends Component
             $days->push($day);
         }
         $layout = app(StaffTimelineLayout::class);
-        $rows = $users->getCollection()->map(function ($user) use ($days, $assignments, $absences, $layout) {
+        $rows = $users->getCollection()->map(function ($user) use ($days, $from, $until, $assignments, $absences, $layout) {
+            $events = collect();
+            foreach ($assignments->get($user->id, collect()) as $assignment) {
+                $shift = $assignment->shift;
+                $events->push(['id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $shift->title, 'start' => $shift->starts_at, 'end' => $shift->ends_at, 'detail' => $shift->order?->customer?->company_name, 'status' => $assignment->status->label(), 'status_value' => $assignment->status->value, 'shift_status' => $shift->status->value, 'shift_status_label' => $shift->status->label(), 'role_name' => $shift->role_name, 'location_name' => $shift->location_name ?: $shift->order?->location_name, 'planned_break_minutes' => $shift->planned_break_minutes, 'shift_id' => $shift->id]);
+            }
+            foreach ($absences->get($user->id, collect()) as $absence) {
+                $events->push(['id' => 'absence-'.$absence->id, 'absence_id' => $absence->id, 'kind' => 'absence', 'title' => ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit'][$absence->kind], 'start' => $absence->starts_at, 'end' => $absence->ends_at, 'detail' => '', 'status' => $absence->status === 'approved' ? 'Genehmigt' : 'Beantragt', 'status_value' => $absence->status, 'shift_status' => null, 'shift_id' => null]);
+            }
+            $events = $layout->assignLanes($events->filter(fn (array $event) => $event['start']->lt($until) && $event['end']->gt($from))->values());
+            $rowLaneCount = $events->isEmpty() ? 1 : (int) $events->max('lane') + 1;
+
             return ['user' => $user, 'weekly_working_hours' => $this->absencesOnly ? null : $user->profile?->weekly_working_hours,
                 'planned_hours_by_week' => $layout->plannedHoursByWeek($assignments->get($user->id, collect()), $days),
-                'days' => $days->map(function ($day) use ($user, $assignments, $absences, $layout) {
+                'events' => $layout->periodEvents($days, $events),
+                'lane_count' => $rowLaneCount,
+                'days' => $days->map(function ($day) use ($events, $layout, $rowLaneCount) {
                     $end = $day->addDay();
-                    $events = collect();
-                    foreach ($assignments->get($user->id, collect()) as $assignment) {
-                        $shift = $assignment->shift;
-                        if ($shift->starts_at->lt($end) && $shift->ends_at->gt($day)) {
-                            $events->push(['id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $shift->title, 'start' => $shift->starts_at, 'end' => $shift->ends_at, 'detail' => $shift->order?->customer?->company_name, 'status' => $assignment->status->label(), 'status_value' => $assignment->status->value, 'shift_status' => $shift->status->value, 'shift_status_label' => $shift->status->label(), 'role_name' => $shift->role_name, 'location_name' => $shift->location_name ?: $shift->order?->location_name, 'planned_break_minutes' => $shift->planned_break_minutes, 'shift_id' => $shift->id]);
-                        }
-                    }
-                    foreach ($absences->get($user->id, collect()) as $absence) {
-                        if ($absence->starts_at->lt($end) && $absence->ends_at->gt($day)) {
-                            $events->push(['id' => 'absence-'.$absence->id, 'absence_id' => $absence->id, 'kind' => 'absence', 'title' => ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit'][$absence->kind], 'start' => $absence->starts_at, 'end' => $absence->ends_at, 'detail' => '', 'status' => $absence->status === 'approved' ? 'Genehmigt' : 'Beantragt', 'status_value' => $absence->status, 'shift_status' => null, 'shift_id' => null]);
-                        }
-                    }
+                    $dayEvents = $events->filter(fn (array $event) => $event['start']->lt($end) && $event['end']->gt($day));
 
-                    return $layout->cell($day, $events);
+                    return $layout->cell($day, $dayEvents, $rowLaneCount);
                 })];
         });
 

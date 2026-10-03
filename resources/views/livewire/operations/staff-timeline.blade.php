@@ -39,21 +39,25 @@
             </x-user.person-anchor-preview>
             @if(!$row['user']->status)<span class="ops-muted">Inaktiv</span>@endif
         </div>
+        <div class="rt-personnel-timeline-track" data-timeline-lanes="{{ $row['lane_count'] }}" style="--timeline-lanes:{{ $row['lane_count'] }}" wire:key="staff-track-{{ $row['user']->id }}">
         @foreach($row['days'] as $cell)
             <div @class(['rt-personnel-timeline-day snap-start', 'rt-personnel-timeline-day--weekend' => $cell['date']->isWeekend(), 'rt-personnel-timeline-day--empty' => $cell['events']->isEmpty()]) style="--timeline-lanes:{{ max(1, $cell['lane_count']) }}" wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
-            @foreach($cell['events'] as $event)
+            </div>
+        @endforeach
+        <div class="rt-personnel-timeline-events">
+            @foreach($row['events'] as $event)
                 @php
                     $state = in_array($event['shift_status'] ?? null, ['in_progress', 'completed'], true) ? $event['shift_status'] : $event['status_value'];
-                    $eventKey = $row['user']->id.'-'.$cell['date']->format('Ymd').'-'.$event['id'];
+                    $eventKey = $row['user']->id.'-'.$event['id'];
                     $detailStart = $event['start']->copy()->setTimezone($zone);
                     $detailEnd = $event['end']->copy()->setTimezone($zone);
                     $detailDstChanged = $detailStart->offset !== $detailEnd->offset;
                 @endphp
-                <div class="rt-personnel-timeline-event" data-kind="{{ $event['kind'] }}" data-state="{{ $state }}" data-time-start="{{ $event['left_percent'] }}" data-time-width="{{ $event['width_percent'] }}" data-time-lane="{{ $event['lane'] }}" style="--event-left:{{ $event['left_percent'] }}%;--event-width:{{ $event['width_percent'] }}%;--event-lane:{{ $event['lane'] }}" wire:key="staff-event-{{ $eventKey }}">
+                <div class="rt-personnel-timeline-event" data-kind="{{ $event['kind'] }}" data-state="{{ $state }}" data-continues-before="{{ $event['continues_before'] ? 'true' : 'false' }}" data-continues-after="{{ $event['continues_after'] ? 'true' : 'false' }}" data-time-start="{{ $event['left_percent'] }}" data-time-width="{{ $event['width_percent'] }}" data-time-lane="{{ $event['lane'] }}" style="--event-left:{{ $event['left_percent'] }}%;--event-width:{{ $event['width_percent'] }}%;--event-lane:{{ $event['lane'] }}" wire:key="staff-event-{{ $eventKey }}">
                     <x-ui.dropdown.anchor-dropdown align="left" width="72" :open-on-hover="true" :offset="6" content-role="dialog" content-label="Dienstdetails" layer-group="staff-timeline-events" :dropdown-id="'staff-event-'.$eventKey" trigger-classes="rt-personnel-timeline-event-trigger" class="rt-personnel-timeline-event-anchor" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text" data-timeline-event-dropdown>
                         <x-slot:trigger>
                             <button type="button" class="rt-personnel-timeline-bar" aria-label="{{ $event['local_label'] }} · {{ $event['title'] }} · {{ $event['status'] }}" aria-expanded="false" x-bind:aria-expanded="open ? 'true' : 'false'" aria-haspopup="dialog" aria-controls="rt-dropdown-staff-event-{{ $eventKey }}-content" data-table-row-ignore>
-                                <span class="rt-personnel-timeline-time"><span class="rt-personnel-timeline-time-text">{{ $event['local_label'] }}</span></span>
+                                <span class="rt-personnel-timeline-time"><span class="rt-personnel-timeline-time-text">{{ $event['timeline_label'] }}</span></span>
                                 @foreach($event['time_segments'] as $segment)
                                     <span class="rt-personnel-timeline-mark" style="left:{{ ($segment['left_percent'] - $event['left_percent']) / $event['width_percent'] * 100 }}%;width:{{ $segment['width_percent'] / $event['width_percent'] * 100 }}%" aria-hidden="true"></span>
                                 @endforeach
@@ -74,7 +78,7 @@
                                     @if(filled($event['location_name'] ?? null))<div><dt>Einsatzort</dt><dd>{{ $event['location_name'] }}</dd></div>@endif
                                     @if(!$absencesOnly)
                                         <div><dt>Regelarbeitszeit</dt><dd>{{ $row['weekly_working_hours'] !== null ? number_format($row['weekly_working_hours'], 1, ',', '.').' h/Woche' : 'Nicht hinterlegt' }}</dd></div>
-                                        @if(isset($row['planned_hours_by_week'][$event['iso_week']]))<div><dt>Eingeplant · KW {{ $cell['date']->isoWeek() }}</dt><dd>{{ number_format($row['planned_hours_by_week'][$event['iso_week']], 1, ',', '.') }} h</dd></div>@endif
+                                        @if(isset($row['planned_hours_by_week'][$event['iso_week']]))<div><dt>Eingeplant · KW {{ $event['visible_start']->setTimezone($zone)->isoWeek() }}</dt><dd>{{ number_format($row['planned_hours_by_week'][$event['iso_week']], 1, ',', '.') }} h</dd></div>@endif
                                     @endif
                                     @if($event['planned_break_minutes'] ?? 0)<div><dt>Pause</dt><dd>{{ $event['planned_break_minutes'] }} Minuten</dd></div>@endif
                                     @if($detailDstChanged)<div><dt>Zeitumstellung</dt><dd>{{ number_format(abs($detailStart->diffInMinutes($detailEnd)) / 60, 1, ',', '.') }} h tatsächliche Dauer</dd></div>@endif
@@ -89,8 +93,8 @@
                     </x-ui.dropdown.anchor-dropdown>
                 </div>
             @endforeach
-            </div>
-        @endforeach
+        </div>
+        </div>
     @empty<div class="rt-personnel-timeline-empty">Keine Mitarbeiter gefunden.</div>@endforelse
     @if($users->hasMorePages())
         <div class="rt-personnel-timeline-load-more" style="grid-column: 1 / -1" wire:key="staff-timeline-load-more-{{ $this->getPage('staffPage') }}" x-data x-intersect.once="$wire.loadMore()" aria-live="polite" role="status">

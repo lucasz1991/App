@@ -82,6 +82,62 @@ class StaffTimelineLayout
         });
     }
 
+    /** Project one event across the entire period using local civil-clock days. */
+    public function periodEvents(Collection $days, Collection $events): Collection
+    {
+        if ($days->isEmpty()) {
+            return collect();
+        }
+
+        $days = $days->values();
+        $from = $days->first();
+        $until = $days->last()->addDay();
+        $dayCount = $days->count();
+
+        return $events->map(function (array $event) use ($days, $from, $until, $dayCount): ?array {
+            $segments = [];
+            foreach ($days as $index => $day) {
+                $start = $event['start']->max($day);
+                $end = $event['end']->min($day->addDay());
+                if ($start->gte($end)) {
+                    continue;
+                }
+                foreach ($this->clockSegments($day, $start, $end) as $segment) {
+                    $segments[] = [
+                        'left_percent' => ($index * 100 + $segment['left_percent']) / $dayCount,
+                        'width_percent' => $segment['width_percent'] / $dayCount,
+                    ];
+                }
+            }
+            if ($segments === []) {
+                return null;
+            }
+
+            $left = min(array_column($segments, 'left_percent'));
+            $right = max(array_map(fn (array $segment) => $segment['left_percent'] + $segment['width_percent'], $segments));
+            $start = $event['start']->setTimezone($from->timezone);
+            $end = $event['end']->setTimezone($from->timezone);
+            $before = $event['start']->lt($from);
+            $after = $event['end']->gt($until);
+            $allDay = ($event['kind'] ?? null) === 'absence' && $start->isStartOfDay() && $end->isStartOfDay();
+            $label = $allDay ? 'Ganztägig' : $start->format('H:i').' – '.$end->format('H:i');
+            $label = ($before ? '← ' : '').$label.($after ? ' →' : '');
+
+            return $event + [
+                'visible_start' => $event['start']->max($from),
+                'visible_end' => $event['end']->min($until),
+                'left_percent' => round($left, 6),
+                'width_percent' => round($right - $left, 6),
+                'time_segments' => $segments,
+                'continues_before' => $before,
+                'continues_after' => $after,
+                'timeline_label' => $label,
+                'local_label' => $label,
+                'iso_week' => $event['start']->max($from)->setTimezone($from->timezone)->format('o-W'),
+            ];
+        })->filter()->values();
+    }
+
     /** Actual elapsed time, with breaks allocated proportionally at week boundaries. */
     public function plannedHoursByWeek(Collection $assignments, Collection $days): array
     {
