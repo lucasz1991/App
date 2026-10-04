@@ -8,6 +8,7 @@ use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\MailDocumentDelivery;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
+use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\MailSignature;
 use Illuminate\Support\Facades\Storage;
@@ -17,7 +18,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 15;
+    private const RENDERER_REVISION = 16;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -751,6 +752,10 @@ final class OutlookAddinPayloadService
         $logo = EmailTemplateBuilder::signatureLogoAsset('light', $artifactVersion);
         $train = $this->mailAssetPath(EmailTemplateBuilder::signatureTrainUrl('light', true, $artifactVersion));
         $trainStill = $this->mailAssetPath(EmailTemplateBuilder::signatureTrainStillUrl('light', $artifactVersion));
+        if (SignatureArtifactVersion::usesTableOverlapTrain($artifactVersion)) {
+            $train = public_path('mail-assets/'.SignatureTableOverlapDelivery::asset('light', true, $artifactVersion));
+            $trainStill = public_path('mail-assets/'.SignatureTableOverlapDelivery::asset('light', false, $artifactVersion));
+        }
 
         return [
             'railtime-mark' => public_path('mail-assets/'.$mark),

@@ -2044,10 +2044,13 @@ Alpine.data('dashboardWidgetGrid', () => ({
         const items = Array.from(this.$root.querySelectorAll('[data-widget-item]'));
 
         items.forEach((card, index) => {
-            const targets = card.querySelectorAll('.widget-primary-val, .ops-kpi-val, .widget-donut-val, .widget-ring-val');
+            const targets = card.querySelectorAll('.widget-primary-val, .ops-kpi-val, .widget-donut-val, .widget-ring-val, .wv-kpi b, .wv-ampel-col b, .wv-duo-tile b');
 
             targets.forEach((el) => {
                 const text = el.textContent.trim();
+                // Dezimalwerte wie "12,5 h" wuerden nur ihren Ganzzahlteil
+                // hochzaehlen ("0,5 h" ... "12,5 h") - die bleiben stehen.
+                if (/\d[.,]\d/.test(text)) return;
                 const match = text.match(/\d+/);
                 if (!match) return;
 

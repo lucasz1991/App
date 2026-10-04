@@ -800,7 +800,7 @@ class EmailTemplateBuilder
             SignatureArtifactVersion::detect(MailDocumentKind::Signature, $signatureHtml),
         );
 
-        return TrustedEmailCss::forDocument($signatureHtml, $border, $includeOptionalBackground);
+        return TrustedEmailCss::forDocument($signatureHtml, $border, $includeOptionalBackground, deliveryProjection: true);
     }
 
     /**
@@ -1241,7 +1241,7 @@ class EmailTemplateBuilder
     ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
         if (SignatureArtifactVersion::usesTableOverlapTrain($artifactVersion)) {
-            return 'zug-dampf-v27-'.$variant.(SignatureArtifactVersion::usesMirroredTrain($artifactVersion) ? '-mirrored' : '').'.'.($animated ? 'gif' : 'png');
+            return \App\Support\Mail\SignatureTableOverlapDelivery::asset($variant, $animated, $artifactVersion);
         }
         $stem = SignatureArtifactVersion::usesV19MailAssets($artifactVersion)
             ? 'zug-dampf-v19'
@@ -1527,6 +1527,18 @@ class EmailTemplateBuilder
         string $expectedIdleSource,
         string $expectedMsoSource,
     ): string {
+        if (\App\Support\Mail\SignatureTableOverlapDelivery::applies($html)) {
+            \App\Support\Mail\SignatureTableOverlapDelivery::assertRuntime(
+                $html,
+                \App\Support\Mail\SignatureTableOverlapDelivery::source(self::forceHttpsUrl($expectedTrainSource)),
+                \App\Support\Mail\SignatureTableOverlapDelivery::source(self::forceHttpsUrl($expectedMsoSource)),
+            );
+            foreach (self::imageSources($html) as $imageSource) {
+                self::forceHttpsUrl($imageSource);
+            }
+
+            return $html;
+        }
         if (SignatureHotline::applies($html)) {
             SignatureHotline::assertRuntime($html);
             foreach (self::imageSources($html) as $imageSource) {

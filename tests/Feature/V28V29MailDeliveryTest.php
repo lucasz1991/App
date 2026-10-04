@@ -11,6 +11,7 @@ use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTableOverlap;
+use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\Mail\TrustedOutlookSignatureCss;
@@ -104,10 +105,10 @@ final class V28V29MailDeliveryTest extends TestCase
         self::assertStringNotContainsString('rt-sign-ledger', TrustedEmailCss::forDocument($this->source()));
         self::assertStringNotContainsString('.rt-sign-heading-logo', TrustedEmailCss::forDocument($source));
         $rows = MailSignature::forCompany('light', remoteAssets: true)->renderDocument($source);
-        SignatureTableOverlap::assertRuntime($rows);
+        SignatureTableOverlapDelivery::assertRuntime($rows);
         $email = (new Email)->html(SystemMailInlineImageEmbedder::mark('<html><body><!-- RT_TEMPLATE_MARK_START --><!-- RT_TEMPLATE_MARK_END --><table>'.$rows.'</table></body></html>'));
         self::assertGreaterThan(0, app(SystemMailInlineImageEmbedder::class)->embed($email));
-        self::assertCount(1, array_filter($email->getAttachments(), static fn ($part) => $part->getFilename() === 'zug-dampf-v27-light.gif'));
+        self::assertCount(1, array_filter($email->getAttachments(), static fn ($part) => $part->getFilename() === 'zug-dampf-v27-delivery-light.gif'));
         self::assertStringContainsString('src="cid:', $email->getHtmlBody());
         self::assertStringNotContainsString('background-image:', $email->getHtmlBody());
     }
@@ -159,17 +160,17 @@ final class V28V29MailDeliveryTest extends TestCase
             foreach (['light', 'dark'] as $theme) {
                 foreach ([MailSignature::forUser($user, $theme, animated: true, remoteAssets: true), MailSignature::forCompany($theme, remoteAssets: true)] as $signature) {
                     $rows = $signature->renderDocument($this->source($version));
-                    SignatureTableOverlap::assertRuntime($rows);
-                    self::assertStringContainsString('zug-dampf-v27-'.$theme.'-mirrored.gif', $rows);
+                    SignatureTableOverlapDelivery::assertRuntime($rows);
+                    self::assertStringContainsString('zug-dampf-v27-delivery-'.$theme.'-mirrored.gif', $rows);
                     self::assertStringNotContainsString('rt-sign-train-layer', $rows);
                     $email = (new Email)->html(SystemMailInlineImageEmbedder::mark('<html><body><!-- RT_TEMPLATE_MARK_START --><!-- RT_TEMPLATE_MARK_END --><table>'.$rows.'</table></body></html>'));
                     self::assertGreaterThan(0, app(SystemMailInlineImageEmbedder::class)->embed($email));
-                    $trains = array_filter($email->getAttachments(), static fn ($part) => $part->getFilename() === 'zug-dampf-v27-'.$theme.'-mirrored.gif');
+                    $trains = array_filter($email->getAttachments(), static fn ($part) => $part->getFilename() === 'zug-dampf-v27-delivery-'.$theme.'-mirrored.gif');
                     self::assertCount(1, $trains);
                     self::assertStringContainsString('src="cid:', $email->getHtmlBody());
                 }
                 $rows = MailSignature::forUser($user, $theme, animated: false, remoteAssets: true)->renderDocument($this->source($version));
-                self::assertStringContainsString('zug-dampf-v27-'.$theme.'-mirrored.png', $rows);
+                self::assertStringContainsString('zug-dampf-v27-delivery-'.$theme.'-mirrored.png', $rows);
             }
         }
     }
@@ -183,9 +184,9 @@ final class V28V29MailDeliveryTest extends TestCase
             ->renderDocument($this->source('v27'));
 
         self::assertStringContainsString('wortmarke-signature-v19-light.gif', $rows);
-        self::assertStringContainsString('zug-dampf-v27-light.gif', $rows);
+        self::assertStringContainsString('zug-dampf-v27-delivery-light.gif', $rows);
         self::assertStringNotContainsString('wortmarke-signature-v19-dark.gif', $rows);
-        self::assertStringNotContainsString('zug-dampf-v27-dark.gif', $rows);
+        self::assertStringNotContainsString('zug-dampf-v27-delivery-dark.gif', $rows);
     }
 
     public function test_profile_exposes_a_normalized_emergency_phone_link_for_v27(): void
@@ -218,7 +219,7 @@ final class V28V29MailDeliveryTest extends TestCase
         self::assertSame('183.796856', SignatureTableOverlap::profiles()['mobile']['image']);
         self::assertSame(SignatureTableOverlap::css(), SignatureTableOverlap::css('v27'));
         self::assertStringContainsString('zug-dampf-v19-light.gif', EmailTemplateBuilder::signatureTrainUrl('light', true, 'v26'));
-        self::assertStringContainsString('zug-dampf-v27-light.gif', EmailTemplateBuilder::signatureTrainUrl('light', true, 'v27'));
+        self::assertStringContainsString('zug-dampf-v27-delivery-light.gif', EmailTemplateBuilder::signatureTrainUrl('light', true, 'v27'));
     }
 
     public function test_catalog_includes_only_new_mirrored_train_ids_with_matching_asset_copies(): void

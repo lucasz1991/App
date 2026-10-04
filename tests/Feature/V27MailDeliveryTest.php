@@ -12,6 +12,7 @@ use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\PortableMediaCatalog;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTableOverlap;
+use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\MailSignature;
@@ -107,13 +108,14 @@ final class V27MailDeliveryTest extends TestCase
         foreach (['light', 'dark'] as $theme) {
             foreach ([MailSignature::forUser($user, $theme, animated: true, remoteAssets: true), MailSignature::forCompany($theme, remoteAssets: true)] as $signature) {
                 $rows = $signature->renderDocument($source);
-                SignatureTableOverlap::assertRuntime($rows);
+                SignatureTableOverlapDelivery::assertRuntime($rows);
                 // V27 deliberately retains the light assets in both previews.
-                self::assertStringContainsString('zug-dampf-v27-light.gif', $rows);
+                self::assertStringContainsString('zug-dampf-v27-delivery-light.gif', $rows);
                 self::assertStringNotContainsString('rt-sign-train-layer', $rows);
                 $css = TrustedEmailCss::forDocument($rows);
                 self::assertStringNotContainsString('height:200px', $css);
-                self::assertStringContainsString('width:183.796856%', $css);
+                self::assertStringNotContainsString('width:183.796856%', $css);
+                self::assertStringContainsString('max-width:600px', $css);
                 if (getenv('V27_QA_OUTPUT') === '1') {
                     $full = '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>'.$css.'</style></head><body style="margin:0"><table width="100%" cellspacing="0" cellpadding="0">'.$rows.'</table></body></html>';
                     $full = (new CssToInlineStyles)->convert($full);
@@ -121,6 +123,11 @@ final class V27MailDeliveryTest extends TestCase
                 }
             }
         }
+        $builder = new EmailTemplateBuilder($user);
+        $full = (new \ReflectionMethod($builder, 'buildEmailHtml'))->invoke($builder, false, 'light', false, null, false, true);
+        $expectedRuntime = TrustedEmailCss::forDocument($full, EmailTemplateBuilder::emailThemeValues('light')['SIGNATURE_BORDER']);
+        self::assertStringContainsString($expectedRuntime, $full);
+        self::assertStringContainsString('rt-delivery-train', $builder->buildOutlookAddinTemplateHtml());
         $payload = app(OutlookAddinPayloadService::class)->forUser($user);
         self::assertStringContainsString('data-rt-artifact-version="v27"', $payload['signature']['html']);
         self::assertStringContainsString('src="cid:', $payload['signature']['html']);
@@ -130,7 +137,7 @@ final class V27MailDeliveryTest extends TestCase
         $compiled = (string) app(Markdown::class)->render($mail->markdown ?: 'notifications::email', $mail->data());
         $email = (new Email)->html(SystemMailInlineImageEmbedder::mark($compiled));
         self::assertGreaterThan(0, app(SystemMailInlineImageEmbedder::class)->embed($email));
-        $trains = array_filter($email->getAttachments(), static fn ($part) => $part->getFilename() === 'zug-dampf-v27-light.gif');
+        $trains = array_filter($email->getAttachments(), static fn ($part) => $part->getFilename() === 'zug-dampf-v27-delivery-light.gif');
         self::assertCount(1,$trains);
         self::assertStringNotContainsString('<div class="rt-sign-train-layer"',$email->getHtmlBody());
     }

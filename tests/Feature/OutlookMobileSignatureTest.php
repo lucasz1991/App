@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\Api\OutlookAddinBootstrapController;
+use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use DOMDocument;
@@ -70,6 +71,63 @@ class OutlookMobileSignatureTest extends TestCase
         $otherLedger['signature']['html'] = str_replace('data-rt-artifact-version="v27"', 'data-rt-artifact-version="v30"', $otherLedger['signature']['html']);
         unset($otherLedger['templates'][0]['signature'], $otherLedger['templates'][0]['signatureVersion']);
         $this->assertSame($otherLedger, OutlookMobileSignature::payload($otherLedger));
+    }
+
+    public function test_delivery_train_does_not_get_legacy_overlap_gap_and_logo_has_html_dimensions(): void
+    {
+        $payload = $this->fixture();
+        $payload['signature']['html'] = str_replace('class="rt-sign-stage"', 'class="rt-sign-stage rt-delivery-train"', $payload['signature']['html']);
+        unset($payload['templates'][0]['signature'], $payload['templates'][0]['signatureVersion']);
+        $mobile = OutlookMobileSignature::payload($payload);
+        $xpath = $this->xpath($mobile['signature']['html']);
+        $cell = $xpath->query('//td[contains(@class,"rt-sign-ledger-content")]')->item(0);
+        $logo = $xpath->query('//img[contains(@class,"rt-logo")]')->item(0);
+        $this->assertStringContainsString('padding:20px 18px 10px', $cell->getAttribute('style'));
+        $this->assertSame('175', $logo->getAttribute('width'));
+        $this->assertSame('30', $logo->getAttribute('height'));
+    }
+
+    public function test_already_stacked_delivery_groups_are_accepted_without_duplicate_rows(): void
+    {
+        $dom = new DOMDocument;
+        $dom->loadHTML('<table><tr><td class="first">A</td></tr><tr><td class="second">B</td></tr></table>');
+        $xpath = new DOMXPath($dom);
+        $table = $xpath->query('//table')->item(0);
+        $method = new ReflectionMethod(OutlookMobileSignature::class, 'stack');
+        $method->invoke(null, $dom, $xpath, $table, ['first', 'second']);
+        $this->assertSame(2, $xpath->query('./tr|./tbody/tr', $table)->length);
+        $this->assertSame('100%', $table->getAttribute('width'));
+        $this->assertSame('AB', $table->textContent);
+        $xpath->query('//td[contains(@class,"second")]')->item(0)->setAttribute('class', 'foreign');
+        $this->expectException(\RuntimeException::class);
+        $method->invoke(null, $dom, $xpath, $table, ['first', 'second']);
+    }
+
+    public function test_actual_shared_delivery_projection_survives_mobile_and_paired_internal_css_transport(): void
+    {
+        $payload = $this->fixture();
+        preg_match('~<tbody>(.*)</tbody></table></div>~s', $payload['signature']['html'], $matches);
+        $rows = SignatureTableOverlapDelivery::project($matches[1], 'cid:train-still.png');
+        $document = $payload['signature'];
+        $document['html'] = '<!-- RT-SIGNATURE-VERSION:0123456789abcdef -->'
+            .'<span style="display:none">RT-SIGNATURE-VERSION:0123456789abcdef</span>'
+            .TrustedOutlookSignatureCss::style($rows, scopeClass: 'rts0123456789')
+            .'<div class="rt-outlook-signature rts0123456789"><table width="100%" cellspacing="0" cellpadding="0"><tbody>'.$rows.'</tbody></table></div>';
+        $document['media'][] = ['name' => 'train-still.png', 'contentId' => 'train-still.png', 'base64' => 'synthetic-still'];
+        $payload['signature'] = $payload['templates'][0]['signature'] = $document;
+        $mobile = OutlookMobileSignature::payload($payload);
+        $this->assertSame($mobile['signature'], $mobile['templates'][0]['signature']);
+        $this->assertSame($document['media'], $mobile['signature']['media']);
+        $internalOnly = preg_replace('~\sstyle="[^"]*"~', '', $mobile['signature']['html']);
+        $xpath = $this->xpath($internalOnly);
+        $train = $xpath->query('//img[contains(concat(" ",@class," ")," rt-delivery-train ")]')->item(0);
+        $this->assertSame('100%', $train->getAttribute('width'));
+        $this->assertStringNotContainsString('6031.746032%', $internalOnly);
+        $this->assertStringNotContainsString('183.796856%', $internalOnly);
+        $this->assertStringContainsString('padding:20px 18px 10px!important', $internalOnly);
+        preg_match_all('~<style\b[^>]*>(.*?)</style>~is', $internalOnly, $styles);
+        $this->assertLessThan(12288, array_sum(array_map('strlen', $styles[1])));
+        $this->assertLessThanOrEqual(30000, strlen(mb_convert_encoding($internalOnly, 'UTF-16LE', 'UTF-8')) / 2);
     }
 
     public function test_mobile_profile_is_applied_after_cache_and_identity_checks_and_before_etag(): void

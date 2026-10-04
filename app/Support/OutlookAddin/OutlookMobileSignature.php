@@ -92,7 +92,10 @@ final class OutlookMobileSignature
         self::stack($dom, $xpath, $nested->item(0), ['rt-ledger-direct', 'rt-ledger-company']);
 
         foreach ($xpath->query(self::classQuery('rt-sign-ledger-content')) as $cell) {
-            self::style($cell, 'padding:20px 18px 52px;vertical-align:top;font-family:Arial,sans-serif;');
+            // The flow-delivery train has its own row. Reserve overlap space
+            // only for an older, already compiled signature, never twice.
+            $bottom = str_contains($html, 'rt-delivery-train') ? '10px' : '52px';
+            self::style($cell, 'padding:20px 18px '.$bottom.';vertical-align:top;font-family:Arial,sans-serif;');
         }
         foreach (['rt-ledger-brand', 'rt-ledger-contacts', 'rt-ledger-direct', 'rt-ledger-company'] as $class) {
             foreach ($xpath->query(self::classQuery($class)) as $cell) {
@@ -113,7 +116,9 @@ final class OutlookMobileSignature
         }
         foreach ($xpath->query(self::classQuery('rt-logo', 'img')) as $image) {
             $image->setAttribute('width', '175');
-            $image->removeAttribute('height');
+            // Canonical wordmark is 400 x 68. Both dimensions are required
+            // when Office.js or forwarding drops its style attribute.
+            $image->setAttribute('height', '30');
             self::style($image, 'display:block;width:175px;max-width:100%;height:auto;margin:0;border:0;');
         }
         foreach ($xpath->query(self::classQuery('rt-address-break', 'br')) as $lineBreak) {
@@ -122,7 +127,8 @@ final class OutlookMobileSignature
 
         // Office.js documents inline CSS as unsupported. Mirror the actual
         // trusted inline values into internal, uniquely scoped rules. Geometry
-        // of the original train table/image is deliberately left untouched.
+        // of legacy overlap tables is left untouched; the new flow-delivery
+        // IMG participates so its bounded dimensions survive inline removal.
         $css = '.'.$markerClass.'{display:none!important;mso-hide:all!important;font-size:0!important;line-height:0!important;}';
         $index = 0;
         $styleClasses = [];
@@ -227,6 +233,21 @@ final class OutlookMobileSignature
     private static function stack(DOMDocument $dom, DOMXPath $xpath, DOMElement $table, array $classes): void
     {
         $rows = $xpath->query('./tr|./tbody/tr', $table);
+        if ($rows->length === count($classes)) {
+            // The shared delivery compiler already uses one real cell per
+            // row. Accept only the exact expected groups, not arbitrary HTML.
+            foreach ($rows as $index => $row) {
+                $cells = $xpath->query('./td', $row);
+                if ($row->childElementCount !== 1 || $cells->length !== 1
+                    || ! in_array($classes[$index], preg_split('/\s+/', trim($cells->item(0)->getAttribute('class'))), true)) {
+                    throw new RuntimeException('Die mobile Layouttabelle besitzt fremde Zeilen.');
+                }
+            }
+            $table->setAttribute('width', '100%');
+            self::style($table, 'display:table;width:100%;table-layout:auto;border-collapse:collapse;');
+
+            return;
+        }
         if ($rows->length !== 1) {
             throw new RuntimeException('Die mobile Layouttabelle ist nicht eindeutig.');
         }

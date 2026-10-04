@@ -239,6 +239,11 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 .widget-empty { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:20px 16px; color:var(--ops-muted); text-align:center; }
 .widget-empty svg { width:26px; height:26px; opacity:.4; }
 .widget-empty p { margin:0; font-size:13px; line-height:1.5; max-width:22ch; }
+/* In 1-zeiligen Kacheln reicht die Hoehe nicht fuer Icon UEBER Text -
+   dort steht der Leerzustand als eine Zeile, statt abgeschnitten zu werden. */
+.widget-card[data-widget-rows="1"] .widget-empty { flex-direction:row; justify-content:flex-start; gap:8px; padding:6px 0; text-align:left; }
+.widget-card[data-widget-rows="1"] .widget-empty svg { width:18px; height:18px; flex-shrink:0; }
+.widget-card[data-widget-rows="1"] .widget-empty p { max-width:none; }
 
 /* Fuer Widgets, deren Blade-Inhalt in einen eigenen x-data-Wrapper
    eingepackt ist (z.B. wagon_list per localStorage) - der Wrapper muss
@@ -287,3 +292,238 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 .widget-sparkline { display:flex; align-items:flex-end; gap:4px; height:44px; }
 .widget-sparkline > span { flex:1 1 0; min-height:3px; border-radius:3px 3px 0 0; background:var(--ops-signal); opacity:.28; }
 .widget-sparkline > span:last-child { opacity:1; }
+
+/* ==========================================================================
+   Widget-Visualisierungen (wv-*): jedes Verwaltungs-Widget hat eine EIGENE
+   Bauform, passend zu seiner Frage - Kartenrahmen, Kopf und Fusszeile
+   bleiben einheitlich (siehe oben), nur der Inhalt unterscheidet sich:
+   Anfragen = Alters-Ampel, Leistungen = Pipeline, Kunden = Rangliste,
+   Abwesenheiten = Kalender-Heatmap, Zeiten = Personen-Balken,
+   Nachweise = Ablauf-Countdown, Besetzung = Kennzahlen + Tageskacheln,
+   Dienste = Zeitleiste, Geraete = Waffel-Raster, Mitarbeiter = Avatar-
+   Stapel, Zuletzt aktiv = Praesenzpunkte, Mails = Halbkreis-Anzeige,
+   Anrufe = Punkt-Achse, Motive = Typ-Kacheln, Regelprofil = Kennwert-
+   Kacheln, System = Ampelliste, Ablage = Dateityp-Chips.
+   Alles reines CSS - keine zusaetzliche Chart-Instanz pro Kachel.
+   ========================================================================== */
+.wv-inline { display:flex; align-items:baseline; gap:4px 8px; flex-wrap:wrap; min-width:0; }
+.wv-inline .widget-primary-lbl { margin-top:0; }
+.wv-inline .wv-pill { align-self:center; margin-left:auto; }
+.wv-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:650; line-height:1.3; white-space:nowrap; background:var(--ops-platform); color:var(--ops-muted); }
+.wv-pill svg { width:12px; height:12px; }
+.wv-sub { margin-top:6px; font-size:12px; line-height:1.4; color:var(--ops-muted); }
+.wv-sub strong { color:var(--ops-ink); font-weight:650; }
+/* Tailwind-Preflight macht jedes SVG zum Block - Icons im Fliesstext
+   wuerden sonst eine eigene Zeile bekommen. */
+.wv-sub svg { display:inline-block; width:12px; height:12px; margin-right:2px; vertical-align:-2px; }
+.wv-gap { margin-top:12px; }
+.wv-label { margin:0 0 7px; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ops-muted); }
+.wv-truncate { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wv-list { display:flex; flex-direction:column; }
+.wv-list > * + * { border-top:1px solid var(--ops-line); }
+.wv-item { display:flex; align-items:center; gap:10px; min-width:0; padding:8px 0; font-size:13px; color:inherit; text-decoration:none; }
+.wv-item-main { display:flex; flex-direction:column; min-width:0; flex:1 1 auto; }
+.wv-item-main small { font-size:11.5px; color:var(--ops-muted); }
+.wv-item-ico { width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.wv-item-ico svg { width:13px; height:13px; }
+
+/* Lokaler Initialen-Avatar (x-dashboard.avatar) */
+.wv-avatar { width:var(--avatar-size,28px); height:var(--avatar-size,28px); border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; font-size:calc(var(--avatar-size,28px) * .38); font-weight:700; letter-spacing:-.02em; color:hsl(var(--avatar-hue,0) 42% 30%); background:hsl(var(--avatar-hue,0) 68% 90%); }
+.dark .wv-avatar { color:hsl(var(--avatar-hue,0) 70% 86%); background:hsl(var(--avatar-hue,0) 32% 26%); }
+.wv-avatar img { width:100%; height:100%; object-fit:cover; }
+
+/* Anfragen: Alters-Ampel */
+.wv-ampel { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:8px; }
+.wv-ampel-col { position:relative; padding:7px 9px 6px; border-radius:10px; background:var(--ops-platform); overflow:hidden; }
+.wv-ampel-col::before { content:""; position:absolute; inset:0 0 auto; height:3px; background:var(--tone); }
+.wv-ampel-col b { display:block; font-size:16px; line-height:1.1; font-variant-numeric:tabular-nums; }
+.wv-ampel-col span { display:block; margin-top:2px; font-size:10.5px; line-height:1.2; color:var(--ops-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wv-ampel-col[data-tone="ok"] { --tone:var(--ops-ok); }
+.wv-ampel-col[data-tone="warn"] { --tone:var(--ops-warn); }
+.wv-ampel-col[data-tone="danger"] { --tone:var(--ops-signal); }
+.wv-ampel-col[data-empty] b { color:var(--ops-muted); opacity:.55; }
+.wv-ampel-col[data-tone="danger"]:not([data-empty]) b { color:var(--ops-signal); }
+.wv-age-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; background:var(--ops-ok); }
+.wv-age-dot[data-age="aging"] { background:var(--ops-warn); }
+.wv-age-dot[data-age="overdue"] { background:var(--ops-signal); }
+
+/* Nachweise: Ablauf-Countdown */
+.wv-countdown { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:10px; }
+.wv-days { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; min-width:42px; height:40px; padding:0 6px; border-radius:10px; flex-shrink:0; }
+.wv-days b { font-size:15px; line-height:1; font-variant-numeric:tabular-nums; }
+.wv-days small { margin-top:2px; font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; opacity:.8; }
+.wv-countdown .wv-days { height:34px; min-width:38px; }
+
+/* Abwesenheiten: Kalender-Heatmap der naechsten 14 Tage */
+.wv-heat { display:grid; grid-template-columns:repeat(14,minmax(0,1fr)); gap:3px; margin-top:10px; }
+.wv-heat-cell { position:relative; height:24px; border-radius:6px; background:var(--ops-platform); }
+.wv-heat-cell::before { content:""; position:absolute; inset:0; border-radius:inherit; background:var(--ops-signal); opacity:calc(var(--heat,0) * .85); }
+.wv-heat-cell[data-weekend] { background:repeating-linear-gradient(135deg, var(--ops-platform) 0 4px, var(--ops-line) 4px 5px); }
+.wv-heat-cell[data-today] { box-shadow:0 0 0 2px var(--ops-sheet), 0 0 0 3.5px var(--ops-ink); }
+.wv-heat-cell b { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; height:100%; font-size:10px; font-weight:700; color:var(--ops-ink); }
+.wv-heat-cell[data-strong] b { color:#fff; }
+.wv-heat-labels { display:grid; grid-template-columns:repeat(14,minmax(0,1fr)); gap:3px; margin-top:4px; font-size:9.5px; line-height:1.3; font-weight:600; text-align:center; color:var(--ops-muted); }
+
+/* Zeiten: Stunden je Person */
+.wv-people { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.widget-card[data-widget-rows="2"] .wv-people { gap:10px; margin-top:12px; }
+.wv-person { display:grid; grid-template-columns:auto minmax(0,1fr) 34% auto; align-items:center; gap:8px; font-size:12.5px; }
+.wv-person-bar { height:6px; border-radius:999px; background:var(--ops-line); overflow:hidden; }
+.wv-person-bar > span { display:block; height:100%; border-radius:inherit; background:var(--ops-signal); }
+.wv-person-val { font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; text-align:right; min-width:44px; }
+
+/* Leistungen: Pipeline der Auftragsphasen */
+.wv-pipeline { position:relative; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:8px; }
+.wv-pipeline::before { content:""; position:absolute; top:12px; left:12.5%; right:12.5%; height:2px; background:var(--ops-line); }
+.wv-stage { position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; min-width:0; text-align:center; }
+.wv-stage b { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; font-size:12px; font-variant-numeric:tabular-nums; background:var(--ops-sheet); border:2px solid var(--ops-line); color:var(--ops-muted); }
+.wv-stage[data-active] b { border-color:var(--stage); background:var(--stage); color:var(--ops-sheet); }
+.wv-stage span { max-width:100%; font-size:10.5px; line-height:1.25; font-weight:600; color:var(--ops-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.widget-card[data-widget-rows="2"] .wv-pipeline { margin-top:14px; }
+.wv-prio { width:4px; align-self:stretch; border-radius:999px; flex-shrink:0; background:var(--ops-line); }
+.wv-prio[data-prio="high"] { background:var(--ops-warn); }
+.wv-prio[data-prio="urgent"] { background:var(--ops-signal); }
+
+/* Kunden: Rangliste */
+.wv-rank { display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+.wv-rank-row { display:grid; grid-template-columns:22px minmax(0,1fr) auto; align-items:center; gap:4px 10px; }
+.wv-rank-no { display:flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:7px; font-size:11px; font-weight:800; background:var(--ops-platform); color:var(--ops-muted); grid-row:span 2; }
+.wv-rank-row:first-child .wv-rank-no { background:var(--ops-signal); color:#fff; }
+.wv-rank-name { font-size:12.5px; font-weight:650; }
+.wv-rank-name small { font-weight:500; color:var(--ops-muted); }
+.wv-rank-val { font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; }
+.wv-rank-bar { grid-column:2 / 4; height:4px; border-radius:999px; background:var(--ops-line); overflow:hidden; }
+.wv-rank-bar > span { display:block; height:100%; border-radius:inherit; background:var(--ops-ink); opacity:.55; }
+.wv-rank-row:first-child .wv-rank-bar > span { background:var(--ops-signal); opacity:1; }
+
+/* Besetzung: Kennzahlen + Tageskacheln */
+.wv-kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.wv-kpi { padding:6px 10px; border-radius:10px; background:var(--ops-platform); min-width:0; }
+.widget-card[data-widget-rows="2"] .wv-kpi { padding:9px 12px; }
+.wv-kpi b { display:block; font-size:18px; line-height:1.15; font-variant-numeric:tabular-nums; }
+.wv-kpi span { display:block; font-size:10.5px; color:var(--ops-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wv-kpi[data-tone="warn"] b { color:var(--ops-warn); }
+.wv-kpi[data-tone="ok"] b { color:var(--ops-ok); }
+.wv-daycells { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; margin-top:8px; }
+.wv-daycell { display:flex; flex-direction:column; align-items:center; justify-content:center; height:28px; border-radius:7px; font-size:10px; line-height:1.1; font-weight:700; background:var(--ops-platform); color:var(--ops-muted); }
+.wv-daycell small { font-size:9px; font-weight:600; opacity:.85; }
+.wv-daycell[data-state="ok"] { background:#eaf5ee; color:#25603b; }
+.wv-daycell[data-state="warn"] { background:#fff3dd; color:#855d19; }
+.dark .wv-daycell[data-state="ok"] { background:#193c30; color:#ace2bf; }
+.dark .wv-daycell[data-state="warn"] { background:#3b3121; color:#edcd91; }
+
+/* Naechste Dienste: Zeitleiste */
+.wv-timeline { display:flex; flex-direction:column; }
+.wv-tl-item { display:grid; grid-template-columns:62px 12px minmax(0,1fr) auto; gap:10px; align-items:start; padding:5px 0; color:inherit; text-decoration:none; }
+.wv-tl-item[data-running] .wv-tl-time small { color:var(--ops-ok); }
+.wv-tl-item:hover h4 { color:var(--ops-signal); }
+.wv-tl-time { font-size:11.5px; font-weight:700; line-height:1.3; color:var(--ops-signal); font-variant-numeric:tabular-nums; }
+.wv-tl-time small { display:block; font-size:10.5px; font-weight:600; color:var(--ops-muted); }
+.wv-tl-rail { position:relative; align-self:stretch; }
+.wv-tl-rail::before { content:""; position:absolute; left:5px; top:0; bottom:-10px; width:2px; background:var(--ops-line); }
+.wv-tl-item:last-child .wv-tl-rail::before { bottom:auto; height:12px; }
+.wv-tl-rail::after { content:""; position:absolute; left:1px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--ops-sheet); border:2px solid var(--ops-ok); box-sizing:border-box; }
+.wv-tl-item[data-state="warn"] .wv-tl-rail::after { border-color:var(--ops-warn); background:var(--ops-warn); }
+.wv-tl-body { min-width:0; }
+.wv-tl-body h4 { margin:0; font-size:13px; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:color 150ms; }
+.wv-tl-body p { margin:1px 0 0; font-size:11.5px; color:var(--ops-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wv-tl-fill { display:flex; flex-direction:column; align-items:flex-end; gap:4px; font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; }
+.wv-tl-fill > span { display:block; width:38px; height:4px; border-radius:999px; background:var(--ops-line); overflow:hidden; }
+.wv-tl-fill > span > i { display:block; height:100%; background:var(--ops-ok); }
+.wv-tl-item[data-state="warn"] .wv-tl-fill > span > i { background:var(--ops-warn); }
+
+/* Regelprofil: Kennwert-Kacheln */
+.wv-spec { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:8px; }
+.wv-spec-tile { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:10px; border:1px solid var(--ops-line); min-width:0; }
+.widget-card[data-widget-rows="2"] .wv-spec-tile { padding:11px 12px; }
+.wv-spec-tile svg { width:15px; height:15px; flex-shrink:0; color:var(--ops-muted); }
+.wv-spec-tile b { display:block; font-size:14.5px; line-height:1.2; font-variant-numeric:tabular-nums; }
+.wv-spec-tile span { display:block; font-size:10.5px; color:var(--ops-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Geraete: Waffel-Raster (ein Kaestchen je Geraet bzw. Anteil) */
+.wv-waffle { display:grid; grid-template-columns:repeat(var(--cols,20),minmax(0,1fr)); gap:3px; margin-top:12px; }
+.wv-waffle > i { aspect-ratio:1; border-radius:3px; background:var(--ops-line); }
+.wv-waffle > i[data-s="ok"] { background:var(--ops-ok); }
+.wv-waffle > i[data-s="inv"] { background:var(--ops-muted); opacity:.5; }
+.wv-waffle > i[data-s="warn"] { background:var(--ops-warn); }
+
+/* Mitarbeiter: Avatar-Stapel */
+.wv-stack-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; }
+.wv-stack { display:flex; align-items:center; }
+.wv-stack > * { box-shadow:0 0 0 2px var(--ops-sheet); }
+.wv-stack > * + * { margin-left:-6px; }
+.wv-stack-more { display:inline-flex; align-items:center; justify-content:center; height:30px; min-width:30px; padding:0 7px; border-radius:999px; font-size:11px; font-weight:700; background:var(--ops-platform); color:var(--ops-muted); }
+.wv-ratio { height:8px; border-radius:999px; background:var(--ops-line); overflow:hidden; }
+.wv-ratio > span { display:block; height:100%; border-radius:inherit; background:var(--ops-ok); }
+
+/* Zuletzt aktiv: Praesenzpunkte */
+.wv-live { display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:650; }
+.wv-live i { position:relative; width:8px; height:8px; border-radius:50%; background:#22a356; }
+.wv-live i::after { content:""; position:absolute; inset:-4px; border-radius:50%; border:2px solid #22a356; opacity:0; animation:wv-pulse 2s cubic-bezier(.32,.72,0,1) infinite; }
+.wv-live[data-idle] i { background:var(--ops-muted); }
+.wv-live[data-idle] i::after { display:none; }
+@keyframes wv-pulse { 0% { transform:scale(.6); opacity:.7; } 100% { transform:scale(1.5); opacity:0; } }
+.wv-presence { position:relative; flex-shrink:0; }
+.wv-presence::after { content:""; position:absolute; right:-1px; bottom:-1px; width:10px; height:10px; border-radius:50%; border:2px solid var(--ops-sheet); background:var(--ops-muted); box-sizing:border-box; }
+.wv-presence[data-presence="online"]::after { background:#22a356; }
+.wv-presence[data-presence="today"]::after { background:var(--ops-warn); }
+.wv-presence-row { display:flex; gap:12px; margin-top:12px; min-width:0; overflow:hidden; }
+.wv-presence-person { display:flex; flex-direction:column; align-items:center; gap:4px; width:52px; flex-shrink:0; font-size:10.5px; line-height:1.25; color:var(--ops-muted); }
+.wv-presence-person > span:last-child { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Mails: Halbkreis-Anzeige der Zustellquote */
+.wv-gauge-row { display:flex; align-items:center; gap:16px; }
+.wv-gauge-wrap { flex-shrink:0; }
+.wv-gauge { position:relative; width:104px; height:56px; overflow:hidden; }
+.wv-gauge::before { content:""; position:absolute; left:0; top:0; width:104px; height:104px; border-radius:50%; background:conic-gradient(from -90deg, var(--gauge,var(--ops-ok)) calc(var(--pct,0) * 1.8deg), var(--ops-line) 0 180deg, transparent 0); -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 11px), #000 calc(100% - 10px)); mask:radial-gradient(farthest-side, transparent calc(100% - 11px), #000 calc(100% - 10px)); }
+.wv-gauge b { position:absolute; left:0; right:0; bottom:0; text-align:center; font-size:17px; line-height:1.2; font-variant-numeric:tabular-nums; }
+.wv-gauge-caption { margin-top:3px; width:104px; text-align:center; font-size:10.5px; color:var(--ops-muted); }
+.wv-progress { height:4px; border-radius:999px; background:var(--ops-line); overflow:hidden; margin-top:5px; }
+.wv-progress > span { display:block; height:100%; background:var(--ops-ok); }
+
+/* Anrufe: ein Punkt je Gespraech auf der 7-Tage-Achse */
+.wv-dots { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); align-items:end; height:32px; margin-top:8px; border-bottom:1px solid var(--ops-line); }
+.widget-card[data-widget-rows="2"] .wv-dots { height:44px; margin-top:14px; }
+.wv-dots-col { display:flex; flex-direction:column-reverse; align-items:center; gap:3px; padding-bottom:4px; }
+.wv-dots-col i { width:8px; height:8px; border-radius:50%; background:var(--ops-signal); }
+.wv-dots-col[data-today] i { box-shadow:0 0 0 3px rgba(228,0,43,.16); }
+.wv-dots-col small { font-size:9px; font-weight:700; color:var(--ops-signal); line-height:1; }
+.wv-dots-labels { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); margin-top:3px; font-size:9.5px; line-height:1.25; font-weight:600; text-align:center; color:var(--ops-muted); }
+.wv-dots-labels [data-today] { color:var(--ops-ink); }
+
+/* Kontenentwicklung: Flaechen-Linie, waechst mit der Kachelhoehe */
+.wv-line { position:relative; flex:1 1 auto; min-height:28px; margin-top:10px; }
+.wv-line svg { display:block; width:100%; height:100%; overflow:visible; }
+.wv-line-area { fill:var(--ops-signal); opacity:.1; }
+.wv-line-stroke { fill:none; stroke:var(--ops-signal); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+.wv-line-dot { position:absolute; right:-4px; width:8px; height:8px; border-radius:50%; background:var(--ops-signal); box-shadow:0 0 0 3px rgba(228,0,43,.18); transform:translateY(-50%); }
+.wv-line-axis { display:flex; justify-content:space-between; margin-top:4px; font-size:10px; line-height:1.3; color:var(--ops-muted); }
+
+/* Marketing: zwei Typ-Kacheln */
+.wv-duo { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.wv-duo-tile { display:flex; align-items:center; gap:10px; min-width:0; padding:10px; border-radius:12px; border:1px solid var(--ops-line); }
+.wv-duo-tile b { display:block; font-size:20px; line-height:1.1; font-variant-numeric:tabular-nums; }
+.wv-duo-text { min-width:0; }
+.wv-duo-text span { display:block; font-size:11px; color:var(--ops-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Systemzustand: Ampelliste + Speicheranzeige */
+.wv-health { display:flex; flex-direction:column; gap:7px; }
+.wv-health-row { display:grid; grid-template-columns:8px auto minmax(0,1fr); align-items:center; gap:9px; font-size:12.5px; }
+.wv-health-row > i { width:8px; height:8px; border-radius:50%; background:var(--ops-ok); }
+.wv-health-row[data-state="warn"] > i { background:var(--ops-warn); }
+.wv-health-row[data-state="unknown"] > i { background:var(--ops-muted); opacity:.5; }
+.wv-health-row > span:last-child { text-align:right; color:var(--ops-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wv-meter { height:8px; border-radius:999px; background:var(--ops-line); overflow:hidden; margin-top:6px; }
+.wv-meter > span { display:block; height:100%; border-radius:inherit; background:var(--ops-ok); }
+.wv-meter[data-state="warn"] > span { background:var(--ops-warn); }
+
+/* Ablage: Dateityp-Chips */
+.wv-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.wv-chip { display:inline-flex; align-items:center; gap:7px; padding:4px 9px 4px 4px; border-radius:8px; background:var(--ops-platform); font-size:11.5px; font-weight:650; font-variant-numeric:tabular-nums; }
+.wv-filetag { display:inline-flex; align-items:center; justify-content:center; min-width:30px; padding:3px 4px; border-radius:5px; font-size:9px; font-weight:800; letter-spacing:.04em; color:#fff; background:var(--chip,#64748b); flex-shrink:0; }
+.wv-filetag[data-type="pdf"] { --chip:#d92d20; }
+.wv-filetag[data-type="doc"] { --chip:#2563eb; }
+.wv-filetag[data-type="sheet"] { --chip:#15803d; }
+.wv-filetag[data-type="image"] { --chip:#7c3aed; }
+
+@media(prefers-reduced-motion:reduce) { .wv-live i::after { animation:none; } .wv-tl-body h4 { transition:none; } }

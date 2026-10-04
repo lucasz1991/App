@@ -45,8 +45,23 @@ class SystemDashboardData
             ->get(['id', 'name', 'email', 'role', 'status', 'created_at', 'profile_photo_path']);
     }
 
+    /** Anzahl verschiedener Personen mit Aktivitaet seit $since (0, wenn das Activity-Log fehlt). */
+    public function activeUsersSince(\DateTimeInterface $since): int
+    {
+        try {
+            return Activity::query()
+                ->whereNotNull('causer_id')
+                ->where('causer_type', User::class)
+                ->where('created_at', '>=', $since)
+                ->distinct()
+                ->count('causer_id');
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
     /** @return Collection<int, array{user:User, lastSeen:Carbon}> */
-    public function recentActivity(): Collection
+    public function recentActivity(int $limit = 6): Collection
     {
         try {
             $lastSeen = Activity::query()
@@ -55,7 +70,7 @@ class SystemDashboardData
                 ->selectRaw('causer_id, MAX(created_at) as last_seen')
                 ->groupBy('causer_id')
                 ->orderByDesc('last_seen')
-                ->limit(6)
+                ->limit($limit)
                 ->get();
         } catch (\Throwable) {
             return collect();
@@ -219,6 +234,38 @@ class SystemDashboardData
                 ? static::formatBytes((int) $diskFree).' / '.static::formatBytes((int) $diskTotal)
                 : '—',
             'lastActivityAt' => $lastActivityAt ? Carbon::parse($lastActivityAt) : null,
+        ];
+    }
+
+    /**
+     * Rohwerte fuer die Ampelpunkte im Systemzustand-Widget. Bewusst getrennt
+     * von system(): dessen Form (ein zusammengefasstes "queue"-Label statt
+     * einzelner Zaehler) ist fuer das Admin-Dashboard festgelegt.
+     *
+     * @return array{databaseOk: bool, failedJobs: int|null, diskUsedPct: int|null}
+     */
+    public function health(): array
+    {
+        try {
+            DB::connection()->getPdo();
+            $databaseOk = true;
+        } catch (\Throwable) {
+            $databaseOk = false;
+        }
+
+        try {
+            $failedJobs = DB::table('failed_jobs')->count();
+        } catch (\Throwable) {
+            $failedJobs = null;
+        }
+
+        $diskFree = @disk_free_space(storage_path());
+        $diskTotal = @disk_total_space(storage_path());
+
+        return [
+            'databaseOk' => $databaseOk,
+            'failedJobs' => $failedJobs,
+            'diskUsedPct' => ($diskFree && $diskTotal) ? (int) round(100 - $diskFree / $diskTotal * 100) : null,
         ];
     }
 

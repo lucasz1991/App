@@ -10,6 +10,7 @@ use App\Support\Mail\SignatureBackgroundContract;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureHotline;
 use App\Support\Mail\SignatureImgOverlap;
+use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\SignatureTrainCarrier;
 use Illuminate\Support\Facades\View;
 
@@ -467,10 +468,11 @@ class MailSignature
         }
 
         $animated = ! $this->staticAssets && $this->animated;
+        $deliveryTrain = SignatureArtifactVersion::usesTableOverlapTrain($artifactVersion);
         if ($this->remoteAssets) {
             if (! array_key_exists('TRAIN_SRC', $overrides)) {
                 $values['TRAIN_SRC'] = $this->withRemotePlaybackNonce(
-                    EmailTemplateBuilder::signatureTrainUrl(
+                    $deliveryTrain ? EmailTemplateBuilder::mailAssetUrl(SignatureTableOverlapDelivery::asset($assetTheme, $animated, $artifactVersion)) : EmailTemplateBuilder::signatureTrainUrl(
                         $assetTheme,
                         $animated,
                         $artifactVersion,
@@ -478,14 +480,14 @@ class MailSignature
                 );
             }
             if (! array_key_exists('TRAIN_STILL_SRC', $overrides)) {
-                $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainStillUrl(
+                $values['TRAIN_STILL_SRC'] = $deliveryTrain ? EmailTemplateBuilder::mailAssetUrl(SignatureTableOverlapDelivery::asset($assetTheme, false, $artifactVersion)) : EmailTemplateBuilder::signatureTrainStillUrl(
                     $assetTheme,
                     $artifactVersion,
                 );
             }
         } else {
             if (! array_key_exists('TRAIN_SRC', $overrides)) {
-                $values['TRAIN_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
+                $values['TRAIN_SRC'] = $deliveryTrain ? EmailTemplateBuilder::inlineImage(SignatureTableOverlapDelivery::asset($assetTheme, $animated, $artifactVersion), $animated ? 'image/gif' : 'image/png', $this->playbackNonce) : EmailTemplateBuilder::signatureTrainAsset(
                     $assetTheme,
                     $animated,
                     $this->playbackNonce,
@@ -493,7 +495,7 @@ class MailSignature
                 );
             }
             if (! array_key_exists('TRAIN_STILL_SRC', $overrides)) {
-                $values['TRAIN_STILL_SRC'] = EmailTemplateBuilder::signatureTrainAsset(
+                $values['TRAIN_STILL_SRC'] = $deliveryTrain ? EmailTemplateBuilder::inlineImage(SignatureTableOverlapDelivery::asset($assetTheme, false, $artifactVersion), 'image/png') : EmailTemplateBuilder::signatureTrainAsset(
                     $assetTheme,
                     animated: false,
                     artifactVersion: $artifactVersion,
@@ -651,6 +653,9 @@ class MailSignature
         string $outlookFallbackSource,
         string $idleSource,
     ): string {
+        if (\App\Support\Mail\SignatureTableOverlap::applies($html)) {
+            return SignatureTableOverlapDelivery::project($html, $outlookFallbackSource);
+        }
         if (SignatureHotline::applies($html)) {
             return $html;
         }

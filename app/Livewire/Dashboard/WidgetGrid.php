@@ -79,7 +79,7 @@ class WidgetGrid extends Component
         $system = $data->system();
         $system['lastActivity'] = $system['lastActivityAt']?->diffForHumans() ?? '—';
         unset($system['lastActivityAt']);
-        $this->systemStatus = $system;
+        $this->systemStatus = $system + $data->health();
         $this->systemStatusLoaded = true;
     }
 
