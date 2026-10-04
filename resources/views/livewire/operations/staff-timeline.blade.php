@@ -33,7 +33,7 @@
             <x-user.person-anchor-preview :user="$row['user']" trigger-classes="flex min-w-0 w-full">
                 <x-slot:trigger>
                     <button type="button" class="min-h-11 min-w-0 w-full rounded-lg text-left outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:text-rt-dark-accent" aria-label="{{ __('app.open_person_preview') }}: {{ $row['user']->name }}" title="{{ $row['user']->name }}">
-                        <x-user.public-info :user="$row['user']" :size="6" :show-email="false" :show-presence="false" />
+                                    <x-user.public-info :user="$row['user']" :size="6" :show-email="false" :show-presence="false" name-format="initial-surname" />
                     </button>
                 </x-slot:trigger>
             </x-user.person-anchor-preview>

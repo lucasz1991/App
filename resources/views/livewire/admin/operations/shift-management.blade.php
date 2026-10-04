@@ -2,11 +2,22 @@
     x-data="rtShiftDetailDrawer" x-on:operations-shift-detail-request.window="openShiftDetail($event.detail.id)">
     <template x-teleport="[data-page-header-search]">
         <div class="rt-shift-plan-header-controls" data-shift-plan-header-controls>
+            @php
+                $planViews = [
+                    'table' => ['Tabelle', 'fa-list-alt'],
+                    'day' => ['Tagesübersicht', 'fa-calendar-day'],
+                    'staffing' => ['Besetzung', 'fa-users'],
+                    'orders' => ['Leistungen', 'fa-briefcase'],
+                    'timeline' => ['Zeitleiste', 'fa-clock'],
+                ];
+                [$currentViewLabel, $currentViewIcon] = $planViews[$viewMode];
+                $distributionCount = $pendingShifts->total() + $unplannedOrders->total();
+            @endphp
             <div class="rt-shift-plan-period-controls">
                 <x-ui.dropdown.anchor-dropdown align="left" width="auto" offset="6" dropdown-id="shift-plan-period-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Planungszeitraum anpassen" dropdown-classes="rt-shift-plan-range-dropdown" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                     <x-slot:trigger>
                         <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-period-trigger" aria-label="Planungszeitraum auswählen">
-                            <i class="far fa-calendar-range" aria-hidden="true"></i>
+                            <i class="far fa-calendar-alt" aria-hidden="true"></i>
                             <span><strong class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</strong></span>
                             <i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i>
                         </x-ui.buttons.button-basic>
@@ -18,20 +29,25 @@
             </div>
             <x-ui.dropdown.anchor-dropdown align="left" width="56" offset="6" dropdown-id="shift-plan-view-{{ $this->getId() }}" layer-group="operations-shift-plan" content-label="Schichtplanansicht auswählen" content-classes="p-1.5 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                 <x-slot:trigger>
-                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-view-trigger"><i class="far fa-eye" aria-hidden="true"></i><span>Ansicht</span><i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-view-trigger" aria-label="Ansicht ändern: {{ $currentViewLabel }}" title="Ansicht: {{ $currentViewLabel }}"><i class="far fa-eye" aria-hidden="true"></i><i class="far {{ $currentViewIcon }}" aria-hidden="true" data-current-view="{{ $viewMode }}"></i><i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i></x-ui.buttons.button-basic>
                 </x-slot:trigger>
                 <x-slot:content>
-                    @foreach([
-                        'table' => ['Tabelle', 'fa-table-list'],
-                        'day' => ['Tagesübersicht', 'fa-calendar-day'],
-                        'staffing' => ['Besetzung', 'fa-users'],
-                        'orders' => ['Leistungen', 'fa-briefcase'],
-                        'timeline' => ['Zeitleiste', 'fa-clock'],
-                    ] as $view => [$label, $icon])
+                    @foreach($planViews as $view => [$label, $icon])
                         <button type="button" role="menuitemradio" aria-checked="{{ $viewMode === $view ? 'true' : 'false' }}" wire:click="setView('{{ $view }}')" x-on:click="close()" class="rt-shift-plan-view-option">
                             <i class="far {{ $icon }}" aria-hidden="true"></i><span>{{ $label }}</span>@if($viewMode === $view)<i class="far fa-check rt-shift-plan-view-option__check" aria-hidden="true"></i>@endif
                         </button>
                     @endforeach
+                </x-slot:content>
+            </x-ui.dropdown.anchor-dropdown>
+            <x-ui.dropdown.anchor-dropdown align="left" width="96" offset="6" dropdown-id="shift-plan-distribution-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Noch zu verteilen" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
+                <x-slot:trigger>
+                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-distribution-trigger" aria-label="Noch zu verteilen: {{ $pendingShifts->total() }} Schichten und {{ $unplannedOrders->total() }} Leistungen" title="Noch zu verteilen im gewählten Zeitraum">
+                        <i class="far fa-tasks" aria-hidden="true"></i>
+                        <span class="rt-shift-plan-distribution-count" aria-hidden="true">{{ $distributionCount }}</span>
+                    </x-ui.buttons.button-basic>
+                </x-slot:trigger>
+                <x-slot:content>
+                    @include('livewire.admin.operations.partials.pending-distribution')
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
             @if($viewMode !== 'timeline')

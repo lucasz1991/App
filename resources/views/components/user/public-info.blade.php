@@ -7,6 +7,7 @@
     'showContext' => false,
     'selected' => false,
     'selectionIndicator' => false,
+    'nameFormat' => 'full',
 ])
 
 @php
@@ -39,6 +40,20 @@
         ?: ($resolvedUser->email ?? $resolvedPerson?->email ?? '')
         ?: 'Unbekannt';
     $email = trim((string) ($resolvedUser->email ?? $resolvedPerson->email ?? ''));
+    $visibleName = $displayName;
+    if ($nameFormat === 'initial-surname') {
+        [$first, $last] = $personName !== '' ? [$personFirst, $personLast] : [$profileFirst, $profileLast];
+        if ($first === '' && $last === '' && $accountName !== '') {
+            if (str_contains($accountName, ',')) {
+                [$last, $first] = array_map('trim', explode(',', $accountName, 2));
+            } else {
+                [$first, $last] = array_pad(preg_split('/\s+/u', $accountName, 2), 2, '');
+            }
+        }
+        $visibleName = $last !== ''
+            ? ($first !== '' ? mb_substr($first, 0, 1).'. ' : '').$last
+            : $displayName;
+    }
     $isOnline = $hasUser && $showPresence && $resolvedUser->isOnline();
     $profilePosition = trim((string) ($resolvedUser?->profile?->position ?? ''));
     $teamName = trim((string) ($resolvedUser?->currentTeam?->name ?? ''));
@@ -110,8 +125,8 @@
 
     <span class="min-w-0 flex-1">
         <span class="flex min-w-0 items-baseline gap-1.5">
-            <span class="min-w-0 truncate text-sm font-semibold leading-5 text-rt-text dark:text-rt-dark-text">
-                {{ $displayName }}
+            <span @class(['min-w-0 text-sm font-semibold leading-5 text-rt-text dark:text-rt-dark-text', 'truncate' => $nameFormat !== 'initial-surname', 'whitespace-normal break-words' => $nameFormat === 'initial-surname']) title="{{ $displayName }}">
+                {{ $visibleName }}
             </span>
             @if ($showContext && $contextLabel !== '')
                 <span class="rt-user-public-info__context shrink-0 truncate text-[9px] font-bold leading-4 text-rt-accent dark:text-rt-dark-accent">

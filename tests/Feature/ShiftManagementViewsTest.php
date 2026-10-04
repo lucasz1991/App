@@ -56,6 +56,92 @@ class ShiftManagementViewsTest extends TestCase
         ]);
     }
 
+    public function test_header_distribution_counts_only_unallocated_active_shifts_independently_of_list_filters(): void
+    {
+        $open = $this->shift('Noch zwei Plätze', ['required_staff' => 4]);
+        $this->assignment($open, 'requested');
+        $this->assignment($open, 'confirmed');
+        $this->assignment($open, 'declined');
+        $this->assignment($open, 'cancelled');
+        $full = $this->shift('Schon angefragt');
+        $this->assignment($full, 'requested');
+        $this->shift('Abgeschlossen', ['status' => 'completed']);
+        $this->shift('Storniert', ['status' => 'cancelled']);
+        $this->shift('Außerhalb', ['starts_at' => '2027-05-01 08:00:00', 'ends_at' => '2027-05-01 16:00:00']);
+        $this->shift('Endet genau vor Zeitraum', ['starts_at' => '2027-05-09 20:00:00', 'ends_at' => '2027-05-09 22:00:00']);
+        $deleted = $this->shift('Gelöscht');
+        $deleted->delete();
+
+        Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->set('search', 'kein Treffer')->set('statusFilter', 'draft')
+            ->assertViewHas('pendingShifts', fn ($items) => $items->total() === 1 && $items->first()->id === $open->id && $items->first()->reserved_count === 2)
+            ->assertViewHas('unplannedOrders', fn ($items) => $items->total() === 0)
+            ->assertSee('2 offen')
+            ->call('openDetails', $open->id)->assertSet('selectedShiftId', $open->id)->assertSet('detailOpen', true);
+    }
+
+    public function test_unplanned_services_exclude_closed_and_scheduled_orders_and_prefill_without_saving(): void
+    {
+        foreach (['completed', 'invoiced', 'cancelled'] as $status) {
+            $closed = $this->order->replicate(['public_id', 'order_number']);
+            $closed->status = $status;
+            $closed->save();
+            $this->shift('Offen an geschlossenem Auftrag', ['order_id' => $closed->id]);
+        }
+        $this->shift('Nur stornierte Planung', ['status' => 'cancelled']);
+        $before = $this->order->fresh()->getAttributes();
+        $count = Shift::count();
+        Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->assertViewHas('unplannedOrders', fn ($items) => $items->total() === 1 && $items->first()->id === $this->order->id)
+            ->assertViewHas('pendingShifts', fn ($items) => $items->total() === 0)
+            ->call('prepareOrderShift', $this->order->id)
+            ->assertSet('formOpen', true)->assertSet('orderId', $this->order->id)
+            ->assertSet('title', $this->order->title)->assertSet('requiredStaff', 3)
+            ->assertSet('startsAt', '')->assertSet('endsAt', '')
+            ->call('prepareOrderShift', $closed->id)->assertStatus(422);
+        $this->assertSame($count, Shift::count());
+        $this->assertSame($before, $this->order->fresh()->getAttributes());
+    }
+
+    public function test_pending_distribution_is_paginated_and_resets_when_the_period_changes(): void
+    {
+        foreach (range(1, 10) as $number) {
+            $this->shift('Offene Schicht '.$number);
+        }
+        Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->assertViewHas('pendingShifts', fn ($items) => $items->total() === 10 && $items->count() === 8)
+            ->call('nextPage', 'distributionShiftsPage')
+            ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 2 && $items->count() === 2)
+            ->call('applyPeriod', '2027-05-10', '2027-05-16')
+            ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 1)
+            ->call('applyPeriod', '2027-06-01', '2027-06-02')
+            ->assertSee('Keine offenen Verteilungen in diesem Zeitraum.');
+    }
+
+    public function test_header_uses_calendar_and_current_view_icons_with_accessible_labels(): void
+    {
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->assertSeeHtml('far fa-calendar-alt');
+        foreach (['table' => 'Tabelle', 'day' => 'Tagesübersicht', 'staffing' => 'Besetzung', 'orders' => 'Leistungen', 'timeline' => 'Zeitleiste'] as $view => $label) {
+            $component->call('setView', $view)
+                ->assertSeeHtml('data-current-view="'.$view.'"')
+                ->assertSeeHtml('aria-label="Ansicht ändern: '.$label.'"');
+        }
+    }
+
+    public function test_distribution_recovers_when_the_current_last_page_is_completed(): void
+    {
+        foreach (range(1, 9) as $number) {
+            $last = $this->shift('Schicht '.$number);
+        }
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('nextPage', 'distributionShiftsPage')
+            ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 2 && $items->count() === 1);
+        $last->update(['status' => 'completed']);
+        $component->call('refreshPlan')
+            ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 1 && $items->count() === 8);
+    }
+
     public function test_views_share_filters_and_keep_the_existing_detail_and_edit_modals(): void
     {
         $target = $this->shift('Norddienst');

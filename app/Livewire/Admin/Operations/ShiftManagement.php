@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\Operations;
 
+use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
 use App\Models\Customer;
@@ -101,6 +102,7 @@ class ShiftManagement extends Component
         $days = (int) $from->diffInDays($to->copy()->startOfDay()) + 1;
         $this->rangeFrom = $from->addDays($days * $direction)->toDateString();
         $this->rangeTo = $to->addDays($days * $direction)->toDateString();
+        $this->resetDistributionPages();
     }
 
     public function currentWeek(): void
@@ -109,6 +111,7 @@ class ShiftManagement extends Component
         $today = now((string) config('operations.display_timezone', 'Europe/Berlin'));
         $this->rangeFrom = $today->copy()->startOfWeek()->toDateString();
         $this->rangeTo = $today->copy()->endOfWeek()->toDateString();
+        $this->resetDistributionPages();
     }
 
     public function applyPeriod(string $from, string $until): void
@@ -125,7 +128,24 @@ class ShiftManagement extends Component
         }
         $this->rangeFrom = $validated['rangeFrom'];
         $this->rangeTo = $validated['rangeTo'];
+        $this->resetDistributionPages();
         $this->resetValidation(['rangeFrom', 'rangeTo']);
+    }
+
+    public function updatedRangeFrom(): void
+    {
+        $this->resetDistributionPages();
+    }
+
+    public function updatedRangeTo(): void
+    {
+        $this->resetDistributionPages();
+    }
+
+    private function resetDistributionPages(): void
+    {
+        $this->resetPage('distributionShiftsPage');
+        $this->resetPage('distributionOrdersPage');
     }
 
     #[On('operations-plan-changed')]
@@ -244,6 +264,24 @@ class ShiftManagement extends Component
         $this->notes = (string) $shift->notes;
         $this->resetValidation();
         $this->formOpen = true;
+    }
+
+    public function prepareOrderShift(int $orderId): void
+    {
+        $this->ensureAdmin();
+        $order = Order::query()->findOrFail($orderId);
+        abort_if(in_array($order->status, [OrderStatus::Completed, OrderStatus::Invoiced, OrderStatus::Cancelled], true), 422);
+
+        $this->createShift();
+        $this->orderId = $order->id;
+        $this->title = (string) $order->title;
+        $this->roleName = (string) $order->service_type;
+        $this->locationName = (string) $order->location_name;
+        $this->requiredStaff = max(1, (int) $order->required_staff);
+        $this->timezone = (string) ($order->timezone ?: 'Europe/Berlin');
+        // A service can span weeks. The dispatcher chooses the actual shift window.
+        $this->startsAt = '';
+        $this->endsAt = '';
     }
 
     public function selectShift(int $shiftId): void
@@ -527,6 +565,7 @@ class ShiftManagement extends Component
         });
 
         return view('livewire.admin.operations.shift-management', [
+            ...$this->pendingDistribution($from, $to),
             'nativeOperations' => OperationsAccess::ready(),
             'qualificationTypes' => OperationsAccess::ready() ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
             'shifts' => $shifts,
@@ -570,6 +609,44 @@ class ShiftManagement extends Component
             'confirmedCount' => $summary['confirmed'],
             'openCount' => $summary['open'],
         ]);
+    }
+
+    /** Independent of list filters: the header always represents the selected planning period. */
+    private function pendingDistribution(Carbon $from, Carbon $to): array
+    {
+        $closedOrders = [OrderStatus::Completed->value, OrderStatus::Invoiced->value, OrderStatus::Cancelled->value];
+        $reserved = ShiftAssignment::query()->selectRaw('count(*)')
+            ->whereColumn('shift_assignments.shift_id', 'shifts.id')
+            ->whereIn('status', ShiftAssignmentStatus::blockingValues());
+
+        $pendingShifts = Shift::query()
+            ->with(['order.customer'])
+            ->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])
+            ->whereNotIn('status', [ShiftStatus::Completed->value, ShiftStatus::Cancelled->value])
+            ->whereHas('order', fn (Builder $query) => $query->whereNotIn('status', $closedOrders))
+            ->where('ends_at', '>', $from->copy()->utc())
+            ->where('starts_at', '<=', $to->copy()->utc())
+            ->where('required_staff', '>', $reserved)
+            ->orderBy('starts_at')->orderBy('id')
+            ->paginate(8, ['*'], 'distributionShiftsPage');
+
+        $unplannedOrders = Order::query()->with('customer')
+            ->whereNotIn('status', $closedOrders)
+            ->where('ends_at', '>', $from->copy()->utc())
+            ->where('starts_at', '<=', $to->copy()->utc())
+            ->whereDoesntHave('shifts', fn (Builder $query) => $query->where('status', '!=', ShiftStatus::Cancelled->value))
+            ->orderBy('starts_at')->orderBy('id')
+            ->paginate(8, ['*'], 'distributionOrdersPage');
+
+        // Assignments or deletions may empty the last page while this view stays open.
+        if ($pendingShifts->currentPage() > $pendingShifts->lastPage() || $unplannedOrders->currentPage() > $unplannedOrders->lastPage()) {
+            $this->setPage(min($pendingShifts->currentPage(), $pendingShifts->lastPage()), 'distributionShiftsPage');
+            $this->setPage(min($unplannedOrders->currentPage(), $unplannedOrders->lastPage()), 'distributionOrdersPage');
+
+            return $this->pendingDistribution($from, $to);
+        }
+
+        return compact('pendingShifts', 'unplannedOrders');
     }
 
     /** @return array{shifts: int, required: int, reserved: int, confirmed: int, open: int} */

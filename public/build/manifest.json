@@ -44,7 +44,7 @@
     "src": "node_modules/leaflet/dist/leaflet.css"
   },
   "resources/css/app.css": {
-    "file": "assets/app-DLwNQLG9.css",
+    "file": "assets/app-DD3uMaTG.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },

@@ -98,7 +98,6 @@
     border-right: 1px solid var(--rt-border, #e4e7ec);
     border-bottom: 1px solid var(--rt-border, #e4e7ec);
     background-color: var(--rt-surface, #fff);
-    background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(25% - 1px), var(--rt-border, #e4e7ec) calc(25% - 1px), var(--rt-border, #e4e7ec) 25%);
     transition: background-color 160ms ease;
 }
 .rt-personnel-timeline-day--weekend { background-color: var(--rt-surface-muted, #f7f8fa); }
@@ -169,7 +168,7 @@
 .dark .rt-personnel-timeline-header { background: var(--rt-dark-surface-muted, #222b39); }
 .dark .rt-personnel-timeline-head { color: var(--rt-dark-text, #edf2f8); }
 .dark .rt-personnel-timeline-head--weekend { color: var(--rt-dark-muted, #a5afbd); }
-.dark .rt-personnel-timeline-day { background-color: var(--rt-dark-surface, #171d28); background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(25% - 1px), var(--rt-dark-border, #303846) calc(25% - 1px), var(--rt-dark-border, #303846) 25%); }
+.dark .rt-personnel-timeline-day { background-color: var(--rt-dark-surface, #171d28); }
 .dark .rt-personnel-timeline-day--weekend, .dark .rt-personnel-timeline-day:hover, .dark .rt-personnel-timeline-day:focus-within { background-color: var(--rt-dark-surface-muted, #222b39); }
 .dark .rt-personnel-timeline-direction { border-color: var(--rt-dark-border, #303846); background: var(--rt-dark-surface, #171d28); color: var(--rt-dark-text, #edf2f8); }
 .dark .rt-personnel-timeline-time { background: color-mix(in srgb, var(--timeline-state-color) 9%, var(--rt-dark-surface, #171d28)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--timeline-state-color) 22%, transparent); }
