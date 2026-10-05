@@ -5,11 +5,13 @@ namespace App\Support;
 use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\Mail\CssSemantic;
+use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureBackgroundContract;
 use App\Support\Mail\SignatureHotline;
 use App\Support\Mail\SignatureImgOverlapFallback;
+use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TemplateDocumentContract;
@@ -320,13 +322,19 @@ class EmailTemplateBuilder
         $overlapStyle = SignatureImgOverlapFallback::outlookStyle($rows, $scopeClass);
         $rows = SignatureImgOverlapFallback::apply($rows);
 
-        return $publishedStyle
+        $html = $publishedStyle
             .$runtimeStyle
             .$overlapStyle
             .'<div class="rt-outlook-signature '.$scopeClass.'" style="display:block;width:100%;">'
             .'<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" '
             .'style="width:100%;border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">'
             .'<tbody>'.$rows.'</tbody></table></div>';
+
+        // Only the bounded V27/V28/V29 delivery output opts into this
+        // projection. Historical signature contracts/budgets stay untouched.
+        return SignatureTableOverlapDelivery::applies($rows)
+            ? OutlookSignatureInlineStyle::apply($html, $scopeClass)
+            : $html;
     }
 
     /**
@@ -1241,7 +1249,7 @@ class EmailTemplateBuilder
     ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
         if (SignatureArtifactVersion::usesTableOverlapTrain($artifactVersion)) {
-            return \App\Support\Mail\SignatureTableOverlapDelivery::asset($variant, $animated, $artifactVersion);
+            return SignatureTableOverlapDelivery::asset($variant, $animated, $artifactVersion);
         }
         $stem = SignatureArtifactVersion::usesV19MailAssets($artifactVersion)
             ? 'zug-dampf-v19'
@@ -1527,11 +1535,11 @@ class EmailTemplateBuilder
         string $expectedIdleSource,
         string $expectedMsoSource,
     ): string {
-        if (\App\Support\Mail\SignatureTableOverlapDelivery::applies($html)) {
-            \App\Support\Mail\SignatureTableOverlapDelivery::assertRuntime(
+        if (SignatureTableOverlapDelivery::applies($html)) {
+            SignatureTableOverlapDelivery::assertRuntime(
                 $html,
-                \App\Support\Mail\SignatureTableOverlapDelivery::source(self::forceHttpsUrl($expectedTrainSource)),
-                \App\Support\Mail\SignatureTableOverlapDelivery::source(self::forceHttpsUrl($expectedMsoSource)),
+                SignatureTableOverlapDelivery::source(self::forceHttpsUrl($expectedTrainSource)),
+                SignatureTableOverlapDelivery::source(self::forceHttpsUrl($expectedMsoSource)),
             );
             foreach (self::imageSources($html) as $imageSource) {
                 self::forceHttpsUrl($imageSource);

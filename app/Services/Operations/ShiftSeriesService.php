@@ -11,9 +11,9 @@ use App\Models\ShiftTemplate;
 use App\Models\User;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
+use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningSchema;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -30,7 +30,7 @@ class ShiftSeriesService
             'qualification_ids' => 'array|max:50', 'qualification_ids.*' => 'integer|distinct|exists:qualification_types,id',
         ])->validate();
 
-        return DB::transaction(function () use ($id, $revision, $data, $actor) {
+        return OperationsTransaction::run(function () use ($id, $revision, $data, $actor) {
             $template = $id ? ShiftTemplate::lockForUpdate()->findOrFail($id) : new ShiftTemplate;
             $this->check(! $id || $template->revision === $revision, 'Vorlage wurde geändert. Bitte neu laden.');
             $name = $data['name'];
@@ -89,7 +89,7 @@ class ShiftSeriesService
         $data = $this->validateRequest($data);
         Validator::make(['key' => $key], ['key' => 'required|uuid'])->validate();
 
-        return DB::transaction(function () use ($data, $fingerprint, $key, $actor) {
+        return OperationsTransaction::run(function () use ($data, $fingerprint, $key, $actor) {
             // The order lock serializes retries and keeps its interval stable.
             Order::lockForUpdate()->findOrFail($data['order_id']);
             ShiftTemplate::lockForUpdate()->findOrFail($data['template_id']);

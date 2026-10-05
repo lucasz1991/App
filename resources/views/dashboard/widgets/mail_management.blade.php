@@ -12,8 +12,8 @@
     </div>
     <div style="min-width:0;">
         <span class="widget-primary-val">{{ $data['pending'] }}</span>
-        <span class="widget-primary-lbl">im Versand ausstehend</span>
-        <p class="wv-sub"><strong>{{ $data['sentWeek'] }}</strong> versendet · {{ $data['recipientsWeek'] }} Empfänger</p>
+        <span class="widget-primary-lbl wv-truncate">im Versand offen</span>
+        <p class="wv-sub wv-truncate" title="{{ $data['sentWeek'] }} Mails an {{ $data['recipientsWeek'] }} Empfänger in den letzten 7 Tagen"><strong>{{ $data['sentWeek'] }}</strong> versendet · 7 T</p>
     </div>
 </div>
 @if($rows === 2)

@@ -8,7 +8,8 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Support\Operations\OperationsAccess;
-use Illuminate\Support\Facades\DB;
+use App\Support\Operations\OperationsTransaction;
+use App\Support\Operations\PlanningLocks;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -18,7 +19,9 @@ class PlanPublicationService
     {
         OperationsAccess::authorize($actor, 'operations.manage');
         Validator::make(['ids' => $ids], ['ids' => 'array|max:50', 'ids.*' => 'integer|distinct|exists:qualification_types,id'])->validate();
-        DB::transaction(function () use ($shift, $revision, $ids, $actor) {
+        OperationsTransaction::run(function () use ($shift, $revision, $ids, $actor) {
+            OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.manage');
+            PlanningLocks::acquire([$shift->id], $shift->assignments()->blocking()->pluck('user_id')->all());
             $record = Shift::lockForUpdate()->findOrFail($shift->id);
             $this->check($record->revision === $revision, 'Schicht wurde geändert. Bitte neu laden.');
             $this->check(! WorkTimeEntry::whereHas('assignment', fn ($q) => $q->where('shift_id', $record->id))->exists(), 'Für diese Schicht wurden bereits Zeiten erfasst.');
@@ -39,7 +42,9 @@ class PlanPublicationService
     public function publish(Shift $shift, int $revision, User $actor): void
     {
         OperationsAccess::authorize($actor, 'operations.manage');
-        DB::transaction(function () use ($shift, $revision, $actor) {
+        OperationsTransaction::run(function () use ($shift, $revision, $actor) {
+            OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.manage');
+            PlanningLocks::acquire([$shift->id], $shift->assignments()->blocking()->pluck('user_id')->all());
             $record = Shift::lockForUpdate()->findOrFail($shift->id);
             $this->check($record->revision === $revision, 'Schicht wurde geändert. Bitte neu laden.');
             $this->check(! in_array($record->status->value, ['cancelled', 'completed'], true), 'Schicht kann nicht veröffentlicht werden.');
@@ -64,10 +69,12 @@ class PlanPublicationService
     {
         $assignment = ShiftAssignment::findOrFail($assignmentId);
         OperationsAccess::own($actor, $assignment->user_id);
-        DB::transaction(function () use ($assignment, $revision, $accept, $actor) {
+        OperationsTransaction::run(function () use ($assignment, $revision, $accept, $actor) {
+            PlanningLocks::acquire([$assignment->shift_id], [$actor->id]);
             $shift = Shift::lockForUpdate()->findOrFail($assignment->shift_id);
             User::lockForUpdate()->findOrFail($actor->id);
             $record = ShiftAssignment::lockForUpdate()->findOrFail($assignment->id);
+            OperationsAccess::own(User::findOrFail($actor->id), $record->user_id);
             $this->check($shift->revision === $revision && $shift->published_revision === $revision && $record->plan_revision === $revision && $shift->status->value !== 'cancelled', 'Dienst wurde geändert. Bitte neu laden.');
             $this->check($record->status === ShiftAssignmentStatus::Requested, 'Dieser Dienst wurde bereits beantwortet.');
             if ($accept) {

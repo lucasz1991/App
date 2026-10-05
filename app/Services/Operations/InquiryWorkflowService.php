@@ -3,13 +3,14 @@
 namespace App\Services\Operations;
 
 use App\Enums\OrderStatus;
+use App\Models\CommercialOfferRevision;
 use App\Models\Customer;
 use App\Models\OperationInquiry;
 use App\Models\Order;
 use App\Models\User;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
-use Illuminate\Support\Facades\DB;
+use App\Support\Operations\OperationsTransaction;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -44,7 +45,7 @@ class InquiryWorkflowService
             throw ValidationException::withMessages(['ends_at' => 'Das Ende muss nach dem Beginn liegen.']);
         }
 
-        return DB::transaction(function () use ($inquiry, $data, $actor, $revision): OperationInquiry {
+        return OperationsTransaction::run(function () use ($inquiry, $data, $actor, $revision): OperationInquiry {
             $record = $inquiry ? OperationInquiry::lockForUpdate()->findOrFail($inquiry->id) : new OperationInquiry;
             if ($record->exists) {
                 $this->editable($record, $revision);
@@ -71,7 +72,7 @@ class InquiryWorkflowService
     {
         OperationsAccess::authorize($actor, 'operations.inquiries.manage');
 
-        return DB::transaction(function () use ($inquiry, $revision, $action, $input, $actor): OperationInquiry {
+        return OperationsTransaction::run(function () use ($inquiry, $revision, $action, $input, $actor): OperationInquiry {
             $record = OperationInquiry::lockForUpdate()->findOrFail($inquiry->id);
             if ($action === 'convert' && $record->order_id && $record->revision === $revision) {
                 return $record;
@@ -86,23 +87,49 @@ class InquiryWorkflowService
                     break;
                 case 'offer':
                     $this->require($record->verified_revision === $revision && in_array($record->status, ['verified', 'offered'], true), 'Der Bedarf muss zuerst geprüft werden.');
-                    $offer = Validator::make($input, ['amount' => ['required', 'decimal:0,2', 'min:0', 'max:99999999'], 'terms' => ['required', 'string', 'max:5000']])->validate();
+                    $offer = Validator::make($input, ['amount' => ['required', 'decimal:0,2', 'min:0', 'max:99999999'], 'terms' => ['required', 'string', 'max:5000'], 'valid_until' => ['nullable', 'date_format:Y-m-d']])->validate();
+                    $calculated = isset($input['positions']) ? app(CommercialOfferService::class)->positions($input['positions'], $record->customer_id, $record->starts_at->format('Y-m-d')) : null;
+                    $commercial = null;
+                    if (filled($input['commercial_offer_id'] ?? null)) {
+                        $commercial = CommercialOfferRevision::where('subject_type', 'OperationInquiry')->where('subject_id', $record->id)->lockForUpdate()->findOrFail($input['commercial_offer_id']);
+                        $latestId = CommercialOfferRevision::where('subject_type', 'OperationInquiry')->where('subject_id', $record->id)->latest('revision')->value('id');
+                        $this->require($commercial->status === 'draft' && $latestId === $commercial->id && ($commercial->snapshot['source_revision'] ?? null) === $revision, 'Dieser Angebotsentwurf ist nicht mehr aktuell.');
+                    }
                     // Replacing an offer also creates a new demand/offer revision, invalidating old acceptance.
                     if ($record->offer) {
                         $record->revision++;
                         $record->verified_revision = $record->revision;
                     }
-                    $record->offer = ['revision' => $record->revision, 'amount_cents' => (int) round((float) $offer['amount'] * 100), 'currency' => 'EUR', 'terms' => $offer['terms']];
+                    $record->offer = ['revision' => $record->revision, 'amount_cents' => $commercial?->total_cents ?? $calculated['amount_cents'] ?? CommercialOfferService::scaled($offer['amount'], 2), 'currency' => 'EUR', 'terms' => $commercial?->snapshot['terms'] ?? $offer['terms'],
+                        'valid_until' => $offer['valid_until'] ?? null, 'positions' => $commercial?->snapshot['positions'] ?? $calculated['positions'] ?? []];
+                    if (CommercialOfferService::ready()) {
+                        $commercial ??= CommercialOfferRevision::create([
+                            'subject_type' => 'OperationInquiry', 'subject_id' => $record->id,
+                            'revision' => (int) CommercialOfferRevision::where('subject_type', 'OperationInquiry')->where('subject_id', $record->id)->max('revision') + 1,
+                            'kind' => 'offer', 'status' => 'offered', 'issued_at' => now()->utc(), 'snapshot' => $record->offer,
+                            'total_cents' => $record->offer['amount_cents'], 'valid_until' => ($offer['valid_until'] ?? null) ?: null, 'created_by' => $actor->id,
+                        ]);
+                        $record->offer = $record->offer + ['commercial_offer_id' => $commercial->id];
+                    }
                     $record->accepted_revision = null;
                     $record->acceptance_note = null;
                     $record->status = 'offered';
                     break;
                 case 'accept':
                     $this->require($record->status === 'offered' && ($record->offer['revision'] ?? null) === $revision, 'Es liegt kein aktuelles Angebot vor.');
+                    $this->require(empty($record->offer['valid_until']) || $record->offer['valid_until'] >= now($record->timezone)->format('Y-m-d'), 'Die Angebotsfrist ist abgelaufen.');
+                    if (CommercialOfferService::ready() && ($commercialId = ($record->offer['commercial_offer_id'] ?? null))) {
+                        $commercial = CommercialOfferRevision::where('subject_type', 'OperationInquiry')->where('subject_id', $record->id)->lockForUpdate()->findOrFail($commercialId);
+                        $latest = CommercialOfferRevision::where('subject_type', 'OperationInquiry')->where('subject_id', $record->id)->latest('revision')->value('id');
+                        $this->require($commercial->status === 'offered' && $latest === $commercial->id, 'Es liegt ein neuerer Angebotsstand vor.');
+                    }
                     $acceptance = Validator::make($input, ['note' => ['required', 'string', 'min:5', 'max:5000'], 'authorized' => ['accepted']])->validate();
                     $record->accepted_revision = $revision;
                     $record->acceptance_note = $acceptance['note'];
                     $record->status = 'accepted';
+                    if (isset($commercial)) {
+                        $commercial->forceFill(['status' => 'accepted', 'state_version' => $commercial->state_version + 1, 'accepted_at' => now()->utc(), 'accepted_by' => $actor->id, 'acceptance_note' => $acceptance['note']])->save();
+                    }
                     break;
                 case 'convert':
                     $this->complete($record);
@@ -117,6 +144,18 @@ class InquiryWorkflowService
                     ], $actor);
                     $record->order_id = $order->id;
                     $record->status = 'converted';
+                    if (CommercialOfferService::ready()) {
+                        CommercialOfferRevision::create(['subject_type' => 'Order', 'subject_id' => $order->id, 'revision' => 1,
+                            'kind' => 'offer', 'status' => 'accepted', 'snapshot' => $record->offer + ['origin_inquiry_id' => $record->id],
+                            'total_cents' => $record->offer['amount_cents'], 'created_by' => $actor->id, 'accepted_at' => now()->utc(),
+                            'accepted_by' => $actor->id, 'acceptance_note' => $record->acceptance_note]);
+                    }
+                    break;
+                case 'reject':
+                    $rejection = Validator::make($input, ['note' => ['required', 'string', 'min:5', 'max:5000']])->validate();
+                    $record->status = 'rejected';
+                    $record->acceptance_note = $rejection['note'];
+                    $record->accepted_revision = null;
                     break;
                 case 'duplicate':
                     $id = (int) ($input['original_id'] ?? 0);
@@ -140,7 +179,7 @@ class InquiryWorkflowService
     private function editable(OperationInquiry $record, ?int $revision): void
     {
         $this->require($record->revision === $revision, 'Der Vorgang wurde geändert. Bitte neu laden.');
-        $this->require(! $record->order_id && ! $record->duplicate_of_id, 'Dieser Vorgang ist bereits abgeschlossen.');
+        $this->require(! $record->order_id && ! $record->duplicate_of_id && $record->status !== 'rejected', 'Dieser Vorgang ist bereits abgeschlossen.');
     }
 
     private function complete(OperationInquiry $record): void

@@ -11,7 +11,7 @@ class OrderDemand extends Model
 
     protected $guarded = ['id'];
 
-    protected $casts = ['revision' => 'integer', 'required_staff' => 'integer'];
+    protected $casts = ['revision' => 'integer', 'required_staff' => 'integer', 'maximum_staff' => 'integer', 'qualification_ids' => 'array'];
 
     public function shifts()
     {

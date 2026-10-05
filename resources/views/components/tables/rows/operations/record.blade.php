@@ -4,9 +4,9 @@
         $value = match($key) {
             'qualification_label' => $item->type?->name,
             'validity' => $item->validityLabel(),
-            'absence_label' => ['vacation'=>'Urlaub', 'unavailable'=>'Nicht verfügbar', 'other'=>'Abwesenheit'][$item->kind] ?? $item->kind,
+            'absence_label' => ['vacation'=>'Urlaub', 'unavailable'=>'Nicht verfügbar', 'other'=>'Abwesenheit', 'sick'=>'Krankmeldung'][$item->kind] ?? $item->kind,
             'net_time' => \App\Support\Operations\OperationsDateTime::duration($item->netSeconds()),
-            'planned_net' => \App\Support\Operations\OperationsDateTime::duration(app(\App\Services\Operations\WorkTimeService::class)->comparison($item)['planned']),
+            'planned_net' => ($planned = app(\App\Services\Operations\WorkTimeService::class)->comparison($item)['planned']) === null ? '—' : \App\Support\Operations\OperationsDateTime::duration($planned),
             'time_delta' => null,
             'channel' => ['email'=>'E-Mail', 'phone'=>'Telefon', 'portal'=>'Portal', 'manual'=>'Manuell'][$item->channel] ?? $item->channel,
             default => data_get($item, $key),
@@ -25,7 +25,7 @@
             <x-ui.buttons.button-basic mode="link" type="button" wire:click="{{ $safeDetailAction }}({{ $item->id }})" class="min-h-11 text-left font-semibold">{{ $value ?: '—' }}</x-ui.buttons.button-basic>
         @elseif($key === 'time_delta')
             @php($comparison = app(\App\Services\Operations\WorkTimeService::class)->comparison($item))
-            <p class="tabular-nums">{{ $comparison['delta'] === null ? 'Läuft' : ($comparison['delta'] > 0 ? '+' : ($comparison['delta'] < 0 ? '−' : '')).\App\Support\Operations\OperationsDateTime::duration(abs($comparison['delta'])) }}</p>
+            <p class="tabular-nums">{{ $comparison['planned'] === null ? '—' : ($comparison['delta'] === null ? 'Läuft' : ($comparison['delta'] > 0 ? '+' : ($comparison['delta'] < 0 ? '−' : '')).\App\Support\Operations\OperationsDateTime::duration(abs($comparison['delta']))) }}</p>
             @foreach($comparison['warnings'] as $warning)<p class="text-xs text-amber-700 dark:text-amber-300">{{ $warning }}</p>@endforeach
         @elseif($key === 'status')
             <x-operations.status :value="$status" />

@@ -24,4 +24,4 @@
         @endforeach
     </div>
 @endif
-<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Zeiten prüfen öffnen →</a>
+<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Zeiten öffnen →</a>

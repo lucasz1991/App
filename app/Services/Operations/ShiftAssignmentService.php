@@ -9,7 +9,9 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Support\Operations\OperationsAccess;
-use Illuminate\Support\Facades\DB;
+use App\Support\Operations\OperationsTransaction;
+use App\Support\Operations\PlanningLocks;
+use App\Support\Operations\WorkforcePlanningSchema;
 use Illuminate\Validation\ValidationException;
 
 class ShiftAssignmentService
@@ -20,15 +22,18 @@ class ShiftAssignmentService
         User $actor,
         ShiftAssignmentStatus|string $status = ShiftAssignmentStatus::Confirmed,
         ?string $note = null,
+        ?int $expectedRevision = null,
     ): ShiftAssignment {
         OperationsAccess::authorize($actor, 'operations.manage');
         $assignmentStatus = $this->normalizeStatus($status);
 
-        return DB::transaction(function () use ($shift, $assignee, $actor, $assignmentStatus, $note): ShiftAssignment {
-            $lockedShift = Shift::query()
-                ->with('order.customer')
-                ->lockForUpdate()
-                ->findOrFail($shift->getKey());
+        return OperationsTransaction::run(function () use ($shift, $assignee, $actor, $assignmentStatus, $note, $expectedRevision): ShiftAssignment {
+            OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.manage');
+            $lockedShift = PlanningLocks::acquire([$shift->id], [$assignee->id])->get($shift->id);
+            abort_unless($lockedShift, 404);
+            if ($expectedRevision !== null && $lockedShift->revision !== $expectedRevision) {
+                throw ValidationException::withMessages(['workflow' => 'Schicht wurde geändert. Bitte neu laden.']);
+            }
 
             $lockedAssignee = User::query()
                 ->lockForUpdate()
@@ -39,6 +44,7 @@ class ShiftAssignmentService
 
             if ($assignmentStatus->blocksAvailability()) {
                 $this->assertShiftCanBeStaffed($lockedShift);
+                $this->assertCapacity($lockedShift, $lockedAssignee);
                 $this->assertNoOverlap($lockedShift, $lockedAssignee);
                 app(StaffEligibilityService::class)->assertEligible($lockedShift, $lockedAssignee);
             }
@@ -69,7 +75,7 @@ class ShiftAssignmentService
             }
 
             return $assignment->load(['shift.order.customer', 'user', 'assigner']);
-        });
+        }, 3);
     }
 
     public function cancel(
@@ -79,11 +85,10 @@ class ShiftAssignmentService
     ): ShiftAssignment {
         OperationsAccess::authorize($actor, 'operations.manage');
 
-        return DB::transaction(function () use ($assignment, $actor, $note): ShiftAssignment {
-            $lockedShift = Shift::query()
-                ->with('order.customer')
-                ->lockForUpdate()
-                ->findOrFail($assignment->shift_id);
+        return OperationsTransaction::run(function () use ($assignment, $actor, $note): ShiftAssignment {
+            OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.manage');
+            $lockedShift = PlanningLocks::acquire([$assignment->shift_id], [$assignment->user_id])->get($assignment->shift_id);
+            abort_unless($lockedShift, 404);
 
             $lockedAssignee = User::query()
                 ->lockForUpdate()
@@ -118,7 +123,7 @@ class ShiftAssignmentService
             }
 
             return $lockedAssignment->load(['shift.order.customer', 'user', 'assigner']);
-        });
+        }, 3);
     }
 
     public function unassign(
@@ -152,10 +157,21 @@ class ShiftAssignmentService
 
     private function assertShiftCanBeStaffed(Shift $shift): void
     {
-        if ($shift->status === ShiftStatus::Cancelled) {
+        if (in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true)) {
             throw ValidationException::withMessages([
-                'shift_id' => 'Eine stornierte Schicht kann nicht besetzt werden.',
+                'shift_id' => 'Eine stornierte oder abgeschlossene Schicht kann nicht besetzt werden.',
             ]);
+        }
+    }
+
+    public function assertCapacity(Shift $shift, User $assignee): void
+    {
+        $reserved = $shift->assignments()->blocking()->where('user_id', '!=', $assignee->id)->lockForUpdate()->get()->count();
+        if ($reserved >= $shift->required_staff) {
+            throw ValidationException::withMessages(['workflow' => 'Alle Einsatzplätze sind bereits reserviert.']);
+        }
+        if ($shift->order_demand_id && WorkforcePlanningSchema::demandsReady()) {
+            app(OrderDemandService::class)->assertCapacity($shift, $assignee->id);
         }
     }
 

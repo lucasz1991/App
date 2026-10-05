@@ -11,8 +11,9 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsTransaction;
+use App\Support\Operations\PlanningLocks;
 use Carbon\CarbonInterface;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ShiftSchedulingService
@@ -20,11 +21,14 @@ class ShiftSchedulingService
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function save(Shift $shift, array $attributes, User $actor): Shift
+    public function save(Shift $shift, array $attributes, User $actor, array $context = []): Shift
     {
         OperationsAccess::authorize($actor, 'operations.manage');
 
-        return DB::transaction(function () use ($shift, $attributes, $actor): Shift {
+        return OperationsTransaction::run(function () use ($shift, $attributes, $actor, $context): Shift {
+            OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.manage');
+            $userIds = $shift->exists ? $shift->assignments()->blocking()->pluck('user_id')->all() : [];
+            PlanningLocks::acquire($shift->exists ? [$shift->id] : [], $userIds, [(int) ($attributes['order_id'] ?? $shift->order_id)]);
             $persistedShift = $shift->exists
                 ? Shift::query()->lockForUpdate()->findOrFail($shift->getKey())
                 : $shift;
@@ -90,6 +94,10 @@ class ShiftSchedulingService
 
             $persistedShift->fill($attributes);
             $persistedShift->status = $shiftStatus;
+            if ($shiftStatus !== ShiftStatus::Cancelled && $persistedShift->exists
+                && $persistedShift->assignments()->blocking()->count() > $persistedShift->required_staff) {
+                throw ValidationException::withMessages(['workflow' => 'Personalzahl kann nicht unter die reservierten Einsatzplätze sinken.']);
+            }
             $persistedShift->updated_by = $actor->getKey();
             if ($persistedShift->order_demand_id && $shiftStatus !== ShiftStatus::Cancelled) {
                 $demand = OrderDemand::findOrFail($persistedShift->order_demand_id);
@@ -97,6 +105,7 @@ class ShiftSchedulingService
                     || $startsAt->lt($demand->starts_at) || $endsAt->gt($demand->ends_at)) {
                     throw ValidationException::withMessages(['workflow' => 'Dienst muss zu Auftrag, Tätigkeit und Zeitraum des verknüpften Bedarfs passen.']);
                 }
+                app(OrderDemandService::class)->assertPlannedCapacity($persistedShift, $context, true);
             }
             if ($native && $persistedShift->exists && $shiftStatus !== ShiftStatus::Cancelled) {
                 app(DutyActivityService::class)->validateSections($persistedShift);

@@ -46,4 +46,4 @@
         </div>
     </div>
 @endif
-<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Nachweise prüfen öffnen →</a>
+<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Nachweise öffnen →</a>

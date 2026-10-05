@@ -23,6 +23,7 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Symfony\Component\Mime\Email;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -138,7 +139,112 @@ final class V27MailDeliveryTest extends TestCase
         $email = (new Email)->html(SystemMailInlineImageEmbedder::mark($compiled));
         self::assertGreaterThan(0, app(SystemMailInlineImageEmbedder::class)->embed($email));
         $trains = array_filter($email->getAttachments(), static fn ($part) => $part->getFilename() === 'zug-dampf-v27-delivery-light.gif');
-        self::assertCount(1,$trains);
-        self::assertStringNotContainsString('<div class="rt-sign-train-layer"',$email->getHtmlBody());
+        self::assertCount(1, $trains);
+        self::assertStringNotContainsString('<div class="rt-sign-train-layer"', $email->getHtmlBody());
+    }
+
+    public function test_html_eml_and_classic_package_bind_the_same_delivery_gif_and_png(): void
+    {
+        $this->publishFixture(trim(file_get_contents(base_path('tests/Fixtures/mail/signature-v27-ledger.html'))));
+        $this->publishFixture(file_get_contents(EmailTemplateBuilder::masterPath('email-master.html')), 'template');
+        $this->app->forgetScopedInstances();
+        $builder = new EmailTemplateBuilder(User::factory()->create(['name' => 'Mara Beispiel']));
+        $sourceBefore = MailDocument::query()->orderBy('id')->get()->toArray();
+        $gif = file_get_contents(resource_path('mail-templates/assets/zug-dampf-v27-delivery-light.gif'));
+        $png = file_get_contents(resource_path('mail-templates/assets/zug-dampf-v27-delivery-light.png'));
+        $html = $builder->build('vorlage-html')['content'];
+        self::assertStringContainsString('data:image/gif;base64,'.base64_encode($gif), $html);
+        self::assertStringContainsString('data:image/png;base64,'.base64_encode($png), $html);
+        self::assertStringNotContainsString('6031.746032%', $html);
+        $eml = $builder->build('vorlage-eml')['content'];
+        foreach (['railtime-train' => $gif, 'railtime-train-still' => $png] as $cid => $bytes) {
+            self::assertSame(1, preg_match('~Content-ID: <'.preg_quote($cid, '~').'>\r\nContent-Disposition: [^\r\n]+\r\n\r\n([A-Za-z0-9+/=\r\n]+)\r\n--~', $eml, $match));
+            self::assertSame($bytes, base64_decode($match[1], true));
+        }
+        $package = $builder->build('signatur-outlook-hell')['content'];
+        $path = tempnam(sys_get_temp_dir(), 'rt-delivery-test-');
+        self::assertNotFalse($path);
+        $zip = new \ZipArchive;
+        try {
+            file_put_contents($path, $package);
+            self::assertTrue($zip->open($path));
+            $trainFiles = [];
+            for ($index = 0; $index < $zip->numFiles; $index++) {
+                $name = $zip->getNameIndex($index);
+                if (str_ends_with($name, '/zug-dampf.gif') || str_ends_with($name, '/zug-dampf.png')) {
+                    $trainFiles[basename($name)] = $zip->getFromIndex($index);
+                }
+                if (str_ends_with($name, '.htm')) {
+                    self::assertStringContainsString('rt-delivery-train-mso', $zip->getFromIndex($index));
+                    self::assertStringNotContainsString('6031.746032%', $zip->getFromIndex($index));
+                }
+            }
+            self::assertSame($gif, $trainFiles['zug-dampf.gif']);
+            self::assertSame($png, $trainFiles['zug-dampf.png']);
+        } finally {
+            $zip->close();
+            unlink($path);
+        }
+        self::assertSame($sourceBefore, MailDocument::query()->orderBy('id')->get()->toArray());
+    }
+
+    public function test_derivative_bytes_invalidate_global_and_paired_fingerprints_without_mutating_public_assets(): void
+    {
+        (include database_path('migrations/2026_09_06_010000_add_outlook_library_to_mail_documents.php'))->up();
+        (include database_path('migrations/2026_09_07_190000_separate_mail_document_delivery_channels.php'))->up();
+        (include database_path('migrations/2026_09_08_120000_add_mail_document_signature_pairing.php'))->up();
+        $this->publishFixture(trim(file_get_contents(base_path('tests/Fixtures/mail/signature-v27-ledger.html'))));
+        $global = MailDocument::query()->latest('id')->firstOrFail();
+        $global->update(['outlook_default' => true]);
+        $paired = $global->replicate();
+        $paired->public_id = (string) Str::uuid();
+        $paired->is_active = null;
+        $paired->outlook_default = null;
+        $paired->name = 'Mirrored paired release';
+        $paired->html = $paired->published_html = SignatureTableOverlap::mirroredFromV27($this->source(), 'v28');
+        $paired->save();
+        $this->publishFixture(file_get_contents(EmailTemplateBuilder::masterPath('email-master.html')), 'template');
+        MailDocument::query()->latest('id')->firstOrFail()->update(['published_signature_document_id' => $paired->id, 'outlook_released' => true, 'outlook_default' => true]);
+        $before = MailDocument::query()->orderBy('id')->get()->toArray();
+        $this->app->forgetScopedInstances();
+        $user = User::factory()->create();
+        $payloads = app(OutlookAddinPayloadService::class);
+        $paths = [];
+        $mapping = new \ReflectionMethod($payloads, 'templateMediaPaths');
+        foreach ([$global->published_html, $paired->published_html] as $html) {
+            $paths = array_merge($paths, array_values($mapping->invoke($payloads, $html)));
+        }
+        $originalPublic = public_path();
+        $directory = sys_get_temp_dir().'/rt-delivery-assets-'.bin2hex(random_bytes(8));
+        mkdir($directory.'/mail-assets', 0777, true);
+        $copied = [];
+        try {
+            foreach (array_unique($paths) as $path) {
+                $target = $directory.'/mail-assets/'.basename($path);
+                copy($path, $target);
+                $copied[] = $target;
+            }
+            $this->app->usePublicPath($directory);
+            $initial = $payloads->sourceFingerprint($user);
+            foreach (['zug-dampf-v27-delivery-light.gif', 'zug-dampf-v27-delivery-light-mirrored.png'] as $asset) {
+                $path = public_path('mail-assets/'.$asset);
+                $bytes = file_get_contents($path);
+                $mutated = str_ends_with($asset, '.gif')
+                    ? (new \ReflectionMethod(EmailTemplateBuilder::class, 'withGifPlaybackNonce'))->invoke(null, $bytes, 'fingerprint-byte-test')
+                    : $bytes.'test';
+                file_put_contents($path, $mutated);
+                self::assertNotSame($initial, $payloads->sourceFingerprint($user), $asset);
+                file_put_contents($path, $bytes);
+                self::assertSame($initial, $payloads->sourceFingerprint($user));
+            }
+        } finally {
+            $this->app->usePublicPath($originalPublic);
+            foreach ($copied as $path) {
+                unlink($path);
+            }
+            rmdir($directory.'/mail-assets');
+            rmdir($directory);
+        }
+        self::assertSame($before, MailDocument::query()->orderBy('id')->get()->toArray());
     }
 }

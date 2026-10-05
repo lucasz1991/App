@@ -2,66 +2,68 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
+use App\Jobs\DeleteTempFile;
+use App\Models\File;
+use App\Models\Setting;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Http\JsonResponse;
-use App\Http\Controllers\Controller;
-use App\Models\Setting;
-use Illuminate\Support\Facades\Log;
-use App\Models\File;
-use Illuminate\Support\Facades\Cache;
-use App\Jobs\DeleteTempFile;
 
 class AdminStorageController extends Controller
 {
     protected function validateApiKey(Request $request): bool
     {
         $incomingKey = $request->header('X-API-KEY');
-        $storedKey   = Setting::where('key', 'base_api_key')->value('value');
+        $storedKey = Setting::where('key', 'base_api_key')->value('value');
+
         return $incomingKey && $storedKey && hash_equals($storedKey, $incomingKey);
     }
 
     public function resolveFileUrl(Request $request): JsonResponse
     {
-        if (!$this->validateApiKey($request)) {
+        if (! $this->validateApiKey($request)) {
             return response()->json(['success' => false, 'error' => 'Ungültiger API-Key.'], 403);
         }
 
         $data = $request->validate([
             'file_id' => 'required_without:url|nullable|integer|min:1',
-            'url'     => 'required_without:file_id|nullable|string|max:2048',
-            'disk'    => 'nullable|in:private,public',
+            'url' => 'required_without:file_id|nullable|string|max:2048',
+            'disk' => 'nullable|in:private,public',
             'expires' => 'nullable|integer|min:30|max:86400',
         ]);
 
-        $ttl     = $data['expires'] ?? 300;
-        $minutes = (int) max(1, ceil($ttl / 60)); 
-        $disk    = ($data['disk'] ?? 'private') === 'public' ? 'public' : 'private';
+        $ttl = $data['expires'] ?? 300;
+        $minutes = (int) max(1, ceil($ttl / 60));
+        $disk = ($data['disk'] ?? 'private') === 'public' ? 'public' : 'private';
 
-        if (!empty($data['file_id'])) {
-            $file = \App\Models\File::find($data['file_id']);
-            if (!$file) {
+        if (! empty($data['file_id'])) {
+            $file = File::find($data['file_id']);
+            if (! $file) {
                 return response()->json(['success' => false, 'error' => 'Datei nicht gefunden.'], 404);
             }
 
             // Nutze die vorhandene Funktion aus dem Model
             $url = $file->getEphemeralPublicUrl($minutes);
 
-            if (!$url) {
+            if (! $url) {
                 return response()->json([
                     'success' => false,
-                    'error'   => 'Ephemeral-URL konnte nicht erzeugt werden.',
+                    'error' => 'Ephemeral-URL konnte nicht erzeugt werden.',
                 ], 500);
             }
 
             return response()->json([
-                'success'     => true,
-                'url'         => $url,
-                'strategy'    => 'model-ephemeral-copy',
-                'source'      => 'file_id',
-                'expires_in'  => $minutes * 60,
-                'expires_at'  => now()->addMinutes($minutes)->toIso8601String(),
+                'success' => true,
+                'url' => $url,
+                'strategy' => 'model-ephemeral-copy',
+                'source' => 'file_id',
+                'expires_in' => $minutes * 60,
+                'expires_at' => now()->addMinutes($minutes)->toIso8601String(),
             ]);
         }
 
@@ -71,58 +73,59 @@ class AdminStorageController extends Controller
         // Externe absolute URL -> einfach durchreichen
         if (preg_match('#^https?://#i', $rawUrl)) {
             return response()->json([
-                'success'  => true,
-                'url'      => $rawUrl,
+                'success' => true,
+                'url' => $rawUrl,
                 'strategy' => 'pass-through',
-                'source'   => 'absolute-url',
+                'source' => 'absolute-url',
             ]);
         }
 
         // interner Storage-Pfad
         $path = preg_replace('#[^A-Za-z0-9/_\-.]#', '', ltrim($rawUrl, '/'));
-        if (!$path) {
+        if (! $path) {
             return response()->json(['success' => false, 'error' => 'Ungültiger Pfad.'], 422);
         }
+        $this->denyPersonnelPath($path);
 
         // Erst versuchen: temporaryUrl (falls S3/R2 etc.)
         try {
-            if (!Storage::disk($disk)->exists($path)) {
+            if (! Storage::disk($disk)->exists($path)) {
                 return response()->json(['success' => false, 'error' => 'Datei nicht gefunden.'], 404);
             }
             $tmpUrl = Storage::disk($disk)->temporaryUrl($path, now()->addSeconds($ttl));
 
             return response()->json([
-                'success'     => true,
-                'url'         => $tmpUrl,
-                'disk'        => $disk,
-                'path'        => $path,
-                'strategy'    => 'disk-temporary-url',
-                'expires_in'  => $ttl,
-                'expires_at'  => now()->addSeconds($ttl)->toIso8601String(),
-                'source'      => 'storage-path',
+                'success' => true,
+                'url' => $tmpUrl,
+                'disk' => $disk,
+                'path' => $path,
+                'strategy' => 'disk-temporary-url',
+                'expires_in' => $ttl,
+                'expires_at' => now()->addSeconds($ttl)->toIso8601String(),
+                'source' => 'storage-path',
             ]);
         } catch (\Throwable $e) {
             \Log::warning('temporaryUrl fehlgeschlagen', [
                 'disk' => $disk,
                 'path' => $path,
-                'err'  => $e->getMessage(),
+                'err' => $e->getMessage(),
             ]);
             // Fallback auf lokale Temp-Kopie
             $url = $this->makePublicTempCopyUrl($disk, $path, $minutes);
-            if (!$url) {
+            if (! $url) {
                 return response()->json([
                     'success' => false,
-                    'error'   => 'Ephemeral-URL (Pfad) konnte nicht erzeugt werden.',
+                    'error' => 'Ephemeral-URL (Pfad) konnte nicht erzeugt werden.',
                 ], 500);
             }
 
             return response()->json([
-                'success'     => true,
-                'url'         => $url,
-                'strategy'    => 'controller-ephemeral-copy',
-                'source'      => 'storage-path',
-                'expires_in'  => $minutes * 60,
-                'expires_at'  => now()->addMinutes($minutes)->toIso8601String(),
+                'success' => true,
+                'url' => $url,
+                'strategy' => 'controller-ephemeral-copy',
+                'source' => 'storage-path',
+                'expires_in' => $minutes * 60,
+                'expires_at' => now()->addMinutes($minutes)->toIso8601String(),
             ]);
         }
     }
@@ -130,11 +133,11 @@ class AdminStorageController extends Controller
     protected function makePublicTempCopyUrl(string $sourceDisk, string $sourcePath, int $minutes): ?string
     {
         $publicDisk = 'public';
-        $cacheKey   = "file:path:{$sourceDisk}:{$sourcePath}:temp_url";
+        $cacheKey = "file:path:{$sourceDisk}:{$sourcePath}:temp_url";
 
         // Cache-Treffer?
         if ($cached = Cache::get($cacheKey)) {
-            if (Storage::disk($publicDisk)->exists($cached['path']) && now()->lt(\Illuminate\Support\Carbon::parse($cached['expires_at']))) {
+            if (Storage::disk($publicDisk)->exists($cached['path']) && now()->lt(Carbon::parse($cached['expires_at']))) {
                 return Storage::disk($publicDisk)->url($cached['path']);
             }
         }
@@ -145,20 +148,20 @@ class AdminStorageController extends Controller
             if ($lock->get()) {
                 // Erneut prüfen (Double-Checked)
                 if ($cached = Cache::get($cacheKey)) {
-                    if (Storage::disk($publicDisk)->exists($cached['path']) && now()->lt(\Illuminate\Support\Carbon::parse($cached['expires_at']))) {
+                    if (Storage::disk($publicDisk)->exists($cached['path']) && now()->lt(Carbon::parse($cached['expires_at']))) {
                         return Storage::disk($publicDisk)->url($cached['path']);
                     }
                 }
 
-                if (!Storage::disk($sourceDisk)->exists($sourcePath)) {
+                if (! Storage::disk($sourceDisk)->exists($sourcePath)) {
                     return null;
                 }
 
-                $tmpName = Str::uuid()->toString() . '-' . basename($sourcePath);
-                $tmpPath = 'temp/' . $tmpName;
+                $tmpName = Str::uuid()->toString().'-'.basename($sourcePath);
+                $tmpPath = 'temp/'.$tmpName;
 
                 $read = Storage::disk($sourceDisk)->readStream($sourcePath);
-                if (!$read) {
+                if (! $read) {
                     return null;
                 }
 
@@ -167,15 +170,16 @@ class AdminStorageController extends Controller
                     fclose($read);
                 }
 
-                if (!Storage::disk($publicDisk)->exists($tmpPath)) {
+                if (! Storage::disk($publicDisk)->exists($tmpPath)) {
                     \Log::error("Fehler beim Schreiben der temporären Datei: {$tmpPath}");
+
                     return null;
                 }
 
                 // Auto-Cleanup + Cache
                 DeleteTempFile::dispatch($publicDisk, $tmpPath)->delay(now()->addMinutes($minutes));
                 $payload = [
-                    'path'       => $tmpPath,
+                    'path' => $tmpPath,
                     'expires_at' => now()->addMinutes($minutes)->toIso8601String(),
                 ];
                 Cache::put($cacheKey, $payload, now()->addMinutes($minutes));
@@ -198,7 +202,7 @@ class AdminStorageController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        if (!$this->validateApiKey($request)) {
+        if (! $this->validateApiKey($request)) {
             return response()->json(['success' => false, 'error' => 'Ungültiger API-Key.'], 403);
         }
 
@@ -214,57 +218,60 @@ class AdminStorageController extends Controller
         // Ordner sanft normalisieren (Unterordner erlauben)
         $folderInput = trim($validated['folder'] ?? 'uploads/files', '/');
         $folder = preg_replace('#[^A-Za-z0-9/_\-.]#', '', $folderInput) ?: 'uploads/files';
+        $this->denyPersonnelPath($folder);
 
         $file = $validated['file'];
         $origBase = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
         $safeBase = Str::slug($origBase) ?: 'file';
         $ext = strtolower($file->getClientOriginalExtension());
-        $filename = Str::random(12) . '-' . $safeBase . '.' . $ext;
+        $filename = Str::random(12).'-'.$safeBase.'.'.$ext;
 
         $path = $file->storeAs($folder, $filename, $disk);
 
         $size = Storage::disk($disk)->size($path);
         $mime = $file->getMimeType();
-        $url  = $disk === 'public' ? Storage::disk($disk)->url($path) : null;
+        $url = $disk === 'public' ? Storage::disk($disk)->url($path) : null;
 
         Log::info('Media gespeichert', ['disk' => $disk, 'path' => $path, 'mime' => $mime, 'size' => $size]);
 
         return response()->json([
-            'success'    => true,
-            'url'        => $url,                  // nur bei public
-            'path'       => $path,
-            'name'       => basename($path),
-            'original'   => $file->getClientOriginalName(),
-            'mime'       => $mime,
-            'type'       => $ext,
-            'size'       => $size,
+            'success' => true,
+            'url' => $url,                  // nur bei public
+            'path' => $path,
+            'name' => basename($path),
+            'original' => $file->getClientOriginalName(),
+            'mime' => $mime,
+            'type' => $ext,
+            'size' => $size,
             'visibility' => $visibility,
         ]);
     }
 
     public function destroy(Request $request): JsonResponse
     {
-        if (!$this->validateApiKey($request)) {
+        if (! $this->validateApiKey($request)) {
             return response()->json(['success' => false, 'error' => 'Ungültiger API-Key.'], 403);
         }
 
         $validated = $request->validate([
-            'path'       => 'required|string',
+            'path' => 'required|string',
             'visibility' => 'nullable|in:public,private',
         ]);
 
         // Pfad sanitisieren
         $rawPath = ltrim($validated['path'], '/');
         $path = preg_replace('#[^A-Za-z0-9/_\-.]#', '', $rawPath);
+        $this->denyPersonnelPath($path);
 
         // Disk bestimmen oder beide prüfen
         $disks = isset($validated['visibility'])
-            ? [ $validated['visibility'] === 'public' ? 'public' : 'private' ]
-            : ['private','public'];
+            ? [$validated['visibility'] === 'public' ? 'public' : 'private']
+            : ['private', 'public'];
 
         foreach ($disks as $disk) {
             if (Storage::disk($disk)->exists($path)) {
                 Storage::disk($disk)->delete($path);
+
                 return response()->json(['success' => true, 'message' => 'Datei gelöscht.', 'disk' => $disk, 'path' => $path]);
             }
         }
@@ -272,7 +279,11 @@ class AdminStorageController extends Controller
         return response()->json(['success' => false, 'error' => 'Datei nicht gefunden.'], 404);
     }
 
-
-
-
+    private function denyPersonnelPath(string $path): void
+    {
+        $normalized = strtolower(trim(str_replace('\\', '/', $path), '/'));
+        abort_if(in_array('..', explode('/', $normalized), true) || in_array('.', explode('/', $normalized), true), 403);
+        abort_if($normalized === 'uploads/employee-documents' || str_starts_with($normalized, 'uploads/employee-documents/'), 403);
+        abort_if(File::where('path', $path)->get()->contains(fn (File $file) => $file->isPersonnelDocument()), 403);
+    }
 }

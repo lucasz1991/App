@@ -18,11 +18,11 @@ use App\Services\Operations\ShiftSchedulingService;
 use App\Services\Operations\StaffEligibilityService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
+use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -156,6 +156,9 @@ class ShiftManagement extends Component
 
     public ?int $selectedShiftId = null;
 
+    #[Locked]
+    public ?int $selectedPlanRevision = null;
+
     public bool $formOpen = false;
 
     public bool $detailOpen = false;
@@ -228,6 +231,7 @@ class ShiftManagement extends Component
             $this->selectedShiftId = $selected->id;
             $this->detailOpen = true;
         }
+        $this->selectedPlanRevision = $this->selectedShiftId ? Shift::findOrFail($this->selectedShiftId)->revision : null;
     }
 
     #[On('operations-create')]
@@ -287,8 +291,9 @@ class ShiftManagement extends Component
     public function selectShift(int $shiftId): void
     {
         $this->ensureAdmin();
-        Shift::query()->findOrFail($shiftId);
+        $selected = Shift::query()->findOrFail($shiftId);
         $this->selectedShiftId = $shiftId;
+        $this->selectedPlanRevision = $selected->revision;
         $this->reset(['candidateSearch', 'employeeId']);
         $this->resetPage('candidatesPage');
         $this->resetValidation('assignment');
@@ -352,7 +357,7 @@ class ShiftManagement extends Component
         }
 
         try {
-            $shift = DB::transaction(function () use ($schedulingService, $shift, $attributes) {
+            $shift = OperationsTransaction::run(function () use ($schedulingService, $shift, $attributes) {
                 $saved = $schedulingService->save($shift, $attributes, auth()->user());
                 if (OperationsAccess::ready()) {
                     $ids = array_map('intval', $this->qualificationIds);
@@ -377,6 +382,7 @@ class ShiftManagement extends Component
         }
 
         $this->selectedShiftId = $shift->id;
+        $this->selectedPlanRevision = $shift->revision;
         $this->formOpen = false;
         $this->resetShiftForm();
         $this->dispatch('swal:toast', type: 'success', text: 'Schicht gespeichert.');
@@ -403,6 +409,7 @@ class ShiftManagement extends Component
                 auth()->user(),
                 $validated['assignmentStatus'],
                 trim($validated['assignmentNote']) ?: null,
+                $this->selectedPlanRevision,
             );
             $this->reset(['employeeId', 'assignmentNote']);
             $this->resetValidation('assignment');

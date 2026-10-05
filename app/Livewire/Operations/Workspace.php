@@ -2,8 +2,11 @@
 
 namespace App\Livewire\Operations;
 
+use App\Services\Operations\PersonnelProcessService;
+use App\Services\Operations\WorkforceAccountService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
+use App\Support\Operations\WorkforcePlanningSchema;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -24,6 +27,15 @@ class Workspace extends Component
         abort_unless($definition, 404);
         OperationsAccess::authorize(auth()->user(), $definition['ability']);
         OperationsAccess::requireReady();
+        if (in_array($this->module, ['workforce-planning', 'plan-variants'], true)) {
+            abort_unless(WorkforcePlanningSchema::ready(), 503, 'Die Planungsmodule sind noch nicht eingerichtet.');
+        }
+        if ($this->module === 'workforce-accounts') {
+            abort_unless(app(WorkforceAccountService::class)->ready(), 503, 'Die Personalkonten sind noch nicht eingerichtet.');
+        }
+        if ($this->module === 'personnel-processes') {
+            abort_unless(app(PersonnelProcessService::class)->ready(), 503, 'Die Personalprozesse sind noch nicht eingerichtet.');
+        }
     }
 
     public function render()

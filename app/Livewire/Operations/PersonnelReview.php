@@ -9,10 +9,12 @@ use App\Models\QualificationType;
 use App\Models\Shift;
 use App\Services\Operations\OperationsAuditService;
 use App\Services\Operations\OperationsReportService;
+use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\PersonnelWorkflowService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
 use App\Support\Operations\ReportingPeriod;
+use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -88,6 +90,11 @@ class PersonnelReview extends Component
 
     public bool $typesOpen = false;
 
+    public array $sicknessCorrection = ['starts_at' => '', 'ends_at' => '', 'timezone' => '', 'note' => ''];
+
+    #[Locked]
+    public ?int $selectedRevision = null;
+
     #[Locked]
     public ?int $selectedId = null;
 
@@ -96,8 +103,12 @@ class PersonnelReview extends Component
     {
         $this->access();
         abort_if($this->module === 'rules', 404);
-        ($this->module === 'qualifications' ? EmployeeQualification::query() : AbsenceRequest::query())->findOrFail($id);
+        $record = $this->scopedQuery()->findOrFail($id);
         $this->selectedId = $id;
+        $this->selectedRevision = $record->revision;
+        if ($this->module === 'absences' && $record->kind === 'sick') {
+            $this->sicknessCorrection = ['starts_at' => $record->starts_at->setTimezone($record->timezone)->format('Y-m-d\TH:i'), 'ends_at' => $record->ends_at->setTimezone($record->timezone)->format('Y-m-d\TH:i'), 'timezone' => $record->timezone, 'note' => ''];
+        }
         $this->notes = [];
         $this->resetValidation();
         $this->detailOpen = true;
@@ -107,6 +118,7 @@ class PersonnelReview extends Component
     {
         $this->access();
         OperationsAccess::authorize(auth()->user(), 'operations.rules.manage');
+        app(PersonnelScopeService::class)->authorizeGlobal(auth()->user(), 'operations.rules.manage');
         $this->reset('rules');
         $this->resetValidation();
         $this->formOpen = true;
@@ -144,17 +156,33 @@ class PersonnelReview extends Component
         OperationsAccess::requireReady();
     }
 
+    private function scopedQuery(): Builder
+    {
+        $query = $this->module === 'absences' ? AbsenceRequest::with('user:id,name') : EmployeeQualification::with(['user:id,name', 'type']);
+
+        return app(PersonnelScopeService::class)->applyRelatedQuery($query, auth()->user(), OperationsNavigation::modules()[$this->module]['ability']);
+    }
+
     public function decide(int $id, int $revision, string $action, PersonnelWorkflowService $service): void
     {
         $this->access();
         if ($this->module === 'qualifications') {
-            $service->qualification(EmployeeQualification::findOrFail($id), $revision, $action, $this->notes[$id] ?? '', auth()->user());
+            $service->qualification($this->scopedQuery()->findOrFail($id), $revision, $action, $this->notes[$id] ?? '', auth()->user());
         } elseif ($this->module === 'absences') {
-            $service->absence(AbsenceRequest::findOrFail($id), $revision, $action, $this->notes[$id] ?? '', auth()->user());
+            $service->absence($this->scopedQuery()->findOrFail($id), $revision, $action, $this->notes[$id] ?? '', auth()->user());
         } else {
             abort(404);
         }
         unset($this->notes[$id]);
+        $this->detailOpen = false;
+        $this->resetValidation();
+    }
+
+    public function correctSickness(PersonnelWorkflowService $service): void
+    {
+        $this->access();
+        abort_unless($this->module === 'absences' && $this->selectedId && $this->selectedRevision, 404);
+        $service->correctSickness($this->scopedQuery()->findOrFail($this->selectedId), $this->selectedRevision, $this->sicknessCorrection, auth()->user());
         $this->detailOpen = false;
         $this->resetValidation();
     }
@@ -182,11 +210,11 @@ class PersonnelReview extends Component
     public function render()
     {
         $this->access();
-        $query = $this->module === 'absences' ? AbsenceRequest::with('user:id,name') : EmployeeQualification::with(['user:id,name', 'type']);
+        $query = $this->module === 'rules' ? EmployeeQualification::query() : $this->scopedQuery();
         $today = now(config('operations.display_timezone', 'Europe/Berlin'))->startOfDay();
         $selected = $this->selectedId && $this->module !== 'rules' ? (clone $query)->find($this->selectedId) : null;
         if ($this->module === 'absences') {
-            $this->validate(['absenceKind' => 'in:all,vacation,unavailable,other', 'absenceView' => 'in:list,calendar']);
+            $this->validate(['absenceKind' => 'in:all,vacation,sick,unavailable,other', 'absenceView' => 'in:list,calendar', 'filter' => 'in:all,pending,approved,reported,rejected,withdrawn,cancelled']);
             if ($this->from && $this->until) {
                 ReportingPeriod::apply($query, $this->from, $this->until, true);
             }
@@ -206,6 +234,7 @@ class PersonnelReview extends Component
         }
 
         return view('livewire.operations.personnel-review', [
+            'canManageGlobalRules' => $this->module === 'rules' && app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'operations.rules.manage') === null,
             'selectedRecord' => $selected,
             'absenceConflicts' => $this->module === 'absences' && $this->detailOpen && $selected ? Shift::notCancelled()->during($selected->starts_at, $selected->ends_at)
                 ->whereHas('assignments', fn ($q) => $q->blocking()->where('user_id', $selected->user_id))->with('order.customer')->orderBy('starts_at')->get() : collect(),

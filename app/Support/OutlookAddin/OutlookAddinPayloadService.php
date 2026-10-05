@@ -18,7 +18,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 16;
+    private const RENDERER_REVISION = 18;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -409,11 +409,7 @@ final class OutlookAddinPayloadService
     {
         $marker = 'RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE';
 
-        return "<!-- {$marker} -->"
-            .'<span aria-hidden="true" data-rt-template-signature-mode="native" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'
-            .$marker
-            .'</span>'
-            .$html;
+        return $this->hiddenMarker($marker, ' data-rt-template-signature-mode="native"').$html;
     }
 
     private function withMarker(string $html): string
@@ -424,11 +420,7 @@ final class OutlookAddinPayloadService
             (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),
         ) ?: 'RT-SIGNATURE-MANAGED-V1';
 
-        return "<!-- {$marker} -->\n"
-            .'<span aria-hidden="true" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'
-            .$marker
-            .'</span>'
-            .$html;
+        return $this->hiddenMarker($marker).$html;
     }
 
     private function withSignatureVersionMarker(string $html, string $version): string
@@ -443,11 +435,18 @@ final class OutlookAddinPayloadService
 
         $marker = 'RT-SIGNATURE-VERSION:'.$version;
 
-        return "<!-- {$marker} -->"
-            .'<span aria-hidden="true" style="display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">'
-            .$marker
-            .'</span>'
-            .$html;
+        return $this->hiddenMarker($marker).$html;
+    }
+
+    /** Office.js may omit inline CSS; metadata must not become visible text. */
+    private function hiddenMarker(string $marker, string $attributes = ''): string
+    {
+        $style = 'display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;';
+
+        return '<style data-rt-outlook-marker-css="1">.rt-office-metadata{'.$style.'}</style>'
+            ."<!-- {$marker} -->"
+            .'<span hidden aria-hidden="true" class="rt-office-metadata"'.$attributes.' style="'.$style.'">'
+            .$marker.'</span>';
     }
 
     /**
@@ -501,7 +500,10 @@ final class OutlookAddinPayloadService
             static function (array $match): string {
                 $comment = (string) $match[1];
 
-                return str_contains($comment, '[if')
+                // Revealed !mso branches close in a separate comment. Dropping
+                // that endif can hide the rest of the signature in Word Outlook.
+                return stripos($comment, '[if') !== false
+                    || stripos($comment, '[endif]') !== false
                     || str_contains($comment, 'RT-SIGNATURE-MANAGED-V1')
                     ? $match[0]
                     : '';

@@ -112,6 +112,7 @@
                     </dl>
 
                     @if($detailOpen && \App\Support\Operations\PlanningSchema::ready())<livewire:operations.order-demands :order-id="$selectedOrder->id" :key="'demand-'.$selectedOrder->id" />@endif
+                    @if($detailOpen && \Illuminate\Support\Facades\Schema::hasTable('commercial_offer_revisions') && auth()->user()->can('operations.manage'))<livewire:operations.commercial-offers subject-type="Order" :subject-id="$selectedOrder->id" :key="'commercial-order-'.$selectedOrder->id" />@endif
                     @if($selectedOrder->description || $selectedOrder->notes)
                         <div class="mt-4 grid gap-3 sm:grid-cols-2">
                             @if($selectedOrder->description)

@@ -10,6 +10,7 @@ use App\Models\DropboxRecord;
 use App\Models\DropboxSource;
 use App\Models\EmployeeCompetencyFact;
 use App\Models\User;
+use App\Support\Operations\OperationsTransaction;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -161,7 +162,7 @@ class FileSynchronizer
                 continue;
             }
             try {
-                $b = DB::transaction(function () use ($connection, $source, $entry, $rev) {
+                $b = OperationsTransaction::run(function () use ($connection, $source, $entry, $rev) {
                     $this->guard->current($connection, lock: true);
                     $occupied = DropboxAppearance::where('source_id', $source->id)->where('sheet', $entry['sheet'])->where('slot', $entry['slot'])->exists();
                     if ($occupied) {
@@ -200,7 +201,7 @@ class FileSynchronizer
                 continue;
             }
             try {
-                $result = DB::transaction(function () use ($connection, $source, $rev, $recordId, $rows, $preview) {
+                $result = OperationsTransaction::run(function () use ($connection, $source, $rev, $recordId, $rows, $preview) {
                     $this->guard->current($connection, preview: $preview, lock: true);
                     $record = DropboxRecord::lockForUpdate()->findOrFail($recordId);
                     $local = $this->domain->current($record);

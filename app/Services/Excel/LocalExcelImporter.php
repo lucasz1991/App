@@ -18,6 +18,7 @@ use App\Services\Dropbox\FileSynchronizer;
 use App\Services\Dropbox\SyncContext;
 use App\Services\Dropbox\WorkbookReader;
 use App\Services\Dropbox\WorkLedger;
+use App\Support\Operations\OperationsTransaction;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -140,11 +141,11 @@ class LocalExcelImporter
             $sync = new FileSynchronizer(new LocalWorkbookClient($source, $bytes), app(DomainAdapter::class), new LocalImportGuard, app(ConflictStore::class), app(WorkLedger::class), 'file');
             // Local chunks have no external writes. Commit their data and cursor
             // together instead of flushing a separate disk transaction per cell.
-            DB::transaction(function () use ($sync, $connection, $source, $json, $import) {
+            OperationsTransaction::run(function () use ($sync, $connection, $source, $json, $import) {
                 SyncContext::import(fn () => $sync->sync($connection, $source, false, json_decode($json, true, 512, JSON_THROW_ON_ERROR)));
                 $source->refresh();
                 $import->forceFill(['processed' => $source->progress['next'] ?? $import->summary['rows'], 'status' => $source->progress ? 'running' : 'done', 'error' => null])->save();
-            });
+            }, 1);
         } catch (\Throwable $e) {
             if (isset($import) && $import->status === 'running') {
                 $message = $e instanceof ValidationException ? implode(' ', $e->validator->errors()->all()) : 'Import konnte nicht fortgesetzt werden. Datei und Zuordnungen prüfen und erneut starten.';

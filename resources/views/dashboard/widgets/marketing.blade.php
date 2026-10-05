@@ -9,7 +9,7 @@
         <div class="wv-duo-text"><b>{{ (int) ($data['byType']['info'] ?? 0) }}</b><span>Info-Motive</span></div>
     </div>
 </div>
-<p class="wv-sub"><strong>{{ $data['pending'] }}</strong> {{ $data['pending'] === 1 ? 'wartet' : 'warten' }} auf Freigabe · {{ $data['approvedRecently'] }} freigegeben in 30 T</p>
+<p class="wv-sub wv-truncate" title="{{ $data['pending'] }} warten auf Freigabe, {{ $data['approvedRecently'] }} in den letzten 30 Tagen freigegeben"><strong>{{ $data['pending'] }}</strong> zur Freigabe · {{ $data['approvedRecently'] }} freigegeben (30 T)</p>
 @if($rows === 2)
     <div class="widget-detail wv-list">
         @forelse($data['recent'] as $creative)

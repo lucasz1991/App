@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\DeviceDesktopClientController;
 use App\Http\Controllers\Api\DeviceProviderWebhookController;
 use App\Http\Controllers\Api\OperationsController;
 use App\Http\Controllers\Api\OutlookAddinBootstrapController;
+use App\Http\Controllers\Api\WorkTimeV2Controller;
 use App\Http\Middleware\OperationsApi;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +28,18 @@ Route::prefix('v1/operations')->name('api.operations.')->middleware([OperationsA
     Route::get('exports/{publicId}/payroll.csv', [OperationsController::class, 'payrollCsv'])->whereUuid('publicId');
     Route::post('exports', [OperationsController::class, 'exportTimes']);
     Route::get('exports/{publicId}', [OperationsController::class, 'download'])->whereUuid('publicId')->name('exports.show');
+});
+
+Route::prefix('v2/operations')->name('api.operations.v2.')->middleware([OperationsApi::class, 'auth:sanctum', 'throttle:60,1'])->group(function () {
+    Route::get('me/work-times', [WorkTimeV2Controller::class, 'times']);
+    Route::get('work-times', [WorkTimeV2Controller::class, 'allTimes']);
+    Route::post('me/work-times/start', [WorkTimeV2Controller::class, 'start']);
+    Route::post('me/work-times/manual', [WorkTimeV2Controller::class, 'manual']);
+    Route::post('me/work-times/{id}/events', [WorkTimeV2Controller::class, 'clock'])->whereNumber('id');
+    Route::put('me/work-times/{id}/sections', [WorkTimeV2Controller::class, 'sections'])->whereNumber('id');
+    Route::get('me/accounts', [WorkTimeV2Controller::class, 'account']);
+    Route::post('work-time-exports', [WorkTimeV2Controller::class, 'export']);
+    Route::get('work-time-exports/{publicId}', [WorkTimeV2Controller::class, 'download'])->whereUuid('publicId')->name('exports.show');
 });
 
 /*

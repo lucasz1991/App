@@ -33,6 +33,7 @@ use App\Http\Controllers\WagonListExportController;
 use App\Http\Controllers\WagonListMediaController;
 use App\Http\Controllers\Webhooks\LiveKitWebhookController;
 use App\Http\Controllers\WelcomeIntroMediaController;
+use App\Http\Controllers\WorkTimeCaptureController;
 use App\Http\Middleware\EnsureAssistantAccess;
 use App\Http\Middleware\LogActivity;
 use App\Http\Middleware\RedirectAdminWagonList;
@@ -185,6 +186,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->name('assistant.pagebuilder-actions.claim');
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
     Route::get('/mein-arbeitstag', PersonalWorkspace::class)->name('operations.mine');
+    Route::post('/mein-arbeitstag/zeiten/bootstrap', [WorkTimeCaptureController::class, 'bootstrap'])
+        ->middleware('throttle:30,1')->name('operations.capture.bootstrap');
+    Route::post('/mein-arbeitstag/zeiten/sync', [WorkTimeCaptureController::class, 'sync'])
+        ->middleware('throttle:60,1')->name('operations.capture.sync');
     Route::get('/arbeitsplatz/{module}', Workspace::class)
         ->whereIn('module', array_keys(OperationsNavigation::modules()))->name('operations.workspace');
     Route::get('/nachweise/{id}/download', OperationsEvidenceController::class)

@@ -5,8 +5,10 @@ namespace App\Livewire\Operations;
 use App\Models\AbsenceRequest;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\StaffTimelineLayout;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsNavigation;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Locked;
@@ -85,7 +87,8 @@ class StaffTimeline extends Component
         $weekFrom = $from->startOfWeek(CarbonImmutable::MONDAY);
         $weekUntil = $until->subDay()->startOfWeek(CarbonImmutable::MONDAY)->addWeek();
         $assignments = $this->absencesOnly ? collect() : ShiftAssignment::blocking()->whereIn('user_id', $users->pluck('id'))->whereHas('shift', fn ($q) => $q->notCancelled()->during($weekFrom, $weekUntil))->with('shift.order.customer')->get()->groupBy('user_id');
-        $absences = AbsenceRequest::whereIn('user_id', $users->pluck('id'))->whereIn('status', ['pending', 'approved'])
+        $absences = AbsenceRequest::whereIn('user_id', $users->pluck('id'))
+            ->when(! $this->absencesOnly || $this->absenceStatus === 'all', fn ($q) => $q->where(fn ($statuses) => $statuses->whereIn('status', ['pending', 'approved'])->orWhere(fn ($reported) => $reported->where('kind', 'sick')->where('status', 'reported'))))
             ->when($this->absencesOnly && $this->absenceKind !== 'all', fn ($q) => $q->where('kind', $this->absenceKind))
             ->when($this->absencesOnly && $this->absenceStatus !== 'all', fn ($q) => $q->where('status', $this->absenceStatus))
             ->where('starts_at', '<', $until->utc())->where('ends_at', '>', $from->utc())->get()->groupBy('user_id');
@@ -101,7 +104,7 @@ class StaffTimeline extends Component
                 $events->push(['id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $shift->title, 'start' => $shift->starts_at, 'end' => $shift->ends_at, 'detail' => $shift->order?->customer?->company_name, 'status' => $assignment->status->label(), 'status_value' => $assignment->status->value, 'shift_status' => $shift->status->value, 'shift_status_label' => $shift->status->label(), 'role_name' => $shift->role_name, 'location_name' => $shift->location_name ?: $shift->order?->location_name, 'planned_break_minutes' => $shift->planned_break_minutes, 'shift_id' => $shift->id]);
             }
             foreach ($absences->get($user->id, collect()) as $absence) {
-                $events->push(['id' => 'absence-'.$absence->id, 'absence_id' => $absence->id, 'kind' => 'absence', 'title' => ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit'][$absence->kind], 'start' => $absence->starts_at, 'end' => $absence->ends_at, 'detail' => '', 'status' => $absence->status === 'approved' ? 'Genehmigt' : 'Beantragt', 'status_value' => $absence->status, 'shift_status' => null, 'shift_id' => null]);
+                $events->push(['id' => 'absence-'.$absence->id, 'absence_id' => $absence->id, 'kind' => 'absence', 'title' => ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit', 'sick' => $this->absencesOnly ? 'Krankmeldung' : 'Abwesenheit'][$absence->kind] ?? 'Abwesenheit', 'start' => $absence->starts_at, 'end' => $absence->ends_at, 'detail' => '', 'status' => ['approved' => 'Genehmigt', 'reported' => 'Gemeldet', 'pending' => 'Beantragt'][$absence->status] ?? OperationsNavigation::status($absence->status), 'status_value' => $absence->status, 'shift_status' => null, 'shift_id' => null]);
             }
             $events = $layout->assignLanes($events->filter(fn (array $event) => $event['start']->lt($until) && $event['end']->gt($from))->values());
             $rowLaneCount = $events->isEmpty() ? 1 : (int) $events->max('lane') + 1;
@@ -123,7 +126,7 @@ class StaffTimeline extends Component
 
     private function staffQuery(CarbonImmutable $from, CarbonImmutable $until): Builder
     {
-        return User::with(['profile', 'currentTeam'])
+        $query = User::with(['profile', 'currentTeam'])
             ->where('role', 'staff')
             ->where(fn ($query) => $query->where('status', true)
                 ->orWhereIn('id', ShiftAssignment::blocking()
@@ -131,5 +134,7 @@ class StaffTimeline extends Component
                     ->select('user_id')))
             ->when(filled($this->search), fn ($query) => $query->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))
             ->orderBy('name');
+
+        return $this->absencesOnly ? app(PersonnelScopeService::class)->applyUsers($query, auth()->user(), 'operations.absences.review') : $query;
     }
 }

@@ -25,7 +25,7 @@ final class ApplicationNavigation
         $opsModules = $ready ? OperationsNavigation::forUser($user) : [];
         foreach ($opsModules as $slug => $module) {
             $section = 'Management';
-            $add($section, $module['title'], 'operations.workspace', $icons[$slug], ['module' => $slug]);
+            $add($section, $module['title'], 'operations.workspace', $icons[$slug] ?? 'users', ['module' => $slug]);
         }
         if (! $ready && $admin) {
             foreach (['orders' => 'Leistungen', 'shift-management' => 'Schichtplan', 'calendar' => 'Kalender', 'customers' => 'Kunden'] as $slug => $title) {
@@ -72,7 +72,7 @@ final class ApplicationNavigation
         foreach ($links as $link) {
             $module = $link['parameters']['module'] ?? null;
             $group = match (true) {
-                in_array($module, ['qualifications', 'absences', 'rules'], true),
+                in_array($module, ['qualifications', 'absences', 'rules', 'workforce-accounts', 'personnel-processes'], true),
                 in_array($link['route'], ['admin.employees', 'employees.index'], true) => 'Personal',
                 in_array($module, ['times', 'exports'], true) => 'Zeiten & Freigaben',
                 $module === 'customers',

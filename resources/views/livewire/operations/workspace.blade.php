@@ -9,5 +9,9 @@
     @elseif($module === 'orders')<livewire:admin.operations.orders />
     @elseif($module === 'customers')<livewire:admin.operations.customers />
     @elseif($module === 'calendar')<livewire:admin.operations.calendar />
+    @elseif($module === 'workforce-accounts')<livewire:operations.workforce-accounts />
+    @elseif($module === 'personnel-processes')<livewire:operations.personnel-processes />
+    @elseif($module === 'workforce-planning')<livewire:operations.workforce-planning />
+    @elseif($module === 'plan-variants')<livewire:operations.plan-variants />
     @endif
 </x-ui.page>

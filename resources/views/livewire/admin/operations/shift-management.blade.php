@@ -202,6 +202,9 @@
                     @endif
                     @if($nativeOperations)
                         @if($detailOpen && \App\Support\Operations\PlanningSchema::ready())<livewire:operations.duty-activity :shift-id="$selectedShift->id" :key="'duty-'.$selectedShift->id" />@endif
+                        @if($detailOpen && \App\Support\Operations\WorkforcePlanningSchema::ready())
+                            <div class="ops-actions" aria-label="Planungsvarianten"><livewire:operations.plan-variants :shift-ids="[$selectedShift->id]" :key="'variants-'.$selectedShift->id" /></div>
+                        @endif
                         <section class="mt-5 space-y-3" aria-label="Rückmeldungen">
                             <h3 class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Rückmeldungen</h3>
                             <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Antwort','key'=>'response'],['label'=>'Im Kalender geöffnet','key'=>'opened'],['label'=>'Aktion','key'=>'action']]" :items="$feedback" row-view="components.tables.rows.operations.plan-feedback" empty="Noch keine Rückmeldungen." />
@@ -213,7 +216,7 @@
                                 <h3 class="text-sm font-semibold">{{ $selectedShift->published_revision === $selectedShift->revision ? 'Zuletzt veröffentlichte Änderungen' : ($selectedShift->published_revision ? 'Änderungen zur Veröffentlichung' : 'Erste Veröffentlichung') }}</h3>
                                 <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />
                             @endif
-                            @if($selectedShift->published_revision !== $selectedShift->revision && !in_array($selectedShiftStatus,['cancelled','completed']))<x-ui.buttons.button-basic mode="primary" wire:click="publish({{ $selectedShift->id }},{{ $selectedShift->revision }})" wire:confirm="Diesen Dienst veröffentlichen und Bestätigungen anfordern?" wire:loading.attr="disabled">Dienst veröffentlichen</x-ui.buttons.button-basic>@endif
+                            @if($selectedShift->published_revision !== $selectedShift->revision && !in_array($selectedShiftStatus,['cancelled','completed']))<x-ui.buttons.button-basic type="button" mode="primary" wire:click="publish({{ $selectedShift->id }},{{ $selectedShift->revision }})" wire:confirm="Diesen Dienst veröffentlichen und Bestätigungen anfordern?" wire:loading.attr="disabled">Dienst veröffentlichen</x-ui.buttons.button-basic>@endif
                         </div>
                     @endif
                     @if($selectedShiftStatus === 'cancelled')

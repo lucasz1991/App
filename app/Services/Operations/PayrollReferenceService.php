@@ -4,10 +4,11 @@ namespace App\Services\Operations;
 
 use App\Models\EmployeePayrollReference;
 use App\Models\User;
+use App\Models\WorkTimeEntry;
 use App\Models\WorkTimeExport;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -19,7 +20,8 @@ class PayrollReferenceService
     {
         OperationsAccess::authorize($actor, 'operations.time.export');
         abort_unless(Schema::hasTable('employee_payroll_references'), 503);
-        DB::transaction(function () use ($userId, $revision, $data, $actor) {
+        app(PersonnelScopeService::class)->authorize($actor, $userId, 'operations.time.export');
+        OperationsTransaction::run(function () use ($userId, $revision, $data, $actor) {
             User::where('role', 'staff')->lockForUpdate()->findOrFail($userId);
             $record = EmployeePayrollReference::where('user_id', $userId)->lockForUpdate()->first();
             if (($record?->revision) !== $revision) {
@@ -47,7 +49,12 @@ class PayrollReferenceService
     {
         OperationsAccess::authorize($actor, 'operations.time.export');
         $rows = [];
-        foreach ($export->items()->orderBy('id')->get() as $item) {
+        $items = $export->items()->orderBy('id')->get();
+        foreach ($items as $item) {
+            $employeeId = $item->snapshot['employee_id'] ?? WorkTimeEntry::findOrFail($item->work_time_entry_id)->user_id;
+            app(PersonnelScopeService::class)->authorize($actor, (int) $employeeId, 'operations.time.export');
+        }
+        foreach ($items as $item) {
             $s = $item->snapshot;
             $ref = $s['payroll_reference'] ?? null;
             if (! $ref || ! isset($s['employee_id'])) {

@@ -5,6 +5,8 @@ namespace App\Livewire\Operations;
 use App\Models\Customer;
 use App\Models\OperationAudit;
 use App\Models\OperationInquiry;
+use App\Services\Operations\CommercialOfferService;
+use App\Services\Operations\CustomerWorkflowService;
 use App\Services\Operations\InquiryWorkflowService;
 use App\Support\Operations\OperationsAccess;
 use Livewire\Attributes\Locked;
@@ -135,12 +137,21 @@ class InquiryInbox extends Component
         $this->select($record->id);
     }
 
+    #[On('commercial-offer-updated')]
+    public function refreshOffer(?int $inquiryId = null): void
+    {
+        $this->access();
+        if ($inquiryId && $inquiryId === $this->selectedId) {
+            $this->select($inquiryId);
+        }
+    }
+
     public function render()
     {
         $this->access();
-        $active = OperationInquiry::query()->whereNull('order_id')->whereNull('duplicate_of_id');
+        $active = OperationInquiry::query()->whereNull('order_id')->whereNull('duplicate_of_id')->where('status', '!=', 'rejected');
         $statusCounts = (clone $active)->selectRaw('status, COUNT(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status');
-        $query = OperationInquiry::with('customer')->when($this->filter === 'active', fn ($q) => $q->whereNull('order_id')->whereNull('duplicate_of_id'))
+        $query = OperationInquiry::with('customer')->when($this->filter === 'active', fn ($q) => $q->whereNull('order_id')->whereNull('duplicate_of_id')->where('status', '!=', 'rejected'))
             ->when($this->filter !== 'active' && $this->filter !== 'all', fn ($q) => $q->where('channel', $this->filter))
             ->when(in_array($this->statusFilter, ['new', 'accepted'], true), fn ($q) => $q->where('status', $this->statusFilter))
             ->when(filled($this->search), fn ($q) => $q->where(fn ($q) => $q->where('title', 'like', '%'.mb_substr($this->search, 0, 100).'%')->orWhereHas('customer', fn ($q) => $q->where('company_name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))));
@@ -168,6 +179,8 @@ class InquiryInbox extends Component
             'selected' => $this->selectedId ? OperationInquiry::with(['customer', 'order', 'duplicateOf'])->find($this->selectedId) : null,
             'customers' => Customer::where('is_active', true)->orderBy('company_name')->get(['id', 'company_name']),
             'history' => $this->selectedId ? OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $this->selectedId)->with(['actor.profile', 'actor.currentTeam'])->latest('id')->limit(30)->get() : collect(),
+            'customerWorkflowReady' => CustomerWorkflowService::ready(),
+            'commercialReady' => CommercialOfferService::ready(),
         ]);
     }
 }

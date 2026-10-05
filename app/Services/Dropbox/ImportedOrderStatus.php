@@ -10,8 +10,8 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\User;
 use App\Services\Operations\OrderLifecycleService;
+use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\DB;
 
 class ImportedOrderStatus
 {
@@ -21,7 +21,7 @@ class ImportedOrderStatus
         if ($record->domain !== 'planning' || $record->model_type !== 'Shift' || isset($record->metadata['historical_values'])) {
             return;
         }
-        SyncContext::import(fn () => DB::transaction(function () use ($record, $actor) {
+        SyncContext::import(fn () => OperationsTransaction::run(function () use ($record, $actor) {
             $shift = Shift::find($record->model_id);
             if (! $shift) {
                 return;
@@ -119,7 +119,7 @@ class ImportedOrderStatus
                 ]]);
                 $owner->save();
             }
-        }));
+        }, 1));
     }
 
     private function sourceStatus(array $values, string $timezone): ?OrderStatus

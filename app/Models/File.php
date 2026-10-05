@@ -86,7 +86,19 @@ class File extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (File $file): void {
+            if ($file->isPersonnelDocument()) {
+                abort_unless($file->disk === 'private' && ! $file->filepool_id && ! $file->folder_id && ! $file->shared_roles && ! $file->visible_teams && ! $file->auto_delete, 403);
+            }
+        });
         static::updating(function (File $file): void {
+            if ($file->isPersonnelDocument()) {
+                abort_if($file->isDirty(['disk', 'path', 'name', 'mime_type', 'size', 'content_sha256', 'type', 'filepool_id', 'folder_id', 'shared_roles', 'visible_teams', 'auto_delete']), 403, 'Personalunterlagen bleiben privat und versioniert.');
+                if ($file->isDirty(['fileable_type', 'fileable_id'])) {
+                    abort_unless($file->fileable_type === (new EmployeeDocumentVersion)->getMorphClass()
+                        && EmployeeDocumentVersion::where('file_id', $file->id)->whereKey($file->fileable_id)->exists(), 403);
+                }
+            }
             $marketingFiles = app(MarketingFileSourceService::class);
 
             if ($file->isDirty(['folder_id', 'fileable_type', 'fileable_id'])) {
@@ -102,6 +114,7 @@ class File extends Model
         });
 
         static::deleting(function (File $file): void {
+            abort_if($file->isPersonnelDocument(), 403, 'Personalunterlagen werden archiviert, nicht gelöscht.');
             app(MarketingFileSourceService::class)->assertFileCanBeDeleted($file);
         });
 
@@ -492,6 +505,7 @@ class File extends Model
 
     public function getEphemeralPublicUrl(int $minutes = 10): string
     {
+        abort_if($this->isPersonnelDocument(), 403, 'Für Personalunterlagen sind keine öffentlichen Vorschauen erlaubt.');
         $disk = $this->disk ?: 'private';
         $path = (string) $this->path;
 
@@ -659,6 +673,7 @@ class File extends Model
 
     public function download(string $disk = 'private', bool $denyExpired = true): StreamedResponse
     {
+        abort_if($this->isPersonnelDocument(), 403, 'Personalunterlagen benötigen den geschützten Dokumentzugriff.');
         if ($denyExpired && $this->isExpired()) {
             abort(403, 'Diese Datei ist abgelaufen und kann nicht mehr heruntergeladen werden.');
         }
@@ -719,6 +734,9 @@ class File extends Model
      */
     public function isVisibleForTeams(?User $user): bool
     {
+        if ($this->isPersonnelDocument()) {
+            return false;
+        }
         $teamIds = collect($this->visible_teams ?? [])->map(fn ($id) => (int) $id)->filter()->values();
 
         if ($teamIds->isEmpty()) {
@@ -739,6 +757,10 @@ class File extends Model
     /** Gesamtsichtbarkeit fuer einen Nutzer (Zeitfenster UND Team-Freigabe). */
     public function isPubliclyVisible(?User $user): bool
     {
+        if ($this->isPersonnelDocument()) {
+            return false;
+        }
+
         return $this->isWithinVisibilityWindow() && $this->isVisibleForTeams($user);
     }
 
@@ -746,5 +768,12 @@ class File extends Model
     public function isExpiredForDeletion(): bool
     {
         return $this->auto_delete && $this->isExpired();
+    }
+
+    public function isPersonnelDocument(): bool
+    {
+        return $this->type === 'employee-document' || $this->getRawOriginal('type') === 'employee-document'
+            || in_array($this->fileable_type, [(new EmployeeDocumentRequirement)->getMorphClass(), (new EmployeeDocumentVersion)->getMorphClass()], true)
+            || in_array($this->getRawOriginal('fileable_type'), [(new EmployeeDocumentRequirement)->getMorphClass(), (new EmployeeDocumentVersion)->getMorphClass()], true);
     }
 }

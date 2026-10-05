@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\OutlookAddin;
 
+use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\SignatureArtifactVersion;
 use DOMDocument;
 use DOMElement;
@@ -57,6 +58,16 @@ final class OutlookMobileSignature
             throw new RuntimeException('Die mobile Signatur konnte nicht gelesen werden.');
         }
         $xpath = new DOMXPath($dom);
+        // The mobile compiler mirrors its own adapted inline values below.
+        // Keeping the desktop mirror as well would duplicate CSS and compete
+        // with the mobile typography while consuming the 12 KiB budget.
+        $desktopMirrors = $xpath->query('//style[@'.OutlookSignatureInlineStyle::ATTRIBUTE.'="1"]');
+        if ($desktopMirrors->length > 1) {
+            throw new RuntimeException('Die mobile Signatur besitzt doppelte Desktop-Inline-Stile.');
+        }
+        foreach ($desktopMirrors as $style) {
+            $style->parentNode->removeChild($style);
+        }
         $roots = $xpath->query('//*[@id="rt-mobile-root"]');
         $scopes = $xpath->query(self::classQuery('rt-outlook-signature'));
         $ledgers = $xpath->query(self::classQuery('rt-sign-ledger', 'table'));
@@ -110,9 +121,21 @@ final class OutlookMobileSignature
             self::style($table, 'width:100%;table-layout:auto;border-collapse:collapse;direction:ltr;margin:0;text-align:left;');
         }
         foreach ($xpath->query(self::classQuery('rt-contact-text')) as $cell) {
-            // Allow long addresses to wrap, without character-wide columns.
-            $cell->setAttribute('width', '100%');
+            // The preceding icon already owns 17 px. A second 100% width
+            // attribute can over-constrain the row after Office strips CSS.
+            // Leave the text column automatic so long addresses can wrap.
+            $cell->removeAttribute('width');
             $cell->setAttribute('style', $cell->getAttribute('style').';font-size:13px;line-height:20px;word-break:normal;overflow-wrap:anywhere;');
+        }
+        foreach ($xpath->query(self::classQuery('rt-contact-icon', 'td')) as $cell) {
+            $cell->setAttribute('width', '17');
+            foreach ($xpath->query('./img', $cell) as $image) {
+                // These canonical contact PNGs are square. Both attributes
+                // bound their intrinsic 44 px canvas without any stylesheet.
+                $image->setAttribute('width', '17');
+                $image->setAttribute('height', '17');
+                self::style($image, 'display:block;width:17px;height:17px;margin:0 auto;border:0;');
+            }
         }
         foreach ($xpath->query(self::classQuery('rt-logo', 'img')) as $image) {
             $image->setAttribute('width', '175');

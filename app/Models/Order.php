@@ -99,6 +99,11 @@ class Order extends Model
         return $this->morphMany(File::class, 'fileable');
     }
 
+    public function commercialOffers(): HasMany
+    {
+        return $this->hasMany(CommercialOfferRevision::class, 'subject_id')->where('subject_type', 'Order')->orderByDesc('revision');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

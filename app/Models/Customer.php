@@ -62,6 +62,21 @@ class Customer extends Model
         return $this->hasMany(Order::class);
     }
 
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(CustomerContact::class);
+    }
+
+    public function conditions(): HasMany
+    {
+        return $this->hasMany(CustomerCondition::class)->orderByDesc('valid_from');
+    }
+
+    public function locations(): HasMany
+    {
+        return $this->hasMany(CustomerLocation::class);
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);

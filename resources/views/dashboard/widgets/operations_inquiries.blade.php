@@ -34,4 +34,4 @@
         @endforelse
     </div>
 @endif
-<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Offene Anfragen öffnen →</a>
+<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Anfragen öffnen →</a>

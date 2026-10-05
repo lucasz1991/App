@@ -10,6 +10,7 @@ use App\Support\Mail\SignatureBackgroundContract;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureHotline;
 use App\Support\Mail\SignatureImgOverlap;
+use App\Support\Mail\SignatureTableOverlap;
 use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\SignatureTrainCarrier;
 use Illuminate\Support\Facades\View;
@@ -653,7 +654,7 @@ class MailSignature
         string $outlookFallbackSource,
         string $idleSource,
     ): string {
-        if (\App\Support\Mail\SignatureTableOverlap::applies($html)) {
+        if (SignatureTableOverlap::applies($html)) {
             return SignatureTableOverlapDelivery::project($html, $outlookFallbackSource);
         }
         if (SignatureHotline::applies($html)) {

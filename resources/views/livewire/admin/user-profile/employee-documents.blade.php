@@ -33,6 +33,10 @@
                     <h3 class="min-w-0 flex-1 text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $label }}</h3>
                 </div>
 
+                @if($versioningReady && $requirement)
+                    <x-ui.buttons.button-basic size="sm" wire:click="showHistory('{{ $type }}')">Versionen</x-ui.buttons.button-basic>
+                @endif
+
                 @if ($file)
                     <div class="mt-4 rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted">
                         <div class="flex min-w-0 items-center gap-3">
@@ -128,4 +132,7 @@
             </section>
         @endforeach
     </div>
+<x-operations.modal wire:model="historyOpen" title="Dokumentversionen">
+    <x-tables.table :columns="[['label'=>'Version','key'=>'revision'],['label'=>'Datei','key'=>'file'],['label'=>'Kenntnisnahme','key'=>'ack']]" :items="$versions" row-view="components.tables.rows.operations.employee-version-row" table-key="employee-document-versions" empty="Keine Versionen hinterlegt." />
+</x-operations.modal>
 </div>

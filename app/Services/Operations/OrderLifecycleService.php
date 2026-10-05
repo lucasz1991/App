@@ -6,7 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\ShiftStatus;
 use App\Models\Order;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use App\Support\Operations\OperationsTransaction;
 use Illuminate\Validation\ValidationException;
 
 class OrderLifecycleService
@@ -30,7 +30,7 @@ class OrderLifecycleService
     ): Order {
         $targetStatus = $this->normalizeStatus($toStatus);
 
-        return DB::transaction(function () use ($order, $targetStatus, $actor, $note): Order {
+        return OperationsTransaction::run(function () use ($order, $targetStatus, $actor, $note): Order {
             $lockedOrder = Order::query()
                 ->with('customer')
                 ->lockForUpdate()

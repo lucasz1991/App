@@ -6,8 +6,8 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shift;
 use App\Models\User;
+use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonInterface;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class OrderSchedulingService
@@ -17,7 +17,7 @@ class OrderSchedulingService
      */
     public function save(Order $order, array $attributes, User $actor): Order
     {
-        return DB::transaction(function () use ($order, $attributes, $actor): Order {
+        return OperationsTransaction::run(function () use ($order, $attributes, $actor): Order {
             $persistedOrder = $order->exists
                 ? Order::query()->lockForUpdate()->findOrFail($order->getKey())
                 : $order;

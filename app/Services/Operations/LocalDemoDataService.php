@@ -14,6 +14,7 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Dropbox\SyncContext;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -114,7 +115,7 @@ class LocalDemoDataService
         }
 
         // Suppress the durable external-sync outbox while keeping native audits and validation.
-        return SyncContext::import(fn () => DB::transaction(function () use ($pending, $first, $until, $employees, $actor, $progress, $result) {
+        return SyncContext::import(fn () => OperationsTransaction::run(function () use ($pending, $first, $until, $employees, $actor, $progress, $result) {
             // Serializes CLI generators and prevents two callers creating the same weekly fixtures.
             User::whereKey($actor->id)->lockForUpdate()->firstOrFail();
             $this->assertLocal();

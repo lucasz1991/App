@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Models\Concerns\HasZonedSchedule;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class OperationInquiry extends Model
@@ -37,6 +39,21 @@ class OperationInquiry extends Model
     public function duplicateOf(): BelongsTo
     {
         return $this->belongsTo(self::class, 'duplicate_of_id');
+    }
+
+    public function processDetail(): HasOne
+    {
+        return $this->hasOne(InquiryProcessDetail::class);
+    }
+
+    public function followUps(): HasMany
+    {
+        return $this->hasMany(InquiryFollowUp::class)->orderBy('due_at');
+    }
+
+    public function commercialOffers(): HasMany
+    {
+        return $this->hasMany(CommercialOfferRevision::class, 'subject_id')->where('subject_type', 'OperationInquiry')->orderByDesc('revision');
     }
 
     public function getNumberAttribute(): string

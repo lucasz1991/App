@@ -54,6 +54,7 @@
                     @endif
 
                     <div class="mt-5">
+                        @if($detailOpen && \Illuminate\Support\Facades\Schema::hasTable('customer_contacts'))<livewire:operations.customer-relations :customer-id="$selectedCustomer->id" :key="'customer-relations-'.$selectedCustomer->id" />@endif
                         <h3 class="text-sm font-semibold text-rt-text dark:text-white">Letzte Aufträge</h3>
                         <div class="mt-2 divide-y divide-rt-border/60 rounded-xl border border-rt-border/70 dark:divide-rt-dark-border/60 dark:border-rt-dark-border/70">
                             @forelse($selectedCustomer->orders as $order)

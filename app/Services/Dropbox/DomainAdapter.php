@@ -19,9 +19,9 @@ use App\Models\WorkTimeEntry;
 use App\Services\Operations\OrderSchedulingService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\ShiftSchedulingService;
+use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -99,7 +99,7 @@ class DomainAdapter
 
     public function create(DropboxConnection $connection, array $entry): DropboxRecord
     {
-        return DB::transaction(function () use ($connection, $entry) {
+        return OperationsTransaction::run(function () use ($connection, $entry) {
             if ($entry['domain'] === 'planning') {
                 $record = new DropboxRecord(['connection_id' => $connection->id, 'domain' => 'planning', 'model_type' => 'Shift', 'model_id' => 0, 'metadata' => ['imported_order' => true]]);
                 $this->apply($connection, $record, $entry['values']);
@@ -120,7 +120,7 @@ class DomainAdapter
             $this->apply($connection, $record, $entry['values']);
 
             return $record;
-        });
+        }, 1);
     }
 
     public function apply(DropboxConnection $connection, DropboxRecord $record, array $values): void

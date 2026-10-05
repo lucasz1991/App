@@ -9,9 +9,9 @@ use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
+use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\PlanningSchema;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -28,7 +28,7 @@ class DutyActivityService
         if ($data !== null) {
             $data = Validator::make($data, ['kind' => 'required|in:'.implode(',', array_keys(self::KINDS)), 'label' => 'nullable|string|max:180', 'starts_at' => 'required|string', 'ends_at' => 'required|string'])->validate();
         }
-        DB::transaction(function () use ($shiftId, $revision, $id, $data, $actor) {
+        OperationsTransaction::run(function () use ($shiftId, $revision, $id, $data, $actor) {
             $shift = Shift::lockForUpdate()->findOrFail($shiftId);
             $this->check($shift->revision === $revision && ! in_array($shift->status->value, ['cancelled', 'completed']), 'Dienst wurde geändert oder abgeschlossen.');
             $this->check(! WorkTimeEntry::whereHas('assignment', fn ($q) => $q->where('shift_id', $shiftId))->exists(), 'Für diesen Dienst sind bereits Zeiten erfasst.');
@@ -90,7 +90,7 @@ class DutyActivityService
             $data['delay_minutes'] = null;
         }
 
-        return DB::transaction(function () use ($shiftId, $revision, $data, $key, $actor) {
+        return OperationsTransaction::run(function () use ($shiftId, $revision, $data, $key, $actor) {
             $shift = Shift::lockForUpdate()->findOrFail($shiftId);
             if ($actor->can('operations.manage')) {
                 OperationsAccess::authorize($actor, 'operations.manage');
@@ -118,7 +118,7 @@ class DutyActivityService
         OperationsAccess::authorize($actor, 'operations.manage');
         PlanningSchema::requireReady();
         Validator::make(['note' => $note], ['note' => 'required|string|min:3|max:2000'])->validate();
-        DB::transaction(function () use ($id, $revision, $note, $actor) {
+        OperationsTransaction::run(function () use ($id, $revision, $note, $actor) {
             $report = DutyReport::lockForUpdate()->findOrFail($id);
             $this->check($report->status === 'open' && $report->revision === $revision, 'Meldung bereits bearbeitet.');
             $report->update(['status' => 'resolved', 'revision' => $revision + 1, 'resolution' => $note, 'resolved_by' => $actor->id, 'resolved_at' => now()->utc()]);

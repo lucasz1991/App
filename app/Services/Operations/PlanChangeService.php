@@ -8,10 +8,10 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PersonalSchedule;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class PlanChangeService
 {
@@ -67,7 +67,7 @@ class PlanChangeService
     public function opened(int $assignmentId, int $revision, User $actor): void
     {
         OperationsAccess::own($actor, $actor->id);
-        DB::transaction(function () use ($assignmentId, $revision, $actor) {
+        OperationsTransaction::run(function () use ($assignmentId, $revision, $actor) {
             $assignment = ShiftAssignment::where('user_id', $actor->id)->findOrFail($assignmentId);
             Shift::lockForUpdate()->findOrFail($assignment->shift_id);
             $assignment = ShiftAssignment::lockForUpdate()->findOrFail($assignment->id);

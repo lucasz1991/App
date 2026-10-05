@@ -4,6 +4,7 @@ namespace App\Livewire\Operations;
 
 use App\Models\AbsenceRequest;
 use App\Models\EmployeeQualification;
+use App\Models\PersonnelTraining;
 use App\Models\QualificationType;
 use App\Models\ShiftAssignment;
 use App\Models\WorkTimeEntry;
@@ -11,11 +12,16 @@ use App\Services\Operations\OperationsReportService;
 use App\Services\Operations\PersonnelWorkflowService;
 use App\Services\Operations\PlanChangeService;
 use App\Services\Operations\PlanPublicationService;
+use App\Services\Operations\WorkforceAccountService;
+use App\Services\Operations\WorkTimeExtensionService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\ReportingPeriod;
+use App\Support\Operations\WorkforcePlanningSchema;
+use App\Support\Operations\WorkTimeSchema;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -49,6 +55,67 @@ class MyWork extends Component
 
     public bool $absenceOpen = false;
 
+    public bool $generalManualOpen = false;
+
+    public bool $generalStartOpen = false;
+
+    public bool $sectionsOpen = false;
+
+    #[Locked]
+    public ?int $sectionsId = null;
+
+    public function openSections(int $id): void
+    {
+        $this->access();
+        WorkTimeSchema::requireReady();
+        $entry = WorkTimeEntry::where('user_id', auth()->id())->findOrFail($id);
+        abort_unless(in_array($entry->status, ['completed', 'returned'], true), 403);
+        $this->sectionsId = $id;
+        $this->sectionsOpen = true;
+    }
+
+    public function closeSections(): void
+    {
+        $this->access();
+        $this->reset(['sectionsId', 'sectionsOpen']);
+    }
+
+    public array $generalManual = ['work_context' => 'internal', 'title' => '', 'timezone' => 'Europe/Berlin', 'training_session_id' => null, 'starts_at' => '', 'ends_at' => '', 'pause_minutes' => 0, 'note' => ''];
+
+    public function openGeneralManual(): void
+    {
+        $this->access();
+        WorkTimeSchema::requireReady();
+        $this->generalManualOpen = true;
+        $this->resetValidation();
+    }
+
+    public function saveGeneralManual(WorkTimeService $service): void
+    {
+        $this->access();
+        $data = $this->generalManual;
+        if (empty($data['training_session_id'])) {
+            unset($data['training_session_id']);
+        }
+        $service->manualContext($data, $this->eventKey, auth()->user());
+        $this->eventKey = (string) Str::uuid();
+        $this->reset(['generalManual', 'generalManualOpen']);
+        session()->flash('operations.saved', 'Arbeitszeit gespeichert.');
+    }
+
+    private function tabs(): array
+    {
+        $tabs = ['today' => 'Mein Tag', 'schedule' => 'Mein Kalender', 'time' => 'Meine Zeit', 'records' => 'Nachweise', 'absences' => 'Abwesenheiten'];
+        if (class_exists(WorkforceAccountService::class) && app(WorkforceAccountService::class)->ready()) {
+            $tabs['personnel'] = 'Personal';
+        }
+        if (class_exists(WorkforcePlanningSchema::class) && WorkforcePlanningSchema::ready()) {
+            $tabs['planning'] = 'Planung';
+        }
+
+        return $tabs;
+    }
+
     public string $timeFrom = '';
 
     public string $timeUntil = '';
@@ -71,11 +138,20 @@ class MyWork extends Component
         return response()->streamDownload(fn () => print ($csv), 'RailTime-Meine-Zeiten-'.$this->timeFrom.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
+    public function exportOwnWorkTimes(OperationsReportService $service)
+    {
+        $this->access();
+        WorkTimeSchema::requireReady();
+        $csv = $service->ownTimesV2(auth()->user(), $this->timeFrom, $this->timeUntil);
+
+        return response()->streamDownload(fn () => print ($csv), 'RailTime-Meine-Arbeitszeiten-v2-'.$this->timeFrom.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     public function openForm(string $form): void
     {
         $this->access();
         abort_unless(in_array($form, ['manual', 'qualification', 'absence'], true), 404);
-        $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen']);
+        $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen', 'generalManualOpen', 'sectionsOpen', 'sectionsId']);
         $this->resetValidation();
         $this->{$form.'Open'} = true;
     }
@@ -132,7 +208,7 @@ class MyWork extends Component
     public function showTab(string $tab): void
     {
         $this->access();
-        abort_unless(in_array($tab, ['today', 'schedule', 'time', 'records', 'absences'], true), 404);
+        abort_unless(array_key_exists($tab, $this->tabs()), 404);
         $this->tab = $tab;
         $this->closeCalendarEvent();
         $this->reset(['manualOpen', 'correctionOpen', 'qualificationOpen', 'absenceOpen']);
@@ -320,19 +396,23 @@ class MyWork extends Component
             'record' => $record,
             'starts' => $scheduled->starts_at->setTimezone($this->displayTimezone()),
             'ends' => $scheduled->ends_at->setTimezone($this->displayTimezone()),
-            'title' => $kind === 'shift' ? $scheduled->title : (['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit'][$record->kind] ?? 'Abwesenheit'),
+            'title' => in_array($kind, ['shift', 'training'], true) ? $scheduled->title : (['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit', 'sick' => 'Krankmeldung'][$record->kind] ?? 'Abwesenheit'),
             'status' => $kind === 'shift' ? $record->status->value : $record->status,
         ];
     }
 
     private function calendarEvent(string $id): object
     {
-        abort_unless(preg_match('/\A(shift|absence)-([1-9][0-9]{0,17})\z/', $id, $match), 404);
+        abort_unless(preg_match('/\A(shift|absence|training)-([1-9][0-9]{0,17})\z/', $id, $match), 404);
         if ($match[1] === 'shift') {
             $record = app(PersonalSchedule::class)->assignment(auth()->user(), (int) $match[2]);
             $record->setAttribute('has_active_time', WorkTimeEntry::where('user_id', auth()->id())->whereIn('status', ['running', 'paused'])->exists());
+        } elseif ($match[1] === 'training') {
+            abort_unless(Schema::hasTable('personnel_trainings'), 404);
+            $record = PersonnelTraining::where('status', 'scheduled')->whereHas('participants', fn ($q) => $q->where('user_id', auth()->id())->whereIn('status', ['confirmed', 'attended']))->find((int) $match[2]);
+            abort_unless($record, 404);
         } else {
-            $record = AbsenceRequest::where('user_id', auth()->id())->whereIn('status', ['pending', 'approved'])->find((int) $match[2]);
+            $record = AbsenceRequest::where('user_id', auth()->id())->whereIn('status', ['pending', 'approved', 'reported'])->find((int) $match[2]);
             abort_unless($record, 404);
         }
 
@@ -342,7 +422,7 @@ class MyWork extends Component
     public function render()
     {
         $this->access();
-        abort_unless(in_array($this->tab, ['today', 'schedule', 'time', 'records', 'absences'], true), 404);
+        abort_unless(array_key_exists($this->tab, $this->tabs()), 404);
         $timeQuery = WorkTimeEntry::where('user_id', auth()->id());
         if ($this->tab === 'time' && $this->timeFrom && $this->timeUntil) {
             ReportingPeriod::apply($timeQuery, $this->timeFrom, $this->timeUntil);
@@ -367,10 +447,13 @@ class MyWork extends Component
         $visible->each(fn ($assignment) => $assignment->setAttribute('has_active_time', $activeTime !== null));
 
         $events = $this->tab === 'schedule' ? $visible->map(fn ($assignment) => $this->event($assignment, 'shift'))
-            ->concat(AbsenceRequest::where('user_id', auth()->id())->whereIn('status', ['pending', 'approved'])
+            ->concat(AbsenceRequest::where('user_id', auth()->id())->whereIn('status', ['pending', 'approved', 'reported'])
                 ->where('starts_at', '<', $to->utc())->where('ends_at', '>', $from->utc())->get()
                 ->map(fn ($absence) => $this->event($absence, 'absence')))
             ->sortBy(fn ($event) => $event->starts->getTimestamp())->values() : collect();
+        if ($this->tab === 'schedule' && Schema::hasTable('personnel_trainings')) {
+            $events = $events->concat(PersonnelTraining::where('status', 'scheduled')->whereHas('participants', fn ($q) => $q->where('user_id', auth()->id())->whereIn('status', ['confirmed', 'attended']))->where('starts_at', '<', $to->utc())->where('ends_at', '>', $from->utc())->get()->map(fn ($training) => $this->event($training, 'training')))->sortBy(fn ($event) => $event->starts->getTimestamp())->values();
+        }
         $days = collect(range(0, (int) $from->diffInDays($to) - 1))->map(function ($offset) use ($from, $anchor, $events) {
             $date = $from->addDays($offset);
 
@@ -390,6 +473,10 @@ class MyWork extends Component
         }
 
         return view('livewire.operations.my-work', [
+            'timeCompleteness' => $this->tab === 'time' && WorkTimeSchema::ready() ? app(WorkTimeExtensionService::class)->completeness(auth()->user(), $this->timeFrom ?: now($this->displayTimezone())->startOfMonth()->toDateString(), $this->timeUntil ?: now($this->displayTimezone())->toDateString(), auth()->user()) : null,
+            'personalTabs' => $this->tabs(),
+            'workTimeReady' => WorkTimeSchema::ready(),
+            'clockTrainings' => Schema::hasTable('personnel_trainings') && Schema::hasTable('personnel_training_participants') ? PersonnelTraining::where('status', 'scheduled')->whereHas('participants', fn ($q) => $q->where('user_id', auth()->id())->whereIn('status', ['confirmed', 'attended']))->orderBy('starts_at')->limit(100)->get() : collect(),
             'from' => $from, 'to' => $to,
             'calendarDays' => $days, 'calendarEvents' => $events, 'selectedCalendarEvent' => $selected,
             'selectedPlanChanges' => $selected?->kind === 'shift' ? app(PlanChangeService::class)->publishedChanges($selected->record->shift_id, $selected->record->plan_revision) : [],

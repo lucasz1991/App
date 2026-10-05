@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\ReportingPeriod;
+use App\Support\Operations\WorkTimeSchema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -16,7 +17,7 @@ class OperationsReportService
     {
         OperationsAccess::own($actor, $actor->id);
         OperationsAccess::requireReady();
-        $entries = ReportingPeriod::apply(WorkTimeEntry::where('user_id', $actor->id), $from, $until)->orderBy('starts_at')->limit(5001)->get();
+        $entries = ReportingPeriod::apply(WorkTimeEntry::where('user_id', $actor->id)->whereNotNull('shift_assignment_id'), $from, $until)->orderBy('starts_at')->limit(5001)->get();
         $this->limit($entries->count());
         app(OperationsAuditService::class)->record($actor, $actor, 'time.personal_export', compact('from', 'until') + ['count' => $entries->count()]);
 
@@ -24,12 +25,26 @@ class OperationsReportService
             $entries->map(fn ($e) => [$e->id, $e->revision, $e->plan_snapshot['title'] ?? '', $e->plan_snapshot['order_number'] ?? '', $e->starts_at->toIso8601String(), $e->ends_at?->toIso8601String(), $e->timezone, $e->pause_seconds, $e->netSeconds(), $e->status])->all());
     }
 
+    public function ownTimesV2(User $actor, string $from, string $until): string
+    {
+        OperationsAccess::own($actor, $actor->id);
+        OperationsAccess::requireReady();
+        WorkTimeSchema::requireReady();
+        $entries = ReportingPeriod::apply(WorkTimeEntry::where('user_id', $actor->id), $from, $until)->orderBy('starts_at')->limit(5001)->get();
+        $this->limit($entries->count());
+        app(OperationsAuditService::class)->record($actor, $actor, 'time.personal_export_v2', compact('from', 'until') + ['count' => $entries->count()]);
+
+        return $this->csv(['Schema', 'Zeit-ID', 'Revision', 'Kontext', 'Dienstzuordnung', 'Tätigkeit', 'Auftrag', 'Schulung', 'Beginn', 'Ende', 'Zeitzone', 'Pause (Sek.)', 'Netto (Sek.)', 'Kontogutschrift (Sek.)', 'Status'],
+            $entries->map(fn ($e) => [2, $e->id, $e->revision, $e->work_context, $e->shift_assignment_id, $e->plan_snapshot['title'] ?? $e->contextLabel(), $e->plan_snapshot['order_number'] ?? '', $e->training_session_id, $e->starts_at->toIso8601String(), $e->ends_at?->toIso8601String(), $e->timezone, $e->pause_seconds, $e->netSeconds(), $e->ends_at ? $e->creditedSeconds() : null, $e->status])->all());
+    }
+
     public function absences(User $actor, string $from, string $until, string $status = 'all', string $kind = 'all', string $search = ''): string
     {
         OperationsAccess::authorize($actor, 'operations.absences.review');
         OperationsAccess::requireReady();
         Validator::make(compact('status', 'kind'), ['status' => 'required|in:all,pending,approved,rejected,withdrawn,cancelled', 'kind' => 'required|in:all,vacation,unavailable,other'])->validate();
-        $records = ReportingPeriod::apply(AbsenceRequest::with('user:id,name'), $from, $until, true)
+        $query = app(PersonnelScopeService::class)->applyRelatedQuery(AbsenceRequest::with('user:id,name'), $actor, 'operations.absences.review');
+        $records = ReportingPeriod::apply($query, $from, $until, true)
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))->when($kind !== 'all', fn ($q) => $q->where('kind', $kind))
             ->when(filled($search), fn ($q) => $q->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.mb_substr($search, 0, 100).'%')))->orderBy('starts_at')->limit(5001)->get();
         $this->limit($records->count());

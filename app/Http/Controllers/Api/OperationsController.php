@@ -8,7 +8,9 @@ use App\Models\WorkTimeEntry;
 use App\Models\WorkTimeExport;
 use App\Services\Operations\OperationsReportService;
 use App\Services\Operations\PayrollReferenceService;
+use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\PersonnelWorkflowService;
+use App\Services\Operations\WorkTimeExportAccessService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\Operations\OperationsApiAccess as Access;
 use App\Support\Operations\PersonalSchedule;
@@ -38,8 +40,12 @@ class OperationsController extends Controller
     {
         $actor = Access::authorize($request, $own ? 'operations:own:read' : 'operations:times:read');
         $data = $this->filters($request, false);
-        $query = ReportingPeriod::apply(WorkTimeEntry::query(), $data['from'], $data['until']);
+        $query = ReportingPeriod::apply(WorkTimeEntry::whereNotNull('shift_assignment_id'), $data['from'], $data['until']);
         $query->when($own, fn ($q) => $q->where('user_id', $actor->id));
+        if (! $own) {
+            $ids = app(PersonnelScopeService::class)->visibleUserIds($actor, $actor->can('operations.time.review') ? 'operations.time.review' : 'operations.time.export');
+            $query->when($ids !== null, fn ($q) => $q->whereIn('user_id', $ids));
+        }
         $query->when(isset($data['employee_id']), fn ($q) => $q->where('user_id', $data['employee_id']));
         $query->when(isset($data['status']), fn ($q) => $q->where('status', $data['status']));
 
@@ -57,6 +63,10 @@ class OperationsController extends Controller
         $data = $this->filters($request, true);
         $query = ReportingPeriod::apply(AbsenceRequest::query(), $data['from'], $data['until'], true);
         $query->when($own, fn ($q) => $q->where('user_id', $actor->id));
+        if (! $own) {
+            $ids = app(PersonnelScopeService::class)->visibleUserIds($actor, 'operations.absences.review');
+            $query->when($ids !== null, fn ($q) => $q->whereIn('user_id', $ids));
+        }
         $query->when(isset($data['employee_id']), fn ($q) => $q->where('user_id', $data['employee_id']));
         $query->when(isset($data['status']), fn ($q) => $q->where('status', $data['status']));
         $query->when(isset($data['kind']), fn ($q) => $q->where('kind', $data['kind']));
@@ -111,6 +121,7 @@ class OperationsController extends Controller
     public function clock(Request $request, int $id, WorkTimeService $service)
     {
         $actor = Access::authorize($request, 'operations:own:write');
+        WorkTimeEntry::where('user_id', $actor->id)->whereNotNull('shift_assignment_id')->findOrFail($id);
         $data = $request->validate(['revision' => 'required|integer|min:1', 'action' => 'required|in:pause,resume,stop,submit', 'event_key' => 'required|uuid']);
 
         return ['data' => $this->time($service->clock($id, $data['revision'], $data['action'], $data['event_key'], $actor))];
@@ -119,6 +130,7 @@ class OperationsController extends Controller
     public function correct(Request $request, int $id, WorkTimeService $service)
     {
         $actor = Access::authorize($request, 'operations:own:write');
+        WorkTimeEntry::where('user_id', $actor->id)->whereNotNull('shift_assignment_id')->findOrFail($id);
         $data = $request->validate(['revision' => 'required|integer|min:1']);
         $service->correct($id, $data['revision'], $request->all(), $actor);
 
@@ -128,6 +140,7 @@ class OperationsController extends Controller
     public function reviewTime(Request $request, int $id, WorkTimeService $service)
     {
         $actor = Access::authorize($request, 'operations:times:review');
+        WorkTimeEntry::whereNotNull('shift_assignment_id')->findOrFail($id);
         $data = $request->validate(['revision' => 'required|integer|min:1', 'approve' => 'required|boolean', 'note' => 'nullable|string|max:1000']);
         $service->review($id, $data['revision'], (bool) $data['approve'], $data['note'] ?? '', $actor);
 
@@ -145,9 +158,9 @@ class OperationsController extends Controller
 
     public function exports(Request $request)
     {
-        Access::authorize($request, 'operations:times:export');
+        $actor = Access::authorize($request, 'operations:times:export');
 
-        return WorkTimeExport::orderByDesc('id')->paginate(50)->through(fn ($export) => ['id' => $export->public_id, 'created_at' => $export->created_at?->toIso8601String(), 'schema_version' => $export->schema_version, 'csv_url' => route('api.operations.exports.show', $export->public_id)]);
+        return app(WorkTimeExportAccessService::class)->legacyQuery($actor)->orderByDesc('id')->paginate(50)->through(fn ($export) => ['id' => $export->public_id, 'created_at' => $export->created_at?->toIso8601String(), 'schema_version' => $export->schema_version, 'csv_url' => route('api.operations.exports.show', $export->public_id)]);
     }
 
     public function download(Request $request, string $publicId, WorkTimeService $service)

@@ -200,3 +200,13 @@ auth.json
 !/tests/Browser/operations-bootstrap.php
 !/tests/Browser/operations-router.php
 !/tests/Browser/operations-seed.php
+
+# Verified A-D workforce extensions and encrypted session-capture regressions
+!/tests/Feature/WorkforcePersonnelTest.php
+!/tests/Feature/CustomerWorkflowExtensionsTest.php
+!/tests/Feature/WorkforcePlanningWorkflowTest.php
+!/tests/Feature/WorkTimeContextsTest.php
+!/tests/Feature/WorkTimeExtensionUiTest.php
+!/tests/Feature/WorkTimeExportReviewTest.php
+!/tests/Feature/OperationsTransactionTest.php
+!/tests/Frontend/work-time-capture.test.js

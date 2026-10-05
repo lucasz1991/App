@@ -4,10 +4,11 @@ namespace App\Livewire\Admin\UserProfile;
 
 use App\Models\EmployeeDocumentRequirement;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use App\Services\Operations\EmployeeDocumentVersionService;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -15,14 +16,23 @@ class EmployeeDocuments extends Component
 {
     use WithFileUploads;
 
+    #[Locked]
     public int $userId;
 
-    /** @var array<string, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null> */
+    public bool $historyOpen = false;
+
+    #[Locked]
+    public string $historyType = '';
+
+    #[Locked]
+    public array $currentFileIds = [];
+
+    /** @var array<string, TemporaryUploadedFile|null> */
     public array $uploads = [];
 
     public function mount(int $userId): void
     {
-        Gate::authorize('employees.master-data.view');
+        app(EmployeeDocumentVersionService::class)->authorize(auth()->user(), $userId);
         User::findOrFail($userId);
         $this->userId = $userId;
     }
@@ -38,41 +48,7 @@ class EmployeeDocuments extends Component
             'uploads.'.$type => EmployeeDocumentRequirement::TYPES[$type],
         ]);
 
-        $upload = $validated['uploads'][$type];
-        $path = $upload->store('uploads/employee-documents/'.$this->userId.'/'.$type, 'private');
-
-        try {
-            $requirement = EmployeeDocumentRequirement::firstOrCreate([
-                'user_id' => $this->userId,
-                'document_type' => $type,
-            ]);
-            $oldFile = $requirement->file;
-
-            DB::transaction(function () use ($requirement, $upload, $path): void {
-                $mime = Storage::disk('private')->mimeType($path) ?: $upload->getClientMimeType();
-
-                $requirement->file()->create([
-                    'user_id' => auth()->id(),
-                    'name' => $upload->getClientOriginalName(),
-                    'path' => $path,
-                    'disk' => 'private',
-                    'mime_type' => $mime,
-                    'type' => 'employee-document',
-                    'size' => $upload->getSize(),
-                ]);
-            });
-
-            $oldFile?->delete();
-        } catch (\Throwable $exception) {
-            Storage::disk('private')->delete($path);
-            throw $exception;
-        }
-
-        activity('employee-master-data')
-            ->causedBy(auth()->user())
-            ->performedOn(User::findOrFail($this->userId))
-            ->withProperties(['target_user_id' => $this->userId, 'document_type' => $type])
-            ->log('employee_document_uploaded');
+        app(EmployeeDocumentVersionService::class)->save($this->userId, $type, $validated['uploads'][$type], auth()->user(), $this->currentFileIds[$type] ?? null);
 
         unset($this->uploads[$type]);
         $this->dispatch('swal:toast', type: 'success', text: __('app.employee_document_saved'));
@@ -83,49 +59,50 @@ class EmployeeDocuments extends Component
         Gate::authorize('employees.master-data.edit');
         abort_unless(array_key_exists($type, EmployeeDocumentRequirement::TYPES), 404);
 
-        $requirement = EmployeeDocumentRequirement::query()
-            ->where('user_id', $this->userId)
-            ->where('document_type', $type)
-            ->firstOrFail();
-
-        $requirement->file?->delete();
-
-        activity('employee-master-data')
-            ->causedBy(auth()->user())
-            ->performedOn(User::findOrFail($this->userId))
-            ->withProperties(['target_user_id' => $this->userId, 'document_type' => $type])
-            ->log('employee_document_removed');
+        app(EmployeeDocumentVersionService::class)->withdraw($this->userId, $type, auth()->user(), $this->currentFileIds[$type] ?? null);
 
         $this->dispatch('swal:toast', type: 'success', text: __('app.employee_document_removed'));
     }
 
     public function download(string $type): StreamedResponse
     {
-        Gate::authorize('employees.master-data.view');
         abort_unless(array_key_exists($type, EmployeeDocumentRequirement::TYPES), 404);
 
-        $requirement = EmployeeDocumentRequirement::query()
-            ->with('file')
-            ->where('user_id', $this->userId)
-            ->where('document_type', $type)
-            ->firstOrFail();
-        abort_unless($requirement->file, 404);
+        return app(EmployeeDocumentVersionService::class)->download($this->userId, $type, null, auth()->user());
+    }
 
-        return $requirement->file->download($requirement->file->disk ?: 'private', denyExpired: false);
+    public function showHistory(string $type): void
+    {
+        app(EmployeeDocumentVersionService::class)->authorize(auth()->user(), $this->userId);
+        abort_unless(array_key_exists($type, EmployeeDocumentRequirement::TYPES), 404);
+        $this->historyType = $type;
+        $this->historyOpen = true;
+    }
+
+    public function downloadVersion(int $versionId): StreamedResponse
+    {
+
+        return app(EmployeeDocumentVersionService::class)->download($this->userId, $this->historyType, $versionId, auth()->user());
     }
 
     public function render()
     {
+        app(EmployeeDocumentVersionService::class)->authorize(auth()->user(), $this->userId);
         $requirements = EmployeeDocumentRequirement::query()
             ->with('file')
             ->where('user_id', $this->userId)
             ->get()
             ->keyBy('document_type');
 
+        $this->currentFileIds = $requirements->map(fn ($requirement) => $requirement->file?->id)->all();
+
         return view('livewire.admin.user-profile.employee-documents', [
             'requirements' => $requirements,
             'types' => EmployeeDocumentRequirement::TYPES,
-            'canEdit' => Gate::allows('employees.master-data.edit'),
+            'canEdit' => EmployeeDocumentVersionService::ready() && Gate::allows('employees.master-data.edit'),
+            'versioningReady' => EmployeeDocumentVersionService::ready(),
+            'versions' => EmployeeDocumentVersionService::ready() && $this->historyOpen
+                ? EmployeeDocumentRequirement::where('user_id', $this->userId)->where('document_type', $this->historyType)->first()?->versions()->with('file')->get() ?? collect() : collect(),
         ]);
     }
 }

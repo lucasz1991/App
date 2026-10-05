@@ -5,12 +5,16 @@ namespace Tests\Feature;
 use App\Livewire\Operations\StaffTimeline;
 use App\Models\AbsenceRequest;
 use App\Models\Customer;
+use App\Models\EmployeeAvailability;
 use App\Models\Order;
+use App\Models\PersonnelTraining;
+use App\Models\PersonnelTrainingParticipant;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\StaffTimelineLayout;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Arr;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -18,6 +22,36 @@ use Tests\TestCase;
 class StaffTimelineLayoutTest extends TestCase
 {
     use BuildsMinimalRailTimeSchema;
+
+    public function test_additional_workforce_data_never_changes_default_timeline_geometry_or_events(): void
+    {
+        $this->buildMinimalRailTimeSchema();
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        (require database_path('migrations/2026_09_17_180000_create_operations_planning_extensions.php'))->up();
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $person = User::factory()->create(['name' => 'Alex Sommer', 'role' => 'staff', 'status' => true]);
+        $customer = Customer::create(['company_name' => 'Synthetic Rail', 'is_active' => true]);
+        $order = Order::create(['customer_id' => $customer->id, 'title' => 'Existing night', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => '2026-10-24T00:00', 'ends_at' => '2026-10-26T00:00', 'required_staff' => 1, 'created_by' => $admin->id]);
+        $shift = Shift::create(['order_id' => $order->id, 'title' => 'Existing night', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2026-10-24T22:00:00+02:00', 'ends_at' => '2026-10-25T06:00:00+01:00', 'required_staff' => 1, 'planned_break_minutes' => 30, 'status' => 'confirmed', 'created_by' => $admin->id]);
+        ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $person->id, 'status' => 'confirmed', 'assigned_by' => $admin->id]);
+        $geometry = fn ($rows) => json_encode($rows->map(fn ($row) => Arr::only($row, ['weekly_working_hours', 'planned_hours_by_week', 'events', 'lane_count', 'days']))->all());
+        $before = '';
+        $timeline = Livewire::actingAs($admin)->test(StaffTimeline::class, ['from' => '2026-10-24', 'until' => '2026-10-25'])->assertViewHas('rows', function ($rows) use (&$before, $geometry) {
+            $before = $geometry($rows);
+
+            return true;
+        });
+        (require database_path('migrations/2026_10_04_120000_create_workforce_personnel_foundations.php'))->up();
+        (require database_path('migrations/2026_10_04_122000_create_workforce_planning_tables.php'))->up();
+        EmployeeAvailability::create(['user_id' => $person->id, 'kind' => 'prefer_off', 'from' => '2026-10-24', 'until' => '2026-10-25', 'weekdays' => [1, 2, 3, 4, 5, 6, 7], 'whole_day' => true, 'timezone' => 'Europe/Berlin', 'note' => 'PRIVATE WISH']);
+        $training = PersonnelTraining::create(['title' => 'PRIVATE TRAINING', 'starts_at' => '2026-10-25T08:00', 'ends_at' => '2026-10-25T10:00', 'timezone' => 'Europe/Berlin', 'capacity' => 1, 'status' => 'scheduled', 'created_by' => $admin->id]);
+        PersonnelTrainingParticipant::create(['personnel_training_id' => $training->id, 'user_id' => $person->id, 'status' => 'confirmed', 'created_by' => $admin->id]);
+        $timeline->call('$refresh')->assertViewHas('rows', function ($rows) use ($before, $geometry) {
+            $this->assertSame($before, $geometry($rows));
+
+            return true;
+        })->assertDontSee('PRIVATE WISH')->assertDontSee('PRIVATE TRAINING');
+    }
 
     private function event(string $start, string $end, string $id = 'shift-1'): array
     {

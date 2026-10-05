@@ -3,6 +3,8 @@
 namespace App\Support\Operations;
 
 use App\Models\User;
+use App\Services\Operations\PersonnelProcessService;
+use App\Services\Operations\WorkforceAccountService;
 
 final class OperationsNavigation
 {
@@ -19,16 +21,37 @@ final class OperationsNavigation
             'times' => ['title' => 'Zeitprüfung', 'ability' => 'operations.time.review'],
             'exports' => ['title' => 'Zeitexport', 'ability' => 'operations.time.export'],
             'rules' => ['title' => 'Regelprofil', 'ability' => 'operations.rules.manage'],
+            'workforce-accounts' => ['title' => 'Arbeitsmodelle & Konten', 'ability' => 'employees.master-data.view'],
+            'personnel-processes' => ['title' => 'Personalprozesse', 'ability' => 'employees.master-data.view'],
+            'workforce-planning' => ['title' => 'Planungsprozesse', 'ability' => 'operations.manage'],
+            'plan-variants' => ['title' => 'Planvarianten', 'ability' => 'operations.manage'],
         ];
     }
 
     public static function forUser(User $user): array
     {
-        return array_filter(self::modules(), fn ($item) => $user->can($item['ability']));
+        return array_filter(self::modules(), function ($item, $key) use ($user) {
+            if ($key === 'workforce-accounts'
+                && (! class_exists(WorkforceAccountService::class) || ! app(WorkforceAccountService::class)->ready())) {
+                return false;
+            }
+            if ($key === 'personnel-processes'
+                && (! class_exists(PersonnelProcessService::class) || ! app(PersonnelProcessService::class)->ready())) {
+                return false;
+            }
+            if (in_array($key, ['workforce-planning', 'plan-variants'], true) && ! WorkforcePlanningSchema::ready()) {
+                return false;
+            }
+
+            return $user->can($item['ability']);
+        }, ARRAY_FILTER_USE_BOTH);
     }
 
     public static function status(string $status): string
     {
+        if (in_array($status, ['reported', 'scheduled', 'attended'], true)) {
+            return ['reported' => 'Gemeldet', 'scheduled' => 'Geplant', 'attended' => 'Teilgenommen'][$status];
+        }
         if (in_array($status, ['draft', 'open', 'filled'], true)) {
             return ['draft' => 'Entwurf', 'open' => 'Offen', 'filled' => 'Besetzt'][$status];
         }

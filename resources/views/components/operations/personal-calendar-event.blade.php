@@ -8,7 +8,7 @@
     data-event-kind="{{ $event->kind }}"
 >
     <span class="block text-xs font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $event->starts->format('d.m. H:i') }} – {{ $event->ends->format($event->starts->isSameDay($event->ends) ? 'H:i' : 'd.m. H:i') }}</span>
-    <span class="mt-1 block break-words text-sm font-semibold text-rt-text dark:text-rt-dark-text"><i class="far {{ $event->kind === 'shift' ? 'fa-train' : 'fa-calendar-minus' }} mr-1" aria-hidden="true"></i>{{ $event->title }}</span>
+    <span class="mt-1 block break-words text-sm font-semibold text-rt-text dark:text-rt-dark-text"><i class="far {{ $event->kind === 'shift' ? 'fa-train' : ($event->kind === 'training' ? 'fa-graduation-cap' : 'fa-calendar-minus') }} mr-1" aria-hidden="true"></i>{{ $event->title }}</span>
     @if($event->kind === 'shift')
         <span class="mt-1 block break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $event->record->shift->location_name ?: '—' }}</span>
         @unless($compact)<span class="mt-1 block break-words text-xs text-rt-muted dark:text-rt-dark-muted">{{ $event->record->shift->role_name }}</span>@endunless

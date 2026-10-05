@@ -370,7 +370,7 @@ class WidgetDataProvider
             'startingSoon' => (clone $open)->where('starts_at', '>=', now())->where('starts_at', '<=', now()->addDays(7))->count(),
             'urgent' => (clone $open)->whereIn('priority', ['high', 'urgent'])->count(),
             'tone' => 'brand',
-            'recent' => $rows === 2 ? (clone $open)->with('customer:id,company_name')->orderBy('starts_at')->limit(4)->get() : collect(),
+            'recent' => $rows === 2 ? (clone $open)->with('customer:id,company_name')->orderBy('starts_at')->limit(3)->get() : collect(),
             'href' => route('operations.workspace', 'orders'),
         ];
     }
@@ -481,7 +481,7 @@ class WidgetDataProvider
             'newRecently' => $staff()->where('created_at', '>=', now()->subDays(30))->count(),
             'faces' => $staff()->where('status', true)->latest()->limit(6)->get(['id', 'name', 'profile_photo_path']),
             'tone' => 'brand',
-            'recent' => $rows === 2 ? $staff()->latest()->limit(4)->get(['id', 'name', 'created_at', 'profile_photo_path']) : collect(),
+            'recent' => $rows === 2 ? $staff()->latest()->limit(3)->get(['id', 'name', 'created_at', 'profile_photo_path']) : collect(),
             'href' => route($user->isAdmin() ? 'admin.employees' : 'employees.index'),
         ];
     }
@@ -554,7 +554,7 @@ class WidgetDataProvider
                 'today' => $day->isToday(),
             ])->values()->all(),
             'tone' => 'brand',
-            'recent' => $rows === 2 ? $mine()->whereNotNull('ended_at')->latest('ended_at')->limit(4)->get() : collect(),
+            'recent' => $rows === 2 ? $mine()->whereNotNull('ended_at')->latest('ended_at')->limit(3)->get() : collect(),
             'href' => route('calls.index'),
         ];
     }

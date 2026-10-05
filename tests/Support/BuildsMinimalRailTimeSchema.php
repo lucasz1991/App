@@ -2,6 +2,7 @@
 
 namespace Tests\Support;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
@@ -9,7 +10,14 @@ trait BuildsMinimalRailTimeSchema
 {
     protected function buildMinimalRailTimeSchema(): void
     {
+        $connection = Schema::getConnection();
+        if ($connection->getDriverName() !== 'sqlite' || $connection->getDatabaseName() !== ':memory:') {
+            throw new \RuntimeException('Minimal RailTime fixtures require an isolated SQLite :memory: database.');
+        }
+
         Schema::dropAllTables();
+        // Eloquent caches table columns process-wide. Each isolated fixture schema is a new generation.
+        (new \ReflectionProperty(Model::class, 'guardableColumns'))->setValue(null, []);
 
         Schema::create('users', function (Blueprint $table): void {
             $table->id();

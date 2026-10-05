@@ -5,6 +5,7 @@ namespace App\Livewire\Operations;
 use App\Models\EmployeePayrollReference;
 use App\Models\User;
 use App\Services\Operations\PayrollReferenceService;
+use App\Services\Operations\PersonnelScopeService;
 use App\Support\Operations\OperationsAccess;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Locked;
@@ -43,6 +44,7 @@ class PayrollReferences extends Component
     public function edit(int $id): void
     {
         $this->access();
+        app(PersonnelScopeService::class)->authorize(auth()->user(), $id, 'operations.time.export');
         User::where('role', 'staff')->findOrFail($id);
         $record = EmployeePayrollReference::where('user_id', $id)->first();
         $this->userId = $id;
@@ -64,7 +66,7 @@ class PayrollReferences extends Component
     public function render()
     {
         $this->access();
-        $users = User::where('role', 'staff')->when(filled($this->search), fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))->orderBy('name')->paginate(15, ['id', 'name'], 'payrollPage');
+        $users = app(PersonnelScopeService::class)->applyUsers(User::where('role', 'staff'), auth()->user(), 'operations.time.export')->when(filled($this->search), fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))->orderBy('name')->paginate(15, ['id', 'name'], 'payrollPage');
         $refs = EmployeePayrollReference::whereIn('user_id', $users->pluck('id'))->get()->keyBy('user_id');
         $users->getCollection()->each(function ($user) use ($refs) {
             $user->setAttribute('personnel_number', $refs->get($user->id)?->personnel_number);
