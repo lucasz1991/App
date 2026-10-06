@@ -3306,11 +3306,11 @@ HTML;
             ),
         );
         $this->assertSame(
-            'wortmarke-signature-v15-light.gif',
+            'wortmarke-signature-v15-light.png',
             EmailTemplateBuilder::signatureLogoAsset('light', SignatureArtifactVersion::V15),
         );
         $this->assertSame(
-            'wortmarke-mail-v15-dark.gif',
+            'wortmarke-mail-v15-dark.png',
             EmailTemplateBuilder::signatureLogoAsset('dark', SignatureArtifactVersion::V15),
         );
         $this->assertStringContainsString(
@@ -3322,19 +3322,19 @@ HTML;
             ),
         );
         $this->assertSame(
-            'icon-rt-v19-light.gif',
+            'icon-rt-v19-light.png',
             EmailTemplateBuilder::emailMarkAsset('light', SignatureArtifactVersion::V19),
         );
         $this->assertSame(
-            'icon-rt-v19-dark.gif',
+            'icon-rt-v19-dark.png',
             EmailTemplateBuilder::emailMarkAsset('dark', SignatureArtifactVersion::V19),
         );
         $this->assertSame(
-            'wortmarke-signature-v19-light.gif',
+            'wortmarke-signature-v19-light.png',
             EmailTemplateBuilder::signatureLogoAsset('light', SignatureArtifactVersion::V19),
         );
         $this->assertSame(
-            'wortmarke-mail-v19-dark.gif',
+            'wortmarke-mail-v19-dark.png',
             EmailTemplateBuilder::signatureLogoAsset('dark', SignatureArtifactVersion::V19),
         );
         $this->assertStringContainsString(
@@ -3346,11 +3346,11 @@ HTML;
             ),
         );
         $this->assertSame(
-            'icon-rt-v19-light.gif',
+            'icon-rt-v19-light.png',
             EmailTemplateBuilder::emailMarkAsset('light', SignatureArtifactVersion::V20),
         );
         $this->assertSame(
-            'wortmarke-signature-v19-light.gif',
+            'wortmarke-signature-v19-light.png',
             EmailTemplateBuilder::signatureLogoAsset('light', SignatureArtifactVersion::V20),
         );
         $this->assertStringContainsString(
@@ -3362,11 +3362,11 @@ HTML;
             ),
         );
         $this->assertSame(
-            'icon-rt-v19-light.gif',
+            'icon-rt-v19-light.png',
             EmailTemplateBuilder::emailMarkAsset('light', SignatureArtifactVersion::V21),
         );
         $this->assertSame(
-            'wortmarke-signature-v19-light.gif',
+            'wortmarke-signature-v19-light.png',
             EmailTemplateBuilder::signatureLogoAsset('light', SignatureArtifactVersion::V21),
         );
 
@@ -3378,7 +3378,7 @@ HTML;
         SignatureDocumentContract::assertValid($v20Canonical);
         $v20CompanyHtml = MailSignature::forCompany()->renderDocument($v20Canonical);
         $this->assertStringContainsString('/mail-assets/zug-dampf-v19-light.gif', $v20CompanyHtml);
-        $this->assertStringContainsString('/mail-assets/wortmarke-signature-v19-light.gif', $v20CompanyHtml);
+        $this->assertStringContainsString('/mail-assets/wortmarke-signature-v19-light.png', $v20CompanyHtml);
         $this->assertStringContainsString('margin-bottom:-200px', $v20CompanyHtml);
         $this->assertStringContainsString('width="720" alt=""', $v20CompanyHtml);
         $this->assertStringNotContainsString('position:absolute;z-index:0', $v20CompanyHtml);
@@ -3386,7 +3386,7 @@ HTML;
         $v15Canonical = SignatureTrainCarrier::normalize($v15);
         $v15CompanyHtml = MailSignature::forCompany()->renderDocument($v15Canonical);
         $this->assertStringContainsString('/mail-assets/zug-dampf-v15-light.gif', $v15CompanyHtml);
-        $this->assertStringContainsString('/mail-assets/wortmarke-signature-v15-light.gif', $v15CompanyHtml);
+        $this->assertStringContainsString('/mail-assets/wortmarke-signature-v15-light.png', $v15CompanyHtml);
         $this->assertStringNotContainsString('&amp;p=', $v15CompanyHtml);
         $this->assertStringContainsString('height="61"', $v15CompanyHtml);
 
@@ -3408,7 +3408,7 @@ HTML;
             $this->assertStringContainsString($cidSource, $v15CidHtml);
         }
         $this->assertStringNotContainsString('/mail-assets/zug-dampf-v15-light.gif', $v15CidHtml);
-        $this->assertStringNotContainsString('/mail-assets/wortmarke-signature-v15-light.gif', $v15CidHtml);
+        $this->assertStringNotContainsString('/mail-assets/wortmarke-signature-v15-light.png', $v15CidHtml);
 
         $v16Canonical = SignatureTrainCarrier::normalize(str_replace(
             [SignatureArtifactVersion::V15, 'data-rt-layer-mobile="train"'],
@@ -3417,7 +3417,7 @@ HTML;
         ));
         $v16CompanyHtml = MailSignature::forCompany()->renderDocument($v16Canonical);
         $this->assertStringContainsString('/mail-assets/zug-dampf-v15-light.gif', $v16CompanyHtml);
-        $this->assertStringContainsString('/mail-assets/wortmarke-signature-v15-light.gif', $v16CompanyHtml);
+        $this->assertStringContainsString('/mail-assets/wortmarke-signature-v15-light.png', $v16CompanyHtml);
         $this->assertStringContainsString('data-rt-layer-mobile="stop60"', $v16CompanyHtml);
 
         $v14Assets = PortableMediaCatalog::requiredSystemAssetIds(
@@ -3600,15 +3600,15 @@ HTML;
         sort($expectedFilenames);
         $this->assertNotEmpty($expectedFilenames);
         foreach ([
-            'icon-rt-v19-light.gif',
             'icon-rt-v19-light.png',
-            'wortmarke-signature-v19-light.gif',
             'wortmarke-signature-v19-light.png',
             'zug-dampf-v19-light.gif',
             'zug-dampf-v19-light.png',
         ] as $optimizedFilename) {
             $this->assertContains($optimizedFilename, $expectedFilenames);
         }
+        $this->assertNotContains('icon-rt-v19-light.gif', $expectedFilenames);
+        $this->assertNotContains('wortmarke-signature-v19-light.gif', $expectedFilenames);
         $this->assertStringContainsString('data-rt-artifact-version="v20"', $compiledHtml);
         $this->assertStringContainsString('margin-bottom:-200px', $compiledHtml);
         $this->assertDoesNotMatchRegularExpression(
@@ -5934,7 +5934,14 @@ HTML;
         $this->assertStringNotContainsString('data-rt-signature-background', $nativeTemplate['composeHtml']);
         $this->assertStringNotContainsString('data-rt-artifact-version="v23"', $nativeTemplate['composeHtml']);
         $this->assertStringNotContainsString('.rt-sign-', $nativeTemplate['composeHtml']);
-        $this->assertCount(2, $nativeTemplate['composeMedia']);
+        $this->assertCount(1, $nativeTemplate['composeMedia']);
+        $markMedia = $nativeTemplate['composeMedia'][0];
+        $this->assertStringEndsWith('.png', $markMedia['name']);
+        $this->assertSame(
+            hash_file('sha256', public_path('mail-assets/icon-rt-v19-light.png')),
+            hash('sha256', base64_decode($markMedia['base64'], true)),
+        );
+        $this->assertGreaterThanOrEqual(2, substr_count($nativeTemplate['composeHtml'], 'cid:'.$markMedia['contentId']));
         $this->assertStringContainsString('data-rt-signature-background="1"', $outlook['signature']['html']);
         $this->assertStringContainsString('data-rt-artifact-version="v23"', $outlook['signature']['html']);
         $this->assertStringContainsString('RT-SIGNATURE-VERSION:'.$outlook['version']['signature'], $outlook['signature']['html']);

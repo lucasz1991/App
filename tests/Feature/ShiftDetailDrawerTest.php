@@ -150,4 +150,63 @@ class ShiftDetailDrawerTest extends TestCase
             $this->assertFalse($trigger->hasAttribute('wire:click'));
         }
     }
+
+    public function test_editing_from_the_detail_panel_keeps_the_shift_open_and_returns_after_cancel_and_save(): void
+    {
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('openDetails', $this->shift->id)
+            ->call('editShift', $this->shift->id)
+            ->assertSet('formOpen', true)->assertSet('detailOpen', true)
+            ->assertSeeHtml('data-panel-mode="form"')
+            ->call('closeShiftForm')
+            ->assertSet('formOpen', false)->assertSet('detailOpen', true)
+            ->assertSet('editingShiftId', null)
+            ->assertDontSeeHtml('data-panel-mode="form"');
+
+        $component->call('editShift', $this->shift->id)
+            ->set('title', 'Detaildienst geändert')
+            ->call('saveShift')
+            ->assertHasNoErrors()
+            ->assertSet('formOpen', false)->assertSet('detailOpen', true)
+            ->assertSet('selectedShiftId', $this->shift->id)
+            ->assertSee('Detaildienst geändert');
+
+        $this->assertSame('Detaildienst geändert', $this->shift->fresh()->title);
+    }
+
+    public function test_closing_a_new_shift_form_does_not_open_a_detail(): void
+    {
+        Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('createShift')
+            ->assertSet('formOpen', true)->assertSet('detailOpen', false)
+            ->assertSeeHtml('data-panel-mode="form"')
+            ->call('closeShiftForm')
+            ->assertSet('formOpen', false)->assertSet('detailOpen', false);
+    }
+
+    public function test_form_errors_mark_their_tab_and_switch_to_it(): void
+    {
+        Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('openDetails', $this->shift->id)
+            ->call('editShift', $this->shift->id)
+            ->set('endsAt', '2027-05-12T07:00')
+            ->call('saveShift')
+            ->assertHasErrors('endsAt')
+            ->assertSet('formOpen', true)->assertSet('detailOpen', true)
+            ->assertSeeHtml("x-init=\"tab = 'time'\"")
+            ->assertSeeHtml('rt-ops-panel__alert');
+    }
+
+    public function test_opening_a_shift_drops_validation_errors_left_by_a_closed_form(): void
+    {
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('createShift')
+            ->call('saveShift')
+            ->assertHasErrors('title');
+
+        // Clientseitig per Esc geschlossen: der Server erfährt formOpen=false erst mit der nächsten Anfrage.
+        $component->set('formOpen', false)
+            ->call('openDetails', $this->shift->id)
+            ->assertHasNoErrors();
+    }
 }

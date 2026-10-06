@@ -10,12 +10,24 @@ export function shiftDetailDrawer() {
         requestPromise: null,
 
         init() {
-            this.detailVisible = Boolean(this.$wire.detailOpen);
+            // Das Panel trägt zwei Zustände: Schichtdetails (detailOpen) und das
+            // Schichtformular (formOpen). Sichtbar ist es, solange einer davon offen ist.
+            this.detailVisible = Boolean(this.$wire.detailOpen || this.$wire.formOpen);
             this.$watch('detailVisible', (visible) => {
                 if (!visible) this.closeShiftDetail();
             });
             this.$watch('$wire.detailOpen', (open) => {
-                if (!open && !this.inFlight) this.closeShiftDetail();
+                if (!open && !this.inFlight && !this.$wire.formOpen) this.closeShiftDetail();
+            });
+            this.$watch('$wire.formOpen', (open) => {
+                if (open) {
+                    this.error = '';
+                    this.loading = false;
+                    this.detailVisible = true;
+                    return;
+                }
+                // Formular zu ohne geöffnete Schicht (z. B. nach dem Anlegen): Panel schließen.
+                if (this.detailVisible && !this.$wire.detailOpen && !this.inFlight) this.closeShiftDetail();
             });
         },
 
@@ -43,6 +55,8 @@ export function shiftDetailDrawer() {
             this.loading = false;
             this.error = '';
             this.$wire.detailOpen = false;
+            // Esc, Hintergrund oder Schließen im Formular beenden auch das Formular.
+            this.$wire.formOpen = false;
         },
 
         async loadPendingDetails() {

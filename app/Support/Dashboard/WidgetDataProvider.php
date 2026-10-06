@@ -219,11 +219,13 @@ class WidgetDataProvider
         $data = $this->operationsQueue(
             'inquiries', 'Offene Anfragen', 'inbox', $open()->with('customer:id,company_name'), $rows,
             fn (OperationInquiry $i) => [
+                'id' => $i->id,
                 'title' => $i->title,
                 'meta' => $i->customer?->company_name,
                 'when' => $i->created_at,
                 'channel' => $i->channel,
                 'age' => $i->created_at === null ? 'fresh' : ($i->created_at->lt($threeDaysAgo) ? 'overdue' : ($i->created_at->lt($dayAgo) ? 'aging' : 'fresh')),
+                'href' => \App\Support\Operations\OperationsPages::moduleUrl('inquiries', ['inquiry' => $i->id, 'customer' => $i->customer_id]),
             ],
         );
         $oldest = $open()->min('created_at');
@@ -362,6 +364,7 @@ class WidgetDataProvider
     {
         $open = Order::query()->whereNotIn('status', ['completed', 'invoiced', 'cancelled']);
         $byStatus = (clone $open)->selectRaw('status, COUNT(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status');
+        $recent = $rows === 2 ? (clone $open)->with('customer:id,company_name')->orderBy('starts_at')->limit(3)->get() : collect();
 
         return [
             'label' => 'Offene Leistungen',
@@ -370,7 +373,8 @@ class WidgetDataProvider
             'startingSoon' => (clone $open)->where('starts_at', '>=', now())->where('starts_at', '<=', now()->addDays(7))->count(),
             'urgent' => (clone $open)->whereIn('priority', ['high', 'urgent'])->count(),
             'tone' => 'brand',
-            'recent' => $rows === 2 ? (clone $open)->with('customer:id,company_name')->orderBy('starts_at')->limit(3)->get() : collect(),
+            'recent' => $recent,
+            'orderHrefs' => $recent->mapWithKeys(fn (Order $order) => [$order->id => \App\Support\Operations\OperationsPages::moduleUrl('orders', ['order' => $order->id, 'customer' => $order->customer_id])]),
             'href' => \App\Support\Operations\OperationsPages::moduleUrl('orders'),
         ];
     }
@@ -419,6 +423,7 @@ class WidgetDataProvider
 
         return [
             'shifts' => $shifts,
+            'shiftHrefs' => $shifts->mapWithKeys(fn (Shift $shift) => [$shift->id => \App\Support\Operations\OperationsPages::moduleUrl('shift-management', ['shift' => $shift->id])]),
             'understaffed' => $shifts->filter(fn (Shift $shift) => $shift->reserved < $shift->required_staff)->count(),
             'href' => \App\Support\Operations\OperationsPages::moduleUrl('shift-management'),
         ];

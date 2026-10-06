@@ -1,6 +1,7 @@
 @props([
   'align'             => 'right',
   'width'             => '48',
+  'maxHeight'         => 448,
   'contentClasses'    => 'py-1 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-white',
   'dropdownClasses'   => '',
   'offset'            => 8,
@@ -88,6 +89,7 @@
     horizontalAlign: @js(str_ends_with($anchorPlacement, '-start') ? 'left' : 'right'),
     preferredPlacement: @js(str_starts_with($anchorPlacement, 'top') ? 'top' : 'bottom'),
     offset: @js($anchorOffset),
+    maximumHeight: @js(max(160, min(960, (int) $maxHeight))),
     scrollOnOpen: @js((bool) $scrollOnOpen),
     scrollOnTrigger: @js((bool) $scrollOnTrigger),
     headerOffset: @js((int) $headerOffset),
@@ -503,7 +505,7 @@
         : 0;
       const naturalPanelHeight = Math.min(
         (panelScroll?.scrollHeight || panel.offsetHeight || panelRect.height) + borderHeight,
-        448,
+        this.maximumHeight,
         maximumViewportHeight,
       );
       let resolvedPlacement = this.preferredPlacement;
@@ -516,7 +518,7 @@
 
       const availableHeight = resolvedPlacement === 'top' ? availableAbove : availableBelow;
       if (panelScroll) {
-        panelScroll.style.maxHeight = `${Math.max(0, Math.floor(Math.min(448, availableHeight)))}px`;
+        panelScroll.style.maxHeight = `${Math.max(0, Math.floor(Math.min(this.maximumHeight, availableHeight)))}px`;
       }
 
       const renderedPanelHeight = Math.min(

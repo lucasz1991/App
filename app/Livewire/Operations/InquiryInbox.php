@@ -10,11 +10,12 @@ use App\Services\Operations\CommercialOfferService;
 use App\Services\Operations\CustomerWorkflowService;
 use App\Services\Operations\InquiryWorkflowService;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsPages;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Illuminate\Support\Facades\Schema;
 
 class InquiryInbox extends Component
 {
@@ -65,10 +66,35 @@ class InquiryInbox extends Component
     #[Locked]
     public string $detailSection = 'overview';
 
+    private bool $mounting = false;
+
+    public static function listState(array $query): array
+    {
+        $state = [];
+        foreach (['search' => '', 'status' => 'all', 'filter' => 'active', 'detail' => 'overview'] as $name => $default) {
+            $value = array_key_exists($name, $query) ? $query[$name] : $default;
+            abort_unless(is_string($value) && mb_strlen($value) <= 100, 422);
+            $state[$name] = $value;
+        }
+        abort_unless(in_array($state['status'], ['all', 'new', 'accepted'], true), 422);
+        abort_unless(in_array($state['filter'], ['active', 'all', 'email', 'phone', 'portal', 'manual'], true), 422);
+        abort_unless(in_array($state['detail'], ['overview', 'history'], true), 422);
+
+        return $state;
+    }
+
     public function mount(?int $initialInquiryId = null, ?int $customerId = null, bool $consolidated = false): void
     {
         $this->access();
+        $this->mounting = true;
         $this->consolidated = $consolidated;
+        if ($consolidated) {
+            $state = self::listState(request()->query());
+            $this->search = $state['search'];
+            $this->statusFilter = $state['status'];
+            $this->filter = $state['filter'];
+            $this->detailSection = $state['detail'];
+        }
         $this->customerFilterId = $customerId;
         if ($customerId !== null) {
             abort_unless($customerId > 0, 404);
@@ -77,6 +103,7 @@ class InquiryInbox extends Component
         if ($initialInquiryId !== null) {
             $this->select($initialInquiryId);
         }
+        $this->mounting = false;
     }
 
     private function scopedQuery()
@@ -93,7 +120,11 @@ class InquiryInbox extends Component
     {
         $this->access();
         abort_unless(in_array($section, ['overview', 'history'], true), 422);
+        if ($this->selectedId) {
+            $this->scopedQuery()->findOrFail($this->selectedId);
+        }
         $this->detailSection = $section;
+        $this->syncUrl();
     }
 
     private function access(): void
@@ -105,16 +136,26 @@ class InquiryInbox extends Component
     public function updatedSearch(): void
     {
         $this->resetPage();
+        $this->syncUrl();
     }
 
     public function updatedFilter(): void
     {
         $this->resetPage();
+        $this->syncUrl();
     }
 
     public function updatedStatusFilter(): void
     {
         $this->resetPage();
+        $this->syncUrl();
+    }
+
+    public function updatedDetailOpen(bool $open): void
+    {
+        if ($this->consolidated && ! $open) {
+            $this->close();
+        }
     }
 
     public function tableSort(string $key, ?string $dir = null): void
@@ -132,8 +173,11 @@ class InquiryInbox extends Component
     {
         $this->access();
         $this->selectedId = null;
+        $this->revision = null;
         $this->editing = false;
         $this->detailOpen = false;
+        $this->detailSection = 'overview';
+        $this->syncUrl();
     }
 
     #[On('operations-create')]
@@ -145,6 +189,7 @@ class InquiryInbox extends Component
         $this->editing = true;
         $this->detailOpen = true;
         $this->resetValidation();
+        $this->syncUrl();
     }
 
     public function select(int $id): void
@@ -162,6 +207,26 @@ class InquiryInbox extends Component
         $this->terms = $record->offer['terms'] ?? '';
         $this->reset(['acceptance', 'authorized', 'duplicateId']);
         $this->resetValidation();
+        $this->syncUrl();
+    }
+
+    private function syncUrl(): void
+    {
+        if (! $this->consolidated || $this->mounting) {
+            return;
+        }
+        $this->access();
+        $state = self::listState(['search' => $this->search, 'status' => $this->statusFilter, 'filter' => $this->filter, 'detail' => $this->detailSection]);
+        $selectedId = $this->detailOpen ? $this->selectedId : null;
+        if ($selectedId) {
+            $this->scopedQuery()->findOrFail($selectedId);
+        }
+        $this->dispatch('rt-workspace-url', url: OperationsPages::url('cases', [
+            'view' => 'inbox', 'section' => 'overview', 'customer' => $this->customerFilterId,
+            'search' => $state['search'], 'status' => $state['status'] === 'all' ? null : $state['status'],
+            'filter' => $state['filter'] === 'active' ? null : $state['filter'],
+            'inquiry' => $selectedId, 'detail' => $selectedId && $state['detail'] !== 'overview' ? $state['detail'] : null,
+        ]));
     }
 
     public function save(InquiryWorkflowService $service): void
@@ -183,6 +248,7 @@ class InquiryInbox extends Component
         $record = $service->transition($current, $this->revision, $action, ['amount' => $this->amount, 'terms' => $this->terms, 'note' => $this->acceptance, 'authorized' => $this->authorized, 'original_id' => $this->duplicateId], auth()->user());
         if ($this->consolidated && $action === 'convert' && $record->order_id && auth()->user()->can('operations.manage')) {
             $this->redirectRoute('operations.page', ['page' => 'cases', 'view' => 'orders', 'order' => $record->order_id, 'inquiry' => $record->id], navigate: true);
+
             return;
         }
         $this->select($record->id);
@@ -200,6 +266,9 @@ class InquiryInbox extends Component
     public function render()
     {
         $this->access();
+        if ($this->consolidated) {
+            self::listState(['search' => $this->search, 'status' => $this->statusFilter, 'filter' => $this->filter, 'detail' => $this->detailSection]);
+        }
         $active = $this->scopedQuery()->whereNull('order_id')->whereNull('duplicate_of_id')->where('status', '!=', 'rejected');
         $statusCounts = (clone $active)->selectRaw('status, COUNT(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status');
         $query = $this->scopedQuery()->with('customer')->when($this->filter === 'active', fn ($q) => $q->whereNull('order_id')->whereNull('duplicate_of_id')->where('status', '!=', 'rejected'))
@@ -216,6 +285,7 @@ class InquiryInbox extends Component
         $query->orderBy($sortColumn, $this->sortDir === 'asc' ? 'asc' : 'desc')->orderBy('id');
 
         $selected = $this->selectedId ? $this->scopedQuery()->with(['customer', 'order', 'duplicateOf'])->findOrFail($this->selectedId) : null;
+
         return view('livewire.operations.inquiry-inbox', [
             'summary' => [
                 'active' => (int) $statusCounts->sum(),

@@ -9,7 +9,8 @@ const templateContract = readFileSync('app/Support/Mail/TemplateDocumentContract
 
 test('downloaded EML projects Outlook-critical images into CID MIME parts', () => {
     assert.match(builder, /cidOutlookImages:\s*true/);
-    assert.match(builder, /'LOGO_STILL_SRC'\s*=>\s*'cid:railtime-logo-still'/);
+    assert.match(builder, /'LOGO_STILL_SRC'\s*=>\s*str_ends_with\(\$logoAsset, '\.png'\)\s*\?\s*'cid:railtime-logo'\s*:\s*'cid:railtime-logo-still'/);
+    assert.match(builder, /'ICON_RT_STILL_SRC'[\s\S]*?str_ends_with\(\$markAsset, '\.png'\)\s*\?\s*'cid:railtime-mark'\s*:\s*'cid:railtime-mark-still'/);
     assert.match(builder, /'outlookTrainSrc'\s*=>\s*'cid:railtime-train'/);
     assert.match(builder, /'TRAIN_SRC'\s*=>\s*''/);
 

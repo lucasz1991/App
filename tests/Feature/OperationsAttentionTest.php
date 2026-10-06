@@ -316,7 +316,10 @@ class OperationsAttentionTest extends TestCase
         $modules = OperationsNavigation::forUser($this->manager);
         foreach (['shift-management', 'planning-enhancements', 'personnel-enhancements', 'operations-enhancements', 'attention-center', 'duty-monitor'] as $module) {
             $this->assertArrayHasKey($module, $modules);
-            Livewire::actingAs($this->manager)->test(Workspace::class, ['module' => $module])->assertOk();
+            $query = $module === 'operations-enhancements' ? ['tab' => 'payroll'] : [];
+            $target = \App\Support\Operations\OperationsPages::moduleUrl($module, $query);
+            $this->actingAs($this->manager)->get(route('operations.workspace', ['module' => $module] + $query))->assertRedirect($target);
+            $this->get($target)->assertOk();
         }
         foreach (['personnel', 'operations', 'inbox', 'work'] as $area) {
             Livewire::actingAs($this->employee)->test(PersonalWorkspace::class)->call('setArea', $area)->assertOk();

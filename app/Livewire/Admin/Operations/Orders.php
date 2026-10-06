@@ -5,13 +5,15 @@ namespace App\Livewire\Admin\Operations;
 use App\Enums\OrderPriority;
 use App\Enums\OrderStatus;
 use App\Models\Customer;
-use App\Models\Order;
 use App\Models\OperationInquiry;
+use App\Models\Order;
 use App\Services\Operations\OrderLifecycleService;
 use App\Services\Operations\OrderSchedulingService;
 use App\Support\Operations\OperationsEnhancementsSchema;
+use App\Support\Operations\OperationsPages;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -50,17 +52,20 @@ class Orders extends Component
     public function updatedSearch(): void
     {
         $this->resetPage('ordersPage');
+        $this->syncUrl();
     }
 
     public function updatedStatusFilter(): void
     {
         $this->resetPage('ordersPage');
+        $this->syncUrl();
     }
 
     public function resetFilters(): void
     {
         $this->reset(['search', 'statusFilter']);
         $this->resetPage('ordersPage');
+        $this->syncUrl();
     }
 
     public ?int $selectedOrderId = null;
@@ -80,6 +85,24 @@ class Orders extends Component
 
     #[Locked]
     public ?int $fulfilmentRecordId = null;
+
+    private bool $mounting = false;
+
+    public static function listState(array $query): array
+    {
+        $state = [];
+        foreach (['search' => '', 'status' => 'all'] as $name => $default) {
+            $value = array_key_exists($name, $query) ? $query[$name] : $default;
+            abort_unless(is_string($value) && mb_strlen($value) <= 100, 422);
+            $state[$name] = $value;
+        }
+        abort_unless(in_array($state['status'], ['all', ...OrderStatus::values()], true), 422);
+        if (array_key_exists('filter', $query)) {
+            abort_unless(is_string($query['filter']) && mb_strlen($query['filter']) <= 100 && $query['filter'] === 'all', 422);
+        }
+
+        return $state;
+    }
 
     private function scopedQuery(): Builder
     {
@@ -104,13 +127,37 @@ class Orders extends Component
             $this->scopedQuery()->findOrFail($this->selectedOrderId);
         }
         $this->detailSection = $section;
+        if ($section !== 'proofs') {
+            $this->fulfilmentRecordId = null;
+        }
+        $this->syncUrl();
     }
 
     public function openDetails(int $id): void
     {
-        $this->selectOrder($id);
+        $this->selectRecord($id);
         $this->formOpen = false;
         $this->detailOpen = true;
+        $this->syncUrl();
+    }
+
+    public function closeDetails(): void
+    {
+        $this->ensureAdmin();
+        $this->detailOpen = false;
+        if ($this->consolidated) {
+            $this->selectedOrderId = null;
+            $this->fulfilmentRecordId = null;
+            $this->detailSection = 'overview';
+            $this->syncUrl();
+        }
+    }
+
+    public function updatedDetailOpen(bool $open): void
+    {
+        if ($this->consolidated && ! $open) {
+            $this->closeDetails();
+        }
     }
 
     public ?int $editingOrderId = null;
@@ -152,9 +199,15 @@ class Orders extends Component
     public function mount(?int $initialOrderId = null, ?int $customerId = null, string $initialSection = 'overview', bool $consolidated = false, ?int $initialRecordId = null): void
     {
         $this->ensureAdmin();
+        $this->mounting = true;
         $this->status = $this->enumDefault(OrderStatus::class, 'requested');
         $this->priority = $this->enumDefault(OrderPriority::class, 'normal');
         $this->consolidated = $consolidated;
+        if ($consolidated) {
+            $state = self::listState(request()->query());
+            $this->search = $state['search'];
+            $this->statusFilter = $state['status'];
+        }
         $this->fulfilmentRecordId = $initialRecordId;
         abort_if($initialRecordId !== null && ($initialRecordId < 1 || $initialSection !== 'proofs' || $initialOrderId === null), 404);
         $this->customerFilterId = $customerId;
@@ -163,7 +216,7 @@ class Orders extends Component
             Customer::findOrFail($customerId);
         }
         $this->setDetailSection($initialSection);
-        $this->selectedOrderId = $initialOrderId ?? $this->scopedQuery()->latest('starts_at')->value('id');
+        $this->selectedOrderId = $initialOrderId ?? ($consolidated ? null : $this->scopedQuery()->latest('starts_at')->value('id'));
         if ($initialOrderId === null && request()->has('order')) {
             $raw = request()->query('order');
             abort_unless(is_string($raw) && ctype_digit($raw) && (int) $raw > 0, 404);
@@ -172,6 +225,7 @@ class Orders extends Component
         if ($initialOrderId !== null) {
             $this->openDetails($initialOrderId);
         }
+        $this->mounting = false;
     }
 
     #[On('operations-create')]
@@ -179,10 +233,16 @@ class Orders extends Component
     {
         $this->ensureAdmin();
         $this->detailOpen = false;
+        if ($this->consolidated) {
+            $this->selectedOrderId = null;
+            $this->fulfilmentRecordId = null;
+            $this->detailSection = 'overview';
+        }
         $this->resetOrderForm();
         $this->startsAt = now()->addDay()->setTime(8, 0)->format('Y-m-d\TH:i');
         $this->endsAt = now()->addDay()->setTime(16, 0)->format('Y-m-d\TH:i');
         $this->formOpen = true;
+        $this->syncUrl();
     }
 
     #[On('operations-plan-changed')]
@@ -223,6 +283,12 @@ class Orders extends Component
 
     public function selectOrder(int $orderId): void
     {
+        $this->selectRecord($orderId);
+        $this->syncUrl();
+    }
+
+    private function selectRecord(int $orderId): void
+    {
         $this->ensureAdmin();
         $this->scopedQuery()->findOrFail($orderId);
         if ($this->selectedOrderId !== null && $this->selectedOrderId !== $orderId) {
@@ -230,6 +296,25 @@ class Orders extends Component
         }
         $this->selectedOrderId = $orderId;
         $this->resetValidation('statusChange');
+    }
+
+    private function syncUrl(): void
+    {
+        if (! $this->consolidated || $this->mounting) {
+            return;
+        }
+        $this->ensureAdmin();
+        $state = self::listState(['search' => $this->search, 'status' => $this->statusFilter]);
+        if ($this->selectedOrderId) {
+            $this->scopedQuery()->findOrFail($this->selectedOrderId);
+        }
+        $proofId = $this->detailOpen && $this->detailSection === 'proofs' ? $this->fulfilmentRecordId : null;
+        $this->dispatch('rt-workspace-url', url: OperationsPages::url('cases', [
+            'view' => 'orders', 'section' => $this->selectedOrderId ? $this->detailSection : 'overview',
+            'customer' => $this->customerFilterId, 'search' => $state['search'],
+            'status' => $state['status'] === 'all' ? null : $state['status'], 'order' => $this->selectedOrderId,
+            'record' => $proofId, 'record_type' => $proofId ? 'proof' : null,
+        ]));
     }
 
     public function saveOrder(OrderSchedulingService $schedulingService): void
@@ -348,6 +433,9 @@ class Orders extends Component
     public function render(OrderLifecycleService $lifecycle)
     {
         $this->ensureAdmin();
+        if ($this->consolidated) {
+            self::listState(['search' => $this->search, 'status' => $this->statusFilter]);
+        }
 
         $orders = $this->scopedQuery()
             ->with('customer')
@@ -385,7 +473,7 @@ class Orders extends Component
         return view('livewire.admin.operations.orders', [
             'orders' => $orders,
             'selectedOrder' => $selectedOrder,
-            'originInquiry' => $selectedOrder && auth()->user()->can('operations.inquiries.manage') && \Illuminate\Support\Facades\Schema::hasTable('operation_inquiries') ? OperationInquiry::where('order_id', $selectedOrder->id)->first() : null,
+            'originInquiry' => $selectedOrder && auth()->user()->can('operations.inquiries.manage') && Schema::hasTable('operation_inquiries') ? OperationInquiry::where('order_id', $selectedOrder->id)->first() : null,
             'customers' => Customer::query()
                 ->where(function (Builder $query): void {
                     $query->where('is_active', true);

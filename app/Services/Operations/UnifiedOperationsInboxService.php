@@ -57,7 +57,7 @@ class UnifiedOperationsInboxService
                 $chains = app(AbsenceApprovalChainService::class)->inbox($actor);
                 foreach ($chains as $item) {
                     $data = (array) $item;
-                    $items->push((object) (array_merge(['subject' => '', 'record_id' => null, 'revision' => 1], $data, ['due_at' => $data['due_at'] ?? (filled($data['due_on'] ?? null) ? CarbonImmutable::parse($data['due_on'], config('operations.display_timezone', 'Europe/Berlin'))->endOfDay() : null), 'id' => 'approval-'.$data['id'], 'kind' => 'Abwesenheitsfreigabe', 'module' => 'absences', 'target_tab' => null, 'personal' => false, 'priority' => 1])));
+                    $items->push((object) (array_merge(['subject' => '', 'revision' => 1], $data, ['record_id' => $data['id'], 'due_at' => $data['due_at'] ?? (filled($data['due_on'] ?? null) ? CarbonImmutable::parse($data['due_on'], config('operations.display_timezone', 'Europe/Berlin'))->endOfDay() : null), 'id' => 'approval-'.$data['id'], 'kind' => 'Abwesenheitsfreigabe', 'module' => 'absences', 'target_tab' => 'approvals', 'personal' => false, 'priority' => 1])));
                 }
                 if (Schema::hasTable('absence_approval_steps')) {
                     $query->whereNotIn('id', DB::table('absence_approval_steps')->select('absence_request_id'));
@@ -94,6 +94,12 @@ class UnifiedOperationsInboxService
                     continue;
                 }
                 $items->push((object) ['id' => 'notice-'.$row->id, 'kind' => $row->kind === 'monitor_case' ? 'Meldung prüfen' : 'Erinnerung', 'title' => $row->headline, 'subject' => '', 'user_id' => $row->subject_user_id, 'due_at' => $row->due_at, 'status' => $row->read_at ? 'read' : 'open', 'revision' => $row->revision, 'priority' => $row->kind === 'monitor_case' ? 0 : 2, 'module' => $row->module, 'target_tab' => null, 'record_id' => $row->record_id, 'personal' => $personal]);
+                $items->last()->record_type = match ($row->kind) {
+                    'monitor_case' => 'staffing-case', 'shift_reply', 'punch_start' => 'shift-assignment',
+                    'wish_due' => 'availability-period', 'task_due' => 'task',
+                    'qualification_expiry' => 'qualification', 'punch_end', 'time_incomplete' => 'work-time', default => '',
+                };
+                $items->last()->target_revision = $row->source_revision;
             }
         }
         if (class_exists(PersonnelEnhancementService::class) && app(PersonnelEnhancementService::class)->ready()) {
@@ -139,7 +145,7 @@ class UnifiedOperationsInboxService
             return route('operations.mine', array_filter(['area' => $item->module === 'customer-capacity' ? 'capacity' : ($item->module === 'personnel-enhancements' ? 'personnel' : ($item->module === 'operations-enhancements' ? 'operations' : 'work')), 'tab' => $item->target_tab]));
         }
 
-        $type = match (true) {
+        $type = $item->record_type ?? match (true) {
             str_starts_with($item->id, 'portal-submission-') => 'submission',
             str_starts_with($item->id, 'portal-request-') => 'request',
             str_starts_with($item->id, 'portal-reservation-') => 'reservation',
@@ -154,6 +160,11 @@ class UnifiedOperationsInboxService
             $item->module === 'workforce-planning' => 'staffing-case',
             default => '',
         };
+        if ($type === 'shift-assignment') {
+            OperationsAccess::authorize($actor, 'operations.manage');
+            $assignment = \App\Models\ShiftAssignment::findOrFail($item->record_id);
+            return OperationsPages::url('shifts', ['view' => 'plan', 'shift' => $assignment->shift_id]);
+        }
         $tab = $item->target_tab;
         if ($type === 'signature') {
             return OperationsPages::url('people', array_filter(['view' => 'documents', 'section' => 'signatures', 'user' => $item->user_id, 'record' => $item->record_id, 'record_type' => $type, 'revision' => $item->revision]));
@@ -162,12 +173,12 @@ class UnifiedOperationsInboxService
             return OperationsPages::url('leave', array_filter(['view' => 'requests', 'section' => 'sickness', 'user' => $item->user_id, 'record' => $item->record_id, 'record_type' => $type, 'revision' => $item->revision]));
         }
         $tab = match ($type) {
-            'plan-review' => 'checks', 'staffing-case' => 'cases', 'task' => $item->module === 'personnel-enhancements' ? 'workflows' : $tab, default => $tab,
+            'plan-review' => 'checks', 'staffing-case' => 'cases', 'availability-period' => 'periods', 'task' => $item->module === 'personnel-enhancements' ? 'workflows' : $tab, default => $tab,
         };
         return OperationsPages::moduleUrl($item->module, array_filter([
             'tab' => $tab, 'customer' => $item->customer_id ?? null, 'user' => $item->user_id,
             'record' => $item->record_id, 'record_type' => $type,
-            'source' => $item->module === 'customer-portal' ? $type : null, 'revision' => $type === 'reservation' ? null : $item->revision,
+            'source' => $item->module === 'customer-portal' ? $type : null, 'revision' => $type === 'reservation' ? null : ($item->target_revision ?? $item->revision),
         ]));
     }
 }

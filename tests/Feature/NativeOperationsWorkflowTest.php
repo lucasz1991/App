@@ -68,28 +68,29 @@ class NativeOperationsWorkflowTest extends TestCase
 
     public function test_navigation_has_one_destination_per_module_and_respects_employee_rights(): void
     {
-        $adminLinks = collect(ApplicationNavigation::sections($this->admin))->flatten(1);
         $sections = ApplicationNavigation::sections($this->admin);
+        $adminLinks = collect($sections)->flatten(1);
+        $this->assertSame('', array_key_first($sections));
+        $this->assertSame(['Dashboard'], array_column($sections[''], 'title'));
         $this->assertSame('Persönlich', array_key_last($sections));
         $this->assertSame(['Meine Geräte', 'Profil'], array_column($sections['Persönlich'], 'title'));
-        $groups = ApplicationNavigation::managementGroups($sections['Management']);
-        $this->assertTrue(collect($groups['Personal']['links'])->contains(fn ($link) => ($link['parameters']['module'] ?? null) === 'rules'));
-        $this->assertEmpty($sections['System']);
-        $this->assertSame(['Disposition', 'Personal', 'Zeiten & Freigaben', 'Stammdaten & Geräte'], array_keys($groups));
-        $groupedLinks = collect($groups)->pluck('links')->flatten(1);
-        $this->assertCount(count($sections['Management']), $groupedLinks);
-        $this->assertSame(1, $groupedLinks->where('title', 'Kunden')->count());
+        $this->assertArrayNotHasKey('Management', $sections);
+        $this->assertArrayNotHasKey('Zeitwirtschaft', $sections);
         $this->assertArrayNotHasKey('Betrieb', $sections);
         $this->assertArrayNotHasKey('Verwaltung', $sections);
-        $this->assertTrue(collect($sections['Management'])->contains('title', 'Kunden'));
-        $this->assertTrue(collect($sections['Management'])->contains('title', 'Wagenliste'));
-        $this->assertSame(1, $adminLinks->where('title', 'Kunden')->count());
-        $this->assertSame(1, $adminLinks->where('title', 'Leistungen')->count());
+        $this->assertSame(1, $adminLinks->where('title', 'Kundenübersicht')->count());
+        $this->assertSame(1, $adminLinks->where('title', 'Vorgänge & Aufträge')->count());
         $this->assertSame(1, $adminLinks->where('title', 'Schichtplan')->count());
+        $this->assertTrue(collect($sections['Mein Arbeitsplatz'])->contains(fn ($link) => $link['title'] === 'Wagenliste' && $link['group'] === 'Arbeitsmittel'));
+        $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Wagenliste'));
+        $this->assertTrue(collect($sections['Personal'])->contains(fn ($link) => ($link['parameters']['page'] ?? '') === 'time-review' && $link['group'] === 'Zeitwirtschaft'));
         $this->assertFalse($adminLinks->contains('route', 'admin.operations.preview'));
-        $employeeLinks = collect(ApplicationNavigation::sections($this->employee))->flatten(1);
+        $employeeSections = ApplicationNavigation::sections($this->employee);
+        $employeeLinks = collect($employeeSections)->flatten(1);
+        $this->assertSame('Mein Arbeitsplatz', array_keys($employeeSections)[1]);
         $this->assertTrue($employeeLinks->contains('route', 'operations.mine'));
-        $this->assertFalse($employeeLinks->contains('route', 'operations.workspace'));
+        $this->assertFalse($employeeLinks->contains('route', 'operations.page'));
+        $this->assertTrue($employeeLinks->contains('route', 'operations.wagon-list'));
     }
 
     public function test_operations_create_and_personal_forms_open_in_standard_dialogs(): void
@@ -257,7 +258,9 @@ class NativeOperationsWorkflowTest extends TestCase
     {
         $this->actingAs($this->admin);
         foreach (['inquiries', 'qualifications', 'absences', 'rules', 'times', 'exports', 'shift-management', 'orders', 'customers', 'calendar'] as $module) {
-            Livewire::test(Workspace::class, ['module' => $module])->assertOk()->assertDontSee('WILSON')->assertDontSee('kopiert');
+            $target = \App\Support\Operations\OperationsPages::moduleUrl($module);
+            $this->get(route('operations.workspace', $module))->assertRedirect($target);
+            $this->get($target)->assertOk()->assertDontSee('WILSON')->assertDontSee('kopiert');
         }
         Livewire::test(InquiryInbox::class)->call('create')->assertSee('Neue Anfrage');
         $this->actingAs($this->employee);
@@ -268,7 +271,8 @@ class NativeOperationsWorkflowTest extends TestCase
         // Das Dashboard ist seit dem individuellen Widget-Raster kein festes
         // Cockpit-Embed mehr, sondern App\Livewire\Dashboard\WidgetGrid.
         $this->actingAs($this->admin)->get(route('admin.dashboard'))->assertOk()->assertSee('data-dashboard-widget-grid', false);
-        $this->get(route('operations.workspace', 'inquiries'))->assertOk();
+        $this->get(route('operations.workspace', 'inquiries'))->assertRedirect(\App\Support\Operations\OperationsPages::moduleUrl('inquiries'));
+        $this->get(\App\Support\Operations\OperationsPages::moduleUrl('inquiries'))->assertOk();
     }
 
     public function test_missing_private_evidence_cannot_be_approved(): void
@@ -369,7 +373,8 @@ class NativeOperationsWorkflowTest extends TestCase
         $team = Team::forceCreate(['user_id' => $this->admin->id, 'name' => 'Verwaltung', 'personal_team' => false, 'rbac_permissions' => ['operations.inquiries.manage' => true]]);
         $this->employee->forceFill(['current_team_id' => $team->id])->save();
         $this->actingAs($this->employee->fresh());
-        Livewire::test(Workspace::class, ['module' => 'inquiries'])->assertOk();
+        Livewire::test(Workspace::class, ['module' => 'inquiries'])->assertRedirect(\App\Support\Operations\OperationsPages::moduleUrl('inquiries'));
+        $this->get(\App\Support\Operations\OperationsPages::moduleUrl('inquiries'))->assertOk();
         Livewire::test(Workspace::class, ['module' => 'times'])->assertForbidden();
         $this->get(route('dashboard'))->assertOk()->assertDontSee('data-rt-welcome-intro')->assertSee('Offene Anfragen');
         $this->employee->forceFill(['status' => false])->save();

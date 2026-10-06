@@ -49,6 +49,7 @@ final class ApplicationNavigation
 
         $add('Persönlich', 'Meine Geräte', 'devices.mine', 'smartphone');
         $add('Persönlich', 'Profil', 'profile.show', 'user', [], false);
+
         return array_filter($sections, fn ($links) => count($links) > 0);
     }
 
@@ -62,10 +63,11 @@ final class ApplicationNavigation
         $groups = [];
         foreach ($links as $link) {
             $label = $link['group'] ?? '';
-            $groups[$label] ??= ['icon' => match ($label) {
+            $key = $label === '' ? '__direct_'.count($groups) : $label;
+            $groups[$key] ??= ['label' => $label, 'icon' => match ($label) {
                 'Planung' => 'calendar', 'Personalverwaltung' => 'users', 'Zeitwirtschaft' => 'clock', 'Arbeitsmittel' => 'tool', default => 'layers',
             }, 'links' => []];
-            $groups[$label]['links'][] = $link;
+            $groups[$key]['links'][] = $link;
         }
 
         return array_filter($groups, fn (array $group) => count($group['links']) > 0);
@@ -78,6 +80,7 @@ final class ApplicationNavigation
             if (request()->routeIs('operations.workspace')) {
                 $page = OperationsPages::legacyTarget(request()->route('module'), request()->query())['page'];
             }
+
             return $page === $link['parameters']['page'];
         }
         $patterns = match ($link['route']) {

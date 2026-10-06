@@ -2,11 +2,122 @@
 
 namespace Tests\Feature;
 
+use App\Models\Shift;
+use App\Support\Operations\TimelineLocationPreview;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Blade;
 use Tests\TestCase;
 
 class CompactStaffTimelineUiTest extends TestCase
 {
+    public function test_event_details_open_only_on_click_without_removing_workload_hover(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $this->assertMatchesRegularExpression('/<x-ui\.dropdown\.anchor-dropdown[^>]+:open-on-hover="false"[^>]+data-timeline-event-dropdown>/', $view);
+        $this->assertStringContainsString("querySelector('[data-timeline-detail-focus]')?.focus({ preventScroll: true })", $view);
+        $workload = file_get_contents(resource_path('views/livewire/operations/partials/timeline-workload.blade.php'));
+        $this->assertStringContainsString(':open-on-hover="true"', $workload);
+    }
+
+    public function test_shared_dropdown_keeps_its_default_height_and_bounds_the_opt_in_height(): void
+    {
+        foreach ([['', 448], [':max-height="560"', 560], [':max-height="9999"', 960], [':max-height="0"', 160]] as [$attribute, $height]) {
+            $html = Blade::render('<x-ui.dropdown.anchor-dropdown '.$attribute.'><x-slot:trigger><button>Test</button></x-slot:trigger><x-slot:content>Details</x-slot:content></x-ui.dropdown.anchor-dropdown>');
+            $this->assertStringContainsString('maximumHeight: '.$height, $html);
+            $this->assertStringContainsString('Math.min(this.maximumHeight, availableHeight)', $html);
+        }
+    }
+
+    public function test_event_detail_reuses_full_person_identity_and_keeps_all_operational_fields(): void
+    {
+        $html = $this->renderEventDetail();
+        foreach (['Dienstdetails schließen', 'close(true)', 'Marcel Schaarschmidt', 'title="Marcel Schaarschmidt"', 'min-w-0 truncate text-sm', 'Beginn', 'Ende', '05.10.2026', '06.10.2026', 'Kunde', 'Test Rail', 'Tätigkeit', 'Tf', 'Einsatzort', 'Bremen', 'Planstatus', 'Geplante Pause', '30 Minuten', 'Nicht hinterlegt', 'Eingeplant · KW 41', '8,5 h', 'Schicht öffnen', 'data-shift-detail-open="42"'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+        $this->assertStringContainsString('&lt;Dienst&gt;', $html);
+        $this->assertStringNotContainsString('<Dienst>', $html);
+        $this->assertStringNotContainsString('Zeitumstellung', $html);
+    }
+
+    public function test_all_day_absence_uses_inclusive_dates_without_inventing_midnight_shifts_or_hours(): void
+    {
+        $html = $this->renderEventDetail(true);
+        foreach (['Ganztägig', '05.10.2026', '06.10.2026', 'Abwesenheit öffnen'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+        foreach (['07.10.2026', '00:00', 'Regelarbeitszeit', 'Eingeplant', 'Schicht öffnen', 'Kunde', 'Geplante Pause'] as $text) {
+            $this->assertStringNotContainsString($text, $html);
+        }
+        $this->assertStringContainsString('rt-event-mini-calendar', $html);
+        $this->assertStringNotContainsString('rt-event-mini-map', $html);
+    }
+
+    public function test_event_previews_mount_on_open_and_unknown_locations_never_get_a_fake_pin(): void
+    {
+        $html = $this->renderEventDetail();
+        foreach (['template x-if="open"', 'rt-event-mini-calendar', 'rt-event-mini-map', 'Standort nicht verortet'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+        $this->assertStringNotContainsString('GeoNames', $html);
+        $this->assertStringNotContainsString('rt-event-mini-map__sources', $html);
+        $this->assertStringNotContainsString('data-location-marker', $html);
+        $source = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $this->assertStringContainsString('width="96" :max-height="560" :open-on-hover="false"', $source);
+    }
+
+    public function test_map_marks_only_a_resolved_locality_and_explains_its_precision(): void
+    {
+        $html = Blade::render('<x-operations.timeline-mini-map :preview="$preview" location="Treuchlingen Gbf." />', [
+            'preview' => ['state' => 'located', 'label' => 'Ortslage · ungefähr', 'place' => 'Treuchlingen', 'x' => 80.5, 'y' => 120.3],
+        ]);
+        foreach (['data-location-marker', 'translate(80.5 120.3)', 'Ortslage · ungefähr', 'keine genaue Einsatzadresse', 'title="Treuchlingen Gbf."'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+        $unknown = Blade::render('<x-operations.timeline-mini-map :preview="$preview" :location="$location" />', [
+            'preview' => ['state' => 'unknown', 'label' => 'Standort nicht verortet'], 'location' => '<script>alert(1)</script>',
+        ]);
+        $this->assertStringNotContainsString('<script>', $unknown);
+        $this->assertStringNotContainsString('data-location-marker', $unknown);
+    }
+
+    public function test_map_credits_remain_accessible_in_help_instead_of_each_shift_dropdown(): void
+    {
+        $help = file_get_contents(resource_path('views/livewire/help-center.blade.php'));
+        foreach (['data-map-credits', 'GeoNames und Mitwirkende', 'https://www.geonames.org/', 'https://creativecommons.org/licenses/by/4.0/', 'Natural Earth', 'lokal gefiltert'] as $credit) {
+            $this->assertStringContainsString($credit, $help);
+        }
+        $this->assertStringContainsString("route('help')", file_get_contents(resource_path('views/components/ui/info-modal.blade.php')));
+    }
+
+    public function test_station_location_displays_city_centre_pin_without_inline_sources(): void
+    {
+        $preview = TimelineLocationPreview::fromShift(new Shift(['location_name' => 'München Milbertshofen']));
+        $html = Blade::render('<x-operations.timeline-mini-map :preview="$preview" location="München Milbertshofen" />', compact('preview'));
+
+        foreach (['data-location-marker', 'Stadtmitte · ungefähr', 'München', 'title="München Milbertshofen"', 'keine genaue Einsatzadresse'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+        $this->assertStringNotContainsString('GeoNames', $html);
+        $this->assertStringNotContainsString('rt-event-mini-map__sources', $html);
+    }
+
+    private function renderEventDetail(bool $absence = false): string
+    {
+        $detailStart = CarbonImmutable::parse($absence ? '2026-10-05T00:00:00+02:00' : '2026-10-05T22:00:00+02:00');
+        $detailEnd = CarbonImmutable::parse($absence ? '2026-10-07T00:00:00+02:00' : '2026-10-06T06:00:00+02:00');
+        $user = (object) ['name' => 'Marcel Schaarschmidt', 'profile' => null, 'person' => null, 'email' => '', 'currentTeam' => null, 'profile_photo_url' => '/avatar.png'];
+
+        return view('livewire.operations.partials.timeline-event-detail', [
+            'detailStart' => $detailStart, 'detailEnd' => $detailEnd, 'detailDstChanged' => false,
+            'state' => 'confirmed', 'zone' => 'Europe/Berlin', 'absencesOnly' => $absence,
+            'row' => ['user' => $user, 'weekly_working_hours' => null, 'planned_hours_by_week' => ['2026-41' => 8.5]],
+            'event' => ['kind' => $absence ? 'absence' : 'shift', 'title' => $absence ? 'Urlaub' : '<Dienst>', 'status' => 'Bestätigt',
+                'detail' => $absence ? '' : 'Test Rail', 'role_name' => $absence ? null : 'Tf', 'location_name' => $absence ? null : 'Bremen',
+                'shift_status_label' => $absence ? null : 'Veröffentlicht', 'planned_break_minutes' => $absence ? 0 : 30,
+                'iso_week' => '2026-41', 'visible_start' => $detailStart, 'shift_id' => $absence ? null : 42, 'absence_id' => 12],
+        ])->render();
+    }
+
     public function test_compact_names_preserve_surnames_and_full_avatar_labels_without_changing_the_default(): void
     {
         foreach ([

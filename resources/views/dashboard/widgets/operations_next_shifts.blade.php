@@ -20,7 +20,7 @@
             $fill = $shift->required_staff > 0 ? min(100, round($shift->reserved / $shift->required_staff * 100)) : 100;
             $context = collect([$shift->order?->customer?->company_name, $shift->location_name])->filter()->implode(' · ');
         @endphp
-        <a class="wv-tl-item" data-state="{{ $short ? 'warn' : 'ok' }}" @if($running) data-running @endif href="{{ route('operations.workspace', 'shift-management') }}?shift={{ $shift->id }}" wire:navigate>
+        <a class="wv-tl-item" data-state="{{ $short ? 'warn' : 'ok' }}" @if($running) data-running @endif href="{{ $data['shiftHrefs'][$shift->id] }}" wire:navigate>
             <span class="wv-tl-time">{{ $start->format('H:i') }}<small>{{ $running ? 'läuft' : ($start->isToday() ? 'Heute' : ($start->isTomorrow() ? 'Morgen' : $start->translatedFormat('D d.m.'))) }}</small></span>
             <span class="wv-tl-rail" aria-hidden="true"></span>
             <span class="wv-tl-body">

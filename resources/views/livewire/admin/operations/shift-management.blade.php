@@ -133,214 +133,420 @@
             @endforeach
         @endif
     </div>
-    <x-operations.modal id="shift-plan-detail-{{ $this->getId() }}" wire:model="detailOpen" show-expression="detailVisible" :instant="true" title="Schichtdetails" max-width="4xl" variant="drawer">
-        <div x-show="loading" x-cloak data-shift-detail-loading>
-            <p class="mb-4 flex items-center gap-2 text-sm text-rt-muted dark:text-rt-dark-muted" role="status"><i class="far fa-spinner-third fa-spin" aria-hidden="true"></i>Schichtdetails werden geladen …</p>
-            <x-ui.loading.skeleton variant="list" :rows="4" />
-        </div>
-        <div x-show="!loading && error" x-cloak class="space-y-4 py-6" data-shift-detail-error>
-            <p class="text-sm text-rt-muted dark:text-rt-dark-muted" x-text="error" role="alert"></p>
-            <x-ui.buttons.button-basic type="button" size="sm" x-on:click="openShiftDetail(requestedShiftId)"><i class="far fa-arrow-rotate-right" aria-hidden="true"></i>Erneut versuchen</x-ui.buttons.button-basic>
-        </div>
-        <div x-show="!loading && !error" x-bind:aria-busy="loading" data-shift-detail-content>
-        @if($selectedShift)
-                    @php
-                        $selectedShiftStatus = $selectedShift->status instanceof \BackedEnum ? $selectedShift->status->value : (string) $selectedShift->status;
-                        $selectedAssignments = $selectedShift->assignments->filter(fn ($assignment) => in_array(
-                            $assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status,
-                            ['requested', 'confirmed'],
-                            true,
-                        ));
-                        $selectedReservedCount = $selectedAssignments->count();
-                    @endphp
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                        <div class="min-w-0">
-                            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-rt-red">{{ $selectedShift->order?->order_number }}</p>
-                            <h2 class="mt-1 break-words text-xl font-semibold tracking-tight text-rt-text dark:text-white">{{ $selectedShift->title }}</h2>
-                            <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $selectedShift->order?->customer?->company_name }} · {{ $selectedShift->role_name }}</p>
-                        </div>
-                        <x-ui.buttons.button-basic type="button" wire:click="editShift({{ $selectedShift->id }})" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
-                            <i class="far fa-pen" aria-hidden="true"></i>Bearbeiten
-                        </x-ui.buttons.button-basic>
-                    </div>
+    @php
+        $shiftPanelId = 'shift-plan-detail-'.$this->getId();
+        $detailIdPrefix = 'shift-detail-'.$this->getId();
+        $formIdPrefix = 'shift-form-'.$this->getId();
+        if ($selectedShift) {
+            $selectedShiftStatus = $selectedShift->status instanceof \BackedEnum ? $selectedShift->status->value : (string) $selectedShift->status;
+            $selectedAssignments = $selectedShift->assignments->filter(fn ($assignment) => in_array(
+                $assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status,
+                ['requested', 'confirmed'],
+                true,
+            ));
+            $selectedReservedCount = $selectedAssignments->count();
+            $shiftStart = $selectedShift->starts_at?->setTimezone($displayTimezone)->locale('de');
+            $shiftEnd = $selectedShift->ends_at?->setTimezone($displayTimezone)->locale('de');
+            $shiftWindow = $shiftStart && $shiftEnd
+                ? ($shiftStart->isSameDay($shiftEnd)
+                    ? $shiftStart->isoFormat('dd, DD.MM.').' · '.$shiftStart->format('H:i').'–'.$shiftEnd->format('H:i')
+                    : $shiftStart->isoFormat('dd, DD.MM. HH:mm').' – '.$shiftEnd->isoFormat('dd, DD.MM. HH:mm'))
+                : null;
+            $shiftLocation = $selectedShift->location_name ?: $selectedShift->order?->location_name;
+            $shiftClosed = in_array($selectedShiftStatus, ['cancelled', 'completed'], true);
+            $shiftPublished = (int) $selectedShift->published_revision === (int) $selectedShift->revision;
+            $canPublish = $nativeOperations && ! $shiftPublished && ! $shiftClosed;
+            $detailTabs = [
+                'overview' => ['label' => 'Übersicht', 'alert' => $canPublish],
+                'staffing' => ['label' => 'Besetzung', 'count' => $selectedReservedCount.'/'.$selectedShift->required_staff],
+            ];
+            if ($nativeOperations) {
+                $detailTabs['feedback'] = ['label' => 'Rückmeldungen', 'count' => $feedback->count()];
+                if (\App\Support\Operations\PlanningSchema::ready()) {
+                    $detailTabs['activity'] = ['label' => 'Aktivität'];
+                }
+            }
+        }
+    @endphp
+    {{-- Ein Panel, zwei Zustände: Schichtdetails und das Schichtformular (Anlegen/Bearbeiten).
+         rtShiftDetailDrawer zeigt das Panel, sobald einer der beiden Zustände offen ist. --}}
+    <x-operations.panel :id="$shiftPanelId" show-expression="detailVisible" :label="$formOpen ? ($editingShiftId ? 'Schicht bearbeiten' : 'Neue Schicht anlegen') : 'Schichtdetails'">
+        {{-- Zustand 1 · Schichtdetails. Beim Bearbeiten nur ausgeblendet, damit eingebettete
+             Livewire-Bereiche nach „Abbrechen“ ohne Neuaufbau wieder dastehen. --}}
+        {{-- x-bind:hidden verhindert, dass nach dem Anlegen während der Ausfahrt kurz die zuletzt
+             geöffnete Schicht aufblitzt: sichtbar nur bei offener Schicht, beim Laden oder bei Fehlern. --}}
+        <div class="rt-ops-panel__mode" data-panel-mode="detail" @if($formOpen) hidden @endif
+            x-bind:hidden="$wire.formOpen || (!$wire.detailOpen && !loading && !error)"
+            x-data="{ tab: 'overview' }" wire:key="shift-panel-detail-{{ $selectedShiftId ?? 'none' }}">
+            <div class="rt-ops-panel__accent" aria-hidden="true"></div>
 
-                    <div class="mt-4 grid gap-3 sm:grid-cols-3">
-                        <div class="rounded-xl bg-rt-surface-muted/60 p-3.5 dark:bg-rt-dark-surface-muted/50 sm:col-span-2">
-                            <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft">Zeit &amp; Ort · {{ $displayTimezone }}</p>
-                            <p class="mt-2 text-sm font-semibold text-rt-text dark:text-white">{{ $selectedShift->starts_at?->setTimezone($displayTimezone)->format('d.m.Y H:i') }} – {{ $selectedShift->ends_at?->setTimezone($displayTimezone)->format('d.m.Y H:i') }}</p>
-                            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $selectedShift->location_name ?: $selectedShift->order?->location_name ?: 'Kein Einsatzort hinterlegt' }}</p>
-                        </div>
-                        <div class="rounded-xl bg-rt-surface-muted/60 p-3.5 dark:bg-rt-dark-surface-muted/50">
-                            <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft">Besetzung</p>
-                            <p @class(['mt-2 text-xl font-semibold tabular-nums', 'text-emerald-600 dark:text-emerald-300' => $selectedReservedCount >= $selectedShift->required_staff, 'text-rt-red' => $selectedReservedCount < $selectedShift->required_staff])>{{ $selectedReservedCount }}/{{ $selectedShift->required_staff }}</p>
+            <header class="rt-ops-panel__header" x-show="loading || error" style="display: none" data-shift-detail-placeholder>
+                <span class="rt-ops-panel__icon" aria-hidden="true"><i class="far fa-clock"></i></span>
+                <div class="rt-ops-panel__heading" aria-hidden="true">
+                    <span class="rt-ops-panel__eyebrow">Schichtdetails</span>
+                    <span class="rt-ops-panel__skeleton rt-ops-panel__skeleton--title"></span>
+                    <span class="rt-ops-panel__skeleton rt-ops-panel__skeleton--line"></span>
+                </div>
+                <div class="rt-ops-panel__actions">
+                    <button type="button" class="rt-ops-panel__icon-button" x-on:click="$dispatch('close')" aria-label="Schichtdetails schließen" title="Schichtdetails schließen"><i class="far fa-xmark" aria-hidden="true"></i></button>
+                </div>
+            </header>
+
+            @if($selectedShift)
+                <x-operations.panel.header x-show="!loading && !error" eyebrow="Schichtdetails" :title="$selectedShift->title"
+                    :subtitle="collect([$selectedShift->order?->order_number, $selectedShift->order?->title, $selectedShift->order?->customer?->company_name])->filter()->implode(' · ')"
+                    icon="fa-clock" close-label="Schichtdetails schließen">
+                    <x-slot:actions>
+                        <x-ui.buttons.button-basic type="button" wire:click="editShift({{ $selectedShift->id }})" wire:loading.attr="disabled" wire:target="editShift" data-shift-detail-edit>
+                            <i wire:loading.remove wire:target="editShift" class="far fa-pen" aria-hidden="true"></i>
+                            <i wire:loading wire:target="editShift" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
+                            Bearbeiten
+                        </x-ui.buttons.button-basic>
+                    </x-slot:actions>
+                    <x-slot:meta>
+                        @if(filled($selectedShift->role_name))
+                            <span class="rt-ops-panel__fact"><i class="far fa-id-badge" aria-hidden="true"></i>{{ $selectedShift->role_name }}</span>
+                        @endif
+                        @if($shiftWindow)
+                            <span class="rt-ops-panel__fact rt-ops-panel__fact--strong"><i class="far fa-calendar" aria-hidden="true"></i><time datetime="{{ $shiftStart->toIso8601String() }}">{{ $shiftWindow }}</time></span>
+                        @endif
+                        @if(filled($shiftLocation))
+                            <span class="rt-ops-panel__fact"><i class="far fa-map-marker-alt" aria-hidden="true"></i>{{ $shiftLocation }}</span>
+                        @endif
+                        <span class="rt-ops-panel__meta-end">
                             <x-operations.status :value="$selectedShiftStatus" :label="$selectedShift->status->label()" />
-                        </div>
-                    </div>
+                            @unless($shiftClosed)
+                                <span class="rt-ops-panel__pill" data-tone="{{ $selectedReservedCount >= $selectedShift->required_staff ? 'success' : 'critical' }}">{{ $selectedReservedCount }}/{{ $selectedShift->required_staff }} eingeplant</span>
+                            @endunless
+                        </span>
+                    </x-slot:meta>
+                </x-operations.panel.header>
+                <x-operations.panel.tabs x-show="!loading && !error" :tabs="$detailTabs" label="Bereiche der Schichtdetails" :id-prefix="$detailIdPrefix" />
+            @else
+                <x-operations.panel.header x-show="!loading && !error" eyebrow="Schichtdetails" title="Keine Schicht ausgewählt" icon="fa-clock" close-label="Schichtdetails schließen" />
+            @endif
 
-                    @if(!$nativeOperations)
-                    <section class="mt-5">
-                        <div class="flex items-center justify-between gap-3">
-                            <h3 class="text-sm font-semibold text-rt-text dark:text-white">Eingeteilte Mitarbeitende</h3>
-                            <span class="text-xs font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $selectedAssignments->count() }} Zuweisungen</span>
-                        </div>
-                        <div class="mt-2 divide-y divide-rt-border/60 rounded-xl border border-rt-border/70 dark:divide-rt-dark-border/60 dark:border-rt-dark-border/70">
-                            @forelse($selectedAssignments as $assignment)
-                                @php($assignmentValue = $assignment->status instanceof \BackedEnum ? $assignment->status->value : (string) $assignment->status)
-                                <div class="flex min-h-16 items-center gap-3 px-3.5 py-2.5" wire:key="shift-assignment-{{ $assignment->id }}">
-                                    <div class="min-w-0 flex-1">
-                                        @if($assignment->user)<x-user.person-anchor-preview :user="$assignment->user" :show-presence="false" :show-email="false" :size="9" />@else<span class="ops-muted">Unbekannter Mitarbeiter</span>@endif
-                                        <p class="mt-0.5 truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ method_exists($assignment->status, 'label') ? $assignment->status->label() : \Illuminate\Support\Str::headline($assignmentValue) }}@if($assignment->note) · {{ $assignment->note }}@endif</p>
+            <div class="rt-ops-panel__body rt-modal-content" data-shift-detail-body>
+                <div class="rt-ops-panel__feedback"><x-operations.feedback /></div>
+                <div x-show="loading" x-cloak data-shift-detail-loading>
+                    <p class="mb-4 flex items-center gap-2 text-sm text-rt-muted dark:text-rt-dark-muted" role="status"><i class="far fa-spinner-third fa-spin" aria-hidden="true"></i>Schichtdetails werden geladen …</p>
+                    <x-ui.loading.skeleton variant="list" :rows="4" />
+                </div>
+                <div x-show="!loading && error" x-cloak class="space-y-4 py-6" data-shift-detail-error>
+                    <p class="text-sm text-rt-muted dark:text-rt-dark-muted" x-text="error" role="alert"></p>
+                    <x-ui.buttons.button-basic type="button" size="sm" x-on:click="openShiftDetail(requestedShiftId)"><i class="far fa-arrow-rotate-right" aria-hidden="true"></i>Erneut versuchen</x-ui.buttons.button-basic>
+                </div>
+                <div x-show="!loading && !error" x-bind:aria-busy="loading" data-shift-detail-content>
+                    @if($selectedShift)
+                        <x-operations.panel.tab name="overview" :id-prefix="$detailIdPrefix">
+                            @if($canPublish)
+                                <x-operations.panel.group tone="warning" data-shift-publish-notice>
+                                    <div class="rt-ops-panel__notice">
+                                        <i class="far fa-exclamation-triangle" aria-hidden="true"></i>
+                                        <div class="rt-ops-panel__notice-text">
+                                            <strong>Unveröffentlichte Änderungen</strong>
+                                            <span>Revision {{ $selectedShift->revision }} · {{ $selectedShift->published_revision ? 'veröffentlicht ist Revision '.$selectedShift->published_revision : 'noch nie veröffentlicht' }}</span>
+                                        </div>
+                                        <x-ui.buttons.button-basic type="button" mode="primary" wire:click="publish({{ $selectedShift->id }},{{ $selectedShift->revision }})" wire:confirm="Diesen Dienst veröffentlichen und Bestätigungen anfordern?" wire:loading.attr="disabled">Dienst veröffentlichen</x-ui.buttons.button-basic>
                                     </div>
-                                    <x-ui.buttons.button-basic type="button" wire:click="removeAssignment({{ $assignment->id }})" wire:confirm="Zuweisung wirklich entfernen?" wire:loading.attr="disabled" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-rt-muted transition hover:bg-red-50 hover:text-rt-red disabled:opacity-60 dark:text-rt-dark-muted dark:hover:bg-red-500/10" aria-label="{{ $assignment->user?->name }} aus der Schicht entfernen" title="Entfernen">
-                                        <i class="far fa-times" aria-hidden="true"></i>
-                                    </x-ui.buttons.button-basic>
-                                </div>
-                            @empty
-                                <p class="px-4 py-7 text-center text-sm text-rt-muted dark:text-rt-dark-muted">Noch niemand eingeteilt. Weise unten den ersten Mitarbeiter zu.</p>
-                            @endforelse
-                        </div>
-                    </section>
-
-                    @endif
-                    @if($nativeOperations)
-                        @if($detailOpen && \App\Support\Operations\PlanningSchema::ready())<livewire:operations.duty-activity :shift-id="$selectedShift->id" :key="'duty-'.$selectedShift->id" />@endif
-                        @if($detailOpen && \App\Support\Operations\WorkforcePlanningSchema::ready())
-                            <div class="ops-actions" aria-label="Planungsvarianten"><livewire:operations.plan-variants :shift-ids="[$selectedShift->id]" :key="'variants-'.$selectedShift->id" /></div>
-                        @endif
-                        <section class="mt-5 space-y-3" aria-label="Rückmeldungen">
-                            <h3 class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">Rückmeldungen</h3>
-                            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Antwort','key'=>'response'],['label'=>'Im Kalender geöffnet','key'=>'opened'],['label'=>'Aktion','key'=>'action']]" :items="$feedback" row-view="components.tables.rows.operations.plan-feedback" empty="Noch keine Rückmeldungen." />
-                        </section>
-                        <div class="ops-panel ops-stack">
-                            <div class="ops-toolbar"><span class="ops-muted">Revision {{ $selectedShift->revision }} · {{ $selectedShift->planned_break_minutes }} min Pause</span><span class="ops-badge">{{ $selectedShift->published_revision === $selectedShift->revision ? 'Veröffentlicht' : 'Entwurf' }}</span></div>
-                            <div class="ops-actions">@foreach($selectedShift->qualifications as $qualification)<span class="ops-badge">{{ $qualification->name }}</span>@endforeach</div>
-                            @if(count($planChanges))
-                                <h3 class="text-sm font-semibold">{{ $selectedShift->published_revision === $selectedShift->revision ? 'Zuletzt veröffentlichte Änderungen' : ($selectedShift->published_revision ? 'Änderungen zur Veröffentlichung' : 'Erste Veröffentlichung') }}</h3>
-                                <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />
+                                </x-operations.panel.group>
                             @endif
-                            @if($selectedShift->published_revision !== $selectedShift->revision && !in_array($selectedShiftStatus,['cancelled','completed']))<x-ui.buttons.button-basic type="button" mode="primary" wire:click="publish({{ $selectedShift->id }},{{ $selectedShift->revision }})" wire:confirm="Diesen Dienst veröffentlichen und Bestätigungen anfordern?" wire:loading.attr="disabled">Dienst veröffentlichen</x-ui.buttons.button-basic>@endif
-                        </div>
-                    @endif
-                    @if($selectedShiftStatus === 'cancelled')
-                        <section class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:!border-slate-700 dark:!bg-slate-800/60 dark:!text-slate-300">
-                            <p class="font-semibold text-rt-text dark:text-white">Schicht storniert</p>
-                            <p class="mt-1 leading-5">Für eine stornierte Schicht können keine weiteren Mitarbeitenden reserviert werden.</p>
-                        </section>
-                    @else
-                    <section class="mt-5 space-y-3 border-t border-rt-border pt-5 dark:border-rt-dark-border">
-                        <h3 class="text-sm font-semibold text-rt-text dark:text-white">Mitarbeiter zuweisen</h3>
-                        @if($nativeOperations && $candidates)
-                            <x-tables.search-field wire:model.live.debounce.300ms="candidateSearch" placeholder="Mitarbeiter suchen" aria-label="Kandidaten suchen" />
-                            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Eignung','key'=>'eligibility'],['label'=>'Auswahl','key'=>'action']]" :items="$candidates" row-view="components.tables.rows.operations.candidate" empty="Keine Mitarbeiter gefunden." />
-                            {{ $candidates->links() }}
+                            @if($nativeOperations && count($planChanges))
+                                <x-operations.panel.group :title="$shiftPublished ? 'Zuletzt veröffentlichte Änderungen' : ($selectedShift->published_revision ? 'Änderungen zur Veröffentlichung' : 'Erste Veröffentlichung')">
+                                    <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />
+                                </x-operations.panel.group>
+                            @endif
+                            <x-operations.panel.group title="Einsatz">
+                                <dl class="rt-ops-panel__rows">
+                                    <x-operations.panel.row label="Leistung">{{ $selectedShift->order ? $selectedShift->order->order_number.' · '.$selectedShift->order->title : 'Leistung nicht verfügbar' }}</x-operations.panel.row>
+                                    <x-operations.panel.row label="Kunde">{{ $selectedShift->order?->customer?->company_name ?: '—' }}</x-operations.panel.row>
+                                    <x-operations.panel.row label="Tätigkeit">{{ $selectedShift->role_name ?: '—' }}</x-operations.panel.row>
+                                    <x-operations.panel.row label="Einsatzort">{{ $shiftLocation ?: 'Kein Einsatzort hinterlegt' }}</x-operations.panel.row>
+                                    <x-operations.panel.row label="Zeitfenster">
+                                        <span class="rt-ops-panel__num">{{ $shiftStart?->format('d.m.Y H:i') }} – {{ $shiftEnd?->format('d.m.Y H:i') }}</span>
+                                        <small>{{ $displayTimezone }}</small>
+                                    </x-operations.panel.row>
+                                    @if($nativeOperations)
+                                        <x-operations.panel.row label="Geplante Pause"><span class="rt-ops-panel__num">{{ (int) $selectedShift->planned_break_minutes }} Minuten</span></x-operations.panel.row>
+                                    @endif
+                                    <x-operations.panel.row label="Besetzung"><span class="rt-ops-panel__num">{{ $selectedReservedCount }} von {{ $selectedShift->required_staff }}</span> eingeplant</x-operations.panel.row>
+                                    @if($nativeOperations)
+                                        <x-operations.panel.row label="Nachweise">
+                                            @if($selectedShift->qualifications->isNotEmpty())
+                                                <span class="rt-ops-panel__chips">@foreach($selectedShift->qualifications as $qualification)<span class="ops-badge">{{ $qualification->name }}</span>@endforeach</span>
+                                            @else
+                                                Keine erforderlich
+                                            @endif
+                                        </x-operations.panel.row>
+                                        <x-operations.panel.row label="Veröffentlichung">Revision {{ $selectedShift->revision }} · {{ $shiftPublished ? 'veröffentlicht' : 'Entwurf' }}</x-operations.panel.row>
+                                    @endif
+                                </dl>
+                            </x-operations.panel.group>
+                            @if(filled($selectedShift->notes))
+                                <x-operations.panel.group title="Interne Notizen" meta="nur intern">
+                                    <p class="rt-ops-panel__text">{{ $selectedShift->notes }}</p>
+                                </x-operations.panel.group>
+                            @endif
+                        </x-operations.panel.tab>
+
+                        <x-operations.panel.tab name="staffing" :id-prefix="$detailIdPrefix">
+                            @if(!$nativeOperations)
+                                <x-operations.panel.group title="Eingeteilte Mitarbeitende" :meta="$selectedAssignments->count().' Zuweisungen'">
+                                    <div class="rt-ops-panel__list">
+                                        @forelse($selectedAssignments as $assignment)
+                                            @php $assignmentValue = $assignment->status instanceof \BackedEnum ? $assignment->status->value : (string) $assignment->status; @endphp
+                                            <div class="flex min-h-16 items-center gap-3 px-3.5 py-2.5" wire:key="shift-assignment-{{ $assignment->id }}">
+                                                <div class="min-w-0 flex-1">
+                                                    @if($assignment->user)<x-user.person-anchor-preview :user="$assignment->user" :show-presence="false" :show-email="false" :size="9" />@else<span class="ops-muted">Unbekannter Mitarbeiter</span>@endif
+                                                    <p class="mt-0.5 truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ method_exists($assignment->status, 'label') ? $assignment->status->label() : \Illuminate\Support\Str::headline($assignmentValue) }}@if($assignment->note) · {{ $assignment->note }}@endif</p>
+                                                </div>
+                                                <x-ui.buttons.button-basic type="button" wire:click="removeAssignment({{ $assignment->id }})" wire:confirm="Zuweisung wirklich entfernen?" wire:loading.attr="disabled" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-rt-muted transition hover:bg-red-50 hover:text-rt-red disabled:opacity-60 dark:text-rt-dark-muted dark:hover:bg-red-500/10" aria-label="{{ $assignment->user?->name }} aus der Schicht entfernen" title="Entfernen">
+                                                    <i class="far fa-times" aria-hidden="true"></i>
+                                                </x-ui.buttons.button-basic>
+                                            </div>
+                                        @empty
+                                            <p class="px-4 py-7 text-center text-sm text-rt-muted dark:text-rt-dark-muted">Noch niemand eingeteilt. Weise unten den ersten Mitarbeiter zu.</p>
+                                        @endforelse
+                                    </div>
+                                </x-operations.panel.group>
+                            @endif
+                            @if($nativeOperations && $detailOpen && \App\Support\Operations\WorkforcePlanningSchema::ready())
+                                <div class="ops-actions" aria-label="Planungsvarianten"><livewire:operations.plan-variants :shift-ids="[$selectedShift->id]" :key="'variants-'.$selectedShift->id" /></div>
+                            @endif
+                            @if($selectedShiftStatus === 'cancelled')
+                                <x-operations.panel.group title="Schicht storniert">
+                                    <p class="rt-ops-panel__text">Für eine stornierte Schicht können keine weiteren Mitarbeitenden reserviert werden.</p>
+                                </x-operations.panel.group>
+                            @else
+                                <x-operations.panel.group title="Mitarbeiter zuweisen">
+                                    <div class="space-y-3">
+                                        @if($nativeOperations && $candidates)
+                                            <x-tables.search-field wire:model.live.debounce.300ms="candidateSearch" placeholder="Mitarbeiter suchen" aria-label="Kandidaten suchen" />
+                                            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Eignung','key'=>'eligibility'],['label'=>'Auswahl','key'=>'action']]" :items="$candidates" row-view="components.tables.rows.operations.candidate" empty="Keine Mitarbeiter gefunden." />
+                                            {{ $candidates->links() }}
+                                        @endif
+                                        <div class="rt-ops-panel__fields">
+                                            <div>
+                                                <x-ui.forms.label for="assignment-employee" value="Mitarbeiter" />
+                                                <x-ui.forms.select id="assignment-employee" wire:model="employeeId" class="mt-1" placeholder="Mitarbeiter auswählen">
+                                                    @foreach($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }}@if($employee->profile?->position) · {{ $employee->profile->position }}@endif</option>@endforeach
+                                                </x-ui.forms.select>
+                                                @error('employeeId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                            </div>
+                                            <div>
+                                                <x-ui.forms.label for="assignment-status" value="Zuweisungsstatus" />
+                                                <x-ui.forms.select id="assignment-status" wire:model="assignmentStatus" class="mt-1">
+                                                    @foreach($assignmentStatusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach
+                                                </x-ui.forms.select>
+                                                @error('assignmentStatus') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                            </div>
+                                            <div class="rt-ops-panel__field--wide">
+                                                <x-ui.forms.label for="assignment-note" value="Hinweis (optional)" />
+                                                <x-ui.forms.input id="assignment-note" wire:model="assignmentNote" class="mt-1" />
+                                                @error('assignmentNote') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                            </div>
+                                        </div>
+                                        @error('assignment') <p class="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" role="alert">{{ $message }}</p> @enderror
+                                        <x-ui.buttons.button-basic type="button" mode="primary" wire:click="assignEmployee" wire:loading.attr="disabled">
+                                            <i wire:loading.remove wire:target="assignEmployee" class="far fa-user-plus" aria-hidden="true"></i>
+                                            <i wire:loading wire:target="assignEmployee" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
+                                            Zuweisen
+                                        </x-ui.buttons.button-basic>
+                                    </div>
+                                </x-operations.panel.group>
+                            @endif
+                        </x-operations.panel.tab>
+
+                        @if($nativeOperations)
+                            <x-operations.panel.tab name="feedback" :id-prefix="$detailIdPrefix">
+                                <x-operations.panel.group title="Rückmeldungen" :meta="$feedback->count() === 1 ? '1 Eintrag' : $feedback->count().' Einträge'">
+                                    <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Antwort','key'=>'response'],['label'=>'Im Kalender geöffnet','key'=>'opened'],['label'=>'Aktion','key'=>'action']]" :items="$feedback" row-view="components.tables.rows.operations.plan-feedback" empty="Noch keine Rückmeldungen." />
+                                </x-operations.panel.group>
+                            </x-operations.panel.tab>
+                            @if(\App\Support\Operations\PlanningSchema::ready())
+                                <x-operations.panel.tab name="activity" :id-prefix="$detailIdPrefix">
+                                    @if($detailOpen)<livewire:operations.duty-activity :shift-id="$selectedShift->id" :key="'duty-'.$selectedShift->id" />@endif
+                                </x-operations.panel.tab>
+                            @endif
                         @endif
-                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                            <div>
-                                <x-ui.forms.label for="assignment-employee" value="Mitarbeiter" />
-                                <x-ui.forms.select id="assignment-employee" wire:model="employeeId" class="mt-1" placeholder="Mitarbeiter auswählen">
-                                    @foreach($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }}@if($employee->profile?->position) · {{ $employee->profile->position }}@endif</option>@endforeach
-                                </x-ui.forms.select>
-                                @error('employeeId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                            </div>
-                            <div>
-                                <x-ui.forms.label for="assignment-status" value="Zuweisungsstatus" />
-                                <x-ui.forms.select id="assignment-status" wire:model="assignmentStatus" class="mt-1">
-                                    @foreach($assignmentStatusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach
-                                </x-ui.forms.select>
-                                @error('assignmentStatus') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                            </div>
-                            <div class="sm:col-span-2">
-                                <x-ui.forms.label for="assignment-note" value="Hinweis (optional)" />
-                                <x-ui.forms.input id="assignment-note" wire:model="assignmentNote" class="mt-1" />
-                                @error('assignmentNote') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                            </div>
+                    @else
+                        <div class="flex min-h-80 flex-col items-center justify-center text-center">
+                            <i class="fad fa-arrow-pointer text-3xl text-rt-soft" aria-hidden="true"></i>
+                            <h2 class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Schicht auswählen</h2>
+                            <p class="mt-1 max-w-sm text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Wähle eine Schicht aus, um die Besetzung zu planen.</p>
                         </div>
-                        @error('assignment') <p class="mt-3 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" role="alert">{{ $message }}</p> @enderror
-                        <x-ui.buttons.button-basic type="button" wire:click="assignEmployee" wire:loading.attr="disabled" class="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark disabled:opacity-60 sm:w-auto">
-                            <i wire:loading.remove wire:target="assignEmployee" class="far fa-user-plus" aria-hidden="true"></i>
-                            <i wire:loading wire:target="assignEmployee" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
-                            Zuweisen
-                        </x-ui.buttons.button-basic>
-                    </section>
                     @endif
-                @else
-                    <div class="flex min-h-80 flex-col items-center justify-center text-center">
-                        <i class="fad fa-arrow-pointer text-3xl text-rt-soft" aria-hidden="true"></i>
-                        <h2 class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Schicht auswählen</h2>
-                        <p class="mt-1 max-w-sm text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Wähle eine Schicht aus, um die Besetzung zu planen.</p>
-                    </div>
-                @endif
-        </div>
-    </x-operations.modal>
-    <x-dialog-modal wire:model="formOpen" maxWidth="3xl">
-        <x-slot:title>{{ $editingShiftId ? 'Schicht bearbeiten' : 'Neue Schicht anlegen' }}</x-slot:title>
-        <x-slot:content>
-            @error('schedule')
-                <p class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900 dark:bg-red-500/10 dark:text-red-300" role="alert">{{ $message }}</p>
-            @enderror
-            <div class="grid gap-5 sm:grid-cols-2">
-                <div class="sm:col-span-2">
-                    <x-ui.forms.label for="shift-order" value="Auftrag" />
-                    <x-ui.forms.select id="shift-order" wire:model="orderId" class="mt-1" placeholder="Auftrag auswählen">
-                        @foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->order_number }} · {{ $order->title }}</option>@endforeach
-                    </x-ui.forms.select>
-                    @error('orderId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
-                <div>
-                    <x-ui.forms.label for="shift-title" value="Schichttitel" />
-                    <x-ui.forms.input id="shift-title" wire:model="title" class="mt-1" />
-                    @error('title') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <x-ui.forms.label for="shift-role" value="Rolle / Funktion" />
-                    <x-ui.forms.input id="shift-role" wire:model="roleName" class="mt-1" placeholder="z. B. Triebfahrzeugführer" />
-                    @error('roleName') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <x-ui.forms.label for="shift-start" :value="'Beginn ('.$timezone.')'" />
-                    <x-ui.forms.date-time-field id="shift-start" wire:model="startsAt" :aria-label="'Beginn ('.$timezone.')'" class="mt-1" required />
-                    @error('startsAt') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <x-ui.forms.label for="shift-end" :value="'Ende ('.$timezone.')'" />
-                    <x-ui.forms.date-time-field id="shift-end" wire:model="endsAt" :aria-label="'Ende ('.$timezone.')'" class="mt-1" required />
-                    @error('endsAt') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <x-ui.forms.label for="shift-required-staff" value="Benötigte Mitarbeitende" />
-                    <div class="mt-1"><x-ui.forms.number-input id="shift-required-staff" min="1" max="999" :nullable="false" wire:model="requiredStaff" /></div>
-                    @error('requiredStaff') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <x-ui.forms.label for="shift-status" value="Schichtstatus" />
-                    <x-ui.forms.select id="shift-status" wire:model="status" class="mt-1">
-                        @foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach
-                    </x-ui.forms.select>
-                    @error('status') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div class="sm:col-span-2">
-                    <x-ui.forms.label for="shift-location" value="Einsatzort (leer = Auftrag übernehmen)" />
-                    <x-ui.forms.input id="shift-location" wire:model="locationName" class="mt-1" />
-                    @error('locationName') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div class="sm:col-span-2">
-                    <x-ui.forms.label for="shift-notes" value="Interne Notizen" />
-                    <x-ui.forms.textarea id="shift-notes" wire:model="notes" rows="4" class="mt-1" />
-                    @error('notes') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                </div>
-                @if($nativeOperations)
-                    <x-operations.field label="Geplante Pause (min)" model="plannedBreakMinutes" type="number" min="0" max="1439" />
-                    <fieldset class="space-y-2"><legend class="ops-muted">Erforderliche Nachweise</legend>@foreach($qualificationTypes as $type)<x-ui.forms.checkbox wire:model="qualificationIds" value="{{ $type->id }}" :label="$type->name" />@endforeach</fieldset>
-                @endif
             </div>
-        </x-slot:content>
-        <x-slot:footer>
-            <x-ui.buttons.button-basic type="button" x-on:click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text dark:border-rt-dark-border dark:text-white">Abbrechen</x-ui.buttons.button-basic>
-            <x-ui.buttons.button-basic type="button" wire:click="saveShift" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white disabled:opacity-60">
-                <i wire:loading.remove wire:target="saveShift" class="far fa-check" aria-hidden="true"></i>
-                <i wire:loading wire:target="saveShift" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
-                Speichern
-            </x-ui.buttons.button-basic>
-        </x-slot:footer>
-    </x-dialog-modal>
+
+            <x-operations.panel.footer x-show="!loading && !error">
+                @if($selectedShift && $nativeOperations)
+                    <x-slot:note><i class="far fa-code-branch" aria-hidden="true"></i>Revision {{ $selectedShift->revision }} · {{ $shiftPublished ? 'veröffentlicht' : ($selectedShift->published_revision ? 'veröffentlicht ist Revision '.$selectedShift->published_revision : 'noch nicht veröffentlicht') }}</x-slot:note>
+                @endif
+                <kbd class="rt-ops-panel__kbd" title="Mit Esc schließen">Esc</kbd>
+                <x-ui.buttons.button-basic type="button" x-on:click="$dispatch('close')">Schließen</x-ui.buttons.button-basic>
+            </x-operations.panel.footer>
+        </div>
+
+        {{-- Zustand 2 · Schichtformular (Anlegen/Bearbeiten) --}}
+        @if($formOpen)
+            @php
+                $formFieldTabs = [
+                    'service' => ['orderId', 'title', 'roleName', 'requiredStaff', 'status', 'notes'],
+                    'time' => ['startsAt', 'endsAt', 'timezone', 'plannedBreakMinutes', 'locationName'],
+                    'proofs' => ['qualificationIds', 'qualificationIds.*'],
+                ];
+                $formTabs = [
+                    'service' => ['label' => 'Dienst', 'alert' => $errors->hasAny($formFieldTabs['service'])],
+                    'time' => ['label' => 'Zeit & Ort', 'alert' => $errors->hasAny($formFieldTabs['time'])],
+                ];
+                if ($nativeOperations) {
+                    $formTabs['proofs'] = ['label' => 'Nachweise', 'count' => count($qualificationIds), 'countExpression' => '($wire.qualificationIds || []).length', 'alert' => $errors->hasAny($formFieldTabs['proofs'])];
+                }
+                $firstErrorTab = collect($formTabs)->filter(fn (array $tab): bool => (bool) ($tab['alert'] ?? false))->keys()->first();
+                // Fehler ohne eigenes Feld (Planungsregeln, Zeitkonflikte, parallele Änderungen)
+                // erschienen bisher nirgends im Formular – jetzt oben im Rumpf.
+                $assignmentErrorKeys = ['assignment', 'employeeId', 'assignmentStatus', 'assignmentNote'];
+                $generalFormErrors = collect($errors->getMessages())
+                    ->reject(fn ($messages, $key) => in_array($key, array_merge($formFieldTabs['service'], $formFieldTabs['time'], $assignmentErrorKeys), true) || str_starts_with((string) $key, 'qualificationIds'))
+                    ->flatten()->unique()->values();
+                $editingOrder = $orderId ? $orders->firstWhere('id', $orderId) : null;
+            @endphp
+            <div class="rt-ops-panel__mode" data-panel-mode="form" x-data="{ tab: 'service' }" wire:key="shift-panel-form-{{ $editingShiftId ?? 'new' }}">
+                <div class="rt-ops-panel__accent" aria-hidden="true"></div>
+                <x-operations.panel.header
+                    :eyebrow="$editingShiftId ? 'Schicht bearbeiten' : 'Neue Schicht'"
+                    :title="$editingShiftId ? (filled($title) ? $title : 'Schicht') : 'Neue Schicht anlegen'"
+                    :subtitle="collect([$editingOrder ? $editingOrder->order_number.' · '.$editingOrder->title : null, $editingShiftId && $editingRevision ? 'Revision '.$editingRevision : null])->filter()->implode(' · ')"
+                    :icon="$editingShiftId ? 'fa-pen' : 'fa-calendar-plus'"
+                    :close-action="$detailOpen ? 'closeShiftForm' : null"
+                    :close-label="$editingShiftId ? 'Bearbeiten abbrechen' : 'Anlegen abbrechen'" />
+                <x-operations.panel.tabs :tabs="$formTabs" label="Bereiche des Schichtformulars" :id-prefix="$formIdPrefix" />
+
+                <div class="rt-ops-panel__body" data-shift-form-body>
+                    @if($firstErrorTab)
+                        {{-- Bei jedem neuen Fehlerbild neu eingefügt: Alpine führt x-init aus und
+                             wechselt zum ersten Reiter, der ein fehlerhaftes Feld enthält. --}}
+                        <span hidden wire:key="shift-form-errors-{{ md5(implode('|', $errors->keys())) }}" x-init="tab = @js($firstErrorTab)"></span>
+                    @endif
+                    @if($generalFormErrors->isNotEmpty())
+                        <x-operations.panel.group tone="critical" role="alert" data-shift-form-errors>
+                            <div class="rt-ops-panel__notice">
+                                <i class="far fa-exclamation-circle" aria-hidden="true"></i>
+                                <ul class="rt-ops-panel__errors">
+                                    @foreach($generalFormErrors as $message)<li>{{ $message }}</li>@endforeach
+                                </ul>
+                            </div>
+                        </x-operations.panel.group>
+                    @endif
+
+                    <x-operations.panel.tab name="service" :id-prefix="$formIdPrefix">
+                        <x-operations.panel.group title="Auftrag & Tätigkeit">
+                            <div class="rt-ops-panel__fields">
+                                <div class="rt-ops-panel__field--wide">
+                                    <x-ui.forms.label for="shift-order" value="Auftrag" />
+                                    <x-ui.forms.select id="shift-order" wire:model="orderId" class="mt-1" placeholder="Auftrag auswählen">
+                                        @foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->order_number }} · {{ $order->title }}</option>@endforeach
+                                    </x-ui.forms.select>
+                                    @error('orderId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                </div>
+                                <div>
+                                    <x-ui.forms.label for="shift-title" value="Schichttitel" />
+                                    <x-ui.forms.input id="shift-title" wire:model="title" class="mt-1" />
+                                    @error('title') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                </div>
+                                <div>
+                                    <x-ui.forms.label for="shift-role" value="Rolle / Funktion" />
+                                    <x-ui.forms.input id="shift-role" wire:model="roleName" class="mt-1" placeholder="z. B. Triebfahrzeugführer" />
+                                    @error('roleName') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                </div>
+                            </div>
+                        </x-operations.panel.group>
+                        <x-operations.panel.group title="Umfang & Status">
+                            <div class="rt-ops-panel__fields">
+                                <div>
+                                    <x-ui.forms.label for="shift-required-staff" value="Benötigte Mitarbeitende" />
+                                    <div class="mt-1"><x-ui.forms.number-input id="shift-required-staff" min="1" max="999" :nullable="false" wire:model="requiredStaff" /></div>
+                                    @error('requiredStaff') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                </div>
+                                <div>
+                                    <x-ui.forms.label for="shift-status" value="Schichtstatus" />
+                                    <x-ui.forms.select id="shift-status" wire:model="status" class="mt-1">
+                                        @foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach
+                                    </x-ui.forms.select>
+                                    @error('status') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                </div>
+                            </div>
+                        </x-operations.panel.group>
+                        <x-operations.panel.group>
+                            <x-ui.forms.label for="shift-notes" value="Interne Notizen" />
+                            <x-ui.forms.textarea id="shift-notes" wire:model="notes" rows="4" class="mt-1" />
+                            <p class="rt-ops-panel__help">Nur in der Disposition sichtbar.</p>
+                            @error('notes') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </x-operations.panel.group>
+                    </x-operations.panel.tab>
+
+                    <x-operations.panel.tab name="time" :id-prefix="$formIdPrefix">
+                        <x-operations.panel.group title="Zeitfenster" :meta="$timezone">
+                            <div class="rt-ops-panel__fields">
+                                <div>
+                                    <x-ui.forms.label for="shift-start" value="Beginn" />
+                                    <x-ui.forms.date-time-field id="shift-start" wire:model="startsAt" :aria-label="'Beginn ('.$timezone.')'" class="mt-1" required />
+                                    @error('startsAt') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                </div>
+                                <div>
+                                    <x-ui.forms.label for="shift-end" value="Ende" />
+                                    <x-ui.forms.date-time-field id="shift-end" wire:model="endsAt" :aria-label="'Ende ('.$timezone.')'" class="mt-1" required />
+                                    @error('endsAt') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                </div>
+                                @if($nativeOperations)
+                                    <x-operations.field label="Geplante Pause (min)" model="plannedBreakMinutes" type="number" min="0" max="1439" />
+                                @endif
+                            </div>
+                            @error('timezone') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </x-operations.panel.group>
+                        <x-operations.panel.group>
+                            <x-ui.forms.label for="shift-location" value="Einsatzort" />
+                            <x-ui.forms.input id="shift-location" wire:model="locationName" class="mt-1" />
+                            <p class="rt-ops-panel__help">Leer lassen, um den Einsatzort der Leistung zu übernehmen.</p>
+                            @error('locationName') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </x-operations.panel.group>
+                    </x-operations.panel.tab>
+
+                    @if($nativeOperations)
+                        <x-operations.panel.tab name="proofs" :id-prefix="$formIdPrefix">
+                            <x-operations.panel.group title="Erforderliche Nachweise">
+                                <p class="rt-ops-panel__help">Bei der Zuweisung wird geprüft, ob Mitarbeitende für jeden gewählten Nachweis einen gültigen Nachweis haben.</p>
+                                <fieldset class="rt-ops-panel__choices">
+                                    <legend class="sr-only">Erforderliche Nachweise</legend>
+                                    @forelse($qualificationTypes as $type)
+                                        <x-ui.forms.checkbox wire:model="qualificationIds" value="{{ $type->id }}" :label="$type->name" />
+                                    @empty
+                                        <p class="rt-ops-panel__help">Noch keine Nachweisarten angelegt.</p>
+                                    @endforelse
+                                </fieldset>
+                                @error('qualificationIds') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            </x-operations.panel.group>
+                        </x-operations.panel.tab>
+                    @endif
+                </div>
+
+                <x-operations.panel.footer>
+                    @if($nativeOperations && $editingShiftId)
+                        <x-slot:note><i class="far fa-info-circle" aria-hidden="true"></i>Geänderte Angaben werden als neue Revision gespeichert und erreichen Eingeteilte erst nach dem Veröffentlichen.</x-slot:note>
+                    @endif
+                    @if($detailOpen)
+                        <x-ui.buttons.button-basic type="button" wire:click="closeShiftForm" wire:loading.attr="disabled" wire:target="closeShiftForm,saveShift">Abbrechen</x-ui.buttons.button-basic>
+                    @else
+                        <x-ui.buttons.button-basic type="button" x-on:click="$dispatch('close')">Abbrechen</x-ui.buttons.button-basic>
+                    @endif
+                    <x-ui.buttons.button-basic type="button" mode="primary" wire:click="saveShift" wire:loading.attr="disabled" wire:target="saveShift,closeShiftForm">
+                        <i wire:loading.remove wire:target="saveShift" class="far fa-check" aria-hidden="true"></i>
+                        <i wire:loading wire:target="saveShift" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
+                        Speichern
+                    </x-ui.buttons.button-basic>
+                </x-operations.panel.footer>
+            </div>
+        @endif
+    </x-operations.panel>
 </div>

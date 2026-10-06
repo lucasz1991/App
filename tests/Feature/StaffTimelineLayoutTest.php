@@ -216,7 +216,10 @@ class StaffTimelineLayoutTest extends TestCase
 
                 return true;
             })
-            ->assertSee('24.10. 22:00 +02:00 – 25.10. 06:00 +01:00')
+            ->assertSee('datetime="2026-10-24T22:00:00+02:00"', false)
+            ->assertSee('datetime="2026-10-25T06:00:00+01:00"', false)
+            ->assertSee('UTC +02:00')->assertSee('UTC +01:00')
+            ->assertSee('24.10.2026')->assertSee('25.10.2026')
             ->assertSee('9,0 h tatsächliche Dauer')
             ->assertDontSee('7,0 h tatsächliche Dauer')
             ->assertSee('38,5 h/Woche')->assertSee('8,5 h');

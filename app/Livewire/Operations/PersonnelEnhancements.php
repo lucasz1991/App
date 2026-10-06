@@ -14,9 +14,9 @@ use App\Models\PersonnelSignatureRequest;
 use App\Models\PersonnelSurvey;
 use App\Models\PersonnelSurveyResponse;
 use App\Models\PersonnelTask;
-use App\Models\PersonnelWorkflowTemplate;
 use App\Models\PersonnelWorkflowRun;
 use App\Models\PersonnelWorkflowStep;
+use App\Models\PersonnelWorkflowTemplate;
 use App\Models\RegionalPersonnelCalendar;
 use App\Models\SicknessEvidenceWorkflow;
 use App\Models\Team;
@@ -92,7 +92,7 @@ class PersonnelEnhancements extends Component
                 $run = PersonnelWorkflowRun::where('user_id', $this->userId)->findOrFail($initialRecordId);
                 app(PersonnelEnhancementService::class)->access(auth()->user(), (int) $run->user_id);
             } else {
-                abort_unless($this->recordRows()->contains(fn ($row) => $row->record_id === $initialRecordId && $row->kind === $this->focusedRecordType), 404);
+                abort_unless($this->recordRows()->contains(fn ($row) => (int) $row->record_id === $initialRecordId && $row->kind === $this->focusedRecordType), 404);
             }
         }
     }
@@ -487,7 +487,7 @@ class PersonnelEnhancements extends Component
         $actor = auth()->user();
         $service = app(PersonnelEnhancementService::class);
         if ($this->tab === 'workflows') {
-            if (! $this->personal && Gate::forUser($actor)->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.edit') === null) {
+            if (! $this->focusedRecordId && ! $this->personal && Gate::forUser($actor)->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.edit') === null) {
                 foreach (PersonnelWorkflowTemplate::latest()->limit(30)->get() as $record) {
                     $records->push($this->row($record, 'workflow_template', $record->title, count($record->payload['steps']).' Schritte'));
                 }
@@ -505,7 +505,7 @@ class PersonnelEnhancements extends Component
                 $records->push($this->row($record, 'report', $record->title, $record->payload['from'].' – '.$record->payload['until']));
             }
         } elseif ($this->tab === 'documents') {
-            if (! $this->personal && Gate::forUser($actor)->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.edit') === null) {
+            if (! $this->focusedRecordId && ! $this->personal && Gate::forUser($actor)->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.edit') === null) {
                 foreach (PersonnelDocumentTemplate::latest()->limit(30)->get() as $record) {
                     $records->push($this->row($record, 'document_template', $record->title, 'Vorlage'));
                 }

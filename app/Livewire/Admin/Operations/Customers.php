@@ -27,6 +27,12 @@ class Customers extends Component
     public bool $embedded = false;
 
     #[Locked]
+    public bool $modalOnly = false;
+
+    #[Locked]
+    public ?int $workspaceRevision = null;
+
+    #[Locked]
     public ?int $contextCustomerId = null;
 
     public function openDetails(int $id): void
@@ -59,10 +65,13 @@ class Customers extends Component
 
     public bool $isActive = true;
 
-    public function mount(?int $customerId = null, bool $embedded = false, bool $startCreating = false): void
+    public function mount(?int $customerId = null, bool $embedded = false, bool $startCreating = false, bool $startEditing = false, bool $modalOnly = false, ?int $workspaceRevision = null): void
     {
         $this->ensureAdmin();
         $this->embedded = $embedded;
+        abort_unless(! $modalOnly || $embedded, 403);
+        $this->modalOnly = $modalOnly;
+        $this->workspaceRevision = $workspaceRevision;
         $this->contextCustomerId = $embedded ? $customerId : null;
         if ($embedded) {
             $this->selectedCustomerId = $customerId ? (int) Customer::findOrFail($customerId)->id : null;
@@ -71,6 +80,17 @@ class Customers extends Component
         }
         if ($startCreating) {
             $this->createCustomer();
+        } elseif ($startEditing) {
+            abort_unless($customerId, 404);
+            $this->editCustomer($customerId);
+        }
+    }
+
+    public function updatedFormOpen(): void
+    {
+        if ($this->modalOnly && ! $this->formOpen) {
+            $this->resetCustomerForm();
+            $this->dispatch('customer-form-closed', workspaceRevision: $this->workspaceRevision);
         }
     }
 
@@ -155,7 +175,7 @@ class Customers extends Component
         $this->dispatch('swal:toast', type: 'success', text: 'Kunde gespeichert.');
         if ($this->embedded) {
             $this->contextCustomerId = $customer->id;
-            $this->dispatch('customer-record-saved', customerId: $customer->id);
+            $this->dispatch('customer-record-saved', customerId: $customer->id, workspaceRevision: $this->workspaceRevision);
         }
     }
 

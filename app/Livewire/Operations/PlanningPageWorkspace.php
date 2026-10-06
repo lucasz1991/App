@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Operations;
 
+use App\Models\Shift;
+use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
 use App\Support\Operations\PlanningEnhancementSchema;
 use App\Support\Operations\WorkforcePlanningSchema;
@@ -12,10 +14,13 @@ class PlanningPageWorkspace extends Component
 {
     #[Locked]
     public string $page = 'planning';
+
     #[Locked]
     public string $view = '';
+
     #[Locked]
     public string $section = '';
+
     #[Locked]
     public array $context = [];
 
@@ -24,6 +29,10 @@ class PlanningPageWorkspace extends Component
         abort_unless(in_array($page, ['shifts', 'planning', 'duty'], true), 404);
         $this->page = $page;
         $this->context = $context;
+        if (isset($context['shift'])) {
+            OperationsAccess::authorize(auth()->user(), 'operations.manage');
+            Shift::findOrFail((int) $context['shift']);
+        }
         $views = $this->views();
         abort_unless($views, 403);
         abort_if($initialView !== '' && ! isset($views[$initialView]), 403);
@@ -76,6 +85,7 @@ class PlanningPageWorkspace extends Component
     {
         abort_unless(isset($this->views()[$this->view]), 403);
         abort_if($this->section !== '' && ! isset($this->sections()[$this->section]), 403);
+
         return view('livewire.operations.planning-page-workspace');
     }
 }

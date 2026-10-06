@@ -5,5 +5,7 @@
     </x-tables.toolbar>
     <x-tables.table :columns="[['label'=>'Vorgang / Kunde','key'=>'case'],['label'=>'Angebotsstand','key'=>'revision'],['label'=>'Betrag netto','key'=>'total'],['label'=>'Status','key'=>'status']]" :items="$offers" detail-action="select" row-view="components.tables.rows.operations.case-offer" table-key="case-offers" empty="Keine Angebote für diese Auswahl." />
     {{ $offers->links() }}
-    @if($selectedId)<livewire:operations.commercial-offers :subject-type="$selectedSubjectType" :subject-id="$selectedSubjectId" :initial-offer-id="$selectedId" :show-list="false" :key="'case-offer-detail-'.$selectedId.'-'.$detailGeneration" />@endif
+    @if($selectedId)
+        <livewire:operations.commercial-offers :subject-type="$selectedSubjectType" :subject-id="$selectedSubjectId" :initial-offer-id="$selectedId" :show-list="false" :key="'case-offer-detail-'.$selectedId.'-'.$detailGeneration" />
+    @endif
 </section>

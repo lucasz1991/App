@@ -408,6 +408,16 @@ function composeFixture({ html = '<p>Existing user text</p>', composeType = 'new
         onReady() {},
         actions: { associate() {} },
     };
+    if (['iOS', 'Android'].includes(platform)) {
+        // Native Outlook exposes SessionData independently of desktop1.11.
+        // Real per-item storage lets the current ownership guard distinguish
+        // an absent claim from unknown ownership without weakening that guard.
+        const values = new Map();
+        item.sessionData = {
+            getAsync(key, callback) { callback(succeeded(values.get(key) ?? null)); },
+            setAsync(key, value, callback) { values.set(key, value); callback(succeeded()); },
+        };
+    }
     return { state, item, office, event: { completed() { state.completed += 1; } } };
 }
 
@@ -848,7 +858,7 @@ test('automatic runtime preserves scoped background CSS and GIF bytes at the Off
 
         assertBackgroundSignatureOfficeBoundary(calls, payload);
         assert.deepEqual(fixture.state.mutations, withoutDefault
-            ? ['attachment', 'signature'] : ['template', 'attachment', 'signature']);
+            ? ['attachment', 'signature'] : ['attachment', 'template', 'signature']);
         assert.equal(fixture.state.completed, 1);
     }
 });
@@ -1240,7 +1250,10 @@ test('From change after confirmed template blocks subsequent signature media and
     await fixture.handler(fixture.event);
     assert.equal(fixture.state.signatures.length, 0);
     assert.equal(fixture.state.prepends.length, 1);
-    assert.equal(fixture.state.attachments.length, 1, 'only the authorized template media was prepared');
+    assert.deepEqual(fixture.state.attachments.map(({ name }) => name), ['railtime-test.png', 'template.png'],
+        'the exact authorized signature/template media union is prepared before the first body write');
+    assert.deepEqual(fixture.state.mutations, ['attachment', 'attachment', 'template'],
+        'sender change prevents any further attachment or signature write after the confirmed template');
 });
 
 test('native signature media budgets reject excessive payloads before any Office write', async () => {
@@ -1434,7 +1447,8 @@ test('taskpane cannot convert an existing legacy embedded signature by adding a 
     await client.updateSignature(document.querySelector('[data-outlook-action="signature"]'));
     assert.deepEqual(fixture.state.mutations, []);
     assert.equal(fixture.state.html, html);
-    assert.match(document.querySelector('[data-outlook-status-detail]').textContent, /Vorlage mit eingebetteter Signatur/);
+    assert.match(document.querySelector('[data-outlook-status-detail]').textContent, /gemeinsames Dokument/);
+    assert.match(document.querySelector('[data-outlook-status-detail]').textContent, /nicht ausgeführt/);
 });
 
 test('taskpane manual native template sets its native signature after prepending signature-free content', async () => {

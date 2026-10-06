@@ -16,6 +16,7 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningLocks;
+use App\Support\Operations\TimelineLocationPreview;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\Rule;
@@ -250,7 +251,7 @@ class StaffTimeline extends Component
             $events = collect();
             foreach ($assignments->get($user->id, collect()) as $assignment) {
                 $shift = $assignment->shift;
-                $events->push(['id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $shift->title, 'start' => $shift->starts_at, 'end' => $shift->ends_at, 'detail' => $shift->order?->customer?->company_name, 'status' => $assignment->status->label(), 'status_value' => $assignment->status->value, 'shift_status' => $shift->status->value, 'shift_status_label' => $shift->status->label(), 'role_name' => $shift->role_name, 'location_name' => $shift->location_name ?: $shift->order?->location_name, 'planned_break_minutes' => $shift->planned_break_minutes, 'shift_id' => $shift->id]);
+                $events->push(['id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $shift->title, 'start' => $shift->starts_at, 'end' => $shift->ends_at, 'detail' => $shift->order?->customer?->company_name, 'status' => $assignment->status->label(), 'status_value' => $assignment->status->value, 'shift_status' => $shift->status->value, 'shift_status_label' => $shift->status->label(), 'role_name' => $shift->role_name, 'location_name' => $shift->location_name ?: $shift->order?->location_name, 'location_preview' => TimelineLocationPreview::fromShift($shift), 'planned_break_minutes' => $shift->planned_break_minutes, 'shift_id' => $shift->id]);
             }
             foreach ($absences->get($user->id, collect()) as $absence) {
                 $events->push(['id' => 'absence-'.$absence->id, 'absence_id' => $absence->id, 'kind' => 'absence', 'title' => ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit', 'sick' => $this->absencesOnly ? 'Krankmeldung' : 'Abwesenheit'][$absence->kind] ?? 'Abwesenheit', 'start' => $absence->starts_at, 'end' => $absence->ends_at, 'detail' => '', 'status' => ['approved' => 'Genehmigt', 'reported' => 'Gemeldet', 'pending' => 'Beantragt'][$absence->status] ?? OperationsNavigation::status($absence->status), 'status_value' => $absence->status, 'shift_status' => null, 'shift_id' => null]);

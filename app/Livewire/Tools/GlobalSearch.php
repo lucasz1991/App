@@ -139,7 +139,7 @@ class GlobalSearch extends Component
             [
                 'title' => $isAdminLayout ? __('app.download_files') : __('app.download_center'),
                 'description' => __('app.files_and_templates'),
-                'url' => route($isAdminLayout ? 'admin.files' : 'files'),
+                'url' => $isAdminLayout ? \App\Support\Operations\OperationsPages::url('documents') : route('files'),
                 'icon' => 'folder',
                 'keywords' => 'datei dokument download ordner files',
                 'allowed' => ! $isAdminLayout || Gate::allows('files.manage'),
@@ -147,7 +147,7 @@ class GlobalSearch extends Component
             [
                 'title' => __('app.employees'),
                 'description' => __('app.management'),
-                'url' => route($isAdminLayout ? 'admin.employees' : 'employees.index'),
+                'url' => \App\Support\Operations\OperationsPages::url('people', ['view' => 'employees']),
                 'icon' => 'users',
                 'keywords' => 'mitarbeiter benutzer personal team users',
                 'allowed' => Gate::allows('employees.view'),
@@ -185,7 +185,7 @@ class GlobalSearch extends Component
             'keywords' => $link['title'].' '.($link['group'] ?? ''), 'allowed' => true,
         ]);
         // Existing conversation/own-signature searches remain, page navigation has one source.
-        return $sharedLinks->concat(collect($items)->reject(fn ($item) => in_array($item['icon'], ['home','folder','users','list','settings','send'], true)))
+        return $sharedLinks->concat($items)->unique('url')
             ->filter(fn (array $item): bool => $item['allowed'])
             ->filter(function (array $item) use ($needle): bool {
                 $haystack = mb_strtolower(implode(' ', [

@@ -57,8 +57,13 @@ class WorkforcePlanning extends Component
         if ($tab !== '') {
             $this->setTab($tab);
         }
-        if (isset($context['record']) && $this->tab === 'cases') {
-            $this->edit('case', (int) $context['record']);
+        if (isset($context['record'])) {
+            $type = $context['record_type'] ?? '';
+            abort_unless($this->tab === 'cases' && $type === 'staffing-case' || $this->tab === 'periods' && $type === 'availability-period', 404);
+            $record = ($type === 'staffing-case' ? StaffingCase::query() : AvailabilityPeriod::query())->findOrFail((int) $context['record']);
+            abort_if(isset($context['revision']) && (int) $record->revision !== (int) $context['revision'], 409, 'Der Vorgang wurde geändert.');
+            abort_if(isset($context['shift']) && (int) ($record->shift_id ?? 0) !== (int) $context['shift'], 404);
+            $this->edit($type === 'staffing-case' ? 'case' : 'period', $record->id);
         }
     }
 

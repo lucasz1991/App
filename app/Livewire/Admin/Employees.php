@@ -3,13 +3,17 @@
 namespace App\Livewire\Admin;
 
 use App\Actions\Jetstream\DeleteUser;
+use App\Livewire\Admin\Employees\EmployeeFormModal;
+use App\Livewire\Admin\Employees\InviteEmployeeModal;
+use App\Livewire\Admin\Employees\TeamRbacModal;
+use App\Livewire\Admin\Users\Messages\MessageForm;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
-use Livewire\Component;
 use Livewire\Attributes\Locked;
+use Livewire\Component;
 use Livewire\WithPagination;
 
 class Employees extends Component
@@ -24,15 +28,22 @@ class Employees extends Component
 
     // Auswahl / Bulk
     public array $selectedEmployees = [];
+
     public bool $selectAll = false;
 
     // Filter / Suche / Sortierung
     public string $search = '';
+
     public ?int $teamId = null;   // Team-Filter (optional)
+
     public string $role = '';     // '' | 'admin' | 'staff'
+
     public string $accountStatus = ''; // '' | 'active' | 'inactive'
+
     public string $sortBy = 'created_at';
+
     public string $sortDir = 'desc';
+
     public int $perPage = 15;
 
     // Zaehler (Anzeige)
@@ -148,24 +159,24 @@ class Employees extends Component
     public function openCreate(): void
     {
         Gate::authorize('employees.create');
-        $this->dispatch('open-employee-form')->to(\App\Livewire\Admin\Employees\EmployeeFormModal::class);
+        $this->dispatch('open-employee-form')->to(EmployeeFormModal::class);
     }
 
     public function openEdit(int $id): void
     {
         Gate::authorize('employees.create');
-        $this->dispatch('open-employee-form', id: $id)->to(\App\Livewire\Admin\Employees\EmployeeFormModal::class);
+        $this->dispatch('open-employee-form', id: $id)->to(EmployeeFormModal::class);
     }
 
     public function openTeamRbacModal(): void
     {
-        $this->dispatch('open-team-rbac-modal')->to(\App\Livewire\Admin\Employees\TeamRbacModal::class);
+        $this->dispatch('open-team-rbac-modal')->to(TeamRbacModal::class);
     }
 
     public function openInvite(): void
     {
         Gate::authorize('employees.create');
-        $this->dispatch('open-invite-employee')->to(\App\Livewire\Admin\Employees\InviteEmployeeModal::class);
+        $this->dispatch('open-invite-employee')->to(InviteEmployeeModal::class);
     }
 
     /**
@@ -184,7 +195,7 @@ class Employees extends Component
         }
 
         $this->dispatch('openMailModal', payload: $ids)
-            ->to(\App\Livewire\Admin\Users\Messages\MessageForm::class);
+            ->to(MessageForm::class);
     }
 
     // Beispiel-Bulk-Aktionen (Platzhalter)
@@ -300,7 +311,7 @@ class Employees extends Component
             // Super-Admin (#1) wird nicht als Mitarbeiter gefuehrt
             ->where('id', '!=', 1)
             ->when($this->search, fn ($q) => $q->where(function ($qq) {
-                $s = '%' . $this->search . '%';
+                $s = '%'.$this->search.'%';
                 $qq->where('name', 'like', $s)
                     ->orWhere('email', 'like', $s)
                     ->orWhere('id', $this->search);

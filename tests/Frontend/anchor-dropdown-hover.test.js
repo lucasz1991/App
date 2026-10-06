@@ -41,6 +41,7 @@ function renderProps(source, options) {
         else if (expression.includes('str_ends_with')) value = 'left';
         else if (expression.includes('str_starts_with')) value = 'bottom';
         else if (expression.includes('$anchorOffset')) value = 8;
+        else if (expression.includes('$maxHeight')) value = options.maxHeight ?? 448;
         else if (expression.includes('$contentRole')) value = 'dialog';
         else if (expression.includes('$headerOffset')) value = 0;
         else if (expression.includes('$matchesTriggerWidth') || expression.includes('$scrollOn')) value = false;

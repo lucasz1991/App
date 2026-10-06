@@ -2,15 +2,26 @@
 
 namespace App\Livewire\Operations;
 
+use App\Models\AbsenceRequest;
+use App\Models\EmployeeQualification;
+use App\Models\OperationsMonthClosing;
+use App\Models\PersonnelPlanReview;
+use App\Models\PersonnelSignatureRequest;
+use App\Models\PersonnelTask;
+use App\Models\PersonnelWorkflowRun;
+use App\Models\SicknessEvidenceWorkflow;
 use App\Models\User;
+use App\Models\WorkTimeCaptureReceipt;
+use App\Models\WorkTimeEntry;
 use App\Services\Operations\EmployeeDocumentVersionService;
+use App\Services\Operations\PayrollClosingService;
 use App\Services\Operations\PersonnelEnhancementService;
 use App\Services\Operations\PersonnelProcessService;
 use App\Services\Operations\PersonnelScopeService;
-use App\Services\Operations\PayrollClosingService;
 use App\Services\Operations\WorkforceAccountService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsEnhancementsSchema;
+use App\Support\Operations\OperationsPages;
 use App\Support\Operations\WorkTimeSchema;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Locked;
@@ -38,11 +49,12 @@ class PersonalPageWorkspace extends Component
     public function mount(string $page, string $initialView = '', string $initialSection = '', array $context = []): void
     {
         $this->page = $page;
-        $this->context = array_intersect_key($context, array_flip(['user', 'user_id', 'record', 'record_id', 'record_type']));
+        $this->context = array_intersect_key($context, array_flip(['user', 'user_id', 'record', 'record_id', 'record_type', 'revision']));
         $this->userId = max(0, (int) ($context['user_id'] ?? $context['user'] ?? 0));
         $views = self::availableViews(auth()->user(), $page);
         $sections = self::availableSections(auth()->user(), $page);
         abort_unless($views || $sections, 403);
+        abort_if($initialView !== '' && ! isset($views[$initialView]), 403);
         $this->view = isset($views[$initialView]) ? $initialView : (array_key_first($views) ?? '');
         if ($initialSection !== '') {
             abort_unless(isset($sections[$initialSection]), 403);
@@ -52,6 +64,7 @@ class PersonalPageWorkspace extends Component
         }
         $this->selectEmployeeIfRequired();
         $this->access();
+        $this->validateRecordContext();
     }
 
     public static function availableViews(User $actor, string $page): array
@@ -143,8 +156,9 @@ class PersonalPageWorkspace extends Component
         $this->view = $view;
         $this->section = '';
         $this->forgetRecord();
-        $this->selectEmployeeIfRequired();
+        $this->selectEmployeeIfRequired(allowScopeFallback: true);
         $this->access();
+        $this->syncUrl();
     }
 
     public function setSection(string $section): void
@@ -156,8 +170,9 @@ class PersonalPageWorkspace extends Component
         }
         $this->section = $section;
         $this->forgetRecord();
-        $this->selectEmployeeIfRequired();
+        $this->selectEmployeeIfRequired(allowScopeFallback: true);
         $this->access();
+        $this->syncUrl();
     }
 
     public function setRuleView(string $view): void
@@ -172,6 +187,7 @@ class PersonalPageWorkspace extends Component
     {
         $this->forgetRecord();
         $this->access();
+        $this->syncUrl();
     }
 
     public function showEmployees(): void
@@ -179,11 +195,68 @@ class PersonalPageWorkspace extends Component
         abort_unless($this->page === 'people' && $this->view === 'employees' && isset(self::availableViews(auth()->user(), $this->page)['employees']), 403);
         $this->userId = 0;
         $this->forgetRecord();
+        $this->syncUrl();
     }
 
     private function forgetRecord(): void
     {
-        unset($this->context['record'], $this->context['record_id'], $this->context['record_type']);
+        unset($this->context['record'], $this->context['record_id'], $this->context['record_type'], $this->context['revision']);
+    }
+
+    private function syncUrl(): void
+    {
+        $context = array_diff_key($this->context, array_flip(['user', 'user_id']));
+        $this->dispatch('rt-workspace-url', url: OperationsPages::url($this->page, ['view' => $this->view, 'section' => $this->section, 'user' => $this->userId ?: null] + $context));
+    }
+
+    private function validateRecordContext(): void
+    {
+        $id = (int) ($this->context['record_id'] ?? $this->context['record'] ?? 0);
+        if (! $id) {
+            return;
+        }
+        if (($this->context['record_type'] ?? '') === 'capture-conflict') {
+            abort_unless($this->page === 'time-review' && $this->view === 'conflicts' && $this->section === '', 404);
+            $ids = app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'operations.time.review');
+            WorkTimeCaptureReceipt::where('status', 'conflict')->when($ids !== null, fn ($query) => $query->whereHas('device', fn ($query) => $query->whereIn('user_id', $ids)))->findOrFail($id);
+            abort_if(isset($this->context['revision']), 409, 'Erfassungskonflikte besitzen keine Dienstrevision.');
+
+            return;
+        }
+        $type = $this->context['record_type'] ?? match (true) {
+            $this->section === 'checks' => 'plan-review',
+            $this->page === 'people' && $this->view === 'qualifications' => 'qualification',
+            $this->page === 'leave' && in_array($this->view, ['requests', 'calendar'], true) => 'absence',
+            $this->page === 'time-review' && $this->view === 'times' && $this->section === '' => 'work-time',
+            $this->page === 'payroll' && $this->view === 'closing' && $this->section === '' => 'month-closing',
+            default => '',
+        };
+        $definition = match ($type) {
+            'qualification' => [EmployeeQualification::class, 'people', 'qualifications', '', 'operations.qualifications.manage'],
+            'absence' => [AbsenceRequest::class, 'leave', null, '', 'operations.absences.review'],
+            'plan-review' => [PersonnelPlanReview::class, 'leave', null, 'checks', 'employees.master-data.view'],
+            'task' => [PersonnelTask::class, 'personnel-processes', null, '', 'employees.master-data.view'],
+            'workflow-run' => [PersonnelWorkflowRun::class, 'personnel-processes', 'workflows', '', 'employees.master-data.view'],
+            'signature' => [PersonnelSignatureRequest::class, 'people', null, 'signatures', 'employees.master-data.view'],
+            'sickness' => [SicknessEvidenceWorkflow::class, 'leave', null, 'sickness', 'employees.master-data.view'],
+            'work-time' => [WorkTimeEntry::class, 'time-review', 'times', '', 'operations.time.review'],
+            'month-closing' => [OperationsMonthClosing::class, 'payroll', 'closing', '', 'operations.time.review'],
+            default => null,
+        };
+        if (! $definition) {
+            abort_if(isset($this->context['record_type']) || isset($this->context['revision']), 404);
+
+            return;
+        }
+        [$class, $page, $view, $section, $ability] = $definition;
+        abort_unless($this->page === $page && ($view === null || $this->view === $view) && $this->section === $section, 404);
+        abort_if($type === 'absence' && ! in_array($this->view, ['requests', 'calendar'], true), 404);
+        abort_if($type === 'task' && ! in_array($this->view, ['tasks', 'workflows'], true), 404);
+        $record = app(PersonnelScopeService::class)->applyRelatedQuery($class::query(), auth()->user(), $ability)->findOrFail($id);
+        if ($this->userId && $record->user_id) {
+            abort_unless((int) $record->user_id === $this->userId, 404);
+        }
+        abort_if(isset($this->context['revision']) && (int) $record->revision !== (int) $this->context['revision'], 409, 'Eintrag wurde geändert.');
     }
 
     private function personAbility(): ?string
@@ -202,11 +275,18 @@ class PersonalPageWorkspace extends Component
         return null;
     }
 
-    private function selectEmployeeIfRequired(): void
+    private function selectEmployeeIfRequired(bool $allowScopeFallback = false): void
     {
         $ability = $this->personAbility();
-        if ($ability && ! $this->userId) {
-            $this->userId = (int) app(PersonnelScopeService::class)->applyUsers(User::where('role', 'staff'), auth()->user(), $ability)->orderBy('name')->value('id');
+        if (! $ability) {
+            return;
+        }
+        $employees = app(PersonnelScopeService::class)->applyUsers(User::where('role', 'staff'), auth()->user(), $ability);
+        if ($this->userId && $allowScopeFallback && ! (clone $employees)->whereKey($this->userId)->exists()) {
+            $this->userId = 0;
+        }
+        if (! $this->userId) {
+            $this->userId = (int) $employees->orderBy('name')->value('id');
         }
     }
 

@@ -1,0 +1,47 @@
+{
+    "cities": [
+        {
+            "point": [2867714, "München", 48.13743, 11.57549],
+            "names": ["münchen", "muenchen", "munchen", "munich"],
+            "districts": ["milbertshofen", "freimann", "laim"]
+        },
+        {
+            "point": [2950159, "Berlin", 52.52437, 13.41053],
+            "names": ["berlin"],
+            "districts": []
+        },
+        {
+            "point": [2864475, "Neumünster", 54.07399, 9.98456],
+            "names": ["neumünster", "neumuenster", "neumunster"],
+            "districts": []
+        },
+        {
+            "point": [2861650, "Nürnberg", 49.45421, 11.07752],
+            "names": ["nürnberg", "nuernberg", "nurnberg", "nuremberg", "nürnberghafen", "nuernberghafen", "nurnberghafen"],
+            "districts": []
+        },
+        {
+            "point": [2835297, "Schwandorf", 49.32534, 12.1098],
+            "names": ["schwandorf", "schwandorf in bayern"],
+            "districts": []
+        },
+        {
+            "point": [2911298, "Hamburg", 53.55073, 9.99302],
+            "names": ["hamburg"],
+            "districts": ["eidelstedt", "hasselbrook"]
+        },
+        {
+            "point": [2879139, "Leipzig", 51.33962, 12.37129],
+            "names": ["leipzig"],
+            "districts": ["plagwitz"]
+        },
+        {
+            "point": [2886242, "Köln", 50.93333, 6.95],
+            "names": ["köln", "koeln", "koln", "cologne"],
+            "districts": ["eifeltor", "worringen"]
+        }
+    ],
+    "localityAliases": {
+        "treuchlingen": "treuchtlingen"
+    }
+}

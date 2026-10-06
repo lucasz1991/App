@@ -7,6 +7,8 @@ use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\OutlookAddin\OutlookMobileSignature;
+use App\Support\OutlookAddin\OutlookNativeMetadataPlacement;
+use App\Support\OutlookAddin\OutlookTrainBottomOverlay;
 use DOMDocument;
 use DOMXPath;
 use ReflectionMethod;
@@ -155,14 +157,19 @@ class OutlookMobileSignatureTest extends TestCase
         $rows = SignatureTableOverlapDelivery::project($matches[1], 'cid:train-still.png');
         $document = $payload['signature'];
         $html = TrustedOutlookSignatureCss::style($rows, scopeClass: 'rts0123456789')
-            .'<div class="rt-outlook-signature rts0123456789"><table width="100%" cellspacing="0" cellpadding="0"><tbody>'.$rows.'</tbody></table></div>';
+            .'<div class="rt-outlook-signature rts0123456789"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tbody>'.$rows.'</tbody></table></div>';
         $desktop = OutlookSignatureInlineStyle::apply($html, 'rts0123456789');
-        $document['html'] = '<!-- RT-SIGNATURE-VERSION:0123456789abcdef -->'
-            .'<span style="display:none">RT-SIGNATURE-VERSION:0123456789abcdef</span>'
-            .$desktop;
+        $document['html'] = OutlookNativeMetadataPlacement::signature(
+            $desktop,
+            '<style data-rt-outlook-marker-css="1">.rt-office-metadata{display:none!important;}</style>'
+                .'<!-- RT-SIGNATURE-VERSION:0123456789abcdef -->'
+                .'<span hidden aria-hidden="true" class="rt-office-metadata" style="display:none">RT-SIGNATURE-VERSION:0123456789abcdef</span>',
+        );
         $document['media'][] = ['name' => 'train-still.png', 'contentId' => 'train-still.png', 'base64' => 'synthetic-still'];
         $payload['signature'] = $payload['templates'][0]['signature'] = $document;
         $mobile = OutlookMobileSignature::payload($payload);
+        OutlookTrainBottomOverlay::assertRuntime($mobile['signature']['html']);
+        SignatureTableOverlapDelivery::assertRuntime(OutlookTrainBottomOverlay::restore($mobile['signature']['html']));
         $this->assertSame($mobile['signature'], $mobile['templates'][0]['signature']);
         $this->assertSame($document['media'], $mobile['signature']['media']);
         $this->assertStringContainsString(OutlookSignatureInlineStyle::ATTRIBUTE, $desktop);

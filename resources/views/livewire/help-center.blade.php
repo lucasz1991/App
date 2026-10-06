@@ -321,6 +321,20 @@
                         <p>{{ $faq['answer'] }}</p>
                     </details>
                 @endforeach
+                <details id="map-credits" data-map-credits>
+                    <summary>
+                        <span aria-hidden="true"><i class="far fa-map" aria-hidden="true"></i></span>
+                        <strong>{{ app()->getLocale() === 'de' ? 'Kartenansicht: Daten und Lizenzen' : 'Map preview: data and licences' }}</strong>
+                        <i class="far fa-plus" aria-hidden="true"></i>
+                    </summary>
+                    <p>
+                        {{ app()->getLocale() === 'de' ? 'Die Schichtkarte zeigt nur eine ungefähre Ortslage oder Stadtmitte, keine genaue Einsatzadresse. Ortsdaten: GeoNames und Mitwirkende, lokal gefiltert und für die Vorschau aufbereitet.' : 'The shift map shows an approximate locality or city centre, not an exact worksite address. Place data: GeoNames and contributors, filtered and adapted locally for the preview.' }}
+                        <a class="underline underline-offset-2" href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a>
+                        (<a class="underline underline-offset-2" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>).
+                        {{ app()->getLocale() === 'de' ? 'Deutschlandkontur: Natural Earth, vereinfacht und projiziert.' : 'Germany outline: Natural Earth, simplified and projected.' }}
+                        <a class="underline underline-offset-2" href="https://www.naturalearthdata.com/about/terms-of-use/" target="_blank" rel="noopener noreferrer">Natural Earth · Public Domain</a>.
+                    </p>
+                </details>
             </div>
         </section>
     </div>

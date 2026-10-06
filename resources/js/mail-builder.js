@@ -1144,7 +1144,7 @@ function declarationMap(style) {
         if (separator <= 0) return;
         const property = declaration.slice(0, separator).trim().toLowerCase();
         const value = declaration.slice(separator + 1).trim();
-        if (/^(?:--)?[a-z][a-z0-9-]*$/i.test(property) && value !== '') {
+        if (/^(?:--|-)?[a-z][a-z0-9-]*$/i.test(property) && value !== '') {
             declarations.set(property, value);
         }
     });
@@ -1157,7 +1157,7 @@ function mergeInlineDeclarations(ruleStyles, inlineStyle) {
     ruleStyles.forEach((style) => {
         Object.entries(style || {}).forEach(([property, value]) => {
             const normalized = String(property).trim().toLowerCase();
-            if (/^(?:--)?[a-z][a-z0-9-]*$/i.test(normalized) && value !== null && value !== undefined) {
+            if (/^(?:--|-)?[a-z][a-z0-9-]*$/i.test(normalized) && value !== null && value !== undefined) {
                 declarations.set(normalized, String(value).trim());
             }
         });
@@ -1257,7 +1257,7 @@ export function serializeMailProjectStyles(styles = []) {
     return (Array.isArray(styles) ? styles : []).map((rule) => {
         const selector = selectorForMailStyleRule(rule);
         const declarations = Object.entries(rule?.style || {})
-            .filter(([property, value]) => /^(?:--)?[a-z][a-z0-9-]*$/i.test(property)
+            .filter(([property, value]) => /^(?:--|-)?[a-z][a-z0-9-]*$/i.test(property)
                 && value !== null && value !== undefined && String(value).trim() !== '')
             .map(([property, value]) => `${property}:${String(value).trim()};`)
             .join('');

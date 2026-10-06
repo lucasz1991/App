@@ -6,12 +6,13 @@
     @if($page !== 'shifts' || $view !== 'plan')<header class="ops-toolbar">
         <x-ui.buttons.multi-toggle :options="$options" :value="$view" action="selectView" label="Ansicht wählen" />
         @if(count($this->sections()) > 1)
-            <x-ui.forms.select aria-label="Bereich wählen" wire:change="selectSection($event.target.value)">
+            <x-ui.forms.select aria-label="Bereich wählen" change="$wire.selectSection($event.target.value)">
                 @foreach($this->sections() as $key=>$label)<option value="{{ $key }}" @selected($key === $section)>{{ $label }}</option>@endforeach
             </x-ui.forms.select>
         @endif
     </header>@endif
     @if($page === 'shifts' && $view === 'plan')
+        @if(isset($context['shift']))<div x-data x-init="$nextTick(() => $dispatch('operations-shift-detail-request', {id: @js($context['shift'])}))"></div>@endif
         <livewire:admin.operations.shift-management :key="'hub-shifts-plan'" />
     @elseif($page === 'shifts')
         <livewire:admin.operations.calendar :key="'hub-shifts-calendar'" />

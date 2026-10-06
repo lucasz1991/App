@@ -166,8 +166,11 @@ class ShiftManagementViewsTest extends TestCase
                     : $shifts->modelKeys() === [$target->id])
                 ->call('openDetails', $target->id)->assertSet('detailOpen', true)
                 ->assertSet('selectedShiftId', $target->id)
-                ->call('editShift', $target->id)->assertSet('formOpen', true)->assertSet('detailOpen', false)
-                ->set('formOpen', false);
+                // Das Formular ist der zweite Zustand des Schicht-Panels: Die geöffnete
+                // Schicht bleibt offen, Abbrechen führt dorthin zurück.
+                ->call('editShift', $target->id)->assertSet('formOpen', true)->assertSet('detailOpen', true)
+                ->call('closeShiftForm')->assertSet('formOpen', false)->assertSet('detailOpen', true)
+                ->assertSet('editingShiftId', null);
         }
 
         $component->call('setView', 'table')->set('search', 'kein-treffer')

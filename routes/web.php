@@ -27,6 +27,7 @@ use App\Http\Controllers\CustomerProofAttachmentController;
 use App\Http\Controllers\DeviceInventoryTemplateController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
 use App\Http\Controllers\OperationsEvidenceController;
+use App\Http\Controllers\OperationsWorkspaceRedirectController;
 use App\Http\Controllers\OperationsTravelReceiptController;
 use App\Http\Controllers\OutlookAddin\OutlookAddinController;
 use App\Http\Controllers\ProfileEmailTemplateController;
@@ -251,7 +252,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->middleware('throttle:60,1')->name('operations.capture.sync');
     Route::get('/arbeitsplatz/ansicht/{page}', PageWorkspace::class)
         ->whereIn('page', array_keys(OperationsPages::definitions()))->name('operations.page');
-    Route::get('/arbeitsplatz/{module}', Workspace::class)
+    Route::get('/arbeitsplatz/{module}', OperationsWorkspaceRedirectController::class)
         ->whereIn('module', array_keys(OperationsNavigation::modules()))->name('operations.workspace');
     Route::get('/nachweise/{id}/download', OperationsEvidenceController::class)
         ->whereNumber('id')->middleware('throttle:30,1')->name('operations.evidence');

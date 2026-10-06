@@ -61,6 +61,9 @@ class WorkforceAccounts extends Component
     public ?int $recordId = null;
 
     #[Locked]
+    public ?int $focusedRecordId = null;
+
+    #[Locked]
     public string $correctionUnit = '';
 
     public array $form = [];
@@ -79,6 +82,10 @@ class WorkforceAccounts extends Component
         $ids = $personal ? null : app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), $this->ability());
         $this->userId = $personal ? auth()->id() : ($initialUserId ?? (int) User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->value('id'));
         $this->access();
+        if ($initialRecordId && $this->tab === 'tasks') {
+            PersonnelTask::where('user_id', $this->userId)->when($this->personal, fn ($query) => $query->where('assigned_to', auth()->id()))->findOrFail($initialRecordId);
+            $this->focusedRecordId = $initialRecordId;
+        }
         if ($initialRecordId && $this->tab === 'checks') {
             $record = PersonnelPlanReview::where('user_id', $this->userId)->findOrFail($initialRecordId);
             $this->prepareRecord('plan_review', $record->id, $record->revision);
@@ -124,6 +131,7 @@ class WorkforceAccounts extends Component
         $this->access();
         abort_unless(in_array($tab, $this->personal ? ['account', 'absences', 'tasks', 'training'] : ($this->processOnly ? ['tasks', 'training'] : ['account', 'models', 'policies', 'rules', 'checks', 'absences', 'responsibilities', 'training']), true), 404);
         $this->tab = $tab;
+        $this->focusedRecordId = null;
         $this->access();
         $this->resetPage('workforceRecordsPage');
         $this->formOpen = false;
@@ -132,6 +140,7 @@ class WorkforceAccounts extends Component
 
     public function updatedUserId(): void
     {
+        $this->focusedRecordId = null;
         $this->access();
         $this->employee();
         $this->resetPage('workforceRecordsPage');
@@ -309,7 +318,7 @@ class WorkforceAccounts extends Component
                 'policies' => EmployeeVacationPolicy::where('user_id', $employee->id)->latest('starts_on'),
                 'rules' => EmployeeRuleAssignment::where('user_id', $employee->id)->with('profile')->latest('starts_on'),
                 'checks' => PersonnelPlanReview::where('user_id', $employee->id)->with(['shift', 'assignment'])->latest(),
-                'tasks' => PersonnelTask::where('user_id', $employee->id)->when($this->personal, fn ($q) => $q->where('assigned_to', auth()->id()))->with('assignee')->latest(),
+                'tasks' => PersonnelTask::where('user_id', $employee->id)->when($this->personal, fn ($q) => $q->where('assigned_to', auth()->id()))->when($this->focusedRecordId, fn ($q) => $q->whereKey($this->focusedRecordId))->with('assignee')->latest(),
                 'responsibilities' => PersonnelResponsibility::where('user_id', $employee->id)->with('responsible')->latest('starts_on'),
                 'training' => PersonnelTrainingParticipant::where('user_id', $employee->id)->with('training')->latest(),
                 'absences' => AbsenceRequest::where('user_id', $employee->id)->latest(),

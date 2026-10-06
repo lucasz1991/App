@@ -202,7 +202,7 @@ test('an initial deep link is visible without duplicating its server-side detail
     assert.deepEqual(requests, []);
 });
 
-test('server-side edit or create action closes details through the watched state', () => {
+test('a server-side close without an open form closes the panel through the watched state', () => {
     const { state, requests, watchers } = harness(true);
     state.$wire.detailOpen = false;
     watchers.get('$wire.detailOpen')(false);
@@ -322,4 +322,55 @@ test('a failed commit advances the latest queued selection without showing its s
     assert.equal(hooks.get('commit').size, 0);
     assert.equal(hooks.get('request').size, 0);
     assert.deepEqual(hookCleanups, ['commit', 'request', 'commit', 'request']);
+});
+
+test('an initially open form (order deep link) shows the panel without a detail request', () => {
+    const state = shiftDetailDrawer();
+    state.$wire = { detailOpen: false, formOpen: true, openDetails() { throw new Error('no detail request expected'); } };
+    state.$watch = () => {};
+    state.init();
+    assert.equal(state.detailVisible, true);
+    assert.equal(state.loading, false);
+});
+
+test('opening the form from the page shows the panel although no shift is open', () => {
+    const { state, requests, watchers } = harness();
+    state.$wire.formOpen = true;
+    watchers.get('$wire.formOpen')(true);
+    assert.equal(state.detailVisible, true);
+    // createShift setzt in derselben Antwort detailOpen=false; das offene Formular hält das Panel.
+    state.$wire.detailOpen = false;
+    watchers.get('$wire.detailOpen')(false);
+    assert.equal(state.detailVisible, true);
+    assert.deepEqual(requests, []);
+});
+
+test('cancelling an edit returns to the open shift instead of closing the panel', () => {
+    const { state, watchers } = harness(true);
+    state.$wire.formOpen = true;
+    watchers.get('$wire.formOpen')(true);
+    state.$wire.formOpen = false;
+    watchers.get('$wire.formOpen')(false);
+    assert.equal(state.detailVisible, true);
+    assert.equal(state.$wire.detailOpen, true);
+});
+
+test('closing the form without an open shift closes the panel', () => {
+    const { state, watchers } = harness();
+    state.$wire.formOpen = true;
+    watchers.get('$wire.formOpen')(true);
+    state.$wire.formOpen = false;
+    watchers.get('$wire.formOpen')(false);
+    assert.equal(state.detailVisible, false);
+    assert.equal(state.$wire.detailOpen, false);
+});
+
+test('closing the panel while editing ends the form as well', () => {
+    const { state, watchers } = harness(true);
+    state.$wire.formOpen = true;
+    watchers.get('$wire.formOpen')(true);
+    state.detailVisible = false;
+    watchers.get('detailVisible')(false);
+    assert.equal(state.$wire.formOpen, false);
+    assert.equal(state.$wire.detailOpen, false);
 });

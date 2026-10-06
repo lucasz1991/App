@@ -11,13 +11,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
-use Livewire\Component;
 use Livewire\Attributes\Locked;
+use Livewire\Component;
 
 class UserProfile extends Component
 {
     #[Locked]
     public bool $embedded = false;
+
+    #[Locked]
+    public string $profileTab = 'userDetails';
 
     private array $personnelPermissions = [];
 
@@ -120,6 +123,38 @@ class UserProfile extends Component
         $this->user = User::findOrFail($this->userId);
         $this->syncInlineValues();
         $this->dirtyInlineFields = [];
+    }
+
+    public function setProfileTab(string $tab): void
+    {
+        abort_unless($this->embedded && isset($this->profileTabs()[$tab]), 403);
+        $this->profileTab = $tab;
+    }
+
+    private function profileTabs(): array
+    {
+        $tabs = ['userDetails' => ['label' => __('app.details'), 'icon' => 'fad fa-id-card']];
+        if (Gate::allows('users.profiles.view')) {
+            $tabs['userNotes'] = ['label' => __('app.notes'), 'icon' => 'fad fa-sticky-note'];
+        }
+        if (auth()->user()->isAdmin() || Gate::allows('files.manage') || Gate::allows('users.edit') || (int) auth()->id() === (int) $this->userId) {
+            $tabs['userFiles'] = ['label' => __('app.files'), 'icon' => 'fad fa-folder-open'];
+        }
+        if (Gate::allows('users.messages.view')) {
+            $tabs['userMessages'] = ['label' => __('app.messages'), 'icon' => 'fad fa-envelope'];
+        }
+        if (Gate::allows('devices.view')) {
+            $tabs['devices'] = ['label' => 'Geräte', 'icon' => 'fad fa-laptop'];
+        }
+        if ($this->personnelAllowed('employees.master-data.view')) {
+            $tabs['masterData'] = ['label' => __('app.master_data'), 'icon' => 'fad fa-user-lock'];
+            $tabs['documents'] = ['label' => __('app.employee_documents'), 'icon' => 'fad fa-folder-check'];
+        }
+        if ($this->personnelAllowed('employees.compensation.view')) {
+            $tabs['compensation'] = ['label' => __('app.compensation_data'), 'icon' => 'fad fa-coins'];
+        }
+
+        return $tabs;
     }
 
     public function updatedInlineValues(mixed $value, string $field): void
@@ -403,8 +438,12 @@ class UserProfile extends Component
 
     public function render()
     {
+        abort_unless(auth()->user()?->canViewManagementDashboard(), 403);
+        Gate::authorize('employees.view');
+        $employeeProfileTabs = $this->profileTabs();
+        abort_unless(isset($employeeProfileTabs[$this->profileTab]), 403);
         $profile = $this->profileForActor();
-        $deviceAssignments = Gate::allows('devices.view')
+        $deviceAssignments = Gate::allows('devices.view') && (! $this->embedded || $this->profileTab === 'devices')
             ? DeviceAssignment::query()
                 ->where('user_id', $this->userId)
                 ->with(['device.readinessChecks'])
@@ -416,6 +455,7 @@ class UserProfile extends Component
             'user' => $this->user,
             'profile' => $profile,
             'deviceAssignments' => $deviceAssignments,
+            'employeeProfileTabs' => $employeeProfileTabs,
             'canEditEmployee' => Gate::allows('employees.create'),
             'canViewMasterData' => $this->personnelAllowed('employees.master-data.view'),
             'canEditMasterData' => $this->personnelAllowed('employees.master-data.view')

@@ -43,6 +43,7 @@ class PageWorkspace extends Component
     public function render()
     {
         $this->authorizePage();
+
         return view('livewire.operations.page-workspace', ['definition' => OperationsPages::definitions()[$this->page]])->layout('layouts.master');
     }
 }

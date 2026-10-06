@@ -90,7 +90,7 @@ class OperationsEnhancements extends Component
         $this->contextUserId = $initialUserId;
         abort_if($payrollExportOnly && ($personal || $tab !== 'payroll'), 403);
         if ($orderId) {
-            OperationsAccess::authorize(auth()->user(), 'operations.manage');
+            OperationsAccess::authorize(auth()->user(), $tab === 'costs' ? 'operations.costs.manage' : 'operations.manage');
             Order::findOrFail($orderId);
         }
         $allowed = $this->tabs();
@@ -139,7 +139,7 @@ class OperationsEnhancements extends Component
                 app(PersonnelScopeService::class)->authorize($actor, $this->contextUserId, $this->ability($this->tab));
             }
             if ($this->orderId) {
-                OperationsAccess::authorize($actor, 'operations.manage');
+                OperationsAccess::authorize($actor, $this->tab === 'costs' ? 'operations.costs.manage' : 'operations.manage');
                 abort_unless(in_array($this->tab, ['proofs', 'travel', 'costs'], true), 403);
                 Order::findOrFail($this->orderId);
             }

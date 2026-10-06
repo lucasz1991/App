@@ -43,6 +43,7 @@ final class OutlookMobileCombinedComposeDocument
         'rt-delivery-ledger-group' => 'x15', 'rt-company-contact-icon' => 'x16',
         'rt-delivery-train-row' => 'x17', 'rt-combined-compose-frame' => 'x18',
         'rt-combined-compose-cell' => 'x19', 'rt-sign-role' => 'x1a',
+        'rt-native-train-overlay' => 'x1b',
     ];
 
     /** @return array{html:string,media:array,version:string} */

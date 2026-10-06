@@ -166,6 +166,9 @@ class ShiftManagement extends Component
     public function openDetails(int $id): void
     {
         $this->selectShift($id);
+        // Ein clientseitig geschlossenes Formular kann Prüffehler hinterlassen haben;
+        // sie gehören nicht in die Meldungen der frisch geöffneten Schicht.
+        $this->resetValidation();
         $this->formOpen = false;
         $this->detailOpen = true;
     }
@@ -249,7 +252,8 @@ class ShiftManagement extends Component
     public function editShift(int $shiftId): void
     {
         $this->ensureAdmin();
-        $this->detailOpen = false;
+        // Das Formular ist der zweite Zustand des Schicht-Panels: Eine geöffnete
+        // Schicht bleibt offen, damit "Abbrechen" und "Speichern" dorthin zurückführen.
         $shift = Shift::query()->findOrFail($shiftId);
 
         $this->editingShiftId = $shift->id;
@@ -268,6 +272,14 @@ class ShiftManagement extends Component
         $this->notes = (string) $shift->notes;
         $this->resetValidation();
         $this->formOpen = true;
+    }
+
+    public function closeShiftForm(): void
+    {
+        // Schließt nur das Formular. War eine Schicht geöffnet, zeigt das Panel sie
+        // wieder; sonst schließt rtShiftDetailDrawer das Panel.
+        $this->formOpen = false;
+        $this->resetShiftForm();
     }
 
     public function prepareOrderShift(int $orderId): void

@@ -200,6 +200,9 @@ final class OutlookMobileSignature
         foreach ($root->childNodes as $child) {
             $output .= $dom->saveHTML($child);
         }
+        // Compile the real train IMG only after the mobile mirror is complete.
+        // Its strict inverse leaves the Word flow fallback and all CID bytes intact.
+        $output = OutlookTrainBottomOverlay::projectMobile($output);
         // The device artifact has its own marker, rather than falsely claiming
         // byte equality with the desktop signature. Media and source stay intact.
         $markerPattern = '/RT-SIGNATURE-VERSION:[0-9a-f]{16}/i';

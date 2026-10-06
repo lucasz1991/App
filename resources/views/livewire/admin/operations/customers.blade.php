@@ -1,4 +1,5 @@
 <div class="space-y-4" data-operations-customers>
+    @unless($modalOnly)
     @if($embedded)
         @if($selectedCustomer)
             <section class="ops-panel ops-stack" aria-label="Kundenstammdaten">
@@ -95,7 +96,8 @@
                 @endif
     </x-operations.modal>
     @endif
-    <x-dialog-modal wire:model="formOpen" maxWidth="2xl">
+    @endunless
+    <x-dialog-modal wire:model.live="formOpen" maxWidth="2xl">
         <x-slot:title>{{ $editingCustomerId ? 'Kunde bearbeiten' : 'Neuen Kunden anlegen' }}</x-slot:title>
         <x-slot:content>
             <div class="grid gap-5 sm:grid-cols-2">

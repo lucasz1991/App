@@ -21,6 +21,8 @@ final class OutlookNativePersonalSignature
 
     private const ATTRIBUTE = 'data-rt-personal-layout';
 
+    private const ALIGNMENT_CLASS = 'rt-pv2';
+
     private const IDENTITY_SLOT = '<!-- RT-PERSONAL-IDENTITY-SLOT-V2 -->';
 
     private const COMPANY_SLOT = '<!-- RT-PERSONAL-COMPANY-SLOT-V2 -->';
@@ -36,11 +38,12 @@ final class OutlookNativePersonalSignature
         if ($legacy === $html) {
             return $html;
         }
-        foreach (['rt-phl', 'rt-phr', 'rt-pnw', 'rt-personal-logo-table', 'data-rt-personal-header', 'data-rt-personal-contacts', self::IDENTITY_SLOT, self::COMPANY_SLOT] as $reserved) {
+        foreach ([self::ALIGNMENT_CLASS, 'rt-phl', 'rt-phr', 'rt-pnw', 'rt-personal-logo-table', 'data-rt-personal-header', 'data-rt-personal-contacts', self::IDENTITY_SLOT, self::COMPANY_SLOT] as $reserved) {
             if (str_contains($html, $reserved)) {
                 self::fail();
             }
         }
+
         return self::align($legacy);
     }
 
@@ -214,10 +217,15 @@ final class OutlookNativePersonalSignature
             [$nodes[$direct]['start'], $nodes[$direct]['openEnd'], self::padding(self::opening($html, $nodes[$direct]), 'padding:0;', 'padding:14px 0 0;')],
             [$nodes[$table]['start'], $nodes[$table]['end'], $companyTable],
             [$nodes[$outerRow]['start'], $nodes[$outerRow]['openEnd'], $header.self::attribute(self::opening($html, $nodes[$outerRow]), 'data-rt-personal-contacts', '1')],
-            [$nodes[$ledger]['start'], $nodes[$ledger]['openEnd'], str_replace(self::ATTRIBUTE.'="'.self::LEGACY_MARKER.'"', self::ATTRIBUTE.'="'.self::MARKER.'"', self::opening($html, $nodes[$ledger]))],
+            [$nodes[$ledger]['start'], $nodes[$ledger]['openEnd'], self::addClass(str_replace(self::ATTRIBUTE.'="'.self::LEGACY_MARKER.'"', self::ATTRIBUTE.'="'.self::MARKER.'"', self::opening($html, $nodes[$ledger])), self::ALIGNMENT_CLASS)],
             [$columns[0], $columns[1], ''],
         ]);
         $output = self::alignmentMirrors($output, false);
+        preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $output, $styles);
+        if (array_sum(array_map('strlen', $styles[1])) >= OutlookSignatureInlineStyle::MAX_CSS_BYTES
+            || intdiv(strlen(mb_convert_encoding($output, 'UTF-16LE', 'UTF-8')), 2) > 30000) {
+            throw new RuntimeException('Die ausgerichtete persoenliche Signatur ueberschreitet das unveraenderte native HTML-/CSS-Budget.');
+        }
         if (self::unalign($output) !== $html) {
             self::fail();
         }
@@ -242,6 +250,7 @@ final class OutlookNativePersonalSignature
         $companyRows = self::rows($nodes, $table);
         $markers = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs'][self::ATTRIBUTE])));
         if ($markers !== [$ledger] || ($nodes[$ledger]['attrs'][self::ATTRIBUTE] ?? '') !== self::MARKER
+            || array_keys(array_filter($nodes, static fn (array $node): bool => self::hasClass($node, self::ALIGNMENT_CLASS))) !== [$ledger]
             || count($rows) !== 2 || $nodes[$rows[0]]['children'] !== [$leftHeader, $rightHeader]
             || $nodes[$rows[1]]['children'] !== [$brand, $contacts]
             || $nodes[$leftHeader]['children'] !== [$wrapper] || $nodes[$rightHeader]['children'] !== [$logoTable]
@@ -289,7 +298,7 @@ final class OutlookNativePersonalSignature
             [$nodes[$table]['start'], $nodes[$table]['end'], $originalLogoTable],
             [$nodes[$rows[0]]['start'], $nodes[$rows[0]]['end'], ''],
             [$nodes[$rows[1]]['start'], $nodes[$rows[1]]['openEnd'], str_replace(' data-rt-personal-contacts="1"', '', $rowOpen)],
-            [$nodes[$ledger]['start'], $nodes[$ledger]['openEnd'], str_replace(self::ATTRIBUTE.'="'.self::MARKER.'"', self::ATTRIBUTE.'="'.self::LEGACY_MARKER.'"', self::opening($html, $nodes[$ledger]))],
+            [$nodes[$ledger]['start'], $nodes[$ledger]['openEnd'], self::removeClass(str_replace(self::ATTRIBUTE.'="'.self::MARKER.'"', self::ATTRIBUTE.'="'.self::LEGACY_MARKER.'"', self::opening($html, $nodes[$ledger])), self::ALIGNMENT_CLASS)],
         ]);
         // The direct cell was inside the replaced brand inner range: inverse
         // it on the reconstructed offsets, never as an overlapping edit.
@@ -334,16 +343,16 @@ final class OutlookNativePersonalSignature
                     $changed = substr($style, 0, -8).$rules.'</style>';
                 }
             } else {
-                $changed = $style;
-                foreach (['brand' => ['32', '48'], 'contacts' => ['68', '52']] as $class => [$original, $projected]) {
+                // The shared canonical rts scope is also present on old quoted
+                // signatures. Preserve its rules; only new scoped copies may
+                // change geometry inside the uniquely marked v2 ledger.
+                foreach (['brand' => '32', 'contacts' => '68'] as $class => $original) {
                     $prefix = '.'.$scope.' .rt-ledger-'.$class.'.rt-delivery-wide-column{width:';
-                    $from = $inverse ? $projected : $original;
-                    $to = $inverse ? $original : $projected;
-                    $changed = str_replace($prefix.$from.'%!important;', $prefix.$to.'%!important;', $changed, $count);
-                    if ($count !== 1) {
+                    if (substr_count($style, $prefix.$original.'%!important;') !== 1) {
                         self::fail();
                     }
                 }
+                $changed = $style;
             }
             $ranges[] = [$offset, $offset + strlen($style), $changed];
         }
@@ -353,13 +362,18 @@ final class OutlookNativePersonalSignature
 
     private static function alignmentCss(string $scope): string
     {
-        $left = '.'.$scope.' .rt-phl';
-        $right = '.'.$scope.' .rt-phr';
+        // No current rule may match a legacy quoted ledger sharing rts/oi.
+        // Four classes outrank the later retained three-class column rules.
+        $prefix = '.'.$scope.' .'.self::ALIGNMENT_CLASS.' ';
+        $left = $prefix.'.rt-phl.rt-delivery-wide-column';
+        $right = $prefix.'.rt-phr.rt-delivery-wide-column';
 
         return $left.'{width:48%!important;}'.$right.'{width:52%!important;}'
-            .'.'.$scope.' .rt-pnw{padding-top:0!important;}'
-            .'.'.$scope.' .rt-ledger-direct.rt-delivery-group-cell{padding:14px 0 0!important;}'
-            .'@media(max-width:860px){'.$left.','.$right.'{display:block!important;width:100%!important;padding:0!important;border:0!important;}}';
+            .$prefix.'.rt-ledger-brand.rt-delivery-wide-column{width:48%!important;}'
+            .$prefix.'.rt-ledger-contacts.rt-delivery-wide-column{width:52%!important;}'
+            .$prefix.'.rt-pnw{padding-top:0!important;}'
+            .$prefix.'.rt-ledger-direct.rt-delivery-group-cell{padding:14px 0 0!important;}'
+            .'@media(max-width:860px){.'.$scope.' .rt-sign-ledger.'.self::ALIGNMENT_CLASS.' .rt-delivery-wide-column{display:block!important;width:100%!important;padding:0!important;border:0!important;}}';
     }
 
     private static function scope(array $nodes): string
@@ -409,12 +423,17 @@ final class OutlookNativePersonalSignature
         if (count(array_keys($classes, $class, true)) !== 1) {
             self::fail();
         }
-        $original = preg_replace('~\s'.preg_quote($class, '~').'\z~', '', implode(' ', $classes));
-        if ($original === implode(' ', $classes)) {
-            self::fail();
-        }
 
-        return preg_replace_callback('~\sclass="([^"]*)"~', static fn (): string => $original === '' ? '' : ' class="'.$original.'"', $tag, 1);
+        return preg_replace_callback('~\sclass="([^"]*)"~', static function (array $match) use ($class): string {
+            if ($match[1] === $class) {
+                return '';
+            }
+            if (! str_ends_with($match[1], ' '.$class)) {
+                self::fail();
+            }
+
+            return ' class="'.substr($match[1], 0, -strlen(' '.$class)).'"';
+        }, $tag, 1);
     }
 
     /** @return array{int,int,int,int,list<int>} */

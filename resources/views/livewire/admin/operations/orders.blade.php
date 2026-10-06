@@ -45,7 +45,7 @@
         @endif
     </section>
 
-    <x-operations.modal wire:model="detailOpen" title="Leistungsdetails" max-width="4xl" variant="drawer">
+    <x-operations.modal :attributes="new \Illuminate\View\ComponentAttributeBag(['wire:model'.($consolidated ? '.live' : '') => 'detailOpen'])" title="Leistungsdetails" max-width="4xl" variant="drawer">
         @if($selectedOrder)
                     @php
                         $selectedStatus = $selectedOrder->status instanceof \BackedEnum ? $selectedOrder->status->value : (string) $selectedOrder->status;
@@ -66,16 +66,16 @@
                     @if($consolidated)
                         <nav class="mt-4 ops-actions" aria-label="Auftragsdetails">@foreach($this->detailSections() as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$detailSection === $key ? 'primary':'link'" wire:click="setDetailSection('{{ $key }}')" :aria-current="$detailSection === $key ? 'page' : null">{{ $label }}</x-ui.buttons.button-basic>@endforeach</nav>
                         <div class="mt-3 ops-actions">
-                            @if($originInquiry)<x-ui.buttons.button-basic mode="link" :href="route('operations.page',['page'=>'cases','view'=>'inbox','inquiry'=>$originInquiry->id,'customer'=>$selectedOrder->customer_id])">{{ $originInquiry->number }}</x-ui.buttons.button-basic>@endif
-                            <x-ui.buttons.button-basic mode="link" :href="route('operations.page',['page'=>'customers','customer'=>$selectedOrder->customer_id])">Kundenakte</x-ui.buttons.button-basic>
+                            @if($originInquiry)<x-ui.buttons.button-basic mode="link" data-no-navigate :href="route('operations.page',['page'=>'cases','view'=>'inbox','inquiry'=>$originInquiry->id,'customer'=>$selectedOrder->customer_id])">{{ $originInquiry->number }}</x-ui.buttons.button-basic>@endif
+                            <x-ui.buttons.button-basic mode="link" data-no-navigate :href="route('operations.page',['page'=>'customers','customer'=>$selectedOrder->customer_id])">Kundenakte</x-ui.buttons.button-basic>
                         </div>
                     @endif
 
                     <nav class="mt-4 flex flex-wrap gap-2" aria-label="Planung dieser Leistung">
-                        <x-ui.buttons.button-basic :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id])" class="min-h-11">
+                        <x-ui.buttons.button-basic data-no-navigate :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id])" class="min-h-11">
                             <i class="far fa-table-list" aria-hidden="true"></i>Schichtplan
                         </x-ui.buttons.button-basic>
-                        <x-ui.buttons.button-basic :href="route($planningRoute, ['module' => 'calendar', 'order' => $selectedOrder->id])" class="min-h-11">
+                        <x-ui.buttons.button-basic data-no-navigate :href="route($planningRoute, ['module' => 'calendar', 'order' => $selectedOrder->id])" class="min-h-11">
                             <i class="far fa-calendar-days" aria-hidden="true"></i>Kalender
                         </x-ui.buttons.button-basic>
                     </nav>
@@ -121,8 +121,12 @@
                     </dl>
                     @endif
 
-                    @if($detailOpen && (!$consolidated || $detailSection === 'planning') && \App\Support\Operations\PlanningSchema::ready())<livewire:operations.order-demands :order-id="$selectedOrder->id" :key="'demand-'.$selectedOrder->id" />@endif
-                    @if($detailOpen && (!$consolidated || $detailSection === 'overview') && \Illuminate\Support\Facades\Schema::hasTable('commercial_offer_revisions') && auth()->user()->can('operations.manage'))<livewire:operations.commercial-offers subject-type="Order" :subject-id="$selectedOrder->id" :key="'commercial-order-'.$selectedOrder->id" />@endif
+                    @if($detailOpen && (!$consolidated || $detailSection === 'planning') && \App\Support\Operations\PlanningSchema::ready())
+                        <livewire:operations.order-demands :order-id="$selectedOrder->id" :key="'demand-'.$selectedOrder->id" />
+                    @endif
+                    @if($detailOpen && (!$consolidated || $detailSection === 'overview') && \Illuminate\Support\Facades\Schema::hasTable('commercial_offer_revisions') && auth()->user()->can('operations.manage'))
+                        <livewire:operations.commercial-offers subject-type="Order" :subject-id="$selectedOrder->id" :key="'commercial-order-'.$selectedOrder->id" />
+                    @endif
                     @if((!$consolidated || $detailSection === 'overview') && ($selectedOrder->description || $selectedOrder->notes))
                         <div class="mt-4 grid gap-3 sm:grid-cols-2">
                             @if($selectedOrder->description)
@@ -149,7 +153,7 @@
                                     @php($shiftStatus = $shift->status instanceof \BackedEnum ? $shift->status->value : (string) $shift->status)
                                     <div class="px-3.5 py-3" wire:key="order-shift-{{ $shift->id }}">
                                         <div class="flex items-center justify-between gap-2">
-                                            <x-ui.buttons.button-basic mode="link" :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id, 'shift' => $shift->id])" class="min-h-11 min-w-0 text-left"><span class="break-words">{{ $shift->title }}</span></x-ui.buttons.button-basic>
+                                            <x-ui.buttons.button-basic mode="link" data-no-navigate :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id, 'shift' => $shift->id])" class="min-h-11 min-w-0 text-left"><span class="break-words">{{ $shift->title }}</span></x-ui.buttons.button-basic>
                                             <x-operations.status :value="$shiftStatus" />
                                         </div>
                                         <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->starts_at?->format('d.m.Y H:i') }} · {{ $shift->assignments->filter(fn ($assignment) => in_array(
@@ -182,7 +186,9 @@
                         </section>
                         @endif
                     </div>
-                    @if($consolidated && $detailOpen && in_array($detailSection,['proofs','costs'],true))<livewire:operations.operations-enhancements :tab="$detailSection" :order-id="$selectedOrder->id" :initial-record-id="$detailSection === 'proofs' ? $fulfilmentRecordId : null" :embedded="true" :key="'order-fulfilment-'.$selectedOrder->id.'-'.$detailSection" />@endif
+                    @if($consolidated && $detailOpen && in_array($detailSection,['proofs','costs'],true))
+                        <livewire:operations.operations-enhancements :tab="$detailSection" :order-id="$selectedOrder->id" :initial-record-id="$detailSection === 'proofs' ? $fulfilmentRecordId : null" :embedded="true" :key="'order-fulfilment-'.$selectedOrder->id.'-'.$detailSection" />
+                    @endif
                 @else
                     <div class="flex min-h-80 flex-col items-center justify-center text-center">
                         <i class="fad fa-arrow-pointer text-3xl text-rt-soft" aria-hidden="true"></i>

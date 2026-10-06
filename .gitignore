@@ -27,6 +27,11 @@ Homestead.json
 /tests/*
 !/tests/Feature/
 /tests/Feature/*
+!/tests/Feature/OperationsPageNavigationTest.php
+!/tests/Feature/OperationsPageIntegrationTest.php
+!/tests/Feature/CaseWorkspaceTest.php
+!/tests/Feature/CustomerWorkspaceTest.php
+!/tests/Feature/PersonalPageWorkspaceTest.php
 !/tests/Feature/DropboxSyncTest.php
 !/tests/Feature/LocalExcelImportTest.php
 !/tests/Feature/ImportedOrderStatusTest.php
@@ -174,6 +179,8 @@ auth.json
 !/tests/Feature/StaffTimelineLayoutTest.php
 !/tests/Frontend/sidebar-drawer.test.js
 !/tests/Feature/CompactStaffTimelineUiTest.php
+!/tests/Unit/TimelineMiniCalendarTest.php
+!/tests/Unit/TimelineLocationPreviewTest.php
 !/tests/Feature/DispositionDateControlsTest.php
 !/tests/Frontend/date-time-field.test.js
 !/tests/Feature/PersonalCalendarTest.php

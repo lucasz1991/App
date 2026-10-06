@@ -1,5 +1,5 @@
 <div>
-    <x-ui.page
+    <x-dynamic-component :component="$embedded ? 'operations.surface' : 'ui.page'"
         :title="$embedded ? null : __('app.employees')"
         :count="number_format($employeesTotal, 0, ',', '.')"
         :auto-intro="!$embedded"
@@ -151,7 +151,7 @@
                 {{ $employees->links() }}
             </div>
         </div>
-    </x-ui.page>
+    </x-dynamic-component>
 
     <livewire:admin.employees.employee-form-modal :key="'employee-form-modal'" />
     <livewire:admin.employees.team-rbac-modal :key="'employee-team-rbac-modal'" />

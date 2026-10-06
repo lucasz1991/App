@@ -1418,7 +1418,7 @@ test('GrapesJS inline import rules are merged in cascade order without touching 
         'src="{{TRAIN_SRC}}"',
         `data-rt-mail-preview-token="TRAIN_SRC" src="${transparent}"`,
     );
-    const editorStage = canonicalSignatureStage('<span class="c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;">Inhalt</span>')
+    const editorStage = canonicalSignatureStage('<span class="c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;-webkit-text-size-adjust:100%;">Inhalt</span>')
         .replace(canonicalTrain, editorTrain);
     const html = '<table data-rt-mail-signature-canvas="true"><tbody>'
         + `<tr><td class="rt-sign-cell">${editorStage}</td></tr>`
@@ -1427,7 +1427,7 @@ test('GrapesJS inline import rules are merged in cascade order without touching 
     const project = {
         pages: [{ component: html }],
         styles: [
-            { selectors: ['c101'], style: { padding: '2px', color: '{{SIGNATURE_TEXT_PRIMARY}}' } },
+            { selectors: ['c101'], style: { padding: '2px', color: '{{SIGNATURE_TEXT_PRIMARY}}', '-ms-text-size-adjust': '100%' } },
             { selectors: ['c102'], style: { color: '#123456', 'font-size': '12px' } },
             { selectors: ['c777'], style: { color: '#abcdef' } },
             { selectors: ['rt-user'], style: { color: '{{SIGNATURE_TEXT_MUTED}}' } },
@@ -1448,6 +1448,8 @@ test('GrapesJS inline import rules are merged in cascade order without touching 
     assert.match(outgoing.html, /padding:9px;/);
     assert.match(outgoing.html, /color:#123456;/);
     assert.match(outgoing.html, /font-size:12px;/);
+    assert.match(outgoing.html, /-ms-text-size-adjust:100%;/);
+    assert.match(outgoing.html, /-webkit-text-size-adjust:100%;/);
     assert.match(outgoing.html, /class="rt-sign-train"[^>]*data-rt-train[^>]*src="\{\{TRAIN_SRC\}\}"/);
     assert.match(outgoing.html, /class="c777"/);
     assert.doesNotMatch(outgoing.html, /c101|c102|data-rt-mail|about:blank|data:image/);
@@ -1520,10 +1522,12 @@ test('Outlook CSS survives the browser parser through reversible declaration-onl
     assert.equal(commented[0].style['mso-hide'], 'all', 'duplicate properties in one block retain parser last-win semantics');
     assert.throws(() => parseMailCssProjectStyles('.x{mso-hide:all}.y{mso-hide:none}', () => [{ selectors: ['x'], style: { '--rt-mail-outlook-0': 'all' } }]), /Outlook-Stilregel.*verlustfrei/);
     assert.throws(() => parseMailCssProjectStyles('.x{mso-hide:all', () => []), /vollstaendige CSS-Struktur/);
-    assert.equal(parseMailCssProjectStyles('.x{-ms-text-size-adjust:100%;}', (encoded) => {
+    const legacyTextSizing = parseMailCssProjectStyles('.x{-ms-text-size-adjust:100%;}', (encoded) => {
         assert.equal(encoded, '.x{--rt-mail-outlook-0:100%;}');
         return [{ selectors: ['x'], style: { '--rt-mail-outlook-0': '100%' } }];
-    })[0].style['-ms-text-size-adjust'], '100%');
+    });
+    assert.equal(legacyTextSizing[0].style['-ms-text-size-adjust'], '100%');
+    assert.equal(serializeMailProjectStyles(legacyTextSizing), '.x{-ms-text-size-adjust:100%;}');
 });
 
 test('GrapesJS border and background expansions collapse to sanitizer-safe mail shorthands', () => {
@@ -3076,7 +3080,7 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailIndex, /data-email-template-import-link/);
     assert.match(mailIndex, /:navigate-edit="false"/);
     assert.doesNotMatch(mailIndex, /wire:navigate\s+data-email-template-(?:editor|import)-link/);
-    assert.match(adminSidebar, /:href="route\('admin\.mail-documents\.editor'\)"[\s\S]*?:navigate="false"/);
+    assert.match(adminSidebar, /@include\('layouts\.application-navigation'\)/);
     assert.doesNotMatch(adminSidebar, /admin\.mail-documents\.import-page|Entwürfe importieren/);
 
     assert.match(mailCss, /\.rt-mail-studio\s*\{[\s\S]*?overflow:\s*hidden;/);

@@ -389,9 +389,11 @@ class WorkforcePlanningWorkflowTest extends TestCase
     public function test_direct_new_module_access_requires_its_schema_without_disabling_existing_modules(): void
     {
         Schema::drop('staffing_cases');
-        Livewire::actingAs($this->manager)->test(Workspace::class, ['module' => 'workforce-planning'])->assertStatus(503);
-        Livewire::actingAs($this->manager)->test(Workspace::class, ['module' => 'plan-variants'])->assertStatus(503);
-        Livewire::actingAs($this->manager)->test(Workspace::class, ['module' => 'orders'])->assertOk();
+        $this->actingAs($this->manager);
+        $this->get(route('operations.workspace', 'workforce-planning'))->assertStatus(503);
+        $this->get(route('operations.workspace', 'plan-variants'))->assertStatus(503);
+        $this->get(route('operations.workspace', 'orders'))->assertRedirect(\App\Support\Operations\OperationsPages::moduleUrl('orders'));
+        $this->get(\App\Support\Operations\OperationsPages::moduleUrl('orders'))->assertOk();
     }
 
     public function test_safe_copy_approval_applies_only_drafts_and_stale_baselines_block(): void

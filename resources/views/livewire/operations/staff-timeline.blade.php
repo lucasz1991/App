@@ -72,9 +72,9 @@
                     $detailDstChanged = $detailStart->offset !== $detailEnd->offset;
                 @endphp
                 <div class="rt-personnel-timeline-event" data-kind="{{ $event['kind'] }}" data-state="{{ $state }}" data-continues-before="{{ $event['continues_before'] ? 'true' : 'false' }}" data-continues-after="{{ $event['continues_after'] ? 'true' : 'false' }}" data-time-start="{{ $event['left_percent'] }}" data-time-width="{{ $event['width_percent'] }}" data-time-lane="{{ $event['lane'] }}" style="--event-left:{{ $event['left_percent'] }}%;--event-width:{{ $event['width_percent'] }}%;--event-lane:{{ $event['lane'] }}" wire:key="staff-event-{{ $eventKey }}">
-                    <x-ui.dropdown.anchor-dropdown align="left" width="72" :open-on-hover="true" :offset="6" content-role="dialog" content-label="Dienstdetails" layer-group="staff-timeline-events" :dropdown-id="'staff-event-'.$eventKey" trigger-classes="rt-personnel-timeline-event-trigger" class="rt-personnel-timeline-event-anchor" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text" data-timeline-event-dropdown>
+                    <x-ui.dropdown.anchor-dropdown align="left" width="96" :max-height="560" :open-on-hover="false" :offset="8" content-role="dialog" :content-label="'Dienstdetails: '.$event['title']" layer-group="staff-timeline-events" :dropdown-id="'staff-event-'.$eventKey" trigger-classes="rt-personnel-timeline-event-trigger" class="rt-personnel-timeline-event-anchor" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text" data-timeline-event-dropdown>
                         <x-slot:trigger>
-                            <button type="button" class="rt-personnel-timeline-bar" aria-label="{{ $event['local_label'] }} · {{ $event['title'] }} · {{ $event['status'] }}" aria-expanded="false" x-bind:aria-expanded="open ? 'true' : 'false'" aria-haspopup="dialog" aria-controls="rt-dropdown-staff-event-{{ $eventKey }}-content" data-table-row-ignore>
+                            <button type="button" class="rt-personnel-timeline-bar" aria-label="{{ $event['local_label'] }} · {{ $event['title'] }} · {{ $event['status'] }}" aria-expanded="false" x-bind:aria-expanded="open ? 'true' : 'false'" aria-haspopup="dialog" aria-controls="rt-dropdown-staff-event-{{ $eventKey }}-content" x-on:click="$nextTick(() => { if (open) $refs.panel?.querySelector('[data-timeline-detail-focus]')?.focus({ preventScroll: true }); })" data-table-row-ignore>
                                 <span class="rt-personnel-timeline-time"><span class="rt-personnel-timeline-time-text">{{ $event['timeline_label'] }}</span></span>
                                 @foreach($event['time_segments'] as $segment)
                                     <span class="rt-personnel-timeline-mark" style="left:{{ ($segment['left_percent'] - $event['left_percent']) / $event['width_percent'] * 100 }}%;width:{{ $segment['width_percent'] / $event['width_percent'] * 100 }}%" aria-hidden="true"></span>
@@ -82,31 +82,7 @@
                             </button>
                         </x-slot:trigger>
                         <x-slot:content>
-                            <article class="rt-personnel-timeline-detail" data-kind="{{ $event['kind'] }}" data-state="{{ $state }}">
-                                <header class="rt-personnel-timeline-detail-header">
-                                    <span class="rt-personnel-timeline-detail-status"><span aria-hidden="true"></span>{{ $event['status'] }}</span>
-                                    <p class="rt-personnel-timeline-detail-title">{{ $event['title'] }}</p>
-                                    <p class="rt-personnel-timeline-detail-person">{{ $row['user']->name }}</p>
-                                </header>
-                                <dl class="rt-personnel-timeline-detail-data">
-                                    <div><dt>Zeitraum</dt><dd>{{ $detailStart->format($detailDstChanged ? 'd.m. H:i P' : 'd.m. H:i') }} – {{ $detailEnd->format($detailDstChanged ? 'd.m. H:i P' : 'd.m. H:i') }}</dd></div>
-                                    @if(filled($event['detail']))<div><dt>Kunde</dt><dd>{{ $event['detail'] }}</dd></div>@endif
-                                    @if(filled($event['role_name'] ?? null))<div><dt>Tätigkeit</dt><dd>{{ $event['role_name'] }}</dd></div>@endif
-                                    @if(filled($event['shift_status_label'] ?? null))<div><dt>Planstatus</dt><dd>{{ $event['shift_status_label'] }}</dd></div>@endif
-                                    @if(filled($event['location_name'] ?? null))<div><dt>Einsatzort</dt><dd>{{ $event['location_name'] }}</dd></div>@endif
-                                    @if(!$absencesOnly)
-                                        <div><dt>Regelarbeitszeit</dt><dd>{{ $row['weekly_working_hours'] !== null ? number_format($row['weekly_working_hours'], 1, ',', '.').' h/Woche' : 'Nicht hinterlegt' }}</dd></div>
-                                        @if(isset($row['planned_hours_by_week'][$event['iso_week']]))<div><dt>Eingeplant · KW {{ $event['visible_start']->setTimezone($zone)->isoWeek() }}</dt><dd>{{ number_format($row['planned_hours_by_week'][$event['iso_week']], 1, ',', '.') }} h</dd></div>@endif
-                                    @endif
-                                    @if($event['planned_break_minutes'] ?? 0)<div><dt>Pause</dt><dd>{{ $event['planned_break_minutes'] }} Minuten</dd></div>@endif
-                                    @if($detailDstChanged)<div><dt>Zeitumstellung</dt><dd>{{ number_format(abs($detailStart->diffInMinutes($detailEnd)) / 60, 1, ',', '.') }} h tatsächliche Dauer</dd></div>@endif
-                                </dl>
-                                @if($event['shift_id'])
-                                    <footer class="rt-personnel-timeline-detail-footer"><x-ui.buttons.button-basic size="sm" type="button" x-on:click="$dispatch('operations-shift-detail-request', { id: {{ $event['shift_id'] }} }); close()" data-shift-detail-open="{{ $event['shift_id'] }}">Schicht öffnen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic></footer>
-                                @elseif($absencesOnly)
-                                    <footer class="rt-personnel-timeline-detail-footer"><x-ui.buttons.button-basic size="sm" type="button" wire:click="$dispatch('operations-open-absence', {id: {{ $event['absence_id'] }}})">Abwesenheit öffnen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic></footer>
-                                @endif
-                            </article>
+                            @include('livewire.operations.partials.timeline-event-detail')
                         </x-slot:content>
                     </x-ui.dropdown.anchor-dropdown>
                 </div>

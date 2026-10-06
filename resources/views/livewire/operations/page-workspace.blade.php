@@ -1,6 +1,8 @@
 @section('title', $definition['title'])
 <x-ui.page :title="$definition['title']" :auto-intro="false" content-class="rt-ops ops-stack" :class="in_array($page, ['cases', 'shifts', 'planning', 'duty'], true) ? 'rt-disposition-page' : ''">
-    @if($page === 'shifts')<x-slot:actions><x-operations.create-action :module="$initialView === 'calendar' ? 'calendar' : 'shift-management'" /></x-slot:actions>@endif
+    @if($page === 'shifts')
+        <x-slot:actions><x-operations.create-action :module="$initialView === 'calendar' ? 'calendar' : 'shift-management'" /></x-slot:actions>
+    @endif
     <div class="min-w-0" x-data x-on:rt-workspace-url.window="const target = new URL($event.detail.url, location.origin); if (target.origin === location.origin && target.pathname === location.pathname) history.replaceState(history.state, '', target.href)">
     @if($page === 'cases')
         <livewire:operations.case-workspace :initial-view="$initialView" :initial-section="$initialSection" :context="$context" />

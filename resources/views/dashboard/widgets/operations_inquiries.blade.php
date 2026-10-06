@@ -21,14 +21,14 @@
 @if($rows === 2)
     <div class="widget-detail wv-list">
         @forelse($data['items'] as $item)
-            <div class="wv-item">
+            <a class="wv-item" href="{{ $item['href'] }}" wire:navigate>
                 <span class="wv-item-ico ops-tone-neutral" title="Kanal: {{ $item['channel'] }}"><i data-feather="{{ $channelIcons[$item['channel']] ?? 'inbox' }}"></i></span>
                 <span class="wv-item-main">
                     <span class="wv-truncate">{{ $item['title'] }}</span>
                     <small class="wv-truncate">{{ $item['meta'] ?? 'Ohne Kunde' }} · {{ $item['when']?->diffForHumans() }}</small>
                 </span>
                 <span class="wv-age-dot" data-age="{{ $item['age'] }}" title="{{ $ageLabels[$item['age']] }}"></span>
-            </div>
+            </a>
         @empty
             <x-dashboard.empty icon="check-circle">Keine offenen Anfragen.</x-dashboard.empty>
         @endforelse

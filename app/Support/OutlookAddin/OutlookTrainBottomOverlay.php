@@ -15,7 +15,13 @@ final class OutlookTrainBottomOverlay
 {
     public const MARKER = 'intrinsic-img-v1';
 
+    public const MOBILE_MARKER = 'intrinsic-mobile-img-v1';
+
     private const ATTRIBUTE = 'data-rt-train-bottom-overlay';
+
+    private const STAGE_CLASS = 'rt-native-train-overlay';
+
+    private const STAGE_WHITE_PREFIX = 'background-color:#ffffff!important;';
 
     private const ADDED = [
         'rt-sign-stage' => 'position:relative;z-index:0;',
@@ -24,6 +30,28 @@ final class OutlookTrainBottomOverlay
     ];
 
     public static function project(string $html): string
+    {
+        return self::projectVariant($html, false);
+    }
+
+    public static function projectMobile(string $html): string
+    {
+        if (str_contains($html, self::ATTRIBUTE)) {
+            if (! str_contains($html, self::ATTRIBUTE.'="'.self::MOBILE_MARKER.'"')) {
+                self::fail();
+            }
+            self::assertRuntime($html);
+
+            return $html;
+        }
+        if (! str_contains($html, 'data-rt-outlook-mobile-css') && ! str_contains($html, 'rt-mobile-ledger')) {
+            return $html;
+        }
+
+        return self::projectVariant($html, true);
+    }
+
+    private static function projectVariant(string $html, bool $mobile): string
     {
         if (str_contains($html, self::ATTRIBUTE)) {
             self::assertRuntime($html);
@@ -37,14 +65,14 @@ final class OutlookTrainBottomOverlay
 
             return $html;
         }
-        [$nodes, $targets, $cell, $branch, $mirrored] = self::contract($html, false);
-        $output = self::mirrors($html, $nodes, $targets, $mirrored, false);
+        [$nodes, $targets, $cell, $branch, $mirrored] = self::contract($html, false, $mobile);
+        $output = self::mirrors($html, $nodes, $targets, $mirrored, false, $mobile);
         // Only stylesheet lengths changed; re-read offsets before HTML cuts.
-        [$nodes, $targets, $cell, $branch] = self::contract($output, false);
+        [$nodes, $targets, $cell, $branch] = self::contract($output, false, $mobile);
         $stage = $targets['rt-sign-stage'];
         $image = $targets['rt-delivery-train'];
         $moving = substr($output, $branch[0], $branch[1] - $branch[0]);
-        $moving = str_replace($nodes[$image]['opening'], self::opening($nodes[$image], 'rt-delivery-train', $mirrored, false), $moving, $changed);
+        $moving = str_replace($nodes[$image]['opening'], self::opening($nodes[$image], 'rt-delivery-train', $mirrored, false, $mobile), $moving, $changed);
         if ($changed !== 1) {
             self::fail();
         }
@@ -54,7 +82,7 @@ final class OutlookTrainBottomOverlay
         ];
         foreach (['rt-sign-stage', 'rt-sign-content-frame'] as $class) {
             $node = $nodes[$targets[$class]];
-            $ranges[] = [$node['start'], $node['openEnd'], self::opening($node, $class, $mirrored, false)];
+            $ranges[] = [$node['start'], $node['openEnd'], self::opening($node, $class, $mirrored, false, $mobile)];
         }
         $output = self::replace($output, $ranges);
         self::budget($output);
@@ -68,7 +96,8 @@ final class OutlookTrainBottomOverlay
     public static function assertRuntime(string $html): void
     {
         $original = self::restore($html);
-        if ($original === $html || self::project($original) !== $html) {
+        $mobile = str_contains($html, self::ATTRIBUTE.'="'.self::MOBILE_MARKER.'"');
+        if ($original === $html || self::projectVariant($original, $mobile) !== $html) {
             self::fail();
         }
     }
@@ -79,10 +108,11 @@ final class OutlookTrainBottomOverlay
         if (! str_contains($html, self::ATTRIBUTE)) {
             return $html;
         }
-        [$nodes, $targets, $cell, $branch, $mirrored] = self::contract($html, true);
+        $mobile = str_contains($html, self::ATTRIBUTE.'="'.self::MOBILE_MARKER.'"');
+        [$nodes, $targets, $cell, $branch, $mirrored] = self::contract($html, true, $mobile);
         $image = $targets['rt-delivery-train'];
         $moving = substr($html, $branch[0], $branch[1] - $branch[0]);
-        $moving = str_replace($nodes[$image]['opening'], self::opening($nodes[$image], 'rt-delivery-train', $mirrored, true), $moving, $changed);
+        $moving = str_replace($nodes[$image]['opening'], self::opening($nodes[$image], 'rt-delivery-train', $mirrored, true, $mobile), $moving, $changed);
         if ($changed !== 1) {
             self::fail();
         }
@@ -92,32 +122,43 @@ final class OutlookTrainBottomOverlay
         ];
         foreach (['rt-sign-stage', 'rt-sign-content-frame'] as $class) {
             $node = $nodes[$targets[$class]];
-            $ranges[] = [$node['start'], $node['openEnd'], self::opening($node, $class, $mirrored, true)];
+            $ranges[] = [$node['start'], $node['openEnd'], self::opening($node, $class, $mirrored, true, $mobile)];
         }
         $restored = self::replace($html, $ranges);
-        [$nodes, $targets, , , $mirrored] = self::contract($restored, false);
-        $restored = self::mirrors($restored, $nodes, $targets, $mirrored, true);
+        [$nodes, $targets, , , $mirrored] = self::contract($restored, false, $mobile);
+        $restored = self::mirrors($restored, $nodes, $targets, $mirrored, true, $mobile);
         SignatureTableOverlapDelivery::assertRuntime($restored);
         self::budget($restored);
 
         return $restored;
     }
 
-    private static function contract(string $html, bool $projected): array
+    private static function contract(string $html, bool $projected, bool $mobile = false): array
     {
         $nodes = self::nodes($html);
         $root = self::one($nodes, 'rt-outlook-signature', 'div');
         if (array_keys(array_filter($nodes, static fn (array $node): bool => $node['parent'] === null)) !== [$root]
-            || preg_match('/(?:^|\s)rts[0-9a-f]{10}(?:\s|$)/', $nodes[$root]['attrs']['class'] ?? '') !== 1
+            || preg_match_all('/(?:^|\s)(rts[0-9a-f]{10})(?=\s|$)/', $nodes[$root]['attrs']['class'] ?? '', $scopes) !== 1
             || ! SignatureTableOverlapDelivery::applies($html)) {
             self::fail();
         }
+        // The projected stage is always a proper descendant, never the rts
+        // root itself or a second node carrying that root's scope class.
+        if (self::one($nodes, $scopes[1][0], 'div') !== $root) {
+            self::fail();
+        }
         $version = SignatureArtifactVersion::detect('signature', $html);
+        if ($mobile) {
+            self::mobileScope($html, $nodes, $root);
+        }
         $mirrored = SignatureArtifactVersion::usesMirroredTrain($version);
         $targets = [];
         foreach (['rt-sign-stage' => 'div', 'rt-sign-content-frame' => 'table', 'rt-delivery-train' => 'img'] as $class => $tag) {
             $targets[$class] = self::one($nodes, $class, $tag);
             $expected = self::declarations($class, $mirrored).($projected ? self::added($class, $mirrored) : '');
+            if ($class === 'rt-sign-stage') {
+                $expected = self::stagePrefix($nodes[$targets[$class]]).$expected;
+            }
             if (($nodes[$targets[$class]]['attrs']['style'] ?? '') !== $expected) {
                 self::fail();
             }
@@ -131,12 +172,25 @@ final class OutlookTrainBottomOverlay
         $signCell = self::one($nodes, 'rt-sign-cell', 'td');
         $rows = self::rows($nodes, $frame);
         $marks = array_keys(array_filter($nodes, static fn (array $node): bool => isset($node['attrs'][self::ATTRIBUTE])));
+        $overlays = array_keys(array_filter($nodes, static fn (array $node): bool => self::hasClass($node, self::STAGE_CLASS)));
+        $stageChildren = [$frame];
+        $hotlines = array_keys(array_filter($nodes, static fn (array $node): bool => self::hasClass($node, 'rt-hotline-banner')));
+        if ($hotlines !== []) {
+            if (count($hotlines) !== 1 || $nodes[$hotlines[0]]['tag'] !== 'table' || $nodes[$hotlines[0]]['parent'] !== $stage) {
+                self::fail();
+            }
+            array_unshift($stageChildren, $hotlines[0]);
+        }
+        if ($projected) {
+            $stageChildren[] = $image;
+        }
         if ($nodes[$stage]['parent'] !== $signCell || $nodes[$frame]['parent'] !== $stage
             || count($rows) !== 2 || $rows[1] !== $row || $nodes[$rows[0]]['children'] !== [$content]
             || $nodes[$row]['children'] !== [$cell] || $nodes[$cell]['attrs']['width'] !== '100%'
             || $nodes[$image]['attrs']['width'] !== '300' || $nodes[$image]['attrs']['height'] !== '38'
-            || ($projected ? $marks !== [$stage] || $nodes[$stage]['attrs'][self::ATTRIBUTE] !== self::MARKER : $marks !== [])
-            || $nodes[$stage]['children'] !== ($projected ? [$frame, $image] : [$frame])
+            || ($projected ? $marks !== [$stage] || $nodes[$stage]['attrs'][self::ATTRIBUTE] !== ($mobile ? self::MOBILE_MARKER : self::MARKER) : $marks !== [])
+            || $overlays !== ($projected ? [$stage] : [])
+            || $nodes[$stage]['children'] !== $stageChildren
             || $nodes[$image]['parent'] !== ($projected ? $stage : $cell)) {
             self::fail();
         }
@@ -174,18 +228,32 @@ final class OutlookTrainBottomOverlay
         return self::ADDED[$class].($class === 'rt-delivery-train' ? ($mirrored ? 'right:0;left:auto;' : 'left:0;right:auto;') : '');
     }
 
-    private static function opening(array $node, string $class, bool $mirrored, bool $restore): string
+    private static function opening(array $node, string $class, bool $mirrored, bool $restore, bool $mobile = false): string
     {
-        $old = self::declarations($class, $mirrored).($restore ? self::added($class, $mirrored) : '');
-        $new = self::declarations($class, $mirrored).($restore ? '' : self::added($class, $mirrored));
+        $prefix = $class === 'rt-sign-stage' ? self::stagePrefix($node) : '';
+        $old = $prefix.self::declarations($class, $mirrored).($restore ? self::added($class, $mirrored) : '');
+        $new = $prefix.self::declarations($class, $mirrored).($restore ? '' : self::added($class, $mirrored));
         $tag = str_replace(' style="'.$old.'"', ' style="'.$new.'"', $node['opening'], $count);
         if ($count !== 1) {
             self::fail();
         }
         if ($class === 'rt-sign-stage') {
-            $marker = ' '.self::ATTRIBUTE.'="'.self::MARKER.'"';
+            $marker = ' '.self::ATTRIBUTE.'="'.($mobile ? self::MOBILE_MARKER : self::MARKER).'"';
             $tag = $restore ? str_replace($marker, '', $tag, $count) : substr($tag, 0, -1).$marker.'>';
             if ($restore && $count !== 1) {
+                self::fail();
+            }
+            $classes = $node['attrs']['class'] ?? '';
+            if ($restore) {
+                $replacement = str_replace(' '.self::STAGE_CLASS, '', $classes, $count);
+                if ($count !== 1 || ! str_ends_with($classes, ' '.self::STAGE_CLASS)) {
+                    self::fail();
+                }
+            } else {
+                $replacement = $classes.' '.self::STAGE_CLASS;
+            }
+            $tag = str_replace(' class="'.$classes.'"', ' class="'.$replacement.'"', $tag, $count);
+            if ($count !== 1) {
                 self::fail();
             }
         }
@@ -193,9 +261,18 @@ final class OutlookTrainBottomOverlay
         return $tag;
     }
 
-    /** Project the existing trusted inline STYLE, not an optional new override. */
-    private static function mirrors(string $html, array $nodes, array $targets, bool $mirrored, bool $restore): string
+    /** Only the proved published white carrier prefix, never generic CSS. */
+    private static function stagePrefix(array $node): string
     {
+        return str_starts_with($node['attrs']['style'] ?? '', self::STAGE_WHITE_PREFIX) ? self::STAGE_WHITE_PREFIX : '';
+    }
+
+    /** Project the existing trusted inline STYLE, not an optional new override. */
+    private static function mirrors(string $html, array $nodes, array $targets, bool $mirrored, bool $restore, bool $mobile = false): string
+    {
+        if ($mobile) {
+            return self::mobileMirrors($html, $nodes, $targets, $restore);
+        }
         $root = $nodes[self::one($nodes, 'rt-outlook-signature', 'div')];
         preg_match('/(?:^|\s)(rts[0-9a-f]{10})(?:\s|$)/', $root['attrs']['class'], $scope);
         $opening = '<style '.OutlookSignatureInlineStyle::ATTRIBUTE.'="1">';
@@ -214,17 +291,125 @@ final class OutlookTrainBottomOverlay
                 self::fail();
             }
             $selector = '.'.$scope[1].'.'.$aliases[0].',.'.$scope[1].' .'.$aliases[0];
+            // Identical source scopes can occur in quoted older signatures.
+            // The output-only stage class keeps these new declarations local
+            // even if Office drops data attributes but preserves classes/CSS.
+            // contract() proves that the root rts class occurs only on the
+            // outer root, while STAGE_CLASS occurs only on its child stage.
+            // A root.rts.STAGE_CLASS branch can therefore never match.
+            $projectedSelector = $class === 'rt-sign-stage'
+                ? '.'.$scope[1].' .'.self::STAGE_CLASS.'.'.$aliases[0]
+                : '.'.$scope[1].' .'.self::STAGE_CLASS.' .'.$aliases[0];
             $original = self::declarations($class, $mirrored);
+            if ($class === 'rt-sign-stage' && self::stagePrefix($nodes[$index]) !== '') {
+                $currentSelector = $restore ? $projectedSelector : $selector;
+                $currentSuffix = $original.($restore ? self::added($class, $mirrored) : '');
+                // Desktop mirrors may retain importance or contain only its
+                // exact normalized white declaration. Preserve the present
+                // form byte-for-byte through the projection and inverse.
+                $whiteRule = $currentSelector.'{'.self::STAGE_WHITE_PREFIX.$currentSuffix.'}';
+                $normalizedRule = $currentSelector.'{background-color:#ffffff;'.$currentSuffix.'}';
+                if (substr_count($css, $whiteRule) === 1) {
+                    $original = self::STAGE_WHITE_PREFIX.$original;
+                } elseif (substr_count($css, $normalizedRule) === 1) {
+                    $original = 'background-color:#ffffff;'.$original;
+                } else {
+                    self::fail();
+                }
+            }
             $projected = $original.self::added($class, $mirrored);
-            $old = $selector.'{'.($restore ? $projected : $original).'}';
-            $new = $selector.'{'.($restore ? $original : $projected).'}';
-            if (substr_count($css, $selector.'{') !== 1 || substr_count($css, $old) !== 1) {
+            $old = ($restore ? $projectedSelector : $selector).'{'.($restore ? $projected : $original).'}';
+            $new = ($restore ? $selector : $projectedSelector).'{'.($restore ? $original : $projected).'}';
+            if (substr_count($css, ($restore ? $projectedSelector : $selector).'{') !== 1 || substr_count($css, $old) !== 1
+                || substr_count($css, ($restore ? $selector : $projectedSelector).'{') !== 0) {
                 self::fail();
             }
             $css = str_replace($old, $new, $css);
         }
 
         return substr($html, 0, $start).$css.substr($html, $end);
+    }
+
+    /** The established mobile compiler skips the stage/frame but mirrors IMG. */
+    private static function mobileMirrors(string $html, array $nodes, array $targets, bool $restore): string
+    {
+        $scope = self::mobileScope($html, $nodes, self::one($nodes, 'rt-outlook-signature', 'div'));
+        $opening = '<style data-rt-outlook-mobile-css="1">';
+        if (substr_count($html, $opening) !== 1 || str_contains($html, OutlookSignatureInlineStyle::ATTRIBUTE)) {
+            self::fail();
+        }
+        $start = strpos($html, $opening) + strlen($opening);
+        $end = strpos($html, '</style>', $start);
+        if ($end === false) {
+            self::fail();
+        }
+        $css = substr($html, $start, $end - $start);
+        $image = $targets['rt-delivery-train'];
+        $aliases = array_values(array_filter(preg_split('/\s+/', $nodes[$image]['attrs']['class'] ?? ''), static fn (string $alias): bool => preg_match('/\Am[0-9a-z]+\z/', $alias) === 1));
+        if (count($aliases) !== 1 || count(array_filter($nodes, static fn (array $node): bool => self::hasClass($node, $aliases[0]))) !== 1) {
+            self::fail();
+        }
+        $selector = '.'.$scope.'.rtm .'.$aliases[0];
+        $projectedSelector = '.'.$scope.'.rtm .'.self::STAGE_CLASS.' .'.$aliases[0];
+        $original = self::declarations('rt-delivery-train', false);
+        $projected = $original.self::added('rt-delivery-train', false);
+        $old = ($restore ? $projectedSelector : $selector).'{'.self::important($restore ? $projected : $original).'}';
+        $new = ($restore ? $selector : $projectedSelector).'{'.self::important($restore ? $original : $projected).'}';
+        if (substr_count($css, ($restore ? $projectedSelector : $selector).'{') !== 1 || substr_count($css, $old) !== 1
+            || substr_count($css, ($restore ? $selector : $projectedSelector).'{') !== 0) {
+            self::fail();
+        }
+        $css = str_replace($old, $new, $css);
+        $critical = '';
+        foreach (['rt-sign-stage', 'rt-sign-content-frame'] as $class) {
+            if (str_contains($css, '.'.$scope.'.rtm .'.$class.'{')) {
+                self::fail();
+            }
+            $roleSelector = '.'.$scope.'.rtm .'.self::STAGE_CLASS.($class === 'rt-sign-stage' ? '' : ' .'.$class);
+            $rule = $roleSelector.'{'.self::important(self::added($class, false)).'}';
+            if (substr_count($css, $roleSelector.'{') !== ($restore ? 1 : 0)) {
+                self::fail();
+            }
+            $critical .= $rule;
+        }
+        if ($restore) {
+            if (! str_ends_with($css, $critical)) {
+                self::fail();
+            }
+            $css = substr($css, 0, -strlen($critical));
+        } else {
+            $css .= $critical;
+        }
+
+        return substr($html, 0, $start).$css.substr($html, $end);
+    }
+
+    /** The canonical physical mobile rows and content-derived 40-bit scope. */
+    private static function mobileScope(string $html, array $nodes, int $root): string
+    {
+        $classes = preg_split('/\s+/', $nodes[$root]['attrs']['class'] ?? '');
+        preg_match('/(?:^|\s)(rts[0-9a-f]{10})(?:\s|$)/', $nodes[$root]['attrs']['class'] ?? '', $signatureScope);
+        $scope = isset($signatureScope[1]) ? 'm'.base_convert(substr($signatureScope[1], 3), 16, 36) : '';
+        $scopes = array_values(array_filter($classes, static fn (string $class): bool => preg_match('/\Am[0-9a-z]+\z/', $class) === 1));
+        $ledger = self::one($nodes, 'rt-sign-ledger', 'table');
+        $rows = self::rows($nodes, $ledger);
+        if ($scopes !== [$scope] || ! in_array('rt-mobile-ledger', $classes, true) || ! in_array('rtm', $classes, true)
+            || SignatureArtifactVersion::detect('signature', $html) !== 'v27' || count($rows) !== 2) {
+            self::fail();
+        }
+        foreach (['rt-ledger-brand', 'rt-ledger-contacts'] as $index => $class) {
+            $cell = self::one($nodes, $class, 'td');
+            if ($nodes[$rows[$index]]['children'] !== [$cell] || ($nodes[$cell]['attrs']['width'] ?? '') !== '100%') {
+                self::fail();
+            }
+        }
+
+        return $scope;
+    }
+
+    private static function important(string $declarations): string
+    {
+        return str_replace(';', '!important;', rtrim($declarations, ';')).'!important;';
     }
 
     private static function budget(string $html): void

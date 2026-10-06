@@ -12,7 +12,9 @@
 --}}
 <x-ui.page :auto-intro="false" :welcome-intro="false" content-class="rt-ops" data-native-dashboard>
     @if(isset(\App\Support\Operations\OperationsPages::availableFor(auth()->user())['attention']))
-        <x-slot:actions><x-ui.buttons.button-basic :href="\App\Support\Operations\OperationsPages::url('attention')"><i class="far fa-inbox" aria-hidden="true"></i>Arbeitsliste</x-ui.buttons.button-basic></x-slot:actions>
+        <x-slot:actions>
+            <x-ui.buttons.button-basic :href="\App\Support\Operations\OperationsPages::url('attention')"><i class="far fa-inbox" aria-hidden="true"></i>Arbeitsliste</x-ui.buttons.button-basic>
+        </x-slot:actions>
     @endif
     <livewire:dashboard.widget-grid />
 </x-ui.page>

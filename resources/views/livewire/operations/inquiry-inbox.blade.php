@@ -81,7 +81,7 @@
         </aside>
     </div>
 
-<x-operations.modal wire:model="detailOpen" :title="$editing ? ($selectedId ? 'Bedarf bearbeiten' : 'Neue Anfrage') : 'Anfrage'" max-width="4xl" :variant="$editing ? 'modal' : 'drawer'">
+<x-operations.modal :attributes="new \Illuminate\View\ComponentAttributeBag(['wire:model'.($consolidated ? '.live' : '') => 'detailOpen'])" :title="$editing ? ($selectedId ? 'Bedarf bearbeiten' : 'Neue Anfrage') : 'Anfrage'" max-width="4xl" :variant="$editing ? 'modal' : 'drawer'">
             @if($editing)
                 <form wire:submit="save" class="ops-form">
                     <x-operations.field label="Betreff" model="form.title" required maxlength="180" :wide="true" />
@@ -119,11 +119,22 @@
                 @endif
                 <dl class="ops-meta"><div><dt>Kunde</dt><dd>{{ $selected->customer?->company_name ?? 'Noch nicht zugeordnet' }}</dd></div><div><dt>Kontakt</dt><dd>{{ $selected->contact_name ?: '—' }}</dd></div><div><dt>Beginn</dt><dd>{{ $selected->starts_at?->format('d.m.Y H:i') ?? '—' }}</dd></div><div><dt>Ende · {{ $selected->timezone }}</dt><dd>{{ $selected->ends_at?->format('d.m.Y H:i') ?? '—' }}</dd></div><div><dt>Einsatzort</dt><dd>{{ $selected->location_name ?: '—' }}</dd></div><div><dt>Bedarf</dt><dd>{{ $selected->required_staff ?? '—' }} × {{ $selected->role_name ?: '—' }}</dd></div></dl>
                 <details class="rt-disposition-detail-section"><summary>Originaleingang</summary><p class="ops-muted">{{ ['email' => 'E-Mail', 'phone' => 'Telefon', 'portal' => 'Portal', 'manual' => 'Manuell'][$selected->channel] ?? $selected->channel }}@if($selected->source_reference) · {{ $selected->source_reference }}@endif</p><div class="ops-original">{{ $selected->original }}</div></details>
-                @if($selected->customer_id && auth()->user()->can('operations.manage') && \Illuminate\Support\Facades\Route::has('operations.page'))<x-ui.buttons.button-basic mode="link" :href="route('operations.page',['page'=>'customers','customer'=>$selected->customer_id])">Kundenakte öffnen</x-ui.buttons.button-basic>@endif
-                @if($customerWorkflowReady && !$portalSubmissionId)<livewire:operations.inquiry-process-panel :inquiry-id="$selected->id" :key="'inquiry-process-'.$selected->id" />@endif
-                @if($commercialReady && !$portalSubmissionId)<livewire:operations.commercial-offers subject-type="OperationInquiry" :subject-id="$selected->id" :key="'inquiry-offers-'.$selected->id" />@endif
+                @if($selected->customer_id && auth()->user()->can('operations.manage') && \Illuminate\Support\Facades\Route::has('operations.page'))<x-ui.buttons.button-basic mode="link" data-no-navigate :href="route('operations.page',['page'=>'customers','customer'=>$selected->customer_id])">Kundenakte öffnen</x-ui.buttons.button-basic>@endif
+                @if($customerWorkflowReady && !$portalSubmissionId)
+                    <livewire:operations.inquiry-process-panel :inquiry-id="$selected->id" :key="'inquiry-process-'.$selected->id" />
+                @endif
+                @if($commercialReady && !$portalSubmissionId)
+                    <livewire:operations.commercial-offers subject-type="OperationInquiry" :subject-id="$selected->id" :key="'inquiry-offers-'.$selected->id" />
+                @endif
                 @if($portalSubmissionId)
-                    @can('customers.portal.manage')<x-ui.buttons.button-basic mode="primary" :href="route('operations.page',['page'=>'cases','view'=>'inbox','section'=>'portal','customer'=>$selected->customer_id,'source'=>'submission','record'=>$portalSubmissionId])">Portalvorgang öffnen</x-ui.buttons.button-basic>@endcan
+                    @can('customers.portal.manage')
+                        <x-ui.buttons.button-basic mode="primary" data-no-navigate :href="route('operations.page',['page'=>'cases','view'=>'inbox','section'=>'portal','customer'=>$selected->customer_id,'source'=>'submission','record'=>$portalSubmissionId])">Portalvorgang öffnen</x-ui.buttons.button-basic>
+                    @endcan
+                    @if($selected->order_id)
+                        @can('operations.manage')
+                            <x-ui.buttons.button-basic mode="link" data-no-navigate :href="route('operations.page',['page'=>'cases','view'=>'orders','order'=>$selected->order_id,'inquiry'=>$selected->id])">Auftrag {{ $selected->order?->order_number }}</x-ui.buttons.button-basic>
+                        @endcan
+                    @endif
                 @elseif(!$selected->order_id && !$selected->duplicate_of_id && $selected->status !== 'rejected')
                     <div class="ops-actions"><x-ui.buttons.button-basic wire:click="$set('editing', true)">Bedarf bearbeiten</x-ui.buttons.button-basic>@if($selected->status === 'new')<x-ui.buttons.button-basic mode="primary" wire:click="transition('verify')" wire:loading.attr="disabled">Bedarf bestätigen</x-ui.buttons.button-basic>@endif</div>
                     @if(!$commercialReady && in_array($selected->status, ['verified','offered']))
@@ -134,7 +145,7 @@
                         <form wire:submit="transition('accept')" class="ops-stack"><x-operations.field label="Kundenzusage · Person, Zeitpunkt, Referenz" model="acceptance" type="textarea" required /><x-ui.forms.checkbox wire:model="authorized" required label="Beauftragung durch berechtigten Kundenkontakt bestätigt" /><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Zusage dokumentieren</x-ui.buttons.button-basic></form>
                     @elseif($selected->status === 'accepted')<x-ui.buttons.button-basic mode="primary" wire:click="transition('convert')" wire:loading.attr="disabled">Auftrag anlegen</x-ui.buttons.button-basic>@endif
                     @if(!$selected->offer)<details><summary>Dublette zuordnen</summary><form wire:submit="transition('duplicate')" class="ops-actions"><x-operations.field label="Nummer des älteren Originals" model="duplicateId" type="number" min="1" required /><x-ui.buttons.button-basic type="submit">Verknüpfen</x-ui.buttons.button-basic></form></details>@endif
-                @elseif($selected->order)@can('operations.manage')<a class="ops-link" href="{{ \Illuminate\Support\Facades\Route::has('operations.page') ? route('operations.page',['page'=>'cases','view'=>'orders','order'=>$selected->order_id,'inquiry'=>$selected->id]) : route('operations.workspace',['module'=>'orders','order'=>$selected->order_id]) }}" wire:navigate>Auftrag {{ $selected->order->order_number }} →</a>@else<span>Auftrag {{ $selected->order->order_number }}</span>@endcan
+                @elseif($selected->order)@can('operations.manage')<a class="ops-link" data-no-navigate href="{{ \Illuminate\Support\Facades\Route::has('operations.page') ? route('operations.page',['page'=>'cases','view'=>'orders','order'=>$selected->order_id,'inquiry'=>$selected->id]) : route('operations.workspace',['module'=>'orders','order'=>$selected->order_id]) }}">Auftrag {{ $selected->order->order_number }} →</a>@else<span>Auftrag {{ $selected->order->order_number }}</span>@endcan
                 @else<p>Original: {{ $selected->duplicateOf?->number }}</p>@endif
                 @endif
                 @if(!$consolidated || $detailSection === 'history')

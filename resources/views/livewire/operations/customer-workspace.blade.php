@@ -1,28 +1,79 @@
 <div class="rt-ops ops-stack" data-customer-workspace>
-    <header class="ops-toolbar" aria-label="Kundenakte auswählen">
-            <div class="min-w-0 w-full sm:min-w-64 sm:w-auto">
-                <x-ui.forms.label for="customer-workspace-select" value="Kunde" />
-                <x-ui.forms.select id="customer-workspace-select" change="$wire.selectCustomer(Number($event.target.value))" aria-label="Kundenakte auswählen">
-                    @forelse($customers as $entry)<option value="{{ $entry->id }}" @selected($entry->id === $customerId)>{{ $entry->company_name }}</option>@empty<option value="">Keine Kunden verfügbar</option>@endforelse
-                </x-ui.forms.select>
-            </div>
-        @if($canCreate)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="createCustomer">Kunde anlegen</x-ui.buttons.button-basic>@endif
-    </header>
-    @if(count($views)>1)
-        <nav class="ops-actions" aria-label="Kundenakte">
-            @foreach($views as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$view===$key?'primary':'link'" wire:click="setView('{{ $key }}')" :aria-current="$view===$key?'page':null">{{ $label }}</x-ui.buttons.button-basic>@endforeach
-        </nav>
-    @endif
-    @if($view==='master')
-        <livewire:admin.operations.customers :customer-id="$customerId" :embedded="true" :start-creating="$startCreating" :key="'customer-master-'.($customerId ?? 'new').'-'.$contextRevision" />
-    @elseif($customer && in_array($view,['contacts','conditions'],true))
-        <livewire:operations.customer-relations :customer-id="$customerId" :section="$view" :embedded="true" :key="'customer-relations-'.$customerId.'-'.$view.'-'.$contextRevision" />
-    @elseif($customer && $view==='portal')
-        <nav class="ops-actions" aria-label="Portalverwaltung">
-            @foreach($sections as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$section===$key?'primary':'link'" wire:click="setSection('{{ $key }}')" :aria-current="$section===$key?'page':null">{{ $label }}</x-ui.buttons.button-basic>@endforeach
-        </nav>
-        <livewire:operations.customer-portal-management :customer-id="$customerId" :tab="$section" :embedded="true" :key="'customer-portal-'.$customerId.'-'.$section.'-'.$contextRevision" />
+    @if(!$customerId)
+        <x-operations.surface>
+            <x-slot:actions>
+                <span class="mr-auto text-sm text-rt-muted dark:text-rt-dark-muted" aria-live="polite">{{ number_format($customers->total(), 0, ',', '.') }} Kunden</span>
+                @if($canCreate)
+                    <x-ui.buttons.button-basic type="button" mode="primary" icon="far fa-plus" wire:click="createCustomer">Kunde anlegen</x-ui.buttons.button-basic>
+                @endif
+            </x-slot:actions>
+            <x-tables.toolbar id="customer-list-filters" :single-line="true" :filter-count="$activeFilterCount" title="Kunden filtern" reset-action="resetFilters" search-for="customer-list-search">
+                <x-slot:search>
+                    <x-tables.search-field id="customer-list-search" :results-count="$customers->total()" placeholder="Kunden suchen" wire:model.live.debounce.300ms="search" />
+                </x-slot:search>
+                @if($canCreate)
+                    <x-tables.filter-field label="Status" icon="far fa-signal-alt-3" for="customer-status-filter">
+                        <x-ui.forms.select id="customer-status-filter" wire:model.live="activeFilter" aria-label="Kundenstatus" class="w-full">
+                            <option value="all">Alle Kunden</option>
+                            <option value="active">Aktiv</option>
+                            <option value="inactive">Inaktiv</option>
+                        </x-ui.forms.select>
+                    </x-tables.filter-field>
+                @endif
+                <x-tables.filter-field label="Anzeige" icon="far fa-list-ol" for="customer-page-size">
+                    <x-ui.forms.select id="customer-page-size" wire:model.live="perPage" aria-label="Kunden pro Seite" class="w-full">
+                        @foreach([15,30,50,100] as $size)<option value="{{ $size }}">{{ $size }} pro Seite</option>@endforeach
+                    </x-ui.forms.select>
+                </x-tables.filter-field>
+                <x-slot:chips>
+                    @if(trim($search)!=='')<x-tables.filter-chip label="Suche" :value="$search" wire:click="$set('search', '')" />@endif
+                    @if($canCreate && $activeFilter!=='all')<x-tables.filter-chip label="Status" :value="$activeFilter==='active'?'Aktiv':'Inaktiv'" wire:click="$set('activeFilter', 'all')" />@endif
+                </x-slot:chips>
+            </x-tables.toolbar>
+            <x-tables.table
+                label="Kundenliste"
+                table-key="customer-list"
+                :columns="$canCreate ? [
+                    ['label'=>'Kunde','key'=>'company_name','width'=>'36%','sortable'=>true],
+                    ['label'=>'Kontakt','key'=>'contact','width'=>'28%','hideOn'=>'md'],
+                    ['label'=>'Ort','key'=>'city','width'=>'20%','sortable'=>true,'hideOn'=>'md'],
+                    ['label'=>'Status','key'=>'is_active','width'=>'16%','sortable'=>true],
+                ] : [['label'=>'Kunde','key'=>'company_name','width'=>'1fr','sortable'=>true]]"
+                :items="$customers"
+                :selected-items="$selectedListCustomerId ? [$selectedListCustomerId] : []"
+                selection-action="toggleCustomerSelection"
+                detail-action="selectCustomer"
+                row-view="components.tables.rows.customers.customer-row"
+                actions-view="components.tables.rows.customers.customer-actions"
+                :sort-by="$sortBy"
+                :sort-dir="$sortDir"
+                sort-action="sort"
+                empty="Keine Kunden gefunden."
+            />
+            <div class="py-4">{{ $customers->links() }}</div>
+        </x-operations.surface>
     @else
-        <div class="ops-empty">Keine Kundenakte verfügbar.</div>
+        <header class="ops-toolbar" aria-label="Kundenprofil">
+            <x-ui.buttons.button-basic type="button" mode="link" icon="far fa-arrow-left" wire:click="showList">Kundenliste</x-ui.buttons.button-basic>
+            <h2 class="min-w-0 truncate text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ $customer->company_name }}</h2>
+        </header>
+        @if(count($views)>1)
+            <nav class="ops-actions" aria-label="Kundenakte">
+                @foreach($views as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$view===$key?'primary':'link'" wire:click="setView('{{ $key }}')" :aria-current="$view===$key?'page':null">{{ $label }}</x-ui.buttons.button-basic>@endforeach
+            </nav>
+        @endif
+        @if($view==='master')
+            <livewire:admin.operations.customers :customer-id="$customerId" :embedded="true" :workspace-revision="$contextRevision" :key="'customer-master-'.$customerId.'-'.$contextRevision" />
+        @elseif(in_array($view,['contacts','conditions'],true))
+            <livewire:operations.customer-relations :customer-id="$customerId" :section="$view" :embedded="true" :key="'customer-relations-'.$customerId.'-'.$view.'-'.$contextRevision" />
+        @elseif($view==='portal')
+            <nav class="ops-actions" aria-label="Portalverwaltung">
+                @foreach($sections as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$section===$key?'primary':'link'" wire:click="setSection('{{ $key }}')" :aria-current="$section===$key?'page':null">{{ $label }}</x-ui.buttons.button-basic>@endforeach
+            </nav>
+            <livewire:operations.customer-portal-management :customer-id="$customerId" :tab="$section" :embedded="true" :key="'customer-portal-'.$customerId.'-'.$section.'-'.$contextRevision" />
+        @endif
+    @endif
+    @if($canCreate && ($startCreating || $editingCustomerId))
+        <livewire:admin.operations.customers :customer-id="$editingCustomerId" :embedded="true" :modal-only="true" :workspace-revision="$contextRevision" :start-creating="$startCreating" :start-editing="(bool)$editingCustomerId" :key="'customer-form-'.($editingCustomerId ?? 'new').'-'.$contextRevision" />
     @endif
 </div>

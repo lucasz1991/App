@@ -730,8 +730,8 @@
     </x-admin.settings-accordion-section>
 
 
-            <x-admin.settings-accordion-section section="templates" label="Mailvorlagen & Editor" icon="fad fa-file-signature">
-                <x-ui.buttons.button-basic :href="route('admin.mail-documents.editor')" :navigate="false">Mailvorlagen & Editor öffnen</x-ui.buttons.button-basic>
+            <x-admin.settings-accordion-section section="templates" label="Mailvorlagen & Editor" description="" icon="fad fa-file-signature">
+                <x-ui.buttons.button-basic :href="route('admin.mail-documents.editor')" data-no-navigate>Mailvorlagen & Editor öffnen</x-ui.buttons.button-basic>
             </x-admin.settings-accordion-section>
         </div>
     </x-ui.accordion.tab-panel>

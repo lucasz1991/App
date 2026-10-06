@@ -131,6 +131,7 @@ class CommercialOfferIndex extends Component
             if ($submissionId) {
                 OperationsAccess::authorize($this->actor(), 'customers.portal.manage');
                 $this->redirectRoute('operations.page', ['page' => 'cases', 'view' => 'inbox', 'section' => 'portal', 'customer' => OperationInquiry::findOrFail($record->subject_id)->customer_id, 'source' => 'submission', 'record' => $submissionId], navigate: true);
+
                 return;
             }
         }

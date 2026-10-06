@@ -35,7 +35,7 @@ class CommercialOffers extends Component
 
     public bool $detailOpen = false;
 
-    public array $form = [];
+    public array $form = ['valid_until' => '', 'positions' => []];
 
     public string $note = '';
 

@@ -8,6 +8,7 @@ use App\Support\Mail\SignatureTableOverlapDelivery;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\Mail\TrustedOutlookSignatureCss;
 use App\Support\OutlookAddin\OutlookMobileSignature;
+use App\Support\OutlookAddin\OutlookNativeMetadataPlacement;
 use DOMDocument;
 use DOMXPath;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -123,10 +124,13 @@ final class SignatureTableOverlapDeliveryTest extends TestCase
             default => str_contains($match[1], '_SRC') ? 'cid:icon.png' : 'Example business contact',
         }, $source);
         $rows = SignatureTableOverlapDelivery::project($rows, 'cid:train-still.png');
-        $html = '<!-- RT-SIGNATURE-VERSION:0123456789abcdef -->'
-            .'<span style="display:none">RT-SIGNATURE-VERSION:0123456789abcdef</span>'
-            .TrustedOutlookSignatureCss::style($rows, scopeClass: 'rts0123456789')
-            .'<div class="rt-outlook-signature rts0123456789"><table width="100%" cellspacing="0" cellpadding="0"><tbody>'.$rows.'</tbody></table></div>';
+        $html = OutlookNativeMetadataPlacement::signature(
+            TrustedOutlookSignatureCss::style($rows, scopeClass: 'rts0123456789')
+                .'<div class="rt-outlook-signature rts0123456789"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tbody>'.$rows.'</tbody></table></div>',
+            '<style data-rt-outlook-marker-css="1">.rt-office-metadata{display:none!important;}</style>'
+                .'<!-- RT-SIGNATURE-VERSION:0123456789abcdef -->'
+                .'<span hidden aria-hidden="true" class="rt-office-metadata" style="display:none">RT-SIGNATURE-VERSION:0123456789abcdef</span>',
+        );
         $payload = [
             'signature' => ['html' => $html, 'media' => []],
             'templates' => [],

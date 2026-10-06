@@ -3,7 +3,8 @@
         @foreach(\App\Support\Operations\ApplicationNavigation::sections(auth()->user()) as $section => $links)
             @if(count($links))
                 <x-menu.sidebar-nav :label="$section">
-                        @foreach(\App\Support\Operations\ApplicationNavigation::groups($links) as $label => $group)
+                        @foreach(\App\Support\Operations\ApplicationNavigation::groups($links) as $group)
+                            @php($label = $group['label'])
                             @if($label !== '')
                             <x-menu.sidebar-nav-group :icon="$group['icon']" :active="collect($group['links'])->contains(fn ($link) => \App\Support\Operations\ApplicationNavigation::active($link))">
                                 <x-slot:label>{{ $label }}</x-slot:label>

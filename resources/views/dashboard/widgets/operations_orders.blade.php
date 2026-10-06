@@ -30,14 +30,14 @@
         @endif
         <div class="wv-list">
             @forelse($data['recent'] as $order)
-                <div class="wv-item">
+                <a class="wv-item" href="{{ $data['orderHrefs'][$order->id] }}" wire:navigate>
                     <span class="wv-prio" data-prio="{{ $order->priority?->value }}" title="Priorität: {{ $order->priority?->value }}"></span>
                     <span class="wv-item-main">
                         <span class="wv-truncate">{{ $order->title }}</span>
                         <small class="wv-truncate">{{ $order->customer?->company_name ?? 'Ohne Kunde' }} · ab {{ $order->starts_at?->copy()->setTimezone($tz)->format('d.m.') }}</small>
                     </span>
                     <span class="ops-badge">{{ $stages[$order->status?->value][0] ?? $order->status?->value }}</span>
-                </div>
+                </a>
             @empty
                 <x-dashboard.empty icon="check-circle">Keine offenen Leistungen.</x-dashboard.empty>
             @endforelse
