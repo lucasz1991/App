@@ -35,6 +35,7 @@ class PersonnelWorkflowService
             $this->check(! AbsenceRequest::where('user_id', $actor->id)->whereIn('status', ['pending', 'approved', 'reported'])->where('starts_at', '<', $end)->where('ends_at', '>', $start)->exists(), 'Für diesen Zeitraum besteht bereits eine Abwesenheit.');
             $record = AbsenceRequest::create(array_merge($data, ['user_id' => $actor->id, 'starts_at' => $start, 'ends_at' => $end, 'status' => 'pending']));
             app(WorkforceAccountService::class)->reserveAbsence($record);
+            app(AbsenceApprovalChainService::class)->attach($record);
             $this->audit->record($record, $actor, 'absence.requested');
 
             return $record;
@@ -57,6 +58,16 @@ class PersonnelWorkflowService
             $record = AbsenceRequest::lockForUpdate()->findOrFail($request->id);
             $this->check($record->revision === $revision && $record->status === ($action === 'cancel' ? 'approved' : 'pending'), 'Antrag wurde bereits bearbeitet. Bitte neu laden.');
             $this->check($action !== 'cancel' || $record->starts_at->isFuture(), 'Begonnene Abwesenheiten können nicht storniert werden.');
+            $chain = app(AbsenceApprovalChainService::class);
+            if ($action === 'reject') {
+                $chain->authorizeDecision($record, $actor);
+            }
+            if ($action === 'approve' && ! $chain->advance($record, $actor)) {
+                $record->forceFill(['revision' => $revision + 1])->save();
+                $this->audit->record($record, $actor, 'absence.stage_approved');
+
+                return;
+            }
             if ($action === 'approve') {
                 $this->check(! ShiftAssignment::blocking()->where('user_id', $record->user_id)->whereHas('shift', fn ($q) => $q->notCancelled()->during($record->starts_at, $record->ends_at))->exists(), 'Zugewiesene Dienste müssen zuerst umgeplant werden.');
                 $this->check(! app(PersonnelProcessService::class)->hasBlockingTraining((int) $record->user_id, $record->starts_at, $record->ends_at), 'Schulungsteilnahme muss zuerst umgeplant werden.');
@@ -65,6 +76,7 @@ class PersonnelWorkflowService
                 app(WorkforceAccountService::class)->releaseAbsence($record);
             }
             $record->forceFill(['status' => ['approve' => 'approved', 'reject' => 'rejected', 'withdraw' => 'withdrawn', 'cancel' => 'cancelled'][$action], 'revision' => $revision + 1, 'reviewed_by' => $actor->id, 'reviewed_at' => now()->utc(), 'review_note' => $note])->save();
+            $chain->close($record, $record->status);
             $this->audit->record($record, $actor, 'absence.'.$action, ['note' => $note]);
         }, 3);
     }

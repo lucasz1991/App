@@ -5,10 +5,13 @@ namespace App\Services\Operations;
 use App\Enums\OrderStatus;
 use App\Models\CommercialOfferRevision;
 use App\Models\Customer;
+use App\Models\CustomerPortalIdentity;
 use App\Models\OperationInquiry;
 use App\Models\Order;
 use App\Models\User;
-use App\Support\Operations\OperationsAccess;
+use App\Services\CustomerPortal\CustomerPortalPublicationService;
+use App\Support\CustomerPortal\CustomerPortalDateTime;
+use App\Support\CustomerPortal\PortalActor;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
 use Illuminate\Support\Facades\Validator;
@@ -19,9 +22,9 @@ class InquiryWorkflowService
 {
     public function __construct(private OperationsAuditService $audit) {}
 
-    public function save(?OperationInquiry $inquiry, array $input, User $actor, ?int $revision = null): OperationInquiry
+    public function save(?OperationInquiry $inquiry, array $input, User|CustomerPortalIdentity $actor, ?int $revision = null): OperationInquiry
     {
-        OperationsAccess::authorize($actor, 'operations.inquiries.manage');
+        PortalActor::authorizeInquiry($actor, $inquiry, $input);
         $data = Validator::make($input, [
             'channel' => ['required', Rule::in(['email', 'phone', 'portal', 'manual'])],
             'source_reference' => ['nullable', 'string', 'max:190'],
@@ -39,13 +42,16 @@ class InquiryWorkflowService
             }
         }
         foreach (['starts_at', 'ends_at'] as $key) {
-            $data[$key] = filled($data[$key] ?? null) ? OperationsDateTime::local($data[$key], $data['timezone'], $key) : null;
+            $data[$key] = filled($data[$key] ?? null) ? ($actor instanceof CustomerPortalIdentity
+                ? CustomerPortalDateTime::local($data[$key], $data['timezone'], $key)
+                : OperationsDateTime::local($data[$key], $data['timezone'], $key)) : null;
         }
         if ($data['starts_at'] && $data['ends_at'] && $data['ends_at']->lessThanOrEqualTo($data['starts_at'])) {
             throw ValidationException::withMessages(['ends_at' => 'Das Ende muss nach dem Beginn liegen.']);
         }
 
         return OperationsTransaction::run(function () use ($inquiry, $data, $actor, $revision): OperationInquiry {
+            PortalActor::authorizeInquiry($actor, $inquiry, $data);
             $record = $inquiry ? OperationInquiry::lockForUpdate()->findOrFail($inquiry->id) : new OperationInquiry;
             if ($record->exists) {
                 $this->editable($record, $revision);
@@ -56,24 +62,25 @@ class InquiryWorkflowService
                 if (filled($data['source_reference'] ?? null) && OperationInquiry::where('channel', $data['channel'])->where('source_reference', $data['source_reference'])->exists()) {
                     throw ValidationException::withMessages(['source_reference' => 'Dieser Eingang wurde bereits erfasst.']);
                 }
-                $record->created_by = $actor->id;
+                $record->created_by = PortalActor::internalId($actor);
             }
             $record->fill($data)->forceFill([
                 'status' => 'new', 'verified_revision' => null, 'offer' => null,
-                'accepted_revision' => null, 'acceptance_note' => null, 'updated_by' => $actor->id,
-            ])->save();
+                'accepted_revision' => null, 'acceptance_note' => null, 'updated_by' => PortalActor::internalId($actor),
+            ] + PortalActor::references($actor, (int) $data['customer_id']))->save();
             $this->audit->record($record, $actor, 'inquiry.saved', ['demand' => $record->only(['customer_id', 'starts_at', 'ends_at', 'timezone', 'required_staff', 'role_name', 'location_name'])]);
 
             return $record;
         });
     }
 
-    public function transition(OperationInquiry $inquiry, int $revision, string $action, array $input, User $actor): OperationInquiry
+    public function transition(OperationInquiry $inquiry, int $revision, string $action, array $input, User|CustomerPortalIdentity $actor): OperationInquiry
     {
-        OperationsAccess::authorize($actor, 'operations.inquiries.manage');
+        PortalActor::authorizeInquiry($actor, $inquiry, $input, $action);
 
         return OperationsTransaction::run(function () use ($inquiry, $revision, $action, $input, $actor): OperationInquiry {
             $record = OperationInquiry::lockForUpdate()->findOrFail($inquiry->id);
+            PortalActor::authorizeInquiry($actor, $record, $input, $action);
             if ($action === 'convert' && $record->order_id && $record->revision === $revision) {
                 return $record;
             }
@@ -116,6 +123,11 @@ class InquiryWorkflowService
                     $record->status = 'offered';
                     break;
                 case 'accept':
+                    if ($actor instanceof CustomerPortalIdentity) {
+                        $publication = app(CustomerPortalPublicationService::class)->visible($actor, (int) $record->customer_id, null)->where('subject_type', 'offer')->where('subject_id', $record->offer['commercial_offer_id'] ?? 0)->first();
+                        $portalOffer = CommercialOfferRevision::find($record->offer['commercial_offer_id'] ?? 0);
+                        abort_unless($publication && $portalOffer && $publication->source_revision === $portalOffer->state_version, 409, 'Angebot wurde nicht im aktuellen Stand freigegeben.');
+                    }
                     $this->require($record->status === 'offered' && ($record->offer['revision'] ?? null) === $revision, 'Es liegt kein aktuelles Angebot vor.');
                     $this->require(empty($record->offer['valid_until']) || $record->offer['valid_until'] >= now($record->timezone)->format('Y-m-d'), 'Die Angebotsfrist ist abgelaufen.');
                     if (CommercialOfferService::ready() && ($commercialId = ($record->offer['commercial_offer_id'] ?? null))) {
@@ -128,7 +140,7 @@ class InquiryWorkflowService
                     $record->acceptance_note = $acceptance['note'];
                     $record->status = 'accepted';
                     if (isset($commercial)) {
-                        $commercial->forceFill(['status' => 'accepted', 'state_version' => $commercial->state_version + 1, 'accepted_at' => now()->utc(), 'accepted_by' => $actor->id, 'acceptance_note' => $acceptance['note']])->save();
+                        $commercial->forceFill(['status' => 'accepted', 'state_version' => $commercial->state_version + 1, 'accepted_at' => now()->utc(), 'accepted_by' => PortalActor::internalId($actor), 'acceptance_note' => $acceptance['note']] + PortalActor::references($actor, (int) $record->customer_id))->save();
                     }
                     break;
                 case 'convert':
@@ -143,12 +155,17 @@ class InquiryWorkflowService
                         'notes' => $record->number,
                     ], $actor);
                     $record->order_id = $order->id;
+                    if ($record->customer_portal_identity_id) {
+                        $order->forceFill($record->only(['customer_portal_location_id', 'customer_portal_identity_id', 'customer_portal_membership_id']))->save();
+                    }
                     $record->status = 'converted';
                     if (CommercialOfferService::ready()) {
+                        $originOffer = CommercialOfferRevision::find($record->offer['commercial_offer_id'] ?? 0);
                         CommercialOfferRevision::create(['subject_type' => 'Order', 'subject_id' => $order->id, 'revision' => 1,
                             'kind' => 'offer', 'status' => 'accepted', 'snapshot' => $record->offer + ['origin_inquiry_id' => $record->id],
                             'total_cents' => $record->offer['amount_cents'], 'created_by' => $actor->id, 'accepted_at' => now()->utc(),
-                            'accepted_by' => $actor->id, 'acceptance_note' => $record->acceptance_note]);
+                            'accepted_by' => $originOffer?->customer_portal_identity_id ? null : ($originOffer?->accepted_by ?? $actor->id), 'acceptance_note' => $record->acceptance_note]
+                            + ($originOffer?->customer_portal_identity_id ? $originOffer->only(['customer_portal_identity_id', 'customer_portal_membership_id']) : []));
                     }
                     break;
                 case 'reject':
@@ -168,7 +185,7 @@ class InquiryWorkflowService
                 default:
                     throw ValidationException::withMessages(['workflow' => 'Ungültiger Arbeitsschritt.']);
             }
-            $record->updated_by = $actor->id;
+            $record->updated_by = PortalActor::internalId($actor);
             $record->save();
             $this->audit->record($record, $actor, 'inquiry.'.$action, ['status' => $record->status, 'offer' => $record->offer, 'acceptance_note' => $record->acceptance_note, 'order_id' => $record->order_id, 'duplicate_of_id' => $record->duplicate_of_id]);
 

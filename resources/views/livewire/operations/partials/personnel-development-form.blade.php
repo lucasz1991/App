@@ -1,0 +1,12 @@
+                @if($formKind === 'applicant')
+                    <x-operations.field label="Name" model="form.name" required/><x-operations.field label="E-Mail" model="form.email" type="email" required/><x-operations.field label="Tätigkeit" model="form.role" required/><x-operations.field label="Aufbewahren bis" model="form.retain_until" type="date" required/><x-operations.field label="Notiz" model="form.note" type="textarea" :wide="true"/>
+                @elseif($formKind === 'applicant_stage')
+                    <p class="ops-full font-medium">{{ $display['name'] ?? '' }}</p><x-operations.field label="Nächste Stufe" model="form.stage" type="select"><option value="screening">Sichtung</option><option value="interview">Gespräch</option><option value="offer">Angebot</option><option value="rejected">Absage</option><option value="withdrawn">Zurückgezogen</option></x-operations.field><x-operations.field label="Gespräch am" model="form.interview_on" type="date"/><x-operations.field label="Entscheidungsgrund" model="form.note" type="textarea" :wide="true" required/>
+                @elseif($formKind === 'applicant_convert')
+                    <p class="ops-full text-sm">Übernahme in den ausgewählten Mitarbeiter.</p><label class="ops-full flex items-center gap-2"><x-ui.forms.checkbox wire:model="form.consent"/><span class="text-sm">Mitarbeiter und Bewerbung gehören zusammen.</span></label>
+                @elseif($formKind === 'development')
+                    <x-operations.field label="Ziel" model="form.goal" type="textarea" required :wide="true"/><x-operations.field label="Wiedervorlage" model="form.due_on" type="date" required/><x-operations.field label="Ansprechpartner" model="form.responsible_id" type="select" required><option value="">Auswählen</option>@foreach($assignees as $person)<option value="{{ $person->id }}">{{ $person->name }}</option>@endforeach</x-operations.field>
+                @elseif($formKind === 'feedback')
+                    <p class="ops-full text-sm">{{ $display['goal'] ?? '' }}</p>@foreach($display['reviews'] ?? [] as $review)<p class="ops-full text-sm text-rt-muted">{{ $review['feedback'] }}</p>@endforeach<x-operations.field label="Rückmeldung" model="form.note" type="textarea" required :wide="true"/>@if(!$personal)<label class="ops-full flex items-center gap-2"><x-ui.forms.checkbox wire:model="form.complete"/><span class="text-sm">Gespräch abschließen</span></label>@endif
+                @endif
+

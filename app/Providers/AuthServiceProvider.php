@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Auth\UserAuthProvider;
+use App\Models\User;
 use App\Support\Rbac\RbacCatalog;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Auth;
@@ -30,6 +31,10 @@ class AuthServiceProvider extends ServiceProvider
                 return null;
             }
 
+            if (! $user instanceof User) {
+                return false; // A customer principal never inherits internal admin/team abilities.
+            }
+
             return $user->isAdmin() ? true : null;
         });
 
@@ -45,6 +50,10 @@ class AuthServiceProvider extends ServiceProvider
                 return $user->hasRbacPermission($permission);
             });
         }
+
+        // A shared work list does not grant any of the underlying domain approvals.
+        Gate::define('operations.inbox.view', static fn ($user): bool => $user->status && collect(['operations.manage', 'employees.master-data.view', 'operations.qualifications.manage', 'operations.absences.review', 'operations.time.review'])->contains(fn ($ability) => $user->can($ability)));
+        Gate::define('operations.enhancements.view', static fn ($user): bool => $user->status && collect(['operations.manage', 'operations.rules.manage', 'operations.time.review', 'operations.inquiries.manage', 'operations.costs.manage', 'operations.terminal.manage'])->contains(fn ($ability) => $user->can($ability)));
 
         // Destructive wipe and provider configuration are deliberately absent
         // from the delegable team RBAC catalog. Even if similarly named team

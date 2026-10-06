@@ -21,9 +21,13 @@ use App\Http\Controllers\Calls\CallTokenController;
 use App\Http\Controllers\ChatAttachmentController;
 use App\Http\Controllers\ChatExportController;
 use App\Http\Controllers\ChatLiveLocationController;
+use App\Http\Controllers\CustomerPortalAuthController;
+use App\Http\Controllers\CustomerPortalDocumentController;
+use App\Http\Controllers\CustomerProofAttachmentController;
 use App\Http\Controllers\DeviceInventoryTemplateController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
 use App\Http\Controllers\OperationsEvidenceController;
+use App\Http\Controllers\OperationsTravelReceiptController;
 use App\Http\Controllers\OutlookAddin\OutlookAddinController;
 use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -34,7 +38,9 @@ use App\Http\Controllers\WagonListMediaController;
 use App\Http\Controllers\Webhooks\LiveKitWebhookController;
 use App\Http\Controllers\WelcomeIntroMediaController;
 use App\Http\Controllers\WorkTimeCaptureController;
+use App\Http\Middleware\CheckUserStatus;
 use App\Http\Middleware\EnsureAssistantAccess;
+use App\Http\Middleware\EnsureCustomerPortalAccess;
 use App\Http\Middleware\LogActivity;
 use App\Http\Middleware\RedirectAdminWagonList;
 use App\Livewire\Admin\Dashboard;
@@ -66,15 +72,60 @@ use App\Livewire\SupportCases;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
 use App\Models\MarketingCreative;
+use App\Support\CustomerPortal\CustomerPortalScope;
 use App\Support\Operations\OperationsNavigation;
 use App\Support\Pwa\PwaIcon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/pwa-icons/{icon}', PwaIconController::class)
     ->whereIn('icon', array_keys(PwaIcon::DIMENSIONS))
     ->withoutMiddleware(LogActivity::class)
     ->name('pwa.icon');
+
+Route::get('/terminal', function (Request $request) {
+    abort_unless(config('operations.terminal_enabled', false), 404);
+    abort_if(app()->environment('production') && ! $request->isSecure(), 400, 'HTTPS erforderlich.');
+
+    return response()->view('operations.work-time-terminal')->header('Cache-Control', 'private, no-store');
+})->middleware('throttle:60,1')->name('operations.terminal');
+
+// Customer principals never share the employee invitation or default web guard.
+Route::prefix('kundenportal')->withoutMiddleware([LogActivity::class, CheckUserStatus::class])->group(function () {
+    $authController = CustomerPortalAuthController::class;
+    Route::get('/anmelden', [$authController, 'showLogin'])->name('customer-portal.login');
+    Route::post('/anmelden', [$authController, 'login'])->middleware('throttle:5,1')->name('customer-portal.login.store');
+    Route::get('/einladung/{token}', [$authController, 'invitation'])->where('token', '[a-f0-9]{64}')->middleware('throttle:12,1')->name('customer-portal.invitation');
+    Route::post('/einladung/{token}', [$authController, 'accept'])->where('token', '[a-f0-9]{64}')->middleware('throttle:6,1')->name('customer-portal.invitation.accept');
+    Route::get('/passwort', [$authController, 'resetRequest'])->name('customer-portal.password.request');
+    Route::post('/passwort', [$authController, 'requestReset'])->middleware('throttle:6,1')->name('customer-portal.password.email');
+    Route::get('/passwort/{token}', [$authController, 'resetForm'])->where('token', '[a-f0-9]{64}')->middleware('throttle:12,1')->name('customer-portal.password.reset');
+    Route::post('/passwort/{token}', [$authController, 'resetPassword'])->where('token', '[a-f0-9]{64}')->middleware('throttle:6,1')->name('customer-portal.password.update');
+    Route::post('/abmelden', [$authController, 'logout'])->name('customer-portal.logout');
+
+    Route::middleware(EnsureCustomerPortalAccess::class)->group(function () use ($authController) {
+        Route::get('/', function () {
+            $identity = Auth::guard('customer_portal')->user();
+            $membership = app(CustomerPortalScope::class)->memberships($identity)->first();
+            abort_unless($membership, 403);
+
+            return redirect()->route('customer-portal.workspace', ['customer' => $membership->customer_id, 'section' => 'overview']);
+        })->name('customer-portal.home');
+        Route::get('/bestaetigung', [$authController, 'mfaChallenge'])->name('customer-portal.mfa');
+        Route::post('/bestaetigung', [$authController, 'verifyMfa'])->middleware('throttle:5,1')->name('customer-portal.mfa.verify');
+        Route::get('/sicherheit', [$authController, 'mfaSetup'])->name('customer-portal.mfa.setup');
+        Route::post('/sicherheit/einrichten', [$authController, 'beginMfa'])->middleware('throttle:5,1')->name('customer-portal.mfa.begin');
+        Route::post('/sicherheit/bestaetigen', [$authController, 'confirmMfa'])->middleware('throttle:5,1')->name('customer-portal.mfa.confirm');
+        Route::post('/sicherheit/wiederherstellung', [$authController, 'recoveryCodes'])->middleware('throttle:5,1')->name('customer-portal.mfa.recovery');
+        Route::post('/sicherheit/deaktivieren', [$authController, 'disableMfa'])->middleware('throttle:5,1')->name('customer-portal.mfa.disable');
+        Route::get('/c/{customer}/dokumente/{publication}', [CustomerPortalDocumentController::class, 'download'])->whereNumber(['customer', 'publication'])->name('customer-portal.document.download');
+        Route::get('/c/{customer}/anlagen/{attachment}', [CustomerPortalDocumentController::class, 'attachment'])->whereNumber(['customer', 'attachment'])->name('customer-portal.attachment.download');
+        Route::get('/c/{customer}/export', [CustomerPortalDocumentController::class, 'report'])->whereNumber('customer')->name('customer-portal.report');
+        Route::get('/c/{customer}/bericht', [CustomerPortalDocumentController::class, 'printReport'])->whereNumber('customer')->name('customer-portal.report.print');
+        Route::get('/c/{customer}/{section?}', App\Livewire\CustomerPortal\Workspace::class)->whereNumber('customer')->where('section', 'overview|requests|orders|calendar|offers|proofs|documents|messages|reports|profile')->name('customer-portal.workspace');
+    });
+});
 
 // Oeffentliche, geheimnisfreie Office-Add-in-Oberflaechen. Authentifiziert
 // wird ausschliesslich der persoenliche API-Abruf per Microsoft Entra NAA.
@@ -186,6 +237,12 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->name('assistant.pagebuilder-actions.claim');
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
     Route::get('/mein-arbeitstag', PersonalWorkspace::class)->name('operations.mine');
+    Route::get('/kundenportal-pruefung/anlagen/{id}', [CustomerPortalDocumentController::class, 'managerAttachment'])->whereNumber('id')->middleware('throttle:30,1')->name('customer-portal.manager.attachment');
+    Route::get('/kundenportal-pruefung/dokumente/{id}', [CustomerPortalDocumentController::class, 'managerDocument'])->whereNumber('id')->middleware('throttle:30,1')->name('customer-portal.manager.document');
+    Route::get('/leistungsnachweise/{id}/anlagen/{attachment}', CustomerProofAttachmentController::class)
+        ->whereNumber('id')->whereUuid('attachment')->middleware('throttle:30,1')->name('operations.proofs.attachment');
+    Route::get('/reisen/{id}/belege/{receipt}', OperationsTravelReceiptController::class)
+        ->whereNumber('id')->whereUuid('receipt')->middleware('throttle:30,1')->name('operations.travel.receipt');
     Route::post('/mein-arbeitstag/zeiten/bootstrap', [WorkTimeCaptureController::class, 'bootstrap'])
         ->middleware('throttle:30,1')->name('operations.capture.bootstrap');
     Route::post('/mein-arbeitstag/zeiten/sync', [WorkTimeCaptureController::class, 'sync'])

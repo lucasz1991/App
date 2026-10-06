@@ -135,7 +135,13 @@ class PlanVariantService
             $shift->starts_at = $start;
             $shift->ends_at = $end;
             $shift->status = 'draft';
-            $shift->setRelation('qualifications', QualificationType::whereKey($entry['qualification_ids'])->get());
+            $snapshotIds = class_exists(PlanningEnhancementService::class)
+                ? app(PlanningEnhancementService::class)->mandatoryRequirementIds((int) ($entry['shift_id'] ?? $entry['source_shift_id'] ?? 0))
+                : [];
+            $requiredIds = array_values(array_unique(array_merge($entry['qualification_ids'], $snapshotIds)));
+            $requirements = QualificationType::whereKey($requiredIds)->get();
+            $this->check($requirements->count() === count($requiredIds), 'Eine zwingende Nachweisart des Anforderungssnapshots fehlt.');
+            $shift->setRelation('qualifications', $requirements);
             $shift->disposition_details = array_merge($shift->disposition_details ?? [], ['transfer_buffer_minutes' => $entry['transfer_buffer_minutes'] ?? 0]);
 
             return ['shift' => $shift, 'user_ids' => $entry['user_ids']];
@@ -221,6 +227,9 @@ class PlanVariantService
                 $currentContext['additional_shifts'] = $projected->filter(fn ($other) => ! $shift->id || $other->id !== $shift->id)->all();
                 $shift = app(ShiftSchedulingService::class)->save($shift, $attributes, $actor, $currentContext);
                 $shift->qualifications()->sync($entry['qualification_ids']);
+                if (!empty($entry['source_shift_id']) && empty($entry['shift_id']) && class_exists(PlanningEnhancementService::class)) {
+                    app(PlanningEnhancementService::class)->copySnapshots((int) $entry['source_shift_id'], $shift, $actor);
+                }
                 $saved[] = ['shift' => $shift, 'user_ids' => $entry['user_ids']];
             }
             foreach ($saved as $item) {

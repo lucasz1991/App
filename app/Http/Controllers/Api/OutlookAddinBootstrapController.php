@@ -11,6 +11,7 @@ use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use App\Support\OutlookAddin\OutlookMobileSignature;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -65,6 +66,8 @@ final class OutlookAddinBootstrapController extends Controller
 
             return response()->json($payload, 200, $this->headers($etag));
         } catch (OutlookAddinException $exception) {
+            $this->recordDeniedBootstrap($exception);
+
             return response()->json([
                 'error' => $exception->errorCode,
                 'message' => $exception->getMessage(),
@@ -74,6 +77,32 @@ final class OutlookAddinBootstrapController extends Controller
                 'error' => 'outlook_addin_error',
                 'message' => 'Die Outlook-Daten konnten vorübergehend nicht geladen werden.',
             ], 500, $this->headers());
+        }
+    }
+
+    private function recordDeniedBootstrap(OutlookAddinException $exception): void
+    {
+        if ($exception->httpStatus !== 403 || ! in_array($exception->errorCode, [
+            'outlook_addin_mailbox_unavailable',
+            'outlook_addin_sender_unavailable',
+            'outlook_addin_mailbox_mismatch',
+            'outlook_addin_sender_mismatch',
+            'outlook_addin_identity_not_linked',
+            'outlook_addin_user_inactive',
+        ], true)) {
+            return;
+        }
+
+        // Fixed categories only: never log the request, identity, token,
+        // mailbox, sender, exception message or signature/template content.
+        // Diagnostic failure must not change the original denial response.
+        try {
+            Log::notice('RailTime Outlook bootstrap denied.', [
+                'error_code' => $exception->errorCode,
+                'http_status' => 403,
+            ]);
+        } catch (Throwable) {
+            // Keep the existing authorization decision and HTTP response.
         }
     }
 

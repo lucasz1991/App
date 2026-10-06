@@ -6,6 +6,7 @@ namespace App\Support\OutlookAddin;
 
 use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\SignatureArtifactVersion;
+use App\Support\Mail\SignatureTableOverlapDelivery;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
@@ -39,7 +40,9 @@ final class OutlookMobileSignature
     /** @return array{0: array, 1: ?string} */
     private static function document(array $document): array
     {
-        $html = $document['html'];
+        // Native desktop personal columns are an output-only reversible view.
+        // Restore canonical ledger semantics before the established mobile path.
+        $html = OutlookNativePersonalSignature::restore($document['html']);
         // This opt-in adapter only targets the published V27 ledger geometry.
         // Other designs retain their existing delivery path, not a generic rewrite.
         if (! str_contains($html, 'rt-sign-ledger')
@@ -148,6 +151,8 @@ final class OutlookMobileSignature
             self::style($lineBreak, 'display:block;');
         }
 
+        self::compactPhysicalLedgerCss($xpath, $root, $ledger, $match[1], $html);
+
         // Office.js documents inline CSS as unsupported. Mirror the actual
         // trusted inline values into internal, uniquely scoped rules. Geometry
         // of legacy overlap tables is left untouched; the new flow-delivery
@@ -191,12 +196,55 @@ final class OutlookMobileSignature
             .preg_replace($markerPattern, 'RT-SIGNATURE-VERSION:', $output)."\0"
             .json_encode($document['media'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), 0, 16);
         $output = preg_replace($markerPattern, 'RT-SIGNATURE-VERSION:'.$version, $output);
-        if (intdiv(strlen(mb_convert_encoding($output, 'UTF-16LE', 'UTF-8')), 2) > 30000) {
+        preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $output, $styles);
+        if (array_sum(array_map('strlen', $styles[1])) >= OutlookSignatureInlineStyle::MAX_CSS_BYTES
+            || intdiv(strlen(mb_convert_encoding($output, 'UTF-16LE', 'UTF-8')), 2) > 30000) {
             throw new RuntimeException('Die mobile Signatur ueberschreitet das Outlook-Transportbudget.');
         }
         $document['html'] = $output;
 
         return [$document, $version];
+    }
+
+    /** Remove only canonical wide dimensions already replaced by real mobile rows. */
+    private static function compactPhysicalLedgerCss(DOMXPath $xpath, DOMElement $root, DOMElement $ledger, string $scope, string $original): void
+    {
+        $columns = $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-delivery-wide-column ")]', $ledger);
+        if ($columns->length === 0) {
+            return;
+        }
+        $rows = $xpath->query('./tr|./tbody/tr', $ledger);
+        if (! SignatureTableOverlapDelivery::applies($original) || $columns->length !== 2 || $rows->length !== 2) {
+            throw new RuntimeException('Die mobile CSS-Kuerzung benoetigt den physischen begrenzten Ledger.');
+        }
+        foreach ($rows as $index => $row) {
+            $cells = $xpath->query('./td', $row);
+            if ($row->childElementCount !== 1 || $cells->length !== 1
+                || ! $cells->item(0)->isSameNode($columns->item($index))
+                || $cells->item(0)->getAttribute('width') !== '100%') {
+                throw new RuntimeException('Die mobile CSS-Kuerzung besitzt fremde Ledger-Zellen.');
+            }
+        }
+        $styles = $xpath->query('.//style[@data-rt-outlook-signature-css="1"]', $root);
+        if ($styles->length !== 1) {
+            throw new RuntimeException('Die mobile CSS-Kuerzung besitzt keine eindeutige kanonische Runtime.');
+        }
+        $prefix = '.'.$scope.' ';
+        $rules = [
+            $prefix.'.rt-ledger-brand.rt-delivery-wide-column{width:32%!important;padding:0 22px 0 0!important;border-right:1px solid #e60033!important;}',
+            $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{width:68%!important;padding:0 0 0 22px!important;border:0!important;}',
+            $prefix.'.rt-ledger-brand.rt-delivery-wide-column,'.$prefix.'.rt-ledger-contacts.rt-delivery-wide-column{display:block!important;width:100%!important;padding:0!important;border:0!important;box-sizing:border-box!important;}',
+            $prefix.'.rt-ledger-contacts.rt-delivery-wide-column{padding-top:14px!important;}',
+        ];
+        $css = $styles->item(0)->textContent;
+        foreach ($rules as $rule) {
+            if (substr_count($css, $rule) !== 1) {
+                throw new RuntimeException('Die mobile CSS-Kuerzung entspricht nicht der kanonischen Ledger-Runtime.');
+            }
+        }
+        // Keep the general presentation/font-weight rule, every other runtime
+        // rule, published CSS and conditional IMG branches byte-for-byte.
+        $styles->item(0)->textContent = str_replace($rules, '', $css);
     }
 
     private static function classQuery(string $class, string $tag = '*'): string
@@ -275,7 +323,7 @@ final class OutlookMobileSignature
             throw new RuntimeException('Die mobile Layouttabelle ist nicht eindeutig.');
         }
         $row = $rows->item(0);
-        $cells = $xpath->query('./td', $row);
+        $cells = $xpath->query('./td|./th', $row);
         if ($cells->length !== count($classes)) {
             throw new RuntimeException('Die mobile Layouttabelle besitzt fremde Spalten.');
         }
@@ -283,6 +331,23 @@ final class OutlookMobileSignature
         foreach ($ordered as $index => $cell) {
             if (! in_array($classes[$index], preg_split('/\s+/', trim($cell->getAttribute('class'))), true)) {
                 throw new RuntimeException('Die mobilen Layoutgruppen stehen nicht in der erwarteten Reihenfolge.');
+            }
+            if ($cell->tagName === 'th') {
+                // The desktop renderer uses presentation TH for received-mail
+                // iOS reflow. Mobile compose owns real stacked TD rows instead.
+                if (! in_array('rt-delivery-wide-column', preg_split('/\s+/', trim($cell->getAttribute('class'))), true)
+                    || $cell->getAttribute('role') !== 'presentation') {
+                    throw new RuntimeException('Die mobile Layoutspalte besitzt fremde Kopfzellattribute.');
+                }
+                $replacement = $dom->createElement('td');
+                foreach ($cell->attributes as $attribute) {
+                    $replacement->setAttribute($attribute->name, $attribute->value);
+                }
+                while ($cell->firstChild !== null) {
+                    $replacement->appendChild($cell->firstChild);
+                }
+                $cell->parentNode->replaceChild($replacement, $cell);
+                $cell = $replacement;
             }
             $nextRow = $dom->createElement('tr');
             $row->parentNode->insertBefore($nextRow, $row);

@@ -7,4 +7,5 @@ return [
     'evidence_max_kilobytes' => 10240,
     'display_timezone' => 'Europe/Berlin',
     'clock_start_early_minutes' => 120,
+    'terminal_enabled' => env('RAILTIME_TERMINAL_ENABLED', false),
 ];

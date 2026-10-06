@@ -45,6 +45,7 @@ class WorkTimeService
             $this->check($assignment->status->value === 'confirmed' && $assignment->plan_revision === $planRevision && $shift->revision === $planRevision && $shift->published_revision === $planRevision && ! in_array($shift->status->value, ['draft', 'cancelled'], true), 'Der aktuelle Dienst muss bestätigt sein.');
             $this->check($shift->starts_at->lte(now()) && ! WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists(), 'Dieser Dienst kann nicht nachgetragen werden.');
             [$start,$end] = OperationsDateTime::interval($data['starts_at'], $data['ends_at'], $shift->timezone);
+            app(PayrollClosingService::class)->assertMutable($actor, $start, $end);
             $this->check($end->lte(now()->utc()) && $start->diffInMinutes($end) <= 1440 && $data['pause_minutes'] < $start->diffInMinutes($end), 'Zeitraum oder Pause sind ungültig.');
             $profile = $this->rules($actor, $start);
             $this->check($profile !== null, 'Regelprofil fehlt.');
@@ -81,6 +82,7 @@ class WorkTimeService
             $this->check($assignment->status->value === 'confirmed' && $assignment->plan_revision === $planRevision && $shift->revision === $planRevision && $shift->published_revision === $planRevision, 'Der aktuelle Dienst muss bestätigt sein.');
             $this->check(! in_array($shift->status->value, ['draft', 'cancelled', 'completed'], true), 'Dieser Dienst kann nicht gestartet werden.');
             $now = $capturedAt ?? CarbonImmutable::now('UTC');
+            app(PayrollClosingService::class)->assertMutable($actor, $now);
             $this->check($now->gte($shift->starts_at->subMinutes(config('operations.clock_start_early_minutes'))) && $now->lt($shift->ends_at), 'Der Dienst liegt außerhalb des Startzeitraums.');
             $this->check(! WorkTimeEntry::where('user_id', $actor->id)->whereIn('status', ['running', 'paused'])->exists(), 'Es läuft bereits eine Zeiterfassung.');
             $this->check(! WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists(), 'Für diesen Dienst existiert bereits eine Zeiterfassung.');
@@ -117,6 +119,7 @@ class WorkTimeService
             $allowed = ['pause' => ['running'], 'resume' => ['paused'], 'stop' => ['running', 'paused'], 'submit' => ['completed']];
             $this->check(in_array($entry->status, $allowed[$action] ?? [], true), 'Aktion ist für diesen Zeitstatus nicht möglich.');
             $now = $capturedAt ?? CarbonImmutable::now('UTC');
+            app(PayrollClosingService::class)->assertMutable($actor, $entry->starts_at, $entry->ends_at ?? $now);
             $latest = $entry->events()->max('occurred_at');
             $this->check($now->gte($entry->starts_at) && (! $latest || $now->gte(CarbonImmutable::parse($latest, 'UTC'))), 'Ereigniszeit liegt vor dem aktuellen Zeitstand.');
             if ($action === 'pause') {
@@ -163,6 +166,8 @@ class WorkTimeService
             $entry = WorkTimeEntry::where('user_id', $actor->id)->lockForUpdate()->findOrFail($id);
             $this->check($entry->revision === $revision && in_array($entry->status, ['returned', 'completed'], true), 'Diese Zeitmeldung kann nicht geändert werden.');
             [$start, $end] = OperationsDateTime::interval($data['starts_at'], $data['ends_at'], $entry->timezone);
+            app(PayrollClosingService::class)->assertMutable($actor, $entry->starts_at, $entry->ends_at);
+            app(PayrollClosingService::class)->assertMutable($actor, $start, $end);
             $this->check($end->lte(now()->utc()) && $start->diffInMinutes($end) <= 1440 && $data['pause_minutes'] < $start->diffInMinutes($end), 'Zeitraum oder Pause sind ungültig.');
             $this->snapshot($entry, 'before_correction', $actor);
             $entry->forceFill(['starts_at' => $start, 'ends_at' => $end, 'pause_seconds' => $data['pause_minutes'] * 60, 'note' => $data['note'], 'status' => 'completed', 'revision' => $revision + 1, 'submitted_at' => null, 'reviewed_at' => null, 'reviewed_by' => null]);
@@ -182,9 +187,11 @@ class WorkTimeService
         OperationsAccess::authorize($actor, 'operations.time.review');
         Validator::make(['note' => $note], ['note' => ($approve ? 'nullable' : 'required').'|string|max:1000'])->validate();
         OperationsTransaction::run(function () use ($id, $revision, $approve, $note, $actor) {
+            $subject = User::lockForUpdate()->findOrFail(WorkTimeEntry::findOrFail($id)->user_id);
             $entry = WorkTimeEntry::lockForUpdate()->findOrFail($id);
             app(PersonnelScopeService::class)->authorize($actor, (int) $entry->user_id, 'operations.time.review');
             abort_if($entry->user_id === $actor->id, 403);
+            app(PayrollClosingService::class)->assertMutable($subject, $entry->starts_at, $entry->ends_at);
             $this->check($entry->revision === $revision && $entry->status === 'submitted', 'Zeitmeldung wurde bereits bearbeitet. Bitte neu laden.');
             $warnings = $this->warnings($entry);
             $this->check(! $approve || ! $warnings || mb_strlen(trim($note)) >= 5, 'Abweichungen benötigen eine Begründung.');
@@ -242,6 +249,8 @@ class WorkTimeService
         Validator::make(['rows' => $rows, 'note' => $note], ['rows' => 'required|array|min:1|max:50', 'rows.*.id' => 'required|integer|distinct', 'rows.*.revision' => 'required|integer|min:1', 'note' => ($approve ? 'nullable' : 'required|min:5').'|string|max:1000'])->validate();
         OperationsTransaction::run(function () use ($rows, $approve, $note, $actor) {
             $expected = collect($rows)->keyBy('id');
+            $subjects = WorkTimeEntry::whereIn('id', $expected->keys())->pluck('user_id')->unique()->sort()->values();
+            User::whereIn('id', $subjects)->orderBy('id')->lockForUpdate()->get();
             $entries = WorkTimeEntry::whereIn('id', $expected->keys())->orderBy('id')->lockForUpdate()->get();
             $this->check($entries->count() === count($rows), 'Zeitmeldung nicht gefunden.');
             foreach ($entries as $entry) {
@@ -384,6 +393,7 @@ class WorkTimeService
             }
             $this->check(! WorkTimeEntry::where('user_id', $actor->id)->whereIn('status', ['running', 'paused'])->exists(), 'Es läuft bereits eine Zeiterfassung.');
             $at = $capturedAt ?? CarbonImmutable::now('UTC');
+            app(PayrollClosingService::class)->assertMutable($actor, $at);
             $order = isset($data['order_id']) ? Order::findOrFail($data['order_id']) : null;
             if ($order) {
                 $this->check(ShiftAssignment::where('user_id', $actor->id)->whereIn('status', ['requested', 'confirmed'])->whereHas('shift', fn ($q) => $q->where('order_id', $order->id)->where('published_revision', '>', 0))->exists(), 'Kein eigener Einsatzbezug zu dieser Leistung.');

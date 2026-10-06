@@ -54,6 +54,20 @@ final class PersonalSchedule
         return $this->loadPublishedOrders(collect([$projected]))->first();
     }
 
+    /** Pure projection of an already authorized and loaded record; no query or personnel data. */
+    public function publishedWindow(ShiftAssignment $assignment): ?array
+    {
+        if (! $assignment->relationLoaded('shift')) {
+            return null;
+        }
+        $projection = $this->project($assignment);
+        if (! $projection) {
+            return null;
+        }
+
+        return ['title' => $projection->shift->title, 'starts_at' => $projection->shift->starts_at, 'ends_at' => $projection->shift->ends_at, 'timezone' => $projection->shift->timezone];
+    }
+
     private function authorize(User $user): void
     {
         OperationsAccess::own($user, $user->id);

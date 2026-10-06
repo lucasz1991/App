@@ -1473,14 +1473,18 @@ async function insertTemplate(button) {
             media,
             beforeInsert: async () => {
                 await attachInlineMedia(target, media, bootstrap.binding);
-                if (signature) {
-                    await assertWriteTarget(target, bootstrap.binding);
-                    await setSignature(item, signature.html);
-                }
             },
             confirmAdditional: confirmAdditionalTemplate,
         }));
         assertComposeTarget(target);
+        // Prepending can reserialize the existing body in Outlook. Install the
+        // native signature last, and only after a confirmed template success.
+        // An uncertain prepend must never start a second native body write.
+        if (signature) {
+            await assertWriteTarget(target, bootstrap.binding);
+            await diagnoseStep('signature-write', () => setSignature(item, signature.html));
+            assertComposeTarget(target);
+        }
         // Native success is sufficient; do not immediately pull the full body
         // back across the Office bridge while Outlook is rendering it.
         signatureStateRevision += 1;

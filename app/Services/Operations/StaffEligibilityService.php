@@ -11,8 +11,10 @@ use App\Models\PersonnelTrainingParticipant;
 use App\Models\QualificationType;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
+use App\Models\ShiftBundleSnapshot;
 use App\Models\User;
 use App\Models\WorkforcePool;
+use App\Services\CustomerPortal\CustomerCapacityService;
 use App\Services\Dropbox\CompetencyRestrictions;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\WorkforcePlanningSchema;
@@ -48,6 +50,12 @@ class StaffEligibilityService
         if ($demand) {
             $types = $types->merge($query(QualificationType::whereIn('id', $demand->qualification_ids ?? []))->get())->unique('id');
         }
+        $snapshotIds = Schema::hasTable('shift_bundle_snapshots') && Schema::hasColumns('shift_bundle_snapshots', ['shift_id', 'requirements']) && $shift->id
+            ? $query(ShiftBundleSnapshot::where('shift_id', $shift->id))->get()
+                ->flatMap(fn ($snapshot) => collect($snapshot->requirements)->where('mandatory', true)->pluck('id'))->unique()->values()
+            : collect();
+        $snapshotTypes = $query(QualificationType::whereKey($snapshotIds))->get();
+        $types = $types->merge($snapshotTypes)->unique('id');
         $ids = $users->pluck('id');
         $qualifications = $query(EmployeeQualification::whereIn('user_id', $ids)->where('status', 'approved')
             ->whereIn('qualification_type_id', $types->pluck('id'))
@@ -66,6 +74,10 @@ class StaffEligibilityService
         $minutes = $start->diffInMinutes($end);
         $externalRestrictions = app(CompetencyRestrictions::class)->forShift($shift, $users, $lock);
         foreach ($users as $user) {
+            $assessmentContext = $context;
+            if (class_exists(CustomerCapacityService::class)) {
+                $assessmentContext['additional_shifts'] = array_merge($context['additional_shifts'] ?? [], app(CustomerCapacityService::class)->additionalShifts($shift, $user));
+            }
             $profile = $individualProfiles->get($user->id);
             $issues = $externalRestrictions[$user->id] ?? [];
             $check = function (bool $ok, string $code, string $message) use (&$issues): void {
@@ -81,10 +93,11 @@ class StaffEligibilityService
                 $check($minutes <= $profile->break_after_minutes || $shift->planned_break_minutes >= $profile->minimum_break_minutes, 'break_missing', 'Die geplante Pause ist zu kurz.');
             }
             $check(! $absent->has($user->id), 'absence', 'Eine genehmigte Abwesenheit überschneidet sich mit der Schicht.');
+            $check($snapshotTypes->count() === $snapshotIds->count(), 'bundle_requirement_missing', 'Eine zwingende Nachweisart des Anforderungssnapshots fehlt.');
             foreach ($types as $type) {
                 $check($type->is_active && $qualifications->get($user->id, collect())->contains('qualification_type_id', $type->id), 'qualification_'.$type->id, 'Gültiger Nachweis fehlt: '.$type->name.'.');
             }
-            $otherShifts = $conflicts->get($user->id, collect())->pluck('shift')->merge(collect($context['additional_shifts'] ?? []));
+            $otherShifts = $conflicts->get($user->id, collect())->pluck('shift')->merge(collect($assessmentContext['additional_shifts'] ?? []));
             $rest = $profile?->minimum_rest_minutes ?? 0;
             $overlap = $otherShifts->contains(fn ($other) => $other !== $shift && $other->starts_at->lt($end->addMinutes($rest)) && $other->ends_at->gt($start->subMinutes($rest)));
             $check(! $overlap, 'rest_overlap', 'Schichtüberschneidung oder unterschrittene Ruhezeit.');
@@ -99,11 +112,20 @@ class StaffEligibilityService
                 $check($pool && $pool->is_active && Schema::hasTable('workforce_pool_user') && $pool->users()->whereKey($user->id)->exists(), 'pool', 'Mitarbeiter gehört nicht zum freigegebenen Bedarfspool.');
             }
             if ($accountsReady) {
-                $issues = array_merge($issues, $accounts->planningIssues($shift, $user, $context));
+                $issues = array_merge($issues, $accounts->planningIssues($shift, $user, $assessmentContext));
             }
             if (class_exists(PersonnelProcessService::class)) {
-                $issues = array_merge($issues, app(PersonnelProcessService::class)->planningIssues($shift, $user, $context));
-                $issues = array_merge($issues, $this->shiftTrainingRestIssues($shift, $user, $context));
+                $issues = array_merge($issues, app(PersonnelProcessService::class)->planningIssues($shift, $user, $assessmentContext));
+                $issues = array_merge($issues, $this->shiftTrainingRestIssues($shift, $user, $assessmentContext));
+            }
+            if (class_exists(PlanningEnhancementService::class)) {
+                $issues = array_merge($issues, app(PlanningEnhancementService::class)->planningIssues($shift, $user, $assessmentContext));
+            }
+            if (class_exists(OperationsRuleEvaluationService::class)) {
+                $issues = array_merge($issues, app(OperationsRuleEvaluationService::class)->planningIssues($shift, $user, $assessmentContext));
+            }
+            if (class_exists(CustomerCapacityService::class)) {
+                $issues = array_merge($issues, app(CustomerCapacityService::class)->planningIssues($shift, $user));
             }
             $outgoingConflict = $otherShifts->contains(fn ($other) => filled($other->location_name) && filled($shift->location_name) && $other->location_name !== $shift->location_name
                 && $other->starts_at->gte($end) && $other->starts_at->lt($end->addMinutes((int) ($other->disposition_details['transfer_buffer_minutes'] ?? 0))));
@@ -124,6 +146,10 @@ class StaffEligibilityService
         $start = CarbonImmutable::instance($training->starts_at);
         $end = CarbonImmutable::instance($training->ends_at);
         $lookaround = $this->maximumConfiguredRest($profile);
+        if (class_exists(CustomerCapacityService::class)) {
+            $target = new Shift(['starts_at' => $training->starts_at, 'ends_at' => $training->ends_at, 'timezone' => $training->timezone]);
+            $context['additional_shifts'] = array_merge($context['additional_shifts'] ?? [], app(CustomerCapacityService::class)->additionalShifts($target, $user));
+        }
         $others = ShiftAssignment::blocking()->where('user_id', $user->id)->whereNotIn('shift_id', $context['exclude_shift_ids'] ?? [])
             ->whereHas('shift', fn ($q) => $q->notCancelled()->during($start->subMinutes($lookaround), $end->addMinutes($lookaround)))
             ->with('shift')->get()->pluck('shift')->merge(collect($context['additional_shifts'] ?? []))

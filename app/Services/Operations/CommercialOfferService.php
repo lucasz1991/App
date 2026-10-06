@@ -4,9 +4,13 @@ namespace App\Services\Operations;
 
 use App\Models\CommercialOfferRevision;
 use App\Models\CustomerCondition;
+use App\Models\CustomerPortalIdentity;
 use App\Models\OperationInquiry;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CustomerPortal\CustomerPortalPublicationService;
+use App\Support\CustomerPortal\CustomerPortalScope;
+use App\Support\CustomerPortal\PortalActor;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
@@ -148,13 +152,20 @@ class CommercialOfferService
         });
     }
 
-    public function accept(int $id, int $version, string $note, bool $authorized, User $actor): void
+    public function accept(int $id, int $version, string $note, bool $authorized, User|CustomerPortalIdentity $actor): void
     {
         Validator::make(['note' => $note, 'authorized' => $authorized], ['note' => ['required', 'string', 'min:5', 'max:5000'], 'authorized' => ['accepted']])->validate();
         OperationsTransaction::run(function () use ($id, $version, $note, $actor): void {
             $reference = CommercialOfferRevision::findOrFail($id);
             $subject = $this->subject($reference);
-            $this->access($subject, $actor);
+            if ($actor instanceof CustomerPortalIdentity) {
+                PortalActor::scope($actor, (int) $subject->customer_id, 'offers.accept');
+                ($subject instanceof Order ? app(CustomerPortalScope::class)->orders($actor, (int) $subject->customer_id, null) : app(CustomerPortalScope::class)->inquiries($actor, (int) $subject->customer_id, null))->whereKey($subject->id)->firstOrFail();
+                $publication = app(CustomerPortalPublicationService::class)->visible($actor, (int) $subject->customer_id, null)->where('subject_type', 'offer')->where('subject_id', $id)->first();
+                abort_unless($publication && $publication->source_revision === $reference->state_version, 409, 'Angebot wurde nicht im aktuellen Stand freigegeben.');
+            } else {
+                $this->access($subject, $actor);
+            }
             $subject = $subject::lockForUpdate()->findOrFail($subject->id);
             $record = CommercialOfferRevision::lockForUpdate()->findOrFail($id);
             $this->current($record, $version, 'offered');
@@ -169,7 +180,7 @@ class CommercialOfferService
                 abort_unless(($subject->offer['commercial_offer_id'] ?? null) === $record->id, 422);
                 app(InquiryWorkflowService::class)->transition($subject, $subject->revision, 'accept', ['note' => $note, 'authorized' => true], $actor);
             }
-            $record->forceFill(['status' => 'accepted', 'state_version' => $version + 1, 'accepted_at' => now()->utc(), 'accepted_by' => $actor->id, 'acceptance_note' => $note])->save();
+            $record->forceFill(['status' => 'accepted', 'state_version' => $version + 1, 'accepted_at' => now()->utc(), 'accepted_by' => PortalActor::internalId($actor), 'acceptance_note' => $note] + PortalActor::references($actor, (int) $subject->customer_id))->save();
             $this->audit->record($record, $actor, 'commercial.accepted', ['note' => $note]);
         });
     }

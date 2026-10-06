@@ -228,6 +228,10 @@ class WorkforceAccountService
             if ($existing) {
                 return $existing;
             }
+            if (class_exists(PayrollClosingService::class)) {
+                $date = CarbonImmutable::parse($data['effective_on'], config('operations.display_timezone', 'Europe/Berlin'));
+                app(PayrollClosingService::class)->assertMutable($user, $date, $date->addDay());
+            }
             $entry = WorkforceAccountEntry::create($payload + ['idempotency_key' => $data['idempotency_key'] ?? null, 'created_by' => $actor->id, 'snapshot' => ['request_hash' => $this->payloadHash($payload)]]);
             $this->audit->record($entry, $actor, 'time_account.adjusted', $data);
 

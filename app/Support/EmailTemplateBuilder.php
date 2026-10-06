@@ -17,6 +17,7 @@ use App\Support\Mail\SystemMailInlineImageEmbedder;
 use App\Support\Mail\TemplateDocumentContract;
 use App\Support\Mail\TrustedEmailCss;
 use App\Support\Mail\TrustedOutlookSignatureCss;
+use App\Support\OutlookAddin\OutlookComposeFrame;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -321,18 +322,23 @@ class EmailTemplateBuilder
         $runtimeStyle = TrustedOutlookSignatureCss::style($rows, $border, $scopeClass);
         $overlapStyle = SignatureImgOverlapFallback::outlookStyle($rows, $scopeClass);
         $rows = SignatureImgOverlapFallback::apply($rows);
+        $bounded = SignatureTableOverlapDelivery::applies($rows);
+        $nativeFrame = $bounded
+            ? 'border-left:6px solid #e90032;box-sizing:border-box;background-color:#ffffff;'
+            : '';
+        $collapse = $bounded ? 'border-collapse:separate;border-spacing:0;' : 'border-collapse:collapse;';
 
         $html = $publishedStyle
             .$runtimeStyle
             .$overlapStyle
             .'<div class="rt-outlook-signature '.$scopeClass.'" style="display:block;width:100%;">'
             .'<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" '
-            .'style="width:100%;border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">'
+            .'style="width:100%;'.$collapse.'mso-table-lspace:0pt;mso-table-rspace:0pt;'.$nativeFrame.'">'
             .'<tbody>'.$rows.'</tbody></table></div>';
 
         // Only the bounded V27/V28/V29 delivery output opts into this
         // projection. Historical signature contracts/budgets stay untouched.
-        return SignatureTableOverlapDelivery::applies($rows)
+        return $bounded
             ? OutlookSignatureInlineStyle::apply($html, $scopeClass)
             : $html;
     }
@@ -398,8 +404,19 @@ class EmailTemplateBuilder
         // Basisformatierung bleibt bei Entfernung von Styles lesbar. Die
         // gescopten Regeln bleiben parallel erhalten, weil prependAsync die
         // Uebernahme von Inline-CSS nicht fuer jeden Client garantiert.
-        return '<style data-rt-outlook-template-css="1">'.$css.'</style>'
-            .self::outlookAddinFragment($inlined, includeStyles: false);
+        $fragment = self::outlookAddinFragment($inlined, includeStyles: false);
+        if ($this->usesNativeOutlookSignature()) {
+            $frame = OutlookComposeFrame::apply($fragment, $scope);
+            $fragment = $frame['html'];
+            $css .= $frame['css'];
+        }
+
+        return '<style data-rt-outlook-template-css="1">'.$css.'</style>'.$fragment;
+    }
+
+    protected function usesNativeOutlookSignature(): bool
+    {
+        return false;
     }
 
     /** Uebertraegt nur Darstellungs-/Sprachattribute der bisherigen Bodywurzel. */

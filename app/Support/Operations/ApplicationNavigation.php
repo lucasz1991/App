@@ -72,10 +72,10 @@ final class ApplicationNavigation
         foreach ($links as $link) {
             $module = $link['parameters']['module'] ?? null;
             $group = match (true) {
-                in_array($module, ['qualifications', 'absences', 'rules', 'workforce-accounts', 'personnel-processes'], true),
+                in_array($module, ['qualifications', 'absences', 'rules', 'workforce-accounts', 'personnel-processes', 'personnel-enhancements'], true),
                 in_array($link['route'], ['admin.employees', 'employees.index'], true) => 'Personal',
-                in_array($module, ['times', 'exports'], true) => 'Zeiten & Freigaben',
-                $module === 'customers',
+                in_array($module, ['times', 'exports', 'attention-center', 'operations-enhancements'], true) => 'Zeiten & Freigaben',
+                in_array($module, ['customers', 'customer-portal'], true),
                 in_array($link['route'], ['admin.devices', 'devices.index'], true) => 'Stammdaten & Geräte',
                 default => 'Disposition',
             };

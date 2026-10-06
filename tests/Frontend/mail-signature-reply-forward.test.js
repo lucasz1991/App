@@ -371,7 +371,10 @@ function composeFixture({ html = '<p>Existing user text</p>', composeType = 'new
     const item = {
         from: { getAsync(callback) { callback(succeeded({ emailAddress: 'employee@example.test' })); } },
         body: {
-            getAsync(_format, callback) { state.bodyReads += 1; callback(succeeded(state.html)); },
+            getAsync(_format, options, callback) {
+                state.bodyReads += 1;
+                (callback || options)(succeeded(state.html));
+            },
             getTypeAsync(callback) { callback(succeeded('html')); },
             prependAsync(value, _options, callback) {
                 state.mutations.push('template');
@@ -845,7 +848,7 @@ test('automatic runtime preserves scoped background CSS and GIF bytes at the Off
 
         assertBackgroundSignatureOfficeBoundary(calls, payload);
         assert.deepEqual(fixture.state.mutations, withoutDefault
-            ? ['attachment', 'signature'] : ['attachment', 'signature', 'template']);
+            ? ['attachment', 'signature'] : ['template', 'attachment', 'signature']);
         assert.equal(fixture.state.completed, 1);
     }
 });
@@ -883,12 +886,12 @@ test('compose event inserts explicit default once for new, reply and forward, an
         await Promise.all([handler(event), handler(event)]);
         assert.equal(state.prepends.length, 1);
         assert.equal(state.signatures.length, 1, 'signature is inserted through the native Outlook API');
-        assert.deepEqual(state.mutations, ['attachment', 'signature', 'template']);
+        assert.deepEqual(state.mutations, ['attachment', 'template', 'signature']);
         assert.doesNotMatch(state.prepends[0], /Signature|RT-SIGNATURE-MANAGED/);
         assert.match(state.prepends[0], /NATIVE-SIGNATURE/);
         assert.equal(state.completed, 2);
         assert.equal(state.attachments.length, 1);
-        assert.equal(state.bodyReads, 2, 'legacy guard before signature, updated-body preflight before prepend');
+        assert.equal(state.bodyReads, 2, 'legacy guard and locked template preflight run before any signature write');
         assert.ok(state.html.endsWith(existing));
     }
 });
@@ -931,6 +934,79 @@ test('mobile uses the Windows default paired signature without template attachme
         assert.equal(fixture.state.html, '<p>Existing user text</p>');
         assert.equal(fixture.state.attachments.length, 0);
         assert.equal(fixture.state.completed, 2);
+    }
+});
+
+test('mobile replies use only current HostConfig HTML instead of markers in the quoted original', async () => {
+    for (const platform of ['iOS', 'Android']) {
+        const quoted = `<section>Original ${composeLibrary.TEMPLATE_MARKER}</section>`;
+        const fixture = await runtimeFixture({ platform, composeType: 'reply', html: quoted });
+        fixture.office.MailboxEnums = { BodyMode: { HostConfig: 1 } };
+        fixture.office.context.mailbox.diagnostics = { hostVersion: '5.2635.0', hostName: `Outlook${platform}` };
+        fixture.item.body.getAsync = (_format, options, callback) => {
+            assert.deepEqual(options, { bodyMode: 1 });
+            callback({ status: 'succeeded', value: '<p>My reply</p>' });
+        };
+        fixture.item.getAttachmentsAsync = () => { throw new Error('Unsupported mobile attachment stub'); };
+        await fixture.handler(fixture.event);
+        await fixture.handler(fixture.event);
+        assert.equal(fixture.state.signatures.length, 1);
+        assert.equal(fixture.state.prepends.length, 0);
+        assert.equal(fixture.state.html, quoted, 'the quoted body is never replaced');
+        assert.deepEqual(fixture.state.mutations, ['attachment', 'signature']);
+        assert.equal(fixture.state.completed, 2);
+    }
+});
+
+test('mobile event expiry prevents later attachments or signature after an already started slow attachment', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    const fixture = await runtimeFixture({ platform: 'iOS', withoutDefault: true });
+    fixture.bootstrap.signature.media = Array.from({ length: 3 }, (_value, index) => ({
+        name: `slow-${index}.png`, contentId: `slow-${index}`, base64: 'aW1hZ2U=',
+    }));
+    const callbacks = [];
+    fixture.item.addFileAttachmentFromBase64Async = (_bytes, name, _options, callback) => {
+        callbacks.push({ name, callback });
+    };
+    const pending = fixture.handler(fixture.event);
+    for (let index = 0; index < 160 && callbacks.length === 0; index++) await Promise.resolve();
+    assert.equal(callbacks.length, 1);
+    context.mock.timers.tick(29000);
+    callbacks[0].callback({ status: 'succeeded' });
+    for (let index = 0; index < 80 && callbacks.length < 2; index++) await Promise.resolve();
+    assert.equal(callbacks.length, 2);
+    context.mock.timers.tick(26001);
+    await pending;
+    assert.equal(fixture.state.completed, 1);
+    assert.equal(fixture.state.signatures.length, 0);
+    callbacks[1].callback({ status: 'succeeded' });
+    for (let index = 0; index < 100; index++) await Promise.resolve();
+    assert.equal(callbacks.length, 2, 'expired handler cannot start the third attachment');
+    assert.equal(fixture.state.signatures.length, 0, 'expired handler cannot insert a late signature');
+});
+
+test('confirmed template is inserted before a signature that a later prepend would corrupt', async () => {
+    for (const composeType of ['newMail', 'reply', 'forward']) {
+        const original = '<p>User text</p><div id="divRplyFwdMsg">History</div>';
+        const fixture = await runtimeFixture({ composeType, html: original });
+        let nativeSignature = '';
+        const prepend = fixture.item.body.prependAsync;
+        fixture.item.body.prependAsync = (html, options, callback) => {
+            if (nativeSignature) nativeSignature = '<p>Corrupted by Outlook normalization</p>';
+            prepend(html, options, callback);
+        };
+        const setSignature = fixture.item.body.setSignatureAsync;
+        fixture.item.body.setSignatureAsync = (html, options, callback) => {
+            nativeSignature = html;
+            setSignature(html, options, callback);
+        };
+        await fixture.handler(fixture.event);
+        await fixture.handler(fixture.event);
+        assert.equal(nativeSignature, fixture.state.signatures[0]);
+        assert.doesNotMatch(nativeSignature, /Corrupted/);
+        assert.equal(fixture.state.mutations.at(-1), 'signature');
+        assert.equal(fixture.state.prepends.length, 1);
+        assert.ok(fixture.state.html.endsWith(original));
     }
 });
 
@@ -1037,7 +1113,7 @@ test('automatic insertion never falls back to another write after an unconfirmed
     context.mock.timers.tick(composeLibrary.TEMPLATE_INSERT_LIMITS.writeTimeoutMs);
     await pending;
     await fixture.handler(fixture.event);
-    assert.equal(fixture.state.signatures.length, 1, 'confirmed native signature stays unchanged after unknown prepend');
+    assert.equal(fixture.state.signatures.length, 0, 'an unknown prepend must not later normalize a freshly inserted signature');
     assert.equal(fixture.state.attachments.length, 1);
     assert.equal(fixture.state.completed, 2);
 });
@@ -1073,7 +1149,7 @@ test('late confirmed signature success is never reinserted by a later compose ev
     assert.equal(fixture.state.completed, 2);
 });
 
-test('late native signature confirmation allows the missing default body without another signature write', async (context) => {
+test('late native signature confirmation never performs a later body prepend', async (context) => {
     context.mock.timers.enable({ apis: ['setTimeout'] });
     const fixture = await runtimeFixture();
     let callback, count = 0;
@@ -1081,12 +1157,12 @@ test('late native signature confirmation allows the missing default body without
     const first = fixture.handler(fixture.event);
     for (let i = 0; i < 120 && !callback; i++) await Promise.resolve();
     assert.equal(count, 1);
-    assert.equal(fixture.state.prepends.length, 0);
+    assert.equal(fixture.state.prepends.length, 1, 'template is confirmed before starting the native signature');
     context.mock.timers.tick(30000);
     await first;
     await fixture.handler(fixture.event);
     assert.equal(count, 1);
-    assert.equal(fixture.state.prepends.length, 0, 'an unknown signature write cannot trigger another mutation');
+    assert.equal(fixture.state.prepends.length, 1, 'an unknown signature write cannot trigger another mutation');
     callback({ status: 'succeeded' });
     await fixture.handler(fixture.event);
     await fixture.handler(fixture.event);
@@ -1095,18 +1171,40 @@ test('late native signature confirmation allows the missing default body without
     assert.equal(fixture.state.completed, 4);
 });
 
-test('template preflight can retry after native signature success without resetting that signature', async () => {
+test('template preflight retries before inserting the native signature', async () => {
     const fixture = await runtimeFixture();
     let reads = 0;
     fixture.item.body.getAsync = (_format, callback) => {
         callback(++reads === 2 ? { status: 'failed' } : { status: 'succeeded', value: fixture.state.html });
     };
     await fixture.handler(fixture.event);
-    assert.equal(fixture.state.signatures.length, 1);
+    assert.equal(fixture.state.signatures.length, 0);
     assert.equal(fixture.state.prepends.length, 0);
     await fixture.handler(fixture.event);
     assert.equal(fixture.state.signatures.length, 1);
     assert.equal(fixture.state.prepends.length, 1);
+});
+
+test('a failed signature after confirmed template retries only its original paired signature', async () => {
+    const fixture = await runtimeFixture();
+    fixture.bootstrap.signature = { html: '<p>Global fallback</p>', media: [] };
+    fixture.bootstrap.templates[0].signature = { html: '<p>Selected paired signature</p>', media: [] };
+    let attempts = 0;
+    const setSignature = fixture.item.body.setSignatureAsync;
+    fixture.item.body.setSignatureAsync = (html, options, callback) => {
+        if (++attempts === 1) callback({ status: 'failed', error: { code: 'SyntheticFailure' } });
+        else setSignature(html, options, callback);
+    };
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.prepends.length, 1);
+    assert.equal(fixture.state.signatures.length, 0);
+    await fixture.handler(fixture.event);
+    await fixture.handler(fixture.event);
+    assert.equal(fixture.state.prepends.length, 1, 'signature retry must not prepend the body again');
+    assert.equal(fixture.state.signatures.length, 1);
+    assert.match(fixture.state.signatures[0], /Selected paired signature/);
+    assert.doesNotMatch(fixture.state.signatures[0], /Global fallback/);
+    assert.equal(fixture.state.mutations.at(-1), 'signature');
 });
 
 test('existing legacy full-template drafts stay untouched while native-only templates allow the signature API', async () => {
@@ -1131,18 +1229,18 @@ test('legacy server templates never fall back to inserting a second ordinary HTM
     assert.equal(fixture.state.prepends.length, 0);
 });
 
-test('From change after native signature success blocks all subsequent template media and body writes', async () => {
+test('From change after confirmed template blocks subsequent signature media and body writes', async () => {
     const fixture = await runtimeFixture();
-    const setSignature = fixture.item.body.setSignatureAsync;
-    fixture.item.body.setSignatureAsync = (html, options, callback) => {
-        setSignature(html, options, callback);
+    const prepend = fixture.item.body.prependAsync;
+    fixture.item.body.prependAsync = (html, options, callback) => {
+        prepend(html, options, callback);
         fixture.item.from.getAsync = cb => cb({ status: 'succeeded', value: { emailAddress: 'private@personal.test' } });
     };
     fixture.bootstrap.templates[0].composeMedia = [{ name: 'template.png', contentId: 'logo', base64: 'aW1hZ2U=' }];
     await fixture.handler(fixture.event);
-    assert.equal(fixture.state.signatures.length, 1);
-    assert.equal(fixture.state.prepends.length, 0);
-    assert.equal(fixture.state.attachments.length, 1, 'only the authorized signature media was prepared');
+    assert.equal(fixture.state.signatures.length, 0);
+    assert.equal(fixture.state.prepends.length, 1);
+    assert.equal(fixture.state.attachments.length, 1, 'only the authorized template media was prepared');
 });
 
 test('native signature media budgets reject excessive payloads before any Office write', async () => {
@@ -1271,7 +1369,7 @@ test('manual template insertion preserves scoped background CSS and GIF bytes at
     await client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
 
     assertBackgroundSignatureOfficeBoundary(calls, payload);
-    assert.deepEqual(fixture.state.mutations, ['attachment', 'signature', 'template']);
+    assert.deepEqual(fixture.state.mutations, ['attachment', 'template', 'signature']);
     assert.equal(fixture.state.prepends.length, 1);
     assert.doesNotMatch(fixture.state.prepends[0], /rt-outlook-signature|rt-sign-cell|synthetic-train/,
         'the signature HTML is passed to setSignatureAsync, not moved into the ordinary template body');
@@ -1339,10 +1437,10 @@ test('taskpane cannot convert an existing legacy embedded signature by adding a 
     assert.match(document.querySelector('[data-outlook-status-detail]').textContent, /Vorlage mit eingebetteter Signatur/);
 });
 
-test('taskpane manual native template sets one native signature before prepending signature-free content', async () => {
+test('taskpane manual native template sets its native signature after prepending signature-free content', async () => {
     const { fixture, client, document } = await taskpaneFixture();
     await client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
-    assert.deepEqual(fixture.state.mutations, ['signature', 'template']);
+    assert.deepEqual(fixture.state.mutations, ['template', 'signature']);
     assert.equal(fixture.state.signatures.length, 1);
     assert.equal(fixture.state.prepends.length, 1);
     assert.doesNotMatch(fixture.state.prepends[0], /Native signature|embedded signature|RT-SIGNATURE-MANAGED/);
@@ -1369,7 +1467,7 @@ test('read-only bootstrap refresh and diagnostics retain confirmed native signat
     const { fixture, client, document } = await taskpaneFixture();
     await client.insertTemplate(document.querySelector('[data-outlook-action="template"]'));
     const mutations = [...fixture.state.mutations];
-    assert.deepEqual(mutations, ['signature', 'template']);
+    assert.deepEqual(mutations, ['template', 'signature']);
     client.resetBootstrapAge();
     client.requestSilentBootstrapRefresh();
     await client.refreshPending();

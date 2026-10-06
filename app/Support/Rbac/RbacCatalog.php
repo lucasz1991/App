@@ -31,9 +31,16 @@ class RbacCatalog
                 ['key' => 'operations.time.review', 'label' => 'Zeitmeldungen prüfen und freigeben'],
                 ['key' => 'operations.time.export', 'label' => 'Freigegebene Zeitnachweise exportieren'],
                 ['key' => 'operations.rules.manage', 'label' => 'Betriebliche Prüfregeln verwalten'],
+                ['key' => 'operations.costs.manage', 'label' => 'Private Auftragskosten verwalten'],
+                ['key' => 'operations.terminal.manage', 'label' => 'Terminalzugänge verwalten'],
             ],
             'Assistenz' => [
                 ['key' => 'assistant.use', 'label' => 'Chatbot-Assistent verwenden'],
+            ],
+            'Kundenportal' => [
+                ['key' => 'customers.portal.manage', 'label' => 'Kundenzugänge verwalten'],
+                ['key' => 'customers.portal.publish', 'label' => 'Kundenunterlagen freigeben'],
+                ['key' => 'customers.portal.automation', 'label' => 'Kundenautomatik und Kontingente freigeben'],
             ],
             'Mitarbeiter' => [
                 ['key' => 'employees.view', 'label' => 'Mitarbeiter anzeigen'],
@@ -42,6 +49,9 @@ class RbacCatalog
                 ['key' => 'employees.master-data.edit', 'label' => 'Mitarbeiter-Stammdaten bearbeiten'],
                 ['key' => 'employees.compensation.view', 'label' => 'Lohn- und Sozialdaten anzeigen'],
                 ['key' => 'employees.compensation.edit', 'label' => 'Lohn- und Sozialdaten bearbeiten'],
+                ['key' => 'employees.emergency.access', 'label' => 'Notfallkontakte begründet einsehen'],
+                ['key' => 'employees.recruiting.manage', 'label' => 'Private Bewerberprozesse verwalten'],
+                ['key' => 'employees.development.manage', 'label' => 'Private Personalentwicklung verwalten'],
                 ['key' => 'roles.manage', 'label' => 'Rollen verwalten'],
             ],
             'Benutzer' => [
@@ -122,7 +132,7 @@ class RbacCatalog
     public static function defaultRolePermissions(): array
     {
         return [
-            'team_access' => self::allPermissions(),
+            'team_access' => array_values(array_diff(self::allPermissions(), ['employees.emergency.access', 'employees.recruiting.manage', 'employees.development.manage', 'operations.costs.manage', 'operations.terminal.manage', 'customers.portal.manage', 'customers.portal.publish', 'customers.portal.automation'])),
         ];
     }
 

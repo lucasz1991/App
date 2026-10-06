@@ -6,8 +6,15 @@ use App\Http\Controllers\Api\DeviceProviderWebhookController;
 use App\Http\Controllers\Api\OperationsController;
 use App\Http\Controllers\Api\OutlookAddinBootstrapController;
 use App\Http\Controllers\Api\WorkTimeV2Controller;
+use App\Http\Controllers\WorkTimeTerminalController;
 use App\Http\Middleware\OperationsApi;
 use Illuminate\Support\Facades\Route;
+
+// An explicitly activated kiosk can only obtain one-action clock capabilities.
+Route::prefix('v2/operations/terminal')->name('api.operations.terminal.')->middleware('throttle:30,1')->group(function () {
+    Route::post('authenticate', [WorkTimeTerminalController::class, 'authenticate'])->name('authenticate');
+    Route::post('capture', [WorkTimeTerminalController::class, 'capture'])->name('capture');
+});
 
 Route::prefix('v1/operations')->name('api.operations.')->middleware([OperationsApi::class, 'auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('me/times', [OperationsController::class, 'ownTimes']);

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\CustomerPortalIdentity;
 use App\Models\User;
 
 return [
@@ -58,6 +59,10 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+        'customer_portal' => [
+            'driver' => 'session',
+            'provider' => 'customer_portal_identities',
+        ],
     ],
 
     /*
@@ -81,6 +86,10 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => User::class,
+        ],
+        'customer_portal_identities' => [
+            'driver' => 'eloquent',
+            'model' => CustomerPortalIdentity::class,
         ],
 
         // 'users' => [
@@ -112,6 +121,12 @@ return [
         'users' => [
             'provider' => 'users',
             'table' => 'password_reset_tokens',
+            'expire' => 60,
+            'throttle' => 60,
+        ],
+        'customer_portal' => [
+            'provider' => 'customer_portal_identities',
+            'table' => 'customer_portal_password_reset_tokens',
             'expire' => 60,
             'throttle' => 60,
         ],

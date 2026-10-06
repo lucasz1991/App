@@ -2,16 +2,25 @@
 
 namespace App\Livewire\Operations;
 
+use App\Enums\ShiftAssignmentStatus;
 use App\Models\AbsenceRequest;
+use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\PersonnelScopeService;
+use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\StaffTimelineLayout;
+use App\Services\Operations\TimelinePlanningSuggestionService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
+use App\Support\Operations\OperationsTransaction;
+use App\Support\Operations\PlanningLocks;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithoutUrlPagination;
 use Livewire\WithPagination;
@@ -41,6 +50,128 @@ class StaffTimeline extends Component
 
     #[Locked]
     public string $absenceStatus = 'all';
+
+    #[Locked]
+    public bool $planningEnabled = false;
+
+    #[Locked]
+    public bool $showSuggestions = false;
+
+    #[Locked]
+    public ?int $planningUserId = null;
+
+    #[Locked]
+    public ?string $planningDate = null;
+
+    #[Locked]
+    public ?int $planningShiftId = null;
+
+    #[Locked]
+    public ?int $planningRevision = null;
+
+    public bool $assignmentOpen = false;
+
+    public string $assignmentStatus = 'requested';
+
+    #[Locked]
+    public array $planningReasons = [];
+
+    public function openCell(int $userId, string $date): void
+    {
+        $this->ensurePlanning();
+        app(TimelinePlanningSuggestionService::class)->cellChoices($userId, $date, $this->from, $this->until, auth()->user());
+        $this->resetPlanningSelection();
+        $this->planningUserId = $userId;
+        $this->planningDate = $date;
+        $this->assignmentOpen = true;
+    }
+
+    public function selectCellShift(int $shiftId, int $revision): void
+    {
+        $this->ensurePlanning();
+        abort_unless($this->assignmentOpen && $this->planningUserId && $this->planningDate, 422);
+        $choice = app(TimelinePlanningSuggestionService::class)->cellChoices($this->planningUserId, $this->planningDate, $this->from, $this->until, auth()->user())
+            ->first(fn ($choice) => $choice['shift']->id === $shiftId);
+        if (! $choice || $choice['revision'] !== $revision || ! $choice['eligible']) {
+            throw ValidationException::withMessages(['workflow' => 'Einsatz oder Eignung wurde geändert. Bitte neu auswählen.']);
+        }
+        $this->planningShiftId = $shiftId;
+        $this->planningRevision = $revision;
+        $this->planningReasons = [];
+        $this->resetValidation();
+    }
+
+    public function openSuggestion(int $shiftId, int $userId, int $revision): void
+    {
+        $this->ensurePlanning();
+        abort_unless($this->showSuggestions, 422);
+        $proposal = app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user())['proposals']
+            ->first(fn ($proposal) => $proposal['shift']->id === $shiftId && $proposal['user']->id === $userId && $proposal['revision'] === $revision);
+        if (! $proposal) {
+            throw ValidationException::withMessages(['workflow' => 'Vorschlag ist nicht mehr aktuell. Bitte neu auswählen.']);
+        }
+        $this->resetPlanningSelection();
+        $this->planningShiftId = $shiftId;
+        $this->planningUserId = $userId;
+        $this->planningRevision = $revision;
+        $this->planningReasons = $proposal['reasons'];
+        $this->assignmentOpen = true;
+    }
+
+    public function confirmAssignment(): void
+    {
+        $this->ensurePlanning();
+        abort_unless($this->assignmentOpen && $this->planningShiftId && $this->planningUserId && $this->planningRevision !== null, 422);
+        $this->validate(['assignmentStatus' => ['required', Rule::in(ShiftAssignmentStatus::blockingValues())]]);
+        OperationsTransaction::run(function () {
+            PlanningLocks::acquire([$this->planningShiftId], [$this->planningUserId]);
+            $shift = app(TimelinePlanningSuggestionService::class)->openShifts($this->from, $this->until, auth()->user())->whereKey($this->planningShiftId)->first();
+            if (! $shift) {
+                throw ValidationException::withMessages(['workflow' => 'Für diese Schicht ist kein offener Einsatzplatz mehr verfügbar.']);
+            }
+            $user = User::where('role', 'staff')->where('status', true)->findOrFail($this->planningUserId);
+            app(ShiftAssignmentService::class)->assign($shift, $user, auth()->user(), $this->assignmentStatus, null, $this->planningRevision);
+        });
+        $this->resetPlanningSelection();
+        $this->dispatch('operations-plan-changed');
+    }
+
+    public function backToCellChoices(): void
+    {
+        $this->ensurePlanning();
+        abort_unless($this->planningDate !== null, 422);
+        $this->reset(['planningShiftId', 'planningRevision', 'planningReasons']);
+        $this->resetValidation();
+    }
+
+    #[On('operations-timeline-suggestions-toggle')]
+    public function toggleSuggestions(): void
+    {
+        $this->ensurePlanning();
+        $this->showSuggestions = ! $this->showSuggestions;
+        $this->resetValidation();
+    }
+
+    #[On('operations-plan-changed')]
+    public function refreshPlanning(): void
+    {
+        if ($this->planningEnabled && ! $this->absencesOnly) {
+            $this->ensurePlanning();
+        }
+    }
+
+    private function ensurePlanning(): void
+    {
+        OperationsAccess::authorize(auth()->user(), 'operations.manage');
+        OperationsAccess::requireReady();
+        abort_unless($this->planningEnabled && ! $this->absencesOnly, 403);
+    }
+
+    private function resetPlanningSelection(): void
+    {
+        $this->reset(['planningUserId', 'planningDate', 'planningShiftId', 'planningRevision', 'planningReasons', 'assignmentOpen', 'assignmentStatus']);
+        $this->resetValidation();
+    }
 
     public function mount(): void
     {
@@ -121,7 +252,34 @@ class StaffTimeline extends Component
                 })];
         });
 
-        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone'));
+        $planningPreview = $this->planningEnabled && ! $this->absencesOnly && $this->showSuggestions
+            ? app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user())
+            : ['proposals' => collect(), 'open_total' => 0, 'limited' => false];
+        $proposalRows = $planningPreview['proposals']->groupBy(fn ($proposal) => $proposal['user']->id)->map(fn ($proposals) => $layout->periodEvents($days, $proposals->map(fn ($proposal) => [
+            'id' => 'proposal-'.$proposal['shift']->id.'-'.$proposal['user']->id,
+            'kind' => 'proposal', 'shift_id' => $proposal['shift']->id, 'user_id' => $proposal['user']->id, 'revision' => $proposal['revision'],
+            'title' => $proposal['shift']->title, 'start' => $proposal['shift']->starts_at, 'end' => $proposal['shift']->ends_at,
+            'reasons' => $proposal['reasons'],
+        ])));
+        $planningUser = $this->assignmentOpen && $this->planningUserId ? User::find($this->planningUserId) : null;
+        $planningShift = $this->assignmentOpen && $this->planningShiftId ? Shift::with('order.customer')->find($this->planningShiftId) : null;
+        $choices = $this->assignmentOpen && $this->planningDate && $this->planningUserId && ! $this->planningShiftId
+            ? app(TimelinePlanningSuggestionService::class)->cellChoices($this->planningUserId, $this->planningDate, $this->from, $this->until, auth()->user())->map(fn ($choice) => (object) [
+                'id' => $choice['shift']->id, 'title' => $choice['shift']->title, 'revision' => $choice['revision'],
+                'period' => $this->planningPeriod($choice['shift'], $zone),
+                'open' => max(0, $choice['shift']->required_staff - $choice['shift']->reserved_count), 'eligible' => $choice['eligible'], 'issues' => $choice['issues'],
+            ]) : collect();
+
+        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices'));
+    }
+
+    private function planningPeriod(Shift $shift, string $zone): string
+    {
+        $start = $shift->starts_at->setTimezone($zone);
+        $end = $shift->ends_at->setTimezone($zone);
+        $format = $start->offset !== $end->offset ? 'd.m. H:i P' : 'd.m. H:i';
+
+        return $start->format($format).' – '.$end->format($format);
     }
 
     private function staffQuery(CarbonImmutable $from, CarbonImmutable $until): Builder

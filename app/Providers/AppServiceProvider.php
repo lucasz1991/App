@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\Calls\CallEgressGateway;
+use App\Http\Middleware\EnsureCustomerPortalAccess;
 use App\Listeners\OutlookAddinSnapshotObserver;
 use App\Models\EmployeeIdentityAccount;
 use App\Models\Team;
@@ -15,6 +16,7 @@ use App\Support\OutlookAddin\OutlookAddinSnapshotRefreshScheduler;
 use App\Support\OutlookAddin\OutlookAddinUserSnapshotStore;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -35,6 +37,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
+
+        Livewire::addPersistentMiddleware([EnsureCustomerPortalAccess::class]);
 
         User::observe(OutlookAddinSnapshotObserver::class);
         UserProfile::observe(OutlookAddinSnapshotObserver::class);

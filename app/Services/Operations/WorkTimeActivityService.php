@@ -19,11 +19,13 @@ class WorkTimeActivityService
 
     public function begin(WorkTimeEntry $entry, CarbonImmutable $at): void
     {
+        app(PayrollClosingService::class)->assertMutable(User::findOrFail($entry->user_id), $at);
         $entry->activities()->create(['kind' => in_array($entry->work_context, ['internal', 'training'], true) ? $entry->work_context : 'work', 'starts_at' => $at, 'is_paid' => null]);
     }
 
     public function clockTransition(WorkTimeEntry $entry, string $action, CarbonImmutable $at): void
     {
+        app(PayrollClosingService::class)->assertMutable(User::findOrFail($entry->user_id), $entry->starts_at, $at);
         $active = $entry->activities()->whereNull('ends_at')->lockForUpdate()->first();
         if ($active) {
             $active->update(['ends_at' => $at]);
@@ -50,6 +52,7 @@ class WorkTimeActivityService
             }
             abort_unless($entry->revision === $revision && $entry->status === 'running', 409, 'Zeitstand wurde geändert.');
             $at = $capturedAt ?? CarbonImmutable::now('UTC');
+            app(PayrollClosingService::class)->assertMutable($actor, $entry->starts_at, $at);
             $latest = $entry->events()->max('occurred_at');
             abort_if($at->lt($entry->starts_at) || ($latest && $at->lt(CarbonImmutable::parse($latest, 'UTC'))), 409, 'Ereigniszeit liegt vor dem aktuellen Zeitstand.');
             $entry->activities()->whereNull('ends_at')->update(['ends_at' => $at]);
@@ -70,6 +73,7 @@ class WorkTimeActivityService
         OperationsTransaction::run(function () use ($id, $revision, $sections, $actor) {
             User::lockForUpdate()->findOrFail($actor->id);
             $entry = WorkTimeEntry::where('user_id', $actor->id)->lockForUpdate()->findOrFail($id);
+            app(PayrollClosingService::class)->assertMutable($actor, $entry->starts_at, $entry->ends_at);
             abort_unless($entry->revision === $revision && in_array($entry->status, ['completed', 'returned'], true), 409);
             $cursor = $entry->starts_at->utc();
             $pause = 0;

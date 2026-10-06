@@ -9,6 +9,7 @@ use App\Models\PersonnelTrainingParticipant;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\CustomerPortal\CustomerCapacityService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
@@ -45,7 +46,7 @@ class PersonnelProcessService
     {
         abort_unless($this->ready(), 503);
         abort_unless($actor->status, 403);
-        abort_unless((int) $task->assigned_to === (int) $actor->id || $actor->isAdmin(), 403);
+        abort_unless((int) $task->assigned_to === (int) $actor->id || $actor->isAdmin() || app(PersonnelEnhancementService::class)->delegateCanComplete($task, $actor), 403);
         if ((int) $task->user_id === (int) $actor->id) {
             OperationsAccess::own($actor, $actor->id);
         } else {
@@ -56,7 +57,9 @@ class PersonnelProcessService
             User::lockForUpdate()->findOrFail($task->user_id);
             $record = PersonnelTask::lockForUpdate()->findOrFail($task->id);
             $this->check($record->status === 'open' && $record->revision === $revision, 'Aufgabe wurde bereits geändert.');
+            app(PersonnelEnhancementService::class)->checkTaskDependency($record);
             $record->forceFill(['status' => 'done', 'revision' => $revision + 1, 'completed_by' => $actor->id, 'completed_at' => now()->utc()])->save();
+            app(PersonnelEnhancementService::class)->syncWorkflow($record);
             $this->audit->record($record, $actor, 'personnel_task.completed', ['note' => $note]);
         }, 3);
     }
@@ -105,7 +108,11 @@ class PersonnelProcessService
             $this->check(! ShiftAssignment::blocking()->where('user_id', $employee->id)->whereHas('shift', fn ($q) => $q->notCancelled()->during($record->starts_at, $record->ends_at))->exists(), 'Zugewiesene Dienste müssen zuerst umgeplant werden.');
             $this->check(! $this->conflictingTrainings($employee, $record->starts_at, $record->ends_at, [$record->id])->exists(), 'Eine andere Schulung überschneidet sich.');
             $plannedWork = new Shift(['timezone' => $record->timezone, 'starts_at' => $record->starts_at, 'ends_at' => $record->ends_at, 'planned_break_minutes' => 0]);
-            $contractIssues = app(WorkforceAccountService::class)->planningIssues($plannedWork, $employee, ['exclude_training_ids' => [$record->id]]);
+            $trainingContext = ['exclude_training_ids' => [$record->id]];
+            if (class_exists(CustomerCapacityService::class)) {
+                $trainingContext['additional_shifts'] = app(CustomerCapacityService::class)->additionalShifts($plannedWork, $employee);
+            }
+            $contractIssues = app(WorkforceAccountService::class)->planningIssues($plannedWork, $employee, $trainingContext);
             $contractIssues = array_merge($contractIssues, app(StaffEligibilityService::class)->trainingRestIssues($record, $employee, ['exclude_training_ids' => [$record->id]]));
             $this->check($contractIssues === [], implode(' ', array_column($contractIssues, 'message')));
             $participant = PersonnelTrainingParticipant::where('personnel_training_id', $record->id)->where('user_id', $employee->id)->lockForUpdate()->first();

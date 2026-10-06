@@ -53,6 +53,25 @@ class MultiToggleComponentTest extends TestCase
         }
     }
 
+    public function test_portal_icon_set_is_opt_in_and_preserves_standard_keyboard_and_action_contracts(): void
+    {
+        $html = Blade::render('<x-ui.buttons.multi-toggle icon-set="customer-portal" :options="$options" value="day" action="switchView" label="Kalenderansicht" />', [
+            'options' => [
+                ['value' => 'day', 'label' => 'Tag', 'icon' => 'fa-calendar-day'],
+                ['value' => 'week', 'label' => 'Woche', 'icon' => 'fa-calendar-week'],
+                ['value' => 'month', 'label' => 'Monat', 'icon' => 'fa-calendar-alt'],
+                ['value' => 'list', 'label' => 'Liste', 'icon' => 'fa-list-ul'],
+            ],
+        ]);
+        $xpath = $this->xpath($html);
+        $this->assertSame(4, $xpath->query('//button[@data-multi-toggle-option]/svg[@aria-hidden="true"]')->length);
+        $this->assertSame(0, $xpath->query('//button[@data-multi-toggle-option]/i')->length);
+        $this->assertSame(1, $xpath->query('//button[@aria-pressed="true" and @tabindex="0"]')->length);
+        $this->assertStringContainsString('wire:target="switchView"', $html);
+        $this->assertStringContainsString('ArrowRight', $html);
+        $this->assertSame(3, $this->xpath($this->render())->query('//button/i')->length);
+    }
+
     public function test_disabled_options_are_not_actions_or_tab_stops_and_selection_does_not_move(): void
     {
         $xpath = $this->xpath($this->render([

@@ -104,7 +104,8 @@ final class SignatureTableOverlapDelivery
         $imageCell->parentNode->removeChild($imageCell);
         $content->parentNode->parentNode->appendChild($row);
         if (self::usesLedger($html)) {
-            self::stack($dom, $xpath, self::one($xpath, 'rt-sign-ledger'), ['rt-ledger-brand', 'rt-ledger-contacts']);
+            self::columns($xpath, self::one($xpath, 'rt-sign-ledger'), ['rt-ledger-brand', 'rt-ledger-contacts']);
+            self::fluidLedgerLogo($xpath);
             $contacts = self::one($xpath, 'rt-ledger-contacts');
             $nested = $xpath->query('./table', $contacts);
             if ($nested->length !== 1) {
@@ -178,7 +179,7 @@ final class SignatureTableOverlapDelivery
             || ($source !== null && ! hash_equals($source, $image->getAttribute('src')))) {
             throw new RuntimeException('Der Signaturzug muss begrenzt nach den Kontakten stehen.');
         }
-        if (preg_match('~<!--\[if !mso\]><!-->\s*<img class="rt-delivery-train(?:\s[^\"]*)?"[^>]*>\s*<!--<!\[endif\]-->~', $html) !== 1
+        if (preg_match('~<!--\[if !mso\]><!-->\s*<img\b(?=[^>]*\bclass="rt-delivery-train(?:\s[^\"]*)?")[^>]*>\s*<!--<!\[endif\]-->~', $html) !== 1
             || preg_match('~<!--\[if mso\]>(<img class="rt-delivery-train-mso"[^>]*>)<!\[endif\]-->~', $html, $match) !== 1
             || substr_count($html, 'class="rt-delivery-train-mso"') !== 1
             || ($stillSource !== null && ! str_contains($match[1], 'src="'.htmlspecialchars($stillSource, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"'))
@@ -209,7 +210,7 @@ final class SignatureTableOverlapDelivery
         $ledger = self::usesLedger($html);
         $css = $ledger
             ? $scope.' .rt-sign-ledger-content{padding:25px 40px 15px!important;}'
-                .$scope.' .rt-sign-ledger img.rt-logo{width:180px!important;height:auto!important;margin:0!important;}'
+                .$scope.' .rt-sign-ledger img.rt-logo{width:100%!important;max-width:180px!important;height:auto!important;margin:0!important;}'
                 .$scope.' .rt-sign-ledger .rt-contact{margin:0!important;text-align:left!important;}'
                 .$scope.' .rt-address-break{display:none;}'
             : '';
@@ -228,10 +229,15 @@ final class SignatureTableOverlapDelivery
 
         return $css
             .$scope.' .rt-ledger-brand,'.$scope.' .rt-ledger-direct{padding:0!important;}'
-            .$scope.' .rt-ledger-contacts,'.$scope.' .rt-ledger-company{padding:14px 0 0!important;}'
+            .$scope.' .rt-ledger-company{padding:14px 0 0!important;}'
+            .$scope.' .rt-delivery-wide-column{display:table-cell!important;vertical-align:top!important;box-sizing:border-box!important;text-align:left!important;font-weight:normal!important;}'
+            .$scope.' .rt-ledger-brand.rt-delivery-wide-column{width:32%!important;padding:0 22px 0 0!important;border-right:1px solid #e60033!important;}'
+            .$scope.' .rt-ledger-contacts.rt-delivery-wide-column{width:68%!important;padding:0 0 0 22px!important;border:0!important;}'
             .'@media only screen and (max-width:860px){'
             .$scope.' .rt-sign-ledger-content{padding:23px 22px 15px!important;}'
-            .$scope.' .rt-sign-ledger img.rt-logo{width:175px!important;}'
+            .$scope.' .rt-sign-ledger img.rt-logo{max-width:175px!important;}'
+            .$scope.' .rt-ledger-brand.rt-delivery-wide-column,'.$scope.' .rt-ledger-contacts.rt-delivery-wide-column{display:block!important;width:100%!important;padding:0!important;border:0!important;box-sizing:border-box!important;}'
+            .$scope.' .rt-ledger-contacts.rt-delivery-wide-column{padding-top:14px!important;}'
             .$scope.' .rt-address-break{display:block!important;}'
             .'}';
     }
@@ -290,6 +296,89 @@ final class SignatureTableOverlapDelivery
         }
         self::stackRow($dom, $xpath, $rows->item(0), $classes);
         $table->setAttribute('style', 'width:100%;table-layout:auto;border-collapse:collapse;');
+    }
+
+    /** Real layout cells; TH allows responsive reflow in Outlook iOS. */
+    private static function columns(DOMXPath $xpath, DOMElement $table, array $classes): void
+    {
+        $rows = $xpath->query('./tr|./tbody/tr', $table);
+        if ($rows->length !== 1 || $xpath->query('./td', $rows->item(0))->length !== count($classes)) {
+            throw new RuntimeException('Die zweispaltige Signatur besitzt fremde Tabellenstrukturen.');
+        }
+        foreach (iterator_to_array($xpath->query('./td', $rows->item(0))) as $index => $cell) {
+            if (! in_array($classes[$index], preg_split('/\s+/', $cell->getAttribute('class')), true)) {
+                throw new RuntimeException('Die zweispaltige Signatur besitzt fremde Kontaktgruppen.');
+            }
+            $column = $table->ownerDocument->createElement('th');
+            foreach ($cell->attributes as $attribute) {
+                $column->setAttribute($attribute->name, $attribute->value);
+            }
+            while ($cell->firstChild !== null) {
+                $column->appendChild($cell->firstChild);
+            }
+            $cell->parentNode->replaceChild($column, $cell);
+            $cell = $column;
+            $width = $index === 0 ? '32%' : '68%';
+            $cell->setAttribute('role', 'presentation');
+            $cell->setAttribute('class', trim($cell->getAttribute('class').' rt-delivery-wide-column'));
+            $cell->setAttribute('width', $width);
+            $cell->setAttribute('align', 'left');
+            $cell->setAttribute('valign', 'top');
+            $cell->setAttribute('style', 'width:'.$width.';padding:'.($index === 0 ? '0 22px 0 0' : '0 0 0 22px').';border:0;'.($index === 0 ? 'border-right:1px solid #e60033;' : '').'vertical-align:top;text-align:left;font-weight:normal;');
+        }
+        $table->setAttribute('width', '100%');
+        $table->setAttribute('style', 'width:100%;table-layout:fixed;border-collapse:collapse;');
+    }
+
+    /** Outlook's editor pane can be narrower than the media-query viewport. */
+    private static function fluidLedgerLogo(DOMXPath $xpath): void
+    {
+        $brand = self::one($xpath, 'rt-ledger-brand');
+        $logo = self::one($xpath, 'rt-logo');
+        $ancestor = $logo->parentNode;
+        $insideBrand = false;
+        while ($ancestor instanceof DOMElement) {
+            if ($ancestor->isSameNode($brand)) {
+                $insideBrand = true;
+                break;
+            }
+            $ancestor = $ancestor->parentNode;
+        }
+        if (! $insideBrand) {
+            throw new RuntimeException('Das Signaturlogo liegt ausserhalb der eindeutigen Markenspalte.');
+        }
+        self::fluidLogoDimensions($logo);
+        // Some published designs put the logo in its own fixed 180px table.
+        // Constrain that carrier too; an IMG rule alone cannot shrink it.
+        $carrier = $logo->parentNode;
+        while ($carrier instanceof DOMElement && ! $carrier->isSameNode($brand)) {
+            if (strtolower($carrier->tagName) === 'table') {
+                $rows = $xpath->query('./tr|./tbody/tr', $carrier);
+                if ($rows->length !== 1 || $xpath->query('./td', $rows->item(0))->length !== 1
+                    || $xpath->query('.//img', $carrier)->length !== 1) {
+                    throw new RuntimeException('Der Signaturlogo-Traeger besitzt fremde Tabellenstrukturen.');
+                }
+                $carrier->setAttribute('width', '100%');
+                $carrier->removeAttribute('height');
+                self::fluidLogoDimensions($carrier);
+                $cell = $xpath->query('./td', $rows->item(0))->item(0);
+                $cell->setAttribute('width', '100%');
+                $cell->removeAttribute('height');
+                $cell->setAttribute('style', self::withoutLogoDimensions($cell->getAttribute('style')).'width:100%;height:auto;');
+                break;
+            }
+            $carrier = $carrier->parentNode;
+        }
+    }
+
+    private static function fluidLogoDimensions(DOMElement $element): void
+    {
+        $element->setAttribute('style', self::withoutLogoDimensions($element->getAttribute('style')).'width:100%;max-width:180px;height:auto;');
+    }
+
+    private static function withoutLogoDimensions(string $style): string
+    {
+        return trim(preg_replace('/(?:^|;)\s*(?:width|min-width|max-width|height|min-height|max-height)\s*:[^;]*(?=;|$)/i', '', $style) ?? $style, ';').';';
     }
 
     private static function stackRow(DOMDocument $dom, DOMXPath $xpath, DOMElement $row, array $classes): void

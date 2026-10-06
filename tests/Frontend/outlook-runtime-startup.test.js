@@ -43,7 +43,7 @@ test('actual HTML bundle startup probes contain only fixed labels and no credent
     for (const { url, options } of requests) {
         assert.equal(new URL(url).origin, 'https://example.test');
         assert.equal(new URL(url).pathname, '/outlook-addin/config.json');
-        assert.equal(new URL(url).searchParams.get('rt_rev'), 'mobile-init-20261002');
+        assert.equal(new URL(url).searchParams.get('rt_rev'), 'compose-order-20261005');
         assert.equal(options.credentials, 'omit');
         assert.equal(options.referrerPolicy, 'no-referrer');
         assert.equal(options.headers, undefined);

@@ -93,19 +93,33 @@ class OrderDemandService
         return WorkforcePlanningSchema::ready() ? $coverage + ['reserved' => $reserved === PHP_INT_MAX ? 0 : $reserved, 'requested' => $requested === PHP_INT_MAX ? 0 : $requested, 'missing' => max(0, $demand->required_staff - $coverage['confirmed']), 'peak_planned' => $peakPlanned, 'peak_reserved' => $peakReserved, 'overstaffed' => $demand->maximum_staff === null ? 0 : max(0, $peakPlanned - $demand->maximum_staff), 'segments' => $segments] : $coverage;
     }
 
-    public function assertCapacity(Shift $shift, int $userId): void
+    /** Internal preview reservations are never persisted; mutation callers keep locking and an empty context. */
+    public function assertCapacity(Shift $shift, int $userId, bool $lock = true, array $additionalAssignments = []): void
     {
         if (! $shift->order_demand_id || ! WorkforcePlanningSchema::demandsReady()) {
             return;
         }
-        $demand = OrderDemand::lockForUpdate()->findOrFail($shift->order_demand_id);
+        $query = OrderDemand::whereKey($shift->order_demand_id);
+        $demand = ($lock ? $query->lockForUpdate() : $query)->firstOrFail();
         if ($demand->maximum_staff === null) {
             return; // Legacy/minimum demand has no implicit upper cap.
         }
         $shifts = $demand->shifts()->notCancelled()->with('assignments')->get();
-        $points = collect([$shift->starts_at->timestamp])->merge($shifts->flatMap(fn ($s) => [$s->starts_at->timestamp, $s->ends_at->timestamp]))->filter(fn ($point) => $point >= $shift->starts_at->timestamp && $point < $shift->ends_at->timestamp)->unique();
+        $virtual = collect($additionalAssignments)->filter(function (array $assignment) use ($shift, $userId, $demand, $shifts): bool {
+            $other = $assignment['shift'];
+            $person = (int) $assignment['user_id'];
+            $actual = $shifts->firstWhere('id', $other->id);
+
+            return (int) $other->order_demand_id === (int) $demand->id
+                && ! ($other->id === $shift->id && $person === $userId)
+                && ! ($actual && $actual->assignments->contains(fn ($item) => $item->user_id === $person && $item->status->blocksAvailability()));
+        })->unique(fn ($assignment) => $assignment['shift']->id.':'.$assignment['user_id']);
+        $points = collect([$shift->starts_at->timestamp])->merge($shifts->flatMap(fn ($s) => [$s->starts_at->timestamp, $s->ends_at->timestamp]))
+            ->merge($virtual->flatMap(fn ($item) => [$item['shift']->starts_at->timestamp, $item['shift']->ends_at->timestamp]))
+            ->filter(fn ($point) => $point >= $shift->starts_at->timestamp && $point < $shift->ends_at->timestamp)->unique();
         foreach ($points as $point) {
             $reserved = $shifts->filter(fn ($s) => $s->starts_at->timestamp <= $point && $s->ends_at->timestamp > $point)->sum(fn ($s) => $s->assignments->filter(fn ($a) => $a->status->blocksAvailability() && ! ($s->id === $shift->id && $a->user_id === $userId))->count());
+            $reserved += $virtual->filter(fn ($item) => $item['shift']->starts_at->timestamp <= $point && $item['shift']->ends_at->timestamp > $point)->count();
             $this->check($reserved < $demand->maximum_staff, 'Höchstbedarf ist im Zeitfenster bereits reserviert.');
         }
     }

@@ -6,6 +6,7 @@ use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\MailDocumentDelivery;
+use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureTableOverlapDelivery;
@@ -18,7 +19,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 18;
+    private const RENDERER_REVISION = 26;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -145,6 +146,11 @@ final class OutlookAddinPayloadService
                 // separate Signatur danach ueber setSignatureAsync.
                 new class($user) extends EmailTemplateBuilder
                 {
+                    protected function usesNativeOutlookSignature(): bool
+                    {
+                        return true;
+                    }
+
                     protected function signatureBlock(
                         MailSignature $signature,
                         array $layout = [],
@@ -223,12 +229,14 @@ final class OutlookAddinPayloadService
         );
         [$html, $media] = $this->localizeRemoteImages(
             $this->withMarker(
-                $builder->buildOutlookAddinSignatureHtml('light'),
+                OutlookNativePersonalSignature::project($builder->buildOutlookAddinSignatureHtml('light')),
+                nativeSignature: true,
             ),
         );
         $html = $this->compactSignature($html);
         $version = $this->signatureArtifactVersion($html, $media);
-        $html = $this->withSignatureVersionMarker($html, $version);
+        $html = $this->withSignatureVersionMarker($html, $version, nativeSignature: true);
+        $this->assertSignatureCssBudget($html);
         $characters = $this->outlookStringLength($html);
         if ($characters > self::MAX_SIGNATURE_CHARACTERS) {
             throw new RuntimeException('Die veroeffentlichte Signatur ueberschreitet das Outlook-Limit von 30.000 Zeichen ('.$characters.').');
@@ -239,6 +247,14 @@ final class OutlookAddinPayloadService
             'media' => $media,
             'version' => $version,
         ];
+    }
+
+    private function assertSignatureCssBudget(string $html): void
+    {
+        preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $html, $styles);
+        if (array_sum(array_map('strlen', $styles[1])) >= OutlookSignatureInlineStyle::MAX_CSS_BYTES) {
+            throw new RuntimeException('Die vollstaendige Outlook-Signatur ueberschreitet das CSS-Limit von 12 KiB.');
+        }
     }
 
     /**
@@ -409,10 +425,13 @@ final class OutlookAddinPayloadService
     {
         $marker = 'RT-TEMPLATE-MANAGED-V1:NATIVE-SIGNATURE';
 
-        return $this->hiddenMarker($marker, ' data-rt-template-signature-mode="native"').$html;
+        return OutlookNativeMetadataPlacement::template(
+            $html,
+            $this->hiddenMarker($marker, ' data-rt-template-signature-mode="native"'),
+        );
     }
 
-    private function withMarker(string $html): string
+    private function withMarker(string $html, bool $nativeSignature = false): string
     {
         $marker = preg_replace(
             '/[^A-Z0-9_-]/i',
@@ -420,10 +439,12 @@ final class OutlookAddinPayloadService
             (string) config('outlook_addin.marker', 'RT-SIGNATURE-MANAGED-V1'),
         ) ?: 'RT-SIGNATURE-MANAGED-V1';
 
-        return $this->hiddenMarker($marker).$html;
+        $metadata = $this->hiddenMarker($marker);
+
+        return $nativeSignature ? OutlookNativeMetadataPlacement::signature($html, $metadata) : $metadata.$html;
     }
 
-    private function withSignatureVersionMarker(string $html, string $version): string
+    private function withSignatureVersionMarker(string $html, string $version, bool $nativeSignature = false): string
     {
         if (preg_match('/\A[0-9a-f]{16}\z/', $version) !== 1) {
             throw new RuntimeException('Die Outlook-Signaturversion ist ungueltig.');
@@ -435,7 +456,9 @@ final class OutlookAddinPayloadService
 
         $marker = 'RT-SIGNATURE-VERSION:'.$version;
 
-        return $this->hiddenMarker($marker).$html;
+        $metadata = $this->hiddenMarker($marker);
+
+        return $nativeSignature ? OutlookNativeMetadataPlacement::signature($html, $metadata) : $metadata.$html;
     }
 
     /** Office.js may omit inline CSS; metadata must not become visible text. */

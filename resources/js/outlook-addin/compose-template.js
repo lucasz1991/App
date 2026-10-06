@@ -62,11 +62,31 @@ export function currentComposeBodyHtml(html, composeType) {
     return boundary === -1 ? null : html.slice(0, boundary);
 }
 
-export function supportsTemplatePrepend(office, item) {
+export function isMobileComposeHost(office) {
     const platform = String(office?.context?.platform || '').toLowerCase();
     const host = String(office?.context?.mailbox?.diagnostics?.hostName || '').toLowerCase();
-    return !['ios', 'android'].includes(platform)
-        && !/android|ios/.test(host)
+    return ['ios', 'android'].includes(platform) || /^(?:outlook)?(?:ios|android)$/.test(host);
+}
+
+function mobileReplyBodyMode(office) {
+    const diagnostics = office?.context?.mailbox?.diagnostics;
+    const host = String(diagnostics?.hostName || '').toLowerCase();
+    // hostVersion is the mobile app version only on these canonical hosts.
+    // Web/new Windows report the Exchange version, never a mobile capability.
+    if (!['outlookios', 'outlookandroid'].includes(host)) return null;
+    const match = /^(\d+)\.(\d+)\.(\d+)(?:\.\d+)?$/.exec(String(diagnostics?.hostVersion || ''));
+    if (!match) return null;
+    const [major, minor, patch] = match.slice(1, 4).map(Number);
+    if (![major, minor, patch].every(Number.isSafeInteger)
+        || major < 4 || (major === 4 && minor < 2538)) return null;
+    const mode = office?.MailboxEnums?.BodyMode?.HostConfig;
+    // BodyMode is numeric: FullBody=0, HostConfig=1. An unknown enum value
+    // must not be treated as evidence that the quoted conversation is absent.
+    return mode === 1 ? mode : null;
+}
+
+export function supportsTemplatePrepend(office, item) {
+    return !isMobileComposeHost(office)
         && typeof item?.body?.prependAsync === 'function'
         && typeof item?.body?.getTypeAsync === 'function';
 }
@@ -210,7 +230,7 @@ export function isTemplateInsertionBlocked(item) {
     return insertionOperations.has(item);
 }
 
-export function templateStateFromBody(html, composeType) {
+export function templateStateFromBody(html, composeType, { currentMessageOnly = false } = {}) {
     if (typeof html !== 'string') {
         return { present: false, readable: false, bodyLength: null, tooLarge: false, legacySignatureEmbedded: true };
     }
@@ -218,8 +238,9 @@ export function templateStateFromBody(html, composeType) {
     if (bodyLength > TEMPLATE_INSERT_LIMITS.bodyLength) {
         return { present: false, readable: true, bodyLength, tooLarge: true, legacySignatureEmbedded: true };
     }
-    const current = currentComposeBodyHtml(html, composeType);
-    // A marker from a quoted older mail is ignored only with a known boundary.
+    const current = currentMessageOnly ? html : currentComposeBodyHtml(html, composeType);
+    // Historical markers are excluded only by a known boundary or the verified
+    // mobile HostConfig current-reply read, never by their mere absence.
     // Ambiguous bodies stay conservative instead of duplicating a template.
     const scopedHtml = current === null ? html : current;
     const present = scopedHtml.includes(TEMPLATE_MARKER);
@@ -261,12 +282,30 @@ export async function readTemplateState(office, item, { forceBody = false } = {}
     }
     if (knownPresent && !forceBody) return { present: true, readable: true, ...unknownSize };
 
-    const [html, compose] = await Promise.all([
-        officeRead(office, (callback) => item.body.getAsync(office.CoercionType.Html, callback)),
-        officeRead(office, (callback) => item.getComposeTypeAsync(callback)),
-    ]);
-    const state = templateStateFromBody(html, compose?.composeType);
-    const current = currentComposeBodyHtml(html, compose?.composeType);
+    const bodyMode = mobileReplyBodyMode(office);
+    const composeRead = officeRead(office, (callback) => item.getComposeTypeAsync(callback));
+    let html;
+    let compose;
+    let currentMessageOnly = false;
+    if (bodyMode !== null) {
+        compose = await composeRead;
+        // Mobile HostConfig guarantees the current reply from 4.2538.0.
+        // Unknown compose types and forwards retain the FullBody heuristic.
+        currentMessageOnly = compose?.composeType === 'reply';
+        html = await officeRead(office, (callback) => currentMessageOnly
+            ? item.body.getAsync(office.CoercionType.Html, { bodyMode }, callback)
+            : item.body.getAsync(office.CoercionType.Html, callback));
+        // A failed scoped read stays unreadable. Never silently retry FullBody
+        // while claiming that quoted template/signature markers were excluded.
+    } else {
+        [html, compose] = await Promise.all([
+            officeRead(office, (callback) => item.body.getAsync(office.CoercionType.Html, callback)),
+            composeRead,
+        ]);
+    }
+    const state = templateStateFromBody(html, compose?.composeType, { currentMessageOnly });
+    const current = currentMessageOnly && typeof html === 'string'
+        ? html : currentComposeBodyHtml(html, compose?.composeType);
     // A completed session is still a duplicate-prevention claim, not proof
     // that the user left the template in the body. Only a readable, scoped,
     // plain-text editing result can disprove an embedded signature here.

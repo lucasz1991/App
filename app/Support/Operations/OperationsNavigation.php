@@ -3,8 +3,12 @@
 namespace App\Support\Operations;
 
 use App\Models\User;
+use App\Services\Operations\OperationsDutyMonitorService;
+use App\Services\Operations\PersonnelEnhancementService;
 use App\Services\Operations\PersonnelProcessService;
 use App\Services\Operations\WorkforceAccountService;
+use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
+use App\Support\CustomerPortal\CustomerPortalWorkflowSchema;
 
 final class OperationsNavigation
 {
@@ -16,6 +20,7 @@ final class OperationsNavigation
             'shift-management' => ['title' => 'Schichtplan', 'ability' => 'operations.manage'],
             'calendar' => ['title' => 'Kalender', 'ability' => 'operations.manage'],
             'customers' => ['title' => 'Kunden', 'ability' => 'operations.manage'],
+            'customer-portal' => ['title' => 'Kundenportal', 'ability' => 'customers.portal.manage'],
             'qualifications' => ['title' => 'Nachweise', 'ability' => 'operations.qualifications.manage'],
             'absences' => ['title' => 'Abwesenheiten', 'ability' => 'operations.absences.review'],
             'times' => ['title' => 'Zeitprüfung', 'ability' => 'operations.time.review'],
@@ -25,12 +30,20 @@ final class OperationsNavigation
             'personnel-processes' => ['title' => 'Personalprozesse', 'ability' => 'employees.master-data.view'],
             'workforce-planning' => ['title' => 'Planungsprozesse', 'ability' => 'operations.manage'],
             'plan-variants' => ['title' => 'Planvarianten', 'ability' => 'operations.manage'],
+            'planning-enhancements' => ['title' => 'Bedarf & Teamplanung', 'ability' => 'operations.manage'],
+            'personnel-enhancements' => ['title' => 'Personalmanagement', 'ability' => 'employees.master-data.view'],
+            'operations-enhancements' => ['title' => 'Leistung & Monatsabschluss', 'ability' => 'operations.enhancements.view'],
+            'attention-center' => ['title' => 'Arbeitsliste', 'ability' => 'operations.inbox.view'],
+            'duty-monitor' => ['title' => 'Leitstelle', 'ability' => 'operations.manage'],
         ];
     }
 
     public static function forUser(User $user): array
     {
         return array_filter(self::modules(), function ($item, $key) use ($user) {
+            if (! self::enhancementReady($key)) {
+                return false;
+            }
             if ($key === 'workforce-accounts'
                 && (! class_exists(WorkforceAccountService::class) || ! app(WorkforceAccountService::class)->ready())) {
                 return false;
@@ -47,8 +60,24 @@ final class OperationsNavigation
         }, ARRAY_FILTER_USE_BOTH);
     }
 
+    public static function enhancementReady(string $module): bool
+    {
+        return match ($module) {
+            'customer-portal' => CustomerPortalIntakeSchema::ready() && CustomerPortalWorkflowSchema::ready(),
+            'planning-enhancements' => PlanningEnhancementSchema::ready(),
+            'personnel-enhancements' => app(PersonnelEnhancementService::class)->ready(),
+            'operations-enhancements' => OperationsEnhancementsSchema::ready(),
+            'duty-monitor' => app(OperationsDutyMonitorService::class)->ready(),
+            default => true,
+        };
+    }
+
     public static function status(string $status): string
     {
+        $additional = ['prepared' => 'Vorbereitet', 'closed' => 'Abgeschlossen', 'active' => 'Aktiv', 'read' => 'Gelesen', 'overdue' => 'Überfällig', 'done' => 'Erledigt', 'escalated' => 'Eskaliert', 'needs_review' => 'Erneut prüfen', 'pending_external' => 'Unterzeichnung offen', 'result_submitted' => 'Ergebnis eingereicht', 'verified_result' => 'Ergebnis geprüft', 'covered' => 'Abgedeckt', 'uncovered' => 'Abdeckung fehlt', 'follow_up' => 'Rückfrage', 'booked' => 'Gebucht', 'reviewed' => 'Geprüft', 'requested_partner' => 'Antwort offen', 'retired' => 'Beendet'];
+        if (isset($additional[$status])) {
+            return $additional[$status];
+        }
         if (in_array($status, ['reported', 'scheduled', 'attended'], true)) {
             return ['reported' => 'Gemeldet', 'scheduled' => 'Geplant', 'attended' => 'Teilgenommen'][$status];
         }

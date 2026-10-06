@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+    isMobileComposeHost,
     isTemplateInsertionBlocked,
     markedTemplateHtml,
     nativeComposeTemplate,
     NATIVE_TEMPLATE_MARKER,
     prependTemplate,
     readTemplateState,
+    supportsTemplatePrepend,
     templateStateFromBody,
     validateTemplateInsertionPayload,
     TEMPLATE_INSERT_LIMITS,
@@ -108,7 +110,7 @@ test('pure insertion preflight uses the existing validator without rewriting alr
 function fixture({ supported = true, session = '' } = {}) {
     const state = {
         session, sessionReads: 0, sessionWrites: [], bodyReads: 0,
-        mediaWrites: 0, prepends: [], requirements: [], html: '<p>Original text</p>',
+        bodyReadModes: [], mediaWrites: 0, prepends: [], requirements: [], html: '<p>Original text</p>',
     };
     const item = {
         sessionData: {
@@ -123,8 +125,10 @@ function fixture({ supported = true, session = '' } = {}) {
             },
         },
         body: {
-            getAsync(_format, callback) {
+            getAsync(_format, options, complete) {
+                const callback = typeof options === 'function' ? options : complete;
                 state.bodyReads += 1;
+                state.bodyReadModes.push(typeof options === 'function' ? null : options.bodyMode);
                 callback(success(state.html));
             },
             getTypeAsync(callback) { callback(success('html')); },
@@ -153,6 +157,212 @@ function fixture({ supported = true, session = '' } = {}) {
     const media = () => { state.mediaWrites += 1; };
     return { office, item, state, media };
 }
+
+function mobileReplyFixture({ hostName = 'OutlookIOS', hostVersion = '5.2635.0', platform = 'iOS', mode = 1, ...options } = {}) {
+    const result = fixture(options);
+    result.office.context.platform = platform;
+    result.office.context.mailbox.diagnostics = { hostName, hostVersion };
+    result.office.MailboxEnums = { BodyMode: { HostConfig: mode } };
+    result.item.getComposeTypeAsync = callback => callback(success({ composeType: 'reply' }));
+    return result;
+}
+
+test('mobile host detection also works from canonical diagnostics without a mobile platform label', () => {
+    for (const hostName of ['OutlookIOS', 'OutlookAndroid']) {
+        const { office, item } = mobileReplyFixture({ hostName, platform: 'Unknown' });
+        assert.equal(isMobileComposeHost(office), true);
+        assert.equal(supportsTemplatePrepend(office, item), false);
+    }
+    for (const platform of ['iOS', 'Android']) {
+        const { office } = fixture();
+        office.context.platform = platform;
+        assert.equal(isMobileComposeHost(office), true);
+    }
+    for (const hostName of ['Outlook', 'OutlookWebApp', 'newOutlookWindows', 'NotiOS', 'OutlookIOSDesktop', 'AndroidDesktop']) {
+        const { office, item } = fixture();
+        office.context.mailbox.diagnostics = { hostName, hostVersion: '16.0.18000.0' };
+        assert.equal(isMobileComposeHost(office), false);
+        assert.equal(supportsTemplatePrepend(office, item), true);
+    }
+});
+
+test('current iPhone and Android replies request HostConfig and scope native markers without quote boundaries', async () => {
+    for (const hostName of ['OutlookIOS', 'OutlookAndroid']) {
+        for (const mode of [1]) {
+            const { office, item, state } = mobileReplyFixture({ hostName, platform: 'Unknown', mode });
+            state.html = nativeHtml;
+            const result = await readTemplateState(office, item, { forceBody: true });
+            assert.equal(result.readable, true);
+            assert.equal(result.present, true);
+            assert.equal(result.legacySignatureEmbedded, false);
+            assert.deepEqual(state.bodyReadModes, [mode]);
+            assert.equal(state.prepends.length, 0);
+            assert.deepEqual(state.sessionWrites, []);
+        }
+    }
+});
+
+test('mobile scoped read excludes historical markers but still blocks a current embedded legacy signature', async () => {
+    const { office, item, state } = mobileReplyFixture();
+    const conversation = `<p>Current reply</p><div><!--${TEMPLATE_MARKER}-->Old quoted mail with no recognized boundary</div>`;
+    item.body.getAsync = (_format, options, callback) => {
+        state.bodyReads += 1;
+        assert.equal(options.bodyMode, 1);
+        callback(success('<p>Current reply</p>'));
+    };
+    const result = await readTemplateState(office, item, { forceBody: true });
+    assert.equal(result.present, false);
+    assert.equal(result.legacySignatureEmbedded, false);
+    assert.equal(templateStateFromBody(conversation, 'reply').legacySignatureEmbedded, true);
+    item.body.getAsync = (_format, _options, callback) => callback(success(`<!--${TEMPLATE_MARKER}-->Current legacy signature`));
+    assert.equal((await readTemplateState(office, item, { forceBody: true })).legacySignatureEmbedded, true);
+    assert.equal(state.prepends.length, 0);
+    assert.deepEqual(state.sessionWrites, []);
+});
+
+test('HostConfig version gate accepts 4.2538.0 and newer without trusting Exchange or fallback versions', async () => {
+    for (const hostVersion of ['4.2538.0', '4.2538.1', '4.2635.0', '5.0.0', '5.2635.0.1']) {
+        const { office, item, state } = mobileReplyFixture({ hostVersion });
+        state.html = nativeHtml;
+        assert.equal((await readTemplateState(office, item, { forceBody: true })).legacySignatureEmbedded, false);
+        assert.deepEqual(state.bodyReadModes, [1]);
+    }
+    for (const changes of [
+        { hostVersion: '4.2537.99' }, { hostVersion: '3.9999.0' },
+        { hostVersion: '' }, { hostVersion: undefined }, { hostVersion: '5.2635' },
+        { hostVersion: '5,2635,0' }, { hostVersion: '5.2635.0-beta' },
+        { hostVersion: '9007199254740992.0.0' },
+        { hostName: 'OutlookWebApp', hostVersion: '16.0.18000.0', platform: 'iOS' },
+        { hostName: 'newOutlookWindows', hostVersion: '16.0.18000.0', platform: 'iOS' },
+        { hostName: '', hostVersion: '5.2635.0' },
+        { mode: undefined }, { mode: null }, { mode: '' }, { mode: NaN },
+        { mode: 0 }, { mode: -1 }, { mode: 2 }, { mode: 'HostConfig' }, { mode: '1' },
+    ]) {
+        const { office, item, state } = mobileReplyFixture(changes);
+        // An unrelated diagnostic version must not overrule a canonical old,
+        // missing or malformed mobile version (nor an Exchange server version).
+        office.context.diagnostics = { version: '5.2635.0' };
+        if (Object.prototype.hasOwnProperty.call(changes, 'hostVersion') && changes.hostVersion === undefined) {
+            delete office.context.mailbox.diagnostics.hostVersion;
+        }
+        if (Object.prototype.hasOwnProperty.call(changes, 'mode') && changes.mode === undefined) {
+            delete office.MailboxEnums.BodyMode.HostConfig;
+        }
+        state.html = nativeHtml;
+        const result = await readTemplateState(office, item, { forceBody: true });
+        assert.equal(result.legacySignatureEmbedded, true, JSON.stringify(changes));
+        assert.deepEqual(state.bodyReadModes, [null]);
+        assert.equal(state.prepends.length, 0);
+    }
+});
+
+test('mobile forward or unknown compose type never gains reply-only HostConfig scope', async () => {
+    for (const composeType of ['forward', 'newMail', undefined, 'replyAll', 'unknown']) {
+        const { office, item, state } = mobileReplyFixture();
+        item.getComposeTypeAsync = callback => callback(success({ composeType }));
+        state.html = nativeHtml;
+        const result = await readTemplateState(office, item, { forceBody: true });
+        assert.equal(result.legacySignatureEmbedded, composeType !== 'newMail');
+        assert.deepEqual(state.bodyReadModes, [null]);
+    }
+    const { office, item, state } = mobileReplyFixture();
+    item.getComposeTypeAsync = callback => callback({ status: 'failed', error: { code: 'UNKNOWN_COMPOSE' } });
+    state.html = nativeHtml;
+    assert.equal((await readTemplateState(office, item, { forceBody: true })).legacySignatureEmbedded, true);
+    assert.deepEqual(state.bodyReadModes, [null]);
+});
+
+test('failed mobile HostConfig reads remain unreadable without a silent FullBody retry', async () => {
+    for (const failureMode of ['callback', 'throw']) {
+        const { office, item, state } = mobileReplyFixture();
+        item.body.getAsync = (_format, options, callback) => {
+            state.bodyReads += 1;
+            assert.equal(options.bodyMode, 1);
+            if (failureMode === 'throw') throw new Error('Private host details');
+            callback({ status: 'failed', error: { code: 'SCOPED_READ_FAILED' } });
+        };
+        const result = await readTemplateState(office, item, { forceBody: true });
+        assert.equal(result.readable, false);
+        assert.equal(result.legacySignatureEmbedded, true);
+        assert.equal(state.bodyReads, 1);
+        assert.equal(state.prepends.length, 0);
+        assert.deepEqual(state.sessionWrites, []);
+        assert.doesNotMatch(JSON.stringify(result), /Private host/);
+    }
+});
+
+test('timed-out mobile HostConfig read stays fail-closed even after a late successful callback', async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] });
+    const { office, item, state } = mobileReplyFixture();
+    let callback;
+    item.body.getAsync = (_format, options, complete) => {
+        state.bodyReads += 1;
+        assert.equal(options.bodyMode, 1);
+        callback = complete;
+    };
+    const outcome = readTemplateState(office, item, { forceBody: true });
+    await flush(() => callback);
+    context.mock.timers.tick(TEMPLATE_INSERT_LIMITS.readTimeoutMs);
+    const result = await outcome;
+    assert.equal(result.readable, false);
+    callback(success(nativeHtml));
+    assert.equal(result.readable, false);
+    assert.equal(state.bodyReads, 1);
+    assert.equal(state.prepends.length, 0);
+    assert.deepEqual(state.sessionWrites, []);
+});
+
+test('mobile HostConfig never bypasses pending or unknown sessions and keeps completed duplicate claims', async () => {
+    for (const session of ['pending:old', 'uncertain:old', 'unexpected-value']) {
+        const { office, item, state } = mobileReplyFixture({ session });
+        const result = await readTemplateState(office, item, { forceBody: true });
+        assert.equal(result.uncertain, true);
+        assert.equal(state.bodyReads, 0);
+        assert.equal(state.prepends.length, 0);
+        assert.equal(state.session, session);
+        assert.deepEqual(state.sessionWrites, []);
+    }
+    const { office, item, state } = mobileReplyFixture({ session: '1' });
+    const quick = await readTemplateState(office, item);
+    assert.equal(quick.present, true);
+    assert.equal(quick.legacySignatureEmbedded, true);
+    assert.equal(state.bodyReads, 0);
+    state.html = nativeHtml;
+    const scoped = await readTemplateState(office, item, { forceBody: true });
+    assert.equal(scoped.present, true);
+    assert.equal(scoped.legacySignatureEmbedded, false);
+    state.html = '<p>Replacement text without a template</p>';
+    const removed = await readTemplateState(office, item, { forceBody: true });
+    assert.equal(removed.present, true);
+    assert.equal(removed.legacySignatureEmbedded, false);
+    assert.equal(state.session, '1');
+    assert.deepEqual(state.sessionWrites, []);
+});
+
+test('mobile fresh-session 9050 still uses scoped read, while real session errors stop before reading the body', async () => {
+    for (const code of [9050, 9018]) {
+        const { office, item, state } = mobileReplyFixture();
+        state.html = nativeHtml;
+        item.sessionData.getAsync = (_key, callback) => callback({
+            status: 'failed', error: { code, message: 'Private session detail' },
+        });
+        const result = await readTemplateState(office, item, { forceBody: true });
+        if (code === 9050) {
+            assert.equal(result.readable, true);
+            assert.equal(result.legacySignatureEmbedded, false);
+            assert.deepEqual(state.bodyReadModes, [1]);
+        } else {
+            assert.equal(result.readable, false);
+            assert.equal(result.errorCode, 'COMPOSE_SESSION_UNREADABLE');
+            assert.equal(result.officeCode, '9018');
+            assert.equal(state.bodyReads, 0);
+        }
+        assert.equal(state.html, nativeHtml);
+        assert.equal(state.prepends.length, 0);
+        assert.deepEqual(state.sessionWrites, []);
+        assert.doesNotMatch(JSON.stringify(result), /Private session/);
+    }
+});
 
 test('session-only presence stays conservative until forceBody confirms native template ownership', async () => {
     const { office, item, state } = fixture({ session: '1' });

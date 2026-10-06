@@ -19,6 +19,7 @@ export default defineConfig({
                 'resources/css/tabs-redesign.css',
                 'resources/css/chat-redesign.css',
                 'resources/js/app.js',
+                'resources/js/customer-portal.js',
                 // Eigener Einstieg fuers Anruf-Fenster: haelt livekit-client
                 // (~80 KB gz) aus dem globalen Bundle heraus.
                 'resources/js/calls.js',

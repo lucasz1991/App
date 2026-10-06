@@ -4,6 +4,7 @@ import {
 } from '@azure/msal-browser';
 import {
     automaticTemplate,
+    isMobileComposeHost,
     isTemplateInsertionBlocked,
     nativeComposeTemplate,
     prependTemplate,
@@ -20,11 +21,14 @@ const CONFIG_TIMEOUT_MS = 8000;
 const API_TIMEOUT_MS = 12000;
 const AUTH_TIMEOUT_MS = 15000;
 const CONTEXT_TIMEOUT_MS = 5000;
+const MOBILE_EVENT_TIMEOUT_MS = 55000;
 const LOG_PREFIX = '[RailTime Outlook Add-in]';
 
 let configPromise;
 let authenticationClientPromise;
 const composeOperations = new WeakMap();
+const confirmedInlineMedia = new WeakMap();
+const pendingNativeSignatures = new WeakMap();
 const reportedRuntimePhases = new Set();
 const RUNTIME_PHASES = new Set([
     'runtime-loaded', 'office-ready', 'handler-entered', 'context-ready',
@@ -43,7 +47,7 @@ function reportRuntimePhase(phase) {
     try {
         const url = new URL(configuredUrl());
         url.searchParams.set('rt_phase', phase);
-        url.searchParams.set('rt_rev', 'mobile-init-20261002');
+        url.searchParams.set('rt_rev', 'compose-order-20261005');
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
         const timer = controller ? setTimeout(() => controller.abort(), 2000) : null;
         Promise.resolve().then(() => fetch(url.toString(), {
@@ -302,8 +306,7 @@ async function acquireTokenSilently(config) {
 
 async function loadBootstrap(config, accessToken, item) {
     const sender = await readComposeSender(Office, item);
-    const mobile = ['ios', 'android'].includes(String(Office?.context?.platform || '').toLowerCase())
-        || /^(?:Outlook)?(?:iOS|Android)$/i.test(String(Office?.context?.mailbox?.diagnostics?.hostName || ''));
+    const mobile = isMobileComposeHost(Office);
     const payload = await fetchJson(config.endpoints.bootstrap, {
         method: 'GET',
         cache: 'no-store',
@@ -406,9 +409,13 @@ function addInlineAttachment(item, media) {
 
 async function attachInlineMedia(item, media, assertTarget) {
     if (media.length === 0) return;
+    const knownNames = confirmedInlineMedia.get(item) || new Set();
     const existingNames = await new Promise((resolve, reject) => {
-        if (typeof item.getAttachmentsAsync !== 'function') {
-            resolve(new Set());
+        // Mobile exposes some desktop API stubs although enumeration is not
+        // in its supported Compose API matrix. The supported Base64 inline
+        // attachment API is sufficient; retain confirmations for this item.
+        if (isMobileComposeHost(Office) || typeof item.getAttachmentsAsync !== 'function') {
+            resolve(new Set(knownNames));
             return;
         }
         const timeout = setTimeout(() => reject(codedError('COMPOSE_ATTACHMENTS_UNREADABLE')), 10000);
@@ -432,6 +439,8 @@ async function attachInlineMedia(item, media, assertTarget) {
         if (existingNames.has(media[index].name.toLowerCase())) continue;
         await addInlineAttachment(item, media[index]);
         existingNames.add(media[index].name.toLowerCase());
+        knownNames.add(media[index].name.toLowerCase());
+        confirmedInlineMedia.set(item, knownNames);
     }
 }
 
@@ -466,11 +475,13 @@ function safeErrorCode(error) {
     return 'UNAVAILABLE';
 }
 
-async function applyPublishedContent(item) {
+async function applyPublishedContent(item, isActive = () => true) {
     let binding;
     const assertTarget = async () => {
+        if (!isActive()) throw codedError('COMPOSE_EVENT_TIMEOUT');
         if (Office.context.mailbox.item !== item) throw codedError('ITEM_CHANGED');
         await assertMailboxBinding(Office, item, binding);
+        if (!isActive()) throw codedError('COMPOSE_EVENT_TIMEOUT');
     };
     reportRuntimePhase('configuration-started');
     const config = await diagnoseStep('configuration', loadConfig).catch((error) => {
@@ -531,8 +542,12 @@ async function applyPublishedContent(item) {
         && Object.prototype.hasOwnProperty.call(selected, 'signature')
         ? selected.signature
         : bootstrap.signature;
-    const signature = wasSignatureWriteConfirmed(item)
-        ? null : validatedDocument(signaturePayload, 'signature', config.marker);
+    const pendingSignature = pendingNativeSignatures.get(item);
+    const samePendingBinding = pendingSignature?.mailboxAddress === binding.mailboxAddress
+        && pendingSignature?.senderAddress === binding.senderAddress;
+    const signature = wasSignatureWriteConfirmed(item) && !template
+        ? null : !template && samePendingBinding
+            ? pendingSignature.signature : validatedDocument(signaturePayload, 'signature', config.marker);
     if (!canInsertTemplate && template) {
         template = null;
         recordDiagnostic('template-preflight', 'skipped', { code: 'TEMPLATE_PREPEND_UNAVAILABLE' });
@@ -559,45 +574,48 @@ async function applyPublishedContent(item) {
         }
     }
 
+    // Outlook can normalize the complete editor when prepending HTML. Finish
+    // the body template first; the native signature is the LAST body write.
+    // Never continue after an unconfirmed prepend: its late completion could
+    // otherwise normalize a signature that was inserted in the meantime.
+    if (template) {
+        // Prepare both artifacts before making the template visible, matching
+        // the manual path. Keep the native signature as the last body write.
+        const media = signature ? [...signature.media, ...template.media] : template.media;
+        try {
+            await diagnoseStep('template-write', () => prependTemplate(Office, item, template.html, assertTarget, {
+                media,
+                beforeInsert: () => attachInlineMedia(item, media, assertTarget),
+            }));
+            if (signature) pendingNativeSignatures.set(item, {
+                signature, mailboxAddress: binding.mailboxAddress, senderAddress: binding.senderAddress,
+            });
+        } catch (error) {
+            const code = safeErrorCode(error);
+            if (code === 'ITEM_CHANGED' || /MAILBOX|SENDER/.test(code)) throw error;
+            if (['TEMPLATE_INSERT_IN_PROGRESS', 'TEMPLATE_INSERT_UNCERTAIN',
+                'INLINE_ATTACHMENT_UNCERTAIN'].includes(code)) return 'uncertain';
+            console.info(`${LOG_PREFIX} Default template skipped (${code}).`);
+            if (!['TEMPLATE_ALREADY_INSERTED', 'TEMPLATE_PREPEND_UNAVAILABLE',
+                'TEMPLATE_REQUIRES_HTML', 'NATIVE_TEMPLATE_INVALID', 'TEMPLATE_TOO_LARGE',
+                'TEMPLATE_MEDIA_TOO_LARGE'].includes(code)) return 'skipped';
+        }
+    }
+
     if (signature) {
         await attachInlineMedia(item, signature.media, assertTarget);
         await assertTarget();
         await setSignature(item, signature.html);
     }
-
-    // Native signature success and template success are separate operations.
-    // A late signature callback must not cause a duplicate signature, but it
-    // also must not prevent a later activation from adding the missing body.
-    if (!template) return 'applied';
-
-    try {
-        await diagnoseStep('template-write', () => prependTemplate(Office, item, template.html, assertTarget, {
-            media: template.media,
-            beforeInsert: () => attachInlineMedia(item, template.media, assertTarget),
-        }));
-        return 'applied';
-    } catch (error) {
-        const code = safeErrorCode(error);
-        if (code === 'ITEM_CHANGED' || /MAILBOX|SENDER/.test(code)) throw error;
-        if (code === 'TEMPLATE_ALREADY_INSERTED') return 'already-present';
-        if (['TEMPLATE_INSERT_IN_PROGRESS', 'TEMPLATE_INSERT_UNCERTAIN',
-            'INLINE_ATTACHMENT_UNCERTAIN'].includes(code)) return 'uncertain';
-        console.info(`${LOG_PREFIX} Default template skipped (${code}).`);
-        // Native signatures remain useful on hosts without prepend support.
-        // A transient read/native failure can retry only the missing template;
-        // there is never a body replacement or another signature fallback.
-        return ['TEMPLATE_PREPEND_UNAVAILABLE', 'TEMPLATE_REQUIRES_HTML',
-            'NATIVE_TEMPLATE_INVALID', 'TEMPLATE_TOO_LARGE',
-            'TEMPLATE_MEDIA_TOO_LARGE'].includes(code) ? 'applied' : 'skipped';
-    }
+    pendingNativeSignatures.delete(item);
+    return 'applied';
 }
 
 // Mobile has no compose taskpane. Surface only fixed diagnostic categories,
 // never exception messages, tokens, addresses or message content.
 async function notifyMobileFailure(item, error = null) {
     const context = globalThis.Office?.context;
-    const platform = context?.diagnostics?.platform || context?.platform;
-    if (!/^(ios|android)$/i.test(String(platform))
+    if (!isMobileComposeHost(globalThis.Office)
         || !item || context?.mailbox?.item !== item
         || typeof item?.notificationMessages?.replaceAsync !== 'function') return;
 
@@ -626,6 +644,7 @@ async function notifyMobileFailure(item, error = null) {
 
 async function handleComposeEvent(event) {
     const complete = completeOnce(event);
+    const startedAt = Date.now();
     let item;
     reportRuntimePhase('handler-entered');
 
@@ -634,7 +653,9 @@ async function handleComposeEvent(event) {
         reportRuntimePhase('context-ready');
         let operation = composeOperations.get(item);
         if (!operation) {
-            operation = applyPublishedContent(item).then((result) => {
+            operation = { active: true, promise: null };
+            const owner = operation;
+            operation.promise = applyPublishedContent(item, () => owner.active).then((result) => {
                 if (!['applied', 'already-present'].includes(result)) composeOperations.delete(item);
                 return result;
             }).catch((error) => {
@@ -645,7 +666,18 @@ async function handleComposeEvent(event) {
             });
             composeOperations.set(item, operation);
         }
-        const result = await operation;
+        let result;
+        try {
+            result = await (isMobileComposeHost(Office)
+                ? withDeadline(() => operation.promise,
+                    Math.max(1, MOBILE_EVENT_TIMEOUT_MS - (Date.now() - startedAt)), 'COMPOSE_EVENT_TIMEOUT')
+                : operation.promise);
+        } catch (error) {
+            // Keep the operation shared until its current Office callback has
+            // settled. It may not start any later writes after event expiry.
+            if (error?.code === 'COMPOSE_EVENT_TIMEOUT') operation.active = false;
+            throw error;
+        }
         reportRuntimePhase(['applied', 'already-present'].includes(result) ? 'compose-applied' : 'compose-skipped');
         if (['skipped', 'uncertain'].includes(result)) await notifyMobileFailure(item);
     } catch (error) {

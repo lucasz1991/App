@@ -210,3 +210,15 @@ auth.json
 !/tests/Feature/WorkTimeExportReviewTest.php
 !/tests/Feature/OperationsTransactionTest.php
 !/tests/Frontend/work-time-capture.test.js
+!/tests/Feature/TimelinePlanningSuggestionServiceTest.php
+!/tests/Feature/TimelinePlanningActionsTest.php
+!/tests/Feature/PlanningEnhancementsTest.php
+!/tests/Feature/PersonnelEnhancementsTest.php
+!/tests/Feature/OperationsEnhancementsTest.php
+!/tests/Feature/OperationsAttentionTest.php
+!/tests/Feature/CustomerPortalAccessTest.php
+!/tests/Feature/CustomerPortalWorkflowTest.php
+!/tests/Feature/CustomerPortalUiTest.php
+!/tests/Feature/CustomerPortalIntakeTest.php
+!/tests/Feature/CustomerPortalIntegrationTest.php
+!/tests/Feature/CustomerCapacityConsentTest.php

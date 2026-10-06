@@ -97,7 +97,7 @@
     <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="tableSort,setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
         @if($viewMode === 'timeline')
             @if($nativeOperations)
-                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :search-in-header="true" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
+                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :search-in-header="true" :planning-enabled="true" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
             @else
                 <div class="rt-shift-plan-unavailable" role="status"><i class="far fa-clock" aria-hidden="true"></i><span>Die Zeitleiste ist verfügbar, sobald der Mitarbeiter- und Abwesenheitsbereich eingerichtet ist.</span></div>
             @endif

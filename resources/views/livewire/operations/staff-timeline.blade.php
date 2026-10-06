@@ -42,6 +42,9 @@
         <div class="rt-personnel-timeline-track" data-timeline-lanes="{{ $row['lane_count'] }}" style="--timeline-lanes:{{ $row['lane_count'] }}" wire:key="staff-track-{{ $row['user']->id }}">
         @foreach($row['days'] as $cell)
             <div @class(['rt-personnel-timeline-day snap-start', 'rt-personnel-timeline-day--weekend' => $cell['date']->isWeekend(), 'rt-personnel-timeline-day--empty' => $cell['events']->isEmpty()]) style="--timeline-lanes:{{ max(1, $cell['lane_count']) }}" wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
+                @if($planningEnabled && !$absencesOnly && $row['user']->status)
+                    <button type="button" class="rt-timeline-cell-action" wire:click="openCell({{ $row['user']->id }},'{{ $cell['date']->toDateString() }}')" aria-label="Offene Schicht auswählen: {{ $row['user']->name }} · {{ $cell['date']->format('d.m.Y') }}" data-timeline-cell-action></button>
+                @endif
             </div>
         @endforeach
         <div class="rt-personnel-timeline-events">
@@ -94,6 +97,15 @@
                 </div>
             @endforeach
         </div>
+        @if($planningEnabled && !$absencesOnly && $showSuggestions)
+            <div class="rt-timeline-proposals" aria-label="Unverbindliche Besetzungsvorschläge" wire:key="staff-proposals-{{ $row['user']->id }}">
+                @foreach($proposalRows->get($row['user']->id,collect()) as $proposal)
+                    <button type="button" class="rt-timeline-proposal" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-width:{{ $proposal['width_percent'] }}%" wire:key="{{ $proposal['id'] }}" wire:click="openSuggestion({{ $proposal['shift_id'] }},{{ $proposal['user_id'] }},{{ $proposal['revision'] }})" aria-label="Vorschlag prüfen: {{ $row['user']->name }} · {{ $proposal['title'] }} · {{ $proposal['local_label'] }}" title="Vorschlag · {{ $proposal['title'] }} · {{ implode(' · ',$proposal['reasons']) }}" data-timeline-proposal>
+                        <span>{{ $proposal['timeline_label'] }}</span>
+                    </button>
+                @endforeach
+            </div>
+        @endif
         </div>
     @empty<div class="rt-personnel-timeline-empty">Keine Mitarbeiter gefunden.</div>@endforelse
     @if($users->hasMorePages())
@@ -109,4 +121,25 @@
         <div class="rt-personnel-timeline-scrollbar" x-ref="timelineScrollbar" x-on:scroll="syncHorizontal($event.target)"><div class="rt-personnel-timeline-scrollbar-width"></div></div>
     </div>
 </div>
+@if($planningEnabled && !$absencesOnly)
+    <div class="hidden" data-timeline-modal-host>
+    <x-operations.modal wire:model="assignmentOpen" title="Schicht einteilen" max-width="4xl">
+        @if($planningUser)<x-user.public-info :user="$planningUser" :show-email="false" :show-presence="false" />@endif
+        @if($planningDate)<p class="ops-muted">{{ \Carbon\CarbonImmutable::parse($planningDate)->format('d.m.Y') }}</p>@endif
+        @if($planningShift)
+            <h3>{{ $planningShift->title }}</h3>
+            @php($planningTimeFormat = $planningShift->starts_at->setTimezone($zone)->offset !== $planningShift->ends_at->setTimezone($zone)->offset ? 'd.m. H:i P' : 'd.m. H:i')
+            <dl class="ops-meta"><div><dt>Zeitraum</dt><dd>{{ $planningShift->starts_at->setTimezone($zone)->format($planningTimeFormat) }} – {{ $planningShift->ends_at->setTimezone($zone)->format($planningTimeFormat) }}</dd></div><div><dt>Kunde</dt><dd>{{ $planningShift->order?->customer?->company_name }}</dd></div></dl>
+            @if($planningReasons)<ul class="ops-muted">@foreach($planningReasons as $reason)<li>{{ $reason }}</li>@endforeach</ul>@endif
+            <form wire:submit="confirmAssignment" class="ops-stack">
+                <x-operations.field label="Zuweisung" model="assignmentStatus" type="select"><option value="requested">Angefragt</option><option value="confirmed">Bestätigt</option></x-operations.field>
+                <div class="ops-actions"><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Einteilen</x-ui.buttons.button-basic>@if($planningDate)<x-ui.buttons.button-basic type="button" wire:click="backToCellChoices">Andere Schicht</x-ui.buttons.button-basic>@endif<x-ui.buttons.button-basic type="button" wire:click="$set('assignmentOpen',false)">Abbrechen</x-ui.buttons.button-basic></div>
+            </form>
+        @else
+            <x-tables.table :columns="[['label'=>'Offener Dienst','key'=>'title'],['label'=>'Zeitraum','key'=>'period'],['label'=>'Plätze','key'=>'open'],['label'=>'Eignung','key'=>'choice']]" :items="$choices" row-view="components.tables.rows.operations.timeline-shift-choice" empty="Keine offenen Schichten an diesem Tag." />
+            @if($choices->count() === 30)<p class="ops-muted">Erste 30 Einsätze · weitere über „Noch zu verteilen“</p>@endif
+        @endif
+    </x-operations.modal>
+    </div>
+@endif
 </section>

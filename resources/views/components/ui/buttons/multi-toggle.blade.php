@@ -5,6 +5,7 @@
     'label' => 'Ansicht wählen',
     'id' => null,
     'disabled' => false,
+    'iconSet' => 'default',
 ])
 
 @php
@@ -170,7 +171,11 @@
             x-bind:title="tooltipOpen && tooltipTarget === $el ? null : $el.dataset.tooltipText"
             x-bind:aria-describedby="tooltipOpen && tooltipTarget === $el ? $id('multi-toggle-tooltip') : null"
         >
-            <i class="far {{ $option['icon'] }}" aria-hidden="true"></i>
+            @if($iconSet === 'customer-portal')
+                <x-customer-portal.icon :name="$option['icon']" />
+            @else
+                <i class="far {{ $option['icon'] }}" aria-hidden="true"></i>
+            @endif
             <span class="sr-only">{{ $option['label'] }}</span>
         </x-ui.buttons.button-basic>
     @endforeach

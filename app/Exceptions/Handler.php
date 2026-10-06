@@ -16,6 +16,11 @@ class Handler extends ExceptionHandler
         'current_password',
         'password',
         'password_confirmation',
+        'code',
+        'recovery_code',
+        'two_factor_secret',
+        'two_factor_pending_secret',
+        'two_factor_recovery_codes',
     ];
 
     public function register(): void

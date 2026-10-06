@@ -11,6 +11,7 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\ReportingPeriod;
 use App\Support\Operations\WorkTimeSchema;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -18,7 +19,7 @@ use Illuminate\Validation\ValidationException;
 
 class WorkTimeExtensionService
 {
-    public function completeness(User $subject, string $from, string $until, User $actor): array
+    public function completeness(User $subject, string $from, string $until, User $actor, ?string $timezone = null): array
     {
         if ($subject->id === $actor->id) {
             OperationsAccess::own($actor, $subject->id);
@@ -26,10 +27,15 @@ class WorkTimeExtensionService
             app(PersonnelScopeService::class)->authorize($actor, $subject, 'operations.time.review');
         }
         [$start, $end] = ReportingPeriod::bounds($from, $until);
+        if ($timezone !== null) {
+            Validator::make(['timezone' => $timezone], ['timezone' => 'required|timezone'])->validate();
+            $start = CarbonImmutable::parse($from, $timezone)->utc();
+            $end = CarbonImmutable::parse($until, $timezone)->addDay()->utc();
+        }
         $missing = ShiftAssignment::where('user_id', $subject->id)->where('status', 'confirmed')
             ->whereHas('shift', fn ($q) => $q->where('starts_at', '>=', $start)->where('starts_at', '<', $end)->where('ends_at', '<=', now()->utc())->where('published_revision', '>', 0)->where('status', '!=', 'cancelled'))
             ->whereDoesntHave('timeEntry')->with('shift')->get()->map(fn ($a) => ['assignment_id' => $a->id, 'title' => $a->shift->title, 'starts_at' => $a->shift->starts_at->toIso8601String()])->all();
-        $unsubmitted = ReportingPeriod::apply(WorkTimeEntry::where('user_id', $subject->id), $from, $until)->whereIn('status', ['completed', 'returned', 'running', 'paused'])->get()->map(fn ($e) => ['id' => $e->id, 'revision' => $e->revision, 'status' => $e->status, 'title' => $e->plan_snapshot['title'] ?? $e->contextLabel()])->all();
+        $unsubmitted = WorkTimeEntry::where('user_id', $subject->id)->where('starts_at', '>=', $start)->where('starts_at', '<', $end)->whereIn('status', ['completed', 'returned', 'running', 'paused'])->get()->map(fn ($e) => ['id' => $e->id, 'revision' => $e->revision, 'status' => $e->status, 'title' => $e->plan_snapshot['title'] ?? $e->contextLabel()])->all();
         $missingTraining = [];
         if (Schema::hasColumns('personnel_trainings', ['id', 'title', 'status', 'starts_at', 'ends_at', 'timezone'])
             && Schema::hasColumns('personnel_training_participants', ['personnel_training_id', 'user_id', 'status'])

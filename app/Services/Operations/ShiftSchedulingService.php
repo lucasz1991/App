@@ -110,6 +110,12 @@ class ShiftSchedulingService
             if ($native && $persistedShift->exists && $shiftStatus !== ShiftStatus::Cancelled) {
                 app(DutyActivityService::class)->validateSections($persistedShift);
             }
+            if ($shiftStatus !== ShiftStatus::Cancelled && class_exists(PlanningEnhancementService::class)) {
+                $issues = app(PlanningEnhancementService::class)->scheduleIssues($persistedShift);
+                if ($issues !== []) {
+                    throw ValidationException::withMessages(['workflow' => collect($issues)->pluck('message')->implode(' ')]);
+                }
+            }
 
             if (! $persistedShift->exists) {
                 $persistedShift->created_by = $actor->getKey();
