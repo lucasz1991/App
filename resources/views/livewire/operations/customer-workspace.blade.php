@@ -4,7 +4,7 @@
             <x-slot:actions>
                 <span class="mr-auto text-sm text-rt-muted dark:text-rt-dark-muted" aria-live="polite">{{ number_format($customers->total(), 0, ',', '.') }} Kunden</span>
                 @if($canCreate)
-                    <x-ui.buttons.button-basic type="button" mode="primary" icon="far fa-plus" wire:click="createCustomer">Kunde anlegen</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="button" mode="primary" wire:click="createCustomer"><i class="far fa-plus" aria-hidden="true"></i>Kunde anlegen</x-ui.buttons.button-basic>
                 @endif
             </x-slot:actions>
             <x-tables.toolbar id="customer-list-filters" :single-line="true" :filter-count="$activeFilterCount" title="Kunden filtern" reset-action="resetFilters" search-for="customer-list-search">
@@ -33,6 +33,7 @@
             <x-tables.table
                 label="Kundenliste"
                 table-key="customer-list"
+                :flush-top="true"
                 :columns="$canCreate ? [
                     ['label'=>'Kunde','key'=>'company_name','width'=>'36%','sortable'=>true],
                     ['label'=>'Kontakt','key'=>'contact','width'=>'28%','hideOn'=>'md'],
@@ -54,7 +55,7 @@
         </x-operations.surface>
     @else
         <header class="ops-toolbar" aria-label="Kundenprofil">
-            <x-ui.buttons.button-basic type="button" mode="link" icon="far fa-arrow-left" wire:click="showList">Kundenliste</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic type="button" mode="link" wire:click="showList"><i class="far fa-arrow-left" aria-hidden="true"></i>Kundenliste</x-ui.buttons.button-basic>
             <h2 class="min-w-0 truncate text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ $customer->company_name }}</h2>
         </header>
         @if(count($views)>1)

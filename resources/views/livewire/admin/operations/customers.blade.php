@@ -100,7 +100,7 @@
     <x-dialog-modal wire:model.live="formOpen" maxWidth="2xl">
         <x-slot:title>{{ $editingCustomerId ? 'Kunde bearbeiten' : 'Neuen Kunden anlegen' }}</x-slot:title>
         <x-slot:content>
-            <div class="grid gap-5 sm:grid-cols-2">
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 [&>div]:min-w-0">
                 <div class="sm:col-span-2">
                     <x-ui.forms.label for="customer-company-name" value="Firma / Auftraggeber" />
                     <x-ui.forms.input id="customer-company-name" wire:model="companyName" class="mt-1" autocomplete="organization" />

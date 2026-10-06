@@ -7,6 +7,7 @@ namespace App\Support\OutlookAddin;
 use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\SignatureArtifactVersion;
 use App\Support\Mail\SignatureTableOverlapDelivery;
+use App\Support\Mail\TrustedOutlookSignatureCss;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
@@ -97,8 +98,10 @@ final class OutlookMobileSignature
         if (preg_match('/(?:^|\s)(rts[0-9a-f]{10})(?:\s|$)/', $scope->getAttribute('class'), $match) !== 1) {
             throw new RuntimeException('Der mobile Signatur-Scope fehlt.');
         }
-        // Encode all 40 scope bits more compactly; keep three-class rule
-        // specificity so retained desktop rules cannot regain precedence.
+        $canonicalRuntime = self::canonicalRuntime($xpath, $root, $scope, $match[1], $html);
+        // Encode all 40 scope bits without changing the content-bound scope.
+        // Ordinary physical mobile values own four-class specificity. Frame
+        // and train rules retain their exact three-class reversible contracts.
         $mobileScope = 'm'.base_convert(substr($match[1], 3), 16, 36);
         $scope->setAttribute('class', $scope->getAttribute('class').' rt-mobile-ledger rtm '.$mobileScope);
         $selector = '.'.$mobileScope.'.rtm';
@@ -174,24 +177,48 @@ final class OutlookMobileSignature
         $css = '.'.$markerClass.'{display:none!important;mso-hide:all!important;font-size:0!important;line-height:0!important;}';
         $index = 0;
         $styleClasses = [];
+        $coverage = [];
+        $usedClasses = [];
+        foreach ($xpath->query('.//*[@class]', $root) as $element) {
+            foreach (preg_split('/\s+/', trim($element->getAttribute('class'))) as $class) {
+                $usedClasses[$class] = true;
+            }
+        }
+        $frames = $xpath->query('./table', $scope);
         foreach ($xpath->query('.//*[@style]', $scope) as $element) {
             if (self::trainGeometry($element)) {
                 continue;
             }
             $declarations = trim($element->getAttribute('style'), "; \t\r\n");
-            $declarations = preg_replace('/\s*!important\b/i', '', $declarations);
             if (str_contains(strtolower($declarations), '</style')) {
                 throw new RuntimeException('Die mobile Signatur enthaelt ungueltige Stilwerte.');
             }
             $declarations = self::compactRepeatedTypography($declarations);
-            if (! isset($styleClasses[$declarations])) {
-                $styleClasses[$declarations] = 'm'.base_convert((string) ++$index, 10, 36);
-                $css .= $selector.' .'.$styleClasses[$declarations].'{'
-                    .str_replace(';', '!important;', $declarations).'!important;}';
+            $ordinary = ! ($frames->length === 1 && $element->isSameNode($frames->item(0)))
+                && ! in_array('rt-delivery-train', preg_split('/\s+/', trim($element->getAttribute('class'))), true);
+            $key = ($ordinary ? '4:' : '3:').$declarations;
+            if (! isset($styleClasses[$key])) {
+                do {
+                    $class = 'm'.base_convert((string) ++$index, 10, 36);
+                } while (isset($usedClasses[$class]));
+                $usedClasses[$class] = true;
+                $styleClasses[$key] = $class;
+                $css .= $selector.($ordinary ? '.rtm' : '').' .'.$class.'{'
+                    .self::importantDeclarations($declarations).'}';
             }
-            $element->setAttribute('class', trim($element->getAttribute('class').' '.$styleClasses[$declarations]));
+            $class = $styleClasses[$key];
+            $element->setAttribute('class', trim($element->getAttribute('class').' '.$class));
+            if ($ordinary) {
+                $coverage[$class][] = ['node' => $element, 'properties' => self::coveredProperties($declarations)];
+            }
         }
         $css .= $selector.' .rt-contact-icon{width:17px!important;}';
+        if ($canonicalRuntime !== null) {
+            $canonicalRuntime->textContent = self::projectCoveredRuntime(
+                $canonicalRuntime->textContent, $xpath, $scope, $match[1], $coverage,
+                self::conditionalElements($xpath, $root),
+            );
+        }
         $style = $dom->createElement('style');
         $style->setAttribute('data-rt-outlook-mobile-css', '1');
         $style->appendChild($dom->createTextNode($css));
@@ -221,6 +248,299 @@ final class OutlookMobileSignature
         $document['html'] = $output;
 
         return [$document, $version];
+    }
+
+    /** Bind only the complete server-generated runtime, before any pruning. */
+    private static function canonicalRuntime(DOMXPath $xpath, DOMElement $root, DOMElement $scope, string $scopeClass, string $original): ?DOMElement
+    {
+        if (! SignatureTableOverlapDelivery::applies($original)) {
+            return null;
+        }
+        $styles = $xpath->query('.//style[@data-rt-outlook-signature-css="1"]', $root);
+        if ($styles->length !== 1 || ! $styles->item(0)->parentNode->isSameNode($root)) {
+            throw new RuntimeException('Die mobile Runtime besitzt keine eindeutige kanonische Position.');
+        }
+        $style = $styles->item(0);
+        $beforeScope = false;
+        for ($node = $style->nextSibling; $node !== null; $node = $node->nextSibling) {
+            if ($node->isSameNode($scope)) {
+                $beforeScope = true;
+                break;
+            }
+        }
+        // These are the existing light/dark server palettes plus the exact
+        // historical red ledger border, not a value supplied by authored CSS.
+        foreach (['#dfe3e6', '#313944', '#e60033'] as $border) {
+            if ($beforeScope && hash_equals(TrustedOutlookSignatureCss::responsive($original, $border, $scopeClass), $style->textContent)) {
+                return $style;
+            }
+        }
+        throw new RuntimeException('Die mobile Runtime entspricht nicht dem vollstaendigen kanonischen Server-CSS.');
+    }
+
+    /** Preserve declaration order, including quoted semicolons and fallbacks. */
+    private static function declarationParts(string $declarations): ?array
+    {
+        $parts = [];
+        $start = 0;
+        $quote = null;
+        $depth = 0;
+        for ($offset = 0, $length = strlen($declarations); $offset < $length; $offset++) {
+            $character = $declarations[$offset];
+            if ($character === '\\') {
+                $offset++;
+                if ($offset >= $length) {
+                    return null;
+                }
+
+                continue;
+            }
+            if ($quote !== null) {
+                if ($character === $quote) {
+                    $quote = null;
+                }
+            } elseif ($character === '"' || $character === "'") {
+                $quote = $character;
+            } elseif ($character === '(') {
+                $depth++;
+            } elseif ($character === ')') {
+                if (--$depth < 0) {
+                    return null;
+                }
+            } elseif ($character === ';' && $depth === 0) {
+                $parts[] = trim(substr($declarations, $start, $offset - $start));
+                $start = $offset + 1;
+            } elseif ($character === '{' || $character === '}' || substr($declarations, $offset, 2) === '/*') {
+                return null;
+            }
+        }
+        if ($quote !== null || $depth !== 0) {
+            return null;
+        }
+        $parts[] = trim(substr($declarations, $start));
+
+        return array_values(array_filter($parts, static fn ($part) => $part !== ''));
+    }
+
+    private static function importantDeclarations(string $declarations): string
+    {
+        $parts = self::declarationParts($declarations);
+        if ($parts === null) {
+            throw new RuntimeException('Die mobile Inline-Runtime besitzt unlesbare Deklarationen.');
+        }
+
+        return implode('', array_map(static fn ($part) => preg_replace('/\s*!important\z/i', '', $part).'!important;', $parts));
+    }
+
+    /** Only own, demonstrably valid declarations may cover a canonical rule. */
+    private static function coveredProperties(string $declarations): array
+    {
+        $properties = [];
+        foreach (self::declarationParts($declarations) ?? [] as $part) {
+            if (preg_match('/\A([a-z][a-z-]*):\s*(.*?)\s*(?:!important)?\z/i', $part, $match) !== 1) {
+                continue;
+            }
+            $property = strtolower($match[1]);
+            $valid = self::validCoveredValue($property, preg_replace('/\s*!important\z/i', '', $match[2]));
+            $properties[$property] = ($properties[$property] ?? true) && $valid;
+        }
+
+        return array_filter($properties);
+    }
+
+    private static function validCoveredValue(string $property, string $value): bool
+    {
+        $value = trim(strtolower($value));
+        $length = '(?:0|(?:\d+(?:\.\d+)?|\.\d+)(?:px|pt|em|rem|%))';
+        $enums = [
+            'display' => ['none', 'block', 'inline', 'inline-block', 'table', 'table-row', 'table-cell'],
+            'border-collapse' => ['collapse', 'separate'], 'box-sizing' => ['content-box', 'border-box'],
+            'direction' => ['ltr', 'rtl'], 'text-align' => ['left', 'right', 'center', 'justify'],
+            'vertical-align' => ['top', 'middle', 'bottom', 'baseline'],
+            'word-break' => ['normal', 'break-all', 'keep-all'], 'overflow-wrap' => ['normal', 'break-word', 'anywhere'],
+            'table-layout' => ['auto', 'fixed'], 'white-space' => ['normal', 'nowrap'],
+            'text-transform' => ['none', 'uppercase', 'lowercase', 'capitalize'],
+            'text-decoration' => ['none', 'underline'], 'overflow' => ['visible', 'hidden'],
+        ];
+        if (isset($enums[$property])) {
+            return in_array($value, $enums[$property], true);
+        }
+        if ($property === 'font-family') {
+            return preg_match('/\A(?:["\']?(?:arial|helvetica|trebuchet ms|consolas|courier new|sans-serif|serif|monospace)["\']?)(?:\s*,\s*["\']?(?:arial|helvetica|trebuchet ms|consolas|courier new|sans-serif|serif|monospace)["\']?)*\z/', $value) === 1;
+        }
+        if ($property === 'font-weight') {
+            return preg_match('/\A(?:normal|bold|[1-9]00)\z/', $value) === 1;
+        }
+        if (in_array($property, ['color', 'background-color'], true)) {
+            return preg_match('/\A(?:#[0-9a-f]{3}(?:[0-9a-f]{3})?|transparent|black|white|red)\z/', $value) === 1;
+        }
+        if (in_array($property, ['width', 'height', 'min-width', 'max-width', 'min-height', 'max-height'], true)) {
+            $keyword = in_array($property, ['width', 'height'], true) ? '|auto' : (str_starts_with($property, 'max-') ? '|none' : '');
+
+            return preg_match('/\A(?:'.$length.$keyword.')\z/', $value) === 1;
+        }
+        if ($property === 'font-size') {
+            return preg_match('/\A'.$length.'\z/', $value) === 1;
+        }
+        if ($property === 'line-height') {
+            return preg_match('/\A(?:'.$length.'|\d+(?:\.\d+)?|normal)\z/', $value) === 1;
+        }
+        if ($property === 'padding' || preg_match('/\Apadding-(?:top|right|bottom|left)\z/', $property)) {
+            return preg_match('/\A'.$length.'(?:\s+'.$length.'){0,'.($property === 'padding' ? '3' : '0').'}\z/', $value) === 1;
+        }
+        if ($property === 'margin' || preg_match('/\Amargin-(?:top|right|bottom|left)\z/', $property)) {
+            return preg_match('/\A(?:-?'.$length.'|auto)(?:\s+(?:-?'.$length.'|auto)){0,'.($property === 'margin' ? '3' : '0').'}\z/', $value) === 1;
+        }
+        if (in_array($property, ['border', 'border-top', 'border-right', 'border-bottom', 'border-left'], true)) {
+            return $value === '0' || $value === 'none';
+        }
+
+        return false;
+    }
+
+    /** Conditional MSO elements have no generated mobile mirror: keep them opaque. */
+    private static function conditionalElements(DOMXPath $xpath, DOMElement $root): array
+    {
+        $elements = [];
+        foreach ($xpath->query('.//comment()', $root) as $comment) {
+            if (stripos($comment->textContent, '[if') === false || stripos($comment->textContent, 'mso') === false) {
+                continue;
+            }
+            preg_match_all('~<([a-z][a-z0-9]*)\b([^>]*)>~i', $comment->textContent, $tags, PREG_SET_ORDER);
+            foreach ($tags as $tag) {
+                $classes = [];
+                if (preg_match('~\bclass\s*=\s*(["\'])(.*?)\1~is', $tag[2], $match) === 1) {
+                    $classes = preg_split('/\s+/', trim(html_entity_decode($match[2], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+                } elseif (preg_match('~\bclass\s*=~i', $tag[2])) {
+                    // A class spelling we cannot inspect prevents all pruning.
+                    return [['tag' => '*', 'classes' => null]];
+                }
+                $elements[] = ['tag' => strtolower($tag[1]), 'classes' => $classes];
+            }
+        }
+
+        return $elements;
+    }
+
+    /** Scope-first descendant class/type selectors only; other grammar stays. */
+    private static function coveredSelector(string $selector, array $properties, DOMXPath $xpath, DOMElement $scope, string $scopeClass, array $coverage, array $conditional): bool
+    {
+        $parts = preg_split('/\s+/', trim($selector));
+        if (array_shift($parts) !== '.'.$scopeClass || $parts === [] || $properties === []) {
+            return false;
+        }
+        $query = '.';
+        $classes = 1;
+        $terminal = null;
+        foreach ($parts as $part) {
+            if (preg_match('/\A([a-z][a-z0-9]*|\*)?((?:\.[a-z][a-z0-9-]*)*)\z/i', $part, $match) !== 1 || $part === '') {
+                return false;
+            }
+            $tag = strtolower($match[1] ?: '*');
+            preg_match_all('/\.([a-z][a-z0-9-]*)/i', $match[2], $names);
+            $classes += count($names[1]);
+            $terminal = ['tag' => $tag, 'classes' => $names[1]];
+            $query .= '//'.$tag;
+            foreach ($names[1] as $class) {
+                $query .= '[contains(concat(" ",normalize-space(@class)," ")," '.$class.' ")]';
+            }
+        }
+        if ($classes >= 4) {
+            return false;
+        }
+        foreach ($conditional as $element) {
+            if (($element['tag'] === '*' || $terminal['tag'] === '*' || $terminal['tag'] === $element['tag'])
+                && ($element['classes'] === null || array_diff($terminal['classes'], $element['classes']) === [])) {
+                return false;
+            }
+        }
+        $nodes = $xpath->query($query, $scope);
+        if ($nodes === false || $nodes->length === 0) {
+            return false;
+        }
+        foreach ($nodes as $node) {
+            $covered = false;
+            foreach (preg_split('/\s+/', trim($node->getAttribute('class'))) as $class) {
+                foreach ($coverage[$class] ?? [] as $own) {
+                    if ($own['node']->isSameNode($node) && array_diff($properties, array_keys($own['properties'])) === []) {
+                        $covered = true;
+                    }
+                }
+            }
+            if (! $covered) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** Rewrite only an already whole-byte-bound canonical runtime stylesheet. */
+    private static function projectCoveredRuntime(string $css, DOMXPath $xpath, DOMElement $scope, string $scopeClass, array $coverage, array $conditional): string
+    {
+        $output = '';
+        $offset = 0;
+        while ($offset < strlen($css)) {
+            if (preg_match('~\G(?:\s+|/\*.*?\*/)~s', $css, $trivia, 0, $offset)) {
+                $output .= $trivia[0];
+                $offset += strlen($trivia[0]);
+
+                continue;
+            }
+            $opening = strpos($css, '{', $offset);
+            if ($opening === false) {
+                return $output.substr($css, $offset);
+            }
+            $depth = 1;
+            $quote = null;
+            for ($closing = $opening + 1; $closing < strlen($css); $closing++) {
+                $character = $css[$closing];
+                if ($character === '\\') {
+                    $closing++;
+                } elseif ($quote !== null) {
+                    if ($character === $quote) {
+                        $quote = null;
+                    }
+                } elseif ($character === '"' || $character === "'") {
+                    $quote = $character;
+                } elseif ($character === '{') {
+                    $depth++;
+                } elseif ($character === '}' && --$depth === 0) {
+                    break;
+                }
+            }
+            if ($depth !== 0 || $quote !== null) {
+                return $css;
+            }
+            $prelude = substr($css, $offset, $opening - $offset);
+            $body = substr($css, $opening + 1, $closing - $opening - 1);
+            if (preg_match('/\A@media\s+only screen and \(max-width:\s*\d+px\)\z/', trim($prelude))) {
+                $body = self::projectCoveredRuntime($body, $xpath, $scope, $scopeClass, $coverage, $conditional);
+                if (trim($body) !== '') {
+                    $output .= $prelude.'{'.$body.'}';
+                }
+            } elseif (str_starts_with(trim($prelude), '@')) {
+                $output .= substr($css, $offset, $closing - $offset + 1);
+            } else {
+                $properties = [];
+                $parts = self::declarationParts($body);
+                foreach ($parts ?? [] as $part) {
+                    if (preg_match('/\A([a-z][a-z-]*):/i', $part, $match) !== 1) {
+                        $parts = null;
+                        break;
+                    }
+                    $properties[] = strtolower($match[1]);
+                }
+                $selectors = explode(',', $prelude);
+                $kept = array_filter($selectors, static fn ($selector) => $parts === null || ! self::coveredSelector($selector, $properties, $xpath, $scope, $scopeClass, $coverage, $conditional));
+                if ($kept !== []) {
+                    $output .= implode(',', $kept).'{'.$body.'}';
+                }
+            }
+            $offset = $closing + 1;
+        }
+
+        return $output;
     }
 
     /** Remove only canonical wide dimensions already replaced by real mobile rows. */

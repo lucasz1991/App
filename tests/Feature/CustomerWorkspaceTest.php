@@ -84,15 +84,15 @@ class CustomerWorkspaceTest extends TestCase
             ->call('setView', 'conditions')->assertSee('Keine Konditionen hinterlegt.')->assertDontSee('Approved Contact');
     }
 
-    public function test_portal_only_selector_and_children_are_customer_scoped(): void
+    public function test_portal_only_list_and_children_are_customer_scoped(): void
     {
         $actor = $this->actor(['customers.portal.manage']);
         $this->grant($actor, ['customers.portal.manage']);
         $this->assertSame(['portal'], array_keys(CustomerWorkspace::availableViews($actor)));
         Livewire::actingAs($actor)->test(CustomerWorkspace::class)
             ->assertSet('customerId', null)->assertSet('view', 'portal')->assertSee('Scoped Customer')->assertDontSee('Other Customer')
-            ->assertDontSee('PRIVATE CRM CONTENT')->assertDontSee('crm-private@example.test')->assertDontSee('Kontingent anfragen')->assertDontSee('Stand freigeben')
-            ->call('selectCustomer', $this->customer->id)->assertSet('customerId', $this->customer->id)->assertSet('view', 'portal')->assertSee('Scoped Customer')->assertDontSee('Other Customer')
+            ->assertDontSee('crm-private@example.test')->call('selectCustomer', $this->customer->id)
+            ->assertSet('customerId', $this->customer->id)
             ->assertDontSee('PRIVATE CRM CONTENT')->assertDontSee('crm-private@example.test')->assertDontSee('Kontingent anfragen')->assertDontSee('Stand freigeben');
         Mail::assertNothingSent();
         $this->assertSame(0, DB::table('customer_portal_invitations')->count());
@@ -118,10 +118,8 @@ class CustomerWorkspaceTest extends TestCase
     {
         $actor = $this->actor(['operations.inquiries.manage', 'customers.portal.manage']);
         $this->grant($actor, ['customers.portal.manage']);
-        Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['initialView' => 'portal'])
-            ->assertSet('customerId', null)->assertSee('Scoped Customer')->assertSee('Other Customer')
-            ->assertDontSee('PRIVATE CRM CONTENT')->assertDontSee('crm-private@example.test')->assertDontSee('OTHER PRIVATE CRM')
-            ->call('selectCustomer', $this->customer->id)->assertSet('view', 'portal')->assertSet('contextRevision', 1)->assertDontSee('Other Customer')
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['initialView' => 'portal', 'context' => ['customer' => $this->customer->id]])
+            ->assertDontSee('Other Customer')->call('showList')->assertSee('Other Customer')
             ->call('selectCustomer', $this->other->id)->assertSet('view', 'contacts')->assertSet('contextRevision', 2)
             ->assertDontSee('Portalverwaltung')->assertDontSee('OTHER PRIVATE CRM')->call('setView', 'portal')->assertForbidden();
     }
@@ -168,9 +166,7 @@ class CustomerWorkspaceTest extends TestCase
     {
         $actor = $this->actor(['customers.portal.manage']);
         $this->grant($actor, ['customers.portal.manage']);
-        $component = Livewire::actingAs($actor)->test(CustomerWorkspace::class)
-            ->assertSet('customerId', null)->call('selectCustomer', $this->customer->id)->assertSet('customerId', $this->customer->id)
-            ->call('setSection', 'delivery')->assertSet('contextRevision', 2);
+        $component = Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['context' => ['customer' => $this->customer->id]])->call('setSection', 'delivery')->assertSet('contextRevision', 1);
         DB::table('customer_portal_manager_grants')->where('user_id', $actor->id)->update(['active' => false]);
         $component->call('setSection', 'access')->assertForbidden();
     }
@@ -190,5 +186,159 @@ class CustomerWorkspaceTest extends TestCase
         $this->assertSame(0, DB::table('customer_portal_deliveries')->count());
         Mail::assertNothingSent();
         Livewire::actingAs($actor)->test(CustomerPortalManagement::class, ['customerId' => $this->customer->id, 'tab' => 'access', 'embedded' => true, 'initialRecordId' => $request->id, 'initialSource' => 'request'])->assertNotFound();
+    }
+
+    public function test_default_customer_overview_uses_standard_list_without_implicit_profile(): void
+    {
+        $actor = $this->actor(['operations.manage']);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class)
+            ->assertSet('customerId', null)->assertSet('view', 'master')
+            ->assertSee('customer-list-search', false)->assertSee('data-rt-premium-table', false)
+            ->assertSee('Scoped Customer')->assertSee('Other Customer')->assertSee('Kundenprofil öffnen')
+            ->assertSee('Bearbeiten')->assertSee('Kunde anlegen')->assertDontSee('customer-workspace-select', false)
+            ->assertDontSee('PRIVATE CRM CONTENT')->assertDontSee('Kundenstammdaten');
+    }
+
+    public function test_crm_list_search_status_sort_and_named_pagination(): void
+    {
+        $inactive = Customer::create(['company_name' => 'Archived Railway', 'is_active' => false]);
+        for ($i = 1; $i <= 17; $i++) {
+            Customer::create(['company_name' => sprintf('Demo Customer %02d', $i), 'is_active' => true]);
+        }
+        $actor = $this->actor(['operations.manage']);
+        $component = Livewire::actingAs($actor)->test(CustomerWorkspace::class)
+            ->assertViewHas('customers', fn ($items) => $items->total() === 19 && $items->count() === 15 && $items->getPageName() === 'customersPage')
+            ->assertDontSee('Archived Railway')->call('gotoPage', 2, 'customersPage')
+            ->assertSet('paginators.customersPage', 2)->set('search', 'crm-private@example.test')
+            ->assertSet('paginators.customersPage', 1)->assertSee('Scoped Customer')->assertDontSee('Other Customer')
+            ->call('resetFilters')->set('activeFilter', 'inactive')->assertSee('Archived Railway')->assertDontSee('Scoped Customer')
+            ->set('activeFilter', 'all')->call('sort', 'company_name', 'desc')
+            ->assertViewHas('customers', fn ($items) => $items->first()->id === $this->customer->id)
+            ->set('perPage', 30)->assertViewHas('customers', fn ($items) => $items->count() === 20);
+        $this->assertFalse($inactive->fresh()->is_active);
+        $component->set('search', $this->customer->customer_number)->assertViewHas('customers', fn ($items) => $items->total() === 1);
+    }
+
+    public function test_opening_profile_and_back_preserves_list_context_and_url(): void
+    {
+        $actor = $this->actor(['operations.manage']);
+        $component = Livewire::actingAs($actor)->test(CustomerWorkspace::class)
+            ->set('search', 'Scoped')->set('activeFilter', 'all')->set('perPage', 30)->call('sort', 'company_name', 'desc')
+            ->call('toggleCustomerSelection', $this->customer->id)->assertSet('selectedListCustomerId', $this->customer->id)
+            ->call('selectCustomer', $this->customer->id)->assertSee('PRIVATE CRM CONTENT')->assertDontSee('customer-list-search', false)
+            ->assertDispatched('rt-workspace-url', fn ($event, $params) => str_contains($params['url'], 'customer='.$this->customer->id) && str_contains($params['url'], 'search=Scoped'))
+            ->call('showList')->assertSet('customerId', null)->assertSet('search', 'Scoped')->assertSet('activeFilter', 'all')
+            ->assertSet('perPage', 30)->assertSet('sortDir', 'desc')->assertSee('Scoped Customer')->assertDontSee('Other Customer')
+            ->assertDontSee('PRIVATE CRM CONTENT')->assertDontSee('customer-workspace-select', false);
+        $component->assertDispatched('rt-workspace-url', fn ($event, $params) => ! str_contains($params['url'], 'customer=') && str_contains($params['url'], 'status=all'));
+    }
+
+    public function test_initial_list_context_is_restored_without_loading_another_profile(): void
+    {
+        for ($i = 1; $i <= 20; $i++) {
+            Customer::create(['company_name' => sprintf('Demo %02d', $i), 'is_active' => true]);
+        }
+        Livewire::actingAs($this->actor(['operations.manage']))->test(CustomerWorkspace::class, [
+            'context' => ['search' => 'Demo', 'status' => 'all', 'per_page' => '15', 'customersPage' => '2', 'sort' => 'company_name', 'direction' => 'desc'],
+        ])->assertSet('customerId', null)->assertSet('paginators.customersPage', 2)
+            ->assertViewHas('customers', fn ($items) => $items->total() === 20 && $items->count() === 5)
+            ->assertDontSee('PRIVATE CRM CONTENT')->call('selectCustomer', $this->customer->id)
+            ->call('showList')->assertSet('paginators.customersPage', 2)
+            ->assertViewHas('customers', fn ($items) => $items->count() === 5);
+    }
+
+    public function test_restricted_lists_do_not_query_or_render_private_crm_fields(): void
+    {
+        foreach (['operations.inquiries.manage', 'customers.portal.manage'] as $ability) {
+            $actor = $this->actor([$ability]);
+            if ($ability === 'customers.portal.manage') {
+                $this->grant($actor, [$ability]);
+            }
+            $component = Livewire::actingAs($actor)->test(CustomerWorkspace::class)
+                ->assertSee('Scoped Customer')->assertDontSee('crm-private@example.test')->assertDontSee('PRIVATE CRM CONTENT')
+                ->assertDontSee('Bearbeiten')->assertDontSee('customer-status-filter', false)
+                ->assertViewHas('customers', fn ($items) => array_keys($items->first()->getAttributes()) === ['id', 'company_name'])
+                ->set('search', 'crm-private@example.test')->assertViewHas('customers', fn ($items) => $items->total() === 0)
+                ->set('search', 'PRIVATE CRM')->assertViewHas('customers', fn ($items) => $items->total() === 0);
+            $component->call('editCustomer', $this->customer->id)->assertForbidden();
+        }
+    }
+
+    public function test_list_permissions_and_portal_grants_are_rechecked_after_revocation(): void
+    {
+        $actor = $this->actor(['customers.portal.manage']);
+        $this->grant($actor, ['customers.portal.manage']);
+        $component = Livewire::actingAs($actor)->test(CustomerWorkspace::class)->assertSee('Scoped Customer');
+        DB::table('customer_portal_manager_grants')->where('user_id', $actor->id)->update(['active' => false]);
+        $component->set('search', 'Scoped')->assertForbidden();
+        $actor = $this->actor(['operations.manage']);
+        $component = Livewire::actingAs($actor)->test(CustomerWorkspace::class);
+        $actor->update(['status' => false]);
+        $component->call('selectCustomer', $this->customer->id)->assertForbidden();
+    }
+
+    public function test_manipulated_list_settings_fail_closed(): void
+    {
+        $actor = $this->actor(['operations.manage']);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class)->set('perPage', 100000)->assertStatus(422);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class)->set('activeFilter', 'invalid')->assertStatus(422);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class)->set('search', str_repeat('a', 101))->assertStatus(422);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class)->call('sort', 'notes', 'asc')->assertForbidden();
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class)->call('sort', 'company_name', 'drop table')->assertStatus(422);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['context' => ['per_page' => '1000']])->assertStatus(422);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['context' => ['search' => ['bad']]])->assertStatus(422);
+        $actor = $this->actor(['operations.inquiries.manage']);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class)->set('activeFilter', 'inactive')->assertForbidden();
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class)->call('sort', 'city', 'asc')->assertForbidden();
+    }
+
+    public function test_list_create_and_edit_reuse_modals_and_clear_old_form_context(): void
+    {
+        $actor = $this->actor(['operations.manage']);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class)->set('search', 'Scoped')
+            ->call('editCustomer', $this->customer->id)->assertSet('editingCustomerId', $this->customer->id)
+            ->assertSee('customer-list-search', false)->assertSee('Kunde bearbeiten')
+            ->call('closeCustomerForm')->assertSet('editingCustomerId', null)->assertDontSee('Kunde bearbeiten')
+            ->call('createCustomer')->assertSet('startCreating', true)->assertSee('Neuen Kunden anlegen')
+            ->call('selectCustomer', $this->other->id)->assertSet('startCreating', false)->assertSet('editingCustomerId', null)
+            ->assertSet('contextRevision', 4)->assertDontSee('crm-private@example.test');
+        Livewire::actingAs($actor)->test(Customers::class, ['customerId' => $this->customer->id, 'embedded' => true, 'modalOnly' => true, 'startEditing' => true])
+            ->assertSet('formOpen', true)->assertSet('editingCustomerId', $this->customer->id)
+            ->assertDontSee('Kundenstammdaten')->set('formOpen', false)->assertSet('email', '')->assertDispatched('customer-form-closed');
+        Mail::assertNothingSent();
+        $this->assertSame(0, DB::table('customer_portal_invitations')->count());
+    }
+
+    public function test_modal_edit_saves_existing_customer_without_portal_or_mail_side_effects(): void
+    {
+        $actor = $this->actor(['operations.manage']);
+        Livewire::actingAs($actor)->test(Customers::class, ['customerId' => $this->customer->id, 'embedded' => true, 'modalOnly' => true, 'startEditing' => true])
+            ->set('companyName', 'Updated Scoped Customer')->call('saveCustomer')->assertHasNoErrors()
+            ->assertSet('formOpen', false)->assertDispatched('customer-record-saved', customerId: $this->customer->id);
+        $this->assertSame('Updated Scoped Customer', $this->customer->fresh()->company_name);
+        $this->assertSame('Other Customer', $this->other->fresh()->company_name);
+        $this->assertSame(0, DB::table('customer_portal_invitations')->count());
+        $this->assertSame(0, DB::table('customer_portal_deliveries')->count());
+        Mail::assertNothingSent();
+    }
+
+    public function test_missing_or_deleted_list_customer_never_opens_a_different_customer(): void
+    {
+        $component = Livewire::actingAs($this->actor(['operations.manage']))->test(CustomerWorkspace::class);
+        $this->customer->delete();
+        $this->expectException(ModelNotFoundException::class);
+        $component->call('selectCustomer', $this->customer->id);
+    }
+
+    public function test_late_modal_events_cannot_close_or_redirect_a_new_customer_context(): void
+    {
+        Livewire::actingAs($this->actor(['operations.manage']))->test(CustomerWorkspace::class)
+            ->call('editCustomer', $this->customer->id)->assertSet('contextRevision', 1)
+            ->call('editCustomer', $this->other->id)->assertSet('contextRevision', 2)
+            ->dispatch('customer-form-closed', workspaceRevision: 1)->assertSet('editingCustomerId', $this->other->id)
+            ->dispatch('customer-record-saved', customerId: $this->customer->id, workspaceRevision: 1)
+            ->assertSet('customerId', null)->assertSet('editingCustomerId', $this->other->id)
+            ->dispatch('customer-record-saved', customerId: $this->other->id, workspaceRevision: 2)
+            ->assertSet('customerId', null)->assertSet('editingCustomerId', null)->assertSet('contextRevision', 3);
     }
 }

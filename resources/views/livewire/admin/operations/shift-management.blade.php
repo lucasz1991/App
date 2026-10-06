@@ -251,8 +251,10 @@
                                     </div>
                                 </x-operations.panel.group>
                             @endif
-                            @if($nativeOperations && count($planChanges))
-                                <x-operations.panel.group :title="$shiftPublished ? 'Zuletzt veröffentlichte Änderungen' : ($selectedShift->published_revision ? 'Änderungen zur Veröffentlichung' : 'Erste Veröffentlichung')">
+                            {{-- Offene Änderungen gehören zum Veröffentlichungs-Hinweis; die Liste der zuletzt
+                                 veröffentlichten Änderungen ist Nachschlagewissen und steht am Ende. --}}
+                            @if($nativeOperations && count($planChanges) && ! $shiftPublished)
+                                <x-operations.panel.group :title="$selectedShift->published_revision ? 'Änderungen zur Veröffentlichung' : 'Erste Veröffentlichung'">
                                     <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />
                                 </x-operations.panel.group>
                             @endif
@@ -285,6 +287,11 @@
                             @if(filled($selectedShift->notes))
                                 <x-operations.panel.group title="Interne Notizen" meta="nur intern">
                                     <p class="rt-ops-panel__text">{{ $selectedShift->notes }}</p>
+                                </x-operations.panel.group>
+                            @endif
+                            @if($nativeOperations && count($planChanges) && $shiftPublished)
+                                <x-operations.panel.group title="Zuletzt veröffentlichte Änderungen">
+                                    <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />
                                 </x-operations.panel.group>
                             @endif
                         </x-operations.panel.tab>

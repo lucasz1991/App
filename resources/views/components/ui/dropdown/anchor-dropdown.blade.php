@@ -2,6 +2,7 @@
   'align'             => 'right',
   'width'             => '48',
   'maxHeight'         => 448,
+  'fixedHeight'       => false,
   'contentClasses'    => 'py-1 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-white',
   'dropdownClasses'   => '',
   'offset'            => 8,
@@ -90,6 +91,7 @@
     preferredPlacement: @js(str_starts_with($anchorPlacement, 'top') ? 'top' : 'bottom'),
     offset: @js($anchorOffset),
     maximumHeight: @js(max(160, min(960, (int) $maxHeight))),
+    fixedHeight: @js((bool) $fixedHeight),
     scrollOnOpen: @js((bool) $scrollOnOpen),
     scrollOnTrigger: @js((bool) $scrollOnTrigger),
     headerOffset: @js((int) $headerOffset),
@@ -504,7 +506,7 @@
         ? Math.max(0, panelScroll.offsetHeight - panelScroll.clientHeight)
         : 0;
       const naturalPanelHeight = Math.min(
-        (panelScroll?.scrollHeight || panel.offsetHeight || panelRect.height) + borderHeight,
+        this.fixedHeight ? this.maximumHeight : (panelScroll?.scrollHeight || panel.offsetHeight || panelRect.height) + borderHeight,
         this.maximumHeight,
         maximumViewportHeight,
       );
@@ -517,17 +519,27 @@
       }
 
       const availableHeight = resolvedPlacement === 'top' ? availableAbove : availableBelow;
+      // Paged cards need a definite body height. On short viewports they may
+      // overlap the anchor, but remain wholly inside the visible viewport.
+      // Ordinary dropdowns retain the existing anchor-side height limit.
+      const fixedPanelHeight = Math.floor(Math.min(this.maximumHeight, maximumViewportHeight));
       if (panelScroll) {
-        panelScroll.style.maxHeight = `${Math.max(0, Math.floor(Math.min(this.maximumHeight, availableHeight)))}px`;
+        panelScroll.style.maxHeight = `${Math.max(0, this.fixedHeight ? fixedPanelHeight : Math.floor(Math.min(this.maximumHeight, availableHeight)))}px`;
+        if (this.fixedHeight) panelScroll.style.height = `${fixedPanelHeight}px`;
       }
 
       const renderedPanelHeight = Math.min(
         panel.offsetHeight || panel.getBoundingClientRect().height,
-        availableHeight,
+        this.fixedHeight ? fixedPanelHeight : availableHeight,
       );
-      const resolvedTop = resolvedPlacement === 'top'
+      const anchoredTop = resolvedPlacement === 'top'
         ? aboveBottom - renderedPanelHeight
         : belowTop;
+      const resolvedTop = this.fixedHeight
+        ? this.clamp(anchoredTop, viewportTop + viewportInset, viewportBottom - viewportInset - renderedPanelHeight)
+        : anchoredTop;
+      const detached = this.fixedHeight && Math.abs(resolvedTop - anchoredTop) > 1;
+      panel.querySelector('[data-rt-dropdown-caret]')?.toggleAttribute('hidden', detached);
       const triggerX = triggerCenter - resolvedLeft;
       const availableCaretInset = Math.min(triggerX, panelWidth - triggerX);
       const caretInset = Math.min(
@@ -808,7 +820,7 @@
           x-ref="panelScroll"
           @if(filled($contentRole)) role="{{ $contentRole }}" @endif
           @if(filled($contentLabel)) aria-label="{{ $contentLabel }}" @endif
-          class="rt-ui-surface rt-ui-dropdown-panel relative z-[2] max-h-[min(28rem,calc(100dvh-2rem))] overflow-y-auto rounded-xl border border-rt-border dark:border-rt-dark-border {{ $contentClasses }}"
+          class="rt-ui-surface rt-ui-dropdown-panel relative z-[2] max-h-[min(28rem,calc(100dvh-2rem))] {{ $fixedHeight ? 'overflow-hidden' : 'overflow-y-auto' }} rounded-xl border border-rt-border dark:border-rt-dark-border {{ $contentClasses }}"
           @click="handlePanelAction($event)"
         >
           {{ $content }}

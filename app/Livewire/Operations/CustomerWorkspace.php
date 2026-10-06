@@ -19,7 +19,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class CustomerWorkspace extends Component
 {
-    use WithPagination, WithoutUrlPagination;
+    use WithoutUrlPagination, WithPagination;
 
     public const VIEWS = ['master' => 'Stammdaten', 'contacts' => 'Kontakte & Orte', 'conditions' => 'Konditionen', 'portal' => 'Portalverwaltung'];
 

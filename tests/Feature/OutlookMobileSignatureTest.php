@@ -46,7 +46,7 @@ class OutlookMobileSignatureTest extends TestCase
             $after->query('//table[contains(@class,"rt-v27-anchor")]')->item(0)->getAttribute('style'),
         );
         $this->assertStringContainsString('data-rt-outlook-mobile-css="1"', $mobile['signature']['html']);
-        $this->assertStringContainsString('.m28tfc09.rtm .m', $mobile['signature']['html']);
+        $this->assertStringContainsString('.m28tfc09.rtm.rtm .m', $mobile['signature']['html']);
         $this->assertStringContainsString('.rts0123456789vm{display:none!important', $mobile['signature']['html']);
         $this->assertStringContainsString('font-size:13px!important', $mobile['signature']['html']);
         $this->assertStringNotContainsString('background-image:', $mobile['signature']['html']);
@@ -152,21 +152,9 @@ class OutlookMobileSignatureTest extends TestCase
 
     public function test_actual_shared_delivery_projection_survives_mobile_and_paired_internal_css_transport(): void
     {
-        $payload = $this->fixture();
-        preg_match('~<tbody>(.*)</tbody></table></div>~s', $payload['signature']['html'], $matches);
-        $rows = SignatureTableOverlapDelivery::project($matches[1], 'cid:train-still.png');
+        $payload = $this->physicalFixture();
         $document = $payload['signature'];
-        $html = TrustedOutlookSignatureCss::style($rows, scopeClass: 'rts0123456789')
-            .'<div class="rt-outlook-signature rts0123456789"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tbody>'.$rows.'</tbody></table></div>';
-        $desktop = OutlookSignatureInlineStyle::apply($html, 'rts0123456789');
-        $document['html'] = OutlookNativeMetadataPlacement::signature(
-            $desktop,
-            '<style data-rt-outlook-marker-css="1">.rt-office-metadata{display:none!important;}</style>'
-                .'<!-- RT-SIGNATURE-VERSION:0123456789abcdef -->'
-                .'<span hidden aria-hidden="true" class="rt-office-metadata" style="display:none">RT-SIGNATURE-VERSION:0123456789abcdef</span>',
-        );
-        $document['media'][] = ['name' => 'train-still.png', 'contentId' => 'train-still.png', 'base64' => 'synthetic-still'];
-        $payload['signature'] = $payload['templates'][0]['signature'] = $document;
+        $desktop = $document['html'];
         $mobile = OutlookMobileSignature::payload($payload);
         OutlookTrainBottomOverlay::assertRuntime($mobile['signature']['html']);
         SignatureTableOverlapDelivery::assertRuntime(OutlookTrainBottomOverlay::restore($mobile['signature']['html']));
@@ -206,6 +194,106 @@ class OutlookMobileSignatureTest extends TestCase
             $this->assertSame(1, $fallback->query('./td', $cell->parentNode)->length);
             $this->assertSame('100%', $cell->getAttribute('width'));
         }
+    }
+
+    public function test_canonical_projection_owns_mobile_typography_without_touching_author_css_or_geometry(): void
+    {
+        $payload = $this->physicalFixture();
+        $author = '<style data-rt-mail-document-css="signature">.rts0123456789 .rt-contact-text{color:#123456!important;}</style>';
+        $payload['signature']['html'] = $author.$payload['signature']['html'];
+        unset($payload['templates'][0]['signature'], $payload['templates'][0]['signatureVersion']);
+        $original = $payload;
+        $mobile = OutlookMobileSignature::payload($payload);
+        $this->assertSame($original, $payload);
+        $this->assertSame($original['signature']['media'], $mobile['signature']['media']);
+        $this->assertStringContainsString($author, $mobile['signature']['html']);
+        $before = $this->xpath($payload['signature']['html']);
+        $after = $this->xpath($mobile['signature']['html']);
+        $canonical = $after->query('//style[@data-rt-outlook-signature-css="1"]')->item(0)->textContent;
+        $this->assertLessThan(strlen($before->query('//style[@data-rt-outlook-signature-css="1"]')->item(0)->textContent), strlen($canonical));
+        $this->assertStringNotContainsString('.rts0123456789 .rt-contact td.rt-contact-text{font-size:11px!important;line-height:15px!important;}', $canonical);
+        $this->assertStringNotContainsString('.rts0123456789 .rt-sign-name{font-size:17px!important;line-height:21px!important;}', $canonical);
+        $this->assertStringContainsString('.rts0123456789 .rt-sign-content-frame{border-collapse:collapse!important;}', $canonical);
+        $this->assertStringContainsString('.rts0123456789 .rt-delivery-train-mso{', $canonical);
+        $this->assertStringContainsString('.rts0123456789 img.rt-logo{width:138px!important;}', $canonical, 'Mixed modern/MSO wordmarks remain covered by the canonical rule.');
+        $this->assertStringContainsString('.m28tfc09.rtm.rtm .m', $mobile['signature']['html']);
+        $this->assertStringContainsString('font-size:13px!important;line-height:20px!important;', $mobile['signature']['html']);
+        $this->assertStringContainsString('.m28tfc09.rtm .rt-native-train-overlay', $mobile['signature']['html']);
+        $this->assertStringNotContainsString('.m28tfc09.rtm.rtm .rt-native-train-overlay', $mobile['signature']['html']);
+        $this->assertSame($this->images($before), $this->images($after));
+        $this->assertSame($this->links($before), $this->links($after));
+    }
+
+    public function test_canonical_projection_rejects_modified_runtime_before_existing_four_rule_pruning(): void
+    {
+        $payload = $this->physicalFixture();
+        $payload['signature']['html'] = str_replace('/* RT_OUTLOOK_SIGNATURE_RUNTIME_START */', '/* RT_OUTLOOK_SIGNATURE_RUNTIME_START */.rts0123456789 .rt-contact{color:red}', $payload['signature']['html']);
+        unset($payload['templates'][0]['signature'], $payload['templates'][0]['signatureVersion']);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('vollstaendigen kanonischen Server-CSS');
+        OutlookMobileSignature::payload($payload);
+    }
+
+    public function test_runtime_coverage_is_per_node_strict_specificity_and_exact_property_only(): void
+    {
+        $xpath = $this->xpath('<div class="rts0123456789"><table class="rt-contact"><tr><td class="rt-contact-text a b m1">A</td><td class="rt-contact-text m2">B</td></tr></table></div>');
+        $scope = $xpath->query('//div')->item(0);
+        $coverage = [
+            'm1' => [['node' => $xpath->query('//td')->item(0), 'properties' => ['font-size' => true, 'line-height' => true, 'padding' => true]]],
+            'm2' => [['node' => $xpath->query('//td')->item(1), 'properties' => ['font-size' => true, 'line-height' => true]]],
+        ];
+        $method = new ReflectionMethod(OutlookMobileSignature::class, 'projectCoveredRuntime');
+        $covered = '.rts0123456789 .rt-contact td.rt-contact-text{font-size:11px!important;line-height:15px!important;}';
+        $missing = '.rts0123456789 .rt-contact-text{padding:0!important;}';
+        $shorthand = '.rts0123456789 .a{padding-left:0!important;}';
+        $equalSpecificity = '.rts0123456789 .rt-contact .rt-contact-text.a{font-size:11px!important;}';
+        $zero = '.rts0123456789 .absent{font-size:11px!important;}';
+        $unsupported = '.rts0123456789 .rt-contact>tbody td{font-size:11px!important;}';
+        $source = '/* bound */@media only screen and (max-width: 480px){'.$covered.'}'.$missing.$shorthand.$equalSpecificity.$zero.$unsupported;
+        $this->assertSame('/* bound */'.$missing.$shorthand.$equalSpecificity.$zero.$unsupported, $method->invoke(null, $source, $xpath, $scope, 'rts0123456789', $coverage, []));
+        // One unmirrored descendant, even if its ancestor is covered, keeps all.
+        unset($coverage['m2']);
+        $this->assertSame($covered, $method->invoke(null, $covered, $xpath, $scope, 'rts0123456789', $coverage, []));
+        $this->assertSame($covered, $method->invoke(null, $covered, $xpath, $scope, 'rts0123456789', [], []));
+    }
+
+    public function test_conditional_comment_shared_classes_block_modern_only_coverage(): void
+    {
+        $xpath = $this->xpath('<div id="rt-mobile-root"><div class="rts0123456789"><img class="rt-logo m1"><!--[if mso]><img class="rt&#45;logo" width="175"><![endif]--></div></div>');
+        $scope = $xpath->query('//div[@class="rts0123456789"]')->item(0);
+        $root = $xpath->query('//*[@id="rt-mobile-root"]')->item(0);
+        $conditional = (new ReflectionMethod(OutlookMobileSignature::class, 'conditionalElements'))->invoke(null, $xpath, $root);
+        $this->assertSame([['tag' => 'img', 'classes' => ['rt-logo']]], $conditional);
+        $coverage = ['m1' => [['node' => $xpath->query('//img')->item(0), 'properties' => ['width' => true]]]];
+        $method = new ReflectionMethod(OutlookMobileSignature::class, 'projectCoveredRuntime');
+        $css = '.rts0123456789 img.rt-logo{width:138px!important;}';
+        $this->assertSame('', $method->invoke(null, $css, $xpath, $scope, 'rts0123456789', $coverage, []));
+        $this->assertSame($css, $method->invoke(null, $css, $xpath, $scope, 'rts0123456789', $coverage, $conditional));
+    }
+
+    public function test_coverage_rejects_invalid_or_complex_values_and_preserves_ordered_font_fallbacks(): void
+    {
+        $coverage = new ReflectionMethod(OutlookMobileSignature::class, 'coveredProperties');
+        $this->assertSame(['line-height' => true], $coverage->invoke(null, 'font-size:bogus;line-height:20px'));
+        $this->assertSame([], $coverage->invoke(null, 'font-size:bogus;font-size:13px;width:none;font-family:"Odd;Family";padding:calc(1px + 2px)'));
+        $this->assertSame(['font-size' => true, 'font-family' => true], $coverage->invoke(null, 'font-size:10px;font-size:13px;font-family:"Arial",sans-serif'));
+        $important = new ReflectionMethod(OutlookMobileSignature::class, 'importantDeclarations');
+        $this->assertSame('font-family:"Odd;Family"!important;font-size:10px!important;font-size:13px!important;', $important->invoke(null, 'font-family:"Odd;Family";font-size:10px;font-size:13px'));
+        $this->assertSame('font-family:"Odd !important;Family"!important;color:red!important;', $important->invoke(null, 'font-family:"Odd !important;Family";color:red !important'));
+        $this->assertSame([], $coverage->invoke(null, 'max-width:auto;min-height:auto'));
+        $xpath = $this->xpath('<div class="rts0123456789"><p class="name m1">Name</p></div>');
+        $css = '.rts0123456789 .name{font-size:11px!important;}';
+        $this->assertSame($css, (new ReflectionMethod(OutlookMobileSignature::class, 'projectCoveredRuntime'))->invoke(null, $css, $xpath, $xpath->query('//div')->item(0), 'rts0123456789', ['m1' => [['node' => $xpath->query('//p')->item(0), 'properties' => $coverage->invoke(null, 'font-size:bogus')]]], []));
+    }
+
+    public function test_generated_mobile_classes_do_not_reuse_authored_aliases(): void
+    {
+        $payload = $this->fixture();
+        $payload['signature']['html'] = str_replace('class="rt-sign-name"', 'class="rt-sign-name m1"', $payload['signature']['html']);
+        unset($payload['templates'][0]['signature'], $payload['templates'][0]['signatureVersion']);
+        $mobile = OutlookMobileSignature::payload($payload);
+        $this->assertStringNotContainsString('.m28tfc09.rtm.rtm .m1{', $mobile['signature']['html']);
+        $this->assertSame(1, $this->xpath($mobile['signature']['html'])->query('//*[contains(concat(" ",@class," ")," m1 ")]')->length);
     }
 
     public function test_mobile_profile_is_applied_after_cache_and_identity_checks_and_before_etag(): void
@@ -256,7 +344,7 @@ class OutlookMobileSignatureTest extends TestCase
         $payload['signature']['html'] = str_replace('rts0123456789', 'rtsffffffffff', $payload['signature']['html']);
         unset($payload['templates'][0]['signature'], $payload['templates'][0]['signatureVersion']);
         $mobile = OutlookMobileSignature::payload($payload);
-        $this->assertStringContainsString('.me13wu1of.rtm .m', $mobile['signature']['html']);
+        $this->assertStringContainsString('.me13wu1of.rtm.rtm .m', $mobile['signature']['html']);
         $this->assertStringContainsString('rt-mobile-ledger rtm me13wu1of', $mobile['signature']['html']);
         $this->assertStringNotContainsString('.rtsffffffffff.rtm .rtm', $mobile['signature']['html']);
     }
@@ -296,6 +384,26 @@ class OutlookMobileSignatureTest extends TestCase
             'version' => ['signature' => '0123456789abcdef', 'personal' => 'desktop-cache-version'],
             'binding' => ['sender' => 'synthetic-test-mailbox'],
         ];
+    }
+
+    private function physicalFixture(): array
+    {
+        $payload = $this->fixture();
+        preg_match('~<tbody>(.*)</tbody></table></div>~s', $payload['signature']['html'], $matches);
+        $rows = SignatureTableOverlapDelivery::project($matches[1], 'cid:train-still.png');
+        $html = TrustedOutlookSignatureCss::style($rows, scopeClass: 'rts0123456789')
+            .'<div class="rt-outlook-signature rts0123456789"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tbody>'.$rows.'</tbody></table></div>';
+        $document = $payload['signature'];
+        $document['html'] = OutlookNativeMetadataPlacement::signature(
+            OutlookSignatureInlineStyle::apply($html, 'rts0123456789'),
+            '<style data-rt-outlook-marker-css="1">.rt-office-metadata{display:none!important;}</style>'
+                .'<!-- RT-SIGNATURE-VERSION:0123456789abcdef -->'
+                .'<span hidden aria-hidden="true" class="rt-office-metadata" style="display:none">RT-SIGNATURE-VERSION:0123456789abcdef</span>',
+        );
+        $document['media'][] = ['name' => 'train-still.png', 'contentId' => 'train-still.png', 'base64' => 'synthetic-still'];
+        $payload['signature'] = $payload['templates'][0]['signature'] = $document;
+
+        return $payload;
     }
 
     private function xpath(string $html): DOMXPath

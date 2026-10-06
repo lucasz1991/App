@@ -39,6 +39,38 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringNotContainsString('Zeitumstellung', $html);
     }
 
+    public function test_event_card_has_fixed_chrome_and_exactly_two_equal_snapping_pages(): void
+    {
+        foreach ([false, true] as $absence) {
+            $html = $this->renderEventDetail($absence);
+            $dom = new \DOMDocument;
+            @$dom->loadHTML('<?xml encoding="UTF-8">'.$html);
+            $xpath = new \DOMXPath($dom);
+            $this->assertSame(1, $xpath->query('//article/header')->length);
+            $this->assertSame(1, $xpath->query('//article/footer')->length);
+            $this->assertSame(2, $xpath->query('//article/div[@x-ref="detailPages"]/section[@data-detail-page]')->length);
+            $this->assertSame(0, $xpath->query('//section[@data-detail-page]//footer | //section[@data-detail-page]//header[contains(@class,"detail-header")]')->length);
+            foreach (['snap-y snap-mandatory', 'h-full min-h-0 snap-start snap-always', 'data-rt-dropdown-keep-open', 'prefers-reduced-motion: reduce', 'goToDetailPage(0, false)', '@keydown.page-down.self.prevent', 'aria-label="Seiten der Dienstdetails"'] as $contract) {
+                $this->assertStringContainsString($contract, $html);
+            }
+            $this->assertSame(1, $xpath->query('//section[@data-detail-page="0"]//*[@role="group" and @aria-label="Zeitraum"]')->length);
+            $this->assertSame(1, $xpath->query('//section[@data-detail-page="1"]//*[contains(@class,"detail-person")]')->length);
+        }
+        $source = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $this->assertStringContainsString(':fixed-height="true"', $source);
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $this->assertDoesNotMatchRegularExpression('/\.rt-personnel-timeline-detail-footer \{[^}]*position: sticky/', $css);
+    }
+
+    public function test_only_opted_in_dropdowns_use_a_fixed_non_scrolling_outer_shell(): void
+    {
+        foreach ([false, true] as $fixed) {
+            $html = Blade::render('<x-ui.dropdown.anchor-dropdown :fixed-height="$fixed"><x-slot:trigger><button>Test</button></x-slot:trigger><x-slot:content>Details</x-slot:content></x-ui.dropdown.anchor-dropdown>', compact('fixed'));
+            $this->assertStringContainsString('fixedHeight: '.($fixed ? 'true' : 'false'), $html);
+            $this->assertMatchesRegularExpression('/class="rt-ui-surface rt-ui-dropdown-panel[^"\r\n]*'.($fixed ? 'overflow-hidden' : 'overflow-y-auto').'/', $html);
+        }
+    }
+
     public function test_all_day_absence_uses_inclusive_dates_without_inventing_midnight_shifts_or_hours(): void
     {
         $html = $this->renderEventDetail(true);

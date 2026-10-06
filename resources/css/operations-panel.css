@@ -50,6 +50,16 @@
     --panel-success-soft: rgb(52 211 153 / 0.12);
 }
 
+/*
+ * Breite: disposition-workspace.css sieht min(760px, 100vw) vor, doch das Legacy-Bundle
+ * build/css/tailwind.min.css setzt .w-full und .sm:max-w-4xl mit !important – der Drawer
+ * war dadurch 896 px breit. Für Drawer mit Panel-Struktur gilt die vorgesehene Breite.
+ */
+.rt-disposition-drawer .rt-disposition-drawer__panel:has(> .rt-ops-panel) {
+    width: min(760px, 100vw) !important;
+    max-width: 100vw !important;
+}
+
 /* .rt-disposition gibt direkten Kindern sonst 20 px Abstand – das Panel ordnet selbst. */
 .rt-ops-panel.rt-disposition:not(.ops-stack) > * + * {
     margin-top: 0;
