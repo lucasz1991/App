@@ -8,7 +8,8 @@ const dataExpression = blade.match(/x-data="([\s\S]*?)"\n  x-cloak/)?.[1];
 assert.ok(dataExpression, 'Global dropdown Alpine object must be readable for interaction checks.');
 const detailBlade = await readFile(new URL('../../resources/views/livewire/operations/partials/timeline-event-detail.blade.php', import.meta.url), 'utf8');
 const detailDataExpression = detailBlade.match(/x-data="([\s\S]*?)"\s+x-init=/)?.[1];
-assert.ok(detailDataExpression, 'Timeline detail pager must expose its actual Alpine methods.');
+assert.ok(detailDataExpression, 'Timeline detail card must expose its actual Alpine tab state.');
+const tabsBlade = await readFile(new URL('../../resources/views/components/operations/panel/tabs.blade.php', import.meta.url), 'utf8');
 
 // Exercise the actual inline component methods after replacing only the
 // server-rendered scalar props. No duplicate implementation of hover logic.
@@ -227,42 +228,63 @@ test('fixed card follows visual viewport offsets and restores its caret after a 
     assert.equal(f.caret.hasAttribute('hidden'), false);
 });
 
-function detailPagerFixture(reducedMotion = false) {
-    const calls = [];
-    const innerCalls = [];
-    const children = [0, 1].map(page => ({ scrollTo: options => innerCalls.push({ page, ...options }) }));
-    const scroller = { children, clientHeight: 360, scrollTo: (options) => calls.push(options) };
-    const refs = { detailPages: scroller };
-    const window = { matchMedia: (query) => ({ matches: query === '(prefers-reduced-motion: reduce)' && reducedMotion }) };
-    const pager = new Function('$refs', 'window', `return (${detailDataExpression});`)(refs, window);
-    return { pager, scroller, refs, calls, innerCalls };
+function detailTabsFixture() {
+    const state = new Function(`return (${detailDataExpression});`)();
+    const expression = (attribute, key) => {
+        const escapedAttribute = attribute.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const source = tabsBlade.match(new RegExp(`${escapedAttribute}="([^"]+)"`))?.[1];
+        assert.ok(source, `Shared tab component must expose ${attribute}.`);
+        return source.replaceAll('{{ $model }}', 'detailTab').replaceAll('@js((string) $key)', JSON.stringify(key));
+    };
+    return {
+        state,
+        activate(attribute, key) { new Function('state', `with (state) { ${expression(attribute, key)}; }`)(state); },
+        value(attribute, key) { return new Function('state', `with (state) { return (${expression(attribute, key)}); }`)(state); },
+        keyboard(attribute, focus, element) { new Function('$focus', '$el', expression(attribute, ''))(focus, element); },
+    };
 }
 
-test('detail pager uses a whole current page height and bounds navigation to its two pages', () => {
-    const f = detailPagerFixture();
-    f.pager.goToDetailPage(1);
-    assert.deepEqual(f.calls.at(-1), { top: 360, behavior: 'smooth' });
-    assert.equal(f.pager.detailPage, 1);
-    f.scroller.clientHeight = 244;
-    f.pager.goToDetailPage(8);
-    assert.deepEqual(f.calls.at(-1), { top: 244, behavior: 'smooth' });
-    assert.equal(f.pager.detailPage, 1);
-    f.pager.goToDetailPage(-1);
-    assert.deepEqual(f.calls.at(-1), { top: 0, behavior: 'smooth' });
-    assert.equal(f.pager.detailPage, 0);
-    assert.deepEqual(f.innerCalls.at(-1), { page: 0, top: 0, behavior: 'instant' });
-    delete f.refs.detailPages;
-    assert.doesNotThrow(() => f.pager.goToDetailPage(1));
-    assert.equal(f.calls.length, 3);
+test('shared tab clicks select detail panels and keep the selected tab as the only tab stop', () => {
+    const f = detailTabsFixture();
+    assert.equal(f.state.detailTab, 'period');
+    for (const key of ['assignment', 'period']) {
+        f.activate('x-on:click', key);
+        assert.equal(f.state.detailTab, key);
+        for (const candidate of ['period', 'assignment']) {
+            assert.equal(f.value('x-bind:aria-selected', candidate), candidate === key ? 'true' : 'false');
+            assert.equal(f.value('x-bind:tabindex', candidate), candidate === key ? 0 : -1);
+        }
+    }
 });
 
-test('detail pager respects reduced motion and reopening resets to the first page immediately', () => {
-    const reduced = detailPagerFixture(true);
-    reduced.pager.goToDetailPage(1);
-    assert.deepEqual(reduced.calls.at(-1), { top: 360, behavior: 'instant' });
+test('shared tab keyboard focus switches panels with arrow wrapping and Home or End', () => {
+    const f = detailTabsFixture();
+    const element = {};
+    const keys = ['period', 'assignment'];
+    let index = 0;
+    const focusAt = nextIndex => {
+        index = (nextIndex + keys.length) % keys.length;
+        f.activate('x-on:focus', keys[index]);
+    };
+    const focus = {
+        within(actual) { assert.equal(actual, element); return this; },
+        wrap() { return this; },
+        next() { focusAt(index + 1); },
+        previous() { focusAt(index - 1); },
+        first() { focusAt(0); },
+        last() { focusAt(keys.length - 1); },
+    };
+    for (const [key, selected] of [
+        ['arrow-right', 'assignment'], ['arrow-right', 'period'],
+        ['arrow-left', 'assignment'], ['home', 'period'], ['end', 'assignment'],
+    ]) {
+        f.keyboard(`x-on:keydown.${key}.prevent`, focus, element);
+        assert.equal(f.state.detailTab, selected);
+    }
+});
 
-    const f = detailPagerFixture();
-    f.pager.goToDetailPage(1);
+test('reopening detail cards resets to period without scroll references or wheel switching', () => {
+    const f = detailTabsFixture();
     const initExpression = detailBlade.match(/x-init="([^"]+)"/)?.[1];
     assert.ok(initExpression);
     let openWatcher;
@@ -270,30 +292,22 @@ test('detail pager respects reduced motion and reopening resets to the first pag
         assert.equal(name, 'open');
         openWatcher = callback;
     };
-    new Function('$watch', '$nextTick', 'goToDetailPage', initExpression)(watch, (callback) => callback(), f.pager.goToDetailPage.bind(f.pager));
+    new Function('state', '$watch', `with (state) { ${initExpression}; }`)(f.state, watch);
+    f.activate('x-on:click', 'assignment');
     openWatcher(false);
-    assert.equal(f.calls.length, 1);
+    assert.equal(f.state.detailTab, 'assignment');
     openWatcher(true);
-    assert.deepEqual(f.calls.at(-1), { top: 0, behavior: 'instant' });
-    assert.equal(f.pager.detailPage, 0);
+    assert.equal(f.state.detailTab, 'period');
+    assert.doesNotMatch(detailBlade, /detailPages|goToDetailPage|@scroll|x-on:scroll|@wheel|x-on:wheel|snap-y|snap-start|overflow-y-auto/);
 });
 
-test('native detail scrolling updates bounded page state without a server request', () => {
-    const expression = detailBlade.match(/@scroll\.passive="([^"]+)"/)?.[1];
-    assert.ok(expression);
-    const scrollPage = new Function('detailPage', '$el', `${expression}; return detailPage;`);
-    assert.equal(scrollPage(1, { scrollTop: 0, clientHeight: 360 }), 0);
-    assert.equal(scrollPage(0, { scrollTop: 360, clientHeight: 360 }), 1);
-    assert.equal(scrollPage(0, { scrollTop: 900, clientHeight: 360 }), 1);
-    assert.equal(scrollPage(1, { scrollTop: -100, clientHeight: 360 }), 0);
-    assert.equal(scrollPage(1, { scrollTop: 0, clientHeight: 0 }), 0);
-});
-
-test('detail pagination actions and nested scrolling do not dismiss the parent card', () => {
+test('detail tab activation does not dismiss the parent dropdown', () => {
     const f = fixture({ openOnHover: false, fixedHeight: true });
-    const nav = f.document.createElement('nav');
+    const nav = f.document.createElement('div');
+    nav.setAttribute('role', 'tablist');
     nav.setAttribute('data-rt-dropdown-keep-open', '');
     const button = f.document.createElement('button');
+    button.setAttribute('role', 'tab');
     nav.appendChild(button);
     f.refs.panelScroll.appendChild(nav);
     f.dropdown.toggle();
@@ -301,9 +315,8 @@ test('detail pagination actions and nested scrolling do not dismiss the parent c
     assert.equal(f.dropdown.open, true);
     f.dropdown.handleTrackedScroll({ target: nav });
     assert.equal(f.dropdown.open, true);
-    assert.match(detailBlade, /<nav[^>]+data-rt-dropdown-keep-open/);
-    assert.match(detailBlade, /@keydown\.page-down\.self\.prevent="goToDetailPage\(1\)"/);
-    assert.match(detailBlade, /@keydown\.page-up\.self\.prevent="goToDetailPage\(0\)"/);
+    assert.match(detailBlade, /<x-operations\.panel\.tabs[\s\S]*?model="detailTab"/);
+    assert.match(detailBlade, /<x-operations\.panel\.tabs[\s\S]*?data-rt-dropdown-keep-open\s*\/>/);
 });
 
 test('opt-in external trigger anchors the shared panel and restores keyboard focus', () => {

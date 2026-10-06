@@ -46,7 +46,7 @@ class CustomerProfileData
             'orders' => $manage && $operationsReady && $this->ordersReady() ? 'Aufträge' : null,
             'inquiries' => $inquiries && $operationsReady && $this->inquiriesReady() ? 'Anfragen' : null,
             'offers' => ($manage && $this->ordersReady() || $inquiries && $this->inquiriesReady()) && CommercialOfferService::ready() ? 'Angebote' : null,
-            'communication' => (($manage || $inquiries) && $this->inquiriesReady()) || $publish ? 'Kommunikation' : null,
+            'communication' => $manage || $inquiries || $publish ? 'Kommunikation' : null,
             'documents' => $publish ? 'Dokumente' : null,
             'history' => ($manage && Schema::hasColumns('customers', ['created_at', 'updated_at']))
                 || (($manage || $inquiries) && Schema::hasColumns('operation_audits', ['subject_type', 'subject_id', 'action', 'created_at']))

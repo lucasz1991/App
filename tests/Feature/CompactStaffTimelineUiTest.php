@@ -102,7 +102,7 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringNotContainsString('Zeitumstellung', $html);
     }
 
-    public function test_event_card_has_fixed_chrome_and_exactly_two_equal_snapping_pages(): void
+    public function test_event_card_uses_shared_accessible_tabs_between_header_and_non_scrolling_content(): void
     {
         foreach ([false, true] as $absence) {
             $html = $this->renderEventDetail($absence);
@@ -111,18 +111,74 @@ class CompactStaffTimelineUiTest extends TestCase
             $xpath = new \DOMXPath($dom);
             $this->assertSame(1, $xpath->query('//article/header')->length);
             $this->assertSame(1, $xpath->query('//article/footer')->length);
-            $this->assertSame(2, $xpath->query('//article/div[@x-ref="detailPages"]/section[@data-detail-page]')->length);
-            $this->assertSame(0, $xpath->query('//section[@data-detail-page]//footer | //section[@data-detail-page]//header[contains(@class,"detail-header")]')->length);
-            foreach (['snap-y snap-mandatory', 'h-full min-h-0 snap-start snap-always', 'data-rt-dropdown-keep-open', 'prefers-reduced-motion: reduce', 'goToDetailPage(0, false)', '@keydown.page-down.self.prevent', 'aria-label="Seiten der Dienstdetails"'] as $contract) {
-                $this->assertStringContainsString($contract, $html);
+            $this->assertSame(1, $xpath->query('//article/header/following-sibling::*[1][@role="tablist"]')->length);
+            $this->assertSame(1, $xpath->query('//article/div[@role="tablist"][@data-rt-dropdown-keep-open]/following-sibling::*[1][contains(@class,"detail-panels")]')->length);
+            $this->assertSame(2, $xpath->query('//article/div[contains(@class,"detail-panels")]/section[@role="tabpanel"]')->length);
+            $this->assertSame(0, $xpath->query('//section[@role="tabpanel"]//footer | //section[@role="tabpanel"]//header[contains(@class,"detail-header")]')->length);
+            foreach (['period', 'assignment'] as $key) {
+                $tab = $xpath->query('//article/div[@role="tablist"]/button[@data-panel-tab="'.$key.'"]')->item(0);
+                $panel = $xpath->query('//article/div/section[@data-detail-tab="'.$key.'"]')->item(0);
+                $this->assertNotNull($tab);
+                $this->assertNotNull($panel);
+                $this->assertSame('tab', $tab->getAttribute('role'));
+                $this->assertSame($tab->getAttribute('aria-controls'), $panel->getAttribute('id'));
+                $this->assertSame($tab->getAttribute('id'), $panel->getAttribute('aria-labelledby'));
+                $this->assertSame($key === 'period' ? 'true' : 'false', $tab->getAttribute('aria-selected'));
+                $this->assertSame($key === 'period' ? '0' : '-1', $tab->getAttribute('tabindex'));
+                $this->assertSame("detailTab === '".$key."'", $panel->getAttribute('x-show'));
+                $this->assertSame("detailTab !== '".$key."'", $panel->getAttribute(':inert'));
             }
-            $this->assertSame(1, $xpath->query('//section[@data-detail-page="0"]//*[@role="group" and @aria-label="Zeitraum"]')->length);
-            $this->assertSame(1, $xpath->query('//section[@data-detail-page="1"]//*[contains(@class,"detail-person")]')->length);
+            $this->assertSame(1, $xpath->query('//section[@data-detail-tab="period"]//*[@role="group" and @aria-label="Zeitraum"]')->length);
+            $this->assertSame(1, $xpath->query('//section[@data-detail-tab="assignment"]//*[contains(@class,"detail-person")]')->length);
+            $this->assertDoesNotMatchRegularExpression('/detailPages|goToDetailPage|@scroll|x-on:scroll|@wheel|x-on:wheel|snap-y|snap-start|overflow-y-auto/', $html);
         }
+        $partial = file_get_contents(resource_path('views/livewire/operations/partials/timeline-event-detail.blade.php'));
+        $this->assertStringContainsString('<x-operations.panel.tabs', $partial);
+        $this->assertStringContainsString('model="detailTab"', $partial);
         $source = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
         $this->assertStringContainsString(':fixed-height="true"', $source);
         $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $this->assertStringContainsString('display: grid', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-detail-panels'));
+        $this->assertStringContainsString('overflow: hidden', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-detail-tabpanel'));
         $this->assertDoesNotMatchRegularExpression('/\.rt-personnel-timeline-detail-footer \{[^}]*position: sticky/', $css);
+    }
+
+    public function test_detail_tab_ids_are_unique_per_employee_event_and_event_kind(): void
+    {
+        $ids = [];
+        foreach ([[false, 23, 42], [false, 24, 42], [false, 23, 43], [true, 23, 42]] as [$absence, $userId, $shiftId]) {
+            $html = $this->renderEventDetail($absence, $userId, $shiftId);
+            preg_match_all('/\bid="(timeline-detail-[^"]+)"/', $html, $matches);
+            $this->assertCount(4, $matches[1]);
+            $ids = [...$ids, ...$matches[1]];
+        }
+        $this->assertCount(16, array_unique($ids));
+    }
+
+    public function test_detail_footer_is_flush_primary_and_tab_motion_respects_reduced_motion(): void
+    {
+        foreach ([false, true] as $absence) {
+            $html = $this->renderEventDetail($absence);
+            $dom = new \DOMDocument;
+            @$dom->loadHTML('<?xml encoding="UTF-8">'.$html);
+            $xpath = new \DOMXPath($dom);
+            $this->assertSame(1, $xpath->query('//article/footer/button[contains(@class,"rt-ui-button-primary")]')->length);
+            $this->assertSame(0, $xpath->query('//article/footer//*[@role="tab"]')->length);
+            $this->assertStringContainsString($absence ? 'operations-open-absence' : 'operations-shift-detail-request', $html);
+        }
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $footer = $this->cssDeclarationsFor($css, '.rt-personnel-timeline-detail-footer');
+        $this->assertStringContainsString('padding: 0', $footer);
+        $this->assertStringContainsString('background: var(--rt-primary', $footer);
+        $button = $this->cssDeclarationsFor($css, '.rt-personnel-timeline-detail-footer .rt-ui-button');
+        foreach (['width: 100%', 'margin: 0', 'border-radius: 0'] as $declaration) {
+            $this->assertStringContainsString($declaration, $button);
+        }
+        $this->assertMatchesRegularExpression('/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.rt-timeline-detail-enter\s*\{[^}]*transition: opacity/', $css);
+        $this->assertMatchesRegularExpression('/\.rt-timeline-detail-enter-from, \.rt-timeline-detail-enter-to\s*\{\s*transform: none/', $css);
+        $partial = file_get_contents(resource_path('views/livewire/operations/partials/timeline-event-detail.blade.php'));
+        $this->assertSame(2, substr_count($partial, 'x-transition:enter="rt-timeline-detail-enter"'));
+        $this->assertStringNotContainsString('x-transition:leave', $partial);
     }
 
     public function test_only_opted_in_dropdowns_use_a_fixed_non_scrolling_outer_shell(): void
@@ -196,11 +252,11 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringNotContainsString('rt-event-mini-map__sources', $html);
     }
 
-    private function renderEventDetail(bool $absence = false): string
+    private function renderEventDetail(bool $absence = false, int $userId = 23, int $shiftId = 42): string
     {
         $detailStart = CarbonImmutable::parse($absence ? '2026-10-05T00:00:00+02:00' : '2026-10-05T22:00:00+02:00');
         $detailEnd = CarbonImmutable::parse($absence ? '2026-10-07T00:00:00+02:00' : '2026-10-06T06:00:00+02:00');
-        $user = (object) ['name' => 'Marcel Schaarschmidt', 'profile' => null, 'person' => null, 'email' => '', 'currentTeam' => null, 'profile_photo_url' => '/avatar.png'];
+        $user = (object) ['id' => $userId, 'name' => 'Marcel Schaarschmidt', 'profile' => null, 'person' => null, 'email' => '', 'currentTeam' => null, 'profile_photo_url' => '/avatar.png'];
 
         return view('livewire.operations.partials.timeline-event-detail', [
             'detailStart' => $detailStart, 'detailEnd' => $detailEnd, 'detailDstChanged' => false,
@@ -209,7 +265,7 @@ class CompactStaffTimelineUiTest extends TestCase
             'event' => ['kind' => $absence ? 'absence' : 'shift', 'title' => $absence ? 'Urlaub' : '<Dienst>', 'status' => 'Bestätigt',
                 'detail' => $absence ? '' : 'Test Rail', 'role_name' => $absence ? null : 'Tf', 'location_name' => $absence ? null : 'Bremen',
                 'shift_status_label' => $absence ? null : 'Veröffentlicht', 'planned_break_minutes' => $absence ? 0 : 30,
-                'iso_week' => '2026-41', 'visible_start' => $detailStart, 'shift_id' => $absence ? null : 42, 'absence_id' => 12],
+                'iso_week' => '2026-41', 'visible_start' => $detailStart, 'shift_id' => $absence ? null : $shiftId, 'absence_id' => 12],
         ])->render();
     }
 

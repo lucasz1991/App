@@ -4,10 +4,10 @@
             @foreach($profile['metrics'] as $metric)
                 @if(isset($views[$metric['view']]))
                 <a href="#" wire:click.prevent="setView('{{ $metric['view'] }}')" class="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/50" aria-label="{{ $metric['label'] }}: {{ $metric['value'] }}. Öffnen">
-                    <x-ui.dashboard.stat-card :label="$metric['label']" :value="number_format($metric['value'],0,',','.')" tone="neutral" :compact-mobile="true"><i class="far {{ $metric['icon'] }}" aria-hidden="true"></i></x-ui.dashboard.stat-card>
+                    <x-ui.dashboard.stat-card class="[&_dt]:break-words [&>div>span]:!hidden sm:[&>div>span]:!flex" :label="$metric['label']" :value="number_format($metric['value'],0,',','.')" tone="neutral" :compact-mobile="true"><i class="far {{ $metric['icon'] }}" aria-hidden="true"></i></x-ui.dashboard.stat-card>
                 </a>
                 @else
-                    <x-ui.dashboard.stat-card :label="$metric['label']" :value="number_format($metric['value'],0,',','.')" tone="neutral" :compact-mobile="true"><i class="far {{ $metric['icon'] }}" aria-hidden="true"></i></x-ui.dashboard.stat-card>
+                    <x-ui.dashboard.stat-card class="[&_dt]:break-words [&>div>span]:!hidden sm:[&>div>span]:!flex" :label="$metric['label']" :value="number_format($metric['value'],0,',','.')" tone="neutral" :compact-mobile="true"><i class="far {{ $metric['icon'] }}" aria-hidden="true"></i></x-ui.dashboard.stat-card>
                 @endif
             @endforeach
         </div>

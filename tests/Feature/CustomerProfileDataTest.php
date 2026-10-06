@@ -75,6 +75,21 @@ class CustomerProfileDataTest extends TestCase
         return $actor;
     }
 
+    public function test_customer_communication_entry_does_not_depend_on_optional_inquiry_schema(): void
+    {
+        Schema::disableForeignKeyConstraints();
+        Schema::drop('operation_inquiries');
+        Schema::enableForeignKeyConstraints();
+        $actor = $this->actor(['operations.manage']);
+        $views = app(CustomerProfileData::class)->availableViews($actor, $this->customer->id);
+        $this->assertArrayHasKey('communication', $views);
+        $this->assertArrayNotHasKey('inquiries', $views);
+        $data = $this->data($actor);
+        $this->assertTrue($data['recentInquiries']->isEmpty());
+        $this->assertSame($this->customer->id, $data['customer']->id);
+        Mail::assertNothingSent();
+    }
+
     private function grant(User $actor, array $abilities): void
     {
         DB::table('customer_portal_manager_grants')->insert(['customer_id' => $this->customer->id, 'user_id' => $actor->id, 'abilities' => json_encode($abilities), 'active' => true, 'approved_by' => $this->approver->id, 'approved_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
