@@ -313,6 +313,115 @@ final class OutlookMobileCombinedComposeDocumentTest extends TestCase
         $this->assertStringContainsString('<!--[if mso]><img src="cid:conditional-extra.png" width="17" height="17"><![endif]-->', $result['html']);
     }
 
+    public function test_owned_duplicates_reduce_only_exact_generated_css_and_preserve_every_visual_byte(): void
+    {
+        $desktop = $this->fixture();
+        $html = $this->canonical($desktop, $this->standaloneMobile($desktop));
+        $method = new ReflectionMethod(OutlookMobileCombinedComposeDocument::class, 'compactOwnedStyles');
+        $output = $method->invoke(null, $html);
+        $this->assertSame(1, substr_count($output, '<style data-rt-outlook-marker-css="1">'));
+        $this->assertSame($this->images($html), $this->images($output));
+        $this->assertSame($this->links($html), $this->links($output));
+        preg_match_all('~<!--.*?-->|\sstyle="[^"]*"~s', $html, $before);
+        preg_match_all('~<!--.*?-->|\sstyle="[^"]*"~s', $output, $after);
+        $this->assertSame($before[0], $after[0], 'All ordinary inline fallback and MSO/comment bytes survive.');
+        $this->assertSame(preg_replace('~<style\b[^>]*>.*?</style>~s', '', $html), preg_replace('~<style\b[^>]*>.*?</style>~s', '', $output));
+        preg_match_all('~@media only screen and \(max-width: [0-9]+px\)\{[^}]+\}(?:[^}]+\})?~', $html, $canonical);
+        foreach ($canonical[0] as $rule) {
+            $this->assertStringContainsString($rule, $output, 'Canonical rt-pad rules and their historical scope semantics remain unchanged.');
+        }
+        $this->assertSame(282, strlen($html) - strlen($output), 'Current synthetic full scope: 158B metadata + 124B repeated generated inset rule.');
+    }
+
+    public function test_authored_nonowned_metadata_style_and_old_quote_rules_remain_byte_identical(): void
+    {
+        $desktop = $this->fixture();
+        $html = $this->canonical($desktop, $this->standaloneMobile($desktop));
+        $author = '<style data-rt-outlook-marker-css="1" title="authored">.authored{color:red;}</style>';
+        $quote = '<!--[if mso]><p class="rt-pad">Old quoted padding</p><![endif]--><style>.rtt123456789abc .rt-pad{padding-left:24px!important;}</style>';
+        $output = (new ReflectionMethod(OutlookMobileCombinedComposeDocument::class, 'compactOwnedStyles'))->invoke(null, $html.$author.$quote);
+        $this->assertStringContainsString($author.$quote, $output);
+    }
+
+    public static function ownedStyleTampering(): array
+    {
+        return ['changed frame' => ['changed frame'], 'changed generated inset' => ['changed generated inset'],
+            'intervening authored rule' => ['intervening authored rule'], 'duplicate generated suffix' => ['duplicate generated suffix'],
+            'changed metadata' => ['changed metadata'], 'visible metadata' => ['visible metadata'], 'outside TD metadata' => ['outside TD metadata'],
+            'overlapping mark role' => ['overlapping mark role'], 'conditional overlapping mark role' => ['conditional overlapping mark role']];
+    }
+
+    #[DataProvider('ownedStyleTampering')]
+    public function test_owned_duplicate_compaction_rejects_ambiguous_or_tampered_provenance(string $mutation): void
+    {
+        $desktop = $this->fixture();
+        $html = $this->canonical($desktop, $this->standaloneMobile($desktop));
+        switch ($mutation) {
+            case 'changed frame': $html = str_replace('table-layout:fixed!important;box-sizing:border-box!important;background-color:#ffffff!important;border-left:0!important;', 'table-layout:auto!important;box-sizing:border-box!important;background-color:#ffffff!important;border-left:0!important;', $html);
+                break;
+            case 'changed generated inset': $html = str_replace('padding-left:18px!important;padding-right:18px!important;', 'padding-left:19px!important;padding-right:18px!important;', $html);
+                break;
+            case 'intervening authored rule': $html = preg_replace('~(@media\(max-width:860px\)\{\.rtt[^}]+\}\})~', '.authored{padding-left:99px!important;}$1', $html, 1);
+                break;
+            case 'duplicate generated suffix': $html = preg_replace('~(@media\(max-width:860px\)\{\.rtt[^}]+\}\})~', '$1$1', $html, 1);
+                break;
+            case 'changed metadata': $html = str_replace('<style data-rt-outlook-marker-css="1">.rt-office-metadata{display:none!important;', '<style data-rt-outlook-marker-css="1">.rt-office-metadata{display:block!important;', $html);
+                break;
+            case 'visible metadata': $html = str_replace('<span hidden ', '<span ', $html);
+                break;
+            case 'outside TD metadata': $html .= '<style data-rt-outlook-marker-css="1">.rt-office-metadata{display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;}</style>';
+                break;
+            case 'overlapping mark role': $html = str_replace('class="rt-pad rt-native-template-pad"', 'class="rt-pad rt-native-template-pad rt-native-template-mark"', $html);
+                break;
+            case 'conditional overlapping mark role': $html .= '<!--[if mso]><td class="rt-native-template-pad rt-native-template-mark">Conditional roles</td><![endif]-->';
+                break;
+        }
+        $this->expectException(RuntimeException::class);
+        (new ReflectionMethod(OutlookMobileCombinedComposeDocument::class, 'compactOwnedStyles'))->invoke(null, $html);
+    }
+
+    public static function structuralMetadataSelectors(): array
+    {
+        return ['first child' => ['p.custom-note:first-child'], 'nth child' => ['span.rt-office-metadata:nth-child(2)'],
+            'adjacent sibling' => ['style+p.custom-note'], 'general sibling' => ['style~span.rt-office-metadata'],
+            'escaped selector' => ['.custom\\2d note'], 'opaque attribute' => ['span[hidden]'],
+            'visible STYLE' => ['style'], 'scoped visible STYLE' => ['.authored STYLE'], 'universal' => ['.authored *']];
+    }
+
+    #[DataProvider('structuralMetadataSelectors')]
+    public function test_metadata_styles_are_retained_when_authored_dom_structure_semantics_are_not_proven(string $selector): void
+    {
+        $desktop = $this->fixture();
+        $html = $this->canonical($desktop, $this->standaloneMobile($desktop));
+        $authored = '<style>@media(max-width:480px){'.$selector.'{display:block;color:red;content:":not-a-selector + ~";}}</style>';
+        $html .= $authored;
+        $output = (new ReflectionMethod(OutlookMobileCombinedComposeDocument::class, 'compactOwnedStyles'))->invoke(null, $html);
+        $this->assertSame(substr_count($html, '<style data-rt-outlook-marker-css="1">'), substr_count($output, '<style data-rt-outlook-marker-css="1">'));
+        $this->assertStringContainsString($authored, $output);
+        $this->assertSame($html, $output, 'Opaque or STYLE-observing selectors retain every original node and CSS text.');
+        $this->assertSame(preg_replace('~<style\b[^>]*>.*?</style>~s', '', $html), preg_replace('~<style\b[^>]*>.*?</style>~s', '', $output));
+    }
+
+    public function test_declaration_literals_with_pseudo_punctuation_do_not_block_owned_metadata_compaction(): void
+    {
+        $desktop = $this->fixture();
+        $html = $this->canonical($desktop, $this->standaloneMobile($desktop)).'<style>.literal-note{content:":first-child + ~";}</style>';
+        $output = (new ReflectionMethod(OutlookMobileCombinedComposeDocument::class, 'compactOwnedStyles'))->invoke(null, $html);
+        $this->assertSame(1, substr_count($output, '<style data-rt-outlook-marker-css="1">'));
+        $this->assertStringContainsString('.literal-note{content:":first-child + ~";}', $output);
+    }
+
+    public function test_conditional_style_observers_keep_every_metadata_style_node_and_mso_byte(): void
+    {
+        $desktop = $this->fixture();
+        $conditional = '<!--[if mso]><style>style{display:block;}</style><![endif]-->';
+        $html = $this->canonical($desktop, $this->standaloneMobile($desktop)).$conditional;
+        $output = (new ReflectionMethod(OutlookMobileCombinedComposeDocument::class, 'compactOwnedStyles'))->invoke(null, $html);
+        $this->assertSame(substr_count($html, '<style data-rt-outlook-marker-css="1">'), substr_count($output, '<style data-rt-outlook-marker-css="1">'));
+        $this->assertStringContainsString($conditional, $output);
+        $this->assertSame($html, $output);
+    }
+
     private function fixture(bool $personal = true): array
     {
         // Reuse the actual current V32-shaped published fixture, not an invented

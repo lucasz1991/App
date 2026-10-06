@@ -80,6 +80,7 @@ final class OutlookMobileCombinedComposeDocument
         if ($cells !== 1) {
             self::fail();
         }
+        $joined = self::compactOwnedStyles($joined);
         $media = self::media($template['composeMedia'], $mobileSignature['media'], $joined);
         [$output, $map] = self::compactIdentifiers($joined);
         if (self::rewrite($output, array_flip($map)) !== $joined) {
@@ -204,6 +205,158 @@ final class OutlookMobileCombinedComposeDocument
         }
 
         return $html;
+    }
+
+    /** Remove only byte-bound compiler duplicates; authored CSS stays opaque. */
+    private static function compactOwnedStyles(string $html): string
+    {
+        // STYLE can itself become visible, and opaque selectors can observe
+        // either its element position or CSS text. Do not edit either duplicate.
+        if (! self::canRemoveStyleNodes($html)) {
+            return $html;
+        }
+        [$templateStart, $templateEnd, $opening] = self::rootRange($html, 'rt-outlook-template');
+        [$signatureStart, $signatureEnd] = self::rootRange($html, 'rt-outlook-signature');
+        if (preg_match('/(?:^|\s)(rtt[0-9a-f]{12})(?:\s|$)/', self::attributes($opening)['class'], $scope) !== 1) {
+            self::fail();
+        }
+        // The intervening generated mark rule has a different left inset.
+        // Reject any normal or conditional node combining both target roles.
+        preg_match_all('~\bclass\s*=\s*(["\'])(.*?)\1~s', $html, $classAttributes);
+        foreach ($classAttributes[2] as $value) {
+            $classes = preg_split('/\s+/', CssSemantic::decodeHtmlEntitiesOnce($value));
+            if (in_array('rt-native-template-pad', $classes, true) && in_array('rt-native-template-mark', $classes, true)) {
+                self::fail();
+            }
+        }
+        $prefix = '.'.$scope[1].' ';
+        $pad = $prefix.'.rt-native-template-pad{padding-left:18px!important;padding-right:18px!important;}';
+        $repeat = '@media(max-width:860px){'.$pad.'}';
+        $suffix = $prefix.'.rt-native-compose-frame{width:100%!important;border-collapse:separate!important;border-spacing:0!important;'
+            .'table-layout:fixed!important;box-sizing:border-box!important;background-color:#ffffff!important;border-left:0!important;}'
+            .$prefix.'.design-page-pad{padding:0!important;}'
+            .$prefix.'.rt-native-compose-inner{display:block!important;width:auto!important;border:0!important;background-color:#ffffff!important;}'
+            .$pad.$prefix.'.rt-native-template-mark{padding-left:0!important;}'.$repeat;
+        preg_match_all('~<style data-rt-outlook-template-css="1">(.*?)</style>~s', $html, $styles, PREG_OFFSET_CAPTURE);
+        if (count($styles[0]) !== 1 || $styles[0][0][1] >= $templateStart
+            || ! str_ends_with($styles[1][0][0], $suffix)
+            || substr_count($styles[1][0][0], $suffix) !== 1
+            || substr_count($styles[1][0][0], $pad) !== 2
+            || substr_count($styles[1][0][0], $repeat) !== 1) {
+            self::fail();
+        }
+
+        $exact = '<style data-rt-outlook-marker-css="1">.rt-office-metadata{display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;}</style>';
+        preg_match_all('~'.preg_quote($exact, '~').'~', $html, $markers, PREG_OFFSET_CAPTURE);
+        if (count($markers[0]) < 2 || count($markers[0]) > 3) {
+            self::fail();
+        }
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $loaded = $dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        $owned = 0;
+        foreach ((new DOMXPath($dom))->query('//style[@data-rt-outlook-marker-css="1"]') as $style) {
+            if ($style->attributes->length === 1 && $style->textContent === '.rt-office-metadata{display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;}') {
+                if ($style->parentNode->nodeName !== 'td') {
+                    self::fail();
+                }
+                $owned++;
+            }
+        }
+        if (! $loaded || $owned !== count($markers[0])) {
+            self::fail();
+        }
+        $templateMarkers = $signatureMarkers = 0;
+        foreach ($markers[0] as [$block, $offset]) {
+            $template = $offset > $templateStart && $offset < $templateEnd;
+            $signature = $offset > $signatureStart && $offset < $signatureEnd;
+            if (! $template && ! $signature) {
+                self::fail();
+            }
+            $following = substr($html, $offset + strlen($block));
+            if (preg_match('~\A<!-- (RT-TEMPLATE-MANAGED-V1:COMBINED-DOCUMENT|RT-SIGNATURE-MANAGED-V1|RT-SIGNATURE-VERSION:[0-9a-f]{16}) -->(<span\b[^>]*>)([^<]*)</span>~', $following, $marker) !== 1
+                || $marker[1] !== $marker[3]
+                || ($template && $marker[1] !== OutlookCombinedComposeDocument::MARKER)
+                || ($signature && ! str_starts_with($marker[1], 'RT-SIGNATURE-'))) {
+                self::fail();
+            }
+            $attrs = self::attributes($marker[2]);
+            if (! array_key_exists('hidden', $attrs) || ($attrs['aria-hidden'] ?? '') !== 'true'
+                || ! in_array('rt-office-metadata', preg_split('/\s+/', $attrs['class'] ?? ''), true)) {
+                self::fail();
+            }
+            $templateMarkers += (int) $template;
+            $signatureMarkers += (int) $signature;
+        }
+        if ($templateMarkers !== 1 || $signatureMarkers < 1) {
+            self::fail();
+        }
+        // Keep the final original global rule and its cascade position.
+        array_pop($markers[0]);
+        foreach (array_reverse($markers[0]) as [$block, $offset]) {
+            $html = substr_replace($html, '', $offset, strlen($block));
+        }
+
+        return preg_replace_callback('~<style data-rt-outlook-template-css="1">(.*?)</style>~s',
+            static fn (array $match): string => substr($match[0], 0, strlen($match[0]) - strlen('</style>') - strlen($repeat)).'</style>', $html);
+    }
+
+    private static function canRemoveStyleNodes(string $html): bool
+    {
+        preg_match_all(self::TOKENS, $html, $tokens);
+        foreach ($tokens[0] as $token) {
+            if (str_starts_with($token, '<!--') && preg_match('~<style\b~i', $token)) {
+                return false;
+            }
+            if (preg_match('~\A<style\b[^>]*>(.*?)</style\s*>\z~is', $token, $style)
+                && ! self::structurallyIndependentSelectors($style[1])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function structurallyIndependentSelectors(string $css): bool
+    {
+        $offset = 0;
+        try {
+            while ($offset < strlen($css)) {
+                self::trivia($css, $offset);
+                if ($offset === strlen($css)) {
+                    break;
+                }
+                $opening = strpos($css, '{', $offset);
+                if ($opening === false) {
+                    return false;
+                }
+                $prelude = trim(substr($css, $offset, $opening - $offset));
+                $closing = self::closingBrace($css, $opening);
+                if (str_starts_with($prelude, '@')) {
+                    if (preg_match('/\A@media[ A-Za-z0-9():.,%\t\r\n-]*\z/', $prelude) !== 1
+                        || ! self::structurallyIndependentSelectors(substr($css, $opening + 1, $closing - $opening - 1))) {
+                        return false;
+                    }
+                } elseif (preg_match('/[^A-Za-z0-9_.*> ,\t\r\n-]/', $prelude)
+                    || str_contains($prelude, '*')
+                    || preg_match('/(?<![A-Za-z0-9_.-])style(?=[^A-Za-z0-9_-]|\z)/i', $prelude)) {
+                    // Pseudo/escaped/attribute/function/ID or sibling semantics
+                    // and STYLE/universal targets can observe removed nodes.
+                    // Declarations are deliberately opaque.
+                    return false;
+                }
+                $offset = $closing + 1;
+            }
+        } catch (RuntimeException) {
+            return false;
+        }
+
+        return true;
     }
 
     /** Bijective identifiers only: no declarations, inline fallback or rules removed. */

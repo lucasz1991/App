@@ -177,6 +177,7 @@ final class OutlookMobileSignature
         $css = '.'.$markerClass.'{display:none!important;mso-hide:all!important;font-size:0!important;line-height:0!important;}';
         $index = 0;
         $styleClasses = [];
+        $mirrorRules = [];
         $coverage = [];
         $usedClasses = [];
         foreach ($xpath->query('.//*[@class]', $root) as $element) {
@@ -203,15 +204,16 @@ final class OutlookMobileSignature
                 } while (isset($usedClasses[$class]));
                 $usedClasses[$class] = true;
                 $styleClasses[$key] = $class;
-                $css .= $selector.($ordinary ? '.rtm' : '').' .'.$class.'{'
-                    .self::importantDeclarations($declarations).'}';
+                $mirrorRules[$class] = ['ordinary' => $ordinary, 'declarations' => $declarations, 'nodes' => []];
             }
             $class = $styleClasses[$key];
             $element->setAttribute('class', trim($element->getAttribute('class').' '.$class));
+            $mirrorRules[$class]['nodes'][] = $element;
             if ($ordinary) {
                 $coverage[$class][] = ['node' => $element, 'properties' => self::coveredProperties($declarations)];
             }
         }
+        $css .= self::factorMirrorRules($selector, $mirrorRules, $xpath, $root, $html);
         $css .= $selector.' .rt-contact-icon{width:17px!important;}';
         if ($canonicalRuntime !== null) {
             $canonicalRuntime->textContent = self::projectCoveredRuntime(
@@ -223,6 +225,7 @@ final class OutlookMobileSignature
         $style->setAttribute('data-rt-outlook-mobile-css', '1');
         $style->appendChild($dom->createTextNode($css));
         $root->insertBefore($style, $scope);
+        self::compactMetadataStyles($xpath, $root, $canonicalRuntime, $style);
         $output = '';
         foreach ($root->childNodes as $child) {
             $output .= $dom->saveHTML($child);
@@ -248,6 +251,287 @@ final class OutlookMobileSignature
         $document['html'] = $output;
 
         return [$document, $version];
+    }
+
+    /** Keep the last exact owned metadata rule; arbitrary styles stay untouched. */
+    private static function compactMetadataStyles(DOMXPath $xpath, DOMElement $root, ?DOMElement $canonicalRuntime = null, ?DOMElement $mobileStyle = null): void
+    {
+        if ($canonicalRuntime === null || $mobileStyle === null) {
+            return;
+        }
+        $exact = '.rt-office-metadata{display:none!important;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;}';
+        foreach ($xpath->query('.//comment()', $root) as $comment) {
+            if (stripos($comment->textContent, '<style') !== false) {
+                return;
+            }
+        }
+        foreach ($xpath->query('.//style', $root) as $style) {
+            if ($style->isSameNode($canonicalRuntime) || $style->isSameNode($mobileStyle)) {
+                continue;
+            }
+            if ($style->attributes->length !== 1 || $style->getAttribute('data-rt-outlook-marker-css') !== '1'
+                || $style->textContent !== $exact) {
+                // An editable sheet can observe STYLE as a displayed element
+                // (including plain style/*/attribute selectors), not merely
+                // structural pseudo classes. Only positively owned identities
+                // and the exact marker rule permit this node-level dedup.
+                return;
+            }
+        }
+        preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $root->ownerDocument->saveHTML($root), $styles);
+        foreach ($styles[1] as $css) {
+            if (str_contains($css, '\\')) {
+                return;
+            }
+            preg_match_all('/([^{}]+)\{/s', $css, $preludes);
+            foreach ($preludes[1] as $prelude) {
+                if (! str_starts_with(trim($prelude), '@') && strpbrk($prelude, ':+~') !== false) {
+                    // STYLE is still an element: removing a duplicate can
+                    // change authored :first-child/:nth-child/:has or sibling
+                    // matches even though its global CSS is byte-identical.
+                    return;
+                }
+            }
+        }
+        $owned = [];
+        foreach ($xpath->query('.//style[@data-rt-outlook-marker-css="1"]', $root) as $style) {
+            if ($style->attributes->length === 1 && $style->textContent === $exact
+                && $style->parentNode instanceof DOMElement && strtolower($style->parentNode->tagName) === 'td') {
+                $owned[] = $style;
+            }
+        }
+        array_pop($owned);
+        foreach ($owned as $style) {
+            $style->parentNode->removeChild($style);
+        }
+    }
+
+    /**
+     * Factor own ordinary mirrors only, keeping each interaction family's
+     * declaration/fallback order. Frame/train/metadata rules are not eligible.
+     * No inline declaration, authored stylesheet or DOM content is rewritten.
+     */
+    private static function factorMirrorRules(string $selector, array $rules, DOMXPath $xpath, DOMElement $root, string $original): string
+    {
+        $inventory = [];
+        $opaque = count($rules) > 128;
+        foreach ($xpath->query('.//*[@class]', $root) as $element) {
+            foreach (preg_split('/\s+/', trim($element->getAttribute('class'))) as $class) {
+                $inventory[$class] = true;
+            }
+        }
+        foreach ($xpath->query('.//style', $root) as $style) {
+            if (str_contains($style->textContent, '\\') || str_contains($style->textContent, '[')) {
+                $opaque = true;
+            }
+        }
+        // Include normal/conditional HTML attributes and all selector spellings,
+        // not merely classes present in the modern DOM. Escaped CSS fails opaque.
+        $rawInventoryHtml = $original.$root->ownerDocument->saveHTML($root);
+        preg_match_all('~\bclass\s*=\s*(["\'])(.*?)\1~is', $rawInventoryHtml, $rawAttributes);
+        foreach ($rawAttributes[2] as $classes) {
+            $decoded = html_entity_decode($classes, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if (str_contains($decoded, '"') || str_contains($decoded, "'")) {
+                // Opaque conditional markup has no reliable DOM inventory.
+                // Ambiguous quote entities keep all original mirrors instead.
+                $opaque = true;
+            }
+        }
+        $inventoryHtml = html_entity_decode($rawInventoryHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        preg_match_all('~<style\b[^>]*>(.*?)</style\s*>~is', $inventoryHtml, $allStyles);
+        foreach ($allStyles[1] as $style) {
+            if (str_contains($style, '\\') || str_contains($style, '[')) {
+                $opaque = true;
+            }
+        }
+        preg_match_all('/\.([a-z_][a-z0-9_-]*)/i', $inventoryHtml, $selectors);
+        foreach ($selectors[1] as $class) {
+            $inventory[$class] = true;
+        }
+        preg_match_all('~\bclass\s*=\s*(["\'])(.*?)\1~is', $inventoryHtml, $attributes);
+        foreach ($attributes[2] as $classes) {
+            foreach (preg_split('/\s+/', trim($classes)) as $class) {
+                $inventory[$class] = true;
+            }
+        }
+        if (preg_match('~\bclass\s*=\s*[^\s"\']~i', $inventoryHtml)) {
+            $opaque = true;
+        }
+        $opaque = $opaque || count($inventory) > 256;
+        $families = [];
+        foreach ($rules as $class => &$rule) {
+            $rule['parts'] = self::declarationParts($rule['declarations']) ?? [];
+            if ($opaque || ! $rule['ordinary']) {
+                continue;
+            }
+            foreach ($rule['nodes'] as $node) {
+                if (in_array('rt-office-metadata', preg_split('/\s+/', trim($node->getAttribute('class'))), true)) {
+                    continue 2;
+                }
+            }
+            $family = self::factorFamilies($rule['parts']);
+            if ($family !== null) {
+                $families[$class] = $family;
+            }
+        }
+        unset($rule);
+        $bundles = [];
+        $originalFamilies = $families;
+        $bundleIndex = 0;
+        for ($iteration = 0; $iteration < 32; $iteration++) {
+            $candidates = [];
+            $classes = array_keys($families);
+            for ($left = 0; $left < count($classes); $left++) {
+                for ($right = $left + 1; $right < count($classes); $right++) {
+                    $common = [];
+                    foreach ($families[$classes[$left]] as $family => $parts) {
+                        if (($families[$classes[$right]][$family] ?? null) === $parts) {
+                            $common[$family] = $parts;
+                        }
+                    }
+                    if ($common !== []) {
+                        ksort($common);
+                        $candidates[json_encode($common, JSON_THROW_ON_ERROR)] = $common;
+                    }
+                }
+            }
+            ksort($candidates);
+            do {
+                $alias = 'g'.base_convert((string) ++$bundleIndex, 10, 36);
+            } while (isset($inventory[$alias]));
+            $best = null;
+            foreach ($candidates as $common) {
+                $members = [];
+                $nodeCount = 0;
+                foreach ($families as $class => $family) {
+                    $matches = true;
+                    foreach ($common as $name => $parts) {
+                        if (($family[$name] ?? null) !== $parts) {
+                            $matches = false;
+                            break;
+                        }
+                    }
+                    if ($matches) {
+                        $members[] = $class;
+                        $nodeCount += count($rules[$class]['nodes']);
+                    }
+                }
+                if (count($members) < 2) {
+                    continue;
+                }
+                $parts = array_merge(...array_values($common));
+                $body = self::importantDeclarations(implode(';', $parts));
+                $saving = (count($members) - 1) * strlen($body)
+                    - strlen($selector.'.rtm .'.$alias) - 2
+                    - $nodeCount * (strlen($alias) + 1);
+                foreach ($members as $class) {
+                    if (count($families[$class]) === count($common)) {
+                        // Count empty remainder rule savings only when there
+                        // are no opaque/non-factorable declarations left.
+                        $residual = array_filter($rules[$class]['parts'], static fn ($part) => ! in_array($part, $parts, true));
+                        if ($residual === []) {
+                            $saving += strlen($selector.'.rtm .'.$class) + 2;
+                        }
+                    }
+                }
+                if ($saving > 0 && ($best === null || $saving > $best['saving'])) {
+                    $best = ['common' => $common, 'members' => $members, 'body' => $body, 'saving' => $saving, 'alias' => $alias];
+                }
+            }
+            if ($best === null) {
+                break;
+            }
+            $inventory[$alias] = true;
+            foreach ($best['members'] as $class) {
+                $removed = array_keys($best['common']);
+                $rules[$class]['parts'] = array_values(array_filter($rules[$class]['parts'], static function ($part) use ($removed): bool {
+                    preg_match('/\A([a-z][a-z-]*):/i', $part, $match);
+
+                    return ! in_array(self::factorFamily(strtolower($match[1])), $removed, true);
+                }));
+                foreach ($removed as $family) {
+                    unset($families[$class][$family]);
+                }
+                foreach ($rules[$class]['nodes'] as $node) {
+                    $node->setAttribute('class', $node->getAttribute('class').' '.$alias);
+                }
+            }
+            $bundles[] = $best;
+        }
+        foreach ($originalFamilies as $class => $originalFamily) {
+            $expanded = self::factorFamilies($rules[$class]['parts']) ?? [];
+            foreach ($bundles as $bundle) {
+                if (! in_array($class, $bundle['members'], true)) {
+                    continue;
+                }
+                foreach ($bundle['common'] as $name => $parts) {
+                    if (isset($expanded[$name])) {
+                        throw new RuntimeException('Die mobile Stilfaktorisierung besitzt eine doppelte Deklarationsfamilie.');
+                    }
+                    $expanded[$name] = $parts;
+                }
+            }
+            ksort($expanded);
+            ksort($originalFamily);
+            if ($expanded !== $originalFamily) {
+                throw new RuntimeException('Die mobile Stilfaktorisierung veraendert die geordneten Deklarationsfamilien.');
+            }
+        }
+        $css = '';
+        foreach ($bundles as $bundle) {
+            $css .= $selector.'.rtm .'.$bundle['alias'].'{'.$bundle['body'].'}';
+        }
+        foreach ($rules as $class => $rule) {
+            if ($rule['parts'] !== []) {
+                $css .= $selector.($rule['ordinary'] ? '.rtm' : '').' .'.$class.'{'
+                    .self::importantDeclarations(implode(';', $rule['parts'])).'}';
+            }
+        }
+
+        return $css;
+    }
+
+    /** Every unknown/reset/ambiguous declaration disables factoring this rule. */
+    private static function factorFamilies(array $parts): ?array
+    {
+        $families = [];
+        foreach ($parts as $part) {
+            if (preg_match('/\A([a-z][a-z-]*):\s*(.*?)\s*(?:!important)?\z/i', $part, $match) !== 1) {
+                return null;
+            }
+            $property = strtolower($match[1]);
+            $value = preg_replace('/\s*!important\z/i', '', $match[2]);
+            $valid = self::validCoveredValue($property, $value);
+            if ($property === 'background') {
+                $valid = self::validCoveredValue('background-color', $value);
+            } elseif ($property === 'letter-spacing') {
+                $valid = preg_match('/\A(?:-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|pt|em|rem)|0|normal)\z/i', $value) === 1;
+            }
+            if (! $valid) {
+                return null;
+            }
+            $families[self::factorFamily($property)][] = $part;
+        }
+
+        return $families;
+    }
+
+    /** Shorthand/alias families cannot be split or reordered internally. */
+    private static function factorFamily(string $property): string
+    {
+        if (preg_match('/\A(?:padding|margin|background|text-decoration)(?:-|\z)/', $property, $match)) {
+            return rtrim($match[0], '-');
+        }
+        if ($property === 'border' || preg_match('/\Aborder-(?:top|right|bottom|left)(?:-|\z)/', $property)) {
+            return 'border';
+        }
+        if (in_array($property, ['overflow-wrap', 'word-wrap'], true)) {
+            return 'wrap';
+        }
+
+        // font/font-variant/all and logical/vendor resets are unsupported by
+        // factorFamilies, so these accepted physical longhands are independent.
+        return $property;
     }
 
     /** Bind only the complete server-generated runtime, before any pruning. */
@@ -336,6 +620,7 @@ final class OutlookMobileSignature
     private static function coveredProperties(string $declarations): array
     {
         $properties = [];
+        $invalidFamilies = [];
         foreach (self::declarationParts($declarations) ?? [] as $part) {
             if (preg_match('/\A([a-z][a-z-]*):\s*(.*?)\s*(?:!important)?\z/i', $part, $match) !== 1) {
                 continue;
@@ -343,6 +628,28 @@ final class OutlookMobileSignature
             $property = strtolower($match[1]);
             $valid = self::validCoveredValue($property, preg_replace('/\s*!important\z/i', '', $match[2]));
             $properties[$property] = ($properties[$property] ?? true) && $valid;
+            foreach (['padding', 'margin'] as $family) {
+                if ($property !== $family && ! str_starts_with($property, $family.'-')) {
+                    continue;
+                }
+                if (! $valid) {
+                    $invalidFamilies[$family] = true;
+                }
+                if ($property === $family && $valid) {
+                    // A validated physical shorthand necessarily writes all
+                    // four physical sides with the same important priority.
+                    foreach (['top', 'right', 'bottom', 'left'] as $side) {
+                        $properties[$family.'-'.$side] = true;
+                    }
+                }
+            }
+        }
+        foreach (array_keys($invalidFamilies) as $family) {
+            foreach (array_keys($properties) as $property) {
+                if ($property === $family || str_starts_with($property, $family.'-')) {
+                    unset($properties[$property]);
+                }
+            }
         }
 
         return array_filter($properties);
@@ -522,19 +829,36 @@ final class OutlookMobileSignature
             } elseif (str_starts_with(trim($prelude), '@')) {
                 $output .= substr($css, $offset, $closing - $offset + 1);
             } else {
-                $properties = [];
                 $parts = self::declarationParts($body);
                 foreach ($parts ?? [] as $part) {
                     if (preg_match('/\A([a-z][a-z-]*):/i', $part, $match) !== 1) {
                         $parts = null;
                         break;
                     }
-                    $properties[] = strtolower($match[1]);
                 }
                 $selectors = explode(',', $prelude);
-                $kept = array_filter($selectors, static fn ($selector) => $parts === null || ! self::coveredSelector($selector, $properties, $xpath, $scope, $scopeClass, $coverage, $conditional));
-                if ($kept !== []) {
-                    $output .= implode(',', $kept).'{'.$body.'}';
+                if ($parts === null) {
+                    $output .= $prelude.'{'.$body.'}';
+                } else {
+                    $kept = [];
+                    foreach ($parts as $part) {
+                        preg_match('/\A([a-z][a-z-]*):/i', $part, $match);
+                        $property = strtolower($match[1]);
+                        // Never split/move selector branches. A declaration
+                        // can vanish only when every branch and physical node
+                        // is independently covered; otherwise retain its exact
+                        // raw bytes and original relative declaration order.
+                        foreach ($selectors as $selector) {
+                            if (! self::coveredSelector($selector, [$property], $xpath, $scope, $scopeClass, $coverage, $conditional)) {
+                                $kept[] = $part;
+
+                                continue 2;
+                            }
+                        }
+                    }
+                    if ($kept !== []) {
+                        $output .= $prelude.'{'.($kept === $parts ? $body : implode(';', $kept).';').'}';
+                    }
                 }
             }
             $offset = $closing + 1;

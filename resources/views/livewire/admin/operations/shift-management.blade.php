@@ -280,7 +280,6 @@
                                                 Keine erforderlich
                                             @endif
                                         </x-operations.panel.row>
-                                        <x-operations.panel.row label="Veröffentlichung">Revision {{ $selectedShift->revision }} · {{ $shiftPublished ? 'veröffentlicht' : 'Entwurf' }}</x-operations.panel.row>
                                     @endif
                                 </dl>
                             </x-operations.panel.group>

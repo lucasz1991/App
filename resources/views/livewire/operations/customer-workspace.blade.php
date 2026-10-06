@@ -2,14 +2,14 @@
     @if(!$customerId)
         <x-operations.surface>
             <x-slot:actions>
-                <span class="mr-auto text-sm text-rt-muted dark:text-rt-dark-muted" aria-live="polite">{{ number_format($customers->total(), 0, ',', '.') }} Kunden</span>
+                <span class="mr-auto text-sm text-rt-muted dark:text-rt-dark-muted" aria-live="polite">{{ number_format($customers->total(), 0, ',', '.') }} {{ $customers->total()===1?'Kunde':'Kunden' }}</span>
                 @if($canCreate)
                     <x-ui.buttons.button-basic type="button" mode="primary" wire:click="createCustomer"><i class="far fa-plus" aria-hidden="true"></i>Kunde anlegen</x-ui.buttons.button-basic>
                 @endif
             </x-slot:actions>
             <x-tables.toolbar id="customer-list-filters" :single-line="true" :filter-count="$activeFilterCount" title="Kunden filtern" reset-action="resetFilters" search-for="customer-list-search">
                 <x-slot:search>
-                    <x-tables.search-field id="customer-list-search" :results-count="$customers->total()" placeholder="Kunden suchen" wire:model.live.debounce.300ms="search" />
+                    <x-tables.search-field id="customer-list-search" :results-count="$customers->total()" placeholder="Kunden suchen" maxlength="100" wire:model.live.debounce.300ms="search" />
                 </x-slot:search>
                 @if($canCreate)
                     <x-tables.filter-field label="Status" icon="far fa-signal-alt-3" for="customer-status-filter">
