@@ -1,6 +1,6 @@
 <div class="space-y-5">
     @if($profile['metrics'])
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" aria-label="Kundenkennzahlen">
+        <div @class(['grid gap-3', 'grid-cols-1'=>count($profile['metrics'])===1, 'grid-cols-2'=>count($profile['metrics'])>1, 'sm:grid-cols-3'=>count($profile['metrics'])>=3, 'xl:grid-cols-4'=>count($profile['metrics'])===4, 'xl:grid-cols-5'=>count($profile['metrics'])===5, 'xl:grid-cols-6'=>count($profile['metrics'])>=6]) aria-label="Kundenkennzahlen">
             @foreach($profile['metrics'] as $metric)
                 @if(isset($views[$metric['view']]))
                 <a href="#" wire:click.prevent="setView('{{ $metric['view'] }}')" class="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/50" aria-label="{{ $metric['label'] }}: {{ $metric['value'] }}. Öffnen">

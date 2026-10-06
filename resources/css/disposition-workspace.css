@@ -286,7 +286,13 @@ body:has(#main-content .rt-shift-plan) { height: 100%; min-height: 0; overflow: 
 .rt-disposition-page:has(.rt-shift-plan) > [data-page-loading-region] > [data-page-live-content] { display: flex; min-height: 0; overflow: hidden; flex: 1 1 auto; flex-direction: column; }
 [data-page-live-content]:has(> .rt-shift-plan) { gap: 4px; }
 [data-page-live-content]:has(> .rt-shift-plan) > .ops-module-navigation { flex: 0 0 auto; }
-[data-page-live-content]:has(> .rt-shift-plan) > .rt-shift-plan { min-height: 0; overflow: hidden; flex: 1 1 auto; }
+/* The workspace route adds two hosts around the planner. Carry the bounded
+   flex height through both, otherwise the timeline grows beyond the clipped
+   page and its vertical scrollport and bottom horizontal scrollbar disappear. */
+[data-page-live-content] > [data-page-workspace-content]:has(.rt-shift-plan),
+[data-page-workspace-content] > [data-planning-workspace='shifts']:has(> .rt-shift-plan) { display: flex; min-height: 0; overflow: hidden; flex: 1 1 auto; flex-direction: column; }
+[data-page-live-content]:has(> .rt-shift-plan) > .rt-shift-plan,
+[data-planning-workspace='shifts'] > .rt-shift-plan { min-height: 0; overflow: hidden; flex: 1 1 auto; }
 .rt-disposition--shifts > [data-shift-view] { display: flex; min-height: 0; overflow: hidden; flex: 1 1 auto; flex-direction: column; }
 .rt-disposition--shifts > [data-shift-view]:not(:has(.rt-staff-timeline-layout)) { overflow: auto; overscroll-behavior: contain; }
 .rt-staff-timeline-layout { display: flex; min-height: 0; overflow: hidden; flex: 1 1 auto; flex-direction: column; gap: 8px; }

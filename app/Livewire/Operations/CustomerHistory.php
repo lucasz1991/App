@@ -188,15 +188,26 @@ class CustomerHistory extends Component
             }
 
             return $driver === 'sqlite'
-                ? "datetime(".$column.", '".(-$offset >= 0 ? '+' : '').(-$offset)." seconds')"
+                ? 'datetime('.$column.", '".(-$offset >= 0 ? '+' : '').(-$offset)." seconds')"
                 : 'DATE_SUB('.$column.', INTERVAL '.$offset.' SECOND)';
         };
         $clauses = [];
-        foreach (array_reverse(array_slice($transitions, 1)) as $transition) {
+        for ($index = count($transitions) - 1; $index >= 1; $index--) {
+            $transition = $transitions[$index];
             $offset = (int) $transition['offset'];
-            $boundary = CarbonImmutable::createFromTimestampUTC((int) $transition['ts'] + $offset)->format('Y-m-d H:i:s');
+            $boundaryOffset = $offset;
+            $previousOffset = (int) $transitions[$index - 1]['offset'];
+            if ($offset < $previousOffset) {
+                // A legacy local timestamp has no fold marker. Match the display parser's
+                // deterministic interpretation; do not claim to reconstruct the lost offset.
+                $repeatedStart = CarbonImmutable::createFromTimestampUTC((int) $transition['ts'] + $offset)->format('Y-m-d H:i:s');
+                if (CarbonImmutable::parse($repeatedStart, $timezone)->getOffset() === $previousOffset) {
+                    $boundaryOffset = $previousOffset;
+                }
+            }
+            $boundary = CarbonImmutable::createFromTimestampUTC((int) $transition['ts'] + $boundaryOffset)->format('Y-m-d H:i:s');
             // Literals come only from timezone offsets and formatted transition instants.
-            $clauses[] = "WHEN ".$column." >= '".$boundary."' THEN ".$shift($offset);
+            $clauses[] = 'WHEN '.$column." >= '".$boundary."' THEN ".$shift($offset);
         }
         $local = $clauses ? 'CASE '.implode(' ', $clauses).' ELSE '.$shift($baseOffset).' END' : $shift($baseOffset);
 

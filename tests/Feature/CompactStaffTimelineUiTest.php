@@ -10,6 +10,69 @@ use Tests\TestCase;
 
 class CompactStaffTimelineUiTest extends TestCase
 {
+    public function test_shift_workspace_wrappers_pass_the_bounded_height_to_both_planner_entry_points(): void
+    {
+        $workspace = file_get_contents(resource_path('views/livewire/operations/page-workspace.blade.php'));
+        $planning = file_get_contents(resource_path('views/livewire/operations/planning-page-workspace.blade.php'));
+        $css = str_replace("'", '"', file_get_contents(resource_path('css/disposition-workspace.css')));
+
+        $this->assertMatchesRegularExpression('/<div\b[^>]*data-page-workspace-content[^>]*>/', $workspace);
+        $this->assertStringContainsString('data-planning-workspace="{{ $page }}"', $planning);
+        $this->assertStringContainsString('<livewire:admin.operations.shift-management', $planning);
+
+        // The hub adds two ancestors that the original direct workspace did not have.
+        // Every one must shrink inside the viewport instead of growing to all staff rows.
+        foreach ([
+            '[data-page-workspace-content]:has(.rt-shift-plan)',
+            '[data-planning-workspace="shifts"]:has(> .rt-shift-plan)',
+        ] as $selector) {
+            $declarations = $this->cssDeclarationsFor($css, $selector);
+            foreach (['display: flex', 'flex-direction: column', 'flex: 1 1 auto', 'min-height: 0', 'overflow: hidden'] as $declaration) {
+                $this->assertStringContainsString($declaration, $declarations, $selector.' must pass the bounded planner height');
+            }
+        }
+
+        foreach ([
+            '[data-page-live-content]:has(> .rt-shift-plan) > .rt-shift-plan',
+            '[data-planning-workspace="shifts"] > .rt-shift-plan',
+        ] as $selector) {
+            $declarations = $this->cssDeclarationsFor($css, $selector);
+            foreach (['min-height: 0', 'overflow: hidden', 'flex: 1 1 auto'] as $declaration) {
+                $this->assertStringContainsString($declaration, $declarations, $selector.' must keep the planner inside its parent');
+            }
+        }
+    }
+
+    public function test_timeline_preserves_native_two_axis_scrolling_and_synchronized_header_and_footer(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $scrollport = $this->cssDeclarationsFor($css, '.rt-personnel-timeline-body');
+
+        foreach (['min-height: 0', 'flex: 1 1 auto', 'overflow: auto', 'overscroll-behavior: contain'] as $declaration) {
+            $this->assertStringContainsString($declaration, $scrollport);
+        }
+        $this->assertMatchesRegularExpression('/class="rt-personnel-timeline-body snap-x snap-mandatory"[^>]+x-ref="timelineBody"[^>]+x-on:scroll.passive="syncHorizontal\(\$event.target\)"/', $view);
+        $this->assertStringContainsString('x-ref="timelineHeader"', $view);
+        $this->assertStringContainsString('x-ref="timelineScrollbar" x-on:scroll="syncHorizontal($event.target)"', $view);
+        $this->assertStringContainsString('data-no-sidebar-swipe', $view);
+        $this->assertStringNotContainsString('x-on:wheel.prevent', $view);
+        $this->assertStringNotContainsString('x-on:touchmove.prevent', $view);
+    }
+
+    private function cssDeclarationsFor(string $css, string $selector): string
+    {
+        preg_match_all('/([^{}]+)\{([^{}]*)\}/', $css, $rules, PREG_SET_ORDER);
+        $declarations = '';
+        foreach ($rules as $rule) {
+            if (str_contains($rule[1], $selector)) {
+                $declarations .= $rule[2];
+            }
+        }
+
+        return preg_replace('/\s+/', ' ', $declarations);
+    }
+
     public function test_event_details_open_only_on_click_without_removing_workload_hover(): void
     {
         $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));

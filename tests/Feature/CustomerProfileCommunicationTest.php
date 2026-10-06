@@ -18,6 +18,7 @@ use App\Models\OperationInquiry;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -385,5 +387,121 @@ class CustomerProfileCommunicationTest extends TestCase
                 return ($query['section'] ?? null) === 'portal' && ($query['source'] ?? null) === 'submission' && ($query['record'] ?? null) === (string) $submission->id && ($query['revision'] ?? null) === '7' && ! isset($query['inquiry']);
             });
         Mail::assertNothingSent();
+    }
+
+    private function historyAuditAt(OperationInquiry $inquiry, CarbonImmutable $instant): void
+    {
+        OperationAudit::create(['subject_type' => 'OperationInquiry', 'subject_id' => $inquiry->id, 'actor_id' => $this->approver->id, 'action' => 'inquiry.verify', 'data' => [], 'created_at' => $instant->utc()]);
+    }
+
+    private function portalAuditAt(CarbonImmutable $instant): void
+    {
+        CustomerPortalAudit::create(['customer_id' => $this->customer->id, 'actor_id' => $this->approver->id, 'action' => 'setting_disabled', 'details' => [], 'created_at' => $instant->setTimezone(config('app.timezone')), 'updated_at' => $instant->setTimezone(config('app.timezone'))]);
+    }
+
+    public function test_history_sorts_all_sources_by_utc_in_summer_and_winter(): void
+    {
+        $actor = $this->actor(['operations.manage', 'operations.inquiries.manage', 'customers.portal.manage']);
+        $this->grant($actor, ['customers.portal.manage']);
+        $inquiry = $this->inquiry($this->customer);
+        $order = $this->order($this->customer);
+        $summer = CarbonImmutable::parse('2026-07-15 10:00:00', 'UTC');
+        $winter = CarbonImmutable::parse('2026-11-15 10:00:00', 'UTC');
+        $this->customer->forceFill(['created_at' => $summer->setTimezone(config('app.timezone')), 'updated_at' => $winter->setTimezone(config('app.timezone'))])->saveQuietly();
+        foreach ([$summer, $winter] as $instant) {
+            // Legacy model intentionally excludes timestamps from mass assignment.
+            OrderStatusHistory::forceCreate(['order_id' => $order->id, 'to_status' => 'confirmed', 'changed_by' => $this->approver->id, 'created_at' => $instant->addMinutes(10)->setTimezone(config('app.timezone')), 'updated_at' => $instant->addMinutes(10)->setTimezone(config('app.timezone'))]);
+            $this->portalAuditAt($instant->addMinutes(20));
+            $this->historyAuditAt($inquiry, $instant->addMinutes(30));
+        }
+        $expected = [];
+        foreach ([$winter, $summer] as $instant) {
+            foreach (['operations' => 30, 'portal' => 20, 'orders' => 10, 'metadata' => 0] as $source => $minutes) {
+                $expected[] = [$source, $instant->addMinutes($minutes)->format('Y-m-d H:i:s')];
+            }
+        }
+        Livewire::actingAs($actor)->test(CustomerHistory::class, ['customerId' => $this->customer->id])
+            ->assertViewHas('events', function ($events) use ($expected) {
+                $actual = $events->getCollection()->map(fn ($event) => [$event->source, $event->occurred_at->format('Y-m-d H:i:s')])->all();
+                $this->assertSame($expected, $actual);
+
+                return true;
+            });
+    }
+
+    public static function chronologyTransitions(): array
+    {
+        return [
+            'spring forward' => ['2026-03-29 00:30:00', '2026-03-29 01:30:00', '2026-03-29 01:00:00'],
+            'fall back outside ambiguous hour' => ['2026-10-24 23:30:00', '2026-10-25 02:30:00', '2026-10-25 00:30:00'],
+        ];
+    }
+
+    #[DataProvider('chronologyTransitions')]
+    public function test_history_normalizes_actual_offsets_across_clock_changes(string $before, string $after, string $audit): void
+    {
+        $actor = $this->actor(['operations.inquiries.manage', 'customers.portal.manage']);
+        $this->grant($actor, ['customers.portal.manage']);
+        $inquiry = $this->inquiry($this->customer);
+        $this->portalAuditAt(CarbonImmutable::parse($before, 'UTC'));
+        $this->historyAuditAt($inquiry, CarbonImmutable::parse($audit, 'UTC'));
+        $this->portalAuditAt(CarbonImmutable::parse($after, 'UTC'));
+        Livewire::actingAs($actor)->test(CustomerHistory::class, ['customerId' => $this->customer->id])
+            ->assertViewHas('events', function ($events) use ($before, $after, $audit) {
+                $actual = $events->getCollection()->map(fn ($event) => [$event->source, $event->occurred_at->format('Y-m-d H:i:s')])->all();
+                $this->assertSame([['portal', $after], ['operations', $audit], ['portal', $before]], $actual);
+
+                return true;
+            });
+    }
+
+    public function test_history_mixed_source_pagination_keeps_normalized_chronology(): void
+    {
+        $actor = $this->actor(['operations.inquiries.manage', 'customers.portal.manage']);
+        $this->grant($actor, ['customers.portal.manage']);
+        $inquiry = $this->inquiry($this->customer);
+        $base = CarbonImmutable::parse('2026-07-15 10:00:00', 'UTC');
+        for ($index = 0; $index < 11; $index++) {
+            $this->historyAuditAt($inquiry, $base->addMinutes($index * 2));
+            $this->portalAuditAt($base->addMinutes($index * 2 + 1));
+        }
+        Livewire::actingAs($actor)->test(CustomerHistory::class, ['customerId' => $this->customer->id])
+            ->assertViewHas('events', function ($events) use ($base) {
+                $this->assertSame(22, $events->total());
+                $this->assertSame(20, $events->count());
+                $this->assertSame('portal', $events->first()->source);
+                $this->assertSame($base->addMinutes(21)->format('Y-m-d H:i:s'), $events->first()->occurred_at->format('Y-m-d H:i:s'));
+                $this->assertSame('operations', $events->last()->source);
+                $this->assertSame($base->addMinutes(2)->format('Y-m-d H:i:s'), $events->last()->occurred_at->format('Y-m-d H:i:s'));
+
+                return true;
+            })
+            ->call('setPage', 2, 'customerHistoryPage')->assertViewHas('events', function ($events) use ($base) {
+                $this->assertSame([['portal', $base->addMinute()->format('Y-m-d H:i:s')], ['operations', $base->format('Y-m-d H:i:s')]], $events->getCollection()->map(fn ($event) => [$event->source, $event->occurred_at->format('Y-m-d H:i:s')])->all());
+
+                return true;
+            });
+    }
+
+    public function test_legacy_repeated_hour_sort_matches_its_display_parser(): void
+    {
+        $actor = $this->actor(['operations.inquiries.manage', 'customers.portal.manage']);
+        $this->grant($actor, ['customers.portal.manage']);
+        $inquiry = $this->inquiry($this->customer);
+        // The old local column cannot distinguish both folds; test its existing parser
+        // interpretation rather than inventing the originally recorded offset.
+        $interpreted = CarbonImmutable::parse('2026-10-25 02:30:00', config('app.timezone'))->utc();
+        $this->portalAuditAt($interpreted);
+        $this->historyAuditAt($inquiry, $interpreted->addMinutes(15));
+        Livewire::actingAs($actor)->test(CustomerHistory::class, ['customerId' => $this->customer->id])
+            ->assertViewHas('events', function ($events) use ($interpreted) {
+                $this->assertSame(['operations', 'portal'], $events->getCollection()->pluck('source')->all());
+                foreach ($events as $event) {
+                    $this->assertSame($event->occurred_at->format('Y-m-d H:i:s'), $event->chronological_at);
+                }
+                $this->assertSame($interpreted->format('Y-m-d H:i:s'), $events->last()->occurred_at->format('Y-m-d H:i:s'));
+
+                return true;
+            });
     }
 }
