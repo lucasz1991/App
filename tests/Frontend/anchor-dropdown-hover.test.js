@@ -101,6 +101,55 @@ function fixture(options = { openOnHover: true }) {
     };
 }
 
+test('opt-in external trigger anchors the shared panel and restores keyboard focus', () => {
+    const { dropdown, document, refs } = fixture({ openOnHover: false });
+    const anchor = document.getElementById('outside');
+    let focused = false;
+    anchor.focus = () => { focused = true; };
+    dropdown.layerId = 'test';
+    dropdown.startPositionTracking = () => {};
+    dropdown.openFromAnchor({ detail: { id: 'another-panel', anchor } });
+    assert.equal(dropdown.open, false);
+    dropdown.openFromAnchor({ detail: { id: 'test', anchor } });
+    assert.equal(dropdown.open, true);
+    assert.equal(dropdown.resolvePositionAnchor(), anchor);
+    assert.equal(anchor.getAttribute('aria-expanded'), 'true');
+    dropdown.close(true);
+    assert.equal(focused, true);
+    assert.equal(dropdown.open, false);
+    assert.ok(refs.panel);
+});
+
+test('external timeline anchor follows mirrored footer scroll but closes when out of view', () => {
+    const f = fixture({ openOnHover: false });
+    const root = f.document.getElementById('root');
+    root.setAttribute('data-rt-dropdown-scroll-root', '');
+    const anchor = f.refs.trigger.querySelector('button');
+    const footer = f.document.createElement('div');
+    root.appendChild(footer);
+    root.getBoundingClientRect = () => ({ left: 0, right: 700, top: 100, bottom: 600 });
+    anchor.getBoundingClientRect = () => ({ left: 180, right: 400, top: 200, bottom: 248 });
+    let positioned = 0;
+    Object.assign(f.dropdown, { open: true, externalAnchor: anchor, schedulePosition: () => positioned++ });
+    f.dropdown.handleTrackedScroll({ target: footer });
+    assert.equal(f.dropdown.open, true);
+    assert.equal(positioned, 1);
+    anchor.getBoundingClientRect = () => ({ left: 720, right: 900, top: 200, bottom: 248 });
+    f.dropdown.handleTrackedScroll({ target: footer });
+    assert.equal(f.dropdown.open, false);
+});
+
+test('teleported panel close notifies only its identified timeline controller', async () => {
+    const f = fixture();
+    const events = [];
+    f.dropdown.$dispatch = (name, detail) => events.push({ name, detail });
+    f.dropdown.open = true;
+    f.dropdown.close();
+    assert.deepEqual(events, [{ name: 'dropdown-closed', detail: { id: f.dropdown.layerId } }]);
+    const timeline = await readFile(new URL('../../resources/views/livewire/operations/staff-timeline.blade.php', import.meta.url), 'utf8');
+    assert.match(timeline, /x-on:dropdown-closed\.window="if \(\$event\.detail\?\.id === layerId\) closePlanner\(\)"/);
+});
+
 const mouse = { pointerType: 'mouse' };
 
 test('hover is opt-in and ordinary dropdown click toggles remain unchanged', () => {

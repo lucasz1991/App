@@ -19,6 +19,7 @@
   'openOnHover'       => false,
   'hoverOpenDelay'    => 100,
   'hoverCloseDelay'   => 180,
+  'externalTrigger'  => false,
 ])
 
 @php
@@ -66,6 +67,7 @@
   x-data="{
     open: false,
     pinned: false,
+    externalAnchor: null,
     pointerOverTrigger: false,
     pointerOverPanel: false,
     hoverOpenTimer: null,
@@ -127,6 +129,7 @@
     },
 
     resolvePositionAnchor() {
+      if (this.externalAnchor?.isConnected) return this.externalAnchor;
       if (this.anchorSelector && this.$root instanceof Element) {
         const externalAnchor = this.$root.closest(this.anchorSelector);
         if (externalAnchor) return externalAnchor;
@@ -137,7 +140,7 @@
     },
 
     clearExternalAnchorAccessibility() {
-      if (!this.anchorSelector) return;
+      if (!this.anchorSelector && !this.externalAnchor) return;
 
       const externalAnchor = this.resolvePositionAnchor();
       if (externalAnchor?.getAttribute('aria-controls') !== @js($dropdownPanelId)) return;
@@ -162,6 +165,22 @@
       }
 
       this.openDropdown(true);
+    },
+
+    openFromAnchor(event) {
+      if (event.detail?.id !== this.layerId || !(event.detail.anchor instanceof Element)) return;
+      this.clearExternalAnchorAccessibility();
+      this.externalAnchor = event.detail.anchor;
+      this.openDropdown(true);
+      this.$nextTick(() => {
+        this.syncTriggerAccessibility();
+        this.startPositionTracking();
+      });
+    },
+
+    focusExternalPanel(event) {
+      if (event.detail?.id !== this.layerId || !this.open) return;
+      this.$nextTick(() => this.$refs.panel?.querySelector('[data-dropdown-initial-focus]')?.focus({ preventScroll: true }));
     },
 
     openDropdown(pinned = false) {
@@ -265,6 +284,7 @@
 
       this.open = false;
       this.stopPositionTracking();
+      this.$dispatch('dropdown-closed', { id: this.layerId });
 
       if (restoreFocus) {
         this.$nextTick(() => {
@@ -370,6 +390,20 @@
         )
       ) {
         return;
+      }
+
+      // A timeline can re-snap after Livewire morphs its content. Follow the
+      // selected cell while it remains visible instead of dismissing its result.
+      const scrollRoot = this.externalAnchor?.closest('[data-rt-dropdown-scroll-root]');
+      if (this.externalAnchor?.isConnected && target instanceof Element
+        && (target.contains(this.externalAnchor) || scrollRoot?.contains(target))) {
+        const anchorRect = this.externalAnchor.getBoundingClientRect();
+        const viewportRect = (scrollRoot || target).getBoundingClientRect();
+        if (anchorRect.right > viewportRect.left && anchorRect.left < viewportRect.right
+          && anchorRect.bottom > viewportRect.top && anchorRect.top < viewportRect.bottom) {
+          this.schedulePosition(panel);
+          return;
+        }
       }
 
       this.close();
@@ -710,6 +744,11 @@
   @rt-navigation:prepare.window="close()"
   @rt-dropdown-parent-close.stop="close()"
   @rt-topbar-layer-open.window="handleLayerOpen($event)"
+  @if($externalTrigger)
+    @rt-anchor-dropdown-open.window="openFromAnchor($event)"
+    @rt-anchor-dropdown-focus.window="focusExternalPanel($event)"
+    @rt-anchor-dropdown-close.window="if ($event.detail?.id === layerId) close(true)"
+  @endif
 >
   <div
     class="rt-ui-dropdown-trigger {{ $triggerClasses }}"

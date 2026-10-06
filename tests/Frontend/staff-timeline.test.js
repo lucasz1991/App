@@ -1,6 +1,110 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { staffTimeline, timelineDayWidth, timelineDayOffset, timelineEventLanes } from '../../resources/js/staff-timeline.js';
+import { timelinePlanning } from '../../resources/js/timeline-planning-actions.js';
+
+function planningFixture() {
+    const events = [];
+    const planner = timelinePlanning();
+    Object.assign(planner, { $wire: { $id: 'qa', assignmentOpen: false }, $dispatch: (name, detail) => events.push({ name, detail }), $nextTick: (fn) => fn() });
+    const cell = (user, date = '2027-05-13') => {
+        const anchor = { dataset: { user: String(user), date }, isConnected: true, removeAttribute(name) { delete this[name]; }, contains: () => false };
+        anchor.closest = () => anchor;
+        return anchor;
+    };
+    return { planner, events, cell };
+}
+
+test('cell opens one anchored panel immediately; late closed results cannot reopen it', async () => {
+    const { planner, cell, events } = planningFixture();
+    let resolve;
+    planner.request = () => new Promise((done) => { resolve = done; });
+    planner.openPlanner({ target: cell(2) });
+    assert.equal(planner.plannerVisible, true);
+    assert.equal(planner.plannerLoading, true);
+    assert.equal(events[0].detail.id, 'rt-dropdown-timeline-planner-qa');
+    planner.closePlanner();
+    resolve();
+    await new Promise((done) => setImmediate(done));
+    assert.equal(planner.plannerVisible, false);
+    assert.equal(planner.$wire.assignmentOpen, false);
+    assert.equal(events.some((event) => event.name === 'rt-anchor-dropdown-focus'), false);
+});
+
+test('rapid cell changes serialize requests and only focus the latest selection', async () => {
+    const { planner, cell, events } = planningFixture();
+    const calls = [];
+    const resolves = [];
+    planner.request = (method, args) => { calls.push([method, args]); return new Promise((resolve) => resolves.push(resolve)); };
+    planner.openPlanner({ target: cell(1) });
+    planner.openPlanner({ target: cell(2) });
+    planner.openPlanner({ target: cell(3) });
+    assert.equal(calls.length, 1);
+    resolves.shift()();
+    await new Promise((done) => setImmediate(done));
+    assert.deepEqual(calls.map((call) => call[1][0]), [1, 3]);
+    resolves.shift()();
+    await new Promise((done) => setImmediate(done));
+    assert.equal(planner.plannerLoading, false);
+    assert.equal(events.filter((event) => event.name === 'rt-anchor-dropdown-focus').length, 1);
+});
+
+test('results stay hidden through the Livewire morph and a closed render cannot reveal stale content', async () => {
+    const { planner, cell } = planningFixture();
+    const ticks = [];
+    planner.$nextTick = (fn) => ticks.push(fn);
+    planner.request = async () => {};
+    planner.openPlanner({ target: cell(1) });
+    await new Promise((done) => setImmediate(done));
+    assert.equal(planner.plannerLoading, true);
+    assert.equal(planner.plannerReady, false);
+    ticks.shift()();
+    await new Promise((done) => setImmediate(done));
+    assert.equal(planner.plannerReady, true);
+    assert.equal(planner.plannerLoading, false);
+    ticks.shift()();
+    planner.openPlanner({ target: cell(2) });
+    await new Promise((done) => setImmediate(done));
+    assert.equal(planner.plannerReady, false);
+    planner.closePlanner();
+    ticks.shift()();
+    await new Promise((done) => setImmediate(done));
+    assert.equal(planner.plannerReady, false);
+    assert.equal(planner.plannerVisible, false);
+});
+
+test('hover preview is debounced, cached, never opens an assignment and ignores obsolete anchors', async () => {
+    const { planner, cell } = planningFixture();
+    const first = cell(1), next = cell(2);
+    let calls = 0;
+    planner.request = async () => { calls++; return { state: 'suitable', label: '1 passend', detail: 'Vorläufig' }; };
+    planner.hoverCell({ target: first, pointerType: 'touch' });
+    assert.equal(planner.hoverAnchor, null);
+    planner.hoverCell({ target: first, pointerType: 'mouse' });
+    planner.clearHover();
+    planner.hoverCell({ target: next, pointerType: 'mouse' });
+    await new Promise((done) => setTimeout(done, 310));
+    assert.equal(calls, 1);
+    assert.equal(next.dataset.fit, 'suitable');
+    assert.equal(first.dataset.fit, undefined);
+    assert.equal(planner.plannerVisible, false);
+    planner.clearHover();
+    planner.hoverCell({ target: next, pointerType: 'mouse' });
+    await new Promise((done) => setTimeout(done, 310));
+    assert.equal(calls, 1);
+    planner.invalidate();
+    assert.equal(planner.hoverCache.size, 0);
+    assert.equal(next.dataset.fit, undefined);
+});
+
+test('failed selection shows an error without leaving a permanent loading panel', async () => {
+    const { planner, cell } = planningFixture();
+    planner.request = async () => { throw new Error('offline'); };
+    planner.openPlanner({ target: cell(1) });
+    await new Promise((done) => setImmediate(done));
+    assert.equal(planner.plannerLoading, false);
+    assert.match(planner.plannerError, /erneut versuchen/);
+});
 
 test('responsive widths fit complete days, including narrow phones and single-day ranges', () => {
     for (const [available, minimum, days, expected] of [[1200, 190, 7, 200], [147, 190, 7, 147], [440, 190, 1, 440], [570, 190, 7, 190], [500, 190, 94, 250]]) {

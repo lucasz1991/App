@@ -5,9 +5,12 @@ import {
 import {
     automaticTemplate,
     combinedComposeDocument,
+    hasMobileTemplateOwnership,
+    insertMobileCombinedTemplate,
     isMobileComposeHost,
     isTemplateInsertionBlocked,
     nativeComposeTemplate,
+    mobileCombinedComposeDocument,
     prependTemplate,
     readTemplateState,
     supportsTemplatePrepend,
@@ -48,7 +51,7 @@ function reportRuntimePhase(phase) {
     try {
         const url = new URL(configuredUrl());
         url.searchParams.set('rt_phase', phase);
-        url.searchParams.set('rt_rev', 'combined-compose-20261006');
+        url.searchParams.set('rt_rev', 'mobile-combined-20261006');
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
         const timer = controller ? setTimeout(() => controller.abort(), 2000) : null;
         Promise.resolve().then(() => fetch(url.toString(), {
@@ -518,10 +521,40 @@ async function applyPublishedContent(item, isActive = () => true) {
         return 'skipped';
     }
     if (templateState.legacySignatureEmbedded) return 'already-present';
+    if (isMobileComposeHost(Office) && (templateState.present || await hasMobileTemplateOwnership(Office, item))) {
+        // Never refresh a mobile native slot that may now contain editable
+        // message text, even if its original default was later withdrawn.
+        return 'already-present';
+    }
 
     const canInsertTemplate = supportsTemplatePrepend(Office, item);
     let template = null;
     const selected = templateState.present ? null : automaticTemplate(bootstrap);
+    const mobileSelected = isMobileComposeHost(Office) ? automaticTemplate(bootstrap) : null;
+    if (mobileSelected && mobileSelected.mobileComposeDocumentMode !== undefined) {
+        // The approved mobile profile is already one complete, budgeted native
+        // document. No template/body-selection write or later partial signature
+        // refresh follows the only nonempty supported native signature call.
+        // A completed native-slot session still owns its editable text even
+        // after the user removes visible/hidden markers. Never let present=true
+        // bypass this coordinator and fall through to a standalone signature.
+        const combined = validatedDocument(mobileCombinedComposeDocument(mobileSelected), 'template', config.marker);
+        if (typeof item?.addFileAttachmentFromBase64Async !== 'function') throw codedError('COMPOSE_API_UNAVAILABLE');
+        try {
+            await diagnoseStep('template-write', () => insertMobileCombinedTemplate(Office, item, combined.html, assertTarget, {
+                media: combined.media,
+                beforeInsert: () => attachInlineMedia(item, combined.media, assertTarget),
+            }));
+            pendingNativeSignatures.delete(item);
+            return 'applied';
+        } catch (error) {
+            const code = safeErrorCode(error);
+            if (code === 'TEMPLATE_ALREADY_INSERTED') return 'already-present';
+            if (['TEMPLATE_INSERT_IN_PROGRESS', 'TEMPLATE_INSERT_UNCERTAIN',
+                'INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(code)) return 'uncertain';
+            throw error;
+        }
+    }
     if (selected && canInsertTemplate && selected.composeDocumentMode !== undefined) {
         // One nonempty body write owns template AND signature. Clear only the
         // host-owned signature before that write, never rewrite the full body

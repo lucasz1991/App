@@ -6,8 +6,11 @@ use App\Livewire\Operations\StaffTimeline;
 use App\Models\AbsenceRequest;
 use App\Models\Customer;
 use App\Models\EmployeeAvailability;
+use App\Models\EmployeeWorkModel;
 use App\Models\OperationsRuleProfile;
 use App\Models\Order;
+use App\Models\PersonnelTraining;
+use App\Models\PersonnelTrainingParticipant;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
@@ -60,7 +63,7 @@ class TimelinePlanningActionsTest extends TestCase
     public function test_cell_actions_are_opt_in_and_suggestions_default_off(): void
     {
         $this->timeline(false)->assertDontSee('data-timeline-cell-action', false)->assertDontSee('data-timeline-proposal', false)->call('toggleSuggestions')->assertForbidden();
-        $this->timeline()->assertSee('data-timeline-cell-action', false)->assertSee('<div class="hidden" data-timeline-modal-host>', false)->assertSet('showSuggestions', false)->assertDontSee('data-timeline-proposal', false);
+        $this->timeline()->assertSee('data-timeline-cell-action', false)->assertSee('data-timeline-planner', false)->assertDontSee('data-timeline-modal-host', false)->assertSet('showSuggestions', false)->assertDontSee('data-timeline-proposal', false);
         $this->assertSame(0, ShiftAssignment::count());
     }
 
@@ -142,7 +145,8 @@ class TimelinePlanningActionsTest extends TestCase
         }
         $this->assertSame(1, ShiftAssignment::count());
         $css = file_get_contents(resource_path('css/timeline-planning-actions.css'));
-        $this->assertStringContainsString('opacity: .5', $css);
+        $this->assertStringContainsString('prefers-reduced-motion: reduce', $css);
+        $this->assertStringContainsString("[data-in-view='true']", $css);
         $this->assertStringContainsString('position: absolute', $css);
         $this->assertSame('fd3e2599d6d42f8671484add0a262d58cf1da6e889bcba36da4153e8b2b4c9f4', hash_file('sha256', resource_path('js/staff-timeline.js')));
     }
@@ -197,5 +201,52 @@ class TimelinePlanningActionsTest extends TestCase
             ->call('openCell', $this->ben->id, '2027-10-31')->assertViewHas('choices', fn ($choices) => str_contains($choices->first()->period, '+02:00') && str_contains($choices->first()->period, '+01:00'))
             ->call('selectCellShift', $this->shift->id, 1)->assertSee('31.10. 02:45 +02:00')->assertSee('31.10. 02:15 +01:00');
         $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_hover_is_read_only_and_reports_suitable_blocked_and_empty_without_opening(): void
+    {
+        $timeline = $this->timeline()->call('previewCell', $this->ben->id, '2027-05-13')
+            ->assertReturned(['state' => 'suitable', 'label' => '1 passend', 'detail' => 'Vorläufig geprüft · zum Auswählen klicken'])
+            ->assertSet('assignmentOpen', false)->assertSet('planningUserId', null);
+        AbsenceRequest::create(['user_id' => $this->ben->id, 'kind' => 'vacation', 'status' => 'approved', 'starts_at' => '2027-05-13T00:00', 'ends_at' => '2027-05-14T00:00', 'timezone' => 'Europe/Berlin']);
+        $timeline->call('previewCell', $this->ben->id, '2027-05-13')
+            ->assertReturned(['state' => 'blocked', 'label' => 'Keine passende Schicht', 'detail' => 'Details und Konfliktgründe per Klick anzeigen.']);
+        $timeline->call('previewCell', $this->ben->id, '2027-05-14')
+            ->assertReturned(['state' => 'empty', 'label' => 'Keine offenen Dienste', 'detail' => 'Für diesen Tag ist nichts zu verteilen.']);
+        $this->assertSame(0, ShiftAssignment::count());
+        $this->timeline(false)->call('previewCell', $this->ben->id, '2027-05-13')->assertForbidden();
+        $this->timeline()->call('previewCell', $this->ben->id, '2027-06-13')->assertStatus(422);
+    }
+
+    public function test_workload_uses_real_daily_targets_and_never_infers_from_profile_prose(): void
+    {
+        $this->ben->profile()->create(['weekly_working_hours' => '40 Stunden']);
+        ShiftAssignment::create(['shift_id' => $this->shift->id, 'user_id' => $this->ben->id, 'status' => 'requested', 'assigned_by' => $this->manager->id]);
+        $this->timeline()->assertViewHas('workloads', fn ($rows) => $rows[$this->ben->id]['target'] === null && $rows[$this->ben->id]['ratio'] === null && $rows[$this->ben->id]['requested'] === 450.0);
+        $model = EmployeeWorkModel::create(['user_id' => $this->ben->id, 'name' => 'QA', 'status' => 'active', 'starts_on' => '2027-05-10', 'timezone' => 'Europe/Berlin', 'weekly_target_minutes' => 2400, 'daily_minutes' => [1 => 480, 2 => 480, 3 => 480, 4 => 480, 5 => 480, 6 => 0, 7 => 0], 'created_by' => $this->manager->id]);
+        $this->timeline()->assertViewHas('workloads', fn ($rows) => $rows[$this->ben->id]['target'] === 2400 && $rows[$this->ben->id]['percent'] === 19);
+        Livewire::actingAs($this->manager)->test(StaffTimeline::class, ['from' => '2027-05-13', 'until' => '2027-05-13', 'planningEnabled' => true])
+            ->assertViewHas('workloads', fn ($rows) => $rows[$this->ben->id]['target'] === 480 && $rows[$this->ben->id]['percent'] === 94);
+        $model->update(['ends_on' => '2027-05-12']);
+        $this->timeline()->assertViewHas('workloads', fn ($rows) => $rows[$this->ben->id]['target'] === null && $rows[$this->ben->id]['missing_days'] === 4);
+    }
+
+    public function test_workload_counts_training_and_true_dst_duration_without_inventing_clipped_breaks(): void
+    {
+        $this->shift->forceFill(['starts_at' => CarbonImmutable::parse('2027-10-30T22:00+02:00'), 'ends_at' => CarbonImmutable::parse('2027-10-31T06:00+01:00')])->save();
+        ShiftAssignment::create(['shift_id' => $this->shift->id, 'user_id' => $this->ben->id, 'status' => 'confirmed', 'assigned_by' => $this->manager->id]);
+        $training = PersonnelTraining::create(['title' => 'QA Training', 'starts_at' => '2027-10-31T12:00', 'ends_at' => '2027-10-31T14:00', 'timezone' => 'Europe/Berlin', 'capacity' => 1, 'created_by' => $this->manager->id]);
+        PersonnelTrainingParticipant::create(['personnel_training_id' => $training->id, 'user_id' => $this->ben->id, 'status' => 'confirmed', 'created_by' => $this->manager->id]);
+        Livewire::actingAs($this->manager)->test(StaffTimeline::class, ['from' => '2027-10-30', 'until' => '2027-10-31', 'planningEnabled' => true])
+            ->assertViewHas('workloads', fn ($rows) => $rows[$this->ben->id]['confirmed'] === 510.0 && $rows[$this->ben->id]['training'] === 120.0 && $rows[$this->ben->id]['planned'] === 630.0);
+        Livewire::actingAs($this->manager)->test(StaffTimeline::class, ['from' => '2027-10-31', 'until' => '2027-10-31', 'planningEnabled' => true])
+            ->assertViewHas('workloads', fn ($rows) => $rows[$this->ben->id]['confirmed'] === 420.0 && $rows[$this->ben->id]['clipped_breaks']);
+    }
+
+    public function test_known_zero_target_warns_about_planned_hours_without_inventing_a_percentage(): void
+    {
+        EmployeeWorkModel::create(['user_id' => $this->ben->id, 'name' => 'QA zero', 'status' => 'active', 'starts_on' => '2027-05-10', 'timezone' => 'Europe/Berlin', 'weekly_target_minutes' => 0, 'daily_minutes' => array_fill(1, 7, 0), 'created_by' => $this->manager->id]);
+        ShiftAssignment::create(['shift_id' => $this->shift->id, 'user_id' => $this->ben->id, 'status' => 'requested', 'assigned_by' => $this->manager->id]);
+        $this->timeline()->assertViewHas('workloads', fn ($rows) => $rows[$this->ben->id]['target'] === 0 && $rows[$this->ben->id]['percent'] === null && $rows[$this->ben->id]['state'] === 'over');
     }
 }

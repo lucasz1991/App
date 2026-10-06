@@ -11,6 +11,7 @@ use App\Services\Operations\PersonnelScopeService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\StaffTimelineLayout;
 use App\Services\Operations\TimelinePlanningSuggestionService;
+use App\Services\Operations\TimelineWorkloadService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
 use App\Support\Operations\OperationsTransaction;
@@ -21,6 +22,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Renderless;
 use Livewire\Component;
 use Livewire\WithoutUrlPagination;
 use Livewire\WithPagination;
@@ -84,6 +86,20 @@ class StaffTimeline extends Component
         $this->planningUserId = $userId;
         $this->planningDate = $date;
         $this->assignmentOpen = true;
+    }
+
+    #[Renderless]
+    public function previewCell(int $userId, string $date): array
+    {
+        $this->ensurePlanning();
+        $choices = app(TimelinePlanningSuggestionService::class)->cellChoices($userId, $date, $this->from, $this->until, auth()->user());
+        $eligible = $choices->where('eligible', true)->count();
+
+        return ['state' => $eligible > 0 ? 'suitable' : ($choices->isEmpty() ? 'empty' : 'blocked'),
+            'label' => $eligible > 0 ? $eligible.' passend'.($choices->count() === 30 ? ' · Auswahl begrenzt' : '')
+                : ($choices->isEmpty() ? 'Keine offenen Dienste' : 'Keine passende Schicht'),
+            'detail' => $eligible > 0 ? 'Vorläufig geprüft · zum Auswählen klicken'
+                : ($choices->isEmpty() ? 'Für diesen Tag ist nichts zu verteilen.' : 'Details und Konfliktgründe per Klick anzeigen.')];
     }
 
     public function selectCellShift(int $shiftId, int $revision): void
@@ -227,6 +243,8 @@ class StaffTimeline extends Component
         for ($day = $from; $day->lt($until); $day = $day->addDay()) {
             $days->push($day);
         }
+        $workloads = $this->planningEnabled && ! $this->absencesOnly
+            ? app(TimelineWorkloadService::class)->forRows($users->getCollection(), $assignments, $absences, $days) : collect();
         $layout = app(StaffTimelineLayout::class);
         $rows = $users->getCollection()->map(function ($user) use ($days, $from, $until, $assignments, $absences, $layout) {
             $events = collect();
@@ -260,6 +278,8 @@ class StaffTimeline extends Component
             'kind' => 'proposal', 'shift_id' => $proposal['shift']->id, 'user_id' => $proposal['user']->id, 'revision' => $proposal['revision'],
             'title' => $proposal['shift']->title, 'start' => $proposal['shift']->starts_at, 'end' => $proposal['shift']->ends_at,
             'reasons' => $proposal['reasons'],
+            'fit' => $proposal['fit'], 'fit_label' => $proposal['fit_label'],
+            'urgency' => $proposal['urgency'], 'urgency_label' => $proposal['urgency_label'],
         ])));
         $planningUser = $this->assignmentOpen && $this->planningUserId ? User::find($this->planningUserId) : null;
         $planningShift = $this->assignmentOpen && $this->planningShiftId ? Shift::with('order.customer')->find($this->planningShiftId) : null;
@@ -270,7 +290,7 @@ class StaffTimeline extends Component
                 'open' => max(0, $choice['shift']->required_staff - $choice['shift']->reserved_count), 'eligible' => $choice['eligible'], 'issues' => $choice['issues'],
             ]) : collect();
 
-        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices'));
+        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices'));
     }
 
     private function planningPeriod(Shift $shift, string $zone): string

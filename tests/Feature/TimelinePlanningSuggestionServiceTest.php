@@ -70,6 +70,21 @@ class TimelinePlanningSuggestionServiceTest extends TestCase
         return Shift::create(array_merge(['order_id' => $this->order->id, 'title' => 'Offener Dienst', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-13T08:00', 'ends_at' => '2027-05-13T16:00', 'required_staff' => 1, 'planned_break_minutes' => 30, 'status' => 'draft', 'location_name' => 'Bremen', 'created_by' => $this->manager->id], $extra));
     }
 
+    public function test_suggestion_colors_separate_verified_wishes_from_urgency(): void
+    {
+        $this->wish($this->anna, 'preferred');
+        $this->shift();
+        $proposal = $this->service->preview('2027-05-13', '2027-05-13', $this->manager)['proposals']->first();
+        $this->assertSame('preferred', $proposal['fit']);
+        $this->assertSame('soon', $proposal['urgency']);
+        $this->travelTo(CarbonImmutable::parse('2027-05-13T07:00:00+02:00'));
+        EmployeeAvailability::query()->update(['kind' => 'free_requested']);
+        $proposal = $this->service->preview('2027-05-13', '2027-05-13', $this->manager)['proposals']->first();
+        $this->assertSame('suitable', $proposal['fit']);
+        $this->assertSame('urgent', $proposal['urgency']);
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
     private function assignment(Shift $shift, User $user, string $status = 'confirmed'): ShiftAssignment
     {
         return ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $user->id, 'status' => $status, 'assigned_by' => $this->manager->id]);

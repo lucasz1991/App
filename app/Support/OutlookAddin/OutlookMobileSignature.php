@@ -20,16 +20,28 @@ final class OutlookMobileSignature
     /** @return array<string, mixed> */
     public static function payload(array $payload): array
     {
+        $desktopPayload = $payload;
         [$payload['signature'], $version] = self::document($payload['signature']);
         if ($version !== null) {
             $payload['version']['signature'] = $version;
         }
-        foreach ($payload['templates'] as &$template) {
+        foreach ($payload['templates'] as $index => &$template) {
             if (array_key_exists('signature', $template)) {
                 [$template['signature'], $version] = self::document($template['signature']);
                 if ($version !== null) {
                     $template['signatureVersion'] = $version;
                 }
+            }
+            if (array_key_exists('composeDocumentMode', $template)) {
+                $combined = OutlookMobileCombinedComposeDocument::build(
+                    $template,
+                    $desktopPayload['templates'][$index]['signature'] ?? $desktopPayload['signature'],
+                    $template['signature'] ?? $payload['signature'],
+                );
+                $template['mobileComposeDocumentMode'] = OutlookMobileCombinedComposeDocument::MODE;
+                $template['mobileComposeHtml'] = $combined['html'];
+                $template['mobileComposeMedia'] = $combined['media'];
+                $template['mobileComposeVersion'] = $combined['version'];
             }
         }
         unset($template);

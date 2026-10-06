@@ -11,6 +11,7 @@ class CompactStaffTimelineUiTest extends TestCase
     {
         foreach ([
             ['Abdullah Demir', null, 'A. Demir'],
+            ['Marcel Schaarschmidt', null, 'M. Schaarschmidt'],
             ['Ömer von der Linden', null, 'Ö. von der Linden'],
             ['Meyer, Anna Maria', null, 'A. Meyer'],
             ['Cher', null, 'Cher'],
@@ -21,7 +22,9 @@ class CompactStaffTimelineUiTest extends TestCase
             $html = Blade::render('<x-user.public-info :user="$user" :show-presence="false" name-format="initial-surname" />', compact('user'));
             $this->assertStringContainsString($expected, strip_tags($html));
             $this->assertStringContainsString('alt="'.e($name ?: 'test@example.test').'"', $html);
-            $this->assertStringContainsString('whitespace-normal break-words', $html);
+            $this->assertStringContainsString('min-w-0 truncate text-sm', $html);
+            $this->assertStringNotContainsString('whitespace-normal break-words', $html);
+            $this->assertStringContainsString('title="'.e($name ?: 'test@example.test').'"', $html);
             $full = Blade::render('<x-user.public-info :user="$user" :show-presence="false" />', compact('user'));
             $this->assertStringContainsString($name ?: 'test@example.test', strip_tags($full));
         }
@@ -42,6 +45,17 @@ class CompactStaffTimelineUiTest extends TestCase
         $disposition = file_get_contents(resource_path('css/disposition-workspace.css'));
         $this->assertStringContainsString('background: var(--dispo-subtle, #f5f6f7)', $disposition);
         $this->assertStringNotContainsString('#faf0f3', $disposition);
+    }
+
+    public function test_navigation_remains_touch_sized_and_loading_has_a_separate_animated_state(): void
+    {
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $this->assertMatchesRegularExpression('/\.rt-personnel-timeline-direction \{[^}]*width: 44px; height: 44px;[^}]*background: transparent/', $css);
+        $this->assertStringContainsString('.rt-personnel-timeline-direction::before', $css);
+        $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $this->assertStringContainsString('x-show.important="plannerReady && !plannerLoading && !plannerError"', $view);
+        $this->assertStringContainsString('Schichten werden geladen', $view);
+        $this->assertStringContainsString('far fa-spinner-third', $view);
     }
 
     public function test_distribution_pagination_uses_the_shared_dropdown_keep_open_contract(): void

@@ -55,6 +55,7 @@
                     <x-tables.search-field context="page" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" />
                 </div>
             @elseif($nativeOperations)
+                <div data-shift-plan-timeline-suggestions wire:key="shift-plan-timeline-suggestions" wire:ignore></div>
                 <div class="rt-shift-plan-header-search" data-shift-plan-timeline-search wire:key="shift-plan-timeline-search" wire:ignore></div>
             @endif
         </div>

@@ -125,7 +125,7 @@
 
     <span class="min-w-0 flex-1">
         <span class="flex min-w-0 items-baseline gap-1.5">
-            <span @class(['min-w-0 text-sm font-semibold leading-5 text-rt-text dark:text-rt-dark-text', 'truncate' => $nameFormat !== 'initial-surname', 'whitespace-normal break-words' => $nameFormat === 'initial-surname']) title="{{ $displayName }}">
+            <span class="min-w-0 truncate text-sm font-semibold leading-5 text-rt-text dark:text-rt-dark-text" title="{{ $displayName }}">
                 {{ $visibleName }}
             </span>
             @if ($showContext && $contextLabel !== '')

@@ -51,6 +51,7 @@ import {
 } from './mobile-sidebar-swipe';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { staffTimeline } from './staff-timeline';
+import { timelinePlanning } from './timeline-planning-actions';
 import { shiftDetailDrawer } from './shift-detail-drawer';
 import { workTimeCapture } from './work-time-capture';
 import { railtimeTabs } from './tabs';
@@ -682,6 +683,7 @@ Alpine.data('rtDateField', dateField);
 Alpine.data('rtDateRangePicker', dateRangePicker);
 Alpine.data('rtDateTimeField', dateTimeField);
 Alpine.data('rtStaffTimeline', staffTimeline);
+Alpine.data('rtTimelinePlanning', timelinePlanning);
 Alpine.data('rtShiftDetailDrawer', shiftDetailDrawer);
 Alpine.data('rtWorkTimeCapture', workTimeCapture);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);

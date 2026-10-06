@@ -139,7 +139,13 @@ class TimelinePlanningSuggestionService
                 if ($this->capacityIssues($shift, $candidate['user'], $additionalByUser) !== []) {
                     continue;
                 }
-                $proposals->push(['shift' => $shift, 'user' => $candidate['user'], 'revision' => (int) $shift->revision, 'reasons' => $candidate['reasons']]);
+                $fit = $candidate['wish'] === 'free_requested' ? 'review'
+                    : (in_array($candidate['wish'], ['preferred', 'available'], true) ? 'preferred' : 'suitable');
+                $hoursUntilStart = CarbonImmutable::now('UTC')->diffInHours($shift->starts_at, false);
+                $urgency = $hoursUntilStart <= 24 ? 'urgent' : ($hoursUntilStart <= 72 ? 'soon' : 'normal');
+                $proposals->push(['shift' => $shift, 'user' => $candidate['user'], 'revision' => (int) $shift->revision, 'reasons' => $candidate['reasons'],
+                    'fit' => $fit, 'fit_label' => ['preferred' => 'Passend mit Dienstwunsch / Verfügbarkeit', 'suitable' => 'Konfliktfreie Alternative', 'review' => 'Freiwunsch prüfen'][$fit],
+                    'urgency' => $urgency, 'urgency_label' => ['urgent' => 'Beginn innerhalb von 24 Stunden', 'soon' => 'Beginn innerhalb von 72 Stunden', 'normal' => 'Beginn in mehr als 72 Stunden'][$urgency]]);
                 $additionalByUser[$candidate['user']->id][] = $shift;
             }
         }

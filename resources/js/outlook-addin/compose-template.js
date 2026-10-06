@@ -174,7 +174,7 @@ function newOperationToken() {
 }
 
 async function claimSession(office, item, operation) {
-    const access = sessionAccess(office, item);
+    const access = operation.mobileNative ? { supported: true } : sessionAccess(office, item);
     if (access.succeeded === false) throw sessionReadError(access, access.phase);
     if (!access.supported || typeof item.sessionData?.setAsync !== 'function') return;
 
@@ -352,8 +352,8 @@ export function nativeComposeTemplate(document) {
 
 /**
  * Additive contract: cached clients retain native composeHtml, while updated
- * clients insert the complete ordinary-body document exactly once. Never put
- * the editable message into Office's replaceable native signature ownership.
+ * clients insert the complete ordinary-body document exactly once. The separate
+ * explicit mobile-native contract below is not a fallback for this Desktop path.
  */
 export function combinedComposeDocument(document) {
     if (document?.composeDocumentMode === undefined) return null;
@@ -372,6 +372,29 @@ export function combinedComposeDocument(document) {
         throw failure('COMBINED_TEMPLATE_INVALID');
     }
     return Object.freeze({ ...document, html: document.combinedComposeHtml, media: document.combinedComposeMedia });
+}
+
+/** Explicit mobile-only ownership contract approved independently of Desktop. */
+export function mobileCombinedComposeDocument(document) {
+    if (document?.mobileComposeDocumentMode === undefined) return null;
+    if (document.mobileComposeDocumentMode !== 'combined-native-v1'
+        || typeof document.mobileComposeHtml !== 'string' || document.mobileComposeHtml.trim() === ''
+        || document.mobileComposeHtml.length > 30000
+        || !Array.isArray(document.mobileComposeMedia)
+        || !/^[0-9a-f]{16}$/.test(document.mobileComposeVersion || '')
+        || !combinedTemplateMarker.test(document.mobileComposeHtml)
+        || !/\bdata-rt-compose-document\s*=\s*["']combined-native-v1["']/i.test(document.mobileComposeHtml)
+        || !new RegExp(`RT-MOBILE-COMPOSE-VERSION:${document.mobileComposeVersion}${NATIVE_MARKER_END}`).test(document.mobileComposeHtml)
+        || !document.mobileComposeHtml.includes('RT-SIGNATURE-MANAGED-V1')
+        || nativeTemplateMarker.test(document.mobileComposeHtml)) {
+        throw failure('MOBILE_COMBINED_TEMPLATE_INVALID');
+    }
+    try {
+        validatedInsertionHtml(document.mobileComposeHtml, document.mobileComposeMedia);
+    } catch {
+        throw failure('MOBILE_COMBINED_TEMPLATE_INVALID');
+    }
+    return Object.freeze({ ...document, html: document.mobileComposeHtml, media: document.mobileComposeMedia });
 }
 
 export function automaticTemplate(payload) {
@@ -529,5 +552,135 @@ export async function prependTemplate(office, item, html, beforeWrite = () => {}
         if (operation.phase !== 'uncertain' && insertionOperations.get(item) === operation) {
             insertionOperations.delete(item);
         }
+    }
+}
+
+function assertMobileSessionAvailable(office, item) {
+    const diagnostics = office?.context?.mailbox?.diagnostics;
+    const host = String(diagnostics?.hostName || '').toLowerCase();
+    const version = /^(\d+)\.(\d+)\.(\d+)(?:\.\d+)?$/.exec(String(diagnostics?.hostVersion || ''));
+    const numbers = version ? version.slice(1, 4).map(Number) : [];
+    // SessionData is a documented mobile exception to the baseline Mailbox1.5
+    // matrix. The desktop 1.11 checker cannot establish mobile availability.
+    if (!isMobileComposeHost(office) || !['outlookios', 'outlookandroid'].includes(host)
+        || !version || !numbers.every(Number.isSafeInteger)
+        || numbers[0] < 4 || (numbers[0] === 4 && numbers[1] < 2425)
+        || typeof item?.sessionData?.getAsync !== 'function'
+        || typeof item?.sessionData?.setAsync !== 'function') {
+        throw failure('MOBILE_COMPOSE_SESSION_UNAVAILABLE');
+    }
+}
+
+async function mobileBodyState(office, item) {
+    const compose = await officeResult(office, (callback) => item.getComposeTypeAsync(callback));
+    if (!compose.succeeded || !['newMail', 'reply', 'forward'].includes(compose.value?.composeType)
+        || compose.value?.coercionType !== office?.CoercionType?.Html) {
+        throw failure('TEMPLATE_REQUIRES_HTML');
+    }
+    const bodyMode = mobileReplyBodyMode(office);
+    const currentMessageOnly = compose.value.composeType === 'reply' && bodyMode !== null;
+    const body = await officeResult(office, (callback) => currentMessageOnly
+        ? item.body.getAsync(office.CoercionType.Html, { bodyMode }, callback)
+        : item.body.getAsync(office.CoercionType.Html, callback));
+    const state = templateStateFromBody(body.succeeded ? body.value : null, compose.value.composeType, { currentMessageOnly });
+    if (!state.readable) throw failure('COMPOSE_BODY_UNREADABLE');
+    if (state.tooLarge) throw failure('COMPOSE_BODY_TOO_LARGE');
+    if (state.present || state.legacySignatureEmbedded) throw failure('TEMPLATE_ALREADY_INSERTED');
+    return state;
+}
+
+/** Retain native-slot ownership even if default selection/metadata disappears. */
+export async function hasMobileTemplateOwnership(office, item) {
+    // Capability uncertainty must not be interpreted as absent ownership.
+    // Reading an existing claim does not need a setter or host-version gate.
+    if (typeof item?.sessionData?.getAsync !== 'function') throw failure('MOBILE_COMPOSE_SESSION_UNAVAILABLE');
+    const existing = await readSession(office, item, { allowMissing: true });
+    if (!existing.succeeded) throw sessionReadError(existing);
+    if (existing.value === '1') return true;
+    if (pendingSession(existing.value) || ![null, undefined, ''].includes(existing.value)) throw failure('TEMPLATE_INSERT_UNCERTAIN');
+    return false;
+}
+
+function mobileNativeSignature(office, item, html, operation) {
+    return new Promise((resolve, reject) => {
+        let completed = false;
+        const uncertain = (details = {}) => {
+            operation.phase = 'uncertain';
+            reject(failure('TEMPLATE_INSERT_UNCERTAIN', { phase: 'mobile-combined-signature', reason: 'timeout', ...details }));
+        };
+        const timeout = setTimeout(uncertain, TEMPLATE_INSERT_LIMITS.writeTimeoutMs);
+        const callback = async (result) => {
+            if (completed) return;
+            completed = true;
+            clearTimeout(timeout);
+            try {
+                if (result?.status === office?.AsyncResultStatus?.Succeeded) {
+                    // Late success establishes ownership only: no subsequent
+                    // template/signature/media write may be started by it.
+                    await markTemplateApplied(item, operation);
+                    resolve();
+                } else if (operation.phase !== 'uncertain') {
+                    throw failure('OFFICE_WRITE_FAILED', { phase: 'mobile-combined-signature', reason: 'callback', officeCode: safeOfficeCode(result?.error) });
+                }
+            } catch (error) {
+                if (error?.code === 'OFFICE_WRITE_FAILED' && operation.phase !== 'uncertain') reject(error);
+                else uncertain({ reason: 'exception', officeCode: safeOfficeCode(error) });
+            }
+        };
+        try {
+            item.body.setSignatureAsync(html, { coercionType: office.CoercionType.Html }, callback);
+        } catch (error) {
+            clearTimeout(timeout);
+            if (!completed) uncertain({ reason: 'exception', officeCode: safeOfficeCode(error) });
+        }
+    });
+}
+
+/** One mobile native-slot write; never rewrites or selects the ordinary body. */
+export async function insertMobileCombinedTemplate(office, item, html, beforeWrite = () => {}, options = {}) {
+    const pending = insertionOperations.get(item);
+    if (pending) throw failure(pending.phase === 'uncertain' ? 'TEMPLATE_INSERT_UNCERTAIN' : 'TEMPLATE_INSERT_IN_PROGRESS');
+    if (appliedItems.has(item)) throw failure('TEMPLATE_ALREADY_INSERTED');
+    assertMobileSessionAvailable(office, item);
+    if (typeof item?.body?.setSignatureAsync !== 'function'
+        || typeof item?.body?.getAsync !== 'function'
+        || typeof item?.getComposeTypeAsync !== 'function') throw failure('COMPOSE_API_UNAVAILABLE');
+    const markedHtml = validatedInsertionHtml(html, options.media ?? []);
+    if (!combinedTemplateMarker.test(markedHtml)
+        || !/\bdata-rt-compose-document\s*=\s*["']combined-native-v1["']/i.test(markedHtml)) throw failure('MOBILE_COMBINED_TEMPLATE_INVALID');
+    if (markedHtml.length > 30000) throw failure('SIGNATURE_TOO_LARGE');
+    const operation = { phase: 'preflight', beforeWrite, mobileNative: true };
+    insertionOperations.set(item, operation);
+    try {
+        const initial = await readSession(office, item, { allowMissing: true });
+        if (!initial.succeeded) throw sessionReadError(initial);
+        if (initial.value === '1') throw failure('TEMPLATE_ALREADY_INSERTED');
+        if (pendingSession(initial.value) || ![null, undefined, ''].includes(initial.value)) throw failure('TEMPLATE_INSERT_UNCERTAIN');
+        const state = await mobileBodyState(office, item);
+        if (state.bodyLength + markedHtml.length > TEMPLATE_INSERT_LIMITS.bodyLength) throw failure('COMPOSE_BODY_TOO_LARGE');
+        await beforeWrite();
+        await claimSession(office, item, operation);
+        await beforeWrite();
+        operation.phase = 'preparing';
+        await options.beforeInsert?.();
+        await beforeWrite();
+        // SessionData has no atomic compare-and-swap. Revalidate both the
+        // claim and current-message marker after the slow media work, then
+        // again immediately before the only native body mutation.
+        await mobileBodyState(office, item);
+        const owned = await readSession(office, item);
+        if (!owned.succeeded || owned.value !== operation.sessionToken) {
+            operation.phase = 'uncertain';
+            throw failure('TEMPLATE_INSERT_UNCERTAIN', { phase: 'session-readback', reason: owned.succeeded ? 'mismatch' : owned.reason });
+        }
+        await beforeWrite();
+        operation.phase = 'writing';
+        await mobileNativeSignature(office, item, markedHtml, operation);
+    } catch (error) {
+        if (['INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(error?.code)) operation.phase = 'uncertain';
+        await releaseDefiniteSessionFailure(office, item, operation);
+        throw error;
+    } finally {
+        if (operation.phase !== 'uncertain' && insertionOperations.get(item) === operation) insertionOperations.delete(item);
     }
 }

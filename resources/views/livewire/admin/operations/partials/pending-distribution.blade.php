@@ -1,5 +1,4 @@
 <div class="rt-shift-distribution" data-pending-distribution>
-    @if($viewMode === 'timeline')<x-ui.buttons.button-basic type="button" mode="link" size="sm" x-on:click="$dispatch('operations-timeline-suggestions-toggle'); close()"><i class="far fa-lightbulb" aria-hidden="true"></i>Besetzungsvorschläge ein-/ausblenden</x-ui.buttons.button-basic>@endif
     <header class="rt-shift-distribution__header">
         <h2>Noch zu verteilen</h2>
         <p>{{ \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') }} – {{ \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') }} · unabhängig von Listenfiltern</p>
