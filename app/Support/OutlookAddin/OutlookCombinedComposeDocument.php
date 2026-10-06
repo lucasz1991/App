@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support\OutlookAddin;
 
 use App\Support\Mail\CssSemantic;
+use App\Support\Mail\OutlookSignatureInlineStyle;
 use App\Support\Mail\SignatureTableOverlapDelivery;
 use RuntimeException;
 
@@ -52,22 +53,23 @@ final class OutlookCombinedComposeDocument
             self::fail();
         }
         self::assertTemplateMetadata($templateHtml, $templateNodes);
-        // These are the exact two generated outer frame declarations, not
-        // authored cells or quoted content. All other HTML bytes stay opaque.
+        // Project the two exact generated frame declarations and their existing
+        // CSS mirrors. Outlook may remove a new override STYLE while retaining
+        // these older compiler-owned blocks; neither must restore an inner red
+        // border. Authored rules, cells, media and comments stay opaque.
         $template = self::withoutBorder($templateHtml, $templateNodes[$templateFrame]);
         $signature = self::withoutBorder($signatureHtml, $signatureNodes[$signatureFrame], 'rt-combined-signature-frame');
+        $template = self::projectFrameMirror($template, $templateNodes, $templateFrame, template: true);
+        $signature = self::projectFrameMirror($signature, $signatureNodes, $signatureFrame, template: false);
         $template = str_replace(self::NATIVE_MARKER, self::MARKER, $template);
         $template = str_replace('data-rt-template-signature-mode="native"', 'data-rt-template-signature-mode="combined-v1"', $template);
         $scope = 'rtc'.substr(hash('sha256', $templateHtml."\0".$signatureHtml), 0, 12);
         $frameStyle = 'width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;box-sizing:border-box;background-color:#ffffff;'
             .self::BORDER.'mso-table-lspace:0pt;mso-table-rspace:0pt;';
-        // Keep every existing scope/rule unchanged. This new content-bound
-        // scope only overrides the two former outer borders, including their
-        // internal Office CSS mirrors when inline styling is discarded.
+        // This optional new block mirrors only the common carrier. Inner-border
+        // correctness no longer depends on Outlook retaining this STYLE.
         $css = '.'.$scope.' .rt-combined-compose-frame{width:100%!important;border-collapse:separate!important;border-spacing:0!important;'
             .'table-layout:fixed!important;box-sizing:border-box!important;background-color:#ffffff!important;border-left:6px solid #e90032!important;}'
-            .'.rt-combined-compose-document.'.$scope.' .rt-outlook-template .rt-native-compose-frame,'
-            .'.rt-combined-compose-document.'.$scope.' .rt-outlook-signature .rt-combined-signature-frame{border-left:0!important;}'
             .'.'.$scope.' .rt-combined-compose-cell{padding:0!important;}';
         $output = '<style data-rt-combined-compose-css="1">'.$css.'</style>'
             .'<div class="rt-combined-compose-document '.$scope.'" data-rt-compose-document="'.self::MODE.'" style="display:block;width:100%;">'
@@ -127,7 +129,7 @@ final class OutlookCombinedComposeDocument
             if ($borders !== ['border-left:6px solid #e90032']) {
                 self::fail();
             }
-            $style = str_replace(self::BORDER, '', $style, $removed);
+            $style = str_replace(self::BORDER, 'border-left:0;', $style, $removed);
             if ($removed !== 1) {
                 self::fail();
             }
@@ -149,6 +151,54 @@ final class OutlookCombinedComposeDocument
         }
 
         return substr($html, 0, $node['start']).$tag.substr($html, $node['start'] + strlen($node['opening']));
+    }
+
+    private static function projectFrameMirror(string $html, array $nodes, int $frame, bool $template): string
+    {
+        $roots = array_values(array_filter($nodes, static fn (array $node): bool => $node['parent'] === null));
+        $scopePattern = $template ? '/(?:^|\s)(rtt[0-9a-f]{12})(?:\s|$)/' : '/(?:^|\s)(rts[0-9a-f]{10})(?:\s|$)/';
+        if (count($roots) !== 1 || preg_match($scopePattern, $roots[0]['attrs']['class'] ?? '', $scope) !== 1) {
+            self::fail();
+        }
+        if ($template) {
+            $attribute = 'data-rt-outlook-template-css';
+            $selector = '.'.$scope[1].' .rt-native-compose-frame';
+            $declarations = 'width:100%!important;border-collapse:separate!important;border-spacing:0!important;table-layout:fixed!important;'
+                .'box-sizing:border-box!important;background-color:#ffffff!important;border-left:6px solid #e90032!important;';
+            $border = 'border-left:6px solid #e90032!important;';
+            $replacement = 'border-left:0!important;';
+        } else {
+            $attribute = OutlookSignatureInlineStyle::ATTRIBUTE;
+            $aliases = array_values(array_filter(preg_split('/\s+/', trim($nodes[$frame]['attrs']['class'] ?? '')), static fn (string $class): bool => preg_match('/\Aoi[0-9a-z]+\z/', $class) === 1));
+            if (count($aliases) !== 1 || count(array_filter($nodes, static fn (array $node): bool => self::hasClass($node, $aliases[0]))) !== 1) {
+                self::fail();
+            }
+            $selector = '.'.$scope[1].'.'.$aliases[0].',.'.$scope[1].' .'.$aliases[0];
+            // The generated alias compiler mirrors this exact opening-tag
+            // declaration string. Reject reuse or a changed mirror instead of
+            // applying an output border projection to an authored/quoted cell.
+            $declarations = trim($nodes[$frame]['attrs']['style'] ?? '', "; \t\r\n").';';
+            $border = self::BORDER;
+            $replacement = 'border-left:0;';
+        }
+        $opening = '<style '.$attribute.'="1">';
+        if (substr_count($html, $opening) !== 1) {
+            self::fail();
+        }
+        $start = strpos($html, $opening) + strlen($opening);
+        $end = strpos($html, '</style>', $start);
+        if ($end === false) {
+            self::fail();
+        }
+        $css = substr($html, $start, $end - $start);
+        $rule = $selector.'{'.$declarations.'}';
+        if (substr_count($css, $selector.'{') !== 1 || substr_count($css, $rule) !== 1 || substr_count($declarations, $border) !== 1) {
+            self::fail();
+        }
+        $projectedRule = str_replace($border, $replacement, $rule);
+        $css = str_replace($rule, $projectedRule, $css);
+
+        return substr($html, 0, $start).$css.substr($html, $end);
     }
 
     private static function assertTemplateMetadata(string $html, array $nodes): void
