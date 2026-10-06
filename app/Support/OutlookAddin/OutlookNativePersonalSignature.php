@@ -214,7 +214,7 @@ final class OutlookNativePersonalSignature
         $companyTable = self::opening($html, $nodes[$table]).'<tbody>'.$companyRow.'</tbody></table>';
         $output = self::replace($html, [
             [$nodes[$wrapper]['start'], $nodes[$wrapper]['end'], self::IDENTITY_SLOT],
-            [$nodes[$direct]['start'], $nodes[$direct]['openEnd'], self::padding(self::opening($html, $nodes[$direct]), 'padding:0;', 'padding:14px 0 0;')],
+            [$nodes[$direct]['start'], $nodes[$direct]['openEnd'], self::padding(self::opening($html, $nodes[$direct]), 'padding:0;', 'padding:14px 0 0!important;')],
             [$nodes[$table]['start'], $nodes[$table]['end'], $companyTable],
             [$nodes[$outerRow]['start'], $nodes[$outerRow]['openEnd'], $header.self::attribute(self::opening($html, $nodes[$outerRow]), 'data-rt-personal-contacts', '1')],
             [$nodes[$ledger]['start'], $nodes[$ledger]['openEnd'], self::addClass(str_replace(self::ATTRIBUTE.'="'.self::LEGACY_MARKER.'"', self::ATTRIBUTE.'="'.self::MARKER.'"', self::opening($html, $nodes[$ledger])), self::ALIGNMENT_CLASS)],
@@ -305,8 +305,13 @@ final class OutlookNativePersonalSignature
         $restoredNodes = self::nodes($output);
         $direct = self::oneClass($restoredNodes, 'rt-ledger-direct', 'td');
         $root = self::oneClass($restoredNodes, 'rt-outlook-signature', 'div');
+        // Only these two generated v2 spellings are reversible: the cached
+        // plain value and the new inline priority over retained padding:0.
+        $directPadding = str_contains($restoredNodes[$direct]['attrs']['style'] ?? '', 'padding:14px 0 0!important;')
+            ? 'padding:14px 0 0!important;'
+            : 'padding:14px 0 0;';
         $output = self::replace($output, [
-            [$restoredNodes[$direct]['start'], $restoredNodes[$direct]['openEnd'], self::padding(self::opening($output, $restoredNodes[$direct]), 'padding:14px 0 0;', 'padding:0;')],
+            [$restoredNodes[$direct]['start'], $restoredNodes[$direct]['openEnd'], self::padding(self::opening($output, $restoredNodes[$direct]), $directPadding, 'padding:0;')],
             [$restoredNodes[$root]['start'], $restoredNodes[$root]['start'], self::columnStyle($restoredNodes)],
         ]);
         $output = self::alignmentMirrors($output, true);

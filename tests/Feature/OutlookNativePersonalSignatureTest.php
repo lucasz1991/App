@@ -153,6 +153,28 @@ final class OutlookNativePersonalSignatureTest extends TestCase
         self::assertSame($old, OutlookNativePersonalSignature::project($old));
     }
 
+    #[DataProvider('layouts')]
+    public function test_plain_cached_v2_and_important_direct_padding_restore_the_same_exact_source(bool $nested): void
+    {
+        $this->publish($this->source($nested), 'signature', true)->update(['outlook_default' => true]);
+        $this->app->forgetScopedInstances();
+        $canonical = (new EmailTemplateBuilder($this->employee()))->buildOutlookAddinSignatureHtml();
+        $projected = OutlookNativePersonalSignature::project($canonical);
+        $direct = $this->one($this->xpath($projected), 'rt-ledger-direct', 'td');
+        self::assertStringContainsString('padding:14px 0 0!important;', $direct->getAttribute('style'));
+        self::assertStringNotContainsString('padding:14px 0 0;', $direct->getAttribute('style'));
+
+        $cached = preg_replace_callback('~<td\b[^>]*\bclass="rt-ledger-direct\b[^>]*>~', static fn (array $match): string => str_replace('padding:14px 0 0!important;', 'padding:14px 0 0;', $match[0]), $projected, 1, $count);
+        self::assertSame(1, $count);
+        self::assertSame(strlen($cached) + 10, strlen($projected), 'Only the generated direct-cell priority changes the transport bytes.');
+        self::assertSame($canonical, OutlookNativePersonalSignature::restore($projected));
+        self::assertSame($canonical, OutlookNativePersonalSignature::restore($cached));
+        self::assertSame($projected, OutlookNativePersonalSignature::project($projected));
+        self::assertSame($cached, OutlookNativePersonalSignature::project($cached), 'Do not silently rewrite an already cached v2 signature.');
+        self::assertSame($this->styles($cached), $this->styles($projected));
+        self::assertSame($this->mediaAndLinks($canonical), $this->mediaAndLinks($projected));
+    }
+
     public function test_every_v2_geometry_rule_is_isolated_from_legacy_quotes_sharing_the_same_scope_and_aliases(): void
     {
         $this->publish($this->source(false), 'signature', true)->update(['outlook_default' => true]);
@@ -223,8 +245,9 @@ final class OutlookNativePersonalSignatureTest extends TestCase
         $direct = $this->one($xpath, 'rt-ledger-direct', 'td');
         $company = $this->one($xpath, 'rt-ledger-company', 'td');
         self::assertStringContainsString('padding-top:0;', $nameWrapper->getAttribute('style'));
+        self::assertStringContainsString('padding:14px 0 0!important;', $direct->getAttribute('style'));
+        self::assertStringContainsString('padding:14px 0 0;', $company->getAttribute('style'));
         foreach ([$direct, $company] as $cell) {
-            self::assertStringContainsString('padding:14px 0 0;', $cell->getAttribute('style'));
             self::assertSame('top', $cell->getAttribute('valign'));
         }
         foreach (['rt-phl', 'rt-phr', 'rt-ledger-brand', 'rt-ledger-contacts'] as $class) {
@@ -319,6 +342,8 @@ final class OutlookNativePersonalSignatureTest extends TestCase
             'duplicate clone marker' => ['duplicate'], 'modified clone geometry' => ['geometry'],
             'missing balanced css' => ['no-css'], 'changed balanced css' => ['changed-css'], 'duplicate balanced css' => ['duplicate-css'],
             'changed name offset' => ['name-padding'], 'changed contact gap' => ['contact-padding'],
+            'changed important spelling' => ['contact-important'], 'encoded contact priority' => ['contact-encoded-priority'],
+            'duplicate contact padding' => ['contact-duplicate-padding'], 'extra contact side padding' => ['contact-side-padding'],
             'changed header clone' => ['header-geometry'], 'duplicate header marker' => ['header-marker'],
             'missing company slot' => ['company-slot'], 'missing identity slot' => ['identity-slot'],
             'swapped shared rows' => ['row-order'], 'changed mirrored contact gap' => ['mirror-gap'],
@@ -347,7 +372,11 @@ final class OutlookNativePersonalSignatureTest extends TestCase
             'changed-css' => str_replace('{width:48%!important;}', '{width:50%!important;}', $html),
             'duplicate-css' => preg_replace('~(<style data-rt-outlook-signature-inline-css="1">.*?</style>)~s', '$1$1', $html),
             'name-padding' => preg_replace('~(<div\b[^>]*style=")padding-top:0;~', '$1padding-top:2px;', $html, 1),
-            'contact-padding' => preg_replace('~(<td\b[^>]*class="rt-ledger-direct[^>]*style="[^\"]*)padding:14px 0 0;~', '$1padding:12px 0 0;', $html, 1),
+            'contact-padding' => preg_replace('~(<td\b[^>]*class="rt-ledger-direct[^>]*style="[^\"]*)padding:14px 0 0!important;~', '$1padding:12px 0 0!important;', $html, 1),
+            'contact-important' => preg_replace('~(<td\b[^>]*class="rt-ledger-direct[^>]*style="[^\"]*)padding:14px 0 0!important;~', '$1padding:14px 0 0!IMPORTANT;', $html, 1),
+            'contact-encoded-priority' => preg_replace('~(<td\b[^>]*class="rt-ledger-direct[^>]*style="[^\"]*)padding:14px 0 0!important;~', '$1padding:14px 0 0&#33;important;', $html, 1),
+            'contact-duplicate-padding' => preg_replace('~(<td\b[^>]*class="rt-ledger-direct[^>]*style="[^\"]*)padding:14px 0 0!important;~', '$1padding:14px 0 0!important;padding:14px 0 0;', $html, 1),
+            'contact-side-padding' => preg_replace('~(<td\b[^>]*class="rt-ledger-direct[^>]*style="[^\"]*)padding:14px 0 0!important;~', '$1padding:14px 0 0!important;padding-top:14px!important;', $html, 1),
             'header-geometry' => preg_replace('~(<th\b[^>]*class="rt-phl[^>]*width=")48%~', '$150%', $html, 1),
             'header-marker' => str_replace('data-rt-personal-header="1"', 'data-rt-personal-header="1" data-rt-personal-contacts="1"', $html),
             'company-slot' => str_replace('<!-- RT-PERSONAL-COMPANY-SLOT-V2 -->', '', $html),
