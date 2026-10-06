@@ -803,6 +803,8 @@ final class MailDocumentController extends Controller
             );
             $htmlReport = $sanitizer->clean($html);
             $cssReport = $this->cleanStyleSheet($sanitizer, (string) $validated['css']);
+            $this->assertSavePreservesMailStyles($htmlReport, 'html');
+            $this->assertSavePreservesMailStyles($cssReport, 'css');
             $this->assertDocumentStructure($locked, $htmlReport->html, $cssReport->html);
             $builderData = $this->syncBuilderData(
                 $locked,
@@ -1454,6 +1456,43 @@ final class MailDocumentController extends Controller
         }
 
         return new EmailHtmlReport($matches[1], $report->findings);
+    }
+
+    /**
+     * Ein Autosave darf das Layout nicht durch still entfernte Stilregeln
+     * ersetzen. Der letzte gueltige Entwurf bleibt bei solchen Funden stehen;
+     * der Editor behaelt die ungespeicherte Quelle zur Korrektur. Skripte und
+     * Ereignisattribute werden wie bisher aus einem Entwurf entfernt.
+     */
+    private function assertSavePreservesMailStyles(EmailHtmlReport $report, string $field): void
+    {
+        $findings = array_values(array_filter(
+            $report->violations(),
+            static function (array $finding): bool {
+                if (! str_starts_with($finding['code'], 'css.')) {
+                    return false;
+                }
+
+                // Der bestehende Entwurfsvertrag entfernt diese beiden rein
+                // ausfuehrbaren CSS-Hooks. Der Bericht besitzt noch kein
+                // separates Property-Feld, daher nur die exakte bekannte
+                // Diagnose ausnehmen, nie eine allgemeine CSS-Fehlerklasse.
+                return $finding['code'] !== 'css.property.forbidden'
+                    || preg_match(
+                        '/\\ACSS-Eigenschaft (?:behavior|-moz-binding) ist in E-Mails verboten und wurde entfernt\\.\\z/',
+                        $finding['message'],
+                    ) !== 1;
+            },
+        ));
+
+        if ($findings !== []) {
+            throw ValidationException::withMessages([
+                $field => array_merge(
+                    ['Der Entwurf wurde nicht gespeichert, weil die Verarbeitung Stilregeln entfernen und das Mail-Layout veraendern wuerde. Verwende Tabellen und erlaubte Mail-Stile; der letzte gespeicherte Stand bleibt unveraendert.'],
+                    (new EmailHtmlReport('', $findings))->violationMessages(),
+                ),
+            ]);
+        }
     }
 
     /** Freie CSS-Spalten duerfen serverkontrollierte Mailregeln nie schlagen. */
