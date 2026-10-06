@@ -1469,19 +1469,20 @@ final class MailDocumentController extends Controller
         $findings = array_values(array_filter(
             $report->violations(),
             static function (array $finding): bool {
-                if (! str_starts_with($finding['code'], 'css.')) {
+                // Ein verworfener MSO-Kommentar kann die einzige Tabellen-
+                // und Stilfassung fuer Classic Outlook enthalten. Dessen
+                // Entfernung ist ebenfalls ein Layoutverlust, auch wenn die
+                // normalen HTML-Anker danach weiterhin gueltig sind.
+                if (! str_starts_with($finding['code'], 'css.')
+                    && $finding['code'] !== 'comment.conditional') {
                     return false;
                 }
 
                 // Der bestehende Entwurfsvertrag entfernt diese beiden rein
-                // ausfuehrbaren CSS-Hooks. Der Bericht besitzt noch kein
-                // separates Property-Feld, daher nur die exakte bekannte
-                // Diagnose ausnehmen, nie eine allgemeine CSS-Fehlerklasse.
+                // ausfuehrbaren CSS-Hooks. Nur die maschinenlesbare konkrete
+                // Property ausnehmen, nie eine allgemeine CSS-Fehlerklasse.
                 return $finding['code'] !== 'css.property.forbidden'
-                    || preg_match(
-                        '/\\ACSS-Eigenschaft (?:behavior|-moz-binding) ist in E-Mails verboten und wurde entfernt\\.\\z/',
-                        $finding['message'],
-                    ) !== 1;
+                    || ! in_array($finding['property'] ?? null, ['behavior', '-moz-binding'], true);
             },
         ));
 

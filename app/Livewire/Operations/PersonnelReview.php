@@ -15,6 +15,7 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
 use App\Support\Operations\ReportingPeriod;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -26,6 +27,9 @@ class PersonnelReview extends Component
 
     #[Locked]
     public string $module;
+
+    #[Locked]
+    public bool $embedded = false;
 
     public string $filter = 'pending';
 
@@ -128,13 +132,31 @@ class PersonnelReview extends Component
 
     public array $rules = ['name' => '', 'minimum_rest_minutes' => '', 'maximum_shift_minutes' => '', 'break_after_minutes' => '', 'minimum_break_minutes' => '', 'confirmed' => false];
 
-    public function mount(string $module): void
+    public static function moduleReady(string $module): bool
+    {
+        $tables = match ($module) {
+            'qualifications' => ['employee_qualifications', 'qualification_types'],
+            'absences' => ['absence_requests'],
+            'rules' => ['operations_rule_profiles'],
+            default => [],
+        };
+
+        return $tables !== [] && collect($tables)->every(fn ($table) => Schema::hasTable($table));
+    }
+
+    public function mount(string $module, bool $embedded = false, string $initialAbsenceView = 'list', ?int $initialRecordId = null): void
     {
         $this->module = $module;
+        $this->embedded = $embedded;
+        abort_unless(in_array($initialAbsenceView, ['list', 'calendar'], true), 422);
+        $this->absenceView = $initialAbsenceView;
         $this->access();
         if ($module === 'absences') {
             $this->from = now(config('operations.display_timezone'))->startOfMonth()->toDateString();
             $this->until = now(config('operations.display_timezone'))->endOfMonth()->toDateString();
+        }
+        if ($initialRecordId && $module !== 'rules') {
+            $this->openDetails($initialRecordId);
         }
     }
 
@@ -153,7 +175,11 @@ class PersonnelReview extends Component
     {
         abort_unless(in_array($this->module, ['qualifications', 'absences', 'rules'], true), 404);
         OperationsAccess::authorize(auth()->user(), OperationsNavigation::modules()[$this->module]['ability']);
-        OperationsAccess::requireReady();
+        if ($this->embedded) {
+            abort_unless(self::moduleReady($this->module), 503);
+        } else {
+            OperationsAccess::requireReady();
+        }
     }
 
     private function scopedQuery(): Builder

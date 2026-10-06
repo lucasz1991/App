@@ -1,4 +1,19 @@
 <div class="space-y-4" data-operations-customers>
+    @if($embedded)
+        @if($selectedCustomer)
+            <section class="ops-panel ops-stack" aria-label="Kundenstammdaten">
+                <header class="ops-toolbar"><div><span class="ops-muted text-xs">{{ $selectedCustomer->customer_number }}</span><h2 class="font-semibold text-xl">{{ $selectedCustomer->company_name }}</h2></div><x-ui.buttons.button-basic type="button" wire:click="editCustomer({{ $selectedCustomer->id }})">Bearbeiten</x-ui.buttons.button-basic></header>
+                <dl class="grid gap-4 sm:grid-cols-2">
+                    <div><dt class="ops-muted text-xs">Ansprechpartner</dt><dd>{{ $selectedCustomer->contact_name ?: '—' }}</dd></div>
+                    <div><dt class="ops-muted text-xs">Status</dt><dd>{{ $selectedCustomer->is_active ? 'Aktiv' : 'Inaktiv' }}</dd></div>
+                    <div><dt class="ops-muted text-xs">E-Mail</dt><dd class="break-all">{{ $selectedCustomer->email ?: '—' }}</dd></div>
+                    <div><dt class="ops-muted text-xs">Telefon</dt><dd>{{ $selectedCustomer->phone ?: '—' }}</dd></div>
+                    <div><dt class="ops-muted text-xs">Anschrift</dt><dd>{{ $selectedCustomer->street }}<br>{{ trim(($selectedCustomer->postal_code ?? '').' '.($selectedCustomer->city ?? '')) }}<br>{{ $selectedCustomer->country }}</dd></div>
+                    @if($selectedCustomer->notes)<div><dt class="ops-muted text-xs">Interne Notiz</dt><dd class="whitespace-pre-line break-words">{{ $selectedCustomer->notes }}</dd></div>@endif
+                </dl>
+            </section>
+        @elseif(!$formOpen)<div class="ops-empty">Keine Kundenstammdaten vorhanden.</div>@endif
+    @else
     <x-tables.toolbar title="Filter" id="operations-customers-filters">
         <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Kunden suchen" /></x-slot:search>
         <x-tables.filter-field label="Kundenstatus" for="customer-status-filter"><x-ui.forms.select id="customer-status-filter" wire:model.live="activeFilter" aria-label="Kundenstatus"><option value="active">Aktiv</option><option value="inactive">Inaktiv</option><option value="all">Alle</option></x-ui.forms.select></x-tables.filter-field>
@@ -79,6 +94,7 @@
                     </div>
                 @endif
     </x-operations.modal>
+    @endif
     <x-dialog-modal wire:model="formOpen" maxWidth="2xl">
         <x-slot:title>{{ $editingCustomerId ? 'Kunde bearbeiten' : 'Neuen Kunden anlegen' }}</x-slot:title>
         <x-slot:content>

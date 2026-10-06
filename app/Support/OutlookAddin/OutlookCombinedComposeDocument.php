@@ -43,7 +43,11 @@ final class OutlookCombinedComposeDocument
             self::fail();
         }
 
-        SignatureTableOverlapDelivery::assertRuntime($signatureHtml);
+        if (str_contains($signatureHtml, 'data-rt-train-bottom-overlay=')) {
+            OutlookTrainBottomOverlay::assertRuntime($signatureHtml);
+        } else {
+            SignatureTableOverlapDelivery::assertRuntime($signatureHtml);
+        }
         [$templateNodes, $templateFrame] = self::fragment($templateHtml, 'rt-outlook-template', 'rtt', 12);
         [$signatureNodes, $signatureFrame] = self::fragment($signatureHtml, 'rt-outlook-signature', 'rts', 10);
         if (! self::hasClass($templateNodes[$templateFrame], 'rt-native-compose-frame')

@@ -6,8 +6,10 @@ use App\Enums\OrderPriority;
 use App\Enums\OrderStatus;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Models\OperationInquiry;
 use App\Services\Operations\OrderLifecycleService;
 use App\Services\Operations\OrderSchedulingService;
+use App\Support\Operations\OperationsEnhancementsSchema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -67,6 +69,43 @@ class Orders extends Component
 
     public bool $detailOpen = false;
 
+    #[Locked]
+    public ?int $customerFilterId = null;
+
+    #[Locked]
+    public bool $consolidated = false;
+
+    #[Locked]
+    public string $detailSection = 'overview';
+
+    #[Locked]
+    public ?int $fulfilmentRecordId = null;
+
+    private function scopedQuery(): Builder
+    {
+        return Order::query()->when($this->customerFilterId, fn (Builder $query) => $query->where('customer_id', $this->customerFilterId));
+    }
+
+    public function detailSections(): array
+    {
+        return array_filter([
+            'overview' => 'Übersicht', 'planning' => 'Bedarf & Planung',
+            'proofs' => OperationsEnhancementsSchema::ready() ? 'Leistungsnachweise' : null,
+            'costs' => OperationsEnhancementsSchema::ready() && auth()->user()->can('operations.costs.manage') ? 'Kosten' : null,
+            'history' => 'Verlauf',
+        ]);
+    }
+
+    public function setDetailSection(string $section): void
+    {
+        $this->ensureAdmin();
+        abort_unless(array_key_exists($section, $this->detailSections()), 403);
+        if ($this->selectedOrderId) {
+            $this->scopedQuery()->findOrFail($this->selectedOrderId);
+        }
+        $this->detailSection = $section;
+    }
+
     public function openDetails(int $id): void
     {
         $this->selectOrder($id);
@@ -110,12 +149,29 @@ class Orders extends Component
 
     public string $notes = '';
 
-    public function mount(): void
+    public function mount(?int $initialOrderId = null, ?int $customerId = null, string $initialSection = 'overview', bool $consolidated = false, ?int $initialRecordId = null): void
     {
         $this->ensureAdmin();
         $this->status = $this->enumDefault(OrderStatus::class, 'requested');
         $this->priority = $this->enumDefault(OrderPriority::class, 'normal');
-        $this->selectedOrderId = Order::query()->latest('starts_at')->value('id');
+        $this->consolidated = $consolidated;
+        $this->fulfilmentRecordId = $initialRecordId;
+        abort_if($initialRecordId !== null && ($initialRecordId < 1 || $initialSection !== 'proofs' || $initialOrderId === null), 404);
+        $this->customerFilterId = $customerId;
+        if ($customerId !== null) {
+            abort_unless($customerId > 0, 404);
+            Customer::findOrFail($customerId);
+        }
+        $this->setDetailSection($initialSection);
+        $this->selectedOrderId = $initialOrderId ?? $this->scopedQuery()->latest('starts_at')->value('id');
+        if ($initialOrderId === null && request()->has('order')) {
+            $raw = request()->query('order');
+            abort_unless(is_string($raw) && ctype_digit($raw) && (int) $raw > 0, 404);
+            $initialOrderId = (int) $raw;
+        }
+        if ($initialOrderId !== null) {
+            $this->openDetails($initialOrderId);
+        }
     }
 
     #[On('operations-create')]
@@ -139,7 +195,7 @@ class Orders extends Component
     {
         $this->ensureAdmin();
         $this->detailOpen = false;
-        $order = Order::query()->findOrFail($orderId);
+        $order = $this->scopedQuery()->findOrFail($orderId);
 
         $this->editingOrderId = $order->id;
         $this->customerId = $order->customer_id;
@@ -168,7 +224,10 @@ class Orders extends Component
     public function selectOrder(int $orderId): void
     {
         $this->ensureAdmin();
-        Order::query()->findOrFail($orderId);
+        $this->scopedQuery()->findOrFail($orderId);
+        if ($this->selectedOrderId !== null && $this->selectedOrderId !== $orderId) {
+            $this->fulfilmentRecordId = null;
+        }
         $this->selectedOrderId = $orderId;
         $this->resetValidation('statusChange');
     }
@@ -176,6 +235,10 @@ class Orders extends Component
     public function saveOrder(OrderSchedulingService $schedulingService): void
     {
         $this->ensureAdmin();
+        if ($this->editingOrderId) {
+            $this->scopedQuery()->findOrFail($this->editingOrderId);
+        }
+        abort_if($this->customerFilterId && $this->customerId !== $this->customerFilterId, 422);
         $currentCustomerId = $this->editingOrderId
             ? Order::query()->whereKey($this->editingOrderId)->value('customer_id')
             : null;
@@ -269,7 +332,7 @@ class Orders extends Component
         $this->ensureAdmin();
         abort_unless($this->selectedOrderId, 404);
 
-        $order = Order::query()->findOrFail($this->selectedOrderId);
+        $order = $this->scopedQuery()->findOrFail($this->selectedOrderId);
 
         try {
             $lifecycle->transition($order, $status, auth()->user());
@@ -286,7 +349,7 @@ class Orders extends Component
     {
         $this->ensureAdmin();
 
-        $orders = Order::query()
+        $orders = $this->scopedQuery()
             ->with('customer')
             ->withCount('shifts')
             ->when(trim($this->search) !== '', function (Builder $query): void {
@@ -309,7 +372,7 @@ class Orders extends Component
             ->paginate(25, ['*'], 'ordersPage');
 
         $selectedOrder = $this->selectedOrderId
-            ? Order::query()->with(['customer', 'shifts.assignments', 'statusHistory.changedBy.profile', 'statusHistory.changedBy.currentTeam'])->find($this->selectedOrderId)
+            ? $this->scopedQuery()->with(['customer', 'shifts.assignments', 'statusHistory.changedBy.profile', 'statusHistory.changedBy.currentTeam'])->findOrFail($this->selectedOrderId)
             : null;
 
         $transitionOptions = $selectedOrder
@@ -322,6 +385,7 @@ class Orders extends Component
         return view('livewire.admin.operations.orders', [
             'orders' => $orders,
             'selectedOrder' => $selectedOrder,
+            'originInquiry' => $selectedOrder && auth()->user()->can('operations.inquiries.manage') && \Illuminate\Support\Facades\Schema::hasTable('operation_inquiries') ? OperationInquiry::where('order_id', $selectedOrder->id)->first() : null,
             'customers' => Customer::query()
                 ->where(function (Builder $query): void {
                     $query->where('is_active', true);
@@ -335,13 +399,13 @@ class Orders extends Component
             'statusOptions' => $this->enumOptions(OrderStatus::class),
             'priorityOptions' => $this->enumOptions(OrderPriority::class),
             'transitionOptions' => $transitionOptions,
-            'openCount' => Order::query()->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])->count(),
-            'startsSoonCount' => Order::query()
+            'openCount' => $this->scopedQuery()->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])->count(),
+            'startsSoonCount' => $this->scopedQuery()
                 ->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])
                 ->whereBetween('starts_at', [now()->utc(), now()->addDays(7)->utc()])
                 ->count(),
-            'inProgressCount' => Order::query()->where('status', OrderStatus::InProgress)->count(),
-            'withoutShiftsCount' => Order::query()
+            'inProgressCount' => $this->scopedQuery()->where('status', OrderStatus::InProgress)->count(),
+            'withoutShiftsCount' => $this->scopedQuery()
                 ->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])
                 ->whereDoesntHave('shifts')
                 ->count(),

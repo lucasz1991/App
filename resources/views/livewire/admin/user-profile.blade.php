@@ -14,7 +14,7 @@
     $isUserOnline = $user->isOnline();
   @endphp
 
-  <x-ui.page :title="$user->name" :eyebrow="__('app.employees')" :description="$user->email">
+  <x-ui.page :title="$embedded ? null : $user->name" :eyebrow="__('app.employees')" :description="$user->email" :auto-intro="!$embedded">
     <x-slot:actions>
         <x-ui.dropdown.page-actions width="48">
             @if ($user->status)

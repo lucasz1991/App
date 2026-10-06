@@ -26,6 +26,9 @@ class PlanningEnhancements extends Component
     public bool $personal = false;
 
     #[Locked]
+    public bool $embedded = false;
+
+    #[Locked]
     public string $tab = 'capacity';
 
     #[Locked]
@@ -60,9 +63,10 @@ class PlanningEnhancements extends Component
 
     public array $goals = ['wish_weight' => 30, 'load_weight' => 1, 'night_weight' => 10, 'weekend_weight' => 10, 'night_start' => '22:00', 'night_end' => '06:00'];
 
-    public function mount(bool $personal = false, string $tab = 'capacity'): void
+    public function mount(bool $personal = false, string $tab = 'capacity', bool $embedded = false): void
     {
         $this->personal = $personal;
+        $this->embedded = $embedded;
         $this->access();
         $this->from = now()->startOfWeek()->toDateString();
         $this->until = now()->startOfWeek()->addWeeks(4)->subDay()->toDateString();

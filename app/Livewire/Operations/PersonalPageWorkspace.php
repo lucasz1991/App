@@ -1,0 +1,240 @@
+<?php
+
+namespace App\Livewire\Operations;
+
+use App\Models\User;
+use App\Services\Operations\EmployeeDocumentVersionService;
+use App\Services\Operations\PersonnelEnhancementService;
+use App\Services\Operations\PersonnelProcessService;
+use App\Services\Operations\PersonnelScopeService;
+use App\Services\Operations\PayrollClosingService;
+use App\Services\Operations\WorkforceAccountService;
+use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsEnhancementsSchema;
+use App\Support\Operations\WorkTimeSchema;
+use Illuminate\Support\Facades\Schema;
+use Livewire\Attributes\Locked;
+use Livewire\Component;
+
+class PersonalPageWorkspace extends Component
+{
+    #[Locked]
+    public string $page = 'people';
+
+    #[Locked]
+    public string $view = '';
+
+    #[Locked]
+    public string $section = '';
+
+    #[Locked]
+    public array $context = [];
+
+    public int $userId = 0;
+
+    #[Locked]
+    public string $ruleView = 'profiles';
+
+    public function mount(string $page, string $initialView = '', string $initialSection = '', array $context = []): void
+    {
+        $this->page = $page;
+        $this->context = array_intersect_key($context, array_flip(['user', 'user_id', 'record', 'record_id', 'record_type']));
+        $this->userId = max(0, (int) ($context['user_id'] ?? $context['user'] ?? 0));
+        $views = self::availableViews(auth()->user(), $page);
+        $sections = self::availableSections(auth()->user(), $page);
+        abort_unless($views || $sections, 403);
+        $this->view = isset($views[$initialView]) ? $initialView : (array_key_first($views) ?? '');
+        if ($initialSection !== '') {
+            abort_unless(isset($sections[$initialSection]), 403);
+            $this->section = $initialSection;
+        } elseif ($this->view === '') {
+            $this->section = array_key_first($sections);
+        }
+        $this->selectEmployeeIfRequired();
+        $this->access();
+    }
+
+    public static function availableViews(User $actor, string $page): array
+    {
+        if (! $actor->status) {
+            return [];
+        }
+        $definitions = match ($page) {
+            'people' => [
+                'employees' => ['Mitarbeiter', $actor->can('employees.view')],
+                'documents' => ['Unterlagen', $actor->can('employees.master-data.view') && EmployeeDocumentVersionService::ready()],
+                'qualifications' => ['Nachweise', $actor->can('operations.qualifications.manage') && PersonnelReview::moduleReady('qualifications')],
+                'training' => ['Schulungen', $actor->can('operations.qualifications.manage') && app(PersonnelProcessService::class)->ready()],
+            ],
+            'personnel-processes' => [
+                'tasks' => ['Aufgaben', $actor->can('employees.master-data.view') && app(PersonnelProcessService::class)->ready()],
+                'workflows' => ['On-/Offboarding', $actor->can('employees.master-data.view') && app(PersonnelEnhancementService::class)->ready()],
+                'recruiting' => ['Bewerbungen', $actor->can('employees.master-data.view') && self::globalAllowed($actor, 'employees.recruiting.manage') && app(PersonnelEnhancementService::class)->ready()],
+                'development' => ['Entwicklung', $actor->can('employees.master-data.view') && $actor->can('employees.development.manage') && app(PersonnelEnhancementService::class)->ready()],
+            ],
+            'leave' => [
+                'requests' => ['Anträge', $actor->can('operations.absences.review') && PersonnelReview::moduleReady('absences')],
+                'calendar' => ['Kalender', $actor->can('operations.absences.review') && OperationsAccess::ready()],
+                'leave-accounts' => ['Urlaubskonten', $actor->can('employees.master-data.view') && app(WorkforceAccountService::class)->ready()],
+                'time-accounts' => ['Stundenkonten', $actor->can('employees.master-data.view') && app(WorkforceAccountService::class)->ready()],
+            ],
+            'time-review' => [
+                'times' => ['Zeitmeldungen', $actor->can('operations.time.review') && OperationsAccess::ready()],
+                'conflicts' => ['Erfassungskonflikte', $actor->can('operations.time.review') && WorkTimeSchema::ready()],
+            ],
+            'payroll' => [
+                'closing' => ['Monatsabschluss', $actor->can('operations.time.review') && app(PayrollClosingService::class)->ready() && OperationsEnhancementsSchema::ready()],
+                'export' => ['Export', $actor->can('operations.time.export') && OperationsAccess::ready()],
+                'history' => ['Historie', $actor->can('operations.time.export') && OperationsAccess::ready()],
+            ],
+            default => [],
+        };
+
+        return collect($definitions)->filter(fn ($item) => $item[1])->map(fn ($item) => $item[0])->all();
+    }
+
+    public static function availableSections(User $actor, string $page): array
+    {
+        if (! $actor->status) {
+            return [];
+        }
+        $accounts = $actor->can('employees.master-data.view') && app(WorkforceAccountService::class)->ready();
+        $enhanced = $actor->can('employees.master-data.view') && app(PersonnelEnhancementService::class)->ready();
+        $definitions = match ($page) {
+            'people' => [
+                'signatures' => ['Unterzeichnungen', $enhanced],
+                'emergency' => ['Notfallkontakt', $enhanced && $actor->can('employees.emergency.access')],
+            ],
+            'personnel-processes' => [
+                'reports' => ['Personalberichte', $enhanced && $actor->can('operations.time.review')],
+                'surveys' => ['Umfragen', $enhanced],
+            ],
+            'leave' => [
+                'models' => ['Arbeitsmodelle', $accounts],
+                'policies' => ['Urlaubsrichtlinien', $accounts],
+                'rules' => ['Regelzuordnungen', $accounts && $actor->can('operations.rules.manage')],
+                'checks' => ['Planprüfungen', $accounts && Schema::hasTable('personnel_plan_reviews')],
+                'responsibilities' => ['Zuständigkeiten', $accounts && $actor->isAdmin()],
+                'calendars' => ['Regionalkalender', $enhanced && $actor->can('operations.rules.manage')],
+                'approvals' => ['Freigabeketten', $enhanced && $actor->can('operations.absences.review')],
+                'sickness' => ['Krankmeldungsnachweise', $enhanced && $actor->can('employees.master-data.edit') && $actor->can('operations.absences.review')],
+            ],
+            'time-review' => [
+                'rules' => ['Fachregeln', $actor->can('operations.rules.manage') && PersonnelReview::moduleReady('rules')],
+                'terminal' => ['Terminalzugänge', $actor->can('operations.terminal.manage') && OperationsEnhancementsSchema::ready()],
+            ],
+            'payroll' => [
+                'payroll-references' => ['Lohnzuordnung', $actor->can('operations.time.export') && Schema::hasTable('employee_payroll_references')],
+            ],
+            default => [],
+        };
+
+        return collect($definitions)->filter(fn ($item) => $item[1])->map(fn ($item) => $item[0])->all();
+    }
+
+    private static function globalAllowed(User $actor, string $ability): bool
+    {
+        return $actor->can($ability) && app(PersonnelScopeService::class)->visibleUserIds($actor, $ability) === null;
+    }
+
+    public function setView(string $view): void
+    {
+        abort_unless(isset(self::availableViews(auth()->user(), $this->page)[$view]), 403);
+        $this->view = $view;
+        $this->section = '';
+        $this->forgetRecord();
+        $this->selectEmployeeIfRequired();
+        $this->access();
+    }
+
+    public function setSection(string $section): void
+    {
+        if ($section === '') {
+            abort_unless($this->view !== '' && isset(self::availableViews(auth()->user(), $this->page)[$this->view]), 403);
+        } else {
+            abort_unless(isset(self::availableSections(auth()->user(), $this->page)[$section]), 403);
+        }
+        $this->section = $section;
+        $this->forgetRecord();
+        $this->selectEmployeeIfRequired();
+        $this->access();
+    }
+
+    public function setRuleView(string $view): void
+    {
+        $this->access();
+        abort_unless($this->page === 'time-review' && $this->section === 'rules' && in_array($view, ['profiles', 'rates'], true), 403);
+        abort_unless($view !== 'rates' || OperationsEnhancementsSchema::ready(), 503);
+        $this->ruleView = $view;
+    }
+
+    public function updatedUserId(): void
+    {
+        $this->forgetRecord();
+        $this->access();
+    }
+
+    public function showEmployees(): void
+    {
+        abort_unless($this->page === 'people' && $this->view === 'employees' && isset(self::availableViews(auth()->user(), $this->page)['employees']), 403);
+        $this->userId = 0;
+        $this->forgetRecord();
+    }
+
+    private function forgetRecord(): void
+    {
+        unset($this->context['record'], $this->context['record_id'], $this->context['record_type']);
+    }
+
+    private function personAbility(): ?string
+    {
+        if ($this->section === 'terminal') {
+            return 'operations.terminal.manage';
+        }
+        if ($this->page === 'people' && $this->view === 'training' && $this->section === '') {
+            return 'operations.qualifications.manage';
+        }
+        if (($this->page === 'people' && ($this->view === 'documents' || in_array($this->section, ['signatures', 'emergency'], true)))
+            || $this->page === 'personnel-processes' || ($this->page === 'leave' && ($this->section !== '' || in_array($this->view, ['leave-accounts', 'time-accounts'], true)))) {
+            return 'employees.master-data.view';
+        }
+
+        return null;
+    }
+
+    private function selectEmployeeIfRequired(): void
+    {
+        $ability = $this->personAbility();
+        if ($ability && ! $this->userId) {
+            $this->userId = (int) app(PersonnelScopeService::class)->applyUsers(User::where('role', 'staff'), auth()->user(), $ability)->orderBy('name')->value('id');
+        }
+    }
+
+    private function access(): void
+    {
+        $actor = auth()->user()->fresh();
+        abort_unless($actor->status, 403);
+        abort_unless($this->section !== '' ? isset(self::availableSections($actor, $this->page)[$this->section]) : isset(self::availableViews($actor, $this->page)[$this->view]), 403);
+        if ($this->userId && ($ability = $this->personAbility())) {
+            app(PersonnelScopeService::class)->authorize($actor, $this->userId, $ability);
+            User::where('role', 'staff')->findOrFail($this->userId);
+        }
+    }
+
+    public function render()
+    {
+        $this->access();
+        $views = self::availableViews(auth()->user(), $this->page);
+        $sections = self::availableSections(auth()->user(), $this->page);
+        $icons = ['employees' => 'fa-users', 'documents' => 'fa-folder-open', 'qualifications' => 'fa-award', 'training' => 'fa-graduation-cap', 'tasks' => 'fa-list-check', 'workflows' => 'fa-user-check', 'recruiting' => 'fa-user-plus', 'development' => 'fa-seedling', 'requests' => 'fa-inbox', 'calendar' => 'fa-calendar-days', 'leave-accounts' => 'fa-umbrella-beach', 'time-accounts' => 'fa-wallet', 'times' => 'fa-clock', 'conflicts' => 'fa-triangle-exclamation', 'closing' => 'fa-check-double', 'export' => 'fa-file-export', 'history' => 'fa-clock-rotate-left'];
+        $viewOptions = collect($views)->map(fn ($label, $value) => ['value' => $value, 'label' => $label, 'icon' => $icons[$value]])->values()->all();
+        $employees = collect();
+        if ($ability = $this->personAbility()) {
+            $employees = app(PersonnelScopeService::class)->applyUsers(User::where('role', 'staff'), auth()->user(), $ability)->orderBy('name')->get(['id', 'name']);
+        }
+        $recordId = max(0, (int) ($this->context['record_id'] ?? $this->context['record'] ?? 0)) ?: null;
+        $contentKey = implode('-', [$this->page, $this->view, $this->section, $this->userId, $recordId ?? 0, $this->ruleView]);
+
+        return view('livewire.operations.personal-page-workspace', compact('views', 'sections', 'viewOptions', 'employees', 'recordId', 'contentKey'));
+    }
+}

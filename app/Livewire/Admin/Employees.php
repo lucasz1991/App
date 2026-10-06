@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
+use Livewire\Attributes\Locked;
 use Livewire\WithPagination;
 
 class Employees extends Component
@@ -17,6 +18,9 @@ class Employees extends Component
     use WithPagination;
 
     protected $paginationTheme = 'tailwind';
+
+    #[Locked]
+    public bool $embedded = false;
 
     // Auswahl / Bulk
     public array $selectedEmployees = [];
@@ -43,8 +47,9 @@ class Employees extends Component
         'toggleEmployeeSelection' => 'toggleEmployeeSelection',
     ];
 
-    public function mount(): void
+    public function mount(bool $embedded = false): void
     {
+        $this->embedded = $embedded;
         Gate::authorize('employees.view');
     }
 

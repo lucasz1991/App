@@ -26,6 +26,12 @@ class TimeReview extends Component
     #[Locked]
     public bool $exports = false;
 
+    #[Locked]
+    public bool $embedded = false;
+
+    #[Locked]
+    public bool $historyOnly = false;
+
     public string $filter = 'submitted';
 
     public string $exportProfile = 'v1';
@@ -95,11 +101,17 @@ class TimeReview extends Component
         $this->detailOpen = true;
     }
 
-    public function mount(bool $exports = false): void
+    public function mount(bool $exports = false, bool $embedded = false, bool $historyOnly = false, ?int $initialRecordId = null): void
     {
         $this->exports = $exports;
+        $this->embedded = $embedded;
+        $this->historyOnly = $historyOnly;
+        abort_if($historyOnly && ! $exports, 403);
         $this->filter = $exports ? 'approved' : 'submitted';
         $this->access();
+        if ($initialRecordId && ! $historyOnly) {
+            $this->openDetails($initialRecordId);
+        }
     }
 
     private function access(): void
@@ -212,7 +224,7 @@ class TimeReview extends Component
         return view('livewire.operations.time-review', [
             'batchEntries' => $this->batchOpen ? $this->entryQuery()->with('user:id,name')->whereIn('id', array_column($this->batchRows, 'id'))->get() : collect(),
             'detailEntry' => $detailEntry,
-            'entries' => $this->entryQuery()->with('user:id,name')->tap($period)->when($this->exports, fn ($q) => $q->where('status', 'approved'))
+            'entries' => $this->historyOnly ? collect() : $this->entryQuery()->with('user:id,name')->tap($period)->when($this->exports, fn ($q) => $q->where('status', 'approved'))
                 ->when($this->exports && $this->exportProfile === 'v1', fn ($q) => $q->whereNotExists(fn ($q) => $q->selectRaw('1')->from('work_time_export_items')->whereColumn('work_time_entry_id', 'work_time_entries.id')->whereColumn('work_time_export_items.revision', 'work_time_entries.revision')))
                 ->when(! $this->exports && $this->filter !== 'all', fn ($q) => $q->where('status', $this->filter))->when(filled($this->search), fn ($q) => $q->whereHas('user', fn ($q) => $q->where('name', 'like', '%'.mb_substr($this->search, 0, 100).'%')))->latest()->paginate(15),
             'history' => ! $this->exports ? collect() : ($this->exportProfile === 'v2' ? app(WorkTimeExportAccessService::class)->basicHistory(auth()->user()) : app(WorkTimeExportAccessService::class)->legacyQuery(auth()->user())->latest('id')->limit(20)->get()),

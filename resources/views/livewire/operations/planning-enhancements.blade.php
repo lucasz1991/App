@@ -11,7 +11,7 @@
             default=>[['label'=>'Dienst','key'=>'name'],['label'=>'Tätigkeit / Ort','key'=>'context'],['label'=>'Beginn','key'=>'period'],['label'=>'Bedarf','key'=>'required'],['label'=>'Reserviert','key'=>'reserved'],['label'=>'Bestätigt','key'=>'confirmed'],['label'=>'Geeignet frei','key'=>'eligible'],['label'=>'Unterdeckung','key'=>'missing'],['label'=>'Nachweisrisiko','key'=>'proof_risks']]
         };
     @endphp
-    <header class="ops-toolbar"><nav class="ops-actions" aria-label="Planungsbereiche">@foreach($tabs as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$tab===$key?'primary':'secondary'" wire:click="setTab('{{ $key }}')" :aria-current="$tab===$key?'page':'false'">{{ $label }}</x-ui.buttons.button-basic>@endforeach</nav>
+    <header class="ops-toolbar">@if(!$embedded)<nav class="ops-actions" aria-label="Planungsbereiche">@foreach($tabs as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$tab===$key?'primary':'secondary'" wire:click="setTab('{{ $key }}')" :aria-current="$tab===$key?'page':'false'">{{ $label }}</x-ui.buttons.button-basic>@endforeach</nav>@endif
         @if(in_array($tab,['bundles','teams','rotations','chains','positions']))<x-ui.buttons.button-basic type="button" wire:click="edit('{{ ['bundles'=>'bundle','teams'=>'team','rotations'=>'rotation','chains'=>'chain','positions'=>'position'][$tab] }}')"><i class="far fa-plus" aria-hidden="true"></i>{{ ['bundles'=>'Bündel','teams'=>'Team','rotations'=>'Rotation','chains'=>'Dienstkette','positions'=>'Stellenplan'][$tab] }} anlegen</x-ui.buttons.button-basic>@endif
     </header>
     <x-operations.feedback />

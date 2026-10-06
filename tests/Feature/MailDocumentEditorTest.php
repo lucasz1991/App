@@ -3804,6 +3804,159 @@ HTML;
         $this->assertContains($response->json('compatibility.status'), ['pass', 'warn']);
     }
 
+    public function test_speichern_lehnt_entfernte_inline_mail_stile_ab_ohne_den_entwurf_zu_veraendern(): void
+    {
+        $this->createCanonicalMailDocuments();
+        $document = $this->document(MailDocumentKind::Template);
+        $admin = $this->admin();
+        $before = $document->getAttributes();
+        $versionCount = MailDocumentVersion::query()->count();
+
+        foreach ([
+            'display:flex;',
+            'display:grid;',
+            'gap:12px;',
+            'flex-direction:column;',
+            'box-shadow:0 0 4px #ffffff;',
+            'position:fixed;',
+            'visibility:collapse;',
+            'color:expression(alert(1));',
+            'behavior:url(x.htc);gap:12px;',
+            '-moz-binding:url(x.xml);display:flex;',
+        ] as $invalidStyle) {
+            $html = str_replace(
+                '{{APPLICATION_CONTENT}}',
+                '<tr><td style="padding:12px 18px;'.$invalidStyle.'">Layoutprobe</td></tr>{{APPLICATION_CONTENT}}',
+                (string) $document->html,
+            );
+
+            $response = $this->actingAs($admin)
+                ->putJson(route('admin.mail-documents.update', $document), [
+                    'builder_data' => $document->builder_data,
+                    'html' => $html,
+                    'css' => (string) $document->css,
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('html');
+
+            $this->assertStringContainsString('nicht gespeichert', $response->json('errors.html.0'));
+            $this->assertSame($before, $document->fresh()->getAttributes(), $invalidStyle);
+            $this->assertSame($versionCount, MailDocumentVersion::query()->count(), $invalidStyle);
+        }
+    }
+
+    public function test_speichern_lehnt_entfernte_separate_mail_stile_ab_ohne_den_entwurf_zu_veraendern(): void
+    {
+        $this->createCanonicalMailDocuments();
+        $document = $this->document(MailDocumentKind::Template);
+        $admin = $this->admin();
+        $before = $document->getAttributes();
+        $versionCount = MailDocumentVersion::query()->count();
+
+        foreach ([
+            '.design-facts { display:flex; padding:12px; }',
+            '.design-facts { gap:12px; }',
+            '.design-facts { box-shadow:0 0 4px #ffffff; }',
+            '@media only screen and (max-width:600px) { .design-facts { display:grid; } }',
+            '@supports (display:block) { .design-facts { padding:12px; } }',
+            '.design-facts { color:expression(alert(1)); }',
+            '.design-facts { behavior:url(x.htc); gap:12px; }',
+            '</style><div>Aufgebrochene CSS-Huelle</div>',
+        ] as $invalidCss) {
+            $response = $this->actingAs($admin)
+                ->putJson(route('admin.mail-documents.update', $document), [
+                    'builder_data' => $document->builder_data,
+                    'html' => (string) $document->html,
+                    'css' => $invalidCss,
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('css');
+
+            $this->assertStringContainsString('nicht gespeichert', $response->json('errors.css.0'));
+            $this->assertSame($before, $document->fresh()->getAttributes(), $invalidCss);
+            $this->assertSame($versionCount, MailDocumentVersion::query()->count(), $invalidCss);
+        }
+    }
+
+    public function test_speichern_lehnt_den_verlust_von_outlook_conditional_layout_ab(): void
+    {
+        $this->createCanonicalMailDocuments();
+        $document = $this->document(MailDocumentKind::Template);
+        $admin = $this->admin();
+        $before = $document->getAttributes();
+        $versionCount = MailDocumentVersion::query()->count();
+
+        foreach (['width:600px;gap:8px;', 'width:600px;display:flex;'] as $invalidStyle) {
+            $conditional = '<!--[if mso]><tr><td width="600" style="'.$invalidStyle.'">Nur Outlook</td></tr><![endif]-->';
+            $html = str_replace(
+                '<!-- RT_APPLICATION_CONTENT_START -->',
+                $conditional.'<!-- RT_APPLICATION_CONTENT_START -->',
+                (string) $document->html,
+            );
+
+            $response = $this->actingAs($admin)
+                ->putJson(route('admin.mail-documents.update', $document), [
+                    'builder_data' => $document->builder_data,
+                    'html' => $html,
+                    'css' => (string) $document->css,
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('html');
+
+            $this->assertStringContainsString('nicht gespeichert', $response->json('errors.html.0'));
+            $this->assertSame($before, $document->fresh()->getAttributes(), $invalidStyle);
+            $this->assertSame($versionCount, MailDocumentVersion::query()->count(), $invalidStyle);
+        }
+    }
+
+    public function test_tabellen_layout_und_erlaubte_mail_stile_bleiben_beim_speichern_und_neuladen_stabil(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Template);
+        $admin = $this->admin();
+        $row = '<tr><td style="padding:12px 18px;">'
+            .'<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;table-layout:fixed;border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;">'
+            .'<tbody><tr><td width="48%" valign="top" style="width:48%;padding:0 12px 0 0;vertical-align:top;">Links</td>'
+            .'<td width="52%" valign="top" style="width:52%;padding:0;vertical-align:top;">Rechts</td></tr></tbody>'
+            .'</table></td></tr>';
+        $safeMso = '<!--[if mso]><tr><td width="600" style="width:600px;padding:8px;">Outlook-Fallback</td></tr><![endif]-->';
+        $html = str_replace('{{APPLICATION_CONTENT}}', $safeMso.$row.'{{APPLICATION_CONTENT}}', (string) $document->html);
+        $css = '@media only screen and (max-width:600px) { .design-facts { padding:12px 18px; } }';
+
+        $first = $this->actingAs($admin)
+            ->putJson(route('admin.mail-documents.update', $document), [
+                'builder_data' => $document->builder_data,
+                'html' => $html,
+                'css' => $css,
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertOk();
+
+        $saved = $document->fresh();
+        $this->assertSame($html, $saved->html);
+        $this->assertStringContainsString($safeMso, $saved->html);
+        $this->assertSame($css, $saved->css);
+        $this->assertSame($saved->html, data_get($saved->builder_data, 'pages.0.component'));
+        $this->assertSame([], $saved->builder_data['styles']);
+        $this->assertSame($saved->html, $first->json('document.html'));
+        $this->assertSame($saved->css, $first->json('document.css'));
+        $before = $saved->getAttributes();
+        $versionCount = MailDocumentVersion::query()->count();
+
+        $this->putJson(route('admin.mail-documents.update', $saved), [
+            'builder_data' => $first->json('document.builder_data'),
+            'html' => $first->json('document.html'),
+            'css' => $first->json('document.css'),
+            'expected_hash' => $first->json('document.content_hash'),
+        ])->assertOk();
+
+        $this->assertSame($before, $saved->fresh()->getAttributes());
+        $this->assertSame($versionCount, MailDocumentVersion::query()->count());
+    }
+
     public function test_fehlender_kompatibilitaetskatalog_erlaubt_entwurf_aber_blockiert_freigabe(): void
     {
         $this->seedDocuments();

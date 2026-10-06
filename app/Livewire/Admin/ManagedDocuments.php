@@ -11,12 +11,16 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
+use Livewire\Attributes\Locked;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ManagedDocuments extends Component
 {
     use WithFileUploads;
+
+    #[Locked]
+    public bool $embedded = false;
 
     public bool $formOpen = false;
     public bool $versionUploadOpen = false;
@@ -33,9 +37,10 @@ class ManagedDocuments extends Component
     public $upload = null;
     public string $changeNotes = '';
 
-    public function mount(): void
+    public function mount(bool $embedded = false): void
     {
         Gate::authorize('files.manage');
+        $this->embedded = $embedded;
     }
 
     public function openCreate(): void

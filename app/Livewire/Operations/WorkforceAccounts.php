@@ -38,6 +38,12 @@ class WorkforceAccounts extends Component
     #[Locked]
     public bool $processOnly = false;
 
+    #[Locked]
+    public bool $embedded = false;
+
+    #[Locked]
+    public string $accountKind = 'all';
+
     public int $userId = 0;
 
     public string $tab = 'account';
@@ -59,14 +65,29 @@ class WorkforceAccounts extends Component
 
     public array $form = [];
 
-    public function mount(bool $personal = false): void
+    public function mount(bool $personal = false, ?string $tab = null, bool $embedded = false, string $accountKind = 'all', ?int $initialUserId = null, ?int $initialRecordId = null): void
     {
         $this->personal = $personal;
+        $this->embedded = $embedded;
+        $this->accountKind = $accountKind;
+        abort_unless(in_array($accountKind, ['all', 'vacation', 'time'], true), 422);
+        if ($tab !== null) {
+            $this->tab = $tab;
+        }
         $this->from = now(config('operations.display_timezone'))->startOfMonth()->toDateString();
         $this->until = now(config('operations.display_timezone'))->endOfMonth()->toDateString();
-        $ids = $personal ? null : app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'employees.master-data.view');
-        $this->userId = $personal ? auth()->id() : (int) User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->value('id');
+        $ids = $personal ? null : app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), $this->ability());
+        $this->userId = $personal ? auth()->id() : ($initialUserId ?? (int) User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->value('id'));
         $this->access();
+        if ($initialRecordId && $this->tab === 'checks') {
+            $record = PersonnelPlanReview::where('user_id', $this->userId)->findOrFail($initialRecordId);
+            $this->prepareRecord('plan_review', $record->id, $record->revision);
+        }
+    }
+
+    private function ability(): string
+    {
+        return $this->tab === 'training' ? 'operations.qualifications.manage' : 'employees.master-data.view';
     }
 
     private function access(): void
@@ -74,9 +95,9 @@ class WorkforceAccounts extends Component
         if ($this->personal) {
             OperationsAccess::own(auth()->user(), $this->userId);
         } else {
-            OperationsAccess::authorize(auth()->user(), 'employees.master-data.view');
+            OperationsAccess::authorize(auth()->user(), $this->ability());
             if ($this->userId) {
-                app(PersonnelScopeService::class)->authorize(auth()->user(), $this->userId, 'employees.master-data.view');
+                app(PersonnelScopeService::class)->authorize(auth()->user(), $this->userId, $this->ability());
             }
         }
         abort_unless(in_array($this->tab, ['account', 'models', 'policies', 'rules', 'checks', 'absences', 'tasks', 'training', 'responsibilities'], true), 404);
@@ -101,7 +122,7 @@ class WorkforceAccounts extends Component
     public function showTab(string $tab): void
     {
         $this->access();
-        abort_unless(in_array($tab, $this->personal ? ['account', 'absences', 'tasks', 'training'] : ($this->processOnly ? ['tasks', 'training'] : ['account', 'models', 'policies', 'rules', 'checks', 'absences', 'responsibilities']), true), 404);
+        abort_unless(in_array($tab, $this->personal ? ['account', 'absences', 'tasks', 'training'] : ($this->processOnly ? ['tasks', 'training'] : ['account', 'models', 'policies', 'rules', 'checks', 'absences', 'responsibilities', 'training']), true), 404);
         $this->tab = $tab;
         $this->access();
         $this->resetPage('workforceRecordsPage');
@@ -276,7 +297,7 @@ class WorkforceAccounts extends Component
     {
         $this->access();
         $accounts = app(WorkforceAccountService::class);
-        $ready = $accounts->ready() && app(PersonnelProcessService::class)->ready();
+        $ready = in_array($this->tab, ['tasks', 'training'], true) ? app(PersonnelProcessService::class)->ready() : $accounts->ready();
         if ($this->tab === 'checks') {
             $ready = $ready && app(WorkforcePlanReviewService::class)->ready();
         }
@@ -292,17 +313,17 @@ class WorkforceAccounts extends Component
                 'responsibilities' => PersonnelResponsibility::where('user_id', $employee->id)->with('responsible')->latest('starts_on'),
                 'training' => PersonnelTrainingParticipant::where('user_id', $employee->id)->with('training')->latest(),
                 'absences' => AbsenceRequest::where('user_id', $employee->id)->latest(),
-                default => WorkforceAccountEntry::where('user_id', $employee->id)->latest('effective_on'),
+                default => WorkforceAccountEntry::where('user_id', $employee->id)->when($this->accountKind !== 'all', fn ($q) => $q->where('account', $this->accountKind))->latest('effective_on'),
             };
             $records = $query->paginate(15, ['*'], 'workforceRecordsPage');
         }
 
-        $ids = $this->personal ? null : app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'employees.master-data.view');
+        $ids = $this->personal ? null : app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), $this->ability());
 
         $vacationDate = $this->form['starts_on'] ?? null;
         $validVacationDate = Validator::make(['date' => $vacationDate], ['date' => 'required|date_format:Y-m-d'])->passes();
-        $vacationWindowAvailable = $ready && $employee && $validVacationDate && $accounts->effectivePolicy($employee, $vacationDate)?->unit === 'minutes';
+        $vacationWindowAvailable = $this->formOpen && $this->formKind === 'vacation' && $ready && $employee && $validVacationDate && $accounts->effectivePolicy($employee, $vacationDate)?->unit === 'minutes';
 
-        return view('livewire.operations.workforce-accounts', ['vacationWindowAvailable' => $vacationWindowAvailable, 'ready' => $ready, 'employee' => $employee, 'summary' => $ready && $employee && $this->tab === 'account' ? $accounts->summary($employee, $this->from, $this->until, auth()->user()) : null, 'records' => $records, 'employees' => $this->personal ? collect() : User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->get(['id', 'name']), 'canConfigure' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit'), 'canProcesses' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit'), 'canTraining' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'operations.qualifications.manage'), 'trainings' => $ready ? PersonnelTraining::where('status', 'scheduled')->where('ends_at', '>', now()->utc())->orderBy('starts_at')->get() : collect(), 'rules' => $ready ? OperationsRuleProfile::orderByDesc('id')->get() : collect(), 'types' => $ready ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(), 'assignees' => ! $this->personal ? User::where('status', true)->orderBy('name')->get(['id', 'name']) : collect()]);
+        return view('livewire.operations.workforce-accounts', ['vacationWindowAvailable' => $vacationWindowAvailable, 'ready' => $ready, 'employee' => $employee, 'summary' => $ready && $employee && $this->tab === 'account' ? $accounts->summary($employee, $this->from, $this->until, auth()->user()) : null, 'records' => $records, 'employees' => $this->personal || $this->embedded ? collect() : User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->get(['id', 'name']), 'canConfigure' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit'), 'canProcesses' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit'), 'canTraining' => ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'operations.qualifications.manage'), 'trainings' => $ready && $this->formOpen && $this->formKind === 'enroll' ? PersonnelTraining::where('status', 'scheduled')->where('ends_at', '>', now()->utc())->orderBy('starts_at')->get() : collect(), 'rules' => $ready && $this->formOpen && $this->formKind === 'rule' ? OperationsRuleProfile::orderByDesc('id')->get() : collect(), 'types' => $ready && $this->formOpen && $this->formKind === 'training' ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(), 'assignees' => ! $this->personal && $this->formOpen && in_array($this->formKind, ['task', 'responsibility'], true) ? User::where('status', true)->orderBy('name')->get(['id', 'name']) : collect()]);
     }
 }

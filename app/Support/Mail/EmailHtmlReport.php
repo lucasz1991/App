@@ -33,7 +33,7 @@ final class EmailHtmlReport implements JsonSerializable
     public const SEVERITY_NOTICE = 'notice';
 
     /**
-     * @param  list<array{code: string, severity: string, message: string, context: string}>  $findings
+     * @param  list<array{code: string, severity: string, message: string, context: string, property?: string}>  $findings
      */
     public function __construct(
         public readonly string $html,
@@ -45,20 +45,30 @@ final class EmailHtmlReport implements JsonSerializable
      * und keine eigene Klasse: der Bericht wandert als JSON in die
      * Oberflaeche und in das Aktivitaetsprotokoll.
      *
-     * @return array{code: string, severity: string, message: string, context: string}
+     * @return array{code: string, severity: string, message: string, context: string, property?: string}
      */
     public static function finding(
         string $code,
         string $message,
         string $context = '',
         string $severity = self::SEVERITY_VIOLATION,
+        ?string $property = null,
     ): array {
-        return [
+        $finding = [
             'code' => $code,
             'severity' => $severity,
             'message' => $message,
             'context' => $context,
         ];
+
+        // Nur CSS-Deklarationen besitzen einen Property-Bezug. Der optionale
+        // maschinenlesbare Wert verhindert fachliche Entscheidungen anhand
+        // lokalisierter Meldungstexte; bestehende Diagnosen bleiben kompatibel.
+        if ($property !== null) {
+            $finding['property'] = $property;
+        }
+
+        return $finding;
     }
 
     /** Nichts zu beanstanden — weder Verstoss noch Hinweis. */
@@ -73,13 +83,13 @@ final class EmailHtmlReport implements JsonSerializable
         return $this->violations() !== [];
     }
 
-    /** @return list<array{code: string, severity: string, message: string, context: string}> */
+    /** @return list<array{code: string, severity: string, message: string, context: string, property?: string}> */
     public function violations(): array
     {
         return $this->bySeverity(self::SEVERITY_VIOLATION);
     }
 
-    /** @return list<array{code: string, severity: string, message: string, context: string}> */
+    /** @return list<array{code: string, severity: string, message: string, context: string, property?: string}> */
     public function notices(): array
     {
         return $this->bySeverity(self::SEVERITY_NOTICE);
@@ -133,7 +143,7 @@ final class EmailHtmlReport implements JsonSerializable
     }
 
     /**
-     * @return array{html: string, clean: bool, findings: list<array{code: string, severity: string, message: string, context: string}>}
+     * @return array{html: string, clean: bool, findings: list<array{code: string, severity: string, message: string, context: string, property?: string}>}
      */
     public function toArray(): array
     {
@@ -145,7 +155,7 @@ final class EmailHtmlReport implements JsonSerializable
     }
 
     /**
-     * @return array{html: string, clean: bool, findings: list<array{code: string, severity: string, message: string, context: string}>}
+     * @return array{html: string, clean: bool, findings: list<array{code: string, severity: string, message: string, context: string, property?: string}>}
      */
     public function jsonSerialize(): array
     {
@@ -153,7 +163,7 @@ final class EmailHtmlReport implements JsonSerializable
     }
 
     /**
-     * @return list<array{code: string, severity: string, message: string, context: string}>
+     * @return list<array{code: string, severity: string, message: string, context: string, property?: string}>
      */
     private function bySeverity(string $severity): array
     {

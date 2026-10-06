@@ -1,7 +1,8 @@
 <div>
     <x-ui.page
-        :title="__('app.employees')"
+        :title="$embedded ? null : __('app.employees')"
         :count="number_format($employeesTotal, 0, ',', '.')"
+        :auto-intro="!$embedded"
     >
         <x-slot:actions>
             <x-ui.dropdown.page-actions>

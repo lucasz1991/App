@@ -3,6 +3,7 @@
 namespace App\Livewire\Operations;
 
 use App\Models\Customer;
+use App\Models\CustomerPortalSubmissionItem;
 use App\Models\OperationAudit;
 use App\Models\OperationInquiry;
 use App\Services\Operations\CommercialOfferService;
@@ -13,6 +14,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Illuminate\Support\Facades\Schema;
 
 class InquiryInbox extends Component
 {
@@ -53,6 +55,46 @@ class InquiryInbox extends Component
     public bool $authorized = false;
 
     public string $duplicateId = '';
+
+    #[Locked]
+    public ?int $customerFilterId = null;
+
+    #[Locked]
+    public bool $consolidated = false;
+
+    #[Locked]
+    public string $detailSection = 'overview';
+
+    public function mount(?int $initialInquiryId = null, ?int $customerId = null, bool $consolidated = false): void
+    {
+        $this->access();
+        $this->consolidated = $consolidated;
+        $this->customerFilterId = $customerId;
+        if ($customerId !== null) {
+            abort_unless($customerId > 0, 404);
+            Customer::findOrFail($customerId);
+        }
+        if ($initialInquiryId !== null) {
+            $this->select($initialInquiryId);
+        }
+    }
+
+    private function scopedQuery()
+    {
+        return OperationInquiry::query()->when($this->customerFilterId, fn ($query) => $query->where('customer_id', $this->customerFilterId));
+    }
+
+    private function portalSubmission(OperationInquiry $record): ?int
+    {
+        return Schema::hasTable('customer_portal_submission_items') ? CustomerPortalSubmissionItem::where('inquiry_id', $record->id)->value('submission_id') : null;
+    }
+
+    public function setDetailSection(string $section): void
+    {
+        $this->access();
+        abort_unless(in_array($section, ['overview', 'history'], true), 422);
+        $this->detailSection = $section;
+    }
 
     private function access(): void
     {
@@ -108,7 +150,7 @@ class InquiryInbox extends Component
     public function select(int $id): void
     {
         $this->access();
-        $record = OperationInquiry::findOrFail($id);
+        $record = $this->scopedQuery()->findOrFail($id);
         $this->selectedId = $id;
         $this->detailOpen = true;
         $this->revision = $record->revision;
@@ -125,7 +167,10 @@ class InquiryInbox extends Component
     public function save(InquiryWorkflowService $service): void
     {
         $this->access();
-        $record = $service->save($this->selectedId ? OperationInquiry::findOrFail($this->selectedId) : null, $this->form, auth()->user(), $this->revision);
+        $current = $this->selectedId ? $this->scopedQuery()->findOrFail($this->selectedId) : null;
+        abort_if($current && $this->portalSubmission($current), 409, 'Portalvorgang über den Portaleingang bearbeiten.');
+        abort_if($this->customerFilterId && (int) ($this->form['customer_id'] ?? 0) !== $this->customerFilterId, 422);
+        $record = $service->save($current, $this->form, auth()->user(), $this->revision);
         $this->select($record->id);
     }
 
@@ -133,7 +178,13 @@ class InquiryInbox extends Component
     {
         $this->access();
         abort_unless($this->selectedId, 404);
-        $record = $service->transition(OperationInquiry::findOrFail($this->selectedId), $this->revision, $action, ['amount' => $this->amount, 'terms' => $this->terms, 'note' => $this->acceptance, 'authorized' => $this->authorized, 'original_id' => $this->duplicateId], auth()->user());
+        $current = $this->scopedQuery()->findOrFail($this->selectedId);
+        abort_if($this->portalSubmission($current), 409, 'Portalentscheidung über den Portaleingang bearbeiten.');
+        $record = $service->transition($current, $this->revision, $action, ['amount' => $this->amount, 'terms' => $this->terms, 'note' => $this->acceptance, 'authorized' => $this->authorized, 'original_id' => $this->duplicateId], auth()->user());
+        if ($this->consolidated && $action === 'convert' && $record->order_id && auth()->user()->can('operations.manage')) {
+            $this->redirectRoute('operations.page', ['page' => 'cases', 'view' => 'orders', 'order' => $record->order_id, 'inquiry' => $record->id], navigate: true);
+            return;
+        }
         $this->select($record->id);
     }
 
@@ -149,9 +200,9 @@ class InquiryInbox extends Component
     public function render()
     {
         $this->access();
-        $active = OperationInquiry::query()->whereNull('order_id')->whereNull('duplicate_of_id')->where('status', '!=', 'rejected');
+        $active = $this->scopedQuery()->whereNull('order_id')->whereNull('duplicate_of_id')->where('status', '!=', 'rejected');
         $statusCounts = (clone $active)->selectRaw('status, COUNT(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status');
-        $query = OperationInquiry::with('customer')->when($this->filter === 'active', fn ($q) => $q->whereNull('order_id')->whereNull('duplicate_of_id')->where('status', '!=', 'rejected'))
+        $query = $this->scopedQuery()->with('customer')->when($this->filter === 'active', fn ($q) => $q->whereNull('order_id')->whereNull('duplicate_of_id')->where('status', '!=', 'rejected'))
             ->when($this->filter !== 'active' && $this->filter !== 'all', fn ($q) => $q->where('channel', $this->filter))
             ->when(in_array($this->statusFilter, ['new', 'accepted'], true), fn ($q) => $q->where('status', $this->statusFilter))
             ->when(filled($this->search), fn ($q) => $q->where(fn ($q) => $q->where('title', 'like', '%'.mb_substr($this->search, 0, 100).'%')->orWhereHas('customer', fn ($q) => $q->where('company_name', 'like', '%'.mb_substr($this->search, 0, 100).'%'))));
@@ -164,6 +215,7 @@ class InquiryInbox extends Component
         };
         $query->orderBy($sortColumn, $this->sortDir === 'asc' ? 'asc' : 'desc')->orderBy('id');
 
+        $selected = $this->selectedId ? $this->scopedQuery()->with(['customer', 'order', 'duplicateOf'])->findOrFail($this->selectedId) : null;
         return view('livewire.operations.inquiry-inbox', [
             'summary' => [
                 'active' => (int) $statusCounts->sum(),
@@ -176,7 +228,8 @@ class InquiryInbox extends Component
                 ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
                 ->orderBy('starts_at')->oldest('updated_at')->orderBy('id')->limit(3)->get(),
             'inquiries' => $query->paginate(15),
-            'selected' => $this->selectedId ? OperationInquiry::with(['customer', 'order', 'duplicateOf'])->find($this->selectedId) : null,
+            'selected' => $selected,
+            'portalSubmissionId' => $selected ? $this->portalSubmission($selected) : null,
             'customers' => Customer::where('is_active', true)->orderBy('company_name')->get(['id', 'company_name']),
             'history' => $this->selectedId ? OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $this->selectedId)->with(['actor.profile', 'actor.currentTeam'])->latest('id')->limit(30)->get() : collect(),
             'customerWorkflowReady' => CustomerWorkflowService::ready(),

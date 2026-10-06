@@ -1100,15 +1100,16 @@ class EmailTemplateBuilder
     /**
      * Das RT-Zeichen allein, fuer die rechte obere Ecke der Vorlage. Auf
      * dunklem Grund traegt der Balken des T einen hellen Ton — anthrazit
-     * waere dort unsichtbar.
+     * waere dort unsichtbar. Mailmarken verwenden das vorhandene kleine
+     * PNG-Standbild; die Zuganimation bleibt davon unabhaengig.
      */
     public static function emailMarkAsset(string $theme, ?string $artifactVersion = null): string
     {
         if (SignatureArtifactVersion::usesV19MailAssets($artifactVersion)) {
-            return $theme === 'dark' ? 'icon-rt-v19-dark.gif' : 'icon-rt-v19-light.gif';
+            return $theme === 'dark' ? 'icon-rt-v19-dark.png' : 'icon-rt-v19-light.png';
         }
 
-        return $theme === 'dark' ? 'icon-rt-dark.gif' : 'icon-rt-light.gif';
+        return $theme === 'dark' ? 'icon-rt-dark.png' : 'icon-rt-light.png';
     }
 
     /** Der Schriftzug OHNE das RT-Zeichen — siehe MailSignature::values(). */
@@ -1116,19 +1117,19 @@ class EmailTemplateBuilder
     {
         if (SignatureArtifactVersion::usesV19MailAssets($artifactVersion)) {
             return $theme === 'dark'
-                ? 'wortmarke-mail-v19-dark.gif'
-                : 'wortmarke-signature-v19-light.gif';
+                ? 'wortmarke-mail-v19-dark.png'
+                : 'wortmarke-signature-v19-light.png';
         }
 
         if (SignatureArtifactVersion::usesOptimizedMailAssets($artifactVersion)) {
             return $theme === 'dark'
-                ? 'wortmarke-mail-v15-dark.gif'
-                : 'wortmarke-signature-v15-light.gif';
+                ? 'wortmarke-mail-v15-dark.png'
+                : 'wortmarke-signature-v15-light.png';
         }
 
         return $theme === 'dark'
-            ? 'wortmarke-mail-dark.gif'
-            : 'wortmarke-signature-light.gif';
+            ? 'wortmarke-mail-dark.png'
+            : 'wortmarke-signature-light.png';
     }
 
     protected function emailLogoAsset(string $theme, ?string $artifactVersion = null): string
@@ -1173,7 +1174,7 @@ class EmailTemplateBuilder
             // Standbild fuer Outlook-Desktop, siehe email-master.html.
             'ICON_RT_STILL_SRC' => $inlineImages
                 ? self::inlineImage(str_replace('.gif', '.png', self::emailMarkAsset($theme, $artifactVersion)), 'image/png')
-                : 'cid:railtime-mark-still',
+                : (str_ends_with($markAsset, '.png') ? 'cid:railtime-mark' : 'cid:railtime-mark-still'),
         ]);
 
         // Signatur und Pflichtangaben kommen aus der gemeinsamen Quelle
@@ -1206,7 +1207,7 @@ class EmailTemplateBuilder
             // Standbild werden als getrennte CID-Teile mitgeliefert. Moderne
             // Clients sehen das GIF, Word/MSO das bedingte PNG im selben Flow.
             $signatureOverrides = array_merge($signatureOverrides, [
-                'LOGO_STILL_SRC' => 'cid:railtime-logo-still',
+                'LOGO_STILL_SRC' => str_ends_with($logoAsset, '.png') ? 'cid:railtime-logo' : 'cid:railtime-logo-still',
                 'TRAIN_SRC' => '',
                 'TRAIN_STILL_SRC' => 'cid:railtime-train-still',
                 'TRAIN_IDLE_SRC' => 'cid:railtime-train-idle',
@@ -1309,7 +1310,7 @@ class EmailTemplateBuilder
         $signature = MailSignature::forUser($this->user, $theme, animated: true);
         $artifactVersion = self::activeSignatureArtifactVersion();
         $logo = $this->emailLogoAsset($theme, $artifactVersion);
-        $signatureOverrides = ['LOGO_SRC' => self::inlineImage($logo, 'image/gif')];
+        $signatureOverrides = ['LOGO_SRC' => self::inlineImage($logo, str_ends_with($logo, '.gif') ? 'image/gif' : 'image/png')];
         $html = $this->substitute($html, [
             'SIGNATURE_BLOCK' => $this->signatureBlock(
                 $signature,
@@ -1379,7 +1380,7 @@ class EmailTemplateBuilder
                 "{$assetFolder}/zug-dampf.png" => file_get_contents(
                     self::masterPath('assets/'.self::signatureTrainFilename($theme, false, $artifactVersion))
                 ),
-                "{$assetFolder}/logo.gif" => file_get_contents(
+                "{$assetFolder}/logo.png" => file_get_contents(
                     self::masterPath('assets/'.$this->emailLogoAsset($theme, $artifactVersion))
                 ),
             ];
@@ -1440,7 +1441,8 @@ class EmailTemplateBuilder
                     'outlookTrainFallbackSrc' => "{$assetFolder}/zug-dampf.png",
                 ],
                 overrides: array_merge([
-                    'LOGO_SRC' => "{$assetFolder}/logo.gif",
+                    'LOGO_SRC' => "{$assetFolder}/logo.png",
+                    'LOGO_STILL_SRC' => "{$assetFolder}/logo.png",
                     'TRAIN_SRC' => '',
                     'TRAIN_STILL_SRC' => "{$assetFolder}/zug-dampf.png",
                     'TRAIN_IDLE_SRC' => '',

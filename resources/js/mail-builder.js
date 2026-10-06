@@ -941,6 +941,101 @@ function canonicalizeParsedMailStyle(style = {}) {
     return canonical;
 }
 
+const MAIL_OUTLOOK_CSS_PREFIX = '--rt-mail-outlook-';
+
+// CSSOM discards Outlook declarations. Bridge only declaration names, never
+// selectors, quoted strings, comments or function values. The server remains
+// the authority for admitted properties/values; no alias may leave the parser.
+function encodeMailOutlookCssProperties(source) {
+    if (source.includes(MAIL_OUTLOOK_CSS_PREFIX)) {
+        throw new Error('Die Mail-Stilregeln enthalten einen reservierten Outlook-Parserwert.');
+    }
+    const aliases = new Map();
+    let encoded = '';
+    let quote = '';
+    let comment = false;
+    let depth = 0;
+    let brackets = 0;
+    let ruleHeader = '';
+    const declarationBlocks = [];
+    let declarationStart = false;
+    for (let index = 0; index < source.length; index += 1) {
+        const character = source[index];
+        const next = source[index + 1];
+        if (comment) {
+            encoded += character;
+            if (character === '*' && next === '/') {
+                encoded += next;
+                index += 1;
+                comment = false;
+            }
+            continue;
+        }
+        if (quote) {
+            encoded += character;
+            if (character === '\\' && next !== undefined) {
+                encoded += next;
+                index += 1;
+            } else if (character === quote) quote = '';
+            continue;
+        }
+        if (character === '/' && next === '*') {
+            encoded += '/*';
+            index += 1;
+            comment = true;
+            continue;
+        }
+        if (declarationStart && !/\s/.test(character)) {
+            const match = source.slice(index).match(/^((?:mso-[a-z0-9-]+|-ms-text-size-adjust))((?:\s|\/\*[\s\S]*?\*\/)*:)/i);
+            if (match) {
+                const names = declarationBlocks.at(-1);
+                const name = match[1].toLowerCase();
+                if (!names.has(name)) {
+                    const alias = `${MAIL_OUTLOOK_CSS_PREFIX}${aliases.size}`;
+                    names.set(name, alias);
+                    aliases.set(alias, name);
+                }
+                encoded += names.get(name) + match[2];
+                index += match[0].length - 1;
+                declarationStart = false;
+                continue;
+            }
+            if (/^(?:mso-|-ms-text-size-adjust)/i.test(source.slice(index))) {
+                throw new Error('Eine Outlook-Stilregel besitzt keine eindeutig lesbare Deklaration.');
+            }
+            declarationStart = false;
+        }
+        encoded += character;
+        if (!declarationBlocks.at(-1)) ruleHeader += character;
+        if (character === '"' || character === "'") quote = character;
+        else if (character === '(') depth += 1;
+        else if (character === ')' && depth > 0) depth -= 1;
+        else if (character === '[') brackets += 1;
+        else if (character === ']' && brackets > 0) brackets -= 1;
+        else if (depth === 0 && brackets === 0) {
+            if (character === '{') {
+                // @media contains selectors, not declarations. Do not rename
+                // an Outlook-looking element/pseudo selector in a rule list.
+                const declarations = !ruleHeader.trim().startsWith('@');
+                declarationBlocks.push(declarations ? new Map() : null);
+                declarationStart = declarations;
+                ruleHeader = '';
+            } else if (character === '}') {
+                declarationBlocks.pop();
+                declarationStart = false;
+                ruleHeader = '';
+            } else if (character === ';') {
+                declarationStart = Boolean(declarationBlocks.at(-1));
+                if (!declarationStart) ruleHeader = '';
+            }
+        }
+    }
+    if (quote || comment || depth || brackets || declarationBlocks.length) {
+        throw new Error('Die Mail-Stilregeln besitzen keine vollstaendige CSS-Struktur.');
+    }
+    return { encoded, aliases };
+}
+
 /**
  * GrapesJS' CSS-Stringparser verwirft Werte wie `color:{{TOKEN}}` als
  * syntaktisch ungueltig. Fuer den Parser werden die Tokens deshalb kurzzeitig
@@ -971,10 +1066,24 @@ export function parseMailCssProjectStyles(css, parseCss = () => []) {
         sentinelTokens.set(sentinel, token);
     });
 
-    const encoded = source.replace(MAIL_CSS_TOKEN, (_match, token) => tokenSentinels.get(token));
+    const { encoded, aliases } = encodeMailOutlookCssProperties(
+        source.replace(MAIL_CSS_TOKEN, (_match, token) => tokenSentinels.get(token)),
+    );
+    const restoredAliases = new Set();
     const parsed = decodeMailCssTokens(parseCss(encoded) || [], sentinelTokens)
-        .map((rule) => ({ ...rule, style: canonicalizeParsedMailStyle(rule?.style) }));
+        .map((rule) => {
+            const style = Object.fromEntries(Object.entries(rule?.style || {}).map(([property, value]) => {
+                if (!aliases.has(property)) return [property, value];
+                restoredAliases.add(property);
+                return [aliases.get(property), value];
+            }));
+            return { ...rule, style: canonicalizeParsedMailStyle(style) };
+        });
     const serialized = JSON.stringify(parsed);
+    if (serialized.includes(MAIL_OUTLOOK_CSS_PREFIX)
+        || Array.from(aliases.keys()).some((alias) => !restoredAliases.has(alias))) {
+        throw new Error('GrapesJS konnte mindestens eine Outlook-Stilregel nicht verlustfrei lesen.');
+    }
     if (Array.from(sentinelTokens.keys()).some((sentinel) => new RegExp(`\\b${sentinel}\\b`, 'i').test(serialized))) {
         throw new Error('Ein temporaerer CSS-Tokenwert konnte nicht vollstaendig zurueckgefuehrt werden.');
     }
@@ -2711,7 +2820,11 @@ function projectSignatureTrainImage(wrapper, rows, project, imgOverlapProfile = 
 export function projectForMailDocument(draft, parseCss = () => [], options = {}) {
     const project = normalizeMailProject(structuredClone(draft?.builderData || {}));
 
-    if (draft?.css && (!Array.isArray(project.styles) || project.styles.length === 0)) {
+    // HTML and CSS are the checked server document, not competing copies of
+    // an older GrapesJS project. An explicitly empty stylesheet is canonical
+    // too: retaining stale project rules would resurrect deleted geometry.
+    // Keep the project-only fallback for callers without a CSS document.
+    if (typeof draft?.css === 'string') {
         project.styles = parseMailCssProjectStyles(draft.css, parseCss);
     }
 
@@ -2999,6 +3112,26 @@ export function serializeMailDocumentForSave({
  * entfernt hat. Ein fehlender Load-Vertrag ist absichtlich ein harter Fehler:
  * gespeichert und sichtbar duerfen nicht auseinanderlaufen.
  */
+// GrapesJS clears old styles before loading new components. Its intermediate
+// style events are not user edits and must not remove Outlook HTML fallbacks.
+export function installMailProjectLoadGuard(editor) {
+    let loading = 0;
+    const original = editor?.loadProjectData;
+    if (typeof original !== 'function') return { isLoading: () => false, dispose() {} };
+    function guardedLoad(...arguments_) {
+        loading += 1;
+        try { return original.apply(this, arguments_); }
+        finally { loading -= 1; }
+    }
+    editor.loadProjectData = guardedLoad;
+    return {
+        isLoading: () => loading > 0,
+        dispose() {
+            if (editor.loadProjectData === guardedLoad) editor.loadProjectData = original;
+        },
+    };
+}
+
 export async function rehydrateAuthoritativeMailProject({
     editor,
     draft,
@@ -4713,6 +4846,7 @@ export async function createMailBuilder({
     });
 
     const editor = instance.editor;
+    const projectLoadGuard = installMailProjectLoadGuard(editor);
     const refreshResponsiveCanvas = () => {
         canvasCss = mailCanvasStyles(activeTheme, previewAssets,
             responsiveCssForTheme(activeTheme, editor.Canvas?.getDocument?.()), previewThemeValues);
@@ -4743,6 +4877,7 @@ export async function createMailBuilder({
         if (overlap) globalThis.queueMicrotask?.(() => { if (!previewDisposed) refreshResponsiveCanvas(); });
     };
     const onComponentStyleUpdate = (component, changes = {}) => {
+        if (projectLoadGuard.isLoading()) return;
         const styleChanges = changes?.style && typeof changes.style === 'object'
             ? changes.style
             : changes;
@@ -5063,6 +5198,7 @@ export async function createMailBuilder({
             editor.off?.('component:add', onComponentAdd);
             editor.off?.('component:update', onComponentUpdate);
             editor.off?.('component:styleUpdate', onComponentStyleUpdate);
+            projectLoadGuard.dispose();
             editor.off?.('canvas:frame:load', onFrameLoad);
             editor.off?.('project:load', onProjectLoad);
             previewDisposed = true;

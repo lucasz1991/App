@@ -3,7 +3,7 @@
     @if(!$ready)
         <p class="text-sm text-rt-muted">Personalbereich nicht verfügbar.</p>
     @else
-        <header class="ops-toolbar">
+        @if(!$embedded)<header class="ops-toolbar">
             @if(!$personal)<div><x-ui.forms.label for="personnel-enhancement-person" value="Mitarbeiter"/><x-ui.forms.select id="personnel-enhancement-person" wire:model.live="userId"><option value="0">Auswählen</option>@foreach($employees as $person)<option value="{{ $person->id }}">{{ $person->name }}</option>@endforeach</x-ui.forms.select></div>@endif
             @php
                 $options = [
@@ -22,7 +22,7 @@
                 }
             @endphp
             <x-ui.buttons.multi-toggle id="personnel-enhancement-view" label="Personalbereich" :value="$tab" action="showTab" :options="$options" />
-        </header>
+        </header>@endif
         <div class="ops-actions">
             @if($tab === 'workflows' && $canGlobal)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="open('workflow_template')">Prozessvorlage</x-ui.buttons.button-basic>@endif
             @if($tab === 'reports' && !$personal)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="open('report')">Bericht speichern</x-ui.buttons.button-basic>@endif

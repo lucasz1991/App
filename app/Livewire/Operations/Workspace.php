@@ -6,6 +6,7 @@ use App\Services\Operations\PersonnelProcessService;
 use App\Services\Operations\WorkforceAccountService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
+use App\Support\Operations\OperationsPages;
 use App\Support\Operations\WorkforcePlanningSchema;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -24,6 +25,8 @@ class Workspace extends Component
         $tab = request()->query('tab', '');
         $this->initialTab = is_string($tab) ? mb_substr($tab, 0, 40) : '';
         $this->authorizeModule();
+        $target = OperationsPages::legacyTarget($module, request()->query());
+        $this->redirectRoute('operations.page', $target, navigate: true);
     }
 
     private function authorizeModule(): void

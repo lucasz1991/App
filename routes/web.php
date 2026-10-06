@@ -66,6 +66,7 @@ use App\Livewire\HelpCenter;
 use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
 use App\Livewire\Operations\PersonalWorkspace;
+use App\Livewire\Operations\PageWorkspace;
 use App\Livewire\Operations\WagonListPrototype;
 use App\Livewire\Operations\Workspace;
 use App\Livewire\SupportCases;
@@ -74,6 +75,7 @@ use App\Livewire\UserFiles;
 use App\Models\MarketingCreative;
 use App\Support\CustomerPortal\CustomerPortalScope;
 use App\Support\Operations\OperationsNavigation;
+use App\Support\Operations\OperationsPages;
 use App\Support\Pwa\PwaIcon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -247,6 +249,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->middleware('throttle:30,1')->name('operations.capture.bootstrap');
     Route::post('/mein-arbeitstag/zeiten/sync', [WorkTimeCaptureController::class, 'sync'])
         ->middleware('throttle:60,1')->name('operations.capture.sync');
+    Route::get('/arbeitsplatz/ansicht/{page}', PageWorkspace::class)
+        ->whereIn('page', array_keys(OperationsPages::definitions()))->name('operations.page');
     Route::get('/arbeitsplatz/{module}', Workspace::class)
         ->whereIn('module', array_keys(OperationsNavigation::modules()))->name('operations.workspace');
     Route::get('/nachweise/{id}/download', OperationsEvidenceController::class)

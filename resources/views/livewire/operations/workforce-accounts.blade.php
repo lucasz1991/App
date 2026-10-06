@@ -3,27 +3,27 @@
     @if(!$ready)
         <p class="text-sm text-rt-muted">Personalmodelle sind noch nicht verfügbar.</p>
     @else
-        <header class="ops-toolbar">
+        @if(!$embedded)<header class="ops-toolbar">
             @if(!$personal)<div><x-ui.forms.label for="workforce-person" value="Mitarbeiter"/><x-ui.forms.select id="workforce-person" wire:model.live="userId"><option value="0">Auswählen</option>@foreach($employees as $person)<option value="{{ $person->id }}">{{ $person->name }}</option>@endforeach</x-ui.forms.select></div>@endif
             @php($viewOptions = $personal ? [['value'=>'account','label'=>'Konten','icon'=>'fa-wallet'],['value'=>'absences','label'=>'Abwesenheiten','icon'=>'fa-calendar-days'],['value'=>'tasks','label'=>'Aufgaben','icon'=>'fa-list-check'],['value'=>'training','label'=>'Schulungen','icon'=>'fa-graduation-cap']] : ($processOnly ? [['value'=>'tasks','label'=>'Aufgaben','icon'=>'fa-list-check'],['value'=>'training','label'=>'Schulungen','icon'=>'fa-graduation-cap']] : [['value'=>'account','label'=>'Konten','icon'=>'fa-wallet'],['value'=>'models','label'=>'Arbeitsmodelle','icon'=>'fa-clock'],['value'=>'policies','label'=>'Urlaubsrichtlinien','icon'=>'fa-umbrella-beach'],['value'=>'rules','label'=>'Regeln','icon'=>'fa-shield'],['value'=>'checks','label'=>'Prüfungen','icon'=>'fa-clipboard-check'],['value'=>'absences','label'=>'Abwesenheiten','icon'=>'fa-calendar-days']]))
             @if(!$personal && !$processOnly && auth()->user()->isAdmin())@php($viewOptions[] = ['value'=>'responsibilities','label'=>'Zuständigkeiten','icon'=>'fa-users-gear'])@endif
             <x-ui.buttons.multi-toggle id="workforce-account-view" label="Personalansicht" :value="$tab" action="showTab" :options="$viewOptions" />
-        </header>
+        </header>@endif
         @if($employee)
             @if($tab === 'account')<div class="ops-form"><x-operations.field label="Von" model="from" type="date"/><x-operations.field label="Bis" model="until" type="date"/><div class="ops-full"><x-ui.buttons.button-basic type="button" wire:click="$refresh">Anzeigen</x-ui.buttons.button-basic></div></div>@endif
             @if($tab === 'account')
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                @if($accountKind !== 'vacation')<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     @foreach(['target_minutes'=>'Soll','actual_minutes'=>'Freigegebenes Ist','credited_minutes'=>'Kontogutschrift','absence_credit_minutes'=>'Urlaubsgutschrift','balance_minutes'=>'Saldo'] as $key=>$label)
                         <section class="ops-panel"><p class="text-xs text-rt-muted">{{ $label }}</p><p class="text-xl font-semibold tabular-nums">{{ $summary[$key] === null ? 'Prüfung erforderlich' : ($summary[$key] < 0 ? '−' : '').\App\Support\Operations\OperationsDateTime::duration(abs($summary[$key]) * 60) }}</p></section>
                     @endforeach
-                </div>
+                </div>@endif
                 @php($vacation = $summary['vacation'])
-                <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">@foreach(['available'=>'Verfügbar','reserved'=>'Reserviert','approved'=>'Genehmigt','used'=>'Verbraucht','expired'=>'Abgelaufen','credited'=>'Anspruch'] as $key=>$label)<section class="ops-panel"><p class="text-xs text-rt-muted">{{ $label }}</p><p class="font-semibold tabular-nums">{{ !$vacation['configured'] ? '—' : ($vacation[$key] === null ? 'Prüfung erforderlich' : ($vacation['unit'] === 'days' ? number_format($vacation[$key] / 100, 2, ',', '.').' Tage' : $vacation[$key].' min')) }}</p></section>@endforeach</div>
+                @if($accountKind !== 'time')<div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">@foreach(['available'=>'Verfügbar','reserved'=>'Reserviert','approved'=>'Genehmigt','used'=>'Verbraucht','expired'=>'Abgelaufen','credited'=>'Anspruch'] as $key=>$label)<section class="ops-panel"><p class="text-xs text-rt-muted">{{ $label }}</p><p class="font-semibold tabular-nums">{{ !$vacation['configured'] ? '—' : ($vacation[$key] === null ? 'Prüfung erforderlich' : ($vacation['unit'] === 'days' ? number_format($vacation[$key] / 100, 2, ',', '.').' Tage' : $vacation[$key].' min')) }}</p></section>@endforeach</div>
                 @if(!$vacation['configured'])<p class="text-sm text-rt-muted">Urlaubsrichtlinie fehlt.</p>@endif
-                @if($summary['missing_absence_allocations'] !== [])<p class="text-sm text-amber-700 dark:text-amber-300">Urlaubsübernahme prüfen.</p>@endif
+                @if($summary['missing_absence_allocations'] !== [])<p class="text-sm text-amber-700 dark:text-amber-300">Urlaubsübernahme prüfen.</p>@endif @endif
             @endif
             <div class="ops-actions">
-                @if($canConfigure && $tab === 'account')<x-ui.buttons.button-basic type="button" wire:click="openForm('credit')">Anspruch buchen</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" wire:click="openForm('adjustment')">Zeitkorrektur</x-ui.buttons.button-basic>@endif
+                @if($canConfigure && $tab === 'account')@if($accountKind !== 'time')<x-ui.buttons.button-basic type="button" wire:click="openForm('credit')">Anspruch buchen</x-ui.buttons.button-basic>@endif @if($accountKind !== 'vacation')<x-ui.buttons.button-basic type="button" wire:click="openForm('adjustment')">Zeitkorrektur</x-ui.buttons.button-basic>@endif @endif
                 @if($canConfigure && $tab === 'models')<x-ui.buttons.button-basic type="button" wire:click="openForm('model')">Arbeitsmodell</x-ui.buttons.button-basic>@endif
                 @if($canConfigure && $tab === 'policies')<x-ui.buttons.button-basic type="button" wire:click="openForm('policy')">Urlaubsrichtlinie</x-ui.buttons.button-basic>@endif
                 @if($canConfigure && $tab === 'rules')<x-ui.buttons.button-basic type="button" wire:click="openForm('rule')">Regeln zuordnen</x-ui.buttons.button-basic>@endif

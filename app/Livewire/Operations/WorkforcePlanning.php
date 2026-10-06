@@ -46,10 +46,20 @@ class WorkforcePlanning extends Component
 
     public array $form = [];
 
-    public function mount(bool $personal = false): void
+    #[Locked]
+    public bool $embedded = false;
+
+    public function mount(bool $personal = false, string $tab = '', bool $embedded = false, array $context = []): void
     {
         $this->personal = $personal;
         $this->access();
+        $this->embedded = $embedded;
+        if ($tab !== '') {
+            $this->setTab($tab);
+        }
+        if (isset($context['record']) && $this->tab === 'cases') {
+            $this->edit('case', (int) $context['record']);
+        }
     }
 
     private function access(): void

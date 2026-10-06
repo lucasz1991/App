@@ -1,6 +1,8 @@
 <section class="ops-stack">
+    @if($showList)
     <header class="ops-toolbar"><h3 class="font-semibold">{{ $subjectType === 'Order' ? 'Angebot & Nachträge' : 'Angebotsstände' }}</h3>@if($canCreate)<x-ui.buttons.button-basic type="button" wire:click="create" size="sm"><i class="far fa-plus" aria-hidden="true"></i>{{ $subjectType === 'Order' ? 'Nachtrag' : 'Angebot' }}</x-ui.buttons.button-basic>@endif</header>
     <x-tables.table :columns="[['label'=>'Stand','key'=>'revision'],['label'=>'Betrag netto','key'=>'total'],['label'=>'Status','key'=>'status']]" :items="$offers" detail-action="select" row-view="components.tables.rows.operations.commercial-offer-row" empty="Noch keine Angebotsstände." table-key="commercial-offers" />
+    @endif
     <x-operations.modal wire:model="formOpen" :title="$subjectType === 'Order' ? 'Nachtrag anlegen' : 'Angebot anlegen'" max-width="4xl">
         <form wire:submit="save" class="ops-stack">
             @foreach($form['positions'] ?? [] as $index => $row)

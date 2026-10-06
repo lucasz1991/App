@@ -26,10 +26,13 @@ class WorkTimeCaptureReview extends Component
 
     public string $note = '';
 
-    public function mount(bool $personal = false): void
+    public function mount(bool $personal = false, ?int $initialRecordId = null): void
     {
         $this->personal = $personal;
         $this->query();
+        if ($initialRecordId) {
+            $this->open($initialRecordId);
+        }
     }
 
     private function query()

@@ -15,6 +15,8 @@ use App\Models\PersonnelSurvey;
 use App\Models\PersonnelSurveyResponse;
 use App\Models\PersonnelTask;
 use App\Models\PersonnelWorkflowTemplate;
+use App\Models\PersonnelWorkflowRun;
+use App\Models\PersonnelWorkflowStep;
 use App\Models\RegionalPersonnelCalendar;
 use App\Models\SicknessEvidenceWorkflow;
 use App\Models\Team;
@@ -37,6 +39,15 @@ class PersonnelEnhancements extends Component
 
     #[Locked]
     public bool $personal = false;
+
+    #[Locked]
+    public bool $embedded = false;
+
+    #[Locked]
+    public ?int $focusedRecordId = null;
+
+    #[Locked]
+    public string $focusedRecordType = '';
 
     public string $tab = 'workflows';
 
@@ -62,13 +73,28 @@ class PersonnelEnhancements extends Component
 
     public $upload;
 
-    public function mount(bool $personal = false, string $tab = 'workflows'): void
+    public function mount(bool $personal = false, string $tab = 'workflows', bool $embedded = false, ?int $initialUserId = null, ?int $initialRecordId = null, string $initialRecordType = ''): void
     {
         $this->personal = $personal;
+        $this->embedded = $embedded;
         $this->tab = $tab;
         $this->access();
         $ids = $personal ? null : app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'employees.master-data.view');
-        $this->userId = $personal ? auth()->id() : (int) User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->value('id');
+        $this->userId = $personal ? auth()->id() : ($initialUserId ?? (int) User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->value('id'));
+        $this->access();
+        if ($initialRecordId) {
+            $this->focusedRecordId = $initialRecordId;
+            $this->focusedRecordType = $initialRecordType ?: match ($tab) {
+                'workflows' => 'task', 'documents' => 'signature', 'sickness' => 'sickness', 'approvals' => 'absence', 'recruiting' => 'applicant', 'development' => 'development', 'surveys' => 'survey', 'reports' => 'report', 'calendars' => 'calendar', default => abort(404),
+            };
+            if ($this->focusedRecordType === 'workflow-run') {
+                abort_unless($tab === 'workflows', 404);
+                $run = PersonnelWorkflowRun::where('user_id', $this->userId)->findOrFail($initialRecordId);
+                app(PersonnelEnhancementService::class)->access(auth()->user(), (int) $run->user_id);
+            } else {
+                abort_unless($this->recordRows()->contains(fn ($row) => $row->record_id === $initialRecordId && $row->kind === $this->focusedRecordType), 404);
+            }
+        }
     }
 
     private function access(): void
@@ -108,6 +134,7 @@ class PersonnelEnhancements extends Component
     public function showTab(string $tab): void
     {
         $this->tab = $tab;
+        $this->reset('focusedRecordId', 'focusedRecordType');
         $this->reset('display', 'form', 'upload');
         $this->formOpen = false;
         $this->access();
@@ -116,6 +143,7 @@ class PersonnelEnhancements extends Component
     public function updatedUserId(): void
     {
         $this->access();
+        $this->reset('focusedRecordId', 'focusedRecordType');
         $this->reset('display', 'form', 'upload');
         $this->formOpen = false;
     }
@@ -442,6 +470,14 @@ class PersonnelEnhancements extends Component
             app(PersonnelScopeService::class)->applyRelatedQuery($query, auth()->user(), 'employees.master-data.view');
         }
 
+        if ($this->focusedRecordId) {
+            if ($this->focusedRecordType === 'workflow-run' && $class === PersonnelTask::class) {
+                $query->whereIn('id', PersonnelWorkflowStep::where('run_id', $this->focusedRecordId)->select('task_id'));
+            } else {
+                $query->whereKey($this->focusedRecordId);
+            }
+        }
+
         return $query->orderByDesc('id')->limit(60)->get();
     }
 
@@ -528,7 +564,9 @@ class PersonnelEnhancements extends Component
             }
         }
 
-        return $records;
+        return $this->focusedRecordId && $this->focusedRecordType !== 'workflow-run'
+            ? $records->filter(fn ($record) => (int) $record->record_id === $this->focusedRecordId && $record->kind === $this->focusedRecordType)->values()
+            : $records;
     }
 
     private function row($record, string $kind, string $label, ?string $detail, ?string $status = null): object
@@ -544,11 +582,11 @@ class PersonnelEnhancements extends Component
         $this->access();
         $ready = app(PersonnelEnhancementService::class)->ready();
         $ids = $this->personal ? [auth()->id()] : app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'employees.master-data.view');
-        $employees = User::where('role', 'staff')->where('status', true)->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->get(['id', 'name']);
+        $employees = $this->embedded ? collect() : User::where('role', 'staff')->where('status', true)->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->get(['id', 'name']);
         $employee = $this->userId ? User::findOrFail($this->userId) : null;
         $canEdit = ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit');
         $canGlobal = ! $this->personal && Gate::forUser(auth()->user())->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'employees.master-data.edit') === null;
 
-        return view('livewire.operations.personnel-enhancements', ['ready' => $ready, 'records' => $ready ? $this->recordRows() : collect(), 'employees' => $employees, 'employee' => $employee, 'canEdit' => $canEdit, 'canGlobal' => $canGlobal, 'teams' => ! $this->personal && $this->formKind === 'approval_policy' ? Team::where('personal_team', false)->orderBy('name')->get(['id', 'name']) : collect(), 'assignees' => $this->personal ? collect() : User::where('status', true)->orderBy('name')->get(['id', 'name']), 'versions' => $ready && $this->formKind === 'signature_request' ? EmployeeDocumentVersion::whereHas('requirement', fn ($q) => $q->where('user_id', $this->formUserId))->with('requirement')->orderByDesc('id')->get() : collect(), 'sicknesses' => $ready && $this->formKind === 'sickness' ? AbsenceRequest::where('user_id', $this->formUserId)->where('kind', 'sick')->where('status', 'reported')->latest()->get() : collect()]);
+        return view('livewire.operations.personnel-enhancements', ['ready' => $ready, 'records' => $ready ? $this->recordRows() : collect(), 'employees' => $employees, 'employee' => $employee, 'canEdit' => $canEdit, 'canGlobal' => $canGlobal, 'teams' => ! $this->personal && $this->formOpen && $this->formKind === 'approval_policy' ? Team::where('personal_team', false)->orderBy('name')->get(['id', 'name']) : collect(), 'assignees' => $this->personal || ! $this->formOpen ? collect() : User::where('status', true)->orderBy('name')->get(['id', 'name']), 'versions' => $ready && $this->formOpen && $this->formKind === 'signature_request' ? EmployeeDocumentVersion::whereHas('requirement', fn ($q) => $q->where('user_id', $this->formUserId))->with('requirement')->orderByDesc('id')->get() : collect(), 'sicknesses' => $ready && $this->formOpen && $this->formKind === 'sickness' ? AbsenceRequest::where('user_id', $this->formUserId)->where('kind', 'sick')->where('status', 'reported')->latest()->get() : collect()]);
     }
 }

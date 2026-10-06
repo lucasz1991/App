@@ -11,7 +11,7 @@
         };
     @endphp
     <header class="ops-toolbar">
-        <nav class="ops-actions" aria-label="Planungsbereiche">@foreach($tabs as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$tab === $key ? 'primary' : 'secondary'" wire:click="setTab('{{ $key }}')" :aria-current="$tab === $key ? 'page' : 'false'">{{ $label }}</x-ui.buttons.button-basic>@endforeach</nav>
+        @if(!$embedded)<nav class="ops-actions" aria-label="Planungsbereiche">@foreach($tabs as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$tab === $key ? 'primary' : 'secondary'" wire:click="setTab('{{ $key }}')" :aria-current="$tab === $key ? 'page' : 'false'">{{ $label }}</x-ui.buttons.button-basic>@endforeach</nav>@endif
         @if($personal && $tab === 'wishes')<x-ui.buttons.button-basic type="button" wire:click="edit('wish')"><i class="far fa-plus" aria-hidden="true"></i>Wunsch einreichen</x-ui.buttons.button-basic>
         @elseif($personal && $tab === 'transfers')<x-ui.buttons.button-basic type="button" wire:click="edit('transfer')">Übergabe / Tausch anfragen</x-ui.buttons.button-basic>
         @elseif(!$personal && in_array($tab,['pools','periods','offers','cases']))<x-ui.buttons.button-basic type="button" wire:click="edit('{{ ['pools'=>'pool','periods'=>'period','offers'=>'offer','cases'=>'case'][$tab] }}')"><i class="far fa-plus" aria-hidden="true"></i>{{ ['pools'=>'Pool','periods'=>'Abgabefrist','offers'=>'Dienstangebot','cases'=>'Fall'][$tab] }} anlegen</x-ui.buttons.button-basic>@endif

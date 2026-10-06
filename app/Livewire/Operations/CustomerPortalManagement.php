@@ -52,6 +52,15 @@ class CustomerPortalManagement extends Component
     public string $tab = 'access';
 
     #[Locked]
+    public bool $embedded = false;
+
+    #[Locked]
+    public ?int $contextCustomerId = null;
+
+    #[Locked]
+    public string $contextTab = '';
+
+    #[Locked]
     public string $modal = '';
 
     #[Locked]
@@ -74,20 +83,31 @@ class CustomerPortalManagement extends Component
 
     public $upload;
 
-    public function mount(string $tab = ''): void
+    public function mount(string $tab = '', ?int $customerId = null, bool $embedded = false, ?int $initialRecordId = null, string $initialSource = ''): void
     {
         $customers = app(CustomerPortalScope::class)->manageableCustomers($this->actor());
-        $requested = request()->query('customer');
+        $this->embedded = $embedded;
+        $requested = $customerId ?? request()->query('customer');
         if ($requested !== null) {
-            abort_unless(is_string($requested) && ctype_digit($requested) && (int) $requested > 0, 404);
+            abort_unless((is_int($requested) && $requested > 0) || (is_string($requested) && ctype_digit($requested) && (int) $requested > 0), 404);
             $this->customerId = (int) $customers->findOrFail((int) $requested)->id;
         } else {
+            abort_if($embedded, 404);
             $this->customerId = $customers->orderBy('company_name')->value('id');
         }
         $initialTab = $tab ?: request()->query('tab', 'access');
         $this->tab = is_string($initialTab) && array_key_exists($initialTab, self::TABS) ? $initialTab : 'access';
+        if ($embedded) {
+            abort_unless(in_array($this->tab, ['access', 'automation', 'publications', 'delivery', 'requests'], true), 404);
+            $this->contextCustomerId = $this->customerId;
+            $this->contextTab = $this->tab;
+        }
         if ($this->customerId) {
             $this->access();
+        }
+        if ($initialRecordId !== null || $initialSource !== '') {
+            abort_unless($this->tab === 'requests' && $initialRecordId > 0 && in_array($initialSource, ['submission', 'request'], true), 404);
+            $this->edit($initialSource === 'submission' ? 'decision' : 'review-request', $initialRecordId);
         }
     }
 
@@ -105,11 +125,13 @@ class CustomerPortalManagement extends Component
     private function access(string $ability = 'customers.portal.manage'): void
     {
         abort_unless($this->customerId, 403);
+        abort_unless(! $this->embedded || ($this->customerId === $this->contextCustomerId && $this->tab === $this->contextTab), 403);
         app(CustomerPortalScope::class)->authorizeManager($this->actor(), $this->customerId, $ability);
     }
 
     public function selectCustomer(int $id): void
     {
+        abort_unless(! $this->embedded || $this->contextCustomerId === $id, 403);
         app(CustomerPortalScope::class)->authorizeManager($this->actor(), $id);
         $this->customerId = $id;
         $this->close();
@@ -119,6 +141,7 @@ class CustomerPortalManagement extends Component
     public function setTab(string $tab): void
     {
         $this->access();
+        abort_unless(! $this->embedded || $this->contextTab === $tab, 403);
         abort_unless(array_key_exists($tab, self::TABS), 422);
         $this->tab = $tab;
         $this->close();
@@ -341,7 +364,7 @@ class CustomerPortalManagement extends Component
 
     public function render()
     {
-        $customers = app(CustomerPortalScope::class)->manageableCustomers($this->actor())->orderBy('company_name')->limit(500)->get(['id', 'company_name']);
+        $customers = app(CustomerPortalScope::class)->manageableCustomers($this->actor())->when($this->embedded, fn ($query) => $query->whereKey($this->contextCustomerId))->orderBy('company_name')->limit(500)->get(['id', 'company_name']);
         if (! $this->customerId) {
             return view('livewire.operations.customer-portal-management', ['customers' => $customers, 'customer' => null]);
         }

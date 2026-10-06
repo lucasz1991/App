@@ -37,6 +37,7 @@
                             <i class="far {{ $icon }}" aria-hidden="true"></i><span>{{ $label }}</span>@if($viewMode === $view)<i class="far fa-check rt-shift-plan-view-option__check" aria-hidden="true"></i>@endif
                         </button>
                     @endforeach
+                    <a href="{{ \App\Support\Operations\OperationsPages::moduleUrl('calendar') }}" wire:navigate role="menuitem" class="rt-shift-plan-view-option"><i class="far fa-calendar-alt" aria-hidden="true"></i><span>Kalender</span></a>
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
             <x-ui.dropdown.anchor-dropdown align="left" width="96" offset="6" dropdown-id="shift-plan-distribution-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Noch zu verteilen" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">

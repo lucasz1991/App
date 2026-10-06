@@ -47,7 +47,13 @@ class AttentionCenter extends Component
 
     public string $search = '';
 
-    public function mount(bool $personal = false, string $mode = 'inbox'): void
+    #[Locked]
+    public bool $embedded = false;
+
+    #[Locked]
+    public ?int $shiftId = null;
+
+    public function mount(bool $personal = false, string $mode = 'inbox', string $initialTab = '', bool $embedded = false, array $context = []): void
     {
         $this->personal = $personal;
         abort_unless(in_array($mode, ['inbox', 'monitor'], true) && (! $personal || $mode === 'inbox'), 422);
@@ -56,6 +62,17 @@ class AttentionCenter extends Component
         $this->from = now(config('operations.display_timezone'))->toDateString();
         $this->until = $this->from;
         $this->access();
+        $this->embedded = $embedded;
+        if ($initialTab !== '') {
+            $this->setTab($initialTab);
+        }
+        if (isset($context['shift'])) {
+            abort_unless($mode === 'monitor' && auth()->user()->can('operations.manage'), 403);
+            $shift = \App\Models\Shift::findOrFail((int) $context['shift']);
+            $this->shiftId = $shift->id;
+            $this->from = $shift->starts_at->timezone(config('operations.display_timezone'))->toDateString();
+            $this->until = $shift->ends_at->timezone(config('operations.display_timezone'))->toDateString();
+        }
     }
 
     private function access(): void
@@ -193,6 +210,9 @@ class AttentionCenter extends Component
             'profiles' => $profilesReady ? OperationsMonitorProfile::orderBy('is_active', 'desc')->orderBy('name')->get() : collect(),
             'reminders' => $preferencesReady ? ($this->personal ? OperationsReminderPreference::where('user_id', $actor->id) : app(PersonnelScopeService::class)->applyRelatedQuery(OperationsReminderPreference::query(), $actor, 'employees.master-data.edit'))->orderBy('kind')->get() : collect(),
         };
+        if ($this->shiftId && $this->tab === 'board') {
+            $items = $items->filter(fn ($item) => (int) ($item->shift_id ?? 0) === $this->shiftId);
+        }
         if (filled($this->search)) {
             $items = $items->filter(fn ($row) => str_contains(mb_strtolower(($row->title ?? $row->name ?? OperationsReminderService::KINDS[$row->kind] ?? '').' '.($row->subject ?? $row->user_name ?? '')), mb_strtolower(mb_substr($this->search, 0, 100))));
         }

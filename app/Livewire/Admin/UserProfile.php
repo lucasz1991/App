@@ -6,14 +6,21 @@ use App\Actions\Jetstream\DeleteUser;
 use App\Models\DeviceAssignment;
 use App\Models\User;
 use App\Models\UserProfile as ProfileModel;
+use App\Services\Operations\PersonnelScopeService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
+use Livewire\Attributes\Locked;
 
 class UserProfile extends Component
 {
+    #[Locked]
+    public bool $embedded = false;
+
+    private array $personnelPermissions = [];
+
     private const USER_FIELDS = ['name', 'email'];
 
     private const PROFILE_FIELDS = [
@@ -76,6 +83,7 @@ class UserProfile extends Component
         'compensation_amount',
     ];
 
+    #[Locked]
     public $userId;
 
     public $user;
@@ -86,8 +94,9 @@ class UserProfile extends Component
     /** @var array<int, string> */
     public array $dirtyInlineFields = [];
 
-    public function mount($userId)
+    public function mount($userId, bool $embedded = false)
     {
+        $this->embedded = $embedded;
         // Die reduzierte Personenvorschau steht allen aktiven Kolleginnen und
         // Kollegen offen. Vollstaendige Personalprofile bleiben dagegen
         // ausschliesslich Administratoren und der Verwaltung vorbehalten.
@@ -97,7 +106,7 @@ class UserProfile extends Component
         $this->userId = $userId;
         $this->loadUser();
 
-        if (Gate::allows('employees.master-data.view') || Gate::allows('employees.compensation.view')) {
+        if ($this->personnelAllowed('employees.master-data.view') || $this->personnelAllowed('employees.compensation.view')) {
             activity('employee-master-data')
                 ->causedBy(auth()->user())
                 ->performedOn($this->user)
@@ -394,7 +403,7 @@ class UserProfile extends Component
 
     public function render()
     {
-        $profile = ProfileModel::firstWhere('user_id', $this->userId);
+        $profile = $this->profileForActor();
         $deviceAssignments = Gate::allows('devices.view')
             ? DeviceAssignment::query()
                 ->where('user_id', $this->userId)
@@ -408,32 +417,47 @@ class UserProfile extends Component
             'profile' => $profile,
             'deviceAssignments' => $deviceAssignments,
             'canEditEmployee' => Gate::allows('employees.create'),
-            'canViewMasterData' => Gate::allows('employees.master-data.view'),
-            'canEditMasterData' => Gate::allows('employees.master-data.view')
-                && Gate::allows('employees.master-data.edit'),
-            'canViewCompensation' => Gate::allows('employees.compensation.view'),
-            'canEditCompensation' => Gate::allows('employees.compensation.view')
-                && Gate::allows('employees.compensation.edit'),
+            'canViewMasterData' => $this->personnelAllowed('employees.master-data.view'),
+            'canEditMasterData' => $this->personnelAllowed('employees.master-data.view')
+                && $this->personnelAllowed('employees.master-data.edit'),
+            'canViewCompensation' => $this->personnelAllowed('employees.compensation.view'),
+            'canEditCompensation' => $this->personnelAllowed('employees.compensation.view')
+                && $this->personnelAllowed('employees.compensation.edit'),
         ])->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
     }
 
     private function authorizeInlineField(string $field): void
     {
         if (in_array($field, self::COMPENSATION_FIELDS, true)) {
-            Gate::authorize('employees.compensation.view');
-            Gate::authorize('employees.compensation.edit');
+            app(PersonnelScopeService::class)->authorize(auth()->user(), (int) $this->userId, 'employees.compensation.view');
+            app(PersonnelScopeService::class)->authorize(auth()->user(), (int) $this->userId, 'employees.compensation.edit');
 
             return;
         }
 
         if (in_array($field, self::MASTER_DATA_FIELDS, true)) {
-            Gate::authorize('employees.master-data.view');
-            Gate::authorize('employees.master-data.edit');
+            app(PersonnelScopeService::class)->authorize(auth()->user(), (int) $this->userId, 'employees.master-data.view');
+            app(PersonnelScopeService::class)->authorize(auth()->user(), (int) $this->userId, 'employees.master-data.edit');
 
             return;
         }
 
         Gate::authorize('employees.create');
+    }
+
+    private function personnelAllowed(string $ability): bool
+    {
+        $key = $this->userId.':'.$ability;
+
+        return $this->personnelPermissions[$key] ??= auth()->user() && app(PersonnelScopeService::class)->allows(auth()->user(), (int) $this->userId, $ability);
+    }
+
+    private function profileForActor(): ?ProfileModel
+    {
+        $fields = array_filter(self::PROFILE_FIELDS, fn ($field) => (! in_array($field, self::MASTER_DATA_FIELDS, true) || $this->personnelAllowed('employees.master-data.view'))
+            && (! in_array($field, self::COMPENSATION_FIELDS, true) || $this->personnelAllowed('employees.compensation.view')));
+
+        return ProfileModel::where('user_id', $this->userId)->first(array_merge(['id', 'user_id'], $fields));
     }
 
     private function inlineRule(string $field): array
@@ -508,7 +532,7 @@ class UserProfile extends Component
 
     private function syncInlineValues(): void
     {
-        $profile = ProfileModel::firstWhere('user_id', $this->user?->id);
+        $profile = $this->profileForActor();
 
         $this->inlineValues = $this->inlineValueMap($this->user, $profile);
     }
@@ -528,12 +552,12 @@ class UserProfile extends Component
 
         foreach (self::PROFILE_FIELDS as $field) {
             if (in_array($field, self::MASTER_DATA_FIELDS, true)
-                && ! Gate::allows('employees.master-data.view')) {
+                && ! $this->personnelAllowed('employees.master-data.view')) {
                 continue;
             }
 
             if (in_array($field, self::COMPENSATION_FIELDS, true)
-                && ! Gate::allows('employees.compensation.view')) {
+                && ! $this->personnelAllowed('employees.compensation.view')) {
                 continue;
             }
 

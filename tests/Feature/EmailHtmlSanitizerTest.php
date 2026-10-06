@@ -1059,4 +1059,22 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringContainsString('cid:railtime-logo', $report->html);
         $this->assertStringContainsString('https://rail-time.de', $report->html);
     }
+
+    public function test_css_diagnosen_enthalten_die_maschinenlesbare_property_ohne_die_haertung_zu_aendern(): void
+    {
+        $report = $this->sanitizer()->clean(
+            '<td style="padding:12px;DISPLAY:flex;Gap:8px;behavior:url(x.htc);-moz-binding:url(x.xml);">Text</td>',
+        );
+
+        $this->assertSame(['display', 'gap', 'behavior', '-moz-binding'], array_column($report->violations(), 'property'));
+        $this->assertStringContainsString('padding:12px;', $report->html);
+        foreach (['DISPLAY:flex', 'Gap:8px', 'behavior:', '-moz-binding:'] as $removed) {
+            $this->assertStringNotContainsString($removed, $report->html);
+        }
+        $this->assertSame($report->findings, $report->toArray()['findings']);
+
+        $scriptReport = $this->sanitizer()->clean('<div><script>alert(1)</script>Text</div>');
+        $this->assertArrayNotHasKey('property', $scriptReport->violations()[0]);
+        $this->assertStringNotContainsString('<script', $scriptReport->html);
+    }
 }

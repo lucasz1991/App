@@ -63,6 +63,14 @@
                         </x-ui.buttons.button-basic>
                     </div>
 
+                    @if($consolidated)
+                        <nav class="mt-4 ops-actions" aria-label="Auftragsdetails">@foreach($this->detailSections() as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$detailSection === $key ? 'primary':'link'" wire:click="setDetailSection('{{ $key }}')" :aria-current="$detailSection === $key ? 'page' : null">{{ $label }}</x-ui.buttons.button-basic>@endforeach</nav>
+                        <div class="mt-3 ops-actions">
+                            @if($originInquiry)<x-ui.buttons.button-basic mode="link" :href="route('operations.page',['page'=>'cases','view'=>'inbox','inquiry'=>$originInquiry->id,'customer'=>$selectedOrder->customer_id])">{{ $originInquiry->number }}</x-ui.buttons.button-basic>@endif
+                            <x-ui.buttons.button-basic mode="link" :href="route('operations.page',['page'=>'customers','customer'=>$selectedOrder->customer_id])">Kundenakte</x-ui.buttons.button-basic>
+                        </div>
+                    @endif
+
                     <nav class="mt-4 flex flex-wrap gap-2" aria-label="Planung dieser Leistung">
                         <x-ui.buttons.button-basic :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id])" class="min-h-11">
                             <i class="far fa-table-list" aria-hidden="true"></i>Schichtplan
@@ -72,6 +80,7 @@
                         </x-ui.buttons.button-basic>
                     </nav>
 
+                    @if(!$consolidated || $detailSection === 'overview')
                     <div class="mt-5 rounded-xl border border-rt-border/70 bg-rt-surface-muted/50 p-3.5 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/40">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                             <div>
@@ -110,10 +119,11 @@
                             </dd>
                         </div>
                     </dl>
+                    @endif
 
-                    @if($detailOpen && \App\Support\Operations\PlanningSchema::ready())<livewire:operations.order-demands :order-id="$selectedOrder->id" :key="'demand-'.$selectedOrder->id" />@endif
-                    @if($detailOpen && \Illuminate\Support\Facades\Schema::hasTable('commercial_offer_revisions') && auth()->user()->can('operations.manage'))<livewire:operations.commercial-offers subject-type="Order" :subject-id="$selectedOrder->id" :key="'commercial-order-'.$selectedOrder->id" />@endif
-                    @if($selectedOrder->description || $selectedOrder->notes)
+                    @if($detailOpen && (!$consolidated || $detailSection === 'planning') && \App\Support\Operations\PlanningSchema::ready())<livewire:operations.order-demands :order-id="$selectedOrder->id" :key="'demand-'.$selectedOrder->id" />@endif
+                    @if($detailOpen && (!$consolidated || $detailSection === 'overview') && \Illuminate\Support\Facades\Schema::hasTable('commercial_offer_revisions') && auth()->user()->can('operations.manage'))<livewire:operations.commercial-offers subject-type="Order" :subject-id="$selectedOrder->id" :key="'commercial-order-'.$selectedOrder->id" />@endif
+                    @if((!$consolidated || $detailSection === 'overview') && ($selectedOrder->description || $selectedOrder->notes))
                         <div class="mt-4 grid gap-3 sm:grid-cols-2">
                             @if($selectedOrder->description)
                                 <div class="rounded-xl border border-rt-border/70 p-3.5 dark:border-rt-dark-border/70">
@@ -130,7 +140,8 @@
                         </div>
                     @endif
 
-                    <div class="mt-5 grid gap-4 lg:grid-cols-2">
+                    <div @class(['mt-5 grid gap-4','lg:grid-cols-2'=>!$consolidated])>
+                        @if(!$consolidated || $detailSection === 'planning')
                         <section>
                             <h3 class="text-sm font-semibold text-rt-text dark:text-white">Schichten</h3>
                             <div class="mt-2 divide-y divide-rt-border/60 rounded-xl border border-rt-border/70 dark:divide-rt-dark-border/60 dark:border-rt-dark-border/70">
@@ -152,6 +163,8 @@
                                 @endforelse
                             </div>
                         </section>
+                        @endif
+                        @if(!$consolidated || $detailSection === 'history')
                         <section>
                             <h3 class="text-sm font-semibold text-rt-text dark:text-white">Statusverlauf</h3>
                             <div class="mt-2 space-y-2">
@@ -167,7 +180,9 @@
                                 @endforelse
                             </div>
                         </section>
+                        @endif
                     </div>
+                    @if($consolidated && $detailOpen && in_array($detailSection,['proofs','costs'],true))<livewire:operations.operations-enhancements :tab="$detailSection" :order-id="$selectedOrder->id" :initial-record-id="$detailSection === 'proofs' ? $fulfilmentRecordId : null" :embedded="true" :key="'order-fulfilment-'.$selectedOrder->id.'-'.$detailSection" />@endif
                 @else
                     <div class="flex min-h-80 flex-col items-center justify-center text-center">
                         <i class="fad fa-arrow-pointer text-3xl text-rt-soft" aria-hidden="true"></i>

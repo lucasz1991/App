@@ -19,7 +19,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 28;
+    private const RENDERER_REVISION = 29;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -229,7 +229,9 @@ final class OutlookAddinPayloadService
         );
         [$html, $media] = $this->localizeRemoteImages(
             $this->withMarker(
-                OutlookNativePersonalSignature::project($builder->buildOutlookAddinSignatureHtml('light')),
+                OutlookTrainBottomOverlay::project(
+                    OutlookNativePersonalSignature::project($builder->buildOutlookAddinSignatureHtml('light')),
+                ),
                 nativeSignature: true,
             ),
         );
@@ -553,6 +555,10 @@ final class OutlookAddinPayloadService
                 return stripos($comment, '[if') !== false
                     || stripos($comment, '[endif]') !== false
                     || str_contains($comment, 'RT-SIGNATURE-MANAGED-V1')
+                    || in_array($match[0], [
+                        '<!-- RT-PERSONAL-IDENTITY-SLOT-V2 -->',
+                        '<!-- RT-PERSONAL-COMPANY-SLOT-V2 -->',
+                    ], true)
                     ? $match[0]
                     : '';
             },

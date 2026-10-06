@@ -17,6 +17,7 @@ use App\Services\CustomerPortal\CustomerCapacityService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use App\Support\CustomerPortal\CustomerPortalScope;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsPages;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -138,6 +139,35 @@ class UnifiedOperationsInboxService
             return route('operations.mine', array_filter(['area' => $item->module === 'customer-capacity' ? 'capacity' : ($item->module === 'personnel-enhancements' ? 'personnel' : ($item->module === 'operations-enhancements' ? 'operations' : 'work')), 'tab' => $item->target_tab]));
         }
 
-        return route('operations.workspace', array_filter(['module' => $item->module, 'tab' => $item->target_tab, 'customer' => $item->module === 'customer-portal' ? ($item->customer_id ?? null) : null]));
+        $type = match (true) {
+            str_starts_with($item->id, 'portal-submission-') => 'submission',
+            str_starts_with($item->id, 'portal-request-') => 'request',
+            str_starts_with($item->id, 'portal-reservation-') => 'reservation',
+            str_contains($item->id, 'personnel_task:') || str_starts_with($item->id, 'task-') => 'task',
+            str_contains($item->id, 'personnel_documents:') => 'signature',
+            str_contains($item->id, 'personnel_workflows:') => 'workflow-run',
+            str_contains($item->id, 'personnel_sickness:') => 'sickness',
+            $item->module === 'times' => 'work-time',
+            $item->module === 'absences' => 'absence',
+            $item->module === 'qualifications' => 'qualification',
+            str_starts_with($item->id, 'plan-review-') => 'plan-review',
+            $item->module === 'workforce-planning' => 'staffing-case',
+            default => '',
+        };
+        $tab = $item->target_tab;
+        if ($type === 'signature') {
+            return OperationsPages::url('people', array_filter(['view' => 'documents', 'section' => 'signatures', 'user' => $item->user_id, 'record' => $item->record_id, 'record_type' => $type, 'revision' => $item->revision]));
+        }
+        if ($type === 'sickness') {
+            return OperationsPages::url('leave', array_filter(['view' => 'requests', 'section' => 'sickness', 'user' => $item->user_id, 'record' => $item->record_id, 'record_type' => $type, 'revision' => $item->revision]));
+        }
+        $tab = match ($type) {
+            'plan-review' => 'checks', 'staffing-case' => 'cases', 'task' => $item->module === 'personnel-enhancements' ? 'workflows' : $tab, default => $tab,
+        };
+        return OperationsPages::moduleUrl($item->module, array_filter([
+            'tab' => $tab, 'customer' => $item->customer_id ?? null, 'user' => $item->user_id,
+            'record' => $item->record_id, 'record_type' => $type,
+            'source' => $item->module === 'customer-portal' ? $type : null, 'revision' => $type === 'reservation' ? null : $item->revision,
+        ]));
     }
 }

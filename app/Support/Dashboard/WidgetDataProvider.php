@@ -201,7 +201,7 @@ class WidgetDataProvider
             'count' => $count,
             'tone' => $count === 0 ? 'ok' : 'warn',
             'items' => $rows === 2 ? (clone $query)->latest()->limit(4)->get()->map($describe) : collect(),
-            'href' => route('operations.workspace', $slug),
+            'href' => \App\Support\Operations\OperationsPages::moduleUrl($slug),
         ];
     }
 
@@ -371,7 +371,7 @@ class WidgetDataProvider
             'urgent' => (clone $open)->whereIn('priority', ['high', 'urgent'])->count(),
             'tone' => 'brand',
             'recent' => $rows === 2 ? (clone $open)->with('customer:id,company_name')->orderBy('starts_at')->limit(3)->get() : collect(),
-            'href' => route('operations.workspace', 'orders'),
+            'href' => \App\Support\Operations\OperationsPages::moduleUrl('orders'),
         ];
     }
 
@@ -400,7 +400,7 @@ class WidgetDataProvider
             'shiftCount' => $shifts->count(),
             'criticalDays' => collect($required)->filter(fn (int $need, int $i) => $need > 0 && $reserved[$i] < $need)->count(),
             'tone' => $needed === 0 ? 'neutral' : ($covered >= $needed ? 'ok' : 'warn'),
-            'href' => route('operations.workspace', 'shift-management'),
+            'href' => \App\Support\Operations\OperationsPages::moduleUrl('shift-management'),
         ];
     }
 
@@ -420,7 +420,7 @@ class WidgetDataProvider
         return [
             'shifts' => $shifts,
             'understaffed' => $shifts->filter(fn (Shift $shift) => $shift->reserved < $shift->required_staff)->count(),
-            'href' => route('operations.workspace', 'shift-management'),
+            'href' => \App\Support\Operations\OperationsPages::moduleUrl('shift-management'),
         ];
     }
 
@@ -450,7 +450,7 @@ class WidgetDataProvider
             'top' => $top,
             'topMax' => max(1, (int) ($top->max('open_orders') ?? 0)),
             'tone' => 'brand',
-            'href' => route('operations.workspace', 'customers'),
+            'href' => \App\Support\Operations\OperationsPages::moduleUrl('customers'),
         ];
     }
 
@@ -458,7 +458,7 @@ class WidgetDataProvider
     {
         $profile = OperationsRuleProfile::where('is_active', true)->first();
 
-        return ['profile' => $profile, 'href' => route('operations.workspace', 'rules')];
+        return ['profile' => $profile, 'href' => \App\Support\Operations\OperationsPages::moduleUrl('rules')];
     }
 
     private function employees(User $user, int $rows): array

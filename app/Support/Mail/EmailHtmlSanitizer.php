@@ -1323,7 +1323,7 @@ final class EmailHtmlSanitizer
                 continue;
             }
 
-            $findings[] = EmailHtmlReport::finding($verdict[0], $verdict[1], $path);
+            $findings[] = EmailHtmlReport::finding($verdict[0], $verdict[1], $path, property: $property);
             $cuts[] = [$start, $cutEnd];
         }
 

@@ -14,9 +14,16 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
+use Livewire\Attributes\Locked;
 
 class Settings extends Component
 {
+    #[Locked]
+    public string $initialTab = '';
+
+    #[Locked]
+    public string $initialSection = '';
+
     /** Wartungsmodus: nur Admins koennen die App nutzen, alle anderen sehen die Wartungsseite. */
     public bool $maintenanceMode = false;
 
@@ -62,6 +69,22 @@ class Settings extends Component
     public function mount(): void
     {
         Gate::authorize('settings.manage');
+        $tab = request()->query('tab', '');
+        $section = request()->query('section', '');
+        $sections = [
+            'overview' => [], 'company' => ['company'], 'users' => ['invitations', 'permissions'],
+            'system' => ['system', 'assistant', 'sounds'], 'email' => ['mails', 'templates'],
+        ];
+        if ($this->isSuperAdmin()) {
+            $sections += ['device-management' => ['device-deployment'], 'superadmin' => ['assistant-runtime', 'calls', 'assistant-knowledge']];
+        }
+        abort_unless(is_string($tab) && is_string($section), 422);
+        if ($tab !== '') {
+            abort_unless(array_key_exists($tab, $sections), 403);
+            abort_unless($section === '' || in_array($section, $sections[$tab], true), 403);
+            $this->initialTab = $tab;
+            $this->initialSection = $section;
+        }
         $this->loadSettings();
     }
 
@@ -307,6 +330,7 @@ class Settings extends Component
 
     public function render()
     {
+        Gate::authorize('settings.manage');
         return view('livewire.admin.settings', [
             'isSuperAdmin' => $this->isSuperAdmin(),
         ])->layout('layouts.master', ['area' => 'admin']);

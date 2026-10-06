@@ -41,12 +41,19 @@ class CommercialOffers extends Component
 
     public bool $authorized = false;
 
-    public function mount(string $subjectType, int $subjectId): void
+    #[Locked]
+    public bool $showList = true;
+
+    public function mount(string $subjectType, int $subjectId, ?int $initialOfferId = null, bool $showList = true): void
     {
         abort_unless(in_array($subjectType, ['OperationInquiry', 'Order'], true), 404);
         $this->subjectType = $subjectType;
         $this->subjectId = $subjectId;
+        $this->showList = $showList;
         $this->subject();
+        if ($initialOfferId !== null) {
+            $this->select($initialOfferId);
+        }
     }
 
     private function subject(): OperationInquiry|Order

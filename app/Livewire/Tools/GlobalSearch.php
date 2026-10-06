@@ -3,6 +3,7 @@
 namespace App\Livewire\Tools;
 
 use App\Models\User;
+use App\Support\Operations\ApplicationNavigation;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
@@ -178,7 +179,13 @@ class GlobalSearch extends Component
             ],
         ];
 
-        return collect($items)
+        $sharedLinks = collect(ApplicationNavigation::sections($user))->flatMap(fn ($links) => $links)->map(fn ($link) => [
+            'title' => $link['title'], 'description' => $link['group'] ?? 'RailTime',
+            'url' => route($link['route'], $link['parameters']), 'icon' => $link['icon'],
+            'keywords' => $link['title'].' '.($link['group'] ?? ''), 'allowed' => true,
+        ]);
+        // Existing conversation/own-signature searches remain, page navigation has one source.
+        return $sharedLinks->concat(collect($items)->reject(fn ($item) => in_array($item['icon'], ['home','folder','users','list','settings','send'], true)))
             ->filter(fn (array $item): bool => $item['allowed'])
             ->filter(function (array $item) use ($needle): bool {
                 $haystack = mb_strtolower(implode(' ', [

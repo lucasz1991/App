@@ -4,6 +4,7 @@ namespace App\Livewire\Admin\Operations;
 
 use App\Models\Customer;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -15,11 +16,18 @@ class Customers extends Component
 
     public string $activeFilter = 'active';
 
+    #[Locked]
     public ?int $selectedCustomerId = null;
 
     public bool $formOpen = false;
 
     public bool $detailOpen = false;
+
+    #[Locked]
+    public bool $embedded = false;
+
+    #[Locked]
+    public ?int $contextCustomerId = null;
 
     public function openDetails(int $id): void
     {
@@ -28,6 +36,7 @@ class Customers extends Component
         $this->detailOpen = true;
     }
 
+    #[Locked]
     public ?int $editingCustomerId = null;
 
     public string $companyName = '';
@@ -50,10 +59,19 @@ class Customers extends Component
 
     public bool $isActive = true;
 
-    public function mount(): void
+    public function mount(?int $customerId = null, bool $embedded = false, bool $startCreating = false): void
     {
         $this->ensureAdmin();
-        $this->selectedCustomerId = Customer::query()->orderByDesc('is_active')->orderBy('company_name')->value('id');
+        $this->embedded = $embedded;
+        $this->contextCustomerId = $embedded ? $customerId : null;
+        if ($embedded) {
+            $this->selectedCustomerId = $customerId ? (int) Customer::findOrFail($customerId)->id : null;
+        } else {
+            $this->selectedCustomerId = Customer::query()->orderByDesc('is_active')->orderBy('company_name')->value('id');
+        }
+        if ($startCreating) {
+            $this->createCustomer();
+        }
     }
 
     #[On('operations-create')]
@@ -69,6 +87,7 @@ class Customers extends Component
     {
         $this->ensureAdmin();
         $this->detailOpen = false;
+        $this->assertContext($customerId);
         $customer = Customer::query()->findOrFail($customerId);
 
         $this->editingCustomerId = $customer->id;
@@ -89,6 +108,7 @@ class Customers extends Component
     public function selectCustomer(int $customerId): void
     {
         $this->ensureAdmin();
+        $this->assertContext($customerId);
         Customer::query()->findOrFail($customerId);
         $this->selectedCustomerId = $customerId;
     }
@@ -96,6 +116,9 @@ class Customers extends Component
     public function saveCustomer(): void
     {
         $this->ensureAdmin();
+        if ($this->editingCustomerId) {
+            $this->assertContext($this->editingCustomerId);
+        }
         $validated = $this->validate([
             'companyName' => ['required', 'string', 'max:160'],
             'contactName' => ['nullable', 'string', 'max:160'],
@@ -130,11 +153,16 @@ class Customers extends Component
         $this->formOpen = false;
         $this->resetCustomerForm();
         $this->dispatch('swal:toast', type: 'success', text: 'Kunde gespeichert.');
+        if ($this->embedded) {
+            $this->contextCustomerId = $customer->id;
+            $this->dispatch('customer-record-saved', customerId: $customer->id);
+        }
     }
 
     public function toggleCustomerActive(int $customerId): void
     {
         $this->ensureAdmin();
+        $this->assertContext($customerId);
         $customer = Customer::query()->findOrFail($customerId);
         $customer->update(['is_active' => ! $customer->is_active]);
         $this->selectedCustomerId = $customer->id;
@@ -145,7 +173,7 @@ class Customers extends Component
     {
         $this->ensureAdmin();
 
-        $customers = Customer::query()
+        $customers = $this->embedded ? collect() : Customer::query()
             ->withCount('orders')
             ->when(trim($this->search) !== '', function (Builder $query): void {
                 $term = '%'.trim($this->search).'%';
@@ -163,8 +191,11 @@ class Customers extends Component
             ->orderBy('company_name')
             ->get();
 
+        if ($this->embedded) {
+            abort_unless($this->selectedCustomerId === $this->contextCustomerId, 403);
+        }
         $selectedCustomer = $this->selectedCustomerId
-            ? Customer::query()->with(['orders' => fn ($query) => $query->latest('starts_at')->limit(8)])->find($this->selectedCustomerId)
+            ? Customer::query()->when(! $this->embedded, fn ($query) => $query->with(['orders' => fn ($query) => $query->latest('starts_at')->limit(8)]))->find($this->selectedCustomerId)
             : null;
 
         return view('livewire.admin.operations.customers', [
@@ -183,5 +214,10 @@ class Customers extends Component
         $this->country = 'DE';
         $this->isActive = true;
         $this->resetValidation();
+    }
+
+    private function assertContext(int $customerId): void
+    {
+        abort_unless(! $this->embedded || $this->contextCustomerId === $customerId, 403);
     }
 }

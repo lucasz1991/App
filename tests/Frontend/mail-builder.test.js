@@ -15,6 +15,7 @@ import {
     createMailPreviewController,
     hydrateMailCanvasAssets,
     installMailTypographyFocus,
+    installMailProjectLoadGuard,
     MAIL_EDITOR_MODE,
     MAIL_GJS_OPTIONS,
     MAIL_SAFE_EDITABLE_STYLE_PROPERTIES,
@@ -1375,6 +1376,42 @@ test('signature load fails closed for a second or displaced train binding', () =
     }, () => [], { kind: 'signature', environment: { DOMParser } }), /IMG-Zug|Zug-\/Inhaltsreihenfolge/);
 });
 
+test('mail projection derives styles from canonical CSS, never stale project geometry', () => {
+    const template = '<!doctype html><html><head><meta charset="utf-8"></head><body><table><tbody><tr><td class="card">Inhalt</td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
+    const signature = `<tr><td class="rt-sign-cell">${canonicalSignatureStage('<p class="card">Kontakt</p>')}</td></tr><tr><td>Rechtliches</td></tr>`;
+    const sourceCss = '.card{padding:18px;color:#112233;}';
+    const staleStyles = [{ selectors: ['card'], style: { padding: '99px', color: '#ff0000' } }];
+
+    for (const [kind, html] of [['template', template], ['signature', signature]]) {
+        const draft = { html, css: sourceCss, builderData: { pages: [{ component: html }], styles: staleStyles } };
+        const original = structuredClone(draft);
+        const parsedSources = [];
+        const project = projectForMailDocument(draft, (css) => {
+            parsedSources.push(css);
+            return [{ selectors: ['card'], style: { padding: '18px', color: '#112233' } }];
+        }, { kind, environment: { DOMParser } });
+        const saved = serializeMailDocumentForSave({ project, html: project.pages[0].component, kind, baselineHtml: html, environment: { DOMParser } });
+
+        assert.deepEqual(parsedSources, [sourceCss]);
+        assert.equal(saved.css, sourceCss, `${kind}: canonical stylesheet survives export`);
+        assert.doesNotMatch(saved.css, /99px|#ff0000/);
+        assert.deepEqual(draft, original, 'projection must not mutate the authoritative draft');
+        const reopened = projectForMailDocument({ html: saved.html, css: saved.css, builderData: { ...saved.project, styles: staleStyles } }, () => project.styles, { kind, environment: { DOMParser } });
+        assert.equal(serializeMailDocumentForSave({ project: reopened, html: reopened.pages[0].component, kind, baselineHtml: saved.html, environment: { DOMParser } }).css, sourceCss);
+    }
+});
+
+test('explicitly empty canonical CSS removes stale rules while project-only callers retain their styles', () => {
+    const html = '<!doctype html><html><head></head><body><table><tr><td class="card">Inhalt</td></tr>{{SIGNATURE_BLOCK}}</table></body></html>';
+    const builderData = { pages: [{ component: html }], styles: [{ selectors: ['card'], style: { width: '999px' } }] };
+    const options = { kind: 'template', environment: { DOMParser } };
+    const empty = projectForMailDocument({ html, css: '', builderData }, () => { throw new Error('empty CSS must not require parsing'); }, options);
+    assert.deepEqual(empty.styles, []);
+    assert.equal(serializeMailDocumentForSave({ project: empty, html: empty.pages[0].component, kind: 'template', baselineHtml: html, environment: { DOMParser } }).css, '');
+    const projectOnly = projectForMailDocument({ html, builderData }, () => { throw new Error('project-only CSS must not be parsed'); }, options);
+    assert.deepEqual(projectOnly.styles, builderData.styles);
+});
+
 test('GrapesJS inline import rules are merged in cascade order without touching user CSS', () => {
     const transparent = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
     const editorTrain = canonicalTrain.replace(
@@ -1446,6 +1483,47 @@ test('CSS token sentinels survive GrapesJS parsing and never persist', () => {
     assert.match(serialized, /border-top-color:\{\{BORDER\}\}/);
     assert.match(serialized, /border-right-color:\{\{BORDER\}\}/);
     assert.doesNotMatch(serialized, /aliceblue|antiquewhite|rt-mail-bound/);
+});
+
+test('Outlook CSS survives the browser parser through reversible declaration-only aliases', () => {
+    const css = '/* mso-hide:comment */.card{ /* before property */ MSO-line-height-rule:exactly;mso-table-lspace:0pt;mso-hide:all;color:{{TEXT_PRIMARY}};font-family:";mso-hide:string";}@media only screen and (max-width:620px){.card{mso-hide:none;}}';
+    let parserInput;
+    const parsed = parseMailCssProjectStyles(css, (encoded) => {
+        parserInput = encoded;
+        return [
+            { selectors: ['card'], style: { '--rt-mail-outlook-0': 'exactly', '--rt-mail-outlook-1': '0pt', '--rt-mail-outlook-2': 'all', color: 'aliceblue', 'font-family': '";mso-hide:string"' } },
+            { selectors: ['card'], atRuleType: 'media', mediaText: 'only screen and (max-width:620px)', style: { '--rt-mail-outlook-3': 'none' } },
+        ];
+    });
+    assert.match(parserInput, /\/\* mso-hide:comment \*\//);
+    assert.match(parserInput, /font-family:";mso-hide:string"/);
+    assert.match(parserInput, /before property \*\/ --rt-mail-outlook-0:exactly/);
+    assert.match(parserInput, /--rt-mail-outlook-3:none/, 'each block gets its own alias so a dropped rule cannot be masked');
+    assert.deepEqual(parsed[0].style, { 'mso-line-height-rule': 'exactly', 'mso-table-lspace': '0pt', 'mso-hide': 'all', color: '{{TEXT_PRIMARY}}', 'font-family': '";mso-hide:string"' });
+    assert.equal(parsed[1].style['mso-hide'], 'none');
+    const serialized = serializeMailProjectStyles(parsed);
+    assert.match(serialized, /mso-line-height-rule:exactly;/);
+    assert.match(serialized, /@media[^}]*mso-hide:none;/);
+    assert.doesNotMatch(serialized, /--rt-mail-outlook-|aliceblue/);
+    assert.throws(() => parseMailCssProjectStyles('.card{mso-hide:all;}', () => []), /Outlook-Stilregel.*verlustfrei/);
+    assert.throws(() => parseMailCssProjectStyles('.card{--rt-mail-outlook-0:all;}', () => []), /reservierten Outlook-Parserwert/);
+    let selectorInput;
+    parseMailCssProjectStyles('@media only screen{mso-example:hover,[data-label="{;mso-hide:all"]{color:red;}}', (encoded) => {
+        selectorInput = encoded;
+        return [];
+    });
+    assert.equal(selectorInput, '@media only screen{mso-example:hover,[data-label="{;mso-hide:all"]{color:red;}}', 'selectors and attribute values must never become declaration aliases');
+    const commented = parseMailCssProjectStyles('.x{mso-hide/**/:none;mso-hide /*comment*/ :all;}', (encoded) => {
+        assert.equal(encoded, '.x{--rt-mail-outlook-0/**/:none;--rt-mail-outlook-0 /*comment*/ :all;}');
+        return [{ selectors: ['x'], style: { '--rt-mail-outlook-0': 'all' } }];
+    });
+    assert.equal(commented[0].style['mso-hide'], 'all', 'duplicate properties in one block retain parser last-win semantics');
+    assert.throws(() => parseMailCssProjectStyles('.x{mso-hide:all}.y{mso-hide:none}', () => [{ selectors: ['x'], style: { '--rt-mail-outlook-0': 'all' } }]), /Outlook-Stilregel.*verlustfrei/);
+    assert.throws(() => parseMailCssProjectStyles('.x{mso-hide:all', () => []), /vollstaendige CSS-Struktur/);
+    assert.equal(parseMailCssProjectStyles('.x{-ms-text-size-adjust:100%;}', (encoded) => {
+        assert.equal(encoded, '.x{--rt-mail-outlook-0:100%;}');
+        return [{ selectors: ['x'], style: { '--rt-mail-outlook-0': '100%' } }];
+    })[0].style['-ms-text-size-adjust'], '100%');
 });
 
 test('GrapesJS border and background expansions collapse to sanitizer-safe mail shorthands', () => {
@@ -2477,6 +2555,32 @@ test('navigation controller stays fail-closed when LMZ save fails', async () => 
         controller.flush(),
         /konnten vor dem Seitenwechsel nicht gespeichert werden/,
     );
+});
+
+test('mail project loading cannot be mistaken for user style edits and releases its guard after failure', () => {
+    const observed = [];
+    const editor = {
+        loadProjectData(project) {
+            assert.equal(this, editor);
+            observed.push(guard.isLoading());
+            if (project.nested) return this.loadProjectData({nested:false});
+            if (project.fail) throw new Error('Load failed');
+            return project;
+        },
+    };
+    const original = editor.loadProjectData;
+    const guard = installMailProjectLoadGuard(editor);
+    assert.equal(guard.isLoading(), false);
+    assert.deepEqual(editor.loadProjectData({nested:true}), {nested:false});
+    assert.deepEqual(observed, [true, true]);
+    assert.equal(guard.isLoading(), false);
+    assert.throws(() => editor.loadProjectData({fail:true}), /Load failed/);
+    assert.equal(guard.isLoading(), false, 'a failed load must not disable later user style edits');
+    guard.dispose();
+    assert.equal(editor.loadProjectData, original);
+    const safe = installMailProjectLoadGuard({});
+    assert.equal(safe.isLoading(), false);
+    safe.dispose();
 });
 
 test('sanitized server project replaces the running canvas and unchanged saves do not reload it', async () => {

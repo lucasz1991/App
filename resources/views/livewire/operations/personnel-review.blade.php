@@ -13,7 +13,7 @@
             </form></x-operations.modal>
 @else
 @if($module === 'absences')
-<header class="ops-toolbar"><h2>Urlaub & Abwesenheiten</h2><x-ui.buttons.multi-toggle id="absence-view" label="Abwesenheitsansicht" :value="$absenceView" action="setAbsenceView" :options="[['value'=>'list','label'=>'Liste','icon'=>'fa-table-list'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar-days']]" /></header>
+@if(!$embedded)<header class="ops-toolbar"><h2>Urlaub & Abwesenheiten</h2><x-ui.buttons.multi-toggle id="absence-view" label="Abwesenheitsansicht" :value="$absenceView" action="setAbsenceView" :options="[['value'=>'list','label'=>'Liste','icon'=>'fa-table-list'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar-days']]" /></header>@endif
 <div class="grid gap-3 sm:grid-cols-2"><div><x-ui.forms.label for="absence-period-from" value="Von" /><x-ui.forms.date-field id="absence-period-from" wire:model.live="from" aria-label="Abwesenheiten von" /></div><div><x-ui.forms.label for="absence-period-until" value="Bis" /><x-ui.forms.date-field id="absence-period-until" wire:model.live="until" aria-label="Abwesenheiten bis" /></div></div>
 @endif
 <x-tables.toolbar title="Filter" id="personnel-filters">

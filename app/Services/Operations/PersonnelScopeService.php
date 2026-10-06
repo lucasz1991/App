@@ -15,7 +15,7 @@ use Illuminate\Validation\Rule;
 
 class PersonnelScopeService
 {
-    public const ABILITIES = ['employees.master-data.view', 'employees.master-data.edit', 'employees.emergency.access', 'employees.recruiting.manage', 'employees.development.manage', 'operations.rules.manage', 'operations.absences.review', 'operations.qualifications.manage', 'operations.time.review', 'operations.time.export', 'operations.costs.manage', 'operations.terminal.manage'];
+    public const ABILITIES = ['employees.master-data.view', 'employees.master-data.edit', 'employees.compensation.view', 'employees.compensation.edit', 'employees.emergency.access', 'employees.recruiting.manage', 'employees.development.manage', 'operations.rules.manage', 'operations.absences.review', 'operations.qualifications.manage', 'operations.time.review', 'operations.time.export', 'operations.costs.manage', 'operations.terminal.manage'];
 
     public function ready(): bool
     {

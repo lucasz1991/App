@@ -16,6 +16,15 @@ class CustomerRelations extends Component
     public string $customerId = '';
 
     #[Locked]
+    public bool $embedded = false;
+
+    #[Locked]
+    public ?int $contextCustomerId = null;
+
+    #[Locked]
+    public string $section = 'all';
+
+    #[Locked]
     public ?int $selectedId = null;
 
     #[Locked]
@@ -31,15 +40,23 @@ class CustomerRelations extends Component
 
     public array $form = [];
 
-    public function mount(?int $customerId = null): void
+    public function mount(?int $customerId = null, string $section = 'all', bool $embedded = false): void
     {
-        $this->access();
+        abort_unless(in_array($section, ['all', 'contacts', 'conditions'], true), 404);
         $this->customerId = $customerId ? (string) $customerId : '';
+        $this->embedded = $embedded;
+        $this->contextCustomerId = $embedded ? $customerId : null;
+        $this->section = $section;
+        $this->access();
     }
 
     private function access(): void
     {
         OperationsAccess::authorize(auth()->user(), 'operations.inquiries.manage');
+        if ($this->embedded) {
+            abort_unless($this->contextCustomerId && $this->customerId === (string) $this->contextCustomerId, 403);
+            Customer::findOrFail($this->contextCustomerId);
+        }
     }
 
     public function updatedCustomerId(): void
@@ -125,10 +142,10 @@ class CustomerRelations extends Component
         $ready = CustomerWorkflowService::ready();
 
         return view('livewire.operations.customer-relations', [
-            'ready' => $ready, 'customers' => Customer::orderBy('company_name')->get(['id', 'company_name']),
-            'contacts' => $ready ? CustomerContact::where('customer_id', $this->customerId)->orderBy('name')->get() : collect(),
-            'locations' => $ready ? CustomerLocation::where('customer_id', $this->customerId)->orderBy('name')->get() : collect(),
-            'conditions' => $ready ? CustomerCondition::where('customer_id', $this->customerId)->orderByDesc('valid_from')->get() : collect(),
+            'ready' => $ready, 'customers' => $this->embedded ? collect() : Customer::orderBy('company_name')->get(['id', 'company_name']),
+            'contacts' => $ready && $this->section !== 'conditions' ? CustomerContact::where('customer_id', $this->customerId)->orderBy('name')->get() : collect(),
+            'locations' => $ready && $this->section !== 'conditions' ? CustomerLocation::where('customer_id', $this->customerId)->orderBy('name')->get() : collect(),
+            'conditions' => $ready && $this->section !== 'contacts' ? CustomerCondition::where('customer_id', $this->customerId)->orderByDesc('valid_from')->get() : collect(),
         ]);
     }
 }

@@ -1,10 +1,10 @@
 <section class="rt-ops ops-stack min-w-0" aria-label="{{ $mode === 'monitor' ? 'Leitstelle' : 'Arbeitsliste' }}">
     <header class="ops-toolbar">
-        <nav class="ops-actions" aria-label="Arbeitsbereiche">
+        @if(!$embedded)<nav class="ops-actions" aria-label="Arbeitsbereiche">
             @foreach($mode === 'monitor' ? ['board'=>'Dienststand','profiles'=>'Toleranzen'] : ['inbox'=>'Arbeitsliste','reminders'=>'Erinnerungen'] as $key=>$label)
                 @if(($key !== 'profiles' || ($profilesReady && auth()->user()->can('operations.rules.manage'))) && ($key !== 'reminders' || ($preferencesReady && ($personal || auth()->user()->can('employees.master-data.edit')))))<x-ui.buttons.button-basic type="button" :mode="$tab === $key ? 'primary' : 'secondary'" wire:click="setTab('{{ $key }}')">{{ $label }}</x-ui.buttons.button-basic>@endif
             @endforeach
-        </nav>
+        </nav>@endif
         @if($tab === 'profiles' && auth()->user()->can('operations.rules.manage'))<x-ui.buttons.button-basic type="button" wire:click="edit">Profil anlegen</x-ui.buttons.button-basic>
         @elseif($tab === 'reminders')<x-ui.buttons.button-basic type="button" wire:click="edit">Erinnerung anlegen</x-ui.buttons.button-basic>@endif
     </header>

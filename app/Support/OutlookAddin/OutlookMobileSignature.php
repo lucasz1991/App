@@ -54,7 +54,9 @@ final class OutlookMobileSignature
     {
         // Native desktop personal columns are an output-only reversible view.
         // Restore canonical ledger semantics before the established mobile path.
-        $html = OutlookNativePersonalSignature::restore($document['html']);
+        $html = OutlookNativePersonalSignature::restore(
+            OutlookTrainBottomOverlay::restore($document['html']),
+        );
         // This opt-in adapter only targets the published V27 ledger geometry.
         // Other designs retain their existing delivery path, not a generic rewrite.
         if (! str_contains($html, 'rt-sign-ledger')
