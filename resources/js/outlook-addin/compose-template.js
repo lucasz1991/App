@@ -2,8 +2,10 @@
 // Outlook may include the complete quoted conversation in body.getAsync().
 export const TEMPLATE_MARKER = 'RT-TEMPLATE-MANAGED-V1';
 export const NATIVE_TEMPLATE_MARKER = `${TEMPLATE_MARKER}:NATIVE-SIGNATURE`;
+export const COMBINED_TEMPLATE_MARKER = `${TEMPLATE_MARKER}:COMBINED-DOCUMENT`;
 const NATIVE_MARKER_END = '(?=-->|[\\s\"\'<>]|$)';
 const nativeTemplateMarker = new RegExp(`${NATIVE_TEMPLATE_MARKER}${NATIVE_MARKER_END}`);
+const combinedTemplateMarker = new RegExp(`${COMBINED_TEMPLATE_MARKER}${NATIVE_MARKER_END}`);
 const legacyTemplateMarker = new RegExp(`${TEMPLATE_MARKER}(?!:NATIVE-SIGNATURE${NATIVE_MARKER_END})`);
 const TEMPLATE_SESSION_KEY = 'railtime.template.inserted.v1';
 const appliedItems = new WeakSet();
@@ -346,6 +348,30 @@ export function nativeComposeTemplate(document) {
         throw failure('NATIVE_TEMPLATE_INVALID');
     }
     return Object.freeze({ ...document, html: document.composeHtml, media: document.composeMedia });
+}
+
+/**
+ * Additive contract: cached clients retain native composeHtml, while updated
+ * clients insert the complete ordinary-body document exactly once. Never put
+ * the editable message into Office's replaceable native signature ownership.
+ */
+export function combinedComposeDocument(document) {
+    if (document?.composeDocumentMode === undefined) return null;
+    if (document?.composeDocumentMode !== 'combined-v1'
+        || typeof document.combinedComposeHtml !== 'string' || document.combinedComposeHtml.trim() === ''
+        || !Array.isArray(document.combinedComposeMedia)
+        || !combinedTemplateMarker.test(document.combinedComposeHtml)
+        || !/\bdata-rt-compose-document\s*=\s*["']combined-v1["']/i.test(document.combinedComposeHtml)
+        || !document.combinedComposeHtml.includes('RT-SIGNATURE-MANAGED-V1')
+        || nativeTemplateMarker.test(document.combinedComposeHtml)) {
+        throw failure('COMBINED_TEMPLATE_INVALID');
+    }
+    try {
+        validatedInsertionHtml(document.combinedComposeHtml, document.combinedComposeMedia);
+    } catch {
+        throw failure('COMBINED_TEMPLATE_INVALID');
+    }
+    return Object.freeze({ ...document, html: document.combinedComposeHtml, media: document.combinedComposeMedia });
 }
 
 export function automaticTemplate(payload) {

@@ -4,6 +4,7 @@ import {
 } from '@azure/msal-browser';
 import {
     isTemplateInsertionBlocked,
+    combinedComposeDocument,
     currentComposeBodyHtml as scopedComposeBodyHtml,
     prependTemplate,
     readTemplateState,
@@ -552,7 +553,7 @@ function setSignature(item, html) {
     return confirmedOfficeWrite(Office, item, 'signature-write', 'SIGNATURE_INSERT_UNCERTAIN',
         (callback) => item.body.setSignatureAsync(html, { coercionType: Office.CoercionType.Html }, callback),
         { onSettled: () => syncActionState() }).then((result) => {
-        rememberConfirmedInsertion(item, 'signature', binding);
+        if (html !== '') rememberConfirmedInsertion(item, 'signature', binding);
         return result;
     });
 }
@@ -1181,7 +1182,10 @@ function userMessage(error) {
         return 'In dieser Nachricht ist bereits eine RailTime-Vorlage. Eine weitere Vorlage benötigt Ihre ausdrückliche Bestätigung; Ihr vorhandener Inhalt bleibt erhalten.';
     }
     if (code === 'SIGNATURE_WITHIN_TEMPLATE') {
-        return 'Diese Nachricht enthält noch eine alte vollständige Vorlage mit eingebetteter Signatur. Sie bleibt unverändert. Bitte eine neue Nachricht öffnen, um die getrennte Outlook-Signatur zu verwenden.';
+        return 'Vorlage und Signatur sind in dieser Nachricht bereits ein gemeinsames Dokument. Eine getrennte Signaturaktualisierung könnte Ihren geschriebenen Text beschädigen und wird deshalb nicht ausgeführt. Für einen aktuellen vollständigen Stand bitte eine neue Nachricht öffnen.';
+    }
+    if (code === 'COMBINED_TEMPLATE_INVALID') {
+        return 'Das gemeinsame Vorlagen- und Signaturdokument ist unvollständig. Es wurde nichts eingesetzt. Bitte die Verbindung neu prüfen.';
     }
     if (code === 'NATIVE_TEMPLATE_INVALID') {
         return 'Der getrennte Outlook-Vorlageninhalt ist unvollständig. Bitte die Verbindung neu prüfen. Es wird keine zusätzliche vollständige Vorlage eingesetzt.';
@@ -1447,9 +1451,10 @@ async function insertTemplate(button) {
             throw codedError('TEMPLATE_SELECTION_MISSING');
         }
 
-        const nativeDocument = nativeComposeTemplate(templateChoice.document);
+        const combinedDocument = combinedComposeDocument(templateChoice.document);
+        const nativeDocument = combinedDocument || nativeComposeTemplate(templateChoice.document);
         if (!nativeDocument) throw codedError('NATIVE_TEMPLATE_INVALID');
-        const usesNativeSignature = nativeDocument.signatureMode === 'native';
+        const usesNativeSignature = !combinedDocument && nativeDocument.signatureMode === 'native';
         const template = validatedDocument(nativeDocument, 'template', usesNativeSignature ? TEMPLATE_MARKER : currentConfig.marker);
         let signature = null;
         if (usesNativeSignature) {
@@ -1473,6 +1478,12 @@ async function insertTemplate(button) {
             media,
             beforeInsert: async () => {
                 await attachInlineMedia(target, media, bootstrap.binding);
+                if (combinedDocument) {
+                    if (typeof item.body.setSignatureAsync !== 'function') throw codedError('SET_SIGNATURE_UNAVAILABLE');
+                    await assertWriteTarget(target, bootstrap.binding);
+                    await diagnoseStep('signature-write', () => setSignature(item, ''));
+                    assertComposeTarget(target);
+                }
             },
             confirmAdditional: confirmAdditionalTemplate,
         }));
@@ -1489,13 +1500,14 @@ async function insertTemplate(button) {
         // back across the Office bridge while Outlook is rendering it.
         signatureStateRevision += 1;
         rememberConfirmedInsertion(item, 'template', bootstrap.binding);
+        if (combinedDocument) rememberConfirmedInsertion(item, 'signature', bootstrap.binding);
         observedComposeItem = item;
         taskpaneState.templatePresent = true;
         renderSelectedTemplate();
 
         setStatus(
             'success',
-            'Vorlage wurde oberhalb eingefügt',
+            combinedDocument ? 'Vorlage und Signatur gemeinsam eingefügt' : 'Vorlage wurde oberhalb eingefügt',
             templateChoice.version !== ''
                 ? `${templateChoice.name} · Version ${templateChoice.version}`
                 : templateChoice.name,

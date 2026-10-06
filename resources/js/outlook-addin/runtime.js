@@ -4,6 +4,7 @@ import {
 } from '@azure/msal-browser';
 import {
     automaticTemplate,
+    combinedComposeDocument,
     isMobileComposeHost,
     isTemplateInsertionBlocked,
     nativeComposeTemplate,
@@ -47,7 +48,7 @@ function reportRuntimePhase(phase) {
     try {
         const url = new URL(configuredUrl());
         url.searchParams.set('rt_phase', phase);
-        url.searchParams.set('rt_rev', 'compose-order-20261005');
+        url.searchParams.set('rt_rev', 'combined-compose-20261006');
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
         const timer = controller ? setTimeout(() => controller.abort(), 2000) : null;
         Promise.resolve().then(() => fetch(url.toString(), {
@@ -521,6 +522,36 @@ async function applyPublishedContent(item, isActive = () => true) {
     const canInsertTemplate = supportsTemplatePrepend(Office, item);
     let template = null;
     const selected = templateState.present ? null : automaticTemplate(bootstrap);
+    if (selected && canInsertTemplate && selected.composeDocumentMode !== undefined) {
+        // One nonempty body write owns template AND signature. Clear only the
+        // host-owned signature before that write, never rewrite the full body
+        // or later replace the user's editable combined document.
+        const combined = validatedDocument(combinedComposeDocument(selected), 'template', config.marker);
+        if (typeof item?.body?.setSignatureAsync !== 'function'
+            || typeof item?.addFileAttachmentFromBase64Async !== 'function') {
+            throw codedError('COMPOSE_API_UNAVAILABLE');
+        }
+        validateTemplateInsertionPayload(combined.html, combined.media);
+        try {
+            await diagnoseStep('template-write', () => prependTemplate(Office, item, combined.html, assertTarget, {
+                media: combined.media,
+                beforeInsert: async () => {
+                    await attachInlineMedia(item, combined.media, assertTarget);
+                    await assertTarget();
+                    await setSignature(item, '');
+                    await assertTarget();
+                },
+            }));
+            pendingNativeSignatures.delete(item);
+            return 'applied';
+        } catch (error) {
+            const code = safeErrorCode(error);
+            if (code === 'TEMPLATE_ALREADY_INSERTED') return 'already-present';
+            if (['TEMPLATE_INSERT_IN_PROGRESS', 'TEMPLATE_INSERT_UNCERTAIN',
+                'INLINE_ATTACHMENT_UNCERTAIN', 'SIGNATURE_INSERT_UNCERTAIN'].includes(code)) return 'uncertain';
+            throw error;
+        }
+    }
     if (selected) {
         try {
             const composeDocument = nativeComposeTemplate(selected);

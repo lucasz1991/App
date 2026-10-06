@@ -19,7 +19,7 @@ use Throwable;
 final class OutlookAddinPayloadService
 {
     /** Bei jeder Aenderung der Compilersemantik bewusst anheben. */
-    private const RENDERER_REVISION = 26;
+    private const RENDERER_REVISION = 27;
 
     private const MAX_SIGNATURE_CHARACTERS = 30000;
 
@@ -362,6 +362,31 @@ final class OutlookAddinPayloadService
                     ];
                     $template['signatureVersion'] = $signature['version'];
                     $template['signatureDocumentId'] = $pairedSignature['id'];
+                }
+
+                // Additive delivery contract: old cached clients keep their
+                // signature-free/native fields. Updated desktop/Web clients
+                // insert one complete ordinary-body document. Never persist
+                // this projection into a published source or native signature.
+                if (str_contains($composeHtml, 'rt-native-compose-frame')
+                    && str_contains($signature['html'], 'rt-sign-ledger')) {
+                    $combinedHtml = OutlookCombinedComposeDocument::build($composeHtml, $signature['html']);
+                    if ($this->outlookStringLength($combinedHtml) > self::MAX_TEMPLATE_CHARACTERS) {
+                        throw new RuntimeException('Das gemeinsame Outlook-Dokument ueberschreitet das sichere Transportbudget.');
+                    }
+                    $combinedByCid = [];
+                    foreach (array_merge($composeMedia, $signature['media']) as $attachment) {
+                        $this->registerAttachment($combinedByCid, $attachment);
+                    }
+                    $combinedMedia = array_values($combinedByCid);
+                    $this->assertCidAttachmentContract($combinedHtml, $combinedMedia);
+                    $this->assertMediaSize($combinedMedia);
+                    if (count($combinedMedia) > 20) {
+                        throw new RuntimeException('Das gemeinsame Outlook-Dokument enthaelt zu viele Bildanhaenge.');
+                    }
+                    $template['composeDocumentMode'] = 'combined-v1';
+                    $template['combinedComposeHtml'] = $combinedHtml;
+                    $template['combinedComposeMedia'] = $combinedMedia;
                 }
 
                 $templates[] = $template;
