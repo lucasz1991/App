@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Operations\CustomerWorkflowSchemaRepair;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -107,13 +108,13 @@ return new class extends Migration
                 $table->foreignId('accepted_by')->nullable()->constrained('users')->restrictOnDelete();
                 $table->text('acceptance_note')->nullable();
                 $table->timestamps();
-                $table->unique(['subject_type', 'subject_id', 'revision']);
+                $table->unique(['subject_type', 'subject_id', 'revision'], 'cor_subject_revision_unique');
             });
         }
         if (! Schema::hasTable('employee_document_versions')) {
             Schema::create('employee_document_versions', function (Blueprint $table): void {
                 $table->id();
-                $table->foreignId('employee_document_requirement_id')->constrained()->restrictOnDelete();
+                $table->foreignId('employee_document_requirement_id')->constrained(indexName: 'edv_requirement_foreign')->restrictOnDelete();
                 $table->foreignId('file_id')->unique()->constrained()->restrictOnDelete();
                 $table->unsignedInteger('revision');
                 $table->json('snapshot');
@@ -126,6 +127,9 @@ return new class extends Migration
                 $table->unique(['employee_document_requirement_id', 'revision'], 'employee_document_requirement_revision_unique');
             });
         }
+
+        // MySQL can retain CREATE TABLE after a later ALTER fails; retry the constraints too.
+        CustomerWorkflowSchemaRepair::repair();
     }
 
     public function down(): void
