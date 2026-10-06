@@ -229,3 +229,6 @@ auth.json
 !/tests/Feature/CustomerPortalIntakeTest.php
 !/tests/Feature/CustomerPortalIntegrationTest.php
 !/tests/Feature/CustomerCapacityConsentTest.php
+!/tests/Feature/CustomerProfileCommerceTest.php
+!/tests/Feature/CustomerProfileDataTest.php
+!/tests/Feature/CustomerProfileCommunicationTest.php

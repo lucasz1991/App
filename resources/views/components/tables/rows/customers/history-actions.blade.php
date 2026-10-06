@@ -1,0 +1,1 @@
+@if($item->href)<x-ui.buttons.button-basic mode="link" class="rt-table-row-action" data-no-navigate :href="$item->href" :aria-label="'Vorgang öffnen: '.$item->label" title="Vorgang öffnen"><i class="far fa-chevron-right" aria-hidden="true"></i></x-ui.buttons.button-basic>@endif

@@ -1,7 +1,7 @@
 <div class="rt-disposition rt-disposition--inquiries">
     <section class="rt-disposition-summary" aria-label="Übersicht aller offenen Anfragen">
         @foreach([
-            ['value' => $summary['active'], 'label' => 'Offene Vorgänge', 'detail' => 'im gesamten Eingang', 'tone' => 'neutral'],
+            ['value' => $summary['active'], 'label' => 'Offene Vorgänge', 'detail' => $profileEmbedded ? 'dieses Kunden' : 'im gesamten Eingang', 'tone' => 'neutral'],
             ['value' => $summary['new'], 'label' => 'Neue Anfragen', 'detail' => 'noch nicht geprüft', 'tone' => 'info'],
             ['value' => $summary['accepted'], 'label' => 'Zusage erhalten', 'detail' => 'bereit zur Übernahme', 'tone' => 'success'],
             ['value' => $summary['offered'], 'label' => 'Angebot offen', 'detail' => 'Kundenzusage ausstehend', 'tone' => 'warning'],
@@ -77,7 +77,7 @@
             @empty
                 <p class="rt-disposition-note">Aktuell stehen keine offenen Anfragen zur Bearbeitung an.</p>
             @endforelse
-            <p class="rt-disposition-note"><strong>Vom Bedarf zum Auftrag.</strong> Angebot, Kundenzusage und Beauftragung sind eigene Schritte. Zugesagte Vorgänge stehen hier zuerst.</p>
+            @if(!$profileEmbedded)<p class="rt-disposition-note"><strong>Vom Bedarf zum Auftrag.</strong> Angebot, Kundenzusage und Beauftragung sind eigene Schritte. Zugesagte Vorgänge stehen hier zuerst.</p>@endif
         </aside>
     </div>
 

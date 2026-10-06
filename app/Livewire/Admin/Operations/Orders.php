@@ -81,6 +81,9 @@ class Orders extends Component
     public bool $consolidated = false;
 
     #[Locked]
+    public bool $profileEmbedded = false;
+
+    #[Locked]
     public string $detailSection = 'overview';
 
     #[Locked]
@@ -196,14 +199,16 @@ class Orders extends Component
 
     public string $notes = '';
 
-    public function mount(?int $initialOrderId = null, ?int $customerId = null, string $initialSection = 'overview', bool $consolidated = false, ?int $initialRecordId = null): void
+    public function mount(?int $initialOrderId = null, ?int $customerId = null, string $initialSection = 'overview', bool $consolidated = false, ?int $initialRecordId = null, bool $profileEmbedded = false): void
     {
         $this->ensureAdmin();
         $this->mounting = true;
+        abort_if($profileEmbedded && (! $consolidated || $customerId === null), 404);
+        $this->profileEmbedded = $profileEmbedded;
         $this->status = $this->enumDefault(OrderStatus::class, 'requested');
         $this->priority = $this->enumDefault(OrderPriority::class, 'normal');
         $this->consolidated = $consolidated;
-        if ($consolidated) {
+        if ($consolidated && ! $profileEmbedded) {
             $state = self::listState(request()->query());
             $this->search = $state['search'];
             $this->statusFilter = $state['status'];
@@ -217,7 +222,7 @@ class Orders extends Component
         }
         $this->setDetailSection($initialSection);
         $this->selectedOrderId = $initialOrderId ?? ($consolidated ? null : $this->scopedQuery()->latest('starts_at')->value('id'));
-        if ($initialOrderId === null && request()->has('order')) {
+        if (! $profileEmbedded && $initialOrderId === null && request()->has('order')) {
             $raw = request()->query('order');
             abort_unless(is_string($raw) && ctype_digit($raw) && (int) $raw > 0, 404);
             $initialOrderId = (int) $raw;
@@ -239,6 +244,7 @@ class Orders extends Component
             $this->detailSection = 'overview';
         }
         $this->resetOrderForm();
+        $this->customerId = $this->customerFilterId;
         $this->startsAt = now()->addDay()->setTime(8, 0)->format('Y-m-d\TH:i');
         $this->endsAt = now()->addDay()->setTime(16, 0)->format('Y-m-d\TH:i');
         $this->formOpen = true;
@@ -300,7 +306,7 @@ class Orders extends Component
 
     private function syncUrl(): void
     {
-        if (! $this->consolidated || $this->mounting) {
+        if (! $this->consolidated || $this->profileEmbedded || $this->mounting) {
             return;
         }
         $this->ensureAdmin();
@@ -475,6 +481,7 @@ class Orders extends Component
             'selectedOrder' => $selectedOrder,
             'originInquiry' => $selectedOrder && auth()->user()->can('operations.inquiries.manage') && Schema::hasTable('operation_inquiries') ? OperationInquiry::where('order_id', $selectedOrder->id)->first() : null,
             'customers' => Customer::query()
+                ->when($this->profileEmbedded, fn (Builder $query) => $query->whereKey($this->customerFilterId))
                 ->where(function (Builder $query): void {
                     $query->where('is_active', true);
 

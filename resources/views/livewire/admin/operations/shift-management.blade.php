@@ -158,10 +158,9 @@
             $canPublish = $nativeOperations && ! $shiftPublished && ! $shiftClosed;
             $detailTabs = [
                 'overview' => ['label' => 'Übersicht', 'alert' => $canPublish],
-                'staffing' => ['label' => 'Besetzung', 'count' => $selectedReservedCount.'/'.$selectedShift->required_staff],
+                'staffing' => ['label' => $nativeOperations ? 'Besetzung & Rückmeldungen' : 'Besetzung', 'count' => $selectedReservedCount.'/'.$selectedShift->required_staff],
             ];
             if ($nativeOperations) {
-                $detailTabs['feedback'] = ['label' => 'Rückmeldungen', 'count' => $feedback->count()];
                 if (\App\Support\Operations\PlanningSchema::ready()) {
                     $detailTabs['activity'] = ['label' => 'Aktivität'];
                 }
@@ -258,6 +257,18 @@
                                     <x-tables.table :columns="[['label'=>'Feld','key'=>'label'],['label'=>'Bisher','key'=>'before'],['label'=>'Neu','key'=>'after']]" :items="collect($planChanges)->map(fn ($change, $key) => (object) ($change + ['id'=>$key]))" row-view="components.tables.rows.operations.plan-change" />
                                 </x-operations.panel.group>
                             @endif
+                            @if($detailOpen)
+                                <x-operations.panel.group title="Zeit & Ort" data-shift-detail-previews>
+                                    <div class="rt-ops-panel__previews">
+                                        @if($shiftStart && $shiftEnd)
+                                            <x-operations.timeline-mini-calendar :start="$shiftStart" :end="$shiftEnd" />
+                                        @else
+                                            <p class="rt-ops-panel__text">Kein vollständiger Zeitraum hinterlegt.</p>
+                                        @endif
+                                        <x-operations.timeline-mini-map :preview="\App\Support\Operations\TimelineLocationPreview::fromShift($selectedShift)" :location="$shiftLocation" />
+                                    </div>
+                                </x-operations.panel.group>
+                            @endif
                             <x-operations.panel.group title="Einsatz">
                                 <dl class="rt-ops-panel__rows">
                                     <x-operations.panel.row label="Leistung">{{ $selectedShift->order ? $selectedShift->order->order_number.' · '.$selectedShift->order->title : 'Leistung nicht verfügbar' }}</x-operations.panel.row>
@@ -296,6 +307,11 @@
                         </x-operations.panel.tab>
 
                         <x-operations.panel.tab name="staffing" :id-prefix="$detailIdPrefix">
+                            @if($nativeOperations)
+                                <x-operations.panel.group title="Besetzung & Rückmeldungen" :meta="$feedback->count() === 1 ? '1 Zuweisung' : $feedback->count().' Zuweisungen'">
+                                    <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Antwort','key'=>'response'],['label'=>'Im Kalender geöffnet','key'=>'opened'],['label'=>'Aktion','key'=>'action']]" :items="$feedback" row-view="components.tables.rows.operations.plan-feedback" empty="Noch keine Rückmeldungen." />
+                                </x-operations.panel.group>
+                            @endif
                             @if(!$nativeOperations)
                                 <x-operations.panel.group title="Eingeteilte Mitarbeitende" :meta="$selectedAssignments->count().' Zuweisungen'">
                                     <div class="rt-ops-panel__list">
@@ -364,11 +380,6 @@
                         </x-operations.panel.tab>
 
                         @if($nativeOperations)
-                            <x-operations.panel.tab name="feedback" :id-prefix="$detailIdPrefix">
-                                <x-operations.panel.group title="Rückmeldungen" :meta="$feedback->count() === 1 ? '1 Eintrag' : $feedback->count().' Einträge'">
-                                    <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Antwort','key'=>'response'],['label'=>'Im Kalender geöffnet','key'=>'opened'],['label'=>'Aktion','key'=>'action']]" :items="$feedback" row-view="components.tables.rows.operations.plan-feedback" empty="Noch keine Rückmeldungen." />
-                                </x-operations.panel.group>
-                            </x-operations.panel.tab>
                             @if(\App\Support\Operations\PlanningSchema::ready())
                                 <x-operations.panel.tab name="activity" :id-prefix="$detailIdPrefix">
                                     @if($detailOpen)<livewire:operations.duty-activity :shift-id="$selectedShift->id" :key="'duty-'.$selectedShift->id" />@endif

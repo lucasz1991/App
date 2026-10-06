@@ -3,7 +3,10 @@
 namespace App\Livewire\Admin\Operations;
 
 use App\Models\Customer;
+use App\Services\Operations\OperationsAuditService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -152,11 +155,7 @@ class Customers extends Component
             'isActive' => ['boolean'],
         ]);
 
-        $customer = $this->editingCustomerId
-            ? Customer::query()->findOrFail($this->editingCustomerId)
-            : new Customer;
-
-        $customer->fill([
+        $fields = [
             'company_name' => trim($validated['companyName']),
             'contact_name' => trim($validated['contactName']) ?: null,
             'email' => trim($validated['email']) ?: null,
@@ -167,7 +166,21 @@ class Customers extends Component
             'country' => trim($validated['country']) ?: null,
             'notes' => trim($validated['notes']) ?: null,
             'is_active' => $validated['isActive'],
-        ])->save();
+        ];
+        $customer = DB::transaction(function () use ($fields): Customer {
+            $customer = $this->editingCustomerId
+                ? Customer::query()->lockForUpdate()->findOrFail($this->editingCustomerId)
+                : new Customer;
+            $created = ! $customer->exists;
+            $customer->fill($fields);
+            $changedFields = array_keys($customer->getDirty());
+            $customer->save();
+            if (($created || $changedFields) && Schema::hasTable('operation_audits')) {
+                app(OperationsAuditService::class)->record($customer, auth()->user(), $created ? 'customer.created' : 'customer.updated', ['changed_fields' => $changedFields]);
+            }
+
+            return $customer;
+        });
 
         $this->selectedCustomerId = $customer->id;
         $this->formOpen = false;

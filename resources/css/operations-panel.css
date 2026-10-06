@@ -419,6 +419,55 @@
     white-space: pre-line;
 }
 
+/* Dieselben Kalender-/Kartenbausteine wie im Timeline-Dropdown, mit Panel-Tokens. */
+.rt-ops-panel__previews {
+    --detail-muted: var(--panel-muted);
+    --detail-border: var(--panel-line);
+    --detail-surface: var(--panel-inset);
+    --detail-paper: var(--panel-surface);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 24px;
+    color: var(--panel-text);
+}
+
+.rt-ops-panel__previews .rt-event-mini-calendar {
+    width: 100%;
+    max-width: 280px;
+    justify-self: center;
+}
+
+.rt-ops-panel__previews :is(.rt-event-mini-calendar__header, .rt-event-mini-map__heading) {
+    min-height: 30px;
+    font-size: 12px;
+}
+
+.rt-ops-panel__previews .rt-event-mini-calendar__grid {
+    font-size: 12px;
+    line-height: 26px;
+}
+
+.rt-ops-panel__previews .rt-event-mini-calendar__weekday {
+    font-size: 10px;
+}
+
+.rt-ops-panel__previews .rt-event-mini-map {
+    padding-left: 24px;
+}
+
+.rt-ops-panel__previews .rt-event-mini-map__canvas {
+    height: 156px;
+}
+
+.rt-ops-panel__previews :is(.rt-event-mini-calendar__range, .rt-event-mini-map__precision) {
+    font-size: 11px;
+}
+
+.rt-ops-panel__previews .rt-event-mini-map__place {
+    font-size: 12px;
+}
+
 /* Hinweis innerhalb einer getönten Gruppe */
 .rt-ops-panel__notice {
     display: flex;
@@ -620,6 +669,16 @@
     .rt-ops-panel__choices,
     .rt-ops-panel__row { grid-template-columns: minmax(0, 1fr); }
     .rt-ops-panel__meta-end { margin-left: 0; }
+
+    .rt-ops-panel__previews { gap: 12px; }
+    .rt-ops-panel__previews .rt-event-mini-map { padding-left: 12px; }
+    .rt-ops-panel__previews .rt-event-mini-calendar__grid { font-size: 10px; line-height: 22px; }
+    .rt-ops-panel__previews .rt-event-mini-map__canvas { height: 132px; }
+}
+
+@media (max-width: 359px) {
+    .rt-ops-panel__previews { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .rt-ops-panel__previews .rt-event-mini-map { padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--panel-line); }
 }
 
 @media (prefers-reduced-motion: reduce) {

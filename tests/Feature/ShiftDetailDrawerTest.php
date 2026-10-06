@@ -6,7 +6,9 @@ use App\Livewire\Admin\Operations\ShiftManagement;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shift;
+use App\Models\ShiftAssignment;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -208,5 +210,129 @@ class ShiftDetailDrawerTest extends TestCase
         $component->set('formOpen', false)
             ->call('openDetails', $this->shift->id)
             ->assertHasNoErrors();
+    }
+
+    public function test_overview_reuses_calendar_and_map_for_the_selected_shift_in_display_timezone(): void
+    {
+        $this->shift->update([
+            // The UTC date is still the 12th, while the complete shift falls on the 13th in Berlin.
+            'starts_at' => CarbonImmutable::parse('2027-05-12 22:30:00', 'UTC'),
+            'ends_at' => CarbonImmutable::parse('2027-05-13 22:00:00', 'UTC'),
+            'location_name' => null,
+        ]);
+        $this->shift->order->update(['location_name' => 'Betriebshof', 'city' => 'München', 'country' => 'DE']);
+
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('openDetails', $this->shift->id)
+            ->assertViewHas('selectedShift', fn (Shift $shift) => $shift->relationLoaded('order'));
+        $xpath = $this->panelXPath($component->html());
+        $overview = $xpath->query('//*[@data-panel-mode="detail"]//*[@data-panel-section="overview"]')->item(0);
+        $this->assertNotNull($overview);
+        $previews = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " rt-ops-panel__previews ")]', $overview)->item(0);
+        $this->assertNotNull($previews);
+        $this->assertSame(1, $xpath->query('.//figure[contains(concat(" ", normalize-space(@class), " "), " rt-event-mini-calendar ")]', $previews)->length);
+        $selectedDays = $xpath->query('.//*[@data-date and contains(concat(" ", normalize-space(@class), " "), " is-selected ")]', $previews);
+        $this->assertCount(1, $selectedDays);
+        $this->assertSame('2027-05-13', $selectedDays->item(0)->getAttribute('data-date'));
+        $this->assertSame(1, $xpath->query('.//figure[@data-map-state="located"]//*[@data-location-marker]', $previews)->length);
+        $this->assertStringContainsString('München', $previews->textContent);
+        $this->assertStringContainsString('Stadtmitte · ungefähr', $previews->textContent);
+    }
+
+    public function test_overview_does_not_invent_a_map_marker_for_an_unknown_shift_location(): void
+    {
+        $this->shift->update(['location_name' => 'Einsatzstelle ohne Ortsangabe']);
+        $this->shift->order->update(['location_name' => 'Betriebshof', 'city' => 'Hamburg', 'country' => 'DE']);
+
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('openDetails', $this->shift->id);
+        $xpath = $this->panelXPath($component->html());
+        $map = $xpath->query('//*[@data-panel-mode="detail"]//*[@data-panel-section="overview"]//figure[@data-map-state]')->item(0);
+        $this->assertNotNull($map);
+        $this->assertSame('unknown', $map->getAttribute('data-map-state'));
+        $this->assertSame(0, $xpath->query('.//*[@data-location-marker]', $map)->length);
+        $this->assertStringContainsString('Einsatzstelle ohne Ortsangabe', $map->textContent);
+    }
+
+    public function test_native_staffing_and_feedback_share_one_tab_with_existing_assignment_actions(): void
+    {
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        $this->shift->forceFill(['revision' => 1, 'published_revision' => 1])->save();
+        $assignments = collect(['requested', 'confirmed', 'declined', 'cancelled'])->mapWithKeys(function (string $status): array {
+            $assignment = ShiftAssignment::create([
+                'shift_id' => $this->shift->id,
+                'user_id' => User::factory()->create(['role' => 'staff', 'status' => true])->id,
+                'status' => $status, 'assigned_by' => $this->admin->id,
+            ]);
+            $assignment->forceFill(['plan_revision' => 1])->save();
+
+            return [$status => $assignment];
+        });
+
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('openDetails', $this->shift->id);
+        $xpath = $this->panelXPath($component->html());
+        $tabs = $xpath->query('//*[@data-panel-mode="detail"]//*[@role="tablist"]')->item(0);
+        $this->assertNotNull($tabs);
+        $staffingTab = $xpath->query('.//*[@data-panel-tab="staffing"]', $tabs)->item(0);
+        $this->assertNotNull($staffingTab);
+        $this->assertStringContainsString('Besetzung & Rückmeldungen', $staffingTab->textContent);
+        $this->assertStringContainsString('2/1', $staffingTab->textContent);
+        $this->assertSame(0, $xpath->query('.//*[@data-panel-tab="feedback"]', $tabs)->length);
+        $this->assertSame(0, $xpath->query('//*[@data-panel-mode="detail"]//*[@data-panel-section="feedback"]')->length);
+
+        $staffing = $xpath->query('//*[@data-panel-mode="detail"]//*[@data-panel-section="staffing"]')->item(0);
+        $this->assertNotNull($staffing);
+        $this->assertStringContainsString('Rückmeldungen', $staffing->textContent);
+        $this->assertStringContainsString('3 Zuweisungen', $staffing->textContent);
+        foreach (['Angefragt', 'Bestätigt', 'Abgelehnt', 'Im Kalender geöffnet', 'Mitarbeiter zuweisen'] as $label) {
+            $this->assertStringContainsString($label, $staffing->textContent);
+        }
+        foreach (['requested', 'confirmed'] as $status) {
+            $this->assertSame(1, $xpath->query('.//button[@*[name()="wire:click"]="removeAssignment('.$assignments[$status]->id.')"]', $staffing)->length);
+        }
+        foreach (['declined', 'cancelled'] as $status) {
+            $this->assertSame(0, $xpath->query('.//button[@*[name()="wire:click"]="removeAssignment('.$assignments[$status]->id.')"]', $staffing)->length);
+        }
+        $this->assertSame(1, $xpath->query('.//button[@*[name()="wire:click"]="assignEmployee"]', $staffing)->length);
+        $this->assertSame(1, $xpath->query('.//*[@id="assignment-employee"]', $staffing)->length);
+    }
+
+    public function test_legacy_staffing_keeps_its_single_label_and_removal_action_without_native_feedback(): void
+    {
+        // The minimal isolated fixture deliberately omits the native operations extension.
+        $assignment = ShiftAssignment::create([
+            'shift_id' => $this->shift->id,
+            'user_id' => User::factory()->create(['role' => 'staff', 'status' => true])->id,
+            'status' => 'confirmed', 'assigned_by' => $this->admin->id,
+        ]);
+
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('setView', 'table')->call('openDetails', $this->shift->id)
+            ->assertViewHas('nativeOperations', false);
+        $xpath = $this->panelXPath($component->html());
+        $detail = $xpath->query('//*[@data-panel-mode="detail"]')->item(0);
+        $this->assertNotNull($detail);
+        $tab = $xpath->query('.//*[@data-panel-tab="staffing"]', $detail)->item(0);
+        $this->assertNotNull($tab);
+        $this->assertStringContainsString('Besetzung', $tab->textContent);
+        $this->assertStringNotContainsString('Rückmeldungen', $detail->textContent);
+        $this->assertSame(0, $xpath->query('.//*[@data-panel-tab="feedback" or @data-panel-section="feedback"]', $detail)->length);
+        $staffing = $xpath->query('.//*[@data-panel-section="staffing"]', $detail)->item(0);
+        $this->assertNotNull($staffing);
+        $this->assertSame(1, $xpath->query('.//button[@*[name()="wire:click"]="removeAssignment('.$assignment->id.')"]', $staffing)->length);
+        $this->assertSame(1, $xpath->query('.//button[@*[name()="wire:click"]="assignEmployee"]', $staffing)->length);
+    }
+
+    private function panelXPath(string $html): \DOMXPath
+    {
+        $document = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $document->loadHTML('<?xml encoding="UTF-8">'.$html);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+
+        return new \DOMXPath($document);
     }
 }

@@ -54,25 +54,7 @@
             <div class="py-4">{{ $customers->links() }}</div>
         </x-operations.surface>
     @else
-        <header class="ops-toolbar" aria-label="Kundenprofil">
-            <x-ui.buttons.button-basic type="button" mode="link" wire:click="showList"><i class="far fa-arrow-left" aria-hidden="true"></i>Kundenliste</x-ui.buttons.button-basic>
-            <h2 class="min-w-0 truncate text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ $customer->company_name }}</h2>
-        </header>
-        @if(count($views)>1)
-            <nav class="ops-actions" aria-label="Kundenakte">
-                @foreach($views as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$view===$key?'primary':'link'" wire:click="setView('{{ $key }}')" :aria-current="$view===$key?'page':null">{{ $label }}</x-ui.buttons.button-basic>@endforeach
-            </nav>
-        @endif
-        @if($view==='master')
-            <livewire:admin.operations.customers :customer-id="$customerId" :embedded="true" :workspace-revision="$contextRevision" :key="'customer-master-'.$customerId.'-'.$contextRevision" />
-        @elseif(in_array($view,['contacts','conditions'],true))
-            <livewire:operations.customer-relations :customer-id="$customerId" :section="$view" :embedded="true" :key="'customer-relations-'.$customerId.'-'.$view.'-'.$contextRevision" />
-        @elseif($view==='portal')
-            <nav class="ops-actions" aria-label="Portalverwaltung">
-                @foreach($sections as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$section===$key?'primary':'link'" wire:click="setSection('{{ $key }}')" :aria-current="$section===$key?'page':null">{{ $label }}</x-ui.buttons.button-basic>@endforeach
-            </nav>
-            <livewire:operations.customer-portal-management :customer-id="$customerId" :tab="$section" :embedded="true" :key="'customer-portal-'.$customerId.'-'.$section.'-'.$contextRevision" />
-        @endif
+        @include('livewire.operations.partials.customer-profile')
     @endif
     @if($canCreate && ($startCreating || $editingCustomerId))
         <livewire:admin.operations.customers :customer-id="$editingCustomerId" :embedded="true" :modal-only="true" :workspace-revision="$contextRevision" :start-creating="$startCreating" :start-editing="(bool)$editingCustomerId" :key="'customer-form-'.($editingCustomerId ?? 'new').'-'.$contextRevision" />

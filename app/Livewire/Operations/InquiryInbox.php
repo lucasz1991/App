@@ -64,6 +64,9 @@ class InquiryInbox extends Component
     public bool $consolidated = false;
 
     #[Locked]
+    public bool $profileEmbedded = false;
+
+    #[Locked]
     public string $detailSection = 'overview';
 
     private bool $mounting = false;
@@ -83,12 +86,14 @@ class InquiryInbox extends Component
         return $state;
     }
 
-    public function mount(?int $initialInquiryId = null, ?int $customerId = null, bool $consolidated = false): void
+    public function mount(?int $initialInquiryId = null, ?int $customerId = null, bool $consolidated = false, bool $profileEmbedded = false): void
     {
         $this->access();
         $this->mounting = true;
+        abort_if($profileEmbedded && (! $consolidated || $customerId === null), 404);
+        $this->profileEmbedded = $profileEmbedded;
         $this->consolidated = $consolidated;
-        if ($consolidated) {
+        if ($consolidated && ! $profileEmbedded) {
             $state = self::listState(request()->query());
             $this->search = $state['search'];
             $this->statusFilter = $state['status'];
@@ -185,7 +190,7 @@ class InquiryInbox extends Component
     {
         $this->access();
         $this->reset(['selectedId', 'revision', 'amount', 'terms', 'acceptance', 'authorized', 'duplicateId']);
-        $this->form = ['channel' => 'manual', 'source_reference' => '', 'title' => '', 'original' => '', 'customer_id' => '', 'contact_name' => '', 'contact_email' => '', 'contact_phone' => '', 'starts_at' => '', 'ends_at' => '', 'timezone' => 'Europe/Berlin', 'location_name' => '', 'role_name' => '', 'required_staff' => 1];
+        $this->form = ['channel' => 'manual', 'source_reference' => '', 'title' => '', 'original' => '', 'customer_id' => $this->customerFilterId ?? '', 'contact_name' => '', 'contact_email' => '', 'contact_phone' => '', 'starts_at' => '', 'ends_at' => '', 'timezone' => 'Europe/Berlin', 'location_name' => '', 'role_name' => '', 'required_staff' => 1];
         $this->editing = true;
         $this->detailOpen = true;
         $this->resetValidation();
@@ -212,7 +217,7 @@ class InquiryInbox extends Component
 
     private function syncUrl(): void
     {
-        if (! $this->consolidated || $this->mounting) {
+        if (! $this->consolidated || $this->profileEmbedded || $this->mounting) {
             return;
         }
         $this->access();
@@ -300,7 +305,7 @@ class InquiryInbox extends Component
             'inquiries' => $query->paginate(15),
             'selected' => $selected,
             'portalSubmissionId' => $selected ? $this->portalSubmission($selected) : null,
-            'customers' => Customer::where('is_active', true)->orderBy('company_name')->get(['id', 'company_name']),
+            'customers' => Customer::where('is_active', true)->when($this->profileEmbedded, fn ($query) => $query->whereKey($this->customerFilterId))->orderBy('company_name')->get(['id', 'company_name']),
             'history' => $this->selectedId ? OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $this->selectedId)->with(['actor.profile', 'actor.currentTeam'])->latest('id')->limit(30)->get() : collect(),
             'customerWorkflowReady' => CustomerWorkflowService::ready(),
             'commercialReady' => CommercialOfferService::ready(),

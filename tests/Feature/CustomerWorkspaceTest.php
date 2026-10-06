@@ -11,12 +11,14 @@ use App\Models\CustomerContact;
 use App\Models\CustomerPortalIdentity;
 use App\Models\CustomerPortalMembership;
 use App\Models\CustomerPortalRequest;
+use App\Models\Order;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -70,7 +72,7 @@ class CustomerWorkspaceTest extends TestCase
     public function test_crm_only_mounts_master_without_unauthorized_relations_child(): void
     {
         $actor = $this->actor(['operations.manage']);
-        $this->assertSame(['master'], array_keys(CustomerWorkspace::availableViews($actor)));
+        $this->assertSame(['master', 'orders', 'offers', 'communication', 'history'], array_keys(CustomerWorkspace::availableViews($actor)));
         Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['context' => ['customer' => $this->customer->id]])
             ->assertSet('view', 'master')->assertSee('PRIVATE CRM CONTENT')->assertDontSee('Approved Contact')->assertDontSee('Portalverwaltung');
     }
@@ -78,7 +80,7 @@ class CustomerWorkspaceTest extends TestCase
     public function test_inquiries_only_exposes_contacts_and_conditions_without_crm_fields(): void
     {
         $actor = $this->actor(['operations.inquiries.manage']);
-        $this->assertSame(['contacts', 'conditions'], array_keys(CustomerWorkspace::availableViews($actor)));
+        $this->assertSame(['contacts', 'conditions', 'inquiries', 'offers', 'communication', 'history'], array_keys(CustomerWorkspace::availableViews($actor)));
         Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['context' => ['customer' => $this->customer->id]])
             ->assertSet('view', 'contacts')->assertSee('Approved Contact')->assertDontSee('PRIVATE CRM CONTENT')->assertDontSee('crm-private@example.test')
             ->call('setView', 'conditions')->assertSee('Keine Konditionen hinterlegt.')->assertDontSee('Approved Contact');
@@ -88,7 +90,7 @@ class CustomerWorkspaceTest extends TestCase
     {
         $actor = $this->actor(['customers.portal.manage']);
         $this->grant($actor, ['customers.portal.manage']);
-        $this->assertSame(['portal'], array_keys(CustomerWorkspace::availableViews($actor)));
+        $this->assertSame(['portal', 'history'], array_keys(CustomerWorkspace::availableViews($actor)));
         Livewire::actingAs($actor)->test(CustomerWorkspace::class)
             ->assertSet('customerId', null)->assertSet('view', 'portal')->assertSee('Scoped Customer')->assertDontSee('Other Customer')
             ->assertDontSee('crm-private@example.test')->call('selectCustomer', $this->customer->id)
@@ -340,5 +342,61 @@ class CustomerWorkspaceTest extends TestCase
             ->assertSet('customerId', null)->assertSet('editingCustomerId', $this->other->id)
             ->dispatch('customer-record-saved', customerId: $this->other->id, workspaceRevision: 2)
             ->assertSet('customerId', null)->assertSet('editingCustomerId', null)->assertSet('contextRevision', 3);
+    }
+
+    public function test_profile_reuses_only_active_scoped_commerce_child_and_retains_list_context(): void
+    {
+        $actor = $this->actor(['operations.manage', 'operations.inquiries.manage']);
+        Order::create(['customer_id' => $this->customer->id, 'title' => 'Own profile order', 'starts_at' => now(), 'ends_at' => now()->addHours(8), 'timezone' => 'Europe/Berlin']);
+        Order::create(['customer_id' => $this->other->id, 'title' => 'Foreign profile order', 'starts_at' => now(), 'ends_at' => now()->addHours(8), 'timezone' => 'Europe/Berlin']);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['context' => ['customer' => $this->customer->id, 'search' => 'Scoped', 'status' => 'all']])
+            ->assertSee('data-customer-profile', false)->assertDontSee('data-operations-orders', false)
+            ->assertDontSee('data-customer-communications', false)->assertDontSee('data-customer-history', false)
+            ->call('setView', 'orders')->assertSee('data-operations-orders', false)->assertSee('Own profile order')->assertDontSee('Foreign profile order')
+            ->assertDontSee('data-customer-communications', false)
+            ->call('setView', 'communication')->assertSee('data-customer-communications', false)->assertDontSee('data-operations-orders', false)
+            ->call('showList')->assertSet('search', 'Scoped')->assertSet('activeFilter', 'all')->assertSet('customerId', null);
+        Mail::assertNothingSent();
+        $this->assertSame(0, DB::table('customer_portal_invitations')->count());
+    }
+
+    public function test_documents_open_original_publication_workflow_without_activating_or_sending(): void
+    {
+        $actor = $this->actor(['customers.portal.manage', 'customers.portal.publish']);
+        $this->grant($actor, ['customers.portal.manage', 'customers.portal.publish']);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['initialView' => 'documents', 'context' => ['customer' => $this->customer->id]])
+            ->assertSee('data-customer-documents', false)->assertDontSee('data-customer-communications', false)
+            ->call('openPortalPublications')->assertSet('view', 'portal')->assertSet('section', 'publications');
+        $this->assertSame(0, DB::table('customer_portal_settings')->where('enabled', true)->count());
+        $this->assertSame(0, DB::table('customer_portal_invitations')->count());
+        $this->assertSame(0, DB::table('customer_portal_deliveries')->count());
+        Mail::assertNothingSent();
+    }
+
+    public function test_mixed_grants_do_not_leave_document_or_message_views_on_another_customer(): void
+    {
+        $actor = $this->actor(['operations.manage', 'customers.portal.manage', 'customers.portal.publish']);
+        $this->grant($actor, ['customers.portal.manage', 'customers.portal.publish']);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['initialView' => 'documents', 'context' => ['customer' => $this->customer->id]])
+            ->assertSee('data-customer-documents', false)->call('selectCustomer', $this->other->id)
+            ->assertSet('view', 'master')->assertDontSee('data-customer-documents', false)->assertDontSee('Portalverwaltung')
+            ->call('setView', 'documents')->assertForbidden();
+    }
+
+    public function test_base_portal_schema_still_allows_scoped_history_without_broken_actions(): void
+    {
+        Schema::disableForeignKeyConstraints();
+        Schema::drop('customer_portal_submissions');
+        Schema::enableForeignKeyConstraints();
+        $actor = $this->actor(['customers.portal.manage']);
+        $this->grant($actor, ['customers.portal.manage']);
+        Livewire::actingAs($actor)->test(CustomerWorkspace::class, ['context' => ['customer' => $this->customer->id]])
+            ->assertSet('view', 'history')->assertSee('data-customer-history', false)->assertDontSee('Portalverwaltung')
+            ->assertDontSee('crm-private@example.test')->call('showList')->assertSee('Scoped Customer')->assertDontSee('Other Customer');
+        $crm = $this->actor(['operations.manage', 'customers.portal.manage', 'customers.portal.publish']);
+        $this->grant($crm, ['customers.portal.manage', 'customers.portal.publish']);
+        Livewire::actingAs($crm)->test(CustomerWorkspace::class, ['context' => ['customer' => $this->customer->id]])
+            ->assertSee('Kundenportal')->assertDontSee('Portalverwaltung')->assertDontSee('wire:click.prevent="setView(\'portal\')"', false)
+            ->call('setView', 'documents')->assertSee('data-customer-documents', false)->assertDontSee('Freigaben verwalten');
     }
 }

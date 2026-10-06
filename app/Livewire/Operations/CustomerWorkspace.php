@@ -4,10 +4,13 @@ namespace App\Livewire\Operations;
 
 use App\Models\Customer;
 use App\Models\User;
+use App\Services\Operations\CustomerProfileData;
 use App\Services\Operations\CustomerWorkflowService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
+use App\Support\CustomerPortal\CustomerPortalSchema;
 use App\Support\CustomerPortal\CustomerPortalScope;
 use App\Support\CustomerPortal\CustomerPortalWorkflowSchema;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Route;
 use Livewire\Attributes\Locked;
@@ -21,7 +24,7 @@ class CustomerWorkspace extends Component
 {
     use WithoutUrlPagination, WithPagination;
 
-    public const VIEWS = ['master' => 'Stammdaten', 'contacts' => 'Kontakte & Orte', 'conditions' => 'Konditionen', 'portal' => 'Portalverwaltung'];
+    public const VIEWS = ['master' => 'Übersicht', 'orders' => 'Aufträge', 'inquiries' => 'Anfragen', 'offers' => 'Angebote', 'contacts' => 'Kontakte & Orte', 'conditions' => 'Konditionen', 'communication' => 'Kommunikation', 'documents' => 'Dokumente', 'history' => 'Historie', 'portal' => 'Kundenportal'];
 
     public const SECTIONS = ['access' => 'Zugänge', 'automation' => 'Automatik', 'publications' => 'Freigaben', 'delivery' => 'Versand'];
 
@@ -78,7 +81,7 @@ class CustomerWorkspace extends Component
             $views['portal'] = self::VIEWS['portal'];
         }
 
-        return $views;
+        return $views + app(CustomerProfileData::class)->availableViews($actor);
     }
 
     public function mount(string $initialView = '', string $initialSection = '', array $context = []): void
@@ -114,6 +117,9 @@ class CustomerWorkspace extends Component
             }
             $this->section = $initialSection;
         }
+        if ($this->view === 'documents') {
+            $this->section = 'publications';
+        }
         $this->syncUrl();
     }
 
@@ -138,7 +144,7 @@ class CustomerWorkspace extends Component
         if ($actor->can('operations.manage') || $actor->can('operations.inquiries.manage')) {
             return Customer::query()->select(['id', 'company_name']);
         }
-        abort_unless($this->portalReady() && $actor->can('customers.portal.manage'), 403);
+        abort_unless(CustomerPortalSchema::ready() && $actor->can('customers.portal.manage'), 403);
 
         return app(CustomerPortalScope::class)->manageableCustomers($actor)->select(['id', 'company_name']);
     }
@@ -152,6 +158,8 @@ class CustomerWorkspace extends Component
             app(CustomerPortalScope::class)->authorizeManager($this->actor(), $this->customerId, $ability);
 
             return true;
+        } catch (AuthorizationException $exception) {
+            return false;
         } catch (HttpException $exception) {
             if ($exception->getStatusCode() !== 403) {
                 throw $exception;
@@ -163,12 +171,12 @@ class CustomerWorkspace extends Component
 
     private function views(): array
     {
-        $views = self::availableViews($this->actor());
+        $views = array_intersect_key(self::availableViews($this->actor()), array_flip(['master', 'contacts', 'conditions', 'portal']));
         if ($this->customerId && ! $this->portalAllowed('customers.portal.manage')) {
             unset($views['portal']);
         }
 
-        return $views;
+        return array_replace($views, app(CustomerProfileData::class)->availableViews($this->actor(), $this->customerId));
     }
 
     private function sections(): array
@@ -196,6 +204,9 @@ class CustomerWorkspace extends Component
         if ($this->view === 'portal' && ! isset($this->sections()[$this->section])) {
             $this->section = 'access';
         }
+        if ($this->view === 'documents') {
+            $this->section = 'publications';
+        }
         $this->contextRevision++;
         $this->resetValidation();
         $this->syncUrl();
@@ -211,6 +222,9 @@ class CustomerWorkspace extends Component
         if ($view === 'portal' && ! isset($this->sections()[$this->section])) {
             $this->section = 'access';
         }
+        if ($view === 'documents') {
+            $this->section = 'publications';
+        }
         $this->contextRevision++;
         $this->resetValidation();
         $this->syncUrl();
@@ -223,6 +237,13 @@ class CustomerWorkspace extends Component
         $this->contextRevision++;
         $this->resetValidation();
         $this->syncUrl();
+    }
+
+    public function openPortalPublications(): void
+    {
+        abort_unless($this->portalAllowed('customers.portal.publish'), 403);
+        $this->setView('portal');
+        $this->setSection('publications');
     }
 
     public function createCustomer(): void
@@ -399,6 +420,9 @@ class CustomerWorkspace extends Component
         if ($this->customerId && $this->view === 'portal') {
             abort_unless(isset($this->sections()[$this->section]), 403);
         }
+        $profile = $this->customerId ? app(CustomerProfileData::class)->summary($this->actor(), $this->customerId) : null;
+        $viewOrder = array_flip(array_keys(self::VIEWS));
+        uksort($views, fn ($left, $right) => $viewOrder[$left] <=> $viewOrder[$right]);
 
         return view('livewire.operations.customer-workspace', [
             'customers' => $this->customerId ? null : $this->indexQuery()->paginate($this->perPage, ['*'], 'customersPage'),
@@ -406,6 +430,8 @@ class CustomerWorkspace extends Component
             'views' => $views,
             'sections' => $this->view === 'portal' ? $this->sections() : [],
             'canCreate' => $this->actor()->can('operations.manage'),
+            'profile' => $profile,
+            'portalReady' => $this->portalReady(),
             'activeFilterCount' => (trim($this->search) !== '' ? 1 : 0) + ($this->activeFilter !== 'all' && $this->canManage() ? 1 : 0),
         ]);
     }

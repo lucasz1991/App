@@ -1,0 +1,1 @@
+<x-ui.buttons.button-basic type="button" mode="link" class="rt-table-row-action" wire:click="openDetails({{ $item->id }})" :aria-label="'Kommunikation öffnen: '.$item->subject" title="Details öffnen"><i class="far fa-chevron-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
