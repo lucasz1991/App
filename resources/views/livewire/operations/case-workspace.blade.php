@@ -1,20 +1,20 @@
 <section class="rt-ops ops-stack min-w-0" aria-label="Vorgänge und Aufträge" data-case-workspace="{{ $view }}" x-data="{}">
     <template x-teleport="[data-topbar-planning-navigation]" wire:key="case-topbar-navigation">
-        <x-ui.buttons.multi-toggle id="case-workspace-view" label="Vorgangsansicht" :value="$view" action="setView" :options="array_values(\App\Support\Operations\OperationsPages::planningViews(auth()->user()))" />
+        <x-ui.buttons.multi-toggle id="case-workspace-view" label="Vorgangsansicht" :value="$view === 'shifts' && $section === 'calendar' ? 'calendar' : $view" action="setPlanningView" :options="array_values(\App\Support\Operations\OperationsPages::planningShortcuts(auth()->user()))" />
     </template>
+    @if($view === 'shifts' && $section === 'plan')
+        <template x-teleport="[data-page-header-actions]" wire:key="case-shift-create-action">
+            <x-operations.create-action module="shift-management" />
+        </template>
+    @endif
+    @if(isset($views['offers']) || (!$costsOnly && !in_array($view, ['offers', 'shifts']) && !in_array($section, ['imports','portal','ai-intake'])))
     <header class="ops-toolbar">
         @if(isset($views['offers']))
             <x-ui.buttons.button-basic type="button" :mode="$view === 'offers' ? 'primary' : 'link'" wire:click="setView('offers')" :aria-current="$view === 'offers' ? 'page' : null"><i class="far fa-file-invoice" aria-hidden="true"></i>Angebote</x-ui.buttons.button-basic>
         @endif
-        @if($view === 'shifts')
-            <x-ui.buttons.multi-toggle id="case-shift-section" label="Schichtansicht" :value="$section" action="setSection" :options="[['value'=>'plan','label'=>'Plan','icon'=>'fa-clock'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar']]" />
-            @if($section === 'plan')
-                <template x-teleport="[data-page-header-actions]" wire:key="case-shift-create-action">
-                    <x-operations.create-action module="shift-management" />
-                </template>
-            @endif
-        @elseif(!$costsOnly && $view !== 'offers' && !in_array($section, ['imports','portal','ai-intake']))<x-ui.buttons.button-basic class="ml-auto" type="button" mode="primary" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i>{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</x-ui.buttons.button-basic>@endif
+        @if(!$costsOnly && !in_array($view, ['offers', 'shifts']) && !in_array($section, ['imports','portal','ai-intake']))<x-ui.buttons.button-basic class="ml-auto" type="button" mode="primary" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i>{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</x-ui.buttons.button-basic>@endif
     </header>
+    @endif
     @if($reservation)
         <div class="ops-actions" aria-label="Reservierungskontext"><x-operations.status :value="$reservation->status" />
             <x-ui.buttons.button-basic mode="link" :href="route('operations.page',['page'=>'cases','view'=>'inbox','section'=>'portal','customer'=>$reservation->customer_id,'source'=>'submission','record'=>$reservation->submission_id])">Portalvorgang</x-ui.buttons.button-basic>

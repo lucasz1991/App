@@ -4,9 +4,13 @@
 @endphp
 <x-ui.dropdown.anchor-dropdown align="left" width="80" :open-on-hover="true" :hover-open-delay="180" content-role="dialog" content-label="Auslastung von {{ $person->name }}" dropdown-id="timeline-workload-{{ $this->getId() }}-{{ $person->id }}" layer-group="staff-timeline-events" class="rt-timeline-workload-anchor" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
     <x-slot:trigger>
-        <button type="button" class="rt-timeline-workload" data-state="{{ $workload['state'] }}" aria-label="Auslastung {{ $person->name }}: {{ $workloadLabel }}. Details anzeigen">
-            <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="rt-timeline-workload__track" cx="16" cy="16" r="12" /><circle class="rt-timeline-workload__fill" cx="16" cy="16" r="12" pathLength="100" stroke-dasharray="{{ $workload['ratio'] !== null ? min(100, max(0, $workload['ratio'] * 100)) : 0 }} 100" /></svg>
-            <span aria-hidden="true">{{ $workload['state'] === 'over' ? '!' : ($workload['percent'] === null ? '–' : '') }}</span>
+        <button type="button" class="rt-timeline-workload" data-state="{{ $workload['state'] }}" data-target="{{ $workload['target'] === null ? 'unknown' : ($workload['target'] === 0 ? 'zero' : 'known') }}" aria-label="Auslastung {{ $person->name }}: {{ $workloadLabel }}. Details anzeigen">
+            @if($workload['target'] === null)
+                <span class="rt-timeline-workload__unknown" aria-hidden="true">–</span>
+            @else
+                <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="rt-timeline-workload__track" cx="16" cy="16" r="12" /><circle class="rt-timeline-workload__fill" cx="16" cy="16" r="12" pathLength="100" stroke-dasharray="{{ $workload['ratio'] !== null ? min(100, max(0, $workload['ratio'] * 100)) : 0 }} 100" /></svg>
+                <span aria-hidden="true">{{ $workload['state'] === 'over' ? '!' : ($workload['percent'] === null ? '–' : '') }}</span>
+            @endif
         </button>
     </x-slot:trigger>
     <x-slot:content>

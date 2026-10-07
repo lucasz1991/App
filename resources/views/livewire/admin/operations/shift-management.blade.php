@@ -1,5 +1,10 @@
 <div class="rt-disposition rt-disposition--shifts rt-shift-plan min-w-0" data-operations-shift-management
     x-data="rtShiftDetailDrawer" x-on:operations-shift-detail-request.window="openShiftDetail($event.detail.id)">
+    @if($viewMode !== 'timeline')
+        <template x-teleport="[data-topbar-page-search]" wire:key="shift-plan-topbar-search">
+            <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" />
+        </template>
+    @endif
     <template x-teleport="[data-page-header-search]">
         <div class="rt-shift-plan-header-controls" data-shift-plan-header-controls>
             @php
@@ -18,7 +23,6 @@
                     'orders' => 'Schichten je Leistung bündeln',
                     'timeline' => 'Mitarbeiter und Zeiten im Überblick',
                 ];
-                $distributionCount = $pendingShifts->total() + $unplannedOrders->total();
             @endphp
             <div class="rt-shift-plan-period-controls">
                 <x-ui.dropdown.anchor-dropdown align="left" width="auto" offset="6" dropdown-id="shift-plan-period-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Planungszeitraum anpassen" dropdown-classes="rt-shift-plan-range-dropdown" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
@@ -55,8 +59,11 @@
             <x-ui.dropdown.anchor-dropdown align="left" width="96" offset="6" dropdown-id="shift-plan-distribution-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Noch zu verteilen" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                 <x-slot:trigger>
                     <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-distribution-trigger" aria-label="Noch zu verteilen: {{ $pendingShifts->total() }} Schichten und {{ $unplannedOrders->total() }} Leistungen" title="Noch zu verteilen im gewählten Zeitraum">
-                        <i class="far fa-tasks" aria-hidden="true"></i>
-                        <span>Offen</span><span class="rt-shift-plan-distribution-count" aria-hidden="true" data-has-pending="{{ $distributionCount > 0 ? 'true' : 'false' }}">{{ $distributionCount }}</span>
+                        <span class="rt-shift-plan-distribution-label">Offen</span>
+                        <span class="rt-shift-plan-distribution-counters" aria-hidden="true">
+                            <span class="rt-shift-plan-distribution-count" data-distribution-count="shifts" data-has-pending="{{ $pendingShifts->total() > 0 ? 'true' : 'false' }}"><i class="far fa-clock" aria-hidden="true"></i><strong>{{ $pendingShifts->total() }}</strong></span>
+                            <span class="rt-shift-plan-distribution-count" data-distribution-count="orders" data-has-pending="{{ $unplannedOrders->total() > 0 ? 'true' : 'false' }}"><i class="far fa-briefcase" aria-hidden="true"></i><strong>{{ $unplannedOrders->total() }}</strong></span>
+                        </span>
                         <i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i>
                     </x-ui.buttons.button-basic>
                 </x-slot:trigger>
@@ -64,13 +71,8 @@
                     @include('livewire.admin.operations.partials.pending-distribution')
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
-            @if($viewMode !== 'timeline')
-                <div class="rt-shift-plan-header-search" data-page-list-search wire:key="shift-plan-list-search">
-                    <x-tables.search-field context="page" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Einsatzort suchen" aria-label="Schichten suchen" />
-                </div>
-            @elseif($nativeOperations)
+            @if($viewMode === 'timeline' && $nativeOperations)
                 <div data-shift-plan-timeline-suggestions wire:key="shift-plan-timeline-suggestions" wire:ignore></div>
-                <div class="rt-shift-plan-header-search" data-shift-plan-timeline-search wire:key="shift-plan-timeline-search" wire:ignore></div>
             @endif
         </div>
     </template>

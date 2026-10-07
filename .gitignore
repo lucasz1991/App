@@ -186,12 +186,17 @@ auth.json
 !/tests/Feature/ShiftStaffingPanelTest.php
 !/tests/Frontend/staff-timeline.test.js
 !/tests/Frontend/staff-timeline-motion.test.js
+!/tests/Frontend/staff-timeline-reveal.test.js
+!/tests/Frontend/timeline-cell-status.test.js
+!/tests/Frontend/page-topbar-search.test.js
 !/tests/Frontend/shift-detail-drawer.test.js
 !/tests/Feature/ShiftDetailDrawerTest.php
 !/tests/Frontend/anchor-dropdown-hover.test.js
 !/tests/Feature/StaffTimelineLayoutTest.php
 !/tests/Frontend/sidebar-drawer.test.js
 !/tests/Feature/CompactStaffTimelineUiTest.php
+!/tests/Feature/WorkloadEmptyTargetUiTest.php
+!/tests/Feature/TimelineCellStatusUiTest.php
 !/tests/Unit/TimelineMiniCalendarTest.php
 !/tests/Unit/TimelineLocationPreviewTest.php
 !/tests/Feature/DispositionDateControlsTest.php

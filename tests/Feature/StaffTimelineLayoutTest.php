@@ -23,6 +23,52 @@ class StaffTimelineLayoutTest extends TestCase
 {
     use BuildsMinimalRailTimeSchema;
 
+    public function test_multi_lane_rows_opt_into_compact_presentation_without_losing_any_duty_or_clock_position(): void
+    {
+        $this->buildMinimalRailTimeSchema();
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $customer = Customer::create(['company_name' => 'Synthetic Rail', 'is_active' => true]);
+        $order = Order::create(['customer_id' => $customer->id, 'title' => 'Synthetic overlap plan', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => '2026-10-05T00:00', 'ends_at' => '2026-10-07T00:00', 'required_staff' => 1, 'created_by' => $admin->id]);
+        $people = [];
+        foreach ([1, 2, 3] as $laneCount) {
+            $person = User::factory()->create(['name' => 'Synthetic Lane '.$laneCount, 'role' => 'staff', 'status' => true]);
+            $people[$laneCount] = $person->id;
+            for ($lane = 0; $lane < $laneCount; $lane++) {
+                $shift = Shift::create(['order_id' => $order->id, 'title' => 'Synthetic duty '.$laneCount.'-'.$lane, 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2026-10-05T08:00', 'ends_at' => '2026-10-05T12:00', 'required_staff' => 1, 'planned_break_minutes' => 0, 'status' => 'confirmed', 'created_by' => $admin->id]);
+                ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $person->id, 'status' => 'confirmed', 'assigned_by' => $admin->id]);
+            }
+        }
+        $timeline = Livewire::actingAs($admin)->test(StaffTimeline::class, ['from' => '2026-10-05', 'until' => '2026-10-06'])
+            ->assertViewHas('rows', function ($rows) use ($people): bool {
+                foreach ($people as $laneCount => $userId) {
+                    $row = $rows->first(fn ($row) => $row['user']->id === $userId);
+                    $this->assertSame($laneCount, $row['lane_count']);
+                    $this->assertCount($laneCount, $row['events']);
+                    $this->assertSame(range(0, $laneCount - 1), $row['events']->pluck('lane')->all());
+                    foreach ($row['events'] as $event) {
+                        $this->assertEqualsWithDelta(100 / 6, $event['left_percent'], 0.00001);
+                        $this->assertEqualsWithDelta(100 / 12, $event['width_percent'], 0.00001);
+                        $this->assertSame('08:00 – 12:00', $event['timeline_label']);
+                    }
+                }
+
+                return true;
+            });
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$timeline->html());
+        $xpath = new \DOMXPath($dom);
+        foreach ([1, 2, 3] as $laneCount) {
+            $track = $xpath->query('//div[@data-timeline-lanes="'.$laneCount.'"]')->item(0);
+            $this->assertNotNull($track);
+            $this->assertSame($laneCount > 1 ? 'compact' : 'normal', $track->getAttribute('data-timeline-density'));
+            $this->assertSame(2, $xpath->query('./div[contains(@class, "rt-personnel-timeline-day")]', $track)->length);
+            $this->assertSame($laneCount, $xpath->query('./div[contains(@class, "rt-personnel-timeline-events")]/div[contains(@class, "rt-personnel-timeline-event")]', $track)->length);
+            $this->assertSame($laneCount, $xpath->query('.//button[contains(@class, "rt-personnel-timeline-bar")][@aria-haspopup="dialog"]', $track)->length);
+            $this->assertSame(0, $xpath->query('./div[contains(@class, "rt-personnel-timeline-day")][contains(@style, "--timeline-lanes")]', $track)->length);
+        }
+    }
+
     public function test_additional_workforce_data_never_changes_default_timeline_geometry_or_events(): void
     {
         $this->buildMinimalRailTimeSchema();

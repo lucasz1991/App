@@ -7,6 +7,7 @@
                 :id="'timeline-suggestions-'.$this->getId()"
                 size="sm"
                 label="Vorschläge"
+                :label-inside="true"
                 :checked="$showSuggestions"
                 x-bind:checked="suggestionsEnabled"
                 x-bind:disabled="suggestionsLoading"
@@ -27,8 +28,8 @@
 @endif
 @if(!$absencesOnly)
     @if($searchInHeader)
-        <template x-teleport="[data-shift-plan-timeline-search]">
-            <x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" aria-label="Mitarbeiter suchen" />
+        <template x-teleport="[data-topbar-page-search]" wire:key="timeline-topbar-search-{{ $this->getId() }}">
+            <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" aria-label="Mitarbeiter suchen" />
         </template>
     @else
         <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
@@ -37,7 +38,10 @@
 <div class="rt-personnel-timeline" style="--timeline-days:{{ $days->count() }}" x-data="rtStaffTimeline" x-effect="applyPersonnelMode()"
     x-on:pointerover.window="pointerPersonnel($event)" x-on:pointerout.window="pointerPersonnel($event)"
     x-on:focusin.window="focusPersonnel($event.target)" x-on:focusout.window="focusPersonnel($event.relatedTarget)"
-    data-no-sidebar-swipe data-rt-dropdown-scroll-root>
+    data-no-sidebar-swipe data-rt-dropdown-scroll-root data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? 'true' : 'false' }}">
+    <div class="rt-timeline-loading-indicator" style="display: none" wire:loading.delay.flex wire:target="search,loadMore,refreshPlanning" role="status" aria-live="polite">
+        <i class="far fa-spinner-third" aria-hidden="true"></i><span>Lädt …</span>
+    </div>
     <div class="rt-personnel-timeline-header">
         <div class="rt-personnel-timeline-name rt-personnel-timeline-head rt-personnel-timeline-person-heading" data-timeline-person-column>
             <button type="button" class="rt-personnel-timeline-person-toggle" data-timeline-person-toggle x-on:click="togglePersonnelColumn()"
@@ -63,7 +67,7 @@
         <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--next" x-cloak x-show="canScrollRight" x-on:click="scrollDay(1)" aria-label="Weitere Tage rechts anzeigen" title="Weitere Tage rechts"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
         </div>
     </div>
-    <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:scroll.passive="syncHorizontal($event.target)" x-on:wheel.passive="wheelPersonnel($event)" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile oder die horizontale Bildlaufleiste">
+    <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:scroll.passive="syncHorizontal($event.target)" x-on:wheel.passive="wheelPersonnel($event)" x-on:scrollend.passive="finishHorizontalIntent()" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile oder die horizontale Bildlaufleiste">
     <div class="rt-personnel-timeline-grid" x-ref="timelineGrid"
         x-on:click="openPlanner($event)" x-on:pointerover="hoverCell($event)" x-on:pointerout="leaveCell($event)"
         x-on:focusin="hoverCell($event)" x-on:focusout="leaveCell($event)">
@@ -83,11 +87,17 @@
             </div>
             @if(!$row['user']->status)<span class="ops-muted rt-timeline-person-status">Inaktiv</span>@endif
         </div>
-        <div class="rt-personnel-timeline-track" data-timeline-lanes="{{ $row['lane_count'] }}" style="--timeline-lanes:{{ $row['lane_count'] }}" wire:key="staff-track-{{ $row['user']->id }}">
+        <div class="rt-personnel-timeline-track" data-timeline-lanes="{{ $row['lane_count'] }}" data-timeline-density="{{ $row['lane_count'] > 1 ? 'compact' : 'normal' }}" style="--timeline-lanes:{{ $row['lane_count'] }}" wire:key="staff-track-{{ $row['user']->id }}">
         @foreach($row['days'] as $cell)
-            <div @class(['rt-personnel-timeline-day snap-start', 'rt-personnel-timeline-day--weekend' => $cell['date']->isWeekend(), 'rt-personnel-timeline-day--empty' => $cell['events']->isEmpty()]) style="--timeline-lanes:{{ max(1, $cell['lane_count']) }}" wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
+            <div @class(['rt-personnel-timeline-day snap-start', 'rt-personnel-timeline-day--weekend' => $cell['date']->isWeekend(), 'rt-personnel-timeline-day--empty' => $cell['events']->isEmpty()]) wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
                 @if($planningEnabled && !$absencesOnly && $row['user']->status)
-                    <button type="button" class="rt-timeline-cell-action" data-user="{{ $row['user']->id }}" data-date="{{ $cell['date']->toDateString() }}" aria-haspopup="dialog" aria-label="Offene Schicht auswählen: {{ $row['user']->name }} · {{ $cell['date']->format('d.m.Y') }}" data-timeline-cell-action></button>
+                    @php
+                        $cellStatusId = 'timeline-cell-status-'.$this->getId().'-'.$row['user']->id.'-'.$cell['date']->toDateString();
+                    @endphp
+                    <button type="button" class="rt-timeline-cell-action" data-user="{{ $row['user']->id }}" data-date="{{ $cell['date']->toDateString() }}" aria-haspopup="dialog" aria-label="Offene Schicht auswählen: {{ $row['user']->name }} · {{ $cell['date']->format('d.m.Y') }}" aria-describedby="{{ $cellStatusId }}" data-timeline-cell-action>
+                        <span class="rt-timeline-cell-status" aria-hidden="true"><i class="far fa-circle" data-timeline-cell-status-icon></i></span>
+                        <span id="{{ $cellStatusId }}" class="sr-only" data-timeline-cell-status-text></span>
+                    </button>
                 @endif
             </div>
         @endforeach

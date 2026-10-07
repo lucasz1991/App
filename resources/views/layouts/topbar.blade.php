@@ -59,7 +59,8 @@
                  dann Einstellungen, aussen das Profil. --}}
             <div class="rt-shell-topbar-controls flex min-w-0 items-center gap-1.5 sm:gap-3">
                     @auth
-                        <livewire:tools.global-search />
+                        <div class="rt-topbar-search-slot" data-topbar-page-search></div>
+                        <div data-topbar-global-search><livewire:tools.global-search /></div>
 
                         {{-- Posteingang (Chats + Nachrichten in einem Dropdown) --}}
                         <livewire:tools.header-inbox />

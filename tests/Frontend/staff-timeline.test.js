@@ -274,6 +274,53 @@ test('true overlap lanes remain distinct regardless of label width and input ord
     assert.deepEqual(positions.map(position => position.lane), [1, 0]);
 });
 
+function densityFixture(events, serverLanes = 1) {
+    const { document } = parseHTML(`<div id="grid"><div class="rt-personnel-timeline-track" data-timeline-lanes="${serverLanes}" data-timeline-density="${serverLanes > 1 ? 'compact' : 'normal'}">
+        ${events.map(event => `<div class="rt-personnel-timeline-event" data-time-start="${event.start}" data-time-width="${event.duration}" data-time-lane="${event.lane || 0}" style="--event-left:${event.start}%;--event-width:${event.duration}%"><span class="rt-personnel-timeline-time-text">08:00 – 10:00</span></div>`).join('')}
+    </div></div>`);
+    const timeline = staffTimeline();
+    timeline.$refs = { timelineGrid: document.getElementById('grid') };
+    const track = document.querySelector('.rt-personnel-timeline-track');
+    for (const label of track.querySelectorAll('.rt-personnel-timeline-time-text')) label.getBoundingClientRect = () => ({ width: 90 });
+    return { timeline, track, events: [...track.querySelectorAll('.rt-personnel-timeline-event')] };
+}
+
+test('two label-collision lanes select compact density from the final client layout and resize back to normal', () => {
+    const { timeline, track, events } = densityFixture([
+        { start: 25, duration: 2 }, { start: 34, duration: 2 },
+    ]);
+    timeline.measureEventLabels(240);
+    assert.equal(track.dataset.timelineLanes, '1', 'server lane metadata must not be rewritten');
+    assert.equal(track.dataset.timelineDensity, 'compact');
+    assert.equal(track.style.getPropertyValue('--timeline-lanes'), 2);
+    assert.deepEqual(events.map(event => event.style.getPropertyValue('--event-lane')), [0, 1]);
+    const repeated = track.outerHTML;
+    timeline.measureEventLabels(240);
+    assert.equal(track.outerHTML, repeated, 'repeated measurements must not drift or reallocate lanes');
+    timeline.measureEventLabels(1400);
+    assert.equal(track.dataset.timelineDensity, 'normal');
+    assert.equal(track.style.getPropertyValue('--timeline-lanes'), 1);
+    assert.deepEqual(events.map(event => event.style.getPropertyValue('--event-lane')), [0, 0]);
+    assert.deepEqual(events.map(event => [event.style.getPropertyValue('--event-left'), event.style.getPropertyValue('--event-width')]), [['25%', '2%'], ['34%', '2%']]);
+});
+
+test('three real overlap lanes remain readable and every duty stays selectable without capping or hiding lanes', () => {
+    const { timeline, track, events } = densityFixture([
+        { start: 25, duration: 50, lane: 0 },
+        { start: 26, duration: 45, lane: 1 },
+        { start: 27, duration: 40, lane: 2 },
+    ], 3);
+    timeline.measureEventLabels(240);
+    assert.equal(track.dataset.timelineDensity, 'compact');
+    assert.equal(track.style.getPropertyValue('--timeline-lanes'), 3);
+    assert.deepEqual(events.map(event => event.style.getPropertyValue('--event-lane')), [0, 1, 2]);
+    assert.equal(track.querySelectorAll('.rt-personnel-timeline-event').length, 3);
+    assert.ok(events.every(event => !event.hasAttribute('hidden') && event.style.getPropertyValue('display') !== 'none'));
+    timeline.measureEventLabels(1400);
+    assert.equal(track.style.getPropertyValue('--timeline-lanes'), 3);
+    assert.equal(track.dataset.timelineDensity, 'compact', 'true interval conflicts cannot collapse just because labels have more width');
+});
+
 function harness() {
     const timeline = staffTimeline();
     timeline.$refs = {

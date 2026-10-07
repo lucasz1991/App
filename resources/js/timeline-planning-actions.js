@@ -109,6 +109,8 @@ export function timelinePlanning(ownerId = null) {
                 delete this.hoverAnchor.dataset.fit;
                 delete this.hoverAnchor.dataset.fitLabel;
                 this.hoverAnchor.removeAttribute('title');
+                const statusText = this.hoverAnchor.querySelector?.('[data-timeline-cell-status-text]');
+                if (statusText) statusText.textContent = '';
             }
             this.hoverAnchor = null;
             if (this.pending?.kind === 'hover') this.pending = null;
@@ -117,7 +119,15 @@ export function timelinePlanning(ownerId = null) {
             if (anchor !== this.hoverAnchor || this.disposed) return;
             anchor.dataset.fit = value.state;
             anchor.dataset.fitLabel = value.label;
-            anchor.title = `${value.label} · ${value.detail}`;
+            const detail = [value.label, value.detail].filter(Boolean).join(' · ');
+            anchor.title = detail;
+            const statusText = anchor.querySelector?.('[data-timeline-cell-status-text]');
+            if (statusText) statusText.textContent = detail;
+            const statusIcon = anchor.querySelector?.('[data-timeline-cell-status-icon]');
+            if (statusIcon) {
+                const icons = { checking: 'fa-spinner-third', suitable: 'fa-check-circle', blocked: 'fa-ban', empty: 'fa-minus-circle', error: 'fa-exclamation-circle' };
+                statusIcon.className = `far ${icons[value.state] || 'fa-question-circle'}`;
+            }
         },
         openPlanner(event) {
             const anchor = event.target.closest('[data-timeline-cell-action], [data-timeline-proposal]');
@@ -172,7 +182,7 @@ export function timelinePlanning(ownerId = null) {
                             }
                         }
                     } catch {
-                        if (job.kind === 'hover') this.paintHover(job.anchor, { state: 'empty', label: 'Prüfung nicht verfügbar', detail: 'Per Klick erneut versuchen.' });
+                        if (job.kind === 'hover') this.paintHover(job.anchor, { state: 'error', label: 'Prüfung nicht verfügbar', detail: 'Per Klick erneut versuchen.' });
                         else if (job.version === this.requestVersion && this.plannerVisible) {
                             this.plannerLoading = false;
                             this.plannerError = 'Die Auswahl konnte nicht geladen werden. Bitte schließen und erneut versuchen.';

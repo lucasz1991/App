@@ -5,6 +5,7 @@
     'change' => null,
     'size' => 'md',
     'disabled' => false,
+    'labelInside' => false,
 ])
 
 @php
@@ -16,6 +17,7 @@
     for="{{ $inputId }}"
     {{ $attributes->only('class')->class([
         'rt-ui-toggle group',
+        'rt-ui-toggle--label-inside' => $labelInside,
         'cursor-pointer' => ! $disabled,
         'is-disabled' => $disabled,
     ]) }}
@@ -41,11 +43,15 @@
             data-autosave-state="idle"
             data-autosave-visual
         @endif
-        aria-hidden="true"
+        @if(! $labelInside) aria-hidden="true" @endif
         class="rt-ui-toggle-control rt-ui-toggle-control--{{ $resolvedSize }}"
-    ></span>
+    >
+        @if($label && $labelInside)
+            <span class="rt-ui-toggle__label">{{ $label }}</span>
+        @endif
+    </span>
 
-    @if($label)
+    @if($label && ! $labelInside)
         <span class="rt-ui-toggle__label">
             {{ $label }}
         </span>

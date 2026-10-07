@@ -178,6 +178,24 @@ class CaseWorkspace extends Component
         $this->redirect(OperationsPages::url('cases', ['view' => $view, 'customer' => $this->context['customer'] ?? null] + $this->preservedListContext($view)), navigate: true);
     }
 
+    public function setPlanningView(string $target): void
+    {
+        $this->access();
+        abort_unless(isset(OperationsPages::planningShortcuts($this->actor())[$target]), 403);
+        if (in_array($target, ['shifts', 'calendar'], true)) {
+            $section = $target === 'calendar' ? 'calendar' : 'plan';
+            if ($this->view === 'shifts') {
+                $this->setSection($section);
+
+                return;
+            }
+            $this->redirect(OperationsPages::url('cases', ['view' => 'shifts', 'section' => $section, 'customer' => $this->context['customer'] ?? null]), navigate: true);
+
+            return;
+        }
+        $this->setView($target);
+    }
+
     public function setSection(string $section): void
     {
         $this->access();

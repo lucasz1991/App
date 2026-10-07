@@ -21,8 +21,10 @@ function withMotion(run, { gsap = true, reduced = false, deferredNativeScroll = 
     const timeline = staffTimeline();
     const tweens = [];
     const frames = new Map();
+    const timers = new Map();
     const cancelledFrames = [];
     let frameId = 0;
+    let timerId = 0;
     let bodyOffset = 0;
     let fullWidth = fullNameWidth;
     let reduceMotion = reduced;
@@ -85,6 +87,8 @@ function withMotion(run, { gsap = true, reduced = false, deferredNativeScroll = 
         } }),
         requestAnimationFrame: (callback) => { frames.set(++frameId, callback); return frameId; },
         cancelAnimationFrame: (id) => { cancelledFrames.push(id); frames.delete(id); },
+        setTimeout: (callback, delay) => { timers.set(++timerId, { callback, delay }); return timerId; },
+        clearTimeout: (id) => timers.delete(id),
     };
     const originals = Object.fromEntries(Object.keys(overrides).map((name) =>
         [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
@@ -95,7 +99,7 @@ function withMotion(run, { gsap = true, reduced = false, deferredNativeScroll = 
         if (complete) tween.options.onComplete?.();
     };
     try {
-        run({ timeline, root, body, document, tweens, frames, cancelledFrames, currentWidth, maximum, advance,
+        run({ timeline, root, body, document, tweens, frames, timers, cancelledFrames, currentWidth, maximum, advance,
             setReduced: (value) => { reduceMotion = value; }, setFullWidth: (value) => { fullWidth = value; } });
     } finally {
         timeline.destroy();
@@ -329,6 +333,141 @@ test('horizontal wheel intent reverses before the next frame without consuming t
         assert.equal(tweens[1].from, 116);
         assert.equal(currentWidth(), 116);
     });
+});
+
+test('right wheel direction survives an interior native snap-back and an opposite wheel changes intent immediately', () => {
+    withMotion(({ timeline, body, timers }) => {
+        timeline.wheelPersonnel({ deltaX: 360, deltaY: 0, preventDefault() { assert.fail('wheel input must remain native'); } });
+        for (const offset of [300, 360, 300, 265]) {
+            body.nativeOffset = offset;
+            timeline.syncHorizontal(body);
+            assert.equal(timeline.personnelCompact, true, `right wheel followed by native offset ${offset}`);
+            assert.equal(timeline.$refs.timelineHeader.scrollLeft, offset);
+            assert.equal(timeline.$refs.timelineScrollbar.scrollLeft, offset);
+        }
+        assert.equal(timers.size, 1, 'one bounded fallback is refreshed while native scrolling continues');
+        timeline.wheelPersonnel({ deltaX: -30, deltaY: 0 });
+        assert.equal(timeline.personnelCompact, false);
+        for (const offset of [230, 245, 265]) {
+            body.nativeOffset = offset;
+            timeline.syncHorizontal(body);
+            assert.equal(timeline.personnelCompact, false, 'a correction toward the right does not reverse left wheel intent');
+        }
+        timeline.finishHorizontalIntent();
+        assert.equal(timers.size, 0);
+        body.nativeOffset = 275;
+        timeline.syncHorizontal(body);
+        assert.equal(timeline.personnelCompact, true, 'native offset direction resumes after scrollend');
+        body.nativeOffset = 255;
+        timeline.syncHorizontal(body);
+        assert.equal(timeline.personnelCompact, false);
+        assert.equal(body.scrollWrites, 0);
+    });
+});
+
+test('day arrow direction survives native smooth-scroll overshoot and snapping until scrollend', () => {
+    withMotion(({ timeline, body, timers }) => {
+        timeline.applyPersonnelMode();
+        timeline.measure();
+        body.nativeOffset = 400;
+        timeline.syncHorizontal(body, false);
+        timeline.scrollDay(1);
+        for (const offset of [600, 750, 720]) {
+            body.nativeOffset = offset;
+            timeline.syncHorizontal(body);
+            assert.equal(timeline.personnelCompact, true);
+        }
+        assert.deepEqual(body.scrollCalls[0], { left: 720, behavior: 'smooth' });
+        timeline.finishHorizontalIntent();
+        assert.equal(timers.size, 0);
+        body.nativeOffset = 700;
+        timeline.syncHorizontal(body);
+        assert.equal(timeline.personnelCompact, false);
+        assert.equal(body.scrollWrites, 0);
+    });
+});
+
+test('a manual header counter-command wins over the remaining native wheel sequence', () => {
+    withMotion(({ timeline, body, timers }) => {
+        timeline.wheelPersonnel({ deltaX: 360, deltaY: 0 });
+        assert.equal(timeline.personnelCompact, true);
+        timeline.togglePersonnelColumn();
+        assert.equal(timeline.personnelCompact, false);
+        for (const offset of [100, 360, 265]) {
+            body.nativeOffset = offset;
+            timeline.syncHorizontal(body);
+            assert.equal(timeline.personnelCompact, false, 'old wheel movement must not undo the explicit header command');
+        }
+        timeline.finishHorizontalIntent();
+        assert.equal(timers.size, 0);
+        body.nativeOffset = 280;
+        timeline.syncHorizontal(body);
+        assert.equal(timeline.personnelCompact, true);
+    });
+});
+
+test('mirrored footer events retain wheel intent while actual footer input cancels it and determines direction', () => {
+    withMotion(({ timeline, body, timers }) => {
+        body.nativeOffset = 300;
+        timeline.syncHorizontal(body, false);
+        timeline.wheelPersonnel({ deltaX: 360, deltaY: 0 });
+        body.nativeOffset = 360;
+        timeline.syncHorizontal(body);
+        timeline.syncHorizontal(timeline.$refs.timelineScrollbar);
+        assert.equal(timeline.horizontalIntent, 1);
+        assert.equal(timers.size, 1);
+        assert.equal(body.scrollWrites, 0);
+        timeline.$refs.timelineScrollbar.scrollLeft = 320;
+        timeline.syncHorizontal(timeline.$refs.timelineScrollbar);
+        assert.equal(body.scrollLeft, 320);
+        assert.equal(body.scrollWrites, 1);
+        assert.equal(timeline.personnelCompact, false);
+        assert.equal(timeline.horizontalIntent, null);
+        assert.equal(timers.size, 0);
+    });
+});
+
+test('an edge gesture without movement releases its intent through a bounded idle fallback and destroy clears that timer', () => {
+    withMotion(({ timeline, body, maximum, timers }) => {
+        body.nativeOffset = maximum();
+        timeline.syncHorizontal(body, false);
+        timeline.wheelPersonnel({ deltaX: 30, deltaY: 0 });
+        assert.equal(timeline.horizontalIntent, 1);
+        assert.equal(timers.size, 1);
+        const [id, timer] = [...timers][0];
+        assert.ok(timer.delay > 0 && timer.delay <= 500, 'fallback must have a short finite bound');
+        timers.delete(id);
+        timer.callback();
+        assert.equal(timeline.horizontalIntent, null);
+        assert.equal(timeline.intentTimer, null);
+        body.nativeOffset = maximum() - 20;
+        timeline.syncHorizontal(body);
+        assert.equal(timeline.personnelCompact, false);
+        timeline.wheelPersonnel({ deltaX: 30, deltaY: 0 });
+        assert.equal(timers.size, 1);
+        timeline.destroy();
+        assert.equal(timers.size, 0);
+        assert.equal(timeline.intentTimer, null);
+        assert.equal(timeline.horizontalIntent, null);
+        assert.equal(body.scrollWrites, 0);
+    });
+});
+
+test('a same-position body event cannot consume the pending delayed layout correction', () => {
+    withMotion(({ timeline, body, maximum }) => {
+        timeline.applyPersonnelMode();
+        body.nativeOffset = maximum();
+        timeline.syncHorizontal(body, false);
+        compact(timeline);
+        assert.equal(body.scrollLeft, 1800);
+        assert.equal(timeline.layoutScrollOffset, 1672);
+        timeline.syncHorizontal(body); // e.g. a vertical scroll before the horizontal layout correction
+        assert.equal(timeline.layoutScrollOffset, 1672);
+        body.nativeOffset = 1672;
+        timeline.syncHorizontal(body);
+        assert.equal(timeline.personnelCompact, true);
+        assert.equal(timeline.layoutScrollOffset, null);
+    }, { gsap: false, deferredNativeScroll: true });
 });
 
 test('native footer input can reverse a running tween without losing its new offset', () => {

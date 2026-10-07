@@ -87,6 +87,18 @@ final class OperationsPages
         return array_intersect_key(self::views($actor, 'cases'), array_flip(['inbox', 'orders', 'shifts']));
     }
 
+    /** Topbar shortcuts include both existing sections of the shift workspace. */
+    public static function planningShortcuts(User $actor): array
+    {
+        $shortcuts = self::planningViews($actor);
+        if (isset($shortcuts['shifts'])) {
+            $shortcuts['shifts']['icon'] = 'fa-clock';
+            $shortcuts['calendar'] = ['value' => 'calendar', 'label' => 'Kalender', 'icon' => 'fa-calendar-alt'];
+        }
+
+        return $shortcuts;
+    }
+
     public static function availableFor(User $actor): array
     {
         return array_filter(self::definitions(), fn ($definition, $page) => $page !== 'shifts' && (self::views($actor, $page) || self::sections($actor, $page)), ARRAY_FILTER_USE_BOTH);

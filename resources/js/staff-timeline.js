@@ -34,6 +34,77 @@ export function timelineEventLanes(events, dayWidth) {
 
 // Keep GSAP instances outside Alpine's reactive proxy and scoped to one timeline.
 const personnelMotions = new WeakMap();
+const contentReveals = new WeakMap();
+
+function restoreRevealTarget(target) {
+    const opacity = target.dataset.timelineRevealOpacity;
+    if (opacity) target.style.setProperty('opacity', opacity, target.dataset.timelineRevealPriority || '');
+    else target.style.removeProperty('opacity');
+    delete target.dataset.timelineRevealing;
+    delete target.dataset.timelineRevealOpacity;
+    delete target.dataset.timelineRevealPriority;
+}
+
+function finishRevealBatch(state, batch) {
+    if (!state.active.delete(batch)) return;
+    batch.tween?.kill();
+    batch.targets.forEach(restoreRevealTarget);
+}
+
+export function clearStaffTimelineReveals(root) {
+    if (!root) return;
+    const state = contentReveals.get(root);
+    contentReveals.delete(root);
+    if (state) {
+        state.media?.removeEventListener?.('change', state.reduce);
+        [...state.active].forEach(batch => finishRevealBatch(state, batch));
+    }
+    // A cached navigation snapshot can contain an interrupted entrance.
+    root.querySelectorAll('[data-timeline-revealing]').forEach(restoreRevealTarget);
+}
+
+export function revealStaffTimeline(root, grid, body) {
+    if (root.dataset.timelineMotion !== 'true') return;
+    const engine = typeof window !== 'undefined' ? window.gsap : null;
+    let state = contentReveals.get(root);
+    if (!state) {
+        const media = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)') : null;
+        state = { seen: new WeakSet(), active: new Set(), media, reduce: null };
+        state.reduce = () => {
+            if (media?.matches) [...state.active].forEach(batch => finishRevealBatch(state, batch));
+        };
+        media?.addEventListener?.('change', state.reduce);
+        contentReveals.set(root, state);
+    }
+    const unseen = [...grid.querySelectorAll('.rt-personnel-timeline-name, .rt-personnel-timeline-event')]
+        .filter(target => !state.seen.has(target));
+    unseen.forEach(target => state.seen.add(target));
+    if (!unseen.length || !engine?.fromTo || state.media?.matches) return;
+    // Read visibility once before writes. Offscreen rows never wait to appear.
+    const viewport = body.getBoundingClientRect();
+    const visible = unseen.filter(target => {
+        const rect = target.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.bottom > viewport.top && rect.top < viewport.bottom
+            && rect.right > viewport.left && rect.left < viewport.right;
+    });
+    const people = visible.filter(target => target.classList.contains('rt-personnel-timeline-name')).slice(0, 24);
+    const shifts = visible.filter(target => target.classList.contains('rt-personnel-timeline-event')).slice(0, 48);
+    for (const [targets, delay, amount, startOpacity] of [[people, 0, .04, .35], [shifts, .04, .07, 0]]) {
+        if (!targets.length) continue;
+        const batch = { targets, tween: null };
+        state.active.add(batch);
+        targets.forEach(target => {
+            target.dataset.timelineRevealing = 'true';
+            target.dataset.timelineRevealOpacity = target.style.getPropertyValue('opacity');
+            target.dataset.timelineRevealPriority = target.style.getPropertyPriority('opacity');
+        });
+        // Opacity only: never move the time bands, sticky column or row lanes.
+        batch.tween = engine.fromTo(targets, { opacity: startOpacity }, {
+            opacity: 1, duration: .18, delay, stagger: { amount }, ease: 'power2.out', inherit: false,
+            onComplete: () => finishRevealBatch(state, batch),
+        });
+    }
+}
 
 function clearPersonnelMotion(root) {
     if (!root) return;
@@ -59,6 +130,8 @@ export function staffTimeline() {
         appliedPersonnelCompact: null,
         layoutScrollOffset: null,
         measuredLayout: null,
+        horizontalIntent: null,
+        intentTimer: null,
         get personnelCompact() {
             return this.compactRequested && !this.personnelHovered && !this.personnelFocused;
         },
@@ -67,9 +140,12 @@ export function staffTimeline() {
         },
         togglePersonnelColumn() {
             const compact = !this.personnelCompact;
+            const pendingIntent = this.horizontalIntent !== null;
+            this.finishHorizontalIntent();
             this.personnelHovered = false;
             this.personnelFocused = false;
-            this.setCompactRequested(compact);
+            if (pendingIntent) this.holdHorizontalIntent(compact ? 1 : -1);
+            else this.setCompactRequested(compact);
         },
         ownsPersonnel(target) {
             const visited = new Set();
@@ -93,8 +169,24 @@ export function staffTimeline() {
         wheelPersonnel(event) {
             // Intent only: never prevent or replace the browser's native scrolling.
             if (Math.abs(event.deltaX) >= Math.max(1, Math.abs(event.deltaY))) {
-                this.setCompactRequested(event.deltaX > 0);
+                this.holdHorizontalIntent(event.deltaX);
             }
+        },
+        holdHorizontalIntent(direction) {
+            this.horizontalIntent = direction > 0 ? 1 : -1;
+            this.setCompactRequested(direction > 0);
+            this.queueIntentRelease();
+        },
+        queueIntentRelease() {
+            if (this.intentTimer !== null) clearTimeout(this.intentTimer);
+            // Also covers older browsers and an edge gesture that does not scroll.
+            this.intentTimer = setTimeout(() => this.finishHorizontalIntent(), 350);
+        },
+        finishHorizontalIntent() {
+            if (this.intentTimer !== null) clearTimeout(this.intentTimer);
+            this.intentTimer = null;
+            this.horizontalIntent = null;
+            if (this.$refs?.timelineBody) this.lastScrollLeft = this.$refs.timelineBody.scrollLeft;
         },
         focusPersonnel(target) {
             // A preview is teleported, but still belongs to its employee trigger.
@@ -162,6 +254,7 @@ export function staffTimeline() {
             this.syncHorizontal(body, false);
         },
         init() {
+            clearStaffTimelineReveals(this.$el);
             this.observer = new ResizeObserver(() => this.queueMeasure());
             this.observer.observe(this.$refs.timelineBody);
             this.observer.observe(this.$refs.timelineGrid);
@@ -170,10 +263,12 @@ export function staffTimeline() {
             this.$nextTick(() => this.measure());
         },
         destroy() {
+            this.finishHorizontalIntent();
             this.observer?.disconnect();
             this.contentObserver?.disconnect();
             if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
             clearPersonnelMotion(this.$el);
+            clearStaffTimelineReveals(this.$el);
         },
         queueMeasure() {
             if (this.resizeFrame !== null) return;
@@ -206,6 +301,7 @@ export function staffTimeline() {
             this.measureEventLabels(width * days);
             if (resized) this.rebasePersonnelLayout(wasAtEnd, body.scrollLeft);
             else this.syncHorizontal(body, false);
+            revealStaffTimeline(this.$el, this.$refs.timelineGrid, body);
         },
         measureEventLabels(periodWidth) {
             for (const track of this.$refs.timelineGrid.querySelectorAll('.rt-personnel-timeline-track')) {
@@ -225,7 +321,12 @@ export function staffTimeline() {
                     events[index].style.setProperty('--time-badge-width', `${position.badgeWidth}px`);
                 });
                 const rowLaneCount = parseInt(track.dataset.timelineLanes, 10) || 1;
-                track.style.setProperty('--timeline-lanes', Math.max(rowLaneCount, Math.max(...positions.map(position => position.lane)) + 1));
+                const laneCount = Math.max(rowLaneCount, Math.max(...positions.map(position => position.lane)) + 1);
+                track.style.setProperty('--timeline-lanes', laneCount);
+                // Include readable-label collisions, not only the server's true overlaps.
+                // Two compact lanes fit the existing 48px row; further lanes stay visible.
+                const density = laneCount > 1 ? 'compact' : 'normal';
+                if (track.dataset.timelineDensity !== density) track.dataset.timelineDensity = density;
             }
         },
         syncHorizontal(source, detectDirection = true) {
@@ -233,6 +334,7 @@ export function staffTimeline() {
             if (source === scrollbar) {
                 // Ignore our mirrored scroll event; otherwise it cancels an in-flight smooth scroll.
                 if (Math.abs(scrollbar.scrollLeft - this.mirroredScrollbarLeft) < 1) return;
+                if (detectDirection) this.finishHorizontalIntent();
                 body.scrollLeft = scrollbar.scrollLeft;
             }
             const offset = body.scrollLeft;
@@ -240,10 +342,12 @@ export function staffTimeline() {
             const motionEdge = source !== scrollbar && motion?.atEnd
                 && Math.abs(offset - Math.max(0, body.scrollWidth - body.clientWidth)) < 1;
             const layoutScroll = motionEdge || (this.layoutScrollOffset !== null && Math.abs(offset - this.layoutScrollOffset) < 1);
-            if (detectDirection) this.layoutScrollOffset = null;
-            if (detectDirection && !layoutScroll && Math.abs(offset - this.lastScrollLeft) >= 1) {
+            const moved = Math.abs(offset - this.lastScrollLeft) >= 1;
+            if (detectDirection && (layoutScroll || moved)) this.layoutScrollOffset = null;
+            if (detectDirection && !layoutScroll && moved && this.horizontalIntent === null) {
                 this.setCompactRequested(offset > this.lastScrollLeft);
             }
+            if (detectDirection && this.horizontalIntent !== null) this.queueIntentRelease();
             this.lastScrollLeft = offset;
             header.scrollLeft = offset;
             if (Math.abs(scrollbar.scrollLeft - offset) >= 1) scrollbar.scrollLeft = offset;
@@ -255,7 +359,7 @@ export function staffTimeline() {
             const body = this.$refs.timelineBody;
             const width = parseFloat(getComputedStyle(this.$el).getPropertyValue('--timeline-day-width'));
             if (!width) return;
-            this.setCompactRequested(direction > 0);
+            this.holdHorizontalIntent(direction);
             body.scrollTo({
                 left: timelineDayOffset(body.scrollLeft, width, direction, body.scrollWidth - body.clientWidth),
                 behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',

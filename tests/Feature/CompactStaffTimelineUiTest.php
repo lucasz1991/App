@@ -10,6 +10,37 @@ use Tests\TestCase;
 
 class CompactStaffTimelineUiTest extends TestCase
 {
+    public function test_planning_timeline_loading_is_local_delayed_and_never_replaces_the_scrollport(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $this->assertStringContainsString('data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? \'true\' : \'false\' }}"', $view);
+        $this->assertStringContainsString('wire:loading.delay.flex wire:target="search,loadMore,refreshPlanning"', $view);
+        $this->assertStringContainsString('class="rt-timeline-loading-indicator" style="display: none"', $view);
+        $this->assertStringContainsString('role="status" aria-live="polite"', $view);
+        $this->assertStringContainsString('pointer-events: none', $this->cssDeclarationsFor($css, '.rt-timeline-loading-indicator'));
+        $this->assertStringContainsString('animation: none', $this->cssDeclarationsFor($css, '.rt-timeline-loading-indicator > i'));
+        $this->assertStringContainsString('overflow: auto', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-body'));
+        $this->assertDoesNotMatchRegularExpression('/<div[^>]+class="rt-personnel-timeline(?:-body)?(?: [^"]*)?"[^>]+wire:loading.remove/', $view);
+    }
+
+    public function test_timeline_header_uses_quiet_theme_surfaces_while_duties_have_clearer_state_colors(): void
+    {
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $workspace = file_get_contents(resource_path('css/disposition-workspace.css'));
+        $header = $this->cssDeclarationsFor($workspace, '.rt-shift-plan .rt-personnel-timeline-header');
+        $this->assertStringContainsString('background: var(--dispo-subtle', $header);
+        foreach (['#991d38', '#851930', '#682137', '#581c2e'] as $oldHeaderColor) {
+            $this->assertStringNotContainsString($oldHeaderColor, $workspace);
+        }
+        $this->assertStringContainsString('var(--timeline-state-color) 19%', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-time'));
+        $this->assertStringContainsString('var(--timeline-state-color) 17%', $this->cssDeclarationsFor($css, '.dark .rt-personnel-timeline-time'));
+        $this->assertStringContainsString('opacity: .95', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-mark'));
+        foreach (['confirmed', 'requested', 'in_progress', 'completed'] as $state) {
+            $this->assertStringContainsString('[data-state="'.$state.'"]', $css);
+        }
+    }
+
     public function test_shift_workspace_wrappers_pass_the_bounded_height_to_both_planner_entry_points(): void
     {
         $workspace = file_get_contents(resource_path('views/livewire/operations/page-workspace.blade.php'));
@@ -120,7 +151,55 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringContainsString('white-space: nowrap', $status);
         $this->assertStringNotContainsString('display: none', $status);
         $this->assertStringContainsString('min-height: 48px', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-name'));
-        $this->assertStringContainsString('min-height: max(48px, calc(var(--timeline-lanes, 1) * 32px + 12px))', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-track'));
+        $this->assertStringContainsString('min-height: max(48px, calc(var(--timeline-lanes, 1) * var(--timeline-lane-height) + var(--timeline-lane-padding)))', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-track'));
+    }
+
+    public function test_two_compact_lanes_fit_48px_without_shrinking_the_time_text_or_hiding_additional_duties(): void
+    {
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        preg_match('/\.rt-personnel-timeline-track\s*\{([^}]+)\}/', $css, $normal);
+        preg_match('/\.rt-personnel-timeline-track\[data-timeline-density=\'compact\'\]\s*\{([^}]+)\}/', $css, $compact);
+        $values = function (string $declarations): array {
+            preg_match_all('/--timeline-(lane-height|lane-padding|badge-height|mark-top):\s*(\d+)px/', $declarations, $matches, PREG_SET_ORDER);
+
+            return array_column(array_map(fn ($match) => [$match[1], (int) $match[2]], $matches), 1, 0);
+        };
+        $normal = $values($normal[1]);
+        $compact = $values($compact[1]);
+        $this->assertSame(['lane-height' => 32, 'lane-padding' => 12, 'badge-height' => 28, 'mark-top' => 27], $normal);
+        $this->assertSame(['lane-height' => 22, 'lane-padding' => 4, 'badge-height' => 18, 'mark-top' => 17], $compact);
+        foreach ([1 => 48, 2 => 48, 3 => 70, 4 => 92] as $lanes => $expectedHeight) {
+            $layout = $lanes > 1 ? $compact : $normal;
+            $rowHeight = max(48, $lanes * $layout['lane-height'] + $layout['lane-padding']);
+            $this->assertSame($expectedHeight, $rowHeight);
+            $previousEnd = 0;
+            for ($lane = 0; $lane < $lanes; $lane++) {
+                $eventTop = ($rowHeight - $lanes * $layout['lane-height']) / 2 + $lane * $layout['lane-height'];
+                $this->assertGreaterThanOrEqual($previousEnd, $eventTop, 'Adjacent duty hit areas must not overlap');
+                $this->assertLessThanOrEqual($rowHeight, $eventTop + $layout['lane-height']);
+                $this->assertLessThanOrEqual($layout['lane-height'], 2 + $layout['badge-height']);
+                $previousEnd = $eventTop + $layout['lane-height'];
+            }
+        }
+        preg_match('/\.rt-personnel-timeline-event\s*\{([^}]+)\}/', $css, $eventRule);
+        $event = preg_replace('/\s+/', ' ', $eventRule[1]);
+        $this->assertStringContainsString('top: calc((100% - var(--timeline-lanes, 1) * var(--timeline-lane-height)) / 2', $event);
+        $this->assertStringContainsString('height: var(--timeline-lane-height)', $event);
+        $this->assertStringNotContainsString('overflow: hidden', $event);
+        preg_match('/\.rt-personnel-timeline-bar\s*\{([^}]+)\}/', $css, $bar);
+        $this->assertStringContainsString('height: 100%', $bar[1]);
+        preg_match('/\.rt-personnel-timeline-time\s*\{([^}]+)\}/', $css, $badgeRule);
+        $badge = preg_replace('/\s+/', ' ', $badgeRule[1]);
+        foreach (['height: var(--timeline-badge-height)', 'font-size: 11px', 'line-height: 16px', 'padding: 0 8px'] as $declaration) {
+            $this->assertStringContainsString($declaration, $badge);
+        }
+        preg_match('/\.rt-personnel-timeline-day\s*\{([^}]+)\}/', $css, $dayRule);
+        $day = preg_replace('/\s+/', ' ', $dayRule[1]);
+        $this->assertStringContainsString('min-height: 48px', $day);
+        $this->assertStringNotContainsString('--timeline-lanes', $day, 'The existing grid row, not a per-day lane override, owns the shared height');
+        $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $this->assertStringContainsString('data-timeline-density="{{ $row[\'lane_count\'] > 1 ? \'compact\' : \'normal\' }}"', $view);
+        $this->assertStringNotContainsString('style="--timeline-lanes:{{ max(1, $cell[\'lane_count\']) }}"', $view);
     }
 
     public function test_compact_column_width_is_shared_by_native_scroll_surfaces_and_preserves_mobile_full_widths(): void

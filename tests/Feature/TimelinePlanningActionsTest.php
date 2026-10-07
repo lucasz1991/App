@@ -74,6 +74,7 @@ class TimelinePlanningActionsTest extends TestCase
         ])->assertSee('data-timeline-suggestions-switch', false)
             ->assertSee('role="switch"', false)
             ->assertSee('rt-ui-toggle-control--sm', false)
+            ->assertSee('rt-ui-toggle--label-inside', false)
             ->assertSee('x-bind:disabled="suggestionsLoading"', false)
             ->assertSee('x-bind:checked="suggestionsEnabled"', false)
             ->assertDontSee('$wire.showSuggestions', false)
@@ -82,6 +83,19 @@ class TimelinePlanningActionsTest extends TestCase
             ->assertSee('aria-live="polite"', false)
             ->assertDontSee('rt-timeline-suggestion-legend', false);
         $timeline->assertSee("rtTimelinePlanning('".$timeline->instance()->getId()."')", false);
+        $document = new \DOMDocument;
+        $previousErrors = libxml_use_internal_errors(true);
+        try {
+            $document->loadHTML($timeline->html());
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrors);
+        }
+        $xpath = new \DOMXPath($document);
+        $switch = $xpath->query('//input[@data-timeline-suggestions-switch]')->item(0);
+        $label = $xpath->query('//label[@for="'.$switch->getAttribute('id').'"]')->item(0);
+        $this->assertSame(1, $xpath->query('.//span[@data-toggle-control]/span[@class="rt-ui-toggle__label"]', $label)->length);
+        $this->assertSame(0, $xpath->query('./span[@class="rt-ui-toggle__label"]', $label)->length);
 
         $switchChecked = function () use ($timeline): bool {
             preg_match('/<input\b[^>]*\bdata-timeline-suggestions-switch[^>]*>/s', $timeline->html(), $matches);
@@ -118,6 +132,45 @@ class TimelinePlanningActionsTest extends TestCase
         $this->assertSame($this->ben->id, $assignment->user_id);
         $this->assertSame('requested', $assignment->status->value);
         $this->assertSame(0, $this->shift->fresh()->published_revision);
+    }
+
+    public function test_header_suggestion_slider_has_two_positions_without_changing_the_shared_primitive(): void
+    {
+        $styles = file_get_contents(resource_path('css/timeline-planning-actions.css'));
+        $selector = '.rt-timeline-suggestions-toggle .rt-ui-toggle--label-inside';
+        $rule = function (string $target) use ($styles): string {
+            $this->assertSame(1, preg_match('/'.preg_quote($target, '/').'\s*\{([^}]*)\}/', $styles, $matches));
+
+            return $matches[1];
+        };
+        $control = $rule($selector.' .rt-ui-toggle-control');
+        $track = $rule($selector.' .rt-ui-toggle-control::after');
+        $knob = $rule($selector.' .rt-ui-toggle-control::before');
+        $activeTrack = $rule($selector.' input:checked + .rt-ui-toggle-control::after');
+        $activeKnob = $rule($selector.' input:checked + .rt-ui-toggle-control::before');
+
+        $this->assertStringContainsString('--rt-toggle-knob: 18px', $control);
+        $this->assertStringContainsString('--rt-toggle-travel: 16px', $control);
+        $this->assertStringNotContainsString('--rt-toggle-travel: 0', $control);
+        $this->assertStringContainsString('height: 44px', $control);
+        $this->assertStringContainsString('padding: 0 12px 0 58px', $control);
+        foreach ([$track, $activeTrack] as $state) {
+            $this->assertStringContainsString('width: 38px', $state);
+            $this->assertStringContainsString('height: 22px', $state);
+            $this->assertStringContainsString('transform: translateY(-50%)', $state);
+            $this->assertStringContainsString('border: 0', $state);
+        }
+        $this->assertStringContainsString('var(--rt-shell-muted, #637188)', $track);
+        $this->assertStringContainsString('var(--rt-shell-accent, #e4002b)', $activeTrack);
+        $this->assertStringContainsString('z-index: 2', $knob);
+        $this->assertStringContainsString('background: var(--rt-surface, #fff)', $activeKnob);
+        $this->assertStringContainsString('transform 180ms', $knob);
+        $this->assertMatchesRegularExpression('/@media \(prefers-reduced-motion: reduce\)\s*\{\s*'.preg_quote($selector, '/').' \.rt-ui-toggle-control::before,\s*'.preg_quote($selector, '/').' \.rt-ui-toggle-control::after\s*\{\s*transition: none;\s*\}/', $styles);
+
+        $sharedStyles = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString('transform: translate(var(--rt-toggle-travel), -50%)', $sharedStyles);
+        $this->assertStringContainsString('--rt-toggle-travel: 1.25rem', $sharedStyles);
+        $this->assertStringNotContainsString('rt-timeline-suggestions-toggle', $sharedStyles);
     }
 
     public function test_blocked_person_sees_reason_without_selection_or_ghost(): void

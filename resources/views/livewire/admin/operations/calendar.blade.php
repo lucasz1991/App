@@ -1,4 +1,7 @@
-<div class="rt-calendar rt-disposition rt-disposition--calendar space-y-4" data-operations-calendar data-calendar-view="{{ $viewMode }}" data-calendar-week="{{ $weekStartDate->toDateString() }}">
+<div class="rt-calendar rt-disposition rt-disposition--calendar space-y-4" data-operations-calendar data-calendar-view="{{ $viewMode }}" data-calendar-week="{{ $weekStartDate->toDateString() }}" x-data="{}">
+    <template x-teleport="[data-topbar-page-search]" wire:key="calendar-topbar-search-{{ $this->getId() }}">
+        <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Ort" aria-label="Kalenderschichten suchen" />
+    </template>
     <header class="rt-calendar-header">
         <div class="rt-calendar-heading">
             <div class="min-w-0">
@@ -36,8 +39,7 @@
         </div>
     </header>
     <x-operations.feedback />
-    <x-tables.toolbar id="calendar-filters" class="rt-disposition-toolbar" title="Kalenderfilter" :search-in-header="true" reset-action="resetFilters" :filter-count="(int) ($customerFilter !== 'all') + (int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'active') + (int) $onlyOpen + (int) filled($search)">
-        <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Schicht, Kunde oder Ort" /></x-slot:search>
+    <x-tables.toolbar id="calendar-filters" class="rt-disposition-toolbar" title="Kalenderfilter" reset-action="resetFilters" :filter-count="(int) ($customerFilter !== 'all') + (int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'active') + (int) $onlyOpen + (int) filled($search)">
         <x-tables.filter-field label="Kunde" for="calendar-customer">
             <x-ui.forms.select id="calendar-customer" wire:model.live="customerFilter" aria-label="Kalenderkunde"><option value="all">Alle Kunden</option>@foreach($customers as $customer)<option value="{{ $customer->id }}">{{ $customer->company_name }}</option>@endforeach</x-ui.forms.select>
         </x-tables.filter-field>

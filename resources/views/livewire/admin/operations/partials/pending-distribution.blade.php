@@ -3,8 +3,7 @@
 @endphp
 <div class="rt-shift-distribution" data-pending-distribution x-data="{ distributionTab: @js($pendingShifts->total() > 0 || $unplannedOrders->total() === 0 ? 'shifts' : 'orders') }">
     <header class="rt-shift-distribution__header">
-        <span class="rt-shift-distribution__eyebrow">Offene Planung</span>
-        <h2>Noch zu verteilen</h2>
+        <div class="rt-shift-distribution__heading"><h2>Noch zu verteilen</h2><x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-distribution__close" x-on:click="close(true)" aria-label="Offene Planung schließen"><i class="far fa-xmark" aria-hidden="true"></i></x-ui.buttons.button-basic></div>
         <p><i class="far fa-calendar-alt" aria-hidden="true"></i>{{ \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') }} – {{ \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') }}</p>
     </header>
     <x-operations.panel.tabs class="rt-shift-distribution__tabs" label="Offene Planung nach Art" :id-prefix="$distributionTabsId" model="distributionTab"
@@ -15,7 +14,7 @@
             @if($items->total() === 0)
                 <p class="rt-shift-distribution__empty" role="status"><i class="far fa-check-circle" aria-hidden="true"></i>{{ $kind === 'shifts' ? 'Alle Schichten in diesem Zeitraum sind besetzt.' : 'Alle Leistungen in diesem Zeitraum sind geplant.' }}</p>
             @else
-                    <h3>{{ $kind === 'shifts' ? 'Besetzung vervollständigen' : 'Schichtplanung beginnen' }}</h3>
+                    <h3><span>{{ $kind === 'shifts' ? 'Besetzung vervollständigen' : 'Schichtplanung beginnen' }}</span><span data-distribution-range>{{ $items->firstItem() }}–{{ $items->lastItem() }} / {{ $items->total() }}</span></h3>
                     <div wire:loading.flex wire:target="previousPage,nextPage" class="rt-shift-distribution__loading" role="status"><i class="far fa-spinner-third fa-spin" aria-hidden="true"></i>Weitere Einträge werden geladen …</div>
                     <div wire:loading.class="opacity-50" wire:target="previousPage,nextPage">
                     @foreach($items as $item)
@@ -26,9 +25,10 @@
                                 wire:click="prepareOrderShift({{ $item->id }})" x-on:click="close()"
                             @endif
                             aria-label="{{ $kind === 'shifts' ? 'Besetzung öffnen: ' : 'Schicht planen für: ' }}{{ $item->title }}">
+                            <span class="rt-shift-distribution__item-icon" aria-hidden="true"><i class="far {{ $kind === 'shifts' ? 'fa-clock' : 'fa-briefcase' }}"></i></span>
                             <span class="rt-shift-distribution__text">
                                 <strong>{{ $item->title }}</strong>
-                                <span>{{ $kind === 'shifts' ? $item->order?->customer?->company_name : $item->customer?->company_name }}</span>
+                                <span>{{ collect([$kind === 'shifts' ? $item->order?->customer?->company_name : $item->customer?->company_name, $item->location_name])->filter()->implode(' · ') }}</span>
                                 <span class="rt-shift-distribution__time"><i class="far fa-clock" aria-hidden="true"></i>{{ $item->starts_at->copy()->setTimezone($displayTimezone)->format('d.m. H:i') }} – {{ $item->ends_at->copy()->setTimezone($displayTimezone)->format('d.m. H:i') }}</span>
                             </span>
                             <span class="rt-shift-distribution__action"><span>{{ $kind === 'shifts' ? max(0, $item->required_staff - $item->reserved_count).' frei' : 'Planen' }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></span>
@@ -46,7 +46,7 @@
         </section>
     @endforeach
     <footer class="rt-shift-distribution__footer">
-        <p class="rt-shift-distribution__note">Gewählter Zeitraum · unabhängig von Listenfiltern. Angefragte und bestätigte Mitarbeiter zählen als eingeplant.</p>
+        <details class="rt-shift-distribution__basis" data-rt-dropdown-keep-open><summary>Planungsgrundlage<i class="far fa-chevron-down" aria-hidden="true"></i></summary><p class="rt-shift-distribution__note">Gewählter Zeitraum · unabhängig von Listenfiltern. Angefragte und bestätigte Mitarbeiter zählen als eingeplant.</p></details>
         @can('operations.inquiries.manage')
             <a class="rt-shift-distribution__inquiries" href="{{ \App\Support\Operations\OperationsPages::moduleUrl('inquiries') }}" wire:navigate><i class="far fa-inbox" aria-hidden="true"></i>Anfragen öffnen<i class="far fa-arrow-right" aria-hidden="true"></i></a>
         @endcan

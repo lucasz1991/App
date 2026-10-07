@@ -2,8 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\Admin\Operations\Calendar;
+use App\Livewire\Admin\Operations\ShiftManagement;
 use App\Livewire\Operations\CaseWorkspace;
+use App\Livewire\Operations\StaffTimeline;
 use App\Models\Customer;
+use App\Models\Order;
+use App\Models\Shift;
 use App\Models\User;
 use App\Services\Operations\CommercialOfferService;
 use App\Support\Operations\ApplicationNavigation;
@@ -34,13 +39,13 @@ class PlanningTopbarNavigationTest extends TestCase
         $this->customer = Customer::create(['company_name' => 'Synthetic Navigation Customer', 'is_active' => true]);
     }
 
-    public function test_case_navigation_has_one_shared_three_way_toggle_inside_the_topbar_teleport_even_with_offers_enabled(): void
+    public function test_case_navigation_has_one_shared_four_way_toggle_inside_the_topbar_teleport_even_with_offers_enabled(): void
     {
         $this->assertTrue(CommercialOfferService::ready());
         $this->assertArrayHasKey('offers', CaseWorkspace::availableViews($this->admin));
-        $expected = ['inbox' => 'Eingang', 'orders' => 'Aufträge', 'shifts' => 'Schichtplan'];
-        foreach (['inbox', 'orders', 'shifts', 'offers'] as $view) {
-            $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => $view]);
+        $expected = ['inbox' => 'Eingang', 'orders' => 'Aufträge', 'shifts' => 'Schichtplan', 'calendar' => 'Kalender'];
+        foreach ([['inbox', 'overview'], ['orders', 'overview'], ['shifts', 'plan'], ['shifts', 'calendar'], ['offers', 'overview']] as [$view, $section]) {
+            $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => $view, 'initialSection' => $section]);
             $xpath = $this->xpath($component->html());
             $teleports = $xpath->query('//template[@*[name()="x-teleport"]="[data-topbar-planning-navigation]"]');
             $this->assertSame(1, $teleports->length);
@@ -54,17 +59,20 @@ class PlanningTopbarNavigationTest extends TestCase
             $this->assertSame('group', $group->getAttribute('role'));
             $this->assertSame('Vorgangsansicht', $group->getAttribute('aria-label'));
             $this->assertTrue($group->hasAttribute('data-multi-toggle'));
-            $this->assertSame('setView', $group->getAttribute('wire:target'));
+            $this->assertSame('setPlanningView', $group->getAttribute('wire:target'));
             $buttons = $xpath->query('.//button[@data-multi-toggle-option]', $group);
-            $this->assertSame(3, $buttons->length);
+            $this->assertSame(4, $buttons->length);
             foreach ($buttons as $index => $button) {
                 $value = array_keys($expected)[$index];
                 $this->assertSame($value, $button->getAttribute('data-toggle-value'));
                 $this->assertSame($expected[$value], $button->getAttribute('aria-label'));
-                $this->assertSame("setView('".$value."')", $button->getAttribute('wire:click'));
-                $this->assertSame($value === $view ? 'true' : 'false', $button->getAttribute('aria-pressed'));
-                $this->assertSame('setView', $button->getAttribute('wire:target'));
+                $this->assertSame("setPlanningView('".$value."')", $button->getAttribute('wire:click'));
+                $selected = $view === 'shifts' && $section === 'calendar' ? 'calendar' : $view;
+                $this->assertSame($value === $selected ? 'true' : 'false', $button->getAttribute('aria-pressed'));
+                $this->assertSame('setPlanningView', $button->getAttribute('wire:target'));
             }
+            $this->assertSame($view === 'offers' ? 0 : 1, $xpath->query('.//button[@data-multi-toggle-option and @aria-pressed="true"]', $group)->length);
+            $this->assertSame(0, $xpath->query('//*[@id="case-shift-section"]')->length);
             $this->assertSame(0, $xpath->query('//*[@id="case-workspace-view" and not(ancestor::template[@*[name()="x-teleport"]="[data-topbar-planning-navigation]"])]')->length);
             $this->assertSame(1, $xpath->query('//*[@data-case-workspace and @*[name()="x-data"]]')->length);
             $this->assertSame(1, $xpath->query('//*[@data-case-workspace]/header/button[@*[name()="wire:click"]="setView(\'offers\')"]')->length);
@@ -79,18 +87,21 @@ class PlanningTopbarNavigationTest extends TestCase
             foreach (['operations.manage', 'operations.inquiries.manage', 'operations.costs.manage', 'customers.portal.manage'] as $ability) {
                 Gate::define($ability, fn (User $user): bool => $user->is($actor) && in_array($ability, $abilities, true));
             }
-            $planning = OperationsPages::planningViews($actor);
-            $expected = in_array('operations.manage', $abilities, true) ? ['orders', 'shifts'] : ['inbox'];
+            $planning = OperationsPages::planningShortcuts($actor);
+            $expected = in_array('operations.manage', $abilities, true) ? ['orders', 'shifts', 'calendar'] : ['inbox'];
             $this->assertSame($expected, array_keys($planning));
             $component = Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => $expected[0]])->assertSuccessful();
             $xpath = $this->xpath($component->html());
             $buttons = $xpath->query('//*[@id="case-workspace-view"]//button[@data-multi-toggle-option]');
             $this->assertSame($expected, array_map(fn (\DOMElement $button): string => $button->getAttribute('data-toggle-value'), iterator_to_array($buttons)));
-            $sidebar = collect(ApplicationNavigation::sections($actor)['Disposition'] ?? [])->where('group', 'Planung')->reject(fn (array $item): bool => ($item['parameters']['section'] ?? '') === 'calendar');
-            $this->assertSame($expected, $sidebar->pluck('parameters.view')->values()->all());
+            $sidebar = collect(ApplicationNavigation::sections($actor)['Disposition'] ?? [])->where('group', 'Planung');
+            $this->assertSame($expected, $sidebar->map(fn (array $item): string => ($item['parameters']['section'] ?? '') === 'calendar' ? 'calendar' : $item['parameters']['view'])->values()->all());
             $this->assertSame(array_column($planning, 'label'), $sidebar->pluck('title')->values()->all());
             $forbidden = $expected === ['inbox'] ? 'orders' : 'inbox';
-            $component->call('setView', $forbidden)->assertForbidden();
+            $component->call('setPlanningView', $forbidden)->assertForbidden();
+            if ($expected === ['inbox']) {
+                Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => 'inbox'])->call('setPlanningView', 'calendar')->assertForbidden();
+            }
         }
     }
 
@@ -99,17 +110,21 @@ class PlanningTopbarNavigationTest extends TestCase
         $context = ['customer' => $this->customer->id, 'search' => 'Nord', 'status' => 'confirmed'];
         $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'orders', 'context' => $context]);
         $xpath = $this->xpath($component->html());
-        foreach (['orders', 'inbox', 'shifts'] as $target) {
+        foreach (['orders', 'inbox', 'shifts', 'calendar'] as $target) {
             $button = $xpath->query('//*[@id="case-workspace-view"]//button[@data-toggle-value="'.$target.'"]')->item(0);
-            $this->assertSame("setView('".$target."')", $button->getAttribute('wire:click'));
-            $parameters = ['view' => $target, 'customer' => $this->customer->id];
-            if ($target !== 'shifts') {
+            $this->assertSame("setPlanningView('".$target."')", $button->getAttribute('wire:click'));
+            $parameters = ['view' => $target === 'calendar' ? 'shifts' : $target];
+            if (in_array($target, ['shifts', 'calendar'], true)) {
+                $parameters['section'] = $target === 'calendar' ? 'calendar' : 'plan';
+            }
+            $parameters['customer'] = $this->customer->id;
+            if (! in_array($target, ['shifts', 'calendar'], true)) {
                 $parameters['search'] = 'Nord';
             }
             if ($target === 'orders') {
                 $parameters['status'] = 'confirmed';
             }
-            $component->call('setView', $target)->assertRedirect(OperationsPages::url('cases', $parameters));
+            $component->call('setPlanningView', $target)->assertRedirect(OperationsPages::url('cases', $parameters));
         }
         $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('shifts', 0);
@@ -128,8 +143,86 @@ class PlanningTopbarNavigationTest extends TestCase
         $this->assertSame('button', $previous->nodeName);
         $css = file_get_contents(resource_path('css/shell-redesign.css'));
         $this->assertStringContainsString('.rt-shell-planning-navigation:empty { display: none; }', $css);
-        $this->assertMatchesRegularExpression('/\.rt-shell-planning-navigation \.rt-multi-toggle \.rt-multi-toggle__button\.rt-ui-button\s*\{[^}]*min-width:\s*40px;[^}]*min-height:\s*40px;/s', $css);
+        $this->assertMatchesRegularExpression('/\.rt-shell-planning-navigation \.rt-multi-toggle \.rt-multi-toggle__button\.rt-ui-button\s*\{[^}]*min-width:\s*32px;[^}]*min-height:\s*40px;/s', $css);
         $this->assertStringContainsString('.rt-shell-topbar:has([data-topbar-planning-navigation] > *) .rt-shell-brand-mark', $css);
+    }
+
+    public function test_shift_and_calendar_shortcuts_preserve_the_current_customer_and_period_context(): void
+    {
+        $context = ['customer' => $this->customer->id, 'from' => '2027-05-10', 'until' => '2027-05-16'];
+        foreach (['plan', 'calendar'] as $section) {
+            $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts', 'initialSection' => $section, 'context' => $context]);
+            foreach (['shifts' => 'plan', 'calendar' => 'calendar'] as $target => $destination) {
+                $component->call('setPlanningView', $target)->assertRedirect(OperationsPages::url('cases', ['view' => 'shifts', 'section' => $destination] + $context));
+            }
+            $component->call('setPlanningView', 'unrelated')->assertForbidden();
+        }
+        $this->assertDatabaseCount('shifts', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_active_shift_search_is_teleported_to_one_shared_topbar_slot_and_bound_to_its_actual_owner(): void
+    {
+        $ada = User::factory()->create(['name' => 'Ada Arbor', 'role' => 'staff', 'status' => true]);
+        $ben = User::factory()->create(['name' => 'Ben Birch', 'role' => 'staff', 'status' => true]);
+        $timeline = Livewire::actingAs($this->admin)->test(StaffTimeline::class, ['from' => '2027-05-10', 'until' => '2027-05-16', 'searchInHeader' => true]);
+        $xpath = $this->xpath($timeline->html());
+        $templates = $xpath->query('//template[@*[name()="x-teleport"]="[data-topbar-page-search]"]');
+        $this->assertSame(1, $templates->length);
+        $search = $xpath->query('.//*[@data-rt-search]', $templates->item(0))->item(0);
+        $this->assertNotNull($search);
+        $this->assertStringContainsString("window.Livewire.find('".$timeline->instance()->getId()."').entangle('search').live", $search->getAttribute('x-data'));
+        $this->assertStringContainsString('isPageTopbarSearch: true', $search->getAttribute('x-data'));
+        $input = $xpath->query('.//input[@type="search"]', $search)->item(0);
+        $this->assertSame('search', $input->getAttribute('wire:model.live.debounce.300ms'));
+        $this->assertSame('Mitarbeiter suchen', $input->getAttribute('aria-label'));
+        $this->assertSame(1, $xpath->query('//input[@type="search"]')->length);
+        $timeline->assertSee('staff-person-'.$ada->id, false)->assertSee('staff-person-'.$ben->id, false);
+        $timeline->set('search', 'Ada')->assertSet('search', 'Ada')->assertSee('staff-person-'.$ada->id, false)->assertDontSee('staff-person-'.$ben->id, false);
+        $timeline->set('search', 'Synthetic absent person')->assertSet('search', 'Synthetic absent person')->assertDontSee('staff-person-');
+        $timeline->set('search', '')->assertSee('staff-person-'.$ada->id, false)->assertSee('staff-person-'.$ben->id, false);
+
+        $list = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('setView', 'table');
+        $xpath = $this->xpath($list->html());
+        $templates = $xpath->query('//template[@*[name()="x-teleport"]="[data-topbar-page-search]"]');
+        $this->assertSame(1, $templates->length);
+        $search = $xpath->query('.//*[@data-rt-search]', $templates->item(0))->item(0);
+        $this->assertStringContainsString("window.Livewire.find('".$list->instance()->getId()."').entangle('search').live", $search->getAttribute('x-data'));
+        $this->assertSame(0, $xpath->query('//*[@data-shift-plan-timeline-search or @data-page-list-search]')->length);
+
+        $topbar = file_get_contents(resource_path('views/layouts/topbar.blade.php'));
+        $this->assertSame(1, substr_count($topbar, 'data-topbar-page-search'));
+        $this->assertStringContainsString('<div data-topbar-global-search><livewire:tools.global-search /></div>', $topbar);
+        $css = file_get_contents(resource_path('css/shell-redesign.css'));
+        $this->assertStringContainsString('[data-topbar-page-search]:empty { display: none; }', $css);
+        $this->assertStringContainsString('.rt-shell-topbar-controls:has([data-topbar-page-search] > *) [data-topbar-global-search] { display: none; }', $css);
+        Http::assertNothingSent();
+    }
+
+    public function test_calendar_search_uses_the_same_topbar_owner_in_all_views_and_preserves_native_filtering_and_reset(): void
+    {
+        config(['operations.display_timezone' => 'Europe/Berlin']);
+        $order = Order::create(['customer_id' => $this->customer->id, 'title' => 'Synthetic Search Order', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-10T06:00', 'ends_at' => '2027-05-16T20:00', 'required_staff' => 1, 'created_by' => $this->admin->id]);
+        $east = Shift::create(['order_id' => $order->id, 'title' => 'Synthetic East', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-12T08:00', 'ends_at' => '2027-05-12T12:00', 'required_staff' => 1, 'status' => 'draft', 'created_by' => $this->admin->id]);
+        $west = Shift::create(['order_id' => $order->id, 'title' => 'Synthetic West', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-12T14:00', 'ends_at' => '2027-05-12T18:00', 'required_staff' => 1, 'status' => 'draft', 'created_by' => $this->admin->id]);
+        $calendar = Livewire::actingAs($this->admin)->test(Calendar::class)->set('anchorDate', '2027-05-12');
+        foreach (['day', 'week', 'month', 'list'] as $view) {
+            $calendar->call('switchView', $view);
+            $xpath = $this->xpath($calendar->html());
+            $templates = $xpath->query('//template[@*[name()="x-teleport"]="[data-topbar-page-search]"]');
+            $this->assertSame(1, $templates->length);
+            $this->assertSame('calendar-topbar-search-'.$calendar->instance()->getId(), $templates->item(0)->getAttribute('wire:key'));
+            $search = $xpath->query('.//*[@data-rt-search]', $templates->item(0))->item(0);
+            $this->assertStringContainsString("window.Livewire.find('".$calendar->instance()->getId()."').entangle('search').live", $search->getAttribute('x-data'));
+            $this->assertStringContainsString('isPageTopbarSearch: true', $search->getAttribute('x-data'));
+            $this->assertSame(1, $xpath->query('//input[@type="search"]')->length);
+            $this->assertSame(0, $xpath->query('//template[@*[name()="x-teleport"]="[data-page-header-search]"]')->length);
+            $calendar->set('search', 'Synthetic East')->assertViewHas('shifts', fn ($shifts) => $shifts->pluck('id')->all() === [$east->id]);
+            $calendar->set('search', 'Unmatched search')->assertViewHas('shifts', fn ($shifts) => $shifts->isEmpty());
+            $calendar->call('resetFilters')->assertSet('search', '')->assertViewHas('shifts', fn ($shifts) => $shifts->pluck('id')->all() === [$east->id, $west->id]);
+        }
+        $this->assertDatabaseCount('shifts', 2);
+        Http::assertNothingSent();
     }
 
     private function xpath(string $html): \DOMXPath

@@ -13,7 +13,8 @@
     $hasResultsSignal = $resultsCount !== null;
     $noResults = $hasResultsSignal && (int) $resultsCount === 0;
     $ph = $placeholder ?? __('app.search');
-    $isPageSearch = $context === 'page';
+    $isPageTopbarSearch = $context === 'page-topbar';
+    $isPageSearch = $context === 'page' || $isPageTopbarSearch;
     $searchContext = $isPageSearch ? 'topbar' : (in_array($context, ['table', 'topbar'], true) ? $context : 'table');
     $isTopbarSearch = $searchContext === 'topbar';
     $searchAttributes = $inputAttributes instanceof \Illuminate\View\ComponentAttributeBag
@@ -27,6 +28,7 @@
         value: @entangle($searchAttributes->wire('model')),
         isTopbar: @js($isTopbarSearch),
         isPageSearch: @js($isPageSearch),
+        isPageTopbarSearch: @js($isPageTopbarSearch),
         layerId: @js($isPageSearch ? 'page-list-search' : ($isTopbarSearch ? 'topbar-search' : null)),
         expanded: false,
         mobile: false,
@@ -77,7 +79,7 @@
             return !this.isTopbar || this.expanded;
         },
         isMobileLayerOpen() {
-            return this.isTopbar && !this.isPageSearch && this.mobile && this.expanded;
+            return this.isTopbar && (!this.isPageSearch || this.isPageTopbarSearch) && this.mobile && this.expanded;
         },
         syncPageScrollLock() {
             if (!this.isTopbar) return;
