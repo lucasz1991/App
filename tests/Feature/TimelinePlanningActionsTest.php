@@ -95,6 +95,8 @@ class TimelinePlanningActionsTest extends TestCase
         $switch = $xpath->query('//input[@data-timeline-suggestions-switch]')->item(0);
         $label = $xpath->query('//label[@for="'.$switch->getAttribute('id').'"]')->item(0);
         $this->assertSame(1, $xpath->query('.//span[@data-toggle-control]/span[@class="rt-ui-toggle__label"]', $label)->length);
+        $this->assertSame(1, $xpath->query('.//svg[@data-timeline-suggestions-icon and @aria-hidden="true"]', $label)->length);
+        $this->assertSame('', trim($label->textContent));
         $this->assertSame(0, $xpath->query('./span[@class="rt-ui-toggle__label"]', $label)->length);
 
         $switchChecked = function () use ($timeline): bool {
@@ -153,7 +155,7 @@ class TimelinePlanningActionsTest extends TestCase
         $this->assertStringContainsString('--rt-toggle-travel: 16px', $control);
         $this->assertStringNotContainsString('--rt-toggle-travel: 0', $control);
         $this->assertStringContainsString('height: 44px', $control);
-        $this->assertStringContainsString('padding: 0 12px 0 58px', $control);
+        $this->assertStringContainsString('padding: 0 6px 0 54px', $control);
         foreach ([$track, $activeTrack] as $state) {
             $this->assertStringContainsString('width: 38px', $state);
             $this->assertStringContainsString('height: 22px', $state);

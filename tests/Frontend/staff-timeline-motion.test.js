@@ -4,7 +4,7 @@ import { parseHTML } from 'linkedom';
 import { staffTimeline } from '../../resources/js/staff-timeline.js';
 
 function withMotion(run, { gsap = true, reduced = false, deferredNativeScroll = false,
-    fullNameWidth = 180, clientWidth = 900 } = {}) {
+    fullNameWidth = 180, clientWidth = 900, compactDefault = false } = {}) {
     const { document, window: domWindow } = parseHTML(`<!doctype html><html><body>
         <div id="timeline">
             <div data-timeline-person-column><button data-timeline-person-toggle>Toggle</button></div>
@@ -81,6 +81,7 @@ function withMotion(run, { gsap = true, reduced = false, deferredNativeScroll = 
         matchMedia,
         getComputedStyle: () => ({ getPropertyValue(name) {
             return ({ '--timeline-name-full-width': `${fullWidth}px`,
+                '--timeline-personnel-default-compact': compactDefault ? '1' : '0',
                 '--timeline-name-compact-width': '52px', '--timeline-name-width': `${currentWidth()}px`,
                 '--timeline-day-min-width': '260px', '--timeline-days': '7' })[name]
                 || root.style.getPropertyValue(name);
@@ -127,6 +128,33 @@ test('initial layout removes an interrupted inline width without playing an entr
         assert.equal(root.style.getPropertyValue('--timeline-name-width') || '', '');
         assert.equal(currentWidth(), 180);
     });
+});
+
+test('tablet default has no entrance motion and explicit expansion reverses from the current shared width', () => {
+    withMotion(({ timeline, root, tweens, currentWidth, advance }) => {
+        root.dataset.personnelAnimating = 'true';
+        root.style.setProperty('--timeline-name-width', '93px');
+        timeline.applyPersonnelMode();
+        assert.equal(currentWidth(), 52);
+        assert.equal(tweens.length, 0);
+        assert.equal(root.hasAttribute('data-personnel-animating'), false);
+        timeline.togglePersonnelColumn();
+        timeline.applyPersonnelMode();
+        const expansion = tweens[0];
+        assert.equal(expansion.from, 52);
+        assert.equal(expansion.options.width, 180);
+        advance(expansion, 110);
+        timeline.togglePersonnelColumn();
+        timeline.applyPersonnelMode();
+        const collapse = tweens[1];
+        assert.equal(expansion.killed, true);
+        assert.equal(collapse.from, 110);
+        assert.equal(collapse.options.width, 52);
+        advance(collapse, 52, true);
+        assert.equal(root.dataset.personnelCompact, 'true');
+        assert.equal(root.style.getPropertyValue('--timeline-name-width') || '', '');
+        assert.equal(root.hasAttribute('data-personnel-animating'), false);
+    }, { compactDefault: true, clientWidth: 794 });
 });
 
 test('collapse interpolates one shared width and rapid expansion starts at its rendered width', () => {

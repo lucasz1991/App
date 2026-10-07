@@ -16,6 +16,8 @@
                     'timeline' => ['Zeitleiste', 'fa-clock'],
                 ];
                 [$currentViewLabel, $currentViewIcon] = $planViews[$viewMode];
+                $rangeLabel = ($rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.Y') : '').' – '.($rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '');
+                $pendingTotal = $pendingShifts->total() + $unplannedOrders->total();
                 $viewDescriptions = [
                     'table' => 'Alle Schichten als sortierbare Liste',
                     'day' => 'Nach Einsatztagen gruppiert',
@@ -27,7 +29,7 @@
             <div class="rt-shift-plan-period-controls">
                 <x-ui.dropdown.anchor-dropdown align="left" width="auto" offset="6" dropdown-id="shift-plan-period-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Planungszeitraum anpassen" dropdown-classes="rt-shift-plan-range-dropdown" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                     <x-slot:trigger>
-                        <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-period-trigger" aria-label="Planungszeitraum auswählen">
+                        <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-period-trigger" aria-label="Planungszeitraum auswählen: {{ $rangeLabel }}" title="{{ $rangeLabel }}">
                             <i class="far fa-calendar-alt" aria-hidden="true"></i>
                             <span><strong class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</strong></span>
                             <i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i>
@@ -42,7 +44,7 @@
                 <x-slot:trigger>
                     <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-view-trigger" aria-label="Ansicht ändern: {{ $currentViewLabel }}" title="Ansicht: {{ $currentViewLabel }}">
                         <i class="far {{ $currentViewIcon }}" aria-hidden="true" data-current-view="{{ $viewMode }}"></i>
-                        <span class="rt-shift-plan-control__label"><small>Ansicht</small><strong>{{ $currentViewLabel }}</strong></span>
+                        <span class="rt-shift-plan-control__label"><strong>{{ $currentViewLabel }}</strong></span>
                         <i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i>
                     </x-ui.buttons.button-basic>
                 </x-slot:trigger>
@@ -59,11 +61,11 @@
             <x-ui.dropdown.anchor-dropdown align="left" width="96" offset="6" dropdown-id="shift-plan-distribution-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Noch zu verteilen" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                 <x-slot:trigger>
                     <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-distribution-trigger" aria-label="Noch zu verteilen: {{ $pendingShifts->total() }} Schichten und {{ $unplannedOrders->total() }} Leistungen" title="Noch zu verteilen im gewählten Zeitraum">
-                        <span class="rt-shift-plan-distribution-label">Offen</span>
                         <span class="rt-shift-plan-distribution-counters" aria-hidden="true">
                             <span class="rt-shift-plan-distribution-count" data-distribution-count="shifts" data-has-pending="{{ $pendingShifts->total() > 0 ? 'true' : 'false' }}"><i class="far fa-clock" aria-hidden="true"></i><strong>{{ $pendingShifts->total() }}</strong></span>
                             <span class="rt-shift-plan-distribution-count" data-distribution-count="orders" data-has-pending="{{ $unplannedOrders->total() > 0 ? 'true' : 'false' }}"><i class="far fa-briefcase" aria-hidden="true"></i><strong>{{ $unplannedOrders->total() }}</strong></span>
                         </span>
+                        <span class="rt-shift-plan-distribution-count rt-shift-plan-distribution-total" data-distribution-count="total" data-has-pending="{{ $pendingTotal > 0 ? 'true' : 'false' }}" aria-hidden="true"><i class="far {{ $pendingShifts->total() > 0 || $pendingTotal === 0 ? 'fa-clock' : 'fa-briefcase' }}" aria-hidden="true"></i><strong>{{ $pendingTotal > 99 ? '99+' : $pendingTotal }}</strong></span>
                         <i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i>
                     </x-ui.buttons.button-basic>
                 </x-slot:trigger>
@@ -77,7 +79,6 @@
         </div>
     </template>
     <template x-teleport="[data-page-header-actions]">
-        @if($nativeOperations || \App\Support\Operations\PlanningSchema::ready())
             <div class="rt-shift-plan-header-action" data-shift-plan-header-actions>
                 <x-ui.dropdown.anchor-dropdown align="right" width="64" offset="6" dropdown-id="shift-plan-actions-{{ $this->getId() }}" layer-group="operations-shift-plan" content-label="Schichtplan-Optionen" content-classes="rt-shift-plan-view-menu p-1.5 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                     <x-slot:trigger>
@@ -85,16 +86,24 @@
                     </x-slot:trigger>
                     <x-slot:content>
                         <p class="rt-shift-plan-menu-heading" role="presentation">Planung organisieren</p>
+                        <button type="button" role="menuitem" class="rt-shift-plan-view-option rt-shift-plan-compact-create" wire:click="createShift" x-on:click="close()"><i class="far fa-plus" aria-hidden="true"></i><span><strong>Neue Schicht</strong></span></button>
                         @if(\App\Support\Operations\PlanningSchema::ready())
                             <button type="button" role="menuitem" class="rt-shift-plan-view-option" x-on:click="$dispatch('open-shift-series-planner'); close()"><i class="far fa-repeat" aria-hidden="true"></i><span><strong>Vorlagen &amp; Serien</strong><small>Wiederkehrende Schichten planen</small></span></button>
                         @endif
                         @if($nativeOperations)
                             <button type="button" role="menuitem" class="rt-shift-plan-view-option" aria-label="AI-Besetzung für den Zeitraum" x-on:click="$dispatch('open-ai-period-planning'); close()"><i class="far fa-sparkles" aria-hidden="true"></i><span><strong>AI-Besetzung</strong><small>Vorschlag für den Zeitraum erstellen</small></span></button>
                         @endif
+                        @php
+                            $planHelp = app(\App\Support\PageHelpCatalog::class)->forRoute(request()->route()?->getName(), 'Schichtplan');
+                            $planHelpPayload = ['title' => $planHelp['title'] ?? 'Schichtplan', 'summary' => $planHelp['summary'] ?? null, 'points' => array_values($planHelp['points'] ?? [])];
+                        @endphp
+                        @if($planHelp)
+                            <button type="button" role="menuitem" class="rt-shift-plan-view-option rt-shift-plan-compact-action" x-on:click="close(); $dispatch('rt-info:open', {{ \Illuminate\Support\Js::from($planHelpPayload) }})"><i class="far fa-info-circle" aria-hidden="true"></i><span><strong>Seitenhilfe</strong></span></button>
+                        @endif
+                        <button type="button" role="menuitem" class="rt-shift-plan-view-option rt-shift-plan-compact-action" x-on:click="close(); window.RTNavigation ? window.RTNavigation.backToPreviousPage(@js(url('/'))) : window.location.assign(@js(url('/')))"><i class="far fa-arrow-left" aria-hidden="true"></i><span><strong>Zurück</strong></span></button>
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>
             </div>
-        @endif
     </template>
     @if($nativeOperations)
         <livewire:operations.ai-planning-helper :from="$rangeFrom" :until="$rangeTo" :key="'ai-planning-period-'.$rangeFrom.'-'.$rangeTo" />

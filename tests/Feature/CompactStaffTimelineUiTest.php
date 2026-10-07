@@ -154,6 +154,32 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringContainsString('min-height: max(48px, calc(var(--timeline-lanes, 1) * var(--timeline-lane-height) + var(--timeline-lane-padding)))', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-track'));
     }
 
+    public function test_tablet_default_and_directional_toggle_cue_do_not_add_another_scroll_owner_or_listener(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $script = file_get_contents(resource_path('js/staff-timeline.js'));
+        $this->assertStringContainsString('--timeline-personnel-default-compact: 0', $css);
+        $this->assertMatchesRegularExpression('/@media \(max-width: 1024px\)\s*\{\s*\.rt-personnel-timeline\s*\{\s*--timeline-personnel-default-compact: 1;/', $css);
+        $this->assertStringContainsString('--timeline-name-width: var(--timeline-name-compact-width)',
+            $this->cssDeclarationsFor($css, '.rt-personnel-timeline:not([data-personnel-compact])'));
+        $this->assertStringContainsString('class="rt-personnel-timeline-person-cue" aria-hidden="true"', $view);
+        $this->assertStringContainsString('focusable="false"', $view);
+        $cue = $this->cssDeclarationsFor($css, '.rt-personnel-timeline-person-cue');
+        $this->assertStringContainsString('pointer-events: none', $cue);
+        $this->assertStringContainsString('transform: rotate(180deg)', $cue);
+        $this->assertStringContainsString('transform: rotate(0)', $cue);
+        $this->assertStringContainsString('transition: none', $cue);
+        $this->assertStringContainsString("target.matches(':focus-visible')", $script);
+        $this->assertStringContainsString('this.refreshPersonnelPreference(style)', $script);
+        $this->assertStringContainsString('this.personnelExplicit = true', $script);
+        $this->assertSame(1, substr_count($script, 'new ResizeObserver('));
+        $this->assertSame(1, substr_count($script, 'new MutationObserver('));
+        $this->assertStringNotContainsString('window.addEventListener(', $script);
+        $this->assertStringNotContainsString('preventDefault(', $script);
+        $this->assertStringNotContainsString('x-on:touchmove.prevent', $view);
+    }
+
     public function test_two_compact_lanes_fit_48px_without_shrinking_the_time_text_or_hiding_additional_duties(): void
     {
         $css = file_get_contents(resource_path('css/operations-planning.css'));

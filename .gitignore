@@ -237,6 +237,7 @@ auth.json
 !/tests/Frontend/work-time-capture.test.js
 !/tests/Feature/TimelinePlanningSuggestionServiceTest.php
 !/tests/Feature/TimelinePlanningActionsTest.php
+!/tests/Feature/ResponsiveShiftPlanControlsTest.php
 !/tests/Feature/PlanningEnhancementsTest.php
 !/tests/Feature/PersonnelEnhancementsTest.php
 !/tests/Feature/OperationsEnhancementsTest.php

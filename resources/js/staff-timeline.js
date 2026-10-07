@@ -125,6 +125,9 @@ export function staffTimeline() {
         mirroredScrollbarLeft: 0,
         lastScrollLeft: 0,
         compactRequested: false,
+        personnelDefaultCompact: null,
+        personnelExplicit: false,
+        personnelPointerType: null,
         personnelHovered: false,
         personnelFocused: false,
         appliedPersonnelCompact: null,
@@ -137,6 +140,18 @@ export function staffTimeline() {
         },
         setCompactRequested(compact) {
             this.compactRequested = Boolean(compact);
+            this.personnelExplicit = false;
+        },
+        refreshPersonnelPreference(style = getComputedStyle(this.$el)) {
+            const compact = (style.getPropertyValue('--timeline-personnel-default-compact') || '').trim() === '1';
+            const previous = this.personnelDefaultCompact;
+            if (previous === compact) return;
+            this.personnelDefaultCompact = compact;
+            // Responsive defaults never replace an explicit button choice.
+            // Preserve an input received before the first Alpine effect too.
+            if (!this.personnelExplicit && (previous !== null || !this.compactRequested)) {
+                this.compactRequested = compact;
+            }
         },
         togglePersonnelColumn() {
             const compact = !this.personnelCompact;
@@ -146,6 +161,7 @@ export function staffTimeline() {
             this.personnelFocused = false;
             if (pendingIntent) this.holdHorizontalIntent(compact ? 1 : -1);
             else this.setCompactRequested(compact);
+            this.personnelExplicit = true;
         },
         ownsPersonnel(target) {
             const visited = new Set();
@@ -161,10 +177,19 @@ export function staffTimeline() {
             return false;
         },
         pointerPersonnel(event) {
-            if (event.pointerType !== 'mouse') return;
+            if (event.pointerType !== 'mouse') {
+                if (event.type === 'pointerover' && this.ownsPersonnel(event.target)) {
+                    this.personnelPointerType = event.pointerType;
+                    this.personnelHovered = false;
+                    this.personnelFocused = false;
+                }
+                return;
+            }
             const target = event.type === 'pointerout' ? event.relatedTarget : event.target;
+            const owns = this.ownsPersonnel(target);
+            if (owns) this.personnelPointerType = 'mouse';
             // The explicit button must remain usable as its own column moves.
-            this.personnelHovered = !target?.closest?.('[data-timeline-person-toggle]') && this.ownsPersonnel(target);
+            this.personnelHovered = !target?.closest?.('[data-timeline-person-toggle]') && owns;
         },
         wheelPersonnel(event) {
             // Intent only: never prevent or replace the browser's native scrolling.
@@ -190,9 +215,13 @@ export function staffTimeline() {
         },
         focusPersonnel(target) {
             // A preview is teleported, but still belongs to its employee trigger.
-            this.personnelFocused = !target?.closest?.('[data-timeline-person-toggle]') && this.ownsPersonnel(target);
+            const owns = !target?.closest?.('[data-timeline-person-toggle]') && this.ownsPersonnel(target);
+            // A tap can focus an avatar without making the phone column jump open.
+            // Keyboard focus remains discoverable even after using touch.
+            this.personnelFocused = owns && (this.personnelPointerType !== 'touch' || target.matches(':focus-visible'));
         },
         applyPersonnelMode() {
+            if (this.personnelDefaultCompact === null) this.refreshPersonnelPreference();
             const compact = this.personnelCompact;
             if (this.appliedPersonnelCompact === compact) return;
             const root = this.$el;
@@ -255,6 +284,7 @@ export function staffTimeline() {
         },
         init() {
             clearStaffTimelineReveals(this.$el);
+            this.refreshPersonnelPreference();
             this.observer = new ResizeObserver(() => this.queueMeasure());
             this.observer.observe(this.$refs.timelineBody);
             this.observer.observe(this.$refs.timelineGrid);
@@ -280,6 +310,7 @@ export function staffTimeline() {
         measure() {
             const body = this.$refs.timelineBody;
             const style = getComputedStyle(this.$el);
+            this.refreshPersonnelPreference(style);
             // The time scale stays identical when only the employee column changes.
             const fullNameWidth = parseFloat(style.getPropertyValue('--timeline-name-full-width'))
                 || parseFloat(style.getPropertyValue('--timeline-name-width'));

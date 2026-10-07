@@ -3,6 +3,7 @@
     --timeline-name-full-width: 180px;
     --timeline-name-compact-width: 52px;
     --timeline-name-width: var(--timeline-name-full-width);
+    --timeline-personnel-default-compact: 0;
     --timeline-day-min-width: 260px;
     --timeline-day-width: var(--timeline-day-min-width);
     --timeline-gutter: 0px;
@@ -52,10 +53,14 @@
 .rt-personnel-timeline-hours { display: flex; width: 100%; justify-content: space-between; padding-inline: 6px; font-size: 10px; font-weight: 500; font-variant-numeric: tabular-nums; opacity: .68; }
 .rt-personnel-timeline-name.rt-personnel-timeline-head { min-height: 50px; border-bottom: 0; background: transparent; font-size: 12px; }
 .rt-personnel-timeline-name.rt-personnel-timeline-person-heading { padding: 3px 4px; }
-.rt-personnel-timeline-person-toggle { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-width: 44px; min-height: 44px; border: 0; border-radius: 8px; padding: 0 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.rt-personnel-timeline-person-toggle { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-width: 44px; min-height: 44px; border: 0; border-radius: 8px; padding: 0 20px 0 8px; background: transparent; color: inherit; font: inherit; cursor: pointer; transition: background-color 160ms cubic-bezier(.22,.68,0,1.05), transform 160ms cubic-bezier(.22,.68,0,1.05); }
 .rt-personnel-timeline-person-toggle > i { flex: 0 0 auto; font-size: 14px; }
 .rt-personnel-timeline-person-toggle:hover { background: color-mix(in srgb, currentColor 7%, transparent); }
 .rt-personnel-timeline-person-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+.rt-personnel-timeline-person-toggle:active { transform: scale(.97); }
+.rt-personnel-timeline-person-cue { position: absolute; inset-inline-end: 4px; top: 15px; width: 14px; height: 14px; opacity: .6; pointer-events: none; transform: rotate(180deg); transition: transform 180ms cubic-bezier(.22,.68,0,1.05), opacity 160ms cubic-bezier(.22,.68,0,1.05); }
+.rt-personnel-timeline-person-cue > svg { display: block; width: 100%; height: 100%; }
+.rt-personnel-timeline-person-toggle:is(:hover, :focus-visible) .rt-personnel-timeline-person-cue { opacity: 1; }
 .rt-personnel-timeline[data-personnel-compact='true'] { --timeline-name-width: var(--timeline-name-compact-width); }
 .rt-personnel-timeline[data-personnel-compact='true'] [data-timeline-person-column] { padding-inline: 4px; }
 .rt-personnel-timeline[data-personnel-compact='true'] .rt-personnel-timeline-person-label,
@@ -63,14 +68,30 @@
 /* The legacy utilities define inline-flex as !important on dropdown roots. */
 .rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-workload-anchor { display: none !important; }
 .rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-person-identity { justify-content: center; gap: 0; width: 44px; max-width: 100%; }
+.rt-personnel-timeline[data-personnel-compact='true'] .rt-personnel-timeline-person-toggle { padding: 0 4px; }
+.rt-personnel-timeline[data-personnel-compact='true'] .rt-personnel-timeline-person-cue { top: auto; bottom: 3px; inset-inline-end: 2px; width: 10px; height: 10px; transform: rotate(0); }
 .rt-personnel-timeline[data-personnel-animating='true'] [data-timeline-person-column] { overflow: clip; }
-.rt-personnel-timeline-person-label { min-width: 0; overflow: hidden; }
+.rt-personnel-timeline-person-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rt-personnel-timeline[data-personnel-animating='true'][data-personnel-compact='false'] .rt-personnel-timeline-person-label,
-.rt-personnel-timeline[data-personnel-animating='true'][data-personnel-compact='false'] .rt-timeline-person-identity > span:last-child { animation: rt-personnel-label-reveal 180ms ease-out both; }
+.rt-personnel-timeline[data-personnel-animating='true'][data-personnel-compact='false'] .rt-timeline-person-identity > span:last-child { animation: rt-personnel-label-reveal 180ms cubic-bezier(.22,.68,0,1.05) both; }
 @keyframes rt-personnel-label-reveal { from { opacity: 0; transform: translateX(-3px); } to { opacity: 1; transform: translateX(0); } }
 @media (prefers-reduced-motion: reduce) {
     .rt-personnel-timeline[data-personnel-animating='true'] .rt-personnel-timeline-person-label,
     .rt-personnel-timeline[data-personnel-animating='true'] .rt-timeline-person-identity > span:last-child { animation: none; }
+    .rt-personnel-timeline-person-toggle, .rt-personnel-timeline-person-cue { transition: none; }
+    .rt-personnel-timeline-person-toggle:active { transform: none; }
+}
+@media (max-width: 1024px) {
+    .rt-personnel-timeline { --timeline-personnel-default-compact: 1; }
+    /* Avoid a full-width name flash before Alpine applies the responsive default. */
+    .rt-personnel-timeline:not([data-personnel-compact]) { --timeline-name-width: var(--timeline-name-compact-width); }
+    .rt-personnel-timeline:not([data-personnel-compact]) [data-timeline-person-column] { padding-inline: 4px; }
+    .rt-personnel-timeline:not([data-personnel-compact]) .rt-personnel-timeline-person-label,
+    .rt-personnel-timeline:not([data-personnel-compact]) .rt-timeline-person-identity > span:last-child { display: none; }
+    .rt-personnel-timeline:not([data-personnel-compact]) .rt-timeline-workload-anchor { display: none !important; }
+    .rt-personnel-timeline:not([data-personnel-compact]) .rt-timeline-person-identity { justify-content: center; gap: 0; width: 44px; max-width: 100%; }
+    .rt-personnel-timeline:not([data-personnel-compact]) .rt-personnel-timeline-person-toggle { padding: 0 4px; }
+    .rt-personnel-timeline:not([data-personnel-compact]) .rt-personnel-timeline-person-cue { top: auto; bottom: 3px; inset-inline-end: 2px; width: 10px; height: 10px; transform: rotate(0); }
 }
 /* Retain inactive employees' existing row height, including their status line. */
 .rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-person-status { visibility: hidden; white-space: nowrap; }

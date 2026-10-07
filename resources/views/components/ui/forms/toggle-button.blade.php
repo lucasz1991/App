@@ -46,7 +46,9 @@
         @if(! $labelInside) aria-hidden="true" @endif
         class="rt-ui-toggle-control rt-ui-toggle-control--{{ $resolvedSize }}"
     >
-        @if($label && $labelInside)
+        @if($labelInside && $slot->isNotEmpty())
+            <span class="rt-ui-toggle__label">{{ $slot }}</span>
+        @elseif($label && $labelInside)
             <span class="rt-ui-toggle__label">{{ $label }}</span>
         @endif
     </span>

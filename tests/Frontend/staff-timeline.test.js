@@ -331,7 +331,7 @@ function harness() {
     return timeline;
 }
 
-function personnelHarness(run, { fullNameWidth = 180, clientWidth = 900, days = 7, deferredNativeScroll = false } = {}) {
+function personnelHarness(run, { fullNameWidth = 180, clientWidth = 900, days = 7, deferredNativeScroll = false, compactDefault = false } = {}) {
     const { document, window } = parseHTML(`<!doctype html><html><body>
         <div id="timeline">
             <div data-timeline-person-column><button data-timeline-person-toggle>Toggle</button></div>
@@ -394,6 +394,7 @@ function personnelHarness(run, { fullNameWidth = 180, clientWidth = 900, days = 
         Element: window.Element,
         getComputedStyle: () => ({ getPropertyValue(name) {
             return ({ '--timeline-name-full-width': `${fullNameWidth}px`, '--timeline-name-width': `${activeWidth()}px`,
+                '--timeline-personnel-default-compact': compactDefault ? '1' : '0',
                 '--timeline-day-min-width': '260px', '--timeline-days': String(days) })[name] || root.style.getPropertyValue(name);
         } }),
         requestAnimationFrame: (callback) => { frames.set(++nextFrame, callback); return nextFrame; },
@@ -402,7 +403,7 @@ function personnelHarness(run, { fullNameWidth = 180, clientWidth = 900, days = 
     const originals = Object.fromEntries(Object.keys(overrides).map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
     Object.assign(globalThis, overrides);
     try {
-        run({ timeline, root, body, document, frames });
+        run({ timeline, root, body, document, frames, setCompactDefault: (value) => { compactDefault = value; } });
     } finally {
         for (const [name, descriptor] of Object.entries(originals)) {
             if (descriptor) Object.defineProperty(globalThis, name, descriptor);
@@ -410,6 +411,80 @@ function personnelHarness(run, { fullNameWidth = 180, clientWidth = 900, days = 
         }
     }
 }
+
+test('responsive defaults start tablet and phone columns compact without changing the existing day scale', () => {
+    for (const [clientWidth, fullNameWidth] of [[794, 180], [390, 124], [320, 170]]) {
+        personnelHarness(({ timeline, root, body }) => {
+            timeline.applyPersonnelMode();
+            timeline.measure();
+            assert.equal(timeline.personnelCompact, true);
+            assert.equal(root.dataset.personnelCompact, 'true');
+            const expectedDay = timelineDayWidth(clientWidth - fullNameWidth, 260, 7);
+            assert.equal(root.style.getPropertyValue('--timeline-day-width'), `${expectedDay}px`);
+            assert.equal(body.scrollTop, 144);
+            assert.equal(body.scrollWrites, 0, 'the responsive default must not scroll the timeline');
+        }, { clientWidth, fullNameWidth, compactDefault: true });
+    }
+});
+
+test('a breakpoint default follows resizing but an explicit column choice survives until horizontal input', () => {
+    personnelHarness(({ timeline, root, body, setCompactDefault }) => {
+        timeline.applyPersonnelMode();
+        assert.equal(timeline.personnelCompact, false);
+        setCompactDefault(true);
+        timeline.measure();
+        timeline.applyPersonnelMode();
+        assert.equal(root.dataset.personnelCompact, 'true');
+        timeline.togglePersonnelColumn();
+        timeline.applyPersonnelMode();
+        assert.equal(timeline.personnelCompact, false);
+        assert.equal(timeline.personnelExplicit, true);
+        for (const compact of [false, true, false, true]) {
+            setCompactDefault(compact);
+            timeline.measure();
+            timeline.applyPersonnelMode();
+            assert.equal(root.dataset.personnelCompact, 'false', 'viewport changes must not undo a deliberate expansion');
+        }
+        body.scrollLeft = 100;
+        timeline.syncHorizontal(body);
+        assert.equal(timeline.personnelExplicit, false);
+        assert.equal(timeline.personnelCompact, true, 'a real native horizontal input still determines the mode');
+        setCompactDefault(false);
+        timeline.measure();
+        timeline.applyPersonnelMode();
+        assert.equal(root.dataset.personnelCompact, 'false');
+    });
+});
+
+test('touch avatar focus does not open a compact column and keyboard focus still expands after touch', () => {
+    personnelHarness(({ timeline, document }) => {
+        timeline.applyPersonnelMode();
+        const target = document.getElementById('person-button');
+        let keyboardFocus = false;
+        const originalMatches = target.matches.bind(target);
+        target.matches = (selector) => selector === ':focus-visible' ? keyboardFocus : originalMatches(selector);
+        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'touch', target });
+        timeline.focusPersonnel(target);
+        assert.equal(timeline.personnelPointerType, 'touch');
+        assert.equal(timeline.personnelFocused, false);
+        assert.equal(timeline.personnelCompact, true);
+        keyboardFocus = true;
+        timeline.focusPersonnel(target);
+        assert.equal(timeline.personnelFocused, true);
+        assert.equal(timeline.personnelCompact, false);
+        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'touch', target });
+        assert.equal(timeline.personnelFocused, false, 'switching back to touch clears the temporary keyboard expansion');
+        assert.equal(timeline.personnelCompact, true);
+        timeline.focusPersonnel(null);
+        assert.equal(timeline.personnelCompact, true);
+        timeline.togglePersonnelColumn();
+        keyboardFocus = false;
+        timeline.focusPersonnel(target);
+        assert.equal(timeline.personnelCompact, false, 'a deliberate phone expansion stays open during an avatar tap');
+        timeline.togglePersonnelColumn();
+        assert.equal(timeline.personnelCompact, true);
+    }, { compactDefault: true });
+});
 
 test('rightward scrolling compacts staff, leftward scrolling expands and vertical or tiny changes do not toggle', () => {
     const timeline = harness();

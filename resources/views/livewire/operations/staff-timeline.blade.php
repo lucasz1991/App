@@ -2,7 +2,7 @@
     x-data="rtTimelinePlanning(@js($this->getId()))" x-on:operations-plan-changed.window="invalidate()">
 @if($planningEnabled && !$absencesOnly && $searchInHeader)
     <template x-teleport="[data-shift-plan-timeline-suggestions]">
-        <div class="rt-timeline-suggestions-toggle" x-bind:aria-busy="suggestionsLoading" x-bind:data-loading="suggestionsLoading" x-bind:data-error="Boolean(suggestionsError)">
+        <div class="rt-timeline-suggestions-toggle" title="Besetzungsvorschläge anzeigen" x-bind:title="suggestionsError || (suggestionsEnabled ? 'Besetzungsvorschläge ausblenden' : 'Besetzungsvorschläge anzeigen')" x-bind:aria-busy="suggestionsLoading" x-bind:data-loading="suggestionsLoading" x-bind:data-error="Boolean(suggestionsError)">
             <x-ui.forms.toggle-button
                 :id="'timeline-suggestions-'.$this->getId()"
                 size="sm"
@@ -16,11 +16,12 @@
                 aria-describedby="timeline-suggestions-status-{{ $this->getId() }}"
                 x-bind:title="suggestionsError || (suggestionsEnabled ? 'Besetzungsvorschläge ausblenden' : 'Besetzungsvorschläge anzeigen')"
                 data-timeline-suggestions-switch
-            />
+            >
+                <svg data-timeline-suggestions-icon aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M8.5 15.5a6 6 0 1 1 7 0c-.7.5-1 1.1-1 2.5h-5c0-1.4-.3-2-1-2.5Z"/><path d="M9 6.5a3.5 3.5 0 0 1 3-1.5"/></svg>
+            </x-ui.forms.toggle-button>
             <span class="rt-timeline-suggestions-toggle__feedback" x-cloak x-show="suggestionsLoading || suggestionsError" aria-hidden="true">
                 <i x-show="suggestionsLoading" class="far fa-spinner-third"></i>
                 <i x-show="!suggestionsLoading" class="far fa-exclamation-circle"></i>
-                <span x-text="suggestionsLoading ? 'Lädt …' : 'Erneut'"></span>
             </span>
             <span id="timeline-suggestions-status-{{ $this->getId() }}" class="sr-only" role="status" aria-live="polite" x-text="suggestionsLoading ? 'Besetzungsvorschläge werden aktualisiert. Bitte warten.' : (suggestionsError || (suggestionsEnabled ? 'Besetzungsvorschläge eingeblendet.' : 'Besetzungsvorschläge ausgeblendet.'))"></span>
         </div>
@@ -50,6 +51,7 @@
                 x-bind:title="personnelCompact ? 'Mitarbeiterspalte erweitern' : 'Mitarbeiterspalte kompakt anzeigen'"
                 aria-label="Mitarbeiterspalte kompakt anzeigen" aria-expanded="true">
                 <i class="far fa-users" aria-hidden="true"></i><span class="rt-personnel-timeline-person-label">Mitarbeiter</span>
+                <span class="rt-personnel-timeline-person-cue" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" focusable="false"><path d="m6 4 4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
             </button>
         </div>
         <div class="rt-personnel-timeline-header-viewport">
