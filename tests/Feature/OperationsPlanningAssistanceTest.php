@@ -76,6 +76,7 @@ class OperationsPlanningAssistanceTest extends TestCase
         $issues = app(StaffEligibilityService::class)->assessMany($this->shift, collect([$this->employee]))[$this->employee->id];
         $this->assertSame(['absence', 'qualification_'.$this->type->id], array_column($issues, 'code'));
         Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('openDetails', $this->shift->id)
+            ->call('loadStaffingCandidates')
             ->assertSee('Gültiger Nachweis fehlt: Baureihe 185.')
             ->call('chooseCandidate', $this->employee->id)->assertHasErrors('workflow');
         $this->expectException(ValidationException::class);

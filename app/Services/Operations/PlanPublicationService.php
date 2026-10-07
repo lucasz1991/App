@@ -56,7 +56,7 @@ class PlanPublicationService
             app(DutyActivityService::class)->validateSections($record);
             foreach ($record->assignments()->blocking()->orderBy('user_id')->get() as $assignment) {
                 $user = User::lockForUpdate()->findOrFail($assignment->user_id);
-                app(StaffEligibilityService::class)->assertEligible($record, $user);
+                app(ShiftAssignmentExceptionService::class)->assertEligibleForAssignment($record, $user, $assignment);
                 // Published changes require the employee to respond to the new revision.
                 $assignment->forceFill(['status' => ShiftAssignmentStatus::Requested, 'plan_revision' => $revision, 'responded_at' => null])->save();
             }
@@ -78,7 +78,7 @@ class PlanPublicationService
             $this->check($shift->revision === $revision && $shift->published_revision === $revision && $record->plan_revision === $revision && $shift->status->value !== 'cancelled', 'Dienst wurde geändert. Bitte neu laden.');
             $this->check($record->status === ShiftAssignmentStatus::Requested, 'Dieser Dienst wurde bereits beantwortet.');
             if ($accept) {
-                app(StaffEligibilityService::class)->assertEligible($shift, $actor);
+                app(ShiftAssignmentExceptionService::class)->assertEligibleForAssignment($shift, $actor, $record);
             }
             $record->forceFill(['status' => $accept ? ShiftAssignmentStatus::Confirmed : ShiftAssignmentStatus::Declined, 'responded_at' => now()->utc()])->save();
             app(OperationsAuditService::class)->record($record, $actor, $accept ? 'assignment.accepted' : 'assignment.declined', ['plan_revision' => $revision]);

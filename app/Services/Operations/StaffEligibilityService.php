@@ -71,8 +71,21 @@ class StaffEligibilityService
         $lookaround = max($rest, (int) ($shift->disposition_details['transfer_buffer_minutes'] ?? 0), Schema::hasColumn('shifts', 'disposition_details') ? 10080 : 0);
         $conflicts = $query(ShiftAssignment::blocking()->whereIn('user_id', $ids)->whereNotIn('shift_id', $excludes)
             ->whereHas('shift', fn ($q) => $q->notCancelled()->during($start->subMinutes($lookaround), $end->addMinutes($lookaround))))->with('shift')->get()->groupBy('user_id');
+        // One call-local training projection serves overlap and rest checks for
+        // every candidate. Nothing is cached between previews or write guards.
+        $personnelReady = class_exists(PersonnelProcessService::class) && app(PersonnelProcessService::class)->ready();
+        $trainingLookaround = $personnelReady
+            ? max($rest, (int) OperationsRuleProfile::max('minimum_rest_minutes')) : 0;
+        $trainings = $personnelReady
+            ? PersonnelTrainingParticipant::whereIn('user_id', $ids)->whereIn('status', ['confirmed', 'attended'])
+                ->whereNotIn('personnel_training_id', $context['exclude_training_ids'] ?? [])
+                ->whereHas('training', fn ($q) => $q->where('status', 'scheduled')->where('starts_at', '<', $end->addMinutes($trainingLookaround)->utc())->where('ends_at', '>', $start->subMinutes($trainingLookaround)->utc()))
+                ->with('training')->get()->groupBy('user_id')
+            : collect();
         $minutes = $start->diffInMinutes($end);
         $externalRestrictions = app(CompetencyRestrictions::class)->forShift($shift, $users, $lock);
+        $regionalRestrictions = class_exists(StaffRegionalPreferenceService::class)
+            ? app(StaffRegionalPreferenceService::class)->assessMany($shift, $users, $lock) : [];
         foreach ($users as $user) {
             $assessmentContext = $context;
             if (class_exists(CustomerCapacityService::class)) {
@@ -114,9 +127,8 @@ class StaffEligibilityService
             if ($accountsReady) {
                 $issues = array_merge($issues, $accounts->planningIssues($shift, $user, $assessmentContext));
             }
-            if (class_exists(PersonnelProcessService::class)) {
-                $issues = array_merge($issues, app(PersonnelProcessService::class)->planningIssues($shift, $user, $assessmentContext));
-                $issues = array_merge($issues, $this->shiftTrainingRestIssues($shift, $user, $assessmentContext));
+            if ($personnelReady) {
+                $issues = array_merge($issues, $this->shiftTrainingIssues($shift, $user, $profile, $trainings->get($user->id, collect())->pluck('training')));
             }
             if (class_exists(PlanningEnhancementService::class)) {
                 $issues = array_merge($issues, app(PlanningEnhancementService::class)->planningIssues($shift, $user, $assessmentContext));
@@ -127,6 +139,8 @@ class StaffEligibilityService
             if (class_exists(CustomerCapacityService::class)) {
                 $issues = array_merge($issues, app(CustomerCapacityService::class)->planningIssues($shift, $user));
             }
+            $region = $regionalRestrictions[$user->id] ?? [];
+            $check(! ($region['blocked'] ?? false), 'region_no_go', $region['detail'] ?? 'Der Einsatzort liegt in einem hinterlegten No-Go-Gebiet.');
             $outgoingConflict = $otherShifts->contains(fn ($other) => filled($other->location_name) && filled($shift->location_name) && $other->location_name !== $shift->location_name
                 && $other->starts_at->gte($end) && $other->starts_at->lt($end->addMinutes((int) ($other->disposition_details['transfer_buffer_minutes'] ?? 0))));
             $check(! $outgoingConflict, 'transfer_buffer_outgoing', 'Anreise-/Ablösepuffer zum folgenden Dienst reicht nicht aus.');
@@ -158,24 +172,18 @@ class StaffEligibilityService
         return $others->flatMap(fn ($shift) => $this->activityRestIssues($training, $shift, $user, $profile, 'Dienst'))->values()->all();
     }
 
-    private function shiftTrainingRestIssues(Shift $shift, User $user, array $context): array
+    private function shiftTrainingIssues(Shift $shift, User $user, ?OperationsRuleProfile $profile, Collection $trainings): array
     {
-        if (! app(PersonnelProcessService::class)->ready()) {
-            return [];
-        }
-        $profile = $this->rulesAt($user, CarbonImmutable::instance($shift->starts_at));
-        if (! $profile) {
-            return []; // assessMany already marks missing shift rules as blocking.
-        }
         $start = CarbonImmutable::instance($shift->starts_at);
         $end = CarbonImmutable::instance($shift->ends_at);
-        $lookaround = $this->maximumConfiguredRest($profile);
-        $trainings = PersonnelTrainingParticipant::where('user_id', $user->id)->whereIn('status', ['confirmed', 'attended'])
-            ->whereNotIn('personnel_training_id', $context['exclude_training_ids'] ?? [])
-            ->whereHas('training', fn ($q) => $q->where('status', 'scheduled')->where('starts_at', '<', $end->addMinutes($lookaround)->utc())->where('ends_at', '>', $start->subMinutes($lookaround)->utc()))
-            ->with('training')->get()->pluck('training');
+        // Same half-open overlap and issue ordering as PersonnelProcessService.
+        $issues = $trainings->filter(fn ($training) => $training->starts_at->lt($end) && $training->ends_at->gt($start))
+            ->map(fn ($training) => ['code' => 'training_overlap', 'message' => 'Schulung überschneidet sich: '.$training->title.'.'])->values()->all();
+        if (! $profile) {
+            return $issues; // assessMany already marks missing shift rules as blocking.
+        }
 
-        return $trainings->flatMap(fn ($training) => $this->activityRestIssues($shift, $training, $user, $profile, 'Schulung'))->values()->all();
+        return array_merge($issues, $trainings->flatMap(fn ($training) => $this->activityRestIssues($shift, $training, $user, $profile, 'Schulung'))->values()->all());
     }
 
     private function rulesAt(User $user, CarbonImmutable $at): ?OperationsRuleProfile

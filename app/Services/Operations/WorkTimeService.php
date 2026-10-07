@@ -86,7 +86,7 @@ class WorkTimeService
             $this->check($now->gte($shift->starts_at->subMinutes(config('operations.clock_start_early_minutes'))) && $now->lt($shift->ends_at), 'Der Dienst liegt außerhalb des Startzeitraums.');
             $this->check(! WorkTimeEntry::where('user_id', $actor->id)->whereIn('status', ['running', 'paused'])->exists(), 'Es läuft bereits eine Zeiterfassung.');
             $this->check(! WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists(), 'Für diesen Dienst existiert bereits eine Zeiterfassung.');
-            app(StaffEligibilityService::class)->assertEligible($shift, $actor);
+            app(ShiftAssignmentExceptionService::class)->assertEligibleForAssignment($shift, $actor, $assignment);
             $entry = WorkTimeEntry::create([
                 'shift_assignment_id' => $assignment->id, 'user_id' => $actor->id, 'status' => 'running',
                 'timezone' => $shift->timezone, 'starts_at' => $now,

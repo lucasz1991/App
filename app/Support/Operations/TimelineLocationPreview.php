@@ -20,7 +20,7 @@ final class TimelineLocationPreview
      * Only a locality estimate, never an address or a verified worksite position.
      * The caller already loads order; preview rendering must not trigger queries.
      *
-     * @return array{state: string, label: string, place?: string, x?: float, y?: float}
+     * @return array{state: string, label: string, place?: string, x?: float, y?: float, latitude?: float, longitude?: float}
      */
     public static function fromShift(Shift $shift): array
     {
@@ -107,6 +107,8 @@ final class TimelineLocationPreview
             'place' => $place[1],
             'x' => round($x, 2),
             'y' => round($y, 2),
+            'latitude' => (float) $place[2],
+            'longitude' => (float) $place[3],
         ];
     }
 

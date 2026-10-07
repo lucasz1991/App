@@ -23,11 +23,12 @@ class ShiftAssignmentService
         ShiftAssignmentStatus|string $status = ShiftAssignmentStatus::Confirmed,
         ?string $note = null,
         ?int $expectedRevision = null,
+        ?array $exception = null,
     ): ShiftAssignment {
         OperationsAccess::authorize($actor, 'operations.manage');
         $assignmentStatus = $this->normalizeStatus($status);
 
-        return OperationsTransaction::run(function () use ($shift, $assignee, $actor, $assignmentStatus, $note, $expectedRevision): ShiftAssignment {
+        return OperationsTransaction::run(function () use ($shift, $assignee, $actor, $assignmentStatus, $note, $expectedRevision, $exception): ShiftAssignment {
             OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.manage');
             $lockedShift = PlanningLocks::acquire([$shift->id], [$assignee->id])->get($shift->id);
             abort_unless($lockedShift, 404);
@@ -42,11 +43,21 @@ class ShiftAssignmentService
             $this->assertValidSchedule($lockedShift);
             $this->assertAssigneeCanBeScheduled($lockedAssignee);
 
+            $exceptionReview = null;
+            if ($exception !== null && ! $assignmentStatus->blocksAvailability()) {
+                throw ValidationException::withMessages(['workflow' => 'Eine Ausnahme ist nur für eine verbindliche Zuweisung oder Anfrage möglich.']);
+            }
+
             if ($assignmentStatus->blocksAvailability()) {
                 $this->assertShiftCanBeStaffed($lockedShift);
                 $this->assertCapacity($lockedShift, $lockedAssignee);
-                $this->assertNoOverlap($lockedShift, $lockedAssignee);
-                app(StaffEligibilityService::class)->assertEligible($lockedShift, $lockedAssignee);
+                app(StaffRegionalPreferenceService::class)->assertAllowed($lockedShift, $lockedAssignee, true);
+                if ($exception === null) {
+                    $this->assertNoOverlap($lockedShift, $lockedAssignee);
+                    app(StaffEligibilityService::class)->assertEligible($lockedShift, $lockedAssignee);
+                } else {
+                    $exceptionReview = app(ShiftAssignmentExceptionService::class)->confirm($lockedShift, $lockedAssignee, $actor, $exception);
+                }
             }
 
             $assignment = ShiftAssignment::query()
@@ -72,6 +83,12 @@ class ShiftAssignmentService
 
             if (OperationsAccess::ready()) {
                 app(OperationsAuditService::class)->record($assignment, $actor, 'assignment.saved', ['status' => $assignment->status->value, 'plan_revision' => $assignment->plan_revision]);
+                if ($exceptionReview !== null) {
+                    app(OperationsAuditService::class)->record($assignment, $actor, 'assignment.temporal_exception', $exceptionReview + [
+                        'status' => $assignment->status->value, 'plan_revision' => $assignment->plan_revision,
+                        'confirmed_at' => now()->utc()->toIso8601String(),
+                    ]);
+                }
             }
 
             return $assignment->load(['shift.order.customer', 'user', 'assigner']);

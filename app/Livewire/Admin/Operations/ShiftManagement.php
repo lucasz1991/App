@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
 use App\Models\Customer;
+use App\Models\OperationAudit;
 use App\Models\Order;
 use App\Models\QualificationType;
 use App\Models\Shift;
@@ -13,9 +14,12 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\PlanChangeService;
 use App\Services\Operations\PlanPublicationService;
+use App\Services\Operations\ShiftAssignmentExceptionService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\ShiftSchedulingService;
+use App\Services\Operations\ShiftStaffingCandidates;
 use App\Services\Operations\StaffEligibilityService;
+use App\Services\Operations\StaffRegionalPreferenceService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
@@ -33,6 +37,7 @@ use Livewire\WithPagination;
 class ShiftManagement extends Component
 {
     use SupportsOperationsUi;
+    use SupportsShiftStaffing;
     use WithPagination;
 
     public string $attentionFilter = 'all';
@@ -41,7 +46,7 @@ class ShiftManagement extends Component
 
     public function updatedCandidateSearch(): void
     {
-        $this->resetPage('candidatesPage');
+        $this->resetCandidateWindow();
     }
 
     public function chooseCandidate(int $id): void
@@ -49,8 +54,22 @@ class ShiftManagement extends Component
         $this->ensureAdmin();
         $shift = Shift::findOrFail($this->selectedShiftId);
         $user = User::where('status', true)->where('role', 'staff')->findOrFail($id);
-        app(StaffEligibilityService::class)->assertEligible($shift, $user);
-        $this->employeeId = $id;
+        $this->cancelCandidateSelection();
+        try {
+            app(StaffRegionalPreferenceService::class)->assertAllowed($shift, $user);
+            $review = app(ShiftAssignmentExceptionService::class)->review($shift, $user, auth()->user());
+            if (! empty($review['blocking_issues']) || (! empty($review['issues']) && ! $review['can_override'])) {
+                $this->addError('assignment', collect($review['blocking_issues'] ?: $review['issues'])->pluck('message')->implode(' '));
+                $this->addError('workflow', collect($review['blocking_issues'] ?: $review['issues'])->pluck('message')->implode(' '));
+
+                return;
+            }
+            $this->assignmentReview = $review;
+            $this->employeeId = $id;
+        } catch (ValidationException $exception) {
+            $this->addError('assignment', collect($exception->errors())->flatten()->first());
+            $this->addError('workflow', collect($exception->errors())->flatten()->first());
+        }
     }
 
     public string $rangeFrom = '';
@@ -307,6 +326,9 @@ class ShiftManagement extends Component
         $this->selectedShiftId = $shiftId;
         $this->selectedPlanRevision = $selected->revision;
         $this->reset(['candidateSearch', 'employeeId']);
+        $this->cancelCandidateSelection();
+        $this->closeRegionalPreference();
+        $this->reset(['candidatesReady', 'candidateLimit', 'candidateQualification', 'candidatePool', 'candidateSuitability', 'candidateRegion']);
         $this->resetPage('candidatesPage');
         $this->resetValidation('assignment');
     }
@@ -424,7 +446,9 @@ class ShiftManagement extends Component
                 $this->selectedPlanRevision,
             );
             $this->reset(['employeeId', 'assignmentNote']);
+            $this->cancelCandidateSelection();
             $this->resetValidation('assignment');
+            $this->dispatch('operations-plan-changed');
             $this->dispatch('swal:toast', type: 'success', text: 'Mitarbeiter zugewiesen.');
         } catch (ValidationException $exception) {
             $this->addError('assignment', collect($exception->errors())->flatten()->first() ?: $exception->getMessage());
@@ -553,20 +577,24 @@ class ShiftManagement extends Component
             : null;
 
         $summary = $this->staffingSummary($shifts);
-        $candidates = $this->detailOpen && $selectedShift ? User::with(['profile', 'currentTeam'])->where('status', true)->where('role', 'staff')
-            ->when(trim($this->candidateSearch) !== '', fn ($q) => $q->where('name', 'like', '%'.mb_substr(trim($this->candidateSearch), 0, 100).'%'))
-            ->orderBy('name')->orderBy('id')->paginate(8, ['id', 'name', 'email', 'profile_photo_path', 'current_team_id', 'role', 'status'], 'candidatesPage') : null;
-        if ($candidates) {
-            $eligibility = app(StaffEligibilityService::class)->assessMany($selectedShift, $candidates->getCollection());
-            $candidates->getCollection()->each(function ($user) use ($eligibility) {
-                $user->setAttribute('planning_issues', $eligibility[$user->id]);
-            });
+        $rankedCandidates = $native && $this->detailOpen && $this->candidatesReady && $selectedShift
+            ? app(ShiftStaffingCandidates::class)->ranked($selectedShift, [
+                'search' => $this->candidateSearch, 'qualification_id' => $this->candidateQualification,
+                'pool_id' => $this->candidatePool, 'suitability' => $this->candidateSuitability, 'region' => $this->candidateRegion,
+            ]) : collect();
+        $candidates = $rankedCandidates->take($this->candidateLimit)->values();
+        if ($candidates->isNotEmpty()) {
+            (new \Illuminate\Database\Eloquent\Collection($candidates->all()))->load(['profile', 'currentTeam']);
         }
         $assignmentIssues = $native && $this->detailOpen && $selectedShift
             ? app(StaffEligibilityService::class)->assessMany($selectedShift, $selectedShift->assignments->filter(fn ($a) => $a->status->blocksAvailability())->pluck('user')->filter()) : [];
         $openings = $native && $this->detailOpen && $selectedShift ? app(PlanChangeService::class)->openings($selectedShift->assignments, (int) $selectedShift->published_revision) : collect();
-        $feedback = $native && $this->detailOpen && $selectedShift ? $selectedShift->assignments->whereIn('status', [ShiftAssignmentStatus::Requested, ShiftAssignmentStatus::Confirmed, ShiftAssignmentStatus::Declined])->map(function ($assignment) use ($selectedShift, $assignmentIssues, $openings) {
+        $exceptionAudits = $native && $this->detailOpen && $selectedShift ? OperationAudit::with('actor')
+            ->where('subject_type', 'ShiftAssignment')->whereIn('subject_id', $selectedShift->assignments->pluck('id'))
+            ->where('action', 'assignment.temporal_exception')->orderByDesc('id')->get()->groupBy('subject_id')->map->first() : collect();
+        $feedback = $native && $this->detailOpen && $selectedShift ? $selectedShift->assignments->whereIn('status', [ShiftAssignmentStatus::Requested, ShiftAssignmentStatus::Confirmed, ShiftAssignmentStatus::Declined])->map(function ($assignment) use ($selectedShift, $assignmentIssues, $openings, $exceptionAudits) {
             $assignment->setAttribute('planning_issues', $assignmentIssues[$assignment->user_id] ?? []);
+            $assignment->setAttribute('exception_review', $exceptionAudits->get($assignment->id));
             $opened = $assignment->plan_revision > 0 && $assignment->plan_revision === $selectedShift->published_revision ? $openings->get($assignment->id) : null;
             $assignment->setAttribute('plan_opened_at', $opened ? CarbonImmutable::parse($opened->getRawOriginal('created_at'), 'UTC') : null);
 
@@ -599,6 +627,10 @@ class ShiftManagement extends Component
             'displayTimezone' => (string) config('operations.display_timezone', 'Europe/Berlin'),
             'selectedShift' => $selectedShift,
             'candidates' => $candidates,
+            'candidateTotal' => $rankedCandidates->count(),
+            'candidateFilterOptions' => $native && $this->detailOpen && $this->candidatesReady ? app(ShiftStaffingCandidates::class)->filterOptions($selectedShift) : ['qualifications' => [], 'pools' => []],
+            'selectedCandidate' => $this->employeeId ? User::with(['profile', 'currentTeam'])->find($this->employeeId) : null,
+            'regionalEmployee' => $this->regionalEmployeeId ? User::with(['profile', 'currentTeam'])->find($this->regionalEmployeeId) : null,
             'feedback' => $feedback,
             'planChanges' => $native && $this->detailOpen && $selectedShift
                 ? ($selectedShift->revision !== $selectedShift->published_revision ? app(PlanChangeService::class)->changes($selectedShift) : app(PlanChangeService::class)->publishedChanges($selectedShift->id, $selectedShift->published_revision)) : [],
@@ -616,7 +648,7 @@ class ShiftManagement extends Component
                 })
                 ->orderByDesc('starts_at')
                 ->get(),
-            'employees' => User::query()->with(['profile', 'currentTeam'])->where('status', true)->where('role', 'staff')->orderBy('name')->get(),
+            'employees' => $native ? collect() : User::query()->with(['profile', 'currentTeam'])->where('status', true)->where('role', 'staff')->orderBy('name')->get(),
             'statusOptions' => $this->enumOptions(ShiftStatus::class),
             'assignmentStatusOptions' => collect($this->enumOptions(ShiftAssignmentStatus::class))
                 ->whereIn('value', ShiftAssignmentStatus::blockingValues())

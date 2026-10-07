@@ -21,6 +21,12 @@ final class TimelineLocationPreviewTest extends TestCase
         self::assertSame('Ortslage · ungefähr', $preview['label']);
         self::assertIsFloat($preview['x']);
         self::assertIsFloat($preview['y']);
+        self::assertIsFloat($preview['latitude']);
+        self::assertIsFloat($preview['longitude']);
+        self::assertGreaterThan(48, $preview['latitude']);
+        self::assertLessThan(50, $preview['latitude']);
+        self::assertGreaterThan(10, $preview['longitude']);
+        self::assertLessThan(12, $preview['longitude']);
     }
 
     public function test_reviewed_german_city_aliases_resolve_to_the_same_city_centre(): void

@@ -282,8 +282,8 @@ class ShiftDetailDrawerTest extends TestCase
         $staffing = $xpath->query('//*[@data-panel-mode="detail"]//*[@data-panel-section="staffing"]')->item(0);
         $this->assertNotNull($staffing);
         $this->assertStringContainsString('Rückmeldungen', $staffing->textContent);
-        $this->assertStringContainsString('3 Zuweisungen', $staffing->textContent);
-        foreach (['Angefragt', 'Bestätigt', 'Abgelehnt', 'Im Kalender geöffnet', 'Mitarbeiter zuweisen'] as $label) {
+        $this->assertStringContainsString('2 von 1 Plätzen reserviert', $staffing->textContent);
+        foreach (['Angefragt', 'Bestätigt', 'Abgelehnt', 'Noch nicht geöffnet', 'Mitarbeitende finden'] as $label) {
             $this->assertStringContainsString($label, $staffing->textContent);
         }
         foreach (['requested', 'confirmed'] as $status) {
@@ -292,8 +292,10 @@ class ShiftDetailDrawerTest extends TestCase
         foreach (['declined', 'cancelled'] as $status) {
             $this->assertSame(0, $xpath->query('.//button[@*[name()="wire:click"]="removeAssignment('.$assignments[$status]->id.')"]', $staffing)->length);
         }
-        $this->assertSame(1, $xpath->query('.//button[@*[name()="wire:click"]="assignEmployee"]', $staffing)->length);
-        $this->assertSame(1, $xpath->query('.//*[@id="assignment-employee"]', $staffing)->length);
+        $this->assertSame(0, $xpath->query('.//button[@*[name()="wire:click"]="assignEmployee"]', $staffing)->length);
+        $this->assertSame(0, $xpath->query('.//*[@id="assignment-employee"]', $staffing)->length);
+        $this->assertSame(1, $xpath->query('.//button[@*[name()="wire:click"]="loadStaffingCandidates"]', $staffing)->length);
+        $this->assertStringContainsString('Eignung wird geprüft', $staffing->textContent);
     }
 
     public function test_legacy_staffing_keeps_its_single_label_and_removal_action_without_native_feedback(): void

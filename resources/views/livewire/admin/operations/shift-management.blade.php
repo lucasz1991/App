@@ -308,11 +308,8 @@
 
                         <x-operations.panel.tab name="staffing" :id-prefix="$detailIdPrefix">
                             @if($nativeOperations)
-                                <x-operations.panel.group title="Besetzung & Rückmeldungen" :meta="$feedback->count() === 1 ? '1 Zuweisung' : $feedback->count().' Zuweisungen'">
-                                    <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Antwort','key'=>'response'],['label'=>'Im Kalender geöffnet','key'=>'opened'],['label'=>'Aktion','key'=>'action']]" :items="$feedback" row-view="components.tables.rows.operations.plan-feedback" empty="Noch keine Rückmeldungen." />
-                                </x-operations.panel.group>
-                            @endif
-                            @if(!$nativeOperations)
+                                @include('livewire.operations.partials.shift-staffing')
+                            @else
                                 <x-operations.panel.group title="Eingeteilte Mitarbeitende" :meta="$selectedAssignments->count().' Zuweisungen'">
                                     <div class="rt-ops-panel__list">
                                         @forelse($selectedAssignments as $assignment)
@@ -331,10 +328,6 @@
                                         @endforelse
                                     </div>
                                 </x-operations.panel.group>
-                            @endif
-                            @if($nativeOperations && $detailOpen && \App\Support\Operations\WorkforcePlanningSchema::ready())
-                                <div class="ops-actions" aria-label="Planungsvarianten"><livewire:operations.plan-variants :shift-ids="[$selectedShift->id]" :key="'variants-'.$selectedShift->id" /></div>
-                            @endif
                             @if($selectedShiftStatus === 'cancelled')
                                 <x-operations.panel.group title="Schicht storniert">
                                     <p class="rt-ops-panel__text">Für eine stornierte Schicht können keine weiteren Mitarbeitenden reserviert werden.</p>
@@ -342,11 +335,6 @@
                             @else
                                 <x-operations.panel.group title="Mitarbeiter zuweisen">
                                     <div class="space-y-3">
-                                        @if($nativeOperations && $candidates)
-                                            <x-tables.search-field wire:model.live.debounce.300ms="candidateSearch" placeholder="Mitarbeiter suchen" aria-label="Kandidaten suchen" />
-                                            <x-tables.table :columns="[['label'=>'Mitarbeiter','key'=>'name'],['label'=>'Eignung','key'=>'eligibility'],['label'=>'Auswahl','key'=>'action']]" :items="$candidates" row-view="components.tables.rows.operations.candidate" empty="Keine Mitarbeiter gefunden." />
-                                            {{ $candidates->links() }}
-                                        @endif
                                         <div class="rt-ops-panel__fields">
                                             <div>
                                                 <x-ui.forms.label for="assignment-employee" value="Mitarbeiter" />
@@ -376,6 +364,7 @@
                                         </x-ui.buttons.button-basic>
                                     </div>
                                 </x-operations.panel.group>
+                            @endif
                             @endif
                         </x-operations.panel.tab>
 
