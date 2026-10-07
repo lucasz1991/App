@@ -8,8 +8,8 @@ use App\Livewire\Operations\AiIntakeInbox;
 use App\Livewire\Operations\CaseWorkspace;
 use App\Livewire\Operations\PageWorkspace;
 use App\Models\AiIntake;
-use App\Models\AiIntakeProposal;
 use App\Models\AiIntakeDelivery;
+use App\Models\AiIntakeProposal;
 use App\Models\Customer;
 use App\Models\OperationInquiry;
 use App\Models\User;
@@ -99,7 +99,9 @@ class AiDispositionUiTest extends TestCase
         AiIntake::create(['source_type' => 'manual', 'title' => 'Other operator request', 'status' => 'failed', 'supervising_user_id' => $other->id]);
         $early = AiIntake::create(['source_type' => 'manual', 'title' => 'Response still in time', 'status' => 'waiting_customer', 'last_analyzed_at' => now()->utc()->subHours(49), 'supervising_user_id' => $this->admin->id]);
         $late = AiIntake::create(['source_type' => 'manual', 'title' => 'Response overdue', 'status' => 'waiting_customer', 'last_analyzed_at' => now()->utc()->subHours(49), 'supervising_user_id' => $this->admin->id]);
-        foreach([[$early,47],[$late,49]] as [$record,$hours]) AiIntakeDelivery::create(['intake_id'=>$record->id,'recipient_email'=>'customer@example.test','subject'=>'Fixture question','body'=>'Please clarify','status'=>'sent','dedup_key'=>hash('sha256','ui-question-'.$record->id),'settings_revision'=>1,'intake_revision'=>1,'source_revision'=>1,'question_round'=>0,'sent_at'=>now()->utc()->subHours($hours)]);
+        foreach ([[$early, 47], [$late, 49]] as [$record,$hours]) {
+            AiIntakeDelivery::create(['intake_id' => $record->id, 'recipient_email' => 'customer@example.test', 'subject' => 'Fixture question', 'body' => 'Please clarify', 'status' => 'sent', 'dedup_key' => hash('sha256', 'ui-question-'.$record->id), 'settings_revision' => 1, 'intake_revision' => 1, 'source_revision' => 1, 'question_round' => 0, 'sent_at' => now()->utc()->subHours($hours)]);
+        }
         $service = app(UnifiedOperationsInboxService::class);
         $items = $service->items($this->admin);
         $this->assertEqualsCanonicalizing(['ai-intake-'.$own->id, 'ai-intake-'.$late->id], $items->pluck('id')->all());
@@ -118,7 +120,7 @@ class AiDispositionUiTest extends TestCase
 
     public function test_new_customer_is_only_created_on_native_human_confirmation_and_attached_atomically(): void
     {
-        $record = AiIntake::create(['source_type' => 'manual', 'title' => 'Unknown customer fixture', 'revision'=>1, 'analysis' => ['customer_draft' => ['company_name' => 'Prepared railway fixture', 'contact_name' => 'Prepared contact']], 'supervising_user_id' => $this->admin->id]);
+        $record = AiIntake::create(['source_type' => 'manual', 'title' => 'Unknown customer fixture', 'revision' => 1, 'analysis' => ['customer_draft' => ['company_name' => 'Prepared railway fixture', 'contact_name' => 'Prepared contact']], 'supervising_user_id' => $this->admin->id]);
         $before = Customer::count();
         $component = Livewire::test(Customers::class, ['embedded' => true, 'modalOnly' => true, 'startCreating' => true, 'workspaceRevision' => $record->revision, 'draftIntakeId' => $record->id])
             ->assertSet('companyName', 'Prepared railway fixture')->assertSet('contactName', 'Prepared contact');
@@ -131,7 +133,7 @@ class AiDispositionUiTest extends TestCase
 
     public function test_stale_customer_draft_cannot_create_a_second_customer(): void
     {
-        $record = AiIntake::create(['source_type' => 'manual', 'title' => 'Stale fixture', 'revision'=>1, 'supervising_user_id' => $this->admin->id]);
+        $record = AiIntake::create(['source_type' => 'manual', 'title' => 'Stale fixture', 'revision' => 1, 'supervising_user_id' => $this->admin->id]);
         $component = Livewire::test(Customers::class, ['embedded' => true, 'modalOnly' => true, 'startCreating' => true, 'workspaceRevision' => $record->revision, 'draftIntakeId' => $record->id])->set('companyName', 'Should not be created');
         $record->increment('revision');
         $before = Customer::count();

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ApplyApprovedAiIntakes;
 use App\Jobs\ProcessAiIntake;
 use App\Models\AiIntake;
 use App\Models\AiIntakeAttachment;
@@ -30,6 +31,7 @@ use App\Services\Operations\AiIntakeService;
 use App\Services\Operations\InquiryWorkflowService;
 use App\Services\Operations\OrderDemandService;
 use App\Services\Operations\ShiftSchedulingService;
+use App\Services\Operations\UnifiedOperationsInboxService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAutomationActor;
@@ -311,6 +313,8 @@ class AiIntakeServiceTest extends TestCase
         $this->service->assignCustomer($intake, $this->admin, $this->customer->id, $this->contact->id, $intake->revision);
         $this->assertSame('manual', $intake->fresh()->match_method);
         $this->assertSame($this->customer->id, OperationInquiry::first()->customer_id);
+        $this->assertNotContains('customer_id', $intake->fresh()->missing_fields);
+        $this->assertContains('native_review', $intake->fresh()->missing_fields);
         $this->expectException(HttpException::class);
         $this->service->assignCustomer($intake, $this->admin, $this->customer->id, null, $intake->revision);
     }
@@ -344,6 +348,10 @@ class AiIntakeServiceTest extends TestCase
         $this->assertSame(0, OrderDemand::count());
         $this->assertSame(1, Order::count());
         $this->assertSame('failed', $proposal->fresh()->status);
+        $this->assertSame('review', $proposal->intake->fresh()->status);
+        $this->assertSame('confirmed', Order::first()->status->value);
+        $this->expectException(HttpException::class);
+        $this->service->retryApprovedProposal($proposal->fresh(), $this->admin, $proposal->fresh()->revision);
     }
 
     public function test_failed_second_shift_rolls_back_all_drafts_but_keeps_order_and_failure_evidence(): void
@@ -368,7 +376,76 @@ class AiIntakeServiceTest extends TestCase
         $this->assertSame(0, OrderDemand::count());
         $this->assertSame(0, Shift::count());
         $this->assertSame(1, Order::count());
+        $this->assertSame('confirmed', Order::first()->status->value);
         $this->assertSame('failed', AiIntakeRun::where('kind', 'apply')->first()->status);
+        $this->assertSame('review', $intake->fresh()->status);
+        $this->assertSame('proposal_application_review', $intake->fresh()->error_code);
+        $this->assertNotNull(app(UnifiedOperationsInboxService::class)->items($this->admin)->firstWhere('id', 'ai-intake-'.$intake->id));
+        $this->app->instance(ShiftSchedulingService::class, $real);
+        Queue::fake();
+        $failed = $proposal->fresh();
+        $this->service->retryApprovedProposal($failed, $this->admin, $failed->revision);
+        $this->assertSame('approved', $failed->fresh()->status);
+        $this->assertSame('ready', $intake->fresh()->status);
+        $this->assertSame($this->admin->id, OperationAudit::where('action', 'ai.proposal.retry_approved')->sole()->actor_id);
+        Queue::assertPushed(ApplyApprovedAiIntakes::class, fn ($job) => $job->intakeId === $intake->id);
+        $this->assertSame(1, $this->service->applyApprovedProposals());
+        $this->assertSame(2, OrderDemand::count());
+        $this->assertSame(2, Shift::count());
+        $this->assertSame(1, Order::count());
+        $this->assertSame('confirmed', Order::first()->status->value);
+    }
+
+    public function test_application_failure_does_not_overwrite_pause_or_an_approved_proposal(): void
+    {
+        $proposal = $this->approved();
+        $this->convert($proposal);
+        AiIntakeRun::created(function (AiIntakeRun $run) use ($proposal): void {
+            if ($run->kind === 'apply') {
+                $current = $proposal->intake->fresh();
+                $this->service->pause($current, $this->admin, $current->revision);
+            }
+        });
+        $this->assertSame(0, $this->service->applyApprovedProposals());
+        $this->assertSame('paused', $proposal->intake->fresh()->status);
+        $this->assertSame('approved', $proposal->fresh()->status);
+        $this->assertSame(0, OrderDemand::count());
+        $this->assertSame('confirmed', Order::first()->status->value);
+    }
+
+    public function test_existing_personal_order_planning_is_preserved_and_blocks_automatic_apply_or_retry(): void
+    {
+        $proposal = $this->approved();
+        $this->convert($proposal);
+        $order = $proposal->fresh()->inquiry->order;
+        $demand = app(OrderDemandService::class)->save($order->id, null, null, $proposal->payload['demand'], $this->admin);
+        $this->assertSame(0, $this->service->applyApprovedProposals());
+        $this->assertSame(1, OrderDemand::count());
+        $this->assertSame($this->admin->id, $demand->fresh()->created_by);
+        $this->assertSame(0, Shift::count());
+        $this->assertSame('confirmed', $order->fresh()->status->value);
+        $this->assertSame('review', $proposal->intake->fresh()->status);
+        $this->expectException(HttpException::class);
+        $failed = $proposal->fresh();
+        $this->service->retryApprovedProposal($failed, $this->admin, $failed->revision);
+    }
+
+    public function test_application_failure_does_not_overwrite_a_new_reply_or_its_stale_proposal(): void
+    {
+        $proposal = $this->approved();
+        $this->convert($proposal);
+        AiIntakeRun::created(function (AiIntakeRun $run): void {
+            if ($run->kind === 'apply') {
+                $this->receive(['uid' => 2, 'message_id' => 'later-reply@example.test', 'in_reply_to' => 'synthetic-1@example.test', 'text' => 'A new reply requires review.']);
+            }
+        });
+        $this->assertSame(0, $this->service->applyApprovedProposals());
+        $this->assertSame('received', $proposal->intake->fresh()->status);
+        $this->assertSame(2, $proposal->intake->fresh()->source_revision);
+        $this->assertSame('stale', $proposal->fresh()->status);
+        $this->assertSame('source_changed', $proposal->fresh()->error_code);
+        $this->assertSame(0, OrderDemand::count());
+        $this->assertSame('confirmed', Order::first()->status->value);
     }
 
     public function test_supervisor_revocation_after_conversion_prevents_draft_apply(): void
@@ -407,6 +484,9 @@ class AiIntakeServiceTest extends TestCase
         $this->service->pause($intake, $this->admin, $intake->revision);
         $this->service->analyze($intake->id);
         $this->assertSame(0, AiIntakeRun::count());
+        $this->assertSame('paused', $intake->fresh()->status);
+        $current = $intake->fresh();
+        $this->service->assignCustomer($current, $this->admin, $this->customer->id, $this->contact->id, $current->revision);
         $this->assertSame('paused', $intake->fresh()->status);
         $this->expectException(HttpException::class);
         $this->service->reanalyze($intake, $this->admin, $intake->revision);
@@ -727,6 +807,8 @@ class AiIntakeServiceTest extends TestCase
         $saved = $this->service->saveProposal($saved, $this->admin, $payload, $saved->revision);
         $this->assertSame([], $saved->payload['unmapped_requirements']);
         $this->assertSame('verified', $saved->inquiry->status);
+        $this->assertSame([], $intake->fresh()->missing_fields);
+        $this->assertSame('ready', $intake->fresh()->status);
         $this->service->approveProposal($saved, $this->admin, $saved->revision);
         $this->assertSame('approved', $saved->fresh()->status);
     }

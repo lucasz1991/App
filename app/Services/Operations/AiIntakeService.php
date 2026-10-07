@@ -2,6 +2,7 @@
 
 namespace App\Services\Operations;
 
+use App\Jobs\ApplyApprovedAiIntakes;
 use App\Jobs\ProcessAiIntake;
 use App\Models\AiIntake;
 use App\Models\AiIntakeAttachment;
@@ -15,6 +16,7 @@ use App\Models\OperationAudit;
 use App\Models\OperationInquiry;
 use App\Models\OperationsRuleProfile;
 use App\Models\Order;
+use App\Models\OrderDemand;
 use App\Models\QualificationType;
 use App\Models\Shift;
 use App\Models\User;
@@ -301,7 +303,8 @@ class AiIntakeService
                     $proposal->update(['status' => 'proposed', 'revision' => $proposal->revision + 1, 'approved_at' => null, 'approved_by' => null, 'inquiry_revision' => $inquiry->revision, 'inquiry_fingerprint' => $this->fingerprint($inquiry)]);
                 }
             }
-            $intake->update(['customer_id' => $customerId, 'customer_contact_id' => $contactId, 'match_method' => 'manual', 'status' => 'review', 'revision' => $intake->revision + 1]);
+            $intake->update(['customer_id' => $customerId, 'customer_contact_id' => $contactId, 'match_method' => 'manual', 'status' => $intake->status === 'paused' ? 'paused' : 'review', 'revision' => $intake->revision + 1]);
+            $this->refreshReviewState($intake);
         });
     }
 
@@ -339,6 +342,7 @@ class AiIntakeService
             $payload['mapping'] = $record->payload['mapping'] ?? null;
             $record->update(['payload' => $payload, 'revision' => $record->revision + 1, 'status' => 'proposed', 'approved_by' => null, 'approved_at' => null, 'error_code' => null, 'inquiry_revision' => $inquiry?->revision, 'inquiry_fingerprint' => $inquiry ? $this->fingerprint($inquiry) : null]);
             $intake->update(['revision' => $intake->revision + 1]);
+            $this->refreshReviewState($intake);
 
             return $record;
         });
@@ -374,6 +378,7 @@ class AiIntakeService
                 $this->createInquiry($current, $proposal, $actor);
             }
             $current->update(['inquiry_ids' => $current->proposals()->where('source_revision', $current->source_revision)->whereNotNull('inquiry_id')->pluck('inquiry_id')->all(), 'revision' => $current->revision + 1]);
+            $this->refreshReviewState($current);
         });
     }
 
@@ -396,6 +401,7 @@ class AiIntakeService
             $payload['mapping'] = ['inquiry_id' => $inquiryId, 'reviewed_by' => $actor->id, 'source_revision' => $intake->source_revision, 'at' => now()->utc()->toIso8601String()];
             $record->update(['inquiry_id' => $inquiryId, 'inquiry_revision' => $inquiry->revision, 'inquiry_fingerprint' => $this->fingerprint($inquiry), 'payload' => $payload, 'status' => 'proposed', 'revision' => $record->revision + 1, 'approved_by' => null, 'approved_at' => null, 'error_code' => null]);
             $intake->update(['revision' => $intake->revision + 1]);
+            $this->refreshReviewState($intake);
 
             return $record;
         });
@@ -479,12 +485,8 @@ class AiIntakeService
                     abort_unless($record->status === 'approved' && $record->source_revision === $intake->source_revision, 409);
                     $approver = User::findOrFail($record->approved_by);
                     OperationsAccess::authorize($approver, 'operations.manage');
-                    $inquiry = OperationInquiry::lockForUpdate()->findOrFail($record->inquiry_id);
-                    abort_unless($inquiry->order_id && $inquiry->status === 'converted' && $inquiry->revision === $record->inquiry_revision && hash_equals($record->inquiry_fingerprint, $this->fingerprint($inquiry)), 409, 'Anfragegrundlage wurde geändert.');
-                    $conversion = OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $inquiry->id)->where('action', 'inquiry.convert')->latest('id')->first();
-                    abort_unless($conversion && $conversion->actor_id && ($conversion->actor_kind ?? 'human') === 'human', 409, 'Persönliche Auftragsübernahme fehlt.');
-                    $order = Order::lockForUpdate()->findOrFail($inquiry->order_id);
-                    abort_unless($order->status->value === 'confirmed' && $order->customer_id === $intake->customer_id && $order->starts_at->eq($inquiry->starts_at) && $order->ends_at->eq($inquiry->ends_at) && $order->required_staff === $inquiry->required_staff && $order->service_type === $inquiry->role_name && $order->location_name === $inquiry->location_name && $order->timezone === $inquiry->timezone && $order->title === $inquiry->title, 409, 'Auftrag wurde inzwischen verändert.');
+                    $order = $this->convertedOrder($intake, $record);
+                    abort_if(OrderDemand::where('order_id', $order->id)->exists() || Shift::where('order_id', $order->id)->exists(), 409, 'Der Auftrag wurde bereits geplant. Bitte die native Auftragsplanung verwenden.');
                     $payload = $this->validateProposal($record->payload, true);
                     $actor = $this->actor($run);
                     $actor->authorize('demand.save', 'operations.manage');
@@ -509,13 +511,62 @@ class AiIntakeService
                 $count += (int) $applied;
             } catch (Throwable $e) {
                 if ($run) {
-                    $run->update(['status' => 'failed', 'error_code' => 'proposal_application_review', 'finished_at' => now()->utc()]);
+                    OperationsTransaction::run(function () use ($run, $proposal): void {
+                        $intake = AiIntake::lockForUpdate()->findOrFail($run->intake_id);
+                        $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
+                        AiIntakeRun::whereKey($run->id)->where('status', 'running')->update(['status' => 'failed', 'error_code' => 'proposal_application_review', 'finished_at' => now()->utc()]);
+                        if ($intake->status === 'paused' || $intake->source_revision !== $run->source_revision || $record->source_revision !== $run->source_revision || $record->revision !== $proposal->revision || $record->status !== 'approved') {
+                            return;
+                        }
+                        $record->update(['status' => 'failed', 'error_code' => 'proposal_application_review', 'revision' => $record->revision + 1]);
+                        $intake->update(['status' => 'review', 'error_code' => 'proposal_application_review', 'missing_fields' => array_values(array_unique([...($intake->missing_fields ?? []), 'native_review'])), 'revision' => $intake->revision + 1]);
+                    });
                 }
-                AiIntakeProposal::whereKey($proposal->id)->where('status', 'approved')->update(['status' => 'failed', 'error_code' => 'proposal_application_review']);
             }
         }
 
         return $count;
+    }
+
+    public function retryApprovedProposal(AiIntakeProposal $proposal, User $actor, ?int $expectedRevision = null): void
+    {
+        $this->access($actor, 'operations.manage');
+        OperationsTransaction::run(function () use ($proposal, $actor, $expectedRevision): void {
+            $this->access($actor, 'operations.manage');
+            $probe = AiIntakeProposal::findOrFail($proposal->id);
+            $intake = AiIntake::lockForUpdate()->findOrFail($probe->intake_id);
+            $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
+            $this->revision($record->revision, $expectedRevision ?? $proposal->revision);
+            $settings = AiDispositionSettings::all();
+            abort_unless(AiDispositionSettings::enabled() && ($settings['automation_mode'] ?? 'automatic') === 'automatic' && $intake->status !== 'paused'
+                && $record->source_revision === $intake->source_revision && $record->status === 'failed' && $record->error_code === 'proposal_application_review'
+                && $record->approved_at && $record->approved_by && ! $record->demand_id && empty($record->demand_ids) && empty($record->applied_shift_ids), 409, 'Nur unveränderte fehlgeschlagene Entwurfserstellungen können wiederholt werden.');
+            $supervisor = AiDispositionSettings::supervisor($settings);
+            abort_unless($supervisor, 409, 'Verantwortliche Disposition fehlt.');
+            OperationsAccess::authorize($supervisor, 'operations.manage');
+            $this->validateProposal($record->payload, true);
+            abort_if(! empty($record->payload['unmapped_requirements']), 422, 'Anforderungen sind noch ungeprüft.');
+            $order = $this->convertedOrder($intake, $record);
+            abort_if(OrderDemand::where('order_id', $order->id)->exists() || Shift::where('order_id', $order->id)->exists(), 409, 'Der Auftrag wurde bereits geplant. Bitte die native Auftragsplanung verwenden.');
+            $previousApprover = $record->approved_by;
+            $record->update(['status' => 'approved', 'error_code' => null, 'approved_by' => $actor->id, 'approved_at' => now()->utc(), 'revision' => $record->revision + 1]);
+            app(OperationsAuditService::class)->record($record, $actor, 'ai.proposal.retry_approved', ['intake_id' => $intake->id, 'source_revision' => $intake->source_revision, 'previous_approved_by' => $previousApprover]);
+            $intake->update(['supervising_user_id' => $supervisor->id, 'revision' => $intake->revision + 1]);
+            $this->refreshReviewState($intake);
+            ApplyApprovedAiIntakes::dispatch($intake->id)->afterCommit();
+        });
+    }
+
+    private function convertedOrder(AiIntake $intake, AiIntakeProposal $proposal): Order
+    {
+        $inquiry = OperationInquiry::lockForUpdate()->findOrFail($proposal->inquiry_id);
+        abort_unless($inquiry->order_id && $inquiry->status === 'converted' && $inquiry->revision === $proposal->inquiry_revision && $proposal->inquiry_fingerprint && hash_equals($proposal->inquiry_fingerprint, $this->fingerprint($inquiry)), 409, 'Anfragegrundlage wurde geändert.');
+        $conversion = OperationAudit::where('subject_type', 'OperationInquiry')->where('subject_id', $inquiry->id)->where('action', 'inquiry.convert')->latest('id')->first();
+        abort_unless($conversion && $conversion->actor_id && ($conversion->actor_kind ?? 'human') === 'human', 409, 'Persönliche Auftragsübernahme fehlt.');
+        $order = Order::lockForUpdate()->findOrFail($inquiry->order_id);
+        abort_unless($order->status->value === 'confirmed' && $order->customer_id === $intake->customer_id && $order->starts_at->eq($inquiry->starts_at) && $order->ends_at->eq($inquiry->ends_at) && $order->required_staff === $inquiry->required_staff && $order->service_type === $inquiry->role_name && $order->location_name === $inquiry->location_name && $order->timezone === $inquiry->timezone && $order->title === $inquiry->title, 409, 'Auftrag wurde inzwischen verändert.');
+
+        return $order;
     }
 
     public function attachmentBytes(AiIntakeAttachment $attachment, User $actor): string
@@ -729,6 +780,49 @@ class AiIntakeService
     private function missing(array $demand): array
     {
         return array_values(array_filter(self::FIELDS, fn ($field) => blank($demand[$field] ?? null)));
+    }
+
+    /** Rebuild display state from the current proposals without granting any commercial transition. */
+    private function refreshReviewState(AiIntake $intake): void
+    {
+        $missing = $intake->customer_id ? [] : ['customer_id'];
+        $proposals = $intake->proposals()->where('source_revision', $intake->source_revision)->with('inquiry')->get();
+        if ($proposals->isEmpty()) {
+            $missing[] = 'native_review';
+        }
+        foreach ($proposals as $proposal) {
+            $payload = $proposal->payload;
+            $absent = $this->missing($payload['demand'] ?? []);
+            $missing = array_merge($missing, $absent);
+            if (! empty($payload['unmapped_requirements'])) {
+                $missing[] = 'qualification_ids';
+            }
+            $inquiry = $proposal->inquiry;
+            $nativeCurrent = $inquiry && $inquiry->customer_id === $intake->customer_id
+                && ! $inquiry->duplicate_of_id && ! in_array($inquiry->status, ['rejected', 'duplicate'], true)
+                && $inquiry->verified_revision === $inquiry->revision
+                && $proposal->inquiry_revision === $inquiry->revision
+                && $proposal->inquiry_fingerprint && hash_equals($proposal->inquiry_fingerprint, $this->fingerprint($inquiry));
+            if ($nativeCurrent && $absent === []) {
+                try {
+                    $nativeCurrent = $this->demandMatches($inquiry, $payload['demand']);
+                } catch (ValidationException) {
+                    $nativeCurrent = false;
+                }
+            }
+            if (! $nativeCurrent || in_array($proposal->status, ['stale', 'failed'], true)) {
+                $missing[] = 'native_review';
+            }
+        }
+        $missing = array_values(array_unique($missing));
+        $updates = ['missing_fields' => $missing, 'inquiry_ids' => $proposals->whereNotNull('inquiry_id')->pluck('inquiry_id')->unique()->values()->all()];
+        if ($intake->status !== 'paused') {
+            $updates['status'] = $missing === [] ? 'ready' : 'review';
+            if ($missing === []) {
+                $updates['error_code'] = null;
+            }
+        }
+        $intake->update($updates);
     }
 
     private function fingerprint(OperationInquiry $inquiry): string

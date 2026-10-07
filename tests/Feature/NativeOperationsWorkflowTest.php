@@ -80,9 +80,9 @@ class NativeOperationsWorkflowTest extends TestCase
         $this->assertArrayNotHasKey('Betrieb', $sections);
         $this->assertArrayNotHasKey('Verwaltung', $sections);
         $this->assertSame(1, $adminLinks->where('title', 'Kundenübersicht')->count());
-        $this->assertSame(1, $adminLinks->where('title', 'Vorgänge & Aufträge')->count());
-        $this->assertSame(0, $adminLinks->where('title', 'Schichtplan')->count());
-        $this->assertFalse($adminLinks->contains('group', 'Planung'));
+        $this->assertSame(0, $adminLinks->where('title', 'Vorgänge & Aufträge')->count());
+        $this->assertSame(1, $adminLinks->where('title', 'Schichtplan')->count());
+        $this->assertSame(['Eingang', 'Aufträge', 'Schichtplan', 'Kalender'], $adminLinks->where('group', 'Planung')->pluck('title')->all());
         $this->assertTrue(collect($sections['Mein Arbeitsplatz'])->contains(fn ($link) => $link['title'] === 'Wagenliste' && $link['group'] === 'Arbeitsmittel'));
         $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Wagenliste'));
         $this->assertTrue(collect($sections['Personal'])->contains(fn ($link) => ($link['parameters']['page'] ?? '') === 'time-review' && $link['group'] === 'Zeitwirtschaft'));

@@ -51,8 +51,9 @@
                     <span></span>
                 </span>
             </button>
+            <div class="rt-shell-planning-navigation" data-topbar-planning-navigation></div>
         </div>
-        <div class="flex min-w-0 flex-1 items-center justify-end gap-2 border-b border-rt-border/60 px-2 dark:border-rt-dark-border/60 sm:px-4 lg:px-6">
+        <div class="rt-shell-topbar-actions flex min-w-0 flex-1 items-center justify-end gap-2 border-b border-rt-border/60 px-2 dark:border-rt-dark-border/60 sm:px-4 lg:px-6">
             {{-- Reihenfolge der Topbar-Kontrollen: Suche (expandiert nach links,
                  weil die Nachbarn rechts verankert bleiben), dann Posteingang,
                  dann Einstellungen, aussen das Profil. --}}

@@ -81,6 +81,12 @@ final class OperationsPages
             ? PersonalPageWorkspace::availableSections($actor, $page) : [];
     }
 
+    /** The three planning workspaces shared by the sidebar and topbar shortcuts. */
+    public static function planningViews(User $actor): array
+    {
+        return array_intersect_key(self::views($actor, 'cases'), array_flip(['inbox', 'orders', 'shifts']));
+    }
+
     public static function availableFor(User $actor): array
     {
         return array_filter(self::definitions(), fn ($definition, $page) => $page !== 'shifts' && (self::views($actor, $page) || self::sections($actor, $page)), ARRAY_FILTER_USE_BOTH);

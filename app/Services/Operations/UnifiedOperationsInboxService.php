@@ -142,13 +142,13 @@ class UnifiedOperationsInboxService
             $hours = (int) AiDispositionSettings::all()['reply_timeout_hours'];
             $rows = AiIntake::where('supervising_user_id', $actor->id)->where(function ($query) use ($hours) {
                 $query->whereIn('status', ['review', 'failed'])->orWhere(function ($query) use ($hours) {
-                    $query->where('status', 'waiting_customer')->whereHas('deliveries',function($delivery) use ($hours) {
-                        $delivery->where('status','sent')->whereColumn('source_revision','ai_intakes.source_revision')->whereColumn('question_round','ai_intakes.question_round')->where('sent_at','<=',now()->utc()->subHours($hours));
+                    $query->where('status', 'waiting_customer')->whereHas('deliveries', function ($delivery) use ($hours) {
+                        $delivery->where('status', 'sent')->whereColumn('source_revision', 'ai_intakes.source_revision')->whereColumn('question_round', 'ai_intakes.question_round')->where('sent_at', '<=', now()->utc()->subHours($hours));
                     });
                 });
-            })->with(['deliveries'=>fn($delivery)=>$delivery->where('status','sent')->latest('sent_at')])->limit(100)->get();
+            })->with(['deliveries' => fn ($delivery) => $delivery->where('status', 'sent')->latest('sent_at')])->limit(100)->get();
             foreach ($rows as $row) {
-                $lastSent = $row->deliveries->first(fn($delivery)=>$delivery->source_revision === $row->source_revision && $delivery->question_round === $row->question_round)?->sent_at;
+                $lastSent = $row->deliveries->first(fn ($delivery) => $delivery->source_revision === $row->source_revision && $delivery->question_round === $row->question_round)?->sent_at;
                 $items->push((object) ['id' => 'ai-intake-'.$row->id, 'kind' => $row->status === 'waiting_customer' ? 'Kundenantwort ausstehend' : 'AI-Eingang prüfen', 'title' => $row->title,
                     'subject' => '', 'user_id' => null, 'due_at' => $lastSent?->addHours($hours), 'status' => $row->status, 'revision' => $row->revision,
                     'priority' => 1, 'module' => 'ai-intake', 'target_tab' => 'ai-intake', 'record_id' => $row->id, 'record_type' => 'ai-intake', 'customer_id' => $row->customer_id, 'personal' => false]);

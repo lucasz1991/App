@@ -56,7 +56,16 @@
 .rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-person-identity > span:last-child { display: none; }
 /* The legacy utilities define inline-flex as !important on dropdown roots. */
 .rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-workload-anchor { display: none !important; }
-.rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-person-identity { justify-content: center; gap: 0; }
+.rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-person-identity { justify-content: center; gap: 0; width: 44px; max-width: 100%; }
+.rt-personnel-timeline[data-personnel-animating='true'] [data-timeline-person-column] { overflow: clip; }
+.rt-personnel-timeline-person-label { min-width: 0; overflow: hidden; }
+.rt-personnel-timeline[data-personnel-animating='true'][data-personnel-compact='false'] .rt-personnel-timeline-person-label,
+.rt-personnel-timeline[data-personnel-animating='true'][data-personnel-compact='false'] .rt-timeline-person-identity > span:last-child { animation: rt-personnel-label-reveal 180ms ease-out both; }
+@keyframes rt-personnel-label-reveal { from { opacity: 0; transform: translateX(-3px); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) {
+    .rt-personnel-timeline[data-personnel-animating='true'] .rt-personnel-timeline-person-label,
+    .rt-personnel-timeline[data-personnel-animating='true'] .rt-timeline-person-identity > span:last-child { animation: none; }
+}
 /* Retain inactive employees' existing row height, including their status line. */
 .rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-person-status { visibility: hidden; white-space: nowrap; }
 .rt-personnel-timeline-body {

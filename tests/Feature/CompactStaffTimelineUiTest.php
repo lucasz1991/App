@@ -142,6 +142,21 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringNotContainsString('--timeline-name-width: 170px', $planningCss);
     }
 
+    public function test_column_motion_clips_only_personnel_and_keeps_passive_native_input_and_reduced_motion(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $this->assertStringContainsString('x-on:wheel.passive="wheelPersonnel($event)"', $view);
+        $this->assertStringNotContainsString('x-on:wheel.prevent', $view);
+        $this->assertStringNotContainsString('x-on:touchmove.prevent', $view);
+        $column = $this->cssDeclarationsFor($css, "[data-personnel-animating='true'] [data-timeline-person-column]");
+        $this->assertStringContainsString('overflow: clip', $column);
+        $this->assertStringNotContainsString('height:', $column);
+        $this->assertStringNotContainsString('transform:', $column);
+        $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $css);
+        $this->assertStringContainsString('animation: none', $this->cssDeclarationsFor($css, "[data-personnel-animating='true'] .rt-timeline-person-identity > span:last-child"));
+    }
+
     private function cssDeclarationsFor(string $css, string $selector): string
     {
         preg_match_all('/([^{}]+)\{([^{}]*)\}/', $css, $rules, PREG_SET_ORDER);

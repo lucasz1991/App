@@ -280,6 +280,51 @@ body[data-mode='dark'] .rt-shell-topbar {
     box-shadow: none;
 }
 
+/* Case workflow navigation lives next to the burger, never in a second page row.
+ * Keep the shared multi-toggle's keyboard/tooltip behavior and status colors. */
+.rt-shell-planning-navigation {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.rt-shell-planning-navigation:empty { display: none; }
+
+.rt-shell-planning-navigation .rt-multi-toggle {
+    flex-wrap: nowrap;
+    margin-inline: 4px;
+    padding: 2px;
+    gap: 2px;
+    background: transparent;
+}
+
+@media (max-width: 600px) {
+    .rt-shell-topbar:has([data-topbar-planning-navigation] > *) .rt-shell-brand-mark { display: none !important; }
+    .rt-shell-topbar:has([data-topbar-planning-navigation] > *) .vertical-menu-btn { width: 44px !important; padding-inline: 8px !important; }
+    .rt-shell-topbar:has([data-topbar-planning-navigation] > *) .rt-shell-topbar-actions { padding-inline: 4px !important; }
+    .rt-shell-topbar:has([data-topbar-planning-navigation] > *) .rt-shell-topbar-controls { padding: 0; gap: 2px !important; }
+}
+
+@media (max-width: 359px) {
+    .rt-shell-topbar:has([data-topbar-planning-navigation] > *) .vertical-menu-btn { width: 40px !important; padding-inline: 8px !important; }
+    .rt-shell-planning-navigation .rt-multi-toggle { margin: 0; padding: 0; gap: 0; border: 0; }
+    .rt-shell-planning-navigation .rt-multi-toggle .rt-multi-toggle__button.rt-ui-button {
+        flex-basis: 40px;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+    }
+    .rt-shell-topbar:has([data-topbar-planning-navigation] > *) .rt-shell-topbar-actions { padding-inline: 0 !important; }
+    .rt-shell-topbar:has([data-topbar-planning-navigation] > *) .rt-shell-topbar-controls { gap: 0 !important; }
+    /* Leave room for a desktop scrollbar even at 320px; all four tools stay available. */
+    .rt-shell-topbar:has([data-topbar-planning-navigation] > *) .rt-shell-topbar-controls :is(.rt-topbar-control, .rt-expandable-search__trigger) {
+        width: 36px !important;
+        min-width: 36px !important;
+        padding-inline: 0 !important;
+    }
+}
+
 html.dark .rt-shell-topbar-controls,
 body[data-mode='dark'] .rt-shell-topbar-controls {
     border-color: transparent;

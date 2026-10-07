@@ -32,6 +32,18 @@ export function timelineEventLanes(events, dayWidth) {
     return events.map((_, index) => results.get(index));
 }
 
+// Keep GSAP instances outside Alpine's reactive proxy and scoped to one timeline.
+const personnelMotions = new WeakMap();
+
+function clearPersonnelMotion(root) {
+    if (!root) return;
+    const motion = personnelMotions.get(root);
+    personnelMotions.delete(root);
+    motion?.tween?.kill();
+    root.style.removeProperty('--timeline-name-width');
+    delete root.dataset.personnelAnimating;
+}
+
 export function staffTimeline() {
     return {
         canScrollLeft: false,
@@ -46,6 +58,7 @@ export function staffTimeline() {
         personnelFocused: false,
         appliedPersonnelCompact: null,
         layoutScrollOffset: null,
+        measuredLayout: null,
         get personnelCompact() {
             return this.compactRequested && !this.personnelHovered && !this.personnelFocused;
         },
@@ -73,7 +86,15 @@ export function staffTimeline() {
         },
         pointerPersonnel(event) {
             if (event.pointerType !== 'mouse') return;
-            this.personnelHovered = this.ownsPersonnel(event.type === 'pointerout' ? event.relatedTarget : event.target);
+            const target = event.type === 'pointerout' ? event.relatedTarget : event.target;
+            // The explicit button must remain usable as its own column moves.
+            this.personnelHovered = !target?.closest?.('[data-timeline-person-toggle]') && this.ownsPersonnel(target);
+        },
+        wheelPersonnel(event) {
+            // Intent only: never prevent or replace the browser's native scrolling.
+            if (Math.abs(event.deltaX) >= Math.max(1, Math.abs(event.deltaY))) {
+                this.setCompactRequested(event.deltaX > 0);
+            }
         },
         focusPersonnel(target) {
             // A preview is teleported, but still belongs to its employee trigger.
@@ -82,18 +103,62 @@ export function staffTimeline() {
         applyPersonnelMode() {
             const compact = this.personnelCompact;
             if (this.appliedPersonnelCompact === compact) return;
+            const root = this.$el;
+            const initial = this.appliedPersonnelCompact === null;
+            // Cached Livewire history may contain an interrupted animation style.
+            if (initial) clearPersonnelMotion(root);
             const body = this.$refs.timelineBody;
+            const style = getComputedStyle(root);
+            const currentWidth = parseFloat(style.getPropertyValue('--timeline-name-width'));
+            const fullWidth = parseFloat(style.getPropertyValue('--timeline-name-full-width')) || currentWidth;
+            const compactWidth = parseFloat(style.getPropertyValue('--timeline-name-compact-width')) || 52;
+            const targetWidth = compact ? compactWidth : fullWidth;
             const previousOffset = body.scrollLeft;
             const previousMaximum = Math.max(0, body.scrollWidth - body.clientWidth);
+            const atEnd = Math.abs(previousOffset - previousMaximum) < 1 && previousMaximum > 0;
+            const engine = typeof window !== 'undefined' ? window.gsap : null;
+            const reduceQuery = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)') : null;
+            const animate = !initial && engine && !reduceQuery?.matches
+                && Number.isFinite(currentWidth) && Number.isFinite(targetWidth) && Math.abs(currentWidth - targetWidth) >= 1;
+            clearPersonnelMotion(root);
+            if (animate) root.style.setProperty('--timeline-name-width', `${currentWidth}px`);
             this.appliedPersonnelCompact = compact;
-            this.$el.dataset.personnelCompact = compact ? 'true' : 'false';
-            // Read after the width change so a native right-edge clamp is a layout
-            // baseline, not a leftward gesture. Never restart the native scroll.
+            root.dataset.personnelCompact = compact ? 'true' : 'false';
+            if (!animate) {
+                this.rebasePersonnelLayout(atEnd, previousOffset);
+                return;
+            }
+            const motion = { width: currentWidth, fullWidth, atEnd, reduceQuery, tween: null };
+            personnelMotions.set(root, motion);
+            root.dataset.personnelAnimating = 'true';
+            motion.tween = engine.to(motion, {
+                width: targetWidth,
+                duration: 0.22,
+                ease: 'power2.out',
+                onUpdate: () => {
+                    if (personnelMotions.get(root) !== motion) return;
+                    if (motion.reduceQuery?.matches) {
+                        this.finishPersonnelMotion(motion);
+                        return;
+                    }
+                    root.style.setProperty('--timeline-name-width', `${motion.width}px`);
+                    this.rebasePersonnelLayout(motion.atEnd, body.scrollLeft);
+                },
+                onComplete: () => this.finishPersonnelMotion(motion),
+            });
+        },
+        finishPersonnelMotion(motion) {
+            if (personnelMotions.get(this.$el) !== motion) return;
+            const offset = this.$refs.timelineBody.scrollLeft;
+            clearPersonnelMotion(this.$el);
+            this.rebasePersonnelLayout(motion.atEnd, offset);
+        },
+        rebasePersonnelLayout(atEnd, previousOffset) {
+            const body = this.$refs.timelineBody;
             const maximum = Math.max(0, body.scrollWidth - body.clientWidth);
-            // Scroll snapping can adjust the last day asynchronously after layout.
-            const expectedOffset = Math.abs(previousOffset - previousMaximum) < 1
-                ? maximum : Math.min(previousOffset, maximum);
-            this.layoutScrollOffset = Math.abs(expectedOffset - previousOffset) >= 1 ? expectedOffset : null;
+            const expectedOffset = atEnd ? maximum : Math.min(previousOffset, maximum);
+            // Preserve the final expectation for a delayed native snap event too.
+            this.layoutScrollOffset = atEnd || Math.abs(expectedOffset - previousOffset) >= 1 ? expectedOffset : null;
             this.syncHorizontal(body, false);
         },
         init() {
@@ -108,6 +173,7 @@ export function staffTimeline() {
             this.observer?.disconnect();
             this.contentObserver?.disconnect();
             if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
+            clearPersonnelMotion(this.$el);
         },
         queueMeasure() {
             if (this.resizeFrame !== null) return;
@@ -122,15 +188,24 @@ export function staffTimeline() {
             // The time scale stays identical when only the employee column changes.
             const fullNameWidth = parseFloat(style.getPropertyValue('--timeline-name-full-width'))
                 || parseFloat(style.getPropertyValue('--timeline-name-width'));
+            const days = parseInt(style.getPropertyValue('--timeline-days'), 10) || 1;
+            const layout = `${body.clientWidth}:${fullNameWidth}:${days}`;
+            const resized = this.measuredLayout !== null && this.measuredLayout !== layout;
+            const wasAtEnd = this.canScrollLeft && !this.canScrollRight;
+            this.measuredLayout = layout;
+            const motion = personnelMotions.get(this.$el);
+            // Let the responsive CSS tokens own the endpoint after a breakpoint change.
+            if (motion && Math.abs(motion.fullWidth - fullNameWidth) >= 1) this.finishPersonnelMotion(motion);
             const available = body.clientWidth - fullNameWidth;
             if (available <= 0) return;
             const width = timelineDayWidth(available,
                 parseFloat(style.getPropertyValue('--timeline-day-min-width')) || 190,
-                parseInt(style.getPropertyValue('--timeline-days'), 10) || 1);
+                days);
             this.$el.style.setProperty('--timeline-day-width', `${width}px`);
             this.$el.style.setProperty('--timeline-gutter', `${body.offsetWidth - body.clientWidth}px`);
-            this.measureEventLabels(width * (parseInt(style.getPropertyValue('--timeline-days'), 10) || 1));
-            this.syncHorizontal(body, false);
+            this.measureEventLabels(width * days);
+            if (resized) this.rebasePersonnelLayout(wasAtEnd, body.scrollLeft);
+            else this.syncHorizontal(body, false);
         },
         measureEventLabels(periodWidth) {
             for (const track of this.$refs.timelineGrid.querySelectorAll('.rt-personnel-timeline-track')) {
@@ -161,7 +236,10 @@ export function staffTimeline() {
                 body.scrollLeft = scrollbar.scrollLeft;
             }
             const offset = body.scrollLeft;
-            const layoutScroll = this.layoutScrollOffset !== null && Math.abs(offset - this.layoutScrollOffset) < 1;
+            const motion = personnelMotions.get(this.$el);
+            const motionEdge = source !== scrollbar && motion?.atEnd
+                && Math.abs(offset - Math.max(0, body.scrollWidth - body.clientWidth)) < 1;
+            const layoutScroll = motionEdge || (this.layoutScrollOffset !== null && Math.abs(offset - this.layoutScrollOffset) < 1);
             if (detectDirection) this.layoutScrollOffset = null;
             if (detectDirection && !layoutScroll && Math.abs(offset - this.lastScrollLeft) >= 1) {
                 this.setCompactRequested(offset > this.lastScrollLeft);
@@ -177,6 +255,7 @@ export function staffTimeline() {
             const body = this.$refs.timelineBody;
             const width = parseFloat(getComputedStyle(this.$el).getPropertyValue('--timeline-day-width'));
             if (!width) return;
+            this.setCompactRequested(direction > 0);
             body.scrollTo({
                 left: timelineDayOffset(body.scrollLeft, width, direction, body.scrollWidth - body.clientWidth),
                 behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',

@@ -28,6 +28,7 @@ Homestead.json
 !/tests/Feature/
 /tests/Feature/*
 !/tests/Feature/OperationsPageNavigationTest.php
+!/tests/Feature/PlanningTopbarNavigationTest.php
 !/tests/Feature/OperationsPageIntegrationTest.php
 !/tests/Feature/CaseWorkspaceTest.php
 !/tests/Feature/CustomerWorkspaceTest.php
@@ -120,6 +121,7 @@ Homestead.json
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/mobile-sidebar-swipe.test.js
+!/tests/Frontend/sidebar-active-menu.test.js
 !/tests/Frontend/call-recording-gate.test.js
 !/tests/Frontend/call-self-preview.test.js
 !/tests/Frontend/auth-login-ui.test.js
@@ -183,6 +185,7 @@ auth.json
 !/tests/Feature/ShiftAssignmentExceptionTest.php
 !/tests/Feature/ShiftStaffingPanelTest.php
 !/tests/Frontend/staff-timeline.test.js
+!/tests/Frontend/staff-timeline-motion.test.js
 !/tests/Frontend/shift-detail-drawer.test.js
 !/tests/Feature/ShiftDetailDrawerTest.php
 !/tests/Frontend/anchor-dropdown-hover.test.js

@@ -245,6 +245,12 @@ class AiIntakeInbox extends Component
         $this->perform(fn () => app(AiIntakeService::class)->approveProposal($this->selected()->proposals()->findOrFail($id), $this->actor(), $revision));
     }
 
+    public function retryPreparation(int $id, int $revision): void
+    {
+        OperationsAccess::authorize($this->actor(), 'operations.manage');
+        $this->perform(fn () => app(AiIntakeService::class)->retryApprovedProposal($this->selected()->proposals()->findOrFail($id), $this->actor(), $revision));
+    }
+
     public function mapProposal(int $id, int $revision): void
     {
         $this->validate(['mappingInquiryIds.'.$id => ['required', 'integer', 'min:1']]);

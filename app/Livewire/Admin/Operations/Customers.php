@@ -198,7 +198,7 @@ class Customers extends Component
             $changedFields = array_keys($customer->getDirty());
             $customer->save();
             if (($created || $changedFields) && Schema::hasTable('operation_audits')) {
-                app(OperationsAuditService::class)->record($customer, auth()->user(), $created ? 'customer.created' : 'customer.updated', ['changed_fields' => $changedFields] + ($intake ? ['intake_id'=>$intake->id,'source_revision'=>$intake->source_revision,'reviewed'=>true] : []));
+                app(OperationsAuditService::class)->record($customer, auth()->user(), $created ? 'customer.created' : 'customer.updated', ['changed_fields' => $changedFields] + ($intake ? ['intake_id' => $intake->id, 'source_revision' => $intake->source_revision, 'reviewed' => true] : []));
             }
             if ($intake) {
                 app(AiIntakeService::class)->assignCustomer($intake, auth()->user()->fresh(), $customer->id, null, $this->workspaceRevision);

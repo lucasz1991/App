@@ -22,6 +22,23 @@ final class ApplicationNavigation
             $add('Mein Arbeitsplatz', 'Mein Arbeitstag', 'operations.mine', 'clock');
         }
         foreach (OperationsPages::availableFor($user) as $page => $definition) {
+            if ($page === 'cases') {
+                foreach (OperationsPages::planningViews($user) as $view => $entry) {
+                    $parameters = ['page' => 'cases', 'view' => $view];
+                    if ($view === 'shifts') {
+                        $parameters['section'] = 'plan';
+                    }
+                    $icon = match ($view) {
+                        'inbox' => 'inbox', 'orders' => 'briefcase', 'shifts' => 'clipboard',
+                    };
+                    $add($definition['segment'], $entry['label'], 'operations.page', $icon, $parameters, true, 'Planung');
+                    if ($view === 'shifts') {
+                        $add($definition['segment'], 'Kalender', 'operations.page', 'calendar', ['page' => 'cases', 'view' => 'shifts', 'section' => 'calendar'], true, 'Planung');
+                    }
+                }
+
+                continue;
+            }
             $add($definition['segment'], $definition['title'], 'operations.page', $definition['icon'], ['page' => $page], true, $definition['group'] ?? null);
         }
         if (! $ready && $admin) {
@@ -77,14 +94,35 @@ final class ApplicationNavigation
     {
         if ($link['route'] === 'operations.page') {
             $page = request()->route('page');
+            $view = request()->query('view');
+            $section = request()->query('section');
             if ($page === 'shifts') {
                 $page = 'cases';
+                $section = $view ?? 'plan';
+                $view = 'shifts';
             }
             if (request()->routeIs('operations.workspace')) {
-                $page = OperationsPages::legacyTarget(request()->route('module'), request()->query())['page'];
+                $target = OperationsPages::legacyTarget(request()->route('module'), request()->query());
+                $page = $target['page'];
+                $view = $target['view'];
+                $section = $target['section'];
             }
 
-            return $page === $link['parameters']['page'];
+            if ($page !== $link['parameters']['page']) {
+                return false;
+            }
+            if (isset($link['parameters']['view'])) {
+                if ($view === null || $view === '') {
+                    $actor = auth()->user();
+                    $view = $actor instanceof User ? array_key_first(OperationsPages::views($actor, $page)) : null;
+                }
+                if ($view !== $link['parameters']['view']) {
+                    return false;
+                }
+            }
+
+            return ! isset($link['parameters']['section'])
+                || ($section ?: ($view === 'shifts' ? 'plan' : '')) === $link['parameters']['section'];
         }
         $patterns = match ($link['route']) {
             'admin.dashboard' => ['admin.dashboard', 'admin.index'],

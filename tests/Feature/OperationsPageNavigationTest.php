@@ -275,7 +275,7 @@ class OperationsPageNavigationTest extends TestCase
         $request->setRouteResolver(fn () => $route);
         app()->instance('request', $request);
         $links = collect(ApplicationNavigation::sections($actor))->flatten(1);
-        $cases = $links->first(fn ($link) => ($link['parameters']['page'] ?? null) === 'cases');
+        $cases = $links->first(fn ($link) => ($link['parameters']['view'] ?? null) === 'orders');
         $customers = $links->first(fn ($link) => ($link['parameters']['page'] ?? null) === 'customers');
         $this->assertTrue(ApplicationNavigation::active($cases));
         $this->assertFalse(ApplicationNavigation::active($customers));
@@ -285,9 +285,12 @@ class OperationsPageNavigationTest extends TestCase
         $destinations = $links->map(fn ($link) => route($link['route'], $link['parameters']))->all();
         $this->assertSame($destinations, array_column($options, 'value'));
         $this->assertEqualsCanonicalizing($destinations, $this->sidebarDestinations($sidebar));
-        $this->assertSame([OperationsPages::url('cases')], array_column(array_filter($options, fn ($option) => $option['selected']), 'value'));
+        $this->assertSame([OperationsPages::url('cases', ['view' => 'orders'])], array_column(array_filter($options, fn ($option) => $option['selected']), 'value'));
         foreach ([array_column($options, 'value'), $this->sidebarDestinations($sidebar)] as $targets) {
-            $this->assertContains(OperationsPages::url('cases'), $targets);
+            $this->assertContains(OperationsPages::url('cases', ['view' => 'inbox']), $targets);
+            $this->assertContains(OperationsPages::url('cases', ['view' => 'orders']), $targets);
+            $this->assertContains(OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan']), $targets);
+            $this->assertContains(OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'calendar']), $targets);
             $this->assertContains(OperationsPages::url('customers'), $targets);
             $this->assertNotContains(route('operations.workspace', ['module' => 'inquiries']), $targets);
         }
@@ -309,13 +312,77 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertArrayHasKey('board', OperationsPages::views($actor, 'duty'));
         $sections = ApplicationNavigation::sections($actor);
         $this->assertSame(['', 'Disposition'], array_slice(array_keys($sections), 0, 2));
-        $this->assertSame(['attention', 'cases', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
-        $this->assertArrayNotHasKey('Planung', ApplicationNavigation::groups($sections['Disposition']));
+        $this->assertSame(['attention', 'cases', 'cases', 'cases', 'cases', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
+        $planning = ApplicationNavigation::groups($sections['Disposition'])['Planung'];
+        $this->assertSame('calendar', $planning['icon']);
+        $this->assertSame(['Eingang', 'Aufträge', 'Schichtplan', 'Kalender'], array_column($planning['links'], 'title'));
+        $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Vorgänge & Aufträge'));
         $sidebar = view('layouts.application-navigation')->render();
         $destinations = $this->sidebarDestinations($sidebar);
         $this->assertSame(route('dashboard'), $destinations[0]);
-        $expected = array_map(fn ($page) => OperationsPages::url($page), ['attention', 'cases', 'planning', 'duty']);
+        $expected = [OperationsPages::url('attention'), ...array_map(fn ($link) => route($link['route'], $link['parameters']), $planning['links']), OperationsPages::url('planning'), OperationsPages::url('duty')];
         $this->assertSame($expected, array_values(array_filter($destinations, fn ($url) => in_array($url, $expected, true))));
+    }
+
+    public function test_planning_children_share_existing_workspace_permissions_and_hide_empty_groups(): void
+    {
+        $this->operations();
+        foreach ([
+            [['operations.inquiries.manage'], ['inbox'], ['Eingang']],
+            [['customers.portal.manage'], ['inbox'], ['Eingang']],
+            [['operations.manage'], ['orders', 'shifts'], ['Aufträge', 'Schichtplan', 'Kalender']],
+            [['operations.costs.manage'], ['orders'], ['Aufträge']],
+            [[], [], []],
+        ] as [$abilities, $views, $labels]) {
+            $actor = $this->actor($abilities);
+            $this->assertSame($views, array_keys(OperationsPages::planningViews($actor)));
+            $groups = ApplicationNavigation::groups(ApplicationNavigation::sections($actor)['Disposition'] ?? []);
+            $this->assertSame($labels, array_column($groups['Planung']['links'] ?? [], 'title'));
+            if ($labels === []) {
+                $this->assertArrayNotHasKey('Planung', $groups);
+            }
+        }
+        $actor = $this->actor(['operations.manage', 'operations.inquiries.manage']);
+        $actor->update(['status' => false]);
+        $this->assertSame([], OperationsPages::planningViews($actor));
+        $this->assertArrayNotHasKey('Planung', ApplicationNavigation::groups(ApplicationNavigation::sections($actor)['Disposition'] ?? []));
+    }
+
+    #[DataProvider('planningActiveDestinations')]
+    public function test_only_the_exact_planning_destination_is_active(string $path, string $routeName, string $routePattern, array $query, string $expected): void
+    {
+        $this->operations();
+        $actor = $this->actor(['operations.manage', 'operations.inquiries.manage']);
+        $this->actingAs($actor);
+        $request = Request::create($path, 'GET', $query);
+        $route = new Route('GET', $routePattern, fn () => response(''));
+        $route->name($routeName);
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+        app()->instance('request', $request);
+        $links = ApplicationNavigation::groups(ApplicationNavigation::sections($actor)['Disposition'])['Planung']['links'];
+        $this->assertSame([$expected], array_column(array_filter($links, fn ($link) => ApplicationNavigation::active($link)), 'title'));
+    }
+
+    public static function planningActiveDestinations(): array
+    {
+        $page = ['/arbeitsplatz/ansicht/cases', 'operations.page', 'arbeitsplatz/ansicht/{page}'];
+        $legacy = ['operations.workspace', 'arbeitsplatz/{module}'];
+
+        return [
+            'default inbox' => [...$page, [], 'Eingang'],
+            'inbox ai section' => [...$page, ['view' => 'inbox', 'section' => 'ai-intake'], 'Eingang'],
+            'orders detail' => [...$page, ['view' => 'orders', 'section' => 'overview', 'order' => '12'], 'Aufträge'],
+            'default shift section' => [...$page, ['view' => 'shifts'], 'Schichtplan'],
+            'explicit plan section' => [...$page, ['view' => 'shifts', 'section' => 'plan'], 'Schichtplan'],
+            'calendar section' => [...$page, ['view' => 'shifts', 'section' => 'calendar'], 'Kalender'],
+            'old shifts page' => ['/arbeitsplatz/ansicht/shifts', 'operations.page', 'arbeitsplatz/ansicht/{page}', [], 'Schichtplan'],
+            'old calendar page' => ['/arbeitsplatz/ansicht/shifts', 'operations.page', 'arbeitsplatz/ansicht/{page}', ['view' => 'calendar'], 'Kalender'],
+            'legacy inbox' => ['/arbeitsplatz/inquiries', ...$legacy, [], 'Eingang'],
+            'legacy orders' => ['/arbeitsplatz/orders', ...$legacy, [], 'Aufträge'],
+            'legacy plan' => ['/arbeitsplatz/shift-management', ...$legacy, [], 'Schichtplan'],
+            'legacy calendar' => ['/arbeitsplatz/calendar', ...$legacy, [], 'Kalender'],
+        ];
     }
 
     private function navigationXPath(string $html): \DOMXPath

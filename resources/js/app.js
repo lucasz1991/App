@@ -3273,7 +3273,7 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
         return;
     }
 
-    const pageUrl = window.location.href.split(/[?#]/)[0];
+    const pageUrl = new URL(window.location.href);
     const menuItems = Array.from(sideMenu.querySelectorAll('a'));
     // Gruppen-Trigger verwenden href="#". Der Browser loest dieses Attribut
     // zur aktuellen Seiten-URL auf; dadurch galten sie bisher faelschlich als
@@ -3289,10 +3289,38 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
     // Sidebar die verlaessliche Quelle, wenn der Server-Link selbst nicht
     // exakt der aktuellen Detail-URL entspricht.
     const currentMatches = navigableItems.filter((item) => item.hasAttribute('data-current'));
+    const fallbackMatches = navigableItems.filter((item) => item.dataset.menuActive === 'true');
+    const pathMatches = navigableItems.filter((item) => {
+        const target = new URL(item.getAttribute('href'), pageUrl);
+        return target.origin === pageUrl.origin && target.pathname === pageUrl.pathname;
+    });
+    // Die Planungsziele teilen einen Pfad, unterscheiden sich aber nach Ansicht
+    // und Kalender/Plan. Such- und Filterparameter duerfen die Auswahl nicht aendern.
+    const workspaceView = document.querySelector('[data-case-workspace]')?.dataset.caseWorkspace;
+    const exactMatches = pathMatches.filter((item) => {
+        const target = new URL(item.getAttribute('href'), pageUrl);
+        return Array.from(target.searchParams).every(([key, value]) => {
+            let current = pageUrl.searchParams.get(key);
+            if (key === 'view' && !current) current = workspaceView;
+            if (key === 'section' && !current && target.searchParams.get('view') === 'shifts') current = 'plan';
+            return current === value;
+        });
+    });
+    const activeItems = pathMatches.length > 0
+        ? exactMatches
+        : (currentMatches.length > 0 ? currentMatches : fallbackMatches);
+    const activeClasses = ['bg-rt-accent-soft/70', 'text-rt-accent', 'font-semibold', 'shadow-rt-xs', 'before:h-5', 'before:opacity-100', 'dark:bg-rt-dark-nav-active', 'dark:text-rt-dark-accent'];
+    const inactiveClasses = ['text-rt-muted', 'before:h-0', 'before:opacity-0', 'hover:bg-rt-nav-hover', 'hover:text-rt-accent', 'dark:text-white', 'dark:hover:bg-rt-dark-surface-muted', 'dark:hover:text-white'];
+    const syncActiveStyle = (item, active) => {
+        item.dataset.menuActive = active ? 'true' : 'false';
+        activeClasses.forEach((name) => item.classList.toggle(name, active));
+        inactiveClasses.forEach((name) => item.classList.toggle(name, !active));
+    };
 
     menuItems.forEach((item) => {
         item.classList.remove('active');
         item.removeAttribute('aria-current');
+        if (item.matches('[data-rt-sidebar-link], [data-rt-sidebar-group]')) syncActiveStyle(item, false);
     });
     sideMenu.querySelectorAll('[data-rt-sidebar-group]').forEach((trigger) => {
         trigger.setAttribute('aria-expanded', 'false');
@@ -3302,15 +3330,10 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
         list.classList.remove('mm-show');
     });
 
-    const exactMatches = navigableItems.filter((item) => item.href.split(/[?#]/)[0] === pageUrl);
-    const fallbackMatches = navigableItems.filter((item) => item.dataset.menuActive === 'true');
-    const activeItems = exactMatches.length > 0
-        ? exactMatches
-        : (currentMatches.length > 0 ? currentMatches : fallbackMatches);
-
     activeItems.forEach((item) => {
         item.classList.add('active');
         item.setAttribute('aria-current', 'page');
+        syncActiveStyle(item, true);
 
         let currentLi = item.closest('li');
         while (currentLi) {
@@ -3326,9 +3349,11 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
     });
 
     sideMenu.querySelectorAll('[data-rt-sidebar-group]').forEach((trigger) => {
+        const active = Boolean(trigger.closest('li')?.classList.contains('mm-active'));
+        syncActiveStyle(trigger, active);
         trigger.setAttribute(
             'aria-expanded',
-            trigger.closest('li')?.classList.contains('mm-active') ? 'true' : 'false'
+            active ? 'true' : 'false'
         );
     });
 }
