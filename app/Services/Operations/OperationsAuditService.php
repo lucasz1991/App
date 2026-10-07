@@ -8,13 +8,18 @@ use App\Models\OperationInquiry;
 use App\Models\Order;
 use App\Models\User;
 use App\Support\CustomerPortal\PortalActor;
+use App\Support\Operations\OperationsAutomationActor;
 use Illuminate\Database\Eloquent\Model;
 
 class OperationsAuditService
 {
-    public function record(Model $subject, User|CustomerPortalIdentity $actor, string $action, array $data = []): void
+    public function record(Model $subject, User|CustomerPortalIdentity|OperationsAutomationActor $actor, string $action, array $data = []): void
     {
         $references = [];
+        if ($actor instanceof OperationsAutomationActor) {
+            $actor->authorize('audit', $subject instanceof OperationInquiry ? 'operations.inquiries.manage' : 'operations.manage');
+            $references = $actor->references();
+        }
         if ($actor instanceof CustomerPortalIdentity) {
             $customerId = $subject->customer_id;
             if (! $customerId && $subject->order_id) {

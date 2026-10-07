@@ -10,5 +10,9 @@ final readonly class OpenRouterChatResponse
     public function __construct(
         public string $content,
         public array $fileAnnotations = [],
+        public array $usage = [],
+        public ?float $costUsd = null,
+        public ?string $requestId = null,
+        public ?string $model = null,
     ) {}
 }

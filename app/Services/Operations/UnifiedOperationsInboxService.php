@@ -3,6 +3,7 @@
 namespace App\Services\Operations;
 
 use App\Models\AbsenceRequest;
+use App\Models\AiIntake;
 use App\Models\CustomerCapacityCommitment;
 use App\Models\CustomerPortalRequest;
 use App\Models\CustomerPortalSubmission;
@@ -17,6 +18,8 @@ use App\Services\CustomerPortal\CustomerCapacityService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use App\Support\CustomerPortal\CustomerPortalScope;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\AiDispositionSettings;
+use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsPages;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -134,6 +137,20 @@ class UnifiedOperationsInboxService
             }
         }
 
+        if (! $personal && $actor->can('operations.inquiries.manage') && AiIntakeSchema::ready()) {
+            $hours = (int) AiDispositionSettings::all()['reply_timeout_hours'];
+            $rows = AiIntake::where('supervising_user_id', $actor->id)->where(function ($query) use ($hours) {
+                $query->whereIn('status', ['review', 'failed'])->orWhere(function ($query) use ($hours) {
+                    $query->where('status', 'waiting_customer')->where('last_analyzed_at', '<=', now()->utc()->subHours($hours));
+                });
+            })->limit(100)->get();
+            foreach ($rows as $row) {
+                $items->push((object) ['id'=>'ai-intake-'.$row->id, 'kind'=>$row->status === 'waiting_customer' ? 'Kundenantwort ausstehend' : 'AI-Eingang prüfen', 'title'=>$row->title,
+                    'subject'=>'', 'user_id'=>null, 'due_at'=>$row->last_analyzed_at?->addHours($hours), 'status'=>$row->status, 'revision'=>$row->revision,
+                    'priority'=>1, 'module'=>'ai-intake', 'target_tab'=>'ai-intake', 'record_id'=>$row->id, 'record_type'=>'ai-intake', 'customer_id'=>$row->customer_id, 'personal'=>false]);
+            }
+        }
+
         return $items->sortBy(fn ($row) => [$row->priority, $row->due_at?->timestamp ?? PHP_INT_MAX, $row->id])->values();
     }
 
@@ -143,6 +160,9 @@ class UnifiedOperationsInboxService
         abort_unless($item, 404);
         if ($personal) {
             return route('operations.mine', array_filter(['area' => $item->module === 'customer-capacity' ? 'capacity' : ($item->module === 'personnel-enhancements' ? 'personnel' : ($item->module === 'operations-enhancements' ? 'operations' : 'work')), 'tab' => $item->target_tab]));
+        }
+        if ($item->module === 'ai-intake') {
+            return OperationsPages::url('cases', array_filter(['view'=>'inbox','section'=>'ai-intake','source'=>'ai-intake','record'=>$item->record_id,'customer'=>$item->customer_id]));
         }
 
         $type = $item->record_type ?? match (true) {

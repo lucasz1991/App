@@ -10,6 +10,8 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Models\WorkforcePool;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsActor;
+use App\Support\Operations\OperationsAutomationActor;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningSchema;
@@ -20,9 +22,13 @@ use Illuminate\Validation\ValidationException;
 
 class OrderDemandService
 {
-    public function save(int $orderId, ?int $id, ?int $revision, array $data, User $actor): OrderDemand
+    public function save(int $orderId, ?int $id, ?int $revision, array $data, User|OperationsAutomationActor $actor): OrderDemand
     {
-        $this->access($actor);
+        $this->access($actor, 'demand.save');
+        abort_if($actor instanceof OperationsAutomationActor && $id !== null, 403, 'Automatik darf vorhandene Bedarfe nicht ändern.');
+        if ($actor instanceof OperationsAutomationActor) {
+            $actor->assertOrderScope($orderId);
+        }
         $rules = ['role_name' => 'required|string|max:160', 'required_staff' => 'required|integer|min:1|max:999', 'starts_at' => 'required|string', 'ends_at' => 'required|string', 'timezone' => 'required|timezone'];
         $extended = WorkforcePlanningSchema::ready();
         if ($extended) {
@@ -32,6 +38,7 @@ class OrderDemandService
         [$start, $end] = OperationsDateTime::interval($data['starts_at'], $data['ends_at'], $data['timezone']);
 
         return OperationsTransaction::run(function () use ($orderId, $id, $revision, $data, $start, $end, $actor, $extended) {
+            $this->access($actor, 'demand.save');
             $order = Order::lockForUpdate()->findOrFail($orderId);
             $this->check($order->status->value !== 'cancelled' && $start->gte($order->starts_at) && $end->lte($order->ends_at), 'Bedarf muss in einem aktiven Auftragszeitraum liegen.');
             $demand = $id ? OrderDemand::where('order_id', $orderId)->lockForUpdate()->findOrFail($id) : new OrderDemand;
@@ -50,7 +57,7 @@ class OrderDemandService
             if ($id && $demand->shifts()->notCancelled()->exists()) {
                 $this->check($start->equalTo($demand->starts_at) && $end->equalTo($demand->ends_at) && $data['role_name'] === $demand->role_name && $data['timezone'] === $demand->timezone, 'Für geplante Bedarfe sind nur Personalzahlen änderbar. Zeit/Funktion über einen neuen Bedarf planen.');
             }
-            $demand->fill(array_merge($data, ['order_id' => $orderId, 'starts_at' => $start, 'ends_at' => $end, 'revision' => $id ? $revision + 1 : 1, 'status' => 'active', 'created_by' => $id ? $demand->created_by : $actor->id]))->save();
+            $demand->fill(array_merge($data, ['order_id' => $orderId, 'starts_at' => $start, 'ends_at' => $end, 'revision' => $id ? $revision + 1 : 1, 'status' => 'active', 'created_by' => $id ? $demand->created_by : OperationsActor::internalId($actor)]))->save();
             if ($extended) {
                 $this->check($demand->maximum_staff === null || $this->coverage($demand)['peak_planned'] <= $demand->maximum_staff, 'Bereits geplante Einsatzplätze überschreiten den Höchstbedarf.');
                 foreach ($demand->shifts()->notCancelled()->with('assignments.user')->get() as $shift) {
@@ -144,9 +151,12 @@ class OrderDemandService
         }
     }
 
-    public function generate(int $id, int $revision, int $breakMinutes, User $actor): Shift
+    public function generate(int $id, int $revision, int $breakMinutes, User|OperationsAutomationActor $actor): Shift
     {
-        $this->access($actor);
+        $this->access($actor, 'demand.generate');
+        if ($actor instanceof OperationsAutomationActor) {
+            $actor->assertDemandScope($id);
+        }
 
         return OperationsTransaction::run(function () use ($id, $revision, $breakMinutes, $actor) {
             Order::lockForUpdate()->findOrFail(OrderDemand::findOrFail($id)->order_id);
@@ -187,9 +197,9 @@ class OrderDemandService
         }, 3);
     }
 
-    private function access(User $actor): void
+    private function access(User|OperationsAutomationActor $actor, string $operation = 'demand.cancel'): void
     {
-        OperationsAccess::authorize($actor, 'operations.manage');
+        OperationsActor::authorize($actor, 'operations.manage', $operation);
         PlanningSchema::requireReady();
     }
 

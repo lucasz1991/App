@@ -8,11 +8,12 @@ use App\Models\CustomerPortalMembership;
 use App\Models\OperationInquiry;
 use App\Models\User;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsAutomationActor;
 use Illuminate\Support\Facades\Schema;
 
 final class PortalActor
 {
-    public static function internalId(User|CustomerPortalIdentity $actor): ?int
+    public static function internalId(User|CustomerPortalIdentity|OperationsAutomationActor $actor): ?int
     {
         return $actor instanceof User ? (int) $actor->id : null;
     }
@@ -25,9 +26,9 @@ final class PortalActor
         return app(CustomerPortalScope::class)->membership($identity, $customerId, $ability, true);
     }
 
-    public static function references(User|CustomerPortalIdentity $actor, int $customerId): array
+    public static function references(User|CustomerPortalIdentity|OperationsAutomationActor $actor, int $customerId): array
     {
-        if ($actor instanceof User) {
+        if ($actor instanceof User || $actor instanceof OperationsAutomationActor) {
             return [];
         }
         $membership = app(CustomerPortalScope::class)->membership($actor, $customerId);
@@ -35,8 +36,15 @@ final class PortalActor
         return ['customer_portal_identity_id' => $actor->id, 'customer_portal_membership_id' => $membership->id];
     }
 
-    public static function authorizeInquiry(User|CustomerPortalIdentity $actor, ?OperationInquiry $inquiry, array $input, string $action = 'save'): void
+    public static function authorizeInquiry(User|CustomerPortalIdentity|OperationsAutomationActor $actor, ?OperationInquiry $inquiry, array $input, string $action = 'save'): void
     {
+        if ($actor instanceof OperationsAutomationActor) {
+            $actor->authorize('inquiry.'.$action, 'operations.inquiries.manage');
+            abort_unless(in_array($action, ['save', 'verify'], true), 403);
+            $actor->assertInquiryScope($inquiry, $input);
+
+            return;
+        }
         if ($actor instanceof User) {
             OperationsAccess::authorize($actor, 'operations.inquiries.manage');
 

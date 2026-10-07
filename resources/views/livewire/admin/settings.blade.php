@@ -23,6 +23,7 @@
 
         if ($isSuperAdmin) {
             $settingsTabs['device-management'] = ['label' => $deviceManagementLabel, 'icon' => 'fad fa-network-wired'];
+            $settingsTabs['ai-disposition'] = ['label' => 'AI-Disposition', 'icon' => 'fad fa-inbox'];
             $settingsTabs['superadmin'] = ['label' => __('app.settings_superadmin'), 'icon' => 'fad fa-shield-alt'];
         }
 
@@ -62,6 +63,11 @@
         ];
 
         if ($isSuperAdmin) {
+            $settingsTeasers[] = [
+                'tab' => 'ai-disposition', 'section' => 'configuration', 'label' => 'AI-Disposition',
+                'description' => 'Dispositionspostfach, automatische Anfrage-Annahme und AI-Planungshilfe einrichten.',
+                'icon' => 'fad fa-inbox', 'items' => ['Postfach', 'Anfrage-Annahme', 'AI-Helper'],
+            ];
             $settingsTeasers[] = [
                 'tab' => 'device-management',
                 'section' => 'device-deployment',
@@ -735,5 +741,10 @@
             </x-admin.settings-accordion-section>
         </div>
     </x-ui.accordion.tab-panel>
+    @if($isSuperAdmin)
+        <x-ui.accordion.tab-panel for="ai-disposition" :order="7" content-class="">
+            <livewire:admin.ai-disposition-configuration />
+        </x-ui.accordion.tab-panel>
+    @endif
     </x-ui.accordion.tabs>
 </x-ui.page>

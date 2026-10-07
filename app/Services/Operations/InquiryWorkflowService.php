@@ -14,6 +14,7 @@ use App\Support\CustomerPortal\CustomerPortalDateTime;
 use App\Support\CustomerPortal\PortalActor;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
+use App\Support\Operations\OperationsAutomationActor;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -22,7 +23,7 @@ class InquiryWorkflowService
 {
     public function __construct(private OperationsAuditService $audit) {}
 
-    public function save(?OperationInquiry $inquiry, array $input, User|CustomerPortalIdentity $actor, ?int $revision = null): OperationInquiry
+    public function save(?OperationInquiry $inquiry, array $input, User|CustomerPortalIdentity|OperationsAutomationActor $actor, ?int $revision = null): OperationInquiry
     {
         PortalActor::authorizeInquiry($actor, $inquiry, $input);
         $data = Validator::make($input, [
@@ -74,7 +75,7 @@ class InquiryWorkflowService
         });
     }
 
-    public function transition(OperationInquiry $inquiry, int $revision, string $action, array $input, User|CustomerPortalIdentity $actor): OperationInquiry
+    public function transition(OperationInquiry $inquiry, int $revision, string $action, array $input, User|CustomerPortalIdentity|OperationsAutomationActor $actor): OperationInquiry
     {
         PortalActor::authorizeInquiry($actor, $inquiry, $input, $action);
 

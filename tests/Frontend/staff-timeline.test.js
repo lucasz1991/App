@@ -106,6 +106,85 @@ test('failed selection shows an error without leaving a permanent loading panel'
     assert.match(planner.plannerError, /erneut versuchen/);
 });
 
+test('suggestion switch loads immediately, rejects duplicate clicks and waits for the confirmed render', async () => {
+    const { planner } = planningFixture();
+    const input = { checked: true, isConnected: true };
+    const ticks = [];
+    const calls = [];
+    let resolve;
+    planner.$wire.showSuggestions = false;
+    planner.$nextTick = (callback) => ticks.push(callback);
+    planner.request = (method, args) => {
+        calls.push([method, args]);
+        return new Promise((done) => { resolve = done; });
+    };
+
+    const pending = planner.changeSuggestions({ target: input });
+    assert.equal(planner.suggestionsLoading, true);
+    assert.equal(input.checked, false, 'native checkbox must not claim an unconfirmed state');
+    await planner.changeSuggestions({ target: input });
+    assert.deepEqual(calls, [['toggleSuggestions', []]]);
+
+    resolve();
+    await new Promise((done) => setImmediate(done));
+    assert.equal(planner.suggestionsLoading, true, 'keep feedback until Livewire DOM morph');
+    planner.$wire.showSuggestions = true;
+    ticks.shift()();
+    await pending;
+    assert.equal(input.checked, true);
+    assert.equal(planner.suggestionsLoading, false);
+    assert.equal(planner.suggestionsError, '');
+});
+
+test('suggestion switch restores state on commit failure and can be retried', async () => {
+    const { planner } = planningFixture();
+    const input = { checked: false, isConnected: true };
+    planner.$wire.showSuggestions = true;
+    let hook;
+    let fail;
+    let cleaned = 0;
+    planner.$wire.$hook = (event, callback) => {
+        assert.equal(event, 'commit');
+        hook = callback;
+        return () => { cleaned++; };
+    };
+    planner.$wire.toggleSuggestions = () => new Promise(() => {});
+    const pending = planner.changeSuggestions({ target: input });
+    assert.equal(input.checked, true);
+    hook({ commit: { calls: [{ method: 'previewCell' }] }, fail: () => assert.fail('unrelated commit must not reject toggle') });
+    hook({ commit: { calls: [{ method: 'toggleSuggestions' }] }, fail: (callback) => { fail = callback; } });
+    fail();
+    await pending;
+    assert.equal(planner.suggestionsLoading, false);
+    assert.equal(input.checked, true);
+    assert.equal(cleaned, 1);
+    assert.match(planner.suggestionsError, /erneut schalten/);
+
+    planner.$wire.toggleSuggestions = async () => { planner.$wire.showSuggestions = false; };
+    await planner.changeSuggestions({ target: input });
+    assert.equal(input.checked, false);
+    assert.equal(planner.suggestionsError, '');
+    assert.equal(cleaned, 2);
+});
+
+test('disposed suggestion switch cannot start or repaint detached UI', async () => {
+    const { planner } = planningFixture();
+    const input = { checked: true, isConnected: true };
+    planner.$wire.showSuggestions = false;
+    let reject;
+    planner.request = () => new Promise((resolve, fail) => { reject = fail; });
+    const pending = planner.changeSuggestions({ target: input });
+    planner.disposed = true;
+    input.isConnected = false;
+    reject(new Error('network failed after timeline was unmounted'));
+    await pending;
+    assert.equal(planner.suggestionsError, '');
+    planner.request = () => assert.fail('unmounted component must not request');
+    input.checked = true;
+    await planner.changeSuggestions({ target: input });
+    assert.equal(input.checked, true, 'unmounted component must not repaint a stale control');
+});
+
 test('responsive widths fit complete days, including narrow phones and single-day ranges', () => {
     for (const [available, minimum, days, expected] of [[1200, 190, 7, 200], [147, 190, 7, 147], [440, 190, 1, 440], [570, 190, 7, 190], [500, 190, 94, 250]]) {
         assert.equal(timelineDayWidth(available, minimum, days), expected);

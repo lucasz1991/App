@@ -76,7 +76,7 @@ class Settings extends Component
             'system' => ['system', 'assistant', 'sounds'], 'email' => ['mails', 'templates'],
         ];
         if ($this->isSuperAdmin()) {
-            $sections += ['device-management' => ['device-deployment'], 'superadmin' => ['assistant-runtime', 'calls', 'assistant-knowledge']];
+            $sections += ['device-management' => ['device-deployment'], 'ai-disposition' => ['configuration'], 'superadmin' => ['assistant-runtime', 'calls', 'assistant-knowledge']];
         }
         abort_unless(is_string($tab) && is_string($section), 422);
         if ($tab !== '') {

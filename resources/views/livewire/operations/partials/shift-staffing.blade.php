@@ -26,6 +26,7 @@
     @if($shiftClosed)
         <p class="rt-staffing-note">Diese Schicht ist abgeschlossen oder storniert. Neue Zuweisungen sind nicht möglich.</p>
     @else
+        <livewire:operations.ai-planning-helper :shift-id="$selectedShift->id" :key="'ai-planning-shift-'.$selectedShift->id.'-'.$selectedShift->revision" />
         <section class="rt-staffing-section" aria-label="Mitarbeitende finden" data-staffing-candidates>
             <div class="rt-staffing-heading">
                 <div><h3>Mitarbeitende finden</h3><p>Beste Planungseignung zuerst · alle Treffer werden vorab sortiert</p></div>

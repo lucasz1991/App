@@ -77,6 +77,9 @@ final class ApplicationNavigation
     {
         if ($link['route'] === 'operations.page') {
             $page = request()->route('page');
+            if ($page === 'shifts') {
+                $page = 'cases';
+            }
             if (request()->routeIs('operations.workspace')) {
                 $page = OperationsPages::legacyTarget(request()->route('module'), request()->query())['page'];
             }

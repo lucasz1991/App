@@ -16,6 +16,7 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('dropbox:recover')->everyMinute()->withoutOverlapping();
         $schedule->command('operations:attention-run')->everyMinute()->withoutOverlapping();
+        $schedule->command('operations:ai-intake-poll')->everyMinute()->withoutOverlapping();
         $schedule->command('devices:purge-support-data')->hourly()->withoutOverlapping();
         // Entfernt stuendlich abgelaufene Dateien/Ordner, die auf
         // automatisches Loeschen gesetzt sind.

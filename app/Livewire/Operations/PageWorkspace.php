@@ -30,6 +30,11 @@ class PageWorkspace extends Component
             $this->$property = $value;
         }
         $this->context = OperationsPages::context(request());
+        if ($this->page === 'shifts') {
+            abort_unless($this->initialView === '' || in_array($this->initialView, ['plan', 'calendar'], true), 403);
+            abort_unless($this->initialSection === '', 403);
+            $this->redirect(OperationsPages::url('shifts', ['view' => $this->initialView ?: 'plan'] + $this->context));
+        }
     }
 
     private function authorizePage(): void

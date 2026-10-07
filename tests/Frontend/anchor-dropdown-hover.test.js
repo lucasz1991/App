@@ -120,6 +120,8 @@ function geometryFixture(options = {}, measurements = {}) {
         anchorTop: 100,
         anchorWidth: 100,
         anchorHeight: 28,
+        cornerRadius: '16px',
+        caretWidth: 18,
         ...measurements,
     };
     const rect = (left, top, width, height) => ({ left, top, width, height, right: left + width, bottom: top + height });
@@ -149,10 +151,93 @@ function geometryFixture(options = {}, measurements = {}) {
     const caret = f.document.createElement('span');
     caret.setAttribute('data-rt-dropdown-caret', '');
     f.refs.panel.prepend(caret);
+    Object.defineProperty(caret, 'offsetWidth', { get: () => geometry.caretWidth });
+    f.window.getComputedStyle = element => element === caret
+        ? { width: `${geometry.caretWidth}px` }
+        : {
+            borderTopLeftRadius: geometry.topLeftRadius ?? geometry.cornerRadius,
+            borderTopRightRadius: geometry.topRightRadius ?? geometry.cornerRadius,
+            borderBottomLeftRadius: geometry.bottomLeftRadius ?? geometry.cornerRadius,
+            borderBottomRightRadius: geometry.bottomRightRadius ?? geometry.cornerRadius,
+        };
     f.window.matchMedia = () => ({ matches: geometry.width < 768 });
     f.dropdown.open = true;
     return { ...f, geometry, caret, position: () => f.dropdown.syncAnchoredPanel(f.refs.panel) };
 }
+
+test('viewport-edge caret clears the full rounded corner on either side and placement', () => {
+    for (const placement of ['top', 'bottom']) {
+        for (const side of ['left', 'right']) {
+            const f = geometryFixture({}, {
+                width: 903,
+                anchorLeft: side === 'left' ? 0 : 879,
+                anchorWidth: 24,
+                anchorTop: placement === 'top' ? 900 : 100,
+            });
+            f.dropdown.preferredPlacement = placement;
+            f.dropdown.horizontalAlign = side;
+            f.position();
+            const caretX = Number.parseFloat(f.refs.panel.style.getPropertyValue('--rt-dropdown-caret-x'));
+            const expectedInset = 16 + (18 / 2) + 2;
+            assert.equal(f.dropdown.placement, placement);
+            assert.equal(caretX, side === 'left' ? expectedInset : 384 - expectedInset);
+            assert.equal(f.caret.hasAttribute('hidden'), false);
+            assert.ok(f.refs.panel.getBoundingClientRect().left >= 12);
+            assert.ok(f.refs.panel.getBoundingClientRect().right <= 891);
+        }
+    }
+});
+
+test('wide mobile panel keeps the safe inset even when its trigger lies beyond the card edge', () => {
+    const f = geometryFixture({}, { width: 320, anchorLeft: 294, anchorWidth: 26 });
+    f.position();
+    assert.equal(f.refs.panel.style.left, '12px');
+    assert.equal(f.refs.panel.style.getPropertyValue('--rt-dropdown-caret-x'), '269px');
+    assert.equal(f.refs.panel.dataset.wideCentered, 'true');
+    assert.equal(f.caret.hasAttribute('hidden'), false);
+});
+
+test('caret clearance follows asymmetric and elliptical corner radii and its real width', () => {
+    const f = geometryFixture({}, {
+        width: 903,
+        anchorLeft: 879,
+        anchorWidth: 24,
+        topRightRadius: '24px 12px',
+        bottomRightRadius: '8%',
+        caretWidth: 24,
+    });
+    f.position();
+    const clearance = Math.ceil(384 * 0.08 + 12 + 2);
+    assert.equal(f.refs.panel.style.getPropertyValue('--rt-dropdown-caret-x'), `${384 - clearance}px`);
+    Object.assign(f.geometry, { anchorTop: 900 });
+    f.position();
+    assert.equal(f.dropdown.placement, 'top');
+    assert.equal(f.refs.panel.style.getPropertyValue('--rt-dropdown-caret-x'), `${384 - clearance}px`);
+});
+
+test('external anchors get the same corner guard without moving an ordinary centered caret', () => {
+    const f = geometryFixture({}, { width: 903, anchorLeft: 879, anchorWidth: 24 });
+    const externalAnchor = f.document.getElementById('outside');
+    externalAnchor.getBoundingClientRect = f.refs.trigger.querySelector('button').getBoundingClientRect;
+    externalAnchor.getClientRects = () => [externalAnchor.getBoundingClientRect()];
+    f.dropdown.externalAnchor = externalAnchor;
+    f.position();
+    assert.equal(f.refs.panel.style.getPropertyValue('--rt-dropdown-caret-x'), '357px');
+    Object.assign(f.geometry, { anchorLeft: 300, anchorWidth: 100 });
+    f.position();
+    assert.equal(f.refs.panel.style.getPropertyValue('--rt-dropdown-caret-x'), '50px');
+});
+
+test('very narrow panels hide a caret that cannot fit between corners and restore it after resize', () => {
+    const f = geometryFixture({}, { panelWidth: 40, anchorWidth: 24 });
+    f.position();
+    assert.equal(f.caret.hasAttribute('hidden'), true);
+    assert.equal(f.refs.panel.style.getPropertyValue('--rt-dropdown-caret-x'), '20px');
+    Object.assign(f.geometry, { panelWidth: 160 });
+    f.position();
+    assert.equal(f.caret.hasAttribute('hidden'), false);
+    assert.equal(f.refs.panel.style.getPropertyValue('--rt-dropdown-caret-x'), '27px');
+});
 
 test('natural-height dropdown retains its content height and anchor-side limit by default', () => {
     const f = geometryFixture();

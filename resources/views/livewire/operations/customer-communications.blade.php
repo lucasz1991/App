@@ -8,7 +8,9 @@
             @else<h3 class="mr-auto text-sm font-semibold">{{ $views[$view] }}</h3>@endif
             @if($canRecord && $ready && $view==='records')<x-ui.buttons.button-basic type="button" mode="primary" wire:click="create"><i class="far fa-plus" aria-hidden="true"></i>Kontakt protokollieren</x-ui.buttons.button-basic>@endif
         </x-slot:actions>
-        @if($records)
+        @if($view === 'ai')
+            <livewire:operations.ai-intake-inbox :customer-id="$customerId" :key="'customer-ai-correspondence-'.$customerId" />
+        @elseif($records)
             <x-tables.toolbar id="customer-communication-filters" :single-line="true" :filter-count="(trim($search)!==''?1:0)+($channelFilter!=='all'?1:0)" title="Kommunikation filtern" reset-action="resetFilters" search-for="customer-communication-search">
                 <x-slot:search><x-tables.search-field id="customer-communication-search" placeholder="Betreff suchen" maxlength="100" :results-count="$records->total()" wire:model.live.debounce.300ms="search" /></x-slot:search>
                 @if($view==='records')<x-tables.filter-field label="Kanal" icon="far fa-comments" for="customer-communication-channel"><x-ui.forms.select id="customer-communication-channel" wire:model.live="channelFilter" aria-label="Kommunikationskanal"><option value="all">Alle Kanäle</option>@foreach(\App\Models\CustomerInteraction::CHANNELS as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>@endif

@@ -13,6 +13,7 @@ use App\Services\Operations\OperationsAuditService;
 use App\Support\CustomerPortal\CustomerPortalScope;
 use App\Support\CustomerPortal\CustomerPortalWorkflowSchema;
 use App\Support\Operations\OperationsDateTime;
+use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsTransaction;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Schema;
@@ -97,6 +98,7 @@ class CustomerCommunications extends Component
 
         return array_filter([
             'records' => $this->canRecord($actor) ? 'Kommunikationsprotokoll' : null,
+            'ai' => $actor->can('operations.inquiries.manage') && AiIntakeSchema::ready() ? 'AI-Postfach' : null,
             'portal' => $this->canPortal($actor) ? 'Portalnachrichten' : null,
         ]);
     }
@@ -247,7 +249,7 @@ class CustomerCommunications extends Component
         $this->filters();
         $ready = CustomerInteraction::ready() && Schema::hasTable('operation_audits');
         $records = null;
-        if ($this->view === 'portal' || $ready) {
+        if ($this->view !== 'ai' && ($this->view === 'portal' || $ready)) {
             $query = $this->view === 'portal'
                 ? CustomerPortalMessage::query()->select(['id', 'subject', 'visibility', 'identity_id', 'order_id', 'created_at'])
                 : CustomerInteraction::query()->select(['id', 'subject', 'channel', 'direction', 'occurred_at', 'timezone', 'contact_id', 'order_id', 'inquiry_id', 'created_at']);

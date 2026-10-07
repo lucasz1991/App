@@ -11,6 +11,8 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsActor;
+use App\Support\Operations\OperationsAutomationActor;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningLocks;
 use Carbon\CarbonInterface;
@@ -21,12 +23,16 @@ class ShiftSchedulingService
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function save(Shift $shift, array $attributes, User $actor, array $context = []): Shift
+    public function save(Shift $shift, array $attributes, User|OperationsAutomationActor $actor, array $context = []): Shift
     {
-        OperationsAccess::authorize($actor, 'operations.manage');
+        OperationsActor::authorize($actor, 'operations.manage', 'shift.save');
+        abort_if($actor instanceof OperationsAutomationActor && ($shift->exists || ($attributes['status'] ?? 'draft') !== 'draft' || ! $shift->order_demand_id), 403, 'Automatik darf nur verknüpfte unbesetzte Entwürfe vorbereiten.');
+        if ($actor instanceof OperationsAutomationActor) {
+            $actor->assertDemandScope((int) $shift->order_demand_id);
+        }
 
         return OperationsTransaction::run(function () use ($shift, $attributes, $actor, $context): Shift {
-            OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.manage');
+            OperationsActor::authorize($actor instanceof User ? User::findOrFail($actor->id) : $actor, 'operations.manage', 'shift.save');
             $userIds = $shift->exists ? $shift->assignments()->blocking()->pluck('user_id')->all() : [];
             PlanningLocks::acquire($shift->exists ? [$shift->id] : [], $userIds, [(int) ($attributes['order_id'] ?? $shift->order_id)]);
             $persistedShift = $shift->exists
@@ -98,7 +104,7 @@ class ShiftSchedulingService
                 && $persistedShift->assignments()->blocking()->count() > $persistedShift->required_staff) {
                 throw ValidationException::withMessages(['workflow' => 'Personalzahl kann nicht unter die reservierten Einsatzplätze sinken.']);
             }
-            $persistedShift->updated_by = $actor->getKey();
+            $persistedShift->updated_by = OperationsActor::internalId($actor);
             if ($persistedShift->order_demand_id && $shiftStatus !== ShiftStatus::Cancelled) {
                 $demand = OrderDemand::findOrFail($persistedShift->order_demand_id);
                 if ($demand->status !== 'active' || $persistedShift->order_id !== $demand->order_id || $persistedShift->role_name !== $demand->role_name
@@ -118,7 +124,7 @@ class ShiftSchedulingService
             }
 
             if (! $persistedShift->exists) {
-                $persistedShift->created_by = $actor->getKey();
+                $persistedShift->created_by = OperationsActor::internalId($actor);
                 if ($native) {
                     $persistedShift->revision = 1;
                     $persistedShift->published_revision = 0;

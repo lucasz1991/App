@@ -465,14 +465,30 @@
         ? triggerRect.left
         : triggerRect.right - panelWidth;
       const triggerCenter = triggerRect.left + (triggerRect.width / 2);
-      // Normalerweise bleibt der Indikator deutlich ausserhalb der
-      // abgerundeten Eckbereiche. Nur wenn ein randnaher Trigger sonst nicht
-      // mehr exakt getroffen werden koennte, darf er bis auf 18px einruecken.
-      const preferredCaretInset = Math.min(30, Math.max(18, panelWidth / 2));
-      // 14px halten den 10px-Caret sicher ausserhalb des 12px-Eckradius,
-      // erlauben bei randnahen mobilen Triggern aber weiterhin eine exakt
-      // mittige Verbindung statt eines sichtbar versetzten Indikators.
-      const minimumCaretInset = Math.min(14, panelWidth / 2);
+      const caret = panel.querySelector('[data-rt-dropdown-caret]');
+      const surfaceStyle = window.getComputedStyle(panelScroll || panel);
+      const horizontalRadius = (value) => {
+        const horizontal = String(value || '').trim().split(/\s+/)[0];
+        const radius = Number.parseFloat(horizontal);
+        if (!Number.isFinite(radius)) return 16;
+        return Math.max(0, horizontal.endsWith('%') ? panelWidth * radius / 100 : radius);
+      };
+      const caretWidth = caret
+        ? (caret.offsetWidth || Number.parseFloat(window.getComputedStyle(caret).width) || 18)
+        : 18;
+      // Keep the whole caret base on the straight card edge, not just its
+      // tip inside the panel. Use both corner pairs so flipping above/below
+      // does not shift a mobile panel; viewport-edge anchors may be offset.
+      const safeCaretLeft = Math.ceil(Math.max(
+        horizontalRadius(surfaceStyle.borderTopLeftRadius),
+        horizontalRadius(surfaceStyle.borderBottomLeftRadius),
+      ) + caretWidth / 2 + 2);
+      const safeCaretRight = Math.ceil(Math.max(
+        horizontalRadius(surfaceStyle.borderTopRightRadius),
+        horizontalRadius(surfaceStyle.borderBottomRightRadius),
+      ) + caretWidth / 2 + 2);
+      const minimumCaretLeftInset = Math.min(safeCaretLeft, panelWidth / 2);
+      const minimumCaretRightInset = Math.min(safeCaretRight, panelWidth / 2);
       const minimumViewportLeft = viewportLeft + viewportInset;
       const maximumViewportLeft = viewportLeft + viewportWidth - viewportInset - panelWidth;
       let resolvedLeft = this.clamp(
@@ -487,8 +503,8 @@
         const centeredLeft = viewportLeft + ((viewportWidth - panelWidth) / 2);
         // So nah wie moeglich an der Viewport-Mitte bleiben. Wenn der Trigger
         // es zulaesst, bleibt der Caret dabei exakt auf dessen Mittelpunkt.
-        const minimumCaretLeft = triggerCenter - (panelWidth - minimumCaretInset);
-        const maximumCaretLeft = triggerCenter - minimumCaretInset;
+        const minimumCaretLeft = triggerCenter - (panelWidth - minimumCaretRightInset);
+        const maximumCaretLeft = triggerCenter - minimumCaretLeftInset;
         const feasibleMinimumLeft = Math.max(minimumViewportLeft, minimumCaretLeft);
         const feasibleMaximumLeft = Math.min(maximumViewportLeft, maximumCaretLeft);
 
@@ -539,17 +555,12 @@
         ? this.clamp(anchoredTop, viewportTop + viewportInset, viewportBottom - viewportInset - renderedPanelHeight)
         : anchoredTop;
       const detached = this.fixedHeight && Math.abs(resolvedTop - anchoredTop) > 1;
-      panel.querySelector('[data-rt-dropdown-caret]')?.toggleAttribute('hidden', detached);
+      caret?.toggleAttribute('hidden', detached || safeCaretLeft + safeCaretRight > panelWidth);
       const triggerX = triggerCenter - resolvedLeft;
-      const availableCaretInset = Math.min(triggerX, panelWidth - triggerX);
-      const caretInset = Math.min(
-        preferredCaretInset,
-        Math.max(minimumCaretInset, availableCaretInset),
-      );
       const caretX = this.clamp(
         triggerX,
-        caretInset,
-        panelWidth - caretInset,
+        minimumCaretLeftInset,
+        panelWidth - minimumCaretRightInset,
       );
 
       this.placement = resolvedPlacement;

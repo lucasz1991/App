@@ -239,7 +239,7 @@ class OperationsPageNavigationTest extends TestCase
     public static function legacyModules(): array
     {
         return [
-            ['inquiries', 'cases', 'inbox', ''], ['orders', 'cases', 'orders', ''], ['shift-management', 'shifts', 'plan', ''], ['calendar', 'shifts', 'calendar', ''],
+            ['inquiries', 'cases', 'inbox', ''], ['orders', 'cases', 'orders', ''], ['shift-management', 'cases', 'shifts', 'plan'], ['calendar', 'cases', 'shifts', 'calendar'],
             ['customers', 'customers', 'master', ''], ['customer-portal', 'customers', 'portal', 'access'], ['qualifications', 'people', 'qualifications', ''], ['absences', 'leave', 'requests', ''],
             ['times', 'time-review', 'times', ''], ['exports', 'payroll', 'export', ''], ['rules', 'time-review', '', 'rules'], ['workforce-accounts', 'leave', 'leave-accounts', ''],
             ['personnel-processes', 'personnel-processes', 'tasks', ''], ['workforce-planning', 'planning', 'staff', 'pools'], ['plan-variants', 'planning', 'tools', 'variants'],
@@ -309,11 +309,12 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertArrayHasKey('board', OperationsPages::views($actor, 'duty'));
         $sections = ApplicationNavigation::sections($actor);
         $this->assertSame(['', 'Disposition'], array_slice(array_keys($sections), 0, 2));
-        $this->assertSame(['attention', 'cases', 'shifts', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
+        $this->assertSame(['attention', 'cases', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
+        $this->assertArrayNotHasKey('Planung', ApplicationNavigation::groups($sections['Disposition']));
         $sidebar = view('layouts.application-navigation')->render();
         $destinations = $this->sidebarDestinations($sidebar);
         $this->assertSame(route('dashboard'), $destinations[0]);
-        $expected = array_map(fn ($page) => OperationsPages::url($page), ['attention', 'cases', 'shifts', 'planning', 'duty']);
+        $expected = array_map(fn ($page) => OperationsPages::url($page), ['attention', 'cases', 'planning', 'duty']);
         $this->assertSame($expected, array_values(array_filter($destinations, fn ($url) => in_array($url, $expected, true))));
     }
 

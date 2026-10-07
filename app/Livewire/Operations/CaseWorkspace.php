@@ -10,6 +10,7 @@ use App\Models\CustomerPortalSubmission;
 use App\Models\OperationInquiry;
 use App\Models\OperationWorkflow;
 use App\Models\Order;
+use App\Models\Shift;
 use App\Models\User;
 use App\Services\Operations\CommercialOfferService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
@@ -43,6 +44,7 @@ class CaseWorkspace extends Component
             'inbox' => ($operationsReady && $actor->can('operations.inquiries.manage')) || isset(self::availableSections($actor)['portal']) ? ['value' => 'inbox', 'label' => 'Eingang', 'icon' => 'fa-inbox'] : null,
             'offers' => CommercialOfferService::ready() && ($actor->can('operations.inquiries.manage') || $actor->can('operations.manage')) ? ['value' => 'offers', 'label' => 'Angebote', 'icon' => 'fa-file-invoice'] : null,
             'orders' => $operationsReady && ($actor->can('operations.manage') || ($actor->can('operations.costs.manage') && OperationsEnhancementsSchema::ready())) ? ['value' => 'orders', 'label' => 'Aufträge', 'icon' => 'fa-briefcase'] : null,
+            'shifts' => $operationsReady && $actor->can('operations.manage') ? ['value' => 'shifts', 'label' => 'Schichtplan', 'icon' => 'fa-calendar'] : null,
         ]);
     }
 
@@ -55,6 +57,7 @@ class CaseWorkspace extends Component
 
         return array_filter([
             'overview' => $operationsReady && $actor->can('operations.inquiries.manage') ? 'Anfragen' : null,
+            'ai-intake' => $operationsReady && $actor->can('operations.inquiries.manage') ? 'AI-Annahme' : null,
             'imports' => $operationsReady && $actor->can('operations.inquiries.manage') && OperationsEnhancementsSchema::ready() ? 'Eingangsprüfung' : null,
             'portal' => $actor->can('customers.portal.manage') && CustomerPortalIntakeSchema::ready() && CustomerPortalWorkflowSchema::ready() ? 'Portaleingang' : null,
         ]);
@@ -68,13 +71,13 @@ class CaseWorkspace extends Component
         if ($initialView === '') {
             $initialView = array_key_first($views);
         }
-        abort_unless(in_array($initialView, ['inbox', 'offers', 'orders'], true), 404);
+        abort_unless(in_array($initialView, ['inbox', 'offers', 'orders', 'shifts'], true), 404);
         if ($initialView === 'inbox' && ! isset($views[$initialView]) && ! request()->has('view') && $context === []) {
             $initialView = array_key_first($views);
         }
         abort_unless(isset($views[$initialView]), 403);
         $this->view = $initialView;
-        $this->section = $initialSection ?: ($initialView === 'inbox' ? (array_key_first(self::availableSections($actor)) ?? 'overview') : ($initialView === 'orders' && ! $actor->can('operations.manage') ? 'costs' : 'overview'));
+        $this->section = $initialSection ?: ($initialView === 'inbox' ? (array_key_first(self::availableSections($actor)) ?? 'overview') : ($initialView === 'shifts' ? 'plan' : ($initialView === 'orders' && ! $actor->can('operations.manage') ? 'costs' : 'overview')));
         $this->context = $context;
         if ($this->view === 'inbox' && $this->section === 'overview') {
             $this->context = array_replace($this->context, InquiryInbox::listState(array_replace($this->context, request()->query())));
@@ -113,6 +116,9 @@ class CaseWorkspace extends Component
             if ($this->section === 'costs') {
                 OperationsAccess::authorize($actor, 'operations.costs.manage');
             }
+        } elseif ($this->view === 'shifts') {
+            OperationsAccess::authorize($actor, 'operations.manage');
+            abort_unless(in_array($this->section, ['plan', 'calendar'], true), 404);
         } else {
             abort_unless($this->section === 'overview', 404);
         }
@@ -129,6 +135,11 @@ class CaseWorkspace extends Component
         $customer = isset($this->context['customer']) ? Customer::findOrFail($this->context['customer']) : null;
         $inquiry = isset($this->context['inquiry']) ? OperationInquiry::findOrFail($this->context['inquiry']) : null;
         $order = isset($this->context['order']) ? Order::findOrFail($this->context['order']) : null;
+        if ($this->view === 'shifts' && isset($this->context['shift'])) {
+            $shift = Shift::findOrFail($this->context['shift']);
+            abort_if($order && (int) $shift->order_id !== (int) $order->id, 404);
+            abort_if($customer && (int) $shift->order?->customer_id !== (int) $customer->id, 404);
+        }
         abort_if($customer && (($inquiry && $inquiry->customer_id !== $customer->id) || ($order && $order->customer_id !== $customer->id)), 404);
         abort_if($inquiry && $order && $inquiry->order_id !== $order->id, 404);
         if (($this->context['record_type'] ?? '') === 'proof') {
@@ -170,6 +181,12 @@ class CaseWorkspace extends Component
     public function setSection(string $section): void
     {
         $this->access();
+        if ($this->view === 'shifts') {
+            abort_unless(in_array($section, ['plan', 'calendar'], true), 404);
+            $this->redirect(OperationsPages::url('cases', ['view' => 'shifts', 'section' => $section] + $this->context), navigate: true);
+
+            return;
+        }
         abort_unless($this->view === 'inbox' && isset(self::availableSections($this->actor())[$section]), 403);
         $this->redirect(OperationsPages::url('cases', ['view' => 'inbox', 'section' => $section, 'customer' => $this->context['customer'] ?? null] + $this->preservedListContext('inbox', $section)), navigate: true);
     }

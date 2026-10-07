@@ -5,6 +5,8 @@ export function timelinePlanning() {
         plannerLoading: false,
         plannerReady: false,
         plannerError: '',
+        suggestionsLoading: false,
+        suggestionsError: '',
         requestVersion: 0,
         pending: null,
         inFlight: false,
@@ -51,6 +53,27 @@ export function timelinePlanning() {
             document.removeEventListener('visibilitychange', this.visibilityListener);
         },
         panelId() { return `rt-dropdown-timeline-planner-${this.$wire.$id}`; },
+        async changeSuggestions(event) {
+            if (this.disposed) return;
+            // A checkbox changes before its change event. Keep the confirmed state
+            // visible until the matching Livewire render, including failed requests.
+            const input = event?.target;
+            if (input) input.checked = Boolean(this.$wire.showSuggestions);
+            if (this.suggestionsLoading) return;
+            this.suggestionsLoading = true;
+            this.suggestionsError = '';
+            try {
+                await this.request('toggleSuggestions', []);
+                await new Promise((resolve) => this.$nextTick(resolve));
+            } catch {
+                if (!this.disposed) this.suggestionsError = 'Vorschläge konnten nicht aktualisiert werden. Bitte erneut schalten.';
+            } finally {
+                if (!this.disposed) {
+                    this.suggestionsLoading = false;
+                    if (input?.isConnected) input.checked = Boolean(this.$wire.showSuggestions);
+                }
+            }
+        },
         hoverCell(event) {
             const anchor = event.target.closest('[data-timeline-cell-action]');
             if (!anchor || event.pointerType === 'touch' || this.plannerVisible) return;

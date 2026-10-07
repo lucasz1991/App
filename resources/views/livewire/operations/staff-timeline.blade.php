@@ -2,9 +2,27 @@
     x-data="rtTimelinePlanning" x-on:operations-plan-changed.window="invalidate()">
 @if($planningEnabled && !$absencesOnly && $searchInHeader)
     <template x-teleport="[data-shift-plan-timeline-suggestions]">
-        <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-timeline-suggestions-toggle" wire:click="toggleSuggestions" wire:loading.attr="disabled" wire:target="toggleSuggestions" aria-label="Besetzungsvorschläge ein-/ausblenden" aria-pressed="{{ $showSuggestions ? 'true' : 'false' }}" title="{{ $showSuggestions ? 'Besetzungsvorschläge ausblenden' : 'Besetzungsvorschläge anzeigen' }}">
-            <i class="{{ $showSuggestions ? 'fas' : 'far' }} fa-lightbulb" aria-hidden="true"></i>
-        </x-ui.buttons.button-basic>
+        <div class="rt-timeline-suggestions-toggle" x-bind:aria-busy="suggestionsLoading" x-bind:data-loading="suggestionsLoading" x-bind:data-error="Boolean(suggestionsError)">
+            <x-ui.forms.toggle-button
+                :id="'timeline-suggestions-'.$this->getId()"
+                size="sm"
+                label="Vorschläge"
+                :checked="$showSuggestions"
+                x-bind:checked="$wire.showSuggestions"
+                x-bind:disabled="suggestionsLoading"
+                change="changeSuggestions($event)"
+                aria-label="Besetzungsvorschläge ein-/ausblenden"
+                aria-describedby="timeline-suggestions-status-{{ $this->getId() }}"
+                x-bind:title="suggestionsError || ($wire.showSuggestions ? 'Besetzungsvorschläge ausblenden' : 'Besetzungsvorschläge anzeigen')"
+                data-timeline-suggestions-switch
+            />
+            <span class="rt-timeline-suggestions-toggle__feedback" x-cloak x-show="suggestionsLoading || suggestionsError" aria-hidden="true">
+                <i x-show="suggestionsLoading" class="far fa-spinner-third"></i>
+                <i x-show="!suggestionsLoading" class="far fa-exclamation-circle"></i>
+                <span x-text="suggestionsLoading ? 'Lädt …' : 'Erneut'"></span>
+            </span>
+            <span id="timeline-suggestions-status-{{ $this->getId() }}" class="sr-only" role="status" aria-live="polite" x-text="suggestionsLoading ? 'Besetzungsvorschläge werden aktualisiert. Bitte warten.' : (suggestionsError || ($wire.showSuggestions ? 'Besetzungsvorschläge eingeblendet.' : 'Besetzungsvorschläge ausgeblendet.'))"></span>
+        </div>
     </template>
 @endif
 @if(!$absencesOnly)
@@ -115,13 +133,6 @@
     </div>
 </div>
 @if($planningEnabled && !$absencesOnly)
-    @if($showSuggestions)
-        <div class="rt-timeline-suggestion-legend" role="status">
-            <span data-fit="preferred">Wunsch / verfügbar</span><span data-fit="suitable">Konfliktfrei</span><span data-fit="review">Freiwunsch prüfen</span>
-            <span><i class="far fa-clock" aria-hidden="true"></i> Orange ≤ 72 h · Rot ≤ 24 h</span>
-            <small>Unverbindliche Vorschläge{{ $planningPreview['limited'] ? ' · begrenzte Vorschau' : '' }}</small>
-        </div>
-    @endif
     <x-ui.dropdown.anchor-dropdown align="left" width="96" :external-trigger="true" dropdown-id="timeline-planner-{{ $this->getId() }}" layer-group="staff-timeline-events" content-role="dialog" content-label="Schicht einteilen" trigger-classes="hidden" class="rt-timeline-planner-host" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text" x-on:dropdown-closed.window="if ($event.detail?.id === layerId) closePlanner()" data-timeline-planner>
         <x-slot:trigger><button type="button" tabindex="-1" aria-hidden="true">Schichtauswahl</button></x-slot:trigger>
         <x-slot:content>

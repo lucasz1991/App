@@ -172,6 +172,11 @@ Homestead.json
 auth.json
 
 # Native Operations regression and isolated browser acceptance
+!/tests/Feature/AiDispositionUiTest.php
+!/tests/Feature/AiDispositionTransportTest.php
+!/tests/Feature/AiIntakeServiceTest.php
+!/tests/Feature/AiPlanningHelperTest.php
+!/tests/Frontend/ai-intake-recorder.test.js
 !/tests/Feature/StaffRegionalPreferenceServiceTest.php
 !/tests/Feature/ShiftStaffingCandidatesTest.php
 !/tests/Feature/ShiftAssignmentExceptionTest.php

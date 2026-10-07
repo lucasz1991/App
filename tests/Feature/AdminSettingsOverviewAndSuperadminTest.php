@@ -34,6 +34,7 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
         parent::setUp();
 
         $this->buildMinimalRailTimeSchema();
+        (require database_path('migrations/2026_09_08_171000_create_employee_workplace_provisions.php'))->up();
     }
 
     public function test_overview_tab_teases_and_links_every_other_tab(): void
@@ -44,7 +45,7 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
         // Der frueher 'general' benannte Tab heisst jetzt Uebersicht und ist
         // der Standardeinstieg.
         $this->assertStringContainsString("'overview' => ['label' => __('app.settings_overview')", $view);
-        $this->assertStringContainsString('default="overview"', $view);
+        $this->assertStringContainsString(':default="$initialTab ?: \'overview\'"', $view);
         $this->assertStringNotContainsString("'general' => ['label' => __('app.general')", $view);
 
         // Jeder Teaser wechselt den Tab UND klappt die gemeinte Sektion auf.

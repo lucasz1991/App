@@ -244,6 +244,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/kundenportal-pruefung/dokumente/{id}', [CustomerPortalDocumentController::class, 'managerDocument'])->whereNumber('id')->middleware('throttle:30,1')->name('customer-portal.manager.document');
     Route::get('/leistungsnachweise/{id}/anlagen/{attachment}', CustomerProofAttachmentController::class)
         ->whereNumber('id')->whereUuid('attachment')->middleware('throttle:30,1')->name('operations.proofs.attachment');
+    Route::get('/ai-annahme/anlagen/{id}', [\App\Http\Controllers\Operations\AiIntakeSourceController::class, 'attachment'])->whereNumber('id')->middleware('throttle:30,1')->name('operations.ai-intake.attachment');
+    Route::get('/ai-annahme/original/{id}', [\App\Http\Controllers\Operations\AiIntakeSourceController::class, 'original'])->whereNumber('id')->middleware('throttle:30,1')->name('operations.ai-intake.original');
     Route::get('/reisen/{id}/belege/{receipt}', OperationsTravelReceiptController::class)
         ->whereNumber('id')->whereUuid('receipt')->middleware('throttle:30,1')->name('operations.travel.receipt');
     Route::post('/mein-arbeitstag/zeiten/bootstrap', [WorkTimeCaptureController::class, 'bootstrap'])

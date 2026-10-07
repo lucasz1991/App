@@ -67,6 +67,44 @@ class TimelinePlanningActionsTest extends TestCase
         $this->assertSame(0, ShiftAssignment::count());
     }
 
+    public function test_header_suggestions_use_shared_switch_with_loading_feedback_and_no_bottom_legend(): void
+    {
+        $timeline = Livewire::actingAs($this->manager)->test(StaffTimeline::class, [
+            'from' => '2027-05-10', 'until' => '2027-05-16', 'planningEnabled' => true, 'searchInHeader' => true,
+        ])->assertSee('data-timeline-suggestions-switch', false)
+            ->assertSee('role="switch"', false)
+            ->assertSee('rt-ui-toggle-control--sm', false)
+            ->assertSee('x-bind:disabled="suggestionsLoading"', false)
+            ->assertSee('x-bind:checked="$wire.showSuggestions"', false)
+            ->assertSee('changeSuggestions($event)', false)
+            ->assertSee('fa-spinner-third', false)
+            ->assertSee('aria-live="polite"', false)
+            ->assertDontSee('rt-timeline-suggestion-legend', false);
+
+        $switchChecked = function () use ($timeline): bool {
+            preg_match('/<input\b[^>]*\bdata-timeline-suggestions-switch[^>]*>/s', $timeline->html(), $matches);
+            $this->assertNotEmpty($matches, 'The shared native switch must be rendered.');
+
+            return preg_match('/\schecked(?:\s|=|>)/', $matches[0]) === 1;
+        };
+        $this->assertFalse($switchChecked());
+
+        $timeline->call('toggleSuggestions')->assertSet('showSuggestions', true)
+            ->assertSee('data-timeline-proposal', false)
+            ->assertDontSee('rt-timeline-suggestion-legend', false)
+            ->assertDontSee('Wunsch / verfügbar');
+        $this->assertTrue($switchChecked());
+        $timeline->call('toggleSuggestions')->assertSet('showSuggestions', false)
+            ->assertDontSee('data-timeline-proposal', false)
+            ->assertDontSee('rt-timeline-suggestion-legend', false);
+        $this->assertFalse($switchChecked());
+
+        $styles = file_get_contents(resource_path('css/timeline-planning-actions.css'));
+        $this->assertStringNotContainsString('rt-timeline-suggestion-legend', $styles);
+        $this->assertStringContainsString('prefers-reduced-motion: reduce', $styles);
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
     public function test_click_and_selection_only_prepare_then_explicit_confirmation_assigns_requested(): void
     {
         $timeline = $this->timeline()->call('openCell', $this->ben->id, '2027-05-13')->assertSet('assignmentOpen', true)->assertSee('Offener Donnerstag')->assertSee('Auswählen');

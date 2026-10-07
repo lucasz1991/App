@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Operations;
 use App\Enums\ShiftAssignmentStatus;
 use App\Models\Shift;
 use App\Models\User;
+use App\Services\Operations\AiPlanningService;
 use App\Services\Operations\ShiftAssignmentExceptionService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\StaffRegionalPreferenceService;
@@ -12,10 +13,24 @@ use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 
 /** Local drawer state; all assignment decisions are rechecked by the services. */
 trait SupportsShiftStaffing
 {
+    #[On('operations-ai-candidate-choice')]
+    public function chooseAiCandidate(string $token, int $shiftId, int $userId): void
+    {
+        $this->ensureAdmin();
+        abort_unless($this->detailOpen && $this->selectedShiftId === $shiftId, 404);
+        try {
+            app(AiPlanningService::class)->selectCandidate($token, $shiftId, $userId, auth()->user());
+            $this->chooseCandidate($userId);
+        } catch (ValidationException $exception) {
+            $this->addError('assignment', collect($exception->errors())->flatten()->first());
+        }
+    }
+
     public string $candidateQualification = '';
 
     public string $candidatePool = '';

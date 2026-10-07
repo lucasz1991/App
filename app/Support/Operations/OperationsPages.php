@@ -20,7 +20,7 @@ final class OperationsPages
             'attention' => ['title' => 'Arbeitsliste', 'icon' => 'inbox', 'segment' => 'Disposition'],
             'cases' => ['title' => 'Vorgänge & Aufträge', 'icon' => 'clipboard', 'segment' => 'Disposition'],
             'shifts' => ['title' => 'Schichtplan', 'icon' => 'calendar', 'segment' => 'Disposition', 'group' => 'Planung'],
-            'planning' => ['title' => 'Bedarf & Planung', 'icon' => 'layers', 'segment' => 'Disposition', 'group' => 'Planung'],
+            'planning' => ['title' => 'Bedarf & Planung', 'icon' => 'layers', 'segment' => 'Disposition'],
             'duty' => ['title' => 'Leitstelle', 'icon' => 'activity', 'segment' => 'Disposition'],
             'customers' => ['title' => 'Kundenübersicht', 'icon' => 'briefcase', 'segment' => 'Kunden'],
             'people' => ['title' => 'Mitarbeiter & Nachweise', 'icon' => 'users', 'segment' => 'Personal', 'group' => 'Personalverwaltung'],
@@ -83,12 +83,20 @@ final class OperationsPages
 
     public static function availableFor(User $actor): array
     {
-        return array_filter(self::definitions(), fn ($definition, $page) => self::views($actor, $page) || self::sections($actor, $page), ARRAY_FILTER_USE_BOTH);
+        return array_filter(self::definitions(), fn ($definition, $page) => $page !== 'shifts' && (self::views($actor, $page) || self::sections($actor, $page)), ARRAY_FILTER_USE_BOTH);
     }
 
     public static function url(string $page, array $parameters = []): string
     {
         abort_unless(isset(self::definitions()[$page]), 404);
+
+        if ($page === 'shifts') {
+            $section = $parameters['view'] ?? 'plan';
+            abort_unless(in_array($section, ['plan', 'calendar'], true), 403);
+            unset($parameters['view'], $parameters['section'], $parameters['page']);
+            $page = 'cases';
+            $parameters = ['view' => 'shifts', 'section' => $section] + $parameters;
+        }
 
         return route('operations.page', ['page' => $page] + array_filter($parameters, fn ($value) => $value !== null && $value !== ''));
     }
@@ -126,7 +134,7 @@ final class OperationsPages
         $tab = is_string($query['tab'] ?? null) ? $query['tab'] : '';
         $target = match ($module) {
             'inquiries' => ['cases', 'inbox'], 'orders' => ['cases', 'orders'],
-            'shift-management' => ['shifts', 'plan'], 'calendar' => ['shifts', 'calendar'],
+            'shift-management' => ['cases', 'shifts', 'plan'], 'calendar' => ['cases', 'shifts', 'calendar'],
             'customers' => ['customers', 'master'],
             'customer-portal' => in_array($tab, ['requests', 'messages', 'capacity'], true) ? ['cases', 'inbox', 'portal'] : ['customers', 'portal', $tab === 'contacts' ? 'access' : ($tab ?: 'access')],
             'qualifications' => ['people', 'qualifications'], 'absences' => ['leave', 'requests'],

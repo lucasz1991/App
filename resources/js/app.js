@@ -53,6 +53,7 @@ import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { staffTimeline } from './staff-timeline';
 import { timelinePlanning } from './timeline-planning-actions';
 import { shiftDetailDrawer } from './shift-detail-drawer';
+import { aiIntakeRecorder } from './ai-intake-recorder';
 import { workTimeCapture } from './work-time-capture';
 import { railtimeTabs } from './tabs';
 import { systemHealth } from './system-health';
@@ -89,6 +90,7 @@ import {
 } from './mail-compatibility';
 
 ensureRailTimeNavigationCoordinator(window, document);
+Alpine.data('aiIntakeRecorder', aiIntakeRecorder);
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const loadAdminDashboardMotion = () => import('./admin-dashboard-motion');

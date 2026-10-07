@@ -30,6 +30,11 @@ return [
 
     'connections' => [
 
+        'ai_disposition' => [
+            'driver' => 'database', 'connection' => null, 'table' => 'jobs',
+            'queue' => 'ai-disposition', 'retry_after' => 720, 'after_commit' => true,
+        ],
+
         'dropbox' => [
             'driver' => 'redis',
             'connection' => 'dropbox',

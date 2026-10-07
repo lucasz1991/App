@@ -198,6 +198,7 @@ class OpenRouterChatClient
         array $plugins = [],
         array $tools = [],
         string|array|null $toolChoice = null,
+        ?array $structuredSchema = null,
     ): OpenRouterChatResponse {
         $settings = OpenRouterSettings::all(uncached: true);
         $endpoint = $this->validatedEndpoint((string) ($settings['api_url'] ?? ''));
@@ -218,6 +219,14 @@ class OpenRouterChatClient
             ),
             'stream' => false,
         ];
+
+        if ($structuredSchema !== null) {
+            $payload['response_format'] = ['type' => 'json_schema', 'json_schema' => [
+                'name' => (string) ($structuredSchema['name'] ?? 'response'), 'strict' => true,
+                'schema' => $structuredSchema['schema'] ?? $structuredSchema,
+            ]];
+            $payload['provider'] = ['require_parameters' => true];
+        }
 
         if ($plugins !== []) {
             $payload['plugins'] = $plugins;
@@ -254,10 +263,31 @@ class OpenRouterChatClient
             throw new OpenRouterChatException(isset($payload['error']) ? 'upstream_payload_error' : 'empty_response');
         }
 
+        $usage = is_array($payload['usage'] ?? null) ? $payload['usage'] : [];
+
         return new OpenRouterChatResponse(
             trim($content),
             $this->fileAnnotations($payload['choices'][0]['message']['annotations'] ?? []),
+            $this->usageMetadata($usage),
+            is_numeric($usage['cost'] ?? null) ? max(0, (float) $usage['cost']) : null,
+            is_string($payload['id'] ?? null) ? mb_substr($payload['id'], 0, 191) : null,
+            is_string($payload['model'] ?? null) ? mb_substr($payload['model'], 0, 255) : $model,
         );
+    }
+
+    private function usageMetadata(mixed $usage): array
+    {
+        if (! is_array($usage)) {
+            return [];
+        }
+        $result = [];
+        foreach (['prompt_tokens', 'completion_tokens', 'total_tokens'] as $field) {
+            if (isset($usage[$field]) && is_numeric($usage[$field])) {
+                $result[$field] = max(0, (int) $usage[$field]);
+            }
+        }
+
+        return $result;
     }
 
     /** @param array<string, mixed> $settings */

@@ -1,7 +1,10 @@
-<section class="rt-ops ops-stack min-w-0" aria-label="Vorgänge und Aufträge">
+<section class="rt-ops ops-stack min-w-0" aria-label="Vorgänge und Aufträge" data-case-workspace="{{ $view }}">
     <header class="ops-toolbar">
         <x-ui.buttons.multi-toggle id="case-workspace-view" label="Vorgangsansicht" :value="$view" action="setView" :options="array_values($views)" />
-        @if(!$costsOnly && $view !== 'offers' && !in_array($section, ['imports','portal']))<x-ui.buttons.button-basic type="button" mode="primary" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i>{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</x-ui.buttons.button-basic>@endif
+        @if($view === 'shifts')
+            <x-ui.buttons.multi-toggle id="case-shift-section" label="Schichtansicht" :value="$section" action="setSection" :options="[['value'=>'plan','label'=>'Plan','icon'=>'fa-clock'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar']]" />
+            <x-operations.create-action :module="$section === 'calendar' ? 'calendar' : 'shift-management'" />
+        @elseif(!$costsOnly && $view !== 'offers' && !in_array($section, ['imports','portal','ai-intake']))<x-ui.buttons.button-basic type="button" mode="primary" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i>{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</x-ui.buttons.button-basic>@endif
     </header>
     @if($reservation)
         <div class="ops-actions" aria-label="Reservierungskontext"><x-operations.status :value="$reservation->status" />
@@ -11,7 +14,9 @@
     @endif
     @if($view === 'inbox')
         @if(count($sections) > 1)<nav class="ops-actions" aria-label="Eingangsbereiche">@foreach($sections as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$section === $key ? 'primary':'link'" wire:click="setSection('{{ $key }}')" :aria-current="$section === $key ? 'page' : null">{{ $label }}</x-ui.buttons.button-basic>@endforeach</nav>@endif
-        @if($section === 'imports')
+        @if($section === 'ai-intake')
+            <livewire:operations.ai-intake-inbox :customer-id="$context['customer'] ?? null" :initial-intake-id="($context['source'] ?? '') === 'ai-intake' ? ($context['record'] ?? null) : null" :key="'case-ai-intake-'.($context['customer'] ?? 'all').'-'.($context['record'] ?? '')" />
+        @elseif($section === 'imports')
             <livewire:operations.operations-enhancements tab="imports" :embedded="true" :key="'case-imports'" />
         @elseif($section === 'portal')
             @if($portalCustomers->isNotEmpty())
@@ -23,6 +28,8 @@
         @else
             <livewire:operations.inquiry-inbox :initial-inquiry-id="$context['inquiry'] ?? null" :customer-id="$context['customer'] ?? null" :consolidated="true" :key="'case-inbox-'.($context['customer'] ?? 'all').'-'.($context['inquiry'] ?? '')" />
         @endif
+    @elseif($view === 'shifts')
+        <livewire:operations.planning-page-workspace page="shifts" :initial-view="$section" :context="$context" :key="'case-shifts-'.$section" />
     @elseif($view === 'offers')
         <livewire:operations.commercial-offer-index :customer-id="$context['customer'] ?? null" :inquiry-id="$context['inquiry'] ?? null" :order-id="$context['order'] ?? null" :initial-revision="$context['revision'] ?? null" :key="'case-offers-'.md5(json_encode($context))" />
     @elseif($view === 'orders')
