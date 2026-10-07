@@ -1,5 +1,5 @@
 // One controller per timeline, not one Alpine component or request per day cell.
-export function timelinePlanning() {
+export function timelinePlanning(ownerId = null) {
     return {
         plannerVisible: false,
         plannerLoading: false,
@@ -7,6 +7,14 @@ export function timelinePlanning() {
         plannerError: '',
         suggestionsLoading: false,
         suggestionsError: '',
+        get suggestionsEnabled() {
+            return this.suggestionsWire()?.showSuggestions === true;
+        },
+        suggestionsWire() {
+            // The control is teleported into another Livewire component's header.
+            // Resolve its own timeline explicitly instead of the destination's $wire.
+            return ownerId ? globalThis.Livewire?.find?.(ownerId) : this.$wire;
+        },
         requestVersion: 0,
         pending: null,
         inFlight: false,
@@ -58,19 +66,21 @@ export function timelinePlanning() {
             // A checkbox changes before its change event. Keep the confirmed state
             // visible until the matching Livewire render, including failed requests.
             const input = event?.target;
-            if (input) input.checked = Boolean(this.$wire.showSuggestions);
+            const wire = this.suggestionsWire();
+            if (input) input.checked = wire?.showSuggestions === true;
             if (this.suggestionsLoading) return;
             this.suggestionsLoading = true;
             this.suggestionsError = '';
             try {
-                await this.request('toggleSuggestions', []);
+                if (!wire) throw new Error('Timeline component unavailable');
+                await this.request('toggleSuggestions', [], wire);
                 await new Promise((resolve) => this.$nextTick(resolve));
             } catch {
                 if (!this.disposed) this.suggestionsError = 'Vorschläge konnten nicht aktualisiert werden. Bitte erneut schalten.';
             } finally {
                 if (!this.disposed) {
                     this.suggestionsLoading = false;
-                    if (input?.isConnected) input.checked = Boolean(this.$wire.showSuggestions);
+                    if (input?.isConnected) input.checked = wire?.showSuggestions === true;
                 }
             }
         },
@@ -174,16 +184,16 @@ export function timelinePlanning() {
                 if (!this.plannerVisible && !this.disposed) this.$wire.assignmentOpen = false;
             }
         },
-        request(method, args) {
+        request(method, args, wire = this.$wire) {
             const cleanups = [];
             return new Promise((resolve, reject) => {
                 // Livewire 3 method promises alone do not reject failed HTTP commits.
-                if (typeof this.$wire.$hook === 'function') {
-                    cleanups.push(this.$wire.$hook('commit', ({ commit, fail }) => {
+                if (typeof wire.$hook === 'function') {
+                    cleanups.push(wire.$hook('commit', ({ commit, fail }) => {
                         if (commit.calls.some((call) => call.method === method)) fail(() => reject(new Error('Timeline request failed')));
                     }));
                 }
-                Promise.resolve(this.$wire[method](...args)).then(resolve, reject);
+                Promise.resolve(wire[method](...args)).then(resolve, reject);
             }).finally(() => cleanups.forEach((cleanup) => cleanup()));
         },
     };

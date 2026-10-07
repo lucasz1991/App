@@ -24,11 +24,15 @@ class PlanningPageWorkspace extends Component
     #[Locked]
     public array $context = [];
 
-    public function mount(string $page, string $initialView = '', string $initialSection = '', array $context = []): void
+    #[Locked]
+    public bool $embedded = false;
+
+    public function mount(string $page, string $initialView = '', string $initialSection = '', array $context = [], bool $embedded = false): void
     {
         abort_unless(in_array($page, ['shifts', 'planning', 'duty'], true), 404);
         $this->page = $page;
         $this->context = $context;
+        $this->embedded = $embedded;
         if (isset($context['shift'])) {
             OperationsAccess::authorize(auth()->user(), 'operations.manage');
             Shift::findOrFail((int) $context['shift']);

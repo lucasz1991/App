@@ -87,18 +87,22 @@ class AiIntakeImapClient
                 throw new RuntimeException('mailbox_uid_validity_changed');
             }
             $sizes = $client->getConnection()->sizes([$uid], IMAP::ST_UID)->validatedData();
-            $headers = $client->getConnection()->headers([$uid], 'RFC822', IMAP::ST_UID)->validatedData();
             if ((int) ($sizes[$uid] ?? 0) < 1 || (int) $sizes[$uid] > 25 * 1024 * 1024) {
-                $source = $this->parse((string) ($headers[$uid] ?? '')."\r\n\r\n", $settings, $uid, $expectedValidity);
+                $headers = $client->getConnection()->headers([$uid], 'RFC822', IMAP::ST_UID)->validatedData();
+                $source = $this->headerFallback((string) ($headers[$uid] ?? ''), $settings, $uid, $expectedValidity);
 
-                return $source + ['source_error' => 'mailbox_message_size', 'raw_archive_complete' => false, 'declared_size' => (int) ($sizes[$uid] ?? 0)];
+                return array_replace($source, ['source_error' => 'mailbox_message_size', 'raw_archive_complete' => false, 'declared_size' => (int) ($sizes[$uid] ?? 0)]);
             }
-            $body = $client->getConnection()->content([$uid], 'RFC822', IMAP::ST_UID)->validatedData();
-            $raw = (string) ($headers[$uid] ?? '')."\r\n\r\n".(string) ($body[$uid] ?? '');
+            $literal = $client->getConnection()->fetch(['RFC822'], [$uid], null, IMAP::ST_UID)->validatedData();
+            $raw = (string) ($literal[$uid] ?? '');
+            if ($raw === '') {
+                throw new RuntimeException('mailbox_message_unavailable');
+            }
             try {
                 return $this->parse($raw, $settings, $uid, $expectedValidity);
             } catch (\Throwable $error) {
-                $source = $this->parse((string) ($headers[$uid] ?? '')."\r\n\r\n", $settings, $uid, $expectedValidity);
+                $separator = strpos($raw, "\r\n\r\n");
+                $source = $this->headerFallback(substr($raw, 0, $separator === false ? min(strlen($raw), 262144) : $separator + 4), $settings, $uid, $expectedValidity);
                 $source['raw'] = $raw;
                 $source['source_error'] = in_array($error->getMessage(), ['mailbox_attachment_limit', 'mailbox_attachment_size'], true) ? $error->getMessage() : 'mailbox_mime_parse_failed';
                 $source['raw_archive_complete'] = true;
@@ -106,6 +110,18 @@ class AiIntakeImapClient
                 return $source;
             }
         });
+    }
+
+    private function headerFallback(string $raw, array $settings, int $uid, int $validity): array
+    {
+        try {
+            return $this->parse($raw, $settings, $uid, $validity);
+        } catch (\Throwable) {
+            return ['mailbox_id' => AiDispositionSettings::mailboxId($settings), 'uid_validity' => $validity, 'uid' => $uid,
+                'from' => '', 'reply_to' => '', 'message_id' => null, 'in_reply_to' => null, 'references' => [],
+                'subject' => 'E-Mail benötigt manuelle Prüfung', 'text' => '', 'raw' => $raw, 'attachments' => [], '_cleanup' => [],
+                'source_error' => 'mailbox_mime_parse_failed', 'raw_archive_complete' => true];
+        }
     }
 
     public function parse(string $raw, array $settings, int $uid, int $uidValidity): array
@@ -158,6 +174,7 @@ class AiIntakeImapClient
         if ($from->count() !== 1 || $replyTo->count() > 1) {
             $source['source_error'] = 'mailbox_sender_ambiguous';
         }
+
         return $source;
     }
 }

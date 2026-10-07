@@ -3,7 +3,7 @@
         $icons = ['plan'=>'fa-clock','calendar'=>'fa-calendar','capacity'=>'fa-chart-bar','staff'=>'fa-users','tools'=>'fa-layer-group','logistics'=>'fa-route','board'=>'fa-tachometer-alt','cases'=>'fa-exclamation-triangle','transfers'=>'fa-exchange-alt'];
         $options = collect($this->views())->map(fn($label,$key)=>['value'=>$key,'label'=>$label,'icon'=>$icons[$key]])->values()->all();
     @endphp
-    @if($page !== 'shifts' || $view !== 'plan')<header class="ops-toolbar">
+    @if(!$embedded && ($page !== 'shifts' || $view !== 'plan'))<header class="ops-toolbar">
         <x-ui.buttons.multi-toggle :options="$options" :value="$view" action="selectView" label="Ansicht wählen" />
         @if(count($this->sections()) > 1)
             <x-ui.forms.select aria-label="Bereich wählen" change="$wire.selectSection($event.target.value)">

@@ -3,8 +3,8 @@
 namespace App\Support\Operations;
 
 use App\Models\AiIntake;
-use App\Models\AiIntakeRun;
 use App\Models\AiIntakeProposal;
+use App\Models\AiIntakeRun;
 use App\Models\OperationAudit;
 use App\Models\OperationInquiry;
 use App\Models\OrderDemand;
@@ -46,6 +46,7 @@ final readonly class OperationsAutomationActor
         $prefix = 'ai-intake:'.$intake->public_id.':';
         abort_unless(str_starts_with($reference, $prefix) && ctype_digit(substr($reference, strlen($prefix)))
             && (int) ($input['customer_id'] ?? $inquiry?->customer_id ?? 0) === (int) $intake->customer_id
+            && ($inquiry?->channel ?? ($input['channel'] ?? null)) === ($intake->source_type === 'email' ? 'email' : 'manual')
             && (! $inquiry || in_array($inquiry->status, ['new', 'verified'], true)), 403, 'Anfrage gehört nicht zu diesem Automatisierungslauf.');
         abort_unless($intake->proposals()->where('source_revision', $this->sourceRevision)->where('position_index', (int) substr($reference, strlen($prefix)))->exists(), 403);
     }

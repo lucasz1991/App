@@ -9,6 +9,7 @@ use App\Jobs\ProcessAiIntake;
 use App\Models\AiIntake;
 use App\Models\AiIntakeDelivery;
 use App\Services\Operations\AiIntakeMailService;
+use App\Services\Operations\AiIntakeService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use Illuminate\Console\Command;
@@ -23,6 +24,9 @@ class PollAiDispositionMailbox extends Command
     public function handle(): int
     {
         $settings = AiDispositionSettings::all(true);
+        if (AiIntakeSchema::ready()) {
+            app(AiIntakeService::class)->expireStaleAnalysisRuns();
+        }
         if ($settings['enabled'] && Cache::add('ai-disposition:poll-scheduled', true, (int) $settings['poll_interval_minutes'] * 60)) {
             PollAiIntakeMailbox::dispatch();
         }

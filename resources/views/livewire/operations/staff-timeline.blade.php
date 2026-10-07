@@ -1,5 +1,5 @@
 <section class="rt-staff-timeline-layout min-w-0" aria-label="Mitarbeiter-Zeitleiste"
-    x-data="rtTimelinePlanning" x-on:operations-plan-changed.window="invalidate()">
+    x-data="rtTimelinePlanning(@js($this->getId()))" x-on:operations-plan-changed.window="invalidate()">
 @if($planningEnabled && !$absencesOnly && $searchInHeader)
     <template x-teleport="[data-shift-plan-timeline-suggestions]">
         <div class="rt-timeline-suggestions-toggle" x-bind:aria-busy="suggestionsLoading" x-bind:data-loading="suggestionsLoading" x-bind:data-error="Boolean(suggestionsError)">
@@ -8,12 +8,12 @@
                 size="sm"
                 label="Vorschläge"
                 :checked="$showSuggestions"
-                x-bind:checked="$wire.showSuggestions"
+                x-bind:checked="suggestionsEnabled"
                 x-bind:disabled="suggestionsLoading"
                 change="changeSuggestions($event)"
                 aria-label="Besetzungsvorschläge ein-/ausblenden"
                 aria-describedby="timeline-suggestions-status-{{ $this->getId() }}"
-                x-bind:title="suggestionsError || ($wire.showSuggestions ? 'Besetzungsvorschläge ausblenden' : 'Besetzungsvorschläge anzeigen')"
+                x-bind:title="suggestionsError || (suggestionsEnabled ? 'Besetzungsvorschläge ausblenden' : 'Besetzungsvorschläge anzeigen')"
                 data-timeline-suggestions-switch
             />
             <span class="rt-timeline-suggestions-toggle__feedback" x-cloak x-show="suggestionsLoading || suggestionsError" aria-hidden="true">
@@ -21,7 +21,7 @@
                 <i x-show="!suggestionsLoading" class="far fa-exclamation-circle"></i>
                 <span x-text="suggestionsLoading ? 'Lädt …' : 'Erneut'"></span>
             </span>
-            <span id="timeline-suggestions-status-{{ $this->getId() }}" class="sr-only" role="status" aria-live="polite" x-text="suggestionsLoading ? 'Besetzungsvorschläge werden aktualisiert. Bitte warten.' : (suggestionsError || ($wire.showSuggestions ? 'Besetzungsvorschläge eingeblendet.' : 'Besetzungsvorschläge ausgeblendet.'))"></span>
+            <span id="timeline-suggestions-status-{{ $this->getId() }}" class="sr-only" role="status" aria-live="polite" x-text="suggestionsLoading ? 'Besetzungsvorschläge werden aktualisiert. Bitte warten.' : (suggestionsError || (suggestionsEnabled ? 'Besetzungsvorschläge eingeblendet.' : 'Besetzungsvorschläge ausgeblendet.'))"></span>
         </div>
     </template>
 @endif
@@ -34,9 +34,20 @@
         <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" />
     @endif
 @endif
-<div class="rt-personnel-timeline" style="--timeline-days:{{ $days->count() }}" x-data="rtStaffTimeline" data-no-sidebar-swipe data-rt-dropdown-scroll-root>
+<div class="rt-personnel-timeline" style="--timeline-days:{{ $days->count() }}" x-data="rtStaffTimeline" x-effect="applyPersonnelMode()"
+    x-on:pointerover.window="pointerPersonnel($event)" x-on:pointerout.window="pointerPersonnel($event)"
+    x-on:focusin.window="focusPersonnel($event.target)" x-on:focusout.window="focusPersonnel($event.relatedTarget)"
+    data-no-sidebar-swipe data-rt-dropdown-scroll-root>
     <div class="rt-personnel-timeline-header">
-        <div class="rt-personnel-timeline-name rt-personnel-timeline-head">Mitarbeiter</div>
+        <div class="rt-personnel-timeline-name rt-personnel-timeline-head rt-personnel-timeline-person-heading" data-timeline-person-column>
+            <button type="button" class="rt-personnel-timeline-person-toggle" data-timeline-person-toggle x-on:click="togglePersonnelColumn()"
+                x-bind:aria-expanded="personnelCompact ? 'false' : 'true'"
+                x-bind:aria-label="personnelCompact ? 'Mitarbeiterspalte erweitern' : 'Mitarbeiterspalte kompakt anzeigen'"
+                x-bind:title="personnelCompact ? 'Mitarbeiterspalte erweitern' : 'Mitarbeiterspalte kompakt anzeigen'"
+                aria-label="Mitarbeiterspalte kompakt anzeigen" aria-expanded="true">
+                <i class="far fa-users" aria-hidden="true"></i><span class="rt-personnel-timeline-person-label">Mitarbeiter</span>
+            </button>
+        </div>
         <div class="rt-personnel-timeline-header-viewport">
         <div class="rt-personnel-timeline-header-scroll" x-ref="timelineHeader">
             <div class="rt-personnel-timeline-header-days">
@@ -57,12 +68,12 @@
         x-on:click="openPlanner($event)" x-on:pointerover="hoverCell($event)" x-on:pointerout="leaveCell($event)"
         x-on:focusin="hoverCell($event)" x-on:focusout="leaveCell($event)">
     @forelse($rows as $row)
-        <div class="rt-personnel-timeline-name min-w-0" wire:key="staff-person-{{ $row['user']->id }}">
+        <div class="rt-personnel-timeline-name min-w-0" data-timeline-person-column wire:key="staff-person-{{ $row['user']->id }}">
             <div class="rt-timeline-person-summary">
             <x-user.person-anchor-preview :user="$row['user']" trigger-classes="flex min-w-0 w-full">
                 <x-slot:trigger>
                     <button type="button" class="min-h-11 min-w-0 w-full rounded-lg text-left outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:text-rt-dark-accent" aria-label="{{ __('app.open_person_preview') }}: {{ $row['user']->name }}" title="{{ $row['user']->name }}">
-                                    <x-user.public-info :user="$row['user']" :size="6" :show-email="false" :show-presence="false" name-format="initial-surname" />
+                                    <x-user.public-info :user="$row['user']" :size="6" :show-email="false" :show-presence="false" name-format="initial-surname" class="rt-timeline-person-identity" />
                     </button>
                 </x-slot:trigger>
             </x-user.person-anchor-preview>
@@ -70,7 +81,7 @@
                 @include('livewire.operations.partials.timeline-workload', ['workload' => $workloads->get($row['user']->id), 'person' => $row['user']])
             @endif
             </div>
-            @if(!$row['user']->status)<span class="ops-muted">Inaktiv</span>@endif
+            @if(!$row['user']->status)<span class="ops-muted rt-timeline-person-status">Inaktiv</span>@endif
         </div>
         <div class="rt-personnel-timeline-track" data-timeline-lanes="{{ $row['lane_count'] }}" style="--timeline-lanes:{{ $row['lane_count'] }}" wire:key="staff-track-{{ $row['user']->id }}">
         @foreach($row['days'] as $cell)

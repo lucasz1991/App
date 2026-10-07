@@ -259,6 +259,10 @@ class OpenRouterChatClient
         $payload = $this->decodeJsonResponse($response);
         $content = $payload['choices'][0]['message']['content'] ?? null;
 
+        if ($structuredSchema !== null && isset($payload['choices'][0]['finish_reason']) && $payload['choices'][0]['finish_reason'] !== 'stop') {
+            throw new OpenRouterChatException('incomplete_structured_response');
+        }
+
         if (! is_string($content) || trim($content) === '') {
             throw new OpenRouterChatException(isset($payload['error']) ? 'upstream_payload_error' : 'empty_response');
         }

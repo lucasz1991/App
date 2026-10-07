@@ -25,6 +25,7 @@ use App\Services\Operations\WorkTimeService;
 use App\Support\Operations\ApplicationNavigation;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
+use App\Support\Operations\OperationsPages;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Schema;
@@ -80,7 +81,8 @@ class NativeOperationsWorkflowTest extends TestCase
         $this->assertArrayNotHasKey('Verwaltung', $sections);
         $this->assertSame(1, $adminLinks->where('title', 'Kundenübersicht')->count());
         $this->assertSame(1, $adminLinks->where('title', 'Vorgänge & Aufträge')->count());
-        $this->assertSame(1, $adminLinks->where('title', 'Schichtplan')->count());
+        $this->assertSame(0, $adminLinks->where('title', 'Schichtplan')->count());
+        $this->assertFalse($adminLinks->contains('group', 'Planung'));
         $this->assertTrue(collect($sections['Mein Arbeitsplatz'])->contains(fn ($link) => $link['title'] === 'Wagenliste' && $link['group'] === 'Arbeitsmittel'));
         $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Wagenliste'));
         $this->assertTrue(collect($sections['Personal'])->contains(fn ($link) => ($link['parameters']['page'] ?? '') === 'time-review' && $link['group'] === 'Zeitwirtschaft'));
@@ -258,7 +260,7 @@ class NativeOperationsWorkflowTest extends TestCase
     {
         $this->actingAs($this->admin);
         foreach (['inquiries', 'qualifications', 'absences', 'rules', 'times', 'exports', 'shift-management', 'orders', 'customers', 'calendar'] as $module) {
-            $target = \App\Support\Operations\OperationsPages::moduleUrl($module);
+            $target = OperationsPages::moduleUrl($module);
             $this->get(route('operations.workspace', $module))->assertRedirect($target);
             $this->get($target)->assertOk()->assertDontSee('WILSON')->assertDontSee('kopiert');
         }
@@ -271,8 +273,8 @@ class NativeOperationsWorkflowTest extends TestCase
         // Das Dashboard ist seit dem individuellen Widget-Raster kein festes
         // Cockpit-Embed mehr, sondern App\Livewire\Dashboard\WidgetGrid.
         $this->actingAs($this->admin)->get(route('admin.dashboard'))->assertOk()->assertSee('data-dashboard-widget-grid', false);
-        $this->get(route('operations.workspace', 'inquiries'))->assertRedirect(\App\Support\Operations\OperationsPages::moduleUrl('inquiries'));
-        $this->get(\App\Support\Operations\OperationsPages::moduleUrl('inquiries'))->assertOk();
+        $this->get(route('operations.workspace', 'inquiries'))->assertRedirect(OperationsPages::moduleUrl('inquiries'));
+        $this->get(OperationsPages::moduleUrl('inquiries'))->assertOk();
     }
 
     public function test_missing_private_evidence_cannot_be_approved(): void
@@ -373,8 +375,8 @@ class NativeOperationsWorkflowTest extends TestCase
         $team = Team::forceCreate(['user_id' => $this->admin->id, 'name' => 'Verwaltung', 'personal_team' => false, 'rbac_permissions' => ['operations.inquiries.manage' => true]]);
         $this->employee->forceFill(['current_team_id' => $team->id])->save();
         $this->actingAs($this->employee->fresh());
-        Livewire::test(Workspace::class, ['module' => 'inquiries'])->assertRedirect(\App\Support\Operations\OperationsPages::moduleUrl('inquiries'));
-        $this->get(\App\Support\Operations\OperationsPages::moduleUrl('inquiries'))->assertOk();
+        Livewire::test(Workspace::class, ['module' => 'inquiries'])->assertRedirect(OperationsPages::moduleUrl('inquiries'));
+        $this->get(OperationsPages::moduleUrl('inquiries'))->assertOk();
         Livewire::test(Workspace::class, ['module' => 'times'])->assertForbidden();
         $this->get(route('dashboard'))->assertOk()->assertDontSee('data-rt-welcome-intro')->assertSee('Offene Anfragen');
         $this->employee->forceFill(['status' => false])->save();

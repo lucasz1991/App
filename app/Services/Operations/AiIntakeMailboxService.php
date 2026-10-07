@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -52,7 +53,8 @@ class AiIntakeMailboxService
         $worker = Cache::get('ai-disposition:worker', []);
 
         return $runtime + ['activation_pending' => AiDispositionSettings::enabled() && (! isset($runtime['uid_validity']) || ($runtime['mailbox_id'] ?? '') !== AiDispositionSettings::mailboxId()),
-            'worker' => $worker, 'worker_pending' => Cache::has('ai-disposition:worker-probe')];
+            'worker' => $worker, 'worker_pending' => Cache::has('ai-disposition:worker-probe'),
+            'cache_persistent' => ! in_array(config('cache.stores.'.config('cache.default').'.driver'), ['array', 'null'], true)];
     }
 
     public function probeWorker(User $actor): void
@@ -115,14 +117,14 @@ class AiIntakeMailboxService
             if ($historicalUids === [] && (($runtime['mailbox_id'] ?? null) !== $mailbox || ! isset($runtime['uid_validity']))) {
                 $runtime = ['mailbox_id' => $mailbox, 'uid_validity' => $snapshot['uid_validity'], 'cursor_uid' => $snapshot['uid_next'] - 1,
                     'activated_at' => now()->utc()->toIso8601String(), 'last_poll_at' => now()->utc()->toIso8601String(), 'state' => 'active', 'imported' => 0];
-                $this->saveRuntime($runtime);
+                $this->saveRuntime($runtime, (int) $settings['revision']);
 
                 return $runtime;
             }
             if (($historicalValidity ?? ($runtime['uid_validity'] ?? null)) !== $snapshot['uid_validity']) {
                 $runtime['state'] = 'uid_validity_changed';
                 $runtime['failure_code'] = 'mailbox_uid_validity_changed';
-                $this->saveRuntime($runtime);
+                $this->saveRuntime($runtime, (int) $settings['revision']);
 
                 return $runtime;
             }
@@ -143,7 +145,7 @@ class AiIntakeMailboxService
                     $imported++;
                     if ($historicalUids === []) {
                         $runtime['cursor_uid'] = (int) $uid;
-                        $this->saveRuntime($runtime);
+                        $this->saveRuntime($runtime, (int) $settings['revision']);
                     }
                 } finally {
                     Storage::disk('local')->delete($message['_cleanup'] ?? []);
@@ -156,7 +158,7 @@ class AiIntakeMailboxService
             $runtime['state'] = 'active';
             $runtime['failure_code'] = null;
             $runtime['imported'] = $imported;
-            $this->saveRuntime($runtime);
+            $this->saveRuntime($runtime, (int) $settings['revision']);
 
             return $runtime;
         } catch (\Throwable) {
@@ -164,7 +166,7 @@ class AiIntakeMailboxService
             $runtime['state'] = 'failed';
             $runtime['failure_code'] = 'mailbox_poll_failed';
             $runtime['last_attempt_at'] = now()->utc()->toIso8601String();
-            $this->saveRuntime($runtime);
+            $this->saveRuntime($runtime, isset($settings) ? (int) $settings['revision'] : null);
 
             return $runtime;
         } finally {
@@ -172,8 +174,14 @@ class AiIntakeMailboxService
         }
     }
 
-    private function saveRuntime(array $runtime): void
+    private function saveRuntime(array $runtime, ?int $settingsRevision = null): void
     {
-        Setting::setValue(AiDispositionSettings::GROUP, self::RUNTIME_KEY, $runtime);
+        DB::transaction(function () use ($runtime, $settingsRevision): void {
+            $setting = Setting::where('type', AiDispositionSettings::GROUP)->where('key', AiDispositionSettings::KEY)->lockForUpdate()->first();
+            if ($settingsRevision !== null && (int) ($setting?->value['revision'] ?? 1) !== $settingsRevision) {
+                return;
+            }
+            Setting::setValue(AiDispositionSettings::GROUP, self::RUNTIME_KEY, $runtime);
+        });
     }
 }

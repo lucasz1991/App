@@ -75,11 +75,13 @@ class TimelinePlanningActionsTest extends TestCase
             ->assertSee('role="switch"', false)
             ->assertSee('rt-ui-toggle-control--sm', false)
             ->assertSee('x-bind:disabled="suggestionsLoading"', false)
-            ->assertSee('x-bind:checked="$wire.showSuggestions"', false)
+            ->assertSee('x-bind:checked="suggestionsEnabled"', false)
+            ->assertDontSee('$wire.showSuggestions', false)
             ->assertSee('changeSuggestions($event)', false)
             ->assertSee('fa-spinner-third', false)
             ->assertSee('aria-live="polite"', false)
             ->assertDontSee('rt-timeline-suggestion-legend', false);
+        $timeline->assertSee("rtTimelinePlanning('".$timeline->instance()->getId()."')", false);
 
         $switchChecked = function () use ($timeline): bool {
             preg_match('/<input\b[^>]*\bdata-timeline-suggestions-switch[^>]*>/s', $timeline->html(), $matches);
@@ -185,8 +187,10 @@ class TimelinePlanningActionsTest extends TestCase
         $css = file_get_contents(resource_path('css/timeline-planning-actions.css'));
         $this->assertStringContainsString('prefers-reduced-motion: reduce', $css);
         $this->assertStringContainsString("[data-in-view='true']", $css);
-        $this->assertStringContainsString('position: absolute', $css);
-        $this->assertSame('fd3e2599d6d42f8671484add0a262d58cf1da6e889bcba36da4153e8b2b4c9f4', hash_file('sha256', resource_path('js/staff-timeline.js')));
+        // Suggestions must stay outside event layout, not freeze the whole controller:
+        // staff-timeline.test.js separately checks real lane geometry and scroll behavior.
+        $this->assertMatchesRegularExpression('/\.rt-timeline-proposals\s*\{[^}]*position:\s*absolute/', $css);
+        $this->assertStringContainsString("track.querySelectorAll('.rt-personnel-timeline-event')", file_get_contents(resource_path('js/staff-timeline.js')));
     }
 
     public function test_search_and_load_more_preserve_preview_and_cell_keys(): void

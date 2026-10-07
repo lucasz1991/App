@@ -3,7 +3,11 @@
         <x-ui.buttons.multi-toggle id="case-workspace-view" label="Vorgangsansicht" :value="$view" action="setView" :options="array_values($views)" />
         @if($view === 'shifts')
             <x-ui.buttons.multi-toggle id="case-shift-section" label="Schichtansicht" :value="$section" action="setSection" :options="[['value'=>'plan','label'=>'Plan','icon'=>'fa-clock'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar']]" />
-            <x-operations.create-action :module="$section === 'calendar' ? 'calendar' : 'shift-management'" />
+            @if($section === 'plan')
+                <template x-teleport="[data-page-header-actions]" wire:key="case-shift-create-action">
+                    <x-operations.create-action module="shift-management" />
+                </template>
+            @endif
         @elseif(!$costsOnly && $view !== 'offers' && !in_array($section, ['imports','portal','ai-intake']))<x-ui.buttons.button-basic type="button" mode="primary" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i>{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</x-ui.buttons.button-basic>@endif
     </header>
     @if($reservation)
@@ -29,7 +33,7 @@
             <livewire:operations.inquiry-inbox :initial-inquiry-id="$context['inquiry'] ?? null" :customer-id="$context['customer'] ?? null" :consolidated="true" :key="'case-inbox-'.($context['customer'] ?? 'all').'-'.($context['inquiry'] ?? '')" />
         @endif
     @elseif($view === 'shifts')
-        <livewire:operations.planning-page-workspace page="shifts" :initial-view="$section" :context="$context" :key="'case-shifts-'.$section" />
+        <livewire:operations.planning-page-workspace page="shifts" :initial-view="$section" :context="$context" :embedded="true" :key="'case-shifts-'.$section" />
     @elseif($view === 'offers')
         <livewire:operations.commercial-offer-index :customer-id="$context['customer'] ?? null" :inquiry-id="$context['inquiry'] ?? null" :order-id="$context['order'] ?? null" :initial-revision="$context['revision'] ?? null" :key="'case-offers-'.md5(json_encode($context))" />
     @elseif($view === 'orders')

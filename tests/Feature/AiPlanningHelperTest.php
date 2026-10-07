@@ -26,6 +26,7 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use Mockery;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 
@@ -68,11 +69,11 @@ class AiPlanningHelperTest extends TestCase
         return Shift::forceCreate(array_replace(['order_id' => $this->order->id, 'title' => 'Offener Dienst', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-13T08:00', 'ends_at' => '2027-05-13T16:00', 'required_staff' => 1, 'planned_break_minutes' => 30, 'status' => 'draft', 'location_name' => 'München', 'created_by' => $this->manager->id], $extra))->fresh();
     }
 
-    private function response(array $recommendations, ?callable $before = null): void
+    private function response(array $recommendations, ?callable $before = null, array $metadata = []): void
     {
         $client = Mockery::mock(AiDispositionClient::class);
         $client->shouldReceive('isConfigured')->andReturn(true);
-        $client->shouldReceive('structured')->once()->andReturnUsing(function ($task, $messages, $schema) use ($recommendations, $before) {
+        $client->shouldReceive('structured')->once()->andReturnUsing(function ($task, $messages, $schema) use ($recommendations, $before, $metadata) {
             $this->assertContains($task, ['planning_shift', 'planning_period']);
             $this->assertStringNotContainsString('Private', $messages[1]['content']);
             $this->assertStringNotContainsString('@example', $messages[1]['content']);
@@ -81,7 +82,8 @@ class AiPlanningHelperTest extends TestCase
                 $before($messages);
             }
 
-            return new OpenRouterChatResponse(json_encode(['summary' => 'Geprüfte Alternativen', 'recommendations' => $recommendations, 'warnings' => []], JSON_THROW_ON_ERROR));
+            return new OpenRouterChatResponse(json_encode(['summary' => 'Geprüfte Alternativen', 'recommendations' => $recommendations, 'warnings' => []], JSON_THROW_ON_ERROR),
+                usage: $metadata['usage'] ?? [], requestId: $metadata['request_id'] ?? null, model: $metadata['model'] ?? null);
         });
         $this->app->instance(AiDispositionClient::class, $client);
     }
@@ -155,6 +157,7 @@ class AiPlanningHelperTest extends TestCase
         $this->app->instance(AiDispositionClient::class, $client);
         $this->invalid(fn () => $this->service->analyzeShift($shift->id, $this->manager), 'nicht geprüft');
         $this->assertSame(0, ShiftAssignment::count());
+        $this->assertSame(0, OperationAudit::where('action', 'like', 'ai_planning.%')->count());
     }
 
     public function test_unknown_person_or_shift_and_duplicate_recommendations_are_rejected(): void
@@ -338,6 +341,103 @@ class AiPlanningHelperTest extends TestCase
         $proposal = $this->service->analyzePeriod('2027-05-13', '2027-05-13', $this->manager);
         $shift->forceFill(['revision' => 2])->save();
         $this->invalid(fn () => $this->service->confirmPublished($proposal['token'], $shift->id, $this->anna->id, $this->manager), 'Plan wurde');
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_durable_planning_events_keep_only_validated_ids_and_survive_session_expiry(): void
+    {
+        $shift = $this->shift();
+        $row = $this->row($shift, [$this->anna->id]);
+        $row['reason'] = 'Anna Private · private-anna@example.test';
+        $this->response([$row], metadata: ['usage' => ['prompt_tokens' => 120, 'completion_tokens' => 40, 'total_tokens' => 160, 'private_note' => 'Ben Private'], 'request_id' => 'gen-fixture-123', 'model' => 'provider/data-model']);
+        $proposal = $this->service->analyzeShift($shift->id, $this->manager);
+        $this->service->selectCandidate($proposal['token'], $shift->id, $this->anna->id, $this->manager);
+        $this->service->selectCandidate($proposal['token'], $shift->id, $this->anna->id, $this->manager);
+        $events = OperationAudit::where('action', 'like', 'ai_planning.%')->orderBy('id')->get();
+        $this->assertSame(['ai_planning.analysis_completed', 'ai_planning.proposal_validated', 'ai_planning.proposal_reviewed'], $events->pluck('action')->all());
+        $this->assertSame(['Shift'], $events->pluck('subject_type')->unique()->all());
+        $this->assertSame([$shift->id], $events->pluck('subject_id')->unique()->all());
+        $this->assertSame([$this->manager->id], $events->pluck('actor_id')->unique()->all());
+        $metadata = $events->first()->data;
+        $this->assertMatchesRegularExpression('/^[a-f0-9-]{36}$/D', $metadata['run_uuid']);
+        $this->assertSame($proposal['token'], $metadata['proposal_token']);
+        $this->assertSame('gen-fixture-123', $metadata['provider_request_id']);
+        $this->assertSame('provider/data-model', $metadata['model']);
+        $this->assertSame(['prompt_tokens' => 120, 'completion_tokens' => 40, 'total_tokens' => 160], $metadata['usage']);
+        $this->assertSame([['shift_id' => $shift->id, 'user_ids' => [$this->anna->id]]], $metadata['validated_recommendations']);
+        $this->assertSame([$metadata['run_uuid']], $events->map(fn ($event) => $event->data['run_uuid'])->unique()->all());
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $metadata['basis_hash']);
+        $this->assertCount(3, $events->map(fn ($event) => $event->data['event_key'])->unique());
+        $this->assertStringNotContainsString('Private', json_encode($events->pluck('data')));
+        $this->assertStringNotContainsString('@example.test', json_encode($events->pluck('data')));
+        session()->forget('operations_ai_planning_'.$this->manager->id);
+        $this->travel(16)->minutes();
+        $this->invalid(fn () => $this->service->selectCandidate($proposal['token'], $shift->id, $this->anna->id, $this->manager), 'abgelaufen');
+        $this->assertSame(3, OperationAudit::where('action', 'like', 'ai_planning.%')->count());
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_saved_variant_manual_approval_and_application_share_durable_run_reference_once(): void
+    {
+        $shift = $this->shift();
+        $this->response([$this->row($shift, [$this->anna->id])]);
+        $proposal = $this->service->analyzePeriod('2027-05-13', '2027-05-13', $this->manager);
+        $run = OperationAudit::where('action', 'ai_planning.analysis_completed')->sole()->data;
+        $variant = $this->service->saveDraftVariant($proposal['token'], $this->manager);
+        $this->assertSame(0, OperationAudit::where('action', 'ai_planning.manually_approved')->count());
+        $this->assertSame(0, ShiftAssignment::count());
+        $ids = $this->service->applyDraftVariant($proposal['token'], $this->manager);
+        $this->assertSame($ids, $this->service->applyDraftVariant($proposal['token'], $this->manager));
+        $events = OperationAudit::where('subject_type', 'PlanVariant')->where('subject_id', $variant->id)->where('action', 'like', 'ai_planning.%')->orderBy('id')->get();
+        $this->assertSame(['ai_planning.proposal_validated', 'ai_planning.manually_approved', 'ai_planning.additions_applied'], $events->pluck('action')->all());
+        foreach ($events as $event) {
+            $this->assertSame($run['run_uuid'], $event->data['run_uuid']);
+            $this->assertSame($run['proposal_token'], $event->data['proposal_token']);
+            $this->assertSame($run['basis_hash'], $event->data['basis_hash']);
+        }
+        $this->assertSame($ids, $events->last()->data['assignment_ids']);
+        $this->assertSame(0, $events->last()->data['replacements']);
+        $this->assertFalse($events->last()->data['published']);
+        $this->assertSame(1, ShiftAssignment::count());
+    }
+
+    public function test_published_manual_application_events_are_durable_and_stale_proposals_cannot_claim_approval(): void
+    {
+        $shift = $this->shift(['status' => 'open', 'published_revision' => 1]);
+        $this->response([$this->row($shift, [$this->anna->id])]);
+        $proposal = $this->service->analyzePeriod('2027-05-13', '2027-05-13', $this->manager);
+        $id = $this->service->confirmPublished($proposal['token'], $shift->id, $this->anna->id, $this->manager);
+        $this->assertSame($id, $this->service->confirmPublished($proposal['token'], $shift->id, $this->anna->id, $this->manager));
+        $applied = OperationAudit::where('action', 'ai_planning.additions_applied')->sole();
+        $this->assertSame('Shift', $applied->subject_type);
+        $this->assertSame([$id], $applied->data['assignment_ids']);
+        $this->assertSame([$this->anna->id], $applied->data['selected_user_ids']);
+        $this->assertTrue($applied->data['published']);
+        $this->assertSame(1, OperationAudit::where('action', 'ai_planning.manually_approved')->count());
+
+        $other = $this->shift(['starts_at' => '2027-05-14T08:00', 'ends_at' => '2027-05-14T16:00', 'status' => 'open', 'published_revision' => 1]);
+        $this->response([$this->row($other, [$this->ben->id])]);
+        $proposal = $this->service->analyzePeriod('2027-05-14', '2027-05-14', $this->manager);
+        $other->increment('revision');
+        $this->invalid(fn () => $this->service->confirmPublished($proposal['token'], $other->id, $this->ben->id, $this->manager), 'Plan wurde');
+        $this->assertSame(1, OperationAudit::where('action', 'ai_planning.manually_approved')->count());
+        $this->assertSame(1, OperationAudit::where('action', 'ai_planning.additions_applied')->count());
+    }
+
+    public function test_revoked_manager_after_provider_response_cannot_persist_planning_events(): void
+    {
+        $shift = $this->shift();
+        $this->response([$this->row($shift, [$this->anna->id])], function () {
+            $this->manager->forceFill(['status' => false])->save();
+        });
+        try {
+            $this->service->analyzeShift($shift->id, $this->manager);
+            $this->fail('Current operation rights must be checked before recording the proposal.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
+        $this->assertSame(0, OperationAudit::where('action', 'like', 'ai_planning.%')->count());
+        $this->assertSame([], session()->get('operations_ai_planning_'.$this->manager->id, []));
         $this->assertSame(0, ShiftAssignment::count());
     }
 }

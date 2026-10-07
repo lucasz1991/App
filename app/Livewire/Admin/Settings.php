@@ -13,8 +13,8 @@ use App\Support\Sound\SoundLibrary;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
-use Livewire\Component;
 use Livewire\Attributes\Locked;
+use Livewire\Component;
 
 class Settings extends Component
 {
@@ -331,6 +331,7 @@ class Settings extends Component
     public function render()
     {
         Gate::authorize('settings.manage');
+
         return view('livewire.admin.settings', [
             'isSuperAdmin' => $this->isSuperAdmin(),
         ])->layout('layouts.master', ['area' => 'admin']);

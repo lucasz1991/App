@@ -11,15 +11,16 @@ use App\Models\EmployeeQualification;
 use App\Models\OperationsAttentionItem;
 use App\Models\PersonnelPlanReview;
 use App\Models\PersonnelTask;
+use App\Models\ShiftAssignment;
 use App\Models\StaffingCase;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Services\CustomerPortal\CustomerCapacityService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use App\Support\CustomerPortal\CustomerPortalScope;
-use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
+use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -141,13 +142,16 @@ class UnifiedOperationsInboxService
             $hours = (int) AiDispositionSettings::all()['reply_timeout_hours'];
             $rows = AiIntake::where('supervising_user_id', $actor->id)->where(function ($query) use ($hours) {
                 $query->whereIn('status', ['review', 'failed'])->orWhere(function ($query) use ($hours) {
-                    $query->where('status', 'waiting_customer')->where('last_analyzed_at', '<=', now()->utc()->subHours($hours));
+                    $query->where('status', 'waiting_customer')->whereHas('deliveries',function($delivery) use ($hours) {
+                        $delivery->where('status','sent')->whereColumn('source_revision','ai_intakes.source_revision')->whereColumn('question_round','ai_intakes.question_round')->where('sent_at','<=',now()->utc()->subHours($hours));
+                    });
                 });
-            })->limit(100)->get();
+            })->with(['deliveries'=>fn($delivery)=>$delivery->where('status','sent')->latest('sent_at')])->limit(100)->get();
             foreach ($rows as $row) {
-                $items->push((object) ['id'=>'ai-intake-'.$row->id, 'kind'=>$row->status === 'waiting_customer' ? 'Kundenantwort ausstehend' : 'AI-Eingang prüfen', 'title'=>$row->title,
-                    'subject'=>'', 'user_id'=>null, 'due_at'=>$row->last_analyzed_at?->addHours($hours), 'status'=>$row->status, 'revision'=>$row->revision,
-                    'priority'=>1, 'module'=>'ai-intake', 'target_tab'=>'ai-intake', 'record_id'=>$row->id, 'record_type'=>'ai-intake', 'customer_id'=>$row->customer_id, 'personal'=>false]);
+                $lastSent = $row->deliveries->first(fn($delivery)=>$delivery->source_revision === $row->source_revision && $delivery->question_round === $row->question_round)?->sent_at;
+                $items->push((object) ['id' => 'ai-intake-'.$row->id, 'kind' => $row->status === 'waiting_customer' ? 'Kundenantwort ausstehend' : 'AI-Eingang prüfen', 'title' => $row->title,
+                    'subject' => '', 'user_id' => null, 'due_at' => $lastSent?->addHours($hours), 'status' => $row->status, 'revision' => $row->revision,
+                    'priority' => 1, 'module' => 'ai-intake', 'target_tab' => 'ai-intake', 'record_id' => $row->id, 'record_type' => 'ai-intake', 'customer_id' => $row->customer_id, 'personal' => false]);
             }
         }
 
@@ -162,7 +166,7 @@ class UnifiedOperationsInboxService
             return route('operations.mine', array_filter(['area' => $item->module === 'customer-capacity' ? 'capacity' : ($item->module === 'personnel-enhancements' ? 'personnel' : ($item->module === 'operations-enhancements' ? 'operations' : 'work')), 'tab' => $item->target_tab]));
         }
         if ($item->module === 'ai-intake') {
-            return OperationsPages::url('cases', array_filter(['view'=>'inbox','section'=>'ai-intake','source'=>'ai-intake','record'=>$item->record_id,'customer'=>$item->customer_id]));
+            return OperationsPages::url('cases', array_filter(['view' => 'inbox', 'section' => 'ai-intake', 'source' => 'ai-intake', 'record' => $item->record_id, 'customer' => $item->customer_id]));
         }
 
         $type = $item->record_type ?? match (true) {
@@ -182,7 +186,8 @@ class UnifiedOperationsInboxService
         };
         if ($type === 'shift-assignment') {
             OperationsAccess::authorize($actor, 'operations.manage');
-            $assignment = \App\Models\ShiftAssignment::findOrFail($item->record_id);
+            $assignment = ShiftAssignment::findOrFail($item->record_id);
+
             return OperationsPages::url('shifts', ['view' => 'plan', 'shift' => $assignment->shift_id]);
         }
         $tab = $item->target_tab;
@@ -195,6 +200,7 @@ class UnifiedOperationsInboxService
         $tab = match ($type) {
             'plan-review' => 'checks', 'staffing-case' => 'cases', 'availability-period' => 'periods', 'task' => $item->module === 'personnel-enhancements' ? 'workflows' : $tab, default => $tab,
         };
+
         return OperationsPages::moduleUrl($item->module, array_filter([
             'tab' => $tab, 'customer' => $item->customer_id ?? null, 'user' => $item->user_id,
             'record' => $item->record_id, 'record_type' => $type,

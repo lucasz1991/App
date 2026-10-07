@@ -76,7 +76,7 @@ class ShiftManagementViewsTest extends TestCase
             ->set('search', 'kein Treffer')->set('statusFilter', 'draft')
             ->assertViewHas('pendingShifts', fn ($items) => $items->total() === 1 && $items->first()->id === $open->id && $items->first()->reserved_count === 2)
             ->assertViewHas('unplannedOrders', fn ($items) => $items->total() === 0)
-            ->assertSee('2 offen')
+            ->assertSee('2 frei')
             ->call('openDetails', $open->id)->assertSet('selectedShiftId', $open->id)->assertSet('detailOpen', true);
     }
 
@@ -115,7 +115,8 @@ class ShiftManagementViewsTest extends TestCase
             ->call('applyPeriod', '2027-05-10', '2027-05-16')
             ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 1)
             ->call('applyPeriod', '2027-06-01', '2027-06-02')
-            ->assertSee('Keine offenen Verteilungen in diesem Zeitraum.');
+            ->assertSee('Alle Schichten in diesem Zeitraum sind besetzt.')
+            ->assertSee('Alle Leistungen in diesem Zeitraum sind geplant.');
     }
 
     public function test_header_uses_calendar_and_current_view_icons_with_accessible_labels(): void

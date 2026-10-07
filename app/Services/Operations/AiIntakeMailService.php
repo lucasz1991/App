@@ -10,6 +10,7 @@ use App\Models\AiIntakeRun;
 use App\Models\Customer;
 use App\Models\CustomerContact;
 use App\Support\Operations\AiDispositionSettings;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -40,7 +41,33 @@ class AiIntakeMailService
                 'segments' => 'Welche einzelnen Einsatzabschnitte und Zeiten gehören zur Anfrage?',
                 'qualification_ids' => 'Welche Qualifikationen sind für den Einsatz erforderlich?',
             ];
-            $questionText = collect($questions)->map(fn ($question, $key) => $prompts[is_array($question) ? (string) ($question['field'] ?? '') : (is_string($key) ? $key : (string) $question)] ?? null)->filter()->unique()->values();
+            $questionText = collect($questions)->map(function ($question, $key) use ($prompts, $fresh): ?string {
+                $field = is_array($question) ? (string) ($question['field'] ?? '') : (is_string($key) ? $key : (string) $question);
+                if (! isset($prompts[$field])) {
+                    return null;
+                }
+                if (is_array($question) && array_key_exists('position', $question)) {
+                    $position = filter_var($question['position'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 20]]);
+
+                    if ($position === false) {
+                        return null;
+                    }
+                    $proposal = $fresh->proposals()->where('source_revision', $fresh->source_revision)->where('position_index', $position - 1)->first();
+                    $demand = (array) ($proposal?->payload['demand'] ?? []);
+                    $evidence = (array) ($proposal?->payload['evidence'] ?? []);
+                    $labels = [];
+                    foreach (['role_name' => 'Funktion', 'location_name' => 'Ort'] as $name => $label) {
+                        if (! empty($evidence[$name]) && is_string($demand[$name] ?? null)) {
+                            $value = mb_substr(trim(preg_replace('/[\x00-\x1F\x7F]/u', ' ', $demand[$name])), 0, 80);
+                            $labels[] = $label.': „'.$value.'“';
+                        }
+                    }
+
+                    return 'Leistung '.$position.($labels ? ' ('.implode(' · ', $labels).')' : '').': '.$prompts[$field];
+                }
+
+                return $prompts[$field];
+            })->filter()->unique()->values();
             if ($questionText->isEmpty()) {
                 return null;
             }
@@ -66,7 +93,7 @@ class AiIntakeMailService
                 DeliverAiIntakeMail::dispatch($delivery->id)->afterCommit();
             }
 
-            return $delivery;
+            return in_array($delivery->status, ['canceled', 'unknown'], true) ? null : $delivery;
         });
     }
 
@@ -83,6 +110,9 @@ class AiIntakeMailService
         }
         $email = strtolower(trim($contact->email));
         $metadata = (array) $message->metadata;
+        if (! empty($metadata['source_error']) || ($metadata['raw_archive_complete'] ?? true) === false) {
+            return null;
+        }
         if (! filter_var($email, FILTER_VALIDATE_EMAIL) || ! hash_equals($email, strtolower(trim((string) $message->sender_email))) || ($message->reply_to_email && ! hash_equals($email, strtolower(trim($message->reply_to_email))))) {
             return null;
         }
@@ -97,29 +127,35 @@ class AiIntakeMailService
 
     public function deliver(int $deliveryId): string
     {
-        $claim = DB::transaction(function () use ($deliveryId): ?array {
+        $base = AiIntakeDelivery::findOrFail($deliveryId);
+        $claim = DB::transaction(function () use ($deliveryId, $base): ?array {
+            $intake = AiIntake::lockForUpdate()->findOrFail($base->intake_id);
             $delivery = AiIntakeDelivery::lockForUpdate()->findOrFail($deliveryId);
             if ($delivery->status !== 'pending') {
                 return null;
             }
-            $intake = AiIntake::lockForUpdate()->findOrFail($delivery->intake_id);
+            abort_unless($delivery->intake_id === $intake->id, 409);
             $settings = AiDispositionSettings::all(true);
             $contact = $this->verifiedContact($intake, $settings);
             if (! $settings['enabled'] || $settings['automation_mode'] !== 'automatic' || (int) $settings['revision'] !== $delivery->settings_revision || ! $contact || $intake->paused_at || in_array($intake->status, ['paused', 'completed', 'failed'], true) || $intake->source_revision !== $delivery->source_revision || $intake->revision !== $delivery->intake_revision || $intake->latest_inbound_message_id !== $delivery->message_id || $delivery->question_round > $settings['max_rounds'] || $contact->revision !== (int) ($delivery->metadata['contact_revision'] ?? 0) || ! hash_equals(strtolower(trim($contact->email)), $delivery->recipient_email)) {
                 $delivery->forceFill(['status' => 'canceled', 'failure_code' => 'context_changed'])->save();
+                if ($intake->status === 'waiting_customer' && $intake->source_revision === $delivery->source_revision) {
+                    $intake->forceFill(['status' => 'review', 'error_code' => 'clarification_canceled', 'revision' => $intake->revision + 1])->save();
+                }
 
                 return null;
             }
             $delivery->forceFill(['status' => 'sending', 'attempts' => $delivery->attempts + 1, 'attempted_at' => now()->utc()])->save();
 
             return ['delivery' => $delivery, 'settings' => $settings];
-        });
+        }, 3);
         if ($claim === null) {
             return AiIntakeDelivery::findOrFail($deliveryId)->status;
         }
         try {
             $this->transport->send($claim['delivery'], $claim['settings']);
             DB::transaction(function () use ($deliveryId, $claim): void {
+                AiIntake::lockForUpdate()->findOrFail($claim['delivery']->intake_id);
                 $delivery = AiIntakeDelivery::lockForUpdate()->findOrFail($deliveryId);
                 $delivery->forceFill(['status' => 'sent', 'sent_at' => now()->utc(), 'failure_code' => null])->save();
                 AiIntakeMessage::firstOrCreate(['intake_id' => $delivery->intake_id, 'direction' => 'outbound', 'external_message_id' => $delivery->message_id_header], ['sender_email' => $claim['settings']['from_address'], 'body' => $delivery->body, 'metadata' => ['delivery_id' => $delivery->id, 'in_reply_to' => $delivery->in_reply_to, 'references' => $delivery->references]]);
@@ -127,7 +163,7 @@ class AiIntakeMailService
 
             return 'sent';
         } catch (\Throwable) {
-            AiIntakeDelivery::whereKey($deliveryId)->where('status', 'sending')->update(['status' => 'unknown', 'failure_code' => 'transport_outcome_unknown']);
+            $this->markUnknown($deliveryId, 'transport_outcome_unknown');
 
             return 'unknown';
         }
@@ -139,15 +175,17 @@ class AiIntakeMailService
         if (! $settings['enabled']) {
             return 0;
         }
-        AiIntakeDelivery::where('status', 'sending')->where('attempted_at', '<', now()->subMinutes(10))->update(['status' => 'unknown', 'failure_code' => 'worker_outcome_unknown']);
-        $ids = AiIntake::where('status', 'waiting_customer')->whereHas('deliveries', fn ($query) => $query->where('status', 'sent')->where('sent_at', '<', now()->subHours((int) $settings['reply_timeout_hours'])))
-            ->whereDoesntHave('deliveries', fn ($query) => $query->where('status', 'sent')->where('sent_at', '>=', now()->subHours((int) $settings['reply_timeout_hours'])))->orderBy('id')->limit(100)->pluck('id');
+        foreach (AiIntakeDelivery::where('status', 'sending')->where('attempted_at', '<', now()->utc()->subMinutes(10))->orderBy('id')->limit(100)->pluck('id') as $id) {
+            $this->markUnknown((int) $id, 'worker_outcome_unknown');
+        }
+        $ids = AiIntake::where('status', 'waiting_customer')->whereHas('deliveries', fn ($query) => $query->where('status', 'sent')->where('sent_at', '<', now()->utc()->subHours((int) $settings['reply_timeout_hours'])))
+            ->whereDoesntHave('deliveries', fn ($query) => $query->where('status', 'sent')->where('sent_at', '>=', now()->utc()->subHours((int) $settings['reply_timeout_hours'])))->orderBy('id')->limit(100)->pluck('id');
         $count = 0;
         foreach ($ids as $id) {
             $count += DB::transaction(function () use ($id, $settings): int {
                 $intake = AiIntake::lockForUpdate()->find($id);
                 $latest = $intake?->deliveries()->where('status', 'sent')->latest('sent_at')->first();
-                if (! $intake || $intake->status !== 'waiting_customer' || $intake->paused_at || ! $latest || $latest->sent_at >= now()->subHours((int) $settings['reply_timeout_hours'])) {
+                if (! $intake || $intake->status !== 'waiting_customer' || $intake->paused_at || ! $latest || CarbonImmutable::parse($latest->getRawOriginal('sent_at'), 'UTC') >= now()->utc()->subHours((int) $settings['reply_timeout_hours'])) {
                     return 0;
                 }
                 $intake->forceFill(['status' => 'review', 'error_code' => 'customer_reply_timeout', 'revision' => $intake->revision + 1])->save();
@@ -157,6 +195,25 @@ class AiIntakeMailService
         }
 
         return $count;
+    }
+
+    private function markUnknown(int $deliveryId, string $failure): void
+    {
+        $base = AiIntakeDelivery::find($deliveryId);
+        if (! $base) {
+            return;
+        }
+        DB::transaction(function () use ($base, $failure): void {
+            $intake = AiIntake::lockForUpdate()->find($base->intake_id);
+            $delivery = AiIntakeDelivery::lockForUpdate()->find($base->id);
+            if (! $delivery || $delivery->status !== 'sending') {
+                return;
+            }
+            $delivery->forceFill(['status' => 'unknown', 'failure_code' => $failure])->save();
+            if ($intake?->status === 'waiting_customer' && $intake->source_revision === $delivery->source_revision) {
+                $intake->forceFill(['status' => 'review', 'error_code' => 'delivery_outcome_unknown', 'revision' => $intake->revision + 1])->save();
+            }
+        }, 3);
     }
 
     private function messageIds(mixed $ids): array

@@ -3,6 +3,7 @@
 namespace App\Services\Operations;
 
 use App\Enums\ShiftAssignmentStatus;
+use App\Models\OperationAudit;
 use App\Models\PlanVariant;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
@@ -14,6 +15,7 @@ use App\Support\Operations\PlanningEnhancementSchema;
 use App\Support\Operations\PlanningLocks;
 use App\Support\Operations\WorkforcePlanningSchema;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -72,6 +74,7 @@ class AiPlanningService
         $this->check($record['mode'] === 'shift', 'Dieser Vorschlag gehört nicht zur einzelnen Schicht.');
         $this->selected($record, $shiftId, $userId);
         $this->validateCurrent($record);
+        $this->audit($this->openShift($shiftId), $actor, 'proposal_reviewed', $record, ['selected_user_ids' => [$userId]]);
     }
 
     /** A saved variant is a proposal only; no shift or reservation is changed. */
@@ -110,6 +113,7 @@ class AiPlanningService
             $record['variant_id'] = $variant->id;
             $record['variant_revision'] = $variant->revision;
             $record['variant_fingerprint'] = $preview['fingerprint'];
+            $this->audit($variant, $actor, 'proposal_validated', $record, ['variant_id' => $variant->id, 'variant_fingerprint' => $preview['fingerprint']]);
             $this->put($token, $actor, $record);
 
             return $variant;
@@ -134,6 +138,7 @@ class AiPlanningService
             $preview = app(PlanVariantService::class)->preview($variant, $actor);
             $this->check($preview['valid'] && hash_equals($record['variant_fingerprint'], $preview['fingerprint']), 'Die Variante oder Planungsgrundlagen wurden geändert. Bitte neu analysieren.');
             app(PlanVariantService::class)->approve($variant->id, $variant->revision, $preview['fingerprint'], $actor);
+            $this->audit($variant->fresh(), $actor, 'manually_approved', $record, ['variant_id' => $variant->id, 'variant_fingerprint' => $preview['fingerprint']]);
             $ids = [];
             foreach ($variant->entries as $entry) {
                 $shift = $this->openShift($entry['shift_id']);
@@ -144,7 +149,7 @@ class AiPlanningService
                 }
             }
             $variant->refresh()->forceFill(['status' => 'applied', 'applied_at' => now()->utc(), 'revision' => $variant->revision + 1])->save();
-            app(OperationsAuditService::class)->record($variant, $actor, 'ai_planning.additions_applied', ['assignment_ids' => $ids, 'replacements' => 0, 'published' => false]);
+            $this->audit($variant, $actor, 'additions_applied', $record, ['variant_id' => $variant->id, 'assignment_ids' => $ids, 'replacements' => 0, 'published' => false]);
             $record['draft_applied'] = $ids;
             $record['basis'] = $this->basis(array_keys($record['allowed']));
             $this->put($token, $actor, $record);
@@ -168,7 +173,9 @@ class AiPlanningService
             $this->validateCurrent($record);
             $shift = $this->openShift($shiftId);
             $this->check($shift->published_revision > 0 && $shift->published_revision === $shift->revision, 'Bitte zuerst die aktuelle Schichtrevision veröffentlichen oder neu analysieren.');
+            $this->audit($shift, $actor, 'manually_approved', $record, ['selected_user_ids' => [$userId], 'published' => true]);
             $assignment = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($userId), $actor, ShiftAssignmentStatus::Requested, 'Manuell freigegebener AI-Besetzungsvorschlag', $shift->revision);
+            $this->audit($shift, $actor, 'additions_applied', $record, ['selected_user_ids' => [$userId], 'assignment_ids' => [$assignment->id], 'replacements' => 0, 'published' => true]);
             $record['published_applied'][$receipt] = $assignment->id;
             $record['basis'] = $this->basis(array_keys($record['allowed']));
             $this->put($token, $actor, $record);
@@ -251,6 +258,26 @@ class AiPlanningService
             'user_id' => $actor->id, 'expires_at' => now()->addMinutes(15)->timestamp];
         $this->validateCurrent($record);
         $token = Str::random(40);
+        $usage = [];
+        foreach (['prompt_tokens', 'completion_tokens', 'total_tokens'] as $field) {
+            if (isset($response->usage[$field]) && is_numeric($response->usage[$field])) {
+                $usage[$field] = max(0, (int) $response->usage[$field]);
+            }
+        }
+        // Durable, ID-only provenance survives session expiry without retaining AI prose or private names.
+        $record['audit'] = ['schema_version' => 1, 'run_uuid' => (string) Str::uuid(), 'proposal_token' => $token,
+            'mode' => $mode, 'model' => $response->model !== null ? mb_substr($response->model, 0, 255) : null,
+            'provider_request_id' => $response->requestId !== null ? mb_substr($response->requestId, 0, 191) : null,
+            'usage' => $usage, 'basis_hash' => $basis, 'shift_ids' => $shifts->pluck('id')->all(),
+            'validated_recommendations' => array_map(fn (array $row) => ['shift_id' => $row['shift_id'], 'user_ids' => $row['user_ids']], $data['recommendations'])];
+        OperationsTransaction::run(function () use ($shifts, $actor, $record): void {
+            $actor = $this->access($actor);
+            $this->requireAvailable();
+            foreach ($shifts as $shift) {
+                $this->audit($shift, $actor, 'analysis_completed', $record);
+                $this->audit($shift, $actor, 'proposal_validated', $record);
+            }
+        });
         $this->put($token, $actor, $record);
         $rows = [];
         foreach ($data['recommendations'] as $row) {
@@ -326,6 +353,7 @@ class AiPlanningService
         $this->check(preg_match('/\A[a-zA-Z0-9]{40}\z/', $token) === 1, 'Bitte zuerst einen aktuellen Vorschlag erstellen.');
         $record = session()->get('operations_ai_planning_'.$actor->id, [])[$token] ?? null;
         $this->check(is_array($record) && $record['user_id'] === $actor->id && $record['expires_at'] > now()->timestamp, 'Der Vorschlag ist abgelaufen. Bitte neu analysieren.');
+        $this->check(isset($record['audit']['run_uuid']), 'Dieser Vorschlag benötigt eine erneute Analyse.');
 
         return $record;
     }
@@ -335,6 +363,19 @@ class AiPlanningService
         $records = array_filter(session()->get('operations_ai_planning_'.$actor->id, []), fn ($row) => ($row['expires_at'] ?? 0) > now()->timestamp);
         $records[$token] = $record;
         session()->put('operations_ai_planning_'.$actor->id, array_slice($records, -8, null, true));
+    }
+
+    /** Existing operation audits are the durable event boundary; they never authorize a proposal. */
+    private function audit(Model $subject, User $actor, string $phase, array $record, array $details = []): void
+    {
+        $actor = $this->access($actor);
+        $action = 'ai_planning.'.$phase;
+        $eventKey = hash('sha256', json_encode([$record['audit']['run_uuid'], class_basename($subject), $subject->id, $phase, $details], JSON_THROW_ON_ERROR));
+        if (OperationAudit::where('subject_type', class_basename($subject))->where('subject_id', $subject->id)->where('action', $action)->where('data->event_key', $eventKey)->exists()) {
+            return;
+        }
+        app(OperationsAuditService::class)->record($subject, $actor, $action,
+            $record['audit'] + ['event_key' => $eventKey, 'phase' => $phase, 'validated_basis_hash' => $record['basis']] + $details);
     }
 
     private function access(User $actor): User

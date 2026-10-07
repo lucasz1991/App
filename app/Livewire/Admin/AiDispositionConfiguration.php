@@ -17,11 +17,15 @@ use Throwable;
 class AiDispositionConfiguration extends Component
 {
     public array $form = [];
+
     public array $diagnostic = [];
+
     #[Locked]
     public array $historyPreview = [];
+
     #[Locked]
     public string $historyToken = '';
+
     public array $historySelection = [];
 
     public function mount(): void
@@ -55,7 +59,9 @@ class AiDispositionConfiguration extends Component
                 $this->addError('form.'.$field, implode(' ', $messages));
             }
         } catch (HttpException $exception) {
-            if ($exception->getStatusCode() === 403) throw $exception;
+            if ($exception->getStatusCode() === 403) {
+                throw $exception;
+            }
             $this->addError('form', $exception->getStatusCode() === 409
                 ? 'Die Konfiguration wurde inzwischen geändert. Laden Sie die Einstellungen erneut.'
                 : ($exception->getMessage() ?: 'Bitte die vollständige Postfach-Konfiguration prüfen.'));
@@ -136,6 +142,7 @@ class AiDispositionConfiguration extends Component
     public function render()
     {
         $this->actor();
+
         return view('livewire.admin.ai-disposition-configuration', [
             'status' => AiDispositionSettings::status(),
             'runtime' => app(AiIntakeMailboxService::class)->status(),

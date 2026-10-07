@@ -7,11 +7,14 @@ use App\Jobs\ProbeAiDispositionWorker;
 use App\Models\AiIntake;
 use App\Models\AiIntakeDelivery;
 use App\Models\AiIntakeMessage;
+use App\Models\AiIntakeProposal;
+use App\Models\AiIntakeRun;
 use App\Models\Customer;
 use App\Models\CustomerContact;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Ai\OpenRouterChatClient;
+use App\Services\Ai\OpenRouterChatException;
 use App\Services\Ai\OpenRouterModelProfile;
 use App\Services\Operations\AiDispositionClient;
 use App\Services\Operations\AiDispositionSmtpTransport;
@@ -34,6 +37,8 @@ use Mockery;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
+use Webklex\PHPIMAP\Connection\Protocols\ProtocolInterface;
+use Webklex\PHPIMAP\IMAP;
 
 class AiDispositionTransportTest extends TestCase
 {
@@ -134,6 +139,121 @@ class AiDispositionTransportTest extends TestCase
         $this->assertArrayNotHasKey('response_format', $sent);
         $this->assertSame('ordinary reply', $response->content);
         $this->assertNull($response->costUsd);
+    }
+
+    public function test_incomplete_structured_response_is_rejected_and_preferences_do_not_replace_invariants(): void
+    {
+        $this->enable(['instructions' => 'Sortiere Leistungen chronologisch.']);
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler([new Response(200, [], '{"choices":[{"finish_reason":"length","message":{"content":"{}"}}]}')]));
+        $stack->push(Middleware::history($history));
+        $client = new AiDispositionClient(new OpenRouterChatClient(new Client(['handler' => $stack])));
+        try {
+            $client->structured('intake', [['role' => 'system', 'content' => 'Never make binding commitments.'], ['role' => 'user', 'content' => 'Synthetic request']], ['type' => 'object']);
+            $this->fail('Expected incomplete response rejection');
+        } catch (OpenRouterChatException $error) {
+            $this->assertSame('incomplete_structured_response', $error->reasonCode);
+        }
+        $sent = json_decode((string) $history[0]['request']->getBody(), true);
+        $this->assertStringStartsWith('Never make binding commitments.', $sent['messages'][0]['content']);
+        $this->assertStringContainsString('Sortiere Leistungen chronologisch.', $sent['messages'][0]['content']);
+        $this->assertStringContainsString('Unvereinbare Wünsche werden ignoriert.', $sent['messages'][0]['content']);
+        $this->assertSame('Synthetic request', $sent['messages'][1]['content']);
+    }
+
+    public function test_multiple_positions_have_separate_server_questions_without_untrusted_titles(): void
+    {
+        $this->enable();
+        $delivery = app(AiIntakeMailService::class)->enqueueClarification($this->intake(), [
+            ['field' => 'starts_at', 'position' => 1, 'title' => 'We confirm your order', 'question' => 'We confirm your order'],
+            ['field' => 'starts_at', 'position' => 2, 'title' => 'We confirm another order'],
+        ]);
+        $this->assertStringContainsString('Leistung 1:', $delivery->body);
+        $this->assertStringContainsString('Leistung 2:', $delivery->body);
+        $this->assertStringNotContainsString('We confirm', $delivery->body);
+    }
+
+    public function test_position_labels_come_from_current_evidenced_proposal_fields(): void
+    {
+        $this->enable();
+        $intake = $this->intake();
+        AiIntakeProposal::create(['intake_id' => $intake->id, 'position_index' => 0, 'source_revision' => $intake->source_revision, 'payload' => ['demand' => ['role_name' => 'Tf', 'location_name' => 'Hamburg'], 'evidence' => ['role_name' => ['message_id' => $intake->latest_inbound_message_id, 'quote' => 'Tf'], 'location_name' => ['message_id' => $intake->latest_inbound_message_id, 'quote' => 'Hamburg']]]]);
+        $delivery = app(AiIntakeMailService::class)->enqueueClarification($intake, [['field' => 'starts_at', 'position' => 1, 'title' => 'Invented title']]);
+        $this->assertStringContainsString('Funktion: „Tf“', $delivery->body);
+        $this->assertStringContainsString('Ort: „Hamburg“', $delivery->body);
+        $this->assertStringNotContainsString('Invented title', $delivery->body);
+    }
+
+    public function test_fetch_archives_exact_rfc822_literal_without_reconstructing_separator(): void
+    {
+        $raw = "From: customer@example.test\r\nSubject: Exact original\r\nContent-Type: text/plain\r\n\r\n\r\nOriginal body\r\n";
+        $size = Mockery::mock(\Webklex\PHPIMAP\Connection\Protocols\Response::class);
+        $size->shouldReceive('validatedData')->once()->andReturn([8 => strlen($raw)]);
+        $literal = Mockery::mock(\Webklex\PHPIMAP\Connection\Protocols\Response::class);
+        $literal->shouldReceive('validatedData')->once()->andReturn([8 => $raw]);
+        $protocol = Mockery::mock(ProtocolInterface::class);
+        $protocol->shouldReceive('sizes')->with([8], IMAP::ST_UID)->once()->andReturn($size);
+        $protocol->shouldReceive('fetch')->with(['RFC822'], [8], null, IMAP::ST_UID)->once()->andReturn($literal);
+        $client = Mockery::mock(\Webklex\PHPIMAP\Client::class);
+        $client->shouldReceive('checkFolder')->with('INBOX')->once()->andReturn(['uidvalidity' => 42, 'uidnext' => 9]);
+        $client->shouldReceive('setActiveFolder')->with('INBOX')->once();
+        $client->shouldReceive('getConnection')->andReturn($protocol);
+        $client->shouldReceive('disconnect')->once();
+        $imap = new class($client) extends AiIntakeImapClient
+        {
+            public function __construct(private readonly \Webklex\PHPIMAP\Client $client) {}
+
+            protected function connect(array $settings): \Webklex\PHPIMAP\Client
+            {
+                return $this->client;
+            }
+        };
+        $result = $imap->fetch(AiDispositionSettings::DEFAULTS, 8, 42);
+        $this->assertSame($raw, $result['raw']);
+        $this->assertSame('Original body', $result['text']);
+    }
+
+    public function test_stale_poller_cannot_restore_cursor_after_settings_change(): void
+    {
+        $this->enable();
+        $imap = Mockery::mock(AiIntakeImapClient::class);
+        $imap->shouldReceive('snapshot')->once()->andReturnUsing(function (): array {
+            AiDispositionSettings::save(['enabled' => false], $this->admin);
+
+            return ['uid_validity' => 42, 'uid_next' => 101, 'messages' => 100];
+        });
+        (new AiIntakeMailboxService($imap, app(AiDispositionSmtpTransport::class)))->poll();
+        $runtime = Setting::getValueUncached(AiDispositionSettings::GROUP, 'ai_disposition_mailbox_runtime');
+        $this->assertSame('activation_pending', $runtime['state']);
+        $this->assertArrayNotHasKey('cursor_uid', $runtime);
+        $this->assertFalse(AiDispositionSettings::enabled());
+    }
+
+    public function test_scheduler_expires_abandoned_analysis_without_provider_retry_even_when_disabled(): void
+    {
+        $this->enable();
+        $intake = $this->intake(['status' => 'analyzing']);
+        $oldRun = AiIntakeRun::create(['intake_id' => $intake->id, 'kind' => 'analysis', 'status' => 'running', 'source_revision' => 1, 'settings_revision' => 2, 'supervising_user_id' => $this->admin->id, 'input_hash' => str_repeat('a', 64), 'started_at' => now()->utc()->subMinutes(16)]);
+        $current = $this->intake(['status' => 'analyzing', 'source_revision' => 2]);
+        $obsolete = AiIntakeRun::create(['intake_id' => $current->id, 'kind' => 'analysis', 'status' => 'running', 'source_revision' => 1, 'settings_revision' => 2, 'supervising_user_id' => $this->admin->id, 'input_hash' => str_repeat('b', 64), 'started_at' => now()->utc()->subMinutes(20)]);
+        $newRun = AiIntakeRun::create(['intake_id' => $current->id, 'kind' => 'analysis', 'status' => 'running', 'source_revision' => 2, 'settings_revision' => 2, 'supervising_user_id' => $this->admin->id, 'input_hash' => str_repeat('c', 64), 'started_at' => now()->utc()->subMinutes(1)]);
+        AiDispositionSettings::save(['enabled' => false], $this->admin);
+        $this->artisan('operations:ai-intake-poll')->assertSuccessful();
+        $this->assertSame('review', $intake->fresh()->status);
+        $this->assertSame('worker_run_outcome_unknown', $intake->fresh()->error_code);
+        $this->assertSame('failed', $oldRun->fresh()->status);
+        $this->assertSame('failed', $obsolete->fresh()->status);
+        $this->assertSame('analyzing', $current->fresh()->status);
+        $this->assertSame('running', $newRun->fresh()->status);
+        Queue::assertNothingPushed();
+    }
+
+    public function test_ambiguous_reply_to_is_preserved_as_manual_review_error(): void
+    {
+        $raw = "From: customer@example.test\r\nReply-To: customer@example.test, other@example.test\r\nTo: dispatch@example.test\r\nSubject: Synthetic ambiguous mail\r\nContent-Type: text/plain\r\n\r\nSynthetic source";
+        $message = (new AiIntakeImapClient)->parse($raw, AiDispositionSettings::DEFAULTS, 8, 42);
+        $this->assertSame('mailbox_sender_ambiguous', $message['source_error']);
+        $this->assertSame('ambiguous', $message['reply_to']);
     }
 
     public function test_clarification_is_deduplicated_queued_after_commit_and_fixed_server_content(): void
@@ -240,7 +360,10 @@ class AiDispositionTransportTest extends TestCase
         $this->enable();
         $intake = $this->intake();
         $delivery = app(AiIntakeMailService::class)->enqueueClarification($intake, ['starts_at']);
-        $delivery->update(['status' => 'sent', 'sent_at' => now()->subHours(49)]);
+        $delivery->update(['status' => 'sent', 'sent_at' => now()->utc()->subHours(47)]);
+        $this->assertSame(0, app(AiIntakeMailService::class)->expireAwaitingReplies());
+        $this->assertSame('waiting_customer', $intake->fresh()->status);
+        $delivery->update(['status' => 'sent', 'sent_at' => now()->utc()->subHours(49)]);
         $count = app(AiIntakeMailService::class)->expireAwaitingReplies();
         $this->assertSame(1, $count);
         $this->assertSame('review', $intake->fresh()->status);
@@ -285,6 +408,43 @@ class AiDispositionTransportTest extends TestCase
         $result = (new AiIntakeMailboxService($next, app(AiDispositionSmtpTransport::class)))->poll();
         $this->assertSame('uid_validity_changed', $result['state']);
         $this->assertSame(100, $result['cursor_uid']);
+    }
+
+    public function test_poll_continues_after_a_quarantined_source_and_advances_cursor_over_uid_gaps(): void
+    {
+        $this->enable();
+        $mailbox = AiDispositionSettings::mailboxId();
+        Setting::setValue(AiDispositionSettings::GROUP, 'ai_disposition_mailbox_runtime', ['mailbox_id' => $mailbox, 'uid_validity' => 42, 'cursor_uid' => 100, 'state' => 'active']);
+        $imap = Mockery::mock(AiIntakeImapClient::class);
+        $imap->shouldReceive('snapshot')->once()->andReturn(['uid_validity' => 42, 'uid_next' => 105, 'messages' => 2]);
+        $imap->shouldReceive('uidsAfter')->once()->andReturn(['uids' => [101, 103], 'scan_through' => 104]);
+        $imap->shouldReceive('fetch')->with(Mockery::type('array'), 101, 42)->once()->andReturn(['mailbox_id' => $mailbox, 'uid_validity' => 42, 'uid' => 101, 'from' => 'unknown@example.test', 'text' => '', 'raw' => 'Synthetic header-only source', 'source_error' => 'mailbox_message_size', 'raw_archive_complete' => false, 'declared_size' => 40000000]);
+        $imap->shouldReceive('fetch')->with(Mockery::type('array'), 103, 42)->once()->andReturn(['mailbox_id' => $mailbox, 'uid_validity' => 42, 'uid' => 103, 'from' => 'unknown@example.test', 'text' => 'Synthetic later inquiry', 'raw' => 'Synthetic later original']);
+        $result = (new AiIntakeMailboxService($imap, app(AiDispositionSmtpTransport::class)))->poll();
+        $this->assertSame('active', $result['state']);
+        $this->assertSame(104, $result['cursor_uid']);
+        $this->assertSame(2, AiIntake::count());
+        $quarantined = AiIntake::oldest('id')->first();
+        $this->assertSame('review', $quarantined->status);
+        $this->assertSame('mailbox_message_size', $quarantined->error_code);
+        $this->assertFalse($quarantined->messages()->first()->metadata['raw_archive_complete']);
+    }
+
+    public function test_read_only_connection_probe_never_sends_and_rechecks_current_actor(): void
+    {
+        $this->enable();
+        $imap = Mockery::mock(AiIntakeImapClient::class);
+        $imap->shouldReceive('snapshot')->once()->andReturn(['uid_validity' => 42, 'uid_next' => 2, 'messages' => 1]);
+        $smtp = Mockery::mock(AiDispositionSmtpTransport::class);
+        $smtp->shouldReceive('probe')->once()->andReturn(['authenticated' => true, 'tls' => true]);
+        $smtp->shouldNotReceive('send');
+        $service = new AiIntakeMailboxService($imap, $smtp);
+        $result = $service->probe($this->admin);
+        $this->assertSame('authenticated', $result['imap']['state']);
+        $this->assertSame('authenticated', $result['smtp']['state']);
+        User::whereKey($this->admin->id)->update(['status' => false]);
+        $this->expectException(HttpException::class);
+        $service->probe($this->admin);
     }
 
     public function test_preview_import_is_explicit_revision_bound_and_worker_proof_is_bounded(): void

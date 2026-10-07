@@ -87,7 +87,7 @@
 .dark .rt-timeline-workload-detail p, .dark .rt-timeline-workload-detail dt, .dark .rt-timeline-workload-detail header > span,
 .dark .rt-timeline-choice span, .dark .rt-timeline-choice small, .dark .rt-timeline-choice ul { color: var(--rt-dark-muted, #a5b2c5); }
 .dark .rt-timeline-choice { border-color: var(--rt-dark-border, #303846); }
-@media (max-width: 639px) { .rt-staff-timeline-layout:has(.rt-timeline-workload) .rt-personnel-timeline { --timeline-name-width: 170px; } }
+@media (max-width: 639px) { .rt-staff-timeline-layout:has(.rt-timeline-workload) .rt-personnel-timeline { --timeline-name-full-width: 170px; } }
 @media (prefers-reduced-motion: reduce) {
     .rt-timeline-planner__loading > i, .rt-timeline-suggestions-toggle__feedback .fa-spinner-third { animation: none; }
     .rt-timeline-proposal::before, .rt-timeline-cell-action::before { animation: none !important; transition: none; }

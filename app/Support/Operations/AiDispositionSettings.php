@@ -144,6 +144,7 @@ final class AiDispositionSettings
             'image_configured' => $client->isConfiguredFor(OpenRouterModelProfile::ImageUnderstanding), 'supervisor_ready' => self::supervisor($settings) !== null,
             'mailbox_configured' => $settings['imap_host'] !== '' && $settings['imap_username'] !== '' && $settings['imap_password'] !== '',
             'smtp_configured' => $settings['smtp_host'] !== '' && $settings['from_address'] !== '' && self::smtpCredentials($settings)['password'] !== '',
+            'cache_persistent' => ! in_array(config('cache.stores.'.config('cache.default').'.driver'), ['array', 'null'], true),
             'runtime' => (array) (Setting::getValueUncached(self::GROUP, 'ai_disposition_mailbox_runtime') ?? [])];
     }
 

@@ -1,5 +1,7 @@
 .rt-personnel-timeline {
-    --timeline-name-width: 180px;
+    --timeline-name-full-width: 180px;
+    --timeline-name-compact-width: 52px;
+    --timeline-name-width: var(--timeline-name-full-width);
     --timeline-day-min-width: 260px;
     --timeline-day-width: var(--timeline-day-min-width);
     --timeline-gutter: 0px;
@@ -43,6 +45,20 @@
 .rt-personnel-timeline-date { padding-inline: 40px; }
 .rt-personnel-timeline-hours { display: flex; width: 100%; justify-content: space-between; padding-inline: 6px; font-size: 10px; font-weight: 500; font-variant-numeric: tabular-nums; opacity: .68; }
 .rt-personnel-timeline-name.rt-personnel-timeline-head { min-height: 50px; border-bottom: 0; background: transparent; font-size: 12px; }
+.rt-personnel-timeline-name.rt-personnel-timeline-person-heading { padding: 3px 4px; }
+.rt-personnel-timeline-person-toggle { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-width: 44px; min-height: 44px; border: 0; border-radius: 8px; padding: 0 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.rt-personnel-timeline-person-toggle > i { flex: 0 0 auto; font-size: 14px; }
+.rt-personnel-timeline-person-toggle:hover { background: rgb(255 255 255 / .1); }
+.rt-personnel-timeline-person-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+.rt-personnel-timeline[data-personnel-compact='true'] { --timeline-name-width: var(--timeline-name-compact-width); }
+.rt-personnel-timeline[data-personnel-compact='true'] [data-timeline-person-column] { padding-inline: 4px; }
+.rt-personnel-timeline[data-personnel-compact='true'] .rt-personnel-timeline-person-label,
+.rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-person-identity > span:last-child { display: none; }
+/* The legacy utilities define inline-flex as !important on dropdown roots. */
+.rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-workload-anchor { display: none !important; }
+.rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-person-identity { justify-content: center; gap: 0; }
+/* Retain inactive employees' existing row height, including their status line. */
+.rt-personnel-timeline[data-personnel-compact='true'] .rt-timeline-person-status { visibility: hidden; white-space: nowrap; }
 .rt-personnel-timeline-body {
     min-height: 0;
     flex: 1 1 auto;
@@ -256,7 +272,7 @@
 .dark .rt-personnel-timeline-detail { --detail-muted: var(--rt-dark-muted, #a5afbd); --detail-border: var(--rt-dark-border, #303846); --detail-surface: var(--rt-dark-surface-muted, #222b39); --detail-paper: var(--rt-dark-surface, #171d28); }
 @media (prefers-reduced-motion: reduce) { .rt-personnel-timeline-bar { transition: none; } .rt-personnel-timeline-bar:active { transform: none; } }
 @media (max-width: 640px) {
-    .rt-personnel-timeline { --timeline-name-width: 124px; }
+    .rt-personnel-timeline { --timeline-name-full-width: 124px; }
     .rt-personnel-timeline-name { padding: 1px 8px; font-size: 12px; overflow-wrap: anywhere; }
 }
 

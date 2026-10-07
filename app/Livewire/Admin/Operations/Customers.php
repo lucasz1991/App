@@ -2,8 +2,13 @@
 
 namespace App\Livewire\Admin\Operations;
 
+use App\Models\AiIntake;
 use App\Models\Customer;
+use App\Models\User;
+use App\Services\Operations\AiIntakeService;
 use App\Services\Operations\OperationsAuditService;
+use App\Support\Operations\AiIntakeSchema;
+use App\Support\Operations\OperationsAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -38,6 +43,9 @@ class Customers extends Component
     #[Locked]
     public ?int $contextCustomerId = null;
 
+    #[Locked]
+    public ?int $draftIntakeId = null;
+
     public function openDetails(int $id): void
     {
         $this->selectCustomer($id);
@@ -68,7 +76,7 @@ class Customers extends Component
 
     public bool $isActive = true;
 
-    public function mount(?int $customerId = null, bool $embedded = false, bool $startCreating = false, bool $startEditing = false, bool $modalOnly = false, ?int $workspaceRevision = null): void
+    public function mount(?int $customerId = null, bool $embedded = false, bool $startCreating = false, bool $startEditing = false, bool $modalOnly = false, ?int $workspaceRevision = null, ?int $draftIntakeId = null): void
     {
         $this->ensureAdmin();
         $this->embedded = $embedded;
@@ -86,6 +94,16 @@ class Customers extends Component
         } elseif ($startEditing) {
             abort_unless($customerId, 404);
             $this->editCustomer($customerId);
+        }
+        if ($draftIntakeId) {
+            abort_unless($embedded && $modalOnly && $startCreating && ! $customerId, 403);
+            $this->draftIntakeId = $draftIntakeId;
+            $intake = $this->draftIntake();
+            $draft = $intake->analysis['customer_draft'] ?? [];
+            $this->companyName = (string) ($draft['company_name'] ?? '');
+            $this->contactName = (string) ($draft['contact_name'] ?? '');
+            $this->email = (string) ($draft['contact_email'] ?? $intake->messages()->where('direction', 'inbound')->latest('id')->first()?->sender_email ?? '');
+            $this->phone = (string) ($draft['contact_phone'] ?? '');
         }
     }
 
@@ -139,6 +157,9 @@ class Customers extends Component
     public function saveCustomer(): void
     {
         $this->ensureAdmin();
+        if ($this->draftIntakeId) {
+            $this->draftIntake();
+        }
         if ($this->editingCustomerId) {
             $this->assertContext($this->editingCustomerId);
         }
@@ -168,6 +189,7 @@ class Customers extends Component
             'is_active' => $validated['isActive'],
         ];
         $customer = DB::transaction(function () use ($fields): Customer {
+            $intake = $this->draftIntakeId ? $this->draftIntake(true) : null;
             $customer = $this->editingCustomerId
                 ? Customer::query()->lockForUpdate()->findOrFail($this->editingCustomerId)
                 : new Customer;
@@ -176,7 +198,10 @@ class Customers extends Component
             $changedFields = array_keys($customer->getDirty());
             $customer->save();
             if (($created || $changedFields) && Schema::hasTable('operation_audits')) {
-                app(OperationsAuditService::class)->record($customer, auth()->user(), $created ? 'customer.created' : 'customer.updated', ['changed_fields' => $changedFields]);
+                app(OperationsAuditService::class)->record($customer, auth()->user(), $created ? 'customer.created' : 'customer.updated', ['changed_fields' => $changedFields] + ($intake ? ['intake_id'=>$intake->id,'source_revision'=>$intake->source_revision,'reviewed'=>true] : []));
+            }
+            if ($intake) {
+                app(AiIntakeService::class)->assignCustomer($intake, auth()->user()->fresh(), $customer->id, null, $this->workspaceRevision);
             }
 
             return $customer;
@@ -252,5 +277,19 @@ class Customers extends Component
     private function assertContext(int $customerId): void
     {
         abort_unless(! $this->embedded || $this->contextCustomerId === $customerId, 403);
+    }
+
+    private function draftIntake(bool $lock = false): AiIntake
+    {
+        $actor = auth()->user()?->fresh();
+        abort_unless($actor instanceof User, 403);
+        OperationsAccess::authorize($actor, 'operations.manage');
+        OperationsAccess::authorize($actor, 'operations.inquiries.manage');
+        AiIntakeSchema::requireReady();
+        abort_if($this->editingCustomerId, 403);
+        $intake = AiIntake::query()->when($lock, fn ($query) => $query->lockForUpdate())->findOrFail($this->draftIntakeId);
+        abort_unless(! $intake->customer_id && $intake->revision === $this->workspaceRevision, 409, 'Eingang wurde geändert. Kundenzuordnung zuerst prüfen.');
+
+        return $intake;
     }
 }

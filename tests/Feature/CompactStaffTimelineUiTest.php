@@ -60,6 +60,88 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringNotContainsString('x-on:touchmove.prevent', $view);
     }
 
+    public function test_personnel_header_keeps_a_named_keyboard_toggle_and_icon_when_its_visible_label_is_hidden(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $this->assertSame(1, preg_match('/<button\b[^>]*data-timeline-person-toggle[^>]*>.*?<\/button>/s', $view, $toggle));
+        foreach ([
+            'type="button"', 'x-on:click="togglePersonnelColumn()"',
+            'x-bind:aria-expanded="personnelCompact ? \'false\' : \'true\'"',
+            'Mitarbeiterspalte erweitern', 'Mitarbeiterspalte kompakt anzeigen',
+            'aria-label="Mitarbeiterspalte kompakt anzeigen"', 'aria-expanded="true"',
+            '<i class="far fa-users" aria-hidden="true"></i>',
+            '<span class="rt-personnel-timeline-person-label">Mitarbeiter</span>',
+        ] as $contract) {
+            $this->assertStringContainsString($contract, $toggle[0]);
+        }
+        foreach ([
+            'x-effect="applyPersonnelMode()"',
+            'x-on:pointerover.window="pointerPersonnel($event)"',
+            'x-on:pointerout.window="pointerPersonnel($event)"',
+            'x-on:focusin.window="focusPersonnel($event.target)"',
+            'x-on:focusout.window="focusPersonnel($event.relatedTarget)"',
+            'data-timeline-person-column wire:key="staff-person-',
+        ] as $contract) {
+            $this->assertStringContainsString($contract, $view);
+        }
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $button = $this->cssDeclarationsFor($css, '.rt-personnel-timeline-person-toggle');
+        foreach (['min-width: 44px', 'min-height: 44px', 'outline: 2px solid'] as $declaration) {
+            $this->assertStringContainsString($declaration, $button);
+        }
+    }
+
+    public function test_compact_personnel_retains_avatar_identity_preview_and_inactive_status_layout_space(): void
+    {
+        $user = (object) ['name' => 'Marcel Schaarschmidt', 'profile' => null, 'person' => null,
+            'email' => '', 'currentTeam' => null, 'profile_photo_url' => '/avatar.png'];
+        $html = Blade::render('<x-user.public-info :user="$user" :size="6" :show-presence="false" name-format="initial-surname" class="rt-timeline-person-identity" />', compact('user'));
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$html);
+        $xpath = new \DOMXPath($dom);
+        $this->assertSame(1, $xpath->query('//div[contains(@class,"rt-timeline-person-identity")]/span[1]/img[@alt="Marcel Schaarschmidt"]')->length);
+        $this->assertSame(2, $xpath->query('//div[contains(@class,"rt-timeline-person-identity")]/span')->length);
+        $this->assertSame(1, $xpath->query('//div[contains(@class,"rt-timeline-person-identity")]/span[last()]//*[@title="Marcel Schaarschmidt"]')->length);
+        $this->assertStringContainsString('M. Schaarschmidt', strip_tags($html));
+
+        $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        foreach (['<x-user.person-anchor-preview', 'class="rt-timeline-person-identity"',
+            "@include('livewire.operations.partials.timeline-workload'", 'ops-muted rt-timeline-person-status',
+            "{{ __('app.open_person_preview') }}: {{ \$row['user']->name }}"] as $contract) {
+            $this->assertStringContainsString($contract, $view);
+        }
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        foreach (['.rt-personnel-timeline-person-label', '.rt-timeline-person-identity > span:last-child', '.rt-timeline-workload-anchor'] as $selector) {
+            $this->assertStringContainsString('display: none', $this->cssDeclarationsFor($css, "[data-personnel-compact='true'] ".$selector));
+        }
+        $this->assertStringContainsString('display: none !important', $this->cssDeclarationsFor($css, "[data-personnel-compact='true'] .rt-timeline-workload-anchor"));
+        $status = $this->cssDeclarationsFor($css, "[data-personnel-compact='true'] .rt-timeline-person-status");
+        $this->assertStringContainsString('visibility: hidden', $status);
+        $this->assertStringContainsString('white-space: nowrap', $status);
+        $this->assertStringNotContainsString('display: none', $status);
+        $this->assertStringContainsString('min-height: 48px', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-name'));
+        $this->assertStringContainsString('min-height: max(48px, calc(var(--timeline-lanes, 1) * 32px + 12px))', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-track'));
+    }
+
+    public function test_compact_column_width_is_shared_by_native_scroll_surfaces_and_preserves_mobile_full_widths(): void
+    {
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        foreach (['--timeline-name-full-width: 180px', '--timeline-name-compact-width: 52px',
+            '--timeline-name-width: var(--timeline-name-full-width)', '--timeline-name-full-width: 124px'] as $declaration) {
+            $this->assertStringContainsString($declaration, $css);
+        }
+        $this->assertStringContainsString('--timeline-name-width: var(--timeline-name-compact-width)',
+            $this->cssDeclarationsFor($css, ".rt-personnel-timeline[data-personnel-compact='true']"));
+        foreach (['.rt-personnel-timeline-header', '.rt-personnel-timeline-scrollbar-row'] as $selector) {
+            $this->assertStringContainsString('grid-template-columns: var(--timeline-name-width) minmax(0, 1fr)', $this->cssDeclarationsFor($css, $selector));
+        }
+        $this->assertStringContainsString('width: calc(var(--timeline-name-width) + var(--timeline-days) * var(--timeline-day-width))', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-grid'));
+        $this->assertStringContainsString('scroll-padding-left: var(--timeline-name-width)', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-body'));
+        $planningCss = file_get_contents(resource_path('css/timeline-planning-actions.css'));
+        $this->assertStringContainsString('--timeline-name-full-width: 170px', $planningCss);
+        $this->assertStringNotContainsString('--timeline-name-width: 170px', $planningCss);
+    }
+
     private function cssDeclarationsFor(string $css, string $selector): string
     {
         preg_match_all('/([^{}]+)\{([^{}]*)\}/', $css, $rules, PREG_SET_ORDER);

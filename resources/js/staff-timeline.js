@@ -40,6 +40,62 @@ export function staffTimeline() {
         contentObserver: null,
         resizeFrame: null,
         mirroredScrollbarLeft: 0,
+        lastScrollLeft: 0,
+        compactRequested: false,
+        personnelHovered: false,
+        personnelFocused: false,
+        appliedPersonnelCompact: null,
+        layoutScrollOffset: null,
+        get personnelCompact() {
+            return this.compactRequested && !this.personnelHovered && !this.personnelFocused;
+        },
+        setCompactRequested(compact) {
+            this.compactRequested = Boolean(compact);
+        },
+        togglePersonnelColumn() {
+            const compact = !this.personnelCompact;
+            this.personnelHovered = false;
+            this.personnelFocused = false;
+            this.setCompactRequested(compact);
+        },
+        ownsPersonnel(target) {
+            const visited = new Set();
+            while (target?.closest) {
+                const column = target.closest('[data-timeline-person-column]');
+                if (column && this.$el.contains(column)) return true;
+                const owner = target.closest('[data-rt-dropdown-owner]')?.dataset.rtDropdownOwner;
+                if (!owner || visited.has(owner)) break;
+                visited.add(owner);
+                target = [...document.querySelectorAll('[data-rt-dropdown-root]')]
+                    .find(root => root.dataset.rtDropdownId === owner);
+            }
+            return false;
+        },
+        pointerPersonnel(event) {
+            if (event.pointerType !== 'mouse') return;
+            this.personnelHovered = this.ownsPersonnel(event.type === 'pointerout' ? event.relatedTarget : event.target);
+        },
+        focusPersonnel(target) {
+            // A preview is teleported, but still belongs to its employee trigger.
+            this.personnelFocused = !target?.closest?.('[data-timeline-person-toggle]') && this.ownsPersonnel(target);
+        },
+        applyPersonnelMode() {
+            const compact = this.personnelCompact;
+            if (this.appliedPersonnelCompact === compact) return;
+            const body = this.$refs.timelineBody;
+            const previousOffset = body.scrollLeft;
+            const previousMaximum = Math.max(0, body.scrollWidth - body.clientWidth);
+            this.appliedPersonnelCompact = compact;
+            this.$el.dataset.personnelCompact = compact ? 'true' : 'false';
+            // Read after the width change so a native right-edge clamp is a layout
+            // baseline, not a leftward gesture. Never restart the native scroll.
+            const maximum = Math.max(0, body.scrollWidth - body.clientWidth);
+            // Scroll snapping can adjust the last day asynchronously after layout.
+            const expectedOffset = Math.abs(previousOffset - previousMaximum) < 1
+                ? maximum : Math.min(previousOffset, maximum);
+            this.layoutScrollOffset = Math.abs(expectedOffset - previousOffset) >= 1 ? expectedOffset : null;
+            this.syncHorizontal(body, false);
+        },
         init() {
             this.observer = new ResizeObserver(() => this.queueMeasure());
             this.observer.observe(this.$refs.timelineBody);
@@ -63,7 +119,10 @@ export function staffTimeline() {
         measure() {
             const body = this.$refs.timelineBody;
             const style = getComputedStyle(this.$el);
-            const available = body.clientWidth - parseFloat(style.getPropertyValue('--timeline-name-width'));
+            // The time scale stays identical when only the employee column changes.
+            const fullNameWidth = parseFloat(style.getPropertyValue('--timeline-name-full-width'))
+                || parseFloat(style.getPropertyValue('--timeline-name-width'));
+            const available = body.clientWidth - fullNameWidth;
             if (available <= 0) return;
             const width = timelineDayWidth(available,
                 parseFloat(style.getPropertyValue('--timeline-day-min-width')) || 190,
@@ -71,7 +130,7 @@ export function staffTimeline() {
             this.$el.style.setProperty('--timeline-day-width', `${width}px`);
             this.$el.style.setProperty('--timeline-gutter', `${body.offsetWidth - body.clientWidth}px`);
             this.measureEventLabels(width * (parseInt(style.getPropertyValue('--timeline-days'), 10) || 1));
-            this.syncHorizontal(body);
+            this.syncHorizontal(body, false);
         },
         measureEventLabels(periodWidth) {
             for (const track of this.$refs.timelineGrid.querySelectorAll('.rt-personnel-timeline-track')) {
@@ -94,7 +153,7 @@ export function staffTimeline() {
                 track.style.setProperty('--timeline-lanes', Math.max(rowLaneCount, Math.max(...positions.map(position => position.lane)) + 1));
             }
         },
-        syncHorizontal(source) {
+        syncHorizontal(source, detectDirection = true) {
             const { timelineBody: body, timelineHeader: header, timelineScrollbar: scrollbar } = this.$refs;
             if (source === scrollbar) {
                 // Ignore our mirrored scroll event; otherwise it cancels an in-flight smooth scroll.
@@ -102,9 +161,15 @@ export function staffTimeline() {
                 body.scrollLeft = scrollbar.scrollLeft;
             }
             const offset = body.scrollLeft;
+            const layoutScroll = this.layoutScrollOffset !== null && Math.abs(offset - this.layoutScrollOffset) < 1;
+            if (detectDirection) this.layoutScrollOffset = null;
+            if (detectDirection && !layoutScroll && Math.abs(offset - this.lastScrollLeft) >= 1) {
+                this.setCompactRequested(offset > this.lastScrollLeft);
+            }
+            this.lastScrollLeft = offset;
             header.scrollLeft = offset;
-            this.mirroredScrollbarLeft = offset;
             if (Math.abs(scrollbar.scrollLeft - offset) >= 1) scrollbar.scrollLeft = offset;
+            this.mirroredScrollbarLeft = scrollbar.scrollLeft;
             this.canScrollLeft = offset > 1;
             this.canScrollRight = offset < body.scrollWidth - body.clientWidth - 1;
         },

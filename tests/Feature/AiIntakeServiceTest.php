@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessAiIntake;
 use App\Models\AiIntake;
 use App\Models\AiIntakeAttachment;
+use App\Models\AiIntakeDelivery;
 use App\Models\AiIntakeMessage;
 use App\Models\AiIntakeProposal;
 use App\Models\AiIntakeRun;
@@ -14,10 +16,15 @@ use App\Models\OperationInquiry;
 use App\Models\OperationsRuleProfile;
 use App\Models\Order;
 use App\Models\OrderDemand;
+use App\Models\QualificationType;
 use App\Models\Setting;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Ai\AssistantSpeechRouter;
+use App\Services\Ai\OpenRouterChatResponse;
+use App\Services\Ai\OpenRouterModelProfile;
+use App\Services\Operations\AiDispositionClient;
 use App\Services\Operations\AiIntakeExtractionService;
 use App\Services\Operations\AiIntakeService;
 use App\Services\Operations\InquiryWorkflowService;
@@ -43,9 +50,13 @@ class AiIntakeServiceTest extends TestCase
     use BuildsMinimalRailTimeSchema;
 
     private User $admin;
+
     private Customer $customer;
+
     private CustomerContact $contact;
+
     private AiIntakeService $service;
+
     private const SOURCE = 'Tf Hamburg 2027-05-13T08:00 2027-05-13T16:00 zwei Mitarbeiter, Pause 30 Minuten.';
 
     protected function setUp(): void
@@ -56,7 +67,8 @@ class AiIntakeServiceTest extends TestCase
             (require database_path('migrations/'.$migration))->up();
         }
         $this->travelTo(CarbonImmutable::parse('2027-05-10T07:00:00Z'));
-        Storage::fake('local');
+        // Concurrent suites must not erase each other's immutable source archives.
+        Storage::set('local', Storage::fake('ai-intake-core-'.getmypid()));
         Queue::fake();
         Mail::fake();
         Cache::flush();
@@ -80,12 +92,12 @@ class AiIntakeServiceTest extends TestCase
 
     private function extractionResult(AiIntake $intake, array $changes = []): array
     {
-        $position = ['title' => 'Synthetic service', 'starts_at' => '2027-05-13T08:00', 'ends_at' => '2027-05-13T16:00', 'timezone' => 'Europe/Berlin', 'location_name' => 'Hamburg', 'role_name' => 'Tf', 'required_staff' => 2, 'segments' => [['starts_at' => '2027-05-13T08:00', 'ends_at' => '2027-05-13T16:00', 'timezone' => 'Europe/Berlin', 'required_staff' => 2, 'planned_break_minutes' => 30]], 'missing_fields' => [], 'evidence' => []];
+        $position = ['title' => 'Synthetic service', 'starts_at' => '2027-05-13T08:00', 'ends_at' => '2027-05-13T16:00', 'timezone' => 'Europe/Berlin', 'location_name' => 'Hamburg', 'role_name' => 'Tf', 'required_staff' => 2, 'segments' => [['starts_at' => '2027-05-13T08:00', 'ends_at' => '2027-05-13T16:00', 'timezone' => 'Europe/Berlin', 'required_staff' => 2, 'planned_break_minutes' => 30]], 'qualification_requirements' => [], 'missing_fields' => [], 'evidence' => []];
         foreach (['starts_at', 'ends_at', 'location_name', 'role_name', 'required_staff', 'segments'] as $field) {
             $position['evidence'][] = ['field' => $field, 'message_id' => $intake->messages()->where('direction', 'inbound')->first()->id, 'attachment_id' => null, 'quote' => self::SOURCE];
         }
 
-        return array_replace(['intent' => 'inquiry', 'title' => 'Synthetic inquiry', 'summary' => 'Synthetic extracted demand', 'confidence' => 0.9, 'positions' => [$position], 'questions' => []], $changes);
+        return array_replace(['intent' => 'inquiry', 'classification' => 'new_inquiry', 'extraction_complete' => true, 'overflow' => false, 'title' => 'Synthetic inquiry', 'summary' => 'Synthetic extracted demand', 'confidence' => 0.9, 'positions' => [$position], 'questions' => []], $changes);
     }
 
     private function extractUsing(callable $callback): void
@@ -219,7 +231,7 @@ class AiIntakeServiceTest extends TestCase
         $this->assertNull(OperationInquiry::first()->customer_id);
         $this->assertNull(OperationInquiry::first()->location_name);
         $this->assertNull(OperationInquiry::first()->starts_at);
-        $this->assertSame(0, \App\Models\AiIntakeDelivery::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
         Mail::assertNothingSent();
     }
 
@@ -425,5 +437,352 @@ class AiIntakeServiceTest extends TestCase
         Storage::disk('local')->put($file->file_path, 'Changed bytes');
         $this->expectException(HttpException::class);
         $this->service->attachmentBytes($file, $this->admin);
+    }
+
+    public function test_manual_source_uses_explicit_active_customer_metadata_and_disabled_queue_preserves_source(): void
+    {
+        $this->settings(['enabled' => false]);
+        $intake = $this->service->submit($this->admin, self::SOURCE, [], ['customer_id' => $this->customer->id, 'contact_email' => 'known@example.test', 'timezone' => 'Europe/London']);
+        $this->assertSame('Manueller Eingang', $intake->title);
+        $this->assertSame($this->customer->id, $intake->customer_id);
+        $this->assertSame('manual', $intake->match_method);
+        $this->assertSame('review', $intake->status);
+        $this->assertSame('automation_disabled', $intake->error_code);
+        $this->assertSame('Europe/London', $intake->messages()->first()->metadata['timezone']);
+        Queue::assertNothingPushed();
+    }
+
+    public function test_stricter_attachment_configuration_is_enforced_and_no_partial_manual_intake_remains(): void
+    {
+        $this->settings(['max_attachment_count' => 1, 'max_total_kilobytes' => 1]);
+        try {
+            $this->service->submit($this->admin, self::SOURCE, [UploadedFile::fake()->createWithContent('one.txt', 'first'), UploadedFile::fake()->createWithContent('two.txt', 'second')]);
+            $this->fail('Configured count must reject');
+        } catch (HttpException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
+        try {
+            $this->service->submit($this->admin, self::SOURCE, [UploadedFile::fake()->createWithContent('large.txt', str_repeat('x', 1025))]);
+            $this->fail('Configured aggregate bytes must reject');
+        } catch (HttpException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
+        $this->assertSame(0, AiIntake::count());
+        $this->assertSame([], Storage::disk('local')->allFiles('ai-intake'));
+    }
+
+    public function test_oversized_and_malformed_email_are_retained_review_receipts_without_poisoning_later_mail(): void
+    {
+        $long = str_repeat('x', 20001);
+        $large = $this->receive(['text' => $long]);
+        $this->assertSame('review', $large->status);
+        $this->assertSame('mailbox_text_limit', $large->error_code);
+        $this->assertSame($long, $large->messages()->first()->body);
+        $bad = $this->receive(['uid' => 2, 'message_id' => 'bad@example.test', 'attachments' => [UploadedFile::fake()->createWithContent('fake.png', 'not a PNG')]]);
+        $this->assertSame('attachments_review', $bad->error_code);
+        $this->assertNotNull($bad->messages()->first()->raw_path);
+        $good = $this->receive(['uid' => 3, 'message_id' => 'good@example.test']);
+        $this->assertSame('received', $good->status);
+        $this->assertSame(3, AiIntake::count());
+        $this->assertSame(2, count(Storage::disk('local')->allFiles('ai-intake')) - 1);
+        Queue::assertPushed(ProcessAiIntake::class, 1);
+    }
+
+    public function test_incomplete_archive_marker_is_preserved_without_provider_processing(): void
+    {
+        $intake = $this->receive(['source_error' => 'mailbox_message_size', 'raw_archive_complete' => false, 'declared_size' => 40 * 1024 * 1024, 'raw' => 'Bounded original headers only']);
+        $this->service->analyze($intake->id);
+        $this->assertSame('review', $intake->status);
+        $this->assertFalse($intake->messages()->first()->metadata['raw_archive_complete']);
+        $this->assertSame(40 * 1024 * 1024, $intake->messages()->first()->metadata['declared_size']);
+        $this->assertSame(0, AiIntakeRun::count());
+        Queue::assertNothingPushed();
+    }
+
+    public function test_spoken_upload_uses_shared_router_and_structured_client_with_persisted_transcript(): void
+    {
+        $samples = str_repeat("\0", 800);
+        $wav = 'RIFF'.pack('V', 36 + strlen($samples)).'WAVEfmt '.pack('VvvVVvv', 16, 1, 1, 8000, 16000, 2, 16).'data'.pack('V', strlen($samples)).$samples;
+        $intake = $this->service->submit($this->admin, '', [UploadedFile::fake()->createWithContent('speech.wav', $wav)], ['customer_id' => $this->customer->id, 'kind' => 'audio']);
+        $file = $intake->attachments()->first();
+        $this->mock(AssistantSpeechRouter::class, fn ($m) => $m->shouldReceive('transcribe')->once()->withArgs(fn ($audio, $language) => $audio instanceof UploadedFile && $language === 'de')->andReturn(['text' => self::SOURCE, 'provider' => 'local', 'request_id' => 'synthetic-local', 'fallback' => false]));
+        $result = $this->extractionResult($intake);
+        foreach ($result['positions'][0]['evidence'] as &$evidence) {
+            $evidence['message_id'] = null;
+            $evidence['attachment_id'] = $file->id;
+        }
+        unset($evidence);
+        $this->mock(AiDispositionClient::class, fn ($m) => $m->shouldReceive('structured')->once()->withArgs(fn ($task, $messages, $schema, $profile, $plugins) => $task === 'intake' && $profile === OpenRouterModelProfile::Data && str_contains($messages[1]['content'][0]['text'], self::SOURCE) && $plugins === [])->andReturn(new OpenRouterChatResponse(json_encode($result), model: 'synthetic-audio-extraction')));
+        $this->service->analyze($intake->id);
+        $this->assertSame(self::SOURCE, $file->fresh()->extracted_text);
+        $this->assertStringNotContainsString(self::SOURCE, DB::table('ai_intake_attachments')->value('extracted_text'));
+        $this->assertSame('verified', OperationInquiry::first()->status);
+        $this->assertSame('synthetic-audio-extraction', AiIntakeRun::first()->model);
+    }
+
+    public function test_pdf_csv_and_image_keep_originals_and_use_shared_multimodal_profiles(): void
+    {
+        $intake = $this->service->submit($this->admin, self::SOURCE, [UploadedFile::fake()->createWithContent('request.pdf', "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF"), UploadedFile::fake()->createWithContent('table.csv', "role;location\nTf;Hamburg\n"), UploadedFile::fake()->image('request.png', 24, 24)], ['customer_id' => $this->customer->id]);
+        $result = $this->extractionResult($intake);
+        $this->mock(AiDispositionClient::class, fn ($m) => $m->shouldReceive('structured')->once()->withArgs(function ($task, $messages, $schema, $profile, $plugins) {
+            $types = array_column($messages[1]['content'], 'type');
+
+            return $profile === OpenRouterModelProfile::ImageUnderstanding && in_array('file', $types, true) && in_array('image_url', $types, true) && $plugins[0]['id'] === 'file-parser';
+        })->andReturn(new OpenRouterChatResponse(json_encode($result))));
+        $this->service->analyze($intake->id);
+        $this->assertSame(3, AiIntakeAttachment::count());
+        $this->assertSame(3, $intake->attachments()->where('status', 'extracted')->count());
+        $this->assertSame('verified', OperationInquiry::first()->status);
+        $this->assertStringContainsString('Tf | Hamburg', $intake->attachments()->where('kind', 'text')->first()->extracted_text);
+    }
+
+    public function test_text_and_csv_parser_caps_never_silently_drop_tail_rows_into_native_request(): void
+    {
+        $intake = $this->service->submit($this->admin, '', [UploadedFile::fake()->createWithContent('long.txt', str_repeat('x', 21000))], ['customer_id' => $this->customer->id]);
+        $this->service->analyze($intake->id);
+        $this->assertSame('review', $intake->fresh()->status);
+        $this->assertSame(0, OperationInquiry::count());
+        $csv = $this->service->submit($this->admin, '', [UploadedFile::fake()->createWithContent('many.csv', "role;place\n".str_repeat("Tf;Hamburg\n", 501))], ['customer_id' => $this->customer->id]);
+        $this->service->analyze($csv->id);
+        $this->assertSame('review', $csv->fresh()->status);
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(2, AiIntakeRun::where('status', 'failed')->count());
+    }
+
+    public function test_multi_position_reordered_reply_never_rewrites_native_positions_by_array_index(): void
+    {
+        $intake = $this->receive();
+        $this->extractUsing(function ($i) {
+            $result = $this->extractionResult($i);
+            $result['positions'][] = $result['positions'][0];
+            $result['positions'][1]['title'] = 'Second synthetic service';
+
+            return $result;
+        });
+        $this->service->analyze($intake->id);
+        $first = OperationInquiry::orderBy('id')->first();
+        $second = OperationInquiry::orderByDesc('id')->first();
+        $reply = $this->receive(['uid' => 2, 'message_id' => 'reply@example.test', 'in_reply_to' => 'synthetic-1@example.test', 'text' => 'Please clarify both positions']);
+        $this->extractUsing(function ($i) {
+            $result = $this->extractionResult($i);
+            $result['positions'][0]['title'] = 'Second synthetic service';
+            $result['positions'][] = $this->extractionResult($i)['positions'][0];
+
+            return $result;
+        });
+        $this->service->analyze($reply->id);
+        $this->assertSame($first->title, $first->fresh()->title);
+        $this->assertSame($second->title, $second->fresh()->title);
+        $this->assertSame(1, $first->fresh()->revision);
+        $this->assertSame(1, $second->fresh()->revision);
+        $this->assertSame(2, OperationInquiry::count());
+        $this->assertSame('review', $reply->fresh()->status);
+        $this->assertSame(2, $reply->proposals()->where('source_revision', 2)->where('error_code', 'reply_position_review')->count());
+    }
+
+    public function test_customer_reassignment_does_not_invalidate_an_existing_offer_or_customer_acceptance(): void
+    {
+        $intake = $this->analyzed();
+        $inquiry = $intake->proposals()->first()->inquiry;
+        app(InquiryWorkflowService::class)->transition($inquiry, $inquiry->revision, 'offer', ['amount' => '1000', 'terms' => 'Synthetic current terms'], $this->admin);
+        app(InquiryWorkflowService::class)->transition($inquiry, $inquiry->revision, 'accept', ['note' => 'Synthetic express authorized acceptance', 'authorized' => true], $this->admin);
+        $accepted = $inquiry->fresh();
+        try {
+            $this->service->assignCustomer($intake, $this->admin, $this->customer->id, $this->contact->id, $intake->revision);
+            $this->fail('Commercial reassignment must use native workflow');
+        } catch (HttpException $e) {
+            $this->assertSame(409, $e->getStatusCode());
+            $this->assertSame('accepted', $inquiry->fresh()->status);
+            $this->assertSame($accepted->offer, $inquiry->fresh()->offer);
+            $this->assertSame($accepted->accepted_revision, $inquiry->fresh()->accepted_revision);
+        }
+    }
+
+    public function test_changed_order_location_blocks_approved_draft_generation(): void
+    {
+        $proposal = $this->approved();
+        $this->convert($proposal);
+        $proposal->fresh()->inquiry->order->update(['location_name' => 'Unapproved other yard']);
+        $this->assertSame(0, $this->service->applyApprovedProposals());
+        $this->assertSame(0, OrderDemand::count());
+        $this->assertSame(0, Shift::count());
+        $this->assertSame('failed', $proposal->fresh()->status);
+    }
+
+    public function test_losing_concurrent_application_marks_run_finished_without_counting_application(): void
+    {
+        $proposal = $this->approved();
+        $this->convert($proposal);
+        $listener = function (AiIntakeRun $run) use ($proposal): void {
+            if ($run->kind === 'apply') {
+                DB::table('ai_intake_proposals')->where('id', $proposal->id)->update(['status' => 'applied', 'applied_at' => now()]);
+            }
+        };
+        AiIntakeRun::created($listener);
+        $this->assertSame(0, $this->service->applyApprovedProposals());
+        $run = AiIntakeRun::where('kind', 'apply')->first();
+        $this->assertSame('stale', $run->status);
+        $this->assertSame('already_applied', $run->error_code);
+        $this->assertNotNull($run->finished_at);
+        $this->assertSame(0, OrderDemand::count());
+        $this->assertSame(0, Shift::count());
+    }
+
+    public function test_discontinuous_multiday_services_create_only_explicit_daily_demands_and_drafts(): void
+    {
+        $proposal = $this->analyzed()->proposals()->first();
+        $payload = $proposal->payload;
+        $payload['demand']['ends_at'] = '2027-05-14T16:00';
+        $payload['segments'][] = ['starts_at' => '2027-05-14T08:00', 'ends_at' => '2027-05-14T16:00', 'timezone' => 'Europe/Berlin', 'required_staff' => 2, 'planned_break_minutes' => 30];
+        $proposal = $this->service->saveProposal($proposal, $this->admin, $payload, $proposal->revision);
+        $this->service->approveProposal($proposal, $this->admin, $proposal->revision);
+        $this->convert($proposal->fresh());
+        $this->assertSame(1, $this->service->applyApprovedProposals());
+        $this->assertSame(2, OrderDemand::count());
+        $this->assertSame(2, Shift::count());
+        $this->assertCount(2, $proposal->fresh()->demand_ids);
+        foreach (OrderDemand::all() as $demand) {
+            $this->assertSame(8.0, $demand->starts_at->diffInHours($demand->ends_at));
+            $this->assertSame(0, app(OrderDemandService::class)->coverage($demand)['open']);
+        }
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_ambiguous_reply_needs_explicit_unique_mapping_and_cannot_be_saved_against_guessed_inquiry(): void
+    {
+        $intake = $this->receive();
+        $this->extractUsing(function ($i) {
+            $result = $this->extractionResult($i);
+            $result['positions'][] = $result['positions'][0];
+            $result['positions'][1]['title'] = 'Second synthetic service';
+
+            return $result;
+        });
+        $this->service->analyze($intake->id);
+        $previous = OperationInquiry::orderBy('id')->get();
+        $reply = $this->receive(['uid' => 2, 'message_id' => 'reply@example.test', 'in_reply_to' => 'synthetic-1@example.test']);
+        $this->service->analyze($reply->id);
+        $proposals = $reply->proposals()->where('source_revision', 2)->orderBy('position_index')->get();
+        $this->assertNull($proposals[0]->inquiry_id);
+        $this->assertSame($previous->pluck('id')->all(), $proposals[0]->payload['candidate_inquiry_ids']);
+        try {
+            $this->service->saveProposal($proposals[0], $this->admin, $proposals[0]->payload, $proposals[0]->revision);
+            $this->fail('Unmapped edit must reject');
+        } catch (HttpException $e) {
+            $this->assertSame(409, $e->getStatusCode());
+        }
+        $mapped = $this->service->mapProposalInquiry($proposals[0], $this->admin, $previous[0]->id, $proposals[0]->revision);
+        $this->assertSame($previous[0]->id, $mapped->inquiry_id);
+        $this->assertSame($this->admin->id, $mapped->payload['mapping']['reviewed_by']);
+        try {
+            $this->service->mapProposalInquiry($proposals[1], $this->admin, $previous[0]->id, $proposals[1]->revision);
+            $this->fail('Duplicate mapping must reject');
+        } catch (HttpException $e) {
+            $this->assertSame(409, $e->getStatusCode());
+        }
+        $this->service->mapProposalInquiry($proposals[1], $this->admin, $previous[1]->id, $proposals[1]->revision);
+        $this->assertSame(2, OperationInquiry::count());
+    }
+
+    public function test_explicit_qualification_names_map_only_to_active_exact_catalogue_entries(): void
+    {
+        $type = QualificationType::create(['name' => 'Tf', 'is_active' => true]);
+        $intake = $this->receive();
+        $this->extractUsing(function ($i) {
+            $result = $this->extractionResult($i);
+            $result['positions'][0]['qualification_requirements'] = ['Tf'];
+            $result['positions'][0]['evidence'][] = ['field' => 'qualifications', 'message_id' => $i->messages()->first()->id, 'attachment_id' => null, 'quote' => self::SOURCE];
+
+            return $result;
+        });
+        $this->service->analyze($intake->id);
+        $proposal = $intake->proposals()->first();
+        $this->assertSame([$type->id], $proposal->payload['demand']['qualification_ids']);
+        $this->assertSame(['Tf'], $proposal->payload['raw_requirements']);
+        $this->assertSame([], $proposal->payload['unmapped_requirements']);
+        $this->assertSame('verified', $proposal->inquiry->status);
+    }
+
+    public function test_unmapped_requirements_stay_visible_until_manual_review_and_active_selection(): void
+    {
+        $type = QualificationType::create(['name' => 'Reviewed active requirement', 'is_active' => true]);
+        $intake = $this->receive(['text' => self::SOURCE.' Streckenkenntnis X erforderlich.']);
+        $this->extractUsing(function ($i) {
+            $result = $this->extractionResult($i);
+            $result['positions'][0]['qualification_requirements'] = ['Streckenkenntnis X'];
+            $result['positions'][0]['evidence'][] = ['field' => 'qualifications', 'message_id' => $i->messages()->first()->id, 'attachment_id' => null, 'quote' => 'Streckenkenntnis X erforderlich.'];
+
+            return $result;
+        });
+        $this->service->analyze($intake->id);
+        $proposal = $intake->proposals()->first();
+        $this->assertSame('new', $proposal->inquiry->status);
+        $this->assertSame(['Streckenkenntnis X'], $proposal->payload['unmapped_requirements']);
+        $payload = $proposal->payload;
+        $payload['demand']['qualification_ids'] = [$type->id];
+        $saved = $this->service->saveProposal($proposal, $this->admin, $payload, $proposal->revision);
+        $this->assertSame(['Streckenkenntnis X'], $saved->payload['unmapped_requirements']);
+        $this->assertSame('new', $saved->inquiry->status);
+        $payload['requirements_reviewed'] = true;
+        $saved = $this->service->saveProposal($saved, $this->admin, $payload, $saved->revision);
+        $this->assertSame([], $saved->payload['unmapped_requirements']);
+        $this->assertSame('verified', $saved->inquiry->status);
+        $this->service->approveProposal($saved, $this->admin, $saved->revision);
+        $this->assertSame('approved', $saved->fresh()->status);
+    }
+
+    public function test_reported_incomplete_or_overflow_extraction_never_creates_a_partial_native_request(): void
+    {
+        $intake = $this->receive();
+        $this->extractUsing(fn ($i) => $this->extractionResult($i, ['extraction_complete' => false, 'overflow' => true]));
+        $this->service->analyze($intake->id);
+        $this->assertSame('incomplete_extraction_review', $intake->fresh()->error_code);
+        $this->assertTrue($intake->fresh()->analysis['overflow']);
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeProposal::count());
+    }
+
+    public function test_automatic_mail_is_classified_without_ai_jobs_inquiries_or_replies(): void
+    {
+        $intake = $this->receive(['auto_submitted' => 'auto-replied']);
+        $this->service->analyze($intake->id);
+        $this->assertSame('auto_reply', $intake->analysis['classification']);
+        $this->assertSame('mail_headers', $intake->analysis['classification_source']);
+        $this->assertSame(0, AiIntakeRun::count());
+        $this->assertSame(0, OperationInquiry::count());
+        Queue::assertNothingPushed();
+    }
+
+    public function test_expired_worker_run_returns_to_review_without_provider_retry_or_overwriting_new_source(): void
+    {
+        $intake = $this->receive();
+        $intake->update(['status' => 'analyzing']);
+        $run = $intake->runs()->create(['kind' => 'analysis', 'status' => 'running', 'source_revision' => 1, 'settings_revision' => 1, 'supervising_user_id' => $this->admin->id, 'input_hash' => hash('sha256', 'synthetic'), 'started_at' => now()->subMinutes(16)]);
+        Queue::fake();
+        $this->assertSame(1, $this->service->expireStaleAnalysisRuns());
+        $this->assertSame('failed', $run->fresh()->status);
+        $this->assertSame('worker_run_outcome_unknown', $intake->fresh()->error_code);
+        Queue::assertNothingPushed();
+        $this->assertSame(0, $this->service->expireStaleAnalysisRuns());
+    }
+
+    public function test_unknown_customer_draft_preserves_only_evidenced_values_without_creating_or_assigning_customer(): void
+    {
+        $intake = $this->receive(['from' => 'unknown@example.test', 'reply_to' => 'unknown@example.test', 'text' => self::SOURCE."\nFirma: Neue Bahn GmbH. Kontakt: Erika Beispiel."]);
+        $this->extractUsing(function ($i) {
+            $result = $this->extractionResult($i);
+            $id = $i->messages()->first()->id;
+            $result['customer_draft'] = ['company_name' => 'Neue Bahn GmbH', 'contact_name' => 'Erfundene Person', 'contact_email' => 'attacker@example.test', 'contact_phone' => null, 'evidence' => [['field' => 'company_name', 'message_id' => $id, 'attachment_id' => null, 'quote' => 'Firma: Neue Bahn GmbH.'], ['field' => 'contact_name', 'message_id' => $id, 'attachment_id' => null, 'quote' => 'Kontakt: Erika Beispiel.']]];
+
+            return $result;
+        });
+        $this->service->analyze($intake->id);
+        $draft = $intake->fresh()->analysis['customer_draft'];
+        $this->assertSame('Neue Bahn GmbH', $draft['company_name']);
+        $this->assertNull($draft['contact_name']);
+        $this->assertNull($draft['contact_email']);
+        $this->assertNotEmpty($draft['evidence']['company_name']);
+        $this->assertNull($intake->fresh()->customer_id);
+        $this->assertSame(1, Customer::count());
     }
 }
