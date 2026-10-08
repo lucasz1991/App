@@ -252,3 +252,4 @@ auth.json
 !/tests/Feature/CustomerProfileCommerceTest.php
 !/tests/Feature/CustomerProfileDataTest.php
 !/tests/Feature/CustomerProfileCommunicationTest.php
+!/tests/Feature/WorkTimeDatetimeMigrationTest.php

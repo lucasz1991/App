@@ -111,7 +111,7 @@
     background: var(--ops-platform);
 }
 
-.rt-personnel-workspace__context > label { margin: 0; font-size: 12px; }
+.rt-personnel-workspace__context > .rt-ui-field-label { margin: 0 !important; font-size: 12px; }
 .rt-personnel-workspace__context select { min-height: 44px; }
 
 .rt-personnel-page .ops-panel {

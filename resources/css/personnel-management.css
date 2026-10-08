@@ -29,7 +29,7 @@
 .rt-personnel-management .ops-stack { gap: 16px; }
 .rt-personnel-management.ops-stack > * + * { margin-top: 0; }
 .rt-personnel-management > [aria-live="polite"]:not(:has(*)),
-.rt-personnel-management > [aria-live="polite"]:has(> [wire\:offline]:only-child[style*="display: none"]) { display: none; }
+.rt-personnel-management > [aria-live="polite"]:has(> [wire\:offline]:only-child:is(:not([style]), [style*="display: none"])) { display: none; }
 .rt-personnel-management :is(h2, h3) { text-wrap: balance; }
 .rt-personnel-management :is(p, dd) { overflow-wrap: anywhere; }
 

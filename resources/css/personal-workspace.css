@@ -47,7 +47,7 @@
 .rt-personal-work :is(h2, h3) { text-wrap: balance; }
 .rt-personal-work .ops-muted { font-size: 13px; line-height: 1.65; text-wrap: pretty; }
 .rt-personal-work > [aria-live="polite"]:not(:has(*)) { display: none; }
-.rt-personal-work > [aria-live="polite"]:has(> [wire\:offline]:only-child[style*="display: none"]) { display: none; }
+.rt-personal-work > [aria-live="polite"]:has(> [wire\:offline]:only-child:is(:not([style]), [style*="display: none"])) { display: none; }
 .rt-personal-work .ops-personal-tabs {
     flex-wrap: nowrap;
     gap: 4px;

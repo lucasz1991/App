@@ -1,4 +1,4 @@
-<div class="rt-personnel-workspace min-w-0 space-y-4" data-personal-page="{{ $page }}" data-personal-view="{{ $view }}" data-personal-section="{{ $section }}">
+<div class="rt-personnel-workspace min-w-0" data-personal-page="{{ $page }}" data-personal-view="{{ $view }}" data-personal-section="{{ $section }}">
     <header class="rt-personnel-workspace__toolbar">
         @if($viewOptions)
             <x-ui.buttons.multi-toggle :id="'personal-page-'.$page" label="Personalansicht" :show-labels="true" :options="$viewOptions" :value="$section === '' ? $view : null" action="setView" />
