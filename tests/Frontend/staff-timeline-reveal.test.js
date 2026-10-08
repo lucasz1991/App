@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
-import { revealStaffTimeline, clearStaffTimelineReveals } from '../../resources/js/staff-timeline.js';
+import { revealStaffTimeline, clearStaffTimelineReveals, timelineRevealDelays, TIMELINE_REVEAL } from '../../resources/js/staff-timeline.js';
 
 function fixture(run, { reduced = false, gsap = true, enabled = true } = {}) {
     const { document } = parseHTML(`<div id="root" data-timeline-motion="${enabled}"><div id="grid">
@@ -38,18 +38,20 @@ function fixture(run, { reduced = false, gsap = true, enabled = true } = {}) {
     }
 }
 
-test('visible personnel appear before time bands with opacity only and bounded duration', () => fixture(({ root, grid, body, person, event, calls }) => {
+test('employees enter together first, then the shifts glide in from the right without moving their time positions', () => fixture(({ root, grid, body, person, event, calls }) => {
     revealStaffTimeline(root, grid, body);
     assert.equal(calls.length, 2);
-    assert.deepEqual(calls[0].targets, [person]);
+    assert.deepEqual(calls[0].targets.slice(0, 1), [person]);
     assert.deepEqual(calls[1].targets, [event]);
+    assert.deepEqual(calls[0].from, { opacity: 0 });
     assert.equal(calls[0].to.delay, 0);
-    assert.equal(calls[1].to.delay, .04);
+    assert.equal(calls[0].to.stagger, undefined);
+    assert.deepEqual(calls[1].from, { opacity: 0, translate: `${TIMELINE_REVEAL.shifts.offset}px 0px` });
+    assert.equal(calls[1].to.translate, '0px 0px');
+    assert.ok(calls[1].to.stagger(0) >= TIMELINE_REVEAL.people.duration);
     for (const call of calls) {
-        assert.deepEqual(Object.keys(call.from), ['opacity']);
         assert.equal(call.to.opacity, 1);
-        assert.ok(call.to.duration + call.to.delay + call.to.stagger.amount <= .3);
-        for (const field of ['x', 'y', 'scale', 'width', 'height']) assert.equal(call.to[field], undefined);
+        for (const field of ['x', 'y', 'scale', 'width', 'height', 'left']) assert.equal(call.to[field], undefined);
     }
     assert.equal(event.style.getPropertyValue('--event-left'), '25%');
     assert.equal(event.style.getPropertyValue('--event-width'), '10%');
@@ -58,6 +60,19 @@ test('visible personnel appear before time bands with opacity only and bounded d
     assert.equal(body.scrollTop, 100);
     assert.equal(root.style.getPropertyValue('--timeline-name-width'), undefined);
 }));
+
+test('shift delays run row by row from top to bottom and within a row from left to right', () => {
+    const { document } = parseHTML(`<div>
+        <div class="rt-personnel-timeline-track" id="a"><b class="rt-personnel-timeline-event" data-time-start="60"></b><b class="rt-personnel-timeline-event" data-time-start="10"></b></div>
+        <div class="rt-personnel-timeline-track" id="b"><b class="rt-personnel-timeline-event" data-time-start="5"></b></div>
+    </div>`);
+    const [late, early, nextRow] = [...document.querySelectorAll('.rt-personnel-timeline-event')];
+    const delays = timelineRevealDelays([late, early, nextRow]);
+    const { start, row, item } = TIMELINE_REVEAL.shifts;
+    assert.equal(delays[1], start);
+    assert.equal(delays[0], start + item);
+    assert.equal(delays[2], start + row);
+});
 
 test('measure and resize never replay existing rows; newly inserted visible bands reveal once', () => fixture(({ root, grid, body, calls, document, measure }) => {
     revealStaffTimeline(root, grid, body);
@@ -72,12 +87,14 @@ test('measure and resize never replay existing rows; newly inserted visible band
     assert.deepEqual(calls[2].targets, [inserted]);
 }));
 
-test('completion restores prior inline opacity and only owned styles', () => fixture(({ root, grid, body, person, event, calls }) => {
+test('completion restores prior inline opacity, translate and only owned styles', () => fixture(({ root, grid, body, person, event, calls }) => {
     person.style.setProperty('opacity', '.8');
+    event.style.setProperty('translate', '3px 0px');
     revealStaffTimeline(root, grid, body);
     calls.forEach(call => call.to.onComplete());
     assert.equal(person.style.getPropertyValue('opacity'), '.8');
     assert.equal(event.style.getPropertyValue('opacity'), undefined);
+    assert.equal(event.style.getPropertyValue('translate'), '3px 0px');
     assert.equal(event.style.getPropertyValue('transform'), 'translateX(2px)');
     assert.equal(root.querySelectorAll('[data-timeline-revealing]').length, 0);
     assert.ok(calls.every(call => call.tween.killed));
@@ -125,7 +142,7 @@ test('cached history cleanup restores only marked interrupted entrance styles', 
     assert.equal(event.dataset.timelineRevealing, undefined);
 }));
 
-test('long lists cap visible work and do not animate out-of-viewport rows', () => fixture(({ root, grid, body, calls, document, measure }) => {
+test('the whole loaded page enters together, including rows below the visible area, with bounded row delays', () => fixture(({ root, grid, body, calls, document, measure }) => {
     for (let i = 0; i < 300; i++) {
         const target = document.createElement('div');
         target.className = i % 2 ? 'rt-personnel-timeline-name' : 'rt-personnel-timeline-event';
@@ -133,7 +150,10 @@ test('long lists cap visible work and do not animate out-of-viewport rows', () =
         grid.append(target);
     }
     revealStaffTimeline(root, grid, body);
-    assert.equal(calls[0].targets.length, 24);
-    assert.equal(calls[1].targets.length, 48);
-    assert.equal(calls.some(call => call.targets.includes(document.getElementById('outside'))), false);
+    assert.equal(calls[0].targets.length, 152);
+    assert.equal(calls[1].targets.length, 151);
+    assert.ok(calls[0].targets.includes(document.getElementById('outside')));
+    const { start, row, item } = TIMELINE_REVEAL.shifts;
+    const maxDelay = Math.max(...calls[1].targets.map((_, index) => calls[1].to.stagger(index)));
+    assert.ok(maxDelay <= start + TIMELINE_REVEAL.rows * row + 151 * item);
 }));

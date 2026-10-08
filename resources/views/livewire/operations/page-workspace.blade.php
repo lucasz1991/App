@@ -3,7 +3,7 @@
     @if($page === 'shifts')
         <x-slot:actions><x-operations.create-action :module="$initialView === 'calendar' ? 'calendar' : 'shift-management'" /></x-slot:actions>
     @endif
-    <div class="min-w-0" data-page-workspace-content x-data x-on:rt-workspace-url.window="const target = new URL($event.detail.url, location.origin); if (target.origin === location.origin && target.pathname === location.pathname) history.replaceState(history.state, '', target.href)">
+    <div class="min-w-0" data-page-workspace-content x-data x-on:rt-workspace-url.window="const target = new URL($event.detail.url, location.origin); if (target.origin === location.origin && target.pathname === location.pathname) { history.replaceState(history.state, '', target.href); $nextTick(() => $dispatch('rt-workspace-url-updated')); }">
     @if($page === 'cases')
         <livewire:operations.case-workspace :initial-view="$initialView" :initial-section="$initialSection" :context="$context" />
     @elseif($page === 'customers')

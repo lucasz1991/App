@@ -1,32 +1,5 @@
 <section class="rt-staff-timeline-layout min-w-0" aria-label="Mitarbeiter-Zeitleiste"
     x-data="rtTimelinePlanning(@js($this->getId()))" x-on:operations-plan-changed.window="invalidate()">
-@if($planningEnabled && !$absencesOnly && $searchInHeader)
-    <template x-teleport="[data-shift-plan-timeline-suggestions]">
-        <div class="rt-timeline-suggestions-toggle" title="Besetzungsvorschläge anzeigen" x-bind:title="suggestionsError || (suggestionsEnabled ? 'Besetzungsvorschläge ausblenden' : 'Besetzungsvorschläge anzeigen')" x-bind:aria-busy="suggestionsLoading" x-bind:data-loading="suggestionsLoading" x-bind:data-error="Boolean(suggestionsError)">
-            <x-ui.forms.toggle-button
-                :id="'timeline-suggestions-'.$this->getId()"
-                size="sm"
-                label="Vorschläge"
-                :label-inside="true"
-                :checked="$showSuggestions"
-                x-bind:checked="suggestionsEnabled"
-                x-bind:disabled="suggestionsLoading"
-                change="changeSuggestions($event)"
-                aria-label="Besetzungsvorschläge ein-/ausblenden"
-                aria-describedby="timeline-suggestions-status-{{ $this->getId() }}"
-                x-bind:title="suggestionsError || (suggestionsEnabled ? 'Besetzungsvorschläge ausblenden' : 'Besetzungsvorschläge anzeigen')"
-                data-timeline-suggestions-switch
-            >
-                <svg data-timeline-suggestions-icon aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M8.5 15.5a6 6 0 1 1 7 0c-.7.5-1 1.1-1 2.5h-5c0-1.4-.3-2-1-2.5Z"/><path d="M9 6.5a3.5 3.5 0 0 1 3-1.5"/></svg>
-            </x-ui.forms.toggle-button>
-            <span class="rt-timeline-suggestions-toggle__feedback" x-cloak x-show="suggestionsLoading || suggestionsError" aria-hidden="true">
-                <i x-show="suggestionsLoading" class="far fa-spinner-third"></i>
-                <i x-show="!suggestionsLoading" class="far fa-exclamation-circle"></i>
-            </span>
-            <span id="timeline-suggestions-status-{{ $this->getId() }}" class="sr-only" role="status" aria-live="polite" x-text="suggestionsLoading ? 'Besetzungsvorschläge werden aktualisiert. Bitte warten.' : (suggestionsError || (suggestionsEnabled ? 'Besetzungsvorschläge eingeblendet.' : 'Besetzungsvorschläge ausgeblendet.'))"></span>
-        </div>
-    </template>
-@endif
 @if(!$absencesOnly)
     @if($searchInHeader)
         <template x-teleport="[data-topbar-page-search]" wire:key="timeline-topbar-search-{{ $this->getId() }}">
@@ -58,7 +31,7 @@
         <div class="rt-personnel-timeline-header-scroll" x-ref="timelineHeader">
             <div class="rt-personnel-timeline-header-days">
                 @foreach($days as $day)
-                    <div @class(['rt-personnel-timeline-head', 'rt-personnel-timeline-head--weekend' => $day->isWeekend()])>
+                    <div @class(['rt-personnel-timeline-head', 'rt-personnel-timeline-head--weekend' => $day->isWeekend()]) data-focus="{{ $focus['date'] === $day->toDateString() ? 'true' : 'false' }}">
                         <span class="rt-personnel-timeline-date">{{ $day->locale('de')->translatedFormat('D, d.m.') }}</span>
                         <span class="rt-personnel-timeline-hours" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></span>
                     </div>
@@ -74,7 +47,7 @@
         x-on:click="openPlanner($event)" x-on:pointerover="hoverCell($event)" x-on:pointerout="leaveCell($event)"
         x-on:focusin="hoverCell($event)" x-on:focusout="leaveCell($event)">
     @forelse($rows as $row)
-        <div class="rt-personnel-timeline-name min-w-0" data-timeline-person-column wire:key="staff-person-{{ $row['user']->id }}">
+        <div class="rt-personnel-timeline-name min-w-0" data-timeline-person-column wire:key="staff-person-{{ $row['user']->id }}" @if($focus['shift']) data-focus-fit="{{ $focus['candidates']->has($row['user']->id) ? 'eligible' : 'blocked' }}" @endif>
             <div class="rt-timeline-person-summary">
             <x-user.person-anchor-preview :user="$row['user']" trigger-classes="flex min-w-0 w-full">
                 <x-slot:trigger>
@@ -129,6 +102,16 @@
                 </div>
             @endforeach
         </div>
+        @if($focus['event'] && $focus['candidates']->has($row['user']->id))
+            {{-- Gewählte Schicht aus „Noch zu verteilen“: passende Mitarbeitende direkt in ihrer Zeile einteilen. --}}
+            <div class="rt-timeline-focus" wire:key="staff-focus-{{ $row['user']->id }}-{{ $focus['shift']->id }}">
+                <button type="button" class="rt-timeline-focus-target" style="--proposal-left:{{ $focus['event']['left_percent'] }}%;--proposal-width:{{ $focus['event']['width_percent'] }}%"
+                    data-timeline-proposal data-focus="true" data-user="{{ $row['user']->id }}" data-shift="{{ $focus['shift']->id }}" data-revision="{{ $focus['shift']->revision }}"
+                    aria-haspopup="dialog" aria-label="{{ $row['user']->name }} für {{ $focus['shift']->title }} einteilen" title="{{ collect($focus['candidates']->get($row['user']->id)['reasons'] ?? [])->implode(' · ') }}">
+                    <i class="far fa-user-plus" aria-hidden="true"></i><span>Einteilen</span>
+                </button>
+            </div>
+        @endif
         @if($planningEnabled && !$absencesOnly && $showSuggestions)
             <div class="rt-timeline-proposals" aria-label="Unverbindliche Besetzungsvorschläge" wire:key="staff-proposals-{{ $row['user']->id }}">
                 @foreach($proposalRows->get($row['user']->id,collect()) as $proposal)

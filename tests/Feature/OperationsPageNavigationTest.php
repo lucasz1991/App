@@ -123,6 +123,105 @@ class OperationsPageNavigationTest extends TestCase
         }
     }
 
+    public function test_personal_has_separate_existing_destinations_and_customer_label_is_short(): void
+    {
+        $this->operations();
+        $actor = $this->actor(['operations.manage', 'employees.view', 'employees.master-data.view', 'operations.qualifications.manage', 'operations.rules.manage', 'operations.time.review']);
+        $sections = ApplicationNavigation::sections($actor);
+        $this->assertSame(['Kunden'], array_column($sections['Kunden'], 'title'));
+        $groups = ApplicationNavigation::groups($sections['Personal']);
+        $this->assertArrayNotHasKey('Personalverwaltung', $groups);
+        $this->assertSame('users', $groups['Personal']['icon']);
+        $links = collect($groups['Personal']['links'])->keyBy('title');
+        foreach ([
+            'Mitarbeiter' => ['page' => 'people', 'view' => 'employees'],
+            'Nachweise' => ['page' => 'people', 'view' => 'qualifications'],
+            'Schulungen' => ['page' => 'people', 'view' => 'training'],
+            'Regelprofile' => ['page' => 'time-review', 'section' => 'rules'],
+            'Arbeitsmodelle' => ['page' => 'leave', 'section' => 'models'],
+            'Urlaubsrichtlinien' => ['page' => 'leave', 'section' => 'policies'],
+            'Regelzuordnungen' => ['page' => 'leave', 'section' => 'rules'],
+        ] as $title => $parameters) {
+            $this->assertSame($parameters, $links[$title]['parameters']);
+        }
+        $this->assertFalse($links->has('Mitarbeiter & Nachweise'));
+        $destinations = collect($sections)->flatten(1)->map(fn ($link) => route($link['route'], $link['parameters']));
+        $this->assertCount($destinations->count(), $destinations->unique());
+    }
+
+    public function test_personal_shortcuts_reuse_each_feature_permission_and_readiness(): void
+    {
+        $actor = $this->actor(['employees.view', 'operations.rules.manage', 'operations.qualifications.manage']);
+        $this->assertSame(['Mitarbeiter'], array_column(ApplicationNavigation::sections($actor)['Personal'], 'title'));
+        $this->operations();
+        foreach ([
+            [['employees.view'], ['Mitarbeiter'], ['Nachweise', 'Regelprofile', 'Arbeitsmodelle']],
+            [['operations.qualifications.manage'], ['Nachweise', 'Schulungen'], ['Mitarbeiter', 'Regelprofile', 'Arbeitsmodelle']],
+            [['operations.rules.manage'], ['Regelprofile'], ['Mitarbeiter', 'Nachweise', 'Arbeitsmodelle', 'Zeitprüfung']],
+            [['employees.master-data.view'], ['Arbeitsmodelle', 'Urlaubsrichtlinien'], ['Regelprofile', 'Regelzuordnungen']],
+        ] as [$abilities, $visible, $hidden]) {
+            $actor = $this->actor($abilities);
+            $labels = array_column(ApplicationNavigation::sections($actor)['Personal'], 'title');
+            foreach ($visible as $label) {
+                $this->assertContains($label, $labels);
+            }
+            foreach ($hidden as $label) {
+                $this->assertNotContains($label, $labels);
+            }
+        }
+    }
+
+    #[DataProvider('personalActiveDestinations')]
+    public function test_only_matching_personal_shortcut_or_page_fallback_is_active(string $page, array $query, string $expected): void
+    {
+        $this->operations();
+        $actor = $this->actor(['employees.view', 'employees.master-data.view', 'operations.qualifications.manage', 'operations.rules.manage', 'operations.time.review', 'operations.absences.review']);
+        $this->actingAs($actor);
+        $request = Request::create('/arbeitsplatz/ansicht/'.$page, 'GET', $query);
+        $route = new Route('GET', 'arbeitsplatz/ansicht/{page}', fn () => response(''));
+        $route->name('operations.page');
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+        app()->instance('request', $request);
+        $links = ApplicationNavigation::sections($actor)['Personal'];
+        $this->assertSame([$expected], array_column(array_filter($links, fn ($link) => ApplicationNavigation::active($link)), 'title'));
+    }
+
+    public static function personalActiveDestinations(): array
+    {
+        return [
+            'employee default' => ['people', [], 'Mitarbeiter'],
+            'qualification view' => ['people', ['view' => 'qualifications'], 'Nachweise'],
+            'training view' => ['people', ['view' => 'training'], 'Schulungen'],
+            'signatures section wins' => ['people', ['view' => 'employees', 'section' => 'signatures'], 'Unterzeichnungen'],
+            'rules section' => ['time-review', ['section' => 'rules'], 'Regelprofile'],
+            'rules after times view' => ['time-review', ['view' => 'times', 'section' => 'rules'], 'Regelprofile'],
+            'times default' => ['time-review', [], 'Zeitprüfung'],
+            'models section' => ['leave', ['section' => 'models'], 'Arbeitsmodelle'],
+            'policies section' => ['leave', ['view' => 'requests', 'section' => 'policies'], 'Urlaubsrichtlinien'],
+            'assignment section' => ['leave', ['section' => 'rules'], 'Regelzuordnungen'],
+            'other section still hosted' => ['leave', ['section' => 'checks'], 'Urlaub & Konten'],
+            'account view still hosted' => ['leave', ['view' => 'time-accounts'], 'Urlaub & Konten'],
+        ];
+    }
+
+    public function test_rules_only_default_marks_the_direct_profile_link_and_mobile_matches_sidebar(): void
+    {
+        $this->operations();
+        $actor = $this->actor(['operations.rules.manage']);
+        $this->actingAs($actor);
+        $request = Request::create('/arbeitsplatz/ansicht/time-review');
+        $route = new Route('GET', 'arbeitsplatz/ansicht/{page}', fn () => response(''));
+        $route->name('operations.page');
+        $route->bind($request);
+        $request->setRouteResolver(fn () => $route);
+        app()->instance('request', $request);
+        $links = collect(ApplicationNavigation::sections($actor))->flatten(1);
+        $this->assertSame(['Regelprofile'], $links->filter(fn ($link) => ApplicationNavigation::active($link))->pluck('title')->values()->all());
+        $mobile = $this->mobileOptions(view('components.operations.navigation', ['current' => 'rules', 'modules' => []])->render());
+        $this->assertSame([OperationsPages::url('time-review', ['section' => 'rules'])], array_column(array_filter($mobile, fn ($option) => $option['selected']), 'value'));
+    }
+
     public function test_employee_base_page_remains_available_without_operations_schema(): void
     {
         $actor = $this->actor(['employees.view']);
@@ -200,6 +299,17 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertArrayHasKey('time-review', OperationsPages::availableFor($actor));
         Livewire::actingAs($actor)->test(PageWorkspace::class, ['page' => 'time-review'])->assertSet('page', 'time-review')->assertSee('Fachregeln');
         Livewire::actingAs($actor)->test(Workspace::class, ['module' => 'rules'])->assertRedirect(OperationsPages::moduleUrl('rules'));
+    }
+
+    public function test_rule_profiles_do_not_offer_an_uninstalled_rate_rules_tab(): void
+    {
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        $actor = $this->actor(['operations.rules.manage']);
+        Livewire::actingAs($actor)->test(PageWorkspace::class, ['page' => 'time-review'])
+            ->assertSee('Prüfprofile')
+            ->assertSee('Neues Regelprofil')
+            ->assertDontSee('Fachregeln &amp; Bewertung', false);
+        $this->assertFalse(Schema::hasTable('operations_rate_rules'));
     }
 
     public function test_typed_context_normalizes_ids_and_aliases_without_losing_source_revision(): void

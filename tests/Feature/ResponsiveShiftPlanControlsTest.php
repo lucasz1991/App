@@ -327,13 +327,16 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertStringNotContainsString('grid-row: 2', $commands);
         $this->assertStringNotContainsString('flex-wrap: wrap', $commands);
         $this->assertStringContainsString('.rt-shift-plan-header-controls { flex-wrap: nowrap; }', $commands);
+        $this->assertMatchesRegularExpression('/\.rt-shift-plan-period-controls\s*\{\s*min-width:\s*44px;\s*flex:\s*0 1 clamp\(12\.5rem, 15vw, 17rem\);\s*\}/s', $commands);
+        $this->assertMatchesRegularExpression('/\.rt-shift-plan-period-controls > \[data-rt-dropdown-root\],\s*\.rt-shift-plan-period-controls \.rt-ui-dropdown-trigger\s*\{\s*width:\s*100%;\s*min-width:\s*0;\s*max-width:\s*100%;\s*\}/s', $commands);
+        $this->assertMatchesRegularExpression('/\.rt-shift-plan-period-controls \.rt-shift-plan-period-trigger\s*\{\s*width:\s*100%;\s*min-width:\s*44px;\s*max-width:\s*100%;\s*\}/s', $commands);
         $tablet = $this->mediaBody($commands, 1024);
         $this->assertMatchesRegularExpression('/\.rt-shift-plan-view-trigger\.rt-ui-button\s*\{[^}]*width:\s*44px;[^}]*min-width:\s*44px !important;[^}]*justify-content:\s*center;/s', $tablet);
         $this->assertMatchesRegularExpression('/\.rt-shift-plan-view-trigger \.rt-shift-plan-control__label,\s*\.rt-shift-plan-view-trigger \.rt-shift-plan-control__chevron\s*\{\s*display:\s*none;\s*\}/s', $tablet);
         $mobile = $this->mediaBody($commands, 600);
         $this->assertStringContainsString('grid-template-columns: minmax(0, 1fr) auto', $mobile);
         $this->assertStringContainsString('[data-page-header-control]:first-child', $mobile);
-        $this->assertStringContainsString('[data-page-info-button] { display: none; }', $mobile);
+        $this->assertStringContainsString('[data-page-info-button] { display: none !important; }', $mobile);
         $this->assertStringContainsString('.rt-shift-plan-compact-action { display: flex; }', $mobile);
         $narrow = $this->mediaBody($commands, 480);
         $this->assertStringContainsString('.rt-shift-plan-compact-create { display: flex; }', $narrow);
@@ -353,6 +356,34 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertStringContainsString(".dark .rt-timeline-suggestions-toggle[data-error='true']", $toggleCss);
         $this->assertStringNotContainsString('timelineBody', $commands);
         $this->assertStringNotContainsString('scroll-snap', $commands);
+    }
+
+    public function test_compact_secondary_actions_override_legacy_important_display_without_changing_global_utilities(): void
+    {
+        $legacyCss = file_get_contents(public_path('build/css/tailwind.min.css'));
+        $this->assertMatchesRegularExpression('/\.inline-flex\s*\{\s*display:\s*inline-flex\s*!important\s*;?\s*\}/', $legacyCss);
+        $head = file_get_contents(resource_path('views/layouts/head-css.blade.php'));
+        $this->assertStringContainsString('build/css/tailwind.min.css', $head);
+        $help = ['title' => 'Schichtplan', 'summary' => 'Synthetic page help', 'points' => ['Synthetic point']];
+        $html = Blade::render('<x-ui.page-header title="Schichtplan" :help="$help"><x-slot:actions><x-operations.create-action module="shift-management" /></x-slot:actions></x-ui.page-header>', compact('help'));
+        $xpath = $this->xpath($html);
+        $back = $xpath->query('//*[@data-page-header]/*[@data-page-header-control][1]')->item(0);
+        $info = $xpath->query('//*[@data-page-header-actions]/*[@data-page-info-button]')->item(0);
+        $create = $xpath->query('//button[@data-operations-create]')->item(0);
+        foreach ([$back, $info, $create] as $control) {
+            $this->assertNotNull($control);
+            $this->assertStringContainsString('inline-flex', $control->getAttribute('class'));
+        }
+        $css = file_get_contents(resource_path('css/disposition-workspace.css'));
+        $commands = substr($css, strpos($css, '/* One command row, with only secondary actions moving to the existing menu. */'));
+        $header = '.rt-disposition-page:has(.rt-shift-plan) > [data-page-header]';
+        $mobile = $this->mediaBody($commands, 600);
+        $this->assertMatchesRegularExpression('/'.preg_quote($header.' > [data-page-header-control]:first-child,', '/').'\s*'.preg_quote($header.' > [data-page-header-actions] > [data-page-info-button]', '/').'\s*\{\s*display:\s*none !important;\s*\}/s', $mobile);
+        $narrow = $this->mediaBody($commands, 480);
+        $this->assertMatchesRegularExpression('/'.preg_quote($header.' .rt-shift-plan-create,', '/').'\s*'.preg_quote($header.' > [data-page-header-actions] > div:has(> .rt-shift-plan-create)', '/').'\s*\{\s*display:\s*none !important;\s*\}/s', $narrow);
+        $this->assertStringContainsString('.rt-shift-plan-compact-action { display: flex; }', $mobile);
+        $this->assertStringContainsString('.rt-shift-plan-compact-create { display: flex; }', $narrow);
+        $this->assertDoesNotMatchRegularExpression('/(?:^|\})\s*\.inline-flex\s*\{/', $commands);
     }
 
     private function mediaBody(string $css, int $maximumWidth): string

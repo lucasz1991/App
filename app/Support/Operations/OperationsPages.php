@@ -22,9 +22,9 @@ final class OperationsPages
             'shifts' => ['title' => 'Schichtplan', 'icon' => 'calendar', 'segment' => 'Disposition', 'group' => 'Planung'],
             'planning' => ['title' => 'Bedarf & Planung', 'icon' => 'layers', 'segment' => 'Disposition'],
             'duty' => ['title' => 'Leitstelle', 'icon' => 'activity', 'segment' => 'Disposition'],
-            'customers' => ['title' => 'Kundenübersicht', 'icon' => 'briefcase', 'segment' => 'Kunden'],
-            'people' => ['title' => 'Mitarbeiter & Nachweise', 'icon' => 'users', 'segment' => 'Personal', 'group' => 'Personalverwaltung'],
-            'personnel-processes' => ['title' => 'Personalprozesse', 'icon' => 'check-square', 'segment' => 'Personal', 'group' => 'Personalverwaltung'],
+            'customers' => ['title' => 'Kunden', 'icon' => 'briefcase', 'segment' => 'Kunden'],
+            'people' => ['title' => 'Personal', 'icon' => 'users', 'segment' => 'Personal', 'group' => 'Personal'],
+            'personnel-processes' => ['title' => 'Personalprozesse', 'icon' => 'check-square', 'segment' => 'Personal', 'group' => 'Personal'],
             'leave' => ['title' => 'Urlaub & Konten', 'icon' => 'calendar', 'segment' => 'Personal', 'group' => 'Zeitwirtschaft'],
             'time-review' => ['title' => 'Zeitprüfung', 'icon' => 'check-circle', 'segment' => 'Personal', 'group' => 'Zeitwirtschaft'],
             'payroll' => ['title' => 'Monatsabschluss & Export', 'icon' => 'download', 'segment' => 'Personal', 'group' => 'Zeitwirtschaft'],
@@ -57,13 +57,14 @@ final class OperationsPages
             'attention' => $actor->can('operations.inbox.view') ? ['inbox' => 'Arbeitsliste'] : [],
             'shifts' => $actor->can('operations.manage') ? ['plan' => 'Schichtplan', 'calendar' => 'Kalender'] : [],
             'planning' => $actor->can('operations.manage') ? array_filter([
+                'overview' => 'Übersicht',
                 'capacity' => PlanningEnhancementSchema::ready() ? 'Bedarf & Kapazität' : null,
                 'staff' => WorkforcePlanningSchema::ready() ? 'Personalangebot' : null,
                 'tools' => WorkforcePlanningSchema::ready() || PlanningEnhancementSchema::ready() ? 'Planungswerkzeuge' : null,
                 'logistics' => OperationsEnhancementsSchema::ready() ? 'Reisen & Partner' : null,
             ]) : [],
             'duty' => $actor->can('operations.manage') ? array_filter([
-                'board' => OperationsNavigation::enhancementReady('duty-monitor') ? 'Dienststand' : null,
+                'board' => 'Dienststand',
                 'cases' => WorkforcePlanningSchema::ready() ? 'Störungen' : null,
                 'transfers' => WorkforcePlanningSchema::ready() ? 'Übernahmen & Tausch' : null,
             ]) : [],
@@ -202,7 +203,8 @@ final class OperationsPages
         abort_unless($definition, 404);
         OperationsAccess::authorize($actor, $definition['ability']);
         OperationsAccess::requireReady();
-        abort_unless(OperationsNavigation::enhancementReady($module), 503, 'Arbeitsbereich nicht verfügbar.');
+        // The existing duty board also supports the core schema without optional monitor profiles.
+        abort_unless($module === 'duty-monitor' || OperationsNavigation::enhancementReady($module), 503, 'Arbeitsbereich nicht verfügbar.');
         if (in_array($module, ['workforce-planning', 'plan-variants'], true)) {
             abort_unless(WorkforcePlanningSchema::ready(), 503, 'Die Planungsmodule sind noch nicht eingerichtet.');
         }
@@ -217,6 +219,9 @@ final class OperationsPages
     public static function legacyUrlFor(User $actor, string $module, array $query = []): string
     {
         self::authorizeLegacy($actor, $module);
+        if ($module === 'duty-monitor' && ($query['tab'] ?? '') === 'profiles') {
+            abort_unless(OperationsNavigation::enhancementReady($module), 503, 'Leitstellenprofile sind noch nicht eingerichtet.');
+        }
         if ($module === 'operations-enhancements' && empty($query['tab'])) {
             $query['tab'] = array_key_first((new OperationsEnhancements)->tabs()) ?? '';
         }

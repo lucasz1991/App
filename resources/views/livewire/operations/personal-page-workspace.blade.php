@@ -1,4 +1,4 @@
-<div class="min-w-0 space-y-4" data-personal-page="{{ $page }}">
+<div class="min-w-0 space-y-4" data-personal-page="{{ $page }}" data-personal-view="{{ $view }}" data-personal-section="{{ $section }}">
     <header class="flex min-w-0 flex-wrap items-center justify-between gap-3">
         @if($viewOptions)
             <x-ui.buttons.multi-toggle :id="'personal-page-'.$page" label="Personalansicht" :options="$viewOptions" :value="$section === '' ? $view : null" action="setView" />
@@ -18,7 +18,13 @@
     @if($section !== '')
         <h2 class="text-base font-semibold">{{ $sections[$section] }}</h2>
         @if($page === 'time-review' && $section === 'rules')
-            <x-ui.buttons.multi-toggle id="personal-rule-kind" label="Regelbereich" :value="$ruleView" action="setRuleView" :options="[['value'=>'profiles','label'=>'Prüfprofile','icon'=>'fa-shield'],['value'=>'rates','label'=>'Fachregeln & Bewertung','icon'=>'fa-sliders'] ]" />
+            @php
+                $ruleOptions = [['value' => 'profiles', 'label' => 'Prüfprofile', 'icon' => 'fa-shield']];
+                if (\App\Support\Operations\OperationsEnhancementsSchema::ready()) {
+                    $ruleOptions[] = ['value' => 'rates', 'label' => 'Fachregeln & Bewertung', 'icon' => 'fa-sliders'];
+                }
+            @endphp
+            <x-ui.buttons.multi-toggle id="personal-rule-kind" label="Regelbereich" :value="$ruleView" action="setRuleView" :options="$ruleOptions" />
             @if($ruleView === 'profiles')
                 <livewire:operations.personnel-review module="rules" :embedded="true" :key="$contentKey" />
             @else

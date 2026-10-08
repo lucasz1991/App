@@ -60,6 +60,10 @@ class StaffTimeline extends Component
     #[Locked]
     public bool $showSuggestions = false;
 
+    /** Im Seitenpanel „Noch zu verteilen“ gewählte Schicht: Tag und passende Mitarbeitende werden markiert. */
+    #[Locked]
+    public ?int $focusShiftId = null;
+
     #[Locked]
     public ?int $planningUserId = null;
 
@@ -159,6 +163,34 @@ class StaffTimeline extends Component
         abort_unless($this->planningDate !== null, 422);
         $this->reset(['planningShiftId', 'planningRevision', 'planningReasons']);
         $this->resetValidation();
+    }
+
+    /** Offenes Seitenpanel = Vorschläge sichtbar; geschlossen = ausgeblendet. Kein eigener Schalter mehr. */
+    #[On('operations-timeline-distribution')]
+    public function syncDistribution(bool $open, ?int $shiftId = null): void
+    {
+        $this->ensurePlanning();
+        $this->showSuggestions = $open;
+        $this->focusShiftId = $open ? $shiftId : null;
+        $this->resetValidation();
+    }
+
+    public function openFocusCandidate(int $shiftId, int $userId, int $revision): void
+    {
+        $this->ensurePlanning();
+        abort_unless($this->focusShiftId === $shiftId, 422);
+        $shift = Shift::query()->findOrFail($shiftId);
+        $candidate = app(TimelinePlanningSuggestionService::class)->rankedCandidates($shift, auth()->user())
+            ->first(fn (array $candidate) => $candidate['user']->id === $userId);
+        if (! $candidate || (int) $shift->revision !== $revision) {
+            throw ValidationException::withMessages(['workflow' => 'Einsatz oder Eignung wurde geändert. Bitte neu auswählen.']);
+        }
+        $this->resetPlanningSelection();
+        $this->planningShiftId = $shiftId;
+        $this->planningUserId = $userId;
+        $this->planningRevision = $revision;
+        $this->planningReasons = $candidate['reasons'];
+        $this->assignmentOpen = true;
     }
 
     #[On('operations-timeline-suggestions-toggle')]
@@ -282,6 +314,7 @@ class StaffTimeline extends Component
             'fit' => $proposal['fit'], 'fit_label' => $proposal['fit_label'],
             'urgency' => $proposal['urgency'], 'urgency_label' => $proposal['urgency_label'],
         ])));
+        $focus = $this->focusData($days, $layout, $zone);
         $planningUser = $this->assignmentOpen && $this->planningUserId ? User::find($this->planningUserId) : null;
         $planningShift = $this->assignmentOpen && $this->planningShiftId ? Shift::with('order.customer')->find($this->planningShiftId) : null;
         $choices = $this->assignmentOpen && $this->planningDate && $this->planningUserId && ! $this->planningShiftId
@@ -291,7 +324,31 @@ class StaffTimeline extends Component
                 'open' => max(0, $choice['shift']->required_staff - $choice['shift']->reserved_count), 'eligible' => $choice['eligible'], 'issues' => $choice['issues'],
             ]) : collect();
 
-        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices'));
+        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices', 'focus'));
+    }
+
+    /** @return array{shift: ?Shift, date: ?string, event: ?array, candidates: \Illuminate\Support\Collection} */
+    private function focusData($days, StaffTimelineLayout $layout, string $zone): array
+    {
+        $empty = ['shift' => null, 'date' => null, 'event' => null, 'candidates' => collect()];
+        if (! $this->planningEnabled || $this->absencesOnly || ! $this->focusShiftId) {
+            return $empty;
+        }
+        $shift = Shift::query()->find($this->focusShiftId);
+        if (! $shift) {
+            return $empty;
+        }
+        $event = $layout->periodEvents($days, collect([[
+            'id' => 'focus-'.$shift->id, 'kind' => 'focus', 'shift_id' => $shift->id, 'title' => $shift->title,
+            'start' => $shift->starts_at, 'end' => $shift->ends_at,
+        ]]))->first();
+
+        return [
+            'shift' => $shift,
+            'date' => $shift->starts_at->setTimezone($zone)->toDateString(),
+            'event' => $event,
+            'candidates' => app(TimelinePlanningSuggestionService::class)->rankedCandidates($shift, auth()->user())->keyBy(fn (array $candidate) => $candidate['user']->id),
+        ];
     }
 
     private function planningPeriod(Shift $shift, string $zone): string

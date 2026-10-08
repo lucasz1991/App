@@ -4,6 +4,7 @@ namespace App\Livewire\Operations;
 
 use App\Models\Shift;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsNavigation;
 use App\Support\Operations\OperationsPages;
 use App\Support\Operations\PlanningEnhancementSchema;
 use App\Support\Operations\WorkforcePlanningSchema;
@@ -58,7 +59,7 @@ class PlanningPageWorkspace extends Component
             'planning:staff' => ['pools' => 'Pools', 'wishes' => 'Wünsche', 'periods' => 'Abgabefristen', 'offers' => 'Dienstangebote'],
             'planning:tools' => (WorkforcePlanningSchema::ready() ? ['variants' => 'Planvarianten'] : []) + (PlanningEnhancementSchema::ready() ? ['bundles' => 'Qualifikationsbündel', 'fairness' => 'Verteilung', 'rotations' => 'Rotationen', 'teams' => 'Teams', 'chains' => 'Dienstketten', 'positions' => 'Stellenplanung', 'optimizer' => 'Planvorschlag'] : []),
             'planning:logistics' => ['travel' => 'Reisen', 'partners' => 'Partneranfragen'],
-            'duty:board' => ['board' => 'Dienststand'] + (auth()->user()->can('operations.rules.manage') ? ['profiles' => 'Überwachungsprofile'] : []),
+            'duty:board' => ['board' => 'Dienststand'] + (OperationsNavigation::enhancementReady('duty-monitor') && auth()->user()->can('operations.rules.manage') ? ['profiles' => 'Überwachungsprofile'] : []),
             'duty:cases' => ['cases' => 'Ausfall & Ablösung'],
             'duty:transfers' => ['transfers' => 'Übernahmen & Tausch'],
             default => [],

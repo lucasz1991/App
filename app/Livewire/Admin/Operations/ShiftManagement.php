@@ -20,9 +20,11 @@ use App\Services\Operations\ShiftSchedulingService;
 use App\Services\Operations\ShiftStaffingCandidates;
 use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\StaffRegionalPreferenceService;
+use App\Services\Operations\TimelinePlanningSuggestionService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
+use App\Support\Operations\PlanningLocks;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -31,6 +33,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
+use App\Livewire\Operations\StaffTimeline;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -71,6 +74,15 @@ class ShiftManagement extends Component
             $this->addError('workflow', collect($exception->errors())->flatten()->first());
         }
     }
+
+    /** „Noch zu verteilen“ als Seitenpanel; offen zeigt die Zeitleiste automatisch Besetzungsvorschläge. */
+    #[Locked]
+    public bool $distributionOpen = true;
+
+    #[Locked]
+    public ?int $distributionShiftId = null;
+
+    public string $distributionStatus = 'requested';
 
     public string $rangeFrom = '';
 
@@ -230,6 +242,7 @@ class ShiftManagement extends Component
     public function mount(): void
     {
         $this->ensureAdmin();
+        $this->distributionOpen = (bool) session('operations.shift_plan.distribution_open', true);
         $today = now((string) config('operations.display_timezone', 'Europe/Berlin'));
         $this->rangeFrom = $today->copy()->startOfWeek()->format('Y-m-d');
         $this->rangeTo = $today->copy()->endOfWeek()->format('Y-m-d');
@@ -299,6 +312,77 @@ class ShiftManagement extends Component
         // wieder; sonst schließt rtShiftDetailDrawer das Panel.
         $this->formOpen = false;
         $this->resetShiftForm();
+    }
+
+    public function toggleDistribution(): void
+    {
+        $this->ensureAdmin();
+        $this->distributionOpen = ! $this->distributionOpen;
+        session(['operations.shift_plan.distribution_open' => $this->distributionOpen]);
+        if (! $this->distributionOpen) {
+            $this->distributionShiftId = null;
+        }
+        $this->resetValidation('distribution');
+        $this->syncTimelineDistribution();
+    }
+
+    public function selectDistributionShift(int $shiftId): void
+    {
+        $this->ensureAdmin();
+        abort_unless($this->distributionOpen, 422);
+        $this->distributionShiftId = $this->distributionShiftId === $shiftId ? null : Shift::query()->findOrFail($shiftId)->id;
+        $this->resetValidation('distribution');
+        $this->syncTimelineDistribution();
+    }
+
+    /** Einteilen direkt aus dem Seitenpanel; dieselben Sperren und Prüfungen wie in der Zeitleiste. */
+    public function assignFromDistribution(int $shiftId, int $userId, int $revision): void
+    {
+        $this->ensureAdmin();
+        abort_unless($this->distributionOpen && OperationsAccess::ready(), 422);
+        $this->validate(['distributionStatus' => ['required', Rule::in(ShiftAssignmentStatus::blockingValues())]]);
+        try {
+            OperationsTransaction::run(function () use ($shiftId, $userId, $revision) {
+                PlanningLocks::acquire([$shiftId], [$userId]);
+                $shift = app(TimelinePlanningSuggestionService::class)->openShifts($this->rangeFrom, $this->rangeTo, auth()->user())->whereKey($shiftId)->first();
+                if (! $shift) {
+                    throw ValidationException::withMessages(['distribution' => 'Für diese Schicht ist kein offener Einsatzplatz mehr verfügbar.']);
+                }
+                $user = User::query()->where('role', 'staff')->where('status', true)->findOrFail($userId);
+                app(ShiftAssignmentService::class)->assign($shift, $user, auth()->user(), $this->distributionStatus, null, $revision);
+            });
+        } catch (ValidationException $exception) {
+            $this->addError('distribution', collect($exception->errors())->flatten()->first() ?: $exception->getMessage());
+
+            return;
+        } catch (\DomainException $exception) {
+            $this->addError('distribution', $exception->getMessage());
+
+            return;
+        }
+        $this->resetValidation('distribution');
+        $shift = Shift::query()->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])->find($shiftId);
+        if (! $shift || $shift->reserved_count >= $shift->required_staff) {
+            // Weiter zur nächsten offenen Schicht, damit sich die Woche am Stück abarbeiten lässt.
+            [$from, $to] = $this->distributionRange();
+            $this->distributionShiftId = $this->pendingShiftQuery($from, $to)->whereKeyNot($shiftId)->value('id');
+        }
+        $this->dispatch('operations-plan-changed');
+        $this->dispatch('swal:toast', type: 'success', text: 'Mitarbeiter eingeteilt.');
+        $this->syncTimelineDistribution();
+    }
+
+    private function syncTimelineDistribution(): void
+    {
+        $this->dispatch('operations-timeline-distribution', open: $this->distributionOpen, shiftId: $this->distributionShiftId)->to(StaffTimeline::class);
+    }
+
+    /** @return array{0: Carbon, 1: Carbon} */
+    private function distributionRange(): array
+    {
+        $zone = (string) config('operations.display_timezone', 'Europe/Berlin');
+
+        return [Carbon::parse($this->rangeFrom, $zone)->startOfDay(), Carbon::parse($this->rangeTo, $zone)->endOfDay()];
     }
 
     public function prepareOrderShift(int $orderId): void
@@ -611,8 +695,17 @@ class ShiftManagement extends Component
             ];
         });
 
+        $distributionShift = $this->distributionOpen && $this->distributionShiftId
+            ? Shift::query()->with('order.customer')->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])->find($this->distributionShiftId)
+            : null;
+        $distributionCandidates = $distributionShift && $native
+            ? app(TimelinePlanningSuggestionService::class)->rankedCandidates($distributionShift, auth()->user())->take(6)->values()
+            : collect();
+
         return view('livewire.admin.operations.shift-management', [
             ...$this->pendingDistribution($from, $to),
+            'distributionShift' => $distributionShift,
+            'distributionCandidates' => $distributionCandidates,
             'nativeOperations' => OperationsAccess::ready(),
             'qualificationTypes' => OperationsAccess::ready() ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
             'shifts' => $shifts,
@@ -666,20 +759,7 @@ class ShiftManagement extends Component
     private function pendingDistribution(Carbon $from, Carbon $to): array
     {
         $closedOrders = [OrderStatus::Completed->value, OrderStatus::Invoiced->value, OrderStatus::Cancelled->value];
-        $reserved = ShiftAssignment::query()->selectRaw('count(*)')
-            ->whereColumn('shift_assignments.shift_id', 'shifts.id')
-            ->whereIn('status', ShiftAssignmentStatus::blockingValues());
-
-        $pendingShifts = Shift::query()
-            ->with(['order.customer'])
-            ->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])
-            ->whereNotIn('status', [ShiftStatus::Completed->value, ShiftStatus::Cancelled->value])
-            ->whereHas('order', fn (Builder $query) => $query->whereNotIn('status', $closedOrders))
-            ->where('ends_at', '>', $from->copy()->utc())
-            ->where('starts_at', '<=', $to->copy()->utc())
-            ->where('required_staff', '>', $reserved)
-            ->orderBy('starts_at')->orderBy('id')
-            ->paginate(8, ['*'], 'distributionShiftsPage');
+        $pendingShifts = $this->pendingShiftQuery($from, $to)->paginate(25, ['*'], 'distributionShiftsPage');
 
         $unplannedOrders = Order::query()->with('customer')
             ->whereNotIn('status', $closedOrders)
@@ -687,7 +767,7 @@ class ShiftManagement extends Component
             ->where('starts_at', '<=', $to->copy()->utc())
             ->whereDoesntHave('shifts', fn (Builder $query) => $query->where('status', '!=', ShiftStatus::Cancelled->value))
             ->orderBy('starts_at')->orderBy('id')
-            ->paginate(8, ['*'], 'distributionOrdersPage');
+            ->paginate(25, ['*'], 'distributionOrdersPage');
 
         // Assignments or deletions may empty the last page while this view stays open.
         if ($pendingShifts->currentPage() > $pendingShifts->lastPage() || $unplannedOrders->currentPage() > $unplannedOrders->lastPage()) {
@@ -697,7 +777,38 @@ class ShiftManagement extends Component
             return $this->pendingDistribution($from, $to);
         }
 
-        return compact('pendingShifts', 'unplannedOrders');
+        // Fortschritt für den Zeitraum, ebenfalls unabhängig von Listenfiltern.
+        $periodShifts = Shift::query()
+            ->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])
+            ->where('status', '!=', ShiftStatus::Cancelled->value)
+            ->whereHas('order', fn (Builder $query) => $query->whereNotIn('status', $closedOrders))
+            ->where('ends_at', '>', $from->copy()->utc())
+            ->where('starts_at', '<=', $to->copy()->utc())
+            ->get(['id', 'required_staff']);
+        $distributionProgress = [
+            'required' => (int) $periodShifts->sum('required_staff'),
+            'reserved' => (int) $periodShifts->sum(fn (Shift $shift) => min((int) $shift->required_staff, (int) $shift->reserved_count)),
+        ];
+
+        return compact('pendingShifts', 'unplannedOrders', 'distributionProgress');
+    }
+
+    private function pendingShiftQuery(Carbon $from, Carbon $to): Builder
+    {
+        $closedOrders = [OrderStatus::Completed->value, OrderStatus::Invoiced->value, OrderStatus::Cancelled->value];
+        $reserved = ShiftAssignment::query()->selectRaw('count(*)')
+            ->whereColumn('shift_assignments.shift_id', 'shifts.id')
+            ->whereIn('status', ShiftAssignmentStatus::blockingValues());
+
+        return Shift::query()
+            ->with(['order.customer'])
+            ->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])
+            ->whereNotIn('status', [ShiftStatus::Completed->value, ShiftStatus::Cancelled->value])
+            ->whereHas('order', fn (Builder $query) => $query->whereNotIn('status', $closedOrders))
+            ->where('ends_at', '>', $from->copy()->utc())
+            ->where('starts_at', '<=', $to->copy()->utc())
+            ->where('required_staff', '>', $reserved)
+            ->orderBy('starts_at')->orderBy('id');
     }
 
     /** @return array{shifts: int, required: int, reserved: int, confirmed: int, open: int} */

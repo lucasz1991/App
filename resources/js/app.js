@@ -3294,20 +3294,33 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
         const target = new URL(item.getAttribute('href'), pageUrl);
         return target.origin === pageUrl.origin && target.pathname === pageUrl.pathname;
     });
-    // Die Planungsziele teilen einen Pfad, unterscheiden sich aber nach Ansicht
-    // und Kalender/Plan. Such- und Filterparameter duerfen die Auswahl nicht aendern.
+    // Planungs- und Personalziele teilen Pfade. Der montierte Personalbereich
+    // liefert den erlaubten Standard auch bei direkten Links ohne view-Parameter.
+    // Such- und Filterparameter duerfen die Auswahl nicht aendern.
     const workspaceView = document.querySelector('[data-case-workspace]')?.dataset.caseWorkspace;
+    const personalRoot = document.querySelector('[data-personal-page]');
+    const personalWorkspace = personalRoot?.dataset.personalPage === pageUrl.pathname.split('/').pop()
+        ? personalRoot.dataset : null;
+    const personalSection = pageUrl.searchParams.get('section') ?? personalWorkspace?.personalSection ?? '';
     const exactMatches = pathMatches.filter((item) => {
         const target = new URL(item.getAttribute('href'), pageUrl);
+        if (personalWorkspace && personalSection && target.searchParams.has('view') && !target.searchParams.has('section')) {
+            return false;
+        }
         return Array.from(target.searchParams).every(([key, value]) => {
             let current = pageUrl.searchParams.get(key);
-            if (key === 'view' && !current) current = workspaceView;
+            if (key === 'view' && !current) current = personalWorkspace?.personalView ?? workspaceView;
+            if (key === 'section' && personalWorkspace) current = personalSection;
             if (key === 'section' && !current && target.searchParams.get('view') === 'shifts') current = 'plan';
             return current === value;
         });
     });
+    // Ein eigener Unterpunkt gewinnt gegen den allgemeinen Seitenlink. Dieser
+    // bleibt nur fuer Ansichten ohne eigenen Menueintrag der aktive Rueckfall.
+    const specificity = (item) => Array.from(new URL(item.getAttribute('href'), pageUrl).searchParams).length;
+    const bestSpecificity = Math.max(-1, ...exactMatches.map(specificity));
     const activeItems = pathMatches.length > 0
-        ? exactMatches
+        ? exactMatches.filter((item) => specificity(item) === bestSpecificity)
         : (currentMatches.length > 0 ? currentMatches : fallbackMatches);
     const activeClasses = ['bg-rt-accent-soft/70', 'text-rt-accent', 'font-semibold', 'shadow-rt-xs', 'before:h-5', 'before:opacity-100', 'dark:bg-rt-dark-nav-active', 'dark:text-rt-dark-accent'];
     const inactiveClasses = ['text-rt-muted', 'before:h-0', 'before:opacity-0', 'hover:bg-rt-nav-hover', 'hover:text-rt-accent', 'dark:text-white', 'dark:hover:bg-rt-dark-surface-muted', 'dark:hover:text-white'];
@@ -3596,3 +3609,6 @@ document.addEventListener('livewire:navigate', captureDesktopSidebarState);
 document.addEventListener('livewire:navigating', captureDesktopSidebarState);
 document.addEventListener('livewire:navigated', restoreDesktopSidebarState);
 document.addEventListener('livewire:navigated', queueAdminLayoutInit);
+// Lokale Workspace-Tabs ersetzen nur die Query und morphen ihren Inhalt;
+// dafuer ist kein neuer Seiten-/Sidebar-Lifecycle erforderlich.
+document.addEventListener('rt-workspace-url-updated', () => initActiveMenu());

@@ -28,6 +28,7 @@ Homestead.json
 !/tests/Feature/
 /tests/Feature/*
 !/tests/Feature/OperationsPageNavigationTest.php
+!/tests/Feature/NavigationHubRecoveryTest.php
 !/tests/Feature/PlanningTopbarNavigationTest.php
 !/tests/Feature/OperationsPageIntegrationTest.php
 !/tests/Feature/CaseWorkspaceTest.php

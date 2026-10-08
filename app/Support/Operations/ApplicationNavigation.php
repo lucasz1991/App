@@ -10,8 +10,8 @@ final class ApplicationNavigation
     {
         $admin = $user->isAdmin();
         $sections = ['' => []];
-        $add = static function (string $section, string $title, string $route, string $icon, array $parameters = [], bool $navigate = true, ?string $group = null) use (&$sections): void {
-            $sections[$section][] = compact('title', 'route', 'icon', 'parameters', 'navigate', 'group');
+        $add = static function (string $section, string $title, string $route, string $icon, array $parameters = [], bool $navigate = true, ?string $group = null, array $excludedSections = []) use (&$sections): void {
+            $sections[$section][] = compact('title', 'route', 'icon', 'parameters', 'navigate', 'group', 'excludedSections');
         };
         $add('', 'Dashboard', $admin ? 'admin.dashboard' : 'dashboard', 'home');
         $sections += array_fill_keys($user->dashboardAudience() === 'employee'
@@ -39,7 +39,33 @@ final class ApplicationNavigation
 
                 continue;
             }
-            $add($definition['segment'], $definition['title'], 'operations.page', $definition['icon'], ['page' => $page], true, $definition['group'] ?? null);
+            if ($page === 'people') {
+                $views = OperationsPages::views($user, $page);
+                foreach (['employees' => 'users', 'qualifications' => 'award', 'documents' => 'folder', 'training' => 'book-open'] as $view => $icon) {
+                    if (isset($views[$view])) {
+                        $add('Personal', $views[$view], 'operations.page', $icon, ['page' => $page, 'view' => $view], true, 'Personal');
+                    }
+                }
+                foreach (OperationsPages::sections($user, $page) as $section => $label) {
+                    $add('Personal', $label, 'operations.page', $section === 'emergency' ? 'phone' : 'file-text', ['page' => $page, 'section' => $section], true, 'Personal');
+                }
+
+                continue;
+            }
+
+            $shortcuts = match ($page) {
+                'leave' => ['models' => ['Arbeitsmodelle', 'clock'], 'policies' => ['Urlaubsrichtlinien', 'book-open'], 'rules' => ['Regelzuordnungen', 'sliders']],
+                'time-review' => ['rules' => ['Regelprofile', 'shield']],
+                default => [],
+            };
+            $availableSections = $shortcuts ? OperationsPages::sections($user, $page) : [];
+            $shortcuts = array_intersect_key($shortcuts, $availableSections);
+            foreach ($shortcuts as $section => [$label, $icon]) {
+                $add('Personal', $label, 'operations.page', $icon, ['page' => $page, 'section' => $section], true, 'Personal');
+            }
+            if (! $shortcuts || OperationsPages::views($user, $page) || array_diff_key($availableSections, $shortcuts)) {
+                $add($definition['segment'], $definition['title'], 'operations.page', $definition['icon'], ['page' => $page], true, $definition['group'] ?? null, array_keys($shortcuts));
+            }
         }
         if (! $ready && $admin) {
             foreach (['orders' => 'Leistungen', 'shift-management' => 'Schichtplan', 'calendar' => 'Kalender', 'customers' => 'Kunden'] as $slug => $title) {
@@ -82,7 +108,7 @@ final class ApplicationNavigation
             $label = $link['group'] ?? '';
             $key = $label === '' ? '__direct_'.count($groups) : $label;
             $groups[$key] ??= ['label' => $label, 'icon' => match ($label) {
-                'Planung' => 'calendar', 'Personalverwaltung' => 'users', 'Zeitwirtschaft' => 'clock', 'Arbeitsmittel' => 'tool', default => 'layers',
+                'Planung' => 'calendar', 'Personal' => 'users', 'Zeitwirtschaft' => 'clock', 'Arbeitsmittel' => 'tool', default => 'layers',
             }, 'links' => []];
             $groups[$key]['links'][] = $link;
         }
@@ -111,12 +137,18 @@ final class ApplicationNavigation
             if ($page !== $link['parameters']['page']) {
                 return false;
             }
-            if (isset($link['parameters']['view'])) {
-                if ($view === null || $view === '') {
-                    $actor = auth()->user();
-                    $view = $actor instanceof User ? array_key_first(OperationsPages::views($actor, $page)) : null;
+            $actor = auth()->user();
+            if (($view === null || $view === '') && $actor instanceof User) {
+                $view = array_key_first(OperationsPages::views($actor, $page));
+                if ($view === null && ! $section) {
+                    $section = array_key_first(OperationsPages::sections($actor, $page));
                 }
-                if ($view !== $link['parameters']['view']) {
+            }
+            if (in_array($section, $link['excludedSections'] ?? [], true)) {
+                return false;
+            }
+            if (isset($link['parameters']['view'])) {
+                if ($view !== $link['parameters']['view'] || ($page === 'people' && filled($section))) {
                     return false;
                 }
             }

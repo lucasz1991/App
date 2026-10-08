@@ -139,7 +139,7 @@ export function timelinePlanning(ownerId = null) {
             this.plannerError = '';
             const version = ++this.requestVersion;
             this.pending = { kind: 'open', anchor, version, user: Number(anchor.dataset.user), date: anchor.dataset.date,
-                shift: Number(anchor.dataset.shift), revision: Number(anchor.dataset.revision) };
+                shift: Number(anchor.dataset.shift), revision: Number(anchor.dataset.revision), focus: anchor.dataset.focus === 'true' };
             this.$dispatch('rt-anchor-dropdown-open', { id: this.panelId(), anchor });
             void this.drain();
         },
@@ -171,7 +171,7 @@ export function timelinePlanning(ownerId = null) {
                             this.hoverCache.set(job.key, { at: Date.now(), value });
                             this.paintHover(job.anchor, value);
                         } else {
-                            await this.request(job.shift ? 'openSuggestion' : 'openCell', job.shift ? [job.shift, job.user, job.revision] : [job.user, job.date]);
+                            await this.request(job.focus ? 'openFocusCandidate' : (job.shift ? 'openSuggestion' : 'openCell'), job.shift ? [job.shift, job.user, job.revision] : [job.user, job.date]);
                             // Livewire resolves method returns before its queued DOM morph.
                             // Keep old/empty results hidden until the new markup is applied.
                             await new Promise((resolve) => this.$nextTick(resolve));

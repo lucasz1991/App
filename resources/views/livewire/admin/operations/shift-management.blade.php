@@ -58,24 +58,17 @@
                     <a href="{{ \App\Support\Operations\OperationsPages::moduleUrl('calendar') }}" wire:navigate role="menuitem" class="rt-shift-plan-view-option rt-shift-plan-view-option--calendar"><i class="far fa-calendar-alt" aria-hidden="true"></i><span><strong>Kalender</strong><small>Tag, Woche oder Monat öffnen</small></span><i class="far fa-arrow-up-right" aria-hidden="true"></i></a>
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
-            <x-ui.dropdown.anchor-dropdown align="left" width="96" offset="6" dropdown-id="shift-plan-distribution-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Noch zu verteilen" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
-                <x-slot:trigger>
-                    <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-distribution-trigger" aria-label="Noch zu verteilen: {{ $pendingShifts->total() }} Schichten und {{ $unplannedOrders->total() }} Leistungen" title="Noch zu verteilen im gewählten Zeitraum">
+            {{-- „Noch zu verteilen“ ist ein Seitenpanel; der Zähler schaltet es. Offen = Vorschläge in der Zeitleiste. --}}
+            <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-distribution-trigger" wire:click="toggleDistribution" wire:loading.attr="disabled" wire:target="toggleDistribution"
+                aria-pressed="{{ $distributionOpen ? 'true' : 'false' }}" aria-controls="shift-distribution-side-{{ $this->getId() }}"
+                aria-label="Noch zu verteilen: {{ $pendingShifts->total() }} Schichten und {{ $unplannedOrders->total() }} Leistungen · Seitenleiste {{ $distributionOpen ? 'schließen' : 'öffnen' }}" title="Noch zu verteilen im gewählten Zeitraum">
                         <span class="rt-shift-plan-distribution-counters" aria-hidden="true">
                             <span class="rt-shift-plan-distribution-count" data-distribution-count="shifts" data-has-pending="{{ $pendingShifts->total() > 0 ? 'true' : 'false' }}"><i class="far fa-clock" aria-hidden="true"></i><strong>{{ $pendingShifts->total() }}</strong></span>
                             <span class="rt-shift-plan-distribution-count" data-distribution-count="orders" data-has-pending="{{ $unplannedOrders->total() > 0 ? 'true' : 'false' }}"><i class="far fa-briefcase" aria-hidden="true"></i><strong>{{ $unplannedOrders->total() }}</strong></span>
                         </span>
                         <span class="rt-shift-plan-distribution-count rt-shift-plan-distribution-total" data-distribution-count="total" data-has-pending="{{ $pendingTotal > 0 ? 'true' : 'false' }}" aria-hidden="true"><i class="far {{ $pendingShifts->total() > 0 || $pendingTotal === 0 ? 'fa-clock' : 'fa-briefcase' }}" aria-hidden="true"></i><strong>{{ $pendingTotal > 99 ? '99+' : $pendingTotal }}</strong></span>
-                        <i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i>
-                    </x-ui.buttons.button-basic>
-                </x-slot:trigger>
-                <x-slot:content>
-                    @include('livewire.admin.operations.partials.pending-distribution')
-                </x-slot:content>
-            </x-ui.dropdown.anchor-dropdown>
-            @if($viewMode === 'timeline' && $nativeOperations)
-                <div data-shift-plan-timeline-suggestions wire:key="shift-plan-timeline-suggestions" wire:ignore></div>
-            @endif
+                <i class="far fa-table-columns rt-shift-plan-control__chevron" aria-hidden="true"></i>
+            </x-ui.buttons.button-basic>
         </div>
     </template>
     <template x-teleport="[data-page-header-actions]">
@@ -111,6 +104,8 @@
     @if(\App\Support\Operations\PlanningSchema::ready())
         <livewire:operations.shift-series-planner :show-trigger="false" />
     @endif
+    <div class="rt-shift-plan-split" data-distribution-open="{{ $distributionOpen ? 'true' : 'false' }}" data-view="{{ $viewMode }}">
+    <div class="rt-shift-plan-split__main">
     @if($viewMode !== 'timeline')
     <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all') + (int) ($attentionFilter !== 'all')">
         <details class="rt-shift-filters" x-bind:open="!desktopFilters">
@@ -139,7 +134,7 @@
     <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="tableSort,setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
         @if($viewMode === 'timeline')
             @if($nativeOperations)
-                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :search-in-header="true" :planning-enabled="true" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
+                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :search-in-header="true" :planning-enabled="true" :show-suggestions="$distributionOpen" :focus-shift-id="$distributionOpen ? $distributionShiftId : null" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
             @else
                 <div class="rt-shift-plan-unavailable" role="status"><i class="far fa-clock" aria-hidden="true"></i><span>Die Zeitleiste ist verfügbar, sobald der Mitarbeiter- und Abwesenheitsbereich eingerichtet ist.</span></div>
             @endif
@@ -172,6 +167,13 @@
                 @endif
             @endforeach
         @endif
+    </div>
+    </div>
+    @if($distributionOpen)
+        <aside class="rt-shift-distribution-side" id="shift-distribution-side-{{ $this->getId() }}" aria-label="Noch zu verteilen" wire:key="shift-distribution-side">
+            @include('livewire.admin.operations.partials.pending-distribution')
+        </aside>
+    @endif
     </div>
     @php
         $shiftPanelId = 'shift-plan-detail-'.$this->getId();

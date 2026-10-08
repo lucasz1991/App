@@ -40,9 +40,40 @@ function restoreRevealTarget(target) {
     const opacity = target.dataset.timelineRevealOpacity;
     if (opacity) target.style.setProperty('opacity', opacity, target.dataset.timelineRevealPriority || '');
     else target.style.removeProperty('opacity');
+    // `translate` composes with any transform; restore only what the entrance owned.
+    const translate = target.dataset.timelineRevealTranslate;
+    if (translate) target.style.setProperty('translate', translate);
+    else target.style.removeProperty('translate');
     delete target.dataset.timelineRevealing;
     delete target.dataset.timelineRevealOpacity;
     delete target.dataset.timelineRevealPriority;
+    delete target.dataset.timelineRevealTranslate;
+}
+
+// Entrance timing: first all employees of the page together, then the shifts row by row
+// (top to bottom) and within a row from left to right, each gliding in from the right.
+export const TIMELINE_REVEAL = Object.freeze({
+    people: { duration: .28 },
+    shifts: { start: .28, row: .07, item: .055, duration: .5, offset: 18 },
+    rows: 48,
+});
+
+export function timelineRevealDelays(shifts) {
+    const rows = new Map();
+    shifts.forEach((target, index) => {
+        const track = target.closest?.('.rt-personnel-timeline-track') || null;
+        const key = track || `top:${Math.round(target.getBoundingClientRect().top / 12)}`;
+        if (!rows.has(key)) rows.set(key, []);
+        rows.get(key).push({ target, index, start: parseFloat(target.dataset?.timeStart) || 0 });
+    });
+    const delays = new Array(shifts.length).fill(TIMELINE_REVEAL.shifts.start);
+    [...rows.values()].slice(0, TIMELINE_REVEAL.rows).forEach((row, rowIndex) => {
+        row.sort((a, b) => a.start - b.start).forEach((entry, itemIndex) => {
+            delays[entry.index] = TIMELINE_REVEAL.shifts.start + rowIndex * TIMELINE_REVEAL.shifts.row + itemIndex * TIMELINE_REVEAL.shifts.item;
+        });
+    });
+
+    return delays;
 }
 
 function finishRevealBatch(state, batch) {
@@ -80,27 +111,38 @@ export function revealStaffTimeline(root, grid, body) {
         .filter(target => !state.seen.has(target));
     unseen.forEach(target => state.seen.add(target));
     if (!unseen.length || !engine?.fromTo || state.media?.matches) return;
-    // Read visibility once before writes. Offscreen rows never wait to appear.
-    const viewport = body.getBoundingClientRect();
-    const visible = unseen.filter(target => {
+    // The whole loaded page enters at once: a later page batch (infinite scroll) gets its own entrance.
+    const rendered = unseen.filter(target => {
         const rect = target.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0 && rect.bottom > viewport.top && rect.top < viewport.bottom
-            && rect.right > viewport.left && rect.left < viewport.right;
+        return rect.width > 0 && rect.height > 0;
     });
-    const people = visible.filter(target => target.classList.contains('rt-personnel-timeline-name')).slice(0, 24);
-    const shifts = visible.filter(target => target.classList.contains('rt-personnel-timeline-event')).slice(0, 48);
-    for (const [targets, delay, amount, startOpacity] of [[people, 0, .04, .35], [shifts, .04, .07, 0]]) {
-        if (!targets.length) continue;
-        const batch = { targets, tween: null };
+    const people = rendered.filter(target => target.classList.contains('rt-personnel-timeline-name'));
+    const shifts = rendered.filter(target => target.classList.contains('rt-personnel-timeline-event'));
+    const mark = (targets, moves) => targets.forEach(target => {
+        target.dataset.timelineRevealing = 'true';
+        target.dataset.timelineRevealOpacity = target.style.getPropertyValue('opacity');
+        target.dataset.timelineRevealPriority = target.style.getPropertyPriority('opacity');
+        if (moves) target.dataset.timelineRevealTranslate = target.style.getPropertyValue('translate');
+    });
+    if (people.length) {
+        const batch = { targets: people, tween: null };
         state.active.add(batch);
-        targets.forEach(target => {
-            target.dataset.timelineRevealing = 'true';
-            target.dataset.timelineRevealOpacity = target.style.getPropertyValue('opacity');
-            target.dataset.timelineRevealPriority = target.style.getPropertyPriority('opacity');
+        mark(people, false);
+        // All employees together; the sticky column itself never moves.
+        batch.tween = engine.fromTo(people, { opacity: 0 }, {
+            opacity: 1, duration: TIMELINE_REVEAL.people.duration, delay: 0, ease: 'power2.out', inherit: false,
+            onComplete: () => finishRevealBatch(state, batch),
         });
-        // Opacity only: never move the time bands, sticky column or row lanes.
-        batch.tween = engine.fromTo(targets, { opacity: startOpacity }, {
-            opacity: 1, duration: .18, delay, stagger: { amount }, ease: 'power2.out', inherit: false,
+    }
+    if (shifts.length) {
+        const delays = timelineRevealDelays(shifts);
+        const batch = { targets: shifts, tween: null };
+        state.active.add(batch);
+        mark(shifts, true);
+        // `translate` is visual only: lanes, widths and the time positions stay untouched.
+        batch.tween = engine.fromTo(shifts, { opacity: 0, translate: `${TIMELINE_REVEAL.shifts.offset}px 0px` }, {
+            opacity: 1, translate: '0px 0px', duration: TIMELINE_REVEAL.shifts.duration, ease: 'expo.out', inherit: false,
+            delay: 0, stagger: index => delays[index],
             onComplete: () => finishRevealBatch(state, batch),
         });
     }
