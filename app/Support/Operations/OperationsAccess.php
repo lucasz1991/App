@@ -14,7 +14,8 @@ final class OperationsAccess
         $prefix = Schema::getConnection()->getTablePrefix();
         $required = array_map(fn (string $table) => $prefix.$table, $required);
 
-        return array_diff($required, Schema::getTableListing(null, false)) === []
+        // A null schema also lists unrelated databases and can mask missing local tables.
+        return array_diff($required, Schema::getTableListing(Schema::getCurrentSchemaName(), false)) === []
             && Schema::hasColumns('shifts', ['revision', 'published_revision', 'published_at', 'published_snapshot', 'planned_break_minutes'])
             && Schema::hasColumn('shift_assignments', 'plan_revision');
     }

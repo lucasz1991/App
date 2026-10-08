@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Livewire\Admin\Operations\Orders;
 use App\Livewire\Admin\Settings;
+use App\Livewire\Operations\PersonalPageWorkspace;
 use App\Livewire\Operations\PlanningPageWorkspace;
 use App\Livewire\Operations\WorkforcePlanning;
 use App\Models\Customer;
@@ -100,12 +101,12 @@ class OperationsPageIntegrationTest extends TestCase
         Livewire::test(WorkforcePlanning::class, ['tab' => 'cases', 'context' => ['record' => 1, 'record_type' => 'availability-period']])->assertNotFound();
     }
 
-    public function test_standard_selects_render_the_supported_change_contract_and_single_page_heading(): void
+    public function test_planning_select_and_personal_tools_render_supported_actions_and_single_page_heading(): void
     {
         $planning = $this->get(OperationsPages::url('planning', ['view' => 'staff']));
         $planning->assertOk()->assertSee('@change="$wire.selectSection($event.target.value)"', false);
         $people = $this->get(OperationsPages::url('people'));
-        $people->assertOk()->assertSee('@change="$wire.setSection($event.target.value)"', false);
+        $people->assertOk();
         $document = new \DOMDocument;
         $previous = libxml_use_internal_errors(true);
         try {
@@ -114,7 +115,25 @@ class OperationsPageIntegrationTest extends TestCase
             libxml_clear_errors();
             libxml_use_internal_errors($previous);
         }
-        $this->assertSame(1, (new \DOMXPath($document))->query('//main//h1')->length);
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//main//h1')->length);
+        $tools = $xpath->query('//*[@role="menu" and @aria-label="Weitere Personalwerkzeuge"]//a[@role="menuitem"]');
+        $this->assertCount(2, $tools);
+        foreach (['signatures' => 'Unterzeichnungen', 'emergency' => 'Notfallkontakt'] as $index => $label) {
+            $matching = array_values(array_filter(iterator_to_array($tools), fn (\DOMElement $item): bool => $item->getAttribute('wire:click.prevent') === "setSection('{$index}')"));
+            $this->assertCount(1, $matching);
+            $this->assertSame($label, trim($matching[0]->textContent));
+            $this->assertTrue($matching[0]->hasAttribute('data-rt-dropdown-item'));
+        }
+
+        $workspace = Livewire::test(PersonalPageWorkspace::class, ['page' => 'people'])
+            ->assertSet('view', 'employees')->assertSet('section', '');
+        foreach (['signatures', 'emergency'] as $section) {
+            $workspace->call('setSection', $section)->assertSet('section', $section)
+                ->assertDispatched('rt-workspace-url')
+                ->assertSeeHtml('aria-label="Zur Ansicht zurück"')
+                ->call('setSection', '')->assertSet('section', '')->assertSet('view', 'employees');
+        }
     }
 
     public function test_email_settings_open_without_automatically_starting_the_editor_or_sending_mail(): void

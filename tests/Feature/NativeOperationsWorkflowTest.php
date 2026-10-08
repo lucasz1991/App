@@ -79,7 +79,11 @@ class NativeOperationsWorkflowTest extends TestCase
         $this->assertArrayNotHasKey('Zeitwirtschaft', $sections);
         $this->assertArrayNotHasKey('Betrieb', $sections);
         $this->assertArrayNotHasKey('Verwaltung', $sections);
-        $this->assertSame(1, $adminLinks->where('title', 'Kundenübersicht')->count());
+        $customerLinks = $adminLinks->where('title', 'Kunden');
+        $this->assertCount(1, $customerLinks);
+        $this->assertSame('operations.page', $customerLinks->first()['route']);
+        $this->assertSame(['page' => 'customers'], $customerLinks->first()['parameters']);
+        $this->assertFalse($adminLinks->contains('title', 'Kundenübersicht'));
         $this->assertSame(0, $adminLinks->where('title', 'Vorgänge & Aufträge')->count());
         $this->assertSame(1, $adminLinks->where('title', 'Schichtplan')->count());
         $this->assertSame(['Eingang', 'Aufträge', 'Schichtplan', 'Kalender'], $adminLinks->where('group', 'Planung')->pluck('title')->all());
