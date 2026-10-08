@@ -1,12 +1,12 @@
-<div class="min-w-0 space-y-4">
+<div class="rt-ops rt-personnel-management rt-personnel-review ops-stack">
 <x-operations.feedback />
 @if($module === 'rules')
 @if($canManageGlobalRules)<div class="flex justify-end"><x-ui.buttons.button-basic mode="primary" wire:click="createRules">Neues Regelprofil</x-ui.buttons.button-basic></div>@endif
-<section class="ops-panel ops-stack"><p class="ops-kicker">Aktives Regelprofil</p>
+<section class="rt-personnel-surface ops-stack"><p class="ops-kicker">Aktives Regelprofil</p>
                 @if($activeRules)<h2>{{ $activeRules->name }}</h2><dl class="ops-meta">@foreach(['minimum_rest_minutes'=>'Mindestruhezeit','maximum_shift_minutes'=>'Maximale Schichtdauer','break_after_minutes'=>'Pause ab','minimum_break_minutes'=>'Mindestpause'] as $field=>$label)<div><dt>{{ $label }}</dt><dd>{{ $activeRules->$field }} min</dd></div>@endforeach</dl><p class="ops-muted">Freigegeben am {{ $activeRules->approved_at->setTimezone(config('operations.display_timezone'))->format('d.m.Y H:i') }}</p>
                 @else<p>Kein Regelprofil freigegeben.</p>@endif
             </section>
-<x-operations.modal wire:model="formOpen" title="Regelprofil"><form wire:submit="saveRules" class="ops-panel ops-form"><h2 class="ops-full">Neues Regelprofil</h2><x-operations.field label="Bezeichnung" model="rules.name" required :wide="true" />
+<x-operations.modal wire:model="formOpen" title="Regelprofil"><form wire:submit="saveRules" class="rt-personnel-management ops-form"><h2 class="ops-full">Neues Regelprofil</h2><x-operations.field label="Bezeichnung" model="rules.name" required :wide="true" />
                 @foreach(['minimum_rest_minutes'=>'Mindestruhezeit (min)','maximum_shift_minutes'=>'Maximale Schichtdauer (min)','break_after_minutes'=>'Pause nach (min)','minimum_break_minutes'=>'Mindestpause (min)'] as $field=>$label)<x-operations.field :label="$label" :model="'rules.'.$field" type="number" min="0" required />@endforeach
                 <div class="ops-full"><x-ui.forms.checkbox wire:model="rules.confirmed" required label="Betrieblich geprüfte Regeln freigeben" /></div>
                 <div class="ops-full"><x-ui.buttons.button-basic mode="primary" type="submit" wire:loading.attr="disabled">Regelprofil aktivieren</x-ui.buttons.button-basic></div>
@@ -14,7 +14,7 @@
 @else
 @if($module === 'absences')
 @if(!$embedded)<header class="ops-toolbar"><h2>Urlaub & Abwesenheiten</h2><x-ui.buttons.multi-toggle id="absence-view" label="Abwesenheitsansicht" :value="$absenceView" action="setAbsenceView" :options="[['value'=>'list','label'=>'Liste','icon'=>'fa-table-list'],['value'=>'calendar','label'=>'Kalender','icon'=>'fa-calendar-days']]" /></header>@endif
-<div class="grid gap-3 sm:grid-cols-2"><div><x-ui.forms.label for="absence-period-from" value="Von" /><x-ui.forms.date-field id="absence-period-from" wire:model.live="from" aria-label="Abwesenheiten von" /></div><div><x-ui.forms.label for="absence-period-until" value="Bis" /><x-ui.forms.date-field id="absence-period-until" wire:model.live="until" aria-label="Abwesenheiten bis" /></div></div>
+<div class="rt-personnel-period" role="group" aria-label="Zeitraum der Abwesenheiten"><div class="rt-personnel-period__intro"><span class="rt-personnel-eyebrow">Zeitraum</span><p>Urlaub & Abwesenheiten</p></div><div><x-ui.forms.label for="absence-period-from" value="Von" /><x-ui.forms.date-field id="absence-period-from" wire:model.live="from" aria-label="Abwesenheiten von" /></div><div><x-ui.forms.label for="absence-period-until" value="Bis" /><x-ui.forms.date-field id="absence-period-until" wire:model.live="until" aria-label="Abwesenheiten bis" /></div></div>
 @endif
 <x-tables.toolbar title="Filter" id="personnel-filters">
 <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" /></x-slot:search>
@@ -23,14 +23,18 @@
 <x-tables.filter-field label="Prüfstatus" for="personnel-status-filter"><x-ui.forms.select id="personnel-status-filter" wire:model.live="filter" aria-label="Prüfstatus"><option value="pending">In Prüfung</option><option value="approved">Freigegeben</option>@if($module === 'absences')<option value="reported">Gemeldet</option><option value="rejected">Abgelehnt</option><option value="withdrawn">Zurückgezogen</option><option value="cancelled">Storniert</option>@endif<option value="all">Alle</option></x-ui.forms.select></x-tables.filter-field>
 @if($module === 'qualifications')<x-tables.filter-field label="Gültigkeit" for="personnel-validity"><x-ui.forms.select id="personnel-validity" wire:model.live="validity" aria-label="Gültigkeit"><option value="all">Alle Fristen</option><option value="expired">Abgelaufen</option><option value="30">Ablauf in 30 Tagen</option><option value="90">Ablauf in 90 Tagen</option><option value="future">Künftig gültig</option></x-ui.forms.select></x-tables.filter-field>@endif
 </x-tables.toolbar>
+<div class="rt-personnel-results" aria-live="polite" aria-atomic="true"><span><strong>{{ $records->total() }}</strong> {{ $module === 'qualifications' ? 'Nachweise' : 'Abwesenheiten' }}</span><span>{{ $module === 'absences' && $absenceView === 'calendar' ? 'Kalenderansicht' : 'Listenansicht' }}</span></div>
 @if($module === 'absences' && $absenceView === 'calendar' && $from && $until && \Carbon\CarbonImmutable::parse($from)->diffInDays(\Carbon\CarbonImmutable::parse($until)) < 94)
+<div class="rt-personnel-calendar">
 <livewire:operations.staff-timeline :from="$from" :until="$until" :absences-only="true" :absence-kind="$absenceKind" :absence-status="$filter" :search="$search" :key="'absences-'.$from.'-'.$until.'-'.$absenceKind.'-'.$filter.'-'.$search" />
+</div>
 @else
 @if($module === 'absences' && $absenceView === 'calendar')<p class="ops-muted">Kalender: maximal 93 Tage auswählen.</p>@endif
-<x-tables.table :columns="array_merge([['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Art','key'=>$module === 'qualifications' ? 'qualification_label' : 'absence_label'],['label'=>'Beginn','key'=>$module === 'qualifications' ? 'valid_from' : 'starts_at'],['label'=>'Ende','key'=>$module === 'qualifications' ? 'valid_until' : 'ends_at'],['label'=>'Status','key'=>'status']], $module === 'qualifications' ? [['label'=>'Gültigkeit','key'=>'validity']] : [])" :items="$records" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge in dieser Ansicht." />
+<x-tables.table class="rt-personnel-table" :label="$module === 'qualifications' ? 'Nachweise' : 'Abwesenheiten'" :columns="array_merge([['label'=>'Mitarbeiter','key'=>'user.name'],['label'=>'Art','key'=>$module === 'qualifications' ? 'qualification_label' : 'absence_label'],['label'=>'Beginn','key'=>$module === 'qualifications' ? 'valid_from' : 'starts_at'],['label'=>'Ende','key'=>$module === 'qualifications' ? 'valid_until' : 'ends_at'],['label'=>'Status','key'=>'status']], $module === 'qualifications' ? [['label'=>'Gültigkeit','key'=>'validity']] : [])" :items="$records" detail-action="openDetails" row-view="components.tables.rows.operations.record" empty="Keine Einträge in dieser Ansicht. Prüfen Sie den Zeitraum und die Filter." />
 {{ $records->links() }}
 @endif
 <x-operations.modal wire:model="detailOpen" title="Prüfung">
+<div class="rt-personnel-management rt-personnel-detail ops-stack">
 @if($selectedRecord)
 @php($record = $selectedRecord)
 <header class="ops-toolbar"><div><p class="ops-kicker">{{ $record->user->name }} · Revision {{ $record->revision }}</p><h2>{{ $module === 'qualifications' ? $record->type->name : (['vacation'=>'Urlaub','sick'=>'Krankmeldung','unavailable'=>'Nicht verfügbar','other'=>'Abwesenheit'][$record->kind] ?? 'Abwesenheit') }}</h2></div><x-operations.status :value="$record->status" /></header>
@@ -64,11 +68,14 @@
                     @endif
 
 @endif
+</div>
 </x-operations.modal>
 @if($module === 'qualifications')
 <x-operations.modal wire:model="typesOpen" title="Nachweisarten">
+<div class="rt-personnel-management ops-stack">
 <x-tables.table :columns="[['label'=>'Bezeichnung','key'=>'name'],['label'=>'Status','key'=>'is_active']]" :items="$types" row-view="components.tables.rows.operations.record" />
 <form wire:submit="addType" class="ops-form"><x-operations.field label="Neue Nachweisart" model="typeName" required maxlength="180" /><div class="self-end"><x-ui.buttons.button-basic type="submit">Hinzufügen</x-ui.buttons.button-basic></div></form>
+</div>
 </x-operations.modal>
 @endif
 @endif

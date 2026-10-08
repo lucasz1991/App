@@ -1,0 +1,165 @@
+/* Personnel workbench: calm identity, readable destinations, one action accent.
+   Scoped to personnel pages; planning and the shared shell retain their tokens. */
+.rt-app-page-frame:has(:is(.rt-personnel-page, .rt-personal-workspace-page, .employee-workspace)) .rt-shell-ambient {
+    display: none !important;
+}
+
+.rt-app-page-frame:has(:is(.rt-personnel-page, .rt-personal-workspace-page, .employee-workspace)) {
+    background: #f7f8fa;
+}
+
+:is(.dark, body[data-mode="dark"]) .rt-app-page-frame:has(:is(.rt-personnel-page, .rt-personal-workspace-page, .employee-workspace)) {
+    background: #0c1421;
+}
+
+.rt-personnel-page {
+    --personnel-accent: #8d253d;
+    --personnel-accent-soft: #f6edf0;
+    --personnel-line: rgba(71, 85, 105, .12);
+    --personnel-inset: #f5f6f8;
+}
+
+:is(.dark, body[data-mode="dark"]) .rt-personnel-page {
+    --personnel-accent: #efa3b2;
+    --personnel-accent-soft: #35212c;
+    --personnel-line: rgba(192, 204, 220, .12);
+    --personnel-inset: #182435;
+}
+
+.rt-personnel-page .rt-ops {
+    --ops-ink: var(--rt-shell-text, #182230);
+    --ops-muted: var(--rt-shell-muted, #637083);
+    --ops-sheet: var(--rt-shell-surface-solid, #fff);
+    --ops-signal: var(--personnel-accent);
+    --ops-line: var(--personnel-line);
+    --ops-platform: var(--personnel-inset);
+}
+
+.rt-personnel-workspace {
+    display: grid;
+    gap: 20px;
+    align-content: start;
+}
+
+.rt-personnel-workspace > * + * { margin-top: 0 !important; }
+
+.rt-personnel-workspace__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--ops-line);
+}
+
+.rt-personnel-workspace .rt-multi-toggle[data-toggle-labels] {
+    padding: 4px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--ops-platform);
+}
+
+.rt-personnel-workspace .rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button {
+    color: var(--ops-muted) !important;
+    transition: color 160ms cubic-bezier(.23, 1, .32, 1), background-color 160ms cubic-bezier(.23, 1, .32, 1);
+}
+
+.rt-personnel-workspace .rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button[aria-pressed="true"] {
+    color: var(--personnel-accent) !important;
+    background: var(--ops-sheet) !important;
+    box-shadow: 0 1px 3px var(--personnel-line) !important;
+}
+
+.rt-personnel-workspace .rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button > i {
+    font-size: 15px;
+}
+
+.rt-personnel-workspace__tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.rt-personnel-workspace__tools-trigger {
+    min-width: 0;
+    max-width: 100%;
+    gap: 8px;
+}
+
+.rt-personnel-workspace__tools > .rt-ui-button { flex: 0 0 44px; width: 44px; padding-inline: 0 !important; }
+.rt-personnel-workspace__tools > [data-rt-dropdown-root] { min-width: 0; max-width: 100%; flex: 1 1 auto; }
+.rt-personnel-workspace__tools .rt-ui-dropdown-trigger { min-width: 0; max-width: 100%; }
+
+.rt-personnel-workspace__tools-trigger span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rt-personnel-workspace__context {
+    display: grid;
+    grid-template-columns: auto minmax(0, 320px);
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: var(--ops-platform);
+}
+
+.rt-personnel-workspace__context > label { margin: 0; font-size: 12px; }
+.rt-personnel-workspace__context select { min-height: 44px; }
+
+.rt-personnel-page .ops-panel {
+    border-color: var(--personnel-line);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .025);
+}
+
+.rt-personnel-page .rt-ui-button-primary {
+    background: var(--personnel-accent) !important;
+    border-color: transparent !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+
+:is(.dark, body[data-mode="dark"]) .rt-personnel-page .rt-ui-button-primary { color: #24151e !important; }
+
+.rt-personnel-page :is(button, a, input, select, textarea):focus-visible {
+    outline-color: var(--personnel-accent);
+}
+
+.rt-personnel-page :is(h1, h2, h3) { text-wrap: balance; }
+.rt-personnel-page :is(table, .ops-clock, .ops-summary) { font-variant-numeric: tabular-nums; }
+
+:is(.rt-personnel-page, .rt-personal-workspace-page, .employee-workspace) .rt-table-toolbar__chips:not(:has(*)) {
+    display: none;
+}
+
+.rt-personnel-tools-menu .rt-ui-dropdown-link {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 13px;
+}
+
+.rt-personnel-tools-menu .rt-ui-dropdown-link[aria-current="true"] {
+    background: var(--rt-shell-panel);
+    font-weight: 650;
+}
+
+@media (max-width: 767px) {
+    .rt-personnel-workspace { gap: 16px; }
+    .rt-personnel-workspace__toolbar { gap: 8px; padding-bottom: 12px; }
+    .rt-personnel-workspace__toolbar > .rt-multi-toggle { width: 100%; }
+    .rt-personnel-workspace__tools { margin-left: auto; }
+    .rt-personnel-workspace__context { grid-template-columns: 1fr; gap: 8px; padding: 12px; }
+    .rt-personnel-workspace .rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button { padding: 0 12px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-personnel-workspace .rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button { transition: none; }
+}

@@ -7,11 +7,19 @@
     ];
 @endphp
 
-<div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-    <i class="far fa-shield-check mr-2"></i>{{ __('app.compensation_confidential_hint') }}
+<div class="employee-profile__confidential-note">
+    <i class="far fa-shield-check" aria-hidden="true"></i>
+    <p>{{ __('app.compensation_confidential_hint') }}</p>
 </div>
 
-<div class="grid gap-4 lg:grid-cols-2" data-anim-stagger>
+<section class="employee-detail-group employee-compensation">
+    <h3 class="flex items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
+            <i class="far fa-wallet text-sm" aria-hidden="true"></i>
+        </span>
+        {{ __('app.compensation_data') }}
+    </h3>
+    <dl class="employee-compensation__fields">
     @foreach ([
         ['tax_identification_number', 'tax_identification_number', 'text', $profile?->tax_identification_number, []],
         ['social_security_number', 'social_security_number', 'text', $profile?->social_security_number, []],
@@ -23,19 +31,21 @@
         ['compensation_type', 'compensation_type', 'select', $compensationTypeOptions[$profile?->compensation_type ?? ''] ?? $profile?->compensation_type, $compensationTypeOptions],
         ['compensation_amount', 'compensation_amount', 'number', $profile?->compensation_amount, []],
     ] as [$field, $label, $type, $value, $options])
-        <section class="flex items-start justify-between gap-4 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-rt-glow>
-            <span class="shrink-0 pt-2 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.'.$label) }}</span>
-            <div class="min-w-0 flex-1">
+        <div class="employee-compensation__field">
+            <dt>{{ __('app.'.$label) }}</dt>
+            <dd class="min-w-0">
                 <x-ui.inline-edit-field
                     :id="'employee-compensation-'.$field"
                     :field="$field"
                     :type="$type"
                     :options="$options"
                     :can-edit="$canEditCompensation"
+                    align="left"
                 >
                     {{ $value ?: __('app.not_set') }}
                 </x-ui.inline-edit-field>
-            </div>
-        </section>
+            </dd>
+        </div>
     @endforeach
-</div>
+    </dl>
+</section>

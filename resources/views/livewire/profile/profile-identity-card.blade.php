@@ -1,5 +1,5 @@
 <section
-    class="relative overflow-hidden rounded-2xl border border-rt-border/80 bg-rt-surface shadow-rt-sm dark:border-rt-dark-border/80 dark:bg-rt-dark-surface"
+    class="employee-profile__identity relative overflow-hidden rounded-2xl border border-rt-border/80 bg-rt-surface shadow-rt-sm dark:border-rt-dark-border/80 dark:bg-rt-dark-surface"
     data-anim="fade-up"
     data-profile-identity
     data-autosave-scope

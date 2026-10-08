@@ -67,59 +67,48 @@ class TimelinePlanningActionsTest extends TestCase
         $this->assertSame(0, ShiftAssignment::count());
     }
 
-    public function test_header_suggestions_use_shared_switch_with_loading_feedback_and_no_bottom_legend(): void
+    public function test_distribution_sidebar_drives_suggestions_and_focus_without_bottom_legend(): void
     {
         $timeline = Livewire::actingAs($this->manager)->test(StaffTimeline::class, [
             'from' => '2027-05-10', 'until' => '2027-05-16', 'planningEnabled' => true, 'searchInHeader' => true,
-        ])->assertSee('data-timeline-suggestions-switch', false)
-            ->assertSee('role="switch"', false)
-            ->assertSee('rt-ui-toggle-control--sm', false)
-            ->assertSee('rt-ui-toggle--label-inside', false)
-            ->assertSee('x-bind:disabled="suggestionsLoading"', false)
-            ->assertSee('x-bind:checked="suggestionsEnabled"', false)
+        ])->assertDontSee('data-timeline-suggestions-switch', false)
             ->assertDontSee('$wire.showSuggestions', false)
-            ->assertSee('changeSuggestions($event)', false)
-            ->assertSee('fa-spinner-third', false)
-            ->assertSee('aria-live="polite"', false)
             ->assertDontSee('rt-timeline-suggestion-legend', false);
         $timeline->assertSee("rtTimelinePlanning('".$timeline->instance()->getId()."')", false);
-        $document = new \DOMDocument;
-        $previousErrors = libxml_use_internal_errors(true);
-        try {
-            $document->loadHTML($timeline->html());
-        } finally {
-            libxml_clear_errors();
-            libxml_use_internal_errors($previousErrors);
-        }
-        $xpath = new \DOMXPath($document);
-        $switch = $xpath->query('//input[@data-timeline-suggestions-switch]')->item(0);
-        $label = $xpath->query('//label[@for="'.$switch->getAttribute('id').'"]')->item(0);
-        $this->assertSame(1, $xpath->query('.//span[@data-toggle-control]/span[@class="rt-ui-toggle__label"]', $label)->length);
-        $this->assertSame(1, $xpath->query('.//svg[@data-timeline-suggestions-icon and @aria-hidden="true"]', $label)->length);
-        $this->assertSame('', trim($label->textContent));
-        $this->assertSame(0, $xpath->query('./span[@class="rt-ui-toggle__label"]', $label)->length);
 
-        $switchChecked = function () use ($timeline): bool {
-            preg_match('/<input\b[^>]*\bdata-timeline-suggestions-switch[^>]*>/s', $timeline->html(), $matches);
-            $this->assertNotEmpty($matches, 'The shared native switch must be rendered.');
-
-            return preg_match('/\schecked(?:\s|=|>)/', $matches[0]) === 1;
-        };
-        $this->assertFalse($switchChecked());
-
-        $timeline->call('toggleSuggestions')->assertSet('showSuggestions', true)
+        $timeline->dispatch('operations-timeline-distribution', open: true, shiftId: null)->assertSet('showSuggestions', true)
+            ->assertSet('focusShiftId', null)
             ->assertSee('data-timeline-proposal', false)
             ->assertDontSee('rt-timeline-suggestion-legend', false)
             ->assertDontSee('Wunsch / verfügbar');
-        $this->assertTrue($switchChecked());
-        $timeline->call('toggleSuggestions')->assertSet('showSuggestions', false)
+        // Gewählte Schicht: Tag und passende Zeilen markiert, Einteilen-Ziel je geeigneter Person.
+        $timeline->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id)
+            ->assertSet('focusShiftId', $this->shift->id)
+            ->assertSee('rt-timeline-focus-target', false)
+            ->assertSee('data-focus="true"', false)
+            ->assertSee('data-focus-fit="eligible"', false);
+        $timeline->dispatch('operations-timeline-distribution', open: false, shiftId: $this->shift->id)
+            ->assertSet('showSuggestions', false)->assertSet('focusShiftId', null)
             ->assertDontSee('data-timeline-proposal', false)
-            ->assertDontSee('rt-timeline-suggestion-legend', false);
-        $this->assertFalse($switchChecked());
+            ->assertDontSee('rt-timeline-focus-target', false);
 
         $styles = file_get_contents(resource_path('css/timeline-planning-actions.css'));
         $this->assertStringNotContainsString('rt-timeline-suggestion-legend', $styles);
         $this->assertStringContainsString('prefers-reduced-motion: reduce', $styles);
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_focus_candidate_only_prepares_and_rechecks_ranking_and_revision(): void
+    {
+        $timeline = $this->timeline()->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id);
+        $timeline->call('openFocusCandidate', $this->shift->id, $this->anna->id, $this->shift->revision)
+            ->assertSet('assignmentOpen', true)->assertSee('Offener Donnerstag');
+        $this->assertSame(0, ShiftAssignment::count());
+        $this->timeline()->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id)
+            ->call('openFocusCandidate', $this->shift->id, $this->anna->id, $this->shift->revision + 5)
+            ->assertHasErrors('workflow')->assertSet('assignmentOpen', false);
+        // Nur die im Panel gewählte Schicht darf über die Zeitleiste vorbereitet werden.
+        $this->timeline()->call('openFocusCandidate', $this->shift->id, $this->anna->id, $this->shift->revision)->assertStatus(422);
         $this->assertSame(0, ShiftAssignment::count());
     }
 

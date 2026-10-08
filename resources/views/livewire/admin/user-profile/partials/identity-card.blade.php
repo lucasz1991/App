@@ -1,8 +1,7 @@
 {{-- Identitaets-Card: links die Person, rechts die Eckdaten.
      Auf dem Telefon bleibt sie bewusst flach, damit das Tab-Menue
      darunter ohne Scrollen sichtbar bleibt. --}}
-<div class="relative overflow-hidden rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-5" data-anim="fade-up" data-rt-glow>
-  <span class="rt-profile-aurora" aria-hidden="true"></span>
+<div class="employee-profile__identity relative overflow-hidden rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-5" data-anim="fade-up">
 
   @php
       $teamName = $user->currentTeam?->name;
@@ -41,7 +40,7 @@
       ]));
   @endphp
 
-  <div class="relative grid gap-4 sm:grid-cols-2 sm:gap-6">
+  <div class="employee-profile__identity-layout relative grid gap-4 sm:grid-cols-2 sm:gap-6">
       {{-- Spalte 1: Person. Der Kontostatus haengt am Bild statt als Badge
            unter der Adresse: gruener oder grauer Punkt fuer die Anwesenheit,
            ein rotes Zeichen nur dann, wenn das Konto gesperrt ist. --}}
@@ -80,7 +79,7 @@
           </span>
 
           <div class="min-w-0 flex-1">
-              <div class="min-w-[10rem] max-w-full">
+              <div class="min-w-0 max-w-full">
                   <x-ui.inline-edit-field
                       id="employee-header-name"
                       field="name"
@@ -121,7 +120,7 @@
 
       {{-- Spalte 2: Eckdaten. Mobil nur die beiden wichtigsten Zeilen,
            damit die Karte flach bleibt. --}}
-      <dl class="grid grid-cols-1 gap-x-6 gap-y-2 border-t border-rt-border/60 pt-3 text-sm dark:border-rt-dark-border/60 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0 lg:grid-cols-2">
+      <dl class="employee-profile__facts grid grid-cols-1 gap-x-6 gap-y-2 border-t border-rt-border/60 pt-3 text-sm dark:border-rt-dark-border/60 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0 lg:grid-cols-2">
           @foreach ($identityFacts as $index => $fact)
               <div @class([
                   'flex min-w-0 items-center justify-between gap-3',

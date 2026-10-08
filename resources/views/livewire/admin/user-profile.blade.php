@@ -1,15 +1,11 @@
-<div>
+<div class="employee-workspace employee-profile">
   @php
     $roleLabel = match ($user->role) {
         'admin' => __('app.role_admin'),
         'staff' => __('app.role_staff'),
         default => __('app.role_user'),
     };
-    $roleColor = match ($user->role) {
-        'admin' => 'purple',
-        'staff' => 'sky',
-        default => 'green',
-    };
+    $roleColor = 'slate';
     $lastActivityAt = $user->lastActivityAt();
     $isUserOnline = $user->isOnline();
   @endphp
@@ -56,8 +52,9 @@
       @include('livewire.admin.user-profile.partials.identity-card')
 
     @if($embedded)
-        <div class="max-w-sm">
-            <x-ui.forms.select aria-label="Profilbereich" change="$wire.setProfileTab($event.target.value)">
+        <div class="employee-profile__section-picker max-w-sm">
+            <x-ui.forms.label for="employee-profile-section" value="Profilbereich" />
+            <x-ui.forms.select id="employee-profile-section" aria-label="Profilbereich" change="$wire.setProfileTab($event.target.value)">
                 @foreach($employeeProfileTabs as $tabId => $tabDefinition)
                     <option value="{{ $tabId }}" @selected($profileTab === $tabId)>{{ $tabDefinition['label'] }}</option>
                 @endforeach
@@ -80,15 +77,15 @@
         <x-ui.accordion.tab-panel for="userDetails" contentClass="space-y-4">
           <div class="grid gap-4 lg:grid-cols-2" data-anim-stagger>
             {{-- Persoenliche Daten --}}
-            <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-rt-glow>
+            <section class="employee-detail-group rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <h3 class="flex items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
                     <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
                         <i class="far fa-user text-sm"></i>
                     </span>
                     {{ __('app.personal_data') }}
                 </h3>
-                <dl class="mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
-                    <div class="flex items-start justify-between gap-4 py-2.5">
+                <dl class="employee-detail-list mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
+                    <div class="employee-detail-row flex items-start justify-between gap-4 py-2.5">
                         <dt class="shrink-0 pt-2 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.username') }}</dt>
                         <dd class="min-w-0 flex-1">
                             <x-ui.inline-edit-field id="employee-details-name" field="name" :can-edit="$canEditEmployee">
@@ -96,7 +93,7 @@
                             </x-ui.inline-edit-field>
                         </dd>
                     </div>
-                    <div class="flex items-start justify-between gap-4 py-2.5">
+                    <div class="employee-detail-row flex items-start justify-between gap-4 py-2.5">
                         <dt class="shrink-0 pt-2 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.birth_date') }}</dt>
                         <dd class="min-w-0 flex-1">
                             <x-ui.inline-edit-field id="employee-details-birth-date" field="birth_date" type="date" :can-edit="$canEditEmployee">
@@ -105,7 +102,7 @@
                         </dd>
                     </div>
                     @if ($canViewMasterData)
-                        <div class="flex items-start justify-between gap-4 py-2.5">
+                        <div class="employee-detail-row flex items-start justify-between gap-4 py-2.5">
                             <dt class="shrink-0 pt-2 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.personnel_nr') }}</dt>
                             <dd class="min-w-0 flex-1">
                                 <x-ui.inline-edit-field id="employee-details-personnel-nr" field="personnel_nr" :can-edit="$canEditMasterData">
@@ -114,7 +111,7 @@
                             </dd>
                         </div>
                     @endif
-                    <div class="flex items-start justify-between gap-4 py-2.5">
+                    <div class="employee-detail-row flex items-start justify-between gap-4 py-2.5">
                         <dt class="shrink-0 pt-2 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.registered_at') }}</dt>
                         <dd class="pt-2 text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $user->created_at->format('d.m.Y') }}</dd>
                     </div>
@@ -122,14 +119,14 @@
             </section>
 
             {{-- Kontakt & Anschrift --}}
-            <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-rt-glow>
+            <section class="employee-detail-group rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <h3 class="flex items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
                     <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
                         <i class="far fa-address-card text-sm"></i>
                     </span>
                     {{ __('app.contact') }}
                 </h3>
-                <dl class="mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
+                <dl class="employee-detail-list mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
                     @foreach ([
                         ['email', 'email', 'email', 'email'],
                         ['phone', 'phone', 'text', 'tel'],
@@ -142,7 +139,7 @@
                         @php
                             $value = $field === 'email' ? $user->email : $profile?->{$field};
                         @endphp
-                        <div class="flex items-start justify-between gap-4 py-2.5">
+                        <div class="employee-detail-row flex items-start justify-between gap-4 py-2.5">
                             <dt class="shrink-0 pt-2 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.'.$label) }}</dt>
                             <dd class="min-w-0 flex-1">
                                 <x-ui.inline-edit-field

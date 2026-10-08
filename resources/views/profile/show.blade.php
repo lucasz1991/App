@@ -16,6 +16,7 @@
 
     <x-ui.page
         :title="__('app.profile')"
+        class="employee-workspace employee-own-profile"
     >
         <div class="space-y-4 sm:space-y-5">
             <livewire:profile.profile-identity-card />

@@ -88,7 +88,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $xpath = $this->xpath($component->html());
         $trigger = $xpath->query('//button[contains(@class,"rt-shift-plan-distribution-trigger")]')->item(0);
         $this->assertNotNull($trigger);
-        $this->assertSame('Noch zu verteilen: 9 Schichten und 1 Leistungen', $trigger->getAttribute('aria-label'));
+        $this->assertSame('Noch zu verteilen: 9 Schichten und 1 Leistungen · Seitenleiste schließen', $trigger->getAttribute('aria-label'));
         $this->assertStringNotContainsString('Offen', $trigger->textContent);
         $this->assertSame(0, $xpath->query('.//*[contains(@class,"rt-shift-plan-distribution-label")]', $trigger)->length);
         foreach (['shifts' => ['9', 'fa-clock'], 'orders' => ['1', 'fa-briefcase']] as $kind => [$count, $icon]) {
@@ -102,11 +102,13 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertNotNull($total);
         $this->assertSame('10', trim($total->textContent));
         $this->assertSame('true', $total->getAttribute('aria-hidden'));
-        $dialog = $xpath->query('//*[@role="dialog" and @aria-label="Noch zu verteilen"]')->item(0);
-        $this->assertNotNull($dialog);
-        $this->assertSame(1, $xpath->query('.//*[@data-pending-distribution]', $dialog)->length);
-        $this->assertSame(2, $xpath->query('.//button[@data-panel-tab]', $dialog)->length);
-        $component->call('nextPage', 'distributionShiftsPage')->assertViewHas('pendingShifts', fn ($rows) => $rows->currentPage() === 2 && $rows->count() === 1);
+        // Seitenpanel neben dem Plan statt Aufklapp-Dialog.
+        $side = $xpath->query('//aside[contains(@class,"rt-shift-distribution-side") and @aria-label="Noch zu verteilen"]')->item(0);
+        $this->assertNotNull($side);
+        $this->assertSame($trigger->getAttribute('aria-controls'), $side->getAttribute('id'));
+        $this->assertSame(1, $xpath->query('.//*[@data-pending-distribution]', $side)->length);
+        $this->assertSame(2, $xpath->query('.//button[@data-panel-tab]', $side)->length);
+        $component->assertViewHas('pendingShifts', fn ($rows) => $rows->currentPage() === 1 && $rows->count() === 9);
         $this->assertSame(0, ShiftAssignment::count());
         Http::assertNothingSent();
     }
@@ -134,36 +136,14 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_icon_only_proposal_switch_retains_its_native_owner_checked_pending_and_status_contracts(): void
+    public function test_proposals_follow_the_distribution_sidebar_without_a_header_switch(): void
     {
         $component = Livewire::actingAs($this->admin)->test(StaffTimeline::class, ['from' => '2027-05-10', 'until' => '2027-05-16', 'planningEnabled' => true, 'searchInHeader' => true]);
-        foreach ([false, true, false] as $enabled) {
-            if ($component->instance()->showSuggestions !== $enabled) {
-                $component->call('toggleSuggestions')->assertSet('showSuggestions', $enabled);
-            }
+        foreach ([true, false, true] as $open) {
+            $component->dispatch('operations-timeline-distribution', open: $open, shiftId: null)->assertSet('showSuggestions', $open);
             $xpath = $this->xpath($component->html());
-            $switch = $xpath->query('//input[@data-timeline-suggestions-switch]')->item(0);
-            $this->assertNotNull($switch);
-            $this->assertSame('checkbox', $switch->getAttribute('type'));
-            $this->assertSame('switch', $switch->getAttribute('role'));
-            $this->assertSame($enabled, $switch->hasAttribute('checked'));
-            $this->assertSame('suggestionsEnabled', $switch->getAttribute('x-bind:checked'));
-            $this->assertSame('suggestionsLoading', $switch->getAttribute('x-bind:disabled'));
-            $this->assertSame('Besetzungsvorschläge ein-/ausblenden', $switch->getAttribute('aria-label'));
-            $this->assertStringContainsString('@change="changeSuggestions($event)"', $component->html());
-            $this->assertStringContainsString('suggestionsError', $switch->getAttribute('x-bind:title'));
-            $this->assertStringContainsString('suggestionsEnabled', $switch->getAttribute('x-bind:title'));
-            $label = $xpath->query('//label[@for="'.$switch->getAttribute('id').'"]')->item(0);
-            $this->assertNotNull($label);
-            $this->assertSame('', trim($label->textContent));
-            $this->assertSame(1, $xpath->query('.//svg[@data-timeline-suggestions-icon and @aria-hidden="true"]', $label)->length);
-            $this->assertSame(1, $xpath->query('.//*[@data-toggle-control]', $label)->length);
-            $status = $xpath->query('//*[@id="'.$switch->getAttribute('aria-describedby').'"]')->item(0);
-            $this->assertNotNull($status);
-            $this->assertSame('status', $status->getAttribute('role'));
-            $this->assertSame('polite', $status->getAttribute('aria-live'));
-            $this->assertStringContainsString('suggestionsLoading', $status->getAttribute('x-text'));
-            $this->assertStringContainsString('suggestionsError', $status->getAttribute('x-text'));
+            // Vorschläge hängen am offenen Seitenpanel; ein eigener Schalter im Kopf entfällt.
+            $this->assertSame(0, $xpath->query('//input[@data-timeline-suggestions-switch]')->length);
             $owner = $xpath->query('//*[@aria-label="Mitarbeiter-Zeitleiste"]')->item(0);
             $this->assertSame("rtTimelinePlanning('".$component->instance()->getId()."')", $owner->getAttribute('x-data'));
             $this->assertStringNotContainsString('$wire.showSuggestions', $component->html());
@@ -285,7 +265,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class);
         $xpath = $this->xpath($component->html());
         $trigger = $xpath->query('//button[contains(@class,"rt-shift-plan-distribution-trigger")]')->item(0);
-        $this->assertSame('Noch zu verteilen: 102 Schichten und 0 Leistungen', $trigger->getAttribute('aria-label'));
+        $this->assertSame('Noch zu verteilen: 102 Schichten und 0 Leistungen · Seitenleiste schließen', $trigger->getAttribute('aria-label'));
         $total = $xpath->query('.//*[@data-distribution-count="total"]', $trigger)->item(0);
         $this->assertNotNull($total);
         $this->assertSame('99+', trim($total->textContent));

@@ -1,19 +1,44 @@
-<div class="min-w-0 space-y-4" data-personal-page="{{ $page }}" data-personal-view="{{ $view }}" data-personal-section="{{ $section }}">
-    <header class="flex min-w-0 flex-wrap items-center justify-between gap-3">
+<div class="rt-personnel-workspace min-w-0 space-y-4" data-personal-page="{{ $page }}" data-personal-view="{{ $view }}" data-personal-section="{{ $section }}">
+    <header class="rt-personnel-workspace__toolbar">
         @if($viewOptions)
-            <x-ui.buttons.multi-toggle :id="'personal-page-'.$page" label="Personalansicht" :options="$viewOptions" :value="$section === '' ? $view : null" action="setView" />
+            <x-ui.buttons.multi-toggle :id="'personal-page-'.$page" label="Personalansicht" :show-labels="true" :options="$viewOptions" :value="$section === '' ? $view : null" action="setView" />
         @endif
         @if($sections)
-            <div class="flex items-center gap-2">
+            <div class="rt-personnel-workspace__tools">
                 @if($section !== '' && $view !== '')
-                    <x-ui.buttons.button-basic type="button" wire:click="setSection('')" aria-label="Zur Ansicht zurück"><i class="far fa-arrow-left" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="button" wire:click="setSection('')" aria-label="Zur Ansicht zurück" title="Zur Ansicht zurück"><i class="far fa-arrow-left" aria-hidden="true"></i></x-ui.buttons.button-basic>
                 @endif
-                <div class="min-w-44"><x-ui.forms.select aria-label="Weitere Personalwerkzeuge" change="$wire.setSection($event.target.value)"><option value="" @selected($section === '')>Weitere Aktionen</option>@foreach($sections as $key => $label)<option value="{{ $key }}" @selected($section === $key)>{{ $label }}</option>@endforeach</x-ui.forms.select></div>
+                <x-ui.dropdown.anchor-dropdown width="72" :dropdown-id="'personnel-tools-'.$page" content-label="Weitere Personalwerkzeuge" dropdown-classes="rt-personnel-tools-menu">
+                    <x-slot:trigger>
+                        <x-ui.buttons.button-basic type="button" x-bind:aria-expanded="open.toString()" aria-haspopup="menu" :aria-label="$section !== '' ? 'Personalwerkzeuge: '.$sections[$section] : 'Weitere Personalwerkzeuge'" class="rt-personnel-workspace__tools-trigger"
+                            x-on:keydown.arrow-down.prevent.stop="openDropdown(true); $nextTick(() => $refs.panel.querySelector('[data-rt-dropdown-item]')?.focus())"
+                            x-on:keydown.enter.prevent.stop="openDropdown(true); $nextTick(() => $refs.panel.querySelector('[data-rt-dropdown-item]')?.focus())"
+                            x-on:keydown.space.prevent.stop="openDropdown(true); $nextTick(() => $refs.panel.querySelector('[data-rt-dropdown-item]')?.focus())"
+                        >
+                            <i class="far fa-sliders" aria-hidden="true"></i>
+                            <span>{{ $section !== '' ? $sections[$section] : 'Werkzeuge' }}</span>
+                            <i class="far fa-chevron-down" aria-hidden="true"></i>
+                        </x-ui.buttons.button-basic>
+                    </x-slot:trigger>
+                    <x-slot:content>
+                        <div x-on:keydown="if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes($event.key)) { $event.preventDefault(); const items = Array.from($el.querySelectorAll('[data-rt-dropdown-item]')); const current = items.indexOf(document.activeElement); const index = $event.key === 'Home' ? 0 : $event.key === 'End' ? items.length - 1 : (current + ($event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length; items[index]?.focus(); }">
+                        @foreach($sections as $key => $label)
+                            <x-dropdown-link href="#" role="menuitem" wire:click.prevent="setSection('{{ $key }}')" :aria-current="$section === $key ? 'true' : null">
+                                <span class="min-w-0 flex-1">{{ $label }}</span>
+                                @if($section === $key)<i class="far fa-check" aria-hidden="true"></i>@endif
+                            </x-dropdown-link>
+                        @endforeach
+                        </div>
+                    </x-slot:content>
+                </x-ui.dropdown.anchor-dropdown>
             </div>
         @endif
     </header>
     @if($employees->isNotEmpty())
-        <div class="max-w-sm"><x-ui.forms.label for="personal-page-user" value="Mitarbeiter" /><x-ui.forms.select id="personal-page-user" wire:model.live="userId"><option value="0">Auswählen</option>@foreach($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }}</option>@endforeach</x-ui.forms.select></div>
+        <div class="rt-personnel-workspace__context">
+            <x-ui.forms.label for="personal-page-user" value="Mitarbeiter" />
+            <x-ui.forms.select id="personal-page-user" wire:model.live="userId"><option value="0">Auswählen</option>@foreach($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }}</option>@endforeach</x-ui.forms.select>
+        </div>
     @endif
     @if($section !== '')
         <h2 class="text-base font-semibold">{{ $sections[$section] }}</h2>
@@ -24,7 +49,7 @@
                     $ruleOptions[] = ['value' => 'rates', 'label' => 'Fachregeln & Bewertung', 'icon' => 'fa-sliders'];
                 }
             @endphp
-            <x-ui.buttons.multi-toggle id="personal-rule-kind" label="Regelbereich" :value="$ruleView" action="setRuleView" :options="$ruleOptions" />
+            <x-ui.buttons.multi-toggle id="personal-rule-kind" label="Regelbereich" :show-labels="true" :value="$ruleView" action="setRuleView" :options="$ruleOptions" />
             @if($ruleView === 'profiles')
                 <livewire:operations.personnel-review module="rules" :embedded="true" :key="$contentKey" />
             @else

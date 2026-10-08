@@ -70,6 +70,29 @@
     pointer-events: none;
 }
 
+/* Visible labels are opt-in for workspaces where the destination must be
+   understandable without hover. Existing compact controls keep their shape. */
+.rt-multi-toggle[data-toggle-labels] {
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button {
+    flex: 0 0 auto;
+    width: auto;
+    gap: 8px;
+    padding: 0 14px !important;
+}
+
+.rt-multi-toggle__label {
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .rt-multi-toggle .rt-multi-toggle__button.rt-ui-button {
         transition: none;

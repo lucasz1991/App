@@ -1,0 +1,200 @@
+/* Personnel surfaces share the RailTime shell tokens and native controls. */
+.employee-workspace {
+    --employee-paper: var(--rt-shell-surface-solid, #fff);
+    --employee-inset: var(--rt-shell-panel, #f7f9fc);
+    --employee-ink: var(--rt-shell-text, #182435);
+    --employee-muted: var(--rt-shell-muted, #637188);
+    --employee-line: var(--rt-shell-line, rgba(148, 163, 184, .28));
+    --employee-signal: var(--rt-shell-accent, #e4002b);
+    min-width: 0;
+    color: var(--employee-ink);
+}
+
+.employee-workspace .rt-ui-button {
+    min-height: 44px;
+    border-radius: 10px;
+    box-shadow: none;
+    transition: transform 160ms cubic-bezier(.23, 1, .32, 1), opacity 160ms;
+}
+
+.employee-workspace .rt-ui-button:hover { transform: none; box-shadow: none; }
+.employee-workspace .rt-ui-button:active { transform: scale(.98); }
+.employee-workspace .rt-page-actions-dropdown [data-page-header-control] {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+}
+
+.employee-directory .ops-toolbar {
+    gap: 8px;
+    margin-bottom: -4px;
+}
+.employee-directory .rt-table-toolbar { margin-bottom: 12px !important; }
+.employee-directory .rt-table-toolbar__body {
+    background: var(--employee-paper) !important;
+    border-color: var(--employee-line) !important;
+    box-shadow: none !important;
+    border-radius: 14px;
+}
+.employee-directory .rt-table-toolbar__filters--desktop { gap: 12px; }
+.employee-directory .rt-employee-table.rt-table-frame {
+    box-shadow: 0 0 0 1px var(--employee-line) !important;
+}
+.employee-directory .rt-employee-table .rt-table-head,
+.employee-directory .rt-employee-mobile-header {
+    background: var(--employee-inset) !important;
+    color: var(--employee-muted) !important;
+    border-color: var(--employee-line) !important;
+    box-shadow: none !important;
+    letter-spacing: .04em;
+}
+.employee-directory .rt-employee-table .rt-table-head {
+    border-radius: 12px 12px 0 0;
+    font-size: 11px;
+    font-weight: 600;
+}
+.employee-directory .rt-employee-table .rt-table-row {
+    min-height: 72px;
+    border-bottom-color: var(--employee-line);
+    transition: background-color 160ms cubic-bezier(.23, 1, .32, 1);
+}
+.employee-directory .rt-employee-table .rt-employee-status-badge {
+    box-shadow: none;
+    font-size: 11px !important;
+}
+.employee-directory__pagination {
+    padding-block: 16px !important;
+    font-variant-numeric: tabular-nums;
+}
+
+.employee-profile .employee-profile__identity,
+.employee-workspace .employee-detail-group,
+.employee-own-profile [data-rt-accordion-section] {
+    min-width: 0;
+    background: var(--employee-paper) !important;
+    border: 0 !important;
+    border-radius: 16px;
+    box-shadow: 0 0 0 1px var(--employee-line) !important;
+}
+.employee-profile .employee-profile__identity { padding: 24px !important; }
+.employee-profile__identity-layout { align-items: center; }
+.employee-profile__facts { border-color: var(--employee-line) !important; }
+.employee-profile__facts dd { font-variant-numeric: tabular-nums; font-weight: 550 !important; }
+.employee-profile__identity .rt-ui-badge {
+    color: var(--employee-muted) !important;
+    background: var(--employee-inset) !important;
+    box-shadow: none;
+}
+.employee-profile__section-picker { display: grid; gap: 8px; }
+.employee-profile__section-picker > label {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 550;
+    color: var(--employee-muted);
+}
+.employee-workspace .employee-detail-group { padding: 24px !important; }
+.employee-detail-group h3 { font-size: 14px !important; font-weight: 650; }
+.employee-detail-group h3 > span {
+    background: var(--employee-inset) !important;
+    color: var(--employee-muted) !important;
+    border-radius: 10px;
+}
+.employee-detail-list { margin-top: 16px !important; }
+.employee-detail-list > div { border-color: var(--employee-line) !important; }
+.employee-detail-list .employee-detail-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+    gap: 16px !important;
+    align-items: center !important;
+    padding-block: 8px !important;
+}
+.employee-detail-list dt,
+.employee-compensation__field dt {
+    min-width: 0;
+    padding-top: 0 !important;
+    color: var(--employee-muted) !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 1.6;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    overflow-wrap: anywhere;
+}
+.employee-detail-list dd { min-width: 0; padding-top: 0 !important; overflow-wrap: anywhere; }
+.employee-detail-row dd > :not([data-inline-edit-field]) { line-height: 1.6; }
+.employee-workspace [data-inline-edit-display] {
+    min-height: 44px;
+    padding-block: 8px !important;
+}
+.employee-workspace [data-inline-edit-field] :is(input, select, textarea) {
+    min-width: 0;
+    border-radius: 10px !important;
+}
+.employee-profile__confidential-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--employee-inset);
+    color: var(--employee-muted);
+    font-size: 12px;
+    line-height: 1.7;
+}
+.employee-profile__confidential-note > i { padding-top: 4px; color: var(--employee-signal); }
+.employee-profile__confidential-note p { margin: 0; }
+.employee-compensation__fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 32px;
+    margin-top: 16px;
+}
+.employee-compensation__field {
+    min-width: 0;
+    padding-block: 12px;
+    border-bottom: 1px solid var(--employee-line);
+}
+.employee-compensation__field dd { margin-top: 4px; overflow-wrap: anywhere; }
+.employee-own-profile [data-rt-accordion-section] > h2 > button > span:first-child {
+    color: var(--employee-muted) !important;
+    background: var(--employee-inset) !important;
+    box-shadow: none !important;
+}
+.employee-own-profile [data-profile-inline-identity] [data-native-inline-edit-trigger],
+.employee-own-profile [data-profile-inline-identity] button,
+.employee-own-profile [data-profile-identity] button[wire\:click='deleteProfilePhoto'] {
+    min-height: 44px;
+}
+.employee-own-profile [data-profile-identity] button[wire\:click='deleteProfilePhoto'] { min-width: 44px; }
+.employee-workspace :is(button, a, [role='button']):focus-visible {
+    outline: 2px solid var(--employee-signal);
+    outline-offset: 3px;
+}
+
+@media (min-width: 640px) and (max-width: 1099px) {
+    .employee-profile__identity-layout { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) !important; }
+    .employee-profile__facts { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 639px) {
+    .employee-profile .employee-profile__identity,
+    .employee-workspace .employee-detail-group { padding: 16px !important; }
+    .employee-profile__facts { padding-top: 16px !important; }
+    .employee-profile__facts dt { white-space: normal; }
+    .employee-compensation__fields { grid-template-columns: 1fr; gap: 0; }
+    .employee-directory .rt-employee-table .rt-table-row { min-height: 76px; }
+    .employee-directory .employee-directory__create { padding-inline: 12px !important; font-size: 12px; }
+    .employee-own-profile [data-profile-identity] > div { gap: 12px !important; padding: 16px !important; }
+    .employee-own-profile [data-profile-identity] img,
+    .employee-own-profile [data-profile-identity] .bg-cover { width: 64px !important; height: 64px !important; }
+}
+@media (max-width: 479px) {
+    .employee-detail-list .employee-detail-row { grid-template-columns: 1fr; gap: 4px !important; padding-block: 12px !important; }
+    .employee-detail-list [data-inline-edit-display] { justify-content: flex-start !important; text-align: left !important; padding-inline: 0 !important; }
+    .employee-detail-list [data-inline-edit-field] > div,
+    .employee-detail-list .employee-detail-row > dd { text-align: left !important; }
+    .employee-detail-list [data-inline-edit-field] input { text-align: left !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .employee-workspace .rt-ui-button { transition: none; transform: none !important; }
+}

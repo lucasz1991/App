@@ -6,6 +6,7 @@
     'id' => null,
     'disabled' => false,
     'iconSet' => 'default',
+    'showLabels' => false,
 ])
 
 @php
@@ -42,6 +43,7 @@
     @if($isDisabled) aria-disabled="true" @endif
     @if($safeAction) wire:loading.attr="aria-busy" wire:target="{{ $safeAction }}" @endif
     data-multi-toggle
+    @if($showLabels) data-toggle-labels @endif
     x-id="['multi-toggle-tooltip']"
     x-data="{
         tooltipOpen: false,
@@ -176,7 +178,7 @@
             @else
                 <i class="far {{ $option['icon'] }}" aria-hidden="true"></i>
             @endif
-            <span class="sr-only">{{ $option['label'] }}</span>
+            <span class="{{ $showLabels ? 'rt-multi-toggle__label' : 'sr-only' }}">{{ $option['label'] }}</span>
         </x-ui.buttons.button-basic>
     @endforeach
     <template x-teleport="body" wire:ignore>

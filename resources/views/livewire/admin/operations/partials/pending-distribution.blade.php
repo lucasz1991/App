@@ -25,13 +25,15 @@
         :tabs="['shifts' => ['label' => 'Schichten', 'count' => $pendingShifts->total()], 'orders' => ['label' => 'Leistungen', 'count' => $unplannedOrders->total()]]" />
 
     <section class="rt-shift-distribution__group" role="tabpanel" id="{{ $distributionTabsId }}-panel-shifts" aria-labelledby="{{ $distributionTabsId }}-tab-shifts"
-        x-show="distributionTab === 'shifts'" :inert="distributionTab !== 'shifts'">
+        x-show="distributionTab === 'shifts'" :inert="distributionTab !== 'shifts'" @unless($pendingShifts->total() > 0 || $unplannedOrders->total() === 0) style="display: none" @endunless>
         @if($pendingShifts->total() === 0)
             <p class="rt-shift-distribution__empty" role="status"><i class="far fa-check-circle" aria-hidden="true"></i>Alle Schichten in diesem Zeitraum sind besetzt.</p>
         @else
             <div wire:loading.class="opacity-50" wire:target="previousPage,nextPage,selectDistributionShift,assignFromDistribution">
             @foreach($shiftDays as $date => $dayShifts)
-                @php($day = \Carbon\CarbonImmutable::parse($date, $displayTimezone)->locale('de'))
+                @php
+                    $day = \Carbon\CarbonImmutable::parse($date, $displayTimezone)->locale('de');
+                @endphp
                 <section class="rt-shift-distribution__day" wire:key="distribution-day-{{ $date }}">
                     <h3 class="rt-shift-distribution__day-head">
                         <span>{{ $day->isoFormat('dd, DD.MM.') }}@if($date === $today)<em>Heute</em>@endif</span>
@@ -98,7 +100,7 @@
     </section>
 
     <section class="rt-shift-distribution__group" role="tabpanel" id="{{ $distributionTabsId }}-panel-orders" aria-labelledby="{{ $distributionTabsId }}-tab-orders"
-        x-show="distributionTab === 'orders'" :inert="distributionTab !== 'orders'" x-cloak>
+        x-show="distributionTab === 'orders'" :inert="distributionTab !== 'orders'" @if($pendingShifts->total() > 0 || $unplannedOrders->total() === 0) style="display: none" @endif>
         @if($unplannedOrders->total() === 0)
             <p class="rt-shift-distribution__empty" role="status"><i class="far fa-check-circle" aria-hidden="true"></i>Alle Leistungen in diesem Zeitraum sind geplant.</p>
         @else

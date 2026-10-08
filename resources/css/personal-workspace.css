@@ -1,0 +1,196 @@
+/* Personal workday: the clock leads, published duties follow, leave stays one action away. */
+.rt-personal-workspace-page,
+.rt-personal-form { --rt-personnel-accent: #8d253d; }
+:is(.dark, body[data-mode="dark"]) :is(.rt-personal-workspace-page, .rt-personal-form) { --rt-personnel-accent: #efa3b2; }
+.rt-personal-area-navigation .rt-multi-toggle[data-toggle-labels] { border: 0; background: var(--rt-shell-panel); }
+.rt-personal-area-navigation .rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button[aria-pressed="true"] {
+    color: var(--rt-personnel-accent) !important;
+    background: var(--rt-shell-surface-solid) !important;
+    box-shadow: 0 1px 3px rgba(88, 102, 120, .13) !important;
+}
+.rt-personal-form { --ops-signal: var(--rt-personnel-accent); gap: 20px 16px; }
+.rt-personal-form .rt-ui-button { min-height: 44px; border-radius: 10px; box-shadow: none !important; }
+.rt-personal-form .rt-ui-button-primary { background: var(--rt-personnel-accent) !important; border-color: transparent !important; color: #fff !important; }
+.rt-personal-form .rt-ui-button-primary::after { display: none; }
+:is(.dark, body[data-mode="dark"]) .rt-personal-form .rt-ui-button-primary { color: #2d1720 !important; }
+.rt-personal-workspace-content { display: grid; gap: 24px; min-width: 0; }
+.rt-personal-area-navigation { min-width: 0; max-width: 100%; overflow-x: auto; padding: 2px; }
+.rt-personal-area-navigation .rt-multi-toggle { width: max-content; max-width: none; }
+
+.rt-personal-work {
+    --personal-ink: var(--rt-shell-text);
+    --personal-muted: var(--rt-shell-muted);
+    --personal-sheet: var(--rt-shell-surface-solid);
+    --personal-inset: var(--rt-shell-panel);
+    --personal-line: rgba(88, 102, 120, .13);
+    --personal-signal: var(--rt-personnel-accent, #8d253d);
+    --personal-signal-soft: rgba(141, 37, 61, .07);
+    --personal-focus: rgba(141, 37, 61, .24);
+    --ops-ink: var(--personal-ink);
+    --ops-muted: var(--personal-muted);
+    --ops-sheet: var(--personal-sheet);
+    --ops-platform: var(--personal-inset);
+    --ops-line: var(--personal-line);
+    --ops-signal: var(--personal-signal);
+    gap: 24px;
+    max-width: 1400px;
+    width: 100%;
+    color: var(--personal-ink);
+    font-family: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', sans-serif;
+}
+:is(.dark, body[data-mode="dark"]) .rt-personal-work {
+    --personal-line: rgba(197, 207, 221, .12);
+    --personal-signal: var(--rt-personnel-accent, #efa3b2);
+    --personal-signal-soft: rgba(239, 163, 178, .08);
+    --personal-focus: rgba(239, 163, 178, .3);
+}
+.rt-personal-work :is(h2, h3) { text-wrap: balance; }
+.rt-personal-work .ops-muted { font-size: 13px; line-height: 1.65; text-wrap: pretty; }
+.rt-personal-work > [aria-live="polite"]:not(:has(*)) { display: none; }
+.rt-personal-work > [aria-live="polite"]:has(> [wire\:offline]:only-child[style*="display: none"]) { display: none; }
+.rt-personal-work .ops-personal-tabs {
+    flex-wrap: nowrap;
+    gap: 4px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 4px;
+    border-radius: 12px;
+    background: var(--personal-inset);
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--personal-line) transparent;
+    position: static;
+    z-index: auto;
+}
+.rt-personal-work .ops-personal-tabs button {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 10px 16px;
+    border-radius: 9px;
+    color: var(--personal-muted);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: opacity 160ms cubic-bezier(.23, 1, .32, 1), transform 160ms cubic-bezier(.23, 1, .32, 1);
+}
+.rt-personal-work .ops-personal-tabs button[aria-pressed="true"] {
+    color: var(--personal-signal);
+    background: var(--personal-sheet);
+    box-shadow: 0 1px 3px var(--personal-line);
+}
+.rt-personal-work .ops-personal-tabs button:hover { color: var(--personal-ink); }
+.rt-personal-work .ops-personal-tabs button:active { transform: scale(.98); }
+.rt-personal-work .ops-personal-tabs button:disabled { opacity: .55; cursor: wait; }
+.rt-personal-work-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
+.rt-personal-work-heading > div { display: grid; gap: 8px; min-width: 0; }
+.rt-personal-work .rt-personal-work-heading h2 { margin: 0; font-size: clamp(22px, 2.4vw, 28px); line-height: 1.25; font-weight: 700; letter-spacing: -.04em; }
+.rt-personal-work-eyebrow { color: var(--personal-muted); font-size: 12px; font-weight: 550; }
+.rt-personal-work .ops-panel {
+    padding: 24px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--personal-sheet);
+    box-shadow: 0 0 0 1px var(--personal-line), 0 4px 16px -12px rgba(31, 41, 55, .12);
+}
+.rt-personal-work .ops-panel + .ops-panel { margin-top: 0; }
+.rt-personal-work .ops-form { gap: 20px 16px; }
+.rt-personal-work .ops-field > label { font-size: 12px; }
+.rt-personal-work .rt-ui-button {
+    min-height: 44px;
+    border-radius: 10px;
+    box-shadow: none;
+    transition: opacity 160ms cubic-bezier(.23, 1, .32, 1), transform 160ms cubic-bezier(.23, 1, .32, 1);
+}
+.rt-personal-work .rt-ui-button-primary {
+    color: #fff !important;
+    background: var(--personal-signal) !important;
+    border-color: var(--personal-signal) !important;
+}
+:is(.dark, body[data-mode="dark"]) .rt-personal-work .rt-ui-button-primary { color: #2d1720 !important; }
+.rt-personal-work .rt-ui-button-primary::after { display: none; }
+.rt-personal-work .rt-ui-button-secondary { background: var(--personal-sheet); border-color: var(--personal-line); color: var(--personal-ink); }
+.rt-personal-work .rt-ui-button-link { color: var(--personal-signal); }
+.rt-personal-work .rt-ui-button:hover { transform: none; filter: none; }
+.rt-personal-work .rt-ui-button-primary:hover { opacity: .88; }
+.rt-personal-work .rt-ui-button:active { transform: scale(.98); }
+.rt-personal-work :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--personal-signal); outline-offset: 3px; }
+.rt-personal-work .ops-badge { border-radius: 6px; }
+.rt-personal-work-clock > .ops-toolbar { align-items: flex-start; gap: 12px 24px; }
+.rt-personal-work-clock > .ops-toolbar h2 { font-size: 18px; line-height: 1.5; overflow-wrap: anywhere; }
+.rt-personal-work .rt-personal-work-clock { border-inline-start: 3px solid var(--personal-signal); }
+.rt-personal-clock-idle { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px 32px; }
+.rt-personal-clock-idle > .ops-muted { flex: 1 1 280px; max-width: 58ch; }
+.rt-personal-clock-running { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .8fr); align-items: center; gap: 24px 40px; }
+.rt-personal-clock-reading { display: grid; gap: 8px; min-width: 0; }
+.rt-personal-clock-label { color: var(--personal-signal); font-size: 12px; font-weight: 600; }
+.rt-personal-work .ops-clock { margin: 0; color: var(--personal-ink); font-size: clamp(36px, 5vw, 52px); line-height: 1.2; font-weight: 650; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
+.rt-personal-clock-controls { gap: 16px; }
+.rt-personal-clock-controls fieldset { display: grid; gap: 8px; min-width: 0; }
+.rt-personal-work-clock[data-clock-state="paused"] .rt-personal-clock-label { color: var(--personal-muted); }
+.rt-personal-work .rt-personal-duty-list { gap: 16px; }
+.rt-personal-work .rt-personal-duty-list h3 { font-size: 18px; letter-spacing: -.02em; }
+.rt-personal-duty-list > .ops-toolbar > div { display: grid; gap: 4px; }
+.rt-personal-work .rt-personal-record-list.rt-table-frame { --rt-table-divider: var(--personal-line); --rt-table-row-hover: var(--personal-inset); margin-top: 0; border-radius: 16px !important; box-shadow: 0 0 0 1px var(--personal-line) !important; }
+.rt-personal-work .rt-personal-record-list .rt-table-head { background: var(--personal-inset) !important; color: var(--personal-muted) !important; }
+.rt-personal-work .rt-personal-record-list .rt-table-row { padding: 16px; border-color: var(--personal-line); background: var(--personal-sheet) !important; animation: none; transition: none; }
+.rt-personal-work .rt-personal-record-list .rt-table-row:hover { background: var(--personal-inset) !important; box-shadow: none; transform: none; }
+.rt-personal-work .rt-personal-record-list .rt-table-row:focus-visible { background: var(--personal-inset) !important; box-shadow: inset 0 0 0 2px var(--personal-focus); }
+.rt-personal-work .rt-personal-record-list .rt-table-row-grid > div { padding: 0; }
+.rt-personal-work .rt-personal-record-list .rt-table-row .ops-toolbar :is(h2, h3) { font-size: 16px; line-height: 1.5; }
+.rt-personal-work .rt-personal-record-list .rt-table-empty { padding: 32px 24px; font-size: 13px; line-height: 1.7; color: var(--personal-muted); }
+.rt-personal-time-reminder { width: 100%; text-align: left; cursor: pointer; }
+.rt-personal-time-reminder > span:first-child { display: grid; gap: 4px; }
+.rt-personal-time-reminder strong { color: var(--personal-ink); font-size: 14px; font-weight: 600; }
+.rt-personal-time-reminder:hover { background: var(--personal-inset); }
+.rt-personal-work .rt-personal-time-filters .rt-table-toolbar__bulk { flex-wrap: wrap; }
+.rt-personal-work .rt-personal-time-filters [data-tables-bulk-unavailable] { display: none; }
+.rt-personal-work .rt-personal-time-filters .rt-table-toolbar__filters--desktop > div { min-width: 0; }
+.rt-personal-work .rt-calendar { --calendar-accent: var(--personal-signal); }
+.rt-personal-work .rt-calendar-header { padding: 0 0 20px; border: 0; border-bottom: 1px solid var(--personal-line); border-radius: 0; background: transparent; box-shadow: none; }
+.rt-personal-work .rt-calendar-period { font-size: 22px; font-weight: 700; letter-spacing: -.035em; }
+.rt-personal-work .rt-calendar-summary { gap: 8px 20px; font-size: 12px; }
+.rt-personal-work .rt-calendar-navigation { border-color: var(--personal-line); background: var(--personal-inset); }
+.rt-personal-work .rt-calendar-controls { gap: 12px; }
+.rt-personal-work .rt-calendar-controls .rt-multi-toggle { max-width: 100%; }
+.rt-personal-work .rt-calendar-controls .rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button[aria-pressed="true"] {
+    color: var(--personal-signal) !important;
+    background: var(--personal-sheet) !important;
+    box-shadow: 0 1px 3px var(--personal-line) !important;
+}
+.rt-personal-work .rt-calendar-shift { border-color: var(--personal-line) !important; border-radius: 12px !important; background: var(--personal-sheet) !important; }
+.rt-personal-work .rt-personal-calendar-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+@media (max-width: 767px) {
+    .rt-personal-workspace-content { gap: 16px; }
+    .rt-personal-work { gap: 20px; }
+    .rt-personal-work .ops-panel { padding: 20px 16px; border-radius: 14px; }
+    .rt-personal-work-heading { align-items: flex-start; }
+    .rt-personal-work .ops-personal-tabs button { padding-inline: 12px; }
+    .rt-personal-clock-running { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .rt-personal-clock-idle { gap: 16px; }
+    .rt-personal-clock-idle > .ops-muted { flex-basis: 100%; }
+    .rt-personal-work .rt-calendar-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; width: 100%; }
+    .rt-personal-work .rt-calendar-navigation { grid-column: 1; grid-row: 1; justify-self: start; }
+    .rt-personal-work .rt-calendar-picker { grid-column: 1; grid-row: 2; min-width: 0; width: 100%; max-width: 320px; }
+    .rt-personal-work .rt-calendar-controls .rt-calendar-view-toggle { grid-column: 1; grid-row: 3; margin-left: 0; justify-self: start; }
+    .rt-personal-work .rt-calendar-controls .rt-multi-toggle__button { min-width: 44px; }
+    .rt-personal-work .rt-calendar-controls .rt-multi-toggle__label { font-size: 11px; }
+    .rt-personal-work .rt-personal-calendar-details { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 479px) {
+    .rt-personal-work-heading .rt-ui-button { width: 100%; }
+    .rt-personal-work-clock > .ops-toolbar h2 { font-size: 17px; }
+    .rt-personal-work .rt-calendar-controls .rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button { padding-inline: 10px !important; }
+    .rt-personal-work .rt-calendar-controls .rt-multi-toggle__button > i { display: none; }
+    .rt-personal-clock-idle .ops-actions, .rt-personal-clock-controls .ops-actions { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; }
+    .rt-personal-work .rt-personal-time-filters .rt-table-toolbar__bulk { width: 100%; }
+    .rt-personal-work .rt-personal-time-filters .rt-table-toolbar__bulk .rt-ui-button { white-space: normal; text-align: left; line-height: 1.4; }
+}
+@media (max-width: 767px) {
+    .rt-personal-work .rt-personal-record-list.rt-table-frame:not(.rt-employee-table):not(.rt-device-table) .rt-table-row { border: 0 !important; border-bottom: 1px solid var(--personal-line) !important; border-radius: 0; box-shadow: none; }
+    .rt-personal-work .rt-personal-record-list.rt-table-frame:not(.rt-employee-table):not(.rt-device-table) .rt-table-body { gap: 0; padding: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .rt-personal-work :is(.rt-ui-button, .ops-personal-tabs button) { transition: none; transform: none; }
+}

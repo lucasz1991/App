@@ -1,15 +1,25 @@
-<div>
+<div class="employee-workspace employee-directory">
     <x-dynamic-component :component="$embedded ? 'operations.surface' : 'ui.page'"
         :title="$embedded ? null : __('app.employees')"
         :count="number_format($employeesTotal, 0, ',', '.')"
         :auto-intro="!$embedded"
     >
         <x-slot:actions>
+            @can('employees.create')
+                <x-ui.buttons.button-basic
+                    type="button"
+                    mode="primary"
+                    wire:click="openCreate"
+                    wire:loading.attr="disabled"
+                    wire:target="openCreate"
+                    class="employee-directory__create"
+                    :title="__('app.new_employee_hint')"
+                >
+                    <i class="far fa-plus" aria-hidden="true"></i>
+                    <span>{{ __('app.new_employee') }}</span>
+                </x-ui.buttons.button-basic>
+            @endcan
             <x-ui.dropdown.page-actions>
-                <x-dropdown-link wire:click.prevent="openCreate" :can="'employees.create'" :title="__('app.new_employee_hint')">
-                    <i class="far fa-plus mr-2"></i>
-                    {{ __('app.new_employee') }}
-                </x-dropdown-link>
                 <x-dropdown-link wire:click.prevent="openInvite" :can="'employees.create'" :title="__('app.invite_employee_hint')">
                     <i class="far fa-paper-plane mr-2"></i>
                     {{ __('app.invite_employee') }}
@@ -119,7 +129,7 @@
         </x-tables.toolbar>
 
         {{-- Tabelle --}}
-        <div class="w-full" data-anim="fade-up" data-anim-delay="0.05">
+        <div class="employee-directory__results w-full" data-anim="fade-up" data-anim-delay="0.05">
             <div class="rt-employee-mobile-header px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] md:hidden">
                 <div class="rt-employee-mobile-header-grid min-w-0">
                     <span>{{ __('app.name') }}</span>
@@ -147,7 +157,7 @@
                 :sort-by="$sortBy ?? null"
                 :sort-dir="$sortDir ?? 'asc'"
             />
-            <div class="py-4">
+            <div class="employee-directory__pagination py-4">
                 {{ $employees->links() }}
             </div>
         </div>

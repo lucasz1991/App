@@ -15,9 +15,14 @@
 @import './date-range-picker.css';
 @import './multi-toggle.css';
 @import './disposition-workspace.css';
+@import './shift-distribution-panel.css';
 @import './operations-panel.css';
 @import './table-records.css';
 @import './customer-portal.css';
+@import './personnel-workspace.css';
+@import './employee-workspace.css';
+@import './personnel-management.css';
+@import './personal-workspace.css';
 
 @tailwind base;
 @tailwind components;

@@ -105,11 +105,11 @@ class ShiftManagementViewsTest extends TestCase
 
     public function test_pending_distribution_is_paginated_and_resets_when_the_period_changes(): void
     {
-        foreach (range(1, 10) as $number) {
+        foreach (range(1, 27) as $number) {
             $this->shift('Offene Schicht '.$number);
         }
         Livewire::actingAs($this->admin)->test(ShiftManagement::class)
-            ->assertViewHas('pendingShifts', fn ($items) => $items->total() === 10 && $items->count() === 8)
+            ->assertViewHas('pendingShifts', fn ($items) => $items->total() === 27 && $items->count() === 25)
             ->call('nextPage', 'distributionShiftsPage')
             ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 2 && $items->count() === 2)
             ->call('applyPeriod', '2027-05-10', '2027-05-16')
@@ -132,7 +132,7 @@ class ShiftManagementViewsTest extends TestCase
 
     public function test_distribution_recovers_when_the_current_last_page_is_completed(): void
     {
-        foreach (range(1, 9) as $number) {
+        foreach (range(1, 26) as $number) {
             $last = $this->shift('Schicht '.$number);
         }
         $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
@@ -140,7 +140,7 @@ class ShiftManagementViewsTest extends TestCase
             ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 2 && $items->count() === 1);
         $last->update(['status' => 'completed']);
         $component->call('refreshPlan')
-            ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 1 && $items->count() === 8);
+            ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 1 && $items->count() === 25);
     }
 
     public function test_views_share_filters_and_keep_the_existing_detail_and_edit_modals(): void

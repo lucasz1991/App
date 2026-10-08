@@ -1,6 +1,8 @@
 @section('title', 'Mein Arbeitstag')
-<x-ui.page title="Mein Arbeitstag" :auto-intro="false">
-    <x-ui.buttons.multi-toggle :options="array_values($this->areas())" :value="$area" action="setArea" label="Mein Arbeitsbereich" id="personal-workspace-area" />
+<x-ui.page title="Mein Arbeitstag" :auto-intro="false" class="rt-personal-workspace-page" content-class="rt-personal-workspace-content">
+    <div class="rt-personal-area-navigation">
+        <x-ui.buttons.multi-toggle :options="array_values($this->areas())" :value="$area" action="setArea" label="Mein Arbeitsbereich" id="personal-workspace-area" :show-labels="true" />
+    </div>
     @if($area === 'work')<livewire:operations.my-work />
     @elseif($area === 'inbox')<livewire:operations.attention-center :personal="true" />
     @elseif($area === 'capacity')<livewire:operations.customer-capacity-consent />

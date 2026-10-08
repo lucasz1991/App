@@ -19,7 +19,7 @@
                 <x-ui.buttons.button-basic type="button" class="rt-calendar-nav-arrow" wire:click="nextPeriod" wire:loading.attr="disabled" wire:target="previousPeriod,nextPeriod,today" aria-label="Nächster Zeitraum" title="Nächster Zeitraum"><i class="far fa-chevron-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
             </div>
             <div class="rt-calendar-picker"><x-ui.forms.date-field id="personal-calendar-anchor-date" wire:model.live="anchorDate" :clearable="false" aria-label="Kalenderdatum" /></div>
-            <x-ui.buttons.multi-toggle id="personal-calendar-view-toggle" class="rt-calendar-view-toggle" label="Kalenderansicht" :value="$viewMode" action="switchView" :options="[
+            <x-ui.buttons.multi-toggle id="personal-calendar-view-toggle" class="rt-calendar-view-toggle" label="Kalenderansicht" :value="$viewMode" action="switchView" :show-labels="true" :options="[
                 ['value'=>'day','label'=>'Tag','icon'=>'fa-calendar-day'],
                 ['value'=>'week','label'=>'Woche','icon'=>'fa-calendar-week'],
                 ['value'=>'month','label'=>'Monat','icon'=>'fa-calendar-days'],
