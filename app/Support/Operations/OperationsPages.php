@@ -20,7 +20,7 @@ final class OperationsPages
             'attention' => ['title' => 'Arbeitsliste', 'icon' => 'inbox', 'segment' => 'Disposition'],
             'cases' => ['title' => 'Vorgänge & Aufträge', 'icon' => 'clipboard', 'segment' => 'Disposition'],
             'shifts' => ['title' => 'Schichtplan', 'icon' => 'calendar', 'segment' => 'Disposition', 'group' => 'Planung'],
-            'planning' => ['title' => 'Bedarf & Planung', 'icon' => 'layers', 'segment' => 'Disposition'],
+            'planning' => ['title' => 'Ressourcen & Kapazität', 'icon' => 'layers', 'segment' => 'Disposition'],
             'duty' => ['title' => 'Leitstelle', 'icon' => 'activity', 'segment' => 'Disposition'],
             'customers' => ['title' => 'Kunden', 'icon' => 'briefcase', 'segment' => 'Kunden'],
             'people' => ['title' => 'Personal', 'icon' => 'users', 'segment' => 'Personal', 'group' => 'Personal'],
@@ -82,10 +82,10 @@ final class OperationsPages
             ? PersonalPageWorkspace::availableSections($actor, $page) : [];
     }
 
-    /** The three planning workspaces shared by the sidebar and topbar shortcuts. */
+    /** Permission-filtered case workspaces shared by sidebar and topbar shortcuts. */
     public static function planningViews(User $actor): array
     {
-        return array_intersect_key(self::views($actor, 'cases'), array_flip(['inbox', 'orders', 'shifts']));
+        return array_intersect_key(self::views($actor, 'cases'), array_flip(['inbox', 'offers', 'orders', 'shifts']));
     }
 
     /** Topbar shortcuts include both existing sections of the shift workspace. */

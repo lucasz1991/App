@@ -87,7 +87,7 @@ class NativeOperationsWorkflowTest extends TestCase
         $this->assertFalse($adminLinks->contains('title', 'Kundenübersicht'));
         $this->assertSame(0, $adminLinks->where('title', 'Vorgänge & Aufträge')->count());
         $this->assertSame(1, $adminLinks->where('title', 'Schichtplan')->count());
-        $this->assertSame(['Schichtplan', 'Kalender', 'Bedarf & Planung'], $adminLinks->where('group', 'Planung')->pluck('title')->all());
+        $this->assertSame(['Schichtplan', 'Kalender', 'Ressourcen & Kapazität'], $adminLinks->where('group', 'Planung')->pluck('title')->all());
         $this->assertSame(['Eingang', 'Aufträge', 'Leitstelle'], collect($sections['Disposition'])->whereNull('group')->pluck('title')->values()->all());
         $this->assertTrue(collect($sections['Mein Arbeitsplatz'])->contains(fn ($link) => $link['title'] === 'Wagenliste' && $link['group'] === 'Arbeitsmittel'));
         $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Wagenliste'));

@@ -48,14 +48,14 @@ class NavigationWorkflowStructureTest extends TestCase
     }
 
     #[DataProvider('visibilityScenarios')]
-    public function test_consolidation_changes_only_existing_individual_employee_entries(string $schema, string $role, array $abilities, bool $active = true, ?string $team = null): void
+    public function test_current_menu_changes_only_explicit_employee_consolidation_offer_link_and_resource_title(string $schema, string $role, array $abilities, bool $active = true, ?string $team = null): void
     {
         $this->installSchema($schema);
         $actor = $this->actor($role, $abilities, $active, $team);
         $before = $this->originalSections($actor);
         $after = ApplicationNavigation::sections($actor);
 
-        $this->assertSame($this->contracts($this->consolidatePeople($before)), $this->contracts($after), 'Only people entries and the three individual leave tools may move into employee profiles; all other leaf targets stay unchanged.');
+        $this->assertSame($this->contracts($this->withRequestedPlanningUpdates($this->consolidatePeople($before), $actor)), $this->contracts($after), 'Only individual employee entries, the requested offer destination and the resource-page title may change; every other leaf contract stays unchanged.');
         $peopleLinks = collect($after)->flatten(1)->filter(fn (array $link): bool => $link['route'] === 'operations.page' && ($link['parameters']['page'] ?? '') === 'people');
         $this->assertCount(isset(OperationsPages::availableFor($actor)['people']) ? 1 : 0, $peopleLinks);
         foreach (array_diff(array_unique([...array_keys($before), ...array_keys($after)]), ['', 'Disposition', 'Personal']) as $section) {
@@ -101,15 +101,15 @@ class NavigationWorkflowStructureTest extends TestCase
         $this->assertSame(['Dashboard', 'Arbeitsliste'], array_column($sections[''], 'title'));
         $this->assertSame([
             '' => ['Eingang', 'Aufträge', 'Leitstelle'],
-            'Planung' => ['Schichtplan', 'Kalender', 'Bedarf & Planung'],
+            'Planung' => ['Angebote', 'Schichtplan', 'Kalender', 'Ressourcen & Kapazität'],
         ], $this->groupedTitles($sections['Disposition']));
-        $this->assertSame(['Eingang', 'Aufträge', 'Schichtplan', 'Kalender', 'Bedarf & Planung', 'Leitstelle'], array_column($sections['Disposition'], 'title'));
+        $this->assertSame(['Eingang', 'Aufträge', 'Angebote', 'Schichtplan', 'Kalender', 'Ressourcen & Kapazität', 'Leitstelle'], array_column($sections['Disposition'], 'title'));
         $this->assertSame([
             '' => ['Mitarbeiter', 'Personalprozesse', 'Regelprofile'],
             'Zeitwirtschaft' => ['Urlaub & Konten', 'Zeitprüfung', 'Monatsabschluss & Export'],
         ], $this->groupedTitles($sections['Personal']));
         $this->assertSame(['', '', 'Zeitwirtschaft', ''], array_column(array_values(ApplicationNavigation::groups($sections['Personal'])), 'label'));
-        $this->assertSame(['inbox', 'orders', 'shifts', 'calendar'], array_keys(OperationsPages::planningShortcuts($this->actor('admin'))), 'The page/topbar shortcut contract is outside this menu-only change.');
+        $this->assertSame(['inbox', 'offers', 'orders', 'shifts', 'calendar'], array_keys(OperationsPages::planningShortcuts($this->actor('admin'))), 'The offer shortcut follows the requested workflow without replacing any existing destination.');
     }
 
     public function test_sidebar_and_mobile_navigation_render_the_same_preserved_destinations(): void
@@ -156,10 +156,11 @@ class NavigationWorkflowStructureTest extends TestCase
         return [
             ['attention', [], 'Arbeitsliste'],
             ['cases', ['view' => 'inbox', 'section' => 'ai-intake'], 'Eingang'],
+            ['cases', ['view' => 'offers', 'customer' => '12'], 'Angebote'],
             ['cases', ['view' => 'orders', 'order' => '12'], 'Aufträge'],
             ['cases', ['view' => 'shifts', 'section' => 'plan'], 'Schichtplan'],
             ['cases', ['view' => 'shifts', 'section' => 'calendar'], 'Kalender'],
-            ['planning', ['view' => 'staff', 'section' => 'pools'], 'Bedarf & Planung'],
+            ['planning', ['view' => 'staff', 'section' => 'pools'], 'Ressourcen & Kapazität'],
             ['duty', ['view' => 'board'], 'Leitstelle'],
             ['people', ['view' => 'employees'], 'Mitarbeiter'],
             ['people', ['view' => 'documents'], 'Mitarbeiter'],
@@ -275,6 +276,25 @@ class NavigationWorkflowStructureTest extends TestCase
         return $groups;
     }
 
+    private function withRequestedPlanningUpdates(array $sections, User $actor): array
+    {
+        foreach ($sections as &$links) {
+            foreach ($links as &$link) {
+                if ($link['route'] === 'operations.page' && $link['parameters'] === ['page' => 'planning']) {
+                    $this->assertSame('Bedarf & Planung', $link['title']);
+                    $link['title'] = 'Ressourcen & Kapazität';
+                }
+            }
+            unset($link);
+        }
+        unset($links);
+        if (isset(OperationsPages::views($actor, 'cases')['offers'])) {
+            $sections['Disposition'][] = ['title' => 'Angebote', 'route' => 'operations.page', 'icon' => 'file-text', 'parameters' => ['page' => 'cases', 'view' => 'offers'], 'navigate' => true, 'group' => 'Planung', 'excludedSections' => []];
+        }
+
+        return $sections;
+    }
+
     private function setPageRequest(string $page, array $query): void
     {
         $request = Request::create('/arbeitsplatz/ansicht/'.$page, 'GET', $query);
@@ -317,7 +337,7 @@ class NavigationWorkflowStructureTest extends TestCase
         }
         foreach (OperationsPages::availableFor($user) as $page => $definition) {
             if ($page === 'cases') {
-                foreach (OperationsPages::planningViews($user) as $view => $entry) {
+                foreach (array_intersect_key(OperationsPages::views($user, 'cases'), array_flip(['inbox', 'orders', 'shifts'])) as $view => $entry) {
                     $parameters = ['page' => 'cases', 'view' => $view];
                     if ($view === 'shifts') {
                         $parameters['section'] = 'plan';
@@ -358,7 +378,7 @@ class NavigationWorkflowStructureTest extends TestCase
                 $add('Personal', $label, 'operations.page', $icon, ['page' => $page, 'section' => $section], true, 'Personal');
             }
             if (! $shortcuts || OperationsPages::views($user, $page) || array_diff_key($availableSections, $shortcuts)) {
-                $add($definition['segment'], $definition['title'], 'operations.page', $definition['icon'], ['page' => $page], true, $definition['group'] ?? null, array_keys($shortcuts));
+                $add($definition['segment'], $page === 'planning' ? 'Bedarf & Planung' : $definition['title'], 'operations.page', $definition['icon'], ['page' => $page], true, $definition['group'] ?? null, array_keys($shortcuts));
             }
         }
         if (! $ready && $admin) {

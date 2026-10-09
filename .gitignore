@@ -258,4 +258,5 @@ auth.json
 !/tests/Feature/EmployeeProfileScopeTest.php
 !/tests/Feature/EmployeeProfileIntegrationTest.php
 !/tests/Feature/DispatchMapWidgetTest.php
+!/tests/Feature/DispatchMapCompactUiTest.php
 !/tests/Frontend/dashboard-widget-input.test.js

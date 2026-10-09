@@ -19,6 +19,8 @@ final class DispatchMapData
 {
     public const ITEMS_PER_TYPE = 100;
 
+    public const MARKER_ITEMS_PER_TYPE = 3;
+
     public static function availableFor(User $user): bool
     {
         return $user->status
@@ -140,9 +142,17 @@ final class DispatchMapData
             'key' => $key, 'place' => $location['place'], 'label' => $location['label'],
             'x' => $location['x'], 'y' => $location['y'], 'latitude' => $location['latitude'], 'longitude' => $location['longitude'],
             'shiftCount' => 0, 'inquiryCount' => 0, 'count' => 0, 'itemKeys' => [],
+            'items' => [], 'detailsPerType' => self::MARKER_ITEMS_PER_TYPE, 'detailsTruncated' => false,
         ];
-        $markers[$key][$type === 'shifts' ? 'shiftCount' : 'inquiryCount']++;
+        $typeCount = $type === 'shifts' ? 'shiftCount' : 'inquiryCount';
+        $markers[$key][$typeCount]++;
         $markers[$key]['count']++;
+        // Every point needs native details, including places beyond the list cap.
+        // Keep each type independently bounded so filtering still has a sample.
+        if ($markers[$key][$typeCount] <= self::MARKER_ITEMS_PER_TYPE) {
+            $markers[$key]['items'][] = $item;
+        }
+        $markers[$key]['detailsTruncated'] = $markers[$key]['count'] > count($markers[$key]['items']);
         if ($retained) {
             $markers[$key]['itemKeys'][] = $item['key'];
         }

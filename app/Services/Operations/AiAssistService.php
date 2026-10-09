@@ -69,7 +69,7 @@ class AiAssistService
             default => 'other',
         };
         $labels = ['shifts' => 'Schichtplan', 'calendar' => 'Kalender', 'orders' => 'Aufträge', 'offers' => 'Angebote', 'inbox' => 'Eingang',
-            'attention' => 'Arbeitsliste', 'planning' => 'Bedarf & Planung', 'duty' => 'Leitstelle', 'other' => 'Disposition'];
+            'attention' => 'Arbeitsliste', 'planning' => 'Ressourcen & Kapazität', 'duty' => 'Leitstelle', 'other' => 'Disposition'];
 
         return ['page' => $key, 'label' => $labels[$key], 'from' => $start->toDateString(), 'until' => $end->toDateString()];
     }
@@ -215,7 +215,7 @@ class AiAssistService
             $lead .= " Für {$rest} ".($rest === 1 ? 'Schicht ist' : 'Schichten ist').' niemand ohne Ausnahme frei.';
         }
         if ($proposals->isEmpty()) {
-            return ['lead' => $lead, 'card' => ['icon' => 'fa-sparkles', 'title' => 'Besetzungsvorschlag', 'rows' => [], 'note' => 'Partneranfrage oder Planungswerkzeuge unter Bedarf & Planung prüfen.',
+            return ['lead' => $lead, 'card' => ['icon' => 'fa-sparkles', 'title' => 'Besetzungsvorschlag', 'rows' => [], 'note' => 'Partneranfrage oder Planungswerkzeuge unter Ressourcen & Kapazität prüfen.',
                 'buttons' => [['label' => 'Schichtplan öffnen', 'href' => $this->shiftPlanUrl($context), 'primary' => true]]]];
         }
 
@@ -256,7 +256,7 @@ class AiAssistService
             'icon' => 'fa-user-plus', 'title' => $shift->title.' · '.$free.' frei',
             'rows' => $candidates->map(fn (array $candidate) => ['label' => $candidate['user']->name, 'value' => ['preferred' => 'Wunschdienst', 'available' => 'Verfügbar gemeldet'][$candidate['wish']] ?? 'Konfliktfrei',
                 'small' => collect($candidate['reasons'])->first(fn ($reason) => str_starts_with($reason, 'Wochenplanung')) ?? '', 'why' => array_values($candidate['reasons'])])->all(),
-            'note' => $candidates->isEmpty() ? 'Partneranfrage oder Übernahme unter Bedarf & Planung prüfen.' : ($count > 1 ? 'Weitere offene Dienste heute: '.$open->skip(1)->take(3)->map(fn (Shift $item) => $item->title.' ('.$this->localTime($item->starts_at).')')->implode(', ').'.' : ''),
+            'note' => $candidates->isEmpty() ? 'Partneranfrage oder Übernahme unter Ressourcen & Kapazität prüfen.' : ($count > 1 ? 'Weitere offene Dienste heute: '.$open->skip(1)->take(3)->map(fn (Shift $item) => $item->title.' ('.$this->localTime($item->starts_at).')')->implode(', ').'.' : ''),
             'buttons' => $buttons,
             'payload' => $first ? [[$shift->id, $first['user']->id, (int) $shift->revision]] : [],
         ]];

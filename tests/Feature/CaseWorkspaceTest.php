@@ -266,6 +266,28 @@ class CaseWorkspaceTest extends TestCase
         $this->missing(fn () => Livewire::test(CommercialOffers::class, ['subjectType' => 'OperationInquiry', 'subjectId' => $own->subject_id, 'initialOfferId' => $other->id]));
     }
 
+    public function test_new_offer_shortcut_preserves_customer_without_carrying_a_selected_order_or_inquiry_into_the_offer_list(): void
+    {
+        $inquiry = $this->inquiry('Requested customer inquiry');
+        $order = $this->order('Selected customer order');
+        $own = $this->offer($inquiry, 1);
+        $foreignCustomer = Customer::create(['company_name' => 'Foreign shortcut customer', 'is_active' => true]);
+        $foreign = $this->offer($this->inquiry('Do not disclose another customer', $foreignCustomer), 1);
+        $this->actingAs($this->admin);
+        foreach ([['inbox', ['inquiry' => $inquiry->id]], ['orders', ['order' => $order->id]]] as [$view, $detail]) {
+            Livewire::test(CaseWorkspace::class, ['initialView' => $view, 'context' => ['customer' => $this->customer->id, 'search' => 'Old list search'] + $detail])
+                ->call('setPlanningView', 'offers')->assertRedirect(OperationsPages::url('cases', ['view' => 'offers', 'customer' => $this->customer->id]));
+        }
+        Livewire::test(CaseWorkspace::class, ['initialView' => 'offers', 'context' => ['customer' => $this->customer->id]])
+            ->assertSee($inquiry->title)->assertDontSee('Do not disclose another customer');
+        $this->assertSame('draft', $own->fresh()->status);
+        $this->assertSame('draft', $foreign->fresh()->status);
+        $this->assertSame('new', $inquiry->fresh()->status);
+        $this->assertSame('confirmed', $order->fresh()->status->value);
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('shifts', 0);
+    }
+
     public function test_order_customer_filter_cannot_be_escaped_by_selection_or_edit(): void
     {
         $own = $this->order();

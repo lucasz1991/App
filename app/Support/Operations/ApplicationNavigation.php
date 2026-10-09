@@ -23,15 +23,21 @@ final class ApplicationNavigation
         }
         foreach (OperationsPages::availableFor($user) as $page => $definition) {
             if ($page === 'cases') {
-                foreach (OperationsPages::planningViews($user) as $view => $entry) {
+                $views = OperationsPages::planningViews($user);
+                // Keep the direct intake/order links before the grouped planning tools.
+                foreach (['inbox', 'orders', 'offers', 'shifts'] as $view) {
+                    if (! isset($views[$view])) {
+                        continue;
+                    }
+                    $entry = $views[$view];
                     $parameters = ['page' => 'cases', 'view' => $view];
                     if ($view === 'shifts') {
                         $parameters['section'] = 'plan';
                     }
                     $icon = match ($view) {
-                        'inbox' => 'inbox', 'orders' => 'briefcase', 'shifts' => 'clipboard',
+                        'inbox' => 'inbox', 'orders' => 'briefcase', 'offers' => 'file-text', 'shifts' => 'clipboard',
                     };
-                    $add($definition['segment'], $entry['label'], 'operations.page', $icon, $parameters, true, $view === 'shifts' ? 'Planung' : null);
+                    $add($definition['segment'], $entry['label'], 'operations.page', $icon, $parameters, true, in_array($view, ['offers', 'shifts'], true) ? 'Planung' : null);
                     if ($view === 'shifts') {
                         $add($definition['segment'], 'Kalender', 'operations.page', 'calendar', ['page' => 'cases', 'view' => 'shifts', 'section' => 'calendar'], true, 'Planung');
                     }

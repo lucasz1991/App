@@ -15,6 +15,7 @@ use App\Support\Operations\ApplicationNavigation;
 use App\Support\Operations\OperationsPages;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -39,11 +40,11 @@ class PlanningTopbarNavigationTest extends TestCase
         $this->customer = Customer::create(['company_name' => 'Synthetic Navigation Customer', 'is_active' => true]);
     }
 
-    public function test_case_navigation_has_one_shared_four_way_toggle_inside_the_topbar_teleport_even_with_offers_enabled(): void
+    public function test_case_navigation_has_one_shared_five_way_toggle_inside_the_topbar_teleport_with_offers_enabled(): void
     {
         $this->assertTrue(CommercialOfferService::ready());
         $this->assertArrayHasKey('offers', CaseWorkspace::availableViews($this->admin));
-        $expected = ['inbox' => 'Eingang', 'orders' => 'Aufträge', 'shifts' => 'Schichtplan', 'calendar' => 'Kalender'];
+        $expected = ['inbox' => 'Eingang', 'offers' => 'Angebote', 'orders' => 'Aufträge', 'shifts' => 'Schichtplan', 'calendar' => 'Kalender'];
         foreach ([['inbox', 'overview'], ['orders', 'overview'], ['shifts', 'plan'], ['shifts', 'calendar'], ['offers', 'overview']] as [$view, $section]) {
             $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => $view, 'initialSection' => $section]);
             $xpath = $this->xpath($component->html());
@@ -61,7 +62,7 @@ class PlanningTopbarNavigationTest extends TestCase
             $this->assertTrue($group->hasAttribute('data-multi-toggle'));
             $this->assertSame('setPlanningView', $group->getAttribute('wire:target'));
             $buttons = $xpath->query('.//button[@data-multi-toggle-option]', $group);
-            $this->assertSame(4, $buttons->length);
+            $this->assertSame(5, $buttons->length);
             foreach ($buttons as $index => $button) {
                 $value = array_keys($expected)[$index];
                 $this->assertSame($value, $button->getAttribute('data-toggle-value'));
@@ -71,7 +72,7 @@ class PlanningTopbarNavigationTest extends TestCase
                 $this->assertSame($value === $selected ? 'true' : 'false', $button->getAttribute('aria-pressed'));
                 $this->assertSame('setPlanningView', $button->getAttribute('wire:target'));
             }
-            $this->assertSame($view === 'offers' ? 0 : 1, $xpath->query('.//button[@data-multi-toggle-option and @aria-pressed="true"]', $group)->length);
+            $this->assertSame(1, $xpath->query('.//button[@data-multi-toggle-option and @aria-pressed="true"]', $group)->length);
             $this->assertSame(0, $xpath->query('//*[@id="case-shift-section"]')->length);
             $this->assertSame(0, $xpath->query('//*[@id="case-workspace-view" and not(ancestor::template[@*[name()="x-teleport"]="[data-topbar-planning-navigation]"])]')->length);
             $this->assertSame(1, $xpath->query('//*[@data-case-workspace and @*[name()="x-data"]]')->length);
@@ -88,21 +89,22 @@ class PlanningTopbarNavigationTest extends TestCase
                 Gate::define($ability, fn (User $user): bool => $user->is($actor) && in_array($ability, $abilities, true));
             }
             $planning = OperationsPages::planningShortcuts($actor);
-            $expected = in_array('operations.manage', $abilities, true) ? ['orders', 'shifts', 'calendar'] : ['inbox'];
+            $expected = in_array('operations.manage', $abilities, true) ? ['offers', 'orders', 'shifts', 'calendar'] : ['inbox', 'offers'];
             $this->assertSame($expected, array_keys($planning));
             $component = Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => $expected[0]])->assertSuccessful();
             $xpath = $this->xpath($component->html());
             $buttons = $xpath->query('//*[@id="case-workspace-view"]//button[@data-multi-toggle-option]');
             $this->assertSame($expected, array_map(fn (\DOMElement $button): string => $button->getAttribute('data-toggle-value'), iterator_to_array($buttons)));
             $sidebar = collect(ApplicationNavigation::sections($actor)['Disposition'] ?? [])->filter(fn (array $item): bool => ($item['parameters']['page'] ?? '') === 'cases');
-            $this->assertSame($expected, $sidebar->map(fn (array $item): string => ($item['parameters']['section'] ?? '') === 'calendar' ? 'calendar' : $item['parameters']['view'])->values()->all());
-            $this->assertSame(array_column($planning, 'label'), $sidebar->pluck('title')->values()->all());
+            $sidebarExpected = in_array('operations.manage', $abilities, true) ? ['orders', 'offers', 'shifts', 'calendar'] : ['inbox', 'offers'];
+            $this->assertSame($sidebarExpected, $sidebar->map(fn (array $item): string => ($item['parameters']['section'] ?? '') === 'calendar' ? 'calendar' : $item['parameters']['view'])->values()->all());
+            $this->assertSame(array_map(fn (string $key): string => $planning[$key]['label'], $sidebarExpected), $sidebar->pluck('title')->values()->all());
             foreach ($sidebar as $item) {
-                $this->assertSame($item['parameters']['view'] === 'shifts' ? 'Planung' : null, $item['group']);
+                $this->assertSame(in_array($item['parameters']['view'], ['offers', 'shifts'], true) ? 'Planung' : null, $item['group']);
             }
-            $forbidden = $expected === ['inbox'] ? 'orders' : 'inbox';
+            $forbidden = $expected === ['inbox', 'offers'] ? 'orders' : 'inbox';
             $component->call('setPlanningView', $forbidden)->assertForbidden();
-            if ($expected === ['inbox']) {
+            if ($expected === ['inbox', 'offers']) {
                 Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => 'inbox'])->call('setPlanningView', 'calendar')->assertForbidden();
             }
         }
@@ -113,7 +115,7 @@ class PlanningTopbarNavigationTest extends TestCase
         $context = ['customer' => $this->customer->id, 'search' => 'Nord', 'status' => 'confirmed'];
         $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'orders', 'context' => $context]);
         $xpath = $this->xpath($component->html());
-        foreach (['orders', 'inbox', 'shifts', 'calendar'] as $target) {
+        foreach (['orders', 'inbox', 'offers', 'shifts', 'calendar'] as $target) {
             $button = $xpath->query('//*[@id="case-workspace-view"]//button[@data-toggle-value="'.$target.'"]')->item(0);
             $this->assertSame("setPlanningView('".$target."')", $button->getAttribute('wire:click'));
             $parameters = ['view' => $target === 'calendar' ? 'shifts' : $target];
@@ -121,7 +123,7 @@ class PlanningTopbarNavigationTest extends TestCase
                 $parameters['section'] = $target === 'calendar' ? 'calendar' : 'plan';
             }
             $parameters['customer'] = $this->customer->id;
-            if (! in_array($target, ['shifts', 'calendar'], true)) {
+            if (in_array($target, ['inbox', 'orders'], true)) {
                 $parameters['search'] = 'Nord';
             }
             if ($target === 'orders') {
@@ -131,6 +133,59 @@ class PlanningTopbarNavigationTest extends TestCase
         }
         $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('shifts', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_missing_offer_schema_hides_only_offer_shortcuts_and_preserves_the_four_existing_destinations(): void
+    {
+        Schema::drop('commercial_offer_revisions');
+        $this->assertFalse(CommercialOfferService::ready());
+        $expected = ['inbox', 'orders', 'shifts', 'calendar'];
+        $this->assertSame($expected, array_keys(OperationsPages::planningShortcuts($this->admin)));
+        $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'orders'])->assertSuccessful();
+        $xpath = $this->xpath($component->html());
+        $this->assertSame($expected, array_map(fn (\DOMElement $button): string => $button->getAttribute('data-toggle-value'), iterator_to_array($xpath->query('//*[@id="case-workspace-view"]//button[@data-multi-toggle-option]'))));
+        $links = collect(ApplicationNavigation::sections($this->admin)['Disposition'])->filter(fn (array $item): bool => ($item['parameters']['page'] ?? '') === 'cases');
+        $this->assertSame($expected, $links->map(fn (array $item): string => ($item['parameters']['section'] ?? '') === 'calendar' ? 'calendar' : $item['parameters']['view'])->values()->all());
+        $this->assertSame(0, $xpath->query('//*[@data-case-workspace]/header/button[@*[name()="wire:click"]="setView(\'offers\')"]')->length);
+        $component->call('setPlanningView', 'offers')->assertForbidden();
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('shifts', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_revoked_offer_permission_is_checked_on_the_action_while_the_cost_workspace_remains_allowed(): void
+    {
+        (require database_path('migrations/2026_10_06_102000_create_operations_enhancements.php'))->up();
+        $actor = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $inquiriesAllowed = true;
+        Gate::define('operations.inquiries.manage', function (User $user) use ($actor, &$inquiriesAllowed): bool {
+            return $user->is($actor) && $inquiriesAllowed;
+        });
+        Gate::define('operations.manage', fn (): bool => false);
+        Gate::define('customers.portal.manage', fn (): bool => false);
+        Gate::define('operations.costs.manage', fn (User $user): bool => $user->is($actor));
+        $component = Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => 'orders', 'initialSection' => 'costs'])->assertSuccessful();
+        $this->assertSame(['inbox', 'offers', 'orders'], array_keys(OperationsPages::planningShortcuts($actor)));
+        $inquiriesAllowed = false;
+        $this->assertSame(['orders'], array_keys(OperationsPages::planningShortcuts($actor)));
+        $links = collect(ApplicationNavigation::sections($actor)['Disposition'] ?? [])->where('parameters.page', 'cases');
+        $this->assertSame(['Aufträge'], $links->pluck('title')->values()->all());
+        $component->call('setPlanningView', 'offers')->assertForbidden();
+        Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => 'orders', 'initialSection' => 'costs'])->assertSuccessful()->assertDontSee('data-toggle-value="offers"', false);
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('commercial_offer_revisions', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_deactivated_actor_cannot_follow_a_previously_rendered_offer_shortcut(): void
+    {
+        $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'orders'])->assertSee('data-toggle-value="offers"', false);
+        $this->admin->forceFill(['status' => false])->save();
+        $this->assertSame([], OperationsPages::planningShortcuts($this->admin));
+        $component->call('setPlanningView', 'offers')->assertForbidden();
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('commercial_offer_revisions', 0);
         Http::assertNothingSent();
     }
 

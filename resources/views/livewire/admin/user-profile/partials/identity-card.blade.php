@@ -1,7 +1,5 @@
-{{-- Identitaets-Card: links die Person, rechts die Eckdaten.
-     Auf dem Telefon bleibt sie bewusst flach, damit das Tab-Menue
-     darunter ohne Scrollen sichtbar bleibt. --}}
-<div class="employee-profile__identity relative overflow-hidden rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-5" data-anim="fade-up">
+{{-- Eine zusammenhaengende Identitaet mit nachgeordneten Eckdaten. --}}
+<header class="employee-profile__identity" data-anim="fade-up">
 
   @php
       $teamName = $user->currentTeam?->name;
@@ -36,21 +34,20 @@
               : null,
           ['icon' => 'far fa-calendar-alt', 'label' => __('app.member_since'), 'value' => $user->created_at?->format('d.m.Y') ?: '—'],
           ['icon' => 'far fa-clock', 'label' => __('app.last_online'), 'value' => $lastActivityAt ? $lastActivityAt->format('d.m.Y H:i') : __('app.never')],
-          ['icon' => 'far fa-hashtag', 'label' => __('app.user_id'), 'value' => (string) $user->id],
       ]));
   @endphp
 
-  <div class="employee-profile__identity-layout relative grid gap-4 sm:grid-cols-2 sm:gap-6">
+  <div class="employee-profile__identity-layout">
       {{-- Spalte 1: Person. Der Kontostatus haengt am Bild statt als Badge
            unter der Adresse: gruener oder grauer Punkt fuer die Anwesenheit,
            ein rotes Zeichen nur dann, wenn das Konto gesperrt ist. --}}
-      <div class="flex min-w-0 items-center gap-3 sm:gap-4">
-          <span class="relative shrink-0">
+      <div class="employee-profile__person">
+          <span class="employee-profile__portrait relative shrink-0">
               <img
                   src="{{ $user->profile_photo_url }}"
                   alt="{{ $user->name }}"
                   @class([
-                      'h-14 w-14 rounded-2xl object-cover shadow-rt-sm ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60 sm:h-20 sm:w-20',
+                      'object-cover',
                       'opacity-60 grayscale' => ! $user->isActive(),
                   ])
               >
@@ -65,21 +62,11 @@
                   </span>
               @endunless
 
-              <span
-                  class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-rt-surface dark:bg-rt-dark-surface"
-                  title="{{ $isUserOnline ? __('app.online') : __('app.offline') }}"
-              >
-                  <span @class([
-                      'h-2.5 w-2.5 rounded-full',
-                      'bg-emerald-500 dark:bg-emerald-400' => $isUserOnline,
-                      'bg-slate-300 dark:bg-slate-600' => ! $isUserOnline,
-                  ])></span>
-                  <span class="sr-only">{{ $isUserOnline ? __('app.online') : __('app.offline') }}</span>
-              </span>
           </span>
 
-          <div class="min-w-0 flex-1">
-              <div class="min-w-0 max-w-full">
+          <div class="employee-profile__person-copy">
+              <p class="employee-profile__eyebrow">Personalakte <span aria-hidden="true">·</span> <span aria-label="{{ __('app.user_id') }}">#{{ $user->id }}</span></p>
+              <div class="employee-profile__name">
                   <x-ui.inline-edit-field
                       id="employee-header-name"
                       field="name"
@@ -88,11 +75,11 @@
                       autocomplete="name"
                       align="left"
                   >
-                      <span class="truncate text-lg font-semibold tracking-tight sm:text-xl">{{ $user->name }}</span>
+                      <span class="employee-profile__name-text" title="{{ $user->name }}">{{ $user->name }}</span>
                   </x-ui.inline-edit-field>
               </div>
 
-              <div class="mt-0.5 max-w-full">
+              <div class="employee-profile__email">
                   <x-ui.inline-edit-field
                       id="employee-header-email"
                       field="email"
@@ -101,40 +88,37 @@
                       autocomplete="email"
                       align="left"
                   >
-                      <span class="truncate text-sm text-rt-muted dark:text-rt-dark-muted">{{ $user->email }}</span>
+                      <span class="employee-profile__email-text" title="{{ $user->email }}">{{ $user->email }}</span>
                   </x-ui.inline-edit-field>
               </div>
 
-              @if ($identityBadges !== [])
-                  <div class="mt-1.5 flex flex-wrap items-center gap-1">
+                  <div class="employee-profile__identity-labels">
                       @foreach ($identityBadges as $badge)
                           <x-ui.badge :color="$badge['color']" class="!px-2 !py-0.5 !text-[11px]" :title="$badge['title']">
                               <i class="{{ $badge['icon'] }}" aria-hidden="true"></i>
                               {{ $badge['value'] }}
                           </x-ui.badge>
                       @endforeach
+                      <span class="employee-profile__presence" data-online="{{ $user->isActive() && $isUserOnline ? 'true' : 'false' }}">
+                          <span aria-hidden="true"></span>
+                          {{ ! $user->isActive() ? ucfirst(__('app.inactive')) : ($isUserOnline ? __('app.online') : __('app.offline')) }}
+                      </span>
                   </div>
-              @endif
           </div>
       </div>
 
-      {{-- Spalte 2: Eckdaten. Mobil nur die beiden wichtigsten Zeilen,
-           damit die Karte flach bleibt. --}}
-      <dl class="employee-profile__facts grid grid-cols-1 gap-x-6 gap-y-2 border-t border-rt-border/60 pt-3 text-sm dark:border-rt-dark-border/60 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0 lg:grid-cols-2">
+      <dl class="employee-profile__facts">
           @foreach ($identityFacts as $index => $fact)
-              <div @class([
-                  'flex min-w-0 items-center justify-between gap-3',
-                  'hidden sm:flex' => $index >= 2,
-              ])>
-                  <dt class="flex shrink-0 items-center gap-2 text-xs text-rt-muted dark:text-rt-dark-muted">
+              <div class="employee-profile__fact">
+                  <dt>
                       <i class="{{ $fact['icon'] }} w-3.5 text-center" aria-hidden="true"></i>
                       {{ $fact['label'] }}
                   </dt>
-                  <dd class="min-w-0 truncate text-right text-sm font-semibold text-rt-text dark:text-rt-dark-text">
+                  <dd title="{{ $fact['value'] }}">
                       {{ $fact['value'] }}
                   </dd>
               </div>
           @endforeach
       </dl>
   </div>
-</div>
+</header>

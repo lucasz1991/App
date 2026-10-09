@@ -414,6 +414,40 @@ class DropboxSyncTest extends TestCase
         }
     }
 
+    public function test_template_ignores_contact_sheets_before_planning_with_or_without_master(): void
+    {
+        foreach (['WTU Abrechnung + Übersicht', 'Mitarbeiterblatt'] as $planningTitle) {
+            $file = tempnam(sys_get_temp_dir(), 'rt-mixed-template-');
+            file_put_contents($file, $this->workbook(headerColor: 'FF123456'));
+            $book = null;
+            try {
+                $book = IOFactory::load($file);
+                $book->getActiveSheet()->setTitle($planningTitle);
+                $contacts = $book->createSheet()->setTitle('Kontaktliste extern DL');
+                $contacts->setCellValue('A3', 1);
+                $contacts->setCellValue('B3', 'Kontakt darf nicht in Vorlage erscheinen');
+                $book->setIndexByName('Kontaktliste extern DL', 0);
+                (new Xlsx($book))->save($file);
+                $template = app(TemplateService::class)->install(file_get_contents($file));
+                $bytes = app(TemplateService::class)->load($template);
+                $parsed = app(WorkbookReader::class)->read($bytes, 'weekly');
+                $this->assertSame([], $parsed['rows']);
+                $this->assertSame(['WTU Abrechnung + Übersicht'], array_keys($parsed['sheets']));
+                file_put_contents($file, $bytes);
+                $clean = IOFactory::load($file);
+                try {
+                    $this->assertSame('FF123456', $clean->getActiveSheet()->getStyle('B1')->getFill()->getStartColor()->getARGB());
+                    $this->assertNull($clean->getActiveSheet()->getCell('B3')->getValue());
+                } finally {
+                    $clean->disconnectWorksheets();
+                }
+            } finally {
+                $book?->disconnectWorksheets();
+                unlink($file);
+            }
+        }
+    }
+
     public function test_manual_mapping_rechecks_business_contents_and_does_not_create_a_duplicate(): void
     {
         $source = $this->source($this->workbook());

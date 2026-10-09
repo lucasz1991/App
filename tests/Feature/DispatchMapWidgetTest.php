@@ -200,14 +200,18 @@ class DispatchMapWidgetTest extends TestCase
             DB::disableQueryLog();
             $this->assertSame(0, $data['totals'][$hiddenType]);
             $this->assertSame([$shownType], array_unique(array_column($data['items'], 'type')));
+            $this->assertSame([$shownType], array_unique(array_column($data['markers'][0]['items'], 'type')));
+            $this->assertSame(0, $data['markers'][0][$shownType === 'shift' ? 'inquiryCount' : 'shiftCount']);
+            $this->assertStringNotContainsString('PRIVATE ORIGINAL', json_encode($data['markers']));
             $this->assertFalse(collect($queries)->contains(fn (array $query) => str_contains(strtolower($query['query']), 'from "'.$table.'"')));
             $component = $this->grid($user)->assertOk();
             $xpath = $this->xpath($component->html());
-            $kindInputs = '//*[@data-dispatch-map]//input[@type="radio" and @x-model="kind"]';
+            $widget = '//article[@data-widget-key="operations_dispatch_map"]';
+            $kindInputs = $widget.'//input[@type="radio" and @x-model="kind"]';
             $this->assertSame(0, $xpath->query($kindInputs.'[@value="'.($shownType === 'shift' ? 'inquiry' : 'shift').'"]')->length);
             $this->assertSame(1, $xpath->query($kindInputs.'[@value="'.$shownType.'"]')->length);
             $this->assertSame(1, $xpath->query($kindInputs.'[@value="all"]')->length);
-            $this->assertSame(1, $xpath->query('//*[@data-dispatch-map]//input[@type="radio" and @x-model="place" and @value="'.$data['markers'][0]['key'].'"]')->length);
+            $this->assertSame(1, $xpath->query($widget.'//input[@type="radio" and @x-model="place" and @value="'.$data['markers'][0]['key'].'"]')->length);
         }
     }
 
@@ -229,8 +233,71 @@ class DispatchMapWidgetTest extends TestCase
         $this->assertSame(100, $data['displayedCount']);
         $this->assertCount(100, $data['items']);
         $this->assertCount(100, $data['markers'][0]['itemKeys']);
+        $this->assertCount(3, $data['markers'][0]['items']);
+        $this->assertSame(3, $data['markers'][0]['detailsPerType']);
+        $this->assertTrue($data['markers'][0]['detailsTruncated']);
         $this->assertTrue($data['truncated']);
         $this->assertSame(100, $data['itemsPerType']);
+    }
+
+    public function test_every_marker_has_bounded_safe_native_details_after_global_lists_are_full_without_extra_queries(): void
+    {
+        foreach ([$this->shift(), $this->inquiry()] as $record) {
+            $template = $record->getAttributes();
+            $rows = [];
+            for ($index = 0; $index < 100; $index++) {
+                $row = $template;
+                unset($row['id']);
+                $row['public_id'] = (string) Str::uuid();
+                $rows[] = $row;
+            }
+            DB::table($record->getTable())->insert($rows);
+        }
+        $lateShift = $this->shift(['title' => 'Late native shift', 'location_name' => 'Berlin']);
+        $lateInquiry = $this->inquiry(['title' => 'Late native inquiry', 'location_name' => 'Berlin']);
+        $assigned = User::factory()->create(['role' => 'staff', 'status' => true]);
+        ShiftAssignment::create(['shift_id' => $lateShift->id, 'user_id' => $assigned->id, 'status' => 'confirmed']);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        try {
+            $data = $this->map();
+            $queries = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+        }
+        $this->assertSame([102, 102, 204, 200], [$data['shiftsCount'], $data['inquiriesCount'], $data['locatedCount'], $data['displayedCount']]);
+        $this->assertCount(2, $data['markers']);
+        $this->assertTrue($data['truncated']);
+        $this->assertNotContains('shift-'.$lateShift->id, array_column($data['items'], 'key'));
+        $this->assertNotContains('inquiry-'.$lateInquiry->id, array_column($data['items'], 'key'));
+        $lateMarker = collect($data['markers'])->firstWhere('place', 'Berlin');
+        $this->assertSame([1, 1, 2], [$lateMarker['shiftCount'], $lateMarker['inquiryCount'], $lateMarker['count']]);
+        $this->assertSame([], $lateMarker['itemKeys']);
+        $this->assertFalse($lateMarker['detailsTruncated']);
+        $this->assertEqualsCanonicalizing(['shift-'.$lateShift->id, 'inquiry-'.$lateInquiry->id], array_column($lateMarker['items'], 'key'));
+        $shiftDetails = collect($lateMarker['items'])->firstWhere('type', 'shift');
+        $this->assertSame('Late native shift', $shiftDetails['title']);
+        $this->assertSame('06:00–14:00', $shiftDetails['timeLabel']);
+        $this->assertSame('Berlin', $shiftDetails['locationLabel']);
+        $this->assertSame('located', $shiftDetails['location']['state']);
+        $this->assertSame(1, $shiftDetails['assignedStaff']);
+        $this->assertSame(OperationsPages::moduleUrl('shift-management', ['shift' => $lateShift->id, 'from' => '2026-10-09', 'until' => '2026-10-09']), $shiftDetails['href']);
+        $this->assertSame(OperationsPages::moduleUrl('inquiries', ['inquiry' => $lateInquiry->id]), collect($lateMarker['items'])->firstWhere('type', 'inquiry')['href']);
+        $firstMarker = collect($data['markers'])->firstWhere('place', 'Hamburg');
+        $this->assertSame([101, 101, 202], [$firstMarker['shiftCount'], $firstMarker['inquiryCount'], $firstMarker['count']]);
+        $this->assertTrue($firstMarker['detailsTruncated']);
+        $this->assertCount(6, $firstMarker['items']);
+        foreach (['shift', 'inquiry'] as $type) {
+            $this->assertCount(3, array_filter($firstMarker['items'], fn (array $item) => $item['type'] === $type));
+        }
+        $this->assertStringNotContainsString('PRIVATE ORIGINAL', json_encode($data['markers']));
+        foreach (['shifts', 'operation_inquiries'] as $table) {
+            $this->assertCount(1, array_filter($queries, fn (array $query) => str_contains(strtolower($query['query']), 'from "'.$table.'"')), 'Marker samples must not query individual records.');
+        }
+        $this->assertDatabaseCount('shifts', 102);
+        $this->assertDatabaseCount('operation_inquiries', 102);
+        $this->assertDatabaseCount('shift_assignments', 1);
     }
 
     public function test_day_filter_is_correct_on_spring_and_autumn_dst_changes(): void
@@ -259,8 +326,8 @@ class DispatchMapWidgetTest extends TestCase
             ->assertDontSeeHtml('<script>alert("title")</script>')
             ->assertDontSeeHtml('<img src=x onerror=alert(1)>');
         $xpath = $this->xpath($component->html());
-        $map = '//*[@data-dispatch-map]';
-        $toolbar = $map.'/*[contains(concat(" ", normalize-space(@class), " "), " wv-dispatch-map__toolbar ")]';
+        $widget = '//article[@data-widget-key="operations_dispatch_map"]';
+        $toolbar = $widget.'//*[contains(concat(" ", normalize-space(@class), " "), " wv-dispatch-map__toolbar ")]';
         $this->assertSame(1, $xpath->query($toolbar)->length);
         $triggers = $xpath->query($toolbar.'//*[@data-rt-dropdown-trigger]/button');
         $this->assertSame(3, $triggers->length);
@@ -269,11 +336,11 @@ class DispatchMapWidgetTest extends TestCase
             $this->assertNotSame('', trim($trigger->getAttribute('aria-label')));
             $this->assertSame('', trim($trigger->textContent), 'Toolbar triggers must contain only icons.');
         }
-        $dialogs = $map.'//*[@role="dialog"]';
+        $dialogs = $toolbar.'//*[@role="dialog"]';
         $this->assertSame(3, $xpath->query($dialogs.'[@aria-label]')->length);
         $this->assertSame(1, $xpath->query($dialogs.'//input[@type="date"]')->length);
-        $this->assertSame(0, $xpath->query($map.'//input[@type="date" and not(ancestor::*[@role="dialog"])]')->length);
-        $this->assertSame(0, $xpath->query($map.'//select')->length);
+        $this->assertSame(0, $xpath->query($widget.'//input[@type="date" and not(ancestor::*[@role="dialog"])]')->length);
+        $this->assertSame(0, $xpath->query($widget.'//select')->length);
         foreach (['kind', 'place'] as $model) {
             $radios = $xpath->query($dialogs.'//input[@type="radio" and @x-model="'.$model.'"]');
             $this->assertGreaterThanOrEqual(2, $radios->length);

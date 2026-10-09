@@ -10,6 +10,7 @@ use App\Models\Shift;
 use App\Support\Operations\OperationsAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class Calendar extends Component
@@ -32,6 +33,15 @@ class Calendar extends Component
     public string $statusFilter = 'active';
 
     public bool $onlyOpen = false;
+
+    /** Seitenpanel wie im Schichtplan (rtShiftDetailDrawer): Details einer angeklickten Schicht. */
+    public bool $detailOpen = false;
+
+    /** Vom gemeinsamen Drawer mitgeführt; der Kalender hat kein eigenes Schichtformular. */
+    public bool $formOpen = false;
+
+    #[Locked]
+    public ?int $selectedShiftId = null;
 
     public function mount(): void
     {
@@ -133,6 +143,15 @@ class Calendar extends Component
         $this->weekStart = $date->startOfWeek()->toDateString();
     }
 
+    public function openDetails(int $id): void
+    {
+        $this->ensureAdmin();
+        Shift::query()->findOrFail($id);
+        $this->selectedShiftId = $id;
+        $this->detailOpen = true;
+        $this->formOpen = false;
+    }
+
     public function openShift(int $id): void
     {
         $this->ensureAdmin();
@@ -228,7 +247,12 @@ class Calendar extends Component
             ];
         });
 
+        $selectedShift = $this->detailOpen && $this->selectedShiftId
+            ? Shift::query()->with(['order.customer', 'assignments.user.profile', 'assignments.user.currentTeam', 'qualifications'])->find($this->selectedShiftId)
+            : null;
+
         return view('livewire.admin.operations.calendar', [
+            'selectedShift' => $selectedShift,
             'days' => $days, 'shifts' => $shifts,
             'weekStartDate' => $from, 'weekEndDate' => $until->subDay(),
             'periodLabel' => match ($this->viewMode) {

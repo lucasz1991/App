@@ -19,7 +19,7 @@
     $profilePrefix = 'employee-profile-'.$user->id;
   @endphp
 
-  <x-dynamic-component :component="$embedded ? 'operations.surface' : 'ui.page'" :title="$embedded ? null : $user->name" :eyebrow="__('app.employees')" :description="$user->email" :auto-intro="!$embedded">
+  <x-dynamic-component :component="$embedded ? 'operations.surface' : 'ui.page'" :title="$embedded ? null : 'Mitarbeiterprofil'" :eyebrow="__('app.employees')" :description="$user->email" :auto-intro="!$embedded">
     <x-slot:actions>
         <x-ui.dropdown.page-actions width="48">
             @if ($user->status)

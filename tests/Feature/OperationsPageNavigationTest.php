@@ -415,6 +415,7 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertSame([OperationsPages::url('cases', ['view' => 'orders'])], array_column(array_filter($options, fn ($option) => $option['selected']), 'value'));
         foreach ([array_column($options, 'value'), $this->sidebarDestinations($sidebar)] as $targets) {
             $this->assertContains(OperationsPages::url('cases', ['view' => 'inbox']), $targets);
+            $this->assertContains(OperationsPages::url('cases', ['view' => 'offers']), $targets);
             $this->assertContains(OperationsPages::url('cases', ['view' => 'orders']), $targets);
             $this->assertContains(OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan']), $targets);
             $this->assertContains(OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'calendar']), $targets);
@@ -440,10 +441,10 @@ class OperationsPageNavigationTest extends TestCase
         $sections = ApplicationNavigation::sections($actor);
         $this->assertSame(['', 'Disposition'], array_slice(array_keys($sections), 0, 2));
         $this->assertSame(['Dashboard', 'Arbeitsliste'], array_column($sections[''], 'title'));
-        $this->assertSame(['cases', 'cases', 'cases', 'cases', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
+        $this->assertSame(['cases', 'cases', 'cases', 'cases', 'cases', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
         $planning = ApplicationNavigation::groups($sections['Disposition'])['Planung'];
         $this->assertSame('calendar', $planning['icon']);
-        $this->assertSame(['Schichtplan', 'Kalender', 'Bedarf & Planung'], array_column($planning['links'], 'title'));
+        $this->assertSame(['Angebote', 'Schichtplan', 'Kalender', 'Ressourcen & Kapazität'], array_column($planning['links'], 'title'));
         $this->assertSame(['Eingang', 'Aufträge', 'Leitstelle'], collect($sections['Disposition'])->whereNull('group')->pluck('title')->values()->all());
         $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Vorgänge & Aufträge'));
         $sidebar = view('layouts.application-navigation')->render();
@@ -458,9 +459,9 @@ class OperationsPageNavigationTest extends TestCase
     {
         $this->operations();
         foreach ([
-            [['operations.inquiries.manage'], ['inbox'], [], ['Eingang']],
+            [['operations.inquiries.manage'], ['inbox', 'offers'], ['Angebote'], ['Eingang']],
             [['customers.portal.manage'], ['inbox'], [], ['Eingang']],
-            [['operations.manage'], ['orders', 'shifts'], ['Schichtplan', 'Kalender', 'Bedarf & Planung'], ['Aufträge', 'Leitstelle']],
+            [['operations.manage'], ['offers', 'orders', 'shifts'], ['Angebote', 'Schichtplan', 'Kalender', 'Ressourcen & Kapazität'], ['Aufträge', 'Leitstelle']],
             [['operations.costs.manage'], ['orders'], [], ['Aufträge']],
             [[], [], [], []],
         ] as [$abilities, $views, $labels, $directLabels]) {
@@ -478,6 +479,31 @@ class OperationsPageNavigationTest extends TestCase
         $actor->update(['status' => false]);
         $this->assertSame([], OperationsPages::planningViews($actor));
         $this->assertArrayNotHasKey('Planung', ApplicationNavigation::groups(ApplicationNavigation::sections($actor)['Disposition'] ?? []));
+    }
+
+    public function test_resource_workspace_uses_one_title_for_sidebar_and_actual_page_heading_without_changing_its_target_or_views(): void
+    {
+        $this->operations();
+        Schema::table('shifts', fn (Blueprint $table) => $table->json('disposition_details')->nullable());
+        $actor = $this->actor(['operations.manage']);
+        $definition = OperationsPages::definitions()['planning'];
+        $this->assertSame('Ressourcen & Kapazität', $definition['title']);
+        $this->assertSame(['overview', 'capacity', 'staff', 'tools', 'logistics'], array_keys(OperationsPages::views($actor, 'planning')));
+        $links = ApplicationNavigation::sections($actor)['Disposition'];
+        $resourceLink = collect($links)->first(fn (array $item): bool => ($item['parameters']['page'] ?? '') === 'planning');
+        $this->assertSame(['page' => 'planning'], $resourceLink['parameters']);
+        $this->assertSame('Planung', $resourceLink['group']);
+        $this->assertSame($definition['title'], $resourceLink['title']);
+        $this->assertSame(OperationsPages::url('planning'), route($resourceLink['route'], $resourceLink['parameters']));
+        $component = Livewire::actingAs($actor)->test(PageWorkspace::class, ['page' => 'planning'])->assertSuccessful();
+        $xpath = $this->navigationXPath($component->html());
+        $headings = $xpath->query('//*[@data-page-header]//h1');
+        $this->assertSame(1, $headings->length);
+        $this->assertSame($definition['title'], trim($headings->item(0)->textContent));
+        $this->assertSame($definition['title'], $headings->item(0)->getAttribute('title'));
+        $this->assertSame(0, $xpath->query('//*[@data-page-header]//h1[@title="Bedarf & Planung"]')->length);
+        Mail::assertNothingSent();
+        Bus::assertNothingDispatched();
     }
 
     #[DataProvider('planningActiveDestinations')]
@@ -504,12 +530,15 @@ class OperationsPageNavigationTest extends TestCase
         return [
             'default inbox' => [...$page, [], 'Eingang'],
             'inbox ai section' => [...$page, ['view' => 'inbox', 'section' => 'ai-intake'], 'Eingang'],
+            'offers customer' => [...$page, ['view' => 'offers', 'customer' => '123'], 'Angebote'],
+            'offers revision' => [...$page, ['view' => 'offers', 'inquiry' => '12', 'revision' => '2'], 'Angebote'],
             'orders detail' => [...$page, ['view' => 'orders', 'section' => 'overview', 'order' => '12'], 'Aufträge'],
             'default shift section' => [...$page, ['view' => 'shifts'], 'Schichtplan'],
             'explicit plan section' => [...$page, ['view' => 'shifts', 'section' => 'plan'], 'Schichtplan'],
             'calendar section' => [...$page, ['view' => 'shifts', 'section' => 'calendar'], 'Kalender'],
             'old shifts page' => ['/arbeitsplatz/ansicht/shifts', 'operations.page', 'arbeitsplatz/ansicht/{page}', [], 'Schichtplan'],
             'old calendar page' => ['/arbeitsplatz/ansicht/shifts', 'operations.page', 'arbeitsplatz/ansicht/{page}', ['view' => 'calendar'], 'Kalender'],
+            'resources page' => ['/arbeitsplatz/ansicht/planning', 'operations.page', 'arbeitsplatz/ansicht/{page}', ['view' => 'staff'], 'Ressourcen & Kapazität'],
             'legacy inbox' => ['/arbeitsplatz/inquiries', ...$legacy, [], 'Eingang'],
             'legacy orders' => ['/arbeitsplatz/orders', ...$legacy, [], 'Aufträge'],
             'legacy plan' => ['/arbeitsplatz/shift-management', ...$legacy, [], 'Schichtplan'],

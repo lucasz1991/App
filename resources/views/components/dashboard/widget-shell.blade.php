@@ -20,6 +20,7 @@
     <header class="widget-card-head">
         <span class="widget-card-ico ops-tone-{{ $tone ?? 'neutral' }}"><i data-feather="{{ $item['icon'] }}"></i></span>
         <h3 title="{{ $item['title'] }}">{{ $item['title'] }}</h3>
+        {{ $headerControls ?? '' }}
         @if($editing)
             <div class="widget-card-controls">
                 <div class="widget-move-buttons">

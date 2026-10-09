@@ -15,7 +15,8 @@ class TemplateService
     public function install(string $bytes): array
     {
         $parsed = app(WorkbookReader::class)->read($bytes, 'weekly');
-        $sourceName = collect($parsed['sheets'])->filter(fn ($s) => $s['master'])->keys()->first() ?? array_key_first($parsed['sheets']);
+        $planningSheets = collect($parsed['sheets'])->filter(fn ($s) => isset($s['header'], $s['columns']));
+        $sourceName = $planningSheets->filter(fn ($s) => $s['master'] ?? false)->keys()->first() ?? $planningSheets->keys()->first();
         if (! $sourceName) {
             throw ValidationException::withMessages(['template' => 'Keine Dispositionsüberschrift erkannt.']);
         }

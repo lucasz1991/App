@@ -3,7 +3,7 @@
     data-dashboard-widget-grid
     data-editing="{{ $editing ? 'true' : 'false' }}"
     wire:poll.60s
-    x-data="{ pickerOpen: false }"
+    x-data="{ pickerOpen: false, kind: 'all', place: 'all', day: null }"
     @keydown.escape.window="pickerOpen = false; if ($el.dataset.editing === 'true') $wire.toggleEditing()"
     @click="if ($el.dataset.editing === 'true' && ! $event.target.closest('[data-widget-item], .widget-sidebar, .widget-sidebar-backdrop, button, a')) $wire.toggleEditing()"
 >
@@ -35,6 +35,11 @@
     <div class="widget-grid" data-widget-track data-editing="{{ $editing ? 'true' : 'false' }}" x-data="dashboardWidgetGrid" data-anim-stagger>
         @forelse($visible as $item)
             <x-dashboard.widget-shell :item="$item" :editing="$editing" :tone="$widgetData[$item['key']]['tone'] ?? null">
+                @if($item['key'] === 'operations_dispatch_map')
+                    <x-slot:headerControls>
+                        @include('dashboard.widgets.partials.dispatch-map-controls', ['data' => $widgetData[$item['key']]])
+                    </x-slot:headerControls>
+                @endif
                 @include('dashboard.widgets.' . $item['key'], ['data' => $widgetData[$item['key']] ?? [], 'size' => $item['size'], 'rows' => $item['rows']])
             </x-dashboard.widget-shell>
         @empty
