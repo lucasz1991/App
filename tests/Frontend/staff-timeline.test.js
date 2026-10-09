@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
-import { staffTimeline, timelineDayWidth, timelineDayOffset, timelineEventLanes } from '../../resources/js/staff-timeline.js';
+import { staffTimeline, timelineDayWidth, timelineDayOffset, timelineEventLanes, timelineFocusOffset } from '../../resources/js/staff-timeline.js';
 import { timelinePlanning } from '../../resources/js/timeline-planning-actions.js';
 
 function planningFixture() {
@@ -767,4 +767,15 @@ test('destroy disconnects observers and cancels pending layout work', () => {
     assert.equal(disconnected, true);
     assert.equal(contentDisconnected, true);
     assert.equal(cancelled, 12);
+});
+
+test('a focused day outside the visible days is scrolled to its start, a visible one stays put', () => {
+    // 7 days à 200px, 3 visible, currently at Monday.
+    assert.equal(timelineFocusOffset(5, 200, 0, 600, 800), 800);
+    assert.equal(timelineFocusOffset(4, 200, 0, 600, 800), 800);
+    assert.equal(timelineFocusOffset(1, 200, 0, 600, 800), null);
+    assert.equal(timelineFocusOffset(2, 200, 0, 600, 800), null);
+    assert.equal(timelineFocusOffset(0, 200, 400, 600, 800), 0);
+    assert.equal(timelineFocusOffset(-1, 200, 0, 600, 800), null);
+    assert.equal(timelineFocusOffset(3, 0, 0, 600, 800), null);
 });

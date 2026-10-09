@@ -5,6 +5,8 @@ namespace App\Livewire\Admin\Operations;
 use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
+use App\Livewire\Operations\AiAssist;
+use App\Livewire\Operations\StaffTimeline;
 use App\Models\Customer;
 use App\Models\OperationAudit;
 use App\Models\Order;
@@ -33,7 +35,6 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
-use App\Livewire\Operations\StaffTimeline;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -161,6 +162,8 @@ class ShiftManagement extends Component
         $this->rangeTo = $validated['rangeTo'];
         $this->resetDistributionPages();
         $this->resetValidation(['rangeFrom', 'rangeTo']);
+        // AI-Assist rechnet Vorschläge für denselben Zeitraum.
+        $this->dispatch('operations-period-changed', from: $this->rangeFrom, until: $this->rangeTo)->to(AiAssist::class);
     }
 
     public function updatedRangeFrom(): void

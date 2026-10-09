@@ -1,5 +1,9 @@
 <section class="rt-staff-timeline-layout min-w-0" aria-label="Mitarbeiter-Zeitleiste"
     x-data="rtTimelinePlanning(@js($this->getId()))" x-on:operations-plan-changed.window="invalidate()">
+@if($planningEnabled && !$absencesOnly && $showSuggestions && !$suggestionsReady)
+    {{-- Plan zuerst, Besetzungsvorschläge im Folgeaufruf --}}
+    <span hidden wire:init="loadSuggestions" data-timeline-suggestions-pending></span>
+@endif
 @if(!$absencesOnly)
     @if($searchInHeader)
         <template x-teleport="[data-topbar-page-search]" wire:key="timeline-topbar-search-{{ $this->getId() }}">
@@ -13,7 +17,7 @@
     x-on:pointerover.window="pointerPersonnel($event)" x-on:pointerout.window="pointerPersonnel($event)"
     x-on:focusin.window="focusPersonnel($event.target)" x-on:focusout.window="focusPersonnel($event.relatedTarget)"
     data-no-sidebar-swipe data-rt-dropdown-scroll-root data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? 'true' : 'false' }}">
-    <div class="rt-timeline-loading-indicator" style="display: none" wire:loading.delay.flex wire:target="search,loadMore,refreshPlanning" role="status" aria-live="polite">
+    <div class="rt-timeline-loading-indicator" style="display: none" wire:loading.delay.flex wire:target="search,loadMore,refreshPlanning,loadSuggestions" role="status" aria-live="polite">
         <i class="far fa-spinner-third" aria-hidden="true"></i><span>Lädt …</span>
     </div>
     <div class="rt-personnel-timeline-header">

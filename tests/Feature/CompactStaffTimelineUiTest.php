@@ -15,7 +15,7 @@ class CompactStaffTimelineUiTest extends TestCase
         $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
         $css = file_get_contents(resource_path('css/operations-planning.css'));
         $this->assertStringContainsString('data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? \'true\' : \'false\' }}"', $view);
-        $this->assertStringContainsString('wire:loading.delay.flex wire:target="search,loadMore,refreshPlanning"', $view);
+        $this->assertStringContainsString('wire:loading.delay.flex wire:target="search,loadMore,refreshPlanning,loadSuggestions"', $view);
         $this->assertStringContainsString('class="rt-timeline-loading-indicator" style="display: none"', $view);
         $this->assertStringContainsString('role="status" aria-live="polite"', $view);
         $this->assertStringContainsString('pointer-events: none', $this->cssDeclarationsFor($css, '.rt-timeline-loading-indicator'));
@@ -522,10 +522,13 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringContainsString('far fa-spinner-third', $view);
     }
 
-    public function test_distribution_pagination_uses_the_shared_dropdown_keep_open_contract(): void
+    public function test_distribution_pagination_lives_in_the_sidebar_without_dropdown_contracts(): void
     {
         $view = file_get_contents(resource_path('views/livewire/admin/operations/partials/pending-distribution.blade.php'));
-        $this->assertStringContainsString('class="rt-shift-distribution__pagination" data-rt-dropdown-keep-open', $view);
+        // Seitenpanel statt Aufklapper: Blättern bleibt im Panel, ohne Dropdown-Schließlogik.
+        $this->assertStringContainsString('<nav class="rt-shift-distribution__pagination" aria-label="Offene Schichten blättern">', $view);
+        $this->assertStringContainsString('<nav class="rt-shift-distribution__pagination" aria-label="Ungeplante Leistungen blättern">', $view);
+        $this->assertStringNotContainsString('data-rt-dropdown-keep-open', $view);
     }
 
     public function test_timeline_uses_shared_people_compact_rows_and_native_snapping_without_empty_markers(): void

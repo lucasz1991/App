@@ -65,6 +65,7 @@ import { railtimeChatbot } from './chatbot';
 // Repo, ist aber nicht mehr eingebunden — der Assistent traegt jetzt die
 // AI-Partikelwolke mit RT-Morph.
 import { railtimeAssistantCloud } from './assistant-particle-cloud';
+import { aiAssist } from './ai-assist';
 import {
     createNavigationParticleSphere,
     resolveMinimumLoaderPlaybackDelay,
@@ -694,6 +695,7 @@ Alpine.data('systemHealth', systemHealth);
 Alpine.data('welcomeIntro', welcomeIntro);
 Alpine.data('railtimeChatbot', railtimeChatbot);
 Alpine.data('railtimeAssistantCloud', railtimeAssistantCloud);
+Alpine.data('rtAiAssist', aiAssist);
 Alpine.data('chatMessageActions', chatMessageActions);
 Alpine.data('rtModalBody', modalBody);
 Alpine.data('filePreview', filePreview);

@@ -9,6 +9,14 @@ export function timelineDayOffset(offset, width, direction, maximum) {
     return Math.max(0, Math.min(maximum, (Math.round(offset / width) + direction) * width));
 }
 
+// Scroll target that brings a focused day fully into view, or null when it is already visible.
+export function timelineFocusOffset(index, width, offset, visible, maximum) {
+    if (index < 0 || !width) return null;
+    const start = index * width;
+    if (start >= offset - 1 && start + width <= offset + visible + 1) return null;
+    return Math.max(0, Math.min(maximum, start));
+}
+
 // Readable badges span the complete duty; their strip keeps short duties precise.
 export function timelineEventLanes(events, dayWidth) {
     const lanes = [];
@@ -94,7 +102,19 @@ export function clearStaffTimelineReveals(root) {
     root.querySelectorAll('[data-timeline-revealing]').forEach(restoreRevealTarget);
 }
 
+// The CSS keeps the first page hidden until this marker exists, so the server render never flashes before the entrance.
+export const TIMELINE_READY_ATTRIBUTE = 'data-rt-timeline-ready';
+
 export function revealStaffTimeline(root, grid, body) {
+    try {
+        startStaffTimelineReveal(root, grid, body);
+    } finally {
+        // Set after the tweens wrote their start values: no frame paints the targets between both steps.
+        root.ownerDocument?.documentElement?.setAttribute(TIMELINE_READY_ATTRIBUTE, 'true');
+    }
+}
+
+function startStaffTimelineReveal(root, grid, body) {
     if (root.dataset.timelineMotion !== 'true') return;
     const engine = typeof window !== 'undefined' ? window.gsap : null;
     let state = contentReveals.get(root);
@@ -161,6 +181,7 @@ export function staffTimeline() {
     return {
         canScrollLeft: false,
         canScrollRight: false,
+        focusDayIndex: -1,
         observer: null,
         contentObserver: null,
         resizeFrame: null,
@@ -374,7 +395,22 @@ export function staffTimeline() {
             this.measureEventLabels(width * days);
             if (resized) this.rebasePersonnelLayout(wasAtEnd, body.scrollLeft);
             else this.syncHorizontal(body, false);
+            this.followFocusDay(body, width);
             revealStaffTimeline(this.$el, this.$refs.timelineGrid, body);
+        },
+        // The shift chosen in "Noch zu verteilen" may lie outside the visible days: bring its day into view once.
+        followFocusDay(body, width) {
+            const header = this.$refs.timelineHeader;
+            if (typeof header?.querySelectorAll !== 'function' || typeof body.scrollTo !== 'function') return;
+            const heads = [...header.querySelectorAll('.rt-personnel-timeline-header-days > .rt-personnel-timeline-head')];
+            const index = heads.findIndex(head => head.dataset.focus === 'true');
+            if (index === this.focusDayIndex) return;
+            this.focusDayIndex = index;
+            const target = timelineFocusOffset(index, width, body.scrollLeft, header.clientWidth,
+                body.scrollWidth - body.clientWidth);
+            if (target === null) return;
+            this.holdHorizontalIntent(target - body.scrollLeft);
+            body.scrollTo({ left: target, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
         },
         measureEventLabels(periodWidth) {
             for (const track of this.$refs.timelineGrid.querySelectorAll('.rt-personnel-timeline-track')) {

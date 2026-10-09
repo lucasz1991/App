@@ -32,6 +32,8 @@
 .rt-shift-distribution--side .rt-shift-distribution__header p { margin-top: 3px; }
 .rt-shift-distribution--side .rt-shift-distribution__group { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 10px; scrollbar-width: thin; }
 .rt-shift-distribution--side .rt-shift-distribution__footer { flex: 0 0 auto; padding: 6px 16px 10px; }
+/* Platz für den AI-Assist-Starter unten rechts */
+body:has(.rt-ai-assist__stage) .rt-shift-distribution--side .rt-shift-distribution__footer { padding-right: 92px; padding-bottom: 14px; }
 
 .rt-shift-distribution__progress { display: grid; gap: 7px; }
 .rt-shift-distribution__progress-text { display: flex; align-items: baseline; gap: 6px; color: var(--panel-muted); font-size: 12px; }

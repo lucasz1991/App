@@ -14,7 +14,7 @@
                 <h2 id="{{ $distributionTabsId }}-title">Noch zu verteilen</h2>
                 <p><i class="far fa-calendar-alt" aria-hidden="true"></i>{{ \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') }} – {{ \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') }}</p>
             </div>
-            <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-distribution__close" wire:click="toggleDistribution" wire:loading.attr="disabled" wire:target="toggleDistribution" aria-label="Offene Planung schließen" title="Seitenleiste schließen"><i class="far fa-xmark" aria-hidden="true"></i></x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-distribution__close" wire:click="toggleDistribution" wire:loading.attr="disabled" wire:target="toggleDistribution" aria-label="Offene Planung schließen" title="Seitenleiste schließen"><i class="far fa-times" aria-hidden="true"></i></x-ui.buttons.button-basic>
         </div>
         <div class="rt-shift-distribution__progress" role="img" aria-label="{{ $progressReserved }} von {{ $progressRequired }} Plätzen eingeplant">
             <div class="rt-shift-distribution__progress-text"><strong>{{ $progressReserved }}/{{ $progressRequired }}</strong><span>Plätze eingeplant</span><b>{{ max(0, $progressRequired - $progressReserved) }} offen</b></div>

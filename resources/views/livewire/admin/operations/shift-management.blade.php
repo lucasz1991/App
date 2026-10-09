@@ -67,7 +67,7 @@
                             <span class="rt-shift-plan-distribution-count" data-distribution-count="orders" data-has-pending="{{ $unplannedOrders->total() > 0 ? 'true' : 'false' }}"><i class="far fa-briefcase" aria-hidden="true"></i><strong>{{ $unplannedOrders->total() }}</strong></span>
                         </span>
                         <span class="rt-shift-plan-distribution-count rt-shift-plan-distribution-total" data-distribution-count="total" data-has-pending="{{ $pendingTotal > 0 ? 'true' : 'false' }}" aria-hidden="true"><i class="far {{ $pendingShifts->total() > 0 || $pendingTotal === 0 ? 'fa-clock' : 'fa-briefcase' }}" aria-hidden="true"></i><strong>{{ $pendingTotal > 99 ? '99+' : $pendingTotal }}</strong></span>
-                <i class="far fa-table-columns rt-shift-plan-control__chevron" aria-hidden="true"></i>
+                <i class="far fa-columns rt-shift-plan-control__chevron" aria-hidden="true"></i>
             </x-ui.buttons.button-basic>
         </div>
     </template>

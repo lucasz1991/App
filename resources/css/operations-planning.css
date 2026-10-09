@@ -398,3 +398,13 @@
     .rt-staffing .rt-staffing-table .rt-table-cell { padding: 6px 0; }
     .rt-staffing-table .rt-table-row { padding: 12px 4px; }
 }
+
+/* Erster Seitenaufbau: Personen und Schichten bleiben verborgen, bis die Einblendung startet
+   (staff-timeline.js setzt html[data-rt-timeline-ready]). Ohne Skript erscheinen sie nach 3 s. */
+@media (prefers-reduced-motion: no-preference) {
+    html:not([data-rt-timeline-ready]) [data-timeline-motion='true'] :is(.rt-personnel-timeline-name, .rt-personnel-timeline-event) {
+        opacity: 0;
+        animation: rt-timeline-reveal-fallback .3s ease 3s forwards;
+    }
+}
+@keyframes rt-timeline-reveal-fallback { to { opacity: 1; } }

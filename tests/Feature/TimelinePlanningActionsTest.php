@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\Admin\Operations\ShiftManagement;
 use App\Livewire\Operations\StaffTimeline;
 use App\Models\AbsenceRequest;
 use App\Models\Customer;
@@ -14,6 +15,7 @@ use App\Models\PersonnelTrainingParticipant;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Operations\TimelinePlanningSuggestionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Schema\Blueprint;
@@ -100,15 +102,16 @@ class TimelinePlanningActionsTest extends TestCase
 
     public function test_focus_candidate_only_prepares_and_rechecks_ranking_and_revision(): void
     {
+        $revision = (int) $this->shift->fresh()->revision;
         $timeline = $this->timeline()->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id);
-        $timeline->call('openFocusCandidate', $this->shift->id, $this->anna->id, $this->shift->revision)
+        $timeline->call('openFocusCandidate', $this->shift->id, $this->anna->id, $revision)
             ->assertSet('assignmentOpen', true)->assertSee('Offener Donnerstag');
         $this->assertSame(0, ShiftAssignment::count());
         $this->timeline()->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id)
-            ->call('openFocusCandidate', $this->shift->id, $this->anna->id, $this->shift->revision + 5)
+            ->call('openFocusCandidate', $this->shift->id, $this->anna->id, $revision + 5)
             ->assertHasErrors('workflow')->assertSet('assignmentOpen', false);
         // Nur die im Panel gewählte Schicht darf über die Zeitleiste vorbereitet werden.
-        $this->timeline()->call('openFocusCandidate', $this->shift->id, $this->anna->id, $this->shift->revision)->assertStatus(422);
+        $this->timeline()->call('openFocusCandidate', $this->shift->id, $this->anna->id, $revision)->assertStatus(422);
         $this->assertSame(0, ShiftAssignment::count());
     }
 
@@ -123,6 +126,34 @@ class TimelinePlanningActionsTest extends TestCase
         $this->assertSame($this->ben->id, $assignment->user_id);
         $this->assertSame('requested', $assignment->status->value);
         $this->assertSame(0, $this->shift->fresh()->published_revision);
+    }
+
+    public function test_distribution_sidebar_assigns_directly_moves_on_and_rejects_full_or_stale_shifts(): void
+    {
+        $next = Shift::create(['order_id' => $this->shift->order_id, 'title' => 'Offener Freitag', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-14T08:00', 'ends_at' => '2027-05-14T16:00', 'required_staff' => 1, 'planned_break_minutes' => 30, 'status' => 'draft', 'created_by' => $this->manager->id, 'revision' => 1, 'published_revision' => 0]);
+        $revision = (int) $this->shift->fresh()->revision;
+        $panel = Livewire::actingAs($this->manager)->test(ShiftManagement::class)->assertSet('distributionOpen', true)
+            ->call('selectDistributionShift', $this->shift->id)->assertSet('distributionShiftId', $this->shift->id)
+            ->assertDispatched('operations-timeline-distribution', open: true, shiftId: $this->shift->id);
+        $this->assertSame(0, ShiftAssignment::count());
+        // Status nur aus den reservierenden Werten.
+        $panel->set('distributionStatus', 'declined')->call('assignFromDistribution', $this->shift->id, $this->ben->id, $revision)->assertHasErrors('distributionStatus');
+        $this->assertSame(0, ShiftAssignment::count());
+        $panel->set('distributionStatus', 'requested')->call('assignFromDistribution', $this->shift->id, $this->ben->id, $revision)
+            ->assertHasNoErrors()->assertDispatched('operations-plan-changed')
+            ->assertSet('distributionShiftId', $next->id);
+        $assignment = ShiftAssignment::sole();
+        $this->assertSame([$this->ben->id, 'requested'], [$assignment->user_id, $assignment->status->value]);
+        // Voll besetzt: keine zweite Einteilung über einen alten Panelstand.
+        $panel->call('assignFromDistribution', $this->shift->id, $this->anna->id, $revision)->assertHasErrors('distribution');
+        $panel->set('distributionStatus', 'confirmed')->call('assignFromDistribution', $next->id, $this->anna->id, (int) $next->fresh()->revision + 3)->assertHasErrors('distribution');
+        $this->assertSame(1, ShiftAssignment::count());
+        $panel->call('assignFromDistribution', $next->id, $this->anna->id, (int) $next->fresh()->revision)->assertHasNoErrors();
+        $this->assertSame('confirmed', ShiftAssignment::where('shift_id', $next->id)->sole()->status->value);
+        $panel->call('toggleDistribution')->assertSet('distributionOpen', false)->assertSet('distributionShiftId', null)
+            ->assertDispatched('operations-timeline-distribution', open: false, shiftId: null)
+            ->call('assignFromDistribution', $next->id, $this->ben->id, 1)->assertStatus(422);
+        $this->assertSame(2, ShiftAssignment::count());
     }
 
     public function test_header_suggestion_slider_has_two_positions_without_changing_the_shared_primitive(): void
@@ -202,6 +233,50 @@ class TimelinePlanningActionsTest extends TestCase
         $this->assertSame(0, ShiftAssignment::count());
         $timeline->set('assignmentOpen', false);
         $this->shift->forceFill(['revision' => 2])->save();
+        $timeline->call('openSuggestion', $this->shift->id, $this->ben->id, 1)->assertHasErrors('workflow')->assertSet('assignmentOpen', false);
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_open_sidebar_defers_proposals_and_reuses_the_preview_until_the_plan_changes(): void
+    {
+        $previews = new \ArrayObject(['count' => 0]);
+        $this->app->bind(TimelinePlanningSuggestionService::class, fn () => new class($previews) extends TimelinePlanningSuggestionService
+        {
+            public function __construct(private \ArrayObject $previews) {}
+
+            public function preview(string $from, string $until, User $actor): array
+            {
+                $this->previews['count']++;
+
+                return parent::preview($from, $until, $actor);
+            }
+        });
+        EmployeeAvailability::create(['user_id' => $this->ben->id, 'kind' => 'preferred', 'from' => '2027-05-13', 'until' => '2027-05-13', 'weekdays' => [4], 'whole_day' => true, 'timezone' => 'Europe/Berlin']);
+        // Mit offenem Seitenpanel geöffnet: Plan sofort, Vorschläge erst per wire:init.
+        $timeline = Livewire::actingAs($this->manager)->test(StaffTimeline::class, ['from' => '2027-05-10', 'until' => '2027-05-16', 'planningEnabled' => true, 'showSuggestions' => true])
+            ->assertSet('suggestionsReady', false)
+            ->assertSee('wire:init="loadSuggestions"', false)
+            ->assertDontSee('data-timeline-proposal', false);
+        $this->assertSame(0, $previews['count']);
+        $timeline->call('loadSuggestions')->assertSet('suggestionsReady', true)
+            ->assertSee('data-timeline-proposal', false)->assertDontSee('data-timeline-suggestions-pending', false);
+        $this->assertSame(1, $previews['count']);
+        // Fokuswechsel und Klick rechnen die Vorschau nicht neu.
+        $timeline->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id)
+            ->call('openSuggestion', $this->shift->id, $this->ben->id, 1)->assertSet('assignmentOpen', true);
+        $this->assertSame(1, $previews['count']);
+        // Eigene Planänderung: neuer Stand.
+        $timeline->set('assignmentOpen', false)->dispatch('operations-plan-changed')->assertSet('previewVersion', 1);
+        $this->assertSame(2, $previews['count']);
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_a_remembered_proposal_is_rechecked_against_new_absences(): void
+    {
+        EmployeeAvailability::create(['user_id' => $this->ben->id, 'kind' => 'preferred', 'from' => '2027-05-13', 'until' => '2027-05-13', 'weekdays' => [4], 'whole_day' => true, 'timezone' => 'Europe/Berlin']);
+        $timeline = $this->timeline()->call('toggleSuggestions')->assertSee('data-timeline-proposal', false)
+            ->call('openSuggestion', $this->shift->id, $this->ben->id, 1)->assertSet('assignmentOpen', true)->set('assignmentOpen', false);
+        AbsenceRequest::create(['user_id' => $this->ben->id, 'kind' => 'vacation', 'status' => 'approved', 'starts_at' => '2027-05-13T00:00', 'ends_at' => '2027-05-14T00:00', 'timezone' => 'Europe/Berlin']);
         $timeline->call('openSuggestion', $this->shift->id, $this->ben->id, 1)->assertHasErrors('workflow')->assertSet('assignmentOpen', false);
         $this->assertSame(0, ShiftAssignment::count());
     }

@@ -18,4 +18,8 @@
         <livewire:operations.document-workspace :initial-view="$initialView" />
     @endif
     </div>
+    @if(in_array($page, ['attention', 'cases', 'planning', 'duty'], true) && \App\Support\Operations\OperationsAccess::ready() && (auth()->user()->can('operations.manage') || auth()->user()->can('operations.inquiries.manage')))
+        {{-- Übergreifender Disposition-Assistent (Chat, Eingänge, Aktionen, Aktivitäten) --}}
+        <livewire:operations.ai-assist :page="$page" :view="$initialView" :section="$initialSection" :key="'ai-assist-'.$page.'-'.$initialView.'-'.$initialSection" />
+    @endif
 </x-ui.page>

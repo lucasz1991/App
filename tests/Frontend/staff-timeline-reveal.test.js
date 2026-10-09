@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
-import { revealStaffTimeline, clearStaffTimelineReveals, timelineRevealDelays, TIMELINE_REVEAL } from '../../resources/js/staff-timeline.js';
+import { revealStaffTimeline, clearStaffTimelineReveals, timelineRevealDelays, TIMELINE_REVEAL, TIMELINE_READY_ATTRIBUTE } from '../../resources/js/staff-timeline.js';
 
 function fixture(run, { reduced = false, gsap = true, enabled = true } = {}) {
     const { document } = parseHTML(`<div id="root" data-timeline-motion="${enabled}"><div id="grid">
@@ -157,3 +157,24 @@ test('the whole loaded page enters together, including rows below the visible ar
     const maxDelay = Math.max(...calls[1].targets.map((_, index) => calls[1].to.stagger(index)));
     assert.ok(maxDelay <= start + TIMELINE_REVEAL.rows * row + 151 * item);
 }));
+
+test('the first reveal releases the CSS pre-hide in every path, also without motion engine or with reduced motion', () => {
+    for (const options of [{}, { gsap: false }, { reduced: true }, { enabled: false }]) {
+        fixture(({ root, grid, body, document, calls }) => {
+            assert.equal(document.documentElement.hasAttribute(TIMELINE_READY_ATTRIBUTE), false);
+            revealStaffTimeline(root, grid, body);
+            assert.equal(document.documentElement.getAttribute(TIMELINE_READY_ATTRIBUTE), 'true');
+            // With an engine the start values are already written when the marker appears.
+            if (calls.length) assert.equal(calls.at(-1).targets[0].style.getPropertyValue('opacity'), '0');
+        }, options);
+    }
+});
+
+test('the pre-hide only applies to animated timelines and always has a no-script fallback', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const css = await readFile(new URL('../../resources/css/operations-planning.css', import.meta.url), 'utf8');
+    const block = css.slice(css.indexOf('html:not([data-rt-timeline-ready])'));
+    assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{\s*html:not\(\[data-rt-timeline-ready\]\) \[data-timeline-motion='true'\]/);
+    assert.match(block.slice(0, 260), /animation: rt-timeline-reveal-fallback [^;]+ 3s forwards/);
+    assert.match(css, /@keyframes rt-timeline-reveal-fallback \{ to \{ opacity: 1; \} \}/);
+});

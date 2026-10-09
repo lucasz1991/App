@@ -19,6 +19,8 @@ use App\Support\Operations\PlanningLocks;
 use App\Support\Operations\TimelineLocationPreview;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -59,6 +61,14 @@ class StaffTimeline extends Component
 
     #[Locked]
     public bool $showSuggestions = false;
+
+    /** Vorschläge beim ersten Seitenaufbau erst nachladen (wire:init), damit der Plan sofort steht. */
+    #[Locked]
+    public bool $suggestionsReady = true;
+
+    /** Stand der gemerkten Besetzungsvorschau; jede Planänderung zählt hoch. */
+    #[Locked]
+    public int $previewVersion = 0;
 
     /** Im Seitenpanel „Noch zu verteilen“ gewählte Schicht: Tag und passende Mitarbeitende werden markiert. */
     #[Locked]
@@ -126,9 +136,13 @@ class StaffTimeline extends Component
     {
         $this->ensurePlanning();
         abort_unless($this->showSuggestions, 422);
-        $proposal = app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user())['proposals']
+        $proposal = $this->planningPreview()['proposals']
             ->first(fn ($proposal) => $proposal['shift']->id === $shiftId && $proposal['user']->id === $userId && $proposal['revision'] === $revision);
-        if (! $proposal) {
+        // Die Vorschau ist gemerkt: Revision und Eignung dieser einen Schicht immer frisch prüfen.
+        $shift = $proposal ? Shift::query()->find($shiftId) : null;
+        $current = $shift && (int) $shift->revision === $revision
+            && app(TimelinePlanningSuggestionService::class)->rankedCandidates($shift, auth()->user())->contains(fn (array $candidate) => $candidate['user']->id === $userId);
+        if (! $current) {
             throw ValidationException::withMessages(['workflow' => 'Vorschlag ist nicht mehr aktuell. Bitte neu auswählen.']);
         }
         $this->resetPlanningSelection();
@@ -170,7 +184,11 @@ class StaffTimeline extends Component
     public function syncDistribution(bool $open, ?int $shiftId = null): void
     {
         $this->ensurePlanning();
+        if ($open && ! $this->showSuggestions) {
+            $this->previewVersion++;
+        }
         $this->showSuggestions = $open;
+        $this->suggestionsReady = true;
         $this->focusShiftId = $open ? $shiftId : null;
         $this->resetValidation();
     }
@@ -198,6 +216,8 @@ class StaffTimeline extends Component
     {
         $this->ensurePlanning();
         $this->showSuggestions = ! $this->showSuggestions;
+        $this->suggestionsReady = true;
+        $this->previewVersion += $this->showSuggestions ? 1 : 0;
         $this->resetValidation();
     }
 
@@ -206,7 +226,27 @@ class StaffTimeline extends Component
     {
         if ($this->planningEnabled && ! $this->absencesOnly) {
             $this->ensurePlanning();
+            $this->previewVersion++;
         }
+    }
+
+    public function loadSuggestions(): void
+    {
+        $this->ensurePlanning();
+        $this->suggestionsReady = true;
+    }
+
+    /**
+     * Besetzungsvorschau, je Zeitleiste und Planstand kurz gemerkt: Fokuswechsel, Nachladen und
+     * Klicks rechnen sie nicht neu. Eigene Änderungen zählen previewVersion hoch, fremde altern nach 90 s aus.
+     *
+     * @return array{proposals: Collection, open_total: int, limited: bool}
+     */
+    private function planningPreview(): array
+    {
+        $key = implode(':', ['staff-timeline-preview', auth()->id(), $this->getId(), $this->from, $this->until, $this->previewVersion]);
+
+        return Cache::remember($key, 90, fn () => app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user()));
     }
 
     private function ensurePlanning(): void
@@ -225,6 +265,8 @@ class StaffTimeline extends Component
     public function mount(): void
     {
         $this->resetPage('staffPage');
+        // Mit offenem Seitenpanel geöffnet: erst den Plan zeigen, Vorschläge im Folgeaufruf.
+        $this->suggestionsReady = ! ($this->showSuggestions && $this->planningEnabled && ! $this->absencesOnly);
     }
 
     public function updatedSearch(): void
@@ -303,8 +345,8 @@ class StaffTimeline extends Component
                 })];
         });
 
-        $planningPreview = $this->planningEnabled && ! $this->absencesOnly && $this->showSuggestions
-            ? app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user())
+        $planningPreview = $this->planningEnabled && ! $this->absencesOnly && $this->showSuggestions && $this->suggestionsReady
+            ? $this->planningPreview()
             : ['proposals' => collect(), 'open_total' => 0, 'limited' => false];
         $proposalRows = $planningPreview['proposals']->groupBy(fn ($proposal) => $proposal['user']->id)->map(fn ($proposals) => $layout->periodEvents($days, $proposals->map(fn ($proposal) => [
             'id' => 'proposal-'.$proposal['shift']->id.'-'.$proposal['user']->id,
@@ -327,7 +369,7 @@ class StaffTimeline extends Component
         return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices', 'focus'));
     }
 
-    /** @return array{shift: ?Shift, date: ?string, event: ?array, candidates: \Illuminate\Support\Collection} */
+    /** @return array{shift: ?Shift, date: ?string, event: ?array, candidates: Collection} */
     private function focusData($days, StaffTimelineLayout $layout, string $zone): array
     {
         $empty = ['shift' => null, 'date' => null, 'event' => null, 'candidates' => collect()];
