@@ -21,6 +21,7 @@ class ImportedOrderStatus
         if ($record->domain !== 'planning' || $record->model_type !== 'Shift' || isset($record->metadata['historical_values'])) {
             return;
         }
+        app(HistoricalImportCompletion::class)->apply($record, $actor);
         SyncContext::import(fn () => OperationsTransaction::run(function () use ($record, $actor) {
             $shift = Shift::find($record->model_id);
             if (! $shift) {
@@ -53,6 +54,11 @@ class ImportedOrderStatus
                     $shiftRecords = $records->where('model_id', $activeShift->id);
                     if (! $shiftRecords->contains(fn ($r) => ($r->metadata['imported_order'] ?? false) === true)) {
                         return; // Do not infer the state of additional app-created shifts.
+                    }
+                    if ($activeShift->status === ShiftStatus::Completed) {
+                        $states[] = OrderStatus::Completed;
+
+                        continue;
                     }
                     $hasActiveRecord = false;
                     foreach ($shiftRecords as $shiftRecord) {

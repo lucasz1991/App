@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Enums\DropboxMode;
+use App\Enums\OrderStatus;
+use App\Enums\ShiftStatus;
 use App\Jobs\Dropbox\ProcessDropboxWork;
 use App\Livewire\Admin\DropboxSettings;
 use App\Models\Customer;
@@ -15,6 +17,7 @@ use App\Models\DropboxSource;
 use App\Models\DropboxWorkItem;
 use App\Models\EmployeeCompetencyFact;
 use App\Models\EmployeeQualification;
+use App\Models\OperationAudit;
 use App\Models\OperationsRuleProfile;
 use App\Models\Order;
 use App\Models\QualificationType;
@@ -30,6 +33,7 @@ use App\Services\Dropbox\DomainAdapter;
 use App\Services\Dropbox\DropboxApiException;
 use App\Services\Dropbox\DropboxClient;
 use App\Services\Dropbox\FileSynchronizer;
+use App\Services\Dropbox\HistoricalImportCompletion;
 use App\Services\Dropbox\RecordExporter;
 use App\Services\Dropbox\RevisionUploader;
 use App\Services\Dropbox\SourceScanner;
@@ -86,7 +90,7 @@ class DropboxSyncTest extends TestCase
         $record = app(DomainAdapter::class)->create($this->connection, $entry);
         $this->assertSame(1, Shift::count());
         $this->assertSame(0, ShiftAssignment::count());
-        $this->assertNull(Shift::first()->published_revision);
+        $this->assertSame(0, Shift::first()->published_revision);
         $this->assertSame('Person Eins / Person Zwei', app(DomainAdapter::class)->current($record)['employee']);
         $this->assertNotEmpty($record->metadata['assignment_pending']);
         $this->assertSame('open', DropboxConflict::where('reason', 'assignment_pending')->first()->state);
@@ -109,7 +113,67 @@ class DropboxSyncTest extends TestCase
         $this->assertSame(0, ShiftAssignment::count());
         $this->assertSame(0, OperationsRuleProfile::count());
         $this->assertNotEmpty($record->metadata['assignment_pending']);
-        $this->assertNull(Shift::first()->published_revision);
+        $this->assertSame(0, Shift::first()->published_revision);
+    }
+
+    public function test_export_does_not_append_while_own_revision_is_only_partly_imported(): void
+    {
+        $bytes = $this->workbook();
+        $source = $this->source($bytes);
+        $source->update(['weeks' => ['2026-W38'], 'state' => 'processing', 'own_rev' => $source->rev, 'progress' => ['next' => 200, 'rev' => $source->rev]]);
+        $entry = app(WorkbookReader::class)->read($bytes, 'weekly')['rows'][0];
+        $record = app(DomainAdapter::class)->create($this->connection, $entry);
+        try {
+            app(RecordExporter::class)->export($this->connection, 'Shift', $record->model_id);
+            $this->fail('Partial import must defer exports');
+        } catch (DropboxApiException $e) {
+            $this->assertSame('destination_needs_import', $e->reason);
+        }
+        $this->assertSame($bytes, $this->client->download($this->connection, $source->file_id)['bytes']);
+        $this->assertSame(0, DropboxAppearance::count());
+        $this->assertTrue(DropboxWorkItem::where('resource', 'file:'.$source->id)->exists());
+    }
+
+    public function test_user_confirmed_historical_import_closes_shift_and_order_without_publishing_or_time_approval(): void
+    {
+        $this->connection->update(['settings' => [...$this->connection->settings, 'retain_unassigned_drafts' => true, 'historical_completed_before' => '2026-10-09T07:00:00Z']]);
+        OperationsRuleProfile::query()->delete();
+        $person = User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => true]);
+        DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => 'erika muster', 'kind' => 'employee', 'user_id' => $person->id]);
+        $source = $this->source($this->workbook(employee: 'Erika Muster'));
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $this->assertSame(ShiftStatus::Completed, Shift::first()->status);
+        $this->assertSame(OrderStatus::Completed, Order::first()->status);
+        $this->assertSame(0, Shift::first()->published_revision);
+        $this->assertSame(0, ShiftAssignment::count());
+        $this->assertSame(0, WorkTimeEntry::count());
+        $this->assertSame(0, EmployeeQualification::count());
+        $this->assertNull(DropboxRecord::where('domain', 'planning')->first()->metadata['assignment_pending']);
+        $history = Order::first()->statusHistory()->count();
+        app(FileSynchronizer::class)->sync($this->connection->fresh(), $source->fresh());
+        $this->assertSame($history, Order::first()->statusHistory()->count());
+        $this->assertSame(1, OperationAudit::where('action', 'shift.import_history_completed')->count());
+    }
+
+    public function test_confirmed_history_preserves_future_cancelled_and_app_created_shifts(): void
+    {
+        $this->connection->update(['settings' => [...$this->connection->settings, 'historical_completed_before' => '2026-10-09T07:00:00Z']]);
+        $entry = app(WorkbookReader::class)->read($this->workbook(), 'weekly')['rows'][0];
+        foreach (['future', 'cancelled', 'app'] as $kind) {
+            $values = $entry;
+            if ($kind === 'future') {
+                $values['values']['date'] = '2027-01-01';
+            } elseif ($kind === 'cancelled') {
+                $values['values']['cancelled'] = true;
+            }
+            $record = app(DomainAdapter::class)->create($this->connection, $values);
+            if ($kind === 'app') {
+                $record->update(['metadata' => []]);
+            }
+            app(HistoricalImportCompletion::class)->apply($record, User::findOrFail(1));
+            $expected = $kind === 'cancelled' ? ShiftStatus::Cancelled : ShiftStatus::Draft;
+            $this->assertSame($expected, Shift::findOrFail($record->model_id)->status);
+        }
     }
 
     private function workbook(string $notes = 'Anfahrt', string $employee = '', bool $personal = false, ?string $headerColor = null): string

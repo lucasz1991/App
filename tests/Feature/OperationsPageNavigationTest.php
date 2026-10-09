@@ -426,7 +426,7 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertStringNotContainsString('Stammdaten & Geräte', html_entity_decode(strip_tags($sidebar), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
-    public function test_sidebar_keeps_dashboard_and_shared_worklist_before_disposition_cases_planning_and_duty(): void
+    public function test_sidebar_keeps_dashboard_and_places_shared_worklist_first_in_own_workplace(): void
     {
         $this->operations();
         (require database_path('migrations/2026_10_06_103000_create_operations_attention_tables.php'))->up();

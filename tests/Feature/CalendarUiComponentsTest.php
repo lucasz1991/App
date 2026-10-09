@@ -102,6 +102,27 @@ class CalendarUiComponentsTest extends TestCase
             ->assertSet('viewMode', 'list')->assertSet('anchorDate', '2026-09-17');
     }
 
+    public function test_clicking_an_entry_opens_the_shift_side_panel_instead_of_leaving_the_calendar(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $order = $this->order($admin);
+        $shift = $this->shift($order, $admin, 'Nordkorridor Panel', ['required_staff' => 2]);
+        ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => User::factory()->create(['role' => 'staff', 'name' => 'Ida Weber'])->id, 'status' => 'requested', 'assigned_by' => $admin->id]);
+        $component = Livewire::actingAs($admin)->test(Calendar::class)
+            ->assertSeeHtml('x-data="rtShiftDetailDrawer"')
+            ->assertSeeHtml("\$dispatch('operations-shift-detail-request', { id: {$shift->id} })")
+            ->assertSeeHtml('x-data="rtCalendarReveal"')
+            ->assertDontSeeHtml('wire:click="openShift('.$shift->id.')"');
+        $component->call('openDetails', $shift->id)
+            ->assertSet('detailOpen', true)->assertSet('selectedShiftId', $shift->id)->assertNoRedirect()
+            ->assertSee('Nordkorridor Panel')->assertSee('1 Platz offen')->assertSee('Ida Weber')->assertSee('1/2 eingeplant')
+            ->assertSeeHtml('data-calendar-shift-panel');
+        // Bearbeiten bleibt dem Schichtplan vorbehalten.
+        $component->call('openShift', $shift->id)->assertRedirect();
+        Livewire::actingAs($admin)->test(Calendar::class)->call('openDetails', 999999)->assertStatus(404);
+        $component->set('selectedShiftId', 1)->assertStatus(500);
+    }
+
     #[DataProvider('berlinClockChangeDates')]
     public function test_calendar_day_preserves_real_utc_boundaries_at_clock_changes(string $date, string $fromUtc, string $untilUtc): void
     {

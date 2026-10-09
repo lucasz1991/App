@@ -101,6 +101,12 @@ class RecordExporter
         $values = $this->domain->current($record);
         $week = $record->domain === 'planning' ? app(WeekFileMatcher::class)->week($values['date']) : null;
         $path = $source?->path ?? rtrim($connection->option('folders')[0], '/').'/'.app(WeekFileMatcher::class)->filename($week, $connection->option('filename_rule'));
+        // A partial import can already have uploaded its own revision. That does
+        // not make later rows safe to append, and retries must not starve imports.
+        if ($source && ($source->progress || $source->state === 'processing' || $source->processed_rev !== $source->rev)) {
+            $this->ledger->enqueue($connection, 'file', 'file:'.$source->id, ['source_id' => $source->id], 0);
+            throw new DropboxApiException('destination_needs_import', 30);
+        }
         $lock = Cache::store(config('dropbox.lock_store'))->lock('dropbox-file:'.$connection->id.':'.($source?->file_id ?? mb_strtolower($path)), 330);
         if (! $lock->get()) {
             throw new DropboxApiException('file_busy', 5);

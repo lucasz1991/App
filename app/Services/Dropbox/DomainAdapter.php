@@ -180,6 +180,7 @@ class DomainAdapter
         $start = $start->utc();
         $end = $end->utc();
         $identity = ! empty($values['employee']) ? $this->identity($connection, $values['employee']) : null;
+        $historical = ($record->metadata['imported_order'] ?? false) && app(HistoricalImportCompletion::class)->confirmedPast($connection, $end);
         $retainDraft = (bool) $connection->option('retain_unassigned_drafts') && ($record->metadata['imported_order'] ?? false)
             && (! $record->model_id || (($record->metadata['assignment_pending'] ?? false) && ! Shift::findOrFail($record->model_id)->published_revision));
         $assignmentPending = null;
@@ -245,7 +246,7 @@ class DomainAdapter
             'status' => ($values['cancelled'] ?? false) && ! $cancelAssignmentOnly ? ShiftStatus::Cancelled : ($shift->status ?? ShiftStatus::Draft),
             'expected_revision' => $shift->revision,
         ], $actor);
-        if ($identity?->kind === 'employee' && ! ($values['cancelled'] ?? false)) {
+        if ($identity?->kind === 'employee' && ! ($values['cancelled'] ?? false) && ! $historical) {
             if (! $oldAssignment || $oldAssignment->user_id !== $identity->user_id || $oldAssignment->status === ShiftAssignmentStatus::Cancelled) {
                 try {
                     $assignment = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($identity->user_id), $actor, ShiftAssignmentStatus::Requested);

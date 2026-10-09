@@ -115,7 +115,9 @@
                                     <small>{{ $displayTimezone }}</small>
                                 </x-operations.panel.row>
                                 <x-operations.panel.row label="Geplante Pause"><span class="rt-ops-panel__num">{{ (int) $selectedShift->planned_break_minutes }} Minuten</span></x-operations.panel.row>
-                                <x-operations.panel.row label="Nachweise">{{ $selectedShift->qualifications->pluck('name')->filter()->implode(', ') ?: 'Keine besonderen Nachweise' }}</x-operations.panel.row>
+                                @if($selectedShift->relationLoaded('qualifications'))
+                                    <x-operations.panel.row label="Nachweise">{{ $selectedShift->qualifications->pluck('name')->filter()->implode(', ') ?: 'Keine besonderen Nachweise' }}</x-operations.panel.row>
+                                @endif
                                 <x-operations.panel.row label="Planstand">
                                     @if((int) $selectedShift->published_revision === 0)
                                         Noch nicht veröffentlicht

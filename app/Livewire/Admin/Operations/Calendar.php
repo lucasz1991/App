@@ -248,7 +248,7 @@ class Calendar extends Component
         });
 
         $selectedShift = $this->detailOpen && $this->selectedShiftId
-            ? Shift::query()->with(['order.customer', 'assignments.user.profile', 'assignments.user.currentTeam', 'qualifications'])->find($this->selectedShiftId)
+            ? Shift::query()->with(array_merge(['order.customer', 'assignments.user.profile', 'assignments.user.currentTeam'], OperationsAccess::ready() ? ['qualifications'] : []))->find($this->selectedShiftId)
             : null;
 
         return view('livewire.admin.operations.calendar', [
