@@ -3,7 +3,7 @@
     data-dashboard-widget-grid
     data-editing="{{ $editing ? 'true' : 'false' }}"
     wire:poll.60s
-    x-data="{ pickerOpen: false, kind: 'all', place: 'all', day: null }"
+    x-data="{ pickerOpen: false }"
     @keydown.escape.window="pickerOpen = false; if ($el.dataset.editing === 'true') $wire.toggleEditing()"
     @click="if ($el.dataset.editing === 'true' && ! $event.target.closest('[data-widget-item], .widget-sidebar, .widget-sidebar-backdrop, button, a')) $wire.toggleEditing()"
 >

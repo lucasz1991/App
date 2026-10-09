@@ -1,5 +1,5 @@
 <div class="min-w-0 px-2 py-2">
-    <x-ui.buttons.button-basic mode="link" class="!whitespace-normal !text-left" wire:click="openShift({{ $item->id }})">{{ $item->title }}</x-ui.buttons.button-basic>
+    <x-ui.buttons.button-basic mode="link" class="!whitespace-normal !text-left" x-on:click.stop="$dispatch('operations-shift-detail-request', { id: {{ $item->id }} })">{{ $item->title }}</x-ui.buttons.button-basic>
     <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->order?->order_number }} · {{ $item->order?->title }}</p>
     <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $item->order?->customer?->company_name }} · {{ $item->location_name }}</p>
 </div>

@@ -9,6 +9,13 @@ const end = source.indexOf('\n}));', start) + '\n}));'.length;
 assert.ok(start >= 0 && end > start, 'Actual dashboard controller source must be available.');
 const controllerSource = source.slice(start, end);
 
+const mapBlade = readFileSync(new URL('../../resources/views/dashboard/widgets/operations_dispatch_map.blade.php', import.meta.url), 'utf8');
+const pointArrowDown = mapBlade.match(/data-dispatch-marker="[^"]+"[\s\S]*?x-on:keydown\.arrow-down\.prevent\.stop="([^"]+)"/)?.[1];
+assert.ok(pointArrowDown, 'Actual map point ArrowDown expression must be available.');
+const dropdownBlade = readFileSync(new URL('../../resources/views/components/ui/dropdown/anchor-dropdown.blade.php', import.meta.url), 'utf8');
+const focusHoverMethod = dropdownBlade.match(/^    focusHoverPanel\(\) \{([\s\S]*?)^    \},/m)?.[1];
+assert.ok(focusHoverMethod, 'Actual shared dropdown keyboard focus method must be available.');
+
 function fixture() {
     const { document, window } = parseHTML(`
         <html><body>
@@ -136,4 +143,58 @@ test('form controls and labels keep the native context menu while card hold rema
     }
     const state = fixture();
     assert.equal(state.event('title', 'contextmenu').defaultPrevented, true);
+});
+
+function pointKeyboardFixture(hiddenEntries = []) {
+    const { document } = parseHTML(`
+        <html><body><button id="point">Hamburg</button><div id="panel">
+            <a id="shift-first" href="/shift/1" data-dispatch-point-entry="shift">First shift</a>
+            <a id="shift-second" href="/shift/2" data-dispatch-point-entry="shift">Second shift</a>
+            <a id="inquiry-first" href="/inquiry/1" data-dispatch-point-entry="inquiry">First inquiry</a>
+            <a id="inquiry-second" href="/inquiry/2" data-dispatch-point-entry="inquiry">Second inquiry</a>
+        </div></body></html>
+    `);
+    const nextTicks = [];
+    const opens = [];
+    let active = document.getElementById('point');
+    for (const entry of document.querySelectorAll('[data-dispatch-point-entry]')) {
+        // Supply the visibility produced by Alpine x-show, without simulating layout.
+        entry.style.display = hiddenEntries.includes(entry.id) ? 'none' : 'block';
+        entry.focus = () => { active = entry; };
+    }
+    const dropdown = new Function(`return ({ focusHoverPanel() { ${focusHoverMethod} } });`)();
+    Object.assign(dropdown, {
+        openOnHover: true,
+        $refs: { panel: document.getElementById('panel') },
+        $nextTick: callback => { nextTicks.push(callback); },
+        clearHoverTimers() {},
+        openDropdown(pinned) { opens.push(pinned); },
+    });
+    return {
+        open() {
+            new Function('getComputedStyle', `with (this) { ${pointArrowDown} }`).call(dropdown, entry => ({ display: entry.style.display }));
+            while (nextTicks.length) nextTicks.shift()();
+        },
+        active: () => active.id,
+        opens,
+    };
+}
+
+test('map point ArrowDown enters the first visible inquiry when shift samples are filtered out', () => {
+    const state = pointKeyboardFixture(['shift-first', 'shift-second']);
+    state.open();
+    assert.deepEqual(state.opens, [true], 'Keyboard opening retains the shared pinned popup behavior.');
+    assert.equal(state.active(), 'inquiry-first');
+});
+
+test('map point ArrowDown still enters the first sample when all types are visible', () => {
+    const state = pointKeyboardFixture();
+    state.open();
+    assert.equal(state.active(), 'shift-first');
+});
+
+test('map point ArrowDown skips a hidden leading sample within the same type', () => {
+    const state = pointKeyboardFixture(['shift-first', 'inquiry-first', 'inquiry-second']);
+    state.open();
+    assert.equal(state.active(), 'shift-second');
 });

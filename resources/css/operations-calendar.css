@@ -509,3 +509,9 @@ body[data-mode="dark"] .rt-disposition--calendar {
     .rt-calendar-day-open, .rt-calendar-day-total { display: none; }
     .rt-disposition-page > [data-page-header]:has(.rt-calendar-header-controls) > [data-page-header-actions] { width: auto !important; }
 }
+
+/* Einblendung: erster Aufbau verborgen, bis calendar-reveal.js startet (Rückfall nach 3 s ohne Skript) */
+@media (prefers-reduced-motion: no-preference) {
+    html:not([data-rt-calendar-ready]) .rt-disposition--calendar [data-calendar-reveal-item] { opacity: 0; animation: rt-calendar-reveal-fallback .3s ease 3s forwards; }
+}
+@keyframes rt-calendar-reveal-fallback { to { opacity: 1; } }

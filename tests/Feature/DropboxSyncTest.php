@@ -37,6 +37,7 @@ use App\Services\Dropbox\TemplateService;
 use App\Services\Dropbox\ThreeWayMerge;
 use App\Services\Dropbox\WeekFileMatcher;
 use App\Services\Dropbox\WorkbookPackage;
+use App\Services\Dropbox\WorkbookPeopleImporter;
 use App\Services\Dropbox\WorkbookReader;
 use App\Services\Dropbox\WorkLedger;
 use Illuminate\Contracts\Queue\Factory;
@@ -48,6 +49,7 @@ use Livewire\Livewire;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\Support\FakeDropboxClient;
 use Tests\TestCase;
@@ -75,6 +77,39 @@ class DropboxSyncTest extends TestCase
         $this->connection = DropboxConnection::create(['mode' => DropboxMode::Bidirectional, 'app_key' => 'key', 'app_secret' => 'secret', 'refresh_token' => 'refresh', 'account_id' => 'dbid:test', 'settings' => config('dropbox.defaults')]);
         $this->client = new FakeDropboxClient;
         $this->app->instance(DropboxClient::class, $this->client);
+    }
+
+    public function test_explicit_draft_retention_preserves_unknown_name_and_retries_after_mapping(): void
+    {
+        $this->connection->update(['settings' => [...$this->connection->settings, 'retain_unassigned_drafts' => true]]);
+        $entry = app(WorkbookReader::class)->read($this->workbook(employee: 'Person Eins / Person Zwei'), 'weekly')['rows'][0];
+        $record = app(DomainAdapter::class)->create($this->connection, $entry);
+        $this->assertSame(1, Shift::count());
+        $this->assertSame(0, ShiftAssignment::count());
+        $this->assertNull(Shift::first()->published_revision);
+        $this->assertSame('Person Eins / Person Zwei', app(DomainAdapter::class)->current($record)['employee']);
+        $this->assertNotEmpty($record->metadata['assignment_pending']);
+        $this->assertSame('open', DropboxConflict::where('reason', 'assignment_pending')->first()->state);
+        DropboxIdentity::where('alias', WorkbookReader::normalize('Person Eins / Person Zwei'))->update(['kind' => 'provider']);
+        app(DomainAdapter::class)->apply($this->connection, $record, $entry['values']);
+        $this->assertSame(1, Shift::count());
+        $this->assertNull($record->fresh()->metadata['assignment_pending']);
+        $this->assertSame('resolved', DropboxConflict::where('reason', 'assignment_pending')->first()->state);
+    }
+
+    public function test_explicit_draft_retention_keeps_shift_when_assignment_rules_are_missing(): void
+    {
+        $this->connection->update(['settings' => [...$this->connection->settings, 'retain_unassigned_drafts' => true]]);
+        OperationsRuleProfile::query()->delete();
+        $person = User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => true]);
+        DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => 'erika muster', 'kind' => 'employee', 'user_id' => $person->id]);
+        $entry = app(WorkbookReader::class)->read($this->workbook(employee: 'Erika Muster'), 'weekly')['rows'][0];
+        $record = app(DomainAdapter::class)->create($this->connection, $entry);
+        $this->assertSame(1, Shift::count());
+        $this->assertSame(0, ShiftAssignment::count());
+        $this->assertSame(0, OperationsRuleProfile::count());
+        $this->assertNotEmpty($record->metadata['assignment_pending']);
+        $this->assertNull(Shift::first()->published_revision);
     }
 
     private function workbook(string $notes = 'Anfahrt', string $employee = '', bool $personal = false, ?string $headerColor = null): string
@@ -446,6 +481,47 @@ class DropboxSyncTest extends TestCase
                 unlink($file);
             }
         }
+    }
+
+    public function test_explicit_people_import_is_idempotent_and_does_not_grant_verified_logins_or_merge_compound_names(): void
+    {
+        $actor = User::findOrFail(1);
+        $this->connection->update(['mode' => DropboxMode::Off]);
+        $entries = [
+            ['domain' => 'contacts', 'locator' => ['kind' => 'employee', 'subject' => 'Erika Muster'], 'values' => ['first_name' => 'Erika', 'last_name' => 'Muster', 'contact_email' => $actor->email]],
+            ['domain' => 'contacts', 'locator' => ['kind' => 'provider', 'subject' => 'Externe Bahn GmbH'], 'values' => []],
+        ];
+        app(DomainAdapter::class)->identity($this->connection, 'Muster Erika');
+        $compound = app(DomainAdapter::class)->identity($this->connection, 'Erika Muster/Andere Person');
+        $service = app(WorkbookPeopleImporter::class);
+        $first = $service->import($this->connection->fresh(), $entries, $actor);
+        $this->assertSame(1, $first['created']);
+        $employee = User::where('name', 'Erika Muster')->firstOrFail();
+        $this->assertStringStartsWith('import-', $employee->email);
+        $this->assertNull($employee->email_verified_at);
+        $this->assertSame('staff', $employee->role);
+        $this->assertSame($employee->id, DropboxIdentity::where('alias', 'muster erika')->value('user_id'));
+        $this->assertSame('unresolved', $compound->fresh()->kind);
+        $second = $service->import($this->connection->fresh(), $entries, $actor);
+        $this->assertSame(0, $second['created']);
+        $this->assertSame(2, User::count());
+        $this->assertSame('admin', $actor->fresh()->role);
+    }
+
+    public function test_people_import_requires_superadmin_and_paused_sync(): void
+    {
+        $service = app(WorkbookPeopleImporter::class);
+        try {
+            $service->import($this->connection, [], User::findOrFail(1));
+            $this->fail('Active synchronization must reject account provisioning.');
+        } catch (HttpException $e) {
+            $this->assertSame(409, $e->getStatusCode());
+        }
+        $this->connection->update(['mode' => DropboxMode::Off]);
+        $ordinaryAdmin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $this->expectException(HttpException::class);
+        $this->expectExceptionCode(0);
+        $service->import($this->connection->fresh(), [], $ordinaryAdmin);
     }
 
     public function test_manual_mapping_rechecks_business_contents_and_does_not_create_a_duplicate(): void

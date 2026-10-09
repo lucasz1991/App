@@ -2,7 +2,9 @@
 <x-ui.buttons.button-basic
     mode="link"
     type="button"
-    wire:click="openShift({{ $shift->id }})"
+    x-on:click="$dispatch('operations-shift-detail-request', { id: {{ $shift->id }} })"
+    aria-haspopup="dialog"
+    data-calendar-reveal-item
     class="rt-calendar-shift {{ $compact ? 'rt-calendar-shift-compact' : '' }} !block !h-auto w-full !whitespace-normal !text-left"
     data-calendar-shift="{{ $shift->id }}"
     data-calendar-staffing="{{ $shift->calendar_open > 0 ? 'open' : 'staffed' }}"

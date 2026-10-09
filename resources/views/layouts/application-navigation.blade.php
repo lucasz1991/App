@@ -1,6 +1,6 @@
 <div class="metismenu" id="sidebar-menu">
     <ul id="side-menu" x-data="rtSidebarNavigation">
-        @foreach(\App\Support\Operations\ApplicationNavigation::sections(auth()->user()) as $section => $links)
+        @foreach($rtSidebarSections ?? \App\Support\Operations\ApplicationNavigation::sidebarSections(auth()->user()) as $section => $links)
             @if(count($links))
                 <x-menu.sidebar-nav :label="$section">
                         @foreach(\App\Support\Operations\ApplicationNavigation::groups($links) as $group)

@@ -22,6 +22,7 @@ final class SyncLabels
             'configuration_changed' => 'Durch neue Einstellungen beendet', 'mapping_required' => 'Zuordnung oder Ausgangswerte prüfen',
             'ambiguous_row' => 'Mehrere passende Einsätze', 'field_conflict' => 'Dasselbe Feld wurde unterschiedlich geändert',
             'business_rule', 'validation_required' => 'Fachliche Prüfung erforderlich', 'row_missing' => 'Excel-Zeile fehlt; App-Daten bleiben erhalten',
+            'assignment_pending' => 'Schicht gespeichert; Mitarbeiterzuordnung muss geprüft werden',
             'source_missing', 'matrix_missing' => 'Quelldatei fehlt', 'destination_required', 'matrix_target_ambiguous' => 'Eindeutiges Excel-Ziel auswählen',
             'not_representable' => 'Noch nicht in Excel abbildbar', 'template_missing', 'template_changed' => 'Geprüfte Vorlage fehlt oder wurde verändert',
             'destination_needs_import' => 'Zieldatei wird zuerst abgeglichen', 'file_busy' => 'Datei wird bereits verarbeitet',

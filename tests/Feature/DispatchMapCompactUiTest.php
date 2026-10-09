@@ -112,6 +112,7 @@ class DispatchMapCompactUiTest extends TestCase
             $dropdown = $xpath->query('ancestor::*[@data-rt-dropdown-root][1]', $point)->item(0);
             $this->assertNotNull($dropdown);
             $this->assertStringContainsString('openOnHover: true', $dropdown->getAttribute('x-data'));
+            $this->assertStringNotContainsString('@js', $dropdown->getAttribute('x-show.important'), 'Component attributes must deliver executable Alpine expressions.');
             $dialogs = $xpath->query('.//*[@role="dialog"]', $dropdown);
             $this->assertSame(1, $dialogs->length);
             $dialog = $dialogs->item(0);

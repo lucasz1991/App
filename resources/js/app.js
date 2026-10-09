@@ -66,6 +66,7 @@ import { railtimeChatbot } from './chatbot';
 // AI-Partikelwolke mit RT-Morph.
 import { railtimeAssistantCloud } from './assistant-particle-cloud';
 import { aiAssist } from './ai-assist';
+import { calendarReveal } from './calendar-reveal';
 import {
     createNavigationParticleSphere,
     resolveMinimumLoaderPlaybackDelay,
@@ -696,6 +697,7 @@ Alpine.data('welcomeIntro', welcomeIntro);
 Alpine.data('railtimeChatbot', railtimeChatbot);
 Alpine.data('railtimeAssistantCloud', railtimeAssistantCloud);
 Alpine.data('rtAiAssist', aiAssist);
+Alpine.data('rtCalendarReveal', calendarReveal);
 Alpine.data('chatMessageActions', chatMessageActions);
 Alpine.data('rtModalBody', modalBody);
 Alpine.data('filePreview', filePreview);

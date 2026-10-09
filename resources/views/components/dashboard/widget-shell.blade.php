@@ -16,6 +16,7 @@
     data-editing="{{ $editing ? 'true' : 'false' }}"
     draggable="{{ $editing ? 'true' : 'false' }}"
     wire:key="widget-{{ $item['key'] }}"
+    @if($item['key'] === 'operations_dispatch_map') x-data="{ kind: 'all', place: 'all', day: null }" @endif
 >
     <header class="widget-card-head">
         <span class="widget-card-ico ops-tone-{{ $tone ?? 'neutral' }}"><i data-feather="{{ $item['icon'] }}"></i></span>

@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
 use App\Enums\ShiftStatus;
 use App\Models\Customer;
+use App\Models\DropboxConflict;
 use App\Models\DropboxConnection;
 use App\Models\DropboxIdentity;
 use App\Models\DropboxRecord;
@@ -179,8 +180,15 @@ class DomainAdapter
         $start = $start->utc();
         $end = $end->utc();
         $identity = ! empty($values['employee']) ? $this->identity($connection, $values['employee']) : null;
+        $retainDraft = (bool) $connection->option('retain_unassigned_drafts') && ($record->metadata['imported_order'] ?? false)
+            && (! $record->model_id || (($record->metadata['assignment_pending'] ?? false) && ! Shift::findOrFail($record->model_id)->published_revision));
+        $assignmentPending = null;
         if ($identity && ! in_array($identity->kind, ['employee', 'provider'], true)) {
-            throw ValidationException::withMessages(['sync' => 'Mitarbeiter oder Dienstleister zuerst unter Zuordnungen bestätigen.']);
+            if ($retainDraft) {
+                $assignmentPending = ['sync' => ['Mitarbeiter oder Dienstleister zuerst unter Zuordnungen bestätigen.']];
+            } else {
+                throw ValidationException::withMessages(['sync' => 'Mitarbeiter oder Dienstleister zuerst unter Zuordnungen bestätigen.']);
+            }
         }
         if ($identity?->kind === 'employee' && ! $identity->user_id) {
             throw ValidationException::withMessages(['sync' => 'Das Mitarbeiterkonto fehlt in der bestätigten Zuordnung.']);
@@ -239,11 +247,23 @@ class DomainAdapter
         ], $actor);
         if ($identity?->kind === 'employee' && ! ($values['cancelled'] ?? false)) {
             if (! $oldAssignment || $oldAssignment->user_id !== $identity->user_id || $oldAssignment->status === ShiftAssignmentStatus::Cancelled) {
-                $assignment = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($identity->user_id), $actor, ShiftAssignmentStatus::Requested);
-                $record->assignment_id = $assignment->id;
+                try {
+                    $assignment = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($identity->user_id), $actor, ShiftAssignmentStatus::Requested);
+                    $record->assignment_id = $assignment->id;
+                } catch (ValidationException $e) {
+                    if (! $retainDraft) {
+                        throw $e;
+                    }
+                    $assignmentPending = $e->errors();
+                }
             }
         }
-        $record->forceFill(['model_id' => $shift->id, 'metadata' => array_merge($record->metadata ?? [], ['employee_label' => $values['employee'] ?? '', 'user_id' => $identity?->user_id, 'cancellation' => $values['cancellation'] ?? '', 'actual_end' => $values['actual_end'] ?? null])])->save();
+        $record->forceFill(['model_id' => $shift->id, 'metadata' => array_merge($record->metadata ?? [], ['employee_label' => $values['employee'] ?? '', 'user_id' => $identity?->user_id, 'cancellation' => $values['cancellation'] ?? '', 'actual_end' => $values['actual_end'] ?? null, 'assignment_pending' => $assignmentPending])])->save();
+        if ($assignmentPending) {
+            app(ConflictStore::class)->put($connection, null, $record, 'assignment_pending', ['messages' => $assignmentPending, 'values' => $values]);
+        } else {
+            DropboxConflict::where('record_id', $record->id)->where('reason', 'assignment_pending')->update(['state' => 'resolved']);
+        }
     }
 
     /** All changed application entities resolve to records, including new draft assignments. */

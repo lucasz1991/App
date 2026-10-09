@@ -1,4 +1,5 @@
-<div class="rt-calendar rt-disposition rt-disposition--calendar" data-operations-calendar data-calendar-view="{{ $viewMode }}" data-calendar-week="{{ $weekStartDate->toDateString() }}" x-data="{}">
+<div class="rt-calendar rt-disposition rt-disposition--calendar" data-operations-calendar data-calendar-view="{{ $viewMode }}" data-calendar-week="{{ $weekStartDate->toDateString() }}"
+    x-data="rtShiftDetailDrawer" x-on:operations-shift-detail-request.window="openShiftDetail($event.detail.id)">
     <template x-teleport="[data-topbar-page-search]" wire:key="calendar-topbar-search-{{ $this->getId() }}">
         <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$shifts->count()" placeholder="Schicht, Kunde oder Ort" aria-label="Kalenderschichten suchen" />
     </template>
@@ -97,13 +98,13 @@
 
     @if($viewMode === 'list')
         <div class="rt-disposition-table">
-            <x-tables.table :columns="[['label'=>'Schicht / Kunde','key'=>'title','width'=>'2fr'],['label'=>'Zeitraum','key'=>'starts_at','width'=>'1.5fr'],['label'=>'Besetzung','key'=>'required_staff'],['label'=>'Status','key'=>'status']]" :items="$shifts" detail-action="openShift" row-view="components.tables.rows.operations.calendar" empty="Keine Schichten in diesem Zeitraum." />
+            <x-tables.table :columns="[['label'=>'Schicht / Kunde','key'=>'title','width'=>'2fr'],['label'=>'Zeitraum','key'=>'starts_at','width'=>'1.5fr'],['label'=>'Besetzung','key'=>'required_staff'],['label'=>'Status','key'=>'status']]" :items="$shifts" detail-event="operations-shift-detail-request" row-view="components.tables.rows.operations.calendar" empty="Keine Schichten in diesem Zeitraum." />
         </div>
     @elseif($viewMode === 'month')
         @php
             $statePriority = ['open' => 0, 'pending' => 1, 'staffed' => 2, 'closed' => 3];
         @endphp
-        <div class="rt-calendar-month" aria-label="Monatskalender {{ $periodLabel }}" style="--calendar-weeks: {{ (int) ceil($days->count() / 7) }}">
+        <div class="rt-calendar-month" x-data="rtCalendarReveal" data-calendar-reveal-key="{{ $viewMode }}-{{ $weekStartDate->toDateString() }}" aria-label="Monatskalender {{ $periodLabel }}" style="--calendar-weeks: {{ (int) ceil($days->count() / 7) }}">
             @foreach(['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'] as $weekday)
                 <div @class(['rt-calendar-weekday', 'is-weekend' => $loop->index > 4])><span class="rt-calendar-weekday__long">{{ $weekday }}</span><span class="rt-calendar-weekday__short" aria-hidden="true">{{ mb_substr($weekday, 0, 2) }}</span></div>
             @endforeach
@@ -125,7 +126,7 @@
                     </div>
                     <div class="rt-calendar-month-day__shifts">
                         @foreach($dayShifts->take(3) as $shift)
-                            <button type="button" class="rt-calendar-chip" wire:click="openShift({{ $shift->id }})" data-calendar-shift="{{ $shift->id }}" data-calendar-state="{{ $shift->calendar_state }}" data-calendar-staffing="{{ $shift->calendar_open > 0 ? 'open' : 'staffed' }}" @if((int) $shift->published_revision === 0) data-calendar-draft="true" @endif
+                            <button type="button" class="rt-calendar-chip" x-on:click="$dispatch('operations-shift-detail-request', { id: {{ $shift->id }} })" aria-haspopup="dialog" data-calendar-reveal-item data-calendar-shift="{{ $shift->id }}" data-calendar-state="{{ $shift->calendar_state }}" data-calendar-staffing="{{ $shift->calendar_open > 0 ? 'open' : 'staffed' }}" @if((int) $shift->published_revision === 0) data-calendar-draft="true" @endif
                                 title="{{ $shift->calendar_starts->format('H:i') }}–{{ $shift->calendar_ends->format('H:i') }} · {{ $shift->title }} · {{ $shift->calendar_reserved }}/{{ $shift->required_staff }} eingeplant">
                                 <span class="rt-calendar-chip__dot" aria-hidden="true"></span>
                                 <span class="rt-calendar-chip__time">{{ $shift->calendar_starts->format('H:i') }}</span>
@@ -147,7 +148,7 @@
         </div>
     @else
         @if($viewMode === 'week')
-            <div class="rt-calendar-week" data-calendar-desktop-grid aria-label="Wochenkalender">
+            <div class="rt-calendar-week" x-data="rtCalendarReveal" data-calendar-desktop-grid aria-label="Wochenkalender">
                 @foreach($days as $day)
                     <section @class(['rt-calendar-week-day', 'is-today'=>$day['is_today'], 'is-weekend' => $day['date']->isWeekend()]) wire:key="week-day-{{ $day['date']->toDateString() }}" data-calendar-day="{{ $day['date']->toDateString() }}">
                         <x-ui.buttons.button-basic mode="link" type="button" class="rt-calendar-week-date" wire:click="showDay('{{ $day['date']->toDateString() }}')" aria-current="{{ $day['is_today'] ? 'date' : 'false' }}" aria-label="{{ $day['date']->format('d.m.Y') }} öffnen">
@@ -161,7 +162,7 @@
                 @endforeach
             </div>
         @endif
-        <div @class(['rt-calendar-agenda', 'xl:hidden'=>$viewMode === 'week']) data-calendar-mobile-agenda>
+        <div @class(['rt-calendar-agenda', 'xl:hidden'=>$viewMode === 'week']) x-data="rtCalendarReveal" data-calendar-mobile-agenda>
             @foreach($days as $day)
                 <section @class(['rt-calendar-agenda-day', 'is-today' => $day['is_today'], 'is-empty' => $day['shifts']->isEmpty()]) wire:key="agenda-day-{{ $day['date']->toDateString() }}" data-calendar-day="{{ $day['date']->toDateString() }}">
                     <h3 class="rt-calendar-agenda-heading">
@@ -180,4 +181,5 @@
             @endforeach
         </div>
     @endif
+    @include('livewire.admin.operations.partials.calendar-shift-panel')
 </div>

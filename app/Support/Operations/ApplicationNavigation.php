@@ -68,7 +68,7 @@ final class ApplicationNavigation
                     'personnel-processes' => null,
                     default => $definition['group'] ?? null,
                 };
-                $add($page === 'attention' ? '' : $definition['segment'], $definition['title'], 'operations.page', $definition['icon'], ['page' => $page], true, $group, array_keys($shortcuts));
+                $add($page === 'attention' ? 'Mein Arbeitsplatz' : $definition['segment'], $definition['title'], 'operations.page', $definition['icon'], ['page' => $page], true, $group, array_keys($shortcuts));
             }
         }
         if (! $ready && $admin) {
@@ -97,12 +97,54 @@ final class ApplicationNavigation
         $add('Persönlich', 'Meine Geräte', 'devices.mine', 'smartphone');
         $add('Persönlich', 'Profil', 'profile.show', 'user', [], false);
 
+        if (! empty($sections['Mein Arbeitsplatz'])) {
+            $workplace = $sections['Mein Arbeitsplatz'];
+            $isWorklist = fn (array $link): bool => ($link['parameters']['page'] ?? '') === 'attention';
+            $sections['Mein Arbeitsplatz'] = array_merge(
+                array_filter($workplace, $isWorklist),
+                array_filter($workplace, fn (array $link): bool => ! $isWorklist($link)),
+            );
+        }
+
         if (! empty($sections['Personal'])) {
             // The compact menu and sidebar must use the same workflow order.
             $sections['Personal'] = array_merge(...array_column(self::groups($sections['Personal']), 'links'));
         }
 
         return array_filter($sections, fn ($links) => count($links) > 0);
+    }
+
+    /** Keep utility destinations discoverable in global search, outside the main sidebar. */
+    public static function sidebarSections(User $user, ?array $sections = null): array
+    {
+        $sections ??= self::sections($user);
+        if (! $user->isAdmin()) {
+            return $sections;
+        }
+
+        return array_filter(array_map(
+            fn (array $links): array => array_values(array_filter($links, fn (array $link): bool => ! self::isAdministrationLink($link))),
+            $sections,
+        ), fn (array $links): bool => $links !== []);
+    }
+
+    /** Reuse the existing authorized links, including optional document-schema gates. */
+    public static function administrationLinks(User $user, ?array $sections = null): array
+    {
+        if (! $user->isAdmin()) {
+            return [];
+        }
+        $links = array_values(array_filter(array_merge(...array_values($sections ?? self::sections($user))), self::isAdministrationLink(...)));
+        $order = ['admin.mail-management' => 0, 'admin.marketing.creatives.index' => 1, 'admin.devices' => 2, 'operations.page' => 3];
+        usort($links, fn (array $a, array $b): int => $order[$a['route']] <=> $order[$b['route']]);
+
+        return $links;
+    }
+
+    private static function isAdministrationLink(array $link): bool
+    {
+        return in_array($link['route'], ['admin.mail-management', 'admin.marketing.creatives.index', 'admin.devices'], true)
+            || ($link['route'] === 'operations.page' && ($link['parameters']['page'] ?? '') === 'documents');
     }
 
     public static function managementGroups(array $links): array

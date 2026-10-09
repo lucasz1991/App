@@ -7,7 +7,7 @@
     <div class="wv-dispatch-map__triggers">
         <x-ui.dropdown.anchor-dropdown align="right" width="72" offset="6" dropdown-id="{{ $mapId }}-date" layer-group="{{ $mapId }}-controls" content-role="dialog" content-label="Dispositionstag auswählen" content-classes="rt-ops wv-dispatch-map__menu wv-dispatch-map__date-menu" x-on:dropdown-open="$nextTick(() => $refs.panel?.querySelector('input[type=date]')?.focus({ preventScroll: true }))">
             <x-slot:trigger>
-                <button type="button" class="wv-dispatch-map__trigger" aria-label="Datum auswählen" title="Datum auswählen: {{ $data['dateLabel'] }}" x-on:keydown.arrow-down.prevent.stop="openDropdown(true)" wire:loading.attr="disabled" wire:target="{{ $dateTargets }}"><i data-feather="calendar" aria-hidden="true"></i></button>
+                <button type="button" class="wv-dispatch-map__trigger" aria-label="Datum auswählen" aria-haspopup="dialog" :aria-expanded="open.toString()" aria-controls="rt-dropdown-{{ $mapId }}-date-content" title="Datum auswählen: {{ $data['dateLabel'] }}" x-on:keydown.arrow-down.prevent.stop="openDropdown(true)" wire:loading.attr="disabled" wire:target="{{ $dateTargets }}"><i data-feather="calendar" aria-hidden="true"></i></button>
             </x-slot:trigger>
             <x-slot:content>
                 <div class="ops-field"><label for="{{ $mapId }}-date">Datum der Dispositionskarte</label><x-ui.forms.input id="{{ $mapId }}-date" type="date" value="{{ $data['date'] }}" min="1900-01-01" max="2100-12-31" wire:change="setDispatchMapDate($event.target.value)" x-on:change="close(true)" wire:loading.attr="disabled" wire:target="{{ $dateTargets }}" /></div>
@@ -20,7 +20,7 @@
         </x-ui.dropdown.anchor-dropdown>
         <x-ui.dropdown.anchor-dropdown align="right" width="64" offset="6" dropdown-id="{{ $mapId }}-kind" layer-group="{{ $mapId }}-controls" content-role="dialog" content-label="Einträge anzeigen" content-classes="rt-ops wv-dispatch-map__menu" x-on:dropdown-open="$nextTick(() => $refs.panel?.querySelector('input:checked')?.focus({ preventScroll: true }))">
             <x-slot:trigger>
-                <button type="button" class="wv-dispatch-map__trigger" :class="{ 'is-filtered': kind !== 'all' }" aria-label="Einträge filtern" :title="kind === 'all' ? 'Alle Einträge' : (kind === 'shift' ? 'Schichten' : 'Anfragen')" x-on:keydown.arrow-down.prevent.stop="openDropdown(true)"><i data-feather="sliders" aria-hidden="true"></i></button>
+                <button type="button" class="wv-dispatch-map__trigger" :class="{ 'is-filtered': kind !== 'all' }" aria-label="Einträge filtern" aria-haspopup="dialog" :aria-expanded="open.toString()" aria-controls="rt-dropdown-{{ $mapId }}-kind-content" :title="kind === 'all' ? 'Alle Einträge' : (kind === 'shift' ? 'Schichten' : 'Anfragen')" x-on:keydown.arrow-down.prevent.stop="openDropdown(true)"><i data-feather="sliders" aria-hidden="true"></i></button>
             </x-slot:trigger>
             <x-slot:content>
                 <fieldset class="wv-dispatch-map__choices">
@@ -37,7 +37,7 @@
         </x-ui.dropdown.anchor-dropdown>
         <x-ui.dropdown.anchor-dropdown align="right" width="72" offset="6" dropdown-id="{{ $mapId }}-place" layer-group="{{ $mapId }}-controls" content-role="dialog" content-label="Standort filtern" content-classes="rt-ops wv-dispatch-map__menu" x-on:dropdown-open="$nextTick(() => $refs.panel?.querySelector('input:checked')?.focus({ preventScroll: true }))">
             <x-slot:trigger>
-                <button type="button" class="wv-dispatch-map__trigger" :class="{ 'is-filtered': place !== 'all' }" aria-label="Standort auswählen" title="Standort filtern" x-on:keydown.arrow-down.prevent.stop="openDropdown(true)"><i data-feather="map-pin" aria-hidden="true"></i></button>
+                <button type="button" class="wv-dispatch-map__trigger" :class="{ 'is-filtered': place !== 'all' }" aria-label="Standort auswählen" aria-haspopup="dialog" :aria-expanded="open.toString()" aria-controls="rt-dropdown-{{ $mapId }}-place-content" title="Standort filtern" x-on:keydown.arrow-down.prevent.stop="openDropdown(true)"><i data-feather="map-pin" aria-hidden="true"></i></button>
             </x-slot:trigger>
             <x-slot:content>
                 <fieldset class="wv-dispatch-map__choices">

@@ -1,4 +1,5 @@
-<nav class="rt-sidebar-footer" aria-label="Support und Einstellungen" data-rt-sidebar-footer>
+@php($rtAdministrationLinks = $rtAdministrationLinks ?? \App\Support\Operations\ApplicationNavigation::administrationLinks(auth()->user()))
+<nav class="rt-sidebar-footer" aria-label="{{ $rtAdministrationLinks ? 'Support, Einstellungen und Verwaltung' : 'Support und Einstellungen' }}" data-rt-sidebar-footer>
     <x-ui.dropdown.anchor-dropdown align="top" width="56" dropdown-id="sidebar-support" layer-group="sidebar-footer" :content-label="__('app.it_support')">
         <x-slot:trigger>
             <button type="button" class="rt-sidebar-footer__button" aria-label="{{ __('app.it_support') }}" title="{{ __('app.it_support') }}" data-active="{{ request()->routeIs('help', 'support') ? 'true' : 'false' }}">
@@ -25,5 +26,19 @@
         <a href="{{ route('profile.show') }}" class="rt-sidebar-footer__button" aria-label="{{ __('app.settings') }}" title="{{ __('app.settings') }}" @if(request()->routeIs('profile.show')) aria-current="page" @endif>
             <i data-feather="settings" aria-hidden="true"></i>
         </a>
+    @endif
+    @if($rtAdministrationLinks)
+        <x-ui.dropdown.anchor-dropdown align="top" width="64" dropdown-id="sidebar-administration" layer-group="sidebar-footer" content-label="Verwaltung">
+            <x-slot:trigger>
+                <button type="button" class="rt-sidebar-footer__button" aria-label="Verwaltung" title="Verwaltung" data-active="{{ collect($rtAdministrationLinks)->contains(fn ($link) => \App\Support\Operations\ApplicationNavigation::active($link)) ? 'true' : 'false' }}">
+                    <i data-feather="grid" aria-hidden="true"></i>
+                </button>
+            </x-slot:trigger>
+            <x-slot:content>
+                @foreach($rtAdministrationLinks as $link)
+                    <a href="{{ route($link['route'], $link['parameters']) }}" role="menuitem" class="rt-sidebar-footer__menu-link" @if($link['navigate']) wire:navigate @endif @if(\App\Support\Operations\ApplicationNavigation::active($link)) aria-current="page" @endif>{{ $link['title'] }}</a>
+                @endforeach
+            </x-slot:content>
+        </x-ui.dropdown.anchor-dropdown>
     @endif
 </nav>

@@ -440,7 +440,8 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertArrayHasKey('board', OperationsPages::views($actor, 'duty'));
         $sections = ApplicationNavigation::sections($actor);
         $this->assertSame(['', 'Disposition'], array_slice(array_keys($sections), 0, 2));
-        $this->assertSame(['Dashboard', 'Arbeitsliste'], array_column($sections[''], 'title'));
+        $this->assertSame(['Dashboard'], array_column($sections[''], 'title'));
+        $this->assertSame('Arbeitsliste', $sections['Mein Arbeitsplatz'][0]['title']);
         $this->assertSame(['cases', 'cases', 'cases', 'cases', 'cases', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
         $planning = ApplicationNavigation::groups($sections['Disposition'])['Planung'];
         $this->assertSame('calendar', $planning['icon']);
@@ -450,8 +451,8 @@ class OperationsPageNavigationTest extends TestCase
         $sidebar = view('layouts.application-navigation')->render();
         $destinations = $this->sidebarDestinations($sidebar);
         $this->assertSame(route('dashboard'), $destinations[0]);
-        $expected = [OperationsPages::url('attention'), OperationsPages::url('cases', ['view' => 'inbox']), OperationsPages::url('cases', ['view' => 'orders']), ...array_map(fn ($link) => route($link['route'], $link['parameters']), $planning['links']), OperationsPages::url('duty')];
-        $this->assertSame(OperationsPages::url('attention'), $destinations[1]);
+        $expected = [OperationsPages::url('cases', ['view' => 'inbox']), OperationsPages::url('cases', ['view' => 'orders']), ...array_map(fn ($link) => route($link['route'], $link['parameters']), $planning['links']), OperationsPages::url('duty'), OperationsPages::url('attention')];
+        $this->assertSame(OperationsPages::url('cases', ['view' => 'inbox']), $destinations[1]);
         $this->assertSame($expected, array_values(array_filter($destinations, fn ($url) => in_array($url, $expected, true))));
     }
 

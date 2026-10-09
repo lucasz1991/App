@@ -59,10 +59,23 @@ class NavigationWorkflowStructureTest extends TestCase
         $peopleLinks = collect($after)->flatten(1)->filter(fn (array $link): bool => $link['route'] === 'operations.page' && ($link['parameters']['page'] ?? '') === 'people');
         $this->assertCount(isset(OperationsPages::availableFor($actor)['people']) ? 1 : 0, $peopleLinks);
         foreach (array_diff(array_unique([...array_keys($before), ...array_keys($after)]), ['', 'Disposition', 'Personal']) as $section) {
-            $this->assertSame($before[$section] ?? [], $after[$section] ?? [], 'Unrelated section changed: '.$section);
+            $withoutWorklist = fn (array $links): array => array_values(array_filter($links, fn (array $link): bool => ($link['parameters']['page'] ?? '') !== 'attention'));
+            $this->assertSame($withoutWorklist($before[$section] ?? []), $withoutWorklist($after[$section] ?? []), 'Unrelated section changed: '.$section);
         }
         $this->assertSame('', array_key_first($after));
         $this->assertSame('Dashboard', $after[''][0]['title']);
+        $this->assertCount(1, $after['']);
+        $worklists = collect($after)->flatten(1)->where('parameters.page', 'attention');
+        if ($worklists->isNotEmpty()) {
+            $this->assertSame('attention', $after['Mein Arbeitsplatz'][0]['parameters']['page']);
+        }
+        $main = ApplicationNavigation::sidebarSections($actor, $after);
+        $utilities = ApplicationNavigation::administrationLinks($actor, $after);
+        $this->assertSame($this->contracts($after), $this->contracts($main + ['__footer' => $utilities]), 'Sidebar and footer together preserve every authorized destination exactly once.');
+        if (! $actor->isAdmin()) {
+            $this->assertSame($after, $main);
+            $this->assertSame([], $utilities);
+        }
         $this->assertSame('Persönlich', array_key_last($after));
         foreach ($after as $links) {
             $this->assertNotEmpty($links);
@@ -98,7 +111,9 @@ class NavigationWorkflowStructureTest extends TestCase
     {
         $this->installSchema('full');
         $sections = ApplicationNavigation::sections($this->actor('admin'));
-        $this->assertSame(['Dashboard', 'Arbeitsliste'], array_column($sections[''], 'title'));
+        $this->assertSame(['Dashboard'], array_column($sections[''], 'title'));
+        $this->assertSame('Arbeitsliste', $sections['Mein Arbeitsplatz'][0]['title']);
+        $this->assertSame('Arbeitsmittel', $sections['Mein Arbeitsplatz'][1]['group']);
         $this->assertSame([
             '' => ['Eingang', 'Aufträge', 'Leitstelle'],
             'Planung' => ['Angebote', 'Schichtplan', 'Kalender', 'Ressourcen & Kapazität'],
@@ -118,7 +133,7 @@ class NavigationWorkflowStructureTest extends TestCase
         $actor = $this->actor('admin');
         $this->actingAs($actor);
         $this->setPageRequest('people', ['section' => 'signatures']);
-        $links = collect(ApplicationNavigation::sections($actor))->flatten(1)->all();
+        $links = collect(ApplicationNavigation::sidebarSections($actor))->flatten(1)->all();
         $destinations = array_map(fn (array $link): string => route($link['route'], $link['parameters']), $links);
         $sidebar = $this->xpath(view('layouts.application-navigation')->render());
         $rendered = iterator_to_array($sidebar->query('//a[@data-rt-sidebar-link]'));
@@ -138,6 +153,63 @@ class NavigationWorkflowStructureTest extends TestCase
         $options = json_decode(json_decode('"'.$matches[1].'"', true, 512, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame($destinations, array_column($options, 'value'));
         $this->assertSame([OperationsPages::url('people')], array_column(array_filter($options, fn (array $option): bool => $option['selected']), 'value'));
+    }
+
+    public function test_admin_utilities_render_in_one_native_third_footer_dropdown_and_not_in_the_main_menu(): void
+    {
+        $this->installSchema('full');
+        $actor = $this->actor('admin');
+        $this->actingAs($actor);
+        $all = ApplicationNavigation::sections($actor);
+        $tools = ApplicationNavigation::administrationLinks($actor, $all);
+        $this->assertSame(['Mailverwaltung', 'Motive', 'Geräte & Lager', 'Dateien & Unterlagen'], array_column($tools, 'title'));
+        $main = ApplicationNavigation::sidebarSections($actor, $all);
+        $this->assertSame(['Dashboard'], array_column($main[''], 'title'));
+        $this->assertSame('Arbeitsliste', $main['Mein Arbeitsplatz'][0]['title']);
+        foreach (['Dokumente', 'Geräte', 'Marketing', 'Kommunikation'] as $segment) {
+            $this->assertArrayNotHasKey($segment, $main);
+        }
+
+        $footer = $this->xpath(view('layouts.sidebar-footer')->render());
+        $buttons = iterator_to_array($footer->query('//nav[@data-rt-sidebar-footer]//button'));
+        $this->assertSame([__('app.it_support'), 'Systemeinstellungen', 'Verwaltung'], array_map(fn (\DOMElement $button): string => $button->getAttribute('aria-label'), $buttons));
+        $this->assertSame('grid', $footer->query('//button[@aria-label="Verwaltung"]/i')->item(0)->getAttribute('data-feather'));
+        $root = $footer->query('//*[@data-rt-dropdown-id="rt-dropdown-sidebar-administration"]')->item(0);
+        $this->assertNotNull($root);
+        $this->assertStringContainsString("layerGroup: 'sidebar-footer'", $root->getAttribute('x-data'));
+        $menu = $footer->query('//*[@id="rt-dropdown-sidebar-administration-content"]')->item(0);
+        $this->assertSame('menu', $menu->getAttribute('role'));
+        $this->assertSame('Verwaltung', $menu->getAttribute('aria-label'));
+        $items = iterator_to_array($footer->query('.//a[@role="menuitem"]', $menu));
+        $this->assertSame(array_column($tools, 'title'), array_map(fn (\DOMElement $item): string => trim($item->textContent), $items));
+        foreach ($items as $index => $item) {
+            $this->assertSame(route($tools[$index]['route'], $tools[$index]['parameters']), $item->getAttribute('href'));
+            $this->assertSame($tools[$index]['navigate'], $item->hasAttribute('wire:navigate'));
+        }
+        // Authorized utility links remain available to the existing global search catalogue.
+        $this->assertSame($this->contracts($all), $this->contracts($main + ['__footer' => $tools]));
+        Mail::assertNothingSent();
+        Bus::assertNothingDispatched();
+        Http::assertNothingSent();
+    }
+
+    public function test_employee_keeps_its_device_and_download_links_without_an_admin_footer_menu(): void
+    {
+        $this->installSchema('full');
+        $actor = $this->actor('staff', ['operations.inbox.view', 'devices.view']);
+        $this->actingAs($actor);
+        $sections = ApplicationNavigation::sections($actor);
+        $this->assertSame('Arbeitsliste', $sections['Mein Arbeitsplatz'][0]['title']);
+        $this->assertSame($sections, ApplicationNavigation::sidebarSections($actor));
+        $this->assertSame([], ApplicationNavigation::administrationLinks($actor));
+        $this->assertSame('devices.index', $sections['Geräte'][0]['route']);
+        $this->assertSame('files', $sections['Dokumente'][0]['route']);
+        $footer = $this->xpath(view('layouts.sidebar-footer')->render());
+        $this->assertSame(0, $footer->query('//*[@data-rt-dropdown-id="rt-dropdown-sidebar-administration"]')->length);
+        $this->assertSame(0, $footer->query('//button[@aria-label="Verwaltung"]')->length);
+        $this->permissions[$actor->id] = ['devices.view'];
+        $revoked = ApplicationNavigation::sections($actor);
+        $this->assertFalse(collect($revoked)->flatten(1)->contains(fn (array $link): bool => ($link['parameters']['page'] ?? '') === 'attention'));
     }
 
     #[DataProvider('activeDestinations')]

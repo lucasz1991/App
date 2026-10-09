@@ -72,8 +72,8 @@ class NativeOperationsWorkflowTest extends TestCase
         $sections = ApplicationNavigation::sections($this->admin);
         $adminLinks = collect($sections)->flatten(1);
         $this->assertSame('', array_key_first($sections));
-        $this->assertSame(['Dashboard', 'Arbeitsliste'], array_column($sections[''], 'title'));
-        $this->assertSame(['page' => 'attention'], $sections[''][1]['parameters']);
+        $this->assertSame(['Dashboard'], array_column($sections[''], 'title'));
+        $this->assertSame(['page' => 'attention'], $sections['Mein Arbeitsplatz'][0]['parameters']);
         $this->assertSame('Persönlich', array_key_last($sections));
         $this->assertSame(['Meine Geräte', 'Profil'], array_column($sections['Persönlich'], 'title'));
         $this->assertArrayNotHasKey('Management', $sections);

@@ -144,7 +144,7 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 .wv-dispatch-map__stage { position:relative; flex:0 0 auto; width:min(100%, calc(var(--dispatch-map-height) * 160 / 176)); }
 .wv-dispatch-map__canvas { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
 .wv-dispatch-map__outline { fill:color-mix(in srgb, var(--ops-muted) 16%, var(--ops-sheet)); stroke:var(--ops-muted); stroke-opacity:.5; stroke-width:.65; stroke-linejoin:round; }
-.wv-dispatch-map__point { position:absolute; transform:translate(-50%, -50%); }
+.wv-dispatch-map__point { position:absolute!important; transform:translate(-50%, -50%); }
 .wv-dispatch-map__marker { display:inline-flex; align-items:center; justify-content:center; gap:1px; width:24px; height:24px; padding:0; border:0; border-radius:50%; background:color-mix(in srgb, var(--ops-signal) 12%, transparent); cursor:pointer; }
 .wv-dispatch-map__marker:hover, .wv-dispatch-map__marker[aria-expanded="true"] { background:color-mix(in srgb, var(--ops-signal) 23%, transparent); }
 .wv-dispatch-map__marker:focus-visible { outline:2px solid var(--ops-signal); outline-offset:2px; }
@@ -176,7 +176,7 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 @container dispatch-map (max-width:419px) {
     .widget-card-head > h3 { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 }
-@container dispatch-map (max-width:299px) { .widget-card-head > .widget-card-ico { display:none; } }
+@container dispatch-map (max-width:209px) { .widget-card-head > .widget-card-ico { display:none; } }
 @container dispatch-map (max-width:239px) {
     .wv-dispatch-map__date-full { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
     .wv-dispatch-map__date-short { display:inline; }

@@ -1,4 +1,9 @@
 @persist('railtime-sidebar-'.$area)
+    @php
+        $rtNavigationSections = \App\Support\Operations\ApplicationNavigation::sections(auth()->user());
+        $rtSidebarSections = \App\Support\Operations\ApplicationNavigation::sidebarSections(auth()->user(), $rtNavigationSections);
+        $rtAdministrationLinks = \App\Support\Operations\ApplicationNavigation::administrationLinks(auth()->user(), $rtNavigationSections);
+    @endphp
     <div class="rt-mobile-sidebar-backdrop fixed inset-x-0 bottom-0 top-[70px] z-20 bg-slate-950/45 backdrop-blur-[2px] print:hidden" aria-hidden="true"></div>
 
     {{-- Höhe und Innenabstände liegen bewusst in `shell-redesign.css`

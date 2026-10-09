@@ -1,5 +1,5 @@
 @props(['modules' => [], 'current' => null])
-@php($navigation = \App\Support\Operations\ApplicationNavigation::sections(auth()->user()))
+@php($navigation = \App\Support\Operations\ApplicationNavigation::sidebarSections(auth()->user()))
 <div @class(['ops-module-navigation', 'ops-module-navigation--mobile-only' => (bool) $current])>
     @if(!$current)
     <nav class="ops-tabs ops-module-desktop" aria-label="Arbeitsbereiche">

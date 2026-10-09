@@ -227,7 +227,7 @@ class FileSynchronizer
                         $incoming['draft'] = $local['draft'];
                     }
                     $changed = $incoming !== $local;
-                    if ($changed && ! $preview) {
+                    if (($changed || ($record->metadata['assignment_pending'] ?? false)) && ! $preview) {
                         $this->domain->apply($connection, $record, $incoming);
                     }
                     $target = $preview ? $incoming : $this->domain->current($record);
