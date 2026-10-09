@@ -1,10 +1,10 @@
 # Local Germany preview data
 
 This data powers the timeline event's small Germany overview. Its marker is an
-approximate locality or reviewed city-centre fallback, **not** an address,
-station, worksite or navigation target.
+approximate locality, city-centre, railway or postcode estimate, **not** a
+verified address, worksite or navigation target.
 There is no runtime network lookup. The helper reads only the shift location and
-its already-loaded order's location, city and country; it never reads customer
+its already-loaded order's location, city, postal code and country; it never reads customer
 addresses or private notes. Only immutable public data is cached.
 
 ## GeoNames attribution and transformation
@@ -94,6 +94,74 @@ an overridden shift location cannot borrow the order's city/country, malformed
 supplied values cannot enable fallback, and there is no customer/private-address
 lookup, database query or runtime network call. Only immutable public map data
 is cached. The original assignment/location text is never rewritten.
+
+## Map-only railway, district and postcode fallbacks (2026-10-09)
+
+`germany-location-aliases.json` extends display resolution without changing the
+original place index or the eight reviewed centres. Its source is the same
+2026-10-06 GeoNames Germany extract and hash documented above. It contains
+13,224 keys (13,193 unique points and 31 blocked collisions), 994,394 bytes.
+
+- Modern railway features `RSTN` and `RSTP` contribute exact primary, ASCII and
+  source alternate names. Short railway codes and numeric IDs are excluded.
+  `Hbf`, `Hbf.` and `Hauptbahnhof` are deterministic spelling equivalents only
+  where the source actually supplies that station qualifier. Historic/abandoned
+  station features are excluded; populated-place collisions block railway aliases.
+- District features `PPLX` contribute their primary/ASCII names with an explicit
+  already-known city prefix. A city must have an unambiguous source point or be
+  one of the eight reviewed centres. It shares all supplied administrative
+  municipality codes with the district/station, and is within 35 km of its source
+  coordinate. A missing fourth-level code can inherit a city only when the
+  third-level code represents an independent city (`admin4 = admin3 + 000`).
+  Sharing an arbitrary rural county never makes a neighbouring town the anchor.
+  Multiple anchors remain blocked; there is no population or nearest-city ranking.
+- An explicit administrative city anchor yields its original approximate city
+  or locality point. An otherwise unique railway name uses the public source
+  station point, labelled **Bahnhofslage · ungefähr**, never an exact worksite.
+  Equivalent records for the same known municipality share the city point.
+- The reviewed `Frankfurt (Main)` spelling uses the locality point 2925533
+  (Frankfurt am Main, 50.11552, 8.68417), whose source alternate includes
+  `Frankfurt/Main`. Parenthetical spacing is normalized for that name and the
+  exact `Frankfurt (Oder)` source point 2925535. `Frankfurt (Main) Hbf` therefore
+  stays distinct from `Frankfurt (Oder) Hbf`; unqualified `Frankfurt` stays unlocated.
+
+Existing known city/locality resolution wins. A bare ambiguous place cannot
+acquire a marker from a district or station alias. A source-backed qualified
+railway name may resolve even when its city's bare name is ambiguous. Normalized
+parenthetical spacing and dashes retain collision detection. Source-backed names
+may carry the same bounded station qualifiers described above; routes, unknown
+districts, arbitrary suffixes and foreign qualifiers cannot create a marker.
+
+`germany-postcodes.json` derives from the official [GeoNames Germany postal
+extract](https://download.geonames.org/export/zip/DE.zip), downloaded 2026-10-09.
+Source SHA-256: `a95090d8352f80c91a5e80967c043c077ac072b2ab329d58f747f8238a75b43c`.
+[Postal format and licence](https://download.geonames.org/export/zip/readme.txt):
+GeoNames and contributors, CC BY 4.0. The snapshot contains 10,814 five-digit
+German codes and 23,298 distinct name/coordinate candidates (949,721 bytes).
+Coordinates are upstream estimates, not verified address coordinates.
+
+Each code retains all distinct `(place name, latitude, longitude)` rows, sorted
+deterministically. A supplied city must match the source postal place or an
+already-resolved canonical city exactly. A known city keeps its existing city
+point. Otherwise exactly one matching candidate yields **PLZ-Ortslage · ungefähr**;
+multiple candidates remain ambiguous. A unique postcode alone can anchor a vague
+worksite label, but cannot overwrite a recognizable conflicting location or city.
+`86641 Rain` and `DE-86641 Rain` use the same safe matching. No city is inferred
+from a customer's or employee's private address, inquiry contact, original text,
+order association, or notes. Inquiry maps read only their explicit `location_name`.
+Shift overrides cannot borrow an unrelated order's postcode/city/country.
+
+These extensions are for map display only. `forRegionalAssessment()` retains
+the original resolver, and the regional service deliberately uses it for both
+worksite assessment and saved-area validation. New railway/district/postcode
+markers do not change regional ranking, configuration acceptance or No-Go blocks.
+
+Regenerate the alias data from modern GeoNames rows with the exact filters above,
+merge each spelling by its resulting point ID, and keep multiple distinct point
+IDs as `null`. For postal data, retain all distinct German five-digit source
+candidates. Record the source hashes/counts and run `TimelineLocationPreviewTest`
+and `StaffRegionalPreferenceServiceTest` after any refresh. The reproducible local
+generation helper is recorded with this change's `.lmzdev` report.
 
 ## Natural Earth outline and projection
 

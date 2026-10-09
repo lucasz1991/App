@@ -6,6 +6,7 @@ use App\Livewire\Admin\Operations\Calendar;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shift;
+use App\Models\ShiftAssignment;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -26,27 +27,50 @@ class CalendarUiComponentsTest extends TestCase
         $this->travelTo(Carbon::parse('2026-09-17 09:00:00', 'Europe/Berlin'));
     }
 
-    public function test_calendar_uses_one_accessible_icon_view_control_and_iso_date_field(): void
+    public function test_calendar_starts_in_month_with_one_header_row_of_minimal_dropdowns(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $component = Livewire::actingAs($admin)->test(Calendar::class)
-            ->assertSeeHtml('data-multi-toggle')
+            ->assertSet('viewMode', 'month')
+            ->assertSeeHtml('data-calendar-header-controls')
             ->assertSeeHtml('data-rt-date-field')
             ->assertSeeHtml('id="calendar-anchor-date"')
             ->assertSeeHtml('aria-label="Kalenderdatum"')
             ->assertSeeHtml('data-autosave-model="anchorDate"')
-            ->assertDontSeeHtml('type="date"');
+            ->assertDontSeeHtml('type="date"')
+            ->assertDontSeeHtml('data-multi-toggle')
+            ->assertSee('September 2026');
 
         $html = $component->html();
-        // Count real option attributes, not selectors inside the Alpine expression.
-        $this->assertSame(4, preg_match_all('/data-toggle-value="(day|week|month|list)"/', $html));
-        $this->assertSame(1, substr_count($html, 'aria-pressed="true"'));
-        foreach (['Tag', 'Woche', 'Monat', 'Liste'] as $label) {
-            $this->assertStringContainsString('aria-label="'.$label.'"', $html);
-        }
+        // Ansicht als ein Auswahlmenü: vier Optionen, genau eine gewählt.
+        $this->assertSame(4, preg_match_all('/data-calendar-view-option="(day|week|month|list)"/', $html));
+        $this->assertSame(1, substr_count($html, 'role="menuitemradio" aria-checked="true"'));
+        $this->assertStringContainsString('data-calendar-view-option="month"', $html);
+        $this->assertStringContainsString('aria-label="Kalenderansicht ändern: Monat"', $html);
+        // Filter wandern ins Filter-Menü; keine eigene Filterzeile mehr.
+        $this->assertStringContainsString('id="calendar-filters"', $html);
+        $this->assertStringNotContainsString('rt-disposition-toolbar', $html);
         $this->assertStringNotContainsString('@click="clear()"', $html);
-        $component->call('switchView', 'month')->assertSet('viewMode', 'month');
-        $this->assertSame(1, substr_count($component->html(), 'aria-pressed="true"'));
+        $component->call('switchView', 'week')->assertSet('viewMode', 'week')
+            ->assertSeeHtml('aria-label="Kalenderansicht ändern: Woche"');
+        $this->assertSame(1, substr_count($component->html(), 'role="menuitemradio" aria-checked="true"'));
+        $component->set('onlyOpen', true)->assertSeeHtml('aria-pressed="true"');
+    }
+
+    public function test_month_cells_show_state_in_text_and_lead_with_open_shifts(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $order = $this->order($admin);
+        $staffed = $this->shift($order, $admin, 'Frueh besetzt', ['required_staff' => 1, 'starts_at' => '2026-09-17 06:00:00', 'ends_at' => '2026-09-17 14:00:00']);
+        ShiftAssignment::create(['shift_id' => $staffed->id, 'user_id' => User::factory()->create(['role' => 'staff'])->id, 'status' => 'confirmed', 'assigned_by' => $admin->id]);
+        $open = $this->shift($order, $admin, 'Spaet offen', ['required_staff' => 2, 'starts_at' => '2026-09-17 14:00:00', 'ends_at' => '2026-09-17 22:00:00']);
+        $html = Livewire::actingAs($admin)->test(Calendar::class)->html();
+        $day = substr($html, strpos($html, 'data-calendar-day="2026-09-17"'));
+        $day = substr($day, 0, strpos($day, '</section>'));
+        $this->assertStringContainsString('2 offen', $day);
+        $this->assertStringContainsString('data-calendar-state="staffed"', $day);
+        // Lücken zuerst, auch wenn die besetzte Schicht früher beginnt.
+        $this->assertLessThan(strpos($day, 'data-calendar-shift="'.$staffed->id.'"'), strpos($day, 'data-calendar-shift="'.$open->id.'"'));
     }
 
     public function test_date_and_view_navigation_preserve_customer_order_search_and_open_filter(): void

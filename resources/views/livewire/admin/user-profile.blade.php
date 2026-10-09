@@ -8,6 +8,15 @@
     $roleColor = 'slate';
     $lastActivityAt = $user->lastActivityAt();
     $isUserOnline = $user->isOnline();
+    $profileGroups = collect($employeeProfileTabs)->groupBy(fn ($definition) => $definition['group'] ?? 'Profil & Stammdaten', preserveKeys: true);
+    $profileGroup = $employeeProfileTabs[$profileTab]['group'] ?? 'Profil & Stammdaten';
+    $profileGroupLabels = [
+        'Profil & Stammdaten' => ['label' => 'Profil', 'icon' => 'far fa-user'],
+        'Personalakte' => ['label' => 'Personalakte', 'icon' => 'far fa-folder-open'],
+        'Entwicklung & Aufgaben' => ['label' => 'Entwicklung', 'icon' => 'far fa-graduation-cap'],
+        'Arbeitszeit & Regeln' => ['label' => 'Arbeitszeit', 'icon' => 'far fa-clock'],
+    ];
+    $profilePrefix = 'employee-profile-'.$user->id;
   @endphp
 
   <x-dynamic-component :component="$embedded ? 'operations.surface' : 'ui.page'" :title="$embedded ? null : $user->name" :eyebrow="__('app.employees')" :description="$user->email" :auto-intro="!$embedded">
@@ -51,33 +60,43 @@
 
       @include('livewire.admin.user-profile.partials.identity-card')
 
-        <div class="employee-profile__section-picker max-w-sm">
-            <x-ui.forms.label for="employee-profile-section" value="Bereich der Mitarbeiterakte" />
-            <x-ui.forms.select id="employee-profile-section" aria-label="Profilbereich" change="$wire.setProfileTab($event.target.value)">
-                @foreach(collect($employeeProfileTabs)->groupBy(fn ($definition) => $definition['group'] ?? 'Profil & Stammdaten', preserveKeys: true) as $group => $groupTabs)
-                    <optgroup label="{{ $group }}">
-                        @foreach($groupTabs as $tabId => $tabDefinition)
-                            <option value="{{ $tabId }}" data-icon-class="{{ $tabDefinition['icon'] }}" @selected($profileTab === $tabId)>{{ $tabDefinition['label'] }}</option>
-                        @endforeach
-                    </optgroup>
-                @endforeach
-            </x-ui.forms.select>
-            <span wire:loading wire:target="setProfileTab" role="status" class="text-xs text-rt-muted dark:text-rt-dark-muted">Bereich wird geladen …</span>
+      <div class="employee-profile__navigation" data-profile-navigation x-data="{}">
+        <nav class="employee-profile__groups" aria-label="Bereiche der Mitarbeiterakte">
+            @foreach($profileGroups as $group => $groupTabs)
+                @php
+                    $groupDefinition = $profileGroupLabels[$group];
+                    $groupAction = '$wire.call('.\Illuminate\Support\Js::from('setProfileTab').', '.\Illuminate\Support\Js::from((string) $groupTabs->keys()->first()).').then(() => { if ($el.isConnected) $el.focus({ preventScroll: true }); })';
+                @endphp
+                <x-ui.buttons.button-basic type="button" mode="link" :x-on:click="$groupAction"
+                    wire:loading.attr="disabled" wire:target="setProfileTab"
+                    :aria-current="$profileGroup === $group ? 'page' : 'false'"
+                    class="employee-profile__group" :title="$group">
+                    <i class="{{ $groupDefinition['icon'] }}" aria-hidden="true"></i>
+                    <span>{{ $groupDefinition['label'] }}</span>
+                </x-ui.buttons.button-basic>
+            @endforeach
+        </nav>
+        <div class="employee-profile__tab-row">
+            <x-operations.panel.tabs :tabs="$profileGroups[$profileGroup]->all()"
+                :label="$profileGroup" :id-prefix="$profilePrefix" :active="$profileTab"
+                action="setProfileTab" class="employee-profile__tabs" />
         </div>
+        <div class="employee-profile__loading" wire:loading.delay wire:target="setProfileTab" role="status">
+            <i class="far fa-spinner fa-spin" aria-hidden="true"></i> Bereich wird geladen …
+        </div>
+      </div>
 
-    <x-ui.accordion.tabs
-        :tabs="[$profileTab => $employeeProfileTabs[$profileTab]]"
-        :collapse-at="'md'"
-        :default="$profileTab"
-        :force-default="true"
-        :persist="false"
-        persist-key="admin.user.{{ $user->id }}.tabs.{{ $profileTab }}"
-    >
+    <div class="employee-profile__content" x-data="{}" wire:loading.class="employee-profile__content--loading" wire:target="setProfileTab">
+        @foreach($profileGroups[$profileGroup] as $tabId => $definition)
+            @if($tabId !== $profileTab)
+                <section hidden role="tabpanel" id="{{ $profilePrefix }}-panel-{{ $tabId }}" aria-labelledby="{{ $profilePrefix }}-tab-{{ $tabId }}"></section>
+            @endif
+        @endforeach
         {{-- TAB: Details — klare zweispaltige Info-Sektionen --}}
         {{-- Wichtig: kein display-Utility (grid) direkt auf dem x-show-Panel,
              sonst gewinnt Tailwinds !important gegen Alpines inline display:none. --}}
         @if($profileTab === 'userDetails')
-        <x-ui.accordion.tab-panel for="userDetails" contentClass="space-y-4">
+        <x-operations.panel.tab name="userDetails" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
           <div class="grid gap-4 lg:grid-cols-2" data-anim-stagger>
             {{-- Persoenliche Daten --}}
             <section class="employee-detail-group rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
@@ -167,31 +186,31 @@
                 </dl>
             </section>
           </div>
-        </x-ui.accordion.tab-panel>
+        </x-operations.panel.tab>
         @endif
 
         {{-- TAB: Bemerkungen --}}
         @if(isset($employeeProfileTabs['userNotes']) && $profileTab === 'userNotes')
-        <x-ui.accordion.tab-panel for="userNotes" contentClass="space-y-4" panelClass="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+        <x-operations.panel.tab name="userNotes" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
             <livewire:admin.user-profile.user-notes :user-id="$user->id" :key="'user-notes-'.$user->id" />
-        </x-ui.accordion.tab-panel>
+        </x-operations.panel.tab>
         @endif
 
         {{-- TAB: Dateien --}}
         @if(isset($employeeProfileTabs['userFiles']) && $profileTab === 'userFiles')
-        <x-ui.accordion.tab-panel for="userFiles" contentClass="space-y-4" panelClass="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+        <x-operations.panel.tab name="userFiles" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
             <livewire:tools.file-pools.manage-file-pools
                 :model-type="\App\Models\User::class"
                 :model-id="$user->id"
                 :read-only="false"
                 :key="'user-files-'.$user->id"
             />
-        </x-ui.accordion.tab-panel>
+        </x-operations.panel.tab>
         @endif
 
         {{-- TAB: Nachrichten --}}
         @if(isset($employeeProfileTabs['userMessages']) && $profileTab === 'userMessages')
-        <x-ui.accordion.tab-panel for="userMessages" contentClass="space-y-4" panelClass="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+        <x-operations.panel.tab name="userMessages" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
             @if (class_exists(\App\Livewire\Admin\UserProfile\UserMessages::class))
                 <livewire:admin.user-profile.user-messages :user-id="$user->id" :key="'user-messages-'.$user->id" />
             @else
@@ -200,11 +219,11 @@
                     {{ __('app.module_not_available') }}
                 </div>
             @endif
-        </x-ui.accordion.tab-panel>
+        </x-operations.panel.tab>
         @endif
 
         @if(isset($employeeProfileTabs['devices']) && $profileTab === 'devices')
-            <x-ui.accordion.tab-panel for="devices" contentClass="space-y-4">
+            <x-operations.panel.tab name="devices" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
                 <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                     <div>
                         <h3 class="text-sm font-semibold text-rt-text dark:text-white">Zugewiesene Geräte und Historie</h3>
@@ -243,28 +262,28 @@
                         <div class="rounded-xl border border-dashed border-rt-border p-8 text-center text-sm text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted lg:col-span-2">Diesem Mitarbeiter wurde noch kein Gerät zugewiesen.</div>
                     @endforelse
                 </div>
-            </x-ui.accordion.tab-panel>
+            </x-operations.panel.tab>
         @endif
 
         @if ($canViewMasterData && $profileTab === 'masterData')
-            <x-ui.accordion.tab-panel for="masterData" contentClass="space-y-4">
+            <x-operations.panel.tab name="masterData" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
                 @include('livewire.admin.user-profile.partials.master-data', ['profile' => $profile])
-            </x-ui.accordion.tab-panel>
+            </x-operations.panel.tab>
         @endif
         @if ($canViewMasterData && $profileTab === 'documents')
-            <x-ui.accordion.tab-panel for="documents" contentClass="space-y-4">
+            <x-operations.panel.tab name="documents" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
                 <livewire:admin.user-profile.employee-documents :user-id="$user->id" :key="'employee-documents-'.$user->id" />
-            </x-ui.accordion.tab-panel>
+            </x-operations.panel.tab>
         @endif
 
         @if ($canViewCompensation && $profileTab === 'compensation')
-            <x-ui.accordion.tab-panel for="compensation" contentClass="space-y-4">
+            <x-operations.panel.tab name="compensation" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
                 @include('livewire.admin.user-profile.partials.compensation-data', ['profile' => $profile])
-            </x-ui.accordion.tab-panel>
+            </x-operations.panel.tab>
         @endif
         @if(isset($employeeProfileTabs[$profileTab]['component']))
             @php($section = $employeeProfileTabs[$profileTab])
-            <x-ui.accordion.tab-panel :for="$profileTab" contentClass="space-y-4">
+            <x-operations.panel.tab :name="$profileTab" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel space-y-4">
                 @if($section['component'] === 'qualifications')
                     <livewire:operations.personnel-review module="qualifications" :embedded="true" :profile-user-id="(int) $user->id" :key="'profile-qualifications-'.$user->id" />
                 @elseif($section['component'] === 'workforce')
@@ -272,9 +291,9 @@
                 @elseif($section['component'] === 'enhancements')
                     <livewire:operations.personnel-enhancements :tab="$section['tab']" :embedded="true" :profile-user-id="(int) $user->id" :key="'profile-enhancements-'.$user->id.'-'.$profileTab" />
                 @endif
-            </x-ui.accordion.tab-panel>
+            </x-operations.panel.tab>
         @endif
-    </x-ui.accordion.tabs>
+    </div>
     </div>
   </x-dynamic-component>
 

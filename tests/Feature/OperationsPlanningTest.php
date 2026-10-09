@@ -429,6 +429,8 @@ class OperationsPlanningTest extends TestCase
 
         Livewire::actingAs($admin)
             ->test(Calendar::class)
+            ->assertSet('viewMode', 'month')
+            ->call('switchView', 'week')
             ->assertSet('weekStart', '2026-08-03')
             ->assertSee('data-calendar-week', escape: false)
             ->assertSee('data-calendar-day="2026-08-05"', escape: false)

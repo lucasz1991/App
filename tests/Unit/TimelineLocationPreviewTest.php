@@ -179,10 +179,19 @@ final class TimelineLocationPreviewTest extends TestCase
         foreach (['Frankfurt(Oder)', 'Frankfurt (Oder) Hbf', 'Frankfurt(Oder)Hbf'] as $location) {
             self::assertSame($this->preview('Frankfurt (Oder)'), $this->preview($location));
         }
-        self::assertSame('ambiguous', $this->preview('Frankfurt')['state']);
+        self::assertSame('unknown', $this->preview('Frankfurt')['state']);
         self::assertNotSame($this->preview('Frankfurt am Main')['x'], $this->preview('Frankfurt (Oder)')['x']);
         self::assertSame('unknown', $this->preview('Frankfurt (Main) / Frankfurt (Oder)')['state']);
         self::assertSame('located', $this->preview('Hanau Hbf')['state']);
+    }
+
+    public function test_districts_in_the_same_rural_county_do_not_borrow_another_municipality_city(): void
+    {
+        // Public GeoNames municipality codes differ despite the shared county:
+        // Lörrach 08336050 / Wyhlen 08336105; Pirna 14628270 / Zinnwald 14628010.
+        foreach (['Lörrach Wyhlen', 'Lörrach-Wyhlen', 'Pirna Zinnwald', 'Schwandorf Zeitlarn'] as $location) {
+            self::assertSame('unknown', $this->preview($location)['state'], $location);
+        }
     }
 
     public function test_postcode_disambiguates_only_matching_city_and_keeps_precision_label(): void

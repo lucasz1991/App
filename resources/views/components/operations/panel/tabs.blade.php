@@ -3,10 +3,14 @@
     'label',
     'idPrefix',
     'model' => 'tab',
+    // Server-owned lazy panels use manual activation: focus alone never loads data.
+    'action' => null,
+    'active' => null,
 ])
 {{--
     Reiterleiste nach dem APG-Muster: Pfeiltasten, Pos1 und Ende bewegen den Fokus,
-    der fokussierte Reiter wird sofort aktiv (alle Inhalte liegen bereits vor).
+    Standard: Fokus aktiviert den Reiter, dessen Inhalt bereits vorliegt.
+    Mit action: Klick/Enter lädt den Bereich serverseitig; Fokus bleibt beim Reiter.
     Jeder Eintrag: ['label' => …, 'count' => optional, 'countExpression' => optional (Alpine,
     zählt live mit, z. B. für Auswahlfelder), 'alert' => optional bool].
 --}}
@@ -18,12 +22,20 @@
     @foreach($tabs as $key => $tab)
         <button type="button" role="tab" class="rt-ops-panel__tab"
             id="{{ $idPrefix }}-tab-{{ $key }}" aria-controls="{{ $idPrefix }}-panel-{{ $key }}"
-            aria-selected="{{ $loop->first ? 'true' : 'false' }}" tabindex="{{ $loop->first ? '0' : '-1' }}"
-            x-bind:aria-selected="{{ $model }} === @js((string) $key) ? 'true' : 'false'"
-            x-bind:tabindex="{{ $model }} === @js((string) $key) ? 0 : -1"
-            x-on:click="{{ $model }} = @js((string) $key)"
-            x-on:focus="{{ $model }} = @js((string) $key)"
+            aria-selected="{{ ($action ? (string) $active === (string) $key : $loop->first) ? 'true' : 'false' }}" tabindex="{{ ($action ? (string) $active === (string) $key : $loop->first) ? '0' : '-1' }}"
+            @if($action)
+                x-on:click="await $wire.call(@js($action), @js((string) $key)); if ($el.isConnected) $el.focus({ preventScroll: true })"
+                wire:loading.attr="disabled" wire:target="{{ $action }}"
+            @else
+                x-bind:aria-selected="{{ $model }} === @js((string) $key) ? 'true' : 'false'"
+                x-bind:tabindex="{{ $model }} === @js((string) $key) ? 0 : -1"
+                x-on:click="{{ $model }} = @js((string) $key)"
+                x-on:focus="{{ $model }} = @js((string) $key)"
+            @endif
             data-panel-tab="{{ $key }}">
+            @if(filled($tab['icon'] ?? null))
+                <i class="{{ $tab['icon'] }}" aria-hidden="true"></i>
+            @endif
             <span>{{ $tab['label'] }}</span>
             @if(filled($tab['countExpression'] ?? null))
                 <span class="rt-ops-panel__count" x-text="{{ $tab['countExpression'] }}">{{ $tab['count'] ?? '' }}</span>

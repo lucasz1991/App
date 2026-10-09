@@ -199,7 +199,13 @@ class EmployeeProfileIntegrationTest extends TestCase
             ->assertViewHas('employeeProfileTabs', fn (array $tabs) => array_diff(['userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices', 'masterData', 'documents', 'compensation'], array_keys($tabs)) === []);
         $this->assertSame([], $this->personnelChildren($profile->html()));
         $this->assertDatabaseCount('file_pools', 0);
+        $profile->assertSee('data-profile-navigation', false)
+            ->assertSee('role="tablist"', false)
+            ->assertDontSee('@js(', false)
+            ->assertDontSee('employee-profile-section-listbox', false);
+        $this->assertProfileTabRelationship($profile->html(), 'userDetails');
         $profile->call('setProfileTab', 'masterData')->assertSet('profileTab', 'masterData');
+        $this->assertProfileTabRelationship($profile->html(), 'masterData');
         $this->assertSame([], $this->personnelChildren($profile->html()));
         $this->assertDatabaseCount('file_pools', 0);
     }
@@ -207,6 +213,22 @@ class EmployeeProfileIntegrationTest extends TestCase
     public static function profileModes(): array
     {
         return ['standalone' => [false], 'embedded' => [true]];
+    }
+
+    private function assertProfileTabRelationship(string $html, string $tab): void
+    {
+        $document = new DOMDocument;
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
+        $xpath = new DOMXPath($document);
+        $tabs = $xpath->query('//*[@role="tab" and @aria-selected="true"]');
+        $this->assertCount(1, $tabs);
+        $selected = $tabs->item(0);
+        $this->assertSame($tab, $selected->getAttribute('data-panel-tab'));
+        $panel = $xpath->query('//*[@id="'.$selected->getAttribute('aria-controls').'"]')->item(0);
+        $this->assertNotNull($panel);
+        $this->assertSame('tabpanel', $panel->getAttribute('role'));
+        $this->assertSame($selected->getAttribute('id'), $panel->getAttribute('aria-labelledby'));
+        $this->assertStringNotContainsString('x-on:focus', $selected->ownerDocument->saveHTML($selected));
     }
 
     #[DataProvider('personnelSections')]

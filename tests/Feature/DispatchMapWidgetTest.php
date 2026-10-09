@@ -202,8 +202,12 @@ class DispatchMapWidgetTest extends TestCase
             $this->assertSame([$shownType], array_unique(array_column($data['items'], 'type')));
             $this->assertFalse(collect($queries)->contains(fn (array $query) => str_contains(strtolower($query['query']), 'from "'.$table.'"')));
             $component = $this->grid($user)->assertOk();
-            $component->assertDontSeeHtml('<option value="'.($shownType === 'shift' ? 'inquiry' : 'shift').'">');
-            $component->assertSeeHtml('<option value="'.$shownType.'">');
+            $xpath = $this->xpath($component->html());
+            $kindInputs = '//*[@data-dispatch-map]//input[@type="radio" and @x-model="kind"]';
+            $this->assertSame(0, $xpath->query($kindInputs.'[@value="'.($shownType === 'shift' ? 'inquiry' : 'shift').'"]')->length);
+            $this->assertSame(1, $xpath->query($kindInputs.'[@value="'.$shownType.'"]')->length);
+            $this->assertSame(1, $xpath->query($kindInputs.'[@value="all"]')->length);
+            $this->assertSame(1, $xpath->query('//*[@data-dispatch-map]//input[@type="radio" and @x-model="place" and @value="'.$data['markers'][0]['key'].'"]')->length);
         }
     }
 
@@ -254,6 +258,34 @@ class DispatchMapWidgetTest extends TestCase
             ->assertSeeHtml('&lt;script&gt;')->assertSeeHtml('&lt;img src=x onerror=alert(1)&gt;')
             ->assertDontSeeHtml('<script>alert("title")</script>')
             ->assertDontSeeHtml('<img src=x onerror=alert(1)>');
+        $xpath = $this->xpath($component->html());
+        $map = '//*[@data-dispatch-map]';
+        $toolbar = $map.'/*[contains(concat(" ", normalize-space(@class), " "), " wv-dispatch-map__toolbar ")]';
+        $this->assertSame(1, $xpath->query($toolbar)->length);
+        $triggers = $xpath->query($toolbar.'//*[@data-rt-dropdown-trigger]/button');
+        $this->assertSame(3, $triggers->length);
+        foreach ($triggers as $trigger) {
+            $this->assertSame('button', $trigger->getAttribute('type'));
+            $this->assertNotSame('', trim($trigger->getAttribute('aria-label')));
+            $this->assertSame('', trim($trigger->textContent), 'Toolbar triggers must contain only icons.');
+        }
+        $dialogs = $map.'//*[@role="dialog"]';
+        $this->assertSame(3, $xpath->query($dialogs.'[@aria-label]')->length);
+        $this->assertSame(1, $xpath->query($dialogs.'//input[@type="date"]')->length);
+        $this->assertSame(0, $xpath->query($map.'//input[@type="date" and not(ancestor::*[@role="dialog"])]')->length);
+        $this->assertSame(0, $xpath->query($map.'//select')->length);
+        foreach (['kind', 'place'] as $model) {
+            $radios = $xpath->query($dialogs.'//input[@type="radio" and @x-model="'.$model.'"]');
+            $this->assertGreaterThanOrEqual(2, $radios->length);
+            $names = [];
+            foreach ($radios as $radio) {
+                $this->assertNotSame('', $radio->getAttribute('name'));
+                $names[] = $radio->getAttribute('name');
+                $this->assertSame('label', $radio->parentNode->nodeName);
+            }
+            $this->assertCount(1, array_unique($names), 'Each native radio group must share one unique name.');
+        }
+        $this->assertSame(1, $xpath->query($dialogs.'//input[@type="radio" and @x-model="place" and @value="unlocated"]')->length);
         foreach (['2026-02-30', '2026-10-9', '2026-10-09T00:00', 'tomorrow', '', '1899-12-31', '2101-01-01'] as $date) {
             $component->call('setDispatchMapDate', $date)->assertHasErrors('dispatchMapDate')->assertSet('dispatchMapDate', '2026-10-09');
         }
@@ -299,5 +331,19 @@ class DispatchMapWidgetTest extends TestCase
         Schema::drop('operation_audits');
         $this->assertArrayNotHasKey('operations_dispatch_map', WidgetRegistry::availableFor($this->admin));
         $this->assertSame([], $this->map());
+    }
+
+    private function xpath(string $html): \DOMXPath
+    {
+        $document = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $document->loadHTML('<?xml encoding="UTF-8">'.$html);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+
+        return new \DOMXPath($document);
     }
 }

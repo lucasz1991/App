@@ -219,7 +219,11 @@ class PlanningTopbarNavigationTest extends TestCase
             $this->assertStringContainsString("window.Livewire.find('".$calendar->instance()->getId()."').entangle('search').live", $search->getAttribute('x-data'));
             $this->assertStringContainsString('isPageTopbarSearch: true', $search->getAttribute('x-data'));
             $this->assertSame(1, $xpath->query('//input[@type="search"]')->length);
-            $this->assertSame(0, $xpath->query('//template[@*[name()="x-teleport"]="[data-page-header-search]"]')->length);
+            // Der Seitenkopf trägt die Steuerzeile; die Suche bleibt allein in der Topbar.
+            $header = $xpath->query('//template[@*[name()="x-teleport"]="[data-page-header-search]"]');
+            $this->assertSame(1, $header->length);
+            $this->assertSame(1, $xpath->query('.//*[@data-calendar-header-controls]', $header->item(0))->length);
+            $this->assertSame(0, $xpath->query('.//*[@data-rt-search]', $header->item(0))->length);
             $calendar->set('search', 'Synthetic East')->assertViewHas('shifts', fn ($shifts) => $shifts->pluck('id')->all() === [$east->id]);
             $calendar->set('search', 'Unmatched search')->assertViewHas('shifts', fn ($shifts) => $shifts->isEmpty());
             $calendar->call('resetFilters')->assertSet('search', '')->assertViewHas('shifts', fn ($shifts) => $shifts->pluck('id')->all() === [$east->id, $west->id]);

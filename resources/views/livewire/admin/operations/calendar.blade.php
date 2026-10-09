@@ -105,7 +105,7 @@
         @endphp
         <div class="rt-calendar-month" aria-label="Monatskalender {{ $periodLabel }}" style="--calendar-weeks: {{ (int) ceil($days->count() / 7) }}">
             @foreach(['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'] as $weekday)
-                <div @class(['rt-calendar-weekday', 'is-weekend' => $loop->index > 4])><span class="hidden sm:inline">{{ $weekday }}</span><span class="sm:hidden" aria-hidden="true">{{ mb_substr($weekday, 0, 2) }}</span></div>
+                <div @class(['rt-calendar-weekday', 'is-weekend' => $loop->index > 4])><span class="rt-calendar-weekday__long">{{ $weekday }}</span><span class="rt-calendar-weekday__short" aria-hidden="true">{{ mb_substr($weekday, 0, 2) }}</span></div>
             @endforeach
             @foreach($days as $day)
                 @php
@@ -127,6 +127,7 @@
                         @foreach($dayShifts->take(3) as $shift)
                             <button type="button" class="rt-calendar-chip" wire:click="openShift({{ $shift->id }})" data-calendar-shift="{{ $shift->id }}" data-calendar-state="{{ $shift->calendar_state }}" data-calendar-staffing="{{ $shift->calendar_open > 0 ? 'open' : 'staffed' }}" @if((int) $shift->published_revision === 0) data-calendar-draft="true" @endif
                                 title="{{ $shift->calendar_starts->format('H:i') }}–{{ $shift->calendar_ends->format('H:i') }} · {{ $shift->title }} · {{ $shift->calendar_reserved }}/{{ $shift->required_staff }} eingeplant">
+                                <span class="rt-calendar-chip__dot" aria-hidden="true"></span>
                                 <span class="rt-calendar-chip__time">{{ $shift->calendar_starts->format('H:i') }}</span>
                                 <span class="rt-calendar-chip__title">{{ $shift->title }}</span>
                                 <span class="rt-calendar-chip__staff">@if($shift->calendar_state === 'open'){{ $shift->calendar_open }} offen @elseif($shift->calendar_state === 'pending'){{ $shift->calendar_requested }} angefr. @else{{ $shift->calendar_reserved }}/{{ $shift->required_staff }}@endif</span>
