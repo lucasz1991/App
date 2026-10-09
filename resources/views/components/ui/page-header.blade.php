@@ -29,11 +29,11 @@
 
     @if (isset($actions) || $help)
         <div class="flex shrink-0 flex-nowrap items-center justify-end gap-1.5" data-page-header-actions>
-            @isset($actions)
-                <div class="flex min-w-0 flex-nowrap items-center justify-end gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div class="empty:hidden flex min-w-0 flex-nowrap items-center justify-end gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-page-header-action-list>
+                @isset($actions)
                     {{ $actions }}
-                </div>
-            @endisset
+                @endisset
+            </div>
             @if ($help)
                 <x-ui.page-info-button
                     :title="$title"

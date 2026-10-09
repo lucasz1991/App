@@ -9,6 +9,8 @@ use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -91,10 +93,24 @@ class AiAssist extends Component
         $this->loaded = true;
     }
 
+    #[On('operations-assistant-action')]
     public function run(string $action): void
     {
         $actor = $this->actor();
+        $lock = Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
+        abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
+        try {
+            $this->runAction($action, $actor);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function runAction(string $action, User $actor): void
+    {
         $service = app(AiAssistService::class);
+        abort_unless(in_array($action, $service->permitted($actor), true), 403);
+        $this->consumeAssistRate($actor);
         $this->loaded = true;
         $this->tab = 'chat';
         // Erst auswerten (prüft Recht und Aktion), dann Frage und Antwort gemeinsam ablegen.
@@ -106,10 +122,22 @@ class AiAssist extends Component
     public function ask(string $text): void
     {
         $actor = $this->actor();
+        $lock = Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
+        abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
+        try {
+            $this->askText($text, $actor);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function askText(string $text, User $actor): void
+    {
         $text = trim(mb_substr($text, 0, 500));
         if ($text === '') {
             return;
         }
+        $this->consumeAssistRate($actor);
         $service = app(AiAssistService::class);
         $this->loaded = true;
         $this->tab = 'chat';
@@ -123,16 +151,42 @@ class AiAssist extends Component
     public function act(int $messageId, string $act): void
     {
         $actor = $this->actor();
+        $lock = Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
+        abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
+        try {
+            $this->actCard($messageId, $act, $actor);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function actCard(int $messageId, string $act, User $actor): void
+    {
         $messages = $this->conversation();
         $index = collect($messages)->search(fn (array $message) => ($message['id'] ?? null) === $messageId && ($message['role'] ?? '') === 'assistant');
         abort_if($index === false || empty($messages[$index]['card']), 404);
         $card = $messages[$index]['card'];
+        abort_if($act === 'undo' && in_array($card['state'] ?? '', ['dismissed', 'undone'], true), 409);
+        $allowed = collect($card['buttons'] ?? [])->pluck('act')->filter()->all();
+        $allowed[] = 'dismiss';
+        if (($card['state'] ?? '') === 'done' && ! empty($card['undo'])) {
+            $allowed[] = 'undo';
+        }
+        abort_unless(in_array($act, $allowed, true), 422);
         if (str_starts_with($act, 'tab:')) {
             $this->setTab(substr($act, 4));
 
             return;
         }
-        abort_unless(in_array($act, ['apply', 'undo', 'dismiss'], true), 422);
+        if (str_starts_with($act, 'run:')) {
+            $this->runAction(substr($act, 4), $actor);
+
+            return;
+        }
+        abort_unless(in_array($act, ['apply', 'undo', 'dismiss', 'approve', 'reject', 'retry', 'reanalyze', 'prepare'], true), 422);
+        if (in_array($act, ['apply', 'approve', 'retry', 'reanalyze', 'prepare'], true)) {
+            abort_unless(($messages[$index]['created_at'] ?? now()->getTimestamp()) >= now()->subMinutes(10)->getTimestamp(), 409, 'Vorschlag ist abgelaufen. Bitte erneut auswerten.');
+        }
         abort_if(in_array($card['state'] ?? null, ['done', 'dismissed', 'undone'], true) && $act !== 'undo', 409);
         $service = app(AiAssistService::class);
         if ($act === 'apply') {
@@ -147,6 +201,20 @@ class AiAssist extends Component
                 $this->dispatch('swal:toast', type: 'success', text: count($result['done']) === 1 ? 'Als Angefragt eingeteilt.' : count($result['done']).' Besetzungen als Angefragt eingeteilt.');
             } else {
                 $this->dispatch('swal:toast', type: 'warning', text: 'Kein Vorschlag konnte übernommen werden.');
+            }
+        } elseif (in_array($act, ['approve', 'reject', 'retry', 'reanalyze', 'prepare'], true)) {
+            abort_if(empty($card['command']), 422);
+            try {
+                $card = array_replace($card, $service->executeCommand($card['command'], $act, $actor));
+                unset($card['command']);
+                $card['done_at'] = now()->setTimezone(config('operations.display_timezone', 'Europe/Berlin'))->format('H:i');
+            } catch (ValidationException $exception) {
+                $card['failed'] = [collect($exception->errors())->flatten()->first() ?: 'Aktuelle Grundlage prüfen.'];
+            } catch (HttpException $exception) {
+                if (in_array($exception->getStatusCode(), [403, 404], true)) {
+                    throw $exception;
+                }
+                $card['failed'] = [$exception->getMessage() ?: 'Aktuelle Grundlage prüfen.'];
             }
         } elseif ($act === 'undo') {
             abort_unless(($card['state'] ?? null) === 'done' && ! empty($card['undo']), 409);
@@ -164,9 +232,15 @@ class AiAssist extends Component
 
     public function resetConversation(): void
     {
-        $this->actor();
-        session()->forget(self::SESSION);
-        $this->tab = 'chat';
+        $actor = $this->actor();
+        $lock = Cache::lock('operations:assist:'.session()->getId().':'.$actor->id, 60);
+        abort_unless($lock->get(), 409, 'Der Assistent bearbeitet gerade eine Aktion. Bitte kurz warten.');
+        try {
+            session()->forget(self::SESSION);
+            $this->tab = 'chat';
+        } finally {
+            $lock->release();
+        }
     }
 
     public function openSettings(): void
@@ -210,6 +284,12 @@ class AiAssist extends Component
         $messages = $this->conversation();
         $message['id'] = (int) collect($messages)->max('id') + 1;
         $message['time'] = CarbonImmutable::now((string) config('operations.display_timezone', 'Europe/Berlin'))->format('H:i');
+        $actor = $this->actor();
+        $message['actor_id'] = $actor->id;
+        $message['created_at'] = now()->getTimestamp();
+        if (! empty($message['action'])) {
+            $message['abilities'] = app(AiAssistService::class)->requiredAbilities($message['action'], $actor);
+        }
         $messages[] = $message;
         session([self::SESSION => array_slice($messages, -self::MAX_MESSAGES)]);
     }
@@ -218,8 +298,11 @@ class AiAssist extends Component
     private function conversation(): array
     {
         $messages = session(self::SESSION, []);
+        $actor = auth()->user()?->fresh();
 
-        return is_array($messages) ? array_values(array_filter($messages, 'is_array')) : [];
+        return is_array($messages) && $actor?->isActive() ? array_values(array_filter($messages, static fn ($message) => is_array($message)
+            && (! isset($message['actor_id']) || $message['actor_id'] === $actor->id)
+            && ! collect($message['abilities'] ?? [])->contains(fn ($ability) => ! in_array($ability, ['operations.manage', 'operations.inquiries.manage'], true) || ! $actor->can($ability)))) : [];
     }
 
     private function context(): array
@@ -237,6 +320,13 @@ class AiAssist extends Component
         return $actor;
     }
 
+    private function consumeAssistRate(User $actor): void
+    {
+        $key = 'operations:assist:minute:'.$actor->id;
+        abort_if(RateLimiter::tooManyAttempts($key, max(1, (int) config('assistant.chat_limits.user_per_minute', 6))), 429, 'Zu viele Auswertungen. Bitte kurz warten.');
+        RateLimiter::hit($key, 60);
+    }
+
     public function render()
     {
         $actor = $this->actor();
@@ -250,6 +340,7 @@ class AiAssist extends Component
             'reviewCount' => $service->reviewCount($actor),
             'messages' => $this->conversation(),
             'overview' => $loaded ? $service->overview($actor) : null,
+            'automation' => $loaded ? $service->automationOverview($actor) : null,
             'intakes' => $loaded && $this->tab === 'intake' ? $service->intakes($actor, $this->intakeSearch, $this->intakeStatus) : collect(),
             'intakesReady' => $actor->can('operations.inquiries.manage') && AiIntakeSchema::ready(),
             'activity' => $loaded && $this->tab === 'activity' ? $service->activity($actor, $this->activityFilter) : collect(),

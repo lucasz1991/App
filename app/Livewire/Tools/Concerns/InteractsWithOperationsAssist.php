@@ -76,6 +76,7 @@ trait InteractsWithOperationsAssist
         $this->operationsLoaded = true;
     }
 
+    #[On('operations-assistant-action')]
     public function runOperationsAction(string $action): void
     {
         $actor = $this->operationsActor();
@@ -91,7 +92,7 @@ trait InteractsWithOperationsAssist
             return false;
         }
         $text = mb_strtolower(trim($input));
-        $subject = preg_match('/\b(?:schicht(?:en|plan)?|besetzung(?:en)?|dienst(?:e)?|auslastung|tageslage|ai[ -]eing[aä]ng\w*|ki[ -]eing[aä]ng\w*|anfragen|auftr[aä]ge|leistungen)\b/u', $text);
+        $subject = preg_match('/\b(?:schicht(?:en|plan)?|besetzung(?:en)?|dienst(?:e)?|auslastung|tageslage|ai[ -]eing[aä]ng\w*|ki[ -]eing[aä]ng\w*|anfragen|auftr[aä]ge|leistungen|kundennachrichten|postausgang|personalautomatik|prüffälle)\b/u', $text);
         $request = preg_match('/\b(?:zeige|prüfe|analysiere|fasse|zusammenfassen|vorschlagen|schlage|wer\s+kann|welche|wie\s+viele|offene\s+(?:schichten|dienste)|ohne\s+schichten|aktuelle\s+tageslage)\b/u', $text);
         $explicit = preg_match('/^(?:\/dispo(?:sition)?\b|(?:ai|ki)[ -]assist\b)/u', $text) || ($subject && $request);
         if (! $explicit) {
@@ -123,18 +124,21 @@ trait InteractsWithOperationsAssist
         }
         $service = app(AiAssistService::class);
         $answer = $service->answer($action, $actor, $this->operationsContext ?: $service->context(''));
-        $ability = in_array($action, ['intake', 'summary'], true) || ($action === 'day' && ! $actor->can('operations.manage')) ? 'operations.inquiries.manage' : 'operations.manage';
+        $abilities = $service->requiredAbilities($action, $actor);
+        $ability = $abilities[0];
         $this->operationsLoaded = true;
         $this->operationsTab = 'chat';
         $this->appendHistory('user', $input ?? $service->title($action), localOnly: true, localAbility: $ability);
         $entry = $this->appendHistory('assistant', (string) ($answer['lead'] ?? ''), localOnly: true, localAbility: $ability);
+        $this->chatHistory[array_key_last($this->chatHistory)]['local_abilities'] = $abilities;
         if (is_array($answer['card'] ?? null)) {
             $records = $this->operationsCardRecords($actor);
-            $records[$entry['key']] = ['actor_id' => $actor->id, 'ability' => $ability, 'created_at' => now()->getTimestamp(), 'card' => ['state' => 'open'] + $answer['card']];
+            $records[$entry['key']] = ['actor_id' => $actor->id, 'ability' => $ability, 'abilities' => $abilities, 'created_at' => now()->getTimestamp(), 'card' => ['state' => 'open'] + $answer['card']];
             $this->chatHistory[array_key_last($this->chatHistory)]['operations_card'] = $entry['key'];
             $this->persistHistory();
             $this->storeOperationsCardRecords($actor, $records);
         }
+        $this->persistHistory();
         $this->dispatch('operations-assist-reply', key: $entry['key'], localOnly: true);
 
         return true;
@@ -143,7 +147,7 @@ trait InteractsWithOperationsAssist
     public function actOperationsCard(string $messageUuid, string $act): void
     {
         $actor = $this->operationsActor();
-        abort_unless(Str::isUuid($messageUuid) && in_array($act, ['apply', 'undo', 'dismiss', 'tab:intake', 'tab:actions', 'tab:activity'], true), 422);
+        abort_unless(Str::isUuid($messageUuid) && (in_array($act, ['apply', 'undo', 'dismiss', 'approve', 'reject', 'retry', 'reanalyze', 'prepare', 'tab:intake', 'tab:actions', 'tab:activity'], true) || preg_match('/^run:[a-z-]+$/', $act)), 422);
         $this->withOperationsLock(function () use ($actor, $messageUuid, $act): void {
             $entry = collect($this->chatHistory)->first(fn ($entry) => ($entry['key'] ?? '') === $messageUuid && ($entry['operations_card'] ?? '') === $messageUuid && ! empty($entry['local_only']));
             $records = $this->operationsCardRecords($actor);
@@ -152,7 +156,10 @@ trait InteractsWithOperationsAssist
             if (isset($record['ability'])) {
                 OperationsAccess::authorize($actor, $record['ability']);
             }
-            if ($act === 'apply') {
+            foreach ($record['abilities'] ?? [] as $ability) {
+                OperationsAccess::authorize($actor, $ability);
+            }
+            if (in_array($act, ['apply', 'approve', 'retry', 'reanalyze', 'prepare'], true)) {
                 abort_unless($record['created_at'] >= now()->subMinutes(10)->getTimestamp(), 409, 'Vorschlag ist abgelaufen. Bitte erneut auswerten.');
             }
             $card = $record['card'];
@@ -164,6 +171,11 @@ trait InteractsWithOperationsAssist
             abort_unless(in_array($act, $allowed, true), 403);
             if (str_starts_with($act, 'tab:')) {
                 $this->setOperationsTab(substr($act, 4));
+
+                return;
+            }
+            if (str_starts_with($act, 'run:')) {
+                $this->performOperationsAction($actor, substr($act, 4));
 
                 return;
             }
@@ -179,6 +191,11 @@ trait InteractsWithOperationsAssist
                 if ($result['done'] !== []) {
                     $this->dispatch('operations-plan-changed');
                 }
+            } elseif (in_array($act, ['approve', 'reject', 'retry', 'reanalyze', 'prepare'], true)) {
+                abort_if(empty($card['command']), 422);
+                $card = array_replace($card, $service->executeCommand($card['command'], $act, $actor));
+                unset($card['command']);
+                $card['done_at'] = now()->setTimezone(config('operations.display_timezone', 'Europe/Berlin'))->format('H:i');
             } elseif ($act === 'undo') {
                 abort_unless(($card['state'] ?? '') === 'done' && ! empty($card['undo']), 409);
                 $service->undo($card['undo'], $actor);
@@ -289,6 +306,7 @@ trait InteractsWithOperationsAssist
         $data['actions'] = $service->actions($actor, $this->operationsContext);
         $data['reviewCount'] = $service->reviewCount($actor);
         $data['overview'] = $service->overview($actor);
+        $data['automation'] = $service->automationOverview($actor);
         $data['status'] = AiDispositionSettings::status();
         $data['enabled'] = (bool) $settings['enabled'];
         $data['mode'] = $settings['automation_mode'];
@@ -311,12 +329,12 @@ trait InteractsWithOperationsAssist
         $actor = $this->operationsActor();
         $cards = [];
         foreach ($this->operationsCardRecords($actor) as $key => $record) {
-            if ($record['actor_id'] !== $actor->id || (isset($record['ability']) && ! $actor->can($record['ability']))) {
+            if ($record['actor_id'] !== $actor->id || (isset($record['ability']) && ! $actor->can($record['ability'])) || collect($record['abilities'] ?? [])->contains(fn ($ability) => ! $actor->can($ability))) {
                 continue;
             }
             $card = $record['card'];
             $card['canUndo'] = ($card['state'] ?? '') === 'done' && ! empty($card['undo']);
-            unset($card['payload'], $card['undo']);
+            unset($card['payload'], $card['undo'], $card['command']);
             $card['expired'] = $record['created_at'] < now()->subMinutes(10)->getTimestamp();
             $cards[$key] = $card;
         }
@@ -340,7 +358,7 @@ trait InteractsWithOperationsAssist
                 return true;
             }
 
-            return $available && (! isset($entry['local_ability']) || (in_array($entry['local_ability'], ['operations.manage', 'operations.inquiries.manage'], true) && $actor->can($entry['local_ability'])));
+            return $available && ! collect($entry['local_abilities'] ?? [])->contains(fn ($ability) => ! in_array($ability, ['operations.manage', 'operations.inquiries.manage'], true) || ! $actor->can($ability)) && (! isset($entry['local_ability']) || (in_array($entry['local_ability'], ['operations.manage', 'operations.inquiries.manage'], true) && $actor->can($entry['local_ability'])));
         }));
     }
 

@@ -3,6 +3,8 @@
 namespace App\Services\Operations;
 
 use App\Enums\OrderStatus;
+use App\Jobs\QueueAiIntakeOrderConfirmation;
+use App\Models\AiIntakeProposal;
 use App\Models\CommercialOfferRevision;
 use App\Models\Customer;
 use App\Models\CustomerPortalIdentity;
@@ -12,9 +14,13 @@ use App\Models\User;
 use App\Services\CustomerPortal\CustomerPortalPublicationService;
 use App\Support\CustomerPortal\CustomerPortalDateTime;
 use App\Support\CustomerPortal\PortalActor;
+use App\Support\Operations\AiCustomerCommunicationSchema;
+use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\OperationsAutomationActor;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -188,7 +194,23 @@ class InquiryWorkflowService
             }
             $record->updated_by = PortalActor::internalId($actor);
             $record->save();
-            $this->audit->record($record, $actor, 'inquiry.'.$action, ['status' => $record->status, 'offer' => $record->offer, 'acceptance_note' => $record->acceptance_note, 'order_id' => $record->order_id, 'duplicate_of_id' => $record->duplicate_of_id]);
+            $auditData = ['status' => $record->status, 'offer' => $record->offer, 'acceptance_note' => $record->acceptance_note, 'order_id' => $record->order_id, 'duplicate_of_id' => $record->duplicate_of_id];
+            $communication = $action === 'convert' && $actor instanceof User && AiCustomerCommunicationSchema::ready() ? AiDispositionSettings::all(true) : null;
+            if ($communication && $communication['enabled'] && ($communication['customer_confirmation_mode'] ?? 'off') !== 'off' && AiIntakeProposal::where('inquiry_id', $record->id)->exists()) {
+                // Persist the opt-in intent inside the human conversion transaction, before a queue can fail.
+                $auditData['customer_confirmation'] = ['enabled' => true, 'settings_revision' => (int) $communication['revision'], 'supervisor_id' => (int) $communication['supervisor_id'], 'mode' => $communication['customer_confirmation_mode']];
+            }
+            $this->audit->record($record, $actor, 'inquiry.'.$action, $auditData);
+            if (isset($auditData['customer_confirmation'])) {
+                DB::afterCommit(function () use ($record, $actor): void {
+                    try {
+                        QueueAiIntakeOrderConfirmation::dispatch($record->id, $actor->id)->afterCommit();
+                    } catch (\Throwable) {
+                        // The persisted intent is recovered by the bounded disposition poll; never undo an approved order.
+                        Log::warning('AI customer confirmation queue unavailable', ['inquiry_id' => $record->id]);
+                    }
+                });
+            }
 
             return $record;
         }, 3);

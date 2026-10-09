@@ -25,6 +25,7 @@
         </ol>
     @elseif($opsTab === 'actions')
         <h3>Disposition unterstützen</h3>
+        @include('livewire.tools.partials.operations-automation-status', ['automation' => $operationsAssist['automation'] ?? null])
         <div class="rt-ai-assist__actions">
             @foreach(collect($operationsAssist['actions']['page'])->concat($operationsAssist['actions']['global']) as $action)
                 <button type="button" class="rt-ai-assist__action" x-on:click="handleOperationsAction(@js($action['key']))" x-bind:disabled="isLoading || operationsBusy">
@@ -35,7 +36,7 @@
     @else
         <div class="rt-ai-assist__intake-head"><div><h3>Aktivitäten</h3><p>Analyse, Rückfragen und bestätigte Planungsschritte mit ihrem tatsächlichen Stand.</p></div></div>
         <div class="rt-ai-assist__filter" role="group" aria-label="Aktivitäten filtern">
-            @foreach(['all' => 'Alle', 'intake' => 'AI-Annahme', 'planning' => 'Planung'] as $key => $label)<button type="button" aria-pressed="{{ $operationsActivityFilter === $key ? 'true' : 'false' }}" wire:click="$set('operationsActivityFilter', '{{ $key }}')">{{ $label }}</button>@endforeach
+            @foreach(['all' => 'Alle', 'intake' => 'AI-Annahme', 'communication' => 'Kundennachrichten', 'planning' => 'Planung', 'automation' => 'Personalanfragen'] as $key => $label)<button type="button" aria-pressed="{{ $operationsActivityFilter === $key ? 'true' : 'false' }}" wire:click="$set('operationsActivityFilter', '{{ $key }}')">{{ $label }}</button>@endforeach
         </div>
         @if($operationsAssist['activity']->isEmpty())<p class="rt-ai-assist__note">Noch keine Aktivitäten. Verarbeitete Eingänge und übernommene Vorschläge erscheinen hier.</p>@endif
         <ol class="rt-ai-assist__activity">

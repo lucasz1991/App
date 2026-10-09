@@ -9,13 +9,20 @@ use App\Models\Order;
 use App\Models\User;
 use App\Support\CustomerPortal\PortalActor;
 use App\Support\Operations\OperationsAutomationActor;
+use App\Support\Operations\StaffingAutomationActor;
 use Illuminate\Database\Eloquent\Model;
 
 class OperationsAuditService
 {
-    public function record(Model $subject, User|CustomerPortalIdentity|OperationsAutomationActor $actor, string $action, array $data = []): void
+    public function record(Model $subject, User|CustomerPortalIdentity|OperationsAutomationActor|StaffingAutomationActor $actor, string $action, array $data = []): void
     {
         $references = [];
+        if ($actor instanceof StaffingAutomationActor) {
+            $actor->authorize('audit');
+            $actor->assertSubjectScope($subject);
+            $references = $actor->references();
+            $data = $actor->auditReferences() + $data;
+        }
         if ($actor instanceof OperationsAutomationActor) {
             $actor->authorize('audit', $subject instanceof OperationInquiry ? 'operations.inquiries.manage' : 'operations.manage');
             $references = $actor->references();
@@ -36,7 +43,7 @@ class OperationsAuditService
         }
         OperationAudit::create([
             'subject_type' => class_basename($subject), 'subject_id' => $subject->id,
-            'actor_id' => PortalActor::internalId($actor), 'action' => $action, 'revision' => $subject->revision,
+            'actor_id' => $actor instanceof StaffingAutomationActor ? null : PortalActor::internalId($actor), 'action' => $action, 'revision' => $subject->revision,
             'data' => $data, 'created_at' => now()->utc(),
         ] + $references);
     }

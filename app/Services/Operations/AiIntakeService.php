@@ -168,6 +168,7 @@ class AiIntakeService
                 }
                 $intake->save();
                 if (! $error && $intake->status !== 'paused') {
+                    app(AiIntakeMailService::class)->enqueueReceipt($intake);
                     ProcessAiIntake::dispatch($intake->id)->afterCommit();
                 }
 
@@ -257,14 +258,14 @@ class AiIntakeService
                         }
                     }
                     $current->update(['inquiry_ids' => $current->proposals()->where('source_revision', $current->source_revision)->whereNotNull('inquiry_id')->pluck('inquiry_id')->all(), 'missing_fields' => array_values(array_unique($missing)), 'status' => $missing === [] ? 'ready' : 'review']);
-                    if ($missing !== [] && $current->source_type === 'email' && ($settings['automation_mode'] ?? 'automatic') === 'automatic' && $current->question_round < min(2, (int) $settings['max_rounds'])) {
+                    if ($missing !== [] && $current->source_type === 'email' && $current->question_round < min(2, (int) $settings['max_rounds'])) {
                         if ($questions !== []) {
                             $delivery = app(AiIntakeMailService::class)->enqueueClarification($current, $questions, $run);
                             if ($delivery) {
                                 $current->refresh();
-                                $current->update(['status' => 'waiting_customer']);
+                                $current->update($delivery->status === 'draft' ? ['status' => 'review', 'error_code' => 'customer_message_approval_required'] : ['status' => 'waiting_customer']);
                             } else {
-                                $current->update(['status' => 'review', 'error_code' => 'recipient_not_verified']);
+                                $current->update(['status' => 'review', 'error_code' => app(AiIntakeMailService::class)->mode($settings, 'clarification') === 'off' ? 'customer_clarification_disabled' : 'recipient_not_verified']);
                             }
                         }
                     }
@@ -439,7 +440,7 @@ class AiIntakeService
             $this->access($actor);
             $record = $this->current($intake, $expectedRevision);
             $record->update(['status' => 'paused', 'paused_at' => now()->utc(), 'revision' => $record->revision + 1]);
-            $record->deliveries()->where('status', 'pending')->update(['status' => 'canceled', 'failure_code' => 'intake_paused']);
+            $record->deliveries()->whereIn('status', ['draft', 'pending'])->update(['status' => 'canceled', 'failure_code' => 'intake_paused']);
         });
     }
 

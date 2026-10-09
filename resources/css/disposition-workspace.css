@@ -431,3 +431,70 @@ body:has(#main-content .rt-shift-plan) { height: 100%; min-height: 0; overflow: 
     .rt-shift-plan-distribution-trigger .rt-shift-plan-control__chevron { display: none; }
     .rt-shift-plan-distribution-total { display: inline-flex; min-width: 0; width: 100%; padding-inline: 2px; }
 }
+
+/* Auftragsübersicht: ein kompakter Kopf ohne redundanten Seitentitel. */
+.rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] {
+    min-height: 44px;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    padding-block: 0 4px;
+}
+.rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] h1 { display: none; }
+.rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] .rt-page-header-search { flex: 0 0 auto; }
+.rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] .rt-page-header-metrics {
+    position: absolute;
+    left: 50%;
+    z-index: 1;
+    width: max-content;
+    max-width: calc(100% - 14rem);
+    flex: none;
+    transform: translateX(-50%);
+}
+.rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] .rt-orders-summary {
+    display: flex;
+    justify-content: center;
+    gap: clamp(10px, 1.7vw, 22px);
+    padding: 5px 10px;
+}
+.rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] > [data-page-header-actions] {
+    order: initial;
+    min-width: 0;
+    margin-left: auto;
+}
+.rt-case-create-action--icon.rt-ui-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 10px;
+}
+.rt-case-create-action--icon > i { font-size: 16px; }
+@media (max-width: 1100px) {
+    .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] { flex-wrap: nowrap !important; }
+    .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] .rt-page-header-metrics {
+        position: absolute;
+        left: 50%;
+        order: initial;
+        width: max-content;
+        max-width: calc(100% - 14rem);
+        flex: none;
+        transform: translateX(-50%);
+    }
+    .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] > [data-page-header-actions] { order: initial; margin-left: auto; }
+}
+@media (max-width: 600px) {
+    .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] { gap: 4px; }
+    .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] > [data-page-header-control]:first-child { display: none; }
+    .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] .rt-page-header-search { width: 40px; }
+    .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] .rt-page-header-metrics {
+        max-width: calc(100% - 8rem);
+        padding-inline: 0;
+        border: 0;
+        background: transparent;
+    }
+    .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] .rt-orders-summary { gap: clamp(8px, 3vw, 14px); padding: 4px; }
+    .rt-disposition-page:has([data-case-workspace='orders']) .rt-orders-summary .rt-disposition-summary__label { display: none; }
+    .rt-disposition-page:has([data-case-workspace='orders']) .rt-orders-summary .rt-disposition-summary__item { padding: 2px; }
+    .rt-disposition-page:has([data-case-workspace='orders']) .rt-orders-summary .rt-disposition-summary__value { font-size: 14px; }
+    .rt-disposition-page:has([data-case-workspace='orders']) > [data-page-header] > [data-page-header-actions] { width: auto; gap: 4px; }
+}

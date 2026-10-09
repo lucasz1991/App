@@ -4,11 +4,14 @@ namespace Tests\Feature;
 
 use App\Livewire\Tools\Chatbot;
 use App\Models\AiIntake;
+use App\Models\AiIntakeDelivery;
 use App\Models\OperationInquiry;
 use App\Models\User;
 use App\Services\Ai\AssistantKnowledgeToolRunner;
 use App\Services\Ai\OpenRouterChatClient;
 use App\Services\Operations\AiAssistService;
+use App\Services\Operations\AiDispositionClient;
+use App\Services\Operations\AiIntakeMailService;
 use App\Services\Operations\AiIntakeService;
 use App\Support\Ai\AssistantSettings;
 use Carbon\CarbonImmutable;
@@ -67,6 +70,100 @@ class ChatbotOperationsAssistTest extends TestCase
             'lead' => 'Lokaler Vorschlag für Mitarbeiter Beispiel und private Schicht.',
             'card' => ['icon' => 'fa-sparkles', 'title' => 'Privater Besetzungsvorschlag', 'rows' => [['label' => 'Private Schicht', 'value' => 'Mitarbeiter Beispiel']], 'buttons' => [['label' => 'Übernehmen', 'act' => 'apply']], 'payload' => [[101, 202, 3]]],
         ]));
+    }
+
+    private function customerDraft(): AiIntakeDelivery
+    {
+        (require database_path('migrations/2026_10_09_100000_add_ai_customer_communication_controls.php'))->up();
+        $intake = AiIntake::create(['source_type' => 'email', 'status' => 'review', 'title' => 'Synthetic customer source', 'revision' => 4, 'source_revision' => 2]);
+
+        return $intake->deliveries()->create(['message_type' => 'receipt', 'status' => 'draft', 'recipient_email' => 'private-customer@example.test', 'subject' => 'Concrete receipt draft', 'body' => 'PRIVATE_CONCRETE_CUSTOMER_TEMPLATE', 'dedup_key' => hash('sha256', 'draft'), 'settings_revision' => 7, 'intake_revision' => 4, 'source_revision' => 2, 'metadata' => ['created_as_draft' => true]]);
+    }
+
+    public function test_customer_draft_commands_remain_private_and_use_server_revision_capabilities(): void
+    {
+        $delivery = $this->customerDraft();
+        $draft = ['id' => $delivery->id, 'intake_id' => $delivery->intake_id, 'title' => 'Concrete receipt draft', 'recipient_label' => 'Private customer contact', 'body' => $delivery->body, 'can_approve' => true, 'settings_revision' => 7, 'intake_revision' => 4];
+        $this->partialMock(AiIntakeMailService::class, function ($mock) use ($delivery, $draft): void {
+            $mock->shouldReceive('draftMessages')->andReturn(collect([$draft]));
+            $mock->shouldReceive('approveDraft')->once()->withArgs(fn ($record, $actor, $settingsRevision, $intakeRevision) => $record->is($delivery) && $actor->is($this->admin) && $settingsRevision === 7 && $intakeRevision === 4)->andReturn($delivery);
+        });
+        $chatbot = $this->chatbot();
+        $chatbot->runOperationsAction('outbox');
+        $entry = $chatbot->chatHistory[array_key_last($chatbot->chatHistory)];
+        $card = $chatbot->render()->getData()['operationsCards'][$entry['key']];
+        $this->assertSame($delivery->body, $card['body']);
+        $this->assertArrayNotHasKey('command', $card);
+        $this->assertContains('approve', array_column($card['buttons'], 'act'));
+        $this->assertStringNotContainsString('PRIVATE_CONCRETE', json_encode($this->privateMethod($chatbot, 'providerMessages', $this->admin)));
+        $chatbot->chatHistory[array_key_last($chatbot->chatHistory)]['command'] = ['kind' => 'customer_message', 'id' => 999, 'settings_revision' => 1, 'intake_revision' => 1];
+        $chatbot->actOperationsCard($entry['key'], 'approve');
+        $updated = $chatbot->render()->getData()['operationsCards'][$entry['key']];
+        $this->assertSame('done', $updated['state']);
+        $this->assertStringContainsString('für den Versand vorgemerkt', $updated['note']);
+        $this->assertArrayNotHasKey('command', $updated);
+        foreach (store($chatbot)->get('dispatched', []) as $event) {
+            $this->assertNotSame('railtime-assistant-reply', $event->serialize()['name']);
+        }
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
+    public function test_unready_customer_drafts_have_no_approval_action_and_cannot_be_forged(): void
+    {
+        $delivery = $this->customerDraft();
+        $chatbot = $this->chatbot();
+        $chatbot->runOperationsAction('outbox');
+        $entry = $chatbot->chatHistory[array_key_last($chatbot->chatHistory)];
+        $card = $chatbot->render()->getData()['operationsCards'][$entry['key']];
+        $this->assertNotContains('approve', array_column($card['buttons'], 'act'));
+        $this->assertContains('reject', array_column($card['buttons'], 'act'));
+        $this->assertStringContainsString('nicht versandbereit', $card['note']);
+        try {
+            $chatbot->actOperationsCard($entry['key'], 'approve');
+            $this->fail('An unready draft must not expose a write capability.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
+        $this->assertSame('draft', $delivery->fresh()->status);
+        Queue::assertNothingPushed();
+    }
+
+    public function test_unknown_mail_outcome_blocks_helper_reanalysis_even_after_other_prerequisites_are_ready(): void
+    {
+        $delivery = $this->customerDraft();
+        $delivery->update(['status' => 'unknown']);
+        $delivery->intake->update(['error_code' => 'processing_failed']);
+        $this->partialMock(AiDispositionClient::class, fn ($mock) => $mock->shouldReceive('isConfigured')->andReturn(true));
+        try {
+            app(AiAssistService::class)->executeCommand(['kind' => 'intake_analysis', 'id' => $delivery->intake_id, 'revision' => 4, 'settings_revision' => 1], 'reanalyze', $this->admin);
+            $this->fail('Unknown sends must be reconciled before another helper analysis.');
+        } catch (HttpException $exception) {
+            $this->assertSame(409, $exception->getStatusCode());
+            $this->assertStringContainsString('Keine automatische Wiederholung', $exception->getMessage());
+        }
+        $this->assertSame('unknown', $delivery->fresh()->status);
+        Queue::assertNothingPushed();
+        Http::assertNothingSent();
+    }
+
+    public function test_combined_native_cards_require_every_permission_used_by_the_answer(): void
+    {
+        $this->admin = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $this->actingAs($this->admin);
+        Gate::define('assistant.use', fn () => true);
+        Gate::define('operations.manage', fn () => true);
+        Gate::define('operations.inquiries.manage', fn () => true);
+        $this->partialMock(AiAssistService::class, fn ($mock) => $mock->shouldReceive('answer')->with('exceptions', \Mockery::type(User::class), \Mockery::type('array'))->andReturn(['lead' => 'PRIVATE_COMBINED_OPERATIONS', 'card' => ['title' => 'Combined native cases', 'rows' => [], 'buttons' => [['label' => 'Activities', 'act' => 'tab:activity']]]]));
+        $chatbot = $this->chatbot();
+        $chatbot->runOperationsAction('exceptions');
+        $entry = $chatbot->chatHistory[array_key_last($chatbot->chatHistory)];
+        $this->assertSame(['operations.manage', 'operations.inquiries.manage'], $entry['local_abilities']);
+        Gate::define('operations.inquiries.manage', fn () => false);
+        $chatbot->loadOperationsAssist();
+        $this->assertSame([], $chatbot->render()->getData()['operationsCards']);
+        $this->assertStringNotContainsString('PRIVATE_COMBINED', json_encode($this->privateMethod($chatbot, 'loadHistory')));
     }
 
     private function privateMethod(Chatbot $chatbot, string $method, mixed ...$arguments): mixed

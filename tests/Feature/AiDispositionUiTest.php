@@ -17,9 +17,11 @@ use App\Services\Operations\UnifiedOperationsInboxService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\OperationsPages;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -35,9 +37,10 @@ class AiDispositionUiTest extends TestCase
     {
         parent::setUp();
         $this->buildMinimalRailTimeSchema();
-        foreach (['2026_07_18_000001_create_activity_log_table.php', '2026_09_15_190000_create_operations_workflow_tables.php', '2026_09_17_180000_create_operations_planning_extensions.php', '2026_10_04_121000_create_customer_workflow_extensions.php', '2026_10_07_010000_create_ai_disposition_intake.php'] as $file) {
+        foreach (['2026_07_18_000001_create_activity_log_table.php', '2026_09_15_190000_create_operations_workflow_tables.php', '2026_09_17_180000_create_operations_planning_extensions.php', '2026_10_04_120000_create_workforce_personnel_foundations.php', '2026_10_04_121000_create_customer_workflow_extensions.php', '2026_10_04_122000_create_workforce_planning_tables.php', '2026_10_06_100000_create_planning_enhancements.php', '2026_10_06_103000_create_operations_attention_tables.php', '2026_10_07_010000_create_ai_disposition_intake.php', '2026_10_09_090000_create_staffing_automation_runs.php', '2026_10_09_100000_add_ai_customer_communication_controls.php'] as $file) {
             (require database_path('migrations/'.$file))->up();
         }
+        Schema::table('shifts', fn (Blueprint $table) => $table->json('disposition_details')->nullable());
         $this->admin = User::factory()->create(['role' => 'admin', 'status' => true]);
         $this->actingAs($this->admin);
         $this->withoutVite();
@@ -61,6 +64,52 @@ class AiDispositionUiTest extends TestCase
         $component = Livewire::test(AiDispositionConfiguration::class);
         $this->admin->update(['status' => false]);
         $component->call('probe')->assertForbidden();
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
+    public function test_customer_communication_modes_are_separate_and_new_sends_require_opt_in(): void
+    {
+        $component = Livewire::test(AiDispositionConfiguration::class)
+            ->assertSet('form.customer_receipt_mode', 'off')
+            ->assertSet('form.customer_clarification_mode', 'automatic')
+            ->assertSet('form.customer_confirmation_mode', 'off')
+            ->assertSee('Auftragsbestätigung nach Freigabe');
+        $component->set('form.customer_receipt_mode', 'draft')
+            ->set('form.customer_clarification_mode', 'off')
+            ->set('form.customer_confirmation_mode', 'automatic')
+            ->call('save')->assertHasNoErrors();
+        $settings = AiDispositionSettings::all(true);
+        $this->assertFalse((bool) $settings['enabled']);
+        $this->assertSame('draft', $settings['customer_receipt_mode']);
+        $this->assertSame('off', $settings['customer_clarification_mode']);
+        $this->assertSame('automatic', $settings['customer_confirmation_mode']);
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
+    public function test_unsupported_communication_mode_is_rejected_without_changing_config(): void
+    {
+        $before = AiDispositionSettings::all(true);
+        Livewire::test(AiDispositionConfiguration::class)
+            ->set('form.customer_confirmation_mode', 'unrestricted')
+            ->call('save')->assertHasErrors('form.customer_confirmation_mode');
+        $this->assertSame($before, AiDispositionSettings::all(true));
+    }
+
+    public function test_staffing_automation_is_opt_in_and_requires_current_supervisor_rights(): void
+    {
+        $component = Livewire::test(AiDispositionConfiguration::class)
+            ->assertSet('form.staffing_request_mode', 'off')
+            ->assertSee('Personalanfragen');
+        $component->set('form.staffing_request_mode', 'automatic')->call('save')->assertHasErrors('form');
+        $this->assertSame('off', AiDispositionSettings::all(true)['staffing_request_mode']);
+        $component->set('form.supervisor_id', $this->admin->id)->call('save')->assertHasNoErrors();
+        $settings = AiDispositionSettings::all(true);
+        $this->assertSame('automatic', $settings['staffing_request_mode']);
+        $this->assertFalse((bool) $settings['enabled']);
+        $component->set('form.staffing_request_wave_size', 21)->call('save')->assertHasErrors('form.staffing_request_wave_size');
+        $this->assertSame(3, AiDispositionSettings::all(true)['staffing_request_wave_size']);
         Mail::assertNothingSent();
         Queue::assertNothingPushed();
     }

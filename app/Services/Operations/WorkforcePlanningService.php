@@ -18,6 +18,7 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningLocks;
+use App\Support\Operations\StaffingAutomationActor;
 use App\Support\Operations\WorkforcePlanningSchema;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -26,8 +27,15 @@ use Illuminate\Validation\ValidationException;
 
 class WorkforcePlanningService
 {
-    private function access(User $actor, bool $personal = false): void
+    private function access(User|StaffingAutomationActor $actor, bool $personal = false): void
     {
+        if ($actor instanceof StaffingAutomationActor) {
+            abort_if($personal, 403);
+            $actor->authorize('audit');
+            WorkforcePlanningSchema::requireReady();
+
+            return;
+        }
         $fresh = User::findOrFail($actor->id);
         if ($personal) {
             OperationsAccess::own($fresh, $actor->id);
@@ -176,7 +184,7 @@ class WorkforcePlanningService
             && $shift->starts_at->isFuture() && ! in_array($shift->status->value, ['draft', 'cancelled', 'completed', 'in_progress'], true), 'Nur unveränderte veröffentlichte zukünftige Dienste sind verfügbar.');
     }
 
-    public function offer(int $shiftId, int $planRevision, array $userIds, string $expiresAt, string $timezone, User $actor): ShiftOffer
+    public function offer(int $shiftId, int $planRevision, array $userIds, string $expiresAt, string $timezone, User|StaffingAutomationActor $actor): ShiftOffer
     {
         $this->access($actor);
         Validator::make(['ids' => $userIds, 'timezone' => $timezone], ['ids' => 'required|array|min:1|max:500', 'ids.*' => 'integer|distinct|exists:users,id', 'timezone' => 'required|timezone'])->validate();
@@ -184,6 +192,12 @@ class WorkforcePlanningService
 
         return OperationsTransaction::run(function () use ($shiftId, $planRevision, $userIds, $expiry, $actor) {
             $shift = PlanningLocks::acquire([$shiftId], $userIds)->get($shiftId);
+            $this->access($actor);
+            if ($actor instanceof StaffingAutomationActor) {
+                $actor->authorize('offer.create');
+                $actor->assertShiftScope($shiftId, $planRevision);
+                $actor->assertOfferScope($userIds);
+            }
             abort_unless($shift, 404);
             $this->publishedFuture($shift, $planRevision);
             $this->check($expiry->isFuture() && $expiry->lte($shift->starts_at), 'Angebotsfrist muss vor Dienstbeginn liegen.');
@@ -191,9 +205,12 @@ class WorkforcePlanningService
             foreach (User::whereKey($userIds)->get() as $employee) {
                 $this->check(! $shift->assignments()->blocking()->where('user_id', $employee->id)->exists(), 'Mitarbeiter ist bereits eingeplant.');
                 app(StaffEligibilityService::class)->assertEligible($shift, $employee);
+                if ($actor instanceof StaffingAutomationActor) {
+                    app(ShiftAssignmentService::class)->assertCapacity($shift, $employee);
+                }
             }
             $this->check(! ShiftOffer::where('shift_id', $shiftId)->where('status', 'open')->where('expires_at', '>', now()->utc())->exists(), 'Es besteht bereits ein offenes Angebot.');
-            $offer = ShiftOffer::create(['shift_id' => $shiftId, 'plan_revision' => $planRevision, 'invited_user_ids' => array_values($userIds), 'expires_at' => $expiry, 'created_by' => $actor->id]);
+            $offer = ShiftOffer::create(['shift_id' => $shiftId, 'plan_revision' => $planRevision, 'invited_user_ids' => array_values($userIds), 'expires_at' => $expiry, 'created_by' => $actor instanceof User ? $actor->id : $actor->supervisingUserId]);
             app(OperationsAuditService::class)->record($offer, $actor, 'offer.created');
 
             return $offer;
@@ -371,7 +388,7 @@ class WorkforcePlanningService
         }, 3);
     }
 
-    public function openCase(array $data, User $actor): StaffingCase
+    public function openCase(array $data, User|StaffingAutomationActor $actor): StaffingCase
     {
         $this->access($actor);
         $data = Validator::make($data, ['shift_id' => 'required|integer|exists:shifts,id', 'shift_assignment_id' => 'nullable|integer|exists:shift_assignments,id', 'kind' => 'required|in:failure,relief,reserve,callout', 'responsible_id' => 'required|integer|exists:users,id', 'due_at' => 'required|string', 'timezone' => 'required|timezone', 'note' => 'required|string|max:1000'])->validate();
@@ -380,6 +397,12 @@ class WorkforcePlanningService
 
         return OperationsTransaction::run(function () use ($data, $actor) {
             $shift = PlanningLocks::acquire([$data['shift_id']])->get($data['shift_id']);
+            $this->access($actor);
+            if ($actor instanceof StaffingAutomationActor) {
+                $actor->authorize('case.open');
+                $actor->assertShiftScope((int) $data['shift_id']);
+                abort_unless(empty($data['shift_assignment_id']) && (int) $data['responsible_id'] === $actor->supervisingUserId && $data['kind'] === 'reserve', 403);
+            }
             $this->check($shift && ! in_array($shift->status->value, ['cancelled', 'completed'], true), 'Kein aktiver Dienst.');
             $this->check(empty($data['shift_assignment_id']) || ShiftAssignment::where('shift_id', $shift->id)->whereKey($data['shift_assignment_id'])->blocking()->exists(), 'Betroffene Zuweisung gehört nicht zum Dienst.');
             $responsible = User::findOrFail($data['responsible_id']);

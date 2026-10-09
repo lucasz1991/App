@@ -14,8 +14,10 @@
             <span>{{ $row['label'] }}</span><i class="far fa-arrow-right" aria-hidden="true"></i><b>{{ $row['value'] }}</b>
             @if(!empty($row['small']))<small>{{ $row['small'] }}</small>@endif
             @if(!empty($row['why']))<details class="rt-ai-assist__why"><summary>Begründung anzeigen</summary><ul>@foreach($row['why'] as $reason)<li>{{ $reason }}</li>@endforeach</ul></details>@endif
+            @if(!empty($row['href']))<small><a href="{{ $row['href'] }}" wire:navigate>Vorgang prüfen</a></small>@endif
         </div>
     @endforeach
+    @if(!empty($card['body']))<details class="rt-ai-assist__why" open><summary>Konkrete Kundennachricht prüfen</summary><p class="whitespace-pre-line">{{ $card['body'] }}</p></details>@endif
     @if(!empty($card['note']))<p class="rt-ai-assist__card-note">{{ str_replace('**', '', $card['note']) }}</p>@endif
     @if(!empty($card['expired']))<p class="rt-ai-assist__card-note">Diese Auswertung ist abgelaufen. Bitte erneut auswerten.</p>@endif
     @foreach($card['failed'] ?? [] as $failure)<p class="rt-ai-assist__card-failed" role="alert">Nicht übernommen: {{ $failure }}</p>@endforeach
@@ -27,7 +29,7 @@
                 @if(!empty($button['href']))
                     <a class="rt-ai-assist__btn" data-primary="{{ !empty($button['primary']) ? 'true' : 'false' }}" href="{{ $button['href'] }}" wire:navigate>{{ $button['label'] }}</a>
                 @elseif(!empty($button['act']))
-                    <button type="button" class="rt-ai-assist__btn" data-primary="{{ !empty($button['primary']) ? 'true' : 'false' }}" wire:click="actOperationsCard(@js($entryKey), @js($button['act']))" wire:loading.attr="disabled" @disabled(!empty($card['expired']) && $button['act'] === 'apply')>{{ $button['label'] }}</button>
+                    <button type="button" class="rt-ai-assist__btn" data-primary="{{ !empty($button['primary']) ? 'true' : 'false' }}" wire:click="actOperationsCard(@js($entryKey), @js($button['act']))" wire:loading.attr="disabled" @disabled(!empty($card['expired']) && in_array($button['act'], ['apply', 'approve', 'retry', 'reanalyze', 'prepare'], true))>{{ $button['label'] }}</button>
                 @endif
             @endforeach
         @endif

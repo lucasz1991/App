@@ -7,7 +7,12 @@
             <x-operations.create-action module="shift-management" />
         </template>
     @endif
-    @if(!$costsOnly && !in_array($view, ['offers', 'shifts']) && !in_array($section, ['imports','portal','ai-intake']))
+    @if($view === 'orders' && !$costsOnly)
+        <template x-teleport="[data-page-header-action-list]" wire:key="case-order-create-action">
+            <x-ui.buttons.button-basic class="rt-case-create-action rt-case-create-action--icon" type="button" mode="primary" aria-label="Auftrag anlegen" title="Auftrag anlegen" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i></x-ui.buttons.button-basic>
+        </template>
+    @endif
+    @if(!$costsOnly && !in_array($view, ['offers', 'shifts', 'orders']) && !in_array($section, ['imports','portal','ai-intake']))
     <header class="ops-toolbar">
         <x-ui.buttons.button-basic class="ml-auto" type="button" mode="primary" aria-label="{{ $view === 'orders' ? 'Auftrag anlegen' : 'Anfrage anlegen' }}" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i><span class="rt-case-create-label">{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</span></x-ui.buttons.button-basic>
     </header>

@@ -196,6 +196,8 @@ class MyWork extends Component
         $this->today();
         if (request()->query('tab') === 'schedule') {
             $this->tab = 'schedule';
+        } elseif (request()->query('tab') === 'planning' && WorkforcePlanningSchema::ready()) {
+            $this->tab = 'planning';
         }
     }
 

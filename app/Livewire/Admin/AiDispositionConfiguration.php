@@ -148,7 +148,7 @@ class AiDispositionConfiguration extends Component
             'runtime' => app(AiIntakeMailboxService::class)->status(),
             'schemaReady' => AiIntakeSchema::ready(),
             'models' => array_intersect_key(OpenRouterSettings::forForm(), array_flip(['text_model', 'data_model', 'image_understanding_model', 'speech_to_text_model'])),
-            'supervisors' => User::where('status', true)->orderBy('name')->get()->filter(fn (User $user) => $user->can('operations.inquiries.manage')),
+            'supervisors' => User::where('status', true)->orderBy('name')->get()->filter(fn (User $user) => $user->can('operations.inquiries.manage') || $user->can('operations.manage')),
         ]);
     }
 }

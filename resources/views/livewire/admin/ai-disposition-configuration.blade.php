@@ -15,11 +15,22 @@
         <div class="rounded-xl bg-rt-surface p-4 ring-1 ring-rt-border dark:bg-rt-dark-surface dark:ring-rt-dark-border">
             <h3 class="mb-3 font-semibold">Betrieb und Zuständigkeit</h3>
             <div class="ops-form">
-                <label class="flex min-h-11 items-center gap-3"><input type="checkbox" wire:model="form.enabled" class="rounded border-rt-border text-rt-accent focus:ring-rt-accent" />Automatische Verarbeitung aktivieren</label>
+                <label class="flex min-h-11 items-center gap-3"><input type="checkbox" wire:model="form.enabled" class="rounded border-rt-border text-rt-accent focus:ring-rt-accent" />AI-Annahme und Kundenmails aktivieren</label>
                 <x-operations.field label="Verarbeitung" model="form.automation_mode" type="select"><option value="automatic">Automatisch erfassen und rückfragen</option><option value="assisted">Nur vorbereiten, manuell übernehmen</option></x-operations.field>
                 <x-operations.field label="Verantwortlicher Disponent" model="form.supervisor_id" type="select" :wide="true"><option value="">Bitte auswählen</option>@foreach($supervisors as $supervisor)<option value="{{ $supervisor->id }}">{{ $supervisor->name }}</option>@endforeach</x-operations.field>
             </div>
-            <p class="mt-3 ops-muted">Angebote, verbindliche Zusagen, Personaleinsatz und Veröffentlichung werden von der Disposition freigegeben.</p>
+            <p class="mt-3 ops-muted">Angebote, verbindliche Zusagen, Personaleinsatz und Veröffentlichung werden von der Disposition freigegeben. Personalanfragen werden separat aktiviert.</p>
+        </div>
+        <div class="rounded-xl bg-rt-surface p-4 ring-1 ring-rt-border dark:bg-rt-dark-surface dark:ring-rt-dark-border" data-ai-customer-communication>
+            <h3 class="mb-3 font-semibold">Kundenkommunikation</h3>
+            <div class="ops-form">
+                @foreach(['customer_receipt_mode'=>'Eingangsbestätigung','customer_clarification_mode'=>'Rückfragen zu fehlenden Angaben','customer_confirmation_mode'=>'Auftragsbestätigung nach Freigabe'] as $key=>$label)
+                    <x-operations.field :label="$label" :model="'form.'.$key" type="select">
+                        <option value="off">Aus</option><option value="draft">Entwurf zur Freigabe</option><option value="automatic">Automatisch</option>
+                    </x-operations.field>
+                @endforeach
+            </div>
+            <p class="mt-3 ops-muted">Mails gehen an den eindeutig zugeordneten Kundenkontakt. Eingangsbestätigungen und Rückfragen enthalten keine Zusage. Auftragsbestätigungen verwenden den bereits freigegebenen Auftrag. Im vorbereitenden Betrieb entstehen Entwürfe zur Freigabe.</p>
         </div>
         <div class="rounded-xl bg-rt-surface p-4 ring-1 ring-rt-border dark:bg-rt-dark-surface dark:ring-rt-dark-border">
             <h3 class="mb-3 font-semibold">Posteingang · IMAP</h3>
@@ -32,8 +43,21 @@
                 <x-operations.field label="Passwort / App-Passwort" model="form.imap_password" type="password" autocomplete="new-password" />
             </div><p class="mt-3 ops-muted">Leere oder unveränderte Passwortfelder behalten das gespeicherte Geheimnis.</p>
         </div>
+        <div class="rounded-xl bg-rt-surface p-4 ring-1 ring-rt-border dark:bg-rt-dark-surface dark:ring-rt-dark-border" data-ai-staffing-automation>
+            <h3 class="mb-3 font-semibold">Personalanfragen</h3>
+            <div class="ops-form">
+                <x-operations.field label="Automatische Personalanfragen" model="form.staffing_request_mode" type="select">
+                    <option value="off">Aus</option><option value="assisted">Vorschläge zur Prüfung</option><option value="automatic">Geeignete Mitarbeiter automatisch anfragen</option>
+                </x-operations.field>
+                @foreach(['staffing_request_wave_size'=>['Personen je Anfragerunde',1,20],'staffing_request_max_waves'=>['Höchstens Anfragerunden',1,5],'staffing_request_timeout_hours'=>['Antwortfrist in Stunden',1,168],'staffing_request_horizon_days'=>['Zukünftige Dienste bis … Tage',1,90],'staffing_request_min_score'=>['Mindestbewertung für Vorschläge',75,100]] as $key=>[$label,$min,$max])
+                    <x-operations.field :label="$label" :model="'form.'.$key" type="number" :min="$min" :max="$max" />
+                @endforeach
+            </div>
+            <p class="mt-3 ops-muted">Für offene Plätze in bereits veröffentlichten Diensten. Die Anfrage erscheint im Mitarbeiterportal und reserviert keinen Platz. Interesse wird gesammelt; Übernahme und Dienstbestätigung folgen dem bestehenden Freigabeablauf. Unklare Eignung und ausgeschöpfte Runden erscheinen im Assistenten und in der Arbeitsliste.</p>
+            <p class="mt-2 ops-muted" role="status">{{ $status['staffing_schema_ready'] ? ($status['staffing_mode'] === 'off' ? 'Personalanfragen sind ausgeschaltet.' : ($status['staffing_supervisor_ready'] ? ($status['staffing_mode'] === 'automatic' ? 'Automatische Personalanfragen sind konfiguriert.' : 'Personalanfragen werden zur Prüfung vorbereitet.') : 'Die Berechtigung der verantwortlichen Disposition fehlt.')) : 'Die Datenbankerweiterung für Personalanfragen ist noch nicht eingerichtet.' }}</p>
+        </div>
         <div class="rounded-xl bg-rt-surface p-4 ring-1 ring-rt-border dark:bg-rt-dark-surface dark:ring-rt-dark-border">
-            <h3 class="mb-3 font-semibold">Rückfragen · SMTP</h3>
+            <h3 class="mb-3 font-semibold">Kundenmails · SMTP</h3>
             <div class="ops-form">
                 <x-operations.field label="SMTP-Server" model="form.smtp_host" autocomplete="off" />
                 <x-operations.field label="Port" model="form.smtp_port" type="number" min="1" max="65535" />

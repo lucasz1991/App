@@ -24,6 +24,25 @@ class AiAssistActivityTest extends TestCase
 {
     use BuildsMinimalRailTimeSchema;
 
+    public function test_customer_message_phases_and_real_approval_never_export_templates_or_recipients(): void
+    {
+        (require database_path('migrations/2026_10_09_100000_add_ai_customer_communication_controls.php'))->up();
+        $intake = $this->intake();
+        $receipt = $this->delivery($intake, ['message_type' => 'receipt', 'status' => 'draft', 'metadata' => ['created_as_draft' => true, 'private' => 'PRIVATE_RECEIPT']]);
+        $confirmation = $this->delivery($intake, ['dedup_key' => hash('sha256', 'confirmation'), 'message_type' => 'order_confirmation', 'status' => 'sent', 'metadata' => ['created_as_draft' => true], 'approved_by' => $this->actor->id, 'approved_at' => CarbonImmutable::parse('2027-05-12T05:04:00Z'), 'attempted_at' => CarbonImmutable::parse('2027-05-12T05:04:30Z'), 'sent_at' => CarbonImmutable::parse('2027-05-12T05:05:00Z')]);
+        $events = app(AiAssistService::class)->activity($this->actor, 'communication')->keyBy('id');
+        $this->assertSame('draft', $events['delivery:'.$receipt->id.':queued']['state']);
+        $this->assertSame('Freigabe nötig', $events['delivery:'.$receipt->id.':queued']['status']);
+        $this->assertSame('customer_receipt', $events['delivery:'.$receipt->id.':queued']['phase']);
+        $this->assertSame('order_confirmation', $events['delivery:'.$confirmation->id.':sent']['phase']);
+        $this->assertSame('approved', $events['delivery:'.$confirmation->id.':approved']['state']);
+        $this->assertSame('2027-05-12T05:04:00+00:00', $events['delivery:'.$confirmation->id.':approved']['at']->toIso8601String());
+        $this->assertStringNotContainsString('Antwort ausstehend', $events['delivery:'.$confirmation->id.':sent']['detail']);
+        $this->assertStringNotContainsString('PRIVATE_', $events->toJson());
+        $this->assertStringNotContainsString('private-recipient', $events->toJson());
+        Queue::assertNothingPushed();
+    }
+
     private User $actor;
 
     private string $originalTimezone;

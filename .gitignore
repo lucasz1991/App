@@ -264,3 +264,6 @@ auth.json
 !/tests/Feature/AiAssistActivityTest.php
 !/tests/Feature/AssistantOperationsUiTest.php
 !/tests/Frontend/chatbot-operations-assist.test.js
+!/tests/Feature/AiCustomerCommunicationTest.php
+!/tests/Feature/StaffingAutomationTest.php
+!/tests/Feature/AiAssistTest.php

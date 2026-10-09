@@ -12,7 +12,7 @@
         ];
     @endphp
     <template x-teleport="[data-page-header-metrics]">
-        <section class="rt-disposition-summary" aria-label="Leistungen im gesamten Bestand">
+        <section class="rt-disposition-summary rt-orders-summary" aria-label="Aufträge im gesamten Bestand">
             <div class="rt-disposition-summary__item">
                 <span class="rt-disposition-summary__value">{{ number_format($openCount, 0, ',', '.') }}</span>
                 <span class="rt-disposition-summary__label">Aktiv</span>

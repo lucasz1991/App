@@ -28,6 +28,9 @@ final class AiDispositionSettings
         'from_address' => '', 'from_name' => 'RailTime Disposition', 'max_rounds' => 2, 'reply_timeout_hours' => 48, 'poll_interval_minutes' => 1,
         'max_messages_per_poll' => 25, 'max_attachment_count' => 3, 'max_total_kilobytes' => 15360, 'max_audio_kilobytes' => 8192,
         'max_ai_calls_per_hour' => 100, 'instructions' => '',
+        'customer_receipt_mode' => 'off', 'customer_clarification_mode' => 'automatic', 'customer_confirmation_mode' => 'off',
+        'staffing_request_mode' => 'off', 'staffing_request_wave_size' => 3, 'staffing_request_max_waves' => 3,
+        'staffing_request_timeout_hours' => 24, 'staffing_request_horizon_days' => 14, 'staffing_request_min_score' => 85,
     ];
 
     public static function all(bool $uncached = false): array
@@ -74,6 +77,15 @@ final class AiDispositionSettings
         }
         $rules = [
             'enabled' => ['required', 'boolean'], 'automation_mode' => ['required', Rule::in(['automatic', 'assisted'])],
+            'customer_receipt_mode' => ['required', Rule::in(['off', 'draft', 'automatic'])],
+            'customer_clarification_mode' => ['required', Rule::in(['off', 'draft', 'automatic'])],
+            'customer_confirmation_mode' => ['required', Rule::in(['off', 'draft', 'automatic'])],
+            'staffing_request_mode' => ['required', Rule::in(['off', 'assisted', 'automatic'])],
+            'staffing_request_wave_size' => ['required', 'integer', 'between:1,20'],
+            'staffing_request_max_waves' => ['required', 'integer', 'between:1,5'],
+            'staffing_request_timeout_hours' => ['required', 'integer', 'between:1,168'],
+            'staffing_request_horizon_days' => ['required', 'integer', 'between:1,90'],
+            'staffing_request_min_score' => ['required', 'integer', 'between:75,100'],
             'supervisor_id' => ['nullable', 'integer'], 'smtp_same_credentials' => ['required', 'boolean'],
             'imap_host' => ['nullable', 'string', 'max:253'], 'smtp_host' => ['nullable', 'string', 'max:253'],
             'imap_port' => ['required', 'integer', 'between:1,65535'], 'smtp_port' => ['required', 'integer', 'between:1,65535'],
@@ -93,6 +105,14 @@ final class AiDispositionSettings
         }
         foreach (['imap_username', 'smtp_username', 'imap_folder', 'from_name'] as $field) {
             abort_if(preg_match('/[\r\n\x00]/', $clean[$field]), 422, 'Ungültige Eingabe.');
+        }
+        if ($clean['customer_receipt_mode'] !== 'off' || $clean['customer_confirmation_mode'] !== 'off' || $clean['customer_clarification_mode'] === 'draft') {
+            abort_unless(AiCustomerCommunicationSchema::ready(), 422, 'Die Datenbankerweiterung für Kundenmails zuerst einrichten.');
+        }
+        if ($clean['staffing_request_mode'] !== 'off') {
+            abort_unless(StaffingAutomationSchema::ready(), 422, 'Die Datenbankerweiterung für Personalanfragen zuerst einrichten.');
+            $staffingSupervisor = User::find((int) $clean['supervisor_id']);
+            abort_unless($staffingSupervisor?->isActive() && $staffingSupervisor->can('operations.manage'), 422, 'Für Personalanfragen eine aktive, berechtigte Disposition auswählen.');
         }
         if ($clean['enabled']) {
             abort_unless(AiIntakeSchema::ready() && app(OpenRouterChatClient::class)->isConfiguredFor(OpenRouterModelProfile::Data), 422, 'AI-Eingang und gemeinsame AI-Verbindung zuerst einrichten.');
@@ -144,6 +164,8 @@ final class AiDispositionSettings
             'image_configured' => $client->isConfiguredFor(OpenRouterModelProfile::ImageUnderstanding), 'supervisor_ready' => self::supervisor($settings) !== null,
             'mailbox_configured' => $settings['imap_host'] !== '' && $settings['imap_username'] !== '' && $settings['imap_password'] !== '',
             'smtp_configured' => $settings['smtp_host'] !== '' && $settings['from_address'] !== '' && self::smtpCredentials($settings)['password'] !== '',
+            'staffing_mode' => $settings['staffing_request_mode'], 'staffing_schema_ready' => StaffingAutomationSchema::ready(),
+            'staffing_supervisor_ready' => ($staffingSupervisor = User::find((int) $settings['supervisor_id']))?->isActive() && $staffingSupervisor->can('operations.manage'),
             'cache_persistent' => ! in_array(config('cache.stores.'.config('cache.default').'.driver'), ['array', 'null'], true),
             'runtime' => (array) (Setting::getValueUncached(self::GROUP, 'ai_disposition_mailbox_runtime') ?? [])];
     }

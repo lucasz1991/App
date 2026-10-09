@@ -12,12 +12,14 @@ use App\Models\OperationsAttentionItem;
 use App\Models\PersonnelPlanReview;
 use App\Models\PersonnelTask;
 use App\Models\ShiftAssignment;
+use App\Models\ShiftOffer;
 use App\Models\StaffingCase;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Services\CustomerPortal\CustomerCapacityService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use App\Support\CustomerPortal\CustomerPortalScope;
+use App\Support\Operations\AiCustomerCommunicationSchema;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
@@ -91,6 +93,16 @@ class UnifiedOperationsInboxService
         }
         if (app(OperationsReminderService::class)->ready()) {
             foreach (OperationsAttentionItem::where('recipient_user_id', $actor->id)->whereNull('resolved_at')->limit(200)->get() as $row) {
+                if ($row->kind === 'staffing_offer') {
+                    $offer = Schema::hasTable('shift_offers') ? ShiftOffer::with('shift')->find($row->record_id) : null;
+                    if (! $offer || ! in_array($actor->id, $offer->invited_user_ids, true) || $offer->status !== 'open' || ! $offer->expires_at->isFuture()
+                        || ! $offer->shift || $offer->shift->trashed() || ! $offer->shift->starts_at->isFuture()
+                        || $offer->shift->published_revision !== $offer->plan_revision || $offer->shift->revision !== $offer->plan_revision
+                        || in_array($offer->shift->status->value, ['draft', 'cancelled', 'completed', 'in_progress'], true)
+                        || $offer->responses()->where('user_id', $actor->id)->exists()) {
+                        continue;
+                    }
+                }
                 if ($row->subject_user_id && $row->subject_user_id !== $actor->id && ! $actor->can('operations.manage')) {
                     continue;
                 }
@@ -104,6 +116,11 @@ class UnifiedOperationsInboxService
                     'qualification_expiry' => 'qualification', 'punch_end', 'time_incomplete' => 'work-time', default => '',
                 };
                 $items->last()->target_revision = $row->source_revision;
+                if ($row->kind === 'staffing_offer') {
+                    $items->last()->kind = 'Personalanfrage';
+                    $items->last()->target_tab = 'offers';
+                    $items->last()->record_type = 'shift-offer';
+                }
             }
         }
         if (class_exists(PersonnelEnhancementService::class) && app(PersonnelEnhancementService::class)->ready()) {
@@ -140,13 +157,14 @@ class UnifiedOperationsInboxService
 
         if (! $personal && $actor->can('operations.inquiries.manage') && AiIntakeSchema::ready()) {
             $hours = (int) AiDispositionSettings::all()['reply_timeout_hours'];
-            $rows = AiIntake::where('supervising_user_id', $actor->id)->where(function ($query) use ($hours) {
-                $query->whereIn('status', ['review', 'failed'])->orWhere(function ($query) use ($hours) {
-                    $query->where('status', 'waiting_customer')->whereHas('deliveries', function ($delivery) use ($hours) {
-                        $delivery->where('status', 'sent')->whereColumn('source_revision', 'ai_intakes.source_revision')->whereColumn('question_round', 'ai_intakes.question_round')->where('sent_at', '<=', now()->utc()->subHours($hours));
+            $typed = AiCustomerCommunicationSchema::ready();
+            $rows = AiIntake::where('supervising_user_id', $actor->id)->where(function ($query) use ($hours, $typed) {
+                $query->whereIn('status', ['review', 'failed'])->orWhere(function ($query) use ($hours, $typed) {
+                    $query->where('status', 'waiting_customer')->whereHas('deliveries', function ($delivery) use ($hours, $typed) {
+                        $delivery->when($typed, fn ($q) => $q->where('message_type', 'clarification'))->where('status', 'sent')->whereColumn('source_revision', 'ai_intakes.source_revision')->whereColumn('question_round', 'ai_intakes.question_round')->where('sent_at', '<=', now()->utc()->subHours($hours));
                     });
                 });
-            })->with(['deliveries' => fn ($delivery) => $delivery->where('status', 'sent')->latest('sent_at')])->limit(100)->get();
+            })->with(['deliveries' => fn ($delivery) => $delivery->when($typed, fn ($q) => $q->where('message_type', 'clarification'))->where('status', 'sent')->latest('sent_at')])->limit(100)->get();
             foreach ($rows as $row) {
                 $lastSent = $row->deliveries->first(fn ($delivery) => $delivery->source_revision === $row->source_revision && $delivery->question_round === $row->question_round)?->sent_at;
                 $items->push((object) ['id' => 'ai-intake-'.$row->id, 'kind' => $row->status === 'waiting_customer' ? 'Kundenantwort ausstehend' : 'AI-Eingang prüfen', 'title' => $row->title,
@@ -162,6 +180,9 @@ class UnifiedOperationsInboxService
     {
         $item = $this->items($actor, $personal)->firstWhere('id', $id);
         abort_unless($item, 404);
+        if (($item->record_type ?? '') === 'shift-offer') {
+            return route('operations.mine', ['area' => 'work', 'tab' => 'planning', 'planning_tab' => 'offers']);
+        }
         if ($personal) {
             return route('operations.mine', array_filter(['area' => $item->module === 'customer-capacity' ? 'capacity' : ($item->module === 'personnel-enhancements' ? 'personnel' : ($item->module === 'operations-enhancements' ? 'operations' : 'work')), 'tab' => $item->target_tab]));
         }

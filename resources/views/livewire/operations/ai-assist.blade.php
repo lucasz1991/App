@@ -22,7 +22,7 @@
 @endphp
 <div class="rt-ai-assist" x-data="rtAiAssist" :data-open="open ? 'true' : 'false'" data-open="false"
     data-hints="{{ json_encode($hints, JSON_UNESCAPED_UNICODE) }}" data-actions="{{ json_encode($allActions, JSON_UNESCAPED_UNICODE) }}"
-    x-on:keydown.window="shortcut($event)" x-on:keydown.escape="escape($event)" data-ai-assist>
+    x-on:keydown.window="shortcut($event)" x-on:keydown.escape="escape($event)" x-on:railtime-assistant-open.window="toggle(true)" data-ai-assist>
     <div x-data="railtimeAssistantCloud()" :data-state="orbState" data-state="idle">
         <div class="rt-ai-assist__stage">
             <div class="rt-ai-assist__bubble" role="status" aria-live="polite" x-show="bubble && !open && prefs.proactive && hints.length > 0" style="display: none">
@@ -202,11 +202,13 @@
                                                                         @foreach($row['why'] as $reason)<li><i class="far fa-check" aria-hidden="true"></i>{{ $reason }}</li>@endforeach
                                                                     </ul></details>
                                                                 @endif
+                                                                @if(!empty($row['href']))<small><a href="{{ $row['href'] }}" wire:navigate>Vorgang prüfen</a></small>@endif
                                                             </div>
                                                         @endforeach
                                                     </div>
                                                 @endif
                                                 @if(($card['note'] ?? '') !== '')<p class="rt-ai-assist__card-note">{!! $format($card['note']) !!}</p>@endif
+                                                @if(!empty($card['body']))<details class="rt-ai-assist__why" open><summary>Konkrete Kundennachricht prüfen</summary><p class="whitespace-pre-line">{{ $card['body'] }}</p></details>@endif
                                                 @foreach(($card['failed'] ?? []) as $failure)
                                                     <p class="rt-ai-assist__card-failed" role="alert">Nicht übernommen – {{ $failure }}</p>
                                                 @endforeach
@@ -277,6 +279,7 @@
                     </div>
                 @elseif($tab === 'actions')
                     <div class="rt-ai-assist__scroll">
+                        @include('livewire.tools.partials.operations-automation-status')
                         @foreach(['page' => 'Für '.$pageLabel, 'global' => 'Überall'] as $group => $heading)
                             @if($actions[$group] !== [])
                                 <p class="rt-ai-assist__kicker rt-ai-assist__kicker--block">{{ $heading }}</p>
@@ -293,7 +296,7 @@
                 @else
                     <div class="rt-ai-assist__scroll">
                         <div class="rt-ai-assist__filter" role="group" aria-label="Aktivitäten filtern">
-                            @foreach(['all' => 'Alle', 'intake' => 'Eingänge', 'planning' => 'Planung'] as $key => $label)
+                            @foreach(['all' => 'Alle', 'intake' => 'Eingänge', 'communication' => 'Kundennachrichten', 'planning' => 'Planung', 'automation' => 'Personalanfragen'] as $key => $label)
                                 <button type="button" aria-pressed="{{ $activityFilter === $key ? 'true' : 'false' }}" wire:click="$set('activityFilter', '{{ $key }}')">{{ $label }}</button>
                             @endforeach
                         </div>

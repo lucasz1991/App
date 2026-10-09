@@ -18,6 +18,8 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Support\Operations\AiCustomerCommunicationSchema;
+use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
@@ -49,6 +51,10 @@ class AiAssistService
         'summary' => ['fa-list-ul', 'Neue Anfragen zusammenfassen'],
         'intake' => ['fa-inbox', 'AI-Eingänge prüfen'],
         'day' => ['fa-heartbeat', 'Tageslage zusammenfassen'],
+        'exceptions' => ['fa-life-ring', 'Unklare Fälle lösen'],
+        'outbox' => ['fa-envelope', 'Kundennachrichten prüfen'],
+        'automation' => ['fa-user-clock', 'Personalautomatik prüfen'],
+        'recovery' => ['fa-redo', 'Verarbeitung nach Prüfung erneut vormerken'],
     ];
 
     public function __construct(private readonly TimelinePlanningSuggestionService $planning) {}
@@ -94,7 +100,7 @@ class AiAssistService
         $permitted = $this->permitted($actor);
         $allowed = fn (string $key) => in_array($key, $permitted, true);
         $page = array_values(array_filter($byPage, $allowed));
-        $global = array_values(array_filter(['day', 'intake'], fn ($key) => $allowed($key) && ! in_array($key, $page, true)));
+        $global = array_values(array_filter(['exceptions', 'outbox', 'automation', 'recovery', 'day', 'intake'], fn ($key) => $allowed($key) && ! in_array($key, $page, true)));
         $describe = fn (string $key) => ['key' => $key, 'icon' => self::ACTIONS[$key][0], 'title' => self::ACTIONS[$key][1], 'detail' => $this->detail($key, $context)];
 
         return ['page' => array_map($describe, $page), 'global' => array_map($describe, $global)];
@@ -103,6 +109,10 @@ class AiAssistService
     /** Alle Aktionen, die die Rechte erlauben – unabhängig von der Seite (Freitext, „/“). @return list<string> */
     public function permitted(User $actor): array
     {
+        $actor = $this->readActor($actor);
+        if (! $actor) {
+            return [];
+        }
         $planner = $actor->can('operations.manage');
         $inquiries = $actor->can('operations.inquiries.manage');
 
@@ -111,6 +121,10 @@ class AiAssistService
             'summary' => $inquiries,
             'intake' => $inquiries && AiIntakeSchema::ready(),
             'day' => $planner || $inquiries,
+            'exceptions' => $planner || ($inquiries && AiIntakeSchema::ready()),
+            'outbox' => $inquiries && $this->outboxReady(),
+            'recovery' => $inquiries && AiIntakeSchema::ready(),
+            'automation' => $planner && class_exists(StaffingAutomationService::class) && app(StaffingAutomationService::class)->ready(),
         }));
     }
 
@@ -125,6 +139,10 @@ class AiAssistService
             'summary' => 'Anfragen im Status Neu',
             'intake' => 'Eingänge, die eine Freigabe brauchen',
             'day' => 'Offene Dienste, laufende Dienste, neue Eingänge',
+            'exceptions' => 'Fehlende Angaben und sichere nächste Schritte',
+            'outbox' => 'Vorbereitete Nachrichten persönlich freigeben oder verwerfen',
+            'automation' => 'Personalvorschläge, Anfragen und Prüfbedarf',
+            'recovery' => 'Aktuelle Grundlage und Verbindung zuerst prüfen',
         };
     }
 
@@ -184,6 +202,10 @@ class AiAssistService
         $text = mb_strtolower($question);
 
         return match (true) {
+            (bool) preg_match('/erneut.*(?:auswert|vormerk|verarbeit)|wiederhol.*verarbeit/u', $text) => 'recovery',
+            (bool) preg_match('/unklar|ausnahme|problem|prüfbedarf|fehlend|fehler|blockier/u', $text) => 'exceptions',
+            (bool) preg_match('/kundennachricht|postausgang|mail.entwurf|rückfrage.*freig|bestätigung.*mail/u', $text) => 'outbox',
+            (bool) preg_match('/personalautomatik|besetzungsautomatik|automatisch.*anfrag/u', $text) => 'automation',
             (bool) preg_match('/heute|spät|früh|wer kann|übernehm|ersatz|krank/u', $text) => 'open-today',
             (bool) preg_match('/auslast|soll|stunden|überstund/u', $text) => 'workload',
             (bool) preg_match('/ohne schicht|leistung|auftr/u', $text) => 'without',
@@ -207,6 +229,8 @@ class AiAssistService
      */
     public function answer(string $action, User $actor, array $context): array
     {
+        $actor = $this->readActor($actor);
+        abort_unless($actor, 403);
         abort_unless(in_array($action, $this->permitted($actor), true), 403);
 
         return match ($action) {
@@ -217,12 +241,263 @@ class AiAssistService
             'summary' => $this->summaryAnswer(),
             'intake' => $this->intakeAnswer(),
             'day' => $this->dayAnswer($actor),
+            'exceptions' => $this->exceptionsAnswer($actor, $context),
+            'outbox' => $this->outboxAnswer($actor),
+            'automation' => $this->automationAnswer($actor, $context),
+            'recovery' => $this->recoveryAnswer($actor),
         };
     }
 
     public function help(): array
     {
-        return ['lead' => "Dabei helfe ich in der Disposition:\n• offene Schichten erklären und Besetzungen vorschlagen\n• Auslastung und Leistungen ohne Schichten prüfen\n• neue Anfragen und AI-Eingänge zusammenfassen\nTippe **/**, um alle Aktionen zu sehen."];
+        return ['lead' => "Dabei helfe ich in der Disposition:\n• offene Schichten erklären und Besetzungen vorschlagen\n• Auslastung und Leistungen ohne Schichten prüfen\n• neue Anfragen und AI-Eingänge zusammenfassen\n• unklare Fälle erklären und sichere nächste Schritte vorbereiten\n• Kundennachrichten und Personalautomatik persönlich prüfen\nTippe **/**, um alle Aktionen zu sehen."];
+    }
+
+    /** Every permission used by a combined local answer stays attached to its private capability. */
+    public function requiredAbilities(string $action, User $actor): array
+    {
+        if (in_array($action, ['exceptions', 'day', 'recovery'], true)) {
+            return array_values(array_filter(['operations.manage', 'operations.inquiries.manage'], fn ($ability) => $actor->can($ability)));
+        }
+
+        return [in_array($action, ['summary', 'intake', 'outbox'], true) ? 'operations.inquiries.manage' : 'operations.manage'];
+    }
+
+    private function outboxReady(): bool
+    {
+        return AiIntakeSchema::ready() && class_exists(AiCustomerCommunicationSchema::class) && AiCustomerCommunicationSchema::ready() && method_exists(AiIntakeMailService::class, 'draftMessages');
+    }
+
+    public function automationOverview(User $actor): array
+    {
+        $actor = $this->readActor($actor);
+        $result = ['staffing' => ['available' => false, 'mode' => 'off', 'counts' => [], 'items' => []], 'messages' => ['available' => false, 'drafts' => 0, 'unknown' => 0]];
+        if (! $actor) {
+            return $result;
+        }
+        if ($actor->can('operations.manage') && class_exists(StaffingAutomationService::class)) {
+            $result['staffing'] = ['available' => true] + app(StaffingAutomationService::class)->overview($actor, 10);
+        }
+        if ($actor->can('operations.inquiries.manage') && $this->outboxReady()) {
+            $result['messages'] = ['available' => true, 'drafts' => AiIntakeDelivery::where('status', 'draft')->count(), 'unknown' => AiIntakeDelivery::where('status', 'unknown')->count()];
+        }
+
+        return $result;
+    }
+
+    /** Safe descriptions only: source text, mail bodies and provider payloads are never exported here. */
+    public function exceptions(User $actor, array $context): Collection
+    {
+        $actor = $this->readActor($actor);
+        $items = collect();
+        if (! $actor) {
+            return $items;
+        }
+        if ($actor->can('operations.inquiries.manage') && AiIntakeSchema::ready()) {
+            foreach (AiIntake::with('customer')->whereIn('status', ['review', 'failed'])->latest('updated_at')->limit(8)->get() as $intake) {
+                $steps = $this->intakeNextSteps($intake);
+                $items->push(['kind' => 'intake', 'id' => $intake->id, 'title' => $intake->title ?: 'Eingang #'.$intake->id,
+                    'detail' => $this->missing($intake), 'steps' => $steps, 'href' => $this->intakeUrl($intake), 'intake_revision' => $intake->revision]);
+            }
+            foreach (AiIntakeDelivery::where('status', 'unknown')->with('intake')->latest('updated_at')->limit(3)->get() as $delivery) {
+                if ($delivery->intake) {
+                    $items->prepend(['kind' => 'delivery', 'id' => $delivery->id, 'title' => 'Versandstatus unklar · Eingang #'.$delivery->intake_id,
+                        'detail' => 'Der Mailserver-Ausgang wurde nicht sicher bestätigt.', 'steps' => ['Postfach und Versandprotokoll persönlich abgleichen.', 'Keine automatische Wiederholung; eine doppelte Kundennachricht vermeiden.'], 'href' => $this->intakeUrl($delivery->intake)]);
+                }
+            }
+        }
+        if ($actor->can('operations.manage') && OperationsAccess::ready()) {
+            foreach ($this->planning->openShifts($context['from'], $context['until'], $actor)->limit(5)->get() as $shift) {
+                $candidates = $this->planning->rankedCandidates($shift, $actor)->take(3);
+                if ($candidates->isNotEmpty()) {
+                    $steps = ['Konfliktfreie Alternativen: '.$candidates->pluck('user.name')->implode(', ').'.', 'Besetzungsvorschlag neu auswerten und persönlich prüfen.'];
+                } else {
+                    $staff = User::where('role', 'staff')->where('status', true)->orderBy('id')->limit(25)->get();
+                    $issues = $staff->isEmpty() ? [] : app(StaffEligibilityService::class)->assessMany($shift, $staff);
+                    $messages = collect($issues)->flatten(1)->pluck('message')->filter()->unique()->take(4)->all();
+                    $steps = [...$messages, 'Die Ursachenübersicht prüft höchstens 25 aktive Mitarbeitende; keine Sperre wird aufgehoben.', 'Nachweise, Arbeitszeit, Region und Kapazität im nativen Plan prüfen oder eine Partneranfrage vorbereiten.'];
+                }
+                $items->push(['kind' => 'shift', 'id' => $shift->id, 'title' => $shift->title.' · '.$this->when($shift),
+                    'detail' => $candidates->isEmpty() ? 'Keine konfliktfreie Besetzung gefunden.' : 'Sichere Alternativen verfügbar.', 'steps' => $steps, 'href' => $this->shiftPlanUrl($context)]);
+            }
+        }
+
+        return $items->take(16)->values();
+    }
+
+    private function intakeNextSteps(AiIntake $intake): array
+    {
+        $steps = [];
+        if (! $intake->customer_id) {
+            $steps[] = 'Aktiven Kunden und Kontakt anhand der Quelle persönlich zuordnen; Vorschläge erzeugen keine Kundenbindung.';
+        }
+        if ($intake->missing_fields) {
+            $steps[] = 'Fehlende Angaben ergänzen: '.$this->missing($intake).'.';
+        }
+        $steps[] = match ($intake->error_code) {
+            'recipient_not_verified' => 'Absender und aktiven Kontakt exakt prüfen; Empfänger nicht aus Modelltext übernehmen.',
+            'customer_reply_timeout' => 'Die Antwortfrist ist abgelaufen. Vorliegende Antworten und offene Angaben persönlich prüfen.',
+            'reply_position_review', 'native_workflow_active' => 'Leistungen ausdrücklich dem passenden offenen Vorgang zuordnen; laufende Angebote im nativen Vorgang bearbeiten.',
+            'proposal_application_review' => 'Bestätigten Auftrag und freigegebene Grundlage vergleichen; Entwurfserstellung nur nach korrigierten Voraussetzungen erneut freigeben.',
+            'worker_run_outcome_unknown', 'processing_failed', 'automation_unavailable' => 'Verbindung, verantwortliche Disposition und Hintergrundverarbeitung prüfen; danach ausdrücklich erneut auswerten.',
+            'automation_disabled' => 'Eingang bleibt gespeichert. Automatik muss durch die Systemverwaltung eingerichtet und aktiviert werden.',
+            'incomplete_extraction_review', 'attachments_review', 'validation_review' => 'Die vollständige Originalquelle prüfen und Leistungen persönlich ergänzen; kein abgeschnittener Inhalt wird übernommen.',
+            'automatic_message_review', 'manual_intent', 'no_positions' => 'Nachrichtentyp prüfen. Änderungen, Stornos und Autoantworten dürfen keine automatische neue Beauftragung auslösen.',
+            'customer_message_approval_required' => 'Vorbereitete Kundennachricht im Postausgang persönlich prüfen und freigeben.',
+            'customer_clarification_disabled', 'customer_clarification_rejected' => 'Fehlende Angaben persönlich klären; die deaktivierte oder verworfene Rückfrage wird nicht automatisch gesendet.',
+            default => str_starts_with((string) $intake->error_code, 'mailbox_') ? 'Quellenarchiv und Postfach prüfen; unvollständige Originale müssen manuell nachgereicht werden.' : 'Quelle, Leistung und aktuelle native Grundlage persönlich prüfen.',
+        };
+
+        return array_values(array_unique($steps));
+    }
+
+    private function exceptionsAnswer(User $actor, array $context): array
+    {
+        $items = $this->exceptions($actor, $context);
+        $buttons = [['label' => 'Aktivitäten anzeigen', 'act' => 'tab:activity']];
+        if ($actor->can('operations.manage')) {
+            $buttons[] = ['label' => 'Sichere Besetzung neu auswerten', 'act' => 'run:period'];
+        }
+        if ($this->outboxReady() && $actor->can('operations.inquiries.manage')) {
+            $buttons[] = ['label' => 'Kundennachrichten prüfen', 'act' => 'run:outbox'];
+        }
+        if ($actor->can('operations.inquiries.manage') && AiIntakeSchema::ready()) {
+            $buttons[] = ['label' => 'Verarbeitung nach Prüfung vorbereiten', 'act' => 'run:recovery'];
+        }
+
+        return ['lead' => $items->isEmpty() ? 'Für den gewählten Zeitraum habe ich keine offenen Prüffälle gefunden.' : 'Diese **'.$items->count().' Prüffälle** haben konkrete nächste Schritte. Die Übersicht ist begrenzt; die native Arbeitsliste bleibt vollständig.',
+            'card' => ['icon' => 'fa-life-ring', 'title' => 'Unklare Fälle und sichere Alternativen',
+                'rows' => $items->map(fn ($item) => ['label' => $item['title'], 'value' => $item['detail'], 'why' => $item['steps'], 'href' => $item['href']])->all(),
+                'note' => 'Qualifikationen, Arbeitszeit, regionale Sperren und Kapazität bleiben verbindlich geprüft. Änderungen bestätigst du persönlich.', 'buttons' => $buttons]];
+    }
+
+    private function outboxAnswer(User $actor): array
+    {
+        $drafts = app(AiIntakeMailService::class)->draftMessages($actor);
+        $draft = $drafts->first();
+        if (! $draft) {
+            return ['lead' => 'Keine Kundennachricht wartet auf eine persönliche Freigabe.'];
+        }
+        $buttons = [['label' => 'Entwurf verwerfen', 'act' => 'reject'], ['label' => 'Eingang prüfen', 'href' => OperationsPages::url('cases', ['view' => 'inbox', 'section' => 'ai-intake', 'intake' => $draft['intake_id']])], ['label' => 'Nächsten Entwurf prüfen', 'act' => 'run:outbox']];
+        if (! empty($draft['can_approve'])) {
+            array_unshift($buttons, ['label' => 'Nachricht freigeben', 'act' => 'approve', 'primary' => true]);
+        }
+
+        return ['lead' => '**'.AiIntakeDelivery::where('status', 'draft')->count().' vorbereitete Kundennachrichten** warten auf Prüfung. Hier ist der nächste Entwurf:',
+            'card' => ['icon' => 'fa-envelope', 'title' => $draft['title'], 'rows' => [['label' => 'Empfänger', 'value' => $draft['recipient_label'] ?? $draft['customer_name'] ?? 'Verifizierter Kundenkontakt']],
+                'body' => $draft['body'], 'note' => empty($draft['can_approve']) ? 'Diese Grundlage ist nicht versandbereit. Automatik, verantwortliche Disposition, aktive Kontaktzuordnung, Einstellungen und gegebenenfalls Auftragsgrundlage im nativen Eingang prüfen. Der Entwurf bleibt erhalten oder kann ausdrücklich verworfen werden.' : 'Die Freigabe gilt nur für diese konkrete Nachricht und aktuelle Grundlage. Sie ersetzt keine Angebots- oder Auftragsfreigabe.',
+                'command' => ['kind' => 'customer_message', 'id' => $draft['id'], 'settings_revision' => $draft['settings_revision'], 'intake_revision' => $draft['intake_revision']],
+                'buttons' => $buttons]];
+    }
+
+    private function automationAnswer(User $actor, array $context): array
+    {
+        $overview = app(StaffingAutomationService::class)->overview($actor, 10);
+        $settings = AiDispositionSettings::all();
+        $offerUrl = OperationsPages::moduleUrl('workforce-planning', ['tab' => 'offers']);
+        $card = ['icon' => 'fa-user-clock', 'title' => 'Personal-Anfragen', 'rows' => collect($overview['items'] ?? [])->map(fn ($item) => ['label' => 'Schicht #'.$item['shift_id'], 'value' => $this->staffingState($item['state']), 'small' => StaffingAutomationService::reasonLabel($item['reason_code'] ?? null), 'why' => ['Anfragen reservieren keinen Arbeitsplatz und bestätigen keine Einteilung.'], 'href' => $item['offer_id'] ? $offerUrl : $this->shiftPlanUrl($context)])->all(),
+            'note' => 'Sichere Alternativen neu auswerten. Fehlende Nachweise und Sperren zuerst im nativen Vorgang korrigieren.', 'buttons' => [['label' => 'Sichere Alternativen anzeigen', 'act' => 'run:period'], ['label' => 'Personalangebote und Antworten prüfen', 'href' => $offerUrl], ['label' => 'Schichtplan öffnen', 'href' => $this->shiftPlanUrl($context)]]];
+        if (($overview['mode'] ?? 'off') !== 'off' && ! empty($overview['supervisor_ready'])) {
+            $review = collect($overview['items'])->first(fn ($item) => $item['state'] === 'review' && $item['wave_count'] < (int) $settings['staffing_request_max_waves'] && ! in_array($item['reason_code'], ['interest_received', 'existing_offer', 'publication_changed', 'start_imminent', 'shift_unavailable', 'assisted_proposal'], true));
+            if ($review) {
+                $card['command'] = ['kind' => 'staffing_retry', 'id' => $review['id'], 'revision' => $review['revision'], 'settings_revision' => $settings['revision']];
+                $card['buttons'][] = ['label' => 'Schicht #'.$review['shift_id'].(($overview['mode'] ?? '') === 'assisted' ? ' nach Prüfung neu auswerten' : ' nach Prüfung erneut anfragen'), 'act' => 'retry', 'primary' => true];
+            } elseif (($overview['mode'] ?? '') === 'assisted') {
+                $target = collect(app(StaffingAutomationService::class)->preparableTargets($actor, 5))->first();
+                if ($target) {
+                    $card['command'] = ['kind' => 'staffing_prepare', 'id' => $target['shift_id'], 'revision' => $target['plan_revision'], 'settings_revision' => $target['settings_revision']];
+                    $card['buttons'][] = ['label' => 'Anfragevorschlag für '.$target['title'].' vorbereiten', 'act' => 'prepare', 'primary' => true];
+                }
+            }
+        }
+        $modeLabel = match ($overview['status'] ?? '') {
+            'supervisor_not_authorized' => 'verantwortliche Disposition nicht berechtigt',
+            'schema_missing' => 'Datenbankerweiterung fehlt',
+            default => ['off' => 'ausgeschaltet', 'assisted' => 'assistierter Modus konfiguriert', 'automatic' => 'automatische Anfragen konfiguriert'][$overview['mode']] ?? 'Stand prüfen',
+        };
+
+        return ['lead' => 'Personalautomatik: **'.$modeLabel.'**. Anfragen und Prüfbedarf bleiben im nativen Personalprozess nachvollziehbar.', 'card' => $card];
+    }
+
+    private function staffingState(string $state): string
+    {
+        return ['waiting' => 'Wartet auf Auswertung', 'soliciting' => 'Personalanfrage offen', 'review' => 'Persönliche Prüfung nötig', 'awaiting_confirmation' => 'Interesse gemeldet · Freigabe offen', 'completed' => 'Anfrageprozess abgeschlossen', 'stopped' => 'Anfrageprozess beendet'][$state] ?? 'Stand prüfen';
+    }
+
+    private function recoveryAnswer(User $actor): array
+    {
+        if (! AiDispositionSettings::enabled()) {
+            return ['lead' => 'Die AI-Annahme ist ausgeschaltet. Gespeicherte Eingänge bleiben erhalten; die Systemverwaltung muss die Voraussetzungen prüfen.'];
+        }
+        $proposal = $actor->can('operations.manage') ? AiIntakeProposal::with('intake')->where('status', 'failed')->where('error_code', 'proposal_application_review')->whereHas('intake', fn ($q) => $q->where('status', 'review'))->latest('id')->first() : null;
+        if ($proposal && $proposal->source_revision === $proposal->intake->source_revision) {
+            return ['lead' => 'Für **Eingang #'.$proposal->intake_id.' · Leistung '.($proposal->position_index + 1).'** kann die Entwurfserstellung nach deiner Prüfung erneut vorgemerkt werden.',
+                'card' => ['icon' => 'fa-redo', 'title' => 'Entwurfserstellung erneut prüfen', 'rows' => [],
+                    'note' => 'Die native Prüfung verlangt dieselbe freigegebene Grundlage, einen unveränderten persönlich übernommenen Auftrag und freie Planung. Bestehende bestätigte Aufträge werden nicht verändert.',
+                    'command' => ['kind' => 'proposal_retry', 'id' => $proposal->id, 'revision' => $proposal->revision],
+                    'buttons' => [['label' => 'Nach Prüfung erneut vormerken', 'act' => 'retry', 'primary' => true], ['label' => 'Grundlage öffnen', 'href' => $this->intakeUrl($proposal->intake)]]]];
+        }
+        $intake = AiIntake::where('status', 'review')->whereIn('error_code', ['processing_failed', 'automation_unavailable'])->whereDoesntHave('deliveries', fn ($q) => $q->where('status', 'unknown'))->latest('updated_at')->first();
+        if (! $intake) {
+            return ['lead' => 'Kein sicher erneut vormerkbarer Eingang gefunden. Unklare Versandstände, Quellenlücken und kommerzielle Änderungen benötigen persönliche Bearbeitung im nativen Vorgang.'];
+        }
+
+        return ['lead' => '**'.$intake->title.'** kann nach Prüfung der Verbindung und Quelle erneut ausgewertet werden.',
+            'card' => ['icon' => 'fa-redo', 'title' => 'Eingang #'.$intake->id.' erneut auswerten', 'rows' => [], 'note' => 'Bitte Voraussetzungen und vollständige Quelle zuerst prüfen. Die Analyse wird ausdrücklich neu im Hintergrund angefordert.',
+                'command' => ['kind' => 'intake_analysis', 'id' => $intake->id, 'revision' => $intake->revision, 'settings_revision' => AiDispositionSettings::all()['revision']],
+                'buttons' => [['label' => 'Nach Prüfung erneut auswerten', 'act' => 'reanalyze', 'primary' => true], ['label' => 'Quelle öffnen', 'href' => $this->intakeUrl($intake)]]]];
+    }
+
+    /** Commands originate only in an authorized server-side card; native services recheck all mutable context. */
+    public function executeCommand(array $command, string $act, User $actor): array
+    {
+        $actor = $this->readActor($actor);
+        abort_unless($actor, 403);
+        if (($command['kind'] ?? '') === 'customer_message') {
+            OperationsAccess::authorize($actor, 'operations.inquiries.manage');
+            abort_unless($this->outboxReady() && in_array($act, ['approve', 'reject'], true), 422);
+            $delivery = AiIntakeDelivery::findOrFail((int) $command['id']);
+            $service = app(AiIntakeMailService::class);
+            if ($act === 'approve') {
+                $service->approveDraft($delivery, $actor, (int) $command['settings_revision'], (int) $command['intake_revision']);
+            } else {
+                $service->rejectDraft($delivery, $actor, (int) $command['settings_revision'], (int) $command['intake_revision']);
+            }
+
+            return ['state' => $act === 'approve' ? 'done' : 'dismissed', 'note' => $act === 'approve' ? 'Nachricht persönlich freigegeben und für den Versand vorgemerkt. Der tatsächliche Versandstand erscheint in Aktivitäten.' : 'Nachrichtenentwurf persönlich verworfen.'];
+        }
+        if (($command['kind'] ?? '') === 'proposal_retry' && $act === 'retry') {
+            OperationsAccess::authorize($actor, 'operations.manage');
+            app(AiIntakeService::class)->retryApprovedProposal(AiIntakeProposal::findOrFail((int) $command['id']), $actor, (int) $command['revision']);
+
+            return ['state' => 'done', 'note' => 'Erneute Entwurfserstellung persönlich freigegeben. Der bestätigte Auftrag bleibt erhalten; Fortschritt unter Aktivitäten.'];
+        }
+        if (($command['kind'] ?? '') === 'intake_analysis' && $act === 'reanalyze') {
+            OperationsAccess::authorize($actor, 'operations.inquiries.manage');
+            abort_unless((int) AiDispositionSettings::all()['revision'] === (int) $command['settings_revision'] && app(AiDispositionClient::class)->isConfigured(), 409, 'AI-Verbindung oder verantwortliche Disposition ist nicht bereit.');
+            $intake = AiIntake::findOrFail((int) $command['id']);
+            abort_unless($intake->status === 'review' && in_array($intake->error_code, ['processing_failed', 'automation_unavailable'], true), 409, 'Eingang benötigt inzwischen eine andere Prüfung.');
+            abort_if($intake->deliveries()->where('status', 'unknown')->exists(), 409, 'Unklaren Versandstatus zuerst persönlich abgleichen. Keine automatische Wiederholung.');
+            app(AiIntakeService::class)->reanalyze($intake, $actor, (int) $command['revision']);
+
+            return ['state' => 'done', 'note' => 'Erneute Analyse ausdrücklich vorgemerkt. Der tatsächliche Fortschritt erscheint unter Aktivitäten.'];
+        }
+        if (in_array($command['kind'] ?? '', ['staffing_retry', 'staffing_prepare'], true)) {
+            OperationsAccess::authorize($actor, 'operations.manage');
+            abort_unless((int) AiDispositionSettings::all()['revision'] === (int) $command['settings_revision'] && class_exists(StaffingAutomationService::class) && app(StaffingAutomationService::class)->ready(), 409, 'Die Personalanfrage-Grundlage wurde geändert. Bitte erneut prüfen.');
+            $service = app(StaffingAutomationService::class);
+            if ($command['kind'] === 'staffing_retry' && $act === 'retry') {
+                $run = $service->retry((int) $command['id'], (int) $command['revision'], $actor);
+            } elseif ($command['kind'] === 'staffing_prepare' && $act === 'prepare') {
+                abort_unless((AiDispositionSettings::all()['staffing_request_mode'] ?? 'off') === 'assisted', 409, 'Der persönlich vorbereitete Modus wurde geändert. Bitte neu prüfen.');
+                $run = $service->prepare((int) $command['id'], (int) $command['revision'], $actor);
+            } else {
+                abort(422);
+            }
+
+            return ['state' => 'done', 'note' => 'Personalanfrage persönlich vorbereitet: '.StaffingAutomationService::reasonLabel($run->reason_code).'. Keine Einteilung oder Platzreservierung.'];
+        }
+        abort(422, 'Unbekannte Assistentenaktion.');
     }
 
     private function periodAnswer(User $actor, array $context): array
@@ -479,16 +754,19 @@ class AiAssistService
      */
     public function activity(User $actor, string $filter = 'all'): Collection
     {
-        abort_unless(in_array($filter, ['all', 'intake', 'planning'], true), 422);
+        abort_unless(in_array($filter, ['all', 'intake', 'planning', 'communication', 'automation'], true), 422);
         $actor = $this->readActor($actor);
         if (! $actor) {
             return collect();
         }
         $items = collect();
-        if ($filter !== 'planning' && $actor->can('operations.inquiries.manage') && AiIntakeSchema::ready()) {
+        if (in_array($filter, ['all', 'intake', 'communication'], true) && $actor->can('operations.inquiries.manage') && AiIntakeSchema::ready()) {
             $items = $this->intakeActivity();
+            if ($filter === 'communication') {
+                $items = $items->filter(fn ($item) => in_array($item['phase'], ['clarification', 'customer_receipt', 'order_confirmation'], true));
+            }
         }
-        if ($filter !== 'intake' && $actor->can('operations.manage')) {
+        if (in_array($filter, ['all', 'planning'], true) && $actor->can('operations.manage')) {
             $audits = OperationAudit::query()->with('actor:id,name')->whereIn('action', ['ai_assist.requested', 'ai_assist.withdrawn'])
                 ->where('subject_type', class_basename(Shift::class))->latest('id')->limit(40)->get();
             $shifts = Shift::whereIn('id', $audits->pluck('subject_id'))->get(['id', 'title', 'starts_at', 'timezone'])->keyBy('id');
@@ -500,6 +778,17 @@ class AiAssistService
                     'title' => ($people[$audit->data['user_id'] ?? 0] ?? 'Mitarbeiter').' · '.($shift?->title ?? 'Schicht'),
                     'detail' => ($requested ? 'Als Angefragt eingeteilt' : 'Einteilung zurückgenommen').' · '.($audit->actor?->name ?? 'Disposition').($shift ? ' · '.$this->when($shift) : ''),
                     'status' => $requested ? 'Übernommen' : 'Zurückgenommen', 'tone' => $requested ? 'ok' : 'neutral', 'href' => null]);
+            }
+        }
+        if (in_array($filter, ['all', 'planning', 'automation'], true) && $actor->can('operations.manage') && class_exists(StaffingAutomationService::class) && app(StaffingAutomationService::class)->ready()) {
+            foreach (app(StaffingAutomationService::class)->recentEvents($actor, 20) as $event) {
+                $state = $event['state'] ?? 'review';
+                $items->push(['id' => 'staffing:'.($event['id'] ?? $event['run_uuid']), 'at' => CarbonImmutable::parse($event['created_at'], 'UTC'),
+                    'kind' => 'planning', 'phase' => 'staffing_request', 'state' => $state, 'intake_id' => null,
+                    'reference' => 'Schicht #'.$event['shift_id'], 'icon' => 'fa-user-clock', 'title' => $event['title'] ?? 'Personalanfrage · Schicht #'.$event['shift_id'],
+                    'detail' => StaffingAutomationService::reasonLabel($event['reason_code'] ?? null).' · Anfrage reserviert keinen Einsatzplatz',
+                    'status' => $this->staffingState($state), 'tone' => $state === 'review' ? 'warn' : 'info',
+                    'href' => $this->shiftPlanUrl($this->context('cases', 'shifts'))]);
             }
         }
 
@@ -548,20 +837,35 @@ class AiAssistService
                 $push($run->intake, 'run:'.$run->id.':finished', $run->finished_at, $phase, $run->status, $title, $detail, $status, $tone, $icon);
             }
         }
-        foreach (AiIntakeDelivery::query()->select(['id', 'intake_id', 'status', 'question_round', 'created_at', 'updated_at', 'attempted_at', 'sent_at'])->with($relation)->latest('updated_at')->latest('id')->limit(30)->get() as $delivery) {
+        $deliveryColumns = ['id', 'intake_id', 'status', 'question_round', 'created_at', 'updated_at', 'attempted_at', 'sent_at'];
+        if ($this->outboxReady()) {
+            $deliveryColumns = [...$deliveryColumns, 'message_type', 'approved_at', 'metadata'];
+        }
+        foreach (AiIntakeDelivery::query()->select($deliveryColumns)->with($relation)->latest('updated_at')->latest('id')->limit(30)->get() as $delivery) {
             if (! $delivery->intake) {
                 continue;
             }
-            $round = $delivery->question_round > 0 ? 'Rückfragerunde '.$delivery->question_round : 'Rückfrage';
-            $push($delivery->intake, 'delivery:'.$delivery->id.':queued', $delivery->created_at, 'clarification', 'pending', 'Rückfrage vorbereitet', $round.' für Versand vorgemerkt', 'Vorgemerkt', 'info', 'fa-envelope');
+            $type = $delivery->message_type ?? 'clarification';
+            $phase = match ($type) {
+                'receipt' => 'customer_receipt', 'order_confirmation' => 'order_confirmation', default => 'clarification'
+            };
+            $label = match ($type) {
+                'receipt' => 'Eingangsbestätigung', 'order_confirmation' => 'Auftragsbestätigung', default => 'Rückfrage'
+            };
+            $round = $type === 'clarification' && $delivery->question_round > 0 ? 'Rückfragerunde '.$delivery->question_round : $label;
+            $draft = $delivery->metadata['created_as_draft'] ?? $delivery->status === 'draft';
+            $push($delivery->intake, 'delivery:'.$delivery->id.':queued', $delivery->created_at, $phase, $draft ? 'draft' : 'pending', $label.' vorbereitet', $round.($draft ? ' wartet auf persönliche Freigabe' : ' für Versand vorgemerkt'), $draft ? 'Freigabe nötig' : 'Vorgemerkt', $draft ? 'warn' : 'info', 'fa-envelope');
+            if ($delivery->approved_at) {
+                $push($delivery->intake, 'delivery:'.$delivery->id.':approved', $delivery->approved_at, $phase, 'approved', $label.' persönlich freigegeben', 'Konkrete Nachricht wurde für den Versand freigegeben', 'Freigegeben', 'ok', 'fa-check');
+            }
             if ($delivery->attempted_at) {
-                $push($delivery->intake, 'delivery:'.$delivery->id.':attempted', $delivery->attempted_at, 'clarification', 'sending', 'Rückfrage: Versand gestartet', $round.' · Versandversuch gespeichert', 'Gestartet', 'info', 'fa-paper-plane');
+                $push($delivery->intake, 'delivery:'.$delivery->id.':attempted', $delivery->attempted_at, $phase, 'sending', $label.': Versand gestartet', $round.' · Versandversuch gespeichert', 'Gestartet', 'info', 'fa-paper-plane');
             }
             if ($delivery->status === 'sent' && $delivery->sent_at) {
-                $push($delivery->intake, 'delivery:'.$delivery->id.':sent', $delivery->sent_at, 'clarification', 'sent', 'Rückfrage versendet', $round.' · an den Mailserver übergeben; Antwort ausstehend', 'Versendet', 'ok', 'fa-paper-plane');
+                $push($delivery->intake, 'delivery:'.$delivery->id.':sent', $delivery->sent_at, $phase, 'sent', $label.' versendet', $round.' · an den Mailserver übergeben'.($type === 'clarification' ? '; Antwort ausstehend' : ''), 'Versendet', 'ok', 'fa-paper-plane');
             } elseif (in_array($delivery->status, ['unknown', 'canceled'], true)) {
                 $unknown = $delivery->status === 'unknown';
-                $push($delivery->intake, 'delivery:'.$delivery->id.':'.$delivery->status, $delivery->updated_at, 'clarification', $delivery->status, $unknown ? 'Rückfrage: Versandstatus unklar' : 'Rückfrage abgebrochen', $unknown ? 'Keine automatische Wiederholung; Verlauf im Eingang prüfen' : 'Vorgemerkter Versand wurde abgebrochen', $unknown ? 'Prüfung nötig' : 'Abgebrochen', $unknown ? 'warn' : 'neutral', 'fa-envelope');
+                $push($delivery->intake, 'delivery:'.$delivery->id.':'.$delivery->status, $delivery->updated_at, $phase, $delivery->status, $label.($unknown ? ': Versandstatus unklar' : ' abgebrochen'), $unknown ? 'Keine automatische Wiederholung; Verlauf im Eingang prüfen' : 'Vorgemerkter Versand wurde abgebrochen', $unknown ? 'Prüfung nötig' : 'Abgebrochen', $unknown ? 'warn' : 'neutral', 'fa-envelope');
             }
         }
         foreach (AiIntakeProposal::query()->select(['id', 'intake_id', 'position_index', 'status', 'created_at', 'updated_at', 'approved_at', 'applied_at'])->with($relation)->latest('updated_at')->latest('id')->limit(30)->get() as $proposal) {
