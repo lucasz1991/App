@@ -123,6 +123,15 @@ class ShiftManagement extends Component
             $this->reset(['search', 'statusFilter', 'orderFilter', 'attentionFilter']);
         }
         $this->viewMode = $view;
+        $this->dispatch('shift-plan-view-changed', view: $view);
+    }
+
+    #[On('set-shift-plan-view')]
+    public function selectServicesView(string $view): void
+    {
+        $this->ensureAdmin();
+        abort_unless($view === 'orders', 422);
+        $this->viewMode = $view;
     }
 
     public function movePeriod(int $direction): void
@@ -258,6 +267,9 @@ class ShiftManagement extends Component
             $this->orderFilter = (string) $order->id;
             $this->rangeFrom = $order->starts_at->setTimezone($today->timezone)->toDateString();
             $this->rangeTo = $order->ends_at->setTimezone($today->timezone)->toDateString();
+            $this->viewMode = 'orders';
+        }
+        if (request()->query('services') === '1') {
             $this->viewMode = 'orders';
         }
         $selection = Shift::query()->when($this->orderFilter !== 'all', fn (Builder $query) => $query->where('order_id', (int) $this->orderFilter));

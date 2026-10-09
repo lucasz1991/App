@@ -1,6 +1,6 @@
 <section class="rt-ops ops-stack min-w-0" aria-label="Vorgänge und Aufträge" data-case-workspace="{{ $view }}" x-data="{}">
     <template x-teleport="[data-topbar-planning-navigation]" wire:key="case-topbar-navigation">
-        <x-ui.buttons.multi-toggle id="case-workspace-view" label="Vorgangsansicht" :value="$view === 'shifts' && $section === 'calendar' ? 'calendar' : $view" action="setPlanningView" :options="array_values(\App\Support\Operations\OperationsPages::planningShortcuts(auth()->user()))" />
+        <x-ui.buttons.multi-toggle id="case-workspace-view" label="Vorgangsansicht" :value="$servicesView ? 'services' : ($view === 'shifts' && $section === 'calendar' ? 'calendar' : $view)" action="setPlanningView" :options="array_values(\App\Support\Operations\OperationsPages::planningShortcuts(auth()->user()))" />
     </template>
     @if($view === 'shifts' && $section === 'plan')
         <template x-teleport="[data-page-header-actions]" wire:key="case-shift-create-action">
@@ -9,7 +9,7 @@
     @endif
     @if(!$costsOnly && !in_array($view, ['offers', 'shifts']) && !in_array($section, ['imports','portal','ai-intake']))
     <header class="ops-toolbar">
-        <x-ui.buttons.button-basic class="ml-auto" type="button" mode="primary" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i>{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</x-ui.buttons.button-basic>
+        <x-ui.buttons.button-basic class="ml-auto" type="button" mode="primary" aria-label="{{ $view === 'orders' ? 'Auftrag anlegen' : 'Anfrage anlegen' }}" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i><span class="rt-case-create-label">{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</span></x-ui.buttons.button-basic>
     </header>
     @endif
     @if($reservation)

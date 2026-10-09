@@ -20,6 +20,7 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsEnhancementsSchema;
 use App\Support\Operations\OperationsPages;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class CaseWorkspace extends Component
@@ -32,6 +33,9 @@ class CaseWorkspace extends Component
 
     #[Locked]
     public array $context = [];
+
+    #[Locked]
+    public bool $servicesView = false;
 
     public static function availableViews(User $actor): array
     {
@@ -77,6 +81,7 @@ class CaseWorkspace extends Component
         }
         abort_unless(isset($views[$initialView]), 403);
         $this->view = $initialView;
+        $this->servicesView = $initialView === 'shifts' && request()->query('services') === '1';
         $this->section = $initialSection ?: ($initialView === 'inbox' ? (array_key_first(self::availableSections($actor)) ?? 'overview') : ($initialView === 'shifts' ? 'plan' : ($initialView === 'orders' && ! $actor->can('operations.manage') ? 'costs' : 'overview')));
         $this->context = $context;
         if ($this->view === 'inbox' && $this->section === 'overview') {
@@ -182,6 +187,19 @@ class CaseWorkspace extends Component
     {
         $this->access();
         abort_unless(isset(OperationsPages::planningShortcuts($this->actor())[$target]), 403);
+        if ($target === 'services') {
+            if ($this->view === 'shifts' && $this->section === 'plan') {
+                $this->servicesView = true;
+                $this->dispatch('set-shift-plan-view', view: 'orders');
+                $this->syncServicesViewUrl(true);
+
+                return;
+            }
+            $this->redirect(OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan', 'services' => '1'] + $this->context), navigate: true);
+
+            return;
+        }
+        $this->servicesView = false;
         if (in_array($target, ['shifts', 'calendar'], true)) {
             $section = $target === 'calendar' ? 'calendar' : 'plan';
             if ($this->view === 'shifts') {
@@ -194,6 +212,22 @@ class CaseWorkspace extends Component
             return;
         }
         $this->setView($target);
+    }
+
+    #[On('shift-plan-view-changed')]
+    public function shiftPlanViewChanged(string $view): void
+    {
+        $this->access();
+        abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders', 'timeline'], true), 422);
+        $this->servicesView = $view === 'orders';
+        $this->syncServicesViewUrl($this->servicesView);
+    }
+
+    private function syncServicesViewUrl(bool $active): void
+    {
+        $this->dispatch('rt-workspace-url', url: OperationsPages::url('cases', [
+            'view' => 'shifts', 'section' => 'plan', 'services' => $active ? '1' : null,
+        ] + $this->context));
     }
 
     public function setSection(string $section): void

@@ -95,6 +95,7 @@ final class OperationsPages
         if (isset($shortcuts['shifts'])) {
             $shortcuts['shifts']['icon'] = 'fa-clock';
             $shortcuts['calendar'] = ['value' => 'calendar', 'label' => 'Kalender', 'icon' => 'fa-calendar-alt'];
+            $shortcuts['services'] = ['value' => 'services', 'label' => 'Leistungen', 'icon' => 'fa-briefcase'];
         }
 
         return $shortcuts;

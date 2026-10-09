@@ -1,4 +1,4 @@
-<div class="rt-disposition rt-disposition--inquiries">
+<div class="rt-disposition rt-disposition--inquiries {{ $consolidated && !$profileEmbedded ? 'rt-inbox-compact' : '' }}">
     <section class="rt-disposition-summary" aria-label="Übersicht aller offenen Anfragen">
         @foreach([
             ['value' => $summary['active'], 'label' => 'Offene Vorgänge', 'detail' => $profileEmbedded ? 'dieses Kunden' : 'im gesamten Eingang', 'tone' => 'neutral'],
@@ -8,7 +8,7 @@
         ] as $metric)
             <div class="rt-disposition-summary__item" data-tone="{{ $metric['tone'] }}">
                 <span class="rt-disposition-summary__value">{{ $metric['value'] }}</span>
-                <div><span class="rt-disposition-summary__label">{{ $metric['label'] }}</span><span class="rt-disposition-summary__detail">{{ $metric['detail'] }}</span></div>
+                <div><span class="rt-disposition-summary__label">{{ $metric['label'] }}</span>@unless($consolidated && !$profileEmbedded)<span class="rt-disposition-summary__detail">{{ $metric['detail'] }}</span>@endunless</div>
             </div>
         @endforeach
     </section>
@@ -19,10 +19,11 @@
         <section class="rt-disposition-panel" aria-labelledby="inquiries-list-heading">
             <div class="rt-disposition-section-heading">
                 <h2 id="inquiries-list-heading">Posteingang <span class="rt-disposition-count">{{ $inquiries->total() }}</span></h2>
-                <span>Vorgänge prüfen und weiterplanen</span>
             </div>
             <x-tables.toolbar title="Anfragen filtern" id="inquiry-filters" :search-in-header="true">
-                <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Anfrage oder Kunde suchen" /></x-slot:search>
+                @unless($consolidated && !$profileEmbedded)
+                    <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Anfrage oder Kunde suchen" /></x-slot:search>
+                @endunless
                 <x-slot:bulk>
                     <div class="rt-disposition-segments" role="group" aria-label="Anfragestatus" data-tables-bulk>
                         @foreach(['all' => 'Alle Status', 'new' => 'Neu', 'accepted' => 'Zugesagt'] as $status => $label)
@@ -75,9 +76,8 @@
                     <span class="rt-disposition-context-item__footer"><span>{{ $inquiry->number }}</span><i class="far fa-arrow-right" aria-hidden="true"></i></span>
                 </button>
             @empty
-                <p class="rt-disposition-note">Aktuell stehen keine offenen Anfragen zur Bearbeitung an.</p>
+                <div class="rt-inbox-next-empty"><i class="far fa-check-circle" aria-hidden="true"></i><strong>Alles im Blick</strong><span>Keine offenen nächsten Schritte.</span></div>
             @endforelse
-            @if(!$profileEmbedded)<p class="rt-disposition-note"><strong>Vom Bedarf zum Auftrag.</strong> Angebot, Kundenzusage und Beauftragung sind eigene Schritte. Zugesagte Vorgänge stehen hier zuerst.</p>@endif
         </aside>
     </div>
 

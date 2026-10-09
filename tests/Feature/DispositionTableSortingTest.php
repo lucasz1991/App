@@ -51,6 +51,19 @@ class DispositionTableSortingTest extends TestCase
         ], $attributes));
     }
 
+    public function test_consolidated_inbox_keeps_native_table_without_local_search(): void
+    {
+        $this->actingAs($this->admin);
+        Livewire::test(InquiryInbox::class, ['consolidated' => true])
+            ->assertSeeHtml('rt-inbox-compact')
+            ->assertSee('Posteingang')
+            ->assertSee('Als Nächstes')
+            ->assertDontSeeHtml('placeholder="Anfrage oder Kunde suchen"')
+            ->assertDontSee('Vom Bedarf zum Auftrag.');
+        Livewire::test(InquiryInbox::class)
+            ->assertSeeHtml('placeholder="Anfrage oder Kunde suchen"');
+    }
+
     private function order(string $title, array $attributes = []): Order
     {
         return Order::create(array_merge([

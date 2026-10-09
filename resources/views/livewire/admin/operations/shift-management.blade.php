@@ -51,11 +51,11 @@
                 <x-slot:content>
                     <p class="rt-shift-plan-menu-heading" role="presentation">Schichtplan anzeigen als</p>
                     @foreach($planViews as $view => [$label, $icon])
+                        @continue($view === 'orders')
                         <button type="button" role="menuitemradio" aria-checked="{{ $viewMode === $view ? 'true' : 'false' }}" wire:click="setView('{{ $view }}')" x-on:click="close()" class="rt-shift-plan-view-option">
                             <i class="far {{ $icon }}" aria-hidden="true"></i><span><strong>{{ $label }}</strong><small>{{ $viewDescriptions[$view] }}</small></span>@if($viewMode === $view)<i class="far fa-check rt-shift-plan-view-option__check" aria-hidden="true"></i>@endif
                         </button>
                     @endforeach
-                    <a href="{{ \App\Support\Operations\OperationsPages::moduleUrl('calendar') }}" wire:navigate role="menuitem" class="rt-shift-plan-view-option rt-shift-plan-view-option--calendar"><i class="far fa-calendar-alt" aria-hidden="true"></i><span><strong>Kalender</strong><small>Tag, Woche oder Monat öffnen</small></span><i class="far fa-arrow-up-right" aria-hidden="true"></i></a>
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
             {{-- „Noch zu verteilen“ ist ein Seitenpanel; der Zähler schaltet es. Offen = Vorschläge in der Zeitleiste. --}}

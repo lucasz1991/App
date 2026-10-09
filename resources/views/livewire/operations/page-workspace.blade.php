@@ -1,5 +1,6 @@
-@section('title', $definition['title'])
-<x-ui.page :title="$definition['title']" :auto-intro="false" content-class="rt-ops ops-stack" :class="in_array($page, ['cases', 'shifts', 'planning', 'duty'], true) ? 'rt-disposition-page' : (in_array($page, ['people', 'personnel-processes', 'leave', 'time-review', 'payroll'], true) ? 'rt-personnel-page' : '')">
+@php($pageTitle = $page === 'cases' && $initialView === 'offers' ? 'Angebote' : $definition['title'])
+@section('title', $pageTitle)
+<x-ui.page :title="$pageTitle" :auto-intro="false" content-class="rt-ops ops-stack" :class="in_array($page, ['cases', 'shifts', 'planning', 'duty'], true) ? 'rt-disposition-page' : (in_array($page, ['people', 'personnel-processes', 'leave', 'time-review', 'payroll'], true) ? 'rt-personnel-page' : '')">
     @if($page === 'shifts')
         <x-slot:actions><x-operations.create-action :module="$initialView === 'calendar' ? 'calendar' : 'shift-management'" /></x-slot:actions>
     @endif
