@@ -156,20 +156,29 @@ class WorkforcePlanningService
     /** Wishes are informational. They never create approved absences or binding assignments. */
     public function wishSummary(Shift $shift, User $employee): array
     {
+        return $this->wishSummaries($shift, collect([$employee]))->get($employee->id, ['state' => 'unknown', 'kinds' => []]);
+    }
+
+    public function wishSummaries(Shift $shift, Collection $employees): Collection
+    {
         if (! WorkforcePlanningSchema::ready()) {
-            return ['state' => 'unknown', 'kinds' => []];
+            return $employees->mapWithKeys(fn ($employee) => [$employee->id => ['state' => 'unknown', 'kinds' => []]]);
         }
         $startDate = $shift->starts_at->subDay()->toDateString();
         $endDate = $shift->ends_at->addDay()->toDateString();
-        $kinds = EmployeeAvailability::where('user_id', $employee->id)->where('from', '<=', $endDate)->where('until', '>=', $startDate)->get()->filter(function ($wish) use ($shift) {
-            $data = $wish->toArray();
-            $data['from'] = $wish->from->toDateString();
-            $data['until'] = $wish->until->toDateString();
+        $wishes = EmployeeAvailability::whereIn('user_id', $employees->pluck('id'))->where('from', '<=', $endDate)->where('until', '>=', $startDate)->get()->groupBy('user_id');
 
-            return $this->wishWindows($data)->contains(fn ($window) => $window['start']->lt($shift->ends_at) && $window['end']->gt($shift->starts_at));
-        })->pluck('kind')->unique()->values()->all();
+        return $employees->mapWithKeys(function ($employee) use ($wishes, $shift) {
+            $kinds = $wishes->get($employee->id, collect())->filter(function ($wish) use ($shift) {
+                $data = $wish->toArray();
+                $data['from'] = $wish->from->toDateString();
+                $data['until'] = $wish->until->toDateString();
 
-        return ['state' => in_array('unavailable', $kinds, true) ? 'free_requested' : (in_array('preferred', $kinds, true) ? 'preferred' : (in_array('available', $kinds, true) ? 'available' : 'unknown')), 'kinds' => $kinds];
+                return $this->wishWindows($data)->contains(fn ($window) => $window['start']->lt($shift->ends_at) && $window['end']->gt($shift->starts_at));
+            })->pluck('kind')->unique()->values()->all();
+
+            return [$employee->id => ['state' => in_array('unavailable', $kinds, true) ? 'free_requested' : (in_array('preferred', $kinds, true) ? 'preferred' : (in_array('available', $kinds, true) ? 'available' : 'unknown')), 'kinds' => $kinds]];
+        });
     }
 
     public function periodStatus(AvailabilityPeriod $period, User $employee): string

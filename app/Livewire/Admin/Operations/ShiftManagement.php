@@ -25,6 +25,7 @@ use App\Services\Operations\TimelinePlanningSuggestionService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
+use App\Support\Operations\OrderSelection;
 use App\Support\Operations\PlanningLocks;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -218,6 +219,8 @@ class ShiftManagement extends Component
     public ?int $editingShiftId = null;
 
     public ?int $orderId = null;
+
+    public string $orderSearch = '';
 
     public string $title = '';
 
@@ -612,7 +615,9 @@ class ShiftManagement extends Component
             // Day, board and timeline views always retain chronological ordering.
             $shiftQuery->orderBy('starts_at');
         }
-        $shifts = $shiftQuery->orderBy('id')->get();
+        $shifts = $this->viewMode === 'timeline' && $this->attentionFilter === 'all'
+            && $this->orderFilter === 'all' && $this->statusFilter === 'all' && trim($this->search) === ''
+            ? collect() : $shiftQuery->orderBy('id')->get();
 
         if (in_array($this->viewMode, ['table', 'orders'], true) && $this->sortBy === 'staffing') {
             // Compare the actual reserved/required coverage, not confirmed replies.
@@ -741,20 +746,8 @@ class ShiftManagement extends Component
             'feedback' => $feedback,
             'planChanges' => $native && $this->detailOpen && $selectedShift
                 ? ($selectedShift->revision !== $selectedShift->published_revision ? app(PlanChangeService::class)->changes($selectedShift) : app(PlanChangeService::class)->publishedChanges($selectedShift->id, $selectedShift->published_revision)) : [],
-            'orders' => Order::query()
-                ->with('customer')
-                ->where(function (Builder $query): void {
-                    $query->where('status', '!=', 'cancelled');
-
-                    if ($this->orderId !== null) {
-                        $query->orWhere('id', $this->orderId);
-                    }
-                    if ($this->orderFilter !== 'all') {
-                        $query->orWhere('id', (int) $this->orderFilter);
-                    }
-                })
-                ->orderByDesc('starts_at')
-                ->get(),
+            'orders' => $this->formOpen || $this->viewMode !== 'timeline'
+                ? OrderSelection::options($this->orderSearch, [$this->orderId, $this->orderFilter]) : collect(),
             'employees' => $native ? collect() : User::query()->with(['profile', 'currentTeam'])->where('status', true)->where('role', 'staff')->orderBy('name')->get(),
             'statusOptions' => $this->enumOptions(ShiftStatus::class),
             'assignmentStatusOptions' => collect($this->enumOptions(ShiftAssignmentStatus::class))
@@ -878,7 +871,7 @@ class ShiftManagement extends Component
     private function resetShiftForm(): void
     {
         $this->reset([
-            'editingShiftId', 'orderId', 'title', 'roleName', 'startsAt', 'endsAt', 'locationName', 'notes',
+            'editingShiftId', 'orderId', 'orderSearch', 'title', 'roleName', 'startsAt', 'endsAt', 'locationName', 'notes',
         ]);
         $this->timezone = 'Europe/Berlin';
         $this->editingRevision = null;

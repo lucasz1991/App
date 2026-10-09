@@ -12,8 +12,8 @@ const controllerSource = source.slice(start, end);
 const mapBlade = readFileSync(new URL('../../resources/views/dashboard/widgets/operations_dispatch_map.blade.php', import.meta.url), 'utf8');
 const pointArrowDown = mapBlade.match(/data-dispatch-marker="[^"]+"[\s\S]*?x-on:keydown\.arrow-down\.prevent\.stop="([^"]+)"/)?.[1];
 assert.ok(pointArrowDown, 'Actual map point ArrowDown expression must be available.');
-const dropdownBlade = readFileSync(new URL('../../resources/views/components/ui/dropdown/anchor-dropdown.blade.php', import.meta.url), 'utf8');
-const focusHoverMethod = dropdownBlade.match(/^    focusHoverPanel\(\) \{([\s\S]*?)^    \},/m)?.[1];
+const dropdownController = readFileSync(new URL('../../resources/js/anchor-dropdown.js', import.meta.url), 'utf8');
+const focusHoverMethod = dropdownController.match(/^    focusHoverPanel\(\) \{([\s\S]*?)^    \},/m)?.[1];
 assert.ok(focusHoverMethod, 'Actual shared dropdown keyboard focus method must be available.');
 
 function fixture() {

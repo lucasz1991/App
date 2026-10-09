@@ -290,10 +290,30 @@ class CaseWorkspace extends Component
         $this->access();
 
         return view('livewire.operations.case-workspace', [
+            'planningOptions' => $this->planningOptions(),
             'views' => self::availableViews($this->actor()), 'sections' => self::availableSections($this->actor()),
             'costsOnly' => $this->view === 'orders' && ! $this->actor()->can('operations.manage'),
             'portalCustomers' => $this->view === 'inbox' && $this->section === 'portal' ? app(CustomerPortalScope::class)->manageableCustomers($this->actor())->orderBy('company_name')->get(['id', 'company_name']) : collect(),
             'reservation' => ($this->context['source'] ?? '') === 'reservation' ? CustomerCapacityReservation::findOrFail($this->context['record']) : null,
         ]);
+    }
+
+    private function planningOptions(): array
+    {
+        $options = OperationsPages::planningShortcuts($this->actor());
+        foreach ($options as $target => &$option) {
+            if ($target === 'services' && $this->view === 'shifts' && $this->section === 'plan') {
+                continue;
+            }
+            $parameters = match ($target) {
+                'services' => ['view' => 'shifts', 'section' => 'plan', 'services' => '1'] + $this->context,
+                'shifts', 'calendar' => ['view' => 'shifts', 'section' => $target === 'calendar' ? 'calendar' : 'plan']
+                    + ($this->view === 'shifts' ? $this->context : ['customer' => $this->context['customer'] ?? null]),
+                default => ['view' => $target, 'customer' => $this->context['customer'] ?? null] + $this->preservedListContext($target),
+            };
+            $option['href'] = OperationsPages::url('cases', $parameters);
+        }
+
+        return array_values($options);
     }
 }

@@ -289,8 +289,8 @@ class CompactStaffTimelineUiTest extends TestCase
     {
         foreach ([['', 448], [':max-height="560"', 560], [':max-height="9999"', 960], [':max-height="0"', 160]] as [$attribute, $height]) {
             $html = Blade::render('<x-ui.dropdown.anchor-dropdown '.$attribute.'><x-slot:trigger><button>Test</button></x-slot:trigger><x-slot:content>Details</x-slot:content></x-ui.dropdown.anchor-dropdown>');
-            $this->assertStringContainsString('maximumHeight: '.$height, $html);
-            $this->assertStringContainsString('Math.min(this.maximumHeight, availableHeight)', $html);
+            $this->assertStringContainsString('\\u0022maximumHeight\\u0022:'.$height, $html);
+            $this->assertStringContainsString('Math.min(this.maximumHeight, availableHeight)', file_get_contents(resource_path('js/anchor-dropdown.js')));
         }
     }
 
@@ -388,7 +388,7 @@ class CompactStaffTimelineUiTest extends TestCase
     {
         foreach ([false, true] as $fixed) {
             $html = Blade::render('<x-ui.dropdown.anchor-dropdown :fixed-height="$fixed"><x-slot:trigger><button>Test</button></x-slot:trigger><x-slot:content>Details</x-slot:content></x-ui.dropdown.anchor-dropdown>', compact('fixed'));
-            $this->assertStringContainsString('fixedHeight: '.($fixed ? 'true' : 'false'), $html);
+            $this->assertStringContainsString('\\u0022fixedHeight\\u0022:'.($fixed ? 'true' : 'false'), $html);
             $this->assertMatchesRegularExpression('/class="rt-ui-surface rt-ui-dropdown-panel[^"\r\n]*'.($fixed ? 'overflow-hidden' : 'overflow-y-auto').'/', $html);
         }
     }

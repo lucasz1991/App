@@ -74,7 +74,7 @@
                             <x-ui.forms.select id="calendar-customer" wire:model.live="customerFilter" aria-label="Kalenderkunde"><option value="all">Alle Kunden</option>@foreach($customers as $customer)<option value="{{ $customer->id }}">{{ $customer->company_name }}</option>@endforeach</x-ui.forms.select>
                         </label>
                         <label class="rt-calendar-filters__field" for="calendar-order"><span>Leistung / Auftrag</span>
-                            <x-ui.forms.select id="calendar-order" wire:model.live="orderFilter" aria-label="Kalenderauftrag"><option value="all">Alle Leistungen</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->order_number }} · {{ $order->title }}</option>@endforeach</x-ui.forms.select>
+                            <x-ui.forms.select id="calendar-order" wire:model.live="orderFilter" search-model="orderSearch" aria-label="Kalenderauftrag"><option value="all">Alle Leistungen</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->order_number }} · {{ $order->title }}</option>@endforeach</x-ui.forms.select>
                         </label>
                         <label class="rt-calendar-filters__field" for="calendar-status"><span>Status</span>
                             <x-ui.forms.select id="calendar-status" wire:model.live="statusFilter" aria-label="Kalenderstatus"><option value="active">Ohne stornierte</option><option value="all">Alle Status</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select>

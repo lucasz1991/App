@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shift;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OrderSelection;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Locked;
@@ -29,6 +30,8 @@ class Calendar extends Component
     public string $customerFilter = 'all';
 
     public string $orderFilter = 'all';
+
+    public string $orderSearch = '';
 
     public string $statusFilter = 'active';
 
@@ -63,6 +66,7 @@ class Calendar extends Component
     public function updatedCustomerFilter(): void
     {
         $this->ensureAdmin();
+        $this->orderSearch = '';
         if ($this->orderFilter !== 'all' && $this->customerFilter !== 'all'
             && ! Order::whereKey($this->orderFilter)->where('customer_id', $this->customerFilter)->exists()) {
             $this->orderFilter = 'all';
@@ -72,7 +76,7 @@ class Calendar extends Component
     public function resetFilters(): void
     {
         $this->ensureAdmin();
-        $this->reset(['search', 'customerFilter', 'orderFilter', 'statusFilter', 'onlyOpen']);
+        $this->reset(['search', 'customerFilter', 'orderFilter', 'orderSearch', 'statusFilter', 'onlyOpen']);
     }
 
     public function switchView(string $view): void
@@ -262,7 +266,7 @@ class Calendar extends Component
             },
             'displayTimezone' => $this->displayTimezone(),
             'customers' => Customer::orderBy('company_name')->get(['id', 'company_name']),
-            'orders' => Order::query()->when($this->customerFilter !== 'all', fn (Builder $q) => $q->where('customer_id', $this->customerFilter))->orderByDesc('starts_at')->get(['id', 'title', 'order_number']),
+            'orders' => OrderSelection::options($this->orderSearch, [$this->orderFilter], $this->customerFilter !== 'all' ? (int) $this->customerFilter : null, true),
             'statusOptions' => $this->enumOptions(ShiftStatus::class),
             'shiftCount' => $shifts->count(),
             'requiredCount' => (int) $shifts->sum('required_staff'),

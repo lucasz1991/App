@@ -2,6 +2,7 @@
     'disabled' => false,
     'placeholder' => null,
     'change' => null,
+    'searchModel' => null,
 ])
 
 @php
@@ -60,7 +61,18 @@
 <div
     x-data="{
         selected: @if($wireModel) @entangle($attributes->wire('model')) @else @js($initialValue) @endif,
-        options: @js($options),
+        options: [],
+        optionsObserver: null,
+        init() {
+            const syncOptions = () => {
+                this.options = JSON.parse(this.$el.dataset.rtSelectOptions || '[]');
+                this.activeIndex = -1;
+            };
+            syncOptions();
+            this.optionsObserver = new MutationObserver(syncOptions);
+            this.optionsObserver.observe(this.$el, { attributes: true, attributeFilter: ['data-rt-select-options'] });
+        },
+        destroy() { this.optionsObserver?.disconnect(); },
         activeIndex: -1,
         get selectedLabel() {
             const current = this.options.find(option => String(option.value) === String(this.selected ?? ''));
@@ -101,6 +113,7 @@
     @if($change) @change="{{ $change }}" @endif
     class="{{ $outerClasses }}"
     data-rt-custom-select
+    data-rt-select-options="{{ json_encode($options) }}"
     @if($wireModel)
         data-autosave-field
         data-autosave-model="{{ $wireModel }}"
@@ -137,6 +150,7 @@
     <x-ui.dropdown.anchor-dropdown
         align="left"
         width="full"
+        :dropdown-id="'select-'.$id"
         :match-trigger-width="true"
         content-role=""
         trigger-classes="inline-flex w-full"
@@ -186,6 +200,14 @@
         </x-slot:trigger>
 
         <x-slot:content>
+            @if($searchModel)
+                <div class="border-b border-rt-border/70 p-2 dark:border-rt-dark-border" data-rt-dropdown-keep-open>
+                    <x-ui.forms.input type="search" wire:model.live.debounce.300ms="{{ $searchModel }}" placeholder="Auftragsnummer oder Titel suchen" aria-label="Aufträge durchsuchen" autocomplete="off"
+                        x-on:keydown.arrow-down.prevent.stop="activeIndex = 0; moveActive(0)" x-on:keydown.enter.prevent.stop class="w-full" />
+                    <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Bis zu 25 Treffer · Weitere Aufträge über die Suche.</p>
+                    <span wire:loading wire:target="{{ $searchModel }}" class="text-xs" role="status">Suche läuft …</span>
+                </div>
+            @endif
             <div
                 id="{{ $listboxId }}"
                 role="listbox"

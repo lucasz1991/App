@@ -38,7 +38,8 @@
     background: var(--rt-shell-surface-solid) !important;
 }
 
-.rt-multi-toggle .rt-multi-toggle__button.rt-ui-button[aria-pressed='true'] {
+.rt-multi-toggle .rt-multi-toggle__button.rt-ui-button[aria-pressed='true'],
+.rt-multi-toggle .rt-multi-toggle__button.rt-ui-button[aria-current='page'] {
     color: #fff !important;
     background: var(--rt-red, #e4002b) !important;
 }

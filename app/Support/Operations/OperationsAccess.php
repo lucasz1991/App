@@ -10,14 +10,16 @@ final class OperationsAccess
 {
     public static function ready(): bool
     {
-        $required = ['operation_inquiries', 'operation_audits', 'qualification_types', 'employee_qualifications', 'shift_qualification_requirements', 'absence_requests', 'operations_rule_profiles', 'work_time_entries', 'work_time_events', 'work_time_revisions', 'work_time_exports', 'work_time_export_items'];
-        $prefix = Schema::getConnection()->getTablePrefix();
-        $required = array_map(fn (string $table) => $prefix.$table, $required);
+        return SchemaReadiness::remember(__METHOD__, function (): bool {
+            $required = ['operation_inquiries', 'operation_audits', 'qualification_types', 'employee_qualifications', 'shift_qualification_requirements', 'absence_requests', 'operations_rule_profiles', 'work_time_entries', 'work_time_events', 'work_time_revisions', 'work_time_exports', 'work_time_export_items'];
+            $prefix = Schema::getConnection()->getTablePrefix();
+            $required = array_map(fn (string $table) => $prefix.$table, $required);
 
-        // A null schema also lists unrelated databases and can mask missing local tables.
-        return array_diff($required, Schema::getTableListing(Schema::getCurrentSchemaName(), false)) === []
-            && Schema::hasColumns('shifts', ['revision', 'published_revision', 'published_at', 'published_snapshot', 'planned_break_minutes'])
-            && Schema::hasColumn('shift_assignments', 'plan_revision');
+            // A null schema also lists unrelated databases and can mask missing local tables.
+            return array_diff($required, Schema::getTableListing(Schema::getCurrentSchemaName(), false)) === []
+                && Schema::hasColumns('shifts', ['revision', 'published_revision', 'published_at', 'published_snapshot', 'planned_break_minutes'])
+                && Schema::hasColumn('shift_assignments', 'plan_revision');
+        });
     }
 
     public static function requireReady(): void

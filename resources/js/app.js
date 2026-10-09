@@ -51,6 +51,7 @@ import {
 } from './mobile-sidebar-swipe';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { staffTimeline } from './staff-timeline';
+import { anchorDropdown } from './anchor-dropdown';
 import { timelinePlanning } from './timeline-planning-actions';
 import { shiftDetailDrawer } from './shift-detail-drawer';
 import { aiIntakeRecorder } from './ai-intake-recorder';
@@ -687,6 +688,7 @@ Alpine.data('rtDateField', dateField);
 Alpine.data('rtDateRangePicker', dateRangePicker);
 Alpine.data('rtDateTimeField', dateTimeField);
 Alpine.data('rtStaffTimeline', staffTimeline);
+Alpine.data('rtAnchorDropdown', anchorDropdown);
 Alpine.data('rtTimelinePlanning', timelinePlanning);
 Alpine.data('rtShiftDetailDrawer', shiftDetailDrawer);
 Alpine.data('rtWorkTimeCapture', workTimeCapture);

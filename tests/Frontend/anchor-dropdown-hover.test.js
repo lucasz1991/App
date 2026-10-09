@@ -4,57 +4,12 @@ import test from 'node:test';
 import { parseHTML } from 'linkedom';
 
 const blade = await readFile(new URL('../../resources/views/components/ui/dropdown/anchor-dropdown.blade.php', import.meta.url), 'utf8');
-const dataExpression = blade.match(/x-data="([\s\S]*?)"\n  x-cloak/)?.[1];
-assert.ok(dataExpression, 'Global dropdown Alpine object must be readable for interaction checks.');
+const dropdownSource = await readFile(new URL('../../resources/js/anchor-dropdown.js', import.meta.url), 'utf8');
+assert.match(blade, /x-data="rtAnchorDropdown/, 'Dropdown must use the shared controller.');
 const detailBlade = await readFile(new URL('../../resources/views/livewire/operations/partials/timeline-event-detail.blade.php', import.meta.url), 'utf8');
 const detailDataExpression = detailBlade.match(/x-data="([\s\S]*?)"\s+x-init=/)?.[1];
 assert.ok(detailDataExpression, 'Timeline detail card must expose its actual Alpine tab state.');
 const tabsBlade = await readFile(new URL('../../resources/views/components/operations/panel/tabs.blade.php', import.meta.url), 'utf8');
-
-// Exercise the actual inline component methods after replacing only the
-// server-rendered scalar props. No duplicate implementation of hover logic.
-function renderProps(source, options) {
-    let output = '';
-    let cursor = 0;
-    while (true) {
-        const start = source.indexOf('@js(', cursor);
-        if (start < 0) return output + source.slice(cursor);
-        output += source.slice(cursor, start);
-        let end = start + 4;
-        let depth = 1;
-        let quote = null;
-        for (; end < source.length; end++) {
-            const char = source[end];
-            if (quote) {
-                if (char === quote && source[end - 1] !== '\\') quote = null;
-                continue;
-            }
-            if (char === "'" || char === '"') quote = char;
-            else if (char === '(') depth++;
-            else if (char === ')' && --depth === 0) break;
-        }
-        const expression = source.slice(start + 4, end);
-        let value;
-        if (expression.includes('$openOnHover')) value = options.openOnHover;
-        else if (expression.includes('$hoverOpenDelay')) value = 100;
-        else if (expression.includes('$hoverCloseDelay')) value = 180;
-        else if (expression.includes('$dropdownPanelId')) value = 'test-content';
-        else if (expression.includes('$resolvedDropdownId')) value = 'test';
-        else if (expression.includes('$resolvedLayerGroup')) value = '';
-        else if (expression.includes('$anchorSelector')) value = null;
-        else if (expression.includes('str_ends_with')) value = 'left';
-        else if (expression.includes('str_starts_with')) value = 'bottom';
-        else if (expression.includes('$anchorOffset')) value = 8;
-        else if (expression.includes('$maxHeight')) value = options.maxHeight ?? 448;
-        else if (expression.includes('$fixedHeight')) value = options.fixedHeight ?? false;
-        else if (expression.includes('$contentRole')) value = 'dialog';
-        else if (expression.includes('$headerOffset')) value = 0;
-        else if (expression.includes('$matchesTriggerWidth') || expression.includes('$scrollOn')) value = false;
-        else throw new Error(`Unexpected server scalar: ${expression}`);
-        output += JSON.stringify(value);
-        cursor = end + 1;
-    }
-}
 
 function fixture(options = { openOnHover: true }) {
     const { document, Element, Node } = parseHTML('<html><body><div id="root"><div id="trigger"><button>Shift</button></div></div><div id="panel"><div id="content"><a href="/shift">Details</a></div></div><button id="outside">Outside</button></body></html>').window;
@@ -69,7 +24,8 @@ function fixture(options = { openOnHover: true }) {
         },
         clearTimeout(id) { timers.delete(id); },
     };
-    const dropdown = new Function('window', 'document', 'Element', 'Node', 'CustomEvent', `return (${renderProps(dataExpression, options)});`)(window, document, Element, Node, class {});
+    const config = { openOnHover: options.openOnHover, hoverOpenDelay: 100, hoverCloseDelay: 180, panelId: 'test-content', layerId: 'test', layerGroup: '', anchorSelector: null, horizontalAlign: 'left', preferredPlacement: 'bottom', offset: 8, maximumHeight: options.maxHeight ?? 448, fixedHeight: options.fixedHeight ?? false, popupRole: 'dialog', headerOffset: 0, matchTriggerWidth: false, scrollOnOpen: false, scrollOnTrigger: false };
+    const dropdown = new Function('window', 'document', 'Element', 'Node', 'CustomEvent', 'config', `${dropdownSource.replace('export function', 'function')}; return anchorDropdown(config);`)(window, document, Element, Node, class {}, config);
     const refs = {
         trigger: document.getElementById('trigger'),
         panel: document.getElementById('panel'),

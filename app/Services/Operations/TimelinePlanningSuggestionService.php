@@ -66,16 +66,24 @@ class TimelinePlanningSuggestionService
      */
     public function rankedCandidates(Shift $shift, User $actor, array $additionalByUser = []): Collection
     {
+        return $this->rank($shift, $actor, $additionalByUser);
+    }
+
+    private function rank(Shift $shift, User $actor, array $additionalByUser, ?Collection $staff = null): Collection
+    {
         $this->access($actor);
         $shift = Shift::with(['qualifications', 'order.customer'])->findOrFail($shift->id);
         if (! $this->isOpen($shift)) {
             return collect();
         }
-        $users = User::where('role', 'staff')->where('status', true)->orderBy('name')->orderBy('id')->get();
+        $users = $staff ?? User::where('role', 'staff')->where('status', true)->orderBy('name')->orderBy('id')->get();
         $existing = $shift->assignments()->blocking()->pluck('user_id');
+        $shift->setAttribute('reserved_count', $existing->count());
         $users = $users->reject(fn (User $user) => $existing->contains($user->id))->values();
         $eligibility = app(StaffEligibilityService::class)->assessMany($shift, $users);
         $ranked = collect();
+        $wishes = app(WorkforcePlanningService::class)->wishSummaries($shift, $users);
+        $loads = $this->batchLoads($shift, $users);
         foreach ($users as $user) {
             $additional = $additionalByUser[$user->id] ?? [];
             $issues = $additional === [] ? ($eligibility[$user->id] ?? [])
@@ -83,8 +91,8 @@ class TimelinePlanningSuggestionService
             if ($issues !== [] || $this->capacityIssues($shift, $user, $additionalByUser) !== []) {
                 continue;
             }
-            $wish = app(WorkforcePlanningService::class)->wishSummary($shift, $user)['state'];
-            $load = $this->load($shift, $user, $additional);
+            $wish = $wishes->get($user->id)['state'];
+            $load = $this->projectLoad($loads[$user->id], $additional);
             $wishPriority = ['preferred' => 0, 'available' => 1, 'unknown' => 2, 'free_requested' => 3][$wish] ?? 2;
             $reasons = ['Keine Planungskonflikte'];
             $wishLabel = ['preferred' => 'Wunschdienst', 'available' => 'Verfügbarkeit gemeldet', 'free_requested' => 'Freiwunsch vorhanden'][$wish] ?? null;
@@ -131,10 +139,11 @@ class TimelinePlanningSuggestionService
         $proposals = collect();
         $additionalByUser = [];
         $limited = $total > self::MAX_SHIFTS;
+        $staff = $shifts->isEmpty() ? collect() : User::where('role', 'staff')->where('status', true)->orderBy('name')->orderBy('id')->get();
         foreach ($shifts as $shift) {
             $open = max(0, $shift->required_staff - (int) $shift->reserved_count);
             $limited = $limited || $open > self::MAX_SLOTS;
-            $candidates = $this->rankedCandidates($shift, $actor, $additionalByUser)->take(min($open, self::MAX_SLOTS));
+            $candidates = $this->rank($shift, $actor, $additionalByUser, $staff)->take(min($open, self::MAX_SLOTS));
             foreach ($candidates as $candidate) {
                 if ($this->capacityIssues($shift, $candidate['user'], $additionalByUser) !== []) {
                     continue;
@@ -191,7 +200,7 @@ class TimelinePlanningSuggestionService
 
     private function capacityIssues(Shift $shift, User $user, array $additionalByUser = []): array
     {
-        if ($shift->assignments()->blocking()->count() >= $shift->required_staff) {
+        if (($shift->getAttribute('reserved_count') ?? $shift->assignments()->blocking()->count()) >= $shift->required_staff) {
             return [['code' => 'capacity', 'message' => 'Alle Einsatzplätze sind bereits reserviert.']];
         }
         try {
@@ -204,28 +213,47 @@ class TimelinePlanningSuggestionService
         return [];
     }
 
-    /** Actual planned elapsed minutes. Crossing-week pause location stays unknown, not invented. */
-    private function load(Shift $shift, User $user, array $additional): array
+    /** Call-local read projection: model timezones, weekly duties and training are loaded in batches. */
+    private function batchLoads(Shift $shift, Collection $users): array
     {
-        $model = app(WorkforceAccountService::class)->effectiveModel($user, $shift->starts_at);
-        $zone = $model?->timezone ?? config('operations.display_timezone', 'Europe/Berlin');
-        $from = $shift->starts_at->setTimezone($zone)->startOfWeek(CarbonImmutable::MONDAY);
-        $until = $from->addWeek();
-        $shifts = ShiftAssignment::blocking()->where('user_id', $user->id)->whereHas('shift', fn (Builder $query) => $query->notCancelled()->during($from, $until))
-            ->with('shift')->get()->pluck('shift')->concat($additional)->unique('id');
-        $minutes = $shifts->sum(function (Shift $duty) use ($from, $until): float {
-            $seconds = $this->overlapSeconds($duty->starts_at, $duty->ends_at, $from, $until);
+        if ($users->isEmpty()) {
+            return [];
+        }
+        $models = app(WorkforceAccountService::class)->effectiveModels($users, $shift->starts_at);
+        $windows = $users->mapWithKeys(function (User $user) use ($models, $shift) {
+            $model = $models->get($user->id);
+            $from = $shift->starts_at->setTimezone($model?->timezone ?? config('operations.display_timezone', 'Europe/Berlin'))->startOfWeek(CarbonImmutable::MONDAY);
+
+            return [$user->id => ['from' => $from, 'until' => $from->addWeek(), 'target_minutes' => $model?->weekly_target_minutes]];
+        });
+        $from = $windows->pluck('from')->min();
+        $until = $windows->pluck('until')->max();
+        $duties = ShiftAssignment::blocking()->whereIn('user_id', $users->pluck('id'))
+            ->whereHas('shift', fn (Builder $q) => $q->notCancelled()->during($from, $until))->with('shift')->get()->groupBy('user_id');
+        $trainings = Schema::hasTable('personnel_trainings') && Schema::hasTable('personnel_training_participants')
+            ? PersonnelTrainingParticipant::whereIn('user_id', $users->pluck('id'))->whereIn('status', ['confirmed', 'attended'])
+                ->whereHas('training', fn (Builder $q) => $q->where('status', 'scheduled')->where('starts_at', '<', $until->utc())->where('ends_at', '>', $from->utc()))
+                ->with('training')->get()->groupBy('user_id') : collect();
+
+        return $windows->map(function (array $window, int $id) use ($duties, $trainings) {
+            return $window + [
+                'duties' => $duties->get($id, collect())->pluck('shift')->filter(fn (Shift $duty) => $duty->starts_at->lt($window['until']) && $duty->ends_at->gt($window['from'])),
+                'training_minutes' => $trainings->get($id, collect())->sum(fn ($row) => $this->overlapSeconds($row->training->starts_at, $row->training->ends_at, $window['from'], $window['until']) / 60),
+            ];
+        })->all();
+    }
+
+    /** Actual planned elapsed minutes. Crossing-week pause location stays unknown, not invented. */
+    private function projectLoad(array $window, array $additional): array
+    {
+        $minutes = $window['duties']->concat($additional)->unique('id')->sum(function (Shift $duty) use ($window): float {
+            $seconds = $this->overlapSeconds($duty->starts_at, $duty->ends_at, $window['from'], $window['until']);
             $whole = $seconds === (int) $duty->starts_at->diffInSeconds($duty->ends_at);
 
             return max(0, $seconds - ($whole ? (int) $duty->planned_break_minutes * 60 : 0)) / 60;
         });
-        if (Schema::hasTable('personnel_trainings') && Schema::hasTable('personnel_training_participants')) {
-            $minutes += PersonnelTrainingParticipant::where('user_id', $user->id)->whereIn('status', ['confirmed', 'attended'])
-                ->whereHas('training', fn (Builder $query) => $query->where('status', 'scheduled')->where('starts_at', '<', $until->utc())->where('ends_at', '>', $from->utc()))
-                ->with('training')->get()->sum(fn ($participant) => $this->overlapSeconds($participant->training->starts_at, $participant->training->ends_at, $from, $until) / 60);
-        }
 
-        return ['planned_minutes' => $minutes, 'target_minutes' => $model?->weekly_target_minutes];
+        return ['planned_minutes' => $minutes + $window['training_minutes'], 'target_minutes' => $window['target_minutes']];
     }
 
     private function overlapSeconds(CarbonImmutable $start, CarbonImmutable $end, CarbonImmutable $from, CarbonImmutable $until): int

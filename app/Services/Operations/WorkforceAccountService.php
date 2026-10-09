@@ -21,6 +21,7 @@ use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -71,6 +72,44 @@ class WorkforceAccountService
         }
 
         return Schema::hasTable('operations_rule_profiles') ? OperationsRuleProfile::where('is_active', true)->first() : null;
+    }
+
+    /** Same civil-date selection as effectiveModel(), in one read for a candidate set. */
+    public function effectiveModels(Collection $users, CarbonInterface $date): Collection
+    {
+        if (! $this->ready() || $users->isEmpty()) {
+            return collect();
+        }
+        $at = CarbonImmutable::instance($date);
+        $utc = $at->utc();
+
+        return EmployeeWorkModel::whereIn('user_id', $users->pluck('id'))->where('status', 'active')
+            ->where('starts_on', '<=', $utc->addDay()->toDateString())
+            ->where(fn ($q) => $q->whereNull('ends_on')->orWhere('ends_on', '>=', $utc->subDay()->toDateString()))
+            ->orderByDesc('starts_on')->get()->groupBy('user_id')->map(fn ($models) => $models->first(function ($model) use ($at) {
+                $day = $at->setTimezone($model->timezone)->toDateString();
+
+                return $model->starts_on <= $day && ($model->ends_on === null || $model->ends_on >= $day);
+            }));
+    }
+
+    public function effectiveRulesFor(Collection $users, CarbonInterface $date, ?OperationsRuleProfile $fallback): Collection
+    {
+        $models = $this->effectiveModels($users, $date);
+        $at = CarbonImmutable::instance($date);
+        $days = $users->mapWithKeys(fn ($user) => [$user->id => $at->setTimezone($models->get($user->id)?->timezone ?? config('operations.display_timezone'))->toDateString()]);
+        if ($days->isEmpty()) {
+            return collect();
+        }
+        $assignments = EmployeeRuleAssignment::whereIn('user_id', $days->keys())->where('starts_on', '<=', $days->max())
+            ->where(fn ($q) => $q->whereNull('ends_on')->orWhere('ends_on', '>=', $days->min()))
+            ->with('profile')->orderByDesc('starts_on')->get()->groupBy('user_id');
+
+        return $days->map(function ($day, $id) use ($assignments, $fallback) {
+            $assignment = $assignments->get($id, collect())->first(fn ($row) => $row->starts_on <= $day && ($row->ends_on === null || $row->ends_on >= $day));
+
+            return $assignment ? $assignment->profile : $fallback;
+        });
     }
 
     public function effectivePolicy(User|int $user, CarbonInterface|string $date): ?EmployeeVacationPolicy

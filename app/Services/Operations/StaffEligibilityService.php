@@ -65,7 +65,8 @@ class StaffEligibilityService
             ->where('starts_at', '<', $end->utc())->where('ends_at', '>', $start->utc()))->get()->keyBy('user_id');
         $accounts = class_exists(WorkforceAccountService::class) ? app(WorkforceAccountService::class) : null;
         $accountsReady = $accounts?->ready() ?? false;
-        $individualProfiles = $users->mapWithKeys(fn ($user) => [$user->id => $accountsReady ? $accounts->effectiveRules($user, $start) : $profile]);
+        $individualProfiles = $accountsReady ? $accounts->effectiveRulesFor($users, $start, $profile)
+            : $users->mapWithKeys(fn ($user) => [$user->id => $profile]);
         $rest = max((int) ($profile?->minimum_rest_minutes ?? 0), (int) $individualProfiles->max('minimum_rest_minutes'));
         $excludes = array_unique(array_merge($context['exclude_shift_ids'] ?? [], $shift->id ? [$shift->id] : []));
         $lookaround = max($rest, (int) ($shift->disposition_details['transfer_buffer_minutes'] ?? 0), Schema::hasColumn('shifts', 'disposition_details') ? 10080 : 0);

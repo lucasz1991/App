@@ -66,6 +66,9 @@ class StaffTimeline extends Component
     #[Locked]
     public bool $suggestionsReady = true;
 
+    #[Locked]
+    public bool $suggestionsAvailable = true;
+
     /** Stand der gemerkten Besetzungsvorschau; jede Planänderung zählt hoch. */
     #[Locked]
     public int $previewVersion = 0;
@@ -188,6 +191,7 @@ class StaffTimeline extends Component
             $this->previewVersion++;
         }
         $this->showSuggestions = $open;
+        $this->suggestionsAvailable = true;
         $this->suggestionsReady = true;
         $this->focusShiftId = $open ? $shiftId : null;
         $this->resetValidation();
@@ -216,6 +220,7 @@ class StaffTimeline extends Component
     {
         $this->ensurePlanning();
         $this->showSuggestions = ! $this->showSuggestions;
+        $this->suggestionsAvailable = true;
         $this->suggestionsReady = true;
         $this->previewVersion += $this->showSuggestions ? 1 : 0;
         $this->resetValidation();
@@ -227,6 +232,7 @@ class StaffTimeline extends Component
         if ($this->planningEnabled && ! $this->absencesOnly) {
             $this->ensurePlanning();
             $this->previewVersion++;
+            $this->suggestionsAvailable = true;
         }
     }
 
@@ -266,7 +272,9 @@ class StaffTimeline extends Component
     {
         $this->resetPage('staffPage');
         // Mit offenem Seitenpanel geöffnet: erst den Plan zeigen, Vorschläge im Folgeaufruf.
-        $this->suggestionsReady = ! ($this->showSuggestions && $this->planningEnabled && ! $this->absencesOnly);
+        $this->suggestionsAvailable = ! ($this->planningEnabled && ! $this->absencesOnly)
+            || app(TimelinePlanningSuggestionService::class)->openShifts($this->from, $this->until, auth()->user())->exists();
+        $this->suggestionsReady = ! ($this->showSuggestions && $this->planningEnabled && ! $this->absencesOnly && $this->suggestionsAvailable);
     }
 
     public function updatedSearch(): void
@@ -345,7 +353,7 @@ class StaffTimeline extends Component
                 })];
         });
 
-        $planningPreview = $this->planningEnabled && ! $this->absencesOnly && $this->showSuggestions && $this->suggestionsReady
+        $planningPreview = $this->planningEnabled && ! $this->absencesOnly && $this->showSuggestions && $this->suggestionsReady && $this->suggestionsAvailable
             ? $this->planningPreview()
             : ['proposals' => collect(), 'open_total' => 0, 'limited' => false];
         $proposalRows = $planningPreview['proposals']->groupBy(fn ($proposal) => $proposal['user']->id)->map(fn ($proposals) => $layout->periodEvents($days, $proposals->map(fn ($proposal) => [

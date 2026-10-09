@@ -7,6 +7,7 @@
     'disabled' => false,
     'iconSet' => 'default',
     'showLabels' => false,
+    'navigate' => false,
 ])
 
 @php
@@ -29,6 +30,7 @@
             'value' => $optionValue,
             'label' => trim($option['label']),
             'icon' => $option['icon'],
+            'href' => $navigate && is_string($option['href'] ?? null) ? $option['href'] : null,
             'disabled' => $isDisabled || filter_var($option['disabled'] ?? false, FILTER_VALIDATE_BOOL),
         ];
     }
@@ -155,6 +157,13 @@
             if ($id) $buttonAttributes['wire:key'] = $id.'-'.substr(hash('sha256', $option['value']), 0, 16);
             if ($option['disabled']) {
                 $buttonAttributes += ['disabled' => true, 'aria-disabled' => 'true'];
+            } elseif ($option['href']) {
+                unset($buttonAttributes['type'], $buttonAttributes['aria-pressed']);
+                $buttonAttributes += [
+                    'href' => $option['href'],
+                    'wire:navigate' => true,
+                    'aria-current' => $selectedValue === $option['value'] ? 'page' : null,
+                ];
             } else {
                 $buttonAttributes += [
                     'wire:click' => $safeAction.'('.\Illuminate\Support\Js::from($option['value'])->toHtml().')',

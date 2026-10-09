@@ -1,11 +1,11 @@
-@props(['label', 'model', 'type' => 'text', 'wide' => false])
+@props(['label', 'model', 'type' => 'text', 'wide' => false, 'searchModel' => null])
 @php
     $fieldId = 'ops-'.str_replace('.', '-', $model);
 @endphp
 <div @class(['min-w-0 space-y-1.5', 'ops-full' => $wide])>
     <x-ui.forms.label :for="$fieldId" :value="$label" />
     @if($type === 'select')
-        <x-ui.forms.select :id="$fieldId" :aria-label="$label" wire:model="{{ $model }}" {{ $attributes }}>{{ $slot }}</x-ui.forms.select>
+        <x-ui.forms.select :id="$fieldId" :aria-label="$label" :search-model="$searchModel" wire:model="{{ $model }}" {{ $attributes }}>{{ $slot }}</x-ui.forms.select>
     @elseif($type === 'textarea')
         <x-ui.forms.textarea :id="$fieldId" wire:model="{{ $model }}" {{ $attributes }} />
     @elseif($type === 'date')

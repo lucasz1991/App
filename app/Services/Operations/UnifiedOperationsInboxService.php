@@ -89,7 +89,10 @@ class UnifiedOperationsInboxService
             $add('plan-review', $scope->applyRelatedQuery(PersonnelPlanReview::where('status', 'open'), $actor, 'employees.master-data.view')->limit(100)->get(), 'Planprüfung', 'workforce-accounts', 'trigger', 1);
         }
         if (! $personal && Schema::hasTable('staffing_cases') && $actor->can('operations.manage')) {
-            $add('case', StaffingCase::whereIn('status', ['open', 'escalated'])->where('responsible_id', $actor->id)->limit(100)->get(), 'Ausfall / Ablösung', 'workforce-planning', 'kind', 0);
+            // Titel lesbar machen: Fallart · Dienst statt des internen Schlüssels (failure, relief …).
+            $cases = StaffingCase::whereIn('status', ['open', 'escalated'])->where('responsible_id', $actor->id)->with('shift')->limit(100)->get()
+                ->each(fn ($case) => $case->setAttribute('inbox_title', trim((['failure' => 'Ausfall', 'relief' => 'Ablösung', 'reserve' => 'Bereitschaft', 'callout' => 'Abruf'][$case->kind] ?? 'Fall').' · '.($case->shift?->title ?? ''), ' ·')));
+            $add('case', $cases, 'Ausfall / Ablösung', 'workforce-planning', 'inbox_title', 0);
         }
         if (app(OperationsReminderService::class)->ready()) {
             foreach (OperationsAttentionItem::where('recipient_user_id', $actor->id)->whereNull('resolved_at')->limit(200)->get() as $row) {

@@ -10,21 +10,16 @@ const PARTICLE_STYLES = Object.fromEntries([
 
 // Choreografie: Der Loader BEGINNT mit dem fertig geformten RT-Monogramm,
 // loest es zur Kugel auf und formt es beim Verlassen wieder zurueck. Die
-// Mindestlaufzeit ist exakt auf diese Phasen abgestimmt (siehe
-// resolveMinimumLoaderPlaybackDelay): endet die Navigation noch waehrend
-// der RT-Haltephase, blendet der Loader direkt aus dem Monogramm aus —
-// das RT ist damit in JEDEM Durchlauf sichtbar.
+// Fertige Seiten warten nicht auf den Abschluss der Kugelphase. Die aktuelle
+// Pose wird fuer eine kurze Ausfahrt erfasst; das RT bleibt beim Ausstieg sichtbar.
 export const NAVIGATION_LOADER_INTRO_HOLD_MS = 360;
 export const NAVIGATION_LOADER_INTRO_MORPH_MS = 460;
 export const NAVIGATION_LOADER_INTRO_STAGGER_MS = 115;
 export const NAVIGATION_LOADER_SPHERE_DWELL_MS = 320;
-export const NAVIGATION_LOADER_MIN_PLAYBACK_MS = NAVIGATION_LOADER_INTRO_HOLD_MS
-    + NAVIGATION_LOADER_INTRO_MORPH_MS
-    + NAVIGATION_LOADER_INTRO_STAGGER_MS
-    + NAVIGATION_LOADER_SPHERE_DWELL_MS;
+export const NAVIGATION_LOADER_MIN_PLAYBACK_MS = 0;
 
-const OUTRO_FROM_LOGO = { morphMs: 0, holdMs: 140, fadeMs: 220 };
-const OUTRO_FROM_SPHERE = { morphMs: 300, holdMs: 320, fadeMs: 180 };
+const OUTRO_FROM_LOGO = { morphMs: 0, holdMs: 40, fadeMs: 140 };
+const OUTRO_FROM_SPHERE = { morphMs: 180, holdMs: 40, fadeMs: 140 };
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const mix = (from, to, progress) => from + ((to - from) * progress);
@@ -80,8 +75,7 @@ export function resolveMinimumLoaderPlaybackDelay(
         return 0;
     }
 
-    // Mitten in der Aufloesung zur Kugel gibt es keinen wuerdigen Ausstieg:
-    // erst die Kugel fertig formen und kurz atmen lassen, dann zurueck zum RT.
+    // Ein expliziter Mindestwert bleibt optional; normale Navigation hat keinen.
     const resolvedMinimum = Number.isFinite(minimumMs) && minimumMs > 0
         ? minimumMs
         : NAVIGATION_LOADER_MIN_PLAYBACK_MS;

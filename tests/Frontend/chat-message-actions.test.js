@@ -219,10 +219,10 @@ test('reaction chips open an anchored change/remove menu without direct toggle',
 });
 
 test('shared dropdown keeps in-panel expansion controls open', async () => {
-    const source = await readFile(
+    const source = (await readFile(
         new URL('../../resources/views/components/ui/dropdown/anchor-dropdown.blade.php', import.meta.url),
         'utf8',
-    );
+    )) + (await readFile(new URL('../../resources/js/anchor-dropdown.js', import.meta.url), 'utf8'));
 
     assert.match(source, /data-rt-dropdown-keep-open/);
     assert.match(source, /data-rt-dropdown-caret/);

@@ -2,12 +2,12 @@
 
 namespace App\Livewire\Operations;
 
-use App\Models\Order;
 use App\Models\QualificationType;
 use App\Models\ShiftSeries;
 use App\Models\ShiftTemplate;
 use App\Services\Operations\ShiftSeriesService;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OrderSelection;
 use App\Support\Operations\PlanningSchema;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
@@ -47,6 +47,8 @@ class ShiftSeriesPlanner extends Component
     public array $exceptions = [];
 
     public string $exceptionDate = '';
+
+    public string $orderSearch = '';
 
     public function mount(bool $showTrigger = true): void
     {
@@ -107,7 +109,7 @@ class ShiftSeriesPlanner extends Component
     public function newSeries(): void
     {
         $this->access();
-        $this->reset(['series', 'exceptions', 'fingerprint', 'previewRows']);
+        $this->reset(['series', 'exceptions', 'fingerprint', 'previewRows', 'orderSearch']);
         $this->requestKey = (string) Str::uuid();
         $this->open = false;
         $this->seriesOpen = true;
@@ -150,9 +152,10 @@ class ShiftSeriesPlanner extends Component
         $this->access();
 
         return view('livewire.operations.shift-series-planner', [
-            'templates' => ShiftTemplate::orderBy('name')->get(), 'orders' => Order::where('status', '!=', 'cancelled')->orderByDesc('starts_at')->get(),
-            'types' => QualificationType::where('is_active', true)->orderBy('name')->get(),
-            'history' => ShiftSeries::with('order')->withCount('occurrences')->latest()->limit(20)->get(),
+            'templates' => $this->open || $this->seriesOpen ? ShiftTemplate::orderBy('name')->get() : collect(),
+            'orders' => $this->seriesOpen ? OrderSelection::options($this->orderSearch, [$this->series['order_id'] ?? null]) : collect(),
+            'types' => $this->templateOpen ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
+            'history' => $this->open ? ShiftSeries::with('order')->withCount('occurrences')->latest()->limit(20)->get() : collect(),
         ]);
     }
 }

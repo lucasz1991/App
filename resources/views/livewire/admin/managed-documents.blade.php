@@ -180,13 +180,13 @@
                                 @if(!$version->is_current)
                                     <button
                                         type="button"
-                                        x-on:click.prevent='$dispatch("rt-confirm", {
-                                            title: @js(__("app.restore")),
-                                            message: @js(__("app.restore_version_confirm")),
-                                            variant: "default",
-                                            confirmLabel: @js(__("app.restore")),
+                                        x-on:click.prevent="$dispatch('rt-confirm', {
+                                            title: @js(__('app.restore')),
+                                            message: @js(__('app.restore_version_confirm')),
+                                            variant: 'default',
+                                            confirmLabel: @js(__('app.restore')),
                                             action: () => $wire.restoreVersion({{ $version->id }})
-                                        })'
+                                        })"
                                         class="rounded-lg bg-rt-red px-3 py-2 text-xs font-semibold text-white"
                                     >
                                         <i class="far fa-undo mr-1"></i>{{ __('app.restore') }}

@@ -74,7 +74,7 @@ final class OperationsNavigation
 
     public static function status(string $status): string
     {
-        $additional = ['prepared' => 'Vorbereitet', 'closed' => 'Abgeschlossen', 'active' => 'Aktiv', 'read' => 'Gelesen', 'overdue' => 'Überfällig', 'done' => 'Erledigt', 'escalated' => 'Eskaliert', 'needs_review' => 'Erneut prüfen', 'pending_external' => 'Unterzeichnung offen', 'result_submitted' => 'Ergebnis eingereicht', 'verified_result' => 'Ergebnis geprüft', 'covered' => 'Abgedeckt', 'uncovered' => 'Abdeckung fehlt', 'follow_up' => 'Rückfrage', 'booked' => 'Gebucht', 'reviewed' => 'Geprüft', 'requested_partner' => 'Antwort offen', 'retired' => 'Beendet'];
+        $additional = ['prepared' => 'Vorbereitet', 'closed' => 'Abgeschlossen', 'active' => 'Aktiv', 'read' => 'Gelesen', 'overdue' => 'Überfällig', 'done' => 'Erledigt', 'escalated' => 'Eskaliert', 'needs_review' => 'Erneut prüfen', 'pending_external' => 'Unterzeichnung offen', 'result_submitted' => 'Ergebnis eingereicht', 'verified_result' => 'Ergebnis geprüft', 'covered' => 'Abgedeckt', 'uncovered' => 'Abdeckung fehlt', 'follow_up' => 'Rückfrage', 'booked' => 'Gebucht', 'reviewed' => 'Geprüft', 'requested_partner' => 'Antwort offen', 'retired' => 'Beendet', 'review' => 'Prüfung nötig', 'waiting_customer' => 'Antwort ausstehend'];
         if (isset($additional[$status])) {
             return $additional[$status];
         }
