@@ -80,7 +80,7 @@ class PlanningTopbarNavigationTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_rendered_topbar_and_sidebar_share_the_same_permission_filtered_planning_views(): void
+    public function test_rendered_topbar_keeps_the_same_permission_filtered_shortcuts_after_sidebar_regrouping(): void
     {
         foreach ([['operations.inquiries.manage'], ['operations.manage']] as $abilities) {
             $actor = User::factory()->create(['role' => 'staff', 'status' => true]);
@@ -94,9 +94,12 @@ class PlanningTopbarNavigationTest extends TestCase
             $xpath = $this->xpath($component->html());
             $buttons = $xpath->query('//*[@id="case-workspace-view"]//button[@data-multi-toggle-option]');
             $this->assertSame($expected, array_map(fn (\DOMElement $button): string => $button->getAttribute('data-toggle-value'), iterator_to_array($buttons)));
-            $sidebar = collect(ApplicationNavigation::sections($actor)['Disposition'] ?? [])->where('group', 'Planung');
+            $sidebar = collect(ApplicationNavigation::sections($actor)['Disposition'] ?? [])->filter(fn (array $item): bool => ($item['parameters']['page'] ?? '') === 'cases');
             $this->assertSame($expected, $sidebar->map(fn (array $item): string => ($item['parameters']['section'] ?? '') === 'calendar' ? 'calendar' : $item['parameters']['view'])->values()->all());
             $this->assertSame(array_column($planning, 'label'), $sidebar->pluck('title')->values()->all());
+            foreach ($sidebar as $item) {
+                $this->assertSame($item['parameters']['view'] === 'shifts' ? 'Planung' : null, $item['group']);
+            }
             $forbidden = $expected === ['inbox'] ? 'orders' : 'inbox';
             $component->call('setPlanningView', $forbidden)->assertForbidden();
             if ($expected === ['inbox']) {

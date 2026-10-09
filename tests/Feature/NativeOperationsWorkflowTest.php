@@ -72,7 +72,8 @@ class NativeOperationsWorkflowTest extends TestCase
         $sections = ApplicationNavigation::sections($this->admin);
         $adminLinks = collect($sections)->flatten(1);
         $this->assertSame('', array_key_first($sections));
-        $this->assertSame(['Dashboard'], array_column($sections[''], 'title'));
+        $this->assertSame(['Dashboard', 'Arbeitsliste'], array_column($sections[''], 'title'));
+        $this->assertSame(['page' => 'attention'], $sections[''][1]['parameters']);
         $this->assertSame('Persönlich', array_key_last($sections));
         $this->assertSame(['Meine Geräte', 'Profil'], array_column($sections['Persönlich'], 'title'));
         $this->assertArrayNotHasKey('Management', $sections);
@@ -86,7 +87,8 @@ class NativeOperationsWorkflowTest extends TestCase
         $this->assertFalse($adminLinks->contains('title', 'Kundenübersicht'));
         $this->assertSame(0, $adminLinks->where('title', 'Vorgänge & Aufträge')->count());
         $this->assertSame(1, $adminLinks->where('title', 'Schichtplan')->count());
-        $this->assertSame(['Eingang', 'Aufträge', 'Schichtplan', 'Kalender'], $adminLinks->where('group', 'Planung')->pluck('title')->all());
+        $this->assertSame(['Schichtplan', 'Kalender', 'Bedarf & Planung'], $adminLinks->where('group', 'Planung')->pluck('title')->all());
+        $this->assertSame(['Eingang', 'Aufträge', 'Leitstelle'], collect($sections['Disposition'])->whereNull('group')->pluck('title')->values()->all());
         $this->assertTrue(collect($sections['Mein Arbeitsplatz'])->contains(fn ($link) => $link['title'] === 'Wagenliste' && $link['group'] === 'Arbeitsmittel'));
         $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Wagenliste'));
         $this->assertTrue(collect($sections['Personal'])->contains(fn ($link) => ($link['parameters']['page'] ?? '') === 'time-review' && $link['group'] === 'Zeitwirtschaft'));

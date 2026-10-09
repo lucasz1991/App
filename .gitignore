@@ -254,3 +254,4 @@ auth.json
 !/tests/Feature/CustomerProfileCommunicationTest.php
 !/tests/Feature/WorkTimeDatetimeMigrationTest.php
 !/tests/Feature/OperationsAccessReadinessTest.php
+!/tests/Feature/NavigationWorkflowStructureTest.php

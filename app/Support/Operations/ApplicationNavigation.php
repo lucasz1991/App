@@ -31,7 +31,7 @@ final class ApplicationNavigation
                     $icon = match ($view) {
                         'inbox' => 'inbox', 'orders' => 'briefcase', 'shifts' => 'clipboard',
                     };
-                    $add($definition['segment'], $entry['label'], 'operations.page', $icon, $parameters, true, 'Planung');
+                    $add($definition['segment'], $entry['label'], 'operations.page', $icon, $parameters, true, $view === 'shifts' ? 'Planung' : null);
                     if ($view === 'shifts') {
                         $add($definition['segment'], 'Kalender', 'operations.page', 'calendar', ['page' => 'cases', 'view' => 'shifts', 'section' => 'calendar'], true, 'Planung');
                     }
@@ -41,13 +41,14 @@ final class ApplicationNavigation
             }
             if ($page === 'people') {
                 $views = OperationsPages::views($user, $page);
-                foreach (['employees' => 'users', 'qualifications' => 'award', 'documents' => 'folder', 'training' => 'book-open'] as $view => $icon) {
+                foreach (['employees' => 'users', 'documents' => 'folder', 'qualifications' => 'award', 'training' => 'book-open'] as $view => $icon) {
                     if (isset($views[$view])) {
-                        $add('Personal', $views[$view], 'operations.page', $icon, ['page' => $page, 'view' => $view], true, 'Personal');
+                        $group = in_array($view, ['qualifications', 'training'], true) ? 'Nachweise & Schulungen' : 'Personalakte';
+                        $add('Personal', $views[$view], 'operations.page', $icon, ['page' => $page, 'view' => $view], true, $group);
                     }
                 }
                 foreach (OperationsPages::sections($user, $page) as $section => $label) {
-                    $add('Personal', $label, 'operations.page', $section === 'emergency' ? 'phone' : 'file-text', ['page' => $page, 'section' => $section], true, 'Personal');
+                    $add('Personal', $label, 'operations.page', $section === 'emergency' ? 'phone' : 'file-text', ['page' => $page, 'section' => $section], true, 'Personalakte');
                 }
 
                 continue;
@@ -61,10 +62,15 @@ final class ApplicationNavigation
             $availableSections = $shortcuts ? OperationsPages::sections($user, $page) : [];
             $shortcuts = array_intersect_key($shortcuts, $availableSections);
             foreach ($shortcuts as $section => [$label, $icon]) {
-                $add('Personal', $label, 'operations.page', $icon, ['page' => $page, 'section' => $section], true, 'Personal');
+                $add('Personal', $label, 'operations.page', $icon, ['page' => $page, 'section' => $section], true, 'Arbeitsmodelle & Regeln');
             }
             if (! $shortcuts || OperationsPages::views($user, $page) || array_diff_key($availableSections, $shortcuts)) {
-                $add($definition['segment'], $definition['title'], 'operations.page', $definition['icon'], ['page' => $page], true, $definition['group'] ?? null, array_keys($shortcuts));
+                $group = match ($page) {
+                    'planning' => 'Planung',
+                    'personnel-processes' => null,
+                    default => $definition['group'] ?? null,
+                };
+                $add($page === 'attention' ? '' : $definition['segment'], $definition['title'], 'operations.page', $definition['icon'], ['page' => $page], true, $group, array_keys($shortcuts));
             }
         }
         if (! $ready && $admin) {
@@ -93,6 +99,11 @@ final class ApplicationNavigation
         $add('Persönlich', 'Meine Geräte', 'devices.mine', 'smartphone');
         $add('Persönlich', 'Profil', 'profile.show', 'user', [], false);
 
+        if (! empty($sections['Personal'])) {
+            // The compact menu and sidebar must use the same workflow order.
+            $sections['Personal'] = array_merge(...array_column(self::groups($sections['Personal']), 'links'));
+        }
+
         return array_filter($sections, fn ($links) => count($links) > 0);
     }
 
@@ -108,9 +119,17 @@ final class ApplicationNavigation
             $label = $link['group'] ?? '';
             $key = $label === '' ? '__direct_'.count($groups) : $label;
             $groups[$key] ??= ['label' => $label, 'icon' => match ($label) {
-                'Planung' => 'calendar', 'Personal' => 'users', 'Zeitwirtschaft' => 'clock', 'Arbeitsmittel' => 'tool', default => 'layers',
+                'Planung' => 'calendar', 'Personalakte' => 'users', 'Nachweise & Schulungen' => 'award',
+                'Zeitwirtschaft' => 'clock', 'Arbeitsmodelle & Regeln' => 'sliders', 'Arbeitsmittel' => 'tool', default => 'layers',
             }, 'links' => []];
             $groups[$key]['links'][] = $link;
+        }
+
+        // Keep configuration after everyday personnel work without changing any link contract.
+        if (isset($groups['Arbeitsmodelle & Regeln'])) {
+            $rules = $groups['Arbeitsmodelle & Regeln'];
+            unset($groups['Arbeitsmodelle & Regeln']);
+            $groups['Arbeitsmodelle & Regeln'] = $rules;
         }
 
         return array_filter($groups, fn (array $group) => count($group['links']) > 0);

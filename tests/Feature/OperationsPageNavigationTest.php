@@ -70,7 +70,7 @@ class OperationsPageNavigationTest extends TestCase
         }
     }
 
-    public function test_dashboard_is_alone_at_top_personal_at_bottom_and_wagon_list_is_own_work_equipment(): void
+    public function test_dashboard_is_alone_at_top_without_worklist_permission_personal_at_bottom_and_wagon_list_is_own_work_equipment(): void
     {
         $this->operations();
         $actor = $this->actor(['operations.manage', 'operations.inquiries.manage', 'employees.view', 'employees.master-data.view', 'operations.time.review', 'operations.time.export', 'operations.absences.review', 'operations.qualifications.manage', 'operations.rules.manage']);
@@ -131,8 +131,10 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertSame(['Kunden'], array_column($sections['Kunden'], 'title'));
         $groups = ApplicationNavigation::groups($sections['Personal']);
         $this->assertArrayNotHasKey('Personalverwaltung', $groups);
-        $this->assertSame('users', $groups['Personal']['icon']);
-        $links = collect($groups['Personal']['links'])->keyBy('title');
+        $this->assertSame('users', $groups['Personalakte']['icon']);
+        $this->assertSame(['Nachweise', 'Schulungen'], array_column($groups['Nachweise & Schulungen']['links'], 'title'));
+        $this->assertSame(['Arbeitsmodelle', 'Urlaubsrichtlinien', 'Regelzuordnungen', 'Regelprofile'], array_column($groups['Arbeitsmodelle & Regeln']['links'], 'title'));
+        $links = collect($sections['Personal'])->keyBy('title');
         foreach ([
             'Mitarbeiter' => ['page' => 'people', 'view' => 'employees'],
             'Nachweise' => ['page' => 'people', 'view' => 'qualifications'],
@@ -408,7 +410,7 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertStringNotContainsString('Stammdaten & Geräte', html_entity_decode(strip_tags($sidebar), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
-    public function test_sidebar_keeps_dashboard_then_disposition_worklist_cases_planning_and_duty_order(): void
+    public function test_sidebar_keeps_dashboard_and_shared_worklist_before_disposition_cases_planning_and_duty(): void
     {
         $this->operations();
         (require database_path('migrations/2026_10_06_103000_create_operations_attention_tables.php'))->up();
@@ -422,15 +424,18 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertArrayHasKey('board', OperationsPages::views($actor, 'duty'));
         $sections = ApplicationNavigation::sections($actor);
         $this->assertSame(['', 'Disposition'], array_slice(array_keys($sections), 0, 2));
-        $this->assertSame(['attention', 'cases', 'cases', 'cases', 'cases', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
+        $this->assertSame(['Dashboard', 'Arbeitsliste'], array_column($sections[''], 'title'));
+        $this->assertSame(['cases', 'cases', 'cases', 'cases', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
         $planning = ApplicationNavigation::groups($sections['Disposition'])['Planung'];
         $this->assertSame('calendar', $planning['icon']);
-        $this->assertSame(['Eingang', 'Aufträge', 'Schichtplan', 'Kalender'], array_column($planning['links'], 'title'));
+        $this->assertSame(['Schichtplan', 'Kalender', 'Bedarf & Planung'], array_column($planning['links'], 'title'));
+        $this->assertSame(['Eingang', 'Aufträge', 'Leitstelle'], collect($sections['Disposition'])->whereNull('group')->pluck('title')->values()->all());
         $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Vorgänge & Aufträge'));
         $sidebar = view('layouts.application-navigation')->render();
         $destinations = $this->sidebarDestinations($sidebar);
         $this->assertSame(route('dashboard'), $destinations[0]);
-        $expected = [OperationsPages::url('attention'), ...array_map(fn ($link) => route($link['route'], $link['parameters']), $planning['links']), OperationsPages::url('planning'), OperationsPages::url('duty')];
+        $expected = [OperationsPages::url('attention'), OperationsPages::url('cases', ['view' => 'inbox']), OperationsPages::url('cases', ['view' => 'orders']), ...array_map(fn ($link) => route($link['route'], $link['parameters']), $planning['links']), OperationsPages::url('duty')];
+        $this->assertSame(OperationsPages::url('attention'), $destinations[1]);
         $this->assertSame($expected, array_values(array_filter($destinations, fn ($url) => in_array($url, $expected, true))));
     }
 
@@ -438,16 +443,18 @@ class OperationsPageNavigationTest extends TestCase
     {
         $this->operations();
         foreach ([
-            [['operations.inquiries.manage'], ['inbox'], ['Eingang']],
-            [['customers.portal.manage'], ['inbox'], ['Eingang']],
-            [['operations.manage'], ['orders', 'shifts'], ['Aufträge', 'Schichtplan', 'Kalender']],
-            [['operations.costs.manage'], ['orders'], ['Aufträge']],
-            [[], [], []],
-        ] as [$abilities, $views, $labels]) {
+            [['operations.inquiries.manage'], ['inbox'], [], ['Eingang']],
+            [['customers.portal.manage'], ['inbox'], [], ['Eingang']],
+            [['operations.manage'], ['orders', 'shifts'], ['Schichtplan', 'Kalender', 'Bedarf & Planung'], ['Aufträge', 'Leitstelle']],
+            [['operations.costs.manage'], ['orders'], [], ['Aufträge']],
+            [[], [], [], []],
+        ] as [$abilities, $views, $labels, $directLabels]) {
             $actor = $this->actor($abilities);
             $this->assertSame($views, array_keys(OperationsPages::planningViews($actor)));
-            $groups = ApplicationNavigation::groups(ApplicationNavigation::sections($actor)['Disposition'] ?? []);
+            $links = ApplicationNavigation::sections($actor)['Disposition'] ?? [];
+            $groups = ApplicationNavigation::groups($links);
             $this->assertSame($labels, array_column($groups['Planung']['links'] ?? [], 'title'));
+            $this->assertSame($directLabels, collect($links)->whereNull('group')->pluck('title')->values()->all());
             if ($labels === []) {
                 $this->assertArrayNotHasKey('Planung', $groups);
             }
@@ -470,7 +477,7 @@ class OperationsPageNavigationTest extends TestCase
         $route->bind($request);
         $request->setRouteResolver(fn () => $route);
         app()->instance('request', $request);
-        $links = ApplicationNavigation::groups(ApplicationNavigation::sections($actor)['Disposition'])['Planung']['links'];
+        $links = ApplicationNavigation::sections($actor)['Disposition'];
         $this->assertSame([$expected], array_column(array_filter($links, fn ($link) => ApplicationNavigation::active($link)), 'title'));
     }
 
