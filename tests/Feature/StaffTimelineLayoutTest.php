@@ -23,6 +23,14 @@ class StaffTimelineLayoutTest extends TestCase
 {
     use BuildsMinimalRailTimeSchema;
 
+    public function test_timeline_uses_only_the_footer_horizontal_scrollbar_and_a_thin_vertical_body_scrollbar(): void
+    {
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $this->assertMatchesRegularExpression('/\.rt-personnel-timeline-body\s*\{[^}]*overflow:\s*auto;[^}]*scrollbar-width:\s*auto;/s', $css);
+        $this->assertMatchesRegularExpression('/\.rt-personnel-timeline-body::\-webkit-scrollbar\s*\{\s*width:\s*6px;\s*height:\s*0;\s*\}/', $css);
+        $this->assertMatchesRegularExpression('/\.rt-personnel-timeline-scrollbar\s*\{[^}]*scrollbar-width:\s*thin;/s', $css);
+    }
+
     public function test_multi_lane_rows_opt_into_compact_presentation_without_losing_any_duty_or_clock_position(): void
     {
         $this->buildMinimalRailTimeSchema();

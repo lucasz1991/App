@@ -7,12 +7,9 @@
             <x-operations.create-action module="shift-management" />
         </template>
     @endif
-    @if(isset($views['offers']) || (!$costsOnly && !in_array($view, ['offers', 'shifts']) && !in_array($section, ['imports','portal','ai-intake'])))
+    @if(!$costsOnly && !in_array($view, ['offers', 'shifts']) && !in_array($section, ['imports','portal','ai-intake']))
     <header class="ops-toolbar">
-        @if(isset($views['offers']))
-            <x-ui.buttons.button-basic type="button" :mode="$view === 'offers' ? 'primary' : 'link'" wire:click="setView('offers')" :aria-current="$view === 'offers' ? 'page' : null"><i class="far fa-file-invoice" aria-hidden="true"></i>Angebote</x-ui.buttons.button-basic>
-        @endif
-        @if(!$costsOnly && !in_array($view, ['offers', 'shifts']) && !in_array($section, ['imports','portal','ai-intake']))<x-ui.buttons.button-basic class="ml-auto" type="button" mode="primary" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i>{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</x-ui.buttons.button-basic>@endif
+        <x-ui.buttons.button-basic class="ml-auto" type="button" mode="primary" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i>{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</x-ui.buttons.button-basic>
     </header>
     @endif
     @if($reservation)

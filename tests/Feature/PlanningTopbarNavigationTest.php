@@ -76,7 +76,8 @@ class PlanningTopbarNavigationTest extends TestCase
             $this->assertSame(0, $xpath->query('//*[@id="case-shift-section"]')->length);
             $this->assertSame(0, $xpath->query('//*[@id="case-workspace-view" and not(ancestor::template[@*[name()="x-teleport"]="[data-topbar-planning-navigation]"])]')->length);
             $this->assertSame(1, $xpath->query('//*[@data-case-workspace and @*[name()="x-data"]]')->length);
-            $this->assertSame(1, $xpath->query('//*[@data-case-workspace]/header/button[@*[name()="wire:click"]="setView(\'offers\')"]')->length);
+            $this->assertSame(0, $xpath->query('//*[@data-case-workspace]/header/button[@*[name()="wire:click"]="setView(\'offers\')"]')->length);
+            $this->assertSame(in_array($view, ['inbox', 'orders'], true) ? 1 : 0, $xpath->query('//*[@data-case-workspace]/header')->length);
         }
         Http::assertNothingSent();
     }

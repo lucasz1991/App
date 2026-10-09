@@ -105,7 +105,10 @@
     scrollbar-width: auto;
     scroll-padding-left: var(--timeline-name-width);
 }
-.rt-personnel-timeline-body::-webkit-scrollbar:horizontal { display: none; height: 0; }
+/* Keep both scroll axes functional; the synchronized footer owns the horizontal bar.
+   Leave scrollbar-width auto so Chromium honors the axis-specific dimensions. */
+.rt-personnel-timeline-body::-webkit-scrollbar { width: 6px; height: 0; }
+.rt-personnel-timeline-body::-webkit-scrollbar-thumb { border-radius: 6px; }
 .rt-personnel-timeline-grid {
     display: grid;
     grid-template-columns: var(--timeline-name-width) repeat(var(--timeline-days), var(--timeline-day-width));
