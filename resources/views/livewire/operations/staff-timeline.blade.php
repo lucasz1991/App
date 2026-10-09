@@ -46,7 +46,7 @@
         <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--next" x-cloak x-show="canScrollRight" x-on:click="scrollDay(1)" aria-label="Weitere Tage rechts anzeigen" title="Weitere Tage rechts"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
         </div>
     </div>
-    <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:scroll.passive="syncHorizontal($event.target)" x-on:wheel.passive="wheelPersonnel($event)" x-on:scrollend.passive="finishHorizontalIntent()" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile oder die horizontale Bildlaufleiste">
+    <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:scroll.passive="syncHorizontal($event.target)" x-on:wheel="wheelPersonnel($event)" x-on:scrollend.passive="finishHorizontalIntent()" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile oder die horizontale Bildlaufleiste">
     <div class="rt-personnel-timeline-grid" x-ref="timelineGrid"
         x-on:click="openPlanner($event)" x-on:pointerover="hoverCell($event)" x-on:pointerout="leaveCell($event)"
         x-on:focusin="hoverCell($event)" x-on:focusout="leaveCell($event)">

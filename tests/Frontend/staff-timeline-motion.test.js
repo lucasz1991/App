@@ -342,20 +342,26 @@ test('a delayed native end snap after resizing cannot compact staff without user
     }, { deferredNativeScroll: true });
 });
 
-test('horizontal wheel intent reverses before the next frame without consuming the native event', () => {
+test('horizontal wheel input scrolls the hidden body and reverses intent while vertical input remains native', () => {
     withMotion(({ timeline, tweens, advance, currentWidth }) => {
         timeline.applyPersonnelMode();
         compact(timeline);
         advance(tweens[0], 116);
-        const event = (deltaX, deltaY) => ({ deltaX, deltaY, preventDefault() {
-            assert.fail('timeline animation must preserve native wheel behavior');
-        } });
+        let prevented = 0;
+        const event = (deltaX, deltaY) => ({ deltaX, deltaY, preventDefault() { prevented++; } });
         timeline.wheelPersonnel(event(0, -30));
         timeline.wheelPersonnel(event(-.5, 0));
         timeline.wheelPersonnel(event(-5, 30));
         assert.equal(timeline.personnelCompact, true);
+        assert.equal(prevented, 0, 'vertical and sub-pixel wheel input remain native');
+        timeline.wheelPersonnel(event(30, 4));
+        assert.equal(timeline.$refs.timelineBody.scrollLeft, 30);
+        assert.equal(timeline.$refs.timelineBody.scrollTop, 148, 'diagonal trackpad input also keeps its vertical component');
+        assert.equal(prevented, 1);
         timeline.wheelPersonnel(event(-30, 0));
         assert.equal(timeline.personnelCompact, false);
+        assert.equal(timeline.$refs.timelineBody.scrollLeft, 0);
+        assert.equal(prevented, 2);
         timeline.applyPersonnelMode();
         assert.equal(tweens[0].killed, true);
         assert.equal(tweens[1].from, 116);
@@ -365,7 +371,7 @@ test('horizontal wheel intent reverses before the next frame without consuming t
 
 test('right wheel direction survives an interior native snap-back and an opposite wheel changes intent immediately', () => {
     withMotion(({ timeline, body, timers }) => {
-        timeline.wheelPersonnel({ deltaX: 360, deltaY: 0, preventDefault() { assert.fail('wheel input must remain native'); } });
+        timeline.wheelPersonnel({ deltaX: 360, deltaY: 0, preventDefault() {} });
         for (const offset of [300, 360, 300, 265]) {
             body.nativeOffset = offset;
             timeline.syncHorizontal(body);
@@ -374,7 +380,7 @@ test('right wheel direction survives an interior native snap-back and an opposit
             assert.equal(timeline.$refs.timelineScrollbar.scrollLeft, offset);
         }
         assert.equal(timers.size, 1, 'one bounded fallback is refreshed while native scrolling continues');
-        timeline.wheelPersonnel({ deltaX: -30, deltaY: 0 });
+        timeline.wheelPersonnel({ deltaX: -30, deltaY: 0, preventDefault() {} });
         assert.equal(timeline.personnelCompact, false);
         for (const offset of [230, 245, 265]) {
             body.nativeOffset = offset;
@@ -389,7 +395,7 @@ test('right wheel direction survives an interior native snap-back and an opposit
         body.nativeOffset = 255;
         timeline.syncHorizontal(body);
         assert.equal(timeline.personnelCompact, false);
-        assert.equal(body.scrollWrites, 0);
+        assert.equal(body.scrollWrites, 2);
     });
 });
 
@@ -417,7 +423,7 @@ test('day arrow direction survives native smooth-scroll overshoot and snapping u
 
 test('a manual header counter-command wins over the remaining native wheel sequence', () => {
     withMotion(({ timeline, body, timers }) => {
-        timeline.wheelPersonnel({ deltaX: 360, deltaY: 0 });
+        timeline.wheelPersonnel({ deltaX: 360, deltaY: 0, preventDefault() {} });
         assert.equal(timeline.personnelCompact, true);
         timeline.togglePersonnelColumn();
         assert.equal(timeline.personnelCompact, false);
@@ -438,17 +444,17 @@ test('mirrored footer events retain wheel intent while actual footer input cance
     withMotion(({ timeline, body, timers }) => {
         body.nativeOffset = 300;
         timeline.syncHorizontal(body, false);
-        timeline.wheelPersonnel({ deltaX: 360, deltaY: 0 });
+        timeline.wheelPersonnel({ deltaX: 360, deltaY: 0, preventDefault() {} });
         body.nativeOffset = 360;
         timeline.syncHorizontal(body);
         timeline.syncHorizontal(timeline.$refs.timelineScrollbar);
         assert.equal(timeline.horizontalIntent, 1);
         assert.equal(timers.size, 1);
-        assert.equal(body.scrollWrites, 0);
+        assert.equal(body.scrollWrites, 1);
         timeline.$refs.timelineScrollbar.scrollLeft = 320;
         timeline.syncHorizontal(timeline.$refs.timelineScrollbar);
         assert.equal(body.scrollLeft, 320);
-        assert.equal(body.scrollWrites, 1);
+        assert.equal(body.scrollWrites, 2);
         assert.equal(timeline.personnelCompact, false);
         assert.equal(timeline.horizontalIntent, null);
         assert.equal(timers.size, 0);
@@ -459,7 +465,7 @@ test('an edge gesture without movement releases its intent through a bounded idl
     withMotion(({ timeline, body, maximum, timers }) => {
         body.nativeOffset = maximum();
         timeline.syncHorizontal(body, false);
-        timeline.wheelPersonnel({ deltaX: 30, deltaY: 0 });
+        timeline.wheelPersonnel({ deltaX: 30, deltaY: 0, preventDefault() {} });
         assert.equal(timeline.horizontalIntent, 1);
         assert.equal(timers.size, 1);
         const [id, timer] = [...timers][0];
@@ -471,13 +477,13 @@ test('an edge gesture without movement releases its intent through a bounded idl
         body.nativeOffset = maximum() - 20;
         timeline.syncHorizontal(body);
         assert.equal(timeline.personnelCompact, false);
-        timeline.wheelPersonnel({ deltaX: 30, deltaY: 0 });
+        timeline.wheelPersonnel({ deltaX: 30, deltaY: 0, preventDefault() {} });
         assert.equal(timers.size, 1);
         timeline.destroy();
         assert.equal(timers.size, 0);
         assert.equal(timeline.intentTimer, null);
         assert.equal(timeline.horizontalIntent, null);
-        assert.equal(body.scrollWrites, 0);
+        assert.equal(body.scrollWrites, 1);
     });
 });
 

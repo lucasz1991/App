@@ -98,15 +98,16 @@
 .rt-personnel-timeline-body {
     min-height: 0;
     flex: 1 1 auto;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
-    scrollbar-color: auto;
-    scrollbar-width: auto;
+    scrollbar-color: #bfc8d5 transparent;
+    scrollbar-width: thin;
     scroll-padding-left: var(--timeline-name-width);
 }
-/* Keep both scroll axes functional; the synchronized footer owns the horizontal bar.
-   Leave scrollbar-width auto so Chromium honors the axis-specific dimensions. */
+/* The footer is the sole horizontal scrollbar. The body remains script-scrollable
+   on x while horizontal wheel input is forwarded; Firefox gets a thin y scrollbar. */
 .rt-personnel-timeline-body::-webkit-scrollbar { width: 6px; height: 0; }
 .rt-personnel-timeline-body::-webkit-scrollbar-thumb { border-radius: 6px; }
 .rt-personnel-timeline-grid {

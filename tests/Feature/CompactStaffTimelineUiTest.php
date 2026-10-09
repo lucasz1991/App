@@ -20,7 +20,8 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringContainsString('role="status" aria-live="polite"', $view);
         $this->assertStringContainsString('pointer-events: none', $this->cssDeclarationsFor($css, '.rt-timeline-loading-indicator'));
         $this->assertStringContainsString('animation: none', $this->cssDeclarationsFor($css, '.rt-timeline-loading-indicator > i'));
-        $this->assertStringContainsString('overflow: auto', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-body'));
+        $this->assertStringContainsString('overflow-x: hidden', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-body'));
+        $this->assertStringContainsString('overflow-y: auto', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-body'));
         $this->assertDoesNotMatchRegularExpression('/<div[^>]+class="rt-personnel-timeline(?:-body)?(?: [^"]*)?"[^>]+wire:loading.remove/', $view);
     }
 
@@ -80,7 +81,7 @@ class CompactStaffTimelineUiTest extends TestCase
         $css = file_get_contents(resource_path('css/operations-planning.css'));
         $scrollport = $this->cssDeclarationsFor($css, '.rt-personnel-timeline-body');
 
-        foreach (['min-height: 0', 'flex: 1 1 auto', 'overflow: auto', 'overscroll-behavior: contain'] as $declaration) {
+        foreach (['min-height: 0', 'flex: 1 1 auto', 'overflow-x: hidden', 'overflow-y: auto', 'overscroll-behavior: contain'] as $declaration) {
             $this->assertStringContainsString($declaration, $scrollport);
         }
         $this->assertMatchesRegularExpression('/class="rt-personnel-timeline-body snap-x snap-mandatory"[^>]+x-ref="timelineBody"[^>]+x-on:scroll.passive="syncHorizontal\(\$event.target\)"/', $view);
@@ -176,7 +177,7 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertSame(1, substr_count($script, 'new ResizeObserver('));
         $this->assertSame(1, substr_count($script, 'new MutationObserver('));
         $this->assertStringNotContainsString('window.addEventListener(', $script);
-        $this->assertStringNotContainsString('preventDefault(', $script);
+        $this->assertStringContainsString('event.preventDefault()', $script);
         $this->assertStringNotContainsString('x-on:touchmove.prevent', $view);
     }
 
@@ -251,7 +252,7 @@ class CompactStaffTimelineUiTest extends TestCase
     {
         $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
         $css = file_get_contents(resource_path('css/operations-planning.css'));
-        $this->assertStringContainsString('x-on:wheel.passive="wheelPersonnel($event)"', $view);
+        $this->assertStringContainsString('x-on:wheel="wheelPersonnel($event)"', $view);
         $this->assertStringNotContainsString('x-on:wheel.prevent', $view);
         $this->assertStringNotContainsString('x-on:touchmove.prevent', $view);
         $column = $this->cssDeclarationsFor($css, "[data-personnel-animating='true'] [data-timeline-person-column]");

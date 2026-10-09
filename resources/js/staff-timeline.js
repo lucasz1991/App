@@ -255,8 +255,17 @@ export function staffTimeline() {
             this.personnelHovered = !target?.closest?.('[data-timeline-person-toggle]') && owns;
         },
         wheelPersonnel(event) {
-            // Intent only: never prevent or replace the browser's native scrolling.
             if (Math.abs(event.deltaX) >= Math.max(1, Math.abs(event.deltaY))) {
+                const body = this.$refs.timelineBody;
+                const start = body.scrollLeft;
+                const target = Math.max(0, Math.min(body.scrollWidth - body.clientWidth, start + event.deltaX));
+                if (target !== start) {
+                    // The body hides its native x scrollbar for cross-browser consistency;
+                    // preserve trackpad horizontal scrolling through the existing sync path.
+                    event.preventDefault();
+                    body.scrollLeft = target;
+                    if (event.deltaY) body.scrollTop += event.deltaY;
+                }
                 this.holdHorizontalIntent(event.deltaX);
             }
         },
