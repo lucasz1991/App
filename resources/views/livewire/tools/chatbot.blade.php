@@ -1,6 +1,9 @@
 @php
     $assistantLabel = (string) ($assistantName ?? 'RailTime Assist');
     $assistantIsAvailable = (bool) ($assistantAvailable ?? false);
+    $operationsAssist = $operationsAssist ?? ['available' => false];
+    $operationsCards = $operationsCards ?? [];
+    $operationsAvailable = (bool) ($operationsAssist['available'] ?? false) && !($pageBuilderUi['active'] ?? false);
     $speechIsAvailable = (bool) ($speechAvailable ?? false);
     $historySource = $chatHistory ?? [];
     $history = is_array($historySource)
@@ -63,7 +66,7 @@
     $initialAssistantKeys = [];
     foreach ($history as $historyEntry) {
         $entry = is_array($historyEntry) ? $historyEntry : (array) $historyEntry;
-        if (($entry['role'] ?? '') !== 'assistant') {
+        if (($entry['role'] ?? '') !== 'assistant' || !empty($entry['local_only'])) {
             continue;
         }
 
@@ -200,9 +203,13 @@
     data-railtime-chatbot-root
     x-data="railtimeChatbot({
         ...@js($chatbotConfig),
+        operationsAvailable: @js($operationsAvailable),
+        operationsTab: $wire.entangle('operationsTab'),
+        operationsLoaded: $wire.entangle('operationsLoaded'),
         isLoading: $wire.entangle('isLoading')
     })"
     x-on:railtime-assistant-reply.window="handleAssistantReply($event.detail)"
+    x-on:operations-assist-reply.window="handleOperationsReply($event.detail)"
     x-on:railtime-assistant-cleared.window="stopSpeaking(); clearPhraseAudioCache(); resetAttachmentUi(); knownAssistantMessageKeys = []; $nextTick(() => { updateComposerState(); scrollMessages(true) })"
     x-on:railtime-assistant-open.window="handleAssistantOpen($event.detail)"
     x-on:railtime-assistant-client-action.window="handleClientAction($event.detail)"
@@ -279,7 +286,7 @@
             x-ref="launcher"
             x-on:mouseenter="showPetBubble(strings.petHint, 4_500)"
             x-on:focus="showPetBubble(strings.petHint, 4_500)"
-            x-on:click="handlePetClick()"
+            x-on:click="operationsAvailable ? handleAssistantOpen() : handlePetClick()"
             aria-controls="railtime-chatbot-panel"
             x-bind:aria-expanded="open.toString()"
             aria-label="{{ $isGerman ? $assistantLabel . ' öffnen' : 'Open ' . $assistantLabel }}"
@@ -333,6 +340,8 @@
                     <h2 id="railtime-chatbot-title" class="rt-chatbot__title">{{ $assistantLabel }}</h2>
                     @if ($isPageBuilderPage)
                         <span class="rt-chatbot__identity-mode">PageBuilder Copilot</span>
+                    @elseif($operationsAvailable)
+                        <span class="rt-chatbot__identity-mode">Disposition &amp; AI-Annahme</span>
                     @endif
                 </div>
             </div>
@@ -656,7 +665,13 @@
             </section>
         @endif
 
-        <div class="rt-chatbot__body">
+        @if($operationsAvailable)
+            @include('livewire.tools.partials.operations-assist')
+        @endif
+        <div class="rt-chatbot__body" id="railtime-assistant-content" @if($operationsAvailable) role="tabpanel" aria-labelledby="railtime-assistant-tab-{{ $operationsTab }}" @endif>
+            @if($operationsAvailable && $operationsTab !== 'chat')
+                @include('livewire.tools.partials.operations-assist-content')
+            @else
             <div
                 class="rt-chatbot__messages"
                 x-ref="messages"
@@ -669,6 +684,9 @@
                         $entry = is_array($historyEntry) ? $historyEntry : (array) $historyEntry;
                         $role = ($entry['role'] ?? '') === 'user' ? 'user' : 'assistant';
                         $content = (string) ($entry['content'] ?? '');
+                        if (!empty($entry['local_only'])) {
+                            $content = str_replace('**', '', $content);
+                        }
                         $createdAt = $entry['created_at'] ?? '';
                         $createdAtKey = $createdAt instanceof \DateTimeInterface ? $createdAt->format(DATE_ATOM) : (string) $createdAt;
                         $entryKey = (string) ($entry['key'] ?? '');
@@ -699,7 +717,7 @@
                         }
                         $messageCharacterLength = max(1, mb_strlen($content));
                         $speechTokens = [];
-                        if ($role === 'assistant' && $canRenderTtsControls) {
+                        if ($role === 'assistant' && $canRenderTtsControls && empty($entry['local_only'])) {
                             $tokenParts = preg_split('/(\s+)/u', $content, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
                             $tokenOffset = 0;
                             foreach ($tokenParts as $tokenPart) {
@@ -716,6 +734,8 @@
 
                     <div
                         class="rt-chatbot__message-row rt-chatbot__message-row--{{ $role }}"
+                        data-local-only="{{ !empty($entry['local_only']) ? 'true' : 'false' }}"
+                        data-assistant-message-key="{{ $messageKey }}"
                         wire:key="railtime-chatbot-message-{{ $wireMessageKey }}"
                     >
                         @if ($role === 'assistant')
@@ -733,7 +753,7 @@
                         @endif
                         <div class="rt-chatbot__message-stack">
                             <article class="rt-chatbot__message">
-                            @if ($role === 'assistant' && $canRenderTtsControls)
+                            @if ($role === 'assistant' && $canRenderTtsControls && empty($entry['local_only']))
                                 <p
                                     class="rt-chatbot__message-content rt-chatbot__message-content--readable"
                                     x-bind:data-reading="(ttsActiveKey === @js($messageKey) && ttsActive()).toString()"
@@ -767,12 +787,15 @@
                                     @endforeach
                                 </ul>
                             @endif
+                            @if($role === 'assistant' && isset($operationsCards[$entryKey]))
+                                <div class="rt-ai-assist">@include('livewire.tools.partials.operations-assist-card', ['card' => $operationsCards[$entryKey]])</div>
+                            @endif
                             <footer class="rt-chatbot__message-meta">
                                 <span class="rt-chatbot__message-author">
                                     {{ $role === 'assistant' ? $assistantLabel : ($isGerman ? 'Du' : 'You') }}
                                 </span>
                                 <span class="rt-chatbot__message-meta-actions">
-                                    @if ($role === 'assistant' && $canRenderTtsControls)
+                                    @if ($role === 'assistant' && $canRenderTtsControls && empty($entry['local_only']))
                                         <button
                                             type="button"
                                             class="rt-chatbot__message-play"
@@ -971,7 +994,7 @@
                     class="rt-chatbot__message-row"
                     wire:key="railtime-chatbot-loading"
                     wire:loading.flex
-                    wire:target="sendMessage,quickAction"
+                    wire:target="sendMessage,quickAction,runOperationsAction,submitOperationsIntake"
                     style="display: none"
                 >
                     <span class="rt-chatbot__message-pet rt-chatbot__message-pet--thinking" data-assistant-cloud-slot="message" wire:ignore data-state="thinking" aria-hidden="true">
@@ -985,7 +1008,10 @@
                     </div>
                 </div>
             </div>
-
+            @endif
+            @if($operationsAvailable)
+                <p class="rt-chatbot__validation" x-show="operationsError" x-cloak role="alert" x-text="operationsError"></p>
+            @endif
             <template x-if="audioError">
                 <div class="rt-chatbot__error" role="alert">
                     <span aria-hidden="true">!</span>
@@ -1000,7 +1026,11 @@
                 </div>
             </template>
 
-            <form class="rt-chatbot__composer" wire:submit.prevent="sendMessage">
+            @if(!$operationsAvailable || in_array($operationsTab, ['chat', 'intake'], true))
+            <form class="rt-chatbot__composer" x-on:submit.prevent="submitComposer($event)">
+                @if($operationsAvailable && $operationsTab === 'intake')
+                    <p class="rt-assistant-operations__composer-label"><i class="far fa-inbox" aria-hidden="true"></i> Als AI-Eingang erfassen <small>Keine verbindliche Zusage</small></p>
+                @endif
                 <div
                     class="rt-chatbot__attachments"
                     x-ref="attachmentList"
@@ -1090,7 +1120,7 @@
                         class="rt-chatbot__sr-only"
                         type="file"
                         multiple
-                        accept=".txt,.md,.csv,.json,.pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx,.pptx,text/plain,text/markdown,text/csv,application/json,application/pdf,image/jpeg,image/png,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        accept=".txt,.md,.csv,.json,.pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx,.pptx,text/plain,text/markdown,text/csv,application/json,application/pdf,image/jpeg,image/png,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation{{ $operationsAvailable && $operationsTab === 'intake' ? ',.wav,.mp3,.ogg,.webm,.m4a,.mp4,.aac,.flac,audio/*' : '' }}"
                         tabindex="-1"
                         x-ref="attachmentInput"
                         wire:model="attachments"
@@ -1100,13 +1130,13 @@
                         x-on:livewire-upload-finish="completeAttachmentUpload()"
                         x-on:livewire-upload-error="failAttachmentUpload()"
                         x-on:livewire-upload-cancel="cancelAttachmentUpload()"
-                        x-bind:disabled="isLoading || attachmentUploadActive || navigationCleanupInFlight || attachmentCount >= 3 || !assistantAvailable"
+                        x-bind:disabled="isLoading || operationsBusy || attachmentUploadActive || navigationCleanupInFlight || attachmentCount >= 3 || !(assistantAvailable || operationsAvailable)"
                     >
                     <button
                         type="button"
                         class="rt-chatbot__attach"
                         x-on:click="$refs.attachmentInput?.click()"
-                        x-bind:disabled="isLoading || attachmentUploadActive || navigationCleanupInFlight || attachmentCount >= 3 || !assistantAvailable"
+                        x-bind:disabled="isLoading || operationsBusy || attachmentUploadActive || navigationCleanupInFlight || attachmentCount >= 3 || !(assistantAvailable || operationsAvailable)"
                         title="{{ $isGerman ? 'Dateien anhängen' : 'Attach files' }}"
                     >
                         <span class="rt-chatbot__sr-only">{{ $isGerman ? 'Dateien anhängen' : 'Attach files' }}</span>
@@ -1123,7 +1153,7 @@
                             x-bind:aria-pressed="recording.toString()"
                             x-bind:disabled="!manualVoiceAvailable() || voiceUploading || isLoading || navigationCleanupInFlight"
                             wire:loading.attr="disabled"
-                            wire:target="sendMessage,quickAction"
+                            wire:target="sendMessage,quickAction,runOperationsAction,submitOperationsIntake"
                             x-on:click="toggleVoice()"
                             title="{{ $isGerman ? 'Spracheingabe' : 'Speech input' }}"
                         >
@@ -1144,12 +1174,12 @@
                         wire:model="message"
                         x-on:input="resizeComposer(); updateComposerState()"
                         x-on:keydown.enter.exact.prevent="handleComposerEnter($event)"
-                        x-bind:disabled="isLoading || navigationCleanupInFlight || !assistantAvailable"
+                        x-bind:disabled="isLoading || operationsBusy || navigationCleanupInFlight || !(assistantAvailable || operationsAvailable)"
                         wire:loading.attr="disabled"
-                        wire:target="sendMessage,quickAction"
+                        wire:target="sendMessage,quickAction,runOperationsAction,submitOperationsIntake"
                         placeholder="{{ $isGerman ? 'Frag mich etwas zu RailTime …' : 'Ask me anything about RailTime …' }}"
                         autocomplete="off"
-                        @disabled(! $assistantIsAvailable)
+                        @disabled(! $assistantIsAvailable && !$operationsAvailable)
                     ></textarea>
 
                     <button
@@ -1157,9 +1187,9 @@
                         class="rt-chatbot__send"
                         wire:loading.attr="disabled"
                         x-bind:disabled="!canSubmit()"
-                        title="{{ $isGerman ? 'Nachricht senden' : 'Send message' }}"
+                        title="{{ $operationsAvailable && $operationsTab === 'intake' ? 'Als AI-Eingang erfassen' : ($isGerman ? 'Nachricht senden' : 'Send message') }}"
                     >
-                        <span class="rt-chatbot__sr-only">{{ $isGerman ? 'Nachricht senden' : 'Send message' }}</span>
+                        <span class="rt-chatbot__sr-only">{{ $operationsAvailable && $operationsTab === 'intake' ? 'Als AI-Eingang erfassen' : ($isGerman ? 'Nachricht senden' : 'Send message') }}</span>
                         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                             <path d="m4 5 16 7-16 7 2.2-6.1L14 12 6.2 11.1 4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
                         </svg>
@@ -1179,6 +1209,7 @@
                 @endif
 
             </form>
+            @endif
         </div>
     </section>
 </div>

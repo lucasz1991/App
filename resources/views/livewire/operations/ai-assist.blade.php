@@ -3,7 +3,7 @@
     $allActions = collect($actions['page'])->concat($actions['global'])->values();
     // Antworttexte: erst escapen, dann **Hervorhebung** und Zeilenumbrüche erlauben.
     $format = fn (?string $text) => preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', e((string) $text));
-    $tabs = array_filter(['chat' => 'Chat', 'intake' => $intakesReady ? 'Eingänge' : null, 'actions' => 'Aktionen', 'activity' => 'Aktivitäten']);
+    $tabs = array_filter(['chat' => 'Chat', 'intake' => $intakesReady ? 'AI-Annahme' : null, 'actions' => 'Aktionen', 'activity' => 'Aktivitäten']);
     $period = \Carbon\CarbonImmutable::parse($from)->format('d.m.').' – '.\Carbon\CarbonImmutable::parse($until)->format('d.m.');
     $chips = [['Seite', $pageLabel]];
     if (in_array($page, ['shifts', 'calendar', 'planning'], true)) {
@@ -114,11 +114,8 @@
                 </div>
             </header>
 
-            <div class="rt-ai-assist__context" x-show="prefs.context">
-                <div class="rt-ai-assist__context-head">
-                    <span class="rt-ai-assist__context-mark"><i class="far fa-eye" aria-hidden="true"></i></span><span>Kontext</span><small>Grundlage der Aktionen</small>
-                    <button class="rt-ai-assist__context-off" type="button" x-on:click="setPref('context', false)" aria-label="Seitenkontext ausblenden" title="Ausblenden"><i class="far fa-times" aria-hidden="true"></i></button>
-                </div>
+            <details class="rt-ai-assist__context rt-ai-assist__context--compact" x-show="prefs.context">
+                <summary><i class="far fa-eye" aria-hidden="true"></i><span>{{ $pageLabel }}</span><small>{{ $reviewCount }} zur Prüfung</small><i class="far fa-chevron-down" aria-hidden="true"></i></summary>
                 <div class="rt-ai-assist__chips">
                     @foreach($chips as [$label, $value])
                         <span class="rt-ai-assist__chip"><small>{{ $label }}</small><strong>{{ $value }}</strong></span>
@@ -131,7 +128,7 @@
                         @endforeach
                     </div>
                 @endif
-            </div>
+            </details>
 
             <nav class="rt-ai-assist__tabs" role="tablist" aria-label="AI-Assist">
                 @foreach($tabs as $key => $label)
@@ -143,17 +140,34 @@
 
             <div class="rt-ai-assist__body" id="{{ $panelId }}-body" role="tabpanel" aria-labelledby="{{ $panelId }}-tab-{{ $tab }}">
                 @if($tab === 'chat')
-                    <div class="rt-ai-assist__messages" x-ref="messages" aria-live="polite">
+                    <div class="rt-ai-assist__messages" x-ref="messages" x-on:scroll.passive="handleMessagesScroll()" aria-live="polite">
                         @if($messages === [])
                             <div class="rt-ai-assist__empty" x-show="!busy">
                                 <span class="rt-ai-assist__orb rt-ai-assist__orb--empty" data-assistant-cloud-slot="empty" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span>
-                                <strong>Wobei kann ich helfen?</strong>
-                                <span>Ich werte Schichtplan, Eingang und Leistungen aus. Änderungen schlage ich vor – du entscheidest. Tippe <kbd>/</kbd> für Aktionen.</span>
+                                <strong>Was steht als Nächstes an?</strong>
+                                <span>AI-Annahme, Anfragen und Schichtplanung an einem Ort. Ich bereite Vorschläge vor, du gibst Änderungen frei.</span>
+                                @if($overview && $overview['available'])
+                                    <div class="rt-assistant-operations__overview">
+                                        @foreach(['review' => 'Zur Prüfung', 'busy' => 'In Analyse', 'waiting' => 'Warten auf Antwort'] as $key => $label)
+                                            <button type="button" wire:click="setTab('intake')"><strong>{{ $overview['counts'][$key] }}</strong><span>{{ $label }}</span></button>
+                                        @endforeach
+                                    </div>
+                                @endif
                                 <div class="rt-ai-assist__suggest">
                                     @foreach($suggestions as $question)
                                         <button type="button" x-on:click="ask(@js($question))"><i class="far fa-comment-alt" aria-hidden="true"></i>{{ $question }}</button>
                                     @endforeach
                                 </div>
+                                @if(!empty($overview['recent']))
+                                    <div class="rt-assistant-operations__recent">
+                                        <strong>Letzte Aktivitäten</strong>
+                                        <ol class="rt-ai-assist__activity">
+                                            @foreach(array_slice($overview['recent'], 0, 3) as $item)
+                                                <li><button type="button" class="rt-ai-assist__activity-item" wire:click="setTab('activity')"><span class="rt-ai-assist__activity-icon" data-tone="{{ $item['tone'] }}"><i class="far {{ $item['icon'] }}" aria-hidden="true"></i></span><span class="rt-ai-assist__activity-text"><strong>{{ $item['title'] }}</strong><small>{{ $item['detail'] }}</small></span><span class="rt-ai-assist__badge" data-tone="{{ $item['tone'] }}">{{ $item['status'] }}</span></button></li>
+                                            @endforeach
+                                        </ol>
+                                    </div>
+                                @endif
                             </div>
                         @endif
                         @foreach($messages as $message)
@@ -226,6 +240,7 @@
                             <div class="rt-ai-assist__msg rt-ai-assist__msg--typing"><span>AI-Assist wertet aus</span><i></i><i></i><i></i></div>
                         </div>
                     </div>
+                    <button type="button" class="rt-ai-assist__new-output" x-show="unseenOutput" style="display:none" x-on:click="jumpToLatest()">Neue Antworten <i class="far fa-arrow-down" aria-hidden="true"></i></button>
                 @elseif($tab === 'intake')
                     <div class="rt-ai-assist__scroll">
                         <div class="rt-ai-assist__intake-head">
@@ -319,6 +334,7 @@
 
             @if($tab === 'chat')
                 <form class="rt-ai-assist__composer" x-on:submit.prevent="submit()">
+                    <p class="rt-ai-assist__error" x-show="callError" style="display:none" role="alert" x-text="callError"></p>
                     <div class="rt-ai-assist__slash" role="listbox" aria-label="Aktionen" x-show="slash" style="display: none">
                         <template x-for="(action, index) in slashList" :key="action.key">
                             <button type="button" role="option" class="rt-ai-assist__slash-item" :aria-selected="index === slashIndex ? 'true' : 'false'" x-on:click="run(action.key)">

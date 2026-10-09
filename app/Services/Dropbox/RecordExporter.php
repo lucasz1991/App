@@ -10,6 +10,7 @@ use App\Models\DropboxIdentity;
 use App\Models\DropboxRecord;
 use App\Models\DropboxSource;
 use App\Models\EmployeeCompetencyFact;
+use App\Models\Shift;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -55,6 +56,10 @@ class RecordExporter
                 continue;
             }
             if ($appearances->isNotEmpty()) {
+                if ($record->domain !== 'planning' || (($record->metadata['imported_order'] ?? false)
+                    && Shift::whereKey($record->model_id)->whereIn('status', ['completed', 'cancelled'])->exists())) {
+                    continue; // Existing cells and closed imported history use the queued file comparison.
+                }
                 foreach (DropboxSource::whereIn('id', $appearances->pluck('source_id'))->where('profile', 'weekly')->get() as $source) {
                     $this->append($connection, $record, $source);
                 }

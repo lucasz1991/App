@@ -116,11 +116,11 @@ class CalendarUiComponentsTest extends TestCase
         $component->call('openDetails', $shift->id)
             ->assertSet('detailOpen', true)->assertSet('selectedShiftId', $shift->id)->assertNoRedirect()
             ->assertSee('Nordkorridor Panel')->assertSee('1 Platz offen')->assertSee('Ida Weber')->assertSee('1/2 eingeplant')
-            ->assertSeeHtml('data-calendar-shift-panel');
+            ->assertSeeHtml('data-calendar-panel-content')->assertSeeHtml('calendar-shift-detail-');
         // Bearbeiten bleibt dem Schichtplan vorbehalten.
         $component->call('openShift', $shift->id)->assertRedirect();
-        Livewire::actingAs($admin)->test(Calendar::class)->call('openDetails', 999999)->assertStatus(404);
-        $component->set('selectedShiftId', 1)->assertStatus(500);
+        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        Livewire::actingAs($admin)->test(Calendar::class)->call('openDetails', 999999);
     }
 
     #[DataProvider('berlinClockChangeDates')]

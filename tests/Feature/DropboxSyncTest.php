@@ -134,6 +134,51 @@ class DropboxSyncTest extends TestCase
         $this->assertTrue(DropboxWorkItem::where('resource', 'file:'.$source->id)->exists());
     }
 
+    public function test_existing_contact_export_queues_comparison_without_reopening_workbook_to_append(): void
+    {
+        $source = $this->source($this->workbook());
+        $identity = DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => 'erika muster', 'kind' => 'employee', 'details' => ['first_name' => 'Erika', 'last_name' => 'Muster']]);
+        $record = DropboxRecord::create(['connection_id' => $this->connection->id, 'domain' => 'contacts', 'model_type' => 'DropboxIdentity', 'model_id' => $identity->id]);
+        DropboxAppearance::create(['source_id' => $source->id, 'record_id' => $record->id, 'sheet' => 'Mitarbeiter Übersicht', 'slot' => '3', 'locator' => [], 'baseline' => [], 'last_excel' => [], 'fingerprint' => 'existing']);
+        app(RecordExporter::class)->export($this->connection, 'DropboxIdentity', $identity->id);
+        $this->assertSame(0, $this->client->downloads);
+        $this->assertSame(0, $this->client->uploads);
+        $this->assertTrue(DropboxWorkItem::where('resource', 'file:'.$source->id)->exists());
+    }
+
+    public function test_closed_import_export_updates_existing_file_without_appending_retrospective_copies(): void
+    {
+        $bytes = $this->workbook();
+        $source = $this->source($bytes);
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        Shift::first()->update(['status' => ShiftStatus::Completed]);
+        $this->client->downloads = 0;
+        app(RecordExporter::class)->export($this->connection, 'Shift', Shift::first()->id);
+        $this->assertSame(0, $this->client->downloads);
+        $this->assertTrue(DropboxWorkItem::where('resource', 'file:'.$source->id)->exists());
+    }
+
+    public function test_configured_import_batch_resumes_without_duplicate_records(): void
+    {
+        $this->connection->update(['settings' => [...$this->connection->settings, 'matrix_path' => '/Disposition/Kompetenzmatrix.xlsx', 'import_chunk_size' => 50]]);
+        $package = new WorkbookPackage($this->matrixWorkbook());
+        $cells = [];
+        for ($row = 4; $row <= 63; $row++) {
+            $cells['A'.$row] = ['value' => $row];
+            $cells['B'.$row] = ['value' => 'Person-'.$row];
+            $cells['C'.$row] = ['value' => 'Test'];
+        }
+        $package->patch(['Mitarbeiter Übersicht' => $cells]);
+        $meta = $this->client->put('/Disposition/Kompetenzmatrix.xlsx', $package->bytes());
+        $source = app(SourceScanner::class)->register($this->connection, $meta);
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        $this->assertSame(50, DropboxRecord::count());
+        $this->assertSame(50, $source->fresh()->progress['next']);
+        app(FileSynchronizer::class)->sync($this->connection, $source->fresh());
+        $this->assertSame(62, DropboxRecord::count());
+        $this->assertNull($source->fresh()->progress);
+    }
+
     public function test_user_confirmed_historical_import_closes_shift_and_order_without_publishing_or_time_approval(): void
     {
         $this->connection->update(['settings' => [...$this->connection->settings, 'retain_unassigned_drafts' => true, 'historical_completed_before' => '2026-10-09T07:00:00Z']]);
@@ -149,6 +194,8 @@ class DropboxSyncTest extends TestCase
         $this->assertSame(0, WorkTimeEntry::count());
         $this->assertSame(0, EmployeeQualification::count());
         $this->assertNull(DropboxRecord::where('domain', 'planning')->first()->metadata['assignment_pending']);
+        $cloud = app(WorkbookReader::class)->read($this->client->download($this->connection, $source->file_id)['bytes'], 'weekly');
+        $this->assertFalse($cloud['rows'][0]['values']['draft']);
         $history = Order::first()->statusHistory()->count();
         app(FileSynchronizer::class)->sync($this->connection->fresh(), $source->fresh());
         $this->assertSame($history, Order::first()->statusHistory()->count());

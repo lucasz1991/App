@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Tools;
 
+use App\Livewire\Tools\Concerns\InteractsWithOperationsAssist;
 use App\Models\User;
 use App\Services\Ai\AssistantApplicationTools;
 use App\Services\Ai\AssistantKnowledgeToolRunner;
@@ -32,6 +33,7 @@ use Livewire\WithFileUploads;
 
 class Chatbot extends Component
 {
+    use InteractsWithOperationsAssist;
     use WithFileUploads;
 
     private const PAGE_HELP_HINT_LIMIT = 5;
@@ -92,6 +94,7 @@ class Chatbot extends Component
         $user = $this->authorizeUser();
         $this->assistantName = (string) config('assistant.name', 'RailTime Assist');
         $this->pageRouteName = request()->route()?->getName() ?? 'unknown';
+        $this->initializeOperationsAssistContext();
         $this->refreshPageHelpHints();
         $this->quickActions = $this->availableQuickActions();
         $this->refreshAvailability();
@@ -136,6 +139,10 @@ class Chatbot extends Component
             if (mb_strlen($input) > $maxCharacters) {
                 $this->addError('message', 'Bitte gib eine Nachricht mit höchstens '.$maxCharacters.' Zeichen ein.');
 
+                return;
+            }
+
+            if (! $hasAttachments && $this->routeOperationsMessage($input)) {
                 return;
             }
 
@@ -567,6 +574,12 @@ class Chatbot extends Component
         $this->authorizeUser();
         $this->resetValidation(['attachments', 'attachments.*']);
 
+        if ($this->operationsTab === 'intake') {
+            $this->validateOperationsIntakeAttachments();
+
+            return;
+        }
+
         try {
             app(AssistantAttachmentProcessor::class)->validate($this->attachments);
         } catch (AssistantAttachmentException $exception) {
@@ -634,6 +647,7 @@ class Chatbot extends Component
                 return;
             }
             app(AssistantPendingActionStore::class)->forget($user);
+            $this->forgetOperationsCards($user);
             $this->resetHistory();
             $this->message = '';
             $this->dispatch('railtime-assistant-cleared');
@@ -646,12 +660,14 @@ class Chatbot extends Component
     {
         return view('livewire.tools.chatbot', [
             'pageBuilderUi' => $this->pageBuilderUiContext(),
+            'operationsAssist' => $this->operationsAssistData(),
+            'operationsCards' => $this->operationsDisplayCards(),
         ]);
     }
 
     private function authorizeUser(): User
     {
-        return app(AssistantAccess::class)->authorize();
+        return app(AssistantAccess::class)->authorize(auth()->user()?->fresh());
     }
 
     private function refreshPageHelpHints(): void
@@ -727,6 +743,7 @@ class Chatbot extends Component
         $this->chatHistory = is_array($history)
             ? array_values(array_slice($history, -(int) config('assistant.history_limit', 80)))
             : [];
+        $this->chatHistory = $this->authorizedOperationsHistory($this->chatHistory);
     }
 
     private function resetHistory(): void
@@ -734,6 +751,7 @@ class Chatbot extends Component
         session()->forget($this->attachmentSessionKey());
         $german = app()->getLocale() === 'de';
         $pageBuilder = $this->isPageBuilderRoute();
+        $operations = ! $pageBuilder && $this->operationsAvailable();
         $this->chatHistory = [[
             'key' => (string) Str::uuid(),
             'role' => 'assistant',
@@ -741,9 +759,13 @@ class Chatbot extends Component
                 ? ($german
                     ? 'Ich begleite dich direkt im LMZ PageBuilder. Ich kann einzelne Segmente bearbeiten und im Marketing Studio auch Story, Post und Web gemeinsam im RailTime-Stil neu gestalten. Jede Änderung zeige ich dir vor der Übernahme vollständig an.'
                     : 'I work alongside you in the LMZ PageBuilder. I can edit individual segments and redesign Story, Post and Web together in the Marketing Studio. Every change is shown in full before it is applied.')
-                : ($german
-                    ? 'Hallo! Ich helfe dir kurz und direkt in RailTime. Ich kann freigegebene Seiten öffnen und dich durch eine lokale Wagenliste führen; Änderungen führe ich erst nach deiner Bestätigung aus.'
-                    : 'Hello! I provide concise, direct help in RailTime. I can open approved pages and guide you through a local wagon list; changes only run after your confirmation.'),
+                : ($operations
+                    ? ($german
+                        ? 'Ich unterstütze AI-Annahme, Anfragen und Schichtplanung. Erfasste Eingänge und Aktivitäten findest du hier; Änderungen bestätigst du persönlich.'
+                        : 'I help with AI intake, inquiries and shift planning. Captured inquiries and activities are available here; you personally confirm changes.')
+                    : ($german
+                        ? 'Hallo! Ich helfe dir kurz und direkt in RailTime. Ich kann freigegebene Seiten öffnen und dich durch eine lokale Wagenliste führen; Änderungen führe ich erst nach deiner Bestätigung aus.'
+                        : 'Hello! I provide concise, direct help in RailTime. I can open approved pages and guide you through a local wagon list; changes only run after your confirmation.')),
             'created_at' => now()->toIso8601String(),
             'actions' => $pageBuilder
                 ? []
@@ -769,6 +791,8 @@ class Chatbot extends Component
         string $content,
         array $attachments = [],
         array $actions = [],
+        bool $localOnly = false,
+        string $localAbility = '',
     ): array {
         $entry = [
             'key' => (string) Str::uuid(),
@@ -776,6 +800,12 @@ class Chatbot extends Component
             'content' => $content,
             'created_at' => now()->toIso8601String(),
         ];
+        if ($localOnly) {
+            $entry['local_only'] = true;
+            if (in_array($localAbility, ['operations.manage', 'operations.inquiries.manage'], true)) {
+                $entry['local_ability'] = $localAbility;
+            }
+        }
 
         if ($attachments !== []) {
             $entry['attachments'] = $attachments;
@@ -1488,6 +1518,8 @@ class Chatbot extends Component
     {
         $candidates = collect($this->chatHistory)
             ->filter(fn (mixed $entry): bool => is_array($entry)
+                && empty($entry['local_only'])
+                && ! isset($entry['operations_card'])
                 && in_array($entry['role'] ?? null, ['user', 'assistant'], true)
                 && is_string($entry['content'] ?? null)
                 && trim($entry['content']) !== '')

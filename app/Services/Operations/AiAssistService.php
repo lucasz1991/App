@@ -8,6 +8,10 @@ use App\Enums\ShiftStatus;
 use App\Livewire\Operations\AiIntakeInbox;
 use App\Models\AbsenceRequest;
 use App\Models\AiIntake;
+use App\Models\AiIntakeDelivery;
+use App\Models\AiIntakeMessage;
+use App\Models\AiIntakeProposal;
+use App\Models\AiIntakeRun;
 use App\Models\OperationAudit;
 use App\Models\OperationInquiry;
 use App\Models\Order;
@@ -148,7 +152,30 @@ class AiAssistService
 
     public function reviewCount(User $actor): int
     {
-        return $actor->can('operations.inquiries.manage') && AiIntakeSchema::ready() ? AiIntake::where('status', 'review')->count() : 0;
+        $actor = $this->readActor($actor);
+
+        return $actor?->can('operations.inquiries.manage') && AiIntakeSchema::ready() ? AiIntake::where('status', 'review')->count() : 0;
+    }
+
+    /** Counts cover all permitted intakes, independently of the bounded inbox and activity lists. */
+    public function overview(User $actor): array
+    {
+        $actor = $this->readActor($actor);
+        $available = $actor?->can('operations.inquiries.manage') && AiIntakeSchema::ready();
+        $statuses = array_fill_keys(AiIntake::STATUSES, 0);
+        if ($available) {
+            foreach (AiIntake::query()->select('status')->selectRaw('COUNT(*) AS aggregate')->groupBy('status')->get() as $row) {
+                if (array_key_exists($row->status, $statuses)) {
+                    $statuses[$row->status] = (int) $row->aggregate;
+                }
+            }
+        }
+
+        return ['available' => (bool) $available, 'total' => array_sum($statuses), 'statuses' => $statuses,
+            'counts' => ['review' => $statuses['review'], 'busy' => $statuses['received'] + $statuses['analyzing'],
+                'waiting' => $statuses['waiting_customer'], 'error' => $statuses['failed'], 'ready' => $statuses['ready'],
+                'completed' => $statuses['completed'], 'paused' => $statuses['paused']],
+            'recent' => $available ? $this->activity($actor, 'intake')->take(5)->map(fn (array $item) => array_replace($item, ['at' => $item['at']->toIso8601String()]))->all() : []];
     }
 
     /** Freitext auf eine Aktion abbilden; null = Hilfetext. */
@@ -433,7 +460,8 @@ class AiAssistService
     /** @return Collection<int, AiIntake> */
     public function intakes(User $actor, string $search = '', string $status = 'all'): Collection
     {
-        if (! $actor->can('operations.inquiries.manage') || ! AiIntakeSchema::ready()) {
+        $actor = $this->readActor($actor);
+        if (! $actor?->can('operations.inquiries.manage') || ! AiIntakeSchema::ready()) {
             return collect();
         }
         abort_unless($status === 'all' || in_array($status, AiIntake::STATUSES, true), 422);
@@ -447,18 +475,18 @@ class AiAssistService
     /**
      * Aktivitäten aus AI-Eingängen und den eigenen AI-Assist-Einteilungen.
      *
-     * @return Collection<int, array{at: CarbonImmutable, kind: string, icon: string, title: string, detail: string, status: string, tone: string, href: ?string}>
+     * @return Collection<int, array{id: string, at: CarbonImmutable, kind: string, phase: string, state: string, icon: string, title: string, detail: string, status: string, tone: string, href: ?string, intake_id: ?int, reference: string}>
      */
     public function activity(User $actor, string $filter = 'all'): Collection
     {
         abort_unless(in_array($filter, ['all', 'intake', 'planning'], true), 422);
+        $actor = $this->readActor($actor);
+        if (! $actor) {
+            return collect();
+        }
         $items = collect();
         if ($filter !== 'planning' && $actor->can('operations.inquiries.manage') && AiIntakeSchema::ready()) {
-            foreach (AiIntake::query()->with('customer')->latest('updated_at')->limit(15)->get() as $intake) {
-                $items->push(['at' => CarbonImmutable::parse($intake->updated_at), 'kind' => 'intake', 'icon' => $intake->status === 'completed' ? 'fa-check' : 'fa-inbox',
-                    'title' => $intake->title ?: 'Eingang #'.$intake->id, 'detail' => ($intake->customer?->company_name ?? 'Kunde offen').($this->missing($intake) !== 'vollständig' ? ' · '.$this->missing($intake) : ''),
-                    'status' => AiIntakeInbox::LABELS[$intake->status] ?? $intake->status, 'tone' => $this->tone($intake->status), 'href' => $this->intakeUrl($intake)]);
-            }
+            $items = $this->intakeActivity();
         }
         if ($filter !== 'intake' && $actor->can('operations.manage')) {
             $audits = OperationAudit::query()->with('actor:id,name')->whereIn('action', ['ai_assist.requested', 'ai_assist.withdrawn'])
@@ -468,14 +496,106 @@ class AiAssistService
             foreach ($audits as $audit) {
                 $shift = $shifts->get($audit->subject_id);
                 $requested = $audit->action === 'ai_assist.requested';
-                $items->push(['at' => $audit->created_at, 'kind' => 'planning', 'icon' => $requested ? 'fa-user-plus' : 'fa-undo',
+                $items->push(['id' => 'audit:'.$audit->id, 'at' => CarbonImmutable::parse($audit->getRawOriginal('created_at'), 'UTC'), 'kind' => 'planning', 'phase' => 'planning', 'state' => $requested ? 'requested' : 'withdrawn', 'intake_id' => null, 'reference' => 'Schicht #'.$audit->subject_id, 'icon' => $requested ? 'fa-user-plus' : 'fa-undo',
                     'title' => ($people[$audit->data['user_id'] ?? 0] ?? 'Mitarbeiter').' · '.($shift?->title ?? 'Schicht'),
                     'detail' => ($requested ? 'Als Angefragt eingeteilt' : 'Einteilung zurückgenommen').' · '.($audit->actor?->name ?? 'Disposition').($shift ? ' · '.$this->when($shift) : ''),
                     'status' => $requested ? 'Übernommen' : 'Zurückgenommen', 'tone' => $requested ? 'ok' : 'neutral', 'href' => null]);
             }
         }
 
-        return $items->sortByDesc('at')->take(30)->values();
+        return $items->sort(fn (array $left, array $right) => $right['at']->getTimestamp() <=> $left['at']->getTimestamp() ?: strcmp($right['id'], $left['id']))->take(30)->values();
+    }
+
+    /** Each source is bounded independently: a new run on an older intake must remain visible. */
+    private function intakeActivity(): Collection
+    {
+        $items = collect();
+        $relation = 'intake:id,public_id,title,source_type,customer_id';
+        $push = function (AiIntake $intake, string $id, $at, string $phase, string $state, string $title, string $detail, string $status, string $tone, string $icon) use ($items): void {
+            $label = mb_substr(preg_replace('/[\x00-\x1f\x7f]/u', ' ', $intake->title ?? '') ?? '', 0, 180);
+            $items->push(['id' => $id, 'at' => CarbonImmutable::parse($at), 'kind' => 'intake', 'phase' => $phase, 'state' => $state,
+                'intake_id' => (int) $intake->id, 'reference' => 'Eingang #'.$intake->id, 'icon' => $icon, 'title' => $title,
+                'detail' => ($label !== '' ? $label : 'Eingang #'.$intake->id).' · '.$detail, 'status' => $status, 'tone' => $tone, 'href' => $this->intakeUrl($intake)]);
+        };
+
+        // Older records without message history still have a genuine receipt timestamp.
+        foreach (AiIntake::query()->select(['id', 'public_id', 'title', 'source_type', 'customer_id', 'created_at'])->doesntHave('messages')->latest('created_at')->latest('id')->limit(30)->get() as $intake) {
+            $push($intake, 'intake:'.$intake->id.':received', $intake->created_at, 'receipt', 'received', 'Eingang erfasst', 'Zur Bearbeitung erfasst', 'Erfasst', 'info', 'fa-inbox');
+        }
+        foreach (AiIntake::query()->select(['id', 'public_id', 'title', 'source_type', 'customer_id', 'paused_at'])->whereNotNull('paused_at')->latest('paused_at')->latest('id')->limit(30)->get() as $intake) {
+            $push($intake, 'intake:'.$intake->id.':paused', $intake->paused_at, 'analysis', 'paused', 'Verarbeitung pausiert', 'Automatische Verarbeitung wurde persönlich pausiert', 'Pausiert', 'neutral', 'fa-pause');
+        }
+        foreach (AiIntakeMessage::query()->select(['id', 'intake_id', 'direction', 'created_at'])->with($relation)->where('direction', 'inbound')->latest('created_at')->latest('id')->limit(30)->get() as $message) {
+            if ($message->intake) {
+                $push($message->intake, 'message:'.$message->id.':received', $message->created_at, 'receipt', 'received', 'Nachricht eingegangen', $message->intake->source_type === 'email' ? 'E-Mail im Eingang gespeichert' : 'Text oder Aufnahme im Eingang gespeichert', 'Erfasst', 'info', 'fa-inbox');
+            }
+        }
+        foreach (AiIntakeRun::query()->select(['id', 'intake_id', 'kind', 'status', 'started_at', 'finished_at'])->with($relation)->whereIn('kind', ['analysis', 'apply'])->orderByRaw('COALESCE(finished_at, started_at) DESC')->latest('id')->limit(30)->get() as $run) {
+            if (! $run->intake) {
+                continue;
+            }
+            $apply = $run->kind === 'apply';
+            $phase = $apply ? 'proposal' : 'analysis';
+            if ($run->started_at) {
+                $push($run->intake, 'run:'.$run->id.':started', $run->started_at, $phase, 'running', $apply ? 'Entwurfserstellung gestartet' : 'Analyse gestartet', $apply ? 'Freigegebene Grundlage wird verarbeitet' : 'Gespeicherte Quelle wird ausgewertet', 'Gestartet', 'info', 'fa-play');
+            }
+            if ($run->finished_at && in_array($run->status, ['succeeded', 'failed', 'stale'], true)) {
+                [$title, $detail, $status, $tone, $icon] = match ($run->status) {
+                    'succeeded' => [$apply ? 'Entwurfserstellung abgeschlossen' : 'Analyse abgeschlossen', $apply ? 'Entwürfe wurden vorbereitet; Besetzung und Veröffentlichung bleiben gesondert freigegeben' : 'Auswertung gespeichert; fachliche Prüfung bleibt erforderlich', 'Abgeschlossen', 'ok', 'fa-check'],
+                    'failed' => [$apply ? 'Entwurfserstellung prüfen' : 'Analyse prüfen', 'Verarbeitung wurde beendet; Ergebnis im Eingang prüfen', 'Prüfung nötig', 'warn', 'fa-exclamation-triangle'],
+                    'stale' => ['Verarbeitung verworfen', 'Die Grundlage war nicht mehr aktuell; kein Ergebnis übernommen', 'Verworfen', 'neutral', 'fa-history'],
+                };
+                $push($run->intake, 'run:'.$run->id.':finished', $run->finished_at, $phase, $run->status, $title, $detail, $status, $tone, $icon);
+            }
+        }
+        foreach (AiIntakeDelivery::query()->select(['id', 'intake_id', 'status', 'question_round', 'created_at', 'updated_at', 'attempted_at', 'sent_at'])->with($relation)->latest('updated_at')->latest('id')->limit(30)->get() as $delivery) {
+            if (! $delivery->intake) {
+                continue;
+            }
+            $round = $delivery->question_round > 0 ? 'Rückfragerunde '.$delivery->question_round : 'Rückfrage';
+            $push($delivery->intake, 'delivery:'.$delivery->id.':queued', $delivery->created_at, 'clarification', 'pending', 'Rückfrage vorbereitet', $round.' für Versand vorgemerkt', 'Vorgemerkt', 'info', 'fa-envelope');
+            if ($delivery->attempted_at) {
+                $push($delivery->intake, 'delivery:'.$delivery->id.':attempted', $delivery->attempted_at, 'clarification', 'sending', 'Rückfrage: Versand gestartet', $round.' · Versandversuch gespeichert', 'Gestartet', 'info', 'fa-paper-plane');
+            }
+            if ($delivery->status === 'sent' && $delivery->sent_at) {
+                $push($delivery->intake, 'delivery:'.$delivery->id.':sent', $delivery->sent_at, 'clarification', 'sent', 'Rückfrage versendet', $round.' · an den Mailserver übergeben; Antwort ausstehend', 'Versendet', 'ok', 'fa-paper-plane');
+            } elseif (in_array($delivery->status, ['unknown', 'canceled'], true)) {
+                $unknown = $delivery->status === 'unknown';
+                $push($delivery->intake, 'delivery:'.$delivery->id.':'.$delivery->status, $delivery->updated_at, 'clarification', $delivery->status, $unknown ? 'Rückfrage: Versandstatus unklar' : 'Rückfrage abgebrochen', $unknown ? 'Keine automatische Wiederholung; Verlauf im Eingang prüfen' : 'Vorgemerkter Versand wurde abgebrochen', $unknown ? 'Prüfung nötig' : 'Abgebrochen', $unknown ? 'warn' : 'neutral', 'fa-envelope');
+            }
+        }
+        foreach (AiIntakeProposal::query()->select(['id', 'intake_id', 'position_index', 'status', 'created_at', 'updated_at', 'approved_at', 'applied_at'])->with($relation)->latest('updated_at')->latest('id')->limit(30)->get() as $proposal) {
+            if (! $proposal->intake) {
+                continue;
+            }
+            $position = 'Leistung '.((int) $proposal->position_index + 1);
+            $push($proposal->intake, 'proposal:'.$proposal->id.':prepared', $proposal->created_at, 'proposal', 'proposed', 'Leistung vorbereitet', $position.' · Vorschlag zur persönlichen Prüfung gespeichert', 'Vorbereitet', 'info', 'fa-clipboard-list');
+            if ($proposal->approved_at) {
+                $push($proposal->intake, 'proposal:'.$proposal->id.':approved', $proposal->approved_at, 'proposal', 'approved', 'Leistung persönlich freigegeben', $position.' · Freigabe der Grundlage gespeichert', 'Freigegeben', 'ok', 'fa-check');
+            }
+            if ($proposal->applied_at && $proposal->status === 'applied') {
+                $push($proposal->intake, 'proposal:'.$proposal->id.':applied', $proposal->applied_at, 'proposal', 'applied', 'Planungsentwürfe erstellt', $position.' · Bedarf und Schichtentwürfe übernommen', 'Übernommen', 'ok', 'fa-calendar');
+            } elseif (in_array($proposal->status, ['failed', 'stale'], true)) {
+                $failed = $proposal->status === 'failed';
+                $push($proposal->intake, 'proposal:'.$proposal->id.':'.$proposal->status, $proposal->updated_at, 'proposal', $proposal->status, $failed ? 'Leistungsentwurf prüfen' : 'Leistungsvorschlag nicht mehr aktuell', $position.' · '.($failed ? 'Übernahme benötigt eine persönliche Prüfung' : 'Vorschlag wird nicht automatisch übernommen'), $failed ? 'Prüfung nötig' : 'Veraltet', $failed ? 'warn' : 'neutral', 'fa-clipboard-list');
+            }
+        }
+        $retries = OperationAudit::query()->select(['id', 'subject_id', 'created_at'])->where('action', 'ai.proposal.retry_approved')
+            ->where('subject_type', class_basename(AiIntakeProposal::class))->latest('created_at')->latest('id')->limit(30)->get();
+        $retryProposals = AiIntakeProposal::query()->select(['id', 'intake_id', 'position_index'])->with($relation)->whereIn('id', $retries->pluck('subject_id'))->get()->keyBy('id');
+        foreach ($retries as $audit) {
+            $proposal = $retryProposals->get($audit->subject_id);
+            if ($proposal?->intake) {
+                $push($proposal->intake, 'audit:'.$audit->id, CarbonImmutable::parse($audit->getRawOriginal('created_at'), 'UTC'), 'proposal', 'retry_approved', 'Entwurfserstellung erneut freigegeben', 'Leistung '.((int) $proposal->position_index + 1).' · erneuter Versuch wurde persönlich freigegeben', 'Freigegeben', 'info', 'fa-redo');
+            }
+        }
+
+        return $items;
+    }
+
+    private function readActor(User $actor): ?User
+    {
+        return User::query()->where('status', true)->find($actor->id);
     }
 
     public function intakeUrl(AiIntake $intake): string
@@ -496,8 +616,18 @@ class AiAssistService
     private function missing(AiIntake $intake): string
     {
         $missing = collect($intake->missing_fields ?? [])->map(fn ($field) => AiIntakeInbox::FIELD_LABELS[$field] ?? null)->filter()->take(3);
+        if (! $intake->customer_id) {
+            $missing->prepend('Kundenzuordnung');
+        }
+        if ($missing->isNotEmpty()) {
+            return 'offen: '.$missing->implode(', ');
+        }
 
-        return $missing->isEmpty() ? 'vollständig' : 'offen: '.$missing->implode(', ');
+        return match ($intake->status) {
+            'received' => 'Auswertung ausstehend',
+            'analyzing' => 'Wird ausgewertet',
+            default => 'Keine offenen Angaben erfasst',
+        };
     }
 
     private function shiftPlanUrl(array $context): string

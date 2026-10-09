@@ -3,7 +3,7 @@
     @if($page === 'shifts')
         <x-slot:actions><x-operations.create-action :module="$initialView === 'calendar' ? 'calendar' : 'shift-management'" /></x-slot:actions>
     @endif
-    <div class="min-w-0" data-page-workspace-content x-data x-on:rt-workspace-url.window="const target = new URL($event.detail.url, location.origin); if (target.origin === location.origin && target.pathname === location.pathname) { history.replaceState(history.state, '', target.href); $nextTick(() => $dispatch('rt-workspace-url-updated')); }">
+    <div class="min-w-0" data-page-workspace-content x-data x-on:rt-workspace-url.window="const target = new URL($event.detail.url, location.origin); if (target.origin === location.origin && target.pathname === location.pathname) { history.replaceState(history.state, '', target.href); $nextTick(() => { $dispatch('rt-workspace-url-updated'); $dispatch('operations-assistant-context-changed', { page: @js($page), view: target.searchParams.get('view') || '', section: target.searchParams.get('section') || '' }); }); }">
     @if($page === 'cases')
         <livewire:operations.case-workspace :initial-view="$initialView" :initial-section="$initialSection" :context="$context" />
     @elseif($page === 'customers')
@@ -18,8 +18,8 @@
         <livewire:operations.document-workspace :initial-view="$initialView" />
     @endif
     </div>
-    @if(in_array($page, ['attention', 'cases', 'planning', 'duty'], true) && \App\Support\Operations\OperationsAccess::ready() && (auth()->user()->can('operations.manage') || auth()->user()->can('operations.inquiries.manage')))
-        {{-- Übergreifender Disposition-Assistent (Chat, Eingänge, Aktionen, Aktivitäten) --}}
+    @if(in_array($page, ['attention', 'cases', 'planning', 'duty'], true) && \App\Support\Operations\OperationsAccess::ready() && (auth()->user()->can('operations.manage') || auth()->user()->can('operations.inquiries.manage')) && ! app(\App\Support\Ai\AssistantAccess::class)->shouldRender(auth()->user()))
+        {{-- Eigenständige Disposition bleibt bei ausgeschaltetem zentralen Chat verfügbar. --}}
         <livewire:operations.ai-assist :page="$page" :view="$initialView" :section="$initialSection" :key="'ai-assist-'.$page.'-'.$initialView.'-'.$initialSection" />
     @endif
 </x-ui.page>

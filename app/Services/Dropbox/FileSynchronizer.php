@@ -65,7 +65,8 @@ class FileSynchronizer
             } unset($entry);
         }
         $offset = ! $preview && (($source->progress['rev'] ?? '') === $rev || ($source->own_rev === $rev && $source->progress)) ? (int) ($source->progress['next'] ?? 0) : 0;
-        $end = $preview ? count($entries) : min(count($entries), $offset + 200);
+        $chunkSize = max(50, min(600, (int) ($connection->option('import_chunk_size') ?: 200)));
+        $end = $preview ? count($entries) : min(count($entries), $offset + $chunkSize);
         $selected = [];
         for ($i = $offset; $i < $end; $i++) {
             $selected[$entries[$i]['sheet'].'!'.$entries[$i]['slot']] = true;
@@ -204,6 +205,9 @@ class FileSynchronizer
                 $result = OperationsTransaction::run(function () use ($connection, $source, $rev, $recordId, $rows, $preview) {
                     $this->guard->current($connection, preview: $preview, lock: true);
                     $record = DropboxRecord::lockForUpdate()->findOrFail($recordId);
+                    if (! $preview) {
+                        app(HistoricalImportCompletion::class)->apply($record, User::findOrFail(1));
+                    }
                     $local = $this->domain->current($record);
                     $versions = $rows->map(fn ($b) => ['baseline' => $b['appearance']->baseline, 'excel' => $b['entry']['values'], 'origin' => $b['entry']['sheet'].'!'.$b['entry']['slot']])->all();
                     $merge = app(ThreeWayMerge::class)->merge($local, $versions);

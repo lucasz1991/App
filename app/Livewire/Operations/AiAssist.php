@@ -238,6 +238,7 @@ class AiAssist extends Component
             'hints' => $service->hints($actor),
             'reviewCount' => $service->reviewCount($actor),
             'messages' => $this->conversation(),
+            'overview' => $loaded ? $service->overview($actor) : null,
             'intakes' => $loaded && $this->tab === 'intake' ? $service->intakes($actor, $this->intakeSearch, $this->intakeStatus) : collect(),
             'intakesReady' => $actor->can('operations.inquiries.manage') && AiIntakeSchema::ready(),
             'activity' => $loaded && $this->tab === 'activity' ? $service->activity($actor, $this->activityFilter) : collect(),

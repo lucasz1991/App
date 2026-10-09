@@ -30,13 +30,19 @@ function parse(json) {
     }
 }
 
-export function aiAssist() {
+export function aiAssist({ embedded = false } = {}) {
     // Wurzel festhalten: in der verschachtelten Orb-Ebene zeigt $root auf das innere Element.
     let root = null;
     return {
         open: false,
         settingsOpen: false,
         busy: false,
+        loaded: false,
+        disposed: false,
+        callVersion: 0,
+        callError: '',
+        messagesPinned: true,
+        unseenOutput: false,
         bubble: false,
         text: '',
         slashIndex: 0,
@@ -44,10 +50,14 @@ export function aiAssist() {
         bubbleTimer: null,
         init() {
             root = this.$el;
-            this.prefs = readAiAssistPrefs(window.localStorage);
+            try {
+                this.prefs = readAiAssistPrefs(window.localStorage);
+            } catch {
+                this.prefs = { ...DEFAULT_PREFS };
+            }
             // Einmal je Sitzung meldet sich der Orb mit dem wichtigsten Hinweis.
             this.bubbleTimer = setTimeout(() => {
-                if (this.open || !this.prefs.proactive || !this.hints.length) return;
+                if (this.disposed || this.open || !this.prefs.proactive || !this.hints.length) return;
                 try {
                     if (window.sessionStorage.getItem(AI_ASSIST_BUBBLE_KEY)) return;
                     window.sessionStorage.setItem(AI_ASSIST_BUBBLE_KEY, '1');
@@ -55,11 +65,14 @@ export function aiAssist() {
                     return;
                 }
                 this.bubble = true;
-                this.bubbleTimer = setTimeout(() => { this.bubble = false; }, 9000);
+                this.bubbleTimer = setTimeout(() => { if (!this.disposed) this.bubble = false; }, 9000);
             }, 1400);
         },
         destroy() {
+            this.disposed = true;
+            this.callVersion++;
             clearTimeout(this.bubbleTimer);
+            root = null;
         },
         get hints() {
             return parse(root?.dataset.hints);
@@ -77,53 +90,106 @@ export function aiAssist() {
             return filterAiAssistActions(this.actions, this.text);
         },
         toggle(open = !this.open) {
+            if (this.disposed) return;
             this.open = open;
             this.bubble = false;
             if (!open) {
                 this.settingsOpen = false;
-                this.text = '';
             }
             this.$nextTick(() => {
+                if (this.disposed || this.open !== open) return;
                 if (open) {
                     this.scrollDown();
+                    this.resize();
                     this.$refs.input?.focus();
                 } else {
                     this.$refs.launcher?.focus();
                 }
             });
+            if (open) void this.ensureLoaded();
+        },
+        async ensureLoaded() {
+            if (this.loaded || this.busy || this.disposed) return false;
+            const success = await this.call('load');
+            if (success && !this.disposed) this.loaded = true;
+            return success;
         },
         async call(method, ...args) {
-            if (this.busy) return;
+            if (this.busy || this.disposed) return false;
+            this.handleMessagesScroll();
+            const height = this.$refs.messages?.scrollHeight ?? 0;
+            const version = ++this.callVersion;
             this.busy = true;
-            this.$nextTick(() => this.scrollDown());
+            this.callError = '';
+            let success = false;
+            this.$nextTick(() => { if (!this.disposed && version === this.callVersion) this.scrollDown(); });
             try {
-                await this.$wire[method](...args);
+                await this.request(method, ...args);
+                success = !this.disposed && version === this.callVersion;
+                return success;
+            } catch {
+                if (!this.disposed && version === this.callVersion) {
+                    this.callError = 'Die Aktion konnte nicht abgeschlossen werden. Deine Eingabe bleibt erhalten. Bitte erneut versuchen.';
+                }
+                return false;
             } finally {
+                if (this.disposed || version !== this.callVersion) return false;
                 this.busy = false;
-                this.$nextTick(() => this.scrollDown());
+                this.$nextTick(() => {
+                    if (this.disposed || version !== this.callVersion) return;
+                    const box = this.$refs.messages;
+                    if (success && method !== 'load' && box && box.scrollHeight > height && !this.messagesPinned) this.unseenOutput = true;
+                    this.scrollDown();
+                });
             }
         },
+        request(method, ...args) {
+            let cleanup;
+            return new Promise((resolve, reject) => {
+                if (typeof this.$wire?.$hook === 'function') {
+                    cleanup = this.$wire.$hook('commit', ({ commit, fail }) => {
+                        if (commit?.calls?.some(call => call.method === method)) fail(() => reject(new Error('Assistant request failed')));
+                    });
+                }
+                Promise.resolve(this.$wire[method](...args)).then(resolve, reject);
+            }).finally(() => { if (typeof cleanup === 'function') cleanup(); });
+        },
         run(key) {
+            if (this.busy || this.disposed) return Promise.resolve(false);
+            const draft = this.text;
             this.text = '';
             this.slashIndex = 0;
-            this.call('run', key);
+            return this.call('run', key).then(success => {
+                this.restoreDraft(success, draft);
+                return success;
+            });
         },
         ask(question) {
-            this.call('ask', question);
+            return this.call('ask', question);
         },
         submit() {
             const question = this.text.trim();
-            if (!question || this.busy) return;
+            if (!question || this.busy || this.disposed) return Promise.resolve(false);
             if (this.slash) {
                 const action = this.slashList[this.slashIndex];
-                if (action) this.run(action.key);
-                return;
+                return action ? this.run(action.key) : Promise.resolve(false);
             }
+            const draft = this.text;
             this.text = '';
             this.$nextTick(() => this.resize());
-            this.call('ask', question);
+            return this.call('ask', question).then(success => {
+                this.restoreDraft(success, draft);
+                return success;
+            });
+        },
+        restoreDraft(success, draft) {
+            if (!success && !this.disposed && this.text === '') {
+                this.text = draft;
+                this.$nextTick(() => { if (!this.disposed) this.resize(); });
+            }
         },
         keydown(event) {
+            if (this.disposed || event.isComposing || event.keyCode === 229) return;
             if (this.slash && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
                 event.preventDefault();
                 const count = Math.max(1, this.slashList.length);
@@ -132,7 +198,7 @@ export function aiAssist() {
             }
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                this.submit();
+                return this.submit();
             }
         },
         typed() {
@@ -153,12 +219,13 @@ export function aiAssist() {
             else this.toggle(false);
         },
         shortcut(event) {
+            if (embedded || this.disposed || event.defaultPrevented || event.isComposing || event.repeat) return;
             if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 'j') return;
             event.preventDefault();
             this.toggle();
         },
         hover() {
-            if (!this.open && this.prefs.proactive && this.hints.length) this.bubble = true;
+            if (!this.disposed && !this.open && this.prefs.proactive && this.hints.length) this.bubble = true;
         },
         bubbleRun(run) {
             this.bubble = false;
@@ -173,9 +240,23 @@ export function aiAssist() {
                 // Private Fenster: Einstellung gilt nur bis zum Neuladen.
             }
         },
-        scrollDown() {
+        handleMessagesScroll() {
+            if (this.disposed) return;
             const box = this.$refs.messages;
-            if (box) box.scrollTop = box.scrollHeight;
+            if (!box || box.isConnected === false) return;
+            this.messagesPinned = box.scrollHeight - box.scrollTop - box.clientHeight <= 72;
+            if (this.messagesPinned) this.unseenOutput = false;
+        },
+        jumpToLatest() {
+            this.scrollDown(true);
+        },
+        scrollDown(force = false) {
+            if (this.disposed || (!force && !this.messagesPinned)) return;
+            const box = this.$refs.messages;
+            if (!box || box.isConnected === false) return;
+            box.scrollTop = box.scrollHeight;
+            this.messagesPinned = true;
+            this.unseenOutput = false;
         },
     };
 }

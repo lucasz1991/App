@@ -70,7 +70,7 @@ class DomainAdapter
                 'role' => $shift->role_name ?? '', 'customer' => $shift->order->customer->company_name,
                 'ordered_at' => $details['ordered_at'] ?? '', 'cancellation' => $record->metadata['cancellation'] ?? $details['cancellation'] ?? '',
                 'information' => $details['information'] ?? '', 'billing_notes' => $details['billing_notes'] ?? '', 'other' => $details['other'] ?? '',
-                'draft' => (int) $shift->published_revision !== (int) $shift->revision || ! $shift->published_revision,
+                'draft' => $shift->status !== ShiftStatus::Completed && ((int) $shift->published_revision !== (int) $shift->revision || ! $shift->published_revision),
                 'cancelled' => $cancelled,
             ];
             if ($cancelled && ! preg_match('/storno|storniert/iu', $values['cancellation'])) {

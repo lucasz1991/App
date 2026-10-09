@@ -260,3 +260,7 @@ auth.json
 !/tests/Feature/DispatchMapWidgetTest.php
 !/tests/Feature/DispatchMapCompactUiTest.php
 !/tests/Frontend/dashboard-widget-input.test.js
+!/tests/Feature/ChatbotOperationsAssistTest.php
+!/tests/Feature/AiAssistActivityTest.php
+!/tests/Feature/AssistantOperationsUiTest.php
+!/tests/Frontend/chatbot-operations-assist.test.js

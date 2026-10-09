@@ -28,6 +28,9 @@ class HistoricalImportCompletion
             return;
         }
         $connection = DropboxConnection::findOrFail($record->connection_id);
+        if (! $connection->option('historical_completed_before')) {
+            return;
+        }
         SyncContext::import(fn () => OperationsTransaction::run(function () use ($record, $actor, $connection) {
             $shift = PlanningLocks::acquire([$record->model_id])->get($record->model_id);
             if (in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true) || ! $this->confirmedPast($connection, CarbonImmutable::instance($shift->ends_at))) {

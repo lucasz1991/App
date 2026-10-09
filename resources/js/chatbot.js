@@ -208,6 +208,18 @@ export function railtimeChatbot(config = {}) {
         pageBuilderRoute: Boolean(config.pageBuilderMode),
         pageBuilderActive: Boolean(config.pageBuilderMode),
         assistantAvailable: config.assistantAvailable !== false,
+        operationsAvailable: config.operationsAvailable === true,
+        operationsTab: config.operationsTab ?? 'chat',
+        operationsLoaded: config.operationsLoaded ?? false,
+        operationsPanelLoaded: false,
+        operationsLoading: false,
+        operationsBusy: false,
+        operationsError: '',
+        operationsDisposed: false,
+        operationsVersion: 0,
+        operationsLoadPromise: null,
+        localOperationsMessageKeys: [],
+        _operationsShortcutHandler: null,
         speechAvailable: config.speechAvailable !== false,
         speechStatusEndpoint: String(config.speechStatusEndpoint ?? ''),
         sttConfigured: config.sttConfigured === undefined
@@ -394,6 +406,7 @@ export function railtimeChatbot(config = {}) {
                 this.$nextTick(() => this.scrollMessages(false));
             };
             this._navigationHandler = () => {
+                this.operationsVersion++;
                 this.cancelAllPageBuilderActionClaims();
                 this.clearPageBuilderAssistState();
                 this.closeSettings(false);
@@ -452,6 +465,10 @@ export function railtimeChatbot(config = {}) {
                 window.addEventListener('resize', this._windowResizeHandler);
             }
             document.addEventListener('livewire:navigating', this._navigationHandler);
+            if (this.operationsAvailable) {
+                this._operationsShortcutHandler = event => this.handleOperationsShortcut(event);
+                document.addEventListener('keydown', this._operationsShortcutHandler);
+            }
             document.addEventListener('visibilitychange', this._visibilityHandler);
             window.addEventListener('online', this._onlineHandler);
 
@@ -520,9 +537,14 @@ export function railtimeChatbot(config = {}) {
             void this.refreshSpeechStatus('init');
             if (this.autoHelp) this.schedulePetBubble(true);
             this.scheduleRandomPetReaction();
+            if (this.open) void this.ensureOperationsLoaded();
         },
 
         destroy() {
+            this.operationsDisposed = true;
+            this.operationsVersion++;
+            if (this._operationsShortcutHandler) document.removeEventListener('keydown', this._operationsShortcutHandler);
+            this._operationsShortcutHandler = null;
             if (this.dockMediaQuery?.removeEventListener && this._dockChangeHandler) {
                 this.dockMediaQuery.removeEventListener('change', this._dockChangeHandler);
             }
@@ -584,13 +606,14 @@ export function railtimeChatbot(config = {}) {
         },
 
         petState() {
-            if (!this.assistantAvailable) return 'offline';
+            if (!this.assistantAvailable && !this.operationsAvailable) return 'offline';
             if (this.recording || this.voiceUploading) return 'listening';
             // Mouth/speech motion must reflect audible playback, not the
             // provider request or browser buffering phase.
             if (this.ttsPlaying && this.speaking) return 'speaking';
             if (
                 this.isLoading
+                || this.operationsBusy
                 || this.petStatusChecking
                 || this.ttsWorkerActive
                 || this.ttsPreparing
@@ -1359,6 +1382,7 @@ export function railtimeChatbot(config = {}) {
         },
 
         setOpen(value, focusComposer = false) {
+            if (this.operationsDisposed) return;
             const wasOpen = this.open;
             this.open = Boolean(value);
             this.syncPageBuilderAssistState();
@@ -1390,6 +1414,7 @@ export function railtimeChatbot(config = {}) {
                 this.requestPageBuilderContext();
             }
             void this.refreshSpeechStatus('open');
+            void this.ensureOperationsLoaded();
             this.$nextTick(() => {
                 this.scrollMessages(true);
                 if (focusComposer) {
@@ -1400,6 +1425,96 @@ export function railtimeChatbot(config = {}) {
 
         toggleOpen() {
             this.setOpen(!this.open, !this.open);
+        },
+
+        handleOperationsShortcut(event) {
+            if (!this.operationsAvailable || this.operationsDisposed || event.defaultPrevented || event.repeat || event.isComposing || event.altKey) return false;
+            if (!(event.ctrlKey || event.metaKey) || String(event.key).toLowerCase() !== 'j') return false;
+            event.preventDefault();
+            this.toggleOpen();
+            return true;
+        },
+
+        ensureOperationsLoaded() {
+            if (!this.operationsAvailable || this.operationsDisposed || this.operationsLoaded === true || this.operationsPanelLoaded) return Promise.resolve(true);
+            if (this.operationsLoadPromise) return this.operationsLoadPromise;
+            const version = this.operationsVersion;
+            this.operationsLoading = true;
+            this.operationsError = '';
+            this.operationsLoadPromise = this.operationsWireCall('loadOperationsAssist').then(() => {
+                if (this.operationsDisposed || version !== this.operationsVersion) return false;
+                // operationsLoaded is a locked server property; never write through its entanglement.
+                this.operationsPanelLoaded = true;
+                return true;
+            }).catch(() => {
+                if (!this.operationsDisposed && version === this.operationsVersion) this.operationsError = 'Die Dispositionsansicht konnte nicht geladen werden. Bitte erneut öffnen.';
+                return false;
+            }).finally(() => {
+                if (!this.operationsDisposed && version === this.operationsVersion) {
+                    this.operationsLoading = false;
+                    this.operationsLoadPromise = null;
+                }
+            });
+            return this.operationsLoadPromise;
+        },
+
+        operationsWireCall(method, ...args) {
+            let cleanup;
+            return new Promise((resolve, reject) => {
+                if (typeof this.$wire?.$hook === 'function') {
+                    cleanup = this.$wire.$hook('commit', ({ commit, fail }) => {
+                        if (commit?.calls?.some(call => call.method === method)) fail(() => reject(new Error('Assistant request failed')));
+                    });
+                }
+                Promise.resolve(this.$wire[method](...args)).then(resolve, reject);
+            }).finally(() => { if (typeof cleanup === 'function') cleanup(); });
+        },
+
+        async performOperationsCall(method, ...args) {
+            if (this.operationsDisposed || this.operationsBusy || this.isLoading || this.navigationCleanupInFlight) return false;
+            const version = this.operationsVersion;
+            this.operationsBusy = true;
+            this.operationsError = '';
+            try {
+                await this.operationsWireCall(method, ...args);
+                if (this.operationsDisposed || version !== this.operationsVersion) return false;
+                this.$nextTick(() => {
+                    if (this.operationsDisposed || version !== this.operationsVersion) return;
+                    this.updateComposerState();
+                    if (this.$refs.composer?.style) this.resizeComposer();
+                    this.observeMessages();
+                    this.scrollMessages(false);
+                });
+                return true;
+            } catch {
+                if (!this.operationsDisposed && version === this.operationsVersion) this.operationsError = 'Die Aktion konnte nicht abgeschlossen werden. Bitte den aktuellen Stand prüfen und erneut versuchen.';
+                return false;
+            } finally {
+                if (!this.operationsDisposed && version === this.operationsVersion) this.operationsBusy = false;
+            }
+        },
+
+        handleOperationsAction(key) {
+            if (!this.operationsAvailable || this.operationsDisposed || this.operationsBusy || this.isLoading || this.navigationCleanupInFlight) return Promise.resolve(false);
+            this.operationsTab = 'chat';
+            return this.performOperationsCall('runOperationsAction', key);
+        },
+
+        handleOperationsReply(rawDetail) {
+            const detail = normalizedEventDetail(rawDetail);
+            if (!this.operationsAvailable || this.operationsDisposed || detail.localOnly !== true || !detail.key) return false;
+            const key = `assistant:${String(detail.key)}`;
+            this.rememberAssistantKey(key);
+            this.localOperationsMessageKeys = [...new Set([...this.localOperationsMessageKeys, key])].slice(-MAX_KNOWN_MESSAGE_KEYS);
+            this.$nextTick(() => {
+                if (this.operationsDisposed) return;
+                this.updateComposerState();
+                if (this.$refs.composer?.style) this.resizeComposer();
+                this.observeMessages();
+                this.scrollMessages(false);
+            });
+            // Local operational results never start TTS, auto-listening, or a second assistant.
+            return true;
         },
 
         prefersReducedMotion() {
@@ -1488,12 +1603,17 @@ export function railtimeChatbot(config = {}) {
 
         handleAssistantReply(rawDetail) {
             const detail = normalizedEventDetail(rawDetail);
+            if (detail.localOnly === true || detail.local_only === true) {
+                return this.handleOperationsReply({ ...detail, localOnly: true });
+            }
             const text = String(detail.text ?? detail.content ?? '').trim();
             if (!text) return;
 
             const key = detail.key
                 ? `assistant:${String(detail.key)}`
                 : this.assistantMessageKey(detail);
+
+            if (this.isLocalOperationsMessage(key)) return;
 
             if (!this.rememberAssistantKey(key)) return;
 
@@ -1941,7 +2061,15 @@ export function railtimeChatbot(config = {}) {
             return 'unread';
         },
 
+        isLocalOperationsMessage(key) {
+            const value = String(key ?? '');
+            if (this.localOperationsMessageKeys.includes(value)) return true;
+            return Array.from(this.$refs?.messages?.querySelectorAll?.('[data-local-only="true"][data-assistant-message-key]') ?? [])
+                .some(row => row.dataset.assistantMessageKey === value);
+        },
+
         speak(text, key = null, options = {}) {
+            if (this.isLocalOperationsMessage(key)) return;
             if (!this.manualTtsAvailable()) {
                 this.audioError = this.strings.audioEndpointUnavailable;
                 void this.refreshSpeechStatus('tts-unavailable');
@@ -1959,6 +2087,7 @@ export function railtimeChatbot(config = {}) {
         },
 
         queueTtsSentence(text, key = null, options = {}) {
+            if (this.isLocalOperationsMessage(key)) return;
             const cleanText = String(text ?? '').trim().slice(0, MAX_TTS_TEXT_LENGTH);
             if (!cleanText || !this.manualTtsAvailable()) return;
             const cacheKey = String(options?.cacheKey ?? '').trim();
@@ -2503,8 +2632,12 @@ export function railtimeChatbot(config = {}) {
 
         canSubmit() {
             return Boolean(
-                this.assistantAvailable
+                (this.assistantAvailable || this.operationsAvailable)
+                && ['chat', 'intake'].includes(this.operationsTab)
+                && (this.operationsTab !== 'intake' || this.operationsAvailable)
                 && !this.isLoading
+                && !this.operationsBusy
+                && !this.operationsDisposed
                 && !this.attachmentUploadActive
                 && !this.navigationCleanupInFlight
                 && (this.composerHasText || this.attachmentCount > 0),
@@ -2514,9 +2647,15 @@ export function railtimeChatbot(config = {}) {
         handleComposerEnter(event) {
             if (event?.isComposing || !this.canSubmit()) return false;
 
-            this.$wire.sendMessage();
+            void this.submitComposer(event);
 
             return true;
+        },
+
+        submitComposer(event) {
+            event?.preventDefault?.();
+            if (event?.isComposing || !this.canSubmit()) return Promise.resolve(false);
+            return this.performOperationsCall(this.operationsTab === 'intake' ? 'submitOperationsIntake' : 'sendMessage');
         },
 
         handleAttachmentSelection(event) {
