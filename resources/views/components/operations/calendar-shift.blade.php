@@ -6,6 +6,7 @@
     class="rt-calendar-shift {{ $compact ? 'rt-calendar-shift-compact' : '' }} !block !h-auto w-full !whitespace-normal !text-left"
     data-calendar-shift="{{ $shift->id }}"
     data-calendar-staffing="{{ $shift->calendar_open > 0 ? 'open' : 'staffed' }}"
+    data-calendar-state="{{ $shift->calendar_state ?? 'staffed' }}"
 >
     <span class="rt-calendar-shift-time block text-xs font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $shift->calendar_starts->format($compact && $shift->calendar_starts->isSameDay($shift->calendar_ends) ? 'H:i' : 'd.m. H:i') }} – {{ $shift->calendar_ends->format($shift->calendar_starts->isSameDay($shift->calendar_ends) ? 'H:i' : 'd.m. H:i') }}</span>
     <span class="rt-calendar-shift-title mt-1 block break-words text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $shift->title }}</span>

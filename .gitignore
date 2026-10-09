@@ -255,3 +255,7 @@ auth.json
 !/tests/Feature/WorkTimeDatetimeMigrationTest.php
 !/tests/Feature/OperationsAccessReadinessTest.php
 !/tests/Feature/NavigationWorkflowStructureTest.php
+!/tests/Feature/EmployeeProfileScopeTest.php
+!/tests/Feature/EmployeeProfileIntegrationTest.php
+!/tests/Feature/DispatchMapWidgetTest.php
+!/tests/Frontend/dashboard-widget-input.test.js

@@ -2,6 +2,7 @@
 
 namespace App\Support\Operations;
 
+use App\Models\OperationInquiry;
 use App\Models\Order;
 use App\Models\Shift;
 
@@ -14,6 +15,10 @@ final class TimelineLocationPreview
 
     private static ?array $cityCentres = null;
 
+    private static ?array $locationAliases = null;
+
+    private static ?array $postcodes = null;
+
     private static ?string $path = null;
 
     /**
@@ -23,6 +28,36 @@ final class TimelineLocationPreview
      * @return array{state: string, label: string, place?: string, x?: float, y?: float, latitude?: float, longitude?: float}
      */
     public static function fromShift(Shift $shift): array
+    {
+        return self::shiftPreview($shift, true);
+    }
+
+    /** Map-only fallbacks must not change persisted regional exclusion policy. */
+    public static function forRegionalAssessment(Shift $shift): array
+    {
+        return self::shiftPreview($shift, false);
+    }
+
+    public static function fromOrder(Order $order): array
+    {
+        return self::structuredLocation(
+            $order->getAttribute('location_name'),
+            $order->getAttribute('city'),
+            $order->getAttribute('postal_code'),
+            $order->getAttribute('country'),
+        );
+    }
+
+    public static function fromInquiry(OperationInquiry $inquiry): array
+    {
+        // The inquiry's explicit worksite is separate from contact/customer and
+        // linked order addresses; none of those relationships are consulted.
+        $location = self::normalize($inquiry->getAttribute('location_name'));
+
+        return $location === null ? self::unlocated('unknown') : self::mapLocation($location);
+    }
+
+    private static function shiftPreview(Shift $shift, bool $mapFallbacks): array
     {
         $location = self::normalize($shift->getAttribute('location_name'));
         if ($location === null) {
@@ -34,6 +69,9 @@ final class TimelineLocationPreview
         // A shift can override its order's location. Never mix the override with
         // an unrelated order city/country, and never inspect customer addresses.
         if ($order instanceof Order && ($location === '' || $location === self::normalize($order->getAttribute('location_name')))) {
+            if ($mapFallbacks) {
+                return self::fromOrder($order);
+            }
             $country = self::normalize($order->getAttribute('country'));
             if ($country === null) {
                 return self::unlocated('unknown');
@@ -51,6 +89,11 @@ final class TimelineLocationPreview
             $location = $city !== '' ? $city : self::normalize($order->getAttribute('location_name'));
         }
 
+        return $mapFallbacks && $location !== null ? self::mapLocation($location) : self::exactLocation($location);
+    }
+
+    private static function exactLocation(?string $location): array
+    {
         if ($location === null || $location === '') {
             return self::unlocated('unknown');
         }
@@ -92,6 +135,126 @@ final class TimelineLocationPreview
         }
 
         return self::unlocated('unknown');
+    }
+
+    private static function structuredLocation(mixed $location, mixed $city, mixed $postalCode, mixed $country): array
+    {
+        $location = self::normalize($location);
+        $city = self::normalize($city);
+        $postalCode = self::normalize($postalCode);
+        $country = self::normalize($country);
+        if ($location === null || $city === null || $postalCode === null || $country === null) {
+            return self::unlocated('unknown');
+        }
+        if ($country !== '' && ! in_array($country, ['de', 'deu', 'deutschland', 'germany'], true)) {
+            return self::unlocated('outside');
+        }
+        if ($postalCode !== '') {
+            if (preg_match('/^\d{5}$/D', $postalCode) !== 1) {
+                return self::unlocated('unknown');
+            }
+            $postalCity = $city;
+            if ($city === '' && $location !== '') {
+                $namedLocation = self::mapLocation($location);
+                if ($namedLocation['state'] === 'located') {
+                    $postalCity = self::normalize($namedLocation['place']);
+                } elseif ($namedLocation['state'] === 'ambiguous') {
+                    $postalCity = $location;
+                }
+            }
+            $postal = self::postalLocation($postalCode, $postalCity);
+            if ($postal !== null) {
+                return $postal;
+            }
+        }
+
+        // A supplied city remains authoritative: conflicting/unknown city text
+        // must never borrow a known location name or a postcode-only guess.
+        return self::mapLocation($city !== '' ? $city : $location);
+    }
+
+    private static function mapLocation(string $location): array
+    {
+        $exact = self::exactLocation($location);
+        if ($exact['state'] === 'located' || ($exact['state'] === 'ambiguous' && array_key_exists($location, self::places()))) {
+            return $exact;
+        }
+        if (preg_match('/^(?:de[- ]?)?(\d{5})[ ,]+(.+)$/uD', $location, $matches) === 1) {
+            return self::postalLocation($matches[1], $matches[2]) ?? self::unlocated('unknown');
+        }
+
+        $name = self::mapName($location);
+        $aliases = self::locationAliases();
+        if (array_key_exists($name, $aliases)) {
+            return self::aliasLocation($aliases[$name]);
+        }
+        // A source-backed district/station alias can carry a bounded railway
+        // qualifier. Free text, routes, addresses and foreign suffixes cannot.
+        preg_match_all('/[\s,–—-]+/u', $name, $separators, PREG_OFFSET_CAPTURE);
+        foreach (array_reverse($separators[0]) as [$separator, $offset]) {
+            $prefix = substr($name, 0, $offset);
+            $suffix = substr($name, $offset + strlen($separator));
+            if (array_key_exists($prefix, $aliases) && self::isLocationQualifier($suffix, [])) {
+                return self::aliasLocation($aliases[$prefix]);
+            }
+        }
+
+        // Recognize railway label prefixes only around an exact known locality;
+        // arbitrary words before a city still cannot create a marker.
+        if (preg_match('/^(?:bahnhof|hauptbahnhof|hbf\.?|bf\.?|bhf\.?|rbf\.?|gbf\.?) (.+)$/uD', $location, $matches) === 1) {
+            return self::exactLocation($matches[1]);
+        }
+
+        return $exact;
+    }
+
+    private static function postalLocation(string $postalCode, string $city): ?array
+    {
+        $candidates = self::postcodes()[$postalCode] ?? null;
+        if ($candidates === null) {
+            return null;
+        }
+        $preview = $city !== '' ? self::exactLocation($city) : self::unlocated('unknown');
+        $key = self::mapName($preview['state'] === 'located' ? self::normalize($preview['place']) : $city);
+        if ($city !== '') {
+            $candidates = array_values(array_filter($candidates, fn (array $candidate): bool => self::mapName(self::normalize($candidate[0])) === $key));
+            if ($candidates === []) {
+                return self::unlocated('unknown');
+            }
+            if ($preview['state'] === 'located') {
+                return $preview;
+            }
+        }
+        if (count($candidates) !== 1) {
+            return self::unlocated('ambiguous');
+        }
+        [$name, $latitude, $longitude] = $candidates[0];
+        $located = self::located([0, $name, $latitude, $longitude]);
+        if ($located['state'] === 'located') {
+            $located['label'] = 'PLZ-Ortslage · ungefähr';
+        }
+
+        return $located;
+    }
+
+    private static function aliasLocation(?array $alias): array
+    {
+        if ($alias === null) {
+            return self::unlocated('ambiguous');
+        }
+        $located = self::located($alias, $alias[4] === 'city');
+        if ($located['state'] === 'located' && $alias[4] === 'station') {
+            $located['label'] = 'Bahnhofslage · ungefähr';
+        }
+
+        return $located;
+    }
+
+    private static function mapName(string $name): string
+    {
+        $name = str_replace(['–', '—'], '-', $name);
+
+        return preg_replace(['/\s*-\s*/u', '/\s*\(\s*/u', '/\s*\)\s*/u', '/\)(?=\pL)/u'], ['-', '(', ')', ') '], $name) ?? $name;
     }
 
     private static function located(array $place, bool $cityCentre = false): array
@@ -217,6 +380,29 @@ final class TimelineLocationPreview
         }
 
         return self::$cityCentres = ['names' => $names, 'localityAliases' => $data['localityAliases']];
+    }
+
+    private static function locationAliases(): array
+    {
+        if (self::$locationAliases === null) {
+            $data = json_decode(file_get_contents(dirname(__DIR__, 3).'/resources/data/maps/germany-location-aliases.json'), true, 512, JSON_THROW_ON_ERROR);
+            self::$locationAliases = [];
+            foreach ($data as $name => $point) {
+                $key = self::mapName($name);
+                if (array_key_exists($key, self::$locationAliases) && self::$locationAliases[$key] !== $point) {
+                    self::$locationAliases[$key] = null;
+                } else {
+                    self::$locationAliases[$key] = $point;
+                }
+            }
+        }
+
+        return self::$locationAliases;
+    }
+
+    private static function postcodes(): array
+    {
+        return self::$postcodes ??= json_decode(file_get_contents(dirname(__DIR__, 3).'/resources/data/maps/germany-postcodes.json'), true, 512, JSON_THROW_ON_ERROR);
     }
 
     private static function outline(): array

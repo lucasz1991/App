@@ -63,6 +63,12 @@ final class WidgetRegistry
                 'icon' => 'clipboard', 'section' => 'Disposition', 'ability' => self::opsAbility('operations.manage'),
                 'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
             ],
+            'operations_dispatch_map' => [
+                'title' => 'Dispositionskarte', 'description' => 'Schichten und offene Anfragen am gewählten Tag mit ungefährem Einsatzort.',
+                'icon' => 'map-pin', 'section' => 'Disposition',
+                'ability' => static fn (User $u) => DispatchMapData::availableFor($u),
+                'defaultVisible' => true, 'defaultSize' => 'lg', 'defaultRows' => 2,
+            ],
             'operations_shift_coverage' => [
                 'title' => 'Besetzung diese Woche', 'description' => 'Zugesagt gegenueber benoetigt, Tag fuer Tag.',
                 'icon' => 'bar-chart-2', 'section' => 'Disposition', 'ability' => self::opsAbility('operations.manage'),

@@ -1,4 +1,4 @@
-<div class="employee-workspace employee-profile">
+<div class="employee-workspace employee-profile" data-employee-profile-entry="{{ \App\Support\Operations\OperationsPages::url('people') }}">
   @php
     $roleLabel = match ($user->role) {
         'admin' => __('app.role_admin'),
@@ -51,29 +51,32 @@
 
       @include('livewire.admin.user-profile.partials.identity-card')
 
-    @if($embedded)
         <div class="employee-profile__section-picker max-w-sm">
-            <x-ui.forms.label for="employee-profile-section" value="Profilbereich" />
+            <x-ui.forms.label for="employee-profile-section" value="Bereich der Mitarbeiterakte" />
             <x-ui.forms.select id="employee-profile-section" aria-label="Profilbereich" change="$wire.setProfileTab($event.target.value)">
-                @foreach($employeeProfileTabs as $tabId => $tabDefinition)
-                    <option value="{{ $tabId }}" @selected($profileTab === $tabId)>{{ $tabDefinition['label'] }}</option>
+                @foreach(collect($employeeProfileTabs)->groupBy(fn ($definition) => $definition['group'] ?? 'Profil & Stammdaten', preserveKeys: true) as $group => $groupTabs)
+                    <optgroup label="{{ $group }}">
+                        @foreach($groupTabs as $tabId => $tabDefinition)
+                            <option value="{{ $tabId }}" data-icon-class="{{ $tabDefinition['icon'] }}" @selected($profileTab === $tabId)>{{ $tabDefinition['label'] }}</option>
+                        @endforeach
+                    </optgroup>
                 @endforeach
             </x-ui.forms.select>
+            <span wire:loading wire:target="setProfileTab" role="status" class="text-xs text-rt-muted dark:text-rt-dark-muted">Bereich wird geladen …</span>
         </div>
-    @endif
 
     <x-ui.accordion.tabs
-        :tabs="$embedded ? [$profileTab => $employeeProfileTabs[$profileTab]] : $employeeProfileTabs"
+        :tabs="[$profileTab => $employeeProfileTabs[$profileTab]]"
         :collapse-at="'md'"
-        :default="$embedded ? $profileTab : 'userDetails'"
-        :force-default="$embedded"
-        :persist="!$embedded"
-        persist-key="admin.user.{{ $user->id }}.tabs{{ $embedded ? '.'.$profileTab : '' }}"
+        :default="$profileTab"
+        :force-default="true"
+        :persist="false"
+        persist-key="admin.user.{{ $user->id }}.tabs.{{ $profileTab }}"
     >
         {{-- TAB: Details — klare zweispaltige Info-Sektionen --}}
         {{-- Wichtig: kein display-Utility (grid) direkt auf dem x-show-Panel,
              sonst gewinnt Tailwinds !important gegen Alpines inline display:none. --}}
-        @if(!$embedded || $profileTab === 'userDetails')
+        @if($profileTab === 'userDetails')
         <x-ui.accordion.tab-panel for="userDetails" contentClass="space-y-4">
           <div class="grid gap-4 lg:grid-cols-2" data-anim-stagger>
             {{-- Persoenliche Daten --}}
@@ -168,14 +171,14 @@
         @endif
 
         {{-- TAB: Bemerkungen --}}
-        @if(isset($employeeProfileTabs['userNotes']) && (!$embedded || $profileTab === 'userNotes'))
+        @if(isset($employeeProfileTabs['userNotes']) && $profileTab === 'userNotes')
         <x-ui.accordion.tab-panel for="userNotes" contentClass="space-y-4" panelClass="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
             <livewire:admin.user-profile.user-notes :user-id="$user->id" :key="'user-notes-'.$user->id" />
         </x-ui.accordion.tab-panel>
         @endif
 
         {{-- TAB: Dateien --}}
-        @if(isset($employeeProfileTabs['userFiles']) && (!$embedded || $profileTab === 'userFiles'))
+        @if(isset($employeeProfileTabs['userFiles']) && $profileTab === 'userFiles')
         <x-ui.accordion.tab-panel for="userFiles" contentClass="space-y-4" panelClass="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
             <livewire:tools.file-pools.manage-file-pools
                 :model-type="\App\Models\User::class"
@@ -187,7 +190,7 @@
         @endif
 
         {{-- TAB: Nachrichten --}}
-        @if(isset($employeeProfileTabs['userMessages']) && (!$embedded || $profileTab === 'userMessages'))
+        @if(isset($employeeProfileTabs['userMessages']) && $profileTab === 'userMessages')
         <x-ui.accordion.tab-panel for="userMessages" contentClass="space-y-4" panelClass="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
             @if (class_exists(\App\Livewire\Admin\UserProfile\UserMessages::class))
                 <livewire:admin.user-profile.user-messages :user-id="$user->id" :key="'user-messages-'.$user->id" />
@@ -200,7 +203,7 @@
         </x-ui.accordion.tab-panel>
         @endif
 
-        @if(isset($employeeProfileTabs['devices']) && (!$embedded || $profileTab === 'devices'))
+        @if(isset($employeeProfileTabs['devices']) && $profileTab === 'devices')
             <x-ui.accordion.tab-panel for="devices" contentClass="space-y-4">
                 <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                     <div>
@@ -243,20 +246,32 @@
             </x-ui.accordion.tab-panel>
         @endif
 
-        @if ($canViewMasterData && (!$embedded || $profileTab === 'masterData'))
+        @if ($canViewMasterData && $profileTab === 'masterData')
             <x-ui.accordion.tab-panel for="masterData" contentClass="space-y-4">
                 @include('livewire.admin.user-profile.partials.master-data', ['profile' => $profile])
             </x-ui.accordion.tab-panel>
         @endif
-        @if ($canViewMasterData && (!$embedded || $profileTab === 'documents'))
+        @if ($canViewMasterData && $profileTab === 'documents')
             <x-ui.accordion.tab-panel for="documents" contentClass="space-y-4">
                 <livewire:admin.user-profile.employee-documents :user-id="$user->id" :key="'employee-documents-'.$user->id" />
             </x-ui.accordion.tab-panel>
         @endif
 
-        @if ($canViewCompensation && (!$embedded || $profileTab === 'compensation'))
+        @if ($canViewCompensation && $profileTab === 'compensation')
             <x-ui.accordion.tab-panel for="compensation" contentClass="space-y-4">
                 @include('livewire.admin.user-profile.partials.compensation-data', ['profile' => $profile])
+            </x-ui.accordion.tab-panel>
+        @endif
+        @if(isset($employeeProfileTabs[$profileTab]['component']))
+            @php($section = $employeeProfileTabs[$profileTab])
+            <x-ui.accordion.tab-panel :for="$profileTab" contentClass="space-y-4">
+                @if($section['component'] === 'qualifications')
+                    <livewire:operations.personnel-review module="qualifications" :embedded="true" :profile-user-id="(int) $user->id" :key="'profile-qualifications-'.$user->id" />
+                @elseif($section['component'] === 'workforce')
+                    <livewire:operations.workforce-accounts :tab="$section['tab']" :embedded="true" :profile-user-id="(int) $user->id" :key="'profile-workforce-'.$user->id.'-'.$profileTab" />
+                @elseif($section['component'] === 'enhancements')
+                    <livewire:operations.personnel-enhancements :tab="$section['tab']" :embedded="true" :profile-user-id="(int) $user->id" :key="'profile-enhancements-'.$user->id.'-'.$profileTab" />
+                @endif
             </x-ui.accordion.tab-panel>
         @endif
     </x-ui.accordion.tabs>
@@ -264,7 +279,7 @@
   </x-dynamic-component>
 
     {{-- Compose-Modal fuer den Nachrichten-Tab --}}
-    @if(Gate::allows('users.messages.create') && (!$embedded || $profileTab === 'userMessages'))
+    @if(Gate::allows('users.messages.create') && $profileTab === 'userMessages')
         <livewire:admin.users.messages.message-form :key="'profile-message-form'" />
     @endif
 </div>

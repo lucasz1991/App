@@ -2114,9 +2114,9 @@ Alpine.data('dashboardWidgetGrid', () => ({
 
     bindReorder() {
         this.$root.addEventListener('dragstart', (event) => {
-            // Buttons, Links und die Rand-Resize-Griffe loesen ihre eigene
+            // Formfelder, Buttons, Links und die Rand-Resize-Griffe loesen ihre eigene
             // Geste aus statt eines Kartenzugs.
-            if (event.target.closest('.widget-resize-handle, button, a')) {
+            if (event.target.closest('.widget-resize-handle, button, a, input, select, textarea, label')) {
                 event.preventDefault();
 
                 return;
@@ -2378,7 +2378,7 @@ Alpine.data('dashboardWidgetGrid', () => ({
 
         this.$root.addEventListener('pointerdown', (event) => {
             if (this.$root.dataset.editing === 'true') return;
-            if (event.target.closest('.widget-resize-handle, button, a')) return;
+            if (event.target.closest('.widget-resize-handle, button, a, input, select, textarea, label')) return;
 
             const card = event.target.closest('[data-widget-item]');
             if (!card) return;
@@ -2404,6 +2404,7 @@ Alpine.data('dashboardWidgetGrid', () => ({
         // Auf Touch loest langes Halten oft zusaetzlich das native
         // Kontextmenue aus - das wuerde die Geste unterbrechen.
         this.$root.addEventListener('contextmenu', (event) => {
+            if (event.target.closest('input, select, textarea, label')) return;
             if (event.target.closest('[data-widget-item]')) event.preventDefault();
         });
     },
@@ -3292,6 +3293,23 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
     // exakt der aktuellen Detail-URL entspricht.
     const currentMatches = navigableItems.filter((item) => item.hasAttribute('data-current'));
     const fallbackMatches = navigableItems.filter((item) => item.dataset.menuActive === 'true');
+    // Full employee profiles use their authorized workspace entry even when
+    // the persisted sidebar still holds markers from another page.
+    let profileMatches = null;
+    const profileEntry = document.querySelector('[data-employee-profile-entry]')?.dataset.employeeProfileEntry;
+    if (profileEntry) {
+        try {
+            const entry = new URL(profileEntry, pageUrl);
+            if (entry.origin === pageUrl.origin) {
+                profileMatches = navigableItems.filter((item) => {
+                    const target = new URL(item.getAttribute('href'), pageUrl);
+                    return target.origin === entry.origin && target.pathname === entry.pathname && target.search === entry.search;
+                });
+            }
+        } catch {
+            // An invalid marker must not interrupt ordinary navigation.
+        }
+    }
     const pathMatches = navigableItems.filter((item) => {
         const target = new URL(item.getAttribute('href'), pageUrl);
         return target.origin === pageUrl.origin && target.pathname === pageUrl.pathname;
@@ -3321,9 +3339,9 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
     // bleibt nur fuer Ansichten ohne eigenen Menueintrag der aktive Rueckfall.
     const specificity = (item) => Array.from(new URL(item.getAttribute('href'), pageUrl).searchParams).length;
     const bestSpecificity = Math.max(-1, ...exactMatches.map(specificity));
-    const activeItems = pathMatches.length > 0
+    const activeItems = profileMatches ?? (pathMatches.length > 0
         ? exactMatches.filter((item) => specificity(item) === bestSpecificity)
-        : (currentMatches.length > 0 ? currentMatches : fallbackMatches);
+        : (currentMatches.length > 0 ? currentMatches : fallbackMatches));
     const activeClasses = ['bg-rt-accent-soft/70', 'text-rt-accent', 'font-semibold', 'shadow-rt-xs', 'before:h-5', 'before:opacity-100', 'dark:bg-rt-dark-nav-active', 'dark:text-rt-dark-accent'];
     const inactiveClasses = ['text-rt-muted', 'before:h-0', 'before:opacity-0', 'hover:bg-rt-nav-hover', 'hover:text-rt-accent', 'dark:text-white', 'dark:hover:bg-rt-dark-surface-muted', 'dark:hover:text-white'];
     const syncActiveStyle = (item, active) => {

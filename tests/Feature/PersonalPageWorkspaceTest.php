@@ -6,12 +6,15 @@ use App\Livewire\Admin\UserProfile;
 use App\Livewire\Operations\OperationsEnhancements;
 use App\Livewire\Operations\PersonalPageWorkspace;
 use App\Livewire\Operations\WorkforceAccounts;
+use App\Models\EmployeeQualification;
 use App\Models\OperationsMonthClosing;
 use App\Models\PersonnelTask;
+use App\Models\QualificationType;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile as Profile;
 use App\Services\Operations\PersonnelScopeService;
+use App\Support\Operations\ApplicationNavigation;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
@@ -71,11 +74,73 @@ class PersonalPageWorkspaceTest extends TestCase
         $this->actingAs($manager);
         Livewire::test(PersonalPageWorkspace::class, ['page' => 'people'])
             ->assertSet('view', 'qualifications')
+            ->assertSet('userId', 0)
+            ->assertSee('Mitarbeiter-Fachakte')
+            ->assertSee('Alle freigegebenen Mitarbeiter')
             ->assertSee('Nachweisarten')
             ->assertDontSee('Personalnummer')
             ->call('setView', 'training')->assertSet('view', 'training')
             ->assertSee('Teilnehmer zuordnen')
             ->assertDontSee('Outside Synthetic');
+    }
+
+    public function test_specialist_menu_entry_reaches_authorized_records_without_full_profile_permission(): void
+    {
+        foreach ([['operations.qualifications.manage'], ['employees.master-data.view'], ['employees.master-data.view', 'employees.emergency.access']] as $abilities) {
+            $actor = $this->manager($abilities);
+            $this->actingAs($actor);
+            $people = collect(ApplicationNavigation::sections($actor)['Personal'])->filter(fn (array $link): bool => ($link['parameters']['page'] ?? '') === 'people')->values();
+            $this->assertCount(1, $people);
+            $this->assertSame('Mitarbeiter', $people[0]['title']);
+            $this->assertSame(['page' => 'people'], $people[0]['parameters']);
+            Livewire::test(PersonalPageWorkspace::class, ['page' => 'people'])
+                ->assertSee('Mitarbeiter-Fachakte')
+                ->assertDontSee('Outside Synthetic')
+                ->assertDontSee('Vergütungsdaten');
+            Livewire::test(UserProfile::class, ['userId' => $this->employee->id, 'embedded' => true])->assertForbidden();
+        }
+    }
+
+    public function test_employee_directory_uses_profile_navigation_instead_of_parallel_personnel_tabs(): void
+    {
+        $this->actingAs($this->admin);
+        Livewire::test(PersonalPageWorkspace::class, ['page' => 'people'])
+            ->assertSet('view', 'employees')
+            ->assertDontSee('Mitarbeiter-Fachakte')
+            ->assertDontSeeHtml('id="personal-page-people"')
+            ->assertDontSeeHtml('id="rt-dropdown-personnel-tools-people"');
+    }
+
+    public function test_qualification_selection_scopes_records_while_legacy_overview_remains_available(): void
+    {
+        $type = QualificationType::create(['name' => 'Synthetic certificate']);
+        foreach ([$this->employee, $this->outside] as $employee) {
+            EmployeeQualification::create(['user_id' => $employee->id, 'qualification_type_id' => $type->id, 'valid_from' => '2027-01-01', 'valid_until' => '2028-01-01']);
+        }
+        $this->actingAs($this->manager(['operations.qualifications.manage'], false));
+        Livewire::test(PersonalPageWorkspace::class, ['page' => 'people', 'initialView' => 'qualifications'])
+            ->assertSet('userId', 0)
+            ->assertSeeHtml('<strong>2</strong> Nachweise')
+            ->set('userId', $this->employee->id)
+            ->assertSeeHtml('<strong>1</strong> Nachweise')
+            ->assertDispatched('rt-workspace-url')
+            ->set('userId', 0)
+            ->assertSeeHtml('<strong>2</strong> Nachweise');
+        $this->actingAs($this->manager(['operations.qualifications.manage']));
+        Livewire::test(PersonalPageWorkspace::class, ['page' => 'people', 'initialView' => 'qualifications', 'context' => ['user' => $this->outside->id]])->assertForbidden();
+    }
+
+    public function test_qualification_record_link_keeps_target_type_and_revision_validation(): void
+    {
+        $type = QualificationType::create(['name' => 'Scoped certificate']);
+        $record = EmployeeQualification::create(['user_id' => $this->employee->id, 'qualification_type_id' => $type->id, 'valid_from' => '2027-01-01', 'valid_until' => '2028-01-01', 'revision' => 2]);
+        $this->actingAs($this->admin);
+        $context = ['user' => $this->employee->id, 'record' => $record->id, 'record_type' => 'qualification', 'revision' => 2];
+        Livewire::test(PersonalPageWorkspace::class, ['page' => 'people', 'initialView' => 'qualifications', 'context' => $context])
+            ->assertSet('userId', $this->employee->id)->assertSee('Scoped certificate')->assertSee('Datei fehlt');
+        Livewire::test(PersonalPageWorkspace::class, ['page' => 'people', 'initialView' => 'qualifications', 'context' => array_replace($context, ['user' => $this->outside->id])])->assertNotFound();
+        Livewire::test(PersonalPageWorkspace::class, ['page' => 'people', 'initialView' => 'qualifications', 'context' => array_replace($context, ['revision' => 1])])->assertStatus(409);
+        Livewire::test(PersonalPageWorkspace::class, ['page' => 'people', 'initialView' => 'qualifications', 'context' => array_replace($context, ['record_type' => 'signature'])])->assertNotFound();
     }
 
     public function test_training_component_has_no_hidden_accounts_for_qualification_only(): void
@@ -163,6 +228,7 @@ class PersonalPageWorkspaceTest extends TestCase
         app(PersonnelScopeService::class)->assign($this->employee, ['responsible_user_id' => $manager->id, 'starts_on' => '2027-01-01', 'abilities' => ['employees.master-data.view']], $this->admin);
         $this->actingAs($manager);
         Livewire::test(UserProfile::class, ['userId' => $this->employee->id])
+            ->call('setProfileTab', 'masterData')
             ->assertSee('ALLOWED-MASTER')->assertDontSee('ALLOWED-COMPENSATION')
             ->assertViewHas('canViewCompensation', false);
     }
@@ -233,6 +299,32 @@ class PersonalPageWorkspaceTest extends TestCase
         $this->actingAs($this->manager(['employees.master-data.view', 'operations.rules.manage']));
         Livewire::test(PersonalPageWorkspace::class, ['page' => 'leave', 'initialSection' => 'calendars', 'context' => ['user' => $this->employee->id]])
             ->assertSet('section', 'calendars')->assertSee('Regionalkalender');
+    }
+
+    public function test_individual_leave_tools_remain_reachable_without_employee_profile_or_optional_document_schema(): void
+    {
+        foreach ([false, true] as $withoutDocuments) {
+            if ($withoutDocuments) {
+                Schema::drop('employee_document_requirements');
+                Schema::drop('personnel_document_templates');
+            }
+            $actor = $this->manager(['employees.master-data.view', 'operations.rules.manage']);
+            $this->actingAs($actor);
+            $this->assertFalse($actor->can('employees.view'));
+            $links = collect(ApplicationNavigation::sections($actor)['Personal'])->keyBy('title');
+            $this->assertSame(['page' => 'leave'], $links['Urlaub & Konten']['parameters']);
+            $this->assertSame(['page' => 'time-review', 'section' => 'rules'], $links['Regelprofile']['parameters']);
+            $this->assertNull($links['Regelprofile']['group']);
+            foreach (['models' => 'Arbeitsmodelle', 'policies' => 'Urlaubsrichtlinien', 'rules' => 'Regelzuordnungen'] as $section => $label) {
+                $this->assertFalse($links->has($label));
+                Livewire::test(PersonalPageWorkspace::class, ['page' => 'leave', 'initialSection' => $section, 'context' => ['user' => $this->employee->id]])
+                    ->assertSet('section', $section)
+                    ->assertSet('userId', $this->employee->id)
+                    ->assertSee($label)
+                    ->assertDontSee('Outside Synthetic');
+                Livewire::test(PersonalPageWorkspace::class, ['page' => 'leave', 'initialSection' => $section, 'context' => ['user' => $this->outside->id]])->assertForbidden();
+            }
+        }
     }
 
     public function test_responsibility_form_exposes_explicit_compensation_scopes(): void

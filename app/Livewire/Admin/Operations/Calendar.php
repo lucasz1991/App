@@ -20,7 +20,8 @@ class Calendar extends Component
 
     public string $anchorDate = '';
 
-    public string $viewMode = 'week';
+    /** Monatsansicht ist der Einstieg: der ganze Monat mit Lücken auf einen Blick. */
+    public string $viewMode = 'month';
 
     public string $search = '';
 
@@ -201,9 +202,14 @@ class Calendar extends Component
             ->get()
             ->map(function (Shift $shift): Shift {
                 $reserved = $shift->assignments->filter(fn ($assignment) => in_array($assignment->status->value, ShiftAssignmentStatus::blockingValues(), true))->count();
+                $requested = $shift->assignments->filter(fn ($assignment) => $assignment->status === ShiftAssignmentStatus::Requested)->count();
                 $shift->setAttribute('calendar_reserved', $reserved);
+                $shift->setAttribute('calendar_requested', $requested);
                 $closed = in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true);
-                $shift->setAttribute('calendar_open', $closed ? 0 : max(0, $shift->required_staff - $reserved));
+                $open = $closed ? 0 : max(0, $shift->required_staff - $reserved);
+                $shift->setAttribute('calendar_open', $open);
+                // Ein Zustand je Schicht, damit Farbe und Text ohne Legende eindeutig sind.
+                $shift->setAttribute('calendar_state', $closed ? 'closed' : ($open > 0 ? 'open' : ($requested > 0 ? 'pending' : 'staffed')));
                 $shift->setAttribute('calendar_starts', $shift->starts_at->setTimezone($this->displayTimezone()));
                 $shift->setAttribute('calendar_ends', $shift->ends_at->setTimezone($this->displayTimezone()));
 
@@ -238,6 +244,7 @@ class Calendar extends Component
             'requiredCount' => (int) $shifts->sum('required_staff'),
             'reservedCount' => (int) $shifts->sum('calendar_reserved'),
             'openCount' => (int) $shifts->sum('calendar_open'),
+            'filterCount' => (int) ($this->customerFilter !== 'all') + (int) ($this->orderFilter !== 'all') + (int) ($this->statusFilter !== 'active') + (int) $this->onlyOpen,
         ]);
     }
 }

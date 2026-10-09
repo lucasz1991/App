@@ -101,6 +101,47 @@ test('a server-active legacy route still works before its canonical redirect', (
     assert.deepEqual(state.active(), ['Eingang']);
 });
 
+test('employee profiles select their canonical entry over persisted markers from another section', () => {
+    const state = setup();
+    state.document.querySelector('a[href="/employees"]').setAttribute('href', '/arbeitsplatz/ansicht/people');
+    state.run();
+    assert.deepEqual(state.active(), ['Eingang']);
+    const profile = state.document.createElement('article');
+    profile.dataset.employeeProfileEntry = 'https://railtime.test/arbeitsplatz/ansicht/people';
+    state.document.body.append(profile);
+    for (const path of ['/administrator/user/42', '/employees/42']) {
+        state.window.location.href = `https://railtime.test${path}`;
+        state.run();
+        assert.deepEqual(state.active(), ['Mitarbeiter']);
+        assert.equal(state.document.querySelector('[data-rt-sidebar-group]').getAttribute('aria-expanded'), 'false');
+    }
+    profile.remove();
+    state.window.location.href = 'https://railtime.test/arbeitsplatz/ansicht/cases?view=orders';
+    state.run();
+    assert.deepEqual(state.active(), ['Aufträge']);
+});
+
+test('employee profile markers match exact local destinations, not other queries or external origins', () => {
+    const state = setup();
+    const employeeLink = state.document.querySelector('a[href="/employees"]');
+    employeeLink.setAttribute('href', '/arbeitsplatz/ansicht/people?view=employees');
+    const profile = state.document.createElement('article');
+    profile.dataset.employeeProfileEntry = '/arbeitsplatz/ansicht/people';
+    state.document.body.append(profile);
+    state.window.location.href = 'https://railtime.test/administrator/user/42';
+    state.run();
+    assert.deepEqual(state.active(), [], 'A missing authorized entry must not reactivate a stale section.');
+    employeeLink.setAttribute('href', '/arbeitsplatz/ansicht/people');
+    state.run();
+    assert.deepEqual(state.active(), ['Mitarbeiter']);
+    for (const marker of ['https://other.test/arbeitsplatz/ansicht/people', 'http://[invalid']) {
+        profile.dataset.employeeProfileEntry = marker;
+        state.window.location.href = 'https://railtime.test/dashboard';
+        assert.doesNotThrow(() => state.run());
+        assert.deepEqual(state.active(), ['Dashboard']);
+    }
+});
+
 function setupPersonal(page = 'people', view = 'employees', section = '') {
     const state = setup();
     state.document.querySelector('[data-case-workspace]').remove();

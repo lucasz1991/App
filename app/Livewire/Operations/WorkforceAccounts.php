@@ -44,6 +44,12 @@ class WorkforceAccounts extends Component
     #[Locked]
     public string $accountKind = 'all';
 
+    #[Locked]
+    public ?int $profileUserId = null;
+
+    #[Locked]
+    public ?string $profileTab = null;
+
     public int $userId = 0;
 
     public string $tab = 'account';
@@ -68,7 +74,7 @@ class WorkforceAccounts extends Component
 
     public array $form = [];
 
-    public function mount(bool $personal = false, ?string $tab = null, bool $embedded = false, string $accountKind = 'all', ?int $initialUserId = null, ?int $initialRecordId = null): void
+    public function mount(bool $personal = false, ?string $tab = null, bool $embedded = false, string $accountKind = 'all', ?int $initialUserId = null, ?int $initialRecordId = null, ?int $profileUserId = null): void
     {
         $this->personal = $personal;
         $this->embedded = $embedded;
@@ -77,10 +83,13 @@ class WorkforceAccounts extends Component
         if ($tab !== null) {
             $this->tab = $tab;
         }
+        $this->profileUserId = $profileUserId;
+        $this->profileTab = $profileUserId !== null ? $this->tab : null;
+        abort_if($profileUserId !== null && $initialUserId !== null && $profileUserId !== $initialUserId, 403);
         $this->from = now(config('operations.display_timezone'))->startOfMonth()->toDateString();
         $this->until = now(config('operations.display_timezone'))->endOfMonth()->toDateString();
         $ids = $personal ? null : app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), $this->ability());
-        $this->userId = $personal ? auth()->id() : ($initialUserId ?? (int) User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->value('id'));
+        $this->userId = $profileUserId ?? ($personal ? auth()->id() : ($initialUserId ?? (int) User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->value('id')));
         $this->access();
         if ($initialRecordId && $this->tab === 'tasks') {
             PersonnelTask::where('user_id', $this->userId)->when($this->personal, fn ($query) => $query->where('assigned_to', auth()->id()))->findOrFail($initialRecordId);
@@ -99,6 +108,9 @@ class WorkforceAccounts extends Component
 
     private function access(): void
     {
+        if ($this->profileUserId !== null) {
+            abort_unless($this->embedded && ! $this->personal && $this->profileUserId > 0 && $this->userId === $this->profileUserId && $this->tab === $this->profileTab, 403);
+        }
         if ($this->personal) {
             OperationsAccess::own(auth()->user(), $this->userId);
         } else {
@@ -129,6 +141,7 @@ class WorkforceAccounts extends Component
     public function showTab(string $tab): void
     {
         $this->access();
+        abort_if($this->profileUserId !== null && $tab !== $this->profileTab, 403);
         abort_unless(in_array($tab, $this->personal ? ['account', 'absences', 'tasks', 'training'] : ($this->processOnly ? ['tasks', 'training'] : ['account', 'models', 'policies', 'rules', 'checks', 'absences', 'responsibilities', 'training']), true), 404);
         $this->tab = $tab;
         $this->focusedRecordId = null;
@@ -151,6 +164,7 @@ class WorkforceAccounts extends Component
     public function openForm(string $kind, ?int $id = null): void
     {
         $this->access();
+        $this->authorizeProfileForm($kind);
         abort_unless(in_array($kind, $this->personal ? ['vacation', 'sick'] : ['model', 'policy', 'credit', 'adjustment', 'rule', 'task', 'training', 'enroll', 'participation', 'end_model', 'end_policy', 'reduce_credit', 'task_cancel', 'training_cancel', 'sickness_correction', 'responsibility', 'adopt_absence', 'plan_review'], true), 403);
         $this->employee();
         $this->formKind = $kind;
@@ -188,6 +202,7 @@ class WorkforceAccounts extends Component
     public function save(WorkforceAccountService $accounts, PersonnelProcessService $process, PersonnelWorkflowService $workflow): void
     {
         $employee = $this->employee();
+        $this->authorizeProfileForm($this->formKind);
         $actor = auth()->user();
         $data = array_map(fn ($value) => $value === '' ? null : $value, $this->form);
         if (! $this->personal) {
@@ -277,6 +292,7 @@ class WorkforceAccounts extends Component
     public function selectTraining(): void
     {
         $this->access();
+        $this->authorizeProfileForm('enroll');
         $training = PersonnelTraining::findOrFail($this->form['personnel_training_id'] ?? 0);
         $this->form['revision'] = $training->revision;
     }
@@ -290,6 +306,7 @@ class WorkforceAccounts extends Component
     public function activate(string $kind, int $id, int $revision, WorkforceAccountService $service): void
     {
         $employee = $this->employee();
+        $this->authorizeProfileForm($kind);
         abort_if($this->personal, 403);
         abort_unless(in_array($kind, ['model', 'policy'], true), 404);
         $class = $kind === 'model' ? EmployeeWorkModel::class : EmployeeVacationPolicy::class;
@@ -299,7 +316,29 @@ class WorkforceAccounts extends Component
     public function completeTask(int $id, int $revision, PersonnelProcessService $service): void
     {
         $employee = $this->employee();
+        $this->authorizeProfileForm('task');
         $service->completeTask(PersonnelTask::where('user_id', $employee->id)->findOrFail($id), $revision, '', auth()->user());
+    }
+
+    private function authorizeProfileForm(string $kind): void
+    {
+        if ($this->profileUserId === null) {
+            return;
+        }
+
+        $allowed = match ($this->profileTab) {
+            'account' => ['credit', 'adjustment', 'reduce_credit'],
+            'models' => ['model', 'end_model'],
+            'policies' => ['policy', 'end_policy'],
+            'rules' => ['rule'],
+            'checks' => ['plan_review'],
+            'absences' => ['sickness_correction', 'adopt_absence'],
+            'tasks' => ['task', 'task_cancel'],
+            'training' => ['enroll', 'participation'],
+            'responsibilities' => ['responsibility'],
+            default => [],
+        };
+        abort_unless(in_array($kind, $allowed, true), 403);
     }
 
     public function render()

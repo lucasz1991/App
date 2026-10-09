@@ -46,7 +46,7 @@ class WidgetDataProvider
      *                     die Breite ist.
      * @return array<string, mixed>
      */
-    public function data(string $key, User $user, string $size, int $rows = 1): array
+    public function data(string $key, User $user, string $size, int $rows = 1, ?string $date = null): array
     {
         return match ($key) {
             'my_work' => $this->myWork($user),
@@ -57,6 +57,7 @@ class WidgetDataProvider
             'profile_completion' => $this->profileCompletion($user),
             'operations_inquiries' => $this->operationsInquiries($rows),
             'operations_orders' => $this->operationsOrders($rows),
+            'operations_dispatch_map' => app(DispatchMapData::class)->forUser($user, $date),
             'operations_shift_coverage' => $this->operationsShiftCoverage(),
             'operations_next_shifts' => $this->operationsNextShifts($rows),
             'operations_customers' => $this->operationsCustomers($rows),

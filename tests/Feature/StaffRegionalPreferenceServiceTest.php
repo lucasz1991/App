@@ -9,6 +9,7 @@ use App\Models\StaffRegionalPreference;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Operations\StaffRegionalPreferenceService;
+use App\Support\Operations\TimelineLocationPreview;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -101,6 +102,27 @@ class StaffRegionalPreferenceServiceTest extends TestCase
         $this->assertTrue($this->assessment('München')['blocked']);
         $this->invalid(fn () => $this->service->assertAllowed(new Shift(['location_name' => 'München']), $this->employee, true), 'workflow');
         $this->service->assertAllowed(new Shift(['location_name' => 'Hamburg']), $this->employee);
+    }
+
+    public function test_new_map_only_fallbacks_do_not_change_regional_ranking_or_no_go_blocks(): void
+    {
+        $this->service->save($this->employee, $this->admin, $this->config(['no_go_areas' => [['location' => 'München', 'radius_km' => 100]]]), 0);
+        foreach (['München-Pasing', 'Bahnhof München', 'Ingolstadt Hbf', '86641 Rain'] as $name) {
+            $shift = new Shift(['location_name' => $name]);
+            $this->assertSame('located', TimelineLocationPreview::fromShift($shift)['state']);
+            $assessment = $this->service->assessMany($shift, collect([$this->employee]))[$this->employee->id];
+            $this->assertSame('unknown', $assessment['state']);
+            $this->assertSame(0, $assessment['score_adjustment']);
+            $this->assertFalse($assessment['blocked']);
+            $this->assertNull($assessment['distance_km']);
+        }
+        $shift = new Shift;
+        $shift->setRelation('order', new Order(['city' => 'Rain', 'postal_code' => '86641', 'country' => 'DE']));
+        $this->assertSame('located', TimelineLocationPreview::fromShift($shift)['state']);
+        $this->assertSame('unknown', $this->service->assessMany($shift, collect([$this->employee]))[$this->employee->id]['state']);
+        $this->assertTrue($this->assessment('München')['blocked']);
+        $this->invalid(fn () => $this->service->save($this->employee, $this->admin, $this->config(['base_location' => 'München-Pasing']), 1), 'regional_preferences.base_location');
+        $this->assertSame(1, StaffRegionalPreference::where('user_id', $this->employee->id)->sole()->revision);
     }
 
     public function test_duplicate_city_alias_exclusions_retain_the_larger_radius(): void

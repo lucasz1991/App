@@ -93,7 +93,7 @@ class StaffRegionalPreferenceService
         // Loading the order is deliberate here; the preview renderer itself
         // remains query-free and never mixes an override with the order city.
         $shift->loadMissing('order');
-        $location = TimelineLocationPreview::fromShift($shift);
+        $location = TimelineLocationPreview::forRegionalAssessment($shift);
         $resolved = [];
         $results = [];
         foreach ($users as $user) {
@@ -233,7 +233,7 @@ class StaffRegionalPreferenceService
 
     private function resolve(string $location): array
     {
-        return TimelineLocationPreview::fromShift(new Shift(['location_name' => $location]));
+        return TimelineLocationPreview::forRegionalAssessment(new Shift(['location_name' => $location]));
     }
 
     private function distance(array $a, array $b): float

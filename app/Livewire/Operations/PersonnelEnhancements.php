@@ -44,6 +44,12 @@ class PersonnelEnhancements extends Component
     public bool $embedded = false;
 
     #[Locked]
+    public ?int $profileUserId = null;
+
+    #[Locked]
+    public ?string $profileTab = null;
+
+    #[Locked]
     public ?int $focusedRecordId = null;
 
     #[Locked]
@@ -73,14 +79,20 @@ class PersonnelEnhancements extends Component
 
     public $upload;
 
-    public function mount(bool $personal = false, string $tab = 'workflows', bool $embedded = false, ?int $initialUserId = null, ?int $initialRecordId = null, string $initialRecordType = ''): void
+    public function mount(bool $personal = false, string $tab = 'workflows', bool $embedded = false, ?int $initialUserId = null, ?int $initialRecordId = null, string $initialRecordType = '', ?int $profileUserId = null): void
     {
         $this->personal = $personal;
         $this->embedded = $embedded;
         $this->tab = $tab;
+        $this->profileUserId = $profileUserId;
+        $this->profileTab = $profileUserId !== null ? $tab : null;
+        abort_if($profileUserId !== null && $initialUserId !== null && $profileUserId !== $initialUserId, 403);
+        if ($profileUserId !== null) {
+            $this->userId = $profileUserId;
+        }
         $this->access();
         $ids = $personal ? null : app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'employees.master-data.view');
-        $this->userId = $personal ? auth()->id() : ($initialUserId ?? (int) User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->value('id'));
+        $this->userId = $profileUserId ?? ($personal ? auth()->id() : ($initialUserId ?? (int) User::where('role', 'staff')->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->value('id')));
         $this->access();
         if ($initialRecordId) {
             $this->focusedRecordId = $initialRecordId;
@@ -99,6 +111,9 @@ class PersonnelEnhancements extends Component
 
     private function access(): void
     {
+        if ($this->profileUserId !== null) {
+            abort_unless($this->embedded && ! $this->personal && $this->profileUserId > 0 && $this->userId === $this->profileUserId && $this->tab === $this->profileTab && in_array($this->tab, ['workflows', 'documents', 'emergency', 'development', 'sickness'], true), 403);
+        }
         if ($this->personal) {
             OperationsAccess::own(auth()->user(), auth()->id());
             abort_unless(in_array($this->tab, ['workflows', 'documents', 'emergency', 'development', 'surveys', 'sickness'], true), 403);
@@ -127,12 +142,19 @@ class PersonnelEnhancements extends Component
                     app(PersonnelScopeService::class)->authorize(auth()->user(), $this->userId, 'employees.master-data.edit');
                     app(PersonnelScopeService::class)->authorize(auth()->user(), $this->userId, 'operations.absences.review');
                 }
+                if ($this->profileUserId !== null) {
+                    abort_unless(User::where('role', 'staff')->whereKey($this->profileUserId)->exists(), 404);
+                    if ($this->tab === 'emergency') {
+                        app(PersonnelScopeService::class)->authorize(auth()->user(), $this->userId, 'employees.emergency.access');
+                    }
+                }
             }
         }
     }
 
     public function showTab(string $tab): void
     {
+        abort_if($this->profileUserId !== null && $tab !== $this->profileTab, 403);
         $this->tab = $tab;
         $this->reset('focusedRecordId', 'focusedRecordType');
         $this->reset('display', 'form', 'upload');
@@ -151,6 +173,7 @@ class PersonnelEnhancements extends Component
     public function open(string $kind, ?int $id = null, int $revision = 0): void
     {
         $this->access();
+        $this->authorizeProfileAction($kind);
         abort_unless(app(PersonnelEnhancementService::class)->ready(), 503);
         $allowed = ['workflow_template', 'workflow_run', 'report', 'document_template', 'signature_request', 'signature_result', 'emergency_edit', 'emergency_read', 'approval_policy', 'approval_retire', 'absence_review', 'calendar', 'calendar_apply', 'applicant', 'applicant_stage', 'applicant_convert', 'development', 'feedback', 'survey', 'survey_response', 'sickness', 'sickness_update'];
         abort_unless(in_array($kind, $allowed, true), 404);
@@ -252,6 +275,7 @@ class PersonnelEnhancements extends Component
             abort_if($this->personal, 403);
             app(PersonnelEnhancementService::class)->access(auth()->user(), $this->formUserId, true, false);
         } else {
+            $this->authorizeProfileRecord($record);
             app(PersonnelEnhancementService::class)->access(auth()->user(), (int) $record->user_id);
             abort_if($this->personal && (int) $record->user_id !== auth()->id(), 403);
             if ($record instanceof SicknessEvidenceWorkflow && ! $this->personal) {
@@ -292,6 +316,8 @@ class PersonnelEnhancements extends Component
     public function save(): void
     {
         $this->access();
+        $this->authorizeProfileAction($this->formKind);
+        abort_if($this->profileUserId !== null && $this->formUserId !== $this->profileUserId, 403);
         $service = app(PersonnelEnhancementService::class);
         $actor = auth()->user();
         $data = $this->form;
@@ -362,6 +388,7 @@ class PersonnelEnhancements extends Component
     public function activate(string $kind, int $id, int $revision): void
     {
         $this->access();
+        abort_if($this->profileUserId !== null, 403);
         abort_if($this->personal, 403);
         if ($kind === 'approval_policy') {
             app(AbsenceApprovalChainService::class)->activate(AbsenceApprovalPolicy::findOrFail($id), $revision, auth()->user());
@@ -377,6 +404,7 @@ class PersonnelEnhancements extends Component
     public function runReport(int $id, int $revision): void
     {
         $this->access();
+        abort_if($this->profileUserId !== null, 403);
         abort_if($this->personal, 403);
         $this->display = app(PersonnelEnhancementService::class)->runReport(PersonnelSavedReport::findOrFail($id), $revision, auth()->user());
         $this->formKind = 'report_result';
@@ -386,6 +414,7 @@ class PersonnelEnhancements extends Component
     public function downloadReport(int $id)
     {
         $this->access();
+        abort_if($this->profileUserId !== null, 403);
         abort_if($this->personal, 403);
         $results = app(PersonnelEnhancementService::class)->authorizedReportResult(PersonnelSavedReport::findOrFail($id), auth()->user());
         abort_unless($results !== [], 404);
@@ -405,6 +434,7 @@ class PersonnelEnhancements extends Component
     public function reportState(int $id, int $revision, bool $active): void
     {
         $this->access();
+        abort_if($this->profileUserId !== null, 403);
         abort_if($this->personal, 403);
         app(PersonnelEnhancementService::class)->reportState(PersonnelSavedReport::findOrFail($id), $revision, $active, auth()->user());
     }
@@ -412,6 +442,7 @@ class PersonnelEnhancements extends Component
     public function downloadDocumentTemplate(int $id)
     {
         $this->access();
+        $this->authorizeProfileAction('document_download');
         abort_if($this->personal, 403);
         $text = app(PersonnelEnhancementService::class)->renderDocument(PersonnelDocumentTemplate::findOrFail($id), User::findOrFail($this->userId), auth()->user());
 
@@ -421,28 +452,39 @@ class PersonnelEnhancements extends Component
     public function reviewSignature(int $id, int $revision, bool $accept): void
     {
         $this->access();
+        $this->authorizeProfileAction('signature_review');
         abort_if($this->personal, 403);
-        app(PersonnelEnhancementService::class)->reviewSignatureResult(PersonnelSignatureRequest::findOrFail($id), $revision, $accept, auth()->user());
+        $record = PersonnelSignatureRequest::findOrFail($id);
+        $this->authorizeProfileRecord($record);
+        app(PersonnelEnhancementService::class)->reviewSignatureResult($record, $revision, $accept, auth()->user());
     }
 
     public function downloadSignature(int $id)
     {
         $this->access();
+        $this->authorizeProfileAction('signature_download');
+        $record = PersonnelSignatureRequest::findOrFail($id);
+        $this->authorizeProfileRecord($record);
 
-        return app(PersonnelEnhancementService::class)->signatureResult(PersonnelSignatureRequest::findOrFail($id), auth()->user());
+        return app(PersonnelEnhancementService::class)->signatureResult($record, auth()->user());
     }
 
     public function downloadSignatureSource(int $id)
     {
         $this->access();
+        $this->authorizeProfileAction('signature_download');
+        $record = PersonnelSignatureRequest::findOrFail($id);
+        $this->authorizeProfileRecord($record);
 
-        return app(PersonnelEnhancementService::class)->signatureSource(PersonnelSignatureRequest::findOrFail($id), auth()->user());
+        return app(PersonnelEnhancementService::class)->signatureSource($record, auth()->user());
     }
 
     public function completeTask(int $id, int $revision): void
     {
         $this->access();
+        $this->authorizeProfileAction('task_complete');
         $task = PersonnelTask::findOrFail($id);
+        $this->authorizeProfileRecord($task);
         abort_if($this->personal && (int) $task->user_id !== auth()->id(), 403);
         app(PersonnelProcessService::class)->completeTask($task, $revision, '', auth()->user());
     }
@@ -450,6 +492,7 @@ class PersonnelEnhancements extends Component
     public function surveyResult(int $id): void
     {
         $this->access();
+        abort_if($this->profileUserId !== null, 403);
         abort_if($this->personal, 403);
         $this->display = app(PersonnelEnhancementService::class)->surveyAggregate(PersonnelSurvey::findOrFail($id), auth()->user());
         $this->formKind = 'survey_result';
@@ -459,8 +502,31 @@ class PersonnelEnhancements extends Component
     public function eraseApplicant(int $id, int $revision): void
     {
         $this->access();
+        abort_if($this->profileUserId !== null, 403);
         abort_if($this->personal, 403);
         app(PersonnelEnhancementService::class)->eraseApplicant(PersonnelApplicant::findOrFail($id), $revision, auth()->user());
+    }
+
+    private function authorizeProfileRecord($record): void
+    {
+        abort_if($this->profileUserId !== null && (int) $record->user_id !== $this->profileUserId, 403);
+    }
+
+    private function authorizeProfileAction(string $kind): void
+    {
+        if ($this->profileUserId === null) {
+            return;
+        }
+
+        $allowed = match ($this->profileTab) {
+            'workflows' => ['workflow_run', 'task_complete'],
+            'documents' => ['signature_request', 'signature_review', 'signature_download', 'document_download'],
+            'emergency' => ['emergency_read'],
+            'development' => ['development', 'feedback'],
+            'sickness' => ['sickness', 'sickness_update'],
+            default => [],
+        };
+        abort_unless(in_array($kind, $allowed, true), 403);
     }
 
     private function related(string $class)
@@ -488,7 +554,7 @@ class PersonnelEnhancements extends Component
         $service = app(PersonnelEnhancementService::class);
         if ($this->tab === 'workflows') {
             if (! $this->focusedRecordId && ! $this->personal && Gate::forUser($actor)->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.edit') === null) {
-                foreach (PersonnelWorkflowTemplate::latest()->limit(30)->get() as $record) {
+                foreach (PersonnelWorkflowTemplate::when($this->profileUserId !== null, fn ($query) => $query->where('status', 'active'))->latest()->limit(30)->get() as $record) {
                     $records->push($this->row($record, 'workflow_template', $record->title, count($record->payload['steps']).' Schritte'));
                 }
             }
@@ -506,7 +572,7 @@ class PersonnelEnhancements extends Component
             }
         } elseif ($this->tab === 'documents') {
             if (! $this->focusedRecordId && ! $this->personal && Gate::forUser($actor)->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds($actor, 'employees.master-data.edit') === null) {
-                foreach (PersonnelDocumentTemplate::latest()->limit(30)->get() as $record) {
+                foreach (PersonnelDocumentTemplate::when($this->profileUserId !== null, fn ($query) => $query->where('status', 'active'))->latest()->limit(30)->get() as $record) {
                     $records->push($this->row($record, 'document_template', $record->title, 'Vorlage'));
                 }
             }
@@ -572,7 +638,7 @@ class PersonnelEnhancements extends Component
     private function row($record, string $kind, string $label, ?string $detail, ?string $status = null): object
     {
         $canComplete = $record instanceof PersonnelTask && ((int) $record->assigned_to === auth()->id() || auth()->user()->isAdmin() || app(PersonnelEnhancementService::class)->delegateCanComplete($record, auth()->user()));
-        $canActivate = ! $this->personal && (int) $record->created_by !== auth()->id() && auth()->user()->can(in_array($kind, ['calendar', 'approval_policy'], true) ? 'operations.rules.manage' : 'employees.master-data.edit');
+        $canActivate = $this->profileUserId === null && ! $this->personal && (int) $record->created_by !== auth()->id() && auth()->user()->can(in_array($kind, ['calendar', 'approval_policy'], true) ? 'operations.rules.manage' : 'employees.master-data.edit');
 
         return (object) ['id' => $kind.':'.$record->id, 'record_id' => $record->id, 'kind' => $kind, 'label' => $label, 'detail' => $detail, 'status' => $status ?? $record->status, 'revision' => $record->revision, 'personal_view' => $this->personal, 'context_user_id' => $this->userId, 'can_complete' => $canComplete, 'can_activate' => $canActivate];
     }
@@ -585,7 +651,7 @@ class PersonnelEnhancements extends Component
         $employees = $this->embedded ? collect() : User::where('role', 'staff')->where('status', true)->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))->orderBy('name')->get(['id', 'name']);
         $employee = $this->userId ? User::findOrFail($this->userId) : null;
         $canEdit = ! $this->personal && $employee && app(PersonnelScopeService::class)->allows(auth()->user(), $employee, 'employees.master-data.edit');
-        $canGlobal = ! $this->personal && Gate::forUser(auth()->user())->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'employees.master-data.edit') === null;
+        $canGlobal = $this->profileUserId === null && ! $this->personal && Gate::forUser(auth()->user())->allows('employees.master-data.edit') && app(PersonnelScopeService::class)->visibleUserIds(auth()->user(), 'employees.master-data.edit') === null;
 
         return view('livewire.operations.personnel-enhancements', ['ready' => $ready, 'records' => $ready ? $this->recordRows() : collect(), 'employees' => $employees, 'employee' => $employee, 'canEdit' => $canEdit, 'canGlobal' => $canGlobal, 'teams' => ! $this->personal && $this->formOpen && $this->formKind === 'approval_policy' ? Team::where('personal_team', false)->orderBy('name')->get(['id', 'name']) : collect(), 'assignees' => $this->personal || ! $this->formOpen ? collect() : User::where('status', true)->orderBy('name')->get(['id', 'name']), 'versions' => $ready && $this->formOpen && $this->formKind === 'signature_request' ? EmployeeDocumentVersion::whereHas('requirement', fn ($q) => $q->where('user_id', $this->formUserId))->with('requirement')->orderByDesc('id')->get() : collect(), 'sicknesses' => $ready && $this->formOpen && $this->formKind === 'sickness' ? AbsenceRequest::where('user_id', $this->formUserId)->where('kind', 'sick')->where('status', 'reported')->latest()->get() : collect()]);
     }

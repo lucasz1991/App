@@ -17,8 +17,10 @@
 <div class="rt-personnel-period" role="group" aria-label="Zeitraum der Abwesenheiten"><div class="rt-personnel-period__intro"><span class="rt-personnel-eyebrow">Zeitraum</span><p>Urlaub & Abwesenheiten</p></div><div><x-ui.forms.label for="absence-period-from" value="Von" /><x-ui.forms.date-field id="absence-period-from" wire:model.live="from" aria-label="Abwesenheiten von" /></div><div><x-ui.forms.label for="absence-period-until" value="Bis" /><x-ui.forms.date-field id="absence-period-until" wire:model.live="until" aria-label="Abwesenheiten bis" /></div></div>
 @endif
 <x-tables.toolbar title="Filter" id="personnel-filters">
+@if($profileUserId === null)
 <x-slot:search><x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Mitarbeiter suchen" /></x-slot:search>
-<x-slot:bulk>@if($module === 'qualifications')<x-ui.buttons.button-basic wire:click="$set('typesOpen', true)">Nachweisarten</x-ui.buttons.button-basic>@else<x-ui.buttons.button-basic wire:click="exportAbsences" wire:loading.attr="disabled">CSV exportieren</x-ui.buttons.button-basic>@endif</x-slot:bulk>
+@endif
+<x-slot:bulk>@if($module === 'qualifications')@if($profileUserId === null)<x-ui.buttons.button-basic wire:click="$set('typesOpen', true)">Nachweisarten</x-ui.buttons.button-basic>@else<a class="text-sm text-rt-muted underline" href="{{ \App\Support\Operations\OperationsPages::url('people', ['view' => 'qualifications']) }}" data-no-navigate>Nachweisübersicht & Nachweisarten</a>@endif @else<x-ui.buttons.button-basic wire:click="exportAbsences" wire:loading.attr="disabled">CSV exportieren</x-ui.buttons.button-basic>@endif</x-slot:bulk>
 @if($module === 'absences')<x-tables.filter-field label="Art" for="absence-kind-filter"><x-ui.forms.select id="absence-kind-filter" wire:model.live="absenceKind" aria-label="Abwesenheitsart"><option value="all">Alle Arten</option><option value="vacation">Urlaub</option><option value="sick">Krankmeldung</option><option value="unavailable">Nicht verfügbar</option><option value="other">Abwesenheit</option></x-ui.forms.select></x-tables.filter-field>@endif
 <x-tables.filter-field label="Prüfstatus" for="personnel-status-filter"><x-ui.forms.select id="personnel-status-filter" wire:model.live="filter" aria-label="Prüfstatus"><option value="pending">In Prüfung</option><option value="approved">Freigegeben</option>@if($module === 'absences')<option value="reported">Gemeldet</option><option value="rejected">Abgelehnt</option><option value="withdrawn">Zurückgezogen</option><option value="cancelled">Storniert</option>@endif<option value="all">Alle</option></x-ui.forms.select></x-tables.filter-field>
 @if($module === 'qualifications')<x-tables.filter-field label="Gültigkeit" for="personnel-validity"><x-ui.forms.select id="personnel-validity" wire:model.live="validity" aria-label="Gültigkeit"><option value="all">Alle Fristen</option><option value="expired">Abgelaufen</option><option value="30">Ablauf in 30 Tagen</option><option value="90">Ablauf in 90 Tagen</option><option value="future">Künftig gültig</option></x-ui.forms.select></x-tables.filter-field>@endif
@@ -70,7 +72,7 @@
 @endif
 </div>
 </x-operations.modal>
-@if($module === 'qualifications')
+@if($module === 'qualifications' && $profileUserId === null)
 <x-operations.modal wire:model="typesOpen" title="Nachweisarten">
 <div class="rt-personnel-management ops-stack">
 <x-tables.table :columns="[['label'=>'Bezeichnung','key'=>'name'],['label'=>'Status','key'=>'is_active']]" :items="$types" row-view="components.tables.rows.operations.record" />

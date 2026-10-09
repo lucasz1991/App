@@ -264,7 +264,7 @@ class PersonalPageWorkspace extends Component
         if ($this->section === 'terminal') {
             return 'operations.terminal.manage';
         }
-        if ($this->page === 'people' && $this->view === 'training' && $this->section === '') {
+        if ($this->page === 'people' && in_array($this->view, ['qualifications', 'training'], true) && $this->section === '') {
             return 'operations.qualifications.manage';
         }
         if (($this->page === 'people' && ($this->view === 'documents' || in_array($this->section, ['signatures', 'emergency'], true)))
@@ -284,6 +284,11 @@ class PersonalPageWorkspace extends Component
         $employees = app(PersonnelScopeService::class)->applyUsers(User::where('role', 'staff'), auth()->user(), $ability);
         if ($this->userId && $allowScopeFallback && ! (clone $employees)->whereKey($this->userId)->exists()) {
             $this->userId = 0;
+        }
+        // Keep the existing qualification review overview until a person is
+        // explicitly selected; profile links retain their exact target.
+        if ($this->page === 'people' && $this->view === 'qualifications' && $this->section === '' && ! $this->userId) {
+            return;
         }
         if (! $this->userId) {
             $this->userId = (int) $employees->orderBy('name')->value('id');

@@ -7,6 +7,7 @@ use App\Models\EmployeeQualification;
 use App\Models\OperationsRuleProfile;
 use App\Models\QualificationType;
 use App\Models\Shift;
+use App\Models\User;
 use App\Services\Operations\OperationsAuditService;
 use App\Services\Operations\OperationsReportService;
 use App\Services\Operations\PersonnelScopeService;
@@ -30,6 +31,9 @@ class PersonnelReview extends Component
 
     #[Locked]
     public bool $embedded = false;
+
+    #[Locked]
+    public ?int $profileUserId = null;
 
     public string $filter = 'pending';
 
@@ -121,6 +125,7 @@ class PersonnelReview extends Component
     public function createRules(): void
     {
         $this->access();
+        abort_if($this->profileUserId !== null, 403);
         OperationsAccess::authorize(auth()->user(), 'operations.rules.manage');
         app(PersonnelScopeService::class)->authorizeGlobal(auth()->user(), 'operations.rules.manage');
         $this->reset('rules');
@@ -144,10 +149,14 @@ class PersonnelReview extends Component
         return $tables !== [] && collect($tables)->every(fn ($table) => Schema::hasTable($table));
     }
 
-    public function mount(string $module, bool $embedded = false, string $initialAbsenceView = 'list', ?int $initialRecordId = null): void
+    public function mount(string $module, bool $embedded = false, string $initialAbsenceView = 'list', ?int $initialRecordId = null, ?int $profileUserId = null): void
     {
         $this->module = $module;
         $this->embedded = $embedded;
+        $this->profileUserId = $profileUserId;
+        if ($profileUserId !== null) {
+            $this->filter = 'all';
+        }
         abort_unless(in_array($initialAbsenceView, ['list', 'calendar'], true), 422);
         $this->absenceView = $initialAbsenceView;
         $this->access();
@@ -175,6 +184,11 @@ class PersonnelReview extends Component
     {
         abort_unless(in_array($this->module, ['qualifications', 'absences', 'rules'], true), 404);
         OperationsAccess::authorize(auth()->user(), OperationsNavigation::modules()[$this->module]['ability']);
+        if ($this->profileUserId !== null) {
+            abort_unless($this->embedded && $this->module === 'qualifications' && $this->profileUserId > 0, 403);
+            app(PersonnelScopeService::class)->authorize(auth()->user(), $this->profileUserId, 'operations.qualifications.manage');
+            abort_unless(User::where('role', 'staff')->whereKey($this->profileUserId)->exists(), 404);
+        }
         if ($this->embedded) {
             abort_unless(self::moduleReady($this->module), 503);
         } else {
@@ -185,6 +199,9 @@ class PersonnelReview extends Component
     private function scopedQuery(): Builder
     {
         $query = $this->module === 'absences' ? AbsenceRequest::with('user:id,name') : EmployeeQualification::with(['user:id,name', 'type']);
+        if ($this->profileUserId !== null) {
+            $query->where('user_id', $this->profileUserId);
+        }
 
         return app(PersonnelScopeService::class)->applyRelatedQuery($query, auth()->user(), OperationsNavigation::modules()[$this->module]['ability']);
     }
@@ -216,6 +233,7 @@ class PersonnelReview extends Component
     public function addType(): void
     {
         $this->access();
+        abort_if($this->profileUserId !== null, 403);
         OperationsAccess::authorize(auth()->user(), 'operations.qualifications.manage');
         $this->typeName = trim($this->typeName);
         $this->validate(['typeName' => 'required|string|max:180|unique:qualification_types,name']);
@@ -227,6 +245,7 @@ class PersonnelReview extends Component
     public function saveRules(PersonnelWorkflowService $service): void
     {
         $this->access();
+        abort_if($this->profileUserId !== null, 403);
         $service->saveRules($this->rules, auth()->user());
         $this->rules['confirmed'] = false;
         $this->formOpen = false;

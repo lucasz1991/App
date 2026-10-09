@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Models\OperationInquiry;
 use App\Models\Order;
 use App\Models\Shift;
 use App\Support\Operations\TimelineLocationPreview;
@@ -86,6 +87,7 @@ final class TimelineLocationPreviewTest extends TestCase
             ['Hamburg Hasselbrook', 'Hamburg'],
             ['Leipzig-Plagwitz', 'Leipzig'],
             ['Köln-Eifeltor', 'Köln'],
+            ['Bahnhof München', 'München'],
         ];
     }
 
@@ -120,7 +122,7 @@ final class TimelineLocationPreviewTest extends TestCase
             'foreign country suffix' => ['München Österreich'],
             'qualifier foreign suffix' => ['München Hbf Österreich'],
             'country code suffix' => ['Hamburg AT'],
-            'station qualifier is not a prefix' => ['Bahnhof München'],
+            'arbitrary railway prefix' => ['Bahnstrecke München'],
             'other full name sharing prefix' => ['Berlinchen'],
             'unreviewed district' => ['München Unbekannter Stadtteil'],
             'unknown place with station qualifier' => ['Atlantis Bahnhof'],
@@ -149,6 +151,106 @@ final class TimelineLocationPreviewTest extends TestCase
                 'country' => $country,
             ]));
         }
+    }
+
+    public function test_source_backed_city_districts_and_railway_names_resolve_without_fuzzy_matching(): void
+    {
+        foreach (['München-Pasing', 'München Pasing', 'München-Pasing Bahnhof', 'Bahnhof München-Pasing', 'Muenchen-Pasing', 'München – Pasing', 'München Berg am Laim'] as $location) {
+            self::assertSame($this->preview('München'), $this->preview($location), $location);
+        }
+        self::assertSame($this->preview('Hamburg'), $this->preview('Hamburg-Harburg'));
+        self::assertSame($this->preview('Berlin'), $this->preview('Berlin Lichtenberg'));
+        $station = $this->preview('Ingolstadt Hbf');
+        self::assertSame('located', $station['state']);
+        self::assertSame('Bahnhofslage · ungefähr', $station['label']);
+        self::assertSame('Ingolstadt Hbf', $station['place']);
+        self::assertSame($station, $this->preview('Ingolstadt Hauptbahnhof'));
+        self::assertSame($station, $this->preview('Ingolstadt Hbf.'));
+        foreach (['München-Pasing Wien', 'München-Pasing / Hamburg', 'München-Pasingstraße 1', 'Bahnhof Wien München', 'München Unbekannter Stadtteil'] as $location) {
+            self::assertSame('unknown', $this->preview($location)['state'], $location);
+        }
+    }
+
+    public function test_parenthetical_rail_city_qualifiers_preserve_main_oder_disambiguation(): void
+    {
+        foreach (['Frankfurt (Main) Hbf', 'Frankfurt(Main)Hbf.', 'Frankfurt (Main) Hauptbahnhof'] as $location) {
+            self::assertSame($this->preview('Frankfurt am Main'), $this->preview($location));
+        }
+        foreach (['Frankfurt(Oder)', 'Frankfurt (Oder) Hbf', 'Frankfurt(Oder)Hbf'] as $location) {
+            self::assertSame($this->preview('Frankfurt (Oder)'), $this->preview($location));
+        }
+        self::assertSame('ambiguous', $this->preview('Frankfurt')['state']);
+        self::assertNotSame($this->preview('Frankfurt am Main')['x'], $this->preview('Frankfurt (Oder)')['x']);
+        self::assertSame('unknown', $this->preview('Frankfurt (Main) / Frankfurt (Oder)')['state']);
+        self::assertSame('located', $this->preview('Hanau Hbf')['state']);
+    }
+
+    public function test_postcode_disambiguates_only_matching_city_and_keeps_precision_label(): void
+    {
+        self::assertSame('ambiguous', $this->preview('Rain')['state']);
+        $order = new Order(['location_name' => 'Depot', 'city' => 'Rain', 'postal_code' => '86641', 'country' => 'DE']);
+        $preview = TimelineLocationPreview::fromOrder($order);
+        self::assertSame('located', $preview['state']);
+        self::assertSame('Rain', $preview['place']);
+        self::assertSame('PLZ-Ortslage · ungefähr', $preview['label']);
+        self::assertSame($preview, $this->preview('86641 Rain'));
+        self::assertSame($preview, $this->preview('DE-86641 Rain'));
+        self::assertSame('unknown', $this->preview('10115 Rain')['state']);
+        self::assertSame('unknown', $this->preview('86641 Wien')['state']);
+        self::assertSame('unknown', $this->preview('86641 Rain / Hamburg')['state']);
+        self::assertSame('outside', TimelineLocationPreview::fromOrder(new Order(['city' => 'Rain', 'postal_code' => '86641', 'country' => 'AT']))['state']);
+    }
+
+    public function test_postcode_does_not_overwrite_conflicting_explicit_city_or_location(): void
+    {
+        foreach ([['city' => 'Hamburg'], ['location_name' => 'Hamburg'], ['location_name' => 'Bahnhof Hamburg'], ['city' => 'Wien'], ['city' => 'München / Hamburg']] as $fields) {
+            self::assertSame('unknown', TimelineLocationPreview::fromOrder(new Order($fields + ['postal_code' => '10115', 'country' => 'DE']))['state']);
+        }
+        self::assertSame($this->preview('Hamburg'), TimelineLocationPreview::fromOrder(new Order(['city' => 'Hamburg', 'postal_code' => '20095', 'country' => 'DE'])));
+        self::assertSame('unknown', TimelineLocationPreview::fromOrder(new Order(['city' => 'Hamburg', 'postal_code' => 'AT-1010']))['state']);
+        self::assertSame('ambiguous', TimelineLocationPreview::fromOrder(new Order(['postal_code' => '01067', 'country' => 'DE']))['state']);
+        self::assertSame('located', TimelineLocationPreview::fromOrder(new Order(['location_name' => 'Depot', 'postal_code' => '80331', 'country' => 'DE']))['state']);
+        self::assertSame('unknown', TimelineLocationPreview::fromOrder(new Order(['postal_code' => str_repeat('1', 201), 'city' => 'München']))['state']);
+    }
+
+    public function test_postcode_and_map_aliases_never_borrow_an_unrelated_order_worksite(): void
+    {
+        $order = ['location_name' => 'Depot', 'city' => 'München', 'postal_code' => '80331', 'country' => 'DE'];
+        self::assertSame($this->preview('München'), $this->preview(null, $order));
+        self::assertSame($this->preview('Hamburg'), $this->preview('Hamburg', $order));
+        self::assertSame('unknown', $this->preview('Unbekannter Einsatzort', $order)['state']);
+        self::assertSame('ambiguous', $this->preview('Rain', $order)['state']);
+    }
+
+    public function test_inquiry_uses_only_explicit_worksite_and_does_not_query_relationships(): void
+    {
+        $inquiry = new class extends OperationInquiry
+        {
+            public function order(): BelongsTo
+            {
+                throw new RuntimeException('Inquiry preview must not query order.');
+            }
+        };
+        $inquiry->forceFill(['location_name' => 'München-Pasing', 'contact_name' => 'Hamburg', 'original' => 'Hamburg', 'order_id' => 42]);
+        self::assertSame($this->preview('München'), TimelineLocationPreview::fromInquiry($inquiry));
+        self::assertFalse($inquiry->relationLoaded('order'));
+        $inquiry->location_name = null;
+        $inquiry->setRelation('order', new Order(['location_name' => 'Hamburg']));
+        self::assertSame('unknown', TimelineLocationPreview::fromInquiry($inquiry)['state']);
+    }
+
+    public function test_map_fallbacks_leave_original_regional_location_policy_unchanged(): void
+    {
+        foreach (['München-Pasing', 'Hamburg-Harburg', 'Bahnhof München', '86641 Rain', 'Ingolstadt Hbf'] as $name) {
+            $shift = new Shift(['location_name' => $name]);
+            self::assertSame('located', TimelineLocationPreview::fromShift($shift)['state'], $name);
+            self::assertContains(TimelineLocationPreview::forRegionalAssessment($shift)['state'], ['unknown', 'ambiguous'], $name);
+        }
+        $shift = new Shift;
+        $shift->setRelation('order', new Order(['city' => 'Rain', 'postal_code' => '86641', 'country' => 'DE']));
+        self::assertSame('located', TimelineLocationPreview::fromShift($shift)['state']);
+        self::assertSame('ambiguous', TimelineLocationPreview::forRegionalAssessment($shift)['state']);
+        self::assertSame($this->preview('München'), TimelineLocationPreview::forRegionalAssessment(new Shift(['location_name' => 'München Milbertshofen'])));
     }
 
     public function test_shift_override_does_not_borrow_order_city_or_foreign_country(): void

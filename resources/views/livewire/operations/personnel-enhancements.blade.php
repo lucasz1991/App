@@ -24,6 +24,9 @@
             <x-ui.buttons.multi-toggle id="personnel-enhancement-view" label="Personalbereich" :value="$tab" action="showTab" :options="$options" />
         </header>@endif
         <div class="ops-actions">
+            @if($profileUserId !== null && in_array($tab, ['documents', 'workflows'], true))
+                <a class="text-sm text-rt-muted underline" href="{{ $tab === 'documents' ? \App\Support\Operations\OperationsPages::url('people', ['view' => 'employees', 'section' => 'signatures', 'user' => $profileUserId]) : \App\Support\Operations\OperationsPages::url('personnel-processes', ['view' => 'workflows', 'user' => $profileUserId]) }}" data-no-navigate>{{ $tab === 'documents' ? 'Unterzeichnungen & Vorlagen verwalten' : 'Prozesse & Vorlagen verwalten' }}</a>
+            @endif
             @if($tab === 'workflows' && $canGlobal)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="open('workflow_template')">Prozessvorlage</x-ui.buttons.button-basic>@endif
             @if($tab === 'reports' && !$personal)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="open('report')">Bericht speichern</x-ui.buttons.button-basic>@endif
             @if($tab === 'documents' && $canGlobal)<x-ui.buttons.button-basic type="button" wire:click="open('document_template')">Dokumentvorlage</x-ui.buttons.button-basic>@endif

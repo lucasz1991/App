@@ -7,6 +7,7 @@ use App\Models\DeviceAssignment;
 use App\Models\User;
 use App\Models\UserProfile as ProfileModel;
 use App\Services\Operations\PersonnelScopeService;
+use App\Support\Operations\EmployeeProfileSections;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -127,7 +128,12 @@ class UserProfile extends Component
 
     public function setProfileTab(string $tab): void
     {
-        abort_unless($this->embedded && isset($this->profileTabs()[$tab]), 403);
+        abort_unless(auth()->user()?->canViewManagementDashboard(), 403);
+        Gate::authorize('employees.view');
+        abort_unless(isset($this->profileTabs()[$tab]), 403);
+        if ($this->dirtyInlineFields !== []) {
+            $this->savePendingInlineChanges();
+        }
         $this->profileTab = $tab;
     }
 
@@ -154,7 +160,7 @@ class UserProfile extends Component
             $tabs['compensation'] = ['label' => __('app.compensation_data'), 'icon' => 'fad fa-coins'];
         }
 
-        return $tabs;
+        return $tabs + EmployeeProfileSections::forUser(auth()->user(), $this->user);
     }
 
     public function updatedInlineValues(mixed $value, string $field): void
@@ -443,7 +449,7 @@ class UserProfile extends Component
         $employeeProfileTabs = $this->profileTabs();
         abort_unless(isset($employeeProfileTabs[$this->profileTab]), 403);
         $profile = $this->profileForActor();
-        $deviceAssignments = Gate::allows('devices.view') && (! $this->embedded || $this->profileTab === 'devices')
+        $deviceAssignments = Gate::allows('devices.view') && $this->profileTab === 'devices'
             ? DeviceAssignment::query()
                 ->where('user_id', $this->userId)
                 ->with(['device.readinessChecks'])

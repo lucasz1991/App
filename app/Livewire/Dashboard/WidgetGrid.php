@@ -3,6 +3,7 @@
 namespace App\Livewire\Dashboard;
 
 use App\Support\Dashboard\DashboardLayout;
+use App\Support\Dashboard\DispatchMapData;
 use App\Support\Dashboard\SystemDashboardData;
 use App\Support\Dashboard\WidgetDataProvider;
 use Livewire\Attributes\Locked;
@@ -22,6 +23,44 @@ class WidgetGrid extends Component
     public array $systemStatus = [];
 
     public bool $systemStatusLoaded = false;
+
+    #[Locked]
+    public string $dispatchMapDate = '';
+
+    public function mount(): void
+    {
+        $this->dispatchMapDate = DispatchMapData::today();
+    }
+
+    public function setDispatchMapDate(string $date): void
+    {
+        $this->authorizeDispatchMap();
+        DispatchMapData::day($date);
+        $this->dispatchMapDate = $date;
+        $this->resetValidation('dispatchMapDate');
+    }
+
+    public function moveDispatchMapDate(int $direction): void
+    {
+        $this->authorizeDispatchMap();
+        abort_unless(in_array($direction, [-1, 1], true), 422);
+        $date = DispatchMapData::day($this->dispatchMapDate)->addDays($direction)->toDateString();
+        DispatchMapData::day($date);
+        $this->dispatchMapDate = $date;
+        $this->resetValidation('dispatchMapDate');
+    }
+
+    public function resetDispatchMapDate(): void
+    {
+        $this->setDispatchMapDate(DispatchMapData::today());
+    }
+
+    private function authorizeDispatchMap(): void
+    {
+        $user = auth()->user();
+        abort_unless($user && DispatchMapData::availableFor($user), 403);
+        abort_unless(in_array('operations_dispatch_map', array_column(DashboardLayout::visible($user), 'key'), true), 403);
+    }
 
     public function toggleEditing(): void
     {
@@ -95,7 +134,7 @@ class WidgetGrid extends Component
         foreach ($visible as $item) {
             $widgetData[$item['key']] = $item['key'] === 'system_status'
                 ? []
-                : $provider->data($item['key'], $user, $item['size'], $item['rows']);
+                : $provider->data($item['key'], $user, $item['size'], $item['rows'], $item['key'] === 'operations_dispatch_map' ? $this->dispatchMapDate : null);
         }
 
         return view('livewire.dashboard.widget-grid', [

@@ -40,29 +40,21 @@ final class ApplicationNavigation
                 continue;
             }
             if ($page === 'people') {
-                $views = OperationsPages::views($user, $page);
-                foreach (['employees' => 'users', 'documents' => 'folder', 'qualifications' => 'award', 'training' => 'book-open'] as $view => $icon) {
-                    if (isset($views[$view])) {
-                        $group = in_array($view, ['qualifications', 'training'], true) ? 'Nachweise & Schulungen' : 'Personalakte';
-                        $add('Personal', $views[$view], 'operations.page', $icon, ['page' => $page, 'view' => $view], true, $group);
-                    }
-                }
-                foreach (OperationsPages::sections($user, $page) as $section => $label) {
-                    $add('Personal', $label, 'operations.page', $section === 'emergency' ? 'phone' : 'file-text', ['page' => $page, 'section' => $section], true, 'Personalakte');
-                }
+                // The workspace chooses the first authorized view. Specialist roles
+                // must not need employees.view to reach their existing records.
+                $add('Personal', 'Mitarbeiter', 'operations.page', 'users', ['page' => $page]);
 
                 continue;
             }
 
             $shortcuts = match ($page) {
-                'leave' => ['models' => ['Arbeitsmodelle', 'clock'], 'policies' => ['Urlaubsrichtlinien', 'book-open'], 'rules' => ['Regelzuordnungen', 'sliders']],
                 'time-review' => ['rules' => ['Regelprofile', 'shield']],
                 default => [],
             };
             $availableSections = $shortcuts ? OperationsPages::sections($user, $page) : [];
             $shortcuts = array_intersect_key($shortcuts, $availableSections);
             foreach ($shortcuts as $section => [$label, $icon]) {
-                $add('Personal', $label, 'operations.page', $icon, ['page' => $page, 'section' => $section], true, 'Arbeitsmodelle & Regeln');
+                $add('Personal', $label, 'operations.page', $icon, ['page' => $page, 'section' => $section]);
             }
             if (! $shortcuts || OperationsPages::views($user, $page) || array_diff_key($availableSections, $shortcuts)) {
                 $group = match ($page) {
@@ -138,6 +130,9 @@ final class ApplicationNavigation
     public static function active(array $link): bool
     {
         if ($link['route'] === 'operations.page') {
+            if ($link['parameters']['page'] === 'people' && request()->routeIs('admin.employees', 'employees.index', 'admin.user-profile', 'employees.show')) {
+                return true;
+            }
             $page = request()->route('page');
             $view = request()->query('view');
             $section = request()->query('section');

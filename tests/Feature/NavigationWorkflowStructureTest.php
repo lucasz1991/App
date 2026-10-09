@@ -48,14 +48,16 @@ class NavigationWorkflowStructureTest extends TestCase
     }
 
     #[DataProvider('visibilityScenarios')]
-    public function test_reorganization_preserves_every_existing_link_contract(string $schema, string $role, array $abilities, bool $active = true, ?string $team = null): void
+    public function test_consolidation_changes_only_existing_individual_employee_entries(string $schema, string $role, array $abilities, bool $active = true, ?string $team = null): void
     {
         $this->installSchema($schema);
         $actor = $this->actor($role, $abilities, $active, $team);
         $before = $this->originalSections($actor);
         $after = ApplicationNavigation::sections($actor);
 
-        $this->assertSame($this->contracts($before), $this->contracts($after), 'Only section, group and order may change; preserve every leaf contract exactly.');
+        $this->assertSame($this->contracts($this->consolidatePeople($before)), $this->contracts($after), 'Only people entries and the three individual leave tools may move into employee profiles; all other leaf targets stay unchanged.');
+        $peopleLinks = collect($after)->flatten(1)->filter(fn (array $link): bool => $link['route'] === 'operations.page' && ($link['parameters']['page'] ?? '') === 'people');
+        $this->assertCount(isset(OperationsPages::availableFor($actor)['people']) ? 1 : 0, $peopleLinks);
         foreach (array_diff(array_unique([...array_keys($before), ...array_keys($after)]), ['', 'Disposition', 'Personal']) as $section) {
             $this->assertSame($before[$section] ?? [], $after[$section] ?? [], 'Unrelated section changed: '.$section);
         }
@@ -103,13 +105,10 @@ class NavigationWorkflowStructureTest extends TestCase
         ], $this->groupedTitles($sections['Disposition']));
         $this->assertSame(['Eingang', 'Aufträge', 'Schichtplan', 'Kalender', 'Bedarf & Planung', 'Leitstelle'], array_column($sections['Disposition'], 'title'));
         $this->assertSame([
-            'Personalakte' => ['Mitarbeiter', 'Unterlagen', 'Unterzeichnungen', 'Notfallkontakt'],
-            'Nachweise & Schulungen' => ['Nachweise', 'Schulungen'],
-            '' => ['Personalprozesse'],
+            '' => ['Mitarbeiter', 'Personalprozesse', 'Regelprofile'],
             'Zeitwirtschaft' => ['Urlaub & Konten', 'Zeitprüfung', 'Monatsabschluss & Export'],
-            'Arbeitsmodelle & Regeln' => ['Arbeitsmodelle', 'Urlaubsrichtlinien', 'Regelzuordnungen', 'Regelprofile'],
         ], $this->groupedTitles($sections['Personal']));
-        $this->assertSame(['Personalakte', 'Nachweise & Schulungen', '', 'Zeitwirtschaft', 'Arbeitsmodelle & Regeln'], array_column(array_values(ApplicationNavigation::groups($sections['Personal'])), 'label'));
+        $this->assertSame(['', '', 'Zeitwirtschaft', ''], array_column(array_values(ApplicationNavigation::groups($sections['Personal'])), 'label'));
         $this->assertSame(['inbox', 'orders', 'shifts', 'calendar'], array_keys(OperationsPages::planningShortcuts($this->actor('admin'))), 'The page/topbar shortcut contract is outside this menu-only change.');
     }
 
@@ -128,10 +127,9 @@ class NavigationWorkflowStructureTest extends TestCase
             $this->assertSame($links[$index]['navigate'], $element->hasAttribute('wire:navigate'));
             $this->assertSame($links[$index]['title'], trim($sidebar->query('.//span[contains(@class, "sidebar-nav-link__label")]', $element)->item(0)->textContent));
         }
-        $this->assertSame(['Unterzeichnungen'], array_map(fn (\DOMElement $element): string => trim($sidebar->query('.//span[contains(@class, "sidebar-nav-link__label")]', $element)->item(0)->textContent), iterator_to_array($sidebar->query('//a[@data-rt-sidebar-link and @aria-current="page"]'))));
+        $this->assertSame(['Mitarbeiter'], array_map(fn (\DOMElement $element): string => trim($sidebar->query('.//span[contains(@class, "sidebar-nav-link__label")]', $element)->item(0)->textContent), iterator_to_array($sidebar->query('//a[@data-rt-sidebar-link and @aria-current="page"]'))));
         $expanded = $sidebar->query('//a[@data-rt-sidebar-group and @aria-expanded="true"]');
-        $this->assertCount(1, $expanded);
-        $this->assertSame('Personalakte', trim($sidebar->query('.//span[contains(@class, "sidebar-nav-link__label")]', $expanded->item(0))->item(0)->textContent));
+        $this->assertCount(0, $expanded);
 
         $mobile = $this->xpath(view('components.operations.navigation', ['current' => 'qualifications', 'modules' => []])->render());
         $select = $mobile->query('//*[@data-rt-custom-select]');
@@ -139,7 +137,7 @@ class NavigationWorkflowStructureTest extends TestCase
         $this->assertSame(1, preg_match("/\\boptions:\\s*JSON\\.parse\\('([^']*)'\\)/s", $select->item(0)->getAttribute('x-data'), $matches));
         $options = json_decode(json_decode('"'.$matches[1].'"', true, 512, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame($destinations, array_column($options, 'value'));
-        $this->assertSame([OperationsPages::url('people', ['section' => 'signatures'])], array_column(array_filter($options, fn (array $option): bool => $option['selected']), 'value'));
+        $this->assertSame([OperationsPages::url('people')], array_column(array_filter($options, fn (array $option): bool => $option['selected']), 'value'));
     }
 
     #[DataProvider('activeDestinations')]
@@ -164,16 +162,16 @@ class NavigationWorkflowStructureTest extends TestCase
             ['planning', ['view' => 'staff', 'section' => 'pools'], 'Bedarf & Planung'],
             ['duty', ['view' => 'board'], 'Leitstelle'],
             ['people', ['view' => 'employees'], 'Mitarbeiter'],
-            ['people', ['view' => 'documents'], 'Unterlagen'],
-            ['people', ['view' => 'qualifications'], 'Nachweise'],
-            ['people', ['view' => 'training'], 'Schulungen'],
-            ['people', ['section' => 'signatures'], 'Unterzeichnungen'],
-            ['people', ['section' => 'emergency'], 'Notfallkontakt'],
+            ['people', ['view' => 'documents'], 'Mitarbeiter'],
+            ['people', ['view' => 'qualifications'], 'Mitarbeiter'],
+            ['people', ['view' => 'training'], 'Mitarbeiter'],
+            ['people', ['section' => 'signatures'], 'Mitarbeiter'],
+            ['people', ['section' => 'emergency'], 'Mitarbeiter'],
             ['personnel-processes', ['view' => 'workflows'], 'Personalprozesse'],
             ['leave', ['view' => 'requests'], 'Urlaub & Konten'],
-            ['leave', ['section' => 'models'], 'Arbeitsmodelle'],
-            ['leave', ['section' => 'policies'], 'Urlaubsrichtlinien'],
-            ['leave', ['section' => 'rules'], 'Regelzuordnungen'],
+            ['leave', ['section' => 'models'], 'Urlaub & Konten'],
+            ['leave', ['section' => 'policies'], 'Urlaub & Konten'],
+            ['leave', ['section' => 'rules'], 'Urlaub & Konten'],
             ['time-review', ['view' => 'times'], 'Zeitprüfung'],
             ['time-review', ['section' => 'rules'], 'Regelprofile'],
             ['payroll', ['view' => 'export'], 'Monatsabschluss & Export'],
@@ -235,6 +233,36 @@ class NavigationWorkflowStructureTest extends TestCase
         usort($contracts, fn (array $a, array $b): int => json_encode($a) <=> json_encode($b));
 
         return $contracts;
+    }
+
+    private function consolidatePeople(array $sections): array
+    {
+        $hadPeople = false;
+        foreach ($sections as &$links) {
+            foreach ($links as &$link) {
+                if ($link['route'] === 'operations.page' && $link['parameters'] === ['page' => 'leave']) {
+                    $link['excludedSections'] = [];
+                }
+            }
+            unset($link);
+            $links = array_values(array_filter($links, function (array $link) use (&$hadPeople): bool {
+                if ($link['route'] === 'operations.page' && ($link['parameters']['page'] ?? '') === 'leave' && in_array($link['parameters']['section'] ?? '', ['models', 'policies', 'rules'], true)) {
+                    return false;
+                }
+                if ($link['route'] !== 'operations.page' || ($link['parameters']['page'] ?? '') !== 'people') {
+                    return true;
+                }
+                $hadPeople = true;
+
+                return false;
+            }));
+        }
+        unset($links);
+        if ($hadPeople) {
+            $sections['Personal'][] = ['title' => 'Mitarbeiter', 'route' => 'operations.page', 'icon' => 'users', 'parameters' => ['page' => 'people'], 'navigate' => true, 'group' => null, 'excludedSections' => []];
+        }
+
+        return $sections;
     }
 
     private function groupedTitles(array $links): array

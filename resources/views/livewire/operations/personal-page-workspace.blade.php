@@ -1,4 +1,11 @@
 <div class="rt-personnel-workspace min-w-0" data-personal-page="{{ $page }}" data-personal-view="{{ $view }}" data-personal-section="{{ $section }}">
+    @if($page !== 'people' || $view !== 'employees' || $section !== '')
+    @if($page === 'people')
+        <div class="space-y-1">
+            <h2 class="text-base font-semibold">Mitarbeiter-Fachakte</h2>
+            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Mitarbeiter auswählen und den freigegebenen Bereich öffnen.</p>
+        </div>
+    @endif
     <header class="rt-personnel-workspace__toolbar">
         @if($viewOptions)
             <x-ui.buttons.multi-toggle :id="'personal-page-'.$page" label="Personalansicht" :show-labels="true" :options="$viewOptions" :value="$section === '' ? $view : null" action="setView" />
@@ -34,10 +41,11 @@
             </div>
         @endif
     </header>
+    @endif
     @if($employees->isNotEmpty())
         <div class="rt-personnel-workspace__context">
             <x-ui.forms.label for="personal-page-user" value="Mitarbeiter" />
-            <x-ui.forms.select id="personal-page-user" wire:model.live="userId"><option value="0">Auswählen</option>@foreach($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }}</option>@endforeach</x-ui.forms.select>
+            <x-ui.forms.select id="personal-page-user" wire:model.live="userId"><option value="0">{{ $page === 'people' && $view === 'qualifications' && $section === '' ? 'Alle freigegebenen Mitarbeiter' : 'Auswählen' }}</option>@foreach($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }}</option>@endforeach</x-ui.forms.select>
         </div>
     @endif
     @if($section !== '')
@@ -79,7 +87,7 @@
                 <p class="ops-muted">Keine Mitarbeiter in dieser Ansicht.</p>
             @endif
         @elseif($view === 'qualifications')
-            <livewire:operations.personnel-review module="qualifications" :embedded="true" :initial-record-id="$recordId" :key="$contentKey" />
+            <livewire:operations.personnel-review module="qualifications" :embedded="true" :initial-record-id="$recordId" :profile-user-id="$userId ?: null" :key="$contentKey" />
         @elseif($view === 'training')
             <livewire:operations.workforce-accounts tab="training" :embedded="true" :initial-user-id="$userId ?: null" :initial-record-id="$recordId" :key="$contentKey" />
         @endif
