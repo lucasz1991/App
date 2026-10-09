@@ -138,7 +138,7 @@
                 @endforeach
             </nav>
 
-            <div class="rt-ai-assist__body" id="{{ $panelId }}-body" role="tabpanel" aria-labelledby="{{ $panelId }}-tab-{{ $tab }}">
+            <div class="rt-ai-assist__body" id="{{ $panelId }}-body" role="tabpanel" aria-labelledby="{{ $panelId }}-tab-{{ $tab }}" @if(in_array($tab, ['intake', 'activity'], true)) wire:poll.20s.visible @endif>
                 @if($tab === 'chat')
                     <div class="rt-ai-assist__messages" x-ref="messages" x-on:scroll.passive="handleMessagesScroll()" aria-live="polite">
                         @if($messages === [])
@@ -237,7 +237,7 @@
                         @endforeach
                         <div class="rt-ai-assist__row" x-show="busy" style="display: none" role="status">
                             <span class="rt-ai-assist__orb rt-ai-assist__orb--msg" data-assistant-cloud-slot="message" data-state="thinking" aria-hidden="true"><span class="rt-assistant-cloud__fallback"></span></span>
-                            <div class="rt-ai-assist__msg rt-ai-assist__msg--typing"><span>AI-Assist wertet aus</span><i></i><i></i><i></i></div>
+                            <div class="rt-ai-assist__msg rt-ai-assist__msg--typing"><span x-text="loaded ? 'Aktion wird bearbeitet' : 'Übersicht wird geladen'">Übersicht wird geladen</span><i></i><i></i><i></i></div>
                         </div>
                     </div>
                     <button type="button" class="rt-ai-assist__new-output" x-show="unseenOutput" style="display:none" x-on:click="jumpToLatest()">Neue Antworten <i class="far fa-arrow-down" aria-hidden="true"></i></button>
@@ -321,7 +321,7 @@
                                     <li>
                                         @if($item['href'])<a class="rt-ai-assist__activity-item" href="{{ $item['href'] }}">@else<div class="rt-ai-assist__activity-item">@endif
                                             <span class="rt-ai-assist__activity-icon" data-tone="{{ $item['tone'] }}"><i class="far {{ $item['icon'] }}" aria-hidden="true"></i></span>
-                                            <span class="rt-ai-assist__activity-text"><strong>{{ $item['title'] }}</strong><small>{{ $item['detail'] }}</small></span>
+                                            <span class="rt-ai-assist__activity-text"><strong>{{ $item['title'] }}</strong><small>{{ $item['detail'] }}</small>@if($item['intake_id'] ?? null)<small>AI-Eingang #{{ $item['intake_id'] }}</small>@endif</span>
                                             <span class="rt-ai-assist__activity-side"><span>{{ $local->format('H:i') }}</span><span class="rt-ai-assist__badge" data-tone="{{ $item['tone'] }}">{{ $item['status'] }}</span></span>
                                         @if($item['href'])</a>@else</div>@endif
                                     </li>

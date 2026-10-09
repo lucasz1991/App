@@ -7,6 +7,7 @@ use App\Services\Operations\AiAssistService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsPages;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -73,8 +74,18 @@ class AiAssist extends Component
         $this->loaded = true;
     }
 
+    #[On('operations-assistant-context-changed')]
+    public function updateContext(string $page, string $view = '', string $section = ''): void
+    {
+        $actor = $this->actor();
+        abort_unless(isset(OperationsPages::definitions()[$page]) && OperationsPages::views($actor, $page), 403);
+        $context = app(AiAssistService::class)->context($page, $view, $section, $this->from, $this->until);
+        [$this->page, $this->pageLabel, $this->from, $this->until] = [$context['page'], $context['label'], $context['from'], $context['until']];
+    }
+
     public function setTab(string $tab): void
     {
+        $this->actor();
         abort_unless(in_array($tab, ['chat', 'intake', 'actions', 'activity'], true), 422);
         $this->tab = $tab;
         $this->loaded = true;

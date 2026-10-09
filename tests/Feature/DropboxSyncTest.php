@@ -146,6 +146,23 @@ class DropboxSyncTest extends TestCase
         $this->assertTrue(DropboxWorkItem::where('resource', 'file:'.$source->id)->exists());
     }
 
+    public function test_new_contact_export_uses_confirmed_profile_names_and_normalizes_phone_whitespace(): void
+    {
+        $this->connection->update(['settings' => [...$this->connection->settings, 'matrix_path' => '/Disposition/Kompetenzmatrix.xlsx']]);
+        $person = User::factory()->create(['name' => 'Erika Muster', 'role' => 'staff', 'status' => true]);
+        $profile = UserProfile::create(['user_id' => $person->id, 'first_name' => 'Erika', 'last_name' => 'Muster', 'phone' => ' 0123456 ']);
+        $identity = DropboxIdentity::create(['connection_id' => $this->connection->id, 'alias' => 'erika muster', 'kind' => 'employee', 'user_id' => $person->id, 'details' => ['display_name' => 'Erika Muster', 'phone' => '']]);
+        $meta = $this->client->put('/Disposition/Kompetenzmatrix.xlsx', $this->matrixWorkbook());
+        $source = app(SourceScanner::class)->register($this->connection, $meta);
+        app(FileSynchronizer::class)->sync($this->connection, $source);
+        app(RecordExporter::class)->export($this->connection, 'UserProfile', $profile->id);
+        $rows = app(WorkbookReader::class)->read($this->client->download($this->connection, $source->file_id)['bytes'], 'matrix')['rows'];
+        $contact = collect($rows)->first(fn ($r) => $r['domain'] === 'contacts' && $r['locator']['subject'] === 'Erika Muster');
+        $this->assertSame('0123456', $contact['values']['phone']);
+        $this->assertSame(' 0123456 ', $profile->fresh()->phone);
+        $this->assertTrue(DropboxAppearance::whereIn('record_id', DropboxRecord::where('model_type', 'DropboxIdentity')->where('model_id', $identity->id)->select('id'))->exists());
+    }
+
     public function test_closed_import_export_updates_existing_file_without_appending_retrospective_copies(): void
     {
         $bytes = $this->workbook();

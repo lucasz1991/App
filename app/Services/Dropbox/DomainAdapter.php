@@ -84,10 +84,12 @@ class DomainAdapter
             $values = $identity->details ?? [];
             unset($values['display_name']);
             if ($identity->user_id && ($profile = UserProfile::where('user_id', $identity->user_id)->first())) {
+                $values['first_name'] ??= $profile->first_name ?? '';
+                $values['last_name'] ??= $profile->last_name ?? '';
                 foreach (['first_name', 'last_name', 'phone', 'mobile', 'city', 'birth_date', 'birth_place', 'nationality'] as $field) {
                     if (array_key_exists($field, $values)) {
                         $v = $profile->{$field};
-                        $values[$field] = $v instanceof \DateTimeInterface ? $v->format('Y-m-d') : (string) $v;
+                        $values[$field] = $v instanceof \DateTimeInterface ? $v->format('Y-m-d') : trim((string) $v);
                     }
                 }
             }

@@ -6,7 +6,7 @@
 @endphp
 <div class="rt-ai-assist rt-assistant-operations" data-assistant-operations>
     <details class="rt-ai-assist__context rt-ai-assist__context--compact">
-        <summary><i class="far fa-sparkles" aria-hidden="true"></i><span>Disposition · {{ $opsContext['label'] }}</span><small>{{ $operationsAssist['reviewCount'] }} prüfen</small><i class="far fa-chevron-down" aria-hidden="true"></i></summary>
+        <summary><i class="far fa-sparkles" aria-hidden="true"></i><span>Disposition · {{ $opsContext['label'] }}</span><small>{{ $operationsAssist['loaded'] ? $operationsAssist['reviewCount'].' prüfen' : 'Stand wird geladen' }}</small><i class="far fa-chevron-down" aria-hidden="true"></i></summary>
         <p class="rt-ai-assist__note">{{ $operationsAssist['enabled'] ? 'AI-Annahme aktiv' : 'Automatische AI-Annahme pausiert' }} · Änderungen brauchen deine Freigabe.</p>
         @if(in_array($opsContext['page'], ['shifts', 'calendar', 'planning'], true))<p class="rt-ai-assist__note">Zeitraum {{ \Carbon\CarbonImmutable::parse($opsContext['from'])->format('d.m.Y') }} – {{ \Carbon\CarbonImmutable::parse($opsContext['until'])->format('d.m.Y') }}</p>@endif
         @if(auth()->user()->isSuperAdmin())<a class="rt-ai-assist__btn" href="{{ route('admin.settings', ['tab' => 'ai-disposition', 'section' => 'configuration']) }}" wire:navigate>AI-Disposition einrichten</a>@endif

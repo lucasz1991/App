@@ -1169,7 +1169,7 @@
                         id="railtime-chatbot-message"
                         class="rt-chatbot__input"
                         rows="1"
-                        maxlength="4000"
+                        maxlength="{{ $operationsAvailable && $operationsTab === 'intake' ? 20000 : 4000 }}"
                         x-ref="composer"
                         wire:model="message"
                         x-on:input="resizeComposer(); updateComposerState()"
@@ -1177,7 +1177,7 @@
                         x-bind:disabled="isLoading || operationsBusy || navigationCleanupInFlight || !(assistantAvailable || operationsAvailable)"
                         wire:loading.attr="disabled"
                         wire:target="sendMessage,quickAction,runOperationsAction,submitOperationsIntake"
-                        placeholder="{{ $isGerman ? 'Frag mich etwas zu RailTime …' : 'Ask me anything about RailTime …' }}"
+                        placeholder="{{ $operationsAvailable && $operationsTab === 'intake' ? 'Anfrage beschreiben oder Dateien anhängen …' : ($isGerman ? 'Frag mich etwas zu RailTime …' : 'Ask me anything about RailTime …') }}"
                         autocomplete="off"
                         @disabled(! $assistantIsAvailable && !$operationsAvailable)
                     ></textarea>

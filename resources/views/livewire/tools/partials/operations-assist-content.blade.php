@@ -2,7 +2,7 @@
     $opsService = app(\App\Services\Operations\AiAssistService::class);
     $opsTab = $operationsTab;
 @endphp
-<div class="rt-ai-assist rt-assistant-operations__content" wire:poll.20s.visible>
+<div class="rt-ai-assist rt-assistant-operations__content" wire:key="assistant-operations-content-{{ $opsTab }}" wire:poll.20s.visible>
     @if($opsTab === 'intake')
         <div class="rt-ai-assist__intake-head">
             <div><h3>AI-Annahme</h3><p>Text unten eingeben oder Bilder, Dokumente und Audio-Dateien anhängen. Anschließend ausdrücklich als Eingang erfassen.</p></div>
@@ -18,7 +18,7 @@
             @foreach($operationsAssist['intakes'] as $intake)
                 <li wire:key="assistant-intake-{{ $intake->id }}"><a class="rt-ai-assist__activity-item" href="{{ $opsService->intakeUrl($intake) }}" wire:navigate>
                     <span class="rt-ai-assist__activity-icon" data-tone="{{ $opsService->tone($intake->status) }}"><i class="far fa-inbox" aria-hidden="true"></i></span>
-                    <span class="rt-ai-assist__activity-text"><strong>{{ $intake->title ?: 'Eingang #'.$intake->id }}</strong><small>{{ $intake->customer?->company_name ?? 'Kundenzuordnung prüfen' }}</small></span>
+                    <span class="rt-ai-assist__activity-text"><strong>{{ $intake->title ?: 'Eingang #'.$intake->id }}</strong><small>AI-Eingang #{{ $intake->id }} · {{ $intake->customer?->company_name ?? 'Kundenzuordnung prüfen' }}</small></span>
                     <span class="rt-ai-assist__badge" data-tone="{{ $opsService->tone($intake->status) }}">{{ $operationsAssist['labels'][$intake->status] ?? $intake->status }}</span>
                 </a></li>
             @endforeach
@@ -46,7 +46,7 @@
                 <li wire:key="assistant-activity-{{ $item['id'] ?? sha1($item['kind'].'|'.$item['title'].'|'.$item['at']->toIso8601String()) }}">
                     @if($item['href'])<a class="rt-ai-assist__activity-item" href="{{ $item['href'] }}" wire:navigate>@else<div class="rt-ai-assist__activity-item">@endif
                         <span class="rt-ai-assist__activity-icon" data-tone="{{ $item['tone'] }}"><i class="far {{ $item['icon'] }}" aria-hidden="true"></i></span>
-                        <span class="rt-ai-assist__activity-text"><strong>{{ $item['title'] }}</strong><small>{{ $item['detail'] }}</small></span>
+                        <span class="rt-ai-assist__activity-text"><strong>{{ $item['title'] }}</strong><small>{{ $item['detail'] }}</small>@if($item['intake_id'] ?? null)<small>AI-Eingang #{{ $item['intake_id'] }}</small>@endif</span>
                         <span class="rt-ai-assist__activity-side"><time datetime="{{ $local->toIso8601String() }}">{{ $local->format('H:i') }}</time><span class="rt-ai-assist__badge" data-tone="{{ $item['tone'] }}">{{ $item['status'] }}</span></span>
                     @if($item['href'])</a>@else</div>@endif
                 </li>
