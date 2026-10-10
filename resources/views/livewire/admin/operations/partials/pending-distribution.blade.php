@@ -9,17 +9,13 @@
 {{-- Seitenpanel „Noch zu verteilen“: offene Schichten des Zeitraums auswählen und passende Mitarbeitende direkt einteilen. --}}
 <div class="rt-shift-distribution rt-shift-distribution--side" data-pending-distribution x-data="{ distributionTab: @js($pendingShifts->total() > 0 || $unplannedOrders->total() === 0 ? 'shifts' : 'orders') }">
     <header class="rt-shift-distribution__header">
-        <div class="rt-shift-distribution__heading">
-            <div>
-                <h2 id="{{ $distributionTabsId }}-title">Noch zu verteilen</h2>
-                <p><i class="far fa-calendar-alt" aria-hidden="true"></i>{{ \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') }} – {{ \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') }}</p>
-            </div>
-            <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-distribution__close" wire:click="toggleDistribution" wire:loading.attr="disabled" wire:target="toggleDistribution" aria-label="Offene Planung schließen" title="Seitenleiste schließen"><i class="far fa-times" aria-hidden="true"></i></x-ui.buttons.button-basic>
-        </div>
-        <div class="rt-shift-distribution__progress" role="img" aria-label="{{ $progressReserved }} von {{ $progressRequired }} Plätzen eingeplant">
+        <h2 class="sr-only" id="{{ $distributionTabsId }}-title">Noch zu verteilen</h2>
+        <div class="rt-shift-distribution__progress" role="img" aria-label="{{ $progressReserved }} von {{ $progressRequired }} Plätzen eingeplant" title="Gewählter Zeitraum · unabhängig von Listenfiltern. Angefragte und bestätigte Mitarbeiter zählen als eingeplant.">
             <div class="rt-shift-distribution__progress-text"><strong>{{ $progressReserved }}/{{ $progressRequired }}</strong><span>Plätze eingeplant</span><b>{{ max(0, $progressRequired - $progressReserved) }} offen</b></div>
             <span class="rt-shift-distribution__meter" aria-hidden="true"><span style="width: {{ $progressPercent }}%"></span></span>
         </div>
+        <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-distribution__close" wire:click="toggleDistribution" wire:loading.attr="disabled" wire:target="toggleDistribution" aria-label="Offene Planung schließen" title="Seitenleiste schließen"><i class="far fa-times" aria-hidden="true"></i></x-ui.buttons.button-basic>
+        <p class="sr-only">{{ \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') }} – {{ \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') }}. Gewählter Zeitraum · unabhängig von Listenfiltern. Angefragte und bestätigte Mitarbeiter zählen als eingeplant. Bei offenem Panel zeigt die Zeitleiste unverbindliche Besetzungsvorschläge.</p>
     </header>
     <x-operations.panel.tabs class="rt-shift-distribution__tabs" label="Offene Planung nach Art" :id-prefix="$distributionTabsId" model="distributionTab"
         :tabs="['shifts' => ['label' => 'Schichten', 'count' => $pendingShifts->total()], 'orders' => ['label' => 'Leistungen', 'count' => $unplannedOrders->total()]]" />
@@ -130,9 +126,8 @@
     </section>
 
     <footer class="rt-shift-distribution__footer">
-        <details class="rt-shift-distribution__basis"><summary>Planungsgrundlage<i class="far fa-chevron-down" aria-hidden="true"></i></summary><p class="rt-shift-distribution__note">Gewählter Zeitraum · unabhängig von Listenfiltern. Angefragte und bestätigte Mitarbeiter zählen als eingeplant. Bei offenem Panel zeigt die Zeitleiste unverbindliche Besetzungsvorschläge.</p></details>
         @can('operations.inquiries.manage')
-            <a class="rt-shift-distribution__inquiries" href="{{ \App\Support\Operations\OperationsPages::moduleUrl('inquiries') }}" wire:navigate><i class="far fa-inbox" aria-hidden="true"></i>Anfragen öffnen<i class="far fa-arrow-right" aria-hidden="true"></i></a>
+            <a class="rt-shift-distribution__inquiries" href="{{ \App\Support\Operations\OperationsPages::moduleUrl('inquiries') }}" wire:navigate><i class="far fa-inbox" aria-hidden="true"></i>Anfragen<i class="far fa-arrow-right" aria-hidden="true"></i></a>
         @endcan
     </footer>
 </div>

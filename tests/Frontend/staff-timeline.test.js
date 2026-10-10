@@ -257,6 +257,18 @@ test('long duty badges span the actual duration while full-day badges keep their
     assert.deepEqual(positions[1], { lane: 1, labelOffset: 120, badgeWidth: 232 });
 });
 
+test('continuing duty badges meet period edges without the normal label inset', () => {
+    const [before, after, both] = timelineEventLanes([
+        { start: 0, duration: 10, labelWidth: 100, continuesBefore: true, lane: 0 },
+        { start: 90, duration: 10, labelWidth: 100, continuesAfter: true, lane: 0 },
+        { start: 0, duration: 100, labelWidth: 100, continuesBefore: true, continuesAfter: true, lane: 1 },
+    ], 300);
+    assert.equal(before.labelOffset - before.badgeWidth / 2, 0);
+    assert.equal(270 + after.labelOffset + after.badgeWidth / 2, 300);
+    assert.equal(both.badgeWidth, 300);
+    assert.equal(both.labelOffset, 150);
+});
+
 test('overlapping readable time badges get separate compact lanes while separated duties share a lane', () => {
     const positions = timelineEventLanes([
         { start: 25, duration: 8, labelWidth: 80, lane: 0 },

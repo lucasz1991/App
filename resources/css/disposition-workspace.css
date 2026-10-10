@@ -154,7 +154,7 @@
 .rt-shift-plan-range-divider { padding-bottom: 11px; color: var(--dispo-muted); }
 .rt-shift-plan-unavailable { display: flex; min-height: 64px; align-items: center; gap: 10px; padding: 14px 16px; border: 1px solid var(--dispo-line); border-radius: 10px; background: var(--dispo-surface); color: var(--dispo-muted); font-size: 13px; }
 .rt-shift-plan-unavailable > i { color: var(--rt-red, #e4002b); }
-.rt-shift-plan-header-action { order: -2; display: inline-flex; flex: 0 0 auto; }
+.rt-shift-plan-header-action { order: -2; display: inline-flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .rt-shift-plan-header-action > .rt-ui-button { min-height: 40px; padding: 0 12px; border-color: var(--dispo-line) !important; border-radius: 9px; background: var(--dispo-surface) !important; color: var(--dispo-text); font-size: 12px; white-space: nowrap; }
 .rt-shift-plan-header-action > .rt-ui-button:hover { border-color: color-mix(in srgb, var(--rt-red, #e4002b) 30%, var(--dispo-line)) !important; background: var(--dispo-subtle) !important; }
 .rt-shift-plan-header-action > .rt-ui-button > i { color: var(--rt-red, #e4002b); }

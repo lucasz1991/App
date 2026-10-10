@@ -120,11 +120,14 @@
             <div class="rt-timeline-proposals" aria-label="Unverbindliche Besetzungsvorschläge" wire:key="staff-proposals-{{ $row['user']->id }}">
                 @foreach($proposalRows->get($row['user']->id,collect()) as $proposal)
                     <span class="rt-timeline-proposal-duration" aria-hidden="true" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-width:{{ $proposal['width_percent'] }}%"></span>
-                    <button type="button" class="rt-timeline-proposal animate-pulse motion-reduce:animate-none" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-center:{{ $proposal['left_percent'] + ($proposal['width_percent'] / 2) }}%;--proposal-width:{{ $proposal['width_percent'] }}%" wire:key="{{ $proposal['id'] }}" data-user="{{ $proposal['user_id'] }}" data-shift="{{ $proposal['shift_id'] }}" data-revision="{{ $proposal['revision'] }}" data-fit="{{ $proposal['fit'] }}" data-urgency="{{ $proposal['urgency'] }}" aria-haspopup="dialog" aria-label="Vorschlag prüfen: {{ $row['user']->name }} · {{ $proposal['title'] }} · {{ $proposal['local_label'] }} · {{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }}" title="{{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }} · {{ $proposal['title'] }} · {{ implode(' · ',$proposal['reasons']) }}" data-timeline-proposal>
-                        <i class="far {{ $proposal['fit'] === 'review' ? 'fa-exclamation-circle' : ($proposal['fit'] === 'preferred' ? 'fa-check-circle' : 'fa-lightbulb') }}" aria-hidden="true"></i>
-                        <span>{{ $proposal['timeline_label'] }}</span>
-                        @if($proposal['urgency'] !== 'normal')<i class="far fa-clock rt-timeline-proposal__urgency" aria-hidden="true"></i>@endif
-                    </button>
+                    <div class="rt-timeline-proposal-shell" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-center:{{ $proposal['left_percent'] + ($proposal['width_percent'] / 2) }}%;--proposal-width:{{ $proposal['width_percent'] }}%" data-fit="{{ $proposal['fit'] }}" wire:key="{{ $proposal['id'] }}">
+                        <button type="button" class="rt-timeline-proposal" data-user="{{ $proposal['user_id'] }}" data-shift="{{ $proposal['shift_id'] }}" data-revision="{{ $proposal['revision'] }}" data-fit="{{ $proposal['fit'] }}" data-urgency="{{ $proposal['urgency'] }}" aria-haspopup="dialog" aria-label="Vorschlag prüfen: {{ $row['user']->name }} · {{ $proposal['title'] }} · {{ $proposal['local_label'] }} · {{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }}" title="{{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }} · {{ $proposal['title'] }} · {{ implode(' · ',$proposal['reasons']) }}" data-timeline-proposal>
+                            <i class="far {{ $proposal['fit'] === 'review' ? 'fa-exclamation-circle' : ($proposal['fit'] === 'preferred' ? 'fa-check-circle' : 'fa-lightbulb') }}" aria-hidden="true"></i>
+                            <span>{{ $proposal['timeline_label'] }}</span>
+                            @if($proposal['urgency'] !== 'normal')<i class="far fa-clock rt-timeline-proposal__urgency" aria-hidden="true"></i>@endif
+                        </button>
+                        <div class="rt-timeline-proposal-ping animate-ping motion-reduce:animate-none" aria-hidden="true"></div>
+                    </div>
                 @endforeach
             </div>
         @endif

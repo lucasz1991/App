@@ -132,7 +132,7 @@ class TimelinePlanningActionsTest extends TestCase
     {
         $next = Shift::create(['order_id' => $this->shift->order_id, 'title' => 'Offener Freitag', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-14T08:00', 'ends_at' => '2027-05-14T16:00', 'required_staff' => 1, 'planned_break_minutes' => 30, 'status' => 'draft', 'created_by' => $this->manager->id, 'revision' => 1, 'published_revision' => 0]);
         $revision = (int) $this->shift->fresh()->revision;
-        $panel = Livewire::actingAs($this->manager)->test(ShiftManagement::class)->assertSet('distributionOpen', true)
+        $panel = Livewire::actingAs($this->manager)->withQueryParams(['distribution' => '1'])->test(ShiftManagement::class)->assertSet('distributionOpen', true)
             ->call('selectDistributionShift', $this->shift->id)->assertSet('distributionShiftId', $this->shift->id)
             ->assertDispatched('operations-timeline-distribution', open: true, shiftId: $this->shift->id);
         $this->assertSame(0, ShiftAssignment::count());

@@ -2,7 +2,8 @@
 .rt-timeline-cell-action { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; padding: 0; background: transparent; cursor: pointer; }
 .rt-timeline-cell-action:focus-visible { outline: 2px solid var(--rt-red, #df0037); outline-offset: -3px; }
 .rt-timeline-proposals { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.rt-timeline-proposal { position: absolute; left: var(--proposal-center, var(--proposal-left)); width: max(var(--proposal-width), 140px); top: 50%; height: 30px; transform: translate(-50%, -50%); display: flex; gap: 5px; align-items: center; justify-content: center; min-width: 2px; padding: 0 7px 2px; border: 1px dashed color-mix(in srgb, var(--proposal-color) 72%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--proposal-color) 9%, var(--rt-surface, #fff)); color: var(--proposal-color); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; pointer-events: auto; isolation: isolate; overflow: visible; box-shadow: 0 1px 2px color-mix(in srgb, var(--proposal-color) 10%, transparent); }
+.rt-timeline-proposal-shell { position: absolute; left: var(--proposal-center, var(--proposal-left)); width: max(var(--proposal-width), 140px); top: 50%; height: 18px; transform: translate(-50%, -50%); isolation: isolate; }
+.rt-timeline-proposal { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; gap: 5px; align-items: center; justify-content: center; min-width: 2px; padding: 0 7px 2px; border: 1px dashed color-mix(in srgb, var(--proposal-color) 72%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--proposal-color) 9%, var(--rt-surface, #fff)); color: var(--proposal-color); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; pointer-events: auto; overflow: visible; box-shadow: 0 1px 2px color-mix(in srgb, var(--proposal-color) 10%, transparent); }
 .rt-timeline-proposal span { flex: 0 0 auto; overflow: visible; white-space: nowrap; }
 .rt-timeline-proposal:hover { border-style: solid; }
 .rt-timeline-proposal:focus-visible { outline: 2px solid var(--rt-red, #df0037); outline-offset: -2px; }
@@ -22,10 +23,11 @@
 [data-fit='preferred'] { --proposal-color: #16816e; }
 [data-fit='suitable'] { --proposal-color: #397db1; }
 [data-fit='review'] { --proposal-color: #ad7328; }
-.rt-timeline-proposal::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--proposal-color); opacity: .06; }
-.rt-timeline-proposal-duration { position: absolute; left: var(--proposal-left); top: calc(50% + 12px); z-index: 2; width: max(3px, var(--proposal-width)); height: 2px; border-radius: 999px; background: var(--proposal-color); opacity: .95; pointer-events: none; }
-.rt-timeline-proposal.animate-pulse:not([data-in-view='true']) { animation: none; }
-[data-motion-paused='true'] .rt-timeline-proposal.animate-pulse { animation-play-state: paused; }
+.rt-timeline-proposal-ping { position: absolute; inset: 0; z-index: 0; border: 1px dashed color-mix(in srgb, var(--proposal-color) 72%, transparent); border-radius: 6px; background: transparent; pointer-events: none; }
+.rt-timeline-proposal:hover + .rt-timeline-proposal-ping { border-style: solid; }
+.rt-timeline-proposal-duration { position: absolute; left: var(--proposal-left); top: calc(50% + 7px); z-index: 2; width: max(3px, var(--proposal-width)); height: 2px; border-radius: 999px; background: var(--proposal-color); opacity: .95; pointer-events: none; }
+.rt-timeline-proposal:not([data-in-view='true']) + .rt-timeline-proposal-ping { animation: none; }
+[data-motion-paused='true'] .rt-timeline-proposal-ping { animation-play-state: paused; }
 .rt-timeline-proposal > i { flex: 0 0 auto; font-size: 10px; }
 .rt-timeline-proposal__urgency { color: #ac7023; }
 .rt-timeline-proposal[data-urgency='urgent'] .rt-timeline-proposal__urgency { color: #be3e52; }
@@ -110,9 +112,8 @@
 .dark .rt-timeline-workload-detail p, .dark .rt-timeline-workload-detail dt, .dark .rt-timeline-workload-detail header > span,
 .dark .rt-timeline-choice span, .dark .rt-timeline-choice small, .dark .rt-timeline-choice ul { color: var(--rt-dark-muted, #a5b2c5); }
 .dark .rt-timeline-choice { border-color: var(--rt-dark-border, #303846); }
-@media (max-width: 639px) { .rt-staff-timeline-layout:has(.rt-timeline-workload) .rt-personnel-timeline { --timeline-name-full-width: 170px; } }
+@media (max-width: 639px) { .rt-staff-timeline-layout:has(.rt-timeline-workload) .rt-personnel-timeline { --timeline-name-full-width: 148px; } }
 @media (prefers-reduced-motion: reduce) {
     .rt-timeline-suggestions-toggle .rt-ui-toggle--label-inside .rt-ui-toggle-control { transition: none; }
     .rt-timeline-planner__loading > i, .rt-timeline-suggestions-toggle__feedback .fa-spinner-third { animation: none; }
-    .rt-timeline-proposal::before { opacity: .08; }
 }

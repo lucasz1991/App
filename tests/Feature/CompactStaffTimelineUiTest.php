@@ -193,7 +193,7 @@ class CompactStaffTimelineUiTest extends TestCase
         };
         $normal = $values($normal[1]);
         $compact = $values($compact[1]);
-        $this->assertSame(['lane-height' => 32, 'lane-padding' => 12, 'badge-height' => 28, 'mark-top' => 27], $normal);
+        $this->assertSame(['lane-height' => 22, 'lane-padding' => 12, 'badge-height' => 18, 'mark-top' => 17], $normal);
         $this->assertSame(['lane-height' => 22, 'lane-padding' => 4, 'badge-height' => 18, 'mark-top' => 17], $compact);
         foreach ([1 => 48, 2 => 48, 3 => 70, 4 => 92] as $lanes => $expectedHeight) {
             $layout = $lanes > 1 ? $compact : $normal;
@@ -232,7 +232,7 @@ class CompactStaffTimelineUiTest extends TestCase
     public function test_compact_column_width_is_shared_by_native_scroll_surfaces_and_preserves_mobile_full_widths(): void
     {
         $css = file_get_contents(resource_path('css/operations-planning.css'));
-        foreach (['--timeline-name-full-width: 180px', '--timeline-name-compact-width: 52px',
+        foreach (['--timeline-name-full-width: 156px', '--timeline-name-compact-width: 52px',
             '--timeline-name-width: var(--timeline-name-full-width)', '--timeline-name-full-width: 124px'] as $declaration) {
             $this->assertStringContainsString($declaration, $css);
         }
@@ -244,8 +244,8 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringContainsString('width: calc(var(--timeline-name-width) + var(--timeline-days) * var(--timeline-day-width))', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-grid'));
         $this->assertStringContainsString('scroll-padding-left: var(--timeline-name-width)', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-body'));
         $planningCss = file_get_contents(resource_path('css/timeline-planning-actions.css'));
-        $this->assertStringContainsString('--timeline-name-full-width: 170px', $planningCss);
-        $this->assertStringNotContainsString('--timeline-name-width: 170px', $planningCss);
+        $this->assertStringContainsString('--timeline-name-full-width: 148px', $planningCss);
+        $this->assertStringNotContainsString('--timeline-name-width: 148px', $planningCss);
     }
 
     public function test_column_motion_clips_only_personnel_and_keeps_passive_native_input_and_reduced_motion(): void

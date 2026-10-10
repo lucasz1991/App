@@ -58,6 +58,10 @@
                     @endforeach
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
+        </div>
+    </template>
+    <template x-teleport="[data-page-header-actions]">
+            <div class="rt-shift-plan-header-action" data-shift-plan-header-actions>
             {{-- „Noch zu verteilen“ ist ein Seitenpanel; der Zähler schaltet es. Offen = Vorschläge in der Zeitleiste. --}}
             <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-distribution-trigger" wire:click="toggleDistribution" wire:loading.attr="disabled" wire:target="toggleDistribution"
                 aria-pressed="{{ $distributionOpen ? 'true' : 'false' }}" aria-controls="shift-distribution-side-{{ $this->getId() }}"
@@ -69,10 +73,6 @@
                         <span class="rt-shift-plan-distribution-count rt-shift-plan-distribution-total" data-distribution-count="total" data-has-pending="{{ $pendingTotal > 0 ? 'true' : 'false' }}" aria-hidden="true"><i class="far {{ $pendingShifts->total() > 0 || $pendingTotal === 0 ? 'fa-clock' : 'fa-briefcase' }}" aria-hidden="true"></i><strong>{{ $pendingTotal > 99 ? '99+' : $pendingTotal }}</strong></span>
                 <i class="far fa-columns rt-shift-plan-control__chevron" aria-hidden="true"></i>
             </x-ui.buttons.button-basic>
-        </div>
-    </template>
-    <template x-teleport="[data-page-header-actions]">
-            <div class="rt-shift-plan-header-action" data-shift-plan-header-actions>
                 <x-ui.dropdown.anchor-dropdown align="right" width="64" offset="6" dropdown-id="shift-plan-actions-{{ $this->getId() }}" layer-group="operations-shift-plan" content-label="Schichtplan-Optionen" content-classes="rt-shift-plan-view-menu p-1.5 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                     <x-slot:trigger>
                         <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-options-trigger" aria-label="Schichtplan-Optionen" title="Weitere Optionen"><i class="far fa-ellipsis-vertical" aria-hidden="true"></i></x-ui.buttons.button-basic>

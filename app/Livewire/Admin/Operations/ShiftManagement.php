@@ -35,6 +35,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -78,7 +79,8 @@ class ShiftManagement extends Component
 
     /** „Noch zu verteilen“ als Seitenpanel; offen zeigt die Zeitleiste automatisch Besetzungsvorschläge. */
     #[Locked]
-    public bool $distributionOpen = true;
+    #[Url(as: 'distribution', except: false)]
+    public bool $distributionOpen = false;
 
     #[Locked]
     public ?int $distributionShiftId = null;
@@ -256,7 +258,6 @@ class ShiftManagement extends Component
     public function mount(): void
     {
         $this->ensureAdmin();
-        $this->distributionOpen = (bool) session('operations.shift_plan.distribution_open', true);
         $today = now((string) config('operations.display_timezone', 'Europe/Berlin'));
         $this->rangeFrom = $today->copy()->startOfWeek()->format('Y-m-d');
         $this->rangeTo = $today->copy()->endOfWeek()->format('Y-m-d');
@@ -335,7 +336,6 @@ class ShiftManagement extends Component
     {
         $this->ensureAdmin();
         $this->distributionOpen = ! $this->distributionOpen;
-        session(['operations.shift_plan.distribution_open' => $this->distributionOpen]);
         if (! $this->distributionOpen) {
             $this->distributionShiftId = null;
         }

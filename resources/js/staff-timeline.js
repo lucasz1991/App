@@ -27,9 +27,12 @@ export function timelineEventLanes(events, dayWidth) {
     for (const event of ordered) {
         const start = Math.max(0, Math.min(width, event.start * width / 100));
         const end = Math.max(start, Math.min(width, (event.start + event.duration) * width / 100));
-        const labelWidth = Math.min(Math.max(end - start, event.labelWidth || 0), Math.max(0, width - 8));
+        const leftInset = event.continuesBefore ? 0 : 4;
+        const rightInset = event.continuesAfter ? 0 : 4;
+        const labelWidth = Math.min(Math.max(end - start, event.labelWidth || 0), Math.max(0, width - leftInset - rightInset));
         const half = labelWidth / 2;
-        const center = Math.max(half + 4, Math.min(width - half - 4, (start + end) / 2));
+        const center = event.continuesBefore ? half : event.continuesAfter ? width - half
+            : Math.max(half + leftInset, Math.min(width - half - rightInset, (start + end) / 2));
         const occupiedStart = Math.min(start, center - half);
         const occupiedEnd = Math.max(end, center + half);
         let lane = Math.max(0, event.lane || 0);
@@ -429,6 +432,8 @@ export function staffTimeline() {
                     start: parseFloat(event.dataset.timeStart) || 0,
                     duration: parseFloat(event.dataset.timeWidth) || 0,
                     lane: parseInt(event.dataset.timeLane, 10) || 0,
+                    continuesBefore: event.dataset.continuesBefore === 'true',
+                    continuesAfter: event.dataset.continuesAfter === 'true',
                     labelWidth: event.querySelector('.rt-personnel-timeline-time-text')
                         ? event.querySelector('.rt-personnel-timeline-time-text').getBoundingClientRect().width + 16
                         : 0,

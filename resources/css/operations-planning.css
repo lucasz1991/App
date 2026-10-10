@@ -1,6 +1,6 @@
 .rt-personnel-timeline {
     position: relative;
-    --timeline-name-full-width: 180px;
+    --timeline-name-full-width: 156px;
     --timeline-name-compact-width: 52px;
     --timeline-name-width: var(--timeline-name-full-width);
     --timeline-personnel-default-compact: 0;
@@ -134,10 +134,10 @@
     font-size: 13px;
 }
 .rt-personnel-timeline-track {
-    --timeline-lane-height: 32px;
+    --timeline-lane-height: 22px;
     --timeline-lane-padding: 12px;
-    --timeline-badge-height: 28px;
-    --timeline-mark-top: 27px;
+    --timeline-badge-height: 18px;
+    --timeline-mark-top: 17px;
     position: relative;
     z-index: 0;
     isolation: isolate;
