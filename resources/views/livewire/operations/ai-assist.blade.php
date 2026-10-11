@@ -40,7 +40,6 @@
                 @if($reviewCount > 0)
                     <span class="rt-ai-assist__presence" aria-hidden="true">{{ $reviewCount > 9 ? '9+' : $reviewCount }}</span>
                 @endif
-                <span class="rt-ai-assist__label" aria-hidden="true">AI-Assist</span>
             </button>
         </div>
 

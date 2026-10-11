@@ -77,6 +77,10 @@ class AiAssistTest extends TestCase
         $component = $this->assist()->assertSet('page', 'shifts')->assertSet('pageLabel', 'Schichtplan')
             ->assertSet('from', '2027-05-10')->assertSet('until', '2027-05-16');
         $html = $component->html();
+        $this->assertStringNotContainsString('rt-ai-assist__label', $html);
+        $this->assertStringContainsString('aria-label="AI-Assist öffnen', $html);
+        $styles = file_get_contents(resource_path('css/ai-assist.css'));
+        $this->assertStringContainsString('background: radial-gradient(circle at center', $styles);
         foreach (['rt-ai-assist__launcher', 'AI-Assist (Strg J)', 'data-assistant-cloud-slot="launcher"', 'data-assistant-cloud-slot="header"',
             'Besetzung für den Zeitraum vorschlagen', 'Was steht als Nächstes an?', 'role="tablist"', 'Disposition · AI-Eingang aus'] as $needle) {
             $this->assertStringContainsString($needle, $html);
