@@ -3,6 +3,7 @@
     'max' => null,
     'disabled' => false,
     'readonly' => false,
+    'required' => false,
     'clearable' => true,
     'ariaLabel' => null,
     'keepDropdownOpen' => false,
@@ -66,7 +67,7 @@
             @keydown.down.prevent="openPanel($event.currentTarget)"
             @disabled($disabled)
             @readonly($readonly)
-            @if($attributes->has('required')) required @endif
+            @required($required)
             aria-label="{{ $controlLabel }}"
             aria-haspopup="dialog"
             :aria-controls="$id('rt-date-panel')"

@@ -107,6 +107,8 @@ body:has(.rt-ai-assist__stage) .rt-shift-distribution--side .rt-shift-distributi
 .rt-shift-distribution__auto-head > i { color: var(--panel-accent); }
 .rt-shift-distribution__auto-head h3 { margin: 0; color: var(--panel-text); font-size: 14px; font-weight: 650; letter-spacing: -.02em; }
 .rt-shift-distribution__auto-head h3:focus-visible { outline: 2px solid var(--panel-accent); outline-offset: 4px; border-radius: 2px; }
+.rt-shift-plan .rt-staff-timeline-layout { row-gap: 0; }
+.rt-shift-distribution__auto-owner-guard { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .rt-distribution-auto { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .rt-distribution-auto__body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 16px; padding: 16px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .rt-distribution-auto__period { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--panel-muted); font-size: 11px; font-variant-numeric: tabular-nums; }

@@ -76,5 +76,4 @@
             @include('livewire.operations.partials.employee-location-history')
         </div>
     @endif
-    @include('livewire.operations.partials.pwa-install-card')
 </section>

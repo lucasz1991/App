@@ -291,3 +291,5 @@ auth.json
 !/tests/Feature/DispositionMailboxImapTest.php
 !/tests/Feature/DispositionMailboxWorkflowTest.php
 !/tests/Feature/AiIntakeManualRecognitionTest.php
+!/tests/Feature/DistributionAutoAssignmentTest.php
+!/tests/Feature/DistributionWorkbenchUiTest.php

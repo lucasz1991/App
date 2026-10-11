@@ -28,6 +28,7 @@ use App\Services\Operations\CustomerWorkflowService;
 use App\Services\Operations\DispositionMailboxService;
 use App\Services\Operations\DispositionMailboxWorkflowService;
 use App\Support\Operations\AiDispositionSettings;
+use Carbon\CarbonImmutable;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
@@ -543,8 +544,10 @@ class DispositionMailboxWorkflowTest extends TestCase
         $detail = app(CustomerWorkflowService::class)->process($inquiry, null, [
             'customer_contact_id' => $review['contact_id'], 'assignee_id' => $this->admin->id,
             'priority' => 'high', 'timezone' => $inquiry->timezone,
-            'due_at' => '',
+            'due_at' => '2026-10-19T09:15',
         ], $this->admin);
+        $this->assertSame('2026-10-19 07:15:00', $detail->fresh()->getRawOriginal('due_at'));
+        $this->assertSame('UTC', $detail->fresh()->due_at->timezoneName);
         $originalDetail = $detail->fresh()->getAttributes();
         $currentActor = User::factory()->create(['role' => 'admin', 'status' => true]);
         $this->actingAs($currentActor);
@@ -556,7 +559,7 @@ class DispositionMailboxWorkflowTest extends TestCase
         $panel->call('editProcess')->assertHasNoErrors()->assertSet('processOpen', true)
             ->assertSet('revision', 1)->assertSet('form.customer_contact_id', $review['contact_id'])
             ->assertSet('form.assignee_id', $this->admin->id)->assertSet('form.priority', 'high')
-            ->assertSet('form.timezone', $inquiry->timezone)->assertSet('form.due_at', '');
+            ->assertSet('form.timezone', $inquiry->timezone)->assertSet('form.due_at', '2026-10-19T09:15');
         $panel->call('createFollowUp')->assertHasNoErrors()->assertSet('followUpOpen', true)
             ->assertSet('followUp.title', '')->assertSet('followUp.kind', 'check')->assertSet('followUp.note', '')
             ->assertSet('followUp.due_at', '')->assertSet('followUp.timezone', $inquiry->timezone)
@@ -566,6 +569,79 @@ class DispositionMailboxWorkflowTest extends TestCase
         $this->assertSame(0, $inquiry->followUps()->count());
         $this->assertSame(1, OperationInquiry::count());
         $this->assertSame(1, AiIntakeMessage::count());
+        $this->noAutomaticEffects();
+    }
+
+    public function test_native_followup_due_and_completion_instants_remain_utc_with_local_display(): void
+    {
+        $review = $this->confirmedCustomer($this->recognize());
+        $created = app(DispositionMailboxWorkflowService::class)->createInquiries($this->admin, $review);
+        $inquiry = OperationInquiry::findOrFail($created['positions'][0]['inquiry_id']);
+        $panel = Livewire::test(InquiryProcessPanel::class, ['inquiryId' => $inquiry->id])
+            ->call('createFollowUp')->set('followUp.title', 'Synthetic native follow-up')
+            ->set('followUp.due_at', '2026-10-19T09:15')->call('saveFollowUp')
+            ->assertHasNoErrors()->assertSet('followUpOpen', false)->assertSee('19.10.2026 09:15');
+        $followUp = $inquiry->followUps()->firstOrFail();
+        $this->assertSame('2026-10-19 07:15:00', $followUp->getRawOriginal('due_at'));
+        $this->assertSame('UTC', $followUp->due_at->timezoneName);
+        $this->assertSame('2026-10-19T09:15', $followUp->due_at->setTimezone($inquiry->timezone)->format('Y-m-d\TH:i'));
+        $this->assertNull($followUp->completed_at);
+        $completedAt = CarbonImmutable::parse('2026-10-19T12:34:56Z');
+        $this->travelTo($completedAt);
+        try {
+            $panel->call('selectFollowUp', $followUp->id)->set('completion', 'Synthetic completion verified')
+                ->call('completeFollowUp')->assertHasNoErrors()->assertSet('completeOpen', false);
+            $completed = $followUp->fresh();
+            $this->assertSame('completed', $completed->status);
+            $this->assertSame('2026-10-19 12:34:56', $completed->getRawOriginal('completed_at'));
+            $this->assertSame('UTC', $completed->completed_at->timezoneName);
+            $this->assertSame($completedAt->getTimestamp(), $completed->completed_at->getTimestamp());
+        } finally {
+            $this->travelBack();
+        }
+        $this->assertSame(1, $inquiry->followUps()->count());
+        $this->assertSame(1, OperationInquiry::count());
+        $this->noAutomaticEffects();
+    }
+
+    private function assertRenderedNativeDueDateRequired(string $html, string $submit, string $fieldId, bool $required): void
+    {
+        $previousErrors = libxml_use_internal_errors(true);
+        try {
+            $document = new DOMDocument;
+            $document->loadHTML('<meta charset="utf-8">'.$html, LIBXML_NONET);
+            $xpath = new DOMXPath($document);
+            $fields = $xpath->query('//form[@*[name()="wire:submit"]="'.$submit.'"]//div[@data-rt-date-time-field][.//input[@id="'.$fieldId.'"]]');
+            $this->assertSame(1, $fields->length);
+            $field = $fields->item(0);
+            $visibleInputs = $xpath->query('.//input[not(@type="hidden")]', $field);
+            $this->assertSame(2, $visibleInputs->length);
+            $this->assertSame(0, $xpath->query('.//input[@type="hidden"]', $field)->length);
+            $this->assertSame($required ? 2 : 0, $xpath->query('.//input[@required and not(@type="hidden")]', $field)->length);
+            foreach ($visibleInputs as $input) {
+                $this->assertSame($required, $input->hasAttribute('required'), $input->getAttribute('id'));
+            }
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrors);
+        }
+    }
+
+    public function test_native_process_due_date_is_optional_while_followup_due_date_is_required_in_open_forms(): void
+    {
+        $review = $this->confirmedCustomer($this->recognize());
+        $created = app(DispositionMailboxWorkflowService::class)->createInquiries($this->admin, $review);
+        $inquiryId = $created['positions'][0]['inquiry_id'];
+        $panel = Livewire::test(InquiryProcessPanel::class, ['inquiryId' => $inquiryId])
+            ->call('editProcess')->assertSet('processOpen', true)->assertHasNoErrors();
+        $this->assertRenderedNativeDueDateRequired($panel->html(), 'saveProcess', 'ops-form-due_at', false);
+        $panel->call('createFollowUp')->assertSet('followUpOpen', true)->assertHasNoErrors();
+        $this->assertRenderedNativeDueDateRequired($panel->html(), 'saveProcess', 'ops-form-due_at', false);
+        $this->assertRenderedNativeDueDateRequired($panel->html(), 'saveFollowUp', 'ops-followUp-due_at', true);
+
+        $inquiry = OperationInquiry::findOrFail($inquiryId);
+        $this->assertNull($inquiry->processDetail);
+        $this->assertSame(0, $inquiry->followUps()->count());
         $this->noAutomaticEffects();
     }
 

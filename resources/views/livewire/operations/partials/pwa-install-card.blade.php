@@ -1,5 +1,5 @@
 {{-- RailTime als Web-App auf jedem Gerät: Smartphone, Tablet, Windows- oder Mac-Laptop. Die Anleitung des aktuellen Geräts wird hervorgehoben. --}}
-<details class="rt-install-card" wire:ignore x-data="railtimePwaInstall({messages:{installed:'Auf diesem Gerät installiert',ready:'Bereit zur Installation',manual:'Folge der Anleitung für dein Gerät',accepted:'RailTime wird installiert.',failed:'Installation konnte nicht gestartet werden.'},targets:{ios:'#rt-install-ios',android:'#rt-install-android',desktop:'#rt-install-desktop'}})" x-bind:data-install-mode="mode">
+<details class="rt-install-card" wire:ignore x-data="railtimePwaInstall({messages:{installed:'Auf diesem Gerät installiert',ready:'Bereit zur Installation',manual:'Folge der Anleitung für dein Gerät',accepted:'RailTime wird installiert.',failed:'Installation konnte nicht gestartet werden.'},targets:{ios:'#rt-install-ios',android:'#rt-install-android',desktop:'#rt-install-desktop'}})" x-bind:data-install-mode="mode" x-show="mode !== 'installed'">
     <summary class="rt-install-card__summary">
         <span class="rt-install-card__icon" aria-hidden="true"><i class="fas fa-download"></i></span>
         <span class="rt-install-card__heading">

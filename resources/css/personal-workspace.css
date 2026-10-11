@@ -297,3 +297,56 @@
     .rt-install-card__footer .rt-ui-button { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .rt-install-card__chevron { transition: none; } }
+
+/* Heute: links handeln (Zeit, Standort, Dienste), rechts überblicken (Status, App). */
+.rt-personal-today-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; min-width: 0; }
+.rt-personal-today-head__text { display: grid; gap: 6px; min-width: 0; }
+.rt-personal-work .rt-personal-today-head h2 { margin: 0; font-size: clamp(24px, 2.6vw, 30px); line-height: 1.2; font-weight: 700; letter-spacing: -.04em; }
+.rt-personal-today-head__duty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 2px 0 0; font-size: 14px; line-height: 1.5; }
+.rt-personal-today-head__duty-label {
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--personal-inset);
+    color: var(--personal-muted);
+    font-size: 12px;
+    font-weight: 650;
+}
+.rt-personal-today-head__duty[data-has-duty] .rt-personal-today-head__duty-label { background: var(--personal-signal-soft); color: var(--personal-signal); }
+.rt-personal-today-head .rt-personal-leave-shortcut > i { font-size: 13px; opacity: .8; }
+
+.rt-personal-today { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.rt-personal-today__main, .rt-personal-today__aside { display: contents; }
+.rt-personal-today .rt-personal-today__clock { order: 1; }
+/* Modal-Hülle und deaktivierter Standortstatus sind leer und dürfen keine Lücke erzeugen. */
+.rt-personal-work .rt-personal-today__clock { gap: 0; }
+.rt-personal-today__clock > [data-employee-location-status]:has(.ops-panel) { margin-top: 16px; }
+.rt-personal-today .rt-personal-today__glance { order: 2; gap: 10px; }
+.rt-personal-today .rt-personal-duty-list { order: 3; }
+.rt-personal-today .rt-personal-today__install { order: 4; }
+.rt-personal-today__aside-title { margin: 0; color: var(--personal-muted); font-size: 12px; font-weight: 650; letter-spacing: .02em; }
+.rt-personal-today__install:not(:has(.rt-install-card:not([style*="display: none"]))) { display: none; }
+
+@media (min-width: 1100px) {
+    .rt-personal-today { display: grid; grid-template-columns: minmax(0, 1fr) 320px; align-items: start; gap: 24px 32px; }
+    .rt-personal-today__main { display: grid; gap: 24px; min-width: 0; }
+    .rt-personal-today__aside { display: grid; gap: 20px; position: sticky; top: 88px; min-width: 0; }
+    /* In der Seitenspalte als ruhige Liste: Bezeichnung links, Stand rechts. */
+    .rt-personal-today__aside .rt-personal-glance { grid-template-columns: minmax(0, 1fr); gap: 0; border-radius: 14px; background: var(--personal-sheet); box-shadow: 0 0 0 1px var(--personal-line); overflow: hidden; }
+    .rt-personal-today__aside .rt-personal-glance__tile { grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-height: 52px; padding: 12px 16px; border-radius: 0; box-shadow: none; }
+    .rt-personal-today__aside .rt-personal-glance__tile + .rt-personal-glance__tile { border-top: 1px solid var(--personal-line); }
+    .rt-personal-today__aside .rt-personal-glance__tile[data-attention] { box-shadow: inset 3px 0 0 var(--personal-signal); }
+    .rt-personal-today__aside .rt-personal-glance__label { font-size: 13px; color: var(--personal-ink); font-weight: 550; }
+    .rt-personal-today__aside .rt-personal-glance__value { font-size: 13px; font-weight: 600; color: var(--personal-muted); text-align: right; }
+    /* Installationskarte schmal: Anleitungen untereinander, Status unter dem Titel. */
+    .rt-personal-today__aside .rt-install-card__summary { grid-template-columns: auto minmax(0, 1fr) auto; padding: 14px 16px; }
+    .rt-personal-today__aside .rt-install-card__heading > span { display: none; }
+    .rt-personal-today__aside .rt-install-card__status { grid-column: 2; justify-self: start; }
+    .rt-personal-today__aside .rt-install-card__chevron { grid-column: 3; grid-row: 1; }
+    .rt-personal-today__aside .rt-install-card__body { padding: 0 16px 16px; }
+    .rt-personal-today__aside .rt-install-card__platforms { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .rt-personal-today__aside .rt-install-platform { padding: 12px 14px; }
+    .rt-personal-today__aside .rt-install-card__footer .rt-ui-button { width: 100%; }
+}
+@media (max-width: 767px) {
+    .rt-personal-today-head .rt-personal-leave-shortcut { width: 100%; }
+}

@@ -8,14 +8,7 @@
     </nav>
     @endif
     @if($tab === 'today')
-        <header class="rt-personal-work-heading">
-            <div>
-                <p class="rt-personal-work-eyebrow">{{ now($displayTimezone)->locale('de')->isoFormat('dddd, D. MMMM') }}</p>
-                <h2>Dein Arbeitstag im Blick</h2>
-                <p class="ops-muted">Arbeitszeit erfassen und die nächsten Dienste planen.</p>
-            </div>
-            <x-ui.buttons.button-basic type="button" data-href="{{ route('operations.mine', ['area' => 'absences', 'new' => 1]) }}" x-on:click="Livewire.navigate($el.dataset.href)" class="rt-personal-leave-shortcut">Urlaub planen</x-ui.buttons.button-basic>
-        </header>
+        @include('livewire.operations.partials.personal-today-head')
     @elseif($tab === 'time')
         <header class="rt-personal-work-heading"><div><h2>Meine Zeiten</h2><p class="ops-muted">Erfasste Zeiten prüfen, ergänzen und einreichen.</p></div></header>
     @elseif($tab === 'records')
@@ -24,34 +17,28 @@
         <header class="rt-personal-work-heading"><div><p class="ops-muted">Zeiträume beantragen und den Stand deiner Anträge verfolgen.</p></div><x-ui.buttons.button-basic mode="primary" wire:click="openForm('absence')" wire:loading.attr="disabled">Abwesenheit beantragen</x-ui.buttons.button-basic></header>
     @endif
     <x-operations.feedback :show-offline="!$workTimeReady" />
-    @if(in_array($tab, ['today','time']))
-        <livewire:operations.employee-location-status :key="'employee-location-own-'.auth()->id()" />
-    @endif
-    @if(in_array($tab, ['today','time']) && $workTimeReady)
-        @include('operations.partials.work-clock')
-        <x-operations.modal wire:model="generalManualOpen" title="Arbeitszeit nachtragen"><form wire:submit="saveGeneralManual" class="ops-form rt-personal-form">
-            <x-operations.field label="Arbeitskontext" model="generalManual.work_context" type="select"><option value="internal">Interne Arbeit</option><option value="unplanned">Ungeplante Arbeit</option><option value="training">Schulung</option></x-operations.field>
-            <x-operations.field label="Tätigkeit" model="generalManual.title" required maxlength="180" />
-            <x-operations.field label="Schulung (bei Schulungszeit)" model="generalManual.training_session_id" type="select"><option value="">Auswählen</option>@foreach($clockTrainings as $training)<option value="{{ $training->id }}">{{ $training->title }}</option>@endforeach</x-operations.field>
-            <x-operations.field label="Zeitzone" model="generalManual.timezone" required />
-            <x-operations.field label="Beginn" model="generalManual.starts_at" type="datetime-local" required />
-            <x-operations.field label="Ende" model="generalManual.ends_at" type="datetime-local" required />
-            <x-operations.field label="Pause (min)" model="generalManual.pause_minutes" type="number" min="0" required />
-            <x-operations.field label="Grund des Nachtrags" model="generalManual.note" required minlength="5" :wide="true" />
-            <div class="ops-full"><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Speichern</x-ui.buttons.button-basic></div>
-        </form></x-operations.modal>
-    @elseif(in_array($tab, ['today','time']) && $activeTime)
-        <section class="ops-panel ops-service ops-stack" aria-label="Laufende Zeiterfassung" wire:poll.15s><header class="ops-toolbar"><div><p class="ops-kicker">Seit {{ $activeTime->starts_at->format('H:i') }} · {{ $activeTime->timezone }}</p><h2>{{ $activeTime->plan_snapshot['title'] }}</h2></div><x-operations.status :value="$activeTime->status" /></header><p class="ops-clock">{{ \App\Support\Operations\OperationsDateTime::duration($activeTime->netSeconds()) }}</p><div class="ops-actions">@if($activeTime->status === 'running')<x-ui.buttons.button-basic wire:click="clock({{ $activeTime->id }},{{ $activeTime->revision }},'pause')" wire:loading.attr="disabled">Pause starten</x-ui.buttons.button-basic>@else<x-ui.buttons.button-basic mode="primary" wire:click="clock({{ $activeTime->id }},{{ $activeTime->revision }},'resume')" wire:loading.attr="disabled">Weiterarbeiten</x-ui.buttons.button-basic>@endif<x-ui.buttons.button-basic wire:click="clock({{ $activeTime->id }},{{ $activeTime->revision }},'stop')" wire:confirm="Zeiterfassung beenden?" wire:loading.attr="disabled">Dienst beenden</x-ui.buttons.button-basic></div></section>
+    @if($tab === 'time')
+        @include('livewire.operations.partials.personal-clock')
     @endif
     @if($tab === 'schedule')
         @include('livewire.operations.partials.personal-calendar')
     @elseif($tab === 'today')
-        @include('livewire.operations.partials.personal-glance')
-        <section class="rt-personal-duty-list ops-stack" aria-labelledby="personal-upcoming-heading">
-            <header class="ops-toolbar"><div><h3 id="personal-upcoming-heading">Nächste Dienste</h3><p class="ops-muted">Dein veröffentlichter Dienstplan für die nächsten 14 Tage.</p></div><x-ui.buttons.button-basic mode="link" wire:click="showTab('schedule')" wire:loading.attr="disabled" wire:target="showTab">Mein Kalender</x-ui.buttons.button-basic></header>
-            <x-tables.table class="rt-personal-record-list" :columns="[['label'=>'Dienstplan','key'=>'shift']]" :items="$assignments" row-view="components.tables.rows.operations.personal-shift" empty="Keine veröffentlichten Dienste in diesem Zeitraum." />
-        </section>
-
+        <div class="rt-personal-today">
+            <div class="rt-personal-today__main">
+                @include('livewire.operations.partials.personal-clock')
+                <section class="rt-personal-duty-list ops-stack" aria-labelledby="personal-upcoming-heading">
+                    <header class="ops-toolbar"><div><h3 id="personal-upcoming-heading">Nächste Dienste</h3><p class="ops-muted">Dein veröffentlichter Dienstplan für die nächsten 14 Tage.</p></div><x-ui.buttons.button-basic mode="link" wire:click="showTab('schedule')" wire:loading.attr="disabled" wire:target="showTab">Zum Kalender</x-ui.buttons.button-basic></header>
+                    <x-tables.table class="rt-personal-record-list" :columns="[['label'=>'Dienstplan','key'=>'shift']]" :items="$assignments" row-view="components.tables.rows.operations.personal-shift" empty="Keine veröffentlichten Dienste in den nächsten 14 Tagen." />
+                </section>
+            </div>
+            <aside class="rt-personal-today__aside" aria-label="Überblick">
+                <div class="rt-personal-today__glance ops-stack">
+                    <h3 class="rt-personal-today__aside-title">Auf einen Blick</h3>
+                    @include('livewire.operations.partials.personal-glance')
+                </div>
+                <div class="rt-personal-today__install">@include('livewire.operations.partials.pwa-install-card')</div>
+            </aside>
+        </div>
     @elseif($tab === 'time')
         @if($workTimeReady)<livewire:operations.work-time-capture-review :personal="true" />@endif
         <x-tables.toolbar title="Zeitraum" id="personal-time-filters" class="rt-personal-time-filters">

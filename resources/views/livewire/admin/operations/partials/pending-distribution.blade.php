@@ -20,7 +20,7 @@
         <p class="sr-only">{{ \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') }} – {{ \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') }}. Gewählter Zeitraum · unabhängig von Listenfiltern. Angefragte und bestätigte Mitarbeiter zählen als eingeplant. Bei offenem Panel zeigt die Zeitleiste unverbindliche Besetzungsvorschläge.</p>
     </header>
     <x-operations.panel.tabs class="rt-shift-distribution__tabs" label="Offene Planung nach Art" :id-prefix="$distributionTabsId" model="distributionTab"
-        x-show="distributionMode === 'list'" :inert="distributionMode !== 'list'"
+        x-show="distributionMode === 'list'" ::inert="distributionMode !== 'list'"
         :tabs="['shifts' => ['label' => 'Schichten', 'count' => $pendingShifts->total()], 'orders' => ['label' => 'Leistungen', 'count' => $unplannedOrders->total()]]" />
 
     <section class="rt-shift-distribution__group" role="tabpanel" id="{{ $distributionTabsId }}-panel-shifts" aria-labelledby="{{ $distributionTabsId }}-tab-shifts"
@@ -48,7 +48,7 @@
                             <li class="rt-shift-distribution__entry" data-selected="{{ $selected ? 'true' : 'false' }}" wire:key="distribution-shift-{{ $item->id }}">
                                 <button type="button" class="rt-shift-distribution__item" wire:click="selectDistributionShift({{ $item->id }})" aria-expanded="{{ $selected ? 'true' : 'false' }}"
                                     x-on:click="$dispatch('operations-timeline-distribution-focus', { owner: @js($this->getId()), shiftId: {{ $item->id }}, date: @js($start->toDateString()), selected: @js($selected) })"
-                                    aria-controls="{{ $distributionTabsId }}-assignment-{{ $item->id }}"
+                                    @if($selected) aria-controls="{{ $distributionTabsId }}-assignment-{{ $item->id }}" @endif
                                     title="{{ $item->title }} · {{ $start->format('d.m. H:i') }} – {{ $end->format('d.m. H:i') }}"
                                     aria-label="Besetzung vervollständigen: {{ $item->title }}, {{ $start->locale('de')->isoFormat('dd, DD.MM. HH:mm') }}">
                                     <span class="rt-shift-distribution__when" aria-hidden="true"><b>{{ $start->format('H:i') }}</b><small>{{ $end->format('H:i') }}</small></span>
@@ -126,15 +126,17 @@
     </section>
 
     @if($nativeOperations && auth()->user()?->can('operations.manage'))
-        <section class="rt-shift-distribution__auto" data-distribution-auto-panel
+        <section class="rt-shift-distribution__auto" data-distribution-auto-panel id="{{ $distributionTabsId }}-auto-panel"
             x-cloak x-show="distributionMode === 'auto'" :inert="distributionMode !== 'auto'" style="display: none"
             aria-labelledby="{{ $distributionTabsId }}-auto-title">
             <header class="rt-shift-distribution__auto-head">
-                <i class="far fa-wand-magic-sparkles" aria-hidden="true"></i>
+                <i class="far fa-magic" aria-hidden="true"></i>
                 <h3 id="{{ $distributionTabsId }}-auto-title" x-ref="distributionAutoHeading" tabindex="-1">Automatisch zuordnen</h3>
             </header>
-            <livewire:operations.distribution-auto-assignment :from="$rangeFrom" :until="$rangeTo" :customer-filter="$customerFilter"
-                :key="'distribution-auto-'.$this->getId().'-'.$rangeFrom.'-'.$rangeTo.'-'.$customerFilter" />
+            <div class="rt-shift-distribution__auto-owner-guard" wire:loading.attr="inert" wire:target="applyPeriod,movePeriod,currentWeek,rangeFrom,rangeTo,customerFilter,setView">
+                <livewire:operations.distribution-auto-assignment :from="$rangeFrom" :until="$rangeTo" :customer-filter="$customerFilter"
+                    :key="'distribution-auto-'.$this->getId().'-'.$rangeFrom.'-'.$rangeTo.'-'.$customerFilter" />
+            </div>
         </section>
     @endif
 
@@ -155,8 +157,8 @@
                 x-on:click="distributionMode = 'auto'; $nextTick(() => $refs.distributionAutoHeading?.focus({ preventScroll: true }))"
                 x-bind:disabled="distributionTab !== 'shifts' || @js(! $nativeOperations || ! auth()->user()?->can('operations.manage'))"
                 @disabled(! $nativeOperations || ! auth()->user()?->can('operations.manage'))
-                aria-label="Alle offenen Schichten automatisch zuordnen" title="Alle offenen Schichten automatisch zuordnen" aria-controls="{{ $distributionTabsId }}-auto-title">
-                <i class="far fa-wand-magic-sparkles" aria-hidden="true"></i>
+                aria-label="Alle offenen Schichten automatisch zuordnen" title="Alle offenen Schichten automatisch zuordnen" aria-controls="{{ $distributionTabsId }}-auto-panel">
+                <i class="far fa-magic" aria-hidden="true"></i>
             </button>
         </div>
         @foreach(['shifts' => $pendingShifts, 'orders' => $unplannedOrders] as $tab => $pages)

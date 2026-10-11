@@ -59,7 +59,8 @@
           dirty-target="inlineValues"
       />
 
-      @include('livewire.admin.user-profile.partials.identity-card')
+      <div class="employee-profile__dossier">
+        @include('livewire.admin.user-profile.partials.identity-card')
 
       <div class="employee-profile__navigation" data-profile-navigation x-data="{}">
         <nav class="employee-profile__groups" aria-label="Bereiche der Mitarbeiterakte">
@@ -71,9 +72,11 @@
                 <x-ui.buttons.button-basic type="button" mode="link" :x-on:click="$groupAction"
                     wire:loading.attr="disabled" wire:target="setProfileTab"
                     :aria-current="$profileGroup === $group ? 'page' : 'false'"
+                    :data-profile-group="$group"
                     class="employee-profile__group" :title="$group">
-                    <i class="{{ $groupDefinition['icon'] }}" aria-hidden="true"></i>
-                    <span>{{ $groupDefinition['label'] }}</span>
+                    <span class="employee-profile__group-icon"><i class="{{ $groupDefinition['icon'] }}" aria-hidden="true"></i></span>
+                    <span class="employee-profile__group-label">{{ $groupDefinition['label'] }}</span>
+                    <span class="employee-profile__group-count" aria-hidden="true">{{ $groupTabs->count() }}</span>
                 </x-ui.buttons.button-basic>
             @endforeach
         </nav>
@@ -85,6 +88,7 @@
         <div class="employee-profile__loading" wire:loading.delay wire:target="setProfileTab" role="status">
             <i class="far fa-spinner fa-spin" aria-hidden="true"></i> Bereich wird geladen …
         </div>
+      </div>
       </div>
 
     <div class="employee-profile__content" x-data="{}" wire:loading.class="employee-profile__content--loading" wire:target="setProfileTab">

@@ -386,7 +386,9 @@ class EmployeeLocationTest extends TestCase
         $this->work();
         Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)
             ->assertSee('Für heute erlauben')->assertSee('Heute ohne Standort fortfahren')->assertSee('sieben Tage')
-            ->assertSee('RailTime als App installieren')->call('decline')->assertHasNoErrors();
+            ->assertDontSee('RailTime als App installieren')->call('decline')->assertHasNoErrors();
+        // Die Installationsanleitung steht jetzt in der Seitenspalte von „Heute“.
+        Livewire::actingAs($this->employee)->test(\App\Livewire\Operations\MyWork::class)->assertSee('RailTime als App installieren');
         $this->assertSame('declined', EmployeeLocationConsent::first()->decision);
         $this->assertSame('running', WorkTimeEntry::first()->status);
     }

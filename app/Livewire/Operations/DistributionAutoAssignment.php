@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Operations;
 
+use App\Models\Customer;
 use App\Models\User;
 use App\Services\Operations\DistributionAutoAssignmentService;
 use Illuminate\Validation\ValidationException;
@@ -88,6 +89,7 @@ class DistributionAutoAssignment extends Component
             'available' => $available,
             'prepared' => $this->preview !== [],
             'canApply' => $available && ($this->preview['valid'] ?? false) === true && ! empty($this->preview['entries']),
+            'customerLabel' => $this->customerFilter === 'all' ? 'Alle Kunden' : (Customer::whereKey($this->customerFilter)->value('company_name') ?? 'Kunde nicht verfügbar'),
         ]);
     }
 

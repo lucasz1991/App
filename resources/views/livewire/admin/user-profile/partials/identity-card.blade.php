@@ -1,5 +1,5 @@
 {{-- Eine zusammenhaengende Identitaet mit nachgeordneten Eckdaten. --}}
-<header class="employee-profile__identity" data-anim="fade-up">
+<header class="employee-profile__identity" data-profile-identity data-anim="fade-up">
 
   @php
       $teamName = $user->currentTeam?->name;
@@ -29,19 +29,18 @@
       // Funktion und Team stehen links als Badges — rechts bleiben nur die
       // Angaben, die dort nicht schon zu sehen sind.
       $identityFacts = array_values(array_filter([
-          ['icon' => 'far fa-shield-check', 'label' => 'Kontostatus', 'value' => $user->isActive() ? 'Aktiv' : 'Inaktiv', 'status' => $user->isActive() ? 'active' : 'inactive'],
+          ['key' => 'status', 'icon' => 'far fa-shield-check', 'label' => 'Kontostatus', 'value' => $user->isActive() ? 'Aktiv' : 'Inaktiv', 'status' => $user->isActive() ? 'active' : 'inactive'],
           $canViewMasterData && $profile?->personnel_nr
-              ? ['icon' => 'far fa-id-badge', 'label' => __('app.personnel_nr'), 'value' => $profile->personnel_nr]
+              ? ['key' => 'personnel', 'icon' => 'far fa-id-badge', 'label' => __('app.personnel_nr'), 'value' => $profile->personnel_nr]
               : null,
-          ['icon' => 'far fa-calendar-alt', 'label' => __('app.member_since'), 'value' => $user->created_at?->format('d.m.Y') ?: '—'],
-          ['icon' => 'far fa-clock', 'label' => __('app.last_online'), 'value' => $lastActivityAt ? $lastActivityAt->format('d.m.Y H:i') : __('app.never')],
+          ['key' => 'member', 'icon' => 'far fa-calendar-alt', 'label' => __('app.member_since'), 'value' => $user->created_at?->format('d.m.Y') ?: '—'],
+          ['key' => 'activity', 'icon' => 'far fa-clock', 'label' => __('app.last_online'), 'value' => $lastActivityAt ? $lastActivityAt->format('d.m.Y H:i') : __('app.never')],
       ]));
   @endphp
 
   <div class="employee-profile__identity-layout">
-      {{-- Spalte 1: Person. Der Kontostatus haengt am Bild statt als Badge
-           unter der Adresse: gruener oder grauer Punkt fuer die Anwesenheit,
-           ein rotes Zeichen nur dann, wenn das Konto gesperrt ist. --}}
+      {{-- Identitaet und Bearbeitungsfelder bleiben nativ. Kontostatus und
+           aktuelle Praesenz sind bewusst zwei getrennte Angaben. --}}
       <div class="employee-profile__person">
           <span class="employee-profile__portrait relative shrink-0">
               <img
@@ -66,7 +65,7 @@
           </span>
 
           <div class="employee-profile__person-copy">
-              <p class="employee-profile__eyebrow">Personalakte <span aria-hidden="true">·</span> <span aria-label="{{ __('app.user_id') }}">#{{ $user->id }}</span></p>
+              <p class="employee-profile__eyebrow"><span>Personalakte</span> <span class="employee-profile__record-number" aria-label="{{ __('app.user_id') }}">#{{ $user->id }}</span></p>
               <div class="employee-profile__name">
                   <x-ui.inline-edit-field
                       id="employee-header-name"
@@ -93,9 +92,9 @@
                   </x-ui.inline-edit-field>
               </div>
 
-                  <div class="employee-profile__identity-labels">
+              <div class="employee-profile__identity-labels">
                       @foreach ($identityBadges as $badge)
-                          <x-ui.badge :color="$badge['color']" class="!px-2 !py-0.5 !text-[11px]" :title="$badge['title']">
+                          <x-ui.badge :color="$badge['color']" class="employee-profile__identity-badge" :title="$badge['title']">
                               <i class="{{ $badge['icon'] }}" aria-hidden="true"></i>
                               {{ $badge['value'] }}
                           </x-ui.badge>
@@ -104,13 +103,15 @@
                           <span aria-hidden="true"></span>
                           {{ ! $user->isActive() ? ucfirst(__('app.inactive')) : ($isUserOnline ? __('app.online') : __('app.offline')) }}
                       </span>
-                  </div>
+              </div>
           </div>
       </div>
 
-      <dl class="employee-profile__facts">
+      <div class="employee-profile__account">
+        <h2>Konto &amp; Aktivität</h2>
+        <dl class="employee-profile__facts">
           @foreach ($identityFacts as $index => $fact)
-              <div class="employee-profile__fact">
+              <div class="employee-profile__fact" data-profile-fact="{{ $fact['key'] }}">
                   <dt>
                       <i class="{{ $fact['icon'] }} w-3.5 text-center" aria-hidden="true"></i>
                       {{ $fact['label'] }}
@@ -120,6 +121,7 @@
                   </dd>
               </div>
           @endforeach
-      </dl>
+        </dl>
+      </div>
   </div>
 </header>
