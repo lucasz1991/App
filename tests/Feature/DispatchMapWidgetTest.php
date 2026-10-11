@@ -222,6 +222,22 @@ class DispatchMapWidgetTest extends TestCase
         $this->assertCount(2, $data['unlocatedItems']);
     }
 
+    public function test_day_summary_counts_understaffed_shifts_and_marks_multi_entry_points(): void
+    {
+        $full = $this->shift(['required_staff' => 1, 'location_name' => 'Hamburg Hbf']);
+        $this->shift(['required_staff' => 2]);
+        $this->inquiry();
+        ShiftAssignment::create(['shift_id' => $full->id, 'user_id' => User::factory()->create(['role' => 'staff'])->id, 'status' => 'confirmed']);
+
+        $data = $this->map();
+        $this->assertSame(1, $data['understaffedCount']);
+
+        $html = $this->grid($this->admin)->html();
+        $this->assertStringContainsString('wv-dispatch-map__stats', $html);
+        $this->assertMatchesRegularExpression('/<b>1<\/b>unterbesetzt/', $html);
+        $this->assertMatchesRegularExpression('/wv-dispatch-map__count[^>]*>3</', $html);
+    }
+
     public function test_each_gate_omits_other_type_and_does_not_query_its_table(): void
     {
         $this->shift();

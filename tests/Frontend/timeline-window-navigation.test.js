@@ -14,7 +14,8 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
     const { document } = parseHTML('<!doctype html><html><body><div id="timeline"><div id="grid"></div></div></body></html>');
     const root = document.getElementById('timeline');
     Object.assign(root.dataset, { timelineWindowNavigation: String(enabled), timelinePeriodOwner: 'plan-owner', timelineFrom: from, timelineUntil: until });
-    Object.assign(root.dataset, { timelineAxisFrom: '2026-10-02', timelineAxisUntil: '2026-10-14', timelineSelectedDays: '7', timelineBufferBefore: '3', timelineBufferAfter: '3' });
+    Object.assign(root.dataset, { timelineAxisFrom: /^\d{4}-\d{2}-\d{2}$/.test(from) ? dateOffset(from, -3) : '2026-10-02',
+        timelineAxisUntil: dateOffset(until, 3), timelineSelectedDays: '7', timelineBufferBefore: '3', timelineBufferAfter: '3', timelineId: 'timeline-owner' });
     const timeline = staffTimeline();
     const frames = new Map();
     const timers = new Map();
@@ -34,7 +35,7 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
         || (root.dataset.personnelCompact === 'true' ? 52 : 150);
     const body = {
         clientWidth: 850, offsetWidth: 856, scrollTop: 288, scrollCalls: [],
-        get scrollWidth() { return nameWidth() + (13 + Number(timeline.windowPendingBefore) + Number(timeline.windowPendingAfter)) * width(); },
+        get scrollWidth() { return nameWidth() + (enabled ? timeline.windowDisplayDayCount || 13 : 13) * width(); },
         get scrollLeft() { return offset; },
         set scrollLeft(value) { offset = Math.max(0, Math.min(value, this.scrollWidth - this.clientWidth)); },
         scrollTo(options) { this.scrollCalls.push(options); if (options.behavior === 'instant') this.scrollLeft = options.left; },
@@ -44,7 +45,7 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
     const scrollbar = {
         get scrollLeft() { return footerOffset; },
         set scrollLeft(value) {
-            const days = enabled ? Number(root.dataset.timelineSelectedDays) : 13;
+            const days = enabled ? timeline.windowDisplaySelectedDayCount : 13;
             footerOffset = Math.max(0, Math.min(value, days * width() - body.clientWidth + nameWidth()));
         },
         addEventListener(name, callback) { footerListeners.set(name, callback); },
@@ -114,7 +115,7 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
         await run({ timeline, root, body, header, scrollbar, calls, requests, replacements, events, observers, timers, frames, tweens,
             width, first: () => 3 * width(), maximum: () => body.scrollWidth - body.clientWidth,
             logicalMaximum: () => body.scrollWidth - body.clientWidth - 3 * width(), flushFrame, period, tick, flushTicks,
-            finishScroll: () => { if (!body.scrollCalls.length) flushFrame(); body.scrollLeft = body.scrollCalls.at(-1).left; },
+            finishScroll: () => { flushFrame(); body.scrollLeft = body.scrollCalls.at(-1).left; },
             setReduced: value => { reduce = value; },
             expireRequest: () => {
                 for (const [id, timer] of timers) if (timer.delay === 15000) { timers.delete(id); timer.callback(); }
@@ -212,25 +213,29 @@ test('selected footer coordinates exclude the six reserve columns and logical ed
     });
 });
 
-test('ordinary horizontal wheel and native keyboard/snap offsets cannot expose unselected reserve dates', async () => {
-    await withWindow(({ timeline, body, header, first, logicalMaximum, width, calls, replacements }) => {
+test('horizontal wheel advances dates at either logical edge without waiting for a response and preserves diagonal vertical input', async () => {
+    await withWindow(({ timeline, body, header, first, logicalMaximum, width, calls, replacements, flushFrame }) => {
         let prevented = 0;
         const top = body.scrollTop;
         timeline.wheelPersonnel({ deltaX: -width(), deltaY: 20, preventDefault() { prevented++; } });
+        flushFrame();
         assert.equal(body.scrollLeft, first());
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-04');
         assert.equal(body.scrollTop, top + 20, 'diagonal input retains its vertical portion at the logical edge');
-        assert.equal(prevented, 1, 'native horizontal default must not enter the loaded reserve after the clamp');
+        assert.equal(prevented, 1, 'the bounded presentation frame owns horizontal wheel input');
         body.scrollLeft = 0;
         timeline.syncHorizontal(body);
         assert.equal(body.scrollLeft, first());
         assert.equal(header.scrollLeft, first());
         body.scrollLeft = logicalMaximum();
         timeline.wheelPersonnel({ deltaX: width(), deltaY: 0, preventDefault() { prevented++; } });
+        flushFrame();
         assert.equal(body.scrollLeft, logicalMaximum());
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-05');
         body.scrollLeft = body.scrollWidth - body.clientWidth;
         timeline.syncHorizontal(body);
         assert.equal(body.scrollLeft, logicalMaximum());
-        assert.equal(calls.length, 0);
+        assert.equal(calls.length, 1, 'latest reverse intent waits behind the active request');
         assert.equal(replacements.length, 0);
     });
 });
@@ -334,22 +339,26 @@ test('a morph restores the active personnel tween width and animation marker ins
     }, { gsap: true });
 });
 
-test('pending wheel input can inspect only the single unknown outer column and confirmation returns to the selected span', async () => {
+test('pending wheel movement rolls a bounded scaffold with per-date loading and an older response cannot rewind it', async () => {
     await withWindow(({ timeline, body, period, flushFrame, width, first, calls }) => {
         timeline.scrollDay(-1);
         flushFrame();
         timeline.wheelPersonnel({ deltaX: -5 * width(), deltaY: 10, preventDefault() {} });
-        assert.equal(body.scrollLeft, 0);
+        flushFrame();
+        assert.equal(body.scrollLeft, first());
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-09-30');
+        assert.equal(timeline.windowScaffoldDays.length, 13);
         assert.equal(timeline.windowDayLoading('2026-10-01'), true);
         timeline.syncHorizontal(body);
-        assert.equal(body.scrollLeft, 0, 'the pending unknown date stays inspectable while its data is missing');
+        assert.equal(body.scrollLeft, first(), 'visible selection remains within the fixed scaffold');
         period('2026-10-04', '2026-10-10');
         flushFrame();
         flushFrame();
         assert.equal(body.scrollLeft, first());
         assert.equal(body.scrollTop, 298);
-        assert.equal(body.scrollCalls.length, 1, 'new wheel intent cancels the former arrow target');
-        assert.equal(calls.length, 1, 'wheel preview never invents additional selected periods');
+        assert.equal(body.scrollCalls.length, 2, 'wheel movement executes before either response');
+        assert.deepEqual(calls, [['2026-10-04', '2026-10-10'], ['2026-09-30', '2026-10-06']]);
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-09-30');
     });
 });
 
@@ -372,23 +381,21 @@ test('Alpine directive $el on an arrow still resolves the initialized timeline o
     });
 });
 
-test('left edge immediately reveals a cached day, marks only the unknown outer column and deduplicates requests', async () => {
+test('left edge immediately reveals a cached day in a constant-size frame with only the new outer date pending', async () => {
     await withWindow(({ timeline, body, header, scrollbar, calls, requests, period, flushFrame, first, replacements, finishScroll }) => {
         timeline.scrollDay(-1);
-        timeline.scrollDay(-1);
-        timeline.scrollDay(1);
         assert.deepEqual(calls, [['2026-10-04', '2026-10-10']]);
         assert.equal(timeline.windowLoading, true);
         assert.equal(replacements.length, 0);
         assert.equal(body.scrollCalls.length, 0, 'prefix compensation is committed before the first smooth movement');
         flushFrame();
         assert.deepEqual(body.scrollCalls, [{ left: first(), behavior: 'smooth' }], 'movement begins before the server reply');
-        assert.equal(timeline.windowPendingDate, '2026-10-01');
-        assert.equal(timeline.windowPendingBefore, true);
-        assert.equal(timeline.windowPendingAfter, false);
+        assert.equal(timeline.windowScaffoldDays.length, 13);
+        assert.equal(timeline.windowScaffoldDays[0].date, '2026-10-01');
+        assert.equal(timeline.windowScaffoldDays[0].pending, true);
         assert.equal(timeline.windowDayLoading('2026-10-01'), true);
         assert.equal(timeline.windowDayLoading('2026-10-04'), false);
-        assert.match(timeline.windowPendingLabel, /01\.10\./);
+        assert.match(timeline.windowScaffoldDays[0].label, /01\.10\./);
         finishScroll();
         body.scrollTop = 640; // New employee scrolling while the background request runs must survive.
         period('2026-10-04', '2026-10-10');
@@ -400,7 +407,7 @@ test('left edge immediately reveals a cached day, marks only the unknown outer c
         assert.equal(scrollbar.scrollLeft, 0);
         flushFrame();
         assert.equal(body.scrollCalls.length, 1, 'a completed immediate movement is not animated a second time');
-        assert.equal(timeline.windowPendingDate, '');
+        assert.equal(timeline.windowScaffoldDays.some(day => day.pending), false);
         assert.equal(replacements.length, 1);
         assert.equal(new URL(replacements[0].url).searchParams.get('distribution'), 'true');
         requests[0].resolve();
@@ -412,20 +419,20 @@ test('right logical edge immediately enters a cached day while the next outer co
         body.scrollLeft = logicalMaximum();
         timeline.scrollDay(1);
         assert.deepEqual(calls, [['2026-10-06', '2026-10-12']]);
-        assert.equal(timeline.windowPendingDate, '2026-10-15');
-        assert.equal(timeline.windowPendingAfter, true);
-        assert.equal(timeline.windowPendingBefore, false);
+        assert.equal(timeline.windowScaffoldDays.at(-1).date, '2026-10-15');
+        assert.equal(timeline.windowScaffoldDays.at(-1).pending, true);
+        assert.equal(timeline.windowContentOffset, -1);
         finishScroll();
         period('2026-10-06', '2026-10-12');
         flushFrame();
         assert.equal(body.scrollLeft, logicalMaximum());
         flushFrame();
-        assert.deepEqual(body.scrollCalls, [{ left: logicalMaximum() + width(), behavior: 'smooth' }]);
+        assert.deepEqual(body.scrollCalls, [{ left: logicalMaximum(), behavior: 'smooth' }]);
         assert.equal(body.scrollTop, 288);
     });
 });
 
-test('an early morph resumes only the remaining part of the immediate movement rather than advancing a second day', async () => {
+test('an early morph updates loaded data without interrupting the existing native movement or advancing twice', async () => {
     await withWindow(({ timeline, body, period, flushFrame, width, first }) => {
         timeline.scrollDay(-1);
         flushFrame();
@@ -434,11 +441,11 @@ test('an early morph resumes only the remaining part of the immediate movement r
         flushFrame();
         assert.equal(body.scrollLeft, first() + width() / 2);
         flushFrame();
-        assert.deepEqual(body.scrollCalls, [{ left: first(), behavior: 'smooth' }, { left: first(), behavior: 'smooth' }]);
+        assert.deepEqual(body.scrollCalls, [{ left: first(), behavior: 'smooth' }]);
     });
 });
 
-test('an early forward morph subtracts the axis delta from current offset and the unfinished target', async () => {
+test('an early forward morph does not change the optimistic frame or its unfinished target', async () => {
     await withWindow(({ timeline, body, period, flushFrame, width, logicalMaximum }) => {
         body.scrollLeft = logicalMaximum();
         timeline.scrollDay(1);
@@ -449,7 +456,8 @@ test('an early forward morph subtracts the axis delta from current offset and th
         flushFrame();
         assert.equal(body.scrollLeft, logicalMaximum() - width() / 2);
         flushFrame();
-        assert.equal(body.scrollCalls[1].left, logicalMaximum());
+        assert.equal(body.scrollCalls.length, 1);
+        assert.equal(body.scrollCalls[0].left, logicalMaximum());
     });
 });
 
@@ -476,11 +484,11 @@ test('new selected-range footer movement while loading has priority over the imm
         scrollbar.signal('pointerdown');
         scrollbar.scrollLeft = 500;
         timeline.syncHorizontal(scrollbar);
-        assert.equal(body.scrollLeft, first() + width() + 500, 'temporary prefix is included in footer mapping');
+        assert.equal(body.scrollLeft, first() + 500, 'footer maps the optimistic selected interval without a growing prefix');
         period('2026-10-04', '2026-10-10');
         flushFrame();
         flushFrame();
-        assert.equal(body.scrollLeft, first() + width() + 500);
+        assert.equal(body.scrollLeft, first() + 500);
         assert.equal(body.scrollCalls.length, 1);
     });
 });
@@ -499,8 +507,8 @@ test('delayed mirrored footer layout events cannot cancel the scheduled arrow mo
         period('2026-10-04', '2026-10-10');
         flushFrame();
         flushFrame();
-        assert.equal(body.scrollCalls.length, 2);
-        assert.equal(body.scrollCalls[1].left, first());
+        assert.equal(body.scrollCalls.length, 1);
+        assert.equal(body.scrollCalls[0].left, first());
     });
 });
 
@@ -528,8 +536,8 @@ test('single selected day keeps its full-width scale despite six preloaded neigh
         timeline.measure();
         assert.equal(width(), 700);
         assert.equal(root.dataset.timelineAxisFrom, '2026-10-02');
-        assert.equal(root.dataset.timelineAxisUntil, '2026-10-14');
-    });
+        assert.equal(root.dataset.timelineAxisUntil, '2026-10-08');
+    }, { until: '2026-10-05' });
 });
 
 test('reduced motion uses the same bounded request and instant edge navigation', async () => {
@@ -543,16 +551,19 @@ test('reduced motion uses the same bounded request and instant edge navigation',
     }, { reduced: true });
 });
 
-test('rejected owner calls recover without changing dates/position/URL and a subsequent arrow can retry', async () => {
-    await withWindow(async ({ timeline, body, calls, replacements, first }) => {
+test('rejected owner calls keep the latest scaffold readable with explicit retry and do not publish unconfirmed dates', async () => {
+    await withWindow(async ({ timeline, body, calls, replacements, first, flushFrame }) => {
         await timeline.scrollDay(-1);
+        flushFrame();
         assert.equal(timeline.windowLoading, false);
         assert.match(timeline.windowError, /erneut versuchen/);
         assert.equal(body.scrollLeft, first());
         assert.equal(body.scrollTop, 288);
         assert.equal(replacements.length, 0);
-        await timeline.scrollDay(-1);
+        assert.equal(timeline.windowContentLoading, true);
+        await timeline.retryWindow();
         assert.equal(calls.length, 2);
+        assert.deepEqual(calls[0], calls[1]);
     }, { reject: true });
 });
 

@@ -65,6 +65,7 @@ final class DispatchMapData
         $canViewShifts = $user->can('operations.manage');
         $canViewInquiries = $user->can('operations.inquiries.manage');
         $totals = ['shifts' => 0, 'inquiries' => 0, 'undated' => 0, 'located' => 0, 'unlocated' => 0];
+        $understaffed = 0;
         $markers = [];
         $items = [];
         $displayed = ['shifts' => 0, 'inquiries' => 0];
@@ -77,6 +78,8 @@ final class DispatchMapData
 
             foreach ($query->lazyById(250) as $shift) {
                 $item = $this->shiftItem($shift, $day->toDateString());
+                // Ueber ALLE Schichten des Tages, nicht nur die gelisteten.
+                $understaffed += (int) ($item['assignedStaff'] < $item['requiredStaff']);
                 $this->aggregate($item, 'shifts', $totals, $markers, $items, $displayed);
             }
         }
@@ -107,7 +110,7 @@ final class DispatchMapData
             'date' => $day->toDateString(), 'dateLabel' => $day->format('d.m.Y'), 'today' => self::today(), 'timezone' => self::timezone(),
             'canViewShifts' => $canViewShifts, 'canViewInquiries' => $canViewInquiries,
             'totals' => $totals, 'shiftsCount' => $totals['shifts'], 'inquiriesCount' => $totals['inquiries'],
-            'undatedCount' => $totals['undated'], 'locatedCount' => $totals['located'], 'unlocatedCount' => $totals['unlocated'],
+            'undatedCount' => $totals['undated'], 'understaffedCount' => $understaffed, 'locatedCount' => $totals['located'], 'unlocatedCount' => $totals['unlocated'],
             'items' => $items, 'markers' => array_values($markers),
             'unlocatedItems' => array_values(array_filter($items, fn (array $item) => $item['location']['state'] !== 'located')),
             'count' => $count, 'displayedCount' => count($items), 'displayedByType' => $displayed,

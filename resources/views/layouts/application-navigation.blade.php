@@ -1,7 +1,7 @@
 <div class="metismenu" id="sidebar-menu">
     <ul id="side-menu" x-data="rtSidebarNavigation">
         @php
-            $workforceHeadingShown = false;
+            $administrationHeadingShown = false;
         @endphp
         @foreach($rtSidebarSections ?? \App\Support\Operations\ApplicationNavigation::sidebarSections(auth()->user()) as $section => $links)
             @if(count($links))
@@ -9,14 +9,14 @@
                     $collapsible = in_array($section, ['Disposition', 'Personal'], true);
                     $depth = $collapsible ? 1 : 0;
                 @endphp
-                @if($collapsible && ! $workforceHeadingShown)
-                    <x-menu.sidebar-nav label="Betrieb & Personal" />
+                @if(in_array($section, ['Disposition', 'Personal', 'Kunden'], true) && ! $administrationHeadingShown)
+                    <x-menu.sidebar-nav label="Verwaltung" />
                     @php
-                        $workforceHeadingShown = true;
+                        $administrationHeadingShown = true;
                     @endphp
                 @endif
                 <x-menu.sidebar-nav
-                    :label="$section"
+                    :label="$section === 'Kunden' ? null : $section"
                     :collapsible="$collapsible"
                     :icon="$section === 'Personal' ? 'users' : 'layers'"
                     :active="collect($links)->contains(fn ($link) => \App\Support\Operations\ApplicationNavigation::active($link))"

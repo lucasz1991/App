@@ -242,7 +242,7 @@ class CompactStaffTimelineUiTest extends TestCase
         foreach (['.rt-personnel-timeline-header', '.rt-personnel-timeline-scrollbar-row'] as $selector) {
             $this->assertStringContainsString('grid-template-columns: var(--timeline-name-width) minmax(0, 1fr)', $this->cssDeclarationsFor($css, $selector));
         }
-        $this->assertStringContainsString('width: calc(var(--timeline-name-width) + (var(--timeline-days) + var(--timeline-pending-before) + var(--timeline-pending-after)) * var(--timeline-day-width))', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-grid'));
+        $this->assertStringContainsString('width: calc(var(--timeline-name-width) + var(--timeline-display-days, var(--timeline-days)) * var(--timeline-day-width))', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-grid'));
         $this->assertStringContainsString('scroll-padding-left: var(--timeline-name-width)', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-body'));
         $planningCss = file_get_contents(resource_path('css/timeline-planning-actions.css'));
         $this->assertStringContainsString('--timeline-name-full-width: 148px', $planningCss);
@@ -559,15 +559,21 @@ class CompactStaffTimelineUiTest extends TestCase
         $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
         foreach (['data-timeline-axis-from', 'data-timeline-axis-until', 'data-timeline-selected-days',
             'data-timeline-buffer-before', 'data-timeline-buffer-after', 'rt-timeline-header-axis',
-            'rt-timeline-pending-head', 'rt-timeline-pending-column', 'rt-timeline-day-spinner', 'windowPendingLabel'] as $contract) {
+            'data-timeline-scaffold-header', 'data-timeline-scaffold-body', 'rt-timeline-day-spinner', 'windowScaffoldDays', 'rt-timeline-loaded-track'] as $contract) {
             $this->assertStringContainsString($contract, $view);
         }
         $this->assertStringContainsString('x-show="windowError"', $view);
         $this->assertStringNotContainsString('x-show="windowLoading || windowError"', $view);
         $css = file_get_contents(resource_path('css/operations-planning.css'));
-        $this->assertStringContainsString('position: absolute', $this->cssDeclarationsFor($css, '.rt-timeline-pending-column'));
-        $this->assertStringContainsString('width: var(--timeline-day-width)', $this->cssDeclarationsFor($css, '.rt-timeline-pending-column'));
-        $this->assertStringContainsString('pointer-events: none', $this->cssDeclarationsFor($css, '.rt-timeline-pending-column'));
+        $this->assertStringContainsString('position: absolute', $this->cssDeclarationsFor($css, '.rt-timeline-scaffold-columns'));
+        $this->assertStringContainsString('var(--timeline-display-days, var(--timeline-days))', $this->cssDeclarationsFor($css, '.rt-timeline-scaffold-columns'));
+        $this->assertStringContainsString('pointer-events: none', $this->cssDeclarationsFor($css, '.rt-timeline-scaffold-columns'));
+        $this->assertStringContainsString('left: calc(var(--timeline-content-offset) * var(--timeline-day-width))', $this->cssDeclarationsFor($css, '.rt-timeline-loaded-track'));
+        $this->assertStringContainsString('width: calc(var(--timeline-days) * var(--timeline-day-width))', $this->cssDeclarationsFor($css, '.rt-timeline-loaded-track'));
+        $this->assertStringNotContainsString('x-bind:disabled="windowLoading"', $view);
+        $this->assertStringNotContainsString('windowPendingDate', $view);
+        $this->assertStringContainsString('if (!windowContentLoading) openPlanner($event)', $view);
+        $this->assertStringContainsString('retryWindow()', $view);
         $this->assertStringContainsString('.rt-timeline-day-spinner { animation: none; }', $css);
         $this->assertStringContainsString('var(--timeline-selected-days, var(--timeline-days))', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-scrollbar-width'));
         $this->assertStringContainsString(".rt-personnel-timeline[data-timeline-window-navigation='true'] .rt-personnel-timeline-body { scroll-snap-type: none; }", $css);

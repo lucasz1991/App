@@ -81,18 +81,69 @@ class TimelineWindowNavigationTest extends TestCase
         $this->assertStringContainsString('data-timeline-selected-days="7"', $parent->html());
         $this->assertStringContainsString('data-timeline-buffer-before="3"', $parent->html());
         $this->assertStringContainsString('data-timeline-buffer-after="3"', $parent->html());
-        $this->assertSame(13, $this->dateHeadCount($parent->html()));
+        $this->assertSame(13, $this->confirmedAxisDayCount($parent->html()));
 
         $standalone = Livewire::actingAs($this->admin)->test(StaffTimeline::class, [
             'from' => '2027-10-25', 'until' => '2027-10-31', 'planningEnabled' => true,
         ])->assertSeeHtml('data-timeline-window-navigation="false"')->assertSet('periodNavigationOwner', null);
         $this->assertNotSame($child['memo']['id'], $standalone->id());
-        $this->assertSame(7, $this->dateHeadCount($standalone->html()));
+        $this->assertSame(7, $this->confirmedAxisDayCount($standalone->html()));
         $absences = Livewire::actingAs($this->admin)->test(StaffTimeline::class, [
             'from' => '2027-10-25', 'until' => '2027-10-31', 'planningEnabled' => true,
             'absencesOnly' => true, 'periodNavigationOwner' => $parent->id(),
         ])->assertSeeHtml('data-timeline-window-navigation="false"');
-        $this->assertSame(7, $this->dateHeadCount($absences->html()));
+        $this->assertSame(7, $this->confirmedAxisDayCount($absences->html()));
+    }
+
+    public function test_browser_owned_date_scaffold_keeps_navigation_available_and_planning_guarded_while_contents_load(): void
+    {
+        $this->shift('Loaded window duty', '2027-10-28T08:00:00+02:00', '2027-10-28T10:00:00+02:00', true);
+        $parent = $this->parent();
+        $html = $parent->html();
+        $xpath = $this->xpath($html);
+        $child = $this->childSnapshot($html);
+        $this->assertSame('2027-10-25', $child['data']['from']);
+        $this->assertSame('2027-10-31', $child['data']['until']);
+        $this->assertSame(13, $this->confirmedAxisDayCount($html));
+
+        foreach (['header', 'body'] as $part) {
+            $nodes = $xpath->query('//*[@data-timeline-scaffold-'.$part.']');
+            $this->assertSame(1, $nodes->length);
+            $this->assertTrue($nodes->item(0)->hasAttribute('wire:ignore'));
+            $templates = $xpath->query('./template[@*[name()="x-for"]="day in windowScaffoldDays"]', $nodes->item(0));
+            $this->assertSame(1, $templates->length);
+            $this->assertSame('day.date', $templates->item(0)->getAttribute(':key'));
+        }
+        $header = $xpath->query('//*[@data-timeline-scaffold-header]')->item(0);
+        $this->assertSame(1, $xpath->query('.//*[@*[name()="x-show"]="day.pending && !windowError"]', $header)->length);
+        $this->assertSame(1, $xpath->query('.//*[@*[name()="x-bind:role"]="day.pending ? \'status\' : null"]', $header)->length);
+        $arrows = $xpath->query('//button[contains(@class,"rt-personnel-timeline-direction")]');
+        $this->assertSame(2, $arrows->length);
+        foreach ($arrows as $arrow) {
+            $this->assertFalse($arrow->hasAttribute('disabled'));
+            $this->assertFalse($arrow->hasAttribute('x-bind:disabled'));
+            $this->assertFalse($arrow->hasAttribute('wire:loading.attr'));
+            $this->assertStringStartsWith('scrollDay(', $arrow->getAttribute('x-on:click'));
+        }
+        $grid = $xpath->query('//*[@*[name()="x-ref"]="timelineGrid"]')->item(0);
+        $this->assertSame('if (!windowContentLoading) openPlanner($event)', $grid->getAttribute('x-on:click'));
+        $this->assertSame('if (!windowContentLoading) hoverCell($event)', $grid->getAttribute('x-on:pointerover'));
+        $this->assertSame('if (!windowContentLoading) hoverCell($event)', $grid->getAttribute('x-on:focusin'));
+        $this->assertStringContainsString('x-on:operations-timeline-window-pending.window=', $html);
+        $this->assertStringContainsString('x-on:operations-timeline-period-request.window="requestWindowPeriod($event)"', $html);
+        $this->assertStringContainsString('--timeline-display-days', $html);
+        $this->assertStringContainsString('--timeline-content-offset', $html);
+        $this->assertStringContainsString('if (request.handled) { await request.promise; return; }', $html);
+
+        // Confirmed event content remains Livewire-owned inside its own positioned layer.
+        $layers = $xpath->query('//*[contains(@class,"rt-timeline-loaded-track")]');
+        $this->assertSame(1, $layers->length);
+        $this->assertFalse($layers->item(0)->hasAttribute('wire:ignore'));
+        $this->assertSame(13, $xpath->query('./div[contains(@class,"rt-personnel-timeline-day")]', $layers->item(0))->length);
+        $this->assertSame(1, $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-personnel-timeline-event ")]', $layers->item(0))->length);
+        $this->assertStringContainsString('Loaded window duty', $html);
+        $this->assertSame(1, ShiftAssignment::count());
+        Http::assertNothingSent();
     }
 
     public function test_real_bundled_reactive_updates_roll_both_directions_across_dst_month_and_year_without_remounting(): void
@@ -129,7 +180,7 @@ class TimelineWindowNavigationTest extends TestCase
             $this->assertStringContainsString('data-timeline-until="'.$until.'"', $html);
             $this->assertStringContainsString('staff-day-'.$this->employee->id.'-'.$from, $html);
             $this->assertStringContainsString('staff-day-'.$this->employee->id.'-'.$until, $html);
-            $this->assertSame(13, $this->dateHeadCount($html));
+            $this->assertSame(13, $this->confirmedAxisDayCount($html));
             $this->assertStringContainsString('data-timeline-axis-from="'.CarbonImmutable::parse($from)->subDays(3)->toDateString().'"', $html);
             $this->assertStringContainsString('data-timeline-axis-until="'.CarbonImmutable::parse($until)->addDays(3)->toDateString().'"', $html);
             $this->assertStringContainsString($visible, $html);
@@ -210,7 +261,7 @@ class TimelineWindowNavigationTest extends TestCase
         $this->assertSame('2027-04-04', $snapshots[0]['data']['rangeTo']);
         $this->assertSame('2027-01-01', $snapshots[1]['data']['from']);
         $this->assertSame('2027-04-04', $snapshots[1]['data']['until']);
-        $this->assertSame(100, $this->dateHeadCount($effects[1]['html']));
+        $this->assertSame(100, $this->confirmedAxisDayCount($effects[1]['html']));
         $this->assertStringContainsString('data-timeline-selected-days="94"', $effects[1]['html']);
         $this->assertSame(0, Shift::count());
     }
@@ -367,8 +418,26 @@ class TimelineWindowNavigationTest extends TestCase
         return new DOMXPath($document);
     }
 
-    private function dateHeadCount(string $html): int
+    private function confirmedAxisDayCount(string $html): int
     {
-        return $this->xpath($html)->query('//*[contains(@class,"rt-personnel-timeline-header-days")]/*')->length;
+        $xpath = $this->xpath($html);
+        if ($xpath->query('//*[@data-timeline-scaffold-header]')->length === 0) {
+            return $xpath->query('//*[contains(@class,"rt-personnel-timeline-header-days")]/*')->length;
+        }
+
+        // Embedded headers are client-created. Assert their confirmed server axis,
+        // declared geometry and actual loaded cells instead of counting the template.
+        $root = $xpath->query('//*[@data-timeline-window-navigation="true"]')->item(0);
+        $this->assertNotNull($root);
+        $from = CarbonImmutable::parse($root->getAttribute('data-timeline-axis-from'));
+        $until = CarbonImmutable::parse($root->getAttribute('data-timeline-axis-until'));
+        $days = (int) $from->diffInDays($until) + 1;
+        $this->assertSame(1, preg_match('/(?:^|;)--timeline-days:(\d+)(?:;|$)/', $root->getAttribute('style'), $matches));
+        $this->assertSame($days, (int) $matches[1]);
+        foreach ($xpath->query('//*[contains(@class,"rt-timeline-loaded-track")]') as $layer) {
+            $this->assertSame($days, $xpath->query('./div[contains(@class,"rt-personnel-timeline-day")]', $layer)->length);
+        }
+
+        return $days;
     }
 }

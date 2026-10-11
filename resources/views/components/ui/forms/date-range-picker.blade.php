@@ -4,6 +4,7 @@
     'fromModel' => null,
     'untilModel' => null,
     'applyAction' => null,
+    'applyEvent' => null,
     'today' => null,
     'min' => null,
     'max' => null,
@@ -19,7 +20,7 @@
     ];
 @endphp
 <div
-    x-data="rtDateRangePicker({ ...{{ \Illuminate\Support\Js::from($config) }}@if($fromModel), from: $wire.entangle({{ \Illuminate\Support\Js::from($fromModel) }})@endif @if($untilModel), until: $wire.entangle({{ \Illuminate\Support\Js::from($untilModel) }})@endif @if($applyAction), onApply: async (range) => { await $wire.call({{ \Illuminate\Support\Js::from($applyAction) }}, range.from, range.until); }@endif })"
+    x-data="rtDateRangePicker({ ...{{ \Illuminate\Support\Js::from($config) }}@if($fromModel), from: $wire.entangle({{ \Illuminate\Support\Js::from($fromModel) }})@endif @if($untilModel), until: $wire.entangle({{ \Illuminate\Support\Js::from($untilModel) }})@endif @if($applyAction), onApply: async (range) => { @if($applyEvent) const request = { owner: $wire.$id, ...range, handled: false, promise: null }; $dispatch({{ \Illuminate\Support\Js::from($applyEvent) }}, request); if (request.handled) { await request.promise; return; } @endif await $wire.call({{ \Illuminate\Support\Js::from($applyAction) }}, range.from, range.until); }@endif })"
     x-id="['range-from', 'range-until', 'range-status']"
     {{ $attributes->class('rt-date-range-picker') }}
     data-rt-date-range-picker data-rt-dropdown-keep-open

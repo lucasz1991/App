@@ -104,10 +104,16 @@ class WidgetDataProvider
     {
         $unread = $user->receivedMessages()->where('status', 1)->count();
         $latest = $rows === 2
-            ? $user->receivedMessages()->with('sender:id,name')->latest()->limit(4)->get()
+            ? $user->receivedMessages()->with('sender:id,name,profile_photo_path')->latest()->limit(3)->get()
             : collect();
 
-        return ['unread' => $unread, 'latest' => $latest, 'tone' => $unread === 0 ? 'ok' : 'warn']
+        return [
+            'unread' => $unread,
+            'latest' => $latest,
+            // Auch die kleine Kachel zeigt, WAS ungelesen ist - nicht nur wie viel.
+            'newestUnread' => $unread > 0 ? $user->receivedMessages()->where('status', 1)->with('sender:id,name,profile_photo_path')->latest()->first() : null,
+            'tone' => $unread === 0 ? 'ok' : 'warn',
+        ]
             + $this->dailySparkline(fn () => $user->receivedMessages())
             + ['href' => route('messages')];
     }
@@ -127,7 +133,8 @@ class WidgetDataProvider
                 ->filter()
                 ->all(),
             'totalBytes' => (int) $all->sum('size'),
-            'recent' => $rows === 2 ? $all->sortByDesc('created_at')->take(4)->values() : collect(),
+            'newRecently' => $all->filter(fn ($file) => $file->created_at?->gte(now()->subDays(7)))->count(),
+            'recent' => $rows === 2 ? $all->sortByDesc('created_at')->take(3)->values() : collect(),
             'tone' => 'brand',
             'href' => route('files'),
         ];
@@ -154,9 +161,48 @@ class WidgetDataProvider
 
         return [
             'stats' => $stats,
+            'devices' => $stats['available'] && $stats['total'] > 0 ? $this->personalDevices($user) : collect(),
             'tone' => $stats['available'] ? ($stats['blocked'] > 0 ? 'warn' : 'ok') : null,
             'href' => $stats['available'] ? route('devices.mine') : null,
         ];
+    }
+
+    /**
+     * Die eigenen Geraete namentlich - mit derselben Einstufung wie
+     * PersonalDeviceSnapshot: blockiert, sobald eine Pflichtpruefung
+     * fehlschlaegt; bereit, wenn alle bestanden oder nicht anwendbar sind.
+     */
+    private function personalDevices(User $user): \Illuminate\Support\Collection
+    {
+        try {
+            $required = array_keys(\App\Services\DeviceManagement\DeviceReadinessService::REQUIRED_CHECKS);
+
+            return $user->devices()
+                ->with(['readinessChecks' => fn ($q) => $q->whereIn('check_key', $required)])
+                ->orderByDesc('device_assignments.assigned_at')
+                ->limit(4)
+                ->get(['devices.id', 'devices.display_name', 'devices.hostname', 'devices.manufacturer', 'devices.model', 'devices.form_factor', 'devices.last_seen_at'])
+                ->map(function ($device) use ($required) {
+                    $checks = $device->readinessChecks->keyBy('check_key');
+                    $state = match (true) {
+                        $checks->contains(fn ($check) => in_array($check->status, ['failed', 'blocked'], true)) => 'blocked',
+                        collect($required)->every(fn ($key) => in_array($checks->get($key)?->status, ['passed', 'not_applicable'], true)) => 'ready',
+                        default => 'pending',
+                    };
+
+                    return [
+                        'name' => $device->display_name ?: ($device->hostname ?: trim($device->manufacturer.' '.$device->model) ?: 'Gerät'),
+                        'detail' => trim($device->manufacturer.' '.$device->model),
+                        'icon' => match ($device->form_factor) {
+                            'phone', 'mobile' => 'smartphone', 'tablet' => 'tablet', default => 'monitor',
+                        },
+                        'state' => $state,
+                        'lastSeen' => $device->last_seen_at,
+                    ];
+                });
+        } catch (\Throwable) {
+            return collect();
+        }
     }
 
     private function fleetDevices(User $user): array
@@ -238,6 +284,33 @@ class WidgetDataProvider
                 'overdue' => $open()->where('created_at', '<', $threeDaysAgo)->count(),
             ],
             'oldest' => $oldest ? CarbonImmutable::parse($oldest) : null,
+            'byChannel' => $open()->selectRaw('channel, COUNT(*) as aggregate')->groupBy('channel')->orderByDesc('aggregate')->pluck('aggregate', 'channel')->map(fn ($n) => (int) $n)->all(),
+        ] + $this->inquiryFlow();
+    }
+
+    /**
+     * Eingang der letzten 14 Tage (je Tag) und wie viele der in 30 Tagen
+     * eingegangenen Anfragen schon zu einem Auftrag wurden. Dubletten zaehlen
+     * nicht mit - sie sind kein eigener Bedarf.
+     */
+    private function inquiryFlow(): array
+    {
+        $base = fn () => OperationInquiry::query()->whereNull('duplicate_of_id');
+        $days = collect(range(13, 0))->map(fn (int $ago) => now()->subDays($ago)->startOfDay());
+        $byDay = $base()->where('created_at', '>=', $days->first())
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as aggregate, SUM(CASE WHEN order_id IS NOT NULL THEN 1 ELSE 0 END) as converted')
+            ->groupBy('day')->get()->keyBy('day');
+        $since = now()->subDays(30);
+        $created30 = $base()->where('created_at', '>=', $since)->count();
+        $converted30 = $base()->where('created_at', '>=', $since)->whereNotNull('order_id')->count();
+
+        return [
+            'intake' => $days->map(fn ($day) => (int) ($byDay[$day->toDateString()]->aggregate ?? 0))->values()->all(),
+            'intakeConverted' => $days->map(fn ($day) => (int) ($byDay[$day->toDateString()]->converted ?? 0))->values()->all(),
+            'intakeLabels' => $days->map(fn ($day) => $day->translatedFormat('D d.m.'))->values()->all(),
+            'created30' => $created30,
+            'converted30' => $converted30,
+            'conversion30' => $created30 > 0 ? (int) round($converted30 / $created30 * 100) : null,
         ];
     }
 
@@ -373,10 +446,29 @@ class WidgetDataProvider
             'byStatus' => $byStatus,
             'startingSoon' => (clone $open)->where('starts_at', '>=', now())->where('starts_at', '<=', now()->addDays(7))->count(),
             'urgent' => (clone $open)->whereIn('priority', ['high', 'urgent'])->count(),
+            'byPriority' => collect(['urgent', 'high', 'normal', 'low'])
+                ->mapWithKeys(fn (string $p) => [$p => (int) (clone $open)->where('priority', $p)->count()])->all(),
             'tone' => 'brand',
             'recent' => $recent,
             'orderHrefs' => $recent->mapWithKeys(fn (Order $order) => [$order->id => \App\Support\Operations\OperationsPages::moduleUrl('orders', ['order' => $order->id, 'customer' => $order->customer_id])]),
             'href' => \App\Support\Operations\OperationsPages::moduleUrl('orders'),
+        ] + $this->orderStarts($open);
+    }
+
+    /** Wie viele offene Leistungen an jedem der naechsten 14 Tage beginnen. */
+    private function orderStarts(Builder $open): array
+    {
+        $tz = config('operations.display_timezone');
+        $today = CarbonImmutable::now($tz)->startOfDay();
+        $days = collect(range(0, 13))->map(fn (int $offset) => $today->addDays($offset));
+        $byDay = (clone $open)->where('starts_at', '>=', $today->utc())->where('starts_at', '<', $today->addDays(14)->utc())
+            ->get(['id', 'starts_at'])
+            ->countBy(fn (Order $order) => CarbonImmutable::parse($order->starts_at)->setTimezone($tz)->toDateString());
+
+        return [
+            'starts' => $days->map(fn ($day) => (int) ($byDay[$day->toDateString()] ?? 0))->values()->all(),
+            'startsLabels' => $days->map(fn ($day) => $day->translatedFormat('D d.m.'))->values()->all(),
+            'startsWeekend' => $days->map(fn ($day) => $day->isWeekend())->values()->all(),
         ];
     }
 
@@ -405,6 +497,24 @@ class WidgetDataProvider
             'shiftCount' => $shifts->count(),
             'criticalDays' => collect($required)->filter(fn (int $need, int $i) => $need > 0 && $reserved[$i] < $need)->count(),
             'tone' => $needed === 0 ? 'neutral' : ($covered >= $needed ? 'ok' : 'warn'),
+            // Die Luecken, die zuerst geschlossen werden muessen: frueheste zuerst,
+            // bei gleichem Beginn die mit den meisten fehlenden Personen.
+            'gaps' => $shifts->filter(fn (Shift $shift) => $shift->reserved < $shift->required_staff)
+                ->sortBy(fn (Shift $shift) => [$shift->starts_at->getTimestamp(), -($shift->required_staff - $shift->reserved)])
+                ->take(3)
+                ->map(function (Shift $shift) {
+                    $start = $shift->starts_at->setTimezone(config('operations.display_timezone'));
+
+                    return [
+                        'title' => $shift->title,
+                        'when' => $start,
+                        'missing' => (int) $shift->required_staff - (int) $shift->reserved,
+                        'reserved' => (int) $shift->reserved,
+                        'required' => (int) $shift->required_staff,
+                        'href' => \App\Support\Operations\OperationsPages::moduleUrl('shift-management', ['shift' => $shift->id, 'from' => $start->toDateString(), 'until' => $start->toDateString()]),
+                    ];
+                })->values()->all(),
+            'dayHrefs' => $days->map(fn ($day) => \App\Support\Operations\OperationsPages::moduleUrl('shift-management', ['from' => $day->toDateString(), 'until' => $day->toDateString()]))->values()->all(),
             'href' => \App\Support\Operations\OperationsPages::moduleUrl('shift-management'),
         ];
     }

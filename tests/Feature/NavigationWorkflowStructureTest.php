@@ -169,12 +169,14 @@ class NavigationWorkflowStructureTest extends TestCase
         $sectionLabels = array_map(fn (\DOMElement $element): string => trim($element->textContent), iterator_to_array($sidebar->query('//*[@data-rt-sidebar-section]')));
         $this->assertNotContains('Disposition', $sectionLabels);
         $this->assertNotContains('Personal', $sectionLabels);
-        $this->assertSame(1, count(array_filter($sectionLabels, fn (string $label): bool => $label === 'Betrieb & Personal')));
+        $this->assertSame(1, count(array_filter($sectionLabels, fn (string $label): bool => $label === 'Verwaltung')));
+        $this->assertNotContains('Kunden', $sectionLabels);
+        $this->assertNotContains('Betrieb & Personal', $sectionLabels);
         $rootRows = $sidebar->query('//ul[@id="side-menu"]/li');
         $rootLabels = array_map(fn (\DOMElement $element): string => trim($sidebar->query('./a/span[contains(@class, "sidebar-nav-link__label")]', $element)->item(0)?->textContent ?? $element->textContent), iterator_to_array($rootRows));
-        $headingIndex = array_search('Betrieb & Personal', $rootLabels, true);
+        $headingIndex = array_search('Verwaltung', $rootLabels, true);
         $this->assertNotFalse($headingIndex);
-        $this->assertSame(['Betrieb & Personal', 'Disposition', 'Personal', 'Kunden', 'Kunden'], array_slice($rootLabels, $headingIndex, 5));
+        $this->assertSame(['Verwaltung', 'Disposition', 'Personal', 'Kunden'], array_slice($rootLabels, $headingIndex, 4));
 
         foreach (['Disposition' => 'disposition', 'Personal' => 'personal'] as $label => $slug) {
             $controls = 'rt-sidebar-section-'.$slug;
@@ -207,7 +209,22 @@ class NavigationWorkflowStructureTest extends TestCase
         $sidebar = $this->xpath(view('layouts.application-navigation')->render());
         $this->assertCount(0, $sidebar->query('//*[@id="rt-sidebar-section-disposition" or @id="rt-sidebar-section-personal"]'));
         $this->assertCount(0, $sidebar->query('//a[@data-rt-sidebar-group and (@aria-controls="rt-sidebar-section-disposition" or @aria-controls="rt-sidebar-section-personal")]'));
-        $this->assertCount(0, $sidebar->query('//*[@data-rt-sidebar-section and normalize-space(.)="Betrieb & Personal"]'));
+        $this->assertCount(0, $sidebar->query('//*[@data-rt-sidebar-section and normalize-space(.)="Verwaltung"]'));
+    }
+
+    public function test_customer_only_sidebar_uses_shared_heading_without_empty_personnel_or_disposition_menus(): void
+    {
+        $this->installSchema('full');
+        $actor = $this->actor('admin');
+        $this->actingAs($actor);
+        $sections = ApplicationNavigation::sidebarSections($actor);
+        $sidebar = $this->xpath(view('layouts.application-navigation', ['rtSidebarSections' => ['Kunden' => $sections['Kunden']]])->render());
+        $this->assertCount(1, $sidebar->query('//*[@data-rt-sidebar-section and normalize-space(.)="Verwaltung"]'));
+        $this->assertCount(0, $sidebar->query('//*[@data-rt-sidebar-section and normalize-space(.)="Kunden"]'));
+        $this->assertCount(0, $sidebar->query('//*[@id="rt-sidebar-section-disposition" or @id="rt-sidebar-section-personal"]'));
+        $customers = $sidebar->query('//ul[@id="side-menu"]/li/a[@data-rt-sidebar-link and normalize-space(.)="Kunden"]');
+        $this->assertCount(1, $customers);
+        $this->assertSame(OperationsPages::url('customers'), $customers->item(0)->getAttribute('href'));
     }
 
     public function test_admin_utilities_render_in_one_native_third_footer_dropdown_and_not_in_the_main_menu(): void

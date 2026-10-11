@@ -7,7 +7,9 @@
 <div class="wv-inline">
     <span class="widget-primary-val">{{ $data['total'] }}</span>
     <span class="widget-primary-lbl">{{ $data['total'] === 1 ? 'Datei verfügbar' : 'Dateien verfügbar' }}</span>
-    @if($data['totalBytes'] > 0)
+    @if($data['newRecently'] > 0)
+        <span class="wv-pill ops-tone-brand" title="Neu bereitgestellt in den letzten 7 Tagen"><i data-feather="star"></i>{{ $data['newRecently'] }} neu</span>
+    @elseif($data['totalBytes'] > 0)
         <span class="wv-pill"><i data-feather="hard-drive"></i>{{ \App\Support\Dashboard\SystemDashboardData::formatBytes($data['totalBytes']) }}</span>
     @endif
 </div>
@@ -29,10 +31,11 @@
         <div class="wv-list">
             @forelse($data['recent'] as $file)
                 @php($type = \App\Support\Dashboard\WidgetDataProvider::fileCategory($file->mime_type, $file->name))
-                <div class="wv-item">
+                <a class="wv-item" href="{{ $data['href'] }}" wire:navigate title="Im Download-Center öffnen">
                     <span class="wv-filetag" data-type="{{ $type }}">{{ $tags[$type] }}</span>
-                    <span class="wv-item-main"><span class="wv-truncate">{{ $file->name ?? 'Datei' }}</span><small>{{ $file->created_at?->translatedFormat('d.m.Y') }}@if($file->size) · {{ \App\Support\Dashboard\SystemDashboardData::formatBytes((int) $file->size) }}@endif</small></span>
-                </div>
+                    <span class="wv-item-main"><span class="wv-truncate">{{ $file->name ?? 'Datei' }}</span><small>{{ $file->created_at?->diffForHumans() }}@if($file->size) · {{ \App\Support\Dashboard\SystemDashboardData::formatBytes((int) $file->size) }}@endif</small></span>
+                    @if($file->created_at?->gte(now()->subDays(7)))<span class="wv-unread-dot" title="Neu"></span>@endif
+                </a>
             @empty
                 <x-dashboard.empty icon="file">Keine Dateien.</x-dashboard.empty>
             @endforelse

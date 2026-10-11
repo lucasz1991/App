@@ -1,6 +1,10 @@
 <section class="rt-staff-timeline-layout min-w-0" aria-label="Mitarbeiter-Zeitleiste"
     x-data="rtTimelinePlanning(@js($this->getId()))" x-on:operations-plan-changed.window="invalidate()"
-    x-on:operations-timeline-window-reset.window="if ($event.detail.timelineId === @js($this->getId())) invalidate()">
+    x-on:operations-timeline-window-reset.window="if ($event.detail.timelineId === @js($this->getId())) invalidate()"
+    x-on:operations-timeline-window-pending.window="if ($event.detail.timelineId === @js($this->getId())) invalidate()">
+@php
+    $windowNavigation = (bool) ($periodNavigationOwner && $planningEnabled && !$absencesOnly);
+@endphp
 @if($planningEnabled && !$absencesOnly && $showSuggestions && !$suggestionsReady)
     {{-- Plan zuerst, Besetzungsvorschläge im Folgeaufruf --}}
     <span hidden wire:init="loadSuggestions" data-timeline-suggestions-pending></span>
@@ -20,13 +24,17 @@
     data-no-sidebar-swipe data-rt-dropdown-scroll-root data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? 'true' : 'false' }}"
     data-timeline-window-navigation="{{ $periodNavigationOwner && $planningEnabled && !$absencesOnly ? 'true' : 'false' }}"
     data-timeline-period-owner="{{ $periodNavigationOwner }}" data-timeline-from="{{ $from }}" data-timeline-until="{{ $until }}"
+    data-timeline-id="{{ $this->getId() }}" data-timeline-focus-date="{{ $focus['date'] }}"
     data-timeline-axis-from="{{ $axisFrom->toDateString() }}" data-timeline-axis-until="{{ $axisUntil->subDay()->toDateString() }}"
     data-timeline-selected-days="{{ $selectedDays->count() }}"
     data-timeline-buffer-before="{{ (int) $axisFrom->diffInDays($selectedFrom) }}" data-timeline-buffer-after="{{ (int) $selectedUntil->diffInDays($axisUntil) }}"
-    x-bind:style="{ '--timeline-pending-before': windowPendingBefore ? 1 : 0, '--timeline-pending-after': windowPendingAfter ? 1 : 0 }"
-    x-bind:aria-busy="windowLoading ? 'true' : 'false'">
+    x-bind:style="{ '--timeline-display-days': windowDisplayDayCount, '--timeline-selected-days': windowDisplaySelectedDayCount, '--timeline-content-offset': windowContentOffset }"
+    x-bind:data-content-loading="windowContentLoading ? 'true' : 'false'"
+    x-on:operations-timeline-period-request.window="requestWindowPeriod($event)"
+    x-bind:aria-busy="windowContentLoading ? 'true' : 'false'">
     <div class="rt-timeline-window-feedback" x-show="windowError" x-cloak role="status" aria-live="polite">
         <span x-text="windowError"></span>
+        <button type="button" x-on:click="retryWindow()" class="rt-timeline-window-retry">Erneut laden</button>
     </div>
     <div class="rt-timeline-loading-indicator" style="display: none" wire:loading.delay.flex wire:target="search,loadMore,refreshPlanning,loadSuggestions" role="status" aria-live="polite">
         <i class="far fa-spinner-third" aria-hidden="true"></i><span>Lädt …</span>
@@ -45,6 +53,18 @@
         <div class="rt-personnel-timeline-header-viewport">
         <div class="rt-personnel-timeline-header-scroll" x-ref="timelineHeader">
             <div class="rt-timeline-header-axis">
+            @if($windowNavigation)
+            {{-- The date structure belongs to the browser; only confirmed contents depend on Livewire. --}}
+            <div class="rt-personnel-timeline-header-days" wire:ignore data-timeline-scaffold-header>
+                <template x-for="day in windowScaffoldDays" :key="day.date">
+                    <div class="rt-personnel-timeline-head" x-bind:class="{ 'rt-personnel-timeline-head--weekend': day.weekend }" x-bind:data-timeline-date="day.date" x-bind:data-focus="day.focus ? 'true' : 'false'" x-bind:data-pending="day.pending ? 'true' : 'false'" x-bind:role="day.pending ? 'status' : null" aria-live="polite">
+                        <span class="rt-personnel-timeline-date"><span x-text="day.label"></span><i class="far fa-spinner-third fa-spin rt-timeline-day-spinner" x-show="day.pending && !windowError" aria-hidden="true"></i></span>
+                        <span class="sr-only" x-show="day.pending" x-text="'Daten für ' + day.label + (windowError ? ' konnten nicht geladen werden.' : ' werden geladen.')"></span>
+                        <span class="rt-personnel-timeline-hours" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></span>
+                    </div>
+                </template>
+            </div>
+            @else
             <div class="rt-personnel-timeline-header-days">
                 @foreach($days as $day)
                     <div @class(['rt-personnel-timeline-head', 'rt-personnel-timeline-head--weekend' => $day->isWeekend()]) data-timeline-date="{{ $day->toDateString() }}" wire:key="staff-head-{{ $day->toDateString() }}" data-focus="{{ $focus['date'] === $day->toDateString() ? 'true' : 'false' }}">
@@ -53,21 +73,24 @@
                     </div>
                 @endforeach
             </div>
-            <div class="rt-personnel-timeline-head rt-timeline-pending-head" x-show="windowPendingDate" x-cloak x-bind:data-before="windowPendingBefore ? 'true' : 'false'" role="status" aria-live="polite">
-                <span class="rt-personnel-timeline-date"><span x-text="windowPendingLabel"></span><i class="far fa-spinner-third fa-spin rt-timeline-day-spinner" aria-hidden="true"></i></span>
-                <span class="sr-only" x-text="'Daten für ' + windowPendingLabel + ' werden geladen.'"></span>
-                <span class="rt-personnel-timeline-hours" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></span>
-            </div>
+            @endif
             </div>
         </div>
-        <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--previous" x-cloak x-show="canScrollLeft || windowNavigationEnabled" x-bind:disabled="windowLoading" x-on:click="scrollDay(-1)" aria-label="Weitere Tage links anzeigen" title="Weitere Tage links"><i class="far fa-chevron-left" aria-hidden="true"></i></button>
-        <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--next" x-cloak x-show="canScrollRight || windowNavigationEnabled" x-bind:disabled="windowLoading" x-on:click="scrollDay(1)" aria-label="Weitere Tage rechts anzeigen" title="Weitere Tage rechts"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
+        <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--previous" x-cloak x-show="canScrollLeft || windowNavigationEnabled" x-on:click="scrollDay(-1)" aria-label="Weitere Tage links anzeigen" title="Weitere Tage links"><i class="far fa-chevron-left" aria-hidden="true"></i></button>
+        <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--next" x-cloak x-show="canScrollRight || windowNavigationEnabled" x-on:click="scrollDay(1)" aria-label="Weitere Tage rechts anzeigen" title="Weitere Tage rechts"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
         </div>
     </div>
-    <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:scroll.passive="syncHorizontal($event.target)" x-on:wheel="wheelPersonnel($event)" x-on:scrollend.passive="finishHorizontalIntent()" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile oder die horizontale Bildlaufleiste">
+    <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:scroll.passive="syncHorizontal($event.target)" x-on:wheel="wheelPersonnel($event)" x-on:scrollend.passive="finishHorizontalIntent()" x-on:keydown.left="if ($event.target === $event.currentTarget) { $event.preventDefault(); scrollDay(-1); }" x-on:keydown.right="if ($event.target === $event.currentTarget) { $event.preventDefault(); scrollDay(1); }" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile oder die horizontale Bildlaufleiste">
     <div class="rt-personnel-timeline-grid" x-ref="timelineGrid"
-        x-on:click="openPlanner($event)" x-on:pointerover="hoverCell($event)" x-on:pointerout="leaveCell($event)"
-        x-on:focusin="hoverCell($event)" x-on:focusout="leaveCell($event)">
+        x-on:click="if (!windowContentLoading) openPlanner($event)" x-on:pointerover="if (!windowContentLoading) hoverCell($event)" x-on:pointerout="leaveCell($event)"
+        x-on:focusin="if (!windowContentLoading) hoverCell($event)" x-on:focusout="leaveCell($event)">
+    @if($windowNavigation)
+        <div class="rt-timeline-scaffold-columns" wire:ignore aria-hidden="true" data-timeline-scaffold-body>
+            <template x-for="day in windowScaffoldDays" :key="day.date">
+                <div class="rt-timeline-scaffold-day" x-bind:class="{ 'rt-personnel-timeline-day--weekend': day.weekend }" x-bind:data-timeline-date="day.date" x-bind:data-pending="day.pending ? 'true' : 'false'"></div>
+            </template>
+        </div>
+    @endif
     @forelse($rows as $row)
         <div class="rt-personnel-timeline-name min-w-0" data-timeline-person-column wire:key="staff-person-{{ $row['user']->id }}" @if($focus['shift']) data-focus-fit="{{ $focus['candidates']->has($row['user']->id) ? 'eligible' : 'blocked' }}" @endif>
             <div class="rt-timeline-person-summary">
@@ -85,6 +108,7 @@
             @if(!$row['user']->status)<span class="ops-muted rt-timeline-person-status">Inaktiv</span>@endif
         </div>
         <div class="rt-personnel-timeline-track" data-timeline-lanes="{{ $row['lane_count'] }}" data-timeline-density="{{ $row['lane_count'] > 1 ? 'compact' : 'normal' }}" style="--timeline-lanes:{{ $row['lane_count'] }}" wire:key="staff-track-{{ $row['user']->id }}">
+        <div class="rt-timeline-loaded-track">
         @foreach($row['days'] as $cell)
             <div @class(['rt-personnel-timeline-day snap-start', 'rt-personnel-timeline-day--weekend' => $cell['date']->isWeekend(), 'rt-personnel-timeline-day--empty' => $cell['events']->isEmpty()]) wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
                 @if($planningEnabled && !$absencesOnly && $row['user']->status && $cell['date']->gte($selectedFrom) && $cell['date']->lt($selectedUntil))
@@ -150,8 +174,8 @@
             </div>
         @endif
         </div>
+        </div>
     @empty<div class="rt-personnel-timeline-empty">Keine Mitarbeiter gefunden.</div>@endforelse
-    <div class="rt-timeline-pending-column" x-show="windowPendingDate" x-cloak x-bind:data-before="windowPendingBefore ? 'true' : 'false'" aria-hidden="true"></div>
     @if($users->hasMorePages())
         <div class="rt-personnel-timeline-load-more" style="grid-column: 1 / -1" wire:key="staff-timeline-load-more-{{ $this->getPage('staffPage') }}" x-data x-intersect.once="$wire.loadMore()" aria-live="polite" role="status">
             <span wire:loading.remove wire:target="loadMore">Weitere Mitarbeitende laden</span>

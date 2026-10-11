@@ -14,9 +14,15 @@
             <div><h2>Posteingang <span class="rt-disposition-count">{{ $rows->total() }}</span></h2><p class="ops-muted">Eingänge und Anfragen · wichtigste nächste Schritte zuerst</p>@if(isset($sections['ai-intake']) && \App\Support\Operations\AiIntakeSchema::ready())<span class="rt-table-meta"><i class="far fa-sparkles" aria-hidden="true"></i> {{ \App\Support\Operations\AiDispositionSettings::enabled() ? 'AI-Verarbeitung aktiv' : 'AI-Verarbeitung pausiert' }}</span>@endif</div>
             <div class="ops-actions">
                 <label class="sr-only" for="unified-channel-{{ $this->getId() }}">Quelle oder Verarbeitung</label>
-                <select id="unified-channel-{{ $this->getId() }}" class="rt-unified-inbox__select" wire:model.live="channel">
-                    @foreach(['all'=>'Alle Quellen','email'=>'E-Mail','portal'=>'Portal','phone'=>'Telefon','manual'=>'Manuell','ai'=>'AI-verarbeitet','import'=>'Import'] as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach
-                </select>
+                <x-ui.forms.select id="unified-channel-{{ $this->getId() }}" class="rt-unified-inbox__select" wire:model.live="channel" aria-label="Quelle oder Verarbeitung">
+                    <option value="all" data-icon-class="far fa-layer-group">Alle Quellen</option>
+                    <option value="email" data-icon-class="far fa-envelope">E-Mail</option>
+                    <option value="portal" data-icon-class="far fa-globe">Portal</option>
+                    <option value="phone" data-icon-class="far fa-phone">Telefon</option>
+                    <option value="manual" data-icon-class="far fa-pen-to-square">Manuell</option>
+                    <option value="ai" data-icon-class="far fa-sparkles">AI-verarbeitet</option>
+                    <option value="import" data-icon-class="far fa-file-import">Import</option>
+                </x-ui.forms.select>
                 @if(isset($sections['ai-intake']) || isset($sections['imports']))
                     <details class="rt-unified-inbox__more" wire:ignore.self x-on:click="if ($event.target.closest('button')) $el.open = false" x-on:click.outside="$el.open = false" x-on:keydown.escape.stop="$el.open = false"><summary aria-label="Weitere Eingangsaktionen"><i class="far fa-ellipsis" aria-hidden="true"></i></summary><div>
                         @if(isset($sections['ai-intake']))<button type="button" wire:click="create('ai')">Text / Datei mit AI erfassen</button>@endif

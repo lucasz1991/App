@@ -7,8 +7,7 @@
     --timeline-day-min-width: 260px;
     --timeline-day-width: var(--timeline-day-min-width);
     --timeline-gutter: 0px;
-    --timeline-pending-before: 0;
-    --timeline-pending-after: 0;
+    --timeline-content-offset: 0;
     display: flex;
     min-width: 0;
     width: 100%;
@@ -23,7 +22,7 @@
 .rt-timeline-loading-indicator > i { animation: rt-timeline-content-loading 1s linear infinite; }
 .rt-timeline-window-feedback { position: absolute; top: 58px; left: 50%; z-index: 4; display: flex; align-items: center; gap: 8px; max-width: min(360px, calc(100% - 24px)); padding: 8px 12px; border: 1px solid var(--rt-border, #dce1e6); border-radius: 10px; background: var(--rt-surface, #fff); color: var(--rt-muted, #65717c); transform: translateX(-50%); font-size: 12px; pointer-events: none; }
 .dark .rt-timeline-window-feedback { background: var(--rt-dark-surface, #171d28); border-color: var(--rt-dark-border, #303846); color: var(--rt-dark-muted, #a5afbd); }
-.rt-personnel-timeline-direction:disabled { opacity: .45; cursor: wait; }
+.rt-timeline-window-retry { flex-shrink: 0; border: 0; background: transparent; color: var(--rt-red, #ec003f); font-weight: 600; text-decoration: underline; cursor: pointer; pointer-events: auto; }
 @media (prefers-reduced-motion: reduce) { .rt-timeline-window-feedback > i { animation: none; } }
 .dark .rt-timeline-loading-indicator { background: var(--rt-dark-surface, #171d28); border-color: var(--rt-dark-border, #303846); color: var(--rt-dark-muted, #a5afbd); }
 @keyframes rt-timeline-content-loading { to { transform: rotate(360deg); } }
@@ -37,20 +36,19 @@
 }
 .rt-personnel-timeline-header-viewport { position: relative; min-width: 0; }
 .rt-personnel-timeline-header-scroll { min-width: 0; overflow: hidden; }
-.rt-timeline-header-axis { position: relative; width: calc((var(--timeline-days) + var(--timeline-pending-before) + var(--timeline-pending-after)) * var(--timeline-day-width)); }
+.rt-timeline-header-axis { position: relative; width: calc(var(--timeline-display-days, var(--timeline-days)) * var(--timeline-day-width)); }
 .rt-personnel-timeline-header-days {
     display: grid;
-    grid-template-columns: repeat(var(--timeline-days), minmax(0, 1fr));
-    width: calc(var(--timeline-days) * var(--timeline-day-width));
-    margin-left: calc(var(--timeline-pending-before) * var(--timeline-day-width));
+    grid-template-columns: repeat(var(--timeline-display-days, var(--timeline-days)), minmax(0, 1fr));
+    width: calc(var(--timeline-display-days, var(--timeline-days)) * var(--timeline-day-width));
 }
-.rt-timeline-pending-head { position: absolute; top: 0; left: calc(var(--timeline-days) * var(--timeline-day-width)); width: var(--timeline-day-width); height: 100%; flex-direction: column; justify-content: center; gap: 5px; padding: 7px 0 5px; text-align: center; background: var(--rt-surface-muted, #f7f8fa); }
-.rt-timeline-pending-head[data-before='true'] { left: 0; }
-.rt-timeline-pending-head .rt-personnel-timeline-date { display: inline-flex; align-items: center; gap: 6px; }
+.rt-personnel-timeline-head[data-pending] .rt-personnel-timeline-date { display: inline-flex; align-items: center; gap: 6px; }
 .rt-timeline-day-spinner { color: var(--rt-muted, #667085); font-size: 12px; }
-.rt-timeline-pending-column { position: absolute; top: 0; bottom: 0; left: calc(var(--timeline-name-width) + var(--timeline-days) * var(--timeline-day-width)); width: var(--timeline-day-width); border-inline: 1px solid var(--rt-border, #e4e7ec); background: var(--rt-surface-muted, #f7f8fa); pointer-events: none; }
-.rt-timeline-pending-column[data-before='true'] { left: var(--timeline-name-width); }
-.dark .rt-timeline-pending-head, .dark .rt-timeline-pending-column { background: var(--rt-dark-surface-muted, #1b2431); border-color: var(--rt-dark-border, #303846); }
+.rt-timeline-scaffold-columns { position: absolute; top: 0; bottom: 0; left: var(--timeline-name-width); display: grid; grid-template-columns: repeat(var(--timeline-display-days, var(--timeline-days)), var(--timeline-day-width)); width: calc(var(--timeline-display-days, var(--timeline-days)) * var(--timeline-day-width)); pointer-events: none; }
+.rt-timeline-scaffold-day { border-right: 1px solid var(--rt-border, #e4e7ec); }
+.rt-timeline-scaffold-day[data-pending='true'] { background: var(--rt-surface-muted, #f7f8fa); }
+.dark .rt-timeline-scaffold-day { border-color: var(--rt-dark-border, #303846); }
+.dark .rt-timeline-scaffold-day[data-pending='true'] { background: var(--rt-dark-surface-muted, #1b2431); }
 @media (prefers-reduced-motion: reduce) { .rt-timeline-day-spinner { animation: none; } }
 .rt-personnel-timeline-head {
     display: flex;
@@ -133,8 +131,8 @@
 .rt-personnel-timeline-grid {
     position: relative;
     display: grid;
-    grid-template-columns: calc(var(--timeline-name-width) + var(--timeline-pending-before) * var(--timeline-day-width)) repeat(var(--timeline-days), var(--timeline-day-width));
-    width: calc(var(--timeline-name-width) + (var(--timeline-days) + var(--timeline-pending-before) + var(--timeline-pending-after)) * var(--timeline-day-width));
+    grid-template-columns: var(--timeline-name-width) repeat(var(--timeline-display-days, var(--timeline-days)), var(--timeline-day-width));
+    width: calc(var(--timeline-name-width) + var(--timeline-display-days, var(--timeline-days)) * var(--timeline-day-width));
     align-content: start;
 }
 .rt-personnel-timeline-name {
@@ -175,6 +173,10 @@
     --timeline-badge-height: 18px;
     --timeline-mark-top: 17px;
 }
+.rt-personnel-timeline[data-timeline-window-navigation='true'] .rt-personnel-timeline-track { overflow: clip; border-bottom: 1px solid var(--rt-border, #e4e7ec); }
+.dark .rt-personnel-timeline[data-timeline-window-navigation='true'] .rt-personnel-timeline-track { border-color: var(--rt-dark-border, #303846); }
+.rt-timeline-loaded-track { position: absolute; inset-block: 0; left: calc(var(--timeline-content-offset) * var(--timeline-day-width)); display: grid; grid-template-columns: repeat(var(--timeline-days), var(--timeline-day-width)); width: calc(var(--timeline-days) * var(--timeline-day-width)); }
+.rt-personnel-timeline[data-content-loading='true'] [data-timeline-cell-action], .rt-personnel-timeline[data-content-loading='true'] [data-timeline-proposal] { pointer-events: none; }
 .rt-personnel-timeline-events { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .rt-personnel-timeline-day {
     position: relative;

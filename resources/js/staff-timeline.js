@@ -12,6 +12,7 @@ export function timelineDayOffset(offset, width, direction, maximum) {
 // Date-only arithmetic deliberately uses UTC civil days, not elapsed local hours:
 // a spring/autumn clock change must still advance exactly one date on the axis.
 const CIVIL_DAY_MILLISECONDS = 86400000;
+const TIMELINE_DAY_LABEL = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' });
 
 function timelineCivilDay(value) {
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -254,6 +255,7 @@ export function staffTimeline() {
         windowObserver: null,
         windowRoot: null,
         windowLoading: false,
+        windowRevision: 0,
         windowError: '',
         windowPendingDate: '',
         windowPendingBefore: false,
@@ -287,8 +289,63 @@ export function staffTimeline() {
             return day === null ? '' : new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' })
                 .format(new Date(day * CIVIL_DAY_MILLISECONDS));
         },
+        get windowDisplayPeriod() {
+            this.windowRevision;
+            return this.windowNavigationState().wanted;
+        },
+        windowDisplayAxis() {
+            const period = this.windowDisplayPeriod;
+            if (!period) return this.windowAxisPeriod();
+            return { from: timelineDateOffset(period.from, -3) || '0001-01-01',
+                until: timelineDateOffset(period.until, 3) || '9999-12-31' };
+        },
+        get windowScaffoldDays() {
+            this.windowRevision;
+            const axis = this.windowDisplayAxis();
+            const loaded = this.windowAxisPeriod();
+            if (!axis) return [];
+            const start = timelineCivilDay(axis.from);
+            const end = timelineCivilDay(axis.until);
+            const loadedFrom = loaded && timelineCivilDay(loaded.from);
+            const loadedUntil = loaded && timelineCivilDay(loaded.until);
+            return Array.from({ length: Math.max(0, Math.min(100, end - start + 1)) }, (_, index) => {
+                const day = start + index;
+                const value = new Date(day * CIVIL_DAY_MILLISECONDS);
+                const date = value.toISOString().slice(0, 10);
+                return { date, label: TIMELINE_DAY_LABEL.format(value), weekend: [0, 6].includes(value.getUTCDay()),
+                    pending: loadedFrom === null || loadedUntil === null || day < loadedFrom || day > loadedUntil,
+                    focus: date === this.timelineElement.dataset.timelineFocusDate };
+            });
+        },
+        get windowDisplayDayCount() { return this.windowScaffoldDays.length; },
+        get windowDisplaySelectedDayCount() {
+            const period = this.windowDisplayPeriod;
+            return period ? timelineCivilDay(period.until) - timelineCivilDay(period.from) + 1 : 0;
+        },
+        get windowBeforeDays() {
+            const axis = this.windowDisplayAxis();
+            const period = this.windowDisplayPeriod;
+            return axis && period ? timelineCivilDay(period.from) - timelineCivilDay(axis.from) : this.windowBuffer('before');
+        },
+        get windowAfterDays() {
+            const axis = this.windowDisplayAxis();
+            const period = this.windowDisplayPeriod;
+            return axis && period ? timelineCivilDay(axis.until) - timelineCivilDay(period.until) : this.windowBuffer('after');
+        },
+        get windowContentOffset() {
+            this.windowRevision;
+            const loaded = this.windowAxisPeriod();
+            const axis = this.windowDisplayAxis();
+            return loaded && axis ? timelineCivilDay(loaded.from) - timelineCivilDay(axis.from) : 0;
+        },
+        get windowContentLoading() {
+            this.windowRevision;
+            const period = this.windowDisplayPeriod;
+            const confirmed = this.windowNavigationState().period;
+            return this.windowLoading || Boolean(period && confirmed && (period.from !== confirmed.from || period.until !== confirmed.until));
+        },
         windowDayLoading(date) {
-            return this.windowLoading && date === this.windowPendingDate;
+            return this.windowScaffoldDays.some(day => day.date === date && day.pending);
         },
         windowAxisPeriod() {
             const root = this.timelineElement;
@@ -303,8 +360,10 @@ export function staffTimeline() {
             const root = this.timelineElement;
             let state = windowNavigations.get(root);
             if (!state) {
-                state = { period: timelineWindowPeriod(root.dataset.timelineFrom, root.dataset.timelineUntil),
-                    axis: this.windowAxisPeriod(), positioned: false, request: null, timer: null, frame: null, cleanup: null };
+                const period = timelineWindowPeriod(root.dataset.timelineFrom, root.dataset.timelineUntil);
+                state = { period, wanted: period, axis: this.windowAxisPeriod(), positioned: false,
+                    request: null, ownPeriods: new Set(), motionTarget: null, displayVersion: 0,
+                    timer: null, frame: null, cleanup: null };
                 windowNavigations.set(root, state);
             }
             return state;
@@ -312,13 +371,12 @@ export function staffTimeline() {
         timelineScrollEdges(selected = false) {
             const body = this.$refs.timelineBody;
             const maximum = Math.max(0, body.scrollWidth - body.clientWidth);
-            if (!this.windowNavigationEnabled || (!selected && windowNavigations.get(this.timelineElement)?.request)) {
+            if (!this.windowNavigationEnabled) {
                 return { first: 0, last: maximum };
             }
             const width = parseFloat(getComputedStyle(this.timelineElement).getPropertyValue('--timeline-day-width')) || 0;
             return timelineBufferedEdges(width, maximum,
-                this.windowBuffer('before') + Number(this.windowPendingBefore),
-                this.windowBuffer('after') + Number(this.windowPendingAfter));
+                this.windowBeforeDays, this.windowAfterDays);
         },
         clearWindowRequest(state) {
             if (state.timer !== null) clearTimeout(state.timer);
@@ -332,20 +390,16 @@ export function staffTimeline() {
         failWindowRequest(request) {
             const state = windowNavigations.get(this.timelineElement);
             if (this.windowDisposed || state?.request !== request) return;
-            const body = this.$refs.timelineBody;
-            const width = parseFloat(getComputedStyle(this.timelineElement).getPropertyValue('--timeline-day-width')) || 0;
-            const offset = body.scrollLeft - (request.introduced && this.windowPendingBefore ? width : 0);
-            const top = body.scrollTop;
-            if (state.frame !== null) cancelAnimationFrame(state.frame);
-            state.frame = null;
             this.clearWindowRequest(state);
-            body.scrollLeft = Math.max(0, offset);
-            body.scrollTop = top;
-            this.syncHorizontal(body, false);
+            state.waiter?.reject(new Error('Weitere Tage konnten nicht geladen werden.'));
+            state.waiter = null;
             this.windowError = 'Weitere Tage konnten nicht geladen werden. Bitte erneut versuchen.';
+            this.windowRevision++;
         },
         noteWindowGesture() {
-            const request = windowNavigations.get(this.timelineElement)?.request;
+            const state = windowNavigations.get(this.timelineElement);
+            if (state) state.motionTarget = null;
+            const request = state?.request;
             if (request) request.userMoved = true;
         },
         bindWindowScrollbarIntent() {
@@ -383,96 +437,93 @@ export function staffTimeline() {
             const periodChanged = period.from !== state.period.from || period.until !== state.period.until;
             const axisChanged = axis.from !== state.axis?.from || axis.until !== state.axis?.until;
             if (!periodChanged && !axisChanged) return false;
-            const previousAxis = state.axis;
             state.period = period;
             state.axis = axis;
-            this.windowError = '';
             this.focusDayIndex = -1;
-            if (state.frame !== null) cancelAnimationFrame(state.frame);
-            state.frame = null;
-            // Only confirmed server dates enter the URL; mounting never changes it.
-            const url = timelinePeriodUrl(window.location?.href, period.from, period.until);
-            if (periodChanged && url && window.history?.replaceState && url !== window.location.href) {
-                window.history.replaceState(window.history.state, '', url);
-                this.$dispatch?.('rt-workspace-url-updated');
-            }
             const request = state.request;
             const body = this.$refs.timelineBody;
-            const offset = body.scrollLeft;
             const top = body.scrollTop;
-            const ghostBefore = request?.introduced && this.windowPendingBefore ? 1 : 0;
             const expected = request && period.from === request.next.from && period.until === request.next.until;
-            this.clearWindowRequest(state);
-            // A date-picker/calendar change is newer intent, not our requested edge.
-            if (!expected) {
-                body.scrollLeft = this.windowBuffer('before') * width;
+            const owned = state.ownPeriods.has(`${period.from}:${period.until}`);
+            // An older serialized response updates data, never a newer viewport.
+            if (expected) this.clearWindowRequest(state);
+            if (!expected && !owned) {
+                if (state.frame !== null) cancelAnimationFrame(state.frame);
+                state.frame = null;
+                this.clearWindowRequest(state);
+                state.waiter?.reject(new Error('Zeitraum wurde durch eine neuere Auswahl ersetzt.'));
+                state.waiter = null;
+                state.wanted = period;
+                state.displayVersion++;
+                state.motionTarget = null;
+                body.scrollLeft = this.windowBeforeDays * width;
                 body.scrollTop = top;
                 this.syncHorizontal(body, false);
-                return true;
             }
-            const maximum = Math.max(0, body.scrollWidth - body.clientWidth);
-            const delta = timelineCivilDay(axis.from) - timelineCivilDay(previousAxis.from);
-            const compensation = (delta + ghostBefore) * width;
-            body.scrollTop = top;
-            body.scrollLeft = Math.max(0, Math.min(maximum, offset - compensation));
-            this.syncHorizontal(body, false);
-            const remainingTarget = request.target === null ? null : Math.max(0, Math.min(maximum, request.target - compensation));
-            state.frame = requestAnimationFrame(() => {
-                state.frame = null;
-                if (this.windowDisposed || root.dataset.timelineFrom !== period.from || root.dataset.timelineUntil !== period.until) return;
-                if (request.userMoved || remainingTarget === null || Math.abs(body.scrollLeft - remainingTarget) < 1) return;
-                this.holdHorizontalIntent(request.direction);
-                // Finish an interrupted first movement, not another one-day step.
-                body.scrollTo({ left: remainingTarget,
-                    behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-            });
+            const current = state.wanted?.from === period.from && state.wanted?.until === period.until;
+            if (current) {
+                this.windowError = '';
+                const url = timelinePeriodUrl(window.location?.href, period.from, period.until);
+                if (periodChanged && url && window.history?.replaceState && url !== window.location.href) {
+                    window.history.replaceState(window.history.state, '', url);
+                    this.$dispatch?.('rt-workspace-url-updated');
+                }
+                state.waiter?.resolve();
+                state.waiter = null;
+            }
+            this.windowRevision++;
+            if (expected && !current) this.drainWindowRequest();
             return true;
         },
-        async shiftWindow(direction) {
-            if (!this.windowNavigationEnabled || this.windowLoading || this.windowDisposed) return;
-            const root = this.timelineElement;
-            const previous = timelineWindowPeriod(root.dataset.timelineFrom, root.dataset.timelineUntil);
-            const next = previous && timelineShiftPeriod(previous.from, previous.until, direction);
-            const axis = this.windowAxisPeriod();
-            const pendingDate = axis && timelineDateOffset(direction < 0 ? axis.from : axis.until, direction);
-            if (!next || !axis || !pendingDate) return;
+        paintWindowPeriod(period) {
             const state = this.windowNavigationState();
-            const body = this.$refs.timelineBody;
-            // Capture before the reactive ghost prefix grows the DOM: native snap/
-            // anchoring may already add one width before our nextTick callback.
-            const request = { previous, next, direction, offset: body.scrollLeft, introduced: false, target: null, userMoved: false };
-            state.request = request;
-            this.windowLoading = true;
+            state.wanted = period;
+            state.displayVersion++;
             this.windowError = '';
-            this.windowPendingDate = pendingDate;
-            this.windowPendingBefore = direction < 0;
-            this.windowPendingAfter = direction > 0;
-            this.holdHorizontalIntent(direction);
+            this.windowRevision++;
+            this.timelineElement.style.setProperty('--timeline-selected-days', this.windowDisplaySelectedDayCount);
+            this.timelineElement.style.setProperty('--timeline-display-days', this.windowDisplayDayCount);
+            this.timelineElement.style.setProperty('--timeline-content-offset', this.windowContentOffset);
+            this.$dispatch?.('operations-timeline-window-pending', { timelineId: this.timelineElement.dataset.timelineId });
+            return state.displayVersion;
+        },
+        requestWindowPeriod(event) {
+            const detail = event?.detail;
+            if (!this.windowNavigationEnabled || this.windowDisposed || !detail || detail.owner !== this.timelineElement.dataset.timelinePeriodOwner) return;
+            const period = timelineWindowPeriod(detail.from, detail.until);
+            if (!period) return;
+            detail.handled = true;
+            const state = this.windowNavigationState();
+            state.waiter?.reject(new Error('Zeitraum wurde durch eine neuere Auswahl ersetzt.'));
+            detail.promise = new Promise((resolve, reject) => { state.waiter = { resolve, reject }; });
+            const version = this.paintWindowPeriod(period);
+            state.motionTarget = null;
+            if (state.frame !== null) cancelAnimationFrame(state.frame);
+            state.frame = null;
             this.$nextTick(() => {
-                if (this.windowDisposed || state.request !== request || root.dataset.timelineFrom !== previous.from || root.dataset.timelineUntil !== previous.until) return;
-                const width = parseFloat(getComputedStyle(root).getPropertyValue('--timeline-day-width'));
-                if (!width) return;
-                // A temporary unknown outer column is outside the preloaded data.
-                // Its prefix shifts the old axis; compensate before showing the next
-                // already-loaded day immediately, without waiting on the response.
-                body.scrollLeft = request.offset + (direction < 0 ? width : 0);
-                request.introduced = true;
-                this.syncHorizontal(body, false);
-                request.target = Math.max(0, Math.min(body.scrollWidth - body.clientWidth, body.scrollLeft + direction * width));
-                // Mandatory snap first settles the temporary prefix/instant anchor.
-                // Starting smooth scrolling in that same layout turn can otherwise
-                // be cancelled by Chromium's pending automatic snap adjustment.
-                state.frame = requestAnimationFrame(() => {
-                    state.frame = null;
-                    if (this.windowDisposed || state.request !== request || request.userMoved
-                        || root.dataset.timelineFrom !== previous.from || root.dataset.timelineUntil !== previous.until) return;
-                    this.holdHorizontalIntent(direction);
-                    body.scrollTo({ left: request.target,
-                        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-                });
+                if (this.windowDisposed || state.displayVersion !== version) return;
+                const width = parseFloat(getComputedStyle(this.timelineElement).getPropertyValue('--timeline-day-width')) || 0;
+                this.$refs.timelineBody.scrollLeft = this.windowBeforeDays * width;
+                this.syncHorizontal(this.$refs.timelineBody, false);
+                this.queueMeasure();
             });
-            // Livewire can leave action promises pending on transport failure; do not
-            // strand the navigation. A late response may update dates but not an old anchor.
+            if (!state.request && period.from === state.period?.from && period.until === state.period?.until) {
+                state.waiter.resolve(); state.waiter = null;
+            } else this.drainWindowRequest();
+        },
+        retryWindow() { this.windowError = ''; return this.drainWindowRequest(); },
+        async drainWindowRequest() {
+            if (!this.windowNavigationEnabled || this.windowDisposed) return;
+            const root = this.timelineElement;
+            const state = this.windowNavigationState();
+            const next = state.wanted;
+            if (state.request || !next || (next.from === state.period?.from && next.until === state.period?.until)) return;
+            const request = { next, userMoved: false };
+            state.request = request;
+            state.ownPeriods.add(`${next.from}:${next.until}`);
+            if (state.ownPeriods.size > 12) state.ownPeriods.delete(state.ownPeriods.values().next().value);
+            this.windowLoading = true;
+            this.windowRevision++;
             state.timer = setTimeout(() => this.failWindowRequest(request), 15000);
             try {
                 const owner = window.Livewire?.find?.(root.dataset.timelinePeriodOwner);
@@ -482,6 +533,49 @@ export function staffTimeline() {
             } catch {
                 this.failWindowRequest(request);
             }
+        },
+        shiftWindow(direction, steps = 1, wheelDelta = null) {
+            if (!this.windowNavigationEnabled || this.windowDisposed || ![-1, 1].includes(direction)) return;
+            const root = this.timelineElement;
+            const state = this.windowNavigationState();
+            const previous = state.wanted;
+            let next = previous;
+            let moved = 0;
+            for (let index = 0; index < Math.min(100, Math.max(1, steps)); index++) {
+                const candidate = next && timelineShiftPeriod(next.from, next.until, direction);
+                if (!candidate) break;
+                next = candidate; moved++;
+            }
+            if (!next || !moved) return;
+            const body = this.$refs.timelineBody;
+            const offset = body.scrollLeft;
+            const targetOffset = state.motionTarget ?? offset;
+            const width = parseFloat(getComputedStyle(root).getPropertyValue('--timeline-day-width')) || 0;
+            const oldAxis = this.windowDisplayAxis();
+            const version = this.paintWindowPeriod(next);
+            const delta = timelineCivilDay(this.windowDisplayAxis().from) - timelineCivilDay(oldAxis.from);
+            state.waiter?.reject(new Error('Zeitraum wurde durch eine neuere Navigation ersetzt.'));
+            state.waiter = null;
+            if (state.frame !== null) cancelAnimationFrame(state.frame);
+            state.frame = null;
+            this.holdHorizontalIntent(direction);
+            this.$nextTick(() => {
+                if (this.windowDisposed || state.displayVersion !== version) return;
+                if (!width) return;
+                const edges = this.timelineScrollEdges(true);
+                const target = Math.max(edges.first, Math.min(edges.last, wheelDelta === null ? targetOffset : offset + wheelDelta - delta * width));
+                body.scrollLeft = Math.max(edges.first, Math.min(edges.last, offset - delta * width));
+                this.syncHorizontal(body, false);
+                state.motionTarget = target;
+                state.frame = requestAnimationFrame(() => {
+                    state.frame = null;
+                    if (this.windowDisposed || state.displayVersion !== version) return;
+                    this.holdHorizontalIntent(direction);
+                    body.scrollTo({ left: target,
+                        behavior: wheelDelta !== null || matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+                });
+            });
+            return this.drainWindowRequest();
         },
         get personnelCompact() {
             return this.compactRequested && !this.personnelHovered && !this.personnelFocused;
@@ -545,6 +639,15 @@ export function staffTimeline() {
                 const body = this.$refs.timelineBody;
                 const start = body.scrollLeft;
                 const edges = this.timelineScrollEdges();
+                const unbounded = start + event.deltaX;
+                if (this.windowNavigationEnabled && (unbounded < edges.first || unbounded > edges.last)) {
+                    event.preventDefault();
+                    if (event.deltaY) body.scrollTop += event.deltaY;
+                    const width = parseFloat(getComputedStyle(this.timelineElement).getPropertyValue('--timeline-day-width')) || 1;
+                    const overflow = unbounded < edges.first ? edges.first - unbounded : unbounded - edges.last;
+                    this.shiftWindow(event.deltaX < 0 ? -1 : 1, Math.ceil(overflow / width), event.deltaX);
+                    return;
+                }
                 const target = Math.max(edges.first, Math.min(edges.last, start + event.deltaX));
                 if (target !== start || this.windowNavigationEnabled) {
                     // The body hides its native x scrollbar for cross-browser consistency;
@@ -570,6 +673,8 @@ export function staffTimeline() {
             if (this.intentTimer !== null) clearTimeout(this.intentTimer);
             this.intentTimer = null;
             this.horizontalIntent = null;
+            const state = windowNavigations.get(this.timelineElement);
+            if (state) state.motionTarget = null;
             if (this.$refs?.timelineBody) this.lastScrollLeft = this.$refs.timelineBody.scrollLeft;
         },
         focusPersonnel(target) {
@@ -692,6 +797,7 @@ export function staffTimeline() {
                 this.clearWindowRequest(state);
                 if (state.frame !== null) cancelAnimationFrame(state.frame);
                 state.cleanup?.();
+                state.waiter?.reject(new Error('Zeitleiste wurde geschlossen.'));
                 windowNavigations.delete(this.timelineElement);
             }
             this.finishHorizontalIntent();
@@ -728,12 +834,18 @@ export function staffTimeline() {
             if (motion && Math.abs(motion.fullWidth - fullNameWidth) >= 1) this.finishPersonnelMotion(motion);
             const available = body.clientWidth - fullNameWidth;
             if (available <= 0) return;
-            const selectedDays = this.windowNavigationEnabled ? parseInt(root.dataset.timelineSelectedDays, 10) || days : days;
+            const display = this.windowNavigationEnabled && this.windowDisplayPeriod;
+            const selectedDays = display ? timelineCivilDay(display.until) - timelineCivilDay(display.from) + 1 : days;
             const width = timelineDayWidth(available,
                 parseFloat(style.getPropertyValue('--timeline-day-min-width')) || 190,
                 selectedDays);
             root.style.setProperty('--timeline-day-width', `${width}px`);
             root.style.setProperty('--timeline-gutter', `${body.offsetWidth - body.clientWidth}px`);
+            if (this.windowNavigationEnabled) {
+                root.style.setProperty('--timeline-selected-days', selectedDays);
+                root.style.setProperty('--timeline-display-days', this.windowDisplayDayCount);
+                root.style.setProperty('--timeline-content-offset', this.windowContentOffset);
+            }
             this.measureEventLabels(width * days);
             if (resized) this.rebasePersonnelLayout(wasAtEnd, body.scrollLeft);
             else this.syncHorizontal(body, false);
@@ -745,7 +857,7 @@ export function staffTimeline() {
             const header = this.$refs.timelineHeader;
             if (typeof header?.querySelectorAll !== 'function' || typeof body.scrollTo !== 'function') return;
             const heads = [...header.querySelectorAll('.rt-personnel-timeline-header-days > .rt-personnel-timeline-head')];
-            const index = heads.findIndex(head => head.dataset.focus === 'true');
+            const index = heads.findIndex(head => head.dataset.focus === 'true' || head.dataset.timelineDate === this.timelineElement.dataset.timelineFocusDate);
             if (index === this.focusDayIndex) return;
             this.focusDayIndex = index;
             const target = timelineFocusOffset(index, width, body.scrollLeft, header.clientWidth,
@@ -802,7 +914,7 @@ export function staffTimeline() {
             // Reserve columns are preloaded for arrow transitions, not extra
             // selected dates. Native keyboard/snap input follows the same bound.
             const state = windowNavigations.get(this.timelineElement);
-            if (this.windowNavigationEnabled && state?.positioned && !state.request) {
+            if (this.windowNavigationEnabled && state?.positioned) {
                 const bounded = Math.max(selectedEdges.first, Math.min(selectedEdges.last, body.scrollLeft));
                 if (Math.abs(body.scrollLeft - bounded) >= 1) body.scrollLeft = bounded;
             }
@@ -827,18 +939,23 @@ export function staffTimeline() {
             this.canScrollRight = offset < selectedEdges.last - 1;
         },
         scrollDay(direction) {
-            if (![-1, 1].includes(direction) || this.windowLoading || this.windowDisposed) return;
+            if (![-1, 1].includes(direction) || this.windowDisposed) return;
             const body = this.$refs.timelineBody;
             const width = parseFloat(getComputedStyle(this.timelineElement).getPropertyValue('--timeline-day-width'));
             if (!width) return;
             const edges = this.timelineScrollEdges(true);
-            const atEdge = direction < 0 ? body.scrollLeft <= edges.first + 1 : body.scrollLeft >= edges.last - 1;
+            const state = this.windowNavigationEnabled ? this.windowNavigationState() : null;
+            const offset = state?.motionTarget ?? body.scrollLeft;
+            const atEdge = direction < 0 ? offset <= edges.first + 1 : offset >= edges.last - 1;
             if (atEdge && this.windowNavigationEnabled) return this.shiftWindow(direction);
             this.holdHorizontalIntent(direction);
+            const target = Math.max(edges.first, Math.min(edges.last, timelineDayOffset(offset, width, direction, edges.last)));
+            if (state) state.motionTarget = target;
             body.scrollTo({
-                left: Math.max(edges.first, Math.min(edges.last, timelineDayOffset(body.scrollLeft, width, direction, edges.last))),
+                left: target,
                 behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
             });
+            if (state && this.windowContentLoading && !state.request) return this.drainWindowRequest();
         },
     };
 }

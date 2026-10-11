@@ -6,6 +6,19 @@
 @endphp
 <div class="wv-dispatch-map" data-dispatch-map data-dispatch-date="{{ $data['date'] }}" wire:key="dispatch-map-content-{{ $data['date'] }}" x-effect="if (day !== $el.dataset.dispatchDate) { kind = 'all'; place = 'all'; day = $el.dataset.dispatchDate }">
     @error('dispatchMapDate')<p class="ops-errors" role="alert">{{ $message }}</p>@enderror
+    {{-- Tageslage auf einen Blick, bevor man Punkte anfaehrt. --}}
+    <div class="wv-dispatch-map__stats" role="list" aria-label="Tageslage {{ $data['dateLabel'] }}">
+        @if($data['canViewShifts'])
+            <span role="listitem"><b>{{ $data['shiftsCount'] }}</b>{{ $data['shiftsCount'] === 1 ? 'Schicht' : 'Schichten' }}</span>
+            <span role="listitem" @if($data['understaffedCount'] > 0) data-tone="warn" @endif><b>{{ $data['understaffedCount'] }}</b>unterbesetzt</span>
+        @endif
+        @if($data['canViewInquiries'])
+            <span role="listitem"><b>{{ $data['inquiriesCount'] }}</b>{{ $data['inquiriesCount'] === 1 ? 'Anfrage' : 'Anfragen' }}</span>
+        @endif
+        @if($data['unlocatedCount'] > 0)
+            <span role="listitem" data-tone="muted" title="Einträge, deren Ort sich nicht auf der Karte bestimmen ließ"><b>{{ $data['unlocatedCount'] }}</b>ohne Kartenpunkt</span>
+        @endif
+    </div>
     <div class="wv-dispatch-map__content" wire:loading.class="wv-dispatch-map__content--loading" wire:target="{{ $dateTargets }}">
         <figure class="wv-dispatch-map__figure" aria-label="Dispositionskarte">
             <div class="wv-dispatch-map__stage" style="aspect-ratio: {{ $mapWidth }} / {{ $mapHeight }}">
@@ -20,6 +33,7 @@
                             <button type="button" class="wv-dispatch-map__marker" data-dispatch-marker="{{ $marker['key'] }}" aria-haspopup="dialog" :aria-expanded="open.toString()" aria-controls="rt-dropdown-{{ $mapId }}-point-{{ $loop->index }}-content" aria-label="{{ $marker['place'] }}: {{ $marker['count'] }} {{ $marker['count'] === 1 ? 'Eintrag' : 'Einträge' }}. Details öffnen" x-on:keydown.arrow-down.prevent.stop="focusHoverPanel(); $nextTick(() => Array.from($refs.panel.querySelectorAll('[data-dispatch-point-entry]')).find(entry => getComputedStyle(entry).display !== 'none')?.focus({ preventScroll: true }))">
                                 @if($marker['shiftCount'] > 0)<span class="wv-dispatch-map__shift" aria-hidden="true" x-show="kind !== 'inquiry'"></span>@endif
                                 @if($marker['inquiryCount'] > 0)<span class="wv-dispatch-map__inquiry" aria-hidden="true" x-show="kind !== 'shift'"></span>@endif
+                                @if($marker['count'] > 1)<span class="wv-dispatch-map__count" aria-hidden="true" x-show="kind === 'all'">{{ $marker['count'] > 99 ? '99+' : $marker['count'] }}</span>@endif
                             </button>
                         </x-slot:trigger>
                         <x-slot:content>
