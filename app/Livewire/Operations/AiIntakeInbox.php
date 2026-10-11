@@ -71,15 +71,21 @@ class AiIntakeInbox extends Component
     #[Locked]
     public bool $customerDraftOpen = false;
 
-    public function mount(?int $customerId = null, ?int $initialIntakeId = null): void
+    #[Locked]
+    public bool $modalOnly = false;
+
+    public function mount(?int $customerId = null, ?int $initialIntakeId = null, bool $modalOnly = false): void
     {
         $this->actor();
         if ($customerId) {
             Customer::findOrFail($customerId);
         }
         $this->customerId = $customerId;
+        $this->modalOnly = $modalOnly;
         if ($initialIntakeId) {
             $this->select($initialIntakeId);
+        } elseif ($modalOnly) {
+            $this->openCapture();
         }
     }
 

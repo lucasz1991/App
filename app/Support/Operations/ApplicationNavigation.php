@@ -15,8 +15,8 @@ final class ApplicationNavigation
         };
         $add('', 'Dashboard', $admin ? 'admin.dashboard' : 'dashboard', 'home');
         $sections += array_fill_keys($user->dashboardAudience() === 'employee'
-            ? ['Mein Arbeitsplatz', 'Disposition', 'Kunden', 'Personal']
-            : ['Disposition', 'Kunden', 'Personal', 'Mein Arbeitsplatz'], []);
+            ? ['Mein Arbeitsplatz', 'Disposition', 'Personal', 'Kunden']
+            : ['Disposition', 'Personal', 'Kunden', 'Mein Arbeitsplatz'], []);
         $ready = OperationsAccess::ready();
         if ($ready && OperationsAccess::isEmployee($user)) {
             $add('Mein Arbeitsplatz', 'Mein Arbeitstag', 'operations.mine', 'clock');
@@ -61,7 +61,7 @@ final class ApplicationNavigation
             }
             if (! $shortcuts || OperationsPages::views($user, $page) || array_diff_key($availableSections, $shortcuts)) {
                 $group = match ($page) {
-                    'planning' => 'Planung',
+                    'planning' => null,
                     'personnel-processes' => null,
                     default => $definition['group'] ?? null,
                 };

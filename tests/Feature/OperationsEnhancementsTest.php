@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\LogActivity;
 use App\Livewire\Operations\OperationsEnhancements;
+use App\Livewire\Operations\UnifiedInbox;
 use App\Models\Customer;
 use App\Models\CustomerContact;
 use App\Models\EmployeeWorkModel;
@@ -82,6 +83,16 @@ class OperationsEnhancementsTest extends TestCase
         $this->shift = Shift::create(['order_id' => $this->order->id, 'title' => 'Synthetic Duty', 'role_name' => 'Tf', 'starts_at' => '2027-05-13T08:00:00+02:00', 'ends_at' => '2027-05-13T16:00:00+02:00', 'timezone' => 'Europe/Berlin', 'required_staff' => 2, 'status' => 'open', 'planned_break_minutes' => 0]);
         $this->shift->forceFill(['revision' => 1, 'published_revision' => 1])->save();
         $this->assignment = ShiftAssignment::create(['shift_id' => $this->shift->id, 'user_id' => $this->employee->id, 'status' => 'confirmed', 'assigned_by' => $this->admin->id, 'plan_revision' => 1]);
+    }
+
+    public function test_unified_inbox_includes_import_review_and_preserves_explicit_conversion(): void
+    {
+        $this->actingAs($this->admin);
+        $record = app(ReviewedInquiryImportService::class)->preview('text', 'Synthetic input', 'Unified import', $this->admin);
+        Livewire::test(UnifiedInbox::class)->assertSee('Unified import')->call('select', 'import', $record->id)->assertSeeLivewire(OperationsEnhancements::class);
+        Livewire::test(OperationsEnhancements::class, ['tab' => 'imports', 'embedded' => true, 'initialRecordId' => $record->id, 'modalOnly' => true])->assertSet('detailOpen', true)->assertDontSee('operations-enhancement-filters', false)->assertSee('Originaleingang');
+        $this->assertSame('draft', $record->fresh()->status);
+        $this->assertDatabaseCount('operation_inquiries', 0);
     }
 
     private function entry(string $status = 'approved'): WorkTimeEntry
@@ -499,6 +510,6 @@ class OperationsEnhancementsTest extends TestCase
         $this->assertArrayNotHasKey('bank', $data);
         $this->assertSame('Tf', $data['role']);
         $this->shift->forceFill(['revision' => 2])->save();
-        $this->rejected(fn () => $s->projection($request->id,$this->admin), 409);
+        $this->rejected(fn () => $s->projection($request->id, $this->admin), 409);
     }
 }

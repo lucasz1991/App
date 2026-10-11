@@ -7,6 +7,7 @@ use App\Livewire\Admin\Operations\Customers;
 use App\Livewire\Operations\AiIntakeInbox;
 use App\Livewire\Operations\CaseWorkspace;
 use App\Livewire\Operations\PageWorkspace;
+use App\Livewire\Operations\UnifiedInbox;
 use App\Models\AiIntake;
 use App\Models\AiIntakeDelivery;
 use App\Models\AiIntakeProposal;
@@ -48,6 +49,24 @@ class AiDispositionUiTest extends TestCase
         Mail::fake();
         Http::preventStrayRequests();
         Storage::fake('local');
+    }
+
+    public function test_unified_inbox_represents_current_ai_source_once_and_keeps_native_approval_drawer(): void
+    {
+        $intake = AiIntake::create(['source_type' => 'manual', 'title' => 'Unified AI source', 'status' => 'review', 'source_revision' => 1, 'revision' => 1, 'supervising_user_id' => $this->admin->id]);
+        $inquiry = OperationInquiry::create(['channel' => 'manual', 'title' => 'Linked native position', 'original' => 'Synthetic original', 'status' => 'new', 'timezone' => 'Europe/Berlin', 'revision' => 1, 'created_by' => $this->admin->id]);
+        AiIntakeProposal::create(['intake_id' => $intake->id, 'source_revision' => $intake->source_revision, 'position_index' => 0, 'status' => 'proposed', 'inquiry_id' => $inquiry->id, 'payload' => ['demand' => ['title' => $inquiry->title], 'segments' => []]]);
+        $component = Livewire::test(UnifiedInbox::class)
+            ->assertSee('Unified AI source')->assertDontSee('Linked native position')
+            ->call('openRow', $intake->id * 8 + 1)->assertSeeLivewire(AiIntakeInbox::class);
+        $this->assertSame('review', $intake->fresh()->status);
+        $this->assertSame('proposed', $intake->proposals()->first()->status);
+        Livewire::test(AiIntakeInbox::class, ['initialIntakeId' => $intake->id, 'modalOnly' => true])
+            ->assertSet('detailOpen', true)->assertDontSee('ai-intake-filters', false)->assertSee('Nachrichten und Anlagen');
+        $intake->update(['status' => 'completed']);
+        Livewire::test(UnifiedInbox::class)->assertDontSee('Unified AI source')->assertSee('Linked native position');
+        Mail::assertNothingSent();
+        Queue::assertNothingPushed();
     }
 
     public function test_configuration_does_not_expose_secrets_and_requires_actual_superadmin(): void

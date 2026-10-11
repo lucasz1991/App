@@ -86,12 +86,16 @@ class InquiryInbox extends Component
         return $state;
     }
 
-    public function mount(?int $initialInquiryId = null, ?int $customerId = null, bool $consolidated = false, bool $profileEmbedded = false): void
+    #[Locked]
+    public bool $modalOnly = false;
+
+    public function mount(?int $initialInquiryId = null, ?int $customerId = null, bool $consolidated = false, bool $profileEmbedded = false, bool $modalOnly = false): void
     {
         $this->access();
         $this->mounting = true;
         abort_if($profileEmbedded && (! $consolidated || $customerId === null), 404);
         $this->profileEmbedded = $profileEmbedded;
+        $this->modalOnly = $modalOnly;
         $this->consolidated = $consolidated;
         if ($consolidated && ! $profileEmbedded) {
             $state = self::listState(request()->query());
@@ -107,6 +111,8 @@ class InquiryInbox extends Component
         }
         if ($initialInquiryId !== null) {
             $this->select($initialInquiryId);
+        } elseif ($modalOnly) {
+            $this->create();
         }
         $this->mounting = false;
     }

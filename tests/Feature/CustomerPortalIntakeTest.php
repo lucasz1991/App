@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\Operations\CustomerPortalManagement;
+use App\Livewire\Operations\UnifiedInbox;
 use App\Models\AbsenceRequest;
 use App\Models\CommercialOfferRevision;
 use App\Models\Customer;
@@ -32,13 +34,16 @@ use App\Services\CustomerPortal\CustomerPortalSubmissionService;
 use App\Services\Operations\InquiryWorkflowService;
 use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\WorkforceAccountService;
+use App\Support\Operations\UnifiedInboxProjection;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Livewire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -87,6 +92,40 @@ class CustomerPortalIntakeTest extends TestCase
         $this->member = CustomerPortalMembership::create(['identity_id' => $this->identity->id, 'customer_id' => $this->customer->id, 'contact_id' => $contact->id, 'role' => 'coordinator', 'status' => 'active', 'revision' => 1, 'capabilities' => CustomerPortalMembership::ROLES['coordinator'], 'location_ids' => [], 'activated_at' => now(), 'updated_by' => $this->author->id]);
         $this->location = CustomerLocation::create(['customer_id' => $this->customer->id, 'name' => 'Synthetic yard', 'country' => 'DE', 'is_active' => true, 'updated_by' => $this->author->id]);
         $this->condition = CustomerCondition::create(['customer_id' => $this->customer->id, 'code' => 'SYNTH', 'label' => 'Synthetic rail service', 'unit' => 'h', 'unit_price_cents' => 10000, 'valid_from' => '2027-01-01', 'valid_until' => '2027-12-31', 'terms' => 'Synthetic explicit booking terms', 'created_by' => $this->author->id]);
+    }
+
+    public function test_unified_inbox_groups_portal_positions_and_opens_guarded_decision_drawer(): void
+    {
+        $submission = $this->submit();
+        $this->actingAs($this->author);
+        $rows = UnifiedInboxProjection::query($this->author)->get();
+        $this->assertCount(1, $rows);
+        $this->assertSame('submission', $rows->first()->kind);
+        Livewire::test(UnifiedInbox::class)
+            ->assertSee('Synthetic service')->call('select', 'submission', $submission->id)
+            ->assertSeeLivewire(CustomerPortalManagement::class);
+        Livewire::test(CustomerPortalManagement::class, ['tab' => 'requests', 'customerId' => $this->customer->id, 'embedded' => true, 'initialRecordId' => $submission->id, 'initialSource' => 'submission', 'modalOnly' => true])
+            ->assertSet('formOpen', true)->assertSet('modal', 'decision')->assertSee('Kundenrückmeldung');
+        $this->assertSame('review', $submission->fresh()->status);
+        $this->assertDatabaseCount('orders', 0);
+        Mail::assertNothingSent();
+    }
+
+    public function test_unified_portal_only_reader_cannot_gain_decision_rights_and_grant_revocation_hides_records(): void
+    {
+        $submission = $this->submit();
+        Gate::define('operations.inquiries.manage', fn () => false);
+        Gate::define('customers.portal.manage', fn ($user) => $user->id === $this->employee->id);
+        DB::table('customer_portal_manager_grants')->insert(['customer_id' => $this->customer->id, 'user_id' => $this->employee->id, 'active' => true, 'abilities' => json_encode(['customers.portal.manage']), 'approved_by' => $this->author->id, 'approved_at' => now()]);
+        $this->actingAs($this->employee);
+        $component = Livewire::test(UnifiedInbox::class)->assertSee('Synthetic service');
+        Livewire::test(CustomerPortalManagement::class, ['tab' => 'requests', 'customerId' => $this->customer->id, 'embedded' => true, 'initialRecordId' => $submission->id, 'initialSource' => 'submission', 'modalOnly' => true])
+            ->assertSet('modal', 'view-submission')->assertDontSee('Kundenrückmeldung')->call('edit', 'decision', $submission->id)->assertForbidden();
+        DB::table('customer_portal_manager_grants')->where('user_id', $this->employee->id)->update(['active' => false]);
+        $component->call('select', 'submission', $submission->id)->assertNotFound();
+        $this->assertSame('review', $submission->fresh()->status);
+        $this->assertDatabaseCount('orders', 0);
+        Mail::assertNothingSent();
     }
 
     protected function data(array $extra = []): array

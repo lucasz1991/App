@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Livewire\Admin\Operations\ShiftManagement;
 use App\Livewire\Operations\StaffTimeline;
+use App\Models\AbsenceRequest;
 use App\Models\Customer;
+use App\Models\EmployeeWorkModel;
 use App\Models\OperationsRuleProfile;
 use App\Models\Order;
 use App\Models\Shift;
@@ -74,15 +76,23 @@ class TimelineWindowNavigationTest extends TestCase
         $this->assertSame('2027-10-31', $child['data']['until']);
         $this->assertSame($child['memo']['id'], $parent->snapshot['memo']['children']['shift-plan-staff-timeline'][1]);
         $this->assertStringContainsString('data-timeline-window-navigation="true"', $parent->html());
+        $this->assertStringContainsString('data-timeline-axis-from="2027-10-22"', $parent->html());
+        $this->assertStringContainsString('data-timeline-axis-until="2027-11-03"', $parent->html());
+        $this->assertStringContainsString('data-timeline-selected-days="7"', $parent->html());
+        $this->assertStringContainsString('data-timeline-buffer-before="3"', $parent->html());
+        $this->assertStringContainsString('data-timeline-buffer-after="3"', $parent->html());
+        $this->assertSame(13, $this->dateHeadCount($parent->html()));
 
         $standalone = Livewire::actingAs($this->admin)->test(StaffTimeline::class, [
             'from' => '2027-10-25', 'until' => '2027-10-31', 'planningEnabled' => true,
         ])->assertSeeHtml('data-timeline-window-navigation="false"')->assertSet('periodNavigationOwner', null);
         $this->assertNotSame($child['memo']['id'], $standalone->id());
-        Livewire::actingAs($this->admin)->test(StaffTimeline::class, [
+        $this->assertSame(7, $this->dateHeadCount($standalone->html()));
+        $absences = Livewire::actingAs($this->admin)->test(StaffTimeline::class, [
             'from' => '2027-10-25', 'until' => '2027-10-31', 'planningEnabled' => true,
             'absencesOnly' => true, 'periodNavigationOwner' => $parent->id(),
         ])->assertSeeHtml('data-timeline-window-navigation="false"');
+        $this->assertSame(7, $this->dateHeadCount($absences->html()));
     }
 
     public function test_real_bundled_reactive_updates_roll_both_directions_across_dst_month_and_year_without_remounting(): void
@@ -91,17 +101,21 @@ class TimelineWindowNavigationTest extends TestCase
         $this->shift('November duty', '2027-11-02T08:00:00+01:00', '2027-11-02T10:00:00+01:00', true);
         $year = $this->shift('Year boundary duty', '2027-12-31T22:00:00+01:00', '2028-01-01T06:00:00+01:00', true);
         $this->shift('January duty', '2028-01-04T08:00:00+01:00', '2028-01-04T10:00:00+01:00', true);
+        $this->shift('October 25 duty', '2027-10-25T08:00:00+02:00', '2027-10-25T10:00:00+02:00', true);
+        $this->shift('November 10 duty', '2027-11-10T08:00:00+01:00', '2027-11-10T10:00:00+01:00', true);
+        $this->shift('December 25 duty', '2027-12-25T08:00:00+01:00', '2027-12-25T10:00:00+01:00', true);
+        $this->shift('January 8 duty', '2028-01-08T08:00:00+01:00', '2028-01-08T10:00:00+01:00', true);
         $before = [$dst->fresh()->getAttributes(), Shift::count(), ShiftAssignment::count()];
         $parent = $this->parent();
         $snapshots = [$parent->snapshot, $this->childSnapshot($parent->html())];
         $childId = $snapshots[1]['memo']['id'];
 
         foreach ([
-            ['2027-11-01', '2027-11-07', 'November duty', 'DST night'],
-            ['2027-10-25', '2027-10-31', 'DST night', 'November duty'],
-            ['2027-12-27', '2028-01-02', 'Year boundary duty', 'January duty'],
-            ['2028-01-03', '2028-01-09', 'January duty', 'Year boundary duty'],
-            ['2027-12-27', '2028-01-02', 'Year boundary duty', 'January duty'],
+            ['2027-11-01', '2027-11-07', 'November duty', 'October 25 duty'],
+            ['2027-10-25', '2027-10-31', 'DST night', 'November 10 duty'],
+            ['2027-12-27', '2028-01-02', 'Year boundary duty', 'January 8 duty'],
+            ['2028-01-03', '2028-01-09', 'January duty', 'December 25 duty'],
+            ['2027-12-27', '2028-01-02', 'Year boundary duty', 'January 8 duty'],
         ] as [$from, $until, $visible, $absent]) {
             [$snapshots, $effects] = $this->bundle($snapshots, [0 => [['method' => 'applyPeriod', 'params' => [$from, $until], 'path' => '']]]);
             $this->assertSame($from, $snapshots[0]['data']['rangeFrom']);
@@ -115,7 +129,9 @@ class TimelineWindowNavigationTest extends TestCase
             $this->assertStringContainsString('data-timeline-until="'.$until.'"', $html);
             $this->assertStringContainsString('staff-day-'.$this->employee->id.'-'.$from, $html);
             $this->assertStringContainsString('staff-day-'.$this->employee->id.'-'.$until, $html);
-            $this->assertSame(7, $this->xpath($html)->query('//*[contains(@class,"rt-personnel-timeline-header-days")]/*')->length);
+            $this->assertSame(13, $this->dateHeadCount($html));
+            $this->assertStringContainsString('data-timeline-axis-from="'.CarbonImmutable::parse($from)->subDays(3)->toDateString().'"', $html);
+            $this->assertStringContainsString('data-timeline-axis-until="'.CarbonImmutable::parse($until)->addDays(3)->toDateString().'"', $html);
             $this->assertStringContainsString($visible, $html);
             $this->assertStringNotContainsString($absent, $html);
             $this->assertStringContainsString(CarbonImmutable::parse($from)->format('d.m.'), $effects[0]['html']);
@@ -194,8 +210,61 @@ class TimelineWindowNavigationTest extends TestCase
         $this->assertSame('2027-04-04', $snapshots[0]['data']['rangeTo']);
         $this->assertSame('2027-01-01', $snapshots[1]['data']['from']);
         $this->assertSame('2027-04-04', $snapshots[1]['data']['until']);
-        $this->assertSame(94, $this->xpath($effects[1]['html'])->query('//*[contains(@class,"rt-personnel-timeline-header-days")]/*')->length);
+        $this->assertSame(100, $this->dateHeadCount($effects[1]['html']));
+        $this->assertStringContainsString('data-timeline-selected-days="94"', $effects[1]['html']);
         $this->assertSame(0, Shift::count());
+    }
+
+    public function test_three_day_reserves_load_native_events_but_do_not_expand_selected_workload_or_staff_scope(): void
+    {
+        EmployeeWorkModel::create([
+            'user_id' => $this->employee->id, 'name' => 'Selected weekly target', 'status' => 'active',
+            'starts_on' => '2027-01-01', 'timezone' => 'Europe/Berlin', 'weekly_target_minutes' => 2400,
+            'daily_minutes' => [1 => 480, 2 => 480, 3 => 480, 4 => 480, 5 => 480, 6 => 0, 7 => 0],
+            'created_by' => $this->admin->id,
+        ]);
+        $selected = $this->shift('Selected duty', '2027-10-28T08:00:00+02:00', '2027-10-28T16:00:00+02:00', true);
+        $past = $this->shift('Past reserve duty', '2027-10-22T08:00:00+02:00', '2027-10-22T12:00:00+02:00', true);
+        $future = $this->shift('Future reserve duty', '2027-11-03T08:00:00+01:00', '2027-11-03T12:00:00+01:00', true);
+        $outsidePast = $this->shift('Outside past reserve', '2027-10-21T08:00:00+02:00', '2027-10-21T10:00:00+02:00', true);
+        $outsideFuture = $this->shift('Outside future reserve', '2027-11-04T08:00:00+01:00', '2027-11-04T10:00:00+01:00', true);
+        $absence = fn (string $day) => AbsenceRequest::create([
+            'user_id' => $this->employee->id, 'kind' => 'vacation', 'status' => 'approved',
+            'starts_at' => CarbonImmutable::parse($day, 'Europe/Berlin')->startOfDay(),
+            'ends_at' => CarbonImmutable::parse($day, 'Europe/Berlin')->addDay()->startOfDay(),
+            'timezone' => 'Europe/Berlin',
+        ]);
+        $selectedAbsence = $absence('2027-10-27');
+        $pastAbsence = $absence('2027-10-24');
+        $futureAbsence = $absence('2027-11-02');
+        $outsideAbsence = $absence('2027-11-04');
+        // A former employee with only a buffered assignment must not widen the selected staff scope.
+        $former = User::factory()->create(['name' => 'Window Former', 'role' => 'staff', 'status' => false]);
+        ShiftAssignment::create(['shift_id' => $future->id, 'user_id' => $former->id, 'status' => 'confirmed', 'assigned_by' => $this->admin->id]);
+        $count = [Shift::count(), ShiftAssignment::count(), AbsenceRequest::count()];
+        $owner = $this->parent()->id();
+        $timeline = Livewire::actingAs($this->admin)->test(StaffTimeline::class, [
+            'from' => '2027-10-25', 'until' => '2027-10-31', 'planningEnabled' => true, 'periodNavigationOwner' => $owner,
+        ]);
+        $timeline->assertSet('from', '2027-10-25')->assertSet('until', '2027-10-31');
+        $this->assertSame(['2027-10-22', '2027-11-03'], [$timeline->viewData('days')->first()->toDateString(), $timeline->viewData('days')->last()->toDateString()]);
+        $this->assertSame(['2027-10-25', '2027-10-31'], [$timeline->viewData('selectedDays')->first()->toDateString(), $timeline->viewData('selectedDays')->last()->toDateString()]);
+        $row = $timeline->viewData('rows')->firstWhere('user.id', $this->employee->id);
+        $this->assertSame([$selected->id, $past->id, $future->id], $row['events']->where('kind', 'shift')->pluck('shift_id')->sort()->values()->all());
+        $this->assertSame([$selectedAbsence->id, $pastAbsence->id, $futureAbsence->id], $row['events']->where('kind', 'absence')->pluck('absence_id')->sort()->values()->all());
+        $this->assertSame(['2027-43'], array_keys($row['planned_hours_by_week']));
+        $workload = $timeline->viewData('workloads')->get($this->employee->id);
+        $this->assertSame(450.0, $workload['confirmed']);
+        $this->assertSame(450.0, $workload['planned']);
+        $this->assertSame(2400, $workload['target']);
+        $this->assertSame(1, $workload['shift_count']);
+        $this->assertSame(1, $workload['absence_count']);
+        $this->assertFalse($timeline->viewData('users')->contains('id', $former->id));
+        $this->assertStringNotContainsString($outsidePast->title, $timeline->html());
+        $this->assertStringNotContainsString($outsideFuture->title, $timeline->html());
+        $this->assertFalse($row['events']->contains('absence_id', $outsideAbsence->id));
+        $this->assertSame($count, [Shift::count(), ShiftAssignment::count(), AbsenceRequest::count()]);
+        Http::assertNothingSent();
     }
 
     public function test_range_action_rechecks_authority_after_mount(): void
@@ -204,6 +273,23 @@ class TimelineWindowNavigationTest extends TestCase
         Livewire::actingAs($this->employee);
         $parent->call('applyPeriod', '2027-11-01', '2027-11-07')->assertForbidden();
         $this->assertSame(0, Shift::count());
+    }
+
+    public function test_preloaded_days_do_not_expand_distribution_or_enable_assignment_before_selected_period_changes(): void
+    {
+        $selected = $this->shift('Selected open duty', '2027-10-28T08:00:00+02:00', '2027-10-28T16:00:00+02:00');
+        $future = $this->shift('Buffered open duty', '2027-11-02T08:00:00+01:00', '2027-11-02T16:00:00+01:00');
+        $parent = $this->parent(true)->assertViewHas('pendingShifts', fn ($shifts) => $shifts->total() === 1 && $shifts->sole()->id === $selected->id);
+        $timeline = Livewire::actingAs($this->admin)->test(StaffTimeline::class, [
+            'from' => '2027-10-25', 'until' => '2027-10-31', 'planningEnabled' => true,
+            'periodNavigationOwner' => $parent->id(), 'showSuggestions' => true,
+        ])->call('loadSuggestions')->assertViewHas('planningPreview', fn ($preview) => $preview['open_total'] === 1
+            && $preview['proposals']->isNotEmpty() && $preview['proposals']->every(fn ($proposal) => $proposal['shift']->id === $selected->id));
+        $timeline->call('openCell', $this->employee->id, '2027-11-02')->assertStatus(422);
+        $parent->call('applyPeriod', '2027-11-01', '2027-11-07')
+            ->assertViewHas('pendingShifts', fn ($shifts) => $shifts->total() === 1 && $shifts->sole()->id === $future->id);
+        $this->assertSame(0, ShiftAssignment::count());
+        Http::assertNothingSent();
     }
 
     public function test_client_cannot_replace_the_locked_parent_navigation_owner(): void
@@ -279,5 +365,10 @@ class TimelineWindowNavigationTest extends TestCase
         libxml_use_internal_errors($previous);
 
         return new DOMXPath($document);
+    }
+
+    private function dateHeadCount(string $html): int
+    {
+        return $this->xpath($html)->query('//*[contains(@class,"rt-personnel-timeline-header-days")]/*')->length;
     }
 }

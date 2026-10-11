@@ -7,6 +7,8 @@
     --timeline-day-min-width: 260px;
     --timeline-day-width: var(--timeline-day-min-width);
     --timeline-gutter: 0px;
+    --timeline-pending-before: 0;
+    --timeline-pending-after: 0;
     display: flex;
     min-width: 0;
     width: 100%;
@@ -35,11 +37,21 @@
 }
 .rt-personnel-timeline-header-viewport { position: relative; min-width: 0; }
 .rt-personnel-timeline-header-scroll { min-width: 0; overflow: hidden; }
+.rt-timeline-header-axis { position: relative; width: calc((var(--timeline-days) + var(--timeline-pending-before) + var(--timeline-pending-after)) * var(--timeline-day-width)); }
 .rt-personnel-timeline-header-days {
     display: grid;
     grid-template-columns: repeat(var(--timeline-days), minmax(0, 1fr));
     width: calc(var(--timeline-days) * var(--timeline-day-width));
+    margin-left: calc(var(--timeline-pending-before) * var(--timeline-day-width));
 }
+.rt-timeline-pending-head { position: absolute; top: 0; left: calc(var(--timeline-days) * var(--timeline-day-width)); width: var(--timeline-day-width); height: 100%; flex-direction: column; justify-content: center; gap: 5px; padding: 7px 0 5px; text-align: center; background: var(--rt-surface-muted, #f7f8fa); }
+.rt-timeline-pending-head[data-before='true'] { left: 0; }
+.rt-timeline-pending-head .rt-personnel-timeline-date { display: inline-flex; align-items: center; gap: 6px; }
+.rt-timeline-day-spinner { color: var(--rt-muted, #667085); font-size: 12px; }
+.rt-timeline-pending-column { position: absolute; top: 0; bottom: 0; left: calc(var(--timeline-name-width) + var(--timeline-days) * var(--timeline-day-width)); width: var(--timeline-day-width); border-inline: 1px solid var(--rt-border, #e4e7ec); background: var(--rt-surface-muted, #f7f8fa); pointer-events: none; }
+.rt-timeline-pending-column[data-before='true'] { left: var(--timeline-name-width); }
+.dark .rt-timeline-pending-head, .dark .rt-timeline-pending-column { background: var(--rt-dark-surface-muted, #1b2431); border-color: var(--rt-dark-border, #303846); }
+@media (prefers-reduced-motion: reduce) { .rt-timeline-day-spinner { animation: none; } }
 .rt-personnel-timeline-head {
     display: flex;
     min-height: 50px;
@@ -110,14 +122,19 @@
     scrollbar-width: thin;
     scroll-padding-left: var(--timeline-name-width);
 }
+/* Buffered columns are real snap targets outside the selected period. Mandatory
+   snapping would override its logical end and re-anchor the temporary prefix.
+   Planning arrows still move by exact days; other timelines keep native snap. */
+.rt-personnel-timeline[data-timeline-window-navigation='true'] .rt-personnel-timeline-body { scroll-snap-type: none; }
 /* The footer is the sole horizontal scrollbar. The body remains script-scrollable
    on x while horizontal wheel input is forwarded; Firefox gets a thin y scrollbar. */
 .rt-personnel-timeline-body::-webkit-scrollbar { width: 6px; height: 0; }
 .rt-personnel-timeline-body::-webkit-scrollbar-thumb { border-radius: 6px; }
 .rt-personnel-timeline-grid {
+    position: relative;
     display: grid;
-    grid-template-columns: var(--timeline-name-width) repeat(var(--timeline-days), var(--timeline-day-width));
-    width: calc(var(--timeline-name-width) + var(--timeline-days) * var(--timeline-day-width));
+    grid-template-columns: calc(var(--timeline-name-width) + var(--timeline-pending-before) * var(--timeline-day-width)) repeat(var(--timeline-days), var(--timeline-day-width));
+    width: calc(var(--timeline-name-width) + (var(--timeline-days) + var(--timeline-pending-before) + var(--timeline-pending-after)) * var(--timeline-day-width));
     align-content: start;
 }
 .rt-personnel-timeline-name {
@@ -126,6 +143,7 @@
     z-index: 1;
     display: flex;
     min-width: 0;
+    width: var(--timeline-name-width);
     min-height: 48px;
     flex-direction: column;
     justify-content: center;
@@ -302,7 +320,7 @@
     scrollbar-color: #bfc8d5 transparent;
     scrollbar-width: thin;
 }
-.rt-personnel-timeline-scrollbar-width { width: calc(var(--timeline-days) * var(--timeline-day-width)); height: 1px; }
+.rt-personnel-timeline-scrollbar-width { width: calc(var(--timeline-selected-days, var(--timeline-days)) * var(--timeline-day-width)); height: 1px; }
 .dark .rt-personnel-timeline, .dark .rt-personnel-timeline-header, .dark .rt-personnel-timeline-head, .dark .rt-personnel-timeline-name, .dark .rt-personnel-timeline-day, .dark .rt-personnel-timeline-scrollbar-row, .dark .rt-personnel-timeline-scrollbar-corner { border-color: var(--rt-dark-border, #303846); }
 .dark .rt-personnel-timeline, .dark .rt-personnel-timeline-name, .dark .rt-personnel-timeline-scrollbar-row { background: var(--rt-dark-surface, #171d28); }
 .dark .rt-personnel-timeline-header { background: var(--rt-dark-surface-muted, #222b39); }

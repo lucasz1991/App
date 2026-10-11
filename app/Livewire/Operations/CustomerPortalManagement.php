@@ -83,10 +83,14 @@ class CustomerPortalManagement extends Component
 
     public $upload;
 
-    public function mount(string $tab = '', ?int $customerId = null, bool $embedded = false, ?int $initialRecordId = null, string $initialSource = ''): void
+    #[Locked]
+    public bool $modalOnly = false;
+
+    public function mount(string $tab = '', ?int $customerId = null, bool $embedded = false, ?int $initialRecordId = null, string $initialSource = '', bool $modalOnly = false): void
     {
         $customers = app(CustomerPortalScope::class)->manageableCustomers($this->actor());
         $this->embedded = $embedded;
+        $this->modalOnly = $modalOnly;
         $requested = $customerId ?? request()->query('customer');
         if ($requested !== null) {
             abort_unless((is_int($requested) && $requested > 0) || (is_string($requested) && ctype_digit($requested) && (int) $requested > 0), 404);
@@ -107,7 +111,7 @@ class CustomerPortalManagement extends Component
         }
         if ($initialRecordId !== null || $initialSource !== '') {
             abort_unless($this->tab === 'requests' && $initialRecordId > 0 && in_array($initialSource, ['submission', 'request'], true), 404);
-            $this->edit($initialSource === 'submission' ? 'decision' : 'review-request', $initialRecordId);
+            $this->edit($initialSource === 'submission' ? ($modalOnly && ! $this->canDecide() ? 'view-submission' : 'decision') : 'review-request', $initialRecordId);
         }
     }
 
@@ -166,7 +170,7 @@ class CustomerPortalManagement extends Component
     public function edit(string $modal, ?int $id = null): void
     {
         $this->access();
-        abort_unless(in_array($modal, ['access', 'contact', 'invite', 'revoke', 'profile', 'approve-profile', 'commitment', 'approve-commitment', 'publish', 'document', 'review-document', 'review-attachment', 'withdraw', 'decision', 'review-request', 'reply'], true), 422);
+        abort_unless(in_array($modal, ['access', 'contact', 'invite', 'revoke', 'profile', 'approve-profile', 'commitment', 'approve-commitment', 'publish', 'document', 'review-document', 'review-attachment', 'withdraw', 'decision', 'view-submission', 'review-request', 'reply'], true), 422);
         $this->close();
         $this->modal = $modal;
         $this->recordId = $id;
@@ -204,11 +208,16 @@ class CustomerPortalManagement extends Component
         } elseif (in_array($modal, ['publish', 'document'], true)) {
             $this->access('customers.portal.publish');
             $this->form += ['target' => '', 'title' => '', 'kind' => 'document', 'location_id' => '', 'summary' => '', 'order_id' => ''];
-        } elseif ($modal === 'decision') {
-            $this->authorizeDecision();
+        } elseif (in_array($modal, ['decision', 'view-submission'], true)) {
+            if ($modal === 'decision') {
+                $this->authorizeDecision();
+            }
             $submission = CustomerPortalSubmission::where('customer_id', $this->customerId)->findOrFail($id);
             $this->revision = $submission->revision;
             $this->form += ['title' => $submission->payload['positions'][0]['title'] ?? 'Leistungsanfrage', 'action' => 'review'];
+            if ($modal === 'view-submission') {
+                $this->form['positions'] = $submission->payload['positions'] ?? [];
+            }
         } elseif (in_array($modal, ['commitment', 'approve-commitment'], true)) {
             $this->access('customers.portal.automation');
             $commitment = $id ? CustomerCapacityCommitment::where('customer_id', $this->customerId)->findOrFail($id) : null;

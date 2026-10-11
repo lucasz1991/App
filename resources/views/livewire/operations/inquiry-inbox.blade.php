@@ -1,4 +1,5 @@
 <div class="rt-disposition rt-disposition--inquiries {{ $consolidated && !$profileEmbedded ? 'rt-inbox-compact' : '' }}">
+    @unless($modalOnly)
     <section class="rt-disposition-summary" aria-label="Übersicht aller offenen Anfragen">
         @foreach([
             ['value' => $summary['active'], 'label' => 'Offene Vorgänge', 'detail' => $profileEmbedded ? 'dieses Kunden' : 'im gesamten Eingang', 'tone' => 'neutral'],
@@ -80,6 +81,7 @@
             @endforelse
         </aside>
     </div>
+    @endunless
 
 <x-operations.modal :attributes="new \Illuminate\View\ComponentAttributeBag(['wire:model'.($consolidated ? '.live' : '') => 'detailOpen'])" :title="$editing ? ($selectedId ? 'Bedarf bearbeiten' : 'Neue Anfrage') : 'Anfrage'" max-width="4xl" :variant="$editing ? 'modal' : 'drawer'">
             @if($editing)

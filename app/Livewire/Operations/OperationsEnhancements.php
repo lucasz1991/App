@@ -81,9 +81,13 @@ class OperationsEnhancements extends Component
 
     public array $costResult = [];
 
-    public function mount(bool $personal = false, string $tab = 'proofs', ?int $orderId = null, ?int $initialRecordId = null, bool $embedded = false, bool $payrollExportOnly = false, ?int $initialUserId = null, bool $workspace = false): void
+    #[Locked]
+    public bool $modalOnly = false;
+
+    public function mount(bool $personal = false, string $tab = 'proofs', ?int $orderId = null, ?int $initialRecordId = null, bool $embedded = false, bool $payrollExportOnly = false, ?int $initialUserId = null, bool $workspace = false, bool $modalOnly = false): void
     {
         $this->personal = $personal;
+        $this->modalOnly = $modalOnly;
         $this->embedded = $embedded || $workspace;
         $this->payrollExportOnly = $payrollExportOnly;
         $this->orderId = $orderId;
@@ -100,6 +104,8 @@ class OperationsEnhancements extends Component
         $this->access();
         if ($initialRecordId) {
             $this->openDetails($initialRecordId);
+        } elseif ($modalOnly) {
+            $this->create();
         }
     }
 

@@ -1,4 +1,5 @@
 <section class="ops-stack min-w-0" data-ai-intake-inbox wire:poll.visible.10s>
+    @unless($modalOnly)
     <div class="ops-toolbar"><div><h2 class="font-semibold">AI-Annahme</h2><p class="ops-muted">Eingänge, Rückfragen und Planungsvorschläge gemeinsam prüfen.</p></div>@if($ready)<x-ui.buttons.button-basic type="button" mode="primary" wire:click="openCapture"><i class="far fa-plus" aria-hidden="true"></i>Eingang erfassen</x-ui.buttons.button-basic>@endif</div>
     <x-operations.feedback />
     @if(!$ready)
@@ -12,6 +13,7 @@
         <x-tables.table :columns="[['label'=>'Eingang','key'=>'title','width'=>'minmax(0,1.7fr)'],['label'=>'Kunde','key'=>'customer','width'=>'minmax(0,1fr)'],['label'=>'Bearbeitung','key'=>'status','width'=>'minmax(0,.8fr)'],['label'=>'Erfasst','key'=>'created','width'=>'minmax(0,.8fr)']]" :items="$intakes" table-key="ai-intake" detail-action="select" row-view="components.tables.rows.operations.ai-intake-row" empty="Noch keine AI-Eingänge für diese Auswahl." :flush-top="true" />
         {{ $intakes->links() }}
     @endif
+    @endunless
     <x-operations.modal wire:model.live="captureOpen" title="Eingang erfassen" max-width="3xl">
         <form wire:submit="submit" class="ops-stack" x-data="aiIntakeRecorder($wire)" x-effect="if (!$wire.captureOpen) cancel()" x-on:ai-intake-submitted.window="fileName = ''">
             <x-operations.feedback :show-offline="false" />

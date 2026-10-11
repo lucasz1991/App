@@ -8,6 +8,7 @@
     @if(!$ready)
         <p class="ops-muted">Arbeitsbereich nicht verfügbar.</p>
     @else
+        @unless($modalOnly)
         <x-tables.toolbar :title="\App\Livewire\Operations\OperationsEnhancements::TABS[$tab]" id="operations-enhancement-filters">
             <x-slot:search>
                 @if(in_array($tab, ['proofs','travel','partners','imports']))
@@ -24,6 +25,7 @@
             </section>
             @if($acceptedProofs->isNotEmpty())<section class="ops-panel"><h2>Abgenommener Erlös</h2><form wire:submit="saveBilling" class="ops-form"><x-operations.field label="Leistungsnachweis" model="form.proof_id" type="select" required><option value="">Auswählen</option>@foreach($acceptedProofs as $proof)<option value="{{ $proof->id }}">{{ $proof->title }} · Revision {{ $proof->revision }}</option>@endforeach</x-operations.field><x-operations.field label="Abgenommener Betrag (Cent)" model="form.billing_cents" type="number" min="0" required /><div class="ops-full"><x-ui.buttons.button-basic type="submit">Betrag dokumentieren</x-ui.buttons.button-basic></div></form></section>@endif
         @endif
+        @endunless
         <x-operations.modal wire:model="formOpen" :title="\App\Livewire\Operations\OperationsEnhancements::TABS[$tab]" max-width="4xl">
             @if($formOpen)
             <form wire:submit="save" class="ops-form">
@@ -66,7 +68,7 @@
             </form>
             @endif
         </x-operations.modal>
-        <x-operations.modal wire:model="detailOpen" :title="\App\Livewire\Operations\OperationsEnhancements::TABS[$tab]" max-width="4xl">
+        <x-operations.modal wire:model="detailOpen" :title="\App\Livewire\Operations\OperationsEnhancements::TABS[$tab]" max-width="4xl" :variant="$modalOnly ? 'drawer' : 'modal'">
             @if($selected)
                 <header class="ops-toolbar"><h2>{{ $selected->title ?? $selected->name ?? $selected->month ?? 'Terminalzugang' }}</h2><span class="ops-muted">Revision {{ $selectedRevision }}</span></header>
                 @if($selected instanceof \App\Models\OperationWorkflow)

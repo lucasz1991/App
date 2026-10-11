@@ -3,6 +3,7 @@
     'icon',
     'active' => false,
     'navigate' => true,
+    'depth' => 0,
 ])
 
 @php
@@ -18,6 +19,7 @@
         data-rt-sidebar-link
         wire:current="active"
         @if($active) aria-current="page" @endif
+        @if($depth > 0) style="padding-left: {{ 24 + (8 * $depth) }}px !important" @endif
         {{ $attributes->class($classes) }}
         @if($navigate) wire:navigate @endif
     >

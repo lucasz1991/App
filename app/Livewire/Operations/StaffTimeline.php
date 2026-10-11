@@ -340,12 +340,25 @@ class StaffTimeline extends Component
         $from = CarbonImmutable::parse($this->from, $zone);
         $until = CarbonImmutable::parse($this->until, $zone)->addDay();
         abort_if($from->diffInDays($until) > 94, 422);
+        $selectedFrom = $from;
+        $selectedUntil = $until;
+        $selectedDays = collect();
+        for ($day = $from; $day->lt($until); $day = $day->addDay()) {
+            $selectedDays->push($day);
+        }
+        // Preload only a bounded three-day reserve on each side of the planning
+        // window. Business actions, staffing scope and workload stay selected-only.
+        $windowBuffered = $this->periodNavigationOwner && $this->planningEnabled && ! $this->absencesOnly;
+        $axisFrom = $windowBuffered ? $from->subDays(3)->max(CarbonImmutable::parse('0001-01-01', $zone)) : $from;
+        $axisUntil = $windowBuffered ? $until->addDays(3)->min(CarbonImmutable::parse('9999-12-31', $zone)->addDay()) : $until;
         $staffQuery = $this->staffQuery($from, $until);
         $staffTotal = (clone $staffQuery)->count();
         $currentBlock = max(1, $this->getPage('staffPage'));
         $maxBlocks = max(1, (int) ceil($staffTotal / self::INITIAL_BATCH_SIZE));
         $visibleLimit = self::INITIAL_BATCH_SIZE * min($currentBlock, $maxBlocks);
         $users = $staffQuery->paginate($visibleLimit, ['id', 'name', 'email', 'status', 'current_team_id', 'profile_photo_path'], 'staffPage', 1);
+        $from = $axisFrom;
+        $until = $axisUntil;
         $weekFrom = $from->startOfWeek(CarbonImmutable::MONDAY);
         $weekUntil = $until->subDay()->startOfWeek(CarbonImmutable::MONDAY)->addWeek();
         $assignments = $this->absencesOnly ? collect() : ShiftAssignment::blocking()->whereIn('user_id', $users->pluck('id'))->whereHas('shift', fn ($q) => $q->notCancelled()->during($weekFrom, $weekUntil))->with('shift.order.customer')->get()->groupBy('user_id');
@@ -359,9 +372,11 @@ class StaffTimeline extends Component
             $days->push($day);
         }
         $workloads = $this->planningEnabled && ! $this->absencesOnly
-            ? app(TimelineWorkloadService::class)->forRows($users->getCollection(), $assignments, $absences, $days) : collect();
+            ? app(TimelineWorkloadService::class)->forRows($users->getCollection(), $assignments,
+                $absences->map(fn ($items) => $items->filter(fn ($absence) => $absence->starts_at->lt($selectedUntil) && $absence->ends_at->gt($selectedFrom))),
+                $selectedDays) : collect();
         $layout = app(StaffTimelineLayout::class);
-        $rows = $users->getCollection()->map(function ($user) use ($days, $from, $until, $assignments, $absences, $layout) {
+        $rows = $users->getCollection()->map(function ($user) use ($days, $selectedDays, $from, $until, $assignments, $absences, $layout) {
             $events = collect();
             foreach ($assignments->get($user->id, collect()) as $assignment) {
                 $shift = $assignment->shift;
@@ -374,7 +389,7 @@ class StaffTimeline extends Component
             $rowLaneCount = $events->isEmpty() ? 1 : (int) $events->max('lane') + 1;
 
             return ['user' => $user, 'weekly_working_hours' => $this->absencesOnly ? null : $user->profile?->weekly_working_hours,
-                'planned_hours_by_week' => $layout->plannedHoursByWeek($assignments->get($user->id, collect()), $days),
+                'planned_hours_by_week' => $layout->plannedHoursByWeek($assignments->get($user->id, collect()), $selectedDays),
                 'events' => $layout->periodEvents($days, $events),
                 'lane_count' => $rowLaneCount,
                 'days' => $days->map(function ($day) use ($events, $layout, $rowLaneCount) {
@@ -406,7 +421,7 @@ class StaffTimeline extends Component
                 'open' => max(0, $choice['shift']->required_staff - $choice['shift']->reserved_count), 'eligible' => $choice['eligible'], 'issues' => $choice['issues'],
             ]) : collect();
 
-        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'zone', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices', 'focus'));
+        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'selectedDays', 'selectedFrom', 'selectedUntil', 'axisFrom', 'axisUntil', 'zone', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices', 'focus'));
     }
 
     /** @return array{shift: ?Shift, date: ?string, event: ?array, candidates: Collection} */

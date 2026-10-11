@@ -84,7 +84,7 @@ class CaseWorkspace extends Component
         abort_unless(isset($views[$initialView]), 403);
         $this->view = $initialView;
         $this->servicesView = $initialView === 'shifts' && request()->query('services') === '1';
-        $this->section = $initialSection ?: ($initialView === 'inbox' ? (array_key_first(self::availableSections($actor)) ?? 'overview') : ($initialView === 'shifts' ? 'plan' : ($initialView === 'orders' && ! $actor->can('operations.manage') ? 'costs' : 'overview')));
+        $this->section = $initialSection ?: ($initialView === 'inbox' ? 'overview' : ($initialView === 'shifts' ? 'plan' : ($initialView === 'orders' && ! $actor->can('operations.manage') ? 'costs' : 'overview')));
         $this->context = $context;
         if ($this->view === 'inbox' && $this->section === 'overview') {
             $this->context = array_replace($this->context, InquiryInbox::listState(array_replace($this->context, request()->query())));
@@ -113,7 +113,7 @@ class CaseWorkspace extends Component
         $actor = $this->actor();
         abort_unless(isset(self::availableViews($actor)[$this->view]), 403);
         if ($this->view === 'inbox') {
-            abort_unless(isset(self::availableSections($actor)[$this->section]), 403);
+            abort_unless($this->section === 'overview' ? self::availableSections($actor) !== [] : isset(self::availableSections($actor)[$this->section]), 403);
         } elseif ($this->view === 'orders') {
             abort_unless(in_array($this->section, ['overview', 'planning', 'proofs', 'costs', 'history'], true), 404);
             abort_if(! $actor->can('operations.manage') && $this->section !== 'costs', 403);

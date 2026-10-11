@@ -70,6 +70,10 @@ class NavigationWorkflowStructureTest extends TestCase
             $this->assertSame('attention', $after['Mein Arbeitsplatz'][0]['parameters']['page']);
         }
         $main = ApplicationNavigation::sidebarSections($actor, $after);
+        $sectionOrder = array_keys($main);
+        if (isset($main['Disposition'], $main['Personal'])) {
+            $this->assertSame(array_search('Disposition', $sectionOrder, true) + 1, array_search('Personal', $sectionOrder, true), 'Personal must immediately follow Disposition, including permission-filtered menus.');
+        }
         $utilities = ApplicationNavigation::administrationLinks($actor, $after);
         $this->assertSame($this->contracts($after), $this->contracts($main + ['__footer' => $utilities]), 'Sidebar and footer together preserve every authorized destination exactly once.');
         if (! $actor->isAdmin()) {
@@ -115,8 +119,7 @@ class NavigationWorkflowStructureTest extends TestCase
         $this->assertSame('Arbeitsliste', $sections['Mein Arbeitsplatz'][0]['title']);
         $this->assertSame('Arbeitsmittel', $sections['Mein Arbeitsplatz'][1]['group']);
         $this->assertSame([
-            '' => ['Eingang', 'Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Leitstelle'],
-            'Planung' => ['Ressourcen & Kapazität'],
+            '' => ['Eingang', 'Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Ressourcen & Kapazität', 'Leitstelle'],
         ], $this->groupedTitles($sections['Disposition']));
         $this->assertSame(['Eingang', 'Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Ressourcen & Kapazität', 'Leitstelle'], array_column($sections['Disposition'], 'title'));
         $this->assertSame([
@@ -144,7 +147,8 @@ class NavigationWorkflowStructureTest extends TestCase
         }
         $this->assertSame(['Mitarbeiter'], array_map(fn (\DOMElement $element): string => trim($sidebar->query('.//span[contains(@class, "sidebar-nav-link__label")]', $element)->item(0)->textContent), iterator_to_array($sidebar->query('//a[@data-rt-sidebar-link and @aria-current="page"]'))));
         $expanded = $sidebar->query('//a[@data-rt-sidebar-group and @aria-expanded="true"]');
-        $this->assertCount(0, $expanded);
+        $this->assertCount(1, $expanded);
+        $this->assertSame('rt-sidebar-section-personal', $expanded->item(0)->getAttribute('aria-controls'));
 
         $mobile = $this->xpath(view('components.operations.navigation', ['current' => 'qualifications', 'modules' => []])->render());
         $select = $mobile->query('//*[@data-rt-custom-select]');
@@ -153,6 +157,57 @@ class NavigationWorkflowStructureTest extends TestCase
         $options = json_decode($select->item(0)->getAttribute('data-rt-select-options'), true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame($destinations, array_column($options, 'value'));
         $this->assertSame([OperationsPages::url('people')], array_column(array_filter($options, fn (array $option): bool => $option['selected']), 'value'));
+    }
+
+    public function test_sidebar_sections_are_collapsible_and_time_management_is_nested_without_changing_leaf_links(): void
+    {
+        $this->installSchema('full');
+        $actor = $this->actor('admin');
+        $this->actingAs($actor);
+        $this->setPageRequest('time-review', ['view' => 'times']);
+        $sidebar = $this->xpath(view('layouts.application-navigation')->render());
+        $sectionLabels = array_map(fn (\DOMElement $element): string => trim($element->textContent), iterator_to_array($sidebar->query('//*[@data-rt-sidebar-section]')));
+        $this->assertNotContains('Disposition', $sectionLabels);
+        $this->assertNotContains('Personal', $sectionLabels);
+        $this->assertSame(1, count(array_filter($sectionLabels, fn (string $label): bool => $label === 'Betrieb & Personal')));
+        $rootRows = $sidebar->query('//ul[@id="side-menu"]/li');
+        $rootLabels = array_map(fn (\DOMElement $element): string => trim($sidebar->query('./a/span[contains(@class, "sidebar-nav-link__label")]', $element)->item(0)?->textContent ?? $element->textContent), iterator_to_array($rootRows));
+        $headingIndex = array_search('Betrieb & Personal', $rootLabels, true);
+        $this->assertNotFalse($headingIndex);
+        $this->assertSame(['Betrieb & Personal', 'Disposition', 'Personal', 'Kunden', 'Kunden'], array_slice($rootLabels, $headingIndex, 5));
+
+        foreach (['Disposition' => 'disposition', 'Personal' => 'personal'] as $label => $slug) {
+            $controls = 'rt-sidebar-section-'.$slug;
+            $trigger = $sidebar->query('//ul[@id="side-menu"]/li/a[@data-rt-sidebar-group and @aria-controls="'.$controls.'"]');
+            $this->assertCount(1, $trigger);
+            $this->assertSame('button', $trigger->item(0)->getAttribute('role'));
+            $this->assertSame($label, trim($sidebar->query('.//span[contains(@class, "sidebar-nav-link__label")]', $trigger->item(0))->item(0)->textContent));
+            $this->assertSame($slug === 'personal' ? 'true' : 'false', $trigger->item(0)->getAttribute('aria-expanded'));
+            $this->assertFalse($trigger->item(0)->hasAttribute('aria-current'));
+            $this->assertCount(1, $sidebar->query('//ul[@id="'.$controls.'"]'));
+        }
+        $time = $sidebar->query('//ul[@id="rt-sidebar-section-personal"]/li/a[@data-rt-sidebar-group and @aria-controls="rt-sidebar-group-zeitwirtschaft"]');
+        $this->assertCount(1, $time);
+        $this->assertSame('true', $time->item(0)->getAttribute('aria-expanded'));
+        $nested = $sidebar->query('//ul[@id="rt-sidebar-section-personal"]/li/ul[@id="rt-sidebar-group-zeitwirtschaft"]/li/a[@data-rt-sidebar-link]');
+        $this->assertSame(['Urlaub & Konten', 'Zeitprüfung', 'Monatsabschluss & Export'], array_map(fn (\DOMElement $element): string => trim($element->textContent), iterator_to_array($nested)));
+        $active = $sidebar->query('//a[@data-rt-sidebar-link and @aria-current="page"]');
+        $this->assertCount(1, $active);
+        $this->assertSame('Zeitprüfung', trim($active->item(0)->textContent));
+
+        $dispositionLinks = $sidebar->query('//ul[@id="rt-sidebar-section-disposition"]/li/a[@data-rt-sidebar-link]');
+        $this->assertSame(['Eingang', 'Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Ressourcen & Kapazität', 'Leitstelle'], array_map(fn (\DOMElement $element): string => trim($element->textContent), iterator_to_array($dispositionLinks)));
+        $this->assertCount(0, $sidebar->query('//ul[@id="rt-sidebar-section-disposition"]//a[@data-rt-sidebar-group]'));
+    }
+
+    public function test_sidebar_omits_empty_parent_menus_for_an_unprivileged_employee(): void
+    {
+        $this->installSchema('full');
+        $this->actingAs($this->actor('staff'));
+        $sidebar = $this->xpath(view('layouts.application-navigation')->render());
+        $this->assertCount(0, $sidebar->query('//*[@id="rt-sidebar-section-disposition" or @id="rt-sidebar-section-personal"]'));
+        $this->assertCount(0, $sidebar->query('//a[@data-rt-sidebar-group and (@aria-controls="rt-sidebar-section-disposition" or @aria-controls="rt-sidebar-section-personal")]'));
+        $this->assertCount(0, $sidebar->query('//*[@data-rt-sidebar-section and normalize-space(.)="Betrieb & Personal"]'));
     }
 
     public function test_admin_utilities_render_in_one_native_third_footer_dropdown_and_not_in_the_main_menu(): void

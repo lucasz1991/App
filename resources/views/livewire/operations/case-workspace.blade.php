@@ -12,11 +12,6 @@
             <x-ui.buttons.button-basic class="rt-case-create-action rt-case-create-action--icon" type="button" mode="primary" aria-label="Auftrag anlegen" title="Auftrag anlegen" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i></x-ui.buttons.button-basic>
         </template>
     @endif
-    @if(!$costsOnly && !in_array($view, ['offers', 'shifts', 'orders']) && !in_array($section, ['imports','portal','ai-intake']))
-    <header class="ops-toolbar">
-        <x-ui.buttons.button-basic class="ml-auto" type="button" mode="primary" aria-label="{{ $view === 'orders' ? 'Auftrag anlegen' : 'Anfrage anlegen' }}" wire:click="$dispatch('operations-create')"><i class="far fa-plus" aria-hidden="true"></i><span class="rt-case-create-label">{{ $view === 'orders' ? 'Auftrag' : 'Anfrage' }}</span></x-ui.buttons.button-basic>
-    </header>
-    @endif
     @if($reservation)
         <div class="ops-actions" aria-label="Reservierungskontext"><x-operations.status :value="$reservation->status" />
             <x-ui.buttons.button-basic mode="link" :href="route('operations.page',['page'=>'cases','view'=>'inbox','section'=>'portal','customer'=>$reservation->customer_id,'source'=>'submission','record'=>$reservation->submission_id])">Portalvorgang</x-ui.buttons.button-basic>
@@ -24,7 +19,7 @@
         </div>
     @endif
     @if($view === 'inbox')
-        @if(count($sections) > 1)<nav class="ops-actions" aria-label="Eingangsbereiche">@foreach($sections as $key=>$label)<x-ui.buttons.button-basic type="button" :mode="$section === $key ? 'primary':'link'" wire:click="setSection('{{ $key }}')" :aria-current="$section === $key ? 'page' : null">{{ $label }}</x-ui.buttons.button-basic>@endforeach</nav>@endif
+        @if($section !== 'overview')<x-ui.buttons.button-basic mode="link" :href="\App\Support\Operations\OperationsPages::url('cases', ['view'=>'inbox','customer'=>$context['customer'] ?? null])" wire:navigate><i class="far fa-inbox" aria-hidden="true"></i>Gemeinsamen Eingang öffnen</x-ui.buttons.button-basic>@endif
         @if($section === 'ai-intake')
             <livewire:operations.ai-intake-inbox :customer-id="$context['customer'] ?? null" :initial-intake-id="($context['source'] ?? '') === 'ai-intake' ? ($context['record'] ?? null) : null" :key="'case-ai-intake-'.($context['customer'] ?? 'all').'-'.($context['record'] ?? '')" />
         @elseif($section === 'imports')
@@ -37,7 +32,8 @@
                 <p class="ops-muted">Keine betreuten Kunden.</p>
             @endif
         @else
-            <livewire:operations.inquiry-inbox :initial-inquiry-id="$context['inquiry'] ?? null" :customer-id="$context['customer'] ?? null" :consolidated="true" :key="'case-inbox-'.($context['customer'] ?? 'all').'-'.($context['inquiry'] ?? '')" />
+            <livewire:operations.unified-inbox :customer-id="$context['customer'] ?? null" :key="'case-unified-inbox-'.($context['customer'] ?? 'all')" />
+            @if($context['inquiry'] ?? null)<livewire:operations.inquiry-inbox :initial-inquiry-id="$context['inquiry']" :customer-id="$context['customer'] ?? null" :modal-only="true" :key="'case-inquiry-detail-'.$context['inquiry']" />@endif
         @endif
     @elseif($view === 'shifts')
         <livewire:operations.planning-page-workspace page="shifts" :initial-view="$section" :context="$context" :embedded="true" :key="'case-shifts-'.$section" />

@@ -84,6 +84,33 @@ test('ordinary exact pages close planning and keep group triggers out of active 
     assert.equal(state.document.querySelector('ul.mm-show'), null);
 });
 
+test('nested Personal time-management ancestors open and reset together across navigation', () => {
+    const state = setup();
+    const personal = state.document.createElement('li');
+    personal.innerHTML = `<a href="#" role="button" data-rt-sidebar-group aria-controls="personal" aria-expanded="false">Personal</a>
+        <ul id="personal" class="mm-collapse"><li><a href="#" role="button" data-rt-sidebar-group aria-controls="time" aria-expanded="false">Zeitwirtschaft</a>
+            <ul id="time" class="mm-collapse"><li><a href="/arbeitsplatz/ansicht/time-review" data-rt-sidebar-link>Zeitprüfung</a></li></ul>
+        </li></ul>`;
+    state.document.getElementById('side-menu').append(personal);
+    state.window.location.href = 'https://railtime.test/arbeitsplatz/ansicht/time-review';
+    state.run();
+    assert.deepEqual(state.active(), ['Zeitprüfung']);
+    for (const trigger of personal.querySelectorAll('[data-rt-sidebar-group]')) {
+        assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+        assert.equal(trigger.dataset.menuActive, 'true');
+        assert.equal(trigger.hasAttribute('aria-current'), false);
+        assert.equal(state.document.getElementById(trigger.getAttribute('aria-controls')).classList.contains('mm-show'), true);
+    }
+    state.window.location.href = 'https://railtime.test/arbeitsplatz/ansicht/cases?view=orders';
+    state.run();
+    assert.deepEqual(state.active(), ['Aufträge']);
+    for (const trigger of personal.querySelectorAll('[data-rt-sidebar-group]')) {
+        assert.equal(trigger.getAttribute('aria-expanded'), 'false');
+        assert.equal(trigger.dataset.menuActive, 'false');
+        assert.equal(state.document.getElementById(trigger.getAttribute('aria-controls')).classList.contains('mm-show'), false);
+    }
+});
+
 test('existing Livewire child-route matching remains available when no exact path exists', () => {
     const state = setup();
     for (const link of state.document.querySelectorAll('[data-current]')) link.removeAttribute('data-current');

@@ -443,38 +443,37 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertSame(['Dashboard'], array_column($sections[''], 'title'));
         $this->assertSame('Arbeitsliste', $sections['Mein Arbeitsplatz'][0]['title']);
         $this->assertSame(['cases', 'cases', 'cases', 'cases', 'cases', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
-        $planning = ApplicationNavigation::groups($sections['Disposition'])['Planung'];
-        $this->assertSame('calendar', $planning['icon']);
-        $this->assertSame(['Ressourcen & Kapazität'], array_column($planning['links'], 'title'));
-        $this->assertSame(['Eingang', 'Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Leitstelle'], collect($sections['Disposition'])->whereNull('group')->pluck('title')->values()->all());
+        $this->assertArrayNotHasKey('Planung', ApplicationNavigation::groups($sections['Disposition']));
+        $this->assertSame(['Eingang', 'Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Ressourcen & Kapazität', 'Leitstelle'], collect($sections['Disposition'])->whereNull('group')->pluck('title')->values()->all());
         $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Vorgänge & Aufträge'));
         $sidebar = view('layouts.application-navigation')->render();
         $destinations = $this->sidebarDestinations($sidebar);
         $this->assertSame(route('dashboard'), $destinations[0]);
-        $expected = [OperationsPages::url('cases', ['view' => 'inbox']), OperationsPages::url('cases', ['view' => 'offers']), OperationsPages::url('cases', ['view' => 'orders']), OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan']), OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'calendar']), ...array_map(fn ($link) => route($link['route'], $link['parameters']), $planning['links']), OperationsPages::url('duty'), OperationsPages::url('attention')];
+        $expected = [OperationsPages::url('cases', ['view' => 'inbox']), OperationsPages::url('cases', ['view' => 'offers']), OperationsPages::url('cases', ['view' => 'orders']), OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan']), OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'calendar']), OperationsPages::url('planning'), OperationsPages::url('duty'), OperationsPages::url('attention')];
+        $sidebarXpath = $this->navigationXPath($sidebar);
+        $resourceAnchor = $sidebarXpath->query('//a[@data-rt-sidebar-link and @href="'.OperationsPages::url('planning').'"]')->item(0);
+        $this->assertNotNull($resourceAnchor);
+        $this->assertSame('rt-sidebar-section-disposition', $resourceAnchor->parentNode->parentNode->getAttribute('id'), 'Resources is directly below Calendar inside Disposition, without an additional Planning group.');
         $this->assertSame(OperationsPages::url('cases', ['view' => 'inbox']), $destinations[1]);
         $this->assertSame($expected, array_values(array_filter($destinations, fn ($url) => in_array($url, $expected, true))));
     }
 
-    public function test_planning_children_share_existing_workspace_permissions_and_hide_empty_groups(): void
+    public function test_direct_planning_destinations_preserve_workspace_permissions_without_empty_groups(): void
     {
         $this->operations();
         foreach ([
-            [['operations.inquiries.manage'], ['inbox', 'offers'], [], ['Eingang', 'Angebote']],
-            [['customers.portal.manage'], ['inbox'], [], ['Eingang']],
-            [['operations.manage'], ['offers', 'orders', 'shifts'], ['Ressourcen & Kapazität'], ['Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Leitstelle']],
-            [['operations.costs.manage'], ['orders'], [], ['Aufträge']],
-            [[], [], [], []],
-        ] as [$abilities, $views, $labels, $directLabels]) {
+            [['operations.inquiries.manage'], ['inbox', 'offers'], ['Eingang', 'Angebote']],
+            [['customers.portal.manage'], ['inbox'], ['Eingang']],
+            [['operations.manage'], ['offers', 'orders', 'shifts'], ['Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Ressourcen & Kapazität', 'Leitstelle']],
+            [['operations.costs.manage'], ['orders'], ['Aufträge']],
+            [[], [], []],
+        ] as [$abilities, $views, $directLabels]) {
             $actor = $this->actor($abilities);
             $this->assertSame($views, array_keys(OperationsPages::planningViews($actor)));
             $links = ApplicationNavigation::sections($actor)['Disposition'] ?? [];
             $groups = ApplicationNavigation::groups($links);
-            $this->assertSame($labels, array_column($groups['Planung']['links'] ?? [], 'title'));
+            $this->assertArrayNotHasKey('Planung', $groups);
             $this->assertSame($directLabels, collect($links)->whereNull('group')->pluck('title')->values()->all());
-            if ($labels === []) {
-                $this->assertArrayNotHasKey('Planung', $groups);
-            }
         }
         $actor = $this->actor(['operations.manage', 'operations.inquiries.manage']);
         $actor->update(['status' => false]);
@@ -493,7 +492,7 @@ class OperationsPageNavigationTest extends TestCase
         $links = ApplicationNavigation::sections($actor)['Disposition'];
         $resourceLink = collect($links)->first(fn (array $item): bool => ($item['parameters']['page'] ?? '') === 'planning');
         $this->assertSame(['page' => 'planning'], $resourceLink['parameters']);
-        $this->assertSame('Planung', $resourceLink['group']);
+        $this->assertNull($resourceLink['group']);
         $this->assertSame($definition['title'], $resourceLink['title']);
         $this->assertSame(OperationsPages::url('planning'), route($resourceLink['route'], $resourceLink['parameters']));
         $component = Livewire::actingAs($actor)->test(PageWorkspace::class, ['page' => 'planning'])->assertSuccessful();

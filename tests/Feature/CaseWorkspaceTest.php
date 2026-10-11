@@ -7,6 +7,7 @@ use App\Livewire\Operations\CaseWorkspace;
 use App\Livewire\Operations\CommercialOfferIndex;
 use App\Livewire\Operations\CommercialOffers;
 use App\Livewire\Operations\InquiryInbox;
+use App\Livewire\Operations\UnifiedInbox;
 use App\Models\CommercialOfferRevision;
 use App\Models\Customer;
 use App\Models\OperationInquiry;
@@ -45,6 +46,45 @@ class CaseWorkspaceTest extends TestCase
         if (! Route::has('operations.page')) {
             Route::get('/test-case-page/{page}', fn () => 'fixture')->name('operations.page');
         }
+    }
+
+    public function test_unified_inbox_filters_and_opens_native_drawer_without_mutation(): void
+    {
+        $record = $this->inquiry('Unified synthetic request');
+        $this->actingAs($this->admin);
+        Livewire::test(UnifiedInbox::class)
+            ->assertSee('Unified synthetic request')->assertSee('Zu prüfen')
+            ->call('setStatus', 'waiting')->assertDontSee('Unified synthetic request')
+            ->call('setStatus', 'review')->call('select', 'inquiry', $record->id)
+            ->assertSeeLivewire(InquiryInbox::class);
+        $this->assertSame('new', $record->fresh()->status);
+        $this->assertNull($record->fresh()->order_id);
+        Livewire::test(InquiryInbox::class, ['initialInquiryId' => $record->id, 'modalOnly' => true])
+            ->assertSet('detailOpen', true)->assertDontSee('inquiry-filters', false)->assertSee('Originaleingang');
+    }
+
+    public function test_unified_inbox_preserves_customer_scope_and_rejects_unknown_filters(): void
+    {
+        $own = $this->inquiry('Scoped visible request');
+        $other = Customer::create(['company_name' => 'Another synthetic customer', 'is_active' => true]);
+        $foreign = $this->inquiry('Scoped hidden request', $other);
+        $this->actingAs($this->admin);
+        Livewire::test(UnifiedInbox::class, ['customerId' => $this->customer->id])
+            ->assertSee($own->title)->assertDontSee($foreign->title)->call('select', 'inquiry', $foreign->id)->assertNotFound();
+        Livewire::test(UnifiedInbox::class)->call('setStatus', 'invalid')->assertStatus(422);
+        Livewire::test(UnifiedInbox::class)->call('select', 'arbitrary-table', 1)->assertNotFound();
+        $this->assertDatabaseCount('operation_inquiries', 2);
+    }
+
+    public function test_unified_inbox_denies_inactive_and_unprivileged_accounts(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff', 'status' => true]);
+        Gate::define('operations.inquiries.manage', fn () => false);
+        Gate::define('customers.portal.manage', fn () => false);
+        $this->actingAs($staff);
+        Livewire::test(UnifiedInbox::class)->assertForbidden();
+        $staff->update(['status' => false]);
+        Livewire::test(UnifiedInbox::class)->assertForbidden();
     }
 
     private function inquiry(string $title = 'Synthetic Inquiry', ?Customer $customer = null): OperationInquiry
@@ -397,8 +437,8 @@ class CaseWorkspaceTest extends TestCase
         $this->assertSame(['inbox'], array_keys(CaseWorkspace::availableViews($employee)));
         $this->assertSame(['portal'], array_keys(CaseWorkspace::availableSections($employee)));
         Livewire::test(CaseWorkspace::class, ['initialView' => '', 'context' => ['customer' => $this->customer->id]])
-            ->assertSet('view', 'inbox')->assertSet('section', 'portal')->assertDontSee('Posteingang')->assertDontSee('inquiry-filters', false);
-        Livewire::test(CaseWorkspace::class, ['initialView' => 'inbox', 'initialSection' => 'overview', 'context' => ['customer' => $this->customer->id]])->assertForbidden();
+            ->assertSet('view', 'inbox')->assertSet('section', 'overview')->assertSee('Posteingang')->assertDontSee('inquiry-filters', false);
+        Livewire::test(CaseWorkspace::class, ['initialView' => 'inbox', 'initialSection' => 'overview', 'context' => ['customer' => $this->customer->id]])->assertSeeLivewire(UnifiedInbox::class);
         $this->assertDatabaseCount('customer_portal_invitations', 0);
         $this->assertDatabaseCount('customer_portal_deliveries', 0);
     }
