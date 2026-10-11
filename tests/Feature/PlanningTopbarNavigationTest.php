@@ -423,11 +423,12 @@ class PlanningTopbarNavigationTest extends TestCase
         Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts'])
             ->dispatch('operations-planning-filters-changed', customer: $this->customer->id, order: $order->id)->assertNotFound();
         $allowed = true;
-        Gate::define('operations.manage', function () use (&$allowed): bool {
-            return $allowed;
+        $actor = User::factory()->create(['role' => 'staff', 'status' => true]);
+        Gate::define('operations.manage', function (User $user) use ($actor, &$allowed): bool {
+            return $user->is($actor) && $allowed;
         });
-        $periodParent = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts']);
-        $filterParent = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts']);
+        $periodParent = Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => 'shifts']);
+        $filterParent = Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => 'shifts']);
         $allowed = false;
         $periodParent->dispatch('operations-period-changed', from: '2027-05-10', until: '2027-05-16')->assertForbidden();
         $filterParent->dispatch('operations-planning-filters-changed', customer: $this->customer->id)->assertForbidden();

@@ -175,7 +175,8 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringContainsString('this.refreshPersonnelPreference(style)', $script);
         $this->assertStringContainsString('this.personnelExplicit = true', $script);
         $this->assertSame(1, substr_count($script, 'new ResizeObserver('));
-        $this->assertSame(1, substr_count($script, 'new MutationObserver('));
+        // Grid content and confirmed server-period attributes have separate scoped observers.
+        $this->assertSame(2, substr_count($script, 'new MutationObserver('));
         $this->assertStringNotContainsString('window.addEventListener(', $script);
         $this->assertStringContainsString('event.preventDefault()', $script);
         $this->assertStringNotContainsString('x-on:touchmove.prevent', $view);

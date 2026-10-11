@@ -177,6 +177,7 @@ class ShiftManagement extends Component
         }
         $this->rangeFrom = $validated['rangeFrom'];
         $this->rangeTo = $validated['rangeTo'];
+        $this->distributionShiftId = null;
         $this->resetDistributionPages();
         $this->resetValidation(['rangeFrom', 'rangeTo']);
         // AI-Assist rechnet Vorschläge für denselben Zeitraum.

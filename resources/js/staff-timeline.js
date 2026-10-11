@@ -9,6 +9,56 @@ export function timelineDayOffset(offset, width, direction, maximum) {
     return Math.max(0, Math.min(maximum, (Math.round(offset / width) + direction) * width));
 }
 
+// Date-only arithmetic deliberately uses UTC civil days, not elapsed local hours:
+// a spring/autumn clock change must still advance exactly one date on the axis.
+const CIVIL_DAY_MILLISECONDS = 86400000;
+
+function timelineCivilDay(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const [year, month, day] = value.split('-').map(Number);
+    if (year < 1 || year > 9999) return null;
+    const date = new Date(0);
+    date.setUTCFullYear(year, month - 1, day);
+    date.setUTCHours(0, 0, 0, 0);
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+    return date.getTime() / CIVIL_DAY_MILLISECONDS;
+}
+
+function timelineWindowPeriod(from, until) {
+    const start = timelineCivilDay(from);
+    const end = timelineCivilDay(until);
+    return start === null || end === null || end < start || end - start >= 94 ? null : { from, until };
+}
+
+export function timelineShiftPeriod(from, until, direction) {
+    if (![-1, 1].includes(direction) || !timelineWindowPeriod(from, until)) return null;
+    const dates = [from, until].map(value => new Date((timelineCivilDay(value) + direction) * CIVIL_DAY_MILLISECONDS));
+    if (dates.some(date => date.getUTCFullYear() < 1 || date.getUTCFullYear() > 9999)) return null;
+    return { from: dates[0].toISOString().slice(0, 10), until: dates[1].toISOString().slice(0, 10) };
+}
+
+export function timelineWindowOffsets(previousFrom, nextFrom, offset, width, maximum) {
+    const previous = timelineCivilDay(previousFrom);
+    const next = timelineCivilDay(nextFrom);
+    if (previous === null || next === null || Math.abs(next - previous) !== 1
+        || ![offset, width, maximum].every(Number.isFinite) || width <= 0 || maximum < 0) return null;
+    const direction = next - previous;
+    const clamp = value => Math.max(0, Math.min(maximum, value));
+    return { anchor: clamp(offset - direction * width), target: clamp(offset) };
+}
+
+export function timelinePeriodUrl(href, from, until) {
+    if (!timelineWindowPeriod(from, until)) return null;
+    try {
+        const url = new URL(href);
+        url.searchParams.set('from', from);
+        url.searchParams.set('until', until);
+        return url.href;
+    } catch {
+        return null;
+    }
+}
+
 // Scroll target that brings a focused day fully into view, or null when it is already visible.
 export function timelineFocusOffset(index, width, offset, visible, maximum) {
     if (index < 0 || !width) return null;
@@ -46,6 +96,8 @@ export function timelineEventLanes(events, dayWidth) {
 // Keep GSAP instances outside Alpine's reactive proxy and scoped to one timeline.
 const personnelMotions = new WeakMap();
 const contentReveals = new WeakMap();
+// Requests/anchors stay outside Alpine's proxy, so their identities survive a morph.
+const windowNavigations = new WeakMap();
 
 function restoreRevealTarget(target) {
     const opacity = target.dataset.timelineRevealOpacity;
@@ -187,6 +239,11 @@ export function staffTimeline() {
         focusDayIndex: -1,
         observer: null,
         contentObserver: null,
+        windowObserver: null,
+        windowRoot: null,
+        windowLoading: false,
+        windowError: '',
+        windowDisposed: false,
         resizeFrame: null,
         mirroredScrollbarLeft: 0,
         lastScrollLeft: 0,
@@ -201,6 +258,108 @@ export function staffTimeline() {
         measuredLayout: null,
         horizontalIntent: null,
         intentTimer: null,
+        get timelineElement() {
+            // Alpine's $el is the currently evaluating directive (also a header
+            // button for x-show/x-on), not necessarily this component's x-data root.
+            return this.windowRoot || this.$el;
+        },
+        get windowNavigationEnabled() {
+            return this.timelineElement?.dataset?.timelineWindowNavigation === 'true'
+                && Boolean(this.timelineElement.dataset.timelinePeriodOwner);
+        },
+        windowNavigationState() {
+            const root = this.timelineElement;
+            let state = windowNavigations.get(root);
+            if (!state) {
+                state = { period: timelineWindowPeriod(root.dataset.timelineFrom, root.dataset.timelineUntil),
+                    request: null, timer: null, frame: null };
+                windowNavigations.set(root, state);
+            }
+            return state;
+        },
+        clearWindowRequest(state) {
+            if (state.timer !== null) clearTimeout(state.timer);
+            state.timer = null;
+            state.request = null;
+            this.windowLoading = false;
+        },
+        failWindowRequest(request) {
+            const state = windowNavigations.get(this.timelineElement);
+            if (this.windowDisposed || state?.request !== request) return;
+            this.clearWindowRequest(state);
+            this.windowError = 'Weitere Tage konnten nicht geladen werden. Bitte erneut versuchen.';
+        },
+        syncWindowPeriod(width) {
+            if (!this.windowNavigationEnabled || this.windowDisposed) return false;
+            const root = this.timelineElement;
+            const state = this.windowNavigationState();
+            const period = timelineWindowPeriod(root.dataset.timelineFrom, root.dataset.timelineUntil);
+            if (!period) {
+                if (state.request) this.failWindowRequest(state.request);
+                return false;
+            }
+            if (!state.period) {
+                state.period = period;
+                return false;
+            }
+            if (period.from === state.period.from && period.until === state.period.until) return false;
+            state.period = period;
+            this.windowError = '';
+            this.focusDayIndex = -1;
+            if (state.frame !== null) cancelAnimationFrame(state.frame);
+            state.frame = null;
+            // Only confirmed server dates enter the URL; mounting never changes it.
+            const url = timelinePeriodUrl(window.location?.href, period.from, period.until);
+            if (url && window.history?.replaceState && url !== window.location.href) {
+                window.history.replaceState(window.history.state, '', url);
+                this.$dispatch?.('rt-workspace-url-updated');
+            }
+            const request = state.request;
+            if (!request) return false;
+            this.clearWindowRequest(state);
+            // A date-picker/calendar change is newer intent, not our requested edge.
+            if (period.from !== request.next.from || period.until !== request.next.until) return false;
+            const body = this.$refs.timelineBody;
+            const maximum = Math.max(0, body.scrollWidth - body.clientWidth);
+            const positions = timelineWindowOffsets(request.previous.from, period.from, request.offset, width, maximum);
+            if (!positions) return false;
+            body.scrollTop = request.top;
+            body.scrollLeft = positions.anchor;
+            this.syncHorizontal(body, false);
+            state.frame = requestAnimationFrame(() => {
+                state.frame = null;
+                if (this.windowDisposed || root.dataset.timelineFrom !== period.from || root.dataset.timelineUntil !== period.until) return;
+                this.holdHorizontalIntent(request.direction);
+                body.scrollTo({ left: positions.target,
+                    behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+            });
+            return true;
+        },
+        async shiftWindow(direction) {
+            if (!this.windowNavigationEnabled || this.windowLoading || this.windowDisposed) return;
+            const root = this.timelineElement;
+            const previous = timelineWindowPeriod(root.dataset.timelineFrom, root.dataset.timelineUntil);
+            const next = previous && timelineShiftPeriod(previous.from, previous.until, direction);
+            if (!next) return;
+            const state = this.windowNavigationState();
+            const body = this.$refs.timelineBody;
+            const request = { previous, next, direction, offset: body.scrollLeft, top: body.scrollTop };
+            state.request = request;
+            this.windowLoading = true;
+            this.windowError = '';
+            this.holdHorizontalIntent(direction);
+            // Livewire can leave action promises pending on transport failure; do not
+            // strand the navigation. A late response may update dates but not an old anchor.
+            state.timer = setTimeout(() => this.failWindowRequest(request), 15000);
+            try {
+                const owner = window.Livewire?.find?.(root.dataset.timelinePeriodOwner);
+                if (typeof owner?.applyPeriod !== 'function') throw new Error('Planning period owner unavailable');
+                await owner.applyPeriod(next.from, next.until);
+                if (!this.windowDisposed && state.request === request) this.queueMeasure();
+            } catch {
+                this.failWindowRequest(request);
+            }
+        },
         get personnelCompact() {
             return this.compactRequested && !this.personnelHovered && !this.personnelFocused;
         },
@@ -208,7 +367,7 @@ export function staffTimeline() {
             this.compactRequested = Boolean(compact);
             this.personnelExplicit = false;
         },
-        refreshPersonnelPreference(style = getComputedStyle(this.$el)) {
+        refreshPersonnelPreference(style = getComputedStyle(this.timelineElement)) {
             const compact = (style.getPropertyValue('--timeline-personnel-default-compact') || '').trim() === '1';
             const previous = this.personnelDefaultCompact;
             if (previous === compact) return;
@@ -233,7 +392,7 @@ export function staffTimeline() {
             const visited = new Set();
             while (target?.closest) {
                 const column = target.closest('[data-timeline-person-column]');
-                if (column && this.$el.contains(column)) return true;
+                if (column && this.timelineElement.contains(column)) return true;
                 const owner = target.closest('[data-rt-dropdown-owner]')?.dataset.rtDropdownOwner;
                 if (!owner || visited.has(owner)) break;
                 visited.add(owner);
@@ -299,7 +458,7 @@ export function staffTimeline() {
             if (this.personnelDefaultCompact === null) this.refreshPersonnelPreference();
             const compact = this.personnelCompact;
             if (this.appliedPersonnelCompact === compact) return;
-            const root = this.$el;
+            const root = this.timelineElement;
             const initial = this.appliedPersonnelCompact === null;
             // Cached Livewire history may contain an interrupted animation style.
             if (initial) clearPersonnelMotion(root);
@@ -344,9 +503,9 @@ export function staffTimeline() {
             });
         },
         finishPersonnelMotion(motion) {
-            if (personnelMotions.get(this.$el) !== motion) return;
+            if (personnelMotions.get(this.timelineElement) !== motion) return;
             const offset = this.$refs.timelineBody.scrollLeft;
-            clearPersonnelMotion(this.$el);
+            clearPersonnelMotion(this.timelineElement);
             this.rebasePersonnelLayout(motion.atEnd, offset);
         },
         rebasePersonnelLayout(atEnd, previousOffset) {
@@ -358,25 +517,39 @@ export function staffTimeline() {
             this.syncHorizontal(body, false);
         },
         init() {
-            clearStaffTimelineReveals(this.$el);
+            this.windowRoot = this.$el;
+            this.windowDisposed = false;
+            clearStaffTimelineReveals(this.timelineElement);
             this.refreshPersonnelPreference();
+            if (this.windowNavigationEnabled) this.windowNavigationState();
             this.observer = new ResizeObserver(() => this.queueMeasure());
             this.observer.observe(this.$refs.timelineBody);
             this.observer.observe(this.$refs.timelineGrid);
             this.contentObserver = new MutationObserver(() => this.queueMeasure());
             this.contentObserver.observe(this.$refs.timelineGrid, { childList: true, subtree: true });
+            this.windowObserver = new MutationObserver(() => this.queueMeasure());
+            this.windowObserver.observe(this.timelineElement, { attributes: true,
+                attributeFilter: ['data-timeline-from', 'data-timeline-until'] });
             this.$nextTick(() => this.measure());
         },
         destroy() {
+            this.windowDisposed = true;
+            const state = windowNavigations.get(this.timelineElement);
+            if (state) {
+                this.clearWindowRequest(state);
+                if (state.frame !== null) cancelAnimationFrame(state.frame);
+                windowNavigations.delete(this.timelineElement);
+            }
             this.finishHorizontalIntent();
             this.observer?.disconnect();
             this.contentObserver?.disconnect();
+            this.windowObserver?.disconnect();
             if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
-            clearPersonnelMotion(this.$el);
-            clearStaffTimelineReveals(this.$el);
+            clearPersonnelMotion(this.timelineElement);
+            clearStaffTimelineReveals(this.timelineElement);
         },
         queueMeasure() {
-            if (this.resizeFrame !== null) return;
+            if (this.windowDisposed || this.resizeFrame !== null) return;
             this.resizeFrame = requestAnimationFrame(() => {
                 this.resizeFrame = null;
                 this.measure();
@@ -384,7 +557,8 @@ export function staffTimeline() {
         },
         measure() {
             const body = this.$refs.timelineBody;
-            const style = getComputedStyle(this.$el);
+            const root = this.timelineElement;
+            const style = getComputedStyle(root);
             this.refreshPersonnelPreference(style);
             // The time scale stays identical when only the employee column changes.
             const fullNameWidth = parseFloat(style.getPropertyValue('--timeline-name-full-width'))
@@ -394,7 +568,7 @@ export function staffTimeline() {
             const resized = this.measuredLayout !== null && this.measuredLayout !== layout;
             const wasAtEnd = this.canScrollLeft && !this.canScrollRight;
             this.measuredLayout = layout;
-            const motion = personnelMotions.get(this.$el);
+            const motion = personnelMotions.get(root);
             // Let the responsive CSS tokens own the endpoint after a breakpoint change.
             if (motion && Math.abs(motion.fullWidth - fullNameWidth) >= 1) this.finishPersonnelMotion(motion);
             const available = body.clientWidth - fullNameWidth;
@@ -402,13 +576,13 @@ export function staffTimeline() {
             const width = timelineDayWidth(available,
                 parseFloat(style.getPropertyValue('--timeline-day-min-width')) || 190,
                 days);
-            this.$el.style.setProperty('--timeline-day-width', `${width}px`);
-            this.$el.style.setProperty('--timeline-gutter', `${body.offsetWidth - body.clientWidth}px`);
+            root.style.setProperty('--timeline-day-width', `${width}px`);
+            root.style.setProperty('--timeline-gutter', `${body.offsetWidth - body.clientWidth}px`);
             this.measureEventLabels(width * days);
             if (resized) this.rebasePersonnelLayout(wasAtEnd, body.scrollLeft);
             else this.syncHorizontal(body, false);
-            this.followFocusDay(body, width);
-            revealStaffTimeline(this.$el, this.$refs.timelineGrid, body);
+            if (!this.syncWindowPeriod(width)) this.followFocusDay(body, width);
+            revealStaffTimeline(root, this.$refs.timelineGrid, body);
         },
         // The shift chosen in "Noch zu verteilen" may lie outside the visible days: bring its day into view once.
         followFocusDay(body, width) {
@@ -461,7 +635,7 @@ export function staffTimeline() {
                 body.scrollLeft = scrollbar.scrollLeft;
             }
             const offset = body.scrollLeft;
-            const motion = personnelMotions.get(this.$el);
+            const motion = personnelMotions.get(this.timelineElement);
             const motionEdge = source !== scrollbar && motion?.atEnd
                 && Math.abs(offset - Math.max(0, body.scrollWidth - body.clientWidth)) < 1;
             const layoutScroll = motionEdge || (this.layoutScrollOffset !== null && Math.abs(offset - this.layoutScrollOffset) < 1);
@@ -479,9 +653,13 @@ export function staffTimeline() {
             this.canScrollRight = offset < body.scrollWidth - body.clientWidth - 1;
         },
         scrollDay(direction) {
+            if (![-1, 1].includes(direction) || this.windowLoading || this.windowDisposed) return;
             const body = this.$refs.timelineBody;
-            const width = parseFloat(getComputedStyle(this.$el).getPropertyValue('--timeline-day-width'));
+            const width = parseFloat(getComputedStyle(this.timelineElement).getPropertyValue('--timeline-day-width'));
             if (!width) return;
+            const maximum = Math.max(0, body.scrollWidth - body.clientWidth);
+            const atEdge = direction < 0 ? body.scrollLeft <= 1 : body.scrollLeft >= maximum - 1;
+            if (atEdge && this.windowNavigationEnabled) return this.shiftWindow(direction);
             this.holdHorizontalIntent(direction);
             body.scrollTo({
                 left: timelineDayOffset(body.scrollLeft, width, direction, body.scrollWidth - body.clientWidth),

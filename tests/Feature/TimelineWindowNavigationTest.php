@@ -1,0 +1,283 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\StaffTimeline;
+use App\Models\Customer;
+use App\Models\OperationsRuleProfile;
+use App\Models\Order;
+use App\Models\Shift;
+use App\Models\ShiftAssignment;
+use App\Models\User;
+use Carbon\CarbonImmutable;
+use DOMDocument;
+use DOMXPath;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
+use Livewire\Features\SupportTesting\Testable;
+use Livewire\Livewire;
+use Tests\Support\BuildsMinimalRailTimeSchema;
+use Tests\TestCase;
+
+class TimelineWindowNavigationTest extends TestCase
+{
+    use BuildsMinimalRailTimeSchema;
+
+    private User $admin;
+
+    private User $employee;
+
+    private Order $order;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->buildMinimalRailTimeSchema();
+        foreach ([
+            '2026_09_15_190000_create_operations_workflow_tables.php',
+            '2026_09_17_180000_create_operations_planning_extensions.php',
+            '2026_10_04_120000_create_workforce_personnel_foundations.php',
+            '2026_10_04_122000_create_workforce_planning_tables.php',
+        ] as $migration) {
+            (require database_path('migrations/'.$migration))->up();
+        }
+        Schema::table('shifts', fn (Blueprint $table) => $table->json('disposition_details')->nullable());
+        Http::preventStrayRequests();
+        config(['app.timezone' => 'UTC', 'operations.display_timezone' => 'Europe/Berlin']);
+        $this->travelTo(CarbonImmutable::parse('2027-10-20T07:00:00+02:00'));
+        $this->admin = User::factory()->create(['name' => 'Navigation QA', 'role' => 'admin', 'status' => true]);
+        $this->employee = User::factory()->create(['name' => 'Window Employee', 'role' => 'staff', 'status' => true]);
+        OperationsRuleProfile::create([
+            'name' => 'Window rules', 'minimum_rest_minutes' => 0, 'maximum_shift_minutes' => 720,
+            'break_after_minutes' => 360, 'minimum_break_minutes' => 30, 'is_active' => true,
+            'created_by' => $this->admin->id, 'approved_at' => now()->utc(),
+        ]);
+        $customer = Customer::create(['company_name' => 'Window Customer', 'is_active' => true]);
+        $this->order = Order::create([
+            'customer_id' => $customer->id, 'title' => 'Window service', 'status' => 'confirmed',
+            'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-01-01T00:00',
+            'ends_at' => '2029-01-01T00:00', 'required_staff' => 2, 'created_by' => $this->admin->id,
+        ]);
+    }
+
+    public function test_embedded_timeline_has_reactive_dates_and_a_stable_parent_owned_navigation_identity(): void
+    {
+        $parent = $this->parent();
+        $child = $this->childSnapshot($parent->html());
+        $this->assertSame($parent->id(), $child['data']['periodNavigationOwner']);
+        $this->assertContains('from', $child['memo']['props']);
+        $this->assertContains('until', $child['memo']['props']);
+        $this->assertSame('2027-10-25', $child['data']['from']);
+        $this->assertSame('2027-10-31', $child['data']['until']);
+        $this->assertSame($child['memo']['id'], $parent->snapshot['memo']['children']['shift-plan-staff-timeline'][1]);
+        $this->assertStringContainsString('data-timeline-window-navigation="true"', $parent->html());
+
+        $standalone = Livewire::actingAs($this->admin)->test(StaffTimeline::class, [
+            'from' => '2027-10-25', 'until' => '2027-10-31', 'planningEnabled' => true,
+        ])->assertSeeHtml('data-timeline-window-navigation="false"')->assertSet('periodNavigationOwner', null);
+        $this->assertNotSame($child['memo']['id'], $standalone->id());
+        Livewire::actingAs($this->admin)->test(StaffTimeline::class, [
+            'from' => '2027-10-25', 'until' => '2027-10-31', 'planningEnabled' => true,
+            'absencesOnly' => true, 'periodNavigationOwner' => $parent->id(),
+        ])->assertSeeHtml('data-timeline-window-navigation="false"');
+    }
+
+    public function test_real_bundled_reactive_updates_roll_both_directions_across_dst_month_and_year_without_remounting(): void
+    {
+        $dst = $this->shift('DST night', '2027-10-30T22:00:00+02:00', '2027-10-31T06:00:00+01:00', true);
+        $this->shift('November duty', '2027-11-02T08:00:00+01:00', '2027-11-02T10:00:00+01:00', true);
+        $year = $this->shift('Year boundary duty', '2027-12-31T22:00:00+01:00', '2028-01-01T06:00:00+01:00', true);
+        $this->shift('January duty', '2028-01-04T08:00:00+01:00', '2028-01-04T10:00:00+01:00', true);
+        $before = [$dst->fresh()->getAttributes(), Shift::count(), ShiftAssignment::count()];
+        $parent = $this->parent();
+        $snapshots = [$parent->snapshot, $this->childSnapshot($parent->html())];
+        $childId = $snapshots[1]['memo']['id'];
+
+        foreach ([
+            ['2027-11-01', '2027-11-07', 'November duty', 'DST night'],
+            ['2027-10-25', '2027-10-31', 'DST night', 'November duty'],
+            ['2027-12-27', '2028-01-02', 'Year boundary duty', 'January duty'],
+            ['2028-01-03', '2028-01-09', 'January duty', 'Year boundary duty'],
+            ['2027-12-27', '2028-01-02', 'Year boundary duty', 'January duty'],
+        ] as [$from, $until, $visible, $absent]) {
+            [$snapshots, $effects] = $this->bundle($snapshots, [0 => [['method' => 'applyPeriod', 'params' => [$from, $until], 'path' => '']]]);
+            $this->assertSame($from, $snapshots[0]['data']['rangeFrom']);
+            $this->assertSame($until, $snapshots[0]['data']['rangeTo']);
+            $this->assertSame($from, $snapshots[1]['data']['from']);
+            $this->assertSame($until, $snapshots[1]['data']['until']);
+            $this->assertSame($childId, $snapshots[1]['memo']['id']);
+            $this->assertSame($childId, $snapshots[0]['memo']['children']['shift-plan-staff-timeline'][1]);
+            $html = $effects[1]['html'];
+            $this->assertStringContainsString('data-timeline-from="'.$from.'"', $html);
+            $this->assertStringContainsString('data-timeline-until="'.$until.'"', $html);
+            $this->assertStringContainsString('staff-day-'.$this->employee->id.'-'.$from, $html);
+            $this->assertStringContainsString('staff-day-'.$this->employee->id.'-'.$until, $html);
+            $this->assertSame(7, $this->xpath($html)->query('//*[contains(@class,"rt-personnel-timeline-header-days")]/*')->length);
+            $this->assertStringContainsString($visible, $html);
+            $this->assertStringNotContainsString($absent, $html);
+            $this->assertStringContainsString(CarbonImmutable::parse($from)->format('d.m.'), $effects[0]['html']);
+            $this->assertStringContainsString(CarbonImmutable::parse($until)->format('d.m.Y'), $effects[0]['html']);
+            $periodEvent = collect($effects[0]['dispatches'])->firstWhere('name', 'operations-period-changed');
+            $this->assertSame(['from' => $from, 'until' => $until], $periodEvent['params']);
+        }
+
+        $this->assertSame($before, [$dst->fresh()->getAttributes(), Shift::count(), ShiftAssignment::count()]);
+        $this->assertSame(9.0, $dst->starts_at->diffInHours($dst->ends_at));
+        $this->assertSame('2028-01-01', $year->ends_at->setTimezone('Europe/Berlin')->toDateString());
+        Http::assertNothingSent();
+    }
+
+    public function test_period_update_preserves_search_and_loaded_staff_but_clears_old_selection_focus_and_preview(): void
+    {
+        foreach (range(1, 29) as $number) {
+            User::factory()->create(['name' => 'Window Staff '.str_pad((string) $number, 2, '0', STR_PAD_LEFT), 'role' => 'staff', 'status' => true]);
+        }
+        $shift = $this->shift('Open old-window duty', '2027-10-28T08:00:00+02:00', '2027-10-28T16:00:00+02:00');
+        $parent = $this->parent(true);
+        // Capture the real child before changing parent state: later parent renders contain only a keyed stub.
+        $snapshots = [$this->childSnapshot($parent->html())];
+        $parent->call('selectDistributionShift', $shift->id);
+        [$snapshots] = $this->bundle($snapshots, [], [0 => ['search' => 'Window']]);
+        [$snapshots] = $this->bundle($snapshots, [0 => [
+            ['method' => 'loadMore', 'params' => [], 'path' => ''],
+            ['method' => 'syncDistribution', 'params' => [true, $shift->id], 'path' => ''],
+            ['method' => 'openCell', 'params' => [$this->employee->id, '2027-10-28'], 'path' => ''],
+            ['method' => 'selectCellShift', 'params' => [$shift->id, (int) $shift->fresh()->revision], 'path' => ''],
+        ]]);
+        $child = $snapshots[0];
+        $this->assertTrue($child['data']['assignmentOpen']);
+        $this->assertSame($shift->id, $child['data']['planningShiftId']);
+        $this->assertSame($shift->id, $child['data']['focusShiftId']);
+        $this->assertSame(2, $child['data']['paginators'][0]['staffPage']);
+        $version = $child['data']['previewVersion'];
+        $snapshots = [$parent->snapshot, $child];
+        [$snapshots, $effects] = $this->bundle($snapshots, [0 => [['method' => 'applyPeriod', 'params' => ['2027-11-01', '2027-11-07'], 'path' => '']]]);
+        $this->assertSame('Window', $snapshots[1]['data']['search']);
+        $this->assertSame(2, $snapshots[1]['data']['paginators'][0]['staffPage']);
+        $this->assertFalse($snapshots[1]['data']['assignmentOpen']);
+        foreach (['planningUserId', 'planningDate', 'planningShiftId', 'planningRevision', 'focusShiftId'] as $property) {
+            $this->assertNull($snapshots[1]['data'][$property], $property);
+        }
+        $this->assertNull($snapshots[0]['data']['distributionShiftId']);
+        $this->assertSame($version + 1, $snapshots[1]['data']['previewVersion']);
+        $this->assertTrue($snapshots[1]['data']['showSuggestions']);
+        $this->assertFalse($snapshots[1]['data']['suggestionsReady']);
+        $this->assertStringContainsString('data-timeline-suggestions-pending', $effects[1]['html']);
+        $this->assertSame(0, $this->xpath($effects[1]['html'])->query('//form[@*[name()="wire:submit"]="confirmAssignment"]')->length);
+        $this->assertStringNotContainsString('Open old-window duty', $effects[1]['html']);
+        $this->assertSame(30, $this->xpath($effects[1]['html'])->query('//*[starts-with(@*[name()="wire:key"],"staff-person-")]')->length);
+        $reset = collect($effects[1]['dispatches'])->firstWhere('name', 'operations-timeline-window-reset');
+        $this->assertSame(['timelineId' => $child['memo']['id']], $reset['params']);
+        $this->assertSame(0, ShiftAssignment::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_server_period_guards_reject_invalid_reversed_or_oversized_ranges_without_changing_context(): void
+    {
+        foreach ([
+            ['not-a-date', '2027-11-07', 'rangeFrom'],
+            ['2027-02-30', '2027-03-07', 'rangeFrom'],
+            ['2027-11-07', '2027-11-01', 'rangeTo'],
+            ['2027-01-01', '2027-04-05', 'rangeTo'],
+        ] as [$from, $until, $error]) {
+            $this->parent()->call('applyPeriod', $from, $until)->assertHasErrors($error)
+                ->assertSet('rangeFrom', '2027-10-25')->assertSet('rangeTo', '2027-10-31');
+        }
+        $parent = $this->parent();
+        [$snapshots, $effects] = $this->bundle([$parent->snapshot, $this->childSnapshot($parent->html())], [
+            0 => [['method' => 'applyPeriod', 'params' => ['2027-01-01', '2027-04-04'], 'path' => '']],
+        ]);
+        $this->assertSame('2027-01-01', $snapshots[0]['data']['rangeFrom']);
+        $this->assertSame('2027-04-04', $snapshots[0]['data']['rangeTo']);
+        $this->assertSame('2027-01-01', $snapshots[1]['data']['from']);
+        $this->assertSame('2027-04-04', $snapshots[1]['data']['until']);
+        $this->assertSame(94, $this->xpath($effects[1]['html'])->query('//*[contains(@class,"rt-personnel-timeline-header-days")]/*')->length);
+        $this->assertSame(0, Shift::count());
+    }
+
+    public function test_range_action_rechecks_authority_after_mount(): void
+    {
+        $parent = $this->parent();
+        Livewire::actingAs($this->employee);
+        $parent->call('applyPeriod', '2027-11-01', '2027-11-07')->assertForbidden();
+        $this->assertSame(0, Shift::count());
+    }
+
+    public function test_client_cannot_replace_the_locked_parent_navigation_owner(): void
+    {
+        $timeline = Livewire::actingAs($this->admin)->test(StaffTimeline::class, [
+            'from' => '2027-10-25', 'until' => '2027-10-31', 'planningEnabled' => true,
+        ]);
+        $this->expectException(CannotUpdateLockedPropertyException::class);
+        $timeline->set('periodNavigationOwner', 'arbitrary-component-id');
+    }
+
+    private function parent(bool $distribution = false): Testable
+    {
+        return Livewire::actingAs($this->admin)->withQueryParams([
+            'from' => '2027-10-25', 'until' => '2027-10-31', 'distribution' => $distribution ? 'true' : 'false',
+        ])->test(ShiftManagement::class);
+    }
+
+    private function shift(string $title, string $from, string $until, bool $assigned = false): Shift
+    {
+        $shift = Shift::create([
+            'order_id' => $this->order->id, 'title' => $title, 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin',
+            'starts_at' => CarbonImmutable::parse($from), 'ends_at' => CarbonImmutable::parse($until),
+            'required_staff' => 1, 'planned_break_minutes' => 30, 'status' => 'draft', 'created_by' => $this->admin->id,
+        ]);
+        if ($assigned) {
+            ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $this->employee->id, 'status' => 'confirmed', 'assigned_by' => $this->admin->id]);
+        }
+
+        return $shift;
+    }
+
+    private function childSnapshot(string $html): array
+    {
+        $children = [];
+        foreach ($this->xpath($html)->query('//*[@*[name()="wire:snapshot"]]') as $element) {
+            $snapshot = json_decode($element->getAttribute('wire:snapshot'), true, flags: JSON_THROW_ON_ERROR);
+            if ($snapshot['memo']['name'] === 'operations.staff-timeline') {
+                $children[] = $snapshot;
+            }
+        }
+        $this->assertCount(1, $children);
+
+        return $children[0];
+    }
+
+    /** Send the same parent-first bundled update used by Livewire's reactive props transport. */
+    private function bundle(array $snapshots, array $calls = [], array $updates = []): array
+    {
+        $components = [];
+        foreach ($snapshots as $index => $snapshot) {
+            $components[] = ['snapshot' => json_encode($snapshot, JSON_THROW_ON_ERROR), 'calls' => $calls[$index] ?? [], 'updates' => $updates[$index] ?? []];
+        }
+        $response = $this->actingAs($this->admin)->withHeaders(['X-Livewire' => 'true'])
+            ->postJson(app('livewire')->getUpdateUri(), ['components' => $components])->assertOk();
+        $snapshots = [];
+        $effects = [];
+        foreach ($response->json('components') as $component) {
+            $snapshots[] = json_decode($component['snapshot'], true, flags: JSON_THROW_ON_ERROR);
+            $effects[] = $component['effects'];
+        }
+        app('livewire')->flushState();
+
+        return [$snapshots, $effects];
+    }
+
+    private function xpath(string $html): DOMXPath
+    {
+        $document = new DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8">'.$html);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return new DOMXPath($document);
+    }
+}

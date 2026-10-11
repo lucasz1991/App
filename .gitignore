@@ -269,3 +269,5 @@ auth.json
 !/tests/Feature/AiAssistTest.php
 !/tests/Feature/AreaMenuUiTest.php
 !/tests/Frontend/area-menu.test.js
+!/tests/Feature/TimelineWindowNavigationTest.php
+!/tests/Frontend/timeline-window-navigation.test.js
