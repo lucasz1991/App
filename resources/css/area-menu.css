@@ -8,7 +8,8 @@
 .rt-area-menu__indicator {
     position: absolute;
     inset: 0 auto auto 0;
-    z-index: -1;
+    z-index: 2;
+    overflow: hidden;
     border-radius: 7px;
     background: var(--rt-red, #e4002b);
     pointer-events: none;
@@ -16,12 +17,30 @@
     transition: transform 280ms cubic-bezier(.22, .8, .25, 1), opacity 140ms ease-out;
 }
 .rt-area-menu[data-area-indicator-ready] .rt-area-menu__indicator { opacity: 1; }
-.rt-area-menu[data-area-indicator-ready] .rt-multi-toggle__button.rt-ui-button:is([aria-current='page'], [aria-pressed='true']) { background: transparent !important; }
-.rt-area-menu .rt-multi-toggle__button.rt-ui-button { position: relative; z-index: 1; }
-.rt-area-menu .rt-multi-toggle__button.rt-ui-button > i {
-    transition: transform 180ms cubic-bezier(.22, .8, .25, 1);
+/* One moving surface, including hover/press/focus: no opaque button can hide it.
+   The clipped decorative ink follows that surface rather than delayed ARIA. */
+.rt-area-menu.rt-multi-toggle[data-area-indicator-ready] .rt-multi-toggle__button.rt-ui-button {
+    background: transparent !important;
+    color: var(--rt-shell-muted) !important;
+    transition: none;
 }
-.rt-area-menu .rt-multi-toggle__button.rt-ui-button:active > i { transform: scale(.96); }
+.rt-area-menu.rt-multi-toggle .rt-multi-toggle__button.rt-ui-button:hover { background: transparent !important; }
+.rt-area-menu__ink {
+    position: absolute;
+    inset: 0 auto auto 0;
+    color: #fff;
+    transition: transform 280ms cubic-bezier(.22, .8, .25, 1);
+}
+.rt-area-menu__ink-item {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.rt-area-menu__ink-item > i { font-size: 18px; line-height: 1; }
+.rt-area-menu__ink-item > svg { width: 1em; height: 1em; }
+.rt-area-menu .rt-multi-toggle__button.rt-ui-button { position: relative; z-index: 1; }
 .rt-area-menu .rt-multi-toggle__label { display: none; }
 .rt-area-menu.rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button.rt-ui-button { flex: 0 0 44px; width: 44px; padding: 0 !important; }
 
@@ -57,14 +76,18 @@
         height: 44px;
         min-height: 44px;
         flex-direction: column;
-        gap: 4px;
+        gap: 4px !important;
     }
     .rt-area-menu .rt-multi-toggle__label { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 9.5px; font-weight: 500; line-height: 1.2; }
     .rt-area-menu .rt-multi-toggle__label--full { display: none; }
     .rt-area-menu .rt-multi-toggle__button.rt-ui-button > i { font-size: 16px; }
+    .rt-area-menu__ink { color: var(--rt-shell-accent); }
+    .rt-area-menu__ink-item { flex-direction: column; gap: 4px; }
+    .rt-area-menu__ink-item > i { font-size: 16px; }
     .rt-area-menu__indicator { border-radius: 8px; background: color-mix(in srgb, var(--rt-shell-accent) 9%, var(--rt-shell-surface-solid)); }
     .rt-area-menu.rt-multi-toggle .rt-multi-toggle__button.rt-ui-button:is([aria-current='page'], [aria-pressed='true']) { color: var(--rt-shell-accent) !important; background: color-mix(in srgb, var(--rt-shell-accent) 9%, var(--rt-shell-surface-solid)) !important; }
     .rt-area-menu.rt-multi-toggle[data-area-indicator-ready] .rt-multi-toggle__button.rt-ui-button:is([aria-current='page'], [aria-pressed='true']) { background: transparent !important; }
+    .rt-area-menu.rt-multi-toggle[data-area-indicator-ready] .rt-multi-toggle__button.rt-ui-button:is([aria-current='page'], [aria-pressed='true']) { color: var(--rt-shell-muted) !important; }
     body:has([data-area-menu]) #main-content { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; }
     body:has([data-area-menu]) .rt-ai-assist__stage,
     body:has([data-area-menu]) .rt-chatbot__pet-stage { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
@@ -75,5 +98,6 @@
 @media (max-width: 359px) { .rt-area-menu .rt-multi-toggle__label { font-size: 9px; } }
 @media (prefers-reduced-motion: reduce) {
     .rt-area-menu__indicator,
+    .rt-area-menu__ink,
     .rt-area-menu .rt-multi-toggle__button.rt-ui-button > i { transition: none; }
 }

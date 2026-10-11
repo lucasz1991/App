@@ -44,6 +44,7 @@
                 <x-slot:trigger>
                     <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-view-trigger" aria-label="Ansicht ändern: {{ $currentViewLabel }}" title="Ansicht: {{ $currentViewLabel }}">
                         <i class="far {{ $currentViewIcon }}" aria-hidden="true" data-current-view="{{ $viewMode }}"></i>
+                        <i class="far fa-eye rt-shift-plan-view-icon-mobile" aria-hidden="true"></i>
                         <span class="rt-shift-plan-control__label"><strong>{{ $currentViewLabel }}</strong></span>
                         <i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i>
                     </x-ui.buttons.button-basic>

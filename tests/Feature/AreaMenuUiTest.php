@@ -71,4 +71,14 @@ class AreaMenuUiTest extends TestCase
         $this->assertStringContainsString('change="$wire.selectSection($event.target.value)"', $view);
         $this->assertStringContainsString("!\$embedded && \$page === 'planning'", $view);
     }
+
+    public function test_area_hover_has_no_fixed_surface_and_ink_uses_the_same_transform_timing(): void
+    {
+        $css = file_get_contents(resource_path('css/area-menu.css'));
+        $this->assertStringContainsString('.rt-area-menu.rt-multi-toggle .rt-multi-toggle__button.rt-ui-button:hover { background: transparent !important; }', $css);
+        $this->assertStringContainsString('.rt-area-menu__ink {', $css);
+        $this->assertStringContainsString('overflow: hidden;', $css);
+        $this->assertSame(2, substr_count($css, 'transform 280ms cubic-bezier(.22, .8, .25, 1)'));
+        $this->assertStringContainsString('color: #fff;', $css);
+    }
 }
