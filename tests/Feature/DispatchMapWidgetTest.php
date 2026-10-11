@@ -15,7 +15,9 @@ use App\Support\Dashboard\DispatchMapData;
 use App\Support\Dashboard\WidgetDataProvider;
 use App\Support\Dashboard\WidgetRegistry;
 use App\Support\Operations\OperationsPages;
+use App\Support\Operations\TimelineLocationPreview;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -98,6 +100,92 @@ class DispatchMapWidgetTest extends TestCase
         }
 
         return Livewire::actingAs($user)->test(WidgetGrid::class);
+    }
+
+    public function test_confirmed_shift_markers_use_own_snapshot_and_explain_precision_in_rendered_maps(): void
+    {
+        $confirmed = $this->shift();
+        $legacy = $this->shift();
+        $this->addSnapshotColumns();
+        DB::table('orders')->where('id', $this->order->id)->update(['location_snapshot' => json_encode($this->snapshot(['name' => 'Later order Berlin', 'latitude' => 52.52001, 'longitude' => 13.40495]), JSON_THROW_ON_ERROR)]);
+        DB::table('shifts')->where('id', $confirmed->id)->update(['location_snapshot' => json_encode($this->snapshot(), JSON_THROW_ON_ERROR)]);
+
+        $data = $this->map();
+        $item = collect($data['items'])->firstWhere('id', $confirmed->id);
+        $legacyItem = collect($data['items'])->firstWhere('id', $legacy->id);
+        $marker = collect($data['markers'])->firstWhere('place', 'Depot München');
+        $this->assertSame([48.13512, 11.58198], [$marker['latitude'], $marker['longitude']]);
+        $this->assertSame('confirmed', $marker['precision']);
+        $this->assertSame('Depot München', $item['locationLabel']);
+        $this->assertSame('Hamburg', $legacyItem['location']['place']);
+        $this->assertStringContainsString('ungefähr', $legacyItem['location']['label']);
+        $this->assertCount(2, $data['markers']);
+        $this->assertStringNotContainsString('Later order Berlin', json_encode($data));
+        $component = $this->grid($this->admin)->assertSee('Bestätigter Einsatzstandort')->assertSee('Stadtmitte · ungefähr');
+        $xpath = $this->xpath($component->html());
+        $this->assertSame(1, $xpath->query('//button[@data-dispatch-marker and contains(@aria-label, "Bestätigter Einsatzstandort")]')->length);
+        $this->assertSame(1, $xpath->query('//button[@data-dispatch-marker and contains(@aria-label, "ungefähr")]')->length);
+        $mini = Blade::render('<x-operations.timeline-mini-map :preview="$preview" />', ['preview' => $item['location']]);
+        $this->assertStringContainsString('bestätigter Einsatzstandort.', $mini);
+        $this->assertStringNotContainsString('ungefähre Ortslage', $mini);
+        $legacyMini = Blade::render('<x-operations.timeline-mini-map :preview="$preview" />', ['preview' => $legacyItem['location']]);
+        $this->assertStringContainsString('ungefähre Ortslage, keine genaue Einsatzadresse.', $legacyMini);
+    }
+
+    public function test_confirmed_and_approximate_points_at_same_coordinates_are_labelled_mixed(): void
+    {
+        $confirmed = $this->shift();
+        $this->shift();
+        $this->addSnapshotColumns();
+        $hamburg = TimelineLocationPreview::fromShift(new Shift(['location_name' => 'Hamburg']));
+        DB::table('shifts')->where('id', $confirmed->id)->update(['location_snapshot' => json_encode($this->snapshot(['name' => 'Hamburg Depot', 'latitude' => $hamburg['latitude'], 'longitude' => $hamburg['longitude']]), JSON_THROW_ON_ERROR)]);
+        $data = $this->map();
+        $this->assertCount(1, $data['markers']);
+        $this->assertSame('mixed', $data['markers'][0]['precision']);
+        $this->assertSame('Bestätigte und ungefähre Standorte', $data['markers'][0]['label']);
+        $this->assertSame(2, $data['markers'][0]['count']);
+        $this->assertSame([true, false], array_map(fn (array $item) => $item['location']['confirmed'] ?? false, $data['markers'][0]['items']));
+    }
+
+    public function test_snapshot_loading_stays_batched_and_does_not_read_employee_locations(): void
+    {
+        $first = $this->shift();
+        $this->addSnapshotColumns();
+        DB::table('shifts')->where('id', $first->id)->update(['location_snapshot' => json_encode($this->snapshot(), JSON_THROW_ON_ERROR)]);
+        $this->map();
+        $queryCounts = [];
+        foreach ([1, 30] as $size) {
+            if ($size === 30) {
+                for ($i = 1; $i < $size; $i++) {
+                    $shift = $this->shift();
+                    DB::table('shifts')->where('id', $shift->id)->update(['location_snapshot' => json_encode($this->snapshot(), JSON_THROW_ON_ERROR)]);
+                }
+            }
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $data = $this->map();
+            $queries = DB::getQueryLog();
+            DB::disableQueryLog();
+            $queryCounts[] = count($queries);
+            $this->assertSame($size, $data['shiftsCount']);
+            foreach (['shifts', 'orders', 'customers'] as $table) {
+                $this->assertCount(1, array_filter($queries, fn (array $query) => str_contains(strtolower($query['query']), 'from "'.$table.'"')), 'Snapshots must be selected by the existing bounded eager-loading queries.');
+            }
+            $this->assertFalse(collect($queries)->contains(fn (array $query) => str_contains(strtolower($query['query']), 'employee_location')));
+        }
+        $this->assertSame($queryCounts[0], $queryCounts[1], 'One and thirty shifts must issue the same number of SQL queries.');
+    }
+
+    private function addSnapshotColumns(): void
+    {
+        foreach (['shifts', 'orders'] as $table) {
+            Schema::table($table, fn ($table) => $table->json('location_snapshot')->nullable());
+        }
+    }
+
+    private function snapshot(array $overrides = []): array
+    {
+        return array_replace(['confirmed' => true, 'name' => 'Depot München', 'latitude' => 48.13512, 'longitude' => 11.58198, 'revision' => 1], $overrides);
     }
 
     public function test_default_map_is_visible_large_for_only_authorized_active_dashboard_audiences(): void

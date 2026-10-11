@@ -13,6 +13,93 @@ use RuntimeException;
 
 final class TimelineLocationPreviewTest extends TestCase
 {
+    public function test_confirmed_shift_uses_its_own_snapshot_without_querying_or_borrowing_order(): void
+    {
+        $shift = new class extends Shift
+        {
+            public function order(): BelongsTo
+            {
+                throw new RuntimeException('Confirmed previews must not query the order.');
+            }
+        };
+        $shift->forceFill(['location_name' => 'Hamburg', 'order_id' => 42, 'location_snapshot' => $this->snapshot()]);
+        $preview = TimelineLocationPreview::fromShift($shift);
+        self::assertSame('located', $preview['state']);
+        self::assertSame('Depot München', $preview['place']);
+        self::assertSame('Bestätigter Einsatzstandort', $preview['label']);
+        self::assertTrue($preview['confirmed']);
+        self::assertSame(48.13512, $preview['latitude']);
+        self::assertSame(11.58198, $preview['longitude']);
+        self::assertFalse($shift->relationLoaded('order'));
+
+        $shift->setRelation('order', new Order(['location_snapshot' => $this->snapshot(['name' => 'Depot Berlin', 'latitude' => 52.52001, 'longitude' => 13.40495])]));
+        self::assertSame($preview, TimelineLocationPreview::fromShift($shift));
+    }
+
+    public function test_order_preview_uses_its_own_confirmed_snapshot(): void
+    {
+        $order = new Order(['location_name' => 'Hamburg', 'city' => 'Hamburg', 'country' => 'DE', 'location_snapshot' => $this->snapshot()]);
+        $preview = TimelineLocationPreview::fromOrder($order);
+        self::assertSame('Depot München', $preview['place']);
+        self::assertSame(48.13512, $preview['latitude']);
+        self::assertTrue($preview['confirmed']);
+    }
+
+    public function test_legacy_or_unconfirmed_shift_never_adopts_a_later_order_snapshot(): void
+    {
+        foreach ([null, $this->snapshot(['confirmed' => false])] as $snapshot) {
+            $shift = new Shift(['location_name' => 'Hamburg', 'location_snapshot' => $snapshot]);
+            $shift->setRelation('order', new Order(['location_name' => 'Hamburg', 'city' => 'Hamburg', 'country' => 'DE', 'location_snapshot' => $this->snapshot()]));
+            self::assertSame($this->preview('Hamburg'), TimelineLocationPreview::fromShift($shift));
+        }
+    }
+
+    #[DataProvider('invalidConfirmedSnapshots')]
+    public function test_invalid_confirmed_snapshot_does_not_guess_a_city_marker(array $overrides): void
+    {
+        $snapshot = $this->snapshot($overrides);
+        foreach ([new Shift(['location_name' => 'Hamburg', 'location_snapshot' => $snapshot]), new Order(['city' => 'Hamburg', 'location_snapshot' => $snapshot])] as $record) {
+            $preview = $record instanceof Shift ? TimelineLocationPreview::fromShift($record) : TimelineLocationPreview::fromOrder($record);
+            self::assertSame(['state' => 'unknown', 'label' => 'Standort nicht verortet'], $preview);
+        }
+    }
+
+    public static function invalidConfirmedSnapshots(): array
+    {
+        return [
+            'missing latitude' => [['latitude' => null]],
+            'invalid number' => [['longitude' => 'NaN']],
+            'non-finite number' => [['latitude' => '1e999']],
+            'invalid latitude range' => [['latitude' => 91]],
+            'invalid longitude range' => [['longitude' => -181]],
+            'empty name' => [['name' => ' ']],
+            'invalid name type' => [['name' => ['Depot']]],
+            'oversized name' => [['name' => str_repeat('a', 201)]],
+        ];
+    }
+
+    public function test_confirmed_point_outside_svg_remains_explicit_and_does_not_clamp_or_guess(): void
+    {
+        $shift = new Shift(['location_name' => 'Berlin', 'location_snapshot' => $this->snapshot(['name' => 'Depot Madrid', 'latitude' => 40.4168, 'longitude' => -3.7038])]);
+        self::assertSame([
+            'state' => 'outside', 'label' => 'Bestätigter Einsatzstandort außerhalb der Deutschlandkarte', 'confirmed' => true, 'place' => 'Depot Madrid',
+        ], TimelineLocationPreview::fromShift($shift));
+    }
+
+    public function test_snapshot_display_does_not_change_existing_regional_assessment(): void
+    {
+        $shift = new Shift(['location_name' => 'Hamburg', 'location_snapshot' => $this->snapshot()]);
+        self::assertSame('Depot München', TimelineLocationPreview::fromShift($shift)['place']);
+        self::assertSame($this->preview('Hamburg'), TimelineLocationPreview::forRegionalAssessment($shift));
+        $shift->setRelation('order', new Order(['city' => 'Hamburg', 'location_name' => 'Hamburg', 'country' => 'DE', 'location_snapshot' => $this->snapshot()]));
+        self::assertSame($this->preview('Hamburg'), TimelineLocationPreview::forRegionalAssessment($shift));
+    }
+
+    private function snapshot(array $overrides = []): array
+    {
+        return array_replace(['confirmed' => true, 'name' => 'Depot München', 'latitude' => 48.13512, 'longitude' => 11.58198, 'revision' => 1], $overrides);
+    }
+
     public function test_exact_locality_resolves_with_canonical_name_and_approximate_label(): void
     {
         $preview = $this->preview('  TREUCHTLINGEN  ');

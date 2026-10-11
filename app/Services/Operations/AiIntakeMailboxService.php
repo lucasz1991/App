@@ -4,12 +4,14 @@ namespace App\Services\Operations;
 
 use App\Jobs\PollAiIntakeMailbox;
 use App\Jobs\ProbeAiDispositionWorker;
+use App\Models\DispositionMailboxReview;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -138,6 +140,15 @@ class AiIntakeMailboxService
                 if (! $freshSettings['enabled'] || $freshSettings['revision'] !== $settings['revision'] || ! AiDispositionSettings::supervisor($freshSettings)) {
                     $completedScan = false;
                     break;
+                }
+                if (Schema::hasTable('disposition_mailbox_reviews') && DispositionMailboxReview::where('mailbox_id', $mailbox)->where('folder_hash', hash('sha256', $settings['imap_folder']))
+                    ->where('uid_validity', $snapshot['uid_validity'])->where('uid', $uid)->where('classification', 'not_inquiry')->exists()) {
+                    if ($historicalUids === []) {
+                        $runtime['cursor_uid'] = (int) $uid;
+                        $this->saveRuntime($runtime, (int) $settings['revision']);
+                    }
+
+                    continue;
                 }
                 $message = $this->imap->fetch($settings, (int) $uid, (int) $snapshot['uid_validity']);
                 try {

@@ -27,7 +27,7 @@ final class TomTomSettings
     public static function save(array $values, ?string $newKey = null, bool $deleteKey = false): void
     {
         $validated = Validator::make($values, [
-            'enabled' => ['required', 'boolean'], 'reserve_minutes' => ['required', 'integer', 'min:0', 'max:120'],
+            'enabled' => ['required', 'boolean'], 'reserve_minutes' => ['required', 'integer', 'min:5', 'max:120'],
             'routing_monthly_limit' => ['required', 'integer', 'min:0', 'max:10000000'],
             'tile_monthly_limit' => ['required', 'integer', 'min:0', 'max:100000000'],
             'use_employee_locations' => ['required', 'boolean'],

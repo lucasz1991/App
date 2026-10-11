@@ -4,7 +4,7 @@
         @if($errors->any())<ul class="ops-full text-sm text-red-700 dark:text-red-300" role="alert">@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul>@endif
         <div class="ops-full"><x-ui.forms.checkbox wire:model="config.enabled" label="Routenplanung aktivieren" /></div>
         <div class="ops-full space-y-2"><label for="tomtom-api-key" class="text-sm font-semibold">API-Schlüssel</label><x-ui.forms.input id="tomtom-api-key" type="password" wire:model="apiKey" autocomplete="new-password" placeholder="{{ $saved['has_api_key'] ? $saved['key_mask'] : 'TomTom-Schlüssel eingeben' }}" /><p class="text-sm text-rt-muted">Leere Eingabe behält den gespeicherten Schlüssel. Der Schlüssel bleibt auf dem Server.</p>@error('key')<p role="alert">{{ $message }}</p>@enderror</div>
-        <x-operations.field label="Fahrtreserve (Minuten)" model="config.reserve_minutes" type="number" min="0" max="120" required />
+        <x-operations.field label="Fahrtreserve (Minuten, mindestens 5)" model="config.reserve_minutes" type="number" min="5" max="120" required />
         <x-operations.field label="Routing-Transaktionen pro Monat" model="config.routing_monthly_limit" type="number" min="0" required />
         <x-operations.field label="Kartenkacheln pro Monat" model="config.tile_monthly_limit" type="number" min="0" required />
         <div class="ops-full"><x-ui.forms.checkbox wire:model="config.use_employee_locations" label="Freigegebene Mitarbeiterstandorte für kurzfristige Anreisehinweise nutzen" /><p class="mt-2 text-sm text-rt-muted">Benötigt den eingerichteten und abgenommenen Mitarbeiter-Standortdienst. Eine fehlende Standortfreigabe verschlechtert die Einsatzberechtigung nicht.</p></div>

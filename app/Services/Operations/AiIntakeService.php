@@ -78,11 +78,16 @@ class AiIntakeService
         }
     }
 
-    public function receiveEmail(array $message): AiIntake
+    public function receiveEmail(array $message, ?User $manualActor = null): AiIntake
     {
         AiIntakeSchema::requireReady();
         $settings = AiDispositionSettings::all();
-        abort_unless(AiDispositionSettings::enabled() && ! empty($settings['supervisor_id']), 409);
+        if ($manualActor) {
+            $this->access($manualActor);
+            abort_unless(($message['mailbox_id'] ?? '') === AiDispositionSettings::mailboxId($settings), 409);
+        } else {
+            abort_unless(AiDispositionSettings::enabled() && ! empty($settings['supervisor_id']), 409);
+        }
         $sender = $this->email($message['from'] ?? '');
         $replyTo = $this->email($message['reply_to'] ?? $sender);
         $text = (string) ($message['text'] ?? '');
@@ -110,7 +115,11 @@ class AiIntakeService
         }
         $paths = [];
         try {
-            $record = OperationsTransaction::run(function () use ($message, $settings, $sender, $replyTo, $text, $raw, $receipt, $sourceError, &$paths) {
+            $record = OperationsTransaction::run(function () use ($message, $settings, $sender, $replyTo, $text, $raw, $receipt, $sourceError, $manualActor, &$paths) {
+                if ($manualActor) {
+                    $this->access($manualActor);
+                    abort_unless(AiDispositionSettings::all(true)['revision'] === $settings['revision'], 409);
+                }
                 if ($existing = AiIntakeMessage::where('receipt_key', $receipt)->first()) {
                     return $existing->intake;
                 }
@@ -125,12 +134,19 @@ class AiIntakeService
                     $intake->proposals()->whereNotIn('status', ['applied', 'stale'])->update(['status' => 'stale', 'error_code' => 'source_changed']);
                     $intake->save();
                 } else {
-                    $intake = AiIntake::create(['source_type' => 'email', 'status' => 'received', 'revision' => 1, 'source_revision' => 1, 'title' => mb_substr((string) ($message['subject'] ?? 'E-Mail-Anfrage'), 0, 180), 'supervising_user_id' => $settings['supervisor_id']]);
+                    $intake = AiIntake::create(['source_type' => 'email', 'status' => 'received', 'revision' => 1, 'source_revision' => 1, 'title' => mb_substr((string) ($message['subject'] ?? 'E-Mail-Anfrage'), 0, 180), 'supervising_user_id' => $settings['supervisor_id'] ?: $manualActor?->id, 'created_by' => $manualActor?->id]);
                 }
                 $metadata = array_intersect_key($message, array_flip(['auto_submitted', 'precedence', 'list_id', 'is_bounce', 'in_reply_to', 'references', 'mailbox_id', 'uid_validity', 'uid', 'subject', 'source_error', 'raw_archive_complete', 'text_archive_complete', 'declared_size']));
                 $metadata['raw_archive_complete'] ??= true;
                 $metadata['content_hash'] = hash('sha256', $raw ?: $text);
+                if ($manualActor) {
+                    $metadata['submitted_by'] = $manualActor->id;
+                    $metadata['manual_mailbox_capture'] = true;
+                }
                 $input = ['direction' => 'inbound', 'receipt_key' => $receipt, 'body' => $text, 'sender_email' => $sender ?: null, 'reply_to_email' => $replyTo ?: null, 'external_message_id' => $this->messageId($message['message_id'] ?? null), 'metadata' => $metadata];
+                if (Schema::hasColumn('ai_intake_messages', 'mailbox_id')) {
+                    $input['mailbox_id'] = $message['mailbox_id'] ?? null;
+                }
                 if ($raw !== '') {
                     $input['raw_path'] = app(AiIntakeAttachmentService::class)->put($intake, $raw, $paths);
                     $input['raw_hash'] = hash('sha256', $raw);
@@ -166,8 +182,13 @@ class AiIntakeService
                     $intake->error_code = $error;
                     $intake->analysis = ['intent' => 'other', 'classification' => 'auto_reply', 'classification_source' => 'mail_headers'];
                 }
+                if ($manualActor) {
+                    $intake->status = $intake->status === 'paused' ? 'paused' : 'review';
+                    $intake->error_code ??= 'manual_mailbox_review';
+                    $intake->deliveries()->whereIn('status', ['draft', 'pending'])->update(['status' => 'canceled', 'failure_code' => 'source_changed']);
+                }
                 $intake->save();
-                if (! $error && $intake->status !== 'paused') {
+                if (! $manualActor && ! $error && $intake->status !== 'paused') {
                     app(AiIntakeMailService::class)->enqueueReceipt($intake);
                     ProcessAiIntake::dispatch($intake->id)->afterCommit();
                 }

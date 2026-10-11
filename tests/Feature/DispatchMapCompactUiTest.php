@@ -111,7 +111,15 @@ class DispatchMapCompactUiTest extends TestCase
             $this->assertNotSame('', trim($label));
             $dropdown = $xpath->query('ancestor::*[@data-rt-dropdown-root][1]', $point)->item(0);
             $this->assertNotNull($dropdown);
-            $this->assertStringContainsString('openOnHover: true', $dropdown->getAttribute('x-data'));
+            $expression = $dropdown->getAttribute('x-data');
+            $prefix = "rtAnchorDropdown(JSON.parse('";
+            $suffix = "'))";
+            $this->assertStringStartsWith($prefix, $expression);
+            $this->assertStringEndsWith($suffix, $expression);
+            $encodedJson = substr($expression, strlen($prefix), -strlen($suffix));
+            $json = json_decode('"'.$encodedJson.'"', flags: JSON_THROW_ON_ERROR);
+            $config = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+            $this->assertTrue($config['openOnHover']);
             $visibility = $dropdown->getAttribute('x-show.important');
             $this->assertNotSame('', trim($visibility), 'Point filters must override the shared dropdown display utility.');
             $this->assertStringNotContainsString('@js', $visibility, 'Component attributes must deliver executable Alpine expressions.');

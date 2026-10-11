@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\CustomerPortalRequest;
 use App\Models\CustomerPortalSubmission;
 use App\Models\User;
+use App\Services\Operations\DispositionMailboxService;
 use App\Support\Operations\UnifiedInboxProjection;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -91,6 +92,12 @@ class UnifiedInbox extends Component
         $this->detailRevision++;
     }
 
+    public function openMailbox(): void
+    {
+        abort_unless($this->customerId === null && app(DispositionMailboxService::class)->available($this->actor()), 403);
+        $this->dispatch('open-disposition-mailbox')->to(DispositionMailbox::class);
+    }
+
     public function render()
     {
         abort_unless(isset(self::FILTERS[$this->status]) && in_array($this->channel, ['all', 'email', 'phone', 'manual', 'portal', 'ai', 'import'], true), 422);
@@ -117,6 +124,7 @@ class UnifiedInbox extends Component
             $row->id = $row->record_id * 8 + array_search($row->kind, self::KINDS, true);
         }
 
-        return view('livewire.operations.unified-inbox', ['rows' => $rows, 'counts' => $counts, 'sections' => CaseWorkspace::availableSections($this->actor())]);
+        return view('livewire.operations.unified-inbox', ['rows' => $rows, 'counts' => $counts, 'sections' => CaseWorkspace::availableSections($this->actor()),
+            'mailboxAvailable' => $this->customerId === null && app(DispositionMailboxService::class)->available($this->actor())]);
     }
 }

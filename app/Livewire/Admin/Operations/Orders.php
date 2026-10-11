@@ -35,13 +35,22 @@ class Orders extends Component
 
     public string $statusFilter = 'all';
 
+    public int $perPage = 50;
+
     #[Locked]
     public string $sortBy = 'period';
 
     #[Locked]
     public string $sortDir = 'asc';
 
-    private const SORTABLE_COLUMNS = ['title', 'period', 'staff', 'status'];
+    private const SORTABLE_COLUMNS = ['service', 'title', 'customer', 'period', 'staff', 'status'];
+
+    public function updatedPerPage(): void
+    {
+        $this->ensureAdmin();
+        $this->validateOnly('perPage', ['perPage' => ['integer', Rule::in([25, 50, 100])]]);
+        $this->resetPage('ordersPage');
+    }
 
     public function tableSort(string $key, ?string $dir = null): void
     {
@@ -471,9 +480,14 @@ class Orders extends Component
             self::listState(['search' => $this->search, 'status' => $this->statusFilter]);
         }
 
-        $orders = $this->scopedQuery()
+        $ordersQuery = $this->scopedQuery()
             ->when($this->detailOnly, fn (Builder $query) => $query->whereRaw('1 = 0'))
-            ->with('customer')
+            ->with([
+                'customer',
+                'shifts.assignments' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues()),
+                'shifts.assignments.user.profile',
+                'shifts.assignments.user.currentTeam',
+            ])
             ->withCount('shifts')
             ->when(trim($this->search) !== '', function (Builder $query): void {
                 $term = '%'.trim($this->search).'%';
@@ -487,12 +501,31 @@ class Orders extends Component
             })
             ->when($this->statusFilter !== 'all', fn (Builder $query) => $query->where('status', $this->statusFilter))
             ->orderBy(match ($this->sortBy) {
-                'title', 'status' => $this->sortBy,
+                'service', 'title' => 'title',
+                'customer' => Customer::query()->select('company_name')->whereColumn('customers.id', 'orders.customer_id')->limit(1),
+                'status' => 'status',
                 'staff' => 'required_staff',
                 default => 'starts_at',
             }, $this->sortDir === 'desc' ? 'desc' : 'asc')
-            ->orderBy('id')
-            ->paginate(25, ['*'], 'ordersPage');
+            ->orderBy('id');
+
+        // Bound and clamp before loading relations so even stale page URLs load one page only.
+        $perPage = in_array($this->perPage, [25, 50, 100], true) ? $this->perPage : 50;
+        $totalOrders = (clone $ordersQuery)->toBase()->getCountForPagination();
+        $ordersPage = min(max(1, (int) $this->getPage('ordersPage')), max(1, (int) ceil($totalOrders / $perPage)));
+        if ((int) $this->getPage('ordersPage') !== $ordersPage) {
+            $this->setPage($ordersPage, 'ordersPage');
+        }
+        $orders = $ordersQuery->paginate($perPage, ['*'], 'ordersPage', $ordersPage, $totalOrders);
+        $orderTableItems = (clone $orders)->setCollection($orders->getCollection()->map(function (Order $order): object {
+            $item = $this->serviceDetailProjection($order);
+            // Orders show the contractual period, not the first/last constituent shift.
+            $item->from = $item->orderFrom;
+            $item->until = $item->orderUntil;
+            $item->requiredStaff = (int) $order->required_staff;
+
+            return $item;
+        }));
 
         $selectedOrder = $this->selectedOrderId
             ? $this->scopedQuery()->with(['customer', 'shifts.assignments.user.profile', 'shifts.assignments.user.currentTeam', 'statusHistory.changedBy.profile', 'statusHistory.changedBy.currentTeam'])->findOrFail($this->selectedOrderId)
@@ -509,6 +542,7 @@ class Orders extends Component
 
         return view('livewire.admin.operations.orders', [
             'orders' => $orders,
+            'orderTableItems' => $orderTableItems,
             'selectedOrder' => $selectedOrder,
             'serviceDetailItem' => $serviceDetailItem,
             'serviceDetailSummary' => $serviceDetailItem?->summary ?? ['shifts' => 0, 'required' => 0, 'reserved' => 0, 'confirmed' => 0, 'open' => 0],

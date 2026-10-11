@@ -21,6 +21,7 @@ use App\Support\Operations\OperationsAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class AiIntakeMailService
@@ -216,6 +217,7 @@ class AiIntakeMailService
                 'message_id_header' => 'ai-'.Str::uuid().'@'.$domain, 'in_reply_to' => $parent[0] ?? null,
                 'references' => array_slice(array_values(array_unique([...$references, ...$parent])), -20),
                 'metadata' => ['run_id' => $run?->id, 'contact_revision' => (int) $contact->revision, 'supervisor_id' => $settings['supervisor_id'], 'dispatch_mode' => $mode, 'created_as_draft' => $mode === 'draft'],
+                ...(Schema::hasColumn('ai_intake_deliveries', 'mailbox_id') ? ['mailbox_id' => AiDispositionSettings::mailboxId($settings)] : []),
             ] + (AiCustomerCommunicationSchema::ready() ? ['message_type' => 'clarification'] : []));
             if ($delivery->wasRecentlyCreated) {
                 $fresh->forceFill($mode === 'draft'
@@ -309,6 +311,7 @@ class AiIntakeMailService
             'message_id_header' => 'ai-'.Str::uuid().'@'.$domain, 'in_reply_to' => $parent[0] ?? null,
             'references' => array_slice(array_values(array_unique([...$references, ...$parent])), -20),
             'metadata' => ['contact_revision' => (int) $contact->revision, 'supervisor_id' => $settings['supervisor_id'], 'dispatch_mode' => $mode, 'created_as_draft' => $mode === 'draft'],
+            ...(Schema::hasColumn('ai_intake_deliveries', 'mailbox_id') ? ['mailbox_id' => AiDispositionSettings::mailboxId($settings)] : []),
         ]);
         if ($delivery->wasRecentlyCreated && $mode === 'automatic') {
             DeliverAiIntakeMail::dispatch($delivery->id)->afterCommit();

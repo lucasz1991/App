@@ -179,6 +179,13 @@ class RoutingSiteWorkflowTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_five_minute_reserve_cannot_be_disabled_through_settings(): void
+    {
+        Livewire::actingAs($this->admin)->test(TomTomSettings::class)
+            ->set('config.reserve_minutes', 0)->call('save')->assertHasErrors('reserve_minutes');
+        $this->assertSame(5, RoutingSettings::all()['reserve_minutes']);
+    }
+
     public function test_regular_admin_cannot_open_or_mutate_sensitive_settings(): void
     {
         $regular = User::factory()->create(['role' => 'admin', 'status' => true]);

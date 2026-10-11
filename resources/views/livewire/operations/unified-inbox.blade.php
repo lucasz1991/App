@@ -7,7 +7,10 @@
                 </button>
             @endforeach
         </nav>
-        @if(isset($sections['overview']))<x-ui.buttons.button-basic mode="primary" type="button" wire:click="create" aria-label="Eingang erfassen"><i class="far fa-plus" aria-hidden="true"></i><span>Eingang</span></x-ui.buttons.button-basic>@endif
+        <div class="ops-actions">
+            @if($mailboxAvailable)<x-ui.buttons.button-basic mode="secondary" type="button" wire:click="openMailbox" wire:loading.attr="disabled" wire:target="openMailbox" aria-label="Dispositionspostfach öffnen"><i class="far fa-envelope" aria-hidden="true"></i><span>Postfach</span></x-ui.buttons.button-basic>@endif
+            @if(isset($sections['overview']))<x-ui.buttons.button-basic mode="primary" type="button" wire:click="create" aria-label="Eingang erfassen"><i class="far fa-plus" aria-hidden="true"></i><span>Eingang</span></x-ui.buttons.button-basic>@endif
+        </div>
     </header>
     <section class="rt-disposition-panel">
         <div class="rt-unified-inbox__filters">
@@ -36,6 +39,7 @@
         </div>
         <div class="rt-disposition-pagination">{{ $rows->links() }}</div>
     </section>
+    @if($mailboxAvailable)<livewire:operations.disposition-mailbox :key="'disposition-mailbox-'.$this->getId()" />@endif
     @if($detail)
         @if($detail['kind'] === 'inquiry')
             <livewire:operations.inquiry-inbox :initial-inquiry-id="$detail['id']" :customer-id="$detail['customer']" :modal-only="true" :key="'unified-detail-'.$detailRevision" />
