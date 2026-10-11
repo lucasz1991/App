@@ -75,7 +75,7 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
         $section = $sections->item(0);
         $headings = $xpath->query('./h2', $section);
         $this->assertCount(1, $headings);
-        $this->assertSame('Geräte-Einrichtung', $this->text($headings->item(0)));
+        $this->assertSame('Einrichtungs Status', $this->text($headings->item(0)));
         $this->assertSame($headings->item(0)->getAttribute('id'), $section->getAttribute('aria-labelledby'));
         $this->assertCount(2, $xpath->query('./div/dl', $section));
         $phone = $xpath->query('.//dl[@data-profile-phone-status]', $section);
@@ -103,6 +103,44 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
     public static function profileModes(): array
     {
         return ['standalone' => [false], 'embedded' => [true]];
+    }
+
+    #[DataProvider('profileModes')]
+    public function test_identity_uses_name_and_record_then_email_and_existing_context_in_two_native_rows(bool $embedded): void
+    {
+        Profile::create(['user_id' => $this->employee->id, 'position' => 'Wagenmeister Fixture']);
+        $team = Team::forceCreate(['user_id' => $this->admin->id, 'name' => 'Region Nord Fixture', 'personal_team' => false]);
+        $this->employee->forceFill(['current_team_id' => $team->id])->save();
+        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
+            'userId' => $this->employee->id,
+            'embedded' => $embedded,
+        ])->assertSuccessful()->assertSet('profileTab', 'userDetails');
+        $xpath = $this->xpath($component->html());
+        $copy = $xpath->query('//*[@data-profile-identity]//*[contains(concat(" ",normalize-space(@class)," ")," employee-profile__person-copy ")]');
+        $this->assertCount(1, $copy);
+        $rows = $xpath->query('./div', $copy->item(0));
+        $this->assertCount(2, $rows);
+        $this->assertStringContainsString('employee-profile__name-line', $rows->item(0)->getAttribute('class'));
+        $this->assertStringContainsString('employee-profile__meta-line', $rows->item(1)->getAttribute('class'));
+        $this->assertCount(1, $xpath->query('.//*[@id="employee-header-name" and @*[name()="wire:model"]="inlineValues.name"]', $rows->item(0)));
+        $this->assertCount(1, $xpath->query('.//*[@for="employee-header-name" and @data-native-inline-edit-trigger]', $rows->item(0)));
+        $this->assertCount(1, $xpath->query('.//*[contains(@class,"employee-profile__record-number")]', $rows->item(0)));
+        $this->assertStringContainsString('#'.$this->employee->id, $this->text($rows->item(0)));
+        $recordLabel = $xpath->query('.//*[contains(@class,"employee-profile__eyebrow")]/span[contains(@class,"sr-only")]', $rows->item(0));
+        $this->assertCount(1, $recordLabel);
+        $this->assertSame('Personalakte', $this->text($recordLabel->item(0)));
+        $this->assertCount(0, $xpath->query('.//*[contains(@class,"employee-profile__eyebrow")]/span[not(contains(@class,"sr-only")) and not(contains(@class,"employee-profile__record-number"))]', $rows->item(0)));
+        $this->assertCount(1, $xpath->query('.//*[@id="employee-header-email" and @*[name()="wire:model"]="inlineValues.email"]', $rows->item(1)));
+        $this->assertCount(1, $xpath->query('.//*[@for="employee-header-email" and @data-native-inline-edit-trigger]', $rows->item(1)));
+        $this->assertStringContainsString($this->employee->email, $this->text($rows->item(1)));
+        $this->assertSame([__('app.role_staff'), 'Wagenmeister Fixture', 'Region Nord Fixture'], array_map(
+            fn (DOMElement $badge): string => $this->text($badge),
+            iterator_to_array($xpath->query('.//*[contains(@class,"employee-profile__identity-labels")]//*[contains(concat(" ",normalize-space(@class)," ")," rt-ui-badge ")]', $rows->item(1))),
+        ));
+        $this->assertCount(1, $xpath->query('//*[@data-profile-navigation]//*[@data-profile-marker="main"]'));
+        $this->assertCount(1, $xpath->query('//*[@data-profile-navigation]//*[@data-profile-marker="sub"]'));
+        $this->assertCount(1, $xpath->query('//*[@data-autosave-scope]'));
+        Http::assertNothingSent();
     }
 
     public function test_each_icon_uses_existing_hover_keyboard_touch_and_shared_layer_disclosure_contracts(): void
@@ -340,9 +378,13 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
     public function test_compact_geometry_is_profile_scoped_with_wrapping_mobile_icons_and_full_touch_targets(): void
     {
         $css = file_get_contents(resource_path('css/employee-profile-shell.css'));
-        $this->assertMatchesRegularExpression('/\.employee-profile\[data-profile-shell\] \.employee-profile__identity\s*\{[^}]*padding:\s*16px 20px !important;/s', $css);
+        $this->assertMatchesRegularExpression('/\.employee-profile\[data-profile-shell\] \.employee-profile__identity\s*\{[^}]*padding:\s*8px 16px !important;/s', $css);
         $this->assertMatchesRegularExpression('/\.employee-profile\[data-profile-shell\] \.employee-profile__identity-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s', $css);
-        $this->assertMatchesRegularExpression('/\.employee-profile\[data-profile-shell\] \.employee-profile__portrait\s*\{[^}]*width:\s*64px;[^}]*height:\s*64px;/s', $css);
+        $this->assertMatchesRegularExpression('/\.employee-profile\[data-profile-shell\] \.employee-profile__portrait\s*\{[^}]*width:\s*56px;[^}]*height:\s*56px;/s', $css);
+        $this->assertStringContainsString('.employee-profile__name-line { display: flex; align-items: center;', $css);
+        $this->assertStringContainsString('.employee-profile__meta-line { display: flex; align-items: center; flex-wrap: wrap;', $css);
+        $this->assertStringContainsString('.employee-profile__identity-labels { gap: 4px; margin: 0; }', $css);
+        $this->assertStringContainsString('.employee-profile__identity [data-inline-edit-display] { min-height: 44px;', $css);
         $this->assertMatchesRegularExpression('/\.employee-profile\[data-profile-shell\] \.employee-profile__status-rail\s*\{[^}]*flex-wrap:\s*wrap;/s', $css);
         $this->assertMatchesRegularExpression('/\.employee-profile\[data-profile-shell\] \.employee-profile__status-trigger\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/s', $css);
         $this->assertStringContainsString('.employee-profile__status-trigger:focus-visible { outline: 2px solid var(--profile-duty-signal);', $css);
@@ -355,11 +397,12 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
         $this->assertNotFalse($tabletStart);
         $this->assertStringNotContainsString('employee-profile__identity-layout', substr($css, $tabletStart, $mobileStart - $tabletStart));
         $mobile = substr($css, $mobileStart);
-        $this->assertStringContainsString('.employee-profile__identity { padding: 12px 16px !important; }', $mobile);
-        $this->assertStringContainsString('.employee-profile__identity-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }', $mobile);
+        $this->assertStringContainsString('.employee-profile__identity { padding: 8px 12px !important; }', $mobile);
+        $this->assertStringContainsString('.employee-profile__identity-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }', $mobile);
         $this->assertStringContainsString('.employee-profile__status-group { display: contents; }', $mobile);
         $this->assertStringContainsString('.employee-profile__status-group + .employee-profile__status-group { padding: 0; border: 0; }', $mobile);
-        $this->assertStringContainsString('font-size: 22px; white-space: normal; overflow-wrap: anywhere;', $mobile);
+        $this->assertStringContainsString('font-size: 20px; white-space: normal; overflow-wrap: anywhere;', $mobile);
+        $this->assertMatchesRegularExpression('/\.employee-profile\[data-profile-shell\] \.employee-profile__portrait\s*\{[^}]*width:\s*48px;[^}]*height:\s*48px;/s', $mobile);
         $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $mobile);
         $this->assertStringContainsString('.employee-profile__status-trigger,', substr($mobile, strpos($mobile, '@media (prefers-reduced-motion: reduce)')));
         foreach (['employee-profile__phone-setup', 'employee-profile__account', 'employee-profile__identity-layout--with-phone'] as $removed) {

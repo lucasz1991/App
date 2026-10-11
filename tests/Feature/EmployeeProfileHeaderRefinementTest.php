@@ -86,7 +86,7 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
         $this->assertSame($this->employee->email, $this->headerNode($xpath, 'employee-profile__email-text')->textContent);
         $this->assertStringContainsString('#'.$this->employee->id, $this->headerNode($xpath, 'employee-profile__eyebrow')->textContent);
         $this->assertCount(1, $xpath->query('//*[@data-profile-identity]//*[@data-profile-status]/h2'));
-        $this->assertSame('Geräte-Einrichtung', $this->text($xpath->query('//*[@data-profile-status]/h2')->item(0)));
+        $this->assertSame('Einrichtungs Status', $this->text($xpath->query('//*[@data-profile-status]/h2')->item(0)));
         foreach (['status', 'member', 'activity'] as $key) {
             $this->assertCount(1, $xpath->query('//*[@data-profile-identity]//*[@data-profile-fact="'.$key.'"]'));
         }

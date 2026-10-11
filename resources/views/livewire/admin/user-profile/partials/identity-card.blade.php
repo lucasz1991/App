@@ -68,7 +68,7 @@
           </span>
 
           <div class="employee-profile__person-copy">
-              <p class="employee-profile__eyebrow"><span>Personalakte</span> <span class="employee-profile__record-number" aria-label="{{ __('app.user_id') }}">#{{ $user->id }}</span></p>
+            <div class="employee-profile__name-line">
               <div class="employee-profile__name">
                   <x-ui.inline-edit-field
                       id="employee-header-name"
@@ -81,7 +81,9 @@
                       <span class="employee-profile__name-text" title="{{ $user->name }}">{{ $user->name }}</span>
                   </x-ui.inline-edit-field>
               </div>
-
+              <p class="employee-profile__eyebrow"><span class="sr-only">Personalakte</span> <span class="employee-profile__record-number" aria-label="{{ __('app.user_id') }}">#{{ $user->id }}</span></p>
+            </div>
+            <div class="employee-profile__meta-line">
               <div class="employee-profile__email">
                   <x-ui.inline-edit-field
                       id="employee-header-email"
@@ -103,11 +105,12 @@
                           </x-ui.badge>
                       @endforeach
               </div>
+            </div>
           </div>
       </div>
 
       <section class="employee-profile__status" data-profile-status aria-labelledby="{{ $profilePrefix }}-status-title">
-          <h2 id="{{ $profilePrefix }}-status-title">Geräte-Einrichtung</h2>
+          <h2 id="{{ $profilePrefix }}-status-title">Einrichtungs Status</h2>
           <div class="employee-profile__status-rail">
               @if($phoneStatus !== null)
               <dl class="employee-profile__status-group" data-profile-phone-status aria-label="Gerätestatus">

@@ -1,12 +1,14 @@
 <section class="employee-operations" data-employee-operations data-operations-view="{{ $viewMode }}" aria-label="{{ $viewMode === 'overview' ? 'Betriebsübersicht' : 'Schichten des Mitarbeiters' }}">
+    @if($viewMode !== 'overview')
     <header class="employee-operations__header">
         <div>
             <p class="employee-operations__eyebrow">Betrieb</p>
-            <h2>{{ $viewMode === 'overview' ? 'Einsätze auf einen Blick' : 'Schichten & Verlauf' }}</h2>
-            <p class="employee-operations__description">{{ $viewMode === 'overview' ? 'Aktuelle Planung und nächste Einsätze dieses Mitarbeiters.' : 'Zukünftige und vergangene Zuordnungen – mit Planungsstand und Rückmeldung.' }}</p>
+            <h2>Schichten &amp; Verlauf</h2>
+            <p class="employee-operations__description">Zukünftige und vergangene Zuordnungen – mit Planungsstand und Rückmeldung.</p>
         </div>
         <span class="employee-operations__updated"><i class="far fa-clock" aria-hidden="true"></i> {{ $employeeOperations['updated_at'] }} · Europe/Berlin</span>
     </header>
+    @endif
 
     @if($employeeOperations['state'] === 'unconfigured')
         <div class="employee-operations__state" role="status">

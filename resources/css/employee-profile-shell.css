@@ -8,21 +8,25 @@
     --profile-area-selection: theme('colors.rt-red.DEFAULT');
 }
 .employee-profile[data-profile-shell] .employee-profile__workspace { display: flex; flex-direction: column; gap: 0; min-width: 0; }
-.employee-profile[data-profile-shell] .employee-profile__identity { padding: 16px 20px !important; border-radius: 16px 16px 0 0; }
-.employee-profile[data-profile-shell] .employee-profile__identity-layout { grid-template-columns: minmax(0, 1fr) auto; gap: 24px; }
-.employee-profile[data-profile-shell] .employee-profile__portrait { display: grid; place-items: center; width: 64px; height: 64px; padding: 4px; border-radius: 16px; background: var(--profile-control-inset); }
-.employee-profile[data-profile-shell] .employee-profile__portrait img { width: 56px; height: 56px; border-radius: 12px; box-shadow: 0 0 0 1px var(--profile-rail-line); }
-.employee-profile[data-profile-shell] .employee-profile__person { gap: 16px; }
-.employee-profile[data-profile-shell] .employee-profile__eyebrow { align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0; margin-bottom: 4px; }
+.employee-profile[data-profile-shell] .employee-profile__identity { padding: 8px 16px !important; border-radius: 16px 16px 0 0; }
+.employee-profile[data-profile-shell] .employee-profile__identity-layout { grid-template-columns: minmax(0, 1fr) auto; gap: 20px; }
+.employee-profile[data-profile-shell] .employee-profile__portrait { display: grid; place-items: center; width: 56px; height: 56px; padding: 4px; border-radius: 14px; background: var(--profile-control-inset); }
+.employee-profile[data-profile-shell] .employee-profile__portrait img { width: 48px; height: 48px; border-radius: 10px; box-shadow: 0 0 0 1px var(--profile-rail-line); }
+.employee-profile[data-profile-shell] .employee-profile__person { gap: 12px; }
+.employee-profile[data-profile-shell] .employee-profile__name-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.employee-profile[data-profile-shell] .employee-profile__name { min-width: 0; flex: 0 1 auto; }
+.employee-profile[data-profile-shell] .employee-profile__eyebrow { flex: 0 0 auto; align-items: center; gap: 0; font-size: 10px; letter-spacing: 0; margin: 0; }
+.employee-profile[data-profile-shell] .employee-profile__meta-line { display: flex; align-items: center; flex-wrap: wrap; column-gap: 12px; min-width: 0; }
+.employee-profile[data-profile-shell] .employee-profile__email { min-width: 0; max-width: 100%; flex: 0 1 auto; }
 .employee-profile[data-profile-shell] .employee-profile__record-number { padding: 2px 6px; border-radius: 4px; color: var(--profile-duty-signal); background: color-mix(in srgb, var(--profile-duty-signal) 7%, var(--profile-record-surface)); font-variant-numeric: tabular-nums; font-weight: 600; }
-.employee-profile[data-profile-shell] .employee-profile__name-text { font-size: 26px; font-weight: 650; line-height: 1.25; letter-spacing: -.035em; }
+.employee-profile[data-profile-shell] .employee-profile__name-text { font-size: 24px; font-weight: 650; line-height: 1.25; letter-spacing: -.035em; }
 .employee-profile[data-profile-shell] .employee-profile__identity [data-inline-edit-display] { min-height: 44px; border-radius: 6px; }
-.employee-profile[data-profile-shell] .employee-profile__email-text { font-size: 13px; }
-.employee-profile[data-profile-shell] .employee-profile__identity-labels { gap: 8px; margin-top: 4px; }
+.employee-profile[data-profile-shell] .employee-profile__email-text { font-size: 12px; }
+.employee-profile[data-profile-shell] .employee-profile__identity-labels { gap: 4px; margin: 0; }
 .employee-profile[data-profile-shell] .employee-profile__identity .employee-profile__identity-badge { padding: 2px 6px; border-radius: 6px; color: var(--employee-ink) !important; font-size: 11px; font-weight: 500; }
 .employee-profile[data-profile-shell] .employee-profile__portrait .employee-profile__presence { position: absolute; right: 2px; bottom: 2px; padding: 0; }
 .employee-profile[data-profile-shell] .employee-profile__portrait .employee-profile__presence > span[aria-hidden] { width: 8px; height: 8px; box-shadow: 0 0 0 2px var(--profile-record-surface); }
-.employee-profile[data-profile-shell] .employee-profile__status { min-width: 0; padding: 12px; border-radius: 12px; background: var(--profile-control-inset); }
+.employee-profile[data-profile-shell] .employee-profile__status { min-width: 0; padding: 8px; border-radius: 10px; background: var(--profile-control-inset); }
 .employee-profile[data-profile-shell] .employee-profile__status h2 { margin: 0 0 4px; color: var(--employee-muted); font-size: 11px; font-weight: 500; }
 .employee-profile[data-profile-shell] .employee-profile__status-rail { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .employee-profile[data-profile-shell] .employee-profile__status-group { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; border: 0; }
@@ -216,12 +220,12 @@
     .employee-profile[data-profile-shell] .employee-operations__overview { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 767.98px) {
-    .employee-profile[data-profile-shell] .employee-profile__identity-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-    .employee-profile[data-profile-shell] .employee-profile__identity { padding: 12px 16px !important; }
-    .employee-profile[data-profile-shell] .employee-profile__portrait { width: 56px; height: 56px; padding: 4px; border-radius: 16px; }
-    .employee-profile[data-profile-shell] .employee-profile__portrait img { width: 48px; height: 48px; border-radius: 12px; }
-    .employee-profile[data-profile-shell] .employee-profile__person { align-items: start; gap: 12px; }
-    .employee-profile[data-profile-shell] .employee-profile__name-text { font-size: 22px; white-space: normal; overflow-wrap: anywhere; }
+    .employee-profile[data-profile-shell] .employee-profile__identity-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .employee-profile[data-profile-shell] .employee-profile__identity { padding: 8px 12px !important; }
+    .employee-profile[data-profile-shell] .employee-profile__portrait { width: 48px; height: 48px; padding: 4px; border-radius: 12px; }
+    .employee-profile[data-profile-shell] .employee-profile__portrait img { width: 40px; height: 40px; border-radius: 8px; }
+    .employee-profile[data-profile-shell] .employee-profile__person { align-items: center; gap: 12px; }
+    .employee-profile[data-profile-shell] .employee-profile__name-text { font-size: 20px; white-space: normal; overflow-wrap: anywhere; }
     .employee-profile[data-profile-shell] .employee-profile__identity [data-inline-edit-display] { min-height: 44px; }
     .employee-profile[data-profile-shell] .employee-profile__status { justify-self: stretch; padding: 8px; border-radius: 10px; }
     .employee-profile[data-profile-shell] .employee-profile__status-rail { gap: 4px; }
@@ -273,9 +277,7 @@
     .employee-profile[data-profile-shell] .employee-operations__mobile-status > span { color: var(--employee-muted); font-size: 10px; line-height: 1.5; }
 }
 @media (max-width: 379.98px) {
-    .employee-profile[data-profile-shell] .employee-profile__portrait { width: 56px; height: 56px; border-radius: 16px; }
-    .employee-profile[data-profile-shell] .employee-profile__portrait img { width: 48px; height: 48px; border-radius: 12px; }
-    .employee-profile[data-profile-shell] .employee-profile__name-text { font-size: 22px; }
+    .employee-profile[data-profile-shell] .employee-profile__meta-line { column-gap: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .employee-profile[data-profile-shell] .employee-profile__panel { animation: none; }

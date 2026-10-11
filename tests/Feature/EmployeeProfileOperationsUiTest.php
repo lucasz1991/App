@@ -14,6 +14,7 @@ use DOMDocument;
 use DOMXPath;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
@@ -151,6 +152,19 @@ class EmployeeProfileOperationsUiTest extends TestCase
             ->assertDontSee('PRIVATE-ORDER-FIXTURE')->assertDontSee('PRIVATE-SHIFT-FIXTURE')
             ->assertDontSee('PRIVATE-ASSIGNMENT-FIXTURE')->assertDontSee('PRIVATE-SNAPSHOT-FIXTURE');
         $xpath = $this->xpath($component->html());
+        $this->assertCount(0, $xpath->query('//*[@data-employee-operations]//header[contains(concat(" ",normalize-space(@class)," ")," employee-operations__header ")]'));
+        $this->assertCount(0, $xpath->query('//*[@data-employee-operations]//*[contains(concat(" ",normalize-space(@class)," ")," employee-operations__updated ")]'));
+        $component->assertDontSee('Einsätze auf einen Blick')
+            ->assertDontSee('Aktuelle Planung und nächste Einsätze dieses Mitarbeiters.');
+        $summaries = $xpath->query('//*[@data-employee-operations]/dl[contains(@class,"employee-operations__summary")]');
+        $this->assertCount(1, $summaries);
+        $this->assertSame(['Aktuell geplant', 'Bevorstehend', 'Vergangene Zuordnungen', 'Gesamter Verlauf'], array_map(
+            static fn ($label): string => trim($label->textContent), iterator_to_array($xpath->query('./div/dt', $summaries->item(0))),
+        ));
+        $this->assertSame(['1', '16', '1', '18'], array_map(
+            static fn ($value): string => trim($value->textContent), iterator_to_array($xpath->query('./div/dd', $summaries->item(0))),
+        ));
+        $this->assertCount(2, $xpath->query('//*[@data-employee-operations]//header[contains(@class,"employee-operations__section-heading")]/h3'));
         $this->assertCount(0, $xpath->query('//*[@data-employee-operations]//*[@onerror]'));
         $component->assertDontSee('48.123456')->assertDontSee('11.123456');
         $current = $xpath->query('//*[@data-employee-shift-preview="'.$shifts['current'].'"]');
@@ -166,6 +180,43 @@ class EmployeeProfileOperationsUiTest extends TestCase
         Http::assertNothingSent();
     }
 
+    #[DataProvider('operationalReadiness')]
+    public function test_overview_omits_only_its_intro_even_when_empty_or_unconfigured(bool $ready): void
+    {
+        if (! $ready) {
+            Schema::drop('shift_assignments');
+        }
+        $component = Livewire::actingAs($this->admin)->test(EmployeeOperations::class, [
+            'userId' => $this->employee->id,
+            'viewMode' => 'overview',
+        ])->assertSuccessful()->assertDontSee('Einsätze auf einen Blick')
+            ->assertDontSee('Aktuelle Planung und nächste Einsätze dieses Mitarbeiters.');
+        $xpath = $this->xpath($component->html());
+        $this->assertCount(1, $xpath->query('//*[@data-employee-operations and @data-operations-view="overview" and @aria-label="Betriebsübersicht"]'));
+        $this->assertCount(0, $xpath->query('//*[@data-employee-operations]//header[contains(concat(" ",normalize-space(@class)," ")," employee-operations__header ")]'));
+        $this->assertCount(0, $xpath->query('//*[@data-employee-operations]//*[contains(concat(" ",normalize-space(@class)," ")," employee-operations__updated ")]'));
+        if ($ready) {
+            $this->assertSame(['0', '0', '0', '0'], array_map(
+                static fn ($value): string => trim($value->textContent),
+                iterator_to_array($xpath->query('//*[@data-employee-operations]/dl[contains(@class,"employee-operations__summary")]/div/dd')),
+            ));
+            $component->assertSee('Kein weiterer Einsatz eingeplant')->assertSee('Noch keine vergangenen Schichtzuordnungen.');
+        } else {
+            $this->assertCount(1, $xpath->query('//*[@data-employee-operations]//*[@role="status"]'));
+            $component->assertSee('Schichtdaten noch nicht verfügbar')
+                ->assertSee('Es werden keine unvollständigen Einsatzdaten angezeigt.');
+            $this->assertCount(0, $xpath->query('//*[@data-employee-operations]/dl[contains(@class,"employee-operations__summary")]'));
+        }
+        $this->assertDatabaseCount('employee_location_points', 0);
+        $this->assertDatabaseCount('employee_location_consents', 0);
+        Http::assertNothingSent();
+    }
+
+    public static function operationalReadiness(): array
+    {
+        return ['configured empty overview' => [true], 'missing assignment storage' => [false]];
+    }
+
     public function test_real_shift_list_uses_shared_mobile_headers_search_named_pager_and_native_detail_actions(): void
     {
         $this->shiftFixtures();
@@ -177,6 +228,11 @@ class EmployeeProfileOperationsUiTest extends TestCase
             ->assertDontSee('PRIVATE-ORDER-FIXTURE')->assertDontSee('PRIVATE-SHIFT-FIXTURE')
             ->assertDontSee('PRIVATE-ASSIGNMENT-FIXTURE')->assertDontSee('PRIVATE-SNAPSHOT-FIXTURE');
         $xpath = $this->xpath($component->html());
+        $heads = $xpath->query('//*[@data-employee-operations]/header[contains(@class,"employee-operations__header")]');
+        $this->assertCount(1, $heads);
+        $this->assertSame('Schichten & Verlauf', trim($xpath->query('.//h2', $heads->item(0))->item(0)->textContent));
+        $this->assertCount(1, $xpath->query('.//*[contains(@class,"employee-operations__updated") and contains(.,"Europe/Berlin")]', $heads->item(0)));
+        $component->assertSee('Zukünftige und vergangene Zuordnungen – mit Planungsstand und Rückmeldung.');
         $tables = $xpath->query('//*[@data-rt-premium-table and @data-table-mobile-header]');
         $this->assertCount(1, $tables);
         $this->assertSame('employeeShiftsPage', $tables->item(0)->getAttribute('data-list-page-name'));
