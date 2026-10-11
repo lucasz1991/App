@@ -38,7 +38,7 @@
       ]));
   @endphp
 
-  <div class="employee-profile__identity-layout">
+  <div @class(['employee-profile__identity-layout', 'employee-profile__identity-layout--with-phone' => $phoneStatus !== null])>
       {{-- Identitaet und Bearbeitungsfelder bleiben nativ. Kontostatus und
            aktuelle Praesenz sind bewusst zwei getrennte Angaben. --}}
       <div class="employee-profile__person">
@@ -106,6 +106,25 @@
               </div>
           </div>
       </div>
+
+      @if($phoneStatus !== null)
+          <section class="employee-profile__phone-setup" data-profile-phone-status aria-labelledby="{{ $profilePrefix }}-phone-title">
+              <header class="employee-profile__phone-heading">
+                  <i class="far fa-mobile-screen-button" aria-hidden="true"></i>
+                  <h2 id="{{ $profilePrefix }}-phone-title">Haupthandy &amp; App</h2>
+              </header>
+              <dl class="employee-profile__phone-facts">
+                  @foreach($phoneStatus['rows'] as $statusKey => $status)
+                      <div class="employee-profile__phone-fact" data-phone-status="{{ $statusKey }}" data-status="{{ $status['state'] }}">
+                          <dt><i class="{{ $status['icon'] }}" aria-hidden="true"></i> {{ $status['label'] }}</dt>
+                          <dd>{{ $status['value'] }}</dd>
+                      </div>
+                  @endforeach
+              </dl>
+              <p class="employee-profile__phone-device">{{ $phoneStatus['device_label'] }}@if($phoneStatus['assigned_phone_count'] > 0)<span> · {{ $phoneStatus['assigned_phone_count'] }} {{ $phoneStatus['assigned_phone_count'] === 1 ? 'Handy zugewiesen' : 'Handys zugewiesen' }}</span>@endif</p>
+              <p class="employee-profile__phone-note">{{ $phoneStatus['evidence_note'] }}</p>
+          </section>
+      @endif
 
       <div class="employee-profile__account">
         <h2>Konto &amp; Aktivität</h2>

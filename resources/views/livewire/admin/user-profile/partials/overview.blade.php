@@ -1,14 +1,4 @@
 <div class="employee-overview" data-profile-overview>
-    <header class="employee-overview__intro">
-        <div>
-            <p class="employee-overview__kicker">Profilübersicht</p>
-            <h2>Die wichtigsten Angaben auf einen Blick</h2>
-        </div>
-        @if($canEditEmployee)
-            <p class="employee-overview__edit-hint"><i class="far fa-pen" aria-hidden="true"></i> Angaben direkt bearbeiten</p>
-        @endif
-    </header>
-
     <section class="employee-detail-group employee-overview__personal" aria-labelledby="employee-overview-personal-title">
         <header class="employee-overview__section-header">
             <span class="employee-overview__section-icon"><i class="far fa-user" aria-hidden="true"></i></span>

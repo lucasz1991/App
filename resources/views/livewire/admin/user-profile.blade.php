@@ -70,6 +70,7 @@
                     $groupAction = '$wire.call('.\Illuminate\Support\Js::from('setProfileTab').', '.\Illuminate\Support\Js::from((string) $groupTabs->keys()->first()).').then(() => { if ($el.isConnected) $el.focus({ preventScroll: true }); })';
                 @endphp
                 <x-ui.buttons.button-basic type="button" mode="link" :x-on:click="$groupAction"
+                    wire:key="{{ $profilePrefix }}-group-{{ \Illuminate\Support\Str::slug($group) }}"
                     wire:loading.attr="disabled" wire:target="setProfileTab"
                     :aria-current="$profileGroup === $group ? 'page' : 'false'"
                     :data-profile-group="$group"

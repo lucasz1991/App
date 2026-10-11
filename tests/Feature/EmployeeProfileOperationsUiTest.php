@@ -65,12 +65,12 @@ class EmployeeProfileOperationsUiTest extends TestCase
     }
 
     #[DataProvider('profileModes')]
-    public function test_betrieb_is_first_and_default_with_all_existing_sections_preserved(bool $embedded): void
+    public function test_profile_is_first_and_default_with_betrieb_second_and_all_existing_sections_preserved(bool $embedded): void
     {
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
             'userId' => $this->employee->id,
             'embedded' => $embedded,
-        ])->assertSuccessful()->assertSet('profileTab', 'operationsOverview');
+        ])->assertSuccessful()->assertSet('profileTab', 'userDetails');
 
         $component->assertViewHas('employeeProfileTabs', function (array $tabs): bool {
             $existing = [
@@ -81,7 +81,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
                 'planReviews', 'responsibilities',
             ];
 
-            return array_slice(array_keys($tabs), 0, 3) === ['operationsOverview', 'shifts', 'locations']
+            return array_key_first($tabs) === 'userDetails'
                 && array_diff($existing, array_keys($tabs)) === []
                 && $tabs['operationsOverview']['label'] === 'Übersicht'
                 && $tabs['shifts']['label'] === 'Schichten'
@@ -90,20 +90,21 @@ class EmployeeProfileOperationsUiTest extends TestCase
         });
         $xpath = $this->xpath($component->html());
         $groups = $xpath->query('//*[@data-profile-navigation]//*[@data-profile-group]');
-        $this->assertSame(['Betrieb', 'Profil & Stammdaten', 'Personalakte', 'Entwicklung & Aufgaben', 'Arbeitszeit & Regeln'], array_map(
+        $this->assertSame(['Profil & Stammdaten', 'Betrieb', 'Personalakte', 'Entwicklung & Aufgaben', 'Arbeitszeit & Regeln'], array_map(
             static fn ($group): string => $group->getAttribute('data-profile-group'),
             iterator_to_array($groups),
         ));
         $this->assertSame('page', $groups->item(0)->getAttribute('aria-current'));
         $count = $xpath->query('.//*[contains(@class,"employee-profile__group-count") and @aria-hidden="true"]', $groups->item(0));
         $this->assertCount(1, $count);
-        $this->assertSame('3', trim($count->item(0)->textContent));
-        $this->assertSame(['operationsOverview', 'shifts', 'locations'], array_map(
+        $this->assertSame('8', trim($count->item(0)->textContent));
+        $this->assertSame(['userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices', 'masterData', 'documents', 'compensation'], array_map(
             static fn ($tab): string => $tab->getAttribute('data-panel-tab'),
             iterator_to_array($xpath->query('//*[@data-profile-navigation]//*[@role="tab"]')),
         ));
-        $this->assertNativeTabs($component->html(), 'operationsOverview');
-        $this->assertCount(0, $xpath->query('//*[@data-profile-overview]'));
+        $this->assertNativeTabs($component->html(), 'userDetails');
+        $this->assertCount(1, $xpath->query('//*[@data-profile-overview]'));
+        $this->assertSame([], $this->children($component->html(), 'profile.employee-operations'));
         $this->assertDatabaseCount('file_pools', 0);
         Http::assertNothingSent();
     }
@@ -116,6 +117,8 @@ class EmployeeProfileOperationsUiTest extends TestCase
     public function test_operations_module_mounts_only_for_its_active_tab_with_locked_employee_context(): void
     {
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $this->assertSame([], $this->children($component->html(), 'profile.employee-operations'));
+        $component->call('setProfileTab', 'operationsOverview')->assertSuccessful()->assertSet('profileTab', 'operationsOverview');
         $children = $this->children($component->html(), 'profile.employee-operations');
         $this->assertCount(1, $children);
         $this->assertSame($this->employee->id, $children[0]['data']['userId']);
@@ -140,6 +143,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
     {
         $shifts = $this->shiftFixtures();
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+            ->call('setProfileTab', 'operationsOverview')
             ->assertSuccessful()->assertSee('Current Operations Fixture')
             ->assertSee('Upcoming Operations Fixture 01')->assertSee('Past Operations Fixture')
             ->assertSee('Saved Station Fixture')->assertSee('Synthetic Customer Fixture')
@@ -229,8 +233,8 @@ class EmployeeProfileOperationsUiTest extends TestCase
     {
         $actor = $this->actor('staff', 'Verwaltung', ['employees.view', 'operations.manage', 'operations.locations.view']);
         $component = Livewire::actingAs($actor)->test(UserProfile::class, ['userId' => $this->employee->id])
-            ->assertSuccessful()->assertSet('profileTab', 'operationsOverview')
-            ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => array_keys($tabs) === ['operationsOverview', 'shifts', 'userDetails']);
+            ->assertSuccessful()->assertSet('profileTab', 'userDetails')
+            ->assertViewHas('employeeProfileTabs', fn (array $tabs): bool => array_keys($tabs) === ['userDetails', 'operationsOverview', 'shifts']);
         $xpath = $this->xpath($component->html());
         $this->assertCount(0, $xpath->query('//*[@data-panel-tab="locations"]'));
         $this->assertSame([], $this->children($component->html(), 'profile.employee-location-history'));
@@ -310,7 +314,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
         DB::enableQueryLog();
         try {
             $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
-                ->assertSuccessful()->assertSet('profileTab', 'operationsOverview');
+                ->assertSuccessful()->assertSet('profileTab', 'userDetails');
             $this->assertSame([], $this->children($component->html(), 'profile.employee-location-history'));
             $this->assertNoReadsFrom(['employee_location_points', 'employee_location_consents', 'employee_location_consent_events', 'mobile_location_installations', 'mobile_location_codes']);
 
@@ -335,6 +339,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
     {
         $actor = $this->actor('staff', 'Verwaltung', ['employees.view', 'operations.manage']);
         $component = Livewire::actingAs($actor)->test(UserProfile::class, ['userId' => $this->employee->id])
+            ->call('setProfileTab', 'operationsOverview')
             ->assertSuccessful()->assertSet('profileTab', 'operationsOverview');
         $actor->currentTeam->forceFill(['rbac_permissions' => ['employees.view' => true]])->save();
 
@@ -353,6 +358,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
     public function test_actor_deactivation_after_mount_stops_operational_tab_without_loading_records(): void
     {
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+            ->call('setProfileTab', 'operationsOverview')
             ->assertSuccessful()->assertSet('profileTab', 'operationsOverview');
         User::whereKey($this->admin->id)->update(['status' => false]);
 
@@ -370,6 +376,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
     {
         $actor = $this->actor('staff', 'Verwaltung', ['employees.view', 'operations.manage']);
         $component = Livewire::actingAs($actor)->test(UserProfile::class, ['userId' => $this->employee->id])
+            ->call('setProfileTab', 'operationsOverview')
             ->assertSuccessful()->assertSet('profileTab', 'operationsOverview');
         $actor->currentTeam->forceFill(['name' => 'Mitarbeiter'])->save();
         DB::flushQueryLog();
@@ -403,6 +410,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
     {
         $email = $this->employee->email;
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+            ->call('setProfileTab', 'operationsOverview')
             ->set('inlineValues.email', 'not-an-email')
             ->call('setProfileTab', 'shifts')->assertHasErrors('inlineValues.email')
             ->assertSet('profileTab', 'operationsOverview')->assertSet('dirtyInlineFields', ['email']);

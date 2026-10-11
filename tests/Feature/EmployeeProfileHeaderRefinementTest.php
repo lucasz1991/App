@@ -65,7 +65,7 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
             'userId' => $this->employee->id,
             'embedded' => $embedded,
-        ])->assertSuccessful()->assertSet('profileTab', 'operationsOverview');
+        ])->assertSuccessful()->assertSet('profileTab', 'userDetails');
         $xpath = $this->xpath($component->html());
         $this->assertCount(1, $xpath->query('//*[@data-profile-shell]'));
         $this->assertCount(1, $xpath->query('//*[@data-autosave-scope]'));
@@ -208,7 +208,7 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
     public function test_category_and_native_child_tabs_keep_server_owned_manual_activation(string $firstTab, string $category): void
     {
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
-        if ($firstTab !== 'operationsOverview') {
+        if ($firstTab !== 'userDetails') {
             $component->call('setProfileTab', $firstTab)->assertSuccessful();
         }
         $component->assertSet('profileTab', $firstTab);

@@ -42,6 +42,8 @@ Homestead.json
 !/tests/Feature/EmployeeProfileOverviewUiTest.php
 !/tests/Feature/EmployeeProfileHeaderRefinementTest.php
 !/tests/Feature/EmployeeProfileOperationsUiTest.php
+!/tests/Feature/EmployeePhoneStatusTest.php
+!/tests/Feature/EmployeeProfileMenuRefinementTest.php
 !/tests/Feature/EmployeeOperationsDataTest.php
 !/tests/Feature/EmployeeProfileLocationHistoryTest.php
 !/tests/Feature/UserSuperAdminRoleRecognitionTest.php

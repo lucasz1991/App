@@ -7,6 +7,7 @@ use App\Models\DeviceAssignment;
 use App\Models\User;
 use App\Models\UserProfile as ProfileModel;
 use App\Services\Operations\PersonnelScopeService;
+use App\Services\Personnel\EmployeePhoneStatusService;
 use App\Support\Operations\EmployeeProfileSections;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -109,9 +110,6 @@ class UserProfile extends Component
 
         $this->userId = $userId;
         $this->loadUser();
-        if (isset($this->profileTabs()['operationsOverview'])) {
-            $this->profileTab = 'operationsOverview';
-        }
 
         if ($this->personnelAllowed('employees.master-data.view') || $this->personnelAllowed('employees.compensation.view')) {
             activity('employee-master-data')
@@ -143,13 +141,6 @@ class UserProfile extends Component
     private function profileTabs(): array
     {
         $tabs = [];
-        if ($this->operationalProfileAllowed()) {
-            $tabs['operationsOverview'] = ['label' => 'Übersicht', 'icon' => 'far fa-chart-line', 'group' => 'Betrieb'];
-            $tabs['shifts'] = ['label' => 'Schichten', 'icon' => 'far fa-calendar-days', 'group' => 'Betrieb'];
-        }
-        if (auth()->user()?->isActive() && auth()->user()->isAdmin() && $this->user->role === 'staff') {
-            $tabs['locations'] = ['label' => 'Standorte', 'icon' => 'far fa-location-dot', 'group' => 'Betrieb'];
-        }
         $tabs['userDetails'] = ['label' => 'Übersicht', 'icon' => 'fad fa-id-card'];
         if (Gate::allows('users.profiles.view')) {
             $tabs['userNotes'] = ['label' => __('app.notes'), 'icon' => 'fad fa-sticky-note'];
@@ -169,6 +160,14 @@ class UserProfile extends Component
         }
         if ($this->personnelAllowed('employees.compensation.view')) {
             $tabs['compensation'] = ['label' => __('app.compensation_data'), 'icon' => 'fad fa-coins'];
+        }
+
+        if ($this->operationalProfileAllowed()) {
+            $tabs['operationsOverview'] = ['label' => 'Übersicht', 'icon' => 'far fa-chart-line', 'group' => 'Betrieb'];
+            $tabs['shifts'] = ['label' => 'Schichten', 'icon' => 'far fa-calendar-days', 'group' => 'Betrieb'];
+        }
+        if (auth()->user()?->isActive() && auth()->user()->isAdmin() && $this->user->role === 'staff') {
+            $tabs['locations'] = ['label' => 'Standorte', 'icon' => 'far fa-location-dot', 'group' => 'Betrieb'];
         }
 
         return $tabs + EmployeeProfileSections::forUser(auth()->user(), $this->user);
@@ -484,6 +483,7 @@ class UserProfile extends Component
             'user' => $this->user,
             'profile' => $profile,
             'deviceAssignments' => $deviceAssignments,
+            'phoneStatus' => app(EmployeePhoneStatusService::class)->read((int) $this->userId),
             'employeeProfileTabs' => $employeeProfileTabs,
             'canEditEmployee' => Gate::allows('employees.create'),
             'canViewMasterData' => $this->personnelAllowed('employees.master-data.view'),
