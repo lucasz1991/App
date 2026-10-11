@@ -24,7 +24,7 @@
                 <x-operations.panel.tabs :tabs="$detailTabs" label="Leistungsdetails" :id-prefix="$detailPrefix" action="setDetailSection" :active="$detailSection" />
             @endif
 
-            <div class="rt-ops-panel__body rt-modal-content" data-service-detail-body>
+            <div class="rt-ops-panel__body rt-modal-content" data-service-detail-body @if($detailOnly) wire:key="service-detail-body-{{ $this->getId() }}-{{ $detailSection }}" @endif>
                 <x-operations.feedback />
                 <div @if($consolidated) role="tabpanel" id="{{ $detailPrefix }}-panel-{{ $detailSection }}" aria-labelledby="{{ $detailPrefix }}-tab-{{ $detailSection }}" tabindex="0" @endif class="rt-service-detail-section" wire:loading.class="opacity-60" wire:target="setDetailSection">
             @if($consolidated && $detailSection === 'shifts')

@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Models\WorkforcePool;
 use App\Models\WorkTimeEntry;
 use App\Services\Routing\TravelAssessmentService;
+use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
@@ -194,7 +195,7 @@ class WorkforcePlanningService
             && $shift->starts_at->isFuture() && ! in_array($shift->status->value, ['draft', 'cancelled', 'completed', 'in_progress'], true), 'Nur unveränderte veröffentlichte zukünftige Dienste sind verfügbar.');
     }
 
-    public function offer(int $shiftId, int $planRevision, array $userIds, string $expiresAt, string $timezone, User|StaffingAutomationActor $actor): ShiftOffer
+    public function offer(int $shiftId, int $planRevision, array $userIds, string $expiresAt, string $timezone, User|StaffingAutomationActor $actor, ?TravelPreflight $travel = null): ShiftOffer
     {
         $this->access($actor);
         Validator::make(['ids' => $userIds, 'timezone' => $timezone], ['ids' => 'required|array|min:1|max:500', 'ids.*' => 'integer|distinct|exists:users,id', 'timezone' => 'required|timezone'])->validate();
@@ -204,7 +205,7 @@ class WorkforcePlanningService
             $actor->assertShiftScope($shiftId, $planRevision);
             $actor->assertOfferScope($userIds);
         }
-        $travel = app(TravelAssessmentService::class)->preflight(Shift::findOrFail($shiftId), User::whereKey($userIds)->get());
+        $travel ??= app(TravelAssessmentService::class)->preflight(Shift::findOrFail($shiftId), User::whereKey($userIds)->get());
 
         return OperationsTransaction::run(function () use ($shiftId, $planRevision, $userIds, $expiry, $actor, $travel) {
             $shift = PlanningLocks::acquire([$shiftId], $userIds)->get($shiftId);

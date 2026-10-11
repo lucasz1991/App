@@ -7,11 +7,13 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
+use App\Support\Operations\SchemaReadiness;
 use App\Support\Operations\TimelineLocationPreview;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /** Read-only native disposition map; coordinates never change stored locations. */
@@ -71,9 +73,19 @@ final class DispatchMapData
         $displayed = ['shifts' => 0, 'inquiries' => 0];
 
         if ($canViewShifts) {
+            $shiftColumns = ['id', 'public_id', 'order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'required_staff', 'status'];
+            $orderColumns = ['id', 'customer_id', 'title', 'location_name', 'city', 'postal_code', 'country'];
+            // Select only available snapshot columns once per batch, including
+            // during a rolling migration; never inspect schema per map item.
+            if (SchemaReadiness::remember(__METHOD__.':shift-snapshot', fn () => Schema::hasColumn('shifts', 'location_snapshot'))) {
+                $shiftColumns[] = 'location_snapshot';
+            }
+            if (SchemaReadiness::remember(__METHOD__.':order-snapshot', fn () => Schema::hasColumn('orders', 'location_snapshot'))) {
+                $orderColumns[] = 'location_snapshot';
+            }
             $query = Shift::query()->notCancelled()->during($start, $end)
-                ->select(['id', 'public_id', 'order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'required_staff', 'status'])
-                ->with(['order:id,customer_id,title,location_name,city,postal_code,country', 'order.customer:id,company_name'])
+                ->select($shiftColumns)
+                ->with(['order:'.implode(',', $orderColumns), 'order.customer:id,company_name'])
                 ->withCount(['assignments as assigned_staff' => fn (Builder $q) => $q->where('status', 'confirmed')]);
 
             foreach ($query->lazyById(250) as $shift) {
@@ -143,10 +155,16 @@ final class DispatchMapData
         $location = $item['location'];
         $markers[$key] ??= [
             'key' => $key, 'place' => $location['place'], 'label' => $location['label'],
+            'precision' => ($location['confirmed'] ?? false) ? 'confirmed' : 'approximate',
             'x' => $location['x'], 'y' => $location['y'], 'latitude' => $location['latitude'], 'longitude' => $location['longitude'],
             'shiftCount' => 0, 'inquiryCount' => 0, 'count' => 0, 'itemKeys' => [],
             'items' => [], 'detailsPerType' => self::MARKER_ITEMS_PER_TYPE, 'detailsTruncated' => false,
         ];
+        $precision = ($location['confirmed'] ?? false) ? 'confirmed' : 'approximate';
+        if ($markers[$key]['precision'] !== $precision) {
+            $markers[$key]['precision'] = 'mixed';
+            $markers[$key]['label'] = 'Bestätigte und ungefähre Standorte';
+        }
         $typeCount = $type === 'shifts' ? 'shiftCount' : 'inquiryCount';
         $markers[$key][$typeCount]++;
         $markers[$key]['count']++;
@@ -169,12 +187,14 @@ final class DispatchMapData
 
     private function shiftItem(Shift $shift, string $date): array
     {
+        $location = TimelineLocationPreview::fromShift($shift);
+
         return $this->period($shift->starts_at, $shift->ends_at) + [
             'key' => 'shift-'.$shift->id, 'type' => 'shift', 'id' => $shift->id, 'title' => $shift->title,
             'number' => $shift->order?->title, 'customer' => $shift->order?->customer?->company_name,
             'roleName' => $shift->role_name, 'status' => $shift->status->value, 'statusLabel' => $shift->status->label(),
-            'locationLabel' => $shift->location_name ?: ($shift->order?->location_name ?: $shift->order?->city),
-            'location' => TimelineLocationPreview::fromShift($shift),
+            'locationLabel' => ($location['confirmed'] ?? false) ? $location['place'] : ($shift->location_name ?: ($shift->order?->location_name ?: $shift->order?->city)),
+            'location' => $location,
             'href' => OperationsPages::moduleUrl('shift-management', ['shift' => $shift->id, 'from' => $date, 'until' => $date]),
             'requiredStaff' => (int) $shift->required_staff, 'assignedStaff' => (int) $shift->assigned_staff,
         ];

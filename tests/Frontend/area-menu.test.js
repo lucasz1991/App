@@ -137,3 +137,230 @@ test('an unconfirmed target keeps ink and surface together during loading; failu
         component.destroy();
     } finally { Object.assign(globalThis, previous); }
 });
+
+function paginationFixture(run) {
+    const previous = Object.fromEntries(['window', 'document', 'MutationObserver', 'ResizeObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'setTimeout', 'clearTimeout'].map(key => [key, globalThis[key]]));
+    const { document } = parseHTML(`<html><body><div data-pagination-controls>
+        <span data-indicator></span>
+        <button data-table-page-indicator-option aria-current="page" disabled><span data-table-page-label>1</span></button>
+        <button data-table-page-indicator-option><span data-table-page-label>2</span></button>
+        <button data-table-page-indicator-option><span data-table-page-label>3</span></button>
+        <span data-table-page-indicator-option aria-current="page" aria-hidden="true"><span data-table-page-label>1 / 3</span></span>
+    </div></body></html>`);
+    const frames = new Map();
+    const timers = new Map();
+    const events = new Map();
+    const observers = [];
+    const resizeObservers = [];
+    let sequence = 0;
+    const menu = document.querySelector('[data-pagination-controls]');
+    const indicator = menu.querySelector('[data-indicator]');
+    const buttons = [...menu.querySelectorAll('button')];
+    const fraction = menu.querySelector('span[data-table-page-indicator-option]');
+    const bounds = new Map(buttons.map((button, index) => [button, { left: 144 + index * 44, top: 610, width: 44, height: 44 }]));
+    bounds.set(fraction, { left: 144, top: 610, width: 0, height: 0 });
+    menu.getBoundingClientRect = () => ({ left: 100, top: 610, width: 220, height: 44 });
+    Object.assign(menu, { clientLeft: 0, clientTop: 0, scrollLeft: 0, scrollTop: 0 });
+    [...buttons, fraction].forEach(button => { button.getBoundingClientRect = () => bounds.get(button); });
+    Object.assign(globalThis, {
+        document,
+        window: { addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name) },
+        MutationObserver: class {
+            constructor(callback) { this.callback = callback; this.disconnected = false; observers.push(this); }
+            observe(target, options) { this.target = target; this.options = options; }
+            disconnect() { this.disconnected = true; }
+        },
+        ResizeObserver: class {
+            constructor(callback) { this.callback = callback; this.disconnected = false; this.targets = []; resizeObservers.push(this); }
+            observe(target) { this.targets.push(target); }
+            disconnect() { this.disconnected = true; }
+        },
+        requestAnimationFrame: callback => { frames.set(++sequence, callback); return sequence; },
+        cancelAnimationFrame: id => frames.delete(id),
+        setTimeout: callback => { timers.set(++sequence, callback); return sequence; },
+        clearTimeout: id => timers.delete(id),
+    });
+    const component = Object.assign(areaMenu({
+        optionSelector: '[data-table-page-indicator-option]',
+        visualSelector: '[data-table-page-label]',
+        allowDisabledActive: true,
+    }), { $el: indicator });
+    const flushFrame = () => {
+        const callbacks = [...frames.values()];
+        frames.clear();
+        callbacks.forEach(callback => callback());
+    };
+    const changePage = page => {
+        buttons.forEach((button, index) => {
+            if (index + 1 === page) { button.setAttribute('aria-current', 'page'); button.disabled = true; }
+            else { button.removeAttribute('aria-current'); button.disabled = false; }
+        });
+        fraction.firstElementChild.textContent = `${page} / 3`;
+    };
+    try {
+        component.init();
+        flushFrame();
+        run({ component, menu, indicator, buttons, fraction, bounds, frames, timers, events, observers, resizeObservers, flushFrame, changePage });
+    } finally {
+        component.destroy();
+        Object.assign(globalThis, previous);
+    }
+}
+
+test('configured pagination reuses clipped ink for plain numeric labels and confirmed disabled current', () => {
+    paginationFixture(({ component, indicator, buttons, menu }) => {
+        assert.equal(component.activeButton(), buttons[0]);
+        assert.equal(indicator.style.transform, 'translate(44px, 0px)');
+        assert.equal(indicator.style.width, '44px');
+        assert.equal(component.ink.style.transform, 'translate(-44px, 0px)');
+        assert.equal(component.ink.children.length, 3);
+        assert.deepEqual([...component.ink.children].map(item => item.textContent), ['1', '2', '3']);
+        assert.equal(component.ink.querySelectorAll('button, a, [x-data], [wire\\:click]').length, 0);
+        assert.equal(component.ink.getAttribute('aria-hidden'), 'true');
+        assert.ok(menu.hasAttribute('data-area-indicator-ready'));
+        assert.equal(menu.hasAttribute('data-area-menu'), false);
+    });
+});
+
+test('pagination does not paint an unrelated disabled option even when loading is busy', () => {
+    paginationFixture(({ component, menu, buttons }) => {
+        buttons[1].disabled = true;
+        menu.setAttribute('aria-busy', 'true');
+        component.paint(buttons[1]);
+        assert.equal(menu.hasAttribute('data-area-indicator-ready'), false);
+        component.paint(buttons[0]);
+        assert.equal(menu.hasAttribute('data-area-indicator-ready'), true);
+        buttons[2].setAttribute('aria-disabled', 'true');
+        component.paint(buttons[2]);
+        assert.equal(menu.hasAttribute('data-area-indicator-ready'), false);
+    });
+});
+
+test('responsive pagination chooses the visible mobile fraction, excluding hidden numeric ink', () => {
+    paginationFixture(({ component, menu, buttons, fraction, bounds, indicator, flushFrame }) => {
+        buttons.forEach(button => bounds.set(button, { left: 0, top: 0, width: 0, height: 0 }));
+        bounds.set(fraction, { left: 150, top: 610, width: 52, height: 44 });
+        component.onRestore(); flushFrame();
+        assert.equal(component.activeButton(), fraction);
+        assert.equal(indicator.style.transform, 'translate(50px, 0px)');
+        assert.equal(indicator.style.width, '52px');
+        assert.equal(component.ink.children.length, 1);
+        assert.equal(component.ink.firstElementChild.textContent, '1 / 3');
+        bounds.set(fraction, { left: 0, top: 0, width: 0, height: 0 });
+        component.onRestore(); flushFrame();
+        assert.equal(component.activeButton(), null);
+        assert.equal(menu.hasAttribute('data-area-indicator-ready'), false);
+        bounds.set(buttons[0], { left: 144, top: 610, width: 44, height: 44 });
+        component.onRestore(); flushFrame();
+        assert.equal(component.activeButton(), buttons[0]);
+        assert.equal(indicator.style.transform, 'translate(44px, 0px)');
+        assert.equal(menu.hasAttribute('data-area-indicator-ready'), true);
+    });
+});
+
+test('arrow or edge-scroll server mutations move the same marker without owning page state', () => {
+    paginationFixture(({ component, changePage, buttons, observers, indicator, flushFrame }) => {
+        changePage(3);
+        observers[0].callback(); flushFrame();
+        assert.equal(component.activeButton(), buttons[2]);
+        assert.equal(component.pendingButton, null);
+        assert.equal(indicator.style.transform, 'translate(132px, 0px)');
+        assert.equal(component.ink.style.transform, 'translate(-132px, 0px)');
+        changePage(2);
+        observers[0].callback(); flushFrame();
+        assert.equal(indicator.style.transform, 'translate(88px, 0px)');
+    });
+});
+
+test('only the own pending click retains a disabled loading target and failure restores confirmed current', () => {
+    paginationFixture(({ component, menu, buttons, indicator, flushFrame }) => {
+        component.onClick({ button: 0, target: buttons[1].firstElementChild });
+        assert.equal(component.pendingButton, buttons[1]);
+        assert.equal(indicator.style.transform, 'translate(88px, 0px)');
+        buttons[1].disabled = true;
+        menu.setAttribute('aria-busy', 'true');
+        component.onRestore(); flushFrame();
+        assert.equal(indicator.style.transform, 'translate(88px, 0px)');
+        menu.removeAttribute('aria-busy');
+        component.onRestore(); flushFrame();
+        assert.equal(component.pendingButton, null);
+        assert.equal(indicator.style.transform, 'translate(44px, 0px)');
+        assert.equal(component.ink.style.transform, 'translate(-44px, 0px)');
+    });
+});
+
+test('confirmed numeric click converges to server current without replay or persistent destination', () => {
+    paginationFixture(({ component, menu, buttons, changePage, indicator, flushFrame }) => {
+        component.onClick({ button: 0, target: buttons[2].firstElementChild });
+        menu.setAttribute('aria-busy', 'true');
+        component.onRestore(); flushFrame();
+        changePage(3);
+        component.onRestore(); flushFrame();
+        assert.equal(component.pendingButton, null);
+        assert.equal(indicator.style.transform, 'translate(132px, 0px)');
+        menu.removeAttribute('aria-busy');
+        component.onRestore(); flushFrame();
+        assert.equal(indicator.style.transform, 'translate(132px, 0px)');
+        assert.equal(menu.hasAttribute('data-area-indicator-ready'), true);
+    });
+});
+
+test('cancelled click before loading returns to confirmed page; modified and disabled clicks stay native', () => {
+    paginationFixture(({ component, buttons, indicator, timers, flushFrame }) => {
+        component.onClick({ button: 0, ctrlKey: true, target: buttons[1].firstElementChild });
+        assert.equal(component.pendingButton, null);
+        component.onClick({ button: 0, target: buttons[0].firstElementChild });
+        assert.equal(component.pendingButton, null);
+        component.onClick({ button: 0, target: buttons[1].firstElementChild });
+        assert.equal(indicator.style.transform, 'translate(88px, 0px)');
+        const callback = [...timers.values()][0];
+        callback(); flushFrame();
+        assert.equal(component.pendingButton, null);
+        assert.equal(indicator.style.transform, 'translate(44px, 0px)');
+    });
+});
+
+test('responsive resize cancels a now-hidden numeric intent and follows the visible confirmed fraction', () => {
+    paginationFixture(({ component, buttons, fraction, bounds, indicator, flushFrame }) => {
+        component.onClick({ button: 0, target: buttons[1].firstElementChild });
+        buttons.forEach(button => bounds.set(button, { left: 0, top: 0, width: 0, height: 0 }));
+        bounds.set(fraction, { left: 150, top: 610, width: 52, height: 44 });
+        component.onRestore(); flushFrame();
+        assert.equal(component.pendingButton, null);
+        assert.equal(indicator.style.transform, 'translate(50px, 0px)');
+        assert.equal(component.ink.textContent, '1 / 3');
+    });
+});
+
+test('same label signature does not replace decorative children or observe its own marker styles', () => {
+    paginationFixture(({ component, observers, buttons }) => {
+        let rebuilt = 0;
+        const original = component.ink.replaceChildren.bind(component.ink);
+        component.ink.replaceChildren = (...children) => { rebuilt++; original(...children); };
+        component.paint(buttons[0]);
+        component.paint(buttons[1]);
+        assert.equal(rebuilt, 0);
+        assert.equal(observers[0].options.childList, true);
+        assert.equal(observers[0].options.attributeFilter.includes('style'), false);
+        assert.equal(observers[0].options.attributeFilter.includes('data-area-indicator-ready'), false);
+    });
+});
+
+test('pagination teardown releases observers, frames, timers, pending target and window listeners', () => {
+    paginationFixture(({ component, buttons, menu, frames, timers, events, observers, resizeObservers }) => {
+        component.onClick({ button: 0, target: buttons[1].firstElementChild });
+        component.schedule();
+        assert.equal(timers.size, 1);
+        assert.equal(frames.size, 1);
+        component.destroy();
+        assert.equal(timers.size, 0);
+        assert.equal(frames.size, 0);
+        assert.equal(events.size, 0);
+        assert.equal(component.pendingButton, null);
+        assert.equal(menu.hasAttribute('data-area-indicator-ready'), false);
+        assert.ok(observers.every(observer => observer.disconnected));
+        assert.ok(resizeObservers.every(observer => observer.disconnected));
+        component.onRestore();
+        assert.equal(frames.size, 0);
+    });
+});

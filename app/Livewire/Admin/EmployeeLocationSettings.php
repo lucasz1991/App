@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Models\MobileLocationInstallation;
 use App\Support\EmployeeLocation\EmployeeLocationSettings as Settings;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
@@ -34,6 +35,13 @@ class EmployeeLocationSettings extends Component
     {
         $this->authorizeSettings();
 
-        return view('livewire.admin.employee-location-settings', ['ready' => Settings::ready()]);
+        $ready = Settings::ready();
+        $runtime = $ready ? MobileLocationInstallation::whereNull('revoked_at')
+            ->selectRaw('COUNT(*) AS installations, SUM(CASE WHEN session_id IS NOT NULL AND permit_expires_at > ? THEN 1 ELSE 0 END) AS permits', [now()->utc()])->first() : null;
+
+        return view('livewire.admin.employee-location-settings', [
+            'ready' => $ready,
+            'runtime' => ['enabled' => Settings::read()['enabled'], 'installations' => (int) ($runtime?->installations ?? 0), 'permits' => (int) ($runtime?->permits ?? 0)],
+        ]);
     }
 }

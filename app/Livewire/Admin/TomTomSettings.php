@@ -31,8 +31,13 @@ class TomTomSettings extends Component
     public function save(): void
     {
         $this->authorizeSettings();
-        Settings::save($this->config, $this->apiKey);
-        $this->reset('apiKey', 'connection');
+        try {
+            Settings::save($this->config, $this->apiKey);
+        } finally {
+            // Also clear an invalid new secret from the response snapshot.
+            $this->reset('apiKey');
+        }
+        $this->reset('connection');
         $this->config = Settings::all();
         $this->dispatch('swal:toast', type: 'success', text: 'Routenplanung gespeichert.');
     }

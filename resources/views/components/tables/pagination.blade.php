@@ -38,22 +38,27 @@
         <span>{{ __('pagination.of') }} {{ $paginator->total() }}</span>
     </span>
     @if($paginator->hasPages())
-        <div class="rt-table-pagination__controls">
+        <div class="rt-table-pagination__controls" data-table-page-menu wire:loading.attr="aria-busy">
+            {{-- Same clipped moving surface as the area menu; native page state stays authoritative. --}}
+            <span class="rt-area-menu__indicator rt-table-pagination__indicator" aria-hidden="true" wire:ignore
+                x-data="rtAreaMenu({ optionSelector: '[data-table-page-indicator-option]', visualSelector: '[data-table-page-label]', allowDisabledActive: true })"></span>
             <button type="button" class="rt-table-pagination__button" data-table-page-action
                 wire:key="{{ $keyPrefix }}-previous" wire:click="{{ $action('previousPage') }}" wire:loading.attr="disabled"
                 @disabled($paginator->onFirstPage()) aria-label="{{ html_entity_decode(__('pagination.previous'), ENT_QUOTES, 'UTF-8') }}">
                 <i class="far fa-chevron-left" aria-hidden="true"></i>
             </button>
-            <span class="rt-table-pagination__mobile-page" aria-hidden="true">{{ $currentPage }} / {{ $lastPage }}</span>
+            <span class="rt-table-pagination__mobile-page" aria-hidden="true" data-table-page-indicator-option aria-current="page">
+                <span data-table-page-label>{{ $currentPage }} / {{ $lastPage }}</span>
+            </span>
             @php $previousNumber = null; @endphp
             @foreach($pageNumbers as $page)
                 @if($previousNumber !== null && $page > $previousNumber + 1)
                     <span class="rt-table-pagination__ellipsis" aria-hidden="true" wire:key="{{ $keyPrefix }}-gap-{{ $previousNumber }}">…</span>
                 @endif
-                <button type="button" class="rt-table-pagination__button rt-table-pagination__page-number" data-table-page-action
+                <button type="button" class="rt-table-pagination__button rt-table-pagination__page-number" data-table-page-action data-table-page-indicator-option
                     wire:key="{{ $keyPrefix }}-page-{{ $page }}" wire:click="{{ $action('gotoPage', $page) }}" wire:loading.attr="disabled"
                     @if($page === $currentPage) aria-current="page" @endif @disabled($page === $currentPage)
-                    aria-label="{{ __('pagination.go_to_page', ['page' => $page]) }}">{{ $page }}</button>
+                    aria-label="{{ __('pagination.go_to_page', ['page' => $page]) }}"><span data-table-page-label>{{ $page }}</span></button>
                 @php $previousNumber = $page; @endphp
             @endforeach
             <button type="button" class="rt-table-pagination__button" data-table-page-action

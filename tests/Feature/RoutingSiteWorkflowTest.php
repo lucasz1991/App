@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Admin\EmployeeLocationSettings;
+use App\Livewire\Admin\Operations\ShiftManagement;
 use App\Livewire\Admin\Settings as SystemSettings;
 use App\Livewire\Admin\TomTomSettings;
 use App\Livewire\Operations\RoutingSiteEditor;
@@ -18,6 +19,7 @@ use App\Services\Operations\PlanVariantService;
 use App\Services\Operations\ShiftSeriesService;
 use App\Services\Operations\SiteSnapshotService;
 use App\Support\Routing\TomTomSettings as RoutingSettings;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -168,6 +170,15 @@ class RoutingSiteWorkflowTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_invalid_new_api_key_is_cleared_from_the_response_snapshot(): void
+    {
+        Http::preventStrayRequests();
+        $component = Livewire::actingAs($this->admin)->test(TomTomSettings::class)
+            ->set('apiKey', 'invalid-secret !')->call('save')->assertHasErrors('key')->assertSet('apiKey', '');
+        $this->assertStringNotContainsString('invalid-secret !', $component->html(false));
+        Http::assertNothingSent();
+    }
+
     public function test_regular_admin_cannot_open_or_mutate_sensitive_settings(): void
     {
         $regular = User::factory()->create(['role' => 'admin', 'status' => true]);
@@ -184,5 +195,19 @@ class RoutingSiteWorkflowTest extends TestCase
         Http::assertNothingSent();
         $panel->call('load')->assertSet('loaded', true)->assertHasNoErrors();
         $panel->call('showRoute', $staff->id + 100, 'before')->assertForbidden();
+    }
+
+    public function test_selected_distribution_widget_mounts_lazy_travel_for_its_candidates(): void
+    {
+        $this->planningSchema();
+        (require database_path('migrations/2026_10_04_120000_create_workforce_personnel_foundations.php'))->up();
+        $this->travelTo(CarbonImmutable::parse('2027-05-12T07:00:00+02:00'));
+        User::factory()->create(['name' => 'Routing Verteilung QA', 'role' => 'staff', 'status' => true]);
+        RoutingSettings::save(array_replace(RoutingSettings::DEFAULTS, ['enabled' => true]), 'test-routing-key');
+        $shift = $this->shift();
+        Http::preventStrayRequests();
+        Livewire::actingAs($this->admin)->withQueryParams(['distribution' => '1'])->test(ShiftManagement::class)
+            ->call('selectDistributionShift', $shift->id)->assertSeeHtml('aria-label="Fahrzeiten und Routen"');
+        Http::assertNothingSent();
     }
 }

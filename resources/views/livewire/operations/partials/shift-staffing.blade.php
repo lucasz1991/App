@@ -61,7 +61,10 @@
                 @endif
                 <p class="rt-staffing-note" aria-live="polite">{{ $candidates->count() }} von {{ $candidateTotal }} Mitarbeitenden · Bereits reservierte Personen stehen oben.</p>
                 @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && $candidates->isNotEmpty())
-                    <livewire:operations.shift-travel-panel :shift-id="$selectedShift->id" :employee-ids="$candidates->take(24)->pluck('id')->all()" :key="'shift-travel-'.$selectedShift->id.'-'.$selectedShift->revision.'-'.md5($candidates->take(24)->pluck('id')->join(','))" />
+                    <p class="rt-staffing-note">Fahrzeiten werden für sichtbare Gruppen nachgeladen. Die Eignungsrangfolge bleibt erhalten; jede verbindliche Zuteilung prüft die Übergänge erneut.</p>
+                    @foreach($candidates->chunk(24) as $travelCandidates)
+                        <livewire:operations.shift-travel-panel :shift-id="$selectedShift->id" :employee-ids="$travelCandidates->pluck('id')->all()" :key="'shift-travel-'.$selectedShift->id.'-'.$selectedShift->revision.'-'.md5($travelCandidates->pluck('id')->join(','))" />
+                    @endforeach
                 @endif
             @endif
         </section>

@@ -1,7 +1,8 @@
 @props(['preview', 'location' => null])
 @php
     $located = ($preview['state'] ?? null) === 'located' && isset($preview['x'], $preview['y']);
-    $mapLabel = $located ? 'Deutschland: '.$preview['place'].' – ungefähre Ortslage, keine genaue Einsatzadresse.' : 'Deutschland: '.$preview['label'];
+    $precisionLabel = ($preview['confirmed'] ?? false) ? 'bestätigter Einsatzstandort.' : 'ungefähre Ortslage, keine genaue Einsatzadresse.';
+    $mapLabel = $located ? 'Deutschland: '.$preview['place'].' – '.$precisionLabel : 'Deutschland: '.$preview['label'];
 @endphp
 <figure class="rt-event-mini-map" data-map-state="{{ $preview['state'] }}">
     <div class="rt-event-mini-map__heading">Deutschland</div>

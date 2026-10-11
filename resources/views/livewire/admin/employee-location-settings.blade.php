@@ -14,4 +14,5 @@
         <div class="ops-full"><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Speichern</x-ui.buttons.button-basic></div>
     </form>
     <p class="text-sm" role="status">{{ $ready ? 'Standortspeicherung eingerichtet.' : 'Die Standortmigrationen müssen vor einer Aktivierung ausgeführt werden.' }}</p>
+    <p class="text-sm text-rt-muted">Gespeicherter Betriebszustand: {{ $runtime['enabled'] ? 'aktiviert' : 'deaktiviert' }} · {{ $runtime['installations'] }} verbundene Installationen · {{ $runtime['permits'] }} noch laufende Kurzfreigaben. Jede Meldung prüft Arbeitszeit, Tagesfreigabe und Gerätebindung erneut.</p>
 </section>

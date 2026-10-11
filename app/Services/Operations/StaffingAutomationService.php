@@ -11,14 +11,17 @@ use App\Models\ShiftOffer;
 use App\Models\StaffingAutomationRun;
 use App\Models\StaffingCase;
 use App\Models\User;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningLocks;
 use App\Support\Operations\StaffingAutomationActor;
 use App\Support\Operations\StaffingAutomationSchema;
+use App\Support\Routing\TomTomSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -142,7 +145,18 @@ class StaffingAutomationService
             $userIds[] = $requestedBy->id;
         }
 
-        return OperationsTransaction::run(function () use ($shiftId, $planRevision, $userIds, $requestedBy): ?StaffingAutomationRun {
+        $travel = null;
+        if (DB::transactionLevel() === 0 && TomTomSettings::all()['enabled'] && $this->canPrepareOffer($shift, $planRevision, $settings, $requestedBy)) {
+            $contacted = ShiftOffer::where('shift_id', $shiftId)->get()->flatMap(fn ($row) => $row->invited_user_ids)
+                ->merge($shift->assignments()->pluck('user_id'))->unique()->all();
+            $potential = app(ShiftStaffingCandidates::class)->ranked($shift)->whereNotIn('id', $contacted)
+                ->filter(fn ($candidate) => $candidate->staffing_state === 'eligible' && ($candidate->staffing_region['state'] ?? 'unknown') !== 'unknown'
+                    && (int) $candidate->staffing_score >= (int) $settings['staffing_request_min_score'])
+                ->take(min(60, max(24, (int) $settings['staffing_request_wave_size'] * 3)))->values();
+            $travel = app(TravelAssessmentService::class)->preflight($shift, $potential);
+        }
+
+        return OperationsTransaction::run(function () use ($shiftId, $planRevision, $userIds, $requestedBy, $travel): ?StaffingAutomationRun {
             // Include removed rows solely to retire this run's invitation and expose a review state.
             $shift = PlanningLocks::acquire([$shiftId], $userIds, [], true)->get($shiftId);
             $settings = $this->settings(true);
@@ -258,12 +272,37 @@ class StaffingAutomationService
                 ->merge($shift->assignments()->pluck('user_id'))->unique()->all();
             $ranked = app(ShiftStaffingCandidates::class)->ranked($shift)->whereNotIn('id', $contacted);
             $reasons = [];
-            $safe = $ranked->filter(function (User $candidate) use ($shift, $settings, &$reasons): bool {
+            $routeAssessments = null;
+            if (TomTomSettings::all()['enabled']) {
+                if (! $travel?->preparedOutsideTransaction) {
+                    return $this->review($run, $shift, $actor, 'routing_check_required', ['travel_unprepared']);
+                }
+                $preparedUsers = $ranked->whereIn('id', array_keys($travel->assessments))->values();
+                try {
+                    $routeAssessments = app(StaffEligibilityService::class)->assessDetailedMany($shift, $preparedUsers, true, ['travel_preflight' => $travel]);
+                } catch (ValidationException) {
+                    return $this->review($run, $shift, $actor, 'routing_check_required', ['travel_basis_changed']);
+                }
+            }
+            $safe = $ranked->filter(function (User $candidate) use ($shift, $settings, &$reasons, $routeAssessments): bool {
                 $codes = collect($candidate->planning_issues ?? [])->pluck('code')->all();
                 if ($candidate->staffing_state !== 'eligible') {
                     $reasons = array_merge($reasons, $codes ?: ['eligibility_uncertain']);
 
                     return false;
+                }
+                if ($routeAssessments !== null) {
+                    if (! isset($routeAssessments[$candidate->id])) {
+                        $reasons[] = 'travel_unprepared';
+
+                        return false;
+                    }
+                    $routeIssues = array_column($routeAssessments[$candidate->id]['issues'], 'code');
+                    if ($routeIssues !== []) {
+                        $reasons = array_merge($reasons, $routeIssues);
+
+                        return false;
+                    }
                 }
                 if (($candidate->staffing_region['state'] ?? 'unknown') === 'unknown') {
                     $reasons[] = 'region_unknown';
@@ -316,7 +355,7 @@ class StaffingAutomationService
                 return $this->review($run, $shift, $actor, 'start_imminent');
             }
             $run->update(['state' => 'waiting']);
-            $offer = app(WorkforcePlanningService::class)->offer($shiftId, $planRevision, $safe->pluck('id')->all(), $expiry->format('Y-m-d\TH:i:s'), 'UTC', $actor)->fresh();
+            $offer = app(WorkforcePlanningService::class)->offer($shiftId, $planRevision, $safe->pluck('id')->all(), $expiry->format('Y-m-d\TH:i:s'), 'UTC', $actor, $travel)->fresh();
             $run->update(['offer_id' => $offer->id, 'wave_count' => $run->wave_count + 1]);
             foreach ($safe as $employee) {
                 OperationsAttentionItem::firstOrCreate(['recipient_user_id' => $employee->id, 'source_key' => hash('sha256', 'staffing-offer:'.$offer->id.':'.$employee->id)],
@@ -326,6 +365,36 @@ class StaffingAutomationService
 
             return $this->transition($run, $actor, 'soliciting', 'portal_invitation', $expiry, 'wave_created');
         });
+    }
+
+    /** Avoid paid reads when an active wave or a lifecycle gate needs no new invitation. */
+    private function canPrepareOffer(Shift $shift, int $revision, array $settings, ?User $requestedBy): bool
+    {
+        if (! $this->supervisor($settings) || $shift->trashed() || $shift->revision !== $revision || $shift->published_revision !== $revision || $revision < 1
+            || ! $shift->starts_at->isFuture() || $shift->starts_at->gt(now()->utc()->addDays((int) $settings['staffing_request_horizon_days']))
+            || in_array($shift->status->value, ['draft', 'cancelled', 'completed', 'in_progress'], true)
+            || ! $shift->order || $shift->order->trashed() || ! in_array($shift->order->status->value, ['confirmed', 'planned', 'in_progress'], true)
+            || $shift->assignments()->blocking()->count() >= $shift->required_staff) {
+            return false;
+        }
+        $run = StaffingAutomationRun::where('shift_id', $shift->id)->where('plan_revision', $revision)->first();
+        if ($run && ($run->state === 'stopped' || ($run->state === 'review' && ! $requestedBy)
+            || $run->wave_count >= (int) $settings['staffing_request_max_waves']
+            || $run->settings_revision !== (int) $settings['revision'] || $run->supervising_user_id !== (int) $settings['supervisor_id'])) {
+            return false;
+        }
+        $open = ShiftOffer::where('shift_id', $shift->id)->where('status', 'open')->where('expires_at', '>', now()->utc())->get();
+        foreach ($open as $offer) {
+            if ((int) $offer->id !== (int) $run?->offer_id) {
+                return false;
+            }
+            $responses = $offer->responses()->get();
+            if ($responses->contains('status', 'interested') || count($offer->invited_user_ids) !== $responses->whereIn('status', ['declined', 'withdrawn', 'rejected'])->count()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** Bounded scheduler snapshot. Jobs must repeat every gate after dispatch. */
@@ -368,6 +437,7 @@ class StaffingAutomationService
             'outside_horizon' => 'Dienst liegt außerhalb des eingestellten Anfragezeitraums', 'order_not_confirmed' => 'Auftragsfreigabe zuerst prüfen',
             'vacancy_reopened' => 'Einsatzplatz nach Änderung erneut offen',
             'shift_removed' => 'Dienst wurde entfernt · keine weiteren Anfragen',
+            'routing_check_required' => 'Aktuelle Fahrzeitprüfung in der Schichtplanung erforderlich',
             default => 'Personalanfrage prüfen',
         };
     }

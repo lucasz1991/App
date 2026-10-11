@@ -22,10 +22,10 @@ final class TimelineLocationPreview
     private static ?string $path = null;
 
     /**
-     * Only a locality estimate, never an address or a verified worksite position.
+     * Own confirmed worksite snapshot, otherwise an explicitly labelled estimate.
      * The caller already loads order; preview rendering must not trigger queries.
      *
-     * @return array{state: string, label: string, place?: string, x?: float, y?: float, latitude?: float, longitude?: float}
+     * @return array{state: string, label: string, confirmed?: bool, place?: string, x?: float, y?: float, latitude?: float, longitude?: float}
      */
     public static function fromShift(Shift $shift): array
     {
@@ -40,7 +40,7 @@ final class TimelineLocationPreview
 
     public static function fromOrder(Order $order): array
     {
-        return self::structuredLocation(
+        return self::confirmedSnapshot($order->getAttribute('location_snapshot')) ?? self::structuredLocation(
             $order->getAttribute('location_name'),
             $order->getAttribute('city'),
             $order->getAttribute('postal_code'),
@@ -59,6 +59,9 @@ final class TimelineLocationPreview
 
     private static function shiftPreview(Shift $shift, bool $mapFallbacks): array
     {
+        if ($mapFallbacks && ($snapshot = self::confirmedSnapshot($shift->getAttribute('location_snapshot'))) !== null) {
+            return $snapshot;
+        }
         $location = self::normalize($shift->getAttribute('location_name'));
         if ($location === null) {
             return self::unlocated('unknown');
@@ -70,7 +73,14 @@ final class TimelineLocationPreview
         // an unrelated order city/country, and never inspect customer addresses.
         if ($order instanceof Order && ($location === '' || $location === self::normalize($order->getAttribute('location_name')))) {
             if ($mapFallbacks) {
-                return self::fromOrder($order);
+                // Saved shifts never borrow a later order snapshot. A newly
+                // confirmed order must not move a historical unconfirmed duty.
+                return self::structuredLocation(
+                    $order->getAttribute('location_name'),
+                    $order->getAttribute('city'),
+                    $order->getAttribute('postal_code'),
+                    $order->getAttribute('country'),
+                );
             }
             $country = self::normalize($order->getAttribute('country'));
             if ($country === null) {
@@ -90,6 +100,33 @@ final class TimelineLocationPreview
         }
 
         return $mapFallbacks && $location !== null ? self::mapLocation($location) : self::exactLocation($location);
+    }
+
+    /** Pure display validation: no directory lookups, GPS sources or routing. */
+    private static function confirmedSnapshot(mixed $snapshot): ?array
+    {
+        if (! is_array($snapshot) || ($snapshot['confirmed'] ?? false) !== true) {
+            return null;
+        }
+        $name = $snapshot['name'] ?? null;
+        $latitude = $snapshot['latitude'] ?? null;
+        $longitude = $snapshot['longitude'] ?? null;
+        if (self::normalize($name) === null || ! is_string($name) || trim($name) === ''
+            || ! is_numeric($latitude) || ! is_numeric($longitude)
+            || ! is_finite((float) $latitude) || ! is_finite((float) $longitude)
+            || abs((float) $latitude) > 90 || abs((float) $longitude) > 180) {
+            return self::unlocated('unknown');
+        }
+
+        $preview = self::located([0, trim($name), (float) $latitude, (float) $longitude]);
+        if ($preview['state'] !== 'located') {
+            return ['state' => 'outside', 'label' => 'Bestätigter Einsatzstandort außerhalb der Deutschlandkarte', 'confirmed' => true, 'place' => trim($name)];
+        }
+
+        $preview['label'] = 'Bestätigter Einsatzstandort';
+        $preview['confirmed'] = true;
+
+        return $preview;
     }
 
     private static function exactLocation(?string $location): array

@@ -24,20 +24,20 @@
             <div class="wv-dispatch-map__stage" style="aspect-ratio: {{ $mapWidth }} / {{ $mapHeight }}">
                 <svg class="wv-dispatch-map__canvas" viewBox="{{ $data['viewBox'] }}" role="img" aria-labelledby="{{ $mapId }}-title {{ $mapId }}-description">
                     <title id="{{ $mapId }}-title">Einsatzorte in Deutschland am {{ $data['dateLabel'] }}</title>
-                    <desc id="{{ $mapId }}-description">{{ count($data['markers']) }} ermittelte Ortslagen. Die Positionen sind ungefähr. Die Kartenpunkte öffnen Details zu den jeweiligen Standorten.</desc>
+                    <desc id="{{ $mapId }}-description">{{ count($data['markers']) }} Kartenpunkte. Bestätigte Einsatzstandorte und ungefähre Ortslagen sind je Kartenpunkt gekennzeichnet. Die Kartenpunkte öffnen Details zu den jeweiligen Standorten.</desc>
                     <path class="wv-dispatch-map__outline" d="{{ $data['mapPath'] }}" />
                 </svg>
                 @foreach($data['markers'] as $marker)
                     <x-ui.dropdown.anchor-dropdown class="wv-dispatch-map__point" style="left: {{ ($marker['x'] - $mapLeft) / $mapWidth * 100 }}%; top: {{ ($marker['y'] - $mapTop) / $mapHeight * 100 }}%" x-show.important="(place === 'all' || place === $el.querySelector('[data-dispatch-marker]').dataset.dispatchMarker) && (kind === 'all' || (kind === 'shift' && {{ $marker['shiftCount'] }} > 0) || (kind === 'inquiry' && {{ $marker['inquiryCount'] }} > 0))" align="left" width="80" offset="6" :open-on-hover="true" dropdown-id="{{ $mapId }}-point-{{ $loop->index }}" layer-group="{{ $mapId }}-controls" content-role="dialog" content-label="{{ $marker['place'] }}: Einsatzdetails" content-classes="rt-ops wv-dispatch-map__menu wv-dispatch-map__point-menu">
                         <x-slot:trigger>
-                            <button type="button" class="wv-dispatch-map__marker" data-dispatch-marker="{{ $marker['key'] }}" aria-haspopup="dialog" :aria-expanded="open.toString()" aria-controls="rt-dropdown-{{ $mapId }}-point-{{ $loop->index }}-content" aria-label="{{ $marker['place'] }}: {{ $marker['count'] }} {{ $marker['count'] === 1 ? 'Eintrag' : 'Einträge' }}. Details öffnen" x-on:keydown.arrow-down.prevent.stop="focusHoverPanel(); $nextTick(() => Array.from($refs.panel.querySelectorAll('[data-dispatch-point-entry]')).find(entry => getComputedStyle(entry).display !== 'none')?.focus({ preventScroll: true }))">
+                            <button type="button" class="wv-dispatch-map__marker" data-dispatch-marker="{{ $marker['key'] }}" aria-haspopup="dialog" :aria-expanded="open.toString()" aria-controls="rt-dropdown-{{ $mapId }}-point-{{ $loop->index }}-content" aria-label="{{ $marker['place'] }}: {{ $marker['label'] }}. {{ $marker['count'] }} {{ $marker['count'] === 1 ? 'Eintrag' : 'Einträge' }}. Details öffnen" x-on:keydown.arrow-down.prevent.stop="focusHoverPanel(); $nextTick(() => Array.from($refs.panel.querySelectorAll('[data-dispatch-point-entry]')).find(entry => getComputedStyle(entry).display !== 'none')?.focus({ preventScroll: true }))">
                                 @if($marker['shiftCount'] > 0)<span class="wv-dispatch-map__shift" aria-hidden="true" x-show="kind !== 'inquiry'"></span>@endif
                                 @if($marker['inquiryCount'] > 0)<span class="wv-dispatch-map__inquiry" aria-hidden="true" x-show="kind !== 'shift'"></span>@endif
                                 @if($marker['count'] > 1)<span class="wv-dispatch-map__count" aria-hidden="true" x-show="kind === 'all'">{{ $marker['count'] > 99 ? '99+' : $marker['count'] }}</span>@endif
                             </button>
                         </x-slot:trigger>
                         <x-slot:content>
-                            <div class="wv-dispatch-map__point-head"><strong>{{ $marker['place'] }}</strong><span>{{ $data['dateLabel'] }} · Position ungefähr</span></div>
+                            <div class="wv-dispatch-map__point-head"><strong>{{ $marker['place'] }}</strong><span>{{ $data['dateLabel'] }} · {{ $marker['label'] }}</span></div>
                             @foreach($marker['items'] as $entry)
                                 @include('dashboard.widgets.partials.dispatch-map-entry', ['entry' => $entry, 'preview' => true])
                             @endforeach

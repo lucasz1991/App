@@ -28,8 +28,10 @@ use App\Services\Operations\UnifiedOperationsInboxService;
 use App\Services\Operations\WorkforcePlanningService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\StaffingAutomationActor;
+use App\Support\Routing\TomTomSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
@@ -121,6 +123,61 @@ class StaffingAutomationTest extends TestCase
         } catch (ValidationException $error) {
             $this->assertStringContainsString($expected, collect($error->errors())->flatten()->implode(' '));
         }
+    }
+
+    private function enableRoutingFor(Shift $shift): void
+    {
+        (require database_path('migrations/2026_10_11_120100_create_routing_monthly_usage_table.php'))->up();
+        Schema::table('shifts', fn (Blueprint $table) => $table->json('location_snapshot')->nullable());
+        $shift->forceFill(['location_snapshot' => ['confirmed' => true, 'revision' => 1, 'name' => 'München', 'address' => 'QA', 'latitude' => 48.13, 'longitude' => 11.58]])->save();
+        $previous = $this->shift(['title' => 'Vorheriger Dienst', 'starts_at' => '2027-05-13T06:00', 'ends_at' => '2027-05-13T07:00',
+            'planned_break_minutes' => 0, 'required_staff' => 2,
+            'location_snapshot' => ['confirmed' => true, 'revision' => 1, 'name' => 'Bestätigter QA-Ort', 'address' => 'QA', 'latitude' => 49.0, 'longitude' => 11.0]], false);
+        foreach ([$this->anna, $this->ben] as $employee) {
+            ShiftAssignment::create(['shift_id' => $previous->id, 'user_id' => $employee->id, 'status' => 'confirmed', 'assigned_by' => $this->manager->id, 'plan_revision' => $previous->revision]);
+        }
+        TomTomSettings::save(array_replace(TomTomSettings::DEFAULTS, ['enabled' => true]), 'automation-test-key');
+    }
+
+    public function test_enabled_routing_unknown_keeps_native_automation_offer_nonbinding_and_deduplicates_active_wave_reads(): void
+    {
+        $shift = $this->shift();
+        $this->enableRoutingFor($shift);
+        Http::fake(function () {
+            $this->assertSame(0, DB::transactionLevel());
+
+            return Http::response([], 503);
+        });
+        $before = ShiftAssignment::count();
+        $run = $this->service->process($shift->id, $shift->revision);
+        $this->assertSame('soliciting', $run->state);
+        $this->assertSame([$this->anna->id], $run->offer->invited_user_ids);
+        $this->assertSame($before, ShiftAssignment::count());
+        $this->assertFalse(ShiftAssignment::where('shift_id', $shift->id)->exists());
+        $this->service->process($shift->id, $shift->revision);
+        $this->assertSame(1, ShiftOffer::count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_enabled_routing_known_conflict_returns_review_without_invitation_or_assignment(): void
+    {
+        $shift = $this->shift();
+        $this->enableRoutingFor($shift);
+        Http::fake(function () {
+            $this->assertSame(0, DB::transactionLevel());
+
+            return Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 3600, 'lengthInMeters' => 10000]]]]);
+        });
+        $before = ShiftAssignment::count();
+        $run = $this->service->process($shift->id, $shift->revision);
+        $this->assertSame('review', $run->state);
+        $this->assertContains('travel_before', $run->basis['issue_codes']);
+        $this->assertNull($run->offer_id);
+        $this->assertSame(0, ShiftOffer::count());
+        $this->assertSame($before, ShiftAssignment::count());
+        $this->assertSame(0, OperationsAttentionItem::where('kind', 'staffing_offer')->count());
+        $this->assertStringNotContainsString('duration_seconds', json_encode($run->basis));
+        Http::assertSentCount(1);
     }
 
     public function test_opt_in_is_independent_of_mailbox_and_deduplicates_native_portal_invitations_without_assigning(): void

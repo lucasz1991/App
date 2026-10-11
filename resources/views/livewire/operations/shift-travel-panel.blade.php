@@ -1,4 +1,4 @@
-<section class="space-y-3 border-t border-rt-border py-4 dark:border-rt-dark-border" aria-label="Fahrzeiten und Routen" x-data x-init="if (!@js($loaded)) $nextTick(() => $wire.load())">
+<section class="space-y-3 border-t border-rt-border py-4 dark:border-rt-dark-border" aria-label="Fahrzeiten und Routen" x-data x-intersect.once="if (!@js($loaded)) $wire.load()">
     <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="font-semibold">Fahrzeiten & Routen</h3><x-ui.buttons.button-basic type="button" size="sm" wire:click="load" wire:loading.attr="disabled">Neu prüfen</x-ui.buttons.button-basic></div>
     <p wire:loading wire:target="load,showRoute" role="status" class="text-sm">Fahrt wird geprüft …</p>
     @if(!$loaded)<p class="text-sm text-rt-muted">Die Kandidaten sind bereits bedienbar. Fahrzeiten werden nachgeladen.</p>@endif

@@ -26,7 +26,15 @@
 }
 
 .rt-service-pagination {
-    padding: 0;
+    padding: 0 12px;
+}
+
+.rt-shift-plan-split[data-view='orders'] > .rt-shift-plan-split__main {
+    gap: 0;
+}
+
+body:has(.rt-ai-assist__stage) .rt-service-pagination {
+    padding-right: 84px;
 }
 
 .rt-service-filter-trigger.rt-ui-button,
@@ -84,4 +92,9 @@
     .rt-shift-plan-split[data-view='orders'] > .rt-shift-distribution-side {
         flex-shrink: 0;
     }
+}
+
+@media (max-width: 767px) {
+    .rt-service-pagination { padding-inline: 8px; }
+    body:has(.rt-ai-assist__stage) .rt-service-pagination { padding-right: 76px; }
 }

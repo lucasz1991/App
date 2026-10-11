@@ -3,7 +3,11 @@
 // geometry briefly, never a second selected destination or persistent setting.
 const navigationContinuity = new Map();
 
-export function areaMenu() {
+export function areaMenu({
+    optionSelector = '[data-multi-toggle-option]',
+    visualSelector = 'i, svg, .rt-multi-toggle__label',
+    allowDisabledActive = false,
+} = {}) {
     return {
         menu: null,
         observer: null,
@@ -36,7 +40,7 @@ export function areaMenu() {
             }
             this.onClick = (event) => {
                 if (event.button > 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-                const button = event.target.closest('[data-multi-toggle-option]');
+                const button = event.target.closest(optionSelector);
                 if (!button || button.disabled || button.getAttribute('aria-disabled') === 'true') return;
                 this.pendingButton = button;
                 if (this.menu.id && button.hasAttribute('wire:navigate') && this.$el.style.transform) {
@@ -89,7 +93,19 @@ export function areaMenu() {
             this.schedule();
         },
         activeButton() {
-            return this.menu.querySelector('[data-multi-toggle-option][aria-current="page"], [data-multi-toggle-option][aria-pressed="true"]');
+            // Responsive pagers can expose a fraction instead of their numeric
+            // options. Never aim the shared marker at a hidden desktop target.
+            return [...this.menu.querySelectorAll(`${optionSelector}[aria-current="page"], ${optionSelector}[aria-pressed="true"]`)]
+                .find(button => this.isVisible(button)) || null;
+        },
+        isVisible(button) {
+            if (!button || button.isConnected === false) return false;
+            const bounds = button.getBoundingClientRect();
+            return bounds.width > 0 && bounds.height > 0;
+        },
+        isActive(button) {
+            return button?.getAttribute('aria-current') === 'page'
+                || button?.getAttribute('aria-pressed') === 'true';
         },
         buildInk() {
             this.ink = document.createElement('span');
@@ -100,8 +116,8 @@ export function areaMenu() {
         updateInk() {
             if (this.ink.parentNode !== this.$el) this.$el.replaceChildren(this.ink);
             const parent = this.menu.getBoundingClientRect();
-            const buttons = [...this.menu.querySelectorAll('[data-multi-toggle-option]')];
-            const visuals = buttons.map(button => [...button.children].filter(child => child.matches('i, svg, .rt-multi-toggle__label')));
+            const buttons = [...this.menu.querySelectorAll(optionSelector)].filter(button => this.isVisible(button));
+            const visuals = buttons.map(button => [...button.children].filter(child => child.matches(visualSelector)));
             const signature = visuals.map(children => children.map(child => child.outerHTML).join('')).join('\n');
             // Clone only inert visual children, never links, buttons or Alpine
             // controls. The native originals keep focus, ARIA and all actions.
@@ -132,18 +148,23 @@ export function areaMenu() {
                 const active = this.activeButton();
                 if (active === this.pendingButton) this.pendingButton = null;
                 if (active) this.resizeObserver?.observe(active);
-                if (this.pendingButton?.isConnected === false) this.pendingButton = null;
+                if (this.pendingButton && !this.isVisible(this.pendingButton)) this.pendingButton = null;
                 this.paint(this.pendingButton || active);
             });
         },
         paint(button) {
-            if (this.destroyed || !button || (button.disabled && button !== this.pendingButton && this.menu.getAttribute('aria-busy') !== 'true')) {
+            const disabled = button?.disabled || button?.getAttribute('aria-disabled') === 'true';
+            const disabledActive = allowDisabledActive && this.isActive(button);
+            // Only a confirmed active page or this controller's own pending
+            // click may retain the marker while native loading disables it.
+            const disabledPending = button === this.pendingButton;
+            const defaultBusy = !allowDisabledActive && this.menu?.getAttribute('aria-busy') === 'true';
+            if (this.destroyed || !this.isVisible(button) || (disabled && !disabledActive && !disabledPending && !defaultBusy)) {
                 this.menu?.removeAttribute('data-area-indicator-ready');
                 return;
             }
             const parent = this.menu.getBoundingClientRect();
             const bounds = button.getBoundingClientRect();
-            if (!bounds.width || !bounds.height) return;
             this.updateInk();
             const x = bounds.left - parent.left - this.menu.clientLeft + this.menu.scrollLeft;
             const y = bounds.top - parent.top - this.menu.clientTop + this.menu.scrollTop;
