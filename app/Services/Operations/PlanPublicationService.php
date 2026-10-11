@@ -7,9 +7,12 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
+use App\Services\Routing\TravelAssessmentService;
+use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningLocks;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -90,11 +93,11 @@ class PlanPublicationService
         }, 3);
     }
 
-    private function preflight(Shift $shift, ?\Illuminate\Support\Collection $users = null): \App\Services\Routing\TravelPreflight
+    private function preflight(Shift $shift, ?Collection $users = null): TravelPreflight
     {
         $users ??= User::whereIn('id', $shift->assignments()->blocking()->pluck('user_id'))->get();
 
-        return app(\App\Services\Routing\TravelAssessmentService::class)->preflight($shift, $users);
+        return app(TravelAssessmentService::class)->preflight($shift, $users);
     }
 
     private function check(bool $ok, string $message): void

@@ -10,6 +10,7 @@ use App\Models\QualificationType;
 use App\Models\Shift;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
+use App\Services\Routing\RoutingSiteSelection;
 use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
@@ -175,11 +176,11 @@ class PlanVariantService
         return ['rows' => $rows, 'valid' => $valid, 'fingerprint' => hash('sha256', json_encode([$variant->revision, $variant->baseline, $variant->entries, $rows], JSON_THROW_ON_ERROR))];
     }
 
-    public function approve(int $id, int $revision, string $fingerprint, User $actor): void
+    public function approve(int $id, int $revision, string $fingerprint, User $actor, array $travelPreflights = []): void
     {
         $this->access($actor);
         $initial = PlanVariant::findOrFail($id);
-        $travelPreflights = $this->routingPreflights($initial);
+        $travelPreflights = $travelPreflights ?: $this->routingPreflights($initial);
         OperationsTransaction::run(function () use ($id, $revision, $fingerprint, $actor, $initial, $travelPreflights) {
             PlanningLocks::acquire($this->references($initial->entries), collect($initial->entries)->pluck('user_ids')->flatten()->unique()->all(), array_column($initial->entries, 'order_id'));
             $variant = PlanVariant::lockForUpdate()->findOrFail($id);
@@ -226,9 +227,13 @@ class PlanVariantService
                 $attributes['disposition_details'] = array_merge($shift->disposition_details ?? [], ['transfer_buffer_minutes' => $entry['transfer_buffer_minutes'] ?? 0]);
                 $currentContext = $context;
                 $currentContext['additional_shifts'] = $projected->filter(fn ($other) => ! $shift->id || $other->id !== $shift->id)->all();
+                $sourceId = $entry['shift_id'] ?? $entry['source_shift_id'] ?? null;
+                if ($sourceId && SiteSnapshotService::confirmed($attributes['location_snapshot'] ?? null)) {
+                    $currentContext['routing_site_selection'] = RoutingSiteSelection::fromSource(Shift::findOrFail($sourceId));
+                }
                 $shift = app(ShiftSchedulingService::class)->save($shift, $attributes, $actor, $currentContext);
                 $shift->qualifications()->sync($entry['qualification_ids']);
-                if (!empty($entry['source_shift_id']) && empty($entry['shift_id']) && class_exists(PlanningEnhancementService::class)) {
+                if (! empty($entry['source_shift_id']) && empty($entry['shift_id']) && class_exists(PlanningEnhancementService::class)) {
                     app(PlanningEnhancementService::class)->copySnapshots((int) $entry['source_shift_id'], $shift, $actor);
                 }
                 $saved[] = ['shift' => $shift, 'user_ids' => $entry['user_ids'], 'index' => $index];

@@ -11,6 +11,7 @@ Route::prefix('employee-location')->name('api.employee-location.')->middleware([
         Route::post('start', [EmployeeLocationApiController::class, 'start'])->name('start');
         Route::post('permit', [EmployeeLocationApiController::class, 'permit'])->name('permit');
         Route::post('points', [EmployeeLocationApiController::class, 'point'])->name('points');
+        Route::post('quality', [EmployeeLocationApiController::class, 'quality'])->name('quality');
         Route::post('stop', [EmployeeLocationApiController::class, 'stop'])->name('stop');
     });
 });

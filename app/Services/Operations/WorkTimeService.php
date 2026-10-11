@@ -60,13 +60,14 @@ class WorkTimeService
         }, 3);
     }
 
-    public function start(int $assignmentId, int $planRevision, string $eventKey, User $actor, ?CarbonImmutable $capturedAt = null, ?string $payloadHash = null, bool $requireNewEvent = false): WorkTimeEntry
+    public function start(int $assignmentId, int $planRevision, string $eventKey, User $actor, ?CarbonImmutable $capturedAt = null, ?string $payloadHash = null, bool $requireNewEvent = false, ?\App\Services\Routing\TravelPreflight $travel = null): WorkTimeEntry
     {
         OperationsAccess::own($actor, $actor->id);
         $this->uuid($eventKey);
         $assignment = ShiftAssignment::where('user_id', $actor->id)->findOrFail($assignmentId);
 
-        $travel = app(\App\Services\Routing\TravelAssessmentService::class)->preflight($assignment->shift, collect([$actor]));
+        app(\App\Services\Routing\TravelAssessmentService::class)->assertBindingPreflight($travel);
+        $travel ??= app(\App\Services\Routing\TravelAssessmentService::class)->preflight($assignment->shift, collect([$actor]));
 
         return OperationsTransaction::run(function () use ($assignment, $planRevision, $eventKey, $actor, $capturedAt, $payloadHash, $requireNewEvent, $travel) {
             Order::lockForUpdate()->findOrFail($assignment->shift->order_id);

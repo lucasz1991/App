@@ -48,6 +48,7 @@
                 :flush-top="true"
                 :scroll-body="true"
                 table-key="employee-directory"
+                data-table-pagination-key="employee-directory"
                 label="Mitarbeiter"
                 :columns="[
                     ['label'=>__('app.name'),'key'=>'name','width'=>'32%','sortable'=>true,'hideOn'=>'none'],
@@ -66,9 +67,7 @@
                 :sort-by="$sortBy ?? null"
                 :sort-dir="$sortDir ?? 'asc'"
             />
-            <div class="employee-directory__pagination" data-employee-pagination
-                x-on:click="if ($event.target.closest('button')) $el.parentElement.querySelector('[data-table-scroll-body]')?.scrollTo({ top: 0 })"
-            >
+            <div class="employee-directory__pagination" data-employee-pagination>
                 {{ $employees->onEachSide(1)->links('livewire.admin.employees.directory-pagination', data: ['scrollTo' => false]) }}
             </div>
         </div>

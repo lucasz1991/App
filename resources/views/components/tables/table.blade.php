@@ -149,6 +149,9 @@
 
     {{-- Rows --}}
     <div class="rt-table-body" role="rowgroup" @if($scrollBody) data-table-scroll-body tabindex="0" aria-label="{{ $label }} – scrollbarer Inhalt" @endif>
+    @if($scrollPagination)
+        <div role="presentation" data-list-pagination-content wire:ignore.self x-bind:inert="pending">
+    @endif
     @forelse($items as $item)
     @php
         $isSelected = in_array($item->id, (array) $selectedItems);
@@ -254,18 +257,21 @@
     @empty
     <div role="row"><div role="cell" class="rt-table-empty p-4 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $empty }}</div></div>
     @endforelse
+    @if($scrollPagination)
+        </div>
+    @endif
     </div>
     </div>
     @if($scrollPagination)
         <template x-teleport="body">
-            <div x-cloak x-show="pending" x-bind:style="loadingStyle"
+            <div x-cloak x-show="loading" x-bind:style="loadingStyle"
                 class="rt-list-pagination-loading" data-list-pagination-loading
                 role="status" aria-live="polite" aria-atomic="true">
                 <svg class="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
                     <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                 </svg>
-                <span x-text="loadingDirection > 0 ? 'Nächste Seite wird geladen …' : 'Vorherige Seite wird geladen …'"></span>
+                <span class="sr-only" x-text="loadingDirection > 0 ? 'Nächste Seite wird geladen …' : 'Vorherige Seite wird geladen …'"></span>
             </div>
         </template>
     @endif

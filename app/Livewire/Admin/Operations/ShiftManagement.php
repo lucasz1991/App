@@ -23,6 +23,7 @@ use App\Services\Operations\ShiftStaffingCandidates;
 use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\StaffRegionalPreferenceService;
 use App\Services\Operations\TimelinePlanningSuggestionService;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
@@ -477,14 +478,17 @@ class ShiftManagement extends Component
         abort_unless($this->distributionOpen && OperationsAccess::ready(), 422);
         $this->validate(['distributionStatus' => ['required', Rule::in(ShiftAssignmentStatus::blockingValues())]]);
         try {
-            OperationsTransaction::run(function () use ($shiftId, $userId, $revision) {
+            $initialShift = Shift::findOrFail($shiftId);
+            $initialUser = User::where('role', 'staff')->where('status', true)->findOrFail($userId);
+            $travel = app(TravelAssessmentService::class)->preflight($initialShift, collect([$initialUser]));
+            OperationsTransaction::run(function () use ($shiftId, $userId, $revision, $travel) {
                 PlanningLocks::acquire([$shiftId], [$userId]);
                 $shift = app(TimelinePlanningSuggestionService::class)->openShifts($this->rangeFrom, $this->rangeTo, auth()->user())->whereKey($shiftId)->first();
                 if (! $shift) {
                     throw ValidationException::withMessages(['distribution' => 'Für diese Schicht ist kein offener Einsatzplatz mehr verfügbar.']);
                 }
                 $user = User::query()->where('role', 'staff')->where('status', true)->findOrFail($userId);
-                app(ShiftAssignmentService::class)->assign($shift, $user, auth()->user(), $this->distributionStatus, null, $revision);
+                app(ShiftAssignmentService::class)->assign($shift, $user, auth()->user(), $this->distributionStatus, null, $revision, null, $travel);
             });
         } catch (ValidationException $exception) {
             $this->addError('distribution', collect($exception->errors())->flatten()->first() ?: $exception->getMessage());

@@ -2,6 +2,7 @@
 
 namespace App\Services\Routing;
 
+use App\Models\OperationAudit;
 use App\Models\OperationsRuleProfile;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
@@ -14,15 +15,89 @@ use App\Support\Routing\TomTomSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 class TravelAssessmentService
 {
+    public function assertBindingPreflight(mixed $preflight): void
+    {
+        if (DB::transactionLevel() > 0 && (! $preflight instanceof TravelPreflight || ! $preflight->preparedOutsideTransaction) && TomTomSettings::all()['enabled']) {
+            throw ValidationException::withMessages(['workflow' => 'Die Fahrzeitprüfung fehlt. Bitte diese Zuteilung in der Schichtplanung erneut prüfen. Importdaten bleiben bis dahin zur Prüfung offen.']);
+        }
+    }
+
+    /** Server-only final distribution; virtual duties are scoped to each selected employee. */
+    public function preflightForEntries(array $entries): array
+    {
+        if ($entries === []) {
+            return [];
+        }
+        $entries = Validator::make(['entries' => $entries], [
+            'entries' => 'required|array|max:100', 'entries.*.shift_id' => 'required|integer|exists:shifts,id',
+            'entries.*.user_ids' => 'present|array|max:100', 'entries.*.user_ids.*' => 'integer|exists:users,id',
+        ])->validate()['entries'];
+        $shifts = Shift::whereKey(array_column($entries, 'shift_id'))->get()->keyBy('id');
+        $users = User::whereKey(collect($entries)->pluck('user_ids')->flatten()->unique())->get()->keyBy('id');
+        $preflights = [];
+        foreach ($entries as $entry) {
+            foreach ($entry['user_ids'] as $id) {
+                $additional = collect($entries)->filter(fn ($other) => (int) $other['shift_id'] !== (int) $entry['shift_id'] && in_array((int) $id, array_map('intval', $other['user_ids']), true))
+                    ->map(fn ($other) => $shifts[(int) $other['shift_id']])->all();
+                $preflights[(int) $entry['shift_id']][(int) $id] = $this->preflight($shifts[(int) $entry['shift_id']], collect([$users[(int) $id]]), ['additional_shifts' => $additional]);
+            }
+        }
+
+        return $preflights;
+    }
+
     public function preflight(Shift $shift, Collection $users, array $context = []): TravelPreflight
     {
         unset($context['travel_preflight'], $context['skip_provider'], $context['skip_routing'], $context['include_employee_location']);
 
-        return new TravelPreflight($this->assessMany($shift, $users, $context), $context);
+        $outside = DB::transactionLevel() === 0;
+        $assessment = $this->assessMany($shift, $users, $context);
+        $peers = $outside && $shift->id && TomTomSettings::all()['enabled'] ? $this->peerExceptionPreflights($shift, $users, $context) : [];
+
+        return new TravelPreflight($assessment, $context, $outside, $peers);
+    }
+
+    private function peerExceptionPreflights(Shift $shift, Collection $users, array $context): array
+    {
+        $targets = ShiftAssignment::blocking()->where('shift_id', $shift->id)->whereIn('user_id', $users->pluck('id'))->get()->keyBy('user_id');
+        if ($targets->isEmpty()) {
+            return [];
+        }
+        $peers = ShiftAssignment::blocking()->whereIn('user_id', $targets->keys())->where('shift_id', '!=', $shift->id)
+            ->whereHas('shift', fn ($query) => $query->notCancelled()->during($shift->starts_at->subDays(90), $shift->ends_at->addDays(90)))
+            ->with('shift')->orderBy('id')->get();
+        if ($peers->isEmpty()) {
+            return [];
+        }
+        $audits = OperationAudit::where('subject_type', 'ShiftAssignment')->where('action', 'assignment.temporal_exception')
+            ->whereIn('subject_id', $peers->pluck('id'))->latest('id')->get()->unique('subject_id')->keyBy('subject_id');
+        $users = $users->keyBy('id');
+        $result = [];
+        foreach ($peers as $peer) {
+            $audit = $audits->get($peer->id);
+            if (! $audit || ($audit->data['acknowledged'] ?? false) !== true || ($audit->data['legal_exemption'] ?? null) !== false
+                || ! collect($audit->data['conflicts'] ?? [])->contains(fn ($conflict) => ($conflict['source'] ?? null) === 'shift'
+                    && (int) ($conflict['assignment_id'] ?? 0) === (int) $targets[$peer->user_id]->id)) {
+                continue;
+            }
+            $employee = collect([$users[$peer->user_id]]);
+            $peerContext = $context;
+            $withoutContext = $context;
+            $withoutContext['exclude_shift_ids'] = array_values(array_unique(array_merge($context['exclude_shift_ids'] ?? [], [$peer->shift_id])));
+            $withoutContext['additional_shifts'] = collect($context['additional_shifts'] ?? [])->reject(fn ($other) => $other instanceof Shift && (int) $other->id === (int) $peer->shift_id)->all();
+            $result[$peer->user_id][$peer->shift_id] = [
+                'audit_id' => $audit->id, 'assignment_id' => $peer->id,
+                'peer' => new TravelPreflight($this->assessMany($peer->shift, $employee, $peerContext), $peerContext, true),
+                'without_peer' => new TravelPreflight($this->assessMany($shift, $employee, $withoutContext), $withoutContext, true),
+            ];
+        }
+
+        return $result;
     }
 
     /** Only after a workflow validated its unchanged projections under PlanningLocks. */
@@ -41,7 +116,7 @@ class TravelAssessmentService
             $previous['travel'][$direction] = array_replace($previous['travel'][$direction], array_intersect_key($leg, array_flip(['shift_id', 'title', 'origin_label', 'destination_label'])));
         }
 
-        return new TravelPreflight([$user->id => $previous], $context);
+        return new TravelPreflight([$user->id => $previous], $context, $projected->preparedOutsideTransaction, $projected->peerExceptions);
     }
 
     /** Route facts are ephemeral; basis contains only our own planning inputs. */
@@ -202,7 +277,17 @@ class TravelAssessmentService
                 return TomTomRoutingService::unknown($value['reason'] ?? 'point_unavailable');
             }
 
-            return app(TomTomRoutingService::class)->geometry($point, $target, $now);
+            $geometry = app(TomTomRoutingService::class)->geometry($point, $target, $now);
+            $fresh = app(EmployeeLocationReader::class)->latestForMany(collect([$user]), $context)[$user->id] ?? [];
+            $settings = TomTomSettings::all();
+            if (! $settings['enabled'] || ! $settings['use_employee_locations'] || ! $this->arrivalWindow($shift, CarbonImmutable::now())) {
+                return TomTomRoutingService::unknown('location_disabled');
+            }
+            if (! $this->validEmployeePoint($fresh['point'] ?? null, CarbonImmutable::now()) || ($fresh['point'] ?? null) !== $point) {
+                return TomTomRoutingService::unknown($fresh['reason'] ?? 'location_changed');
+            }
+
+            return $geometry;
         }
         $detail = $this->assessMany($shift, collect([$user]), ['skip_provider' => true] + $context)[$user->id];
         $leg = $detail['travel'][$direction] ?? null;
@@ -232,8 +317,19 @@ class TravelAssessmentService
                 $results[$user->id]['arrival'] += ['measured_at' => $point['measured_at'], 'accuracy_m' => $point['accuracy_m']];
             }
         }
-        foreach (($context['skip_provider'] ?? false) ? [] : app(TomTomRoutingService::class)->summaryMany($requests) as $id => $route) {
+        $routes = ($context['skip_provider'] ?? false) ? [] : app(TomTomRoutingService::class)->summaryMany($requests);
+        $freshPoints = $routes !== [] && class_exists(EmployeeLocationReader::class) ? app(EmployeeLocationReader::class)->latestForMany($users, $context) : [];
+        $settings = TomTomSettings::all();
+        foreach ($routes as $id => $route) {
             $arrival = &$results[$id]['arrival'];
+            $fresh = $freshPoints[$id] ?? [];
+            if (! $settings['enabled'] || ! $settings['use_employee_locations'] || ! $this->arrivalWindow($shift, CarbonImmutable::now())
+                || ! $this->validEmployeePoint($fresh['point'] ?? null, CarbonImmutable::now()) || ($fresh['point'] ?? null) !== ($points[$id]['point'] ?? null)) {
+                $arrival = ['status' => 'unknown', 'reason' => $fresh['reason'] ?? 'location_changed', 'label' => 'Aktueller Anfahrtsweg nicht verfügbar', 'departure_assumption' => 'jetzt'];
+                unset($arrival);
+
+                continue;
+            }
             $arrival = array_replace($arrival, $route);
             if ($route['status'] === 'known') {
                 $arrival['label'] = 'Anfahrt ab letzter Messung';
@@ -280,7 +376,7 @@ class TravelAssessmentService
             'site_unconfirmed' => 'Einsatzstandort nicht bestätigt', 'budget_exhausted' => 'Monatsgrenze erreicht',
             'schema_missing' => 'Routenplanung noch nicht eingerichtet',
             'provider_limit' => 'TomTom-Limit erreicht', 'transaction_requires_preflight' => 'Vorprüfung fehlt',
-            'provider_unavailable' => 'Anbieter derzeit nicht erreichbar', default => 'Route derzeit nicht berechenbar',
+            'provider_unavailable' => 'Anbieter derzeit nicht erreichbar', 'provider_timeout' => 'Zeitlimit der Fahrtprüfung erreicht', default => 'Route derzeit nicht berechenbar',
         };
     }
 }

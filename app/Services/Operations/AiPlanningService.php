@@ -9,6 +9,7 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Ai\OpenRouterChatException;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningEnhancementSchema;
@@ -128,16 +129,22 @@ class AiPlanningService
         if (isset($record['draft_applied'])) {
             return $record['draft_applied'];
         }
+        $initial = PlanVariant::findOrFail($record['variant_id']);
+        $travel = app(TravelAssessmentService::class)->preflightForEntries($initial->entries);
+        $variantTravel = [];
+        foreach ($initial->entries as $index => $entry) {
+            $variantTravel[$index] = $travel[(int) $entry['shift_id']] ?? [];
+        }
 
-        return OperationsTransaction::run(function () use ($token, $actor, $record) {
+        return OperationsTransaction::run(function () use ($token, $actor, $record, $travel, $variantTravel) {
             $initial = PlanVariant::findOrFail($record['variant_id']);
             PlanningLocks::acquire(array_column($initial->entries, 'shift_id'), collect($initial->entries)->pluck('user_ids')->flatten()->all());
             $variant = PlanVariant::lockForUpdate()->findOrFail($initial->id);
             $this->check($variant->status === 'draft' && $variant->revision === $record['variant_revision'], 'Die Variante wurde geändert oder bereits übernommen. Bitte neu prüfen.');
             $this->validateCurrent($record);
-            $preview = app(PlanVariantService::class)->preview($variant, $actor);
+            $preview = app(PlanVariantService::class)->preview($variant, $actor, $variantTravel, true);
             $this->check($preview['valid'] && hash_equals($record['variant_fingerprint'], $preview['fingerprint']), 'Die Variante oder Planungsgrundlagen wurden geändert. Bitte neu analysieren.');
-            app(PlanVariantService::class)->approve($variant->id, $variant->revision, $preview['fingerprint'], $actor);
+            app(PlanVariantService::class)->approve($variant->id, $variant->revision, $preview['fingerprint'], $actor, $variantTravel);
             $this->audit($variant->fresh(), $actor, 'manually_approved', $record, ['variant_id' => $variant->id, 'variant_fingerprint' => $preview['fingerprint']]);
             $ids = [];
             foreach ($variant->entries as $entry) {
@@ -145,7 +152,7 @@ class AiPlanningService
                 $this->check($shift->status->value === 'draft' && $shift->published_revision === 0, 'Veröffentlichte Schichten dürfen nicht über eine Entwurfsvariante besetzt werden.');
                 $existing = $shift->assignments()->blocking()->pluck('user_id')->all();
                 foreach (array_diff($entry['user_ids'], $existing) as $userId) {
-                    $ids[] = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($userId), $actor, ShiftAssignmentStatus::Requested, 'Manuell freigegebener AI-Besetzungsvorschlag', $shift->revision)->id;
+                    $ids[] = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($userId), $actor, ShiftAssignmentStatus::Requested, 'Manuell freigegebener AI-Besetzungsvorschlag', $shift->revision, null, $travel[$shift->id][$userId])->id;
                 }
             }
             $variant->refresh()->forceFill(['status' => 'applied', 'applied_at' => now()->utc(), 'revision' => $variant->revision + 1])->save();
@@ -167,14 +174,15 @@ class AiPlanningService
         if (isset($record['published_applied'][$receipt])) {
             return $record['published_applied'][$receipt];
         }
+        $travel = app(TravelAssessmentService::class)->preflight($this->openShift($shiftId), collect([User::findOrFail($userId)]));
 
-        return OperationsTransaction::run(function () use ($token, $actor, $record, $shiftId, $userId, $receipt) {
+        return OperationsTransaction::run(function () use ($token, $actor, $record, $shiftId, $userId, $receipt, $travel) {
             PlanningLocks::acquire([$shiftId], [$userId]);
             $this->validateCurrent($record);
             $shift = $this->openShift($shiftId);
             $this->check($shift->published_revision > 0 && $shift->published_revision === $shift->revision, 'Bitte zuerst die aktuelle Schichtrevision veröffentlichen oder neu analysieren.');
             $this->audit($shift, $actor, 'manually_approved', $record, ['selected_user_ids' => [$userId], 'published' => true]);
-            $assignment = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($userId), $actor, ShiftAssignmentStatus::Requested, 'Manuell freigegebener AI-Besetzungsvorschlag', $shift->revision);
+            $assignment = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($userId), $actor, ShiftAssignmentStatus::Requested, 'Manuell freigegebener AI-Besetzungsvorschlag', $shift->revision, null, $travel);
             $this->audit($shift, $actor, 'additions_applied', $record, ['selected_user_ids' => [$userId], 'assignment_ids' => [$assignment->id], 'replacements' => 0, 'published' => true]);
             $record['published_applied'][$receipt] = $assignment->id;
             $record['basis'] = $this->basis(array_keys($record['allowed']));

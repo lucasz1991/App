@@ -461,6 +461,8 @@ class ShiftManagementViewsTest extends TestCase
         ])->assertSet('detailOpen', true)
             ->assertDontSeeHtml('data-page-header-metrics')
             ->call('setDetailSection', 'planning')
+            ->assertNotDispatched('rt-workspace-url')
+            ->call('setDetailSection', 'shifts')
             ->assertSee('Erste Schicht')->assertSee('Zweite Schicht')
             ->assertSeeHtml('operations-shift-detail-request')
             ->assertNotDispatched('rt-workspace-url');

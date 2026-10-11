@@ -220,18 +220,56 @@ class EmployeeLocationService
         return $response;
     }
 
+    public function quality(MobileLocationInstallation $installation, array $input): array
+    {
+        $this->check(array_diff(array_keys($input), ['permit_id', 'quality_status', 'accuracy_m']) === [], 'Qualitätsmeldungen dürfen keine Standort- oder Zeitdaten enthalten.');
+        $data = Validator::make($input, ['permit_id' => 'required|uuid', 'quality_status' => 'required|in:inaccurate,unavailable', 'accuracy_m' => 'nullable|numeric|min:0|max:100000'])->validate();
+
+        return $this->transaction(function (array $settings) use ($installation, $data): array {
+            $actor = User::lockForUpdate()->findOrFail($installation->user_id);
+            $installation = MobileLocationInstallation::lockForUpdate()->findOrFail($installation->id);
+            [, $consent, $entry] = $this->authorizedState($actor, $installation, $settings);
+            $now = $this->now();
+            abort_unless($installation->session_id && $installation->permit_expires_at?->gt($now)
+                && hash_equals((string) $installation->permit_id, $data['permit_id'])
+                && $installation->work_time_entry_id === (int) $entry->id && $installation->work_revision === (int) $entry->revision
+                && $installation->consent_id === (int) $consent->id, 403, 'Erfassungserlaubnis ist abgelaufen.');
+            $this->check(! $installation->next_sample_at || $now->gte($installation->next_sample_at), 'Das nächste 15-Minuten-Intervall ist noch nicht erreicht.');
+            if ($installation->last_quality_at?->addSeconds(60)->gt($now)) {
+                return ['reported' => false, 'throttled' => true, 'server_time' => $now->toISOString()];
+            }
+            $installation->forceFill(['quality_status' => $data['quality_status'], 'last_quality_at' => $now, 'last_seen_at' => $now])->save();
+
+            return ['reported' => true, 'server_time' => $now->toISOString()];
+        });
+    }
+
     public function stop(MobileLocationInstallation $installation): void
     {
         if (EmployeeLocationSettings::ready()) {
-            MobileLocationInstallation::whereKey($installation->id)->update($this->stoppedFields());
+            DB::transaction(function () use ($installation): void {
+                $owner = User::lockForUpdate()->find($installation->user_id);
+                if (! $owner) {
+                    return;
+                }
+                $locked = MobileLocationInstallation::where('user_id', $owner->id)->lockForUpdate()->find($installation->id);
+                if (! $locked) {
+                    return;
+                }
+                $locked->forceFill($this->stoppedFields())->save();
+                MobileLocationCode::where('installation_id', $locked->id)->where('purpose', 'start')->whereNull('consumed_at')->update(['consumed_at' => $this->now()]);
+            }, 3);
         }
     }
 
     public function stopForUser(int $userId): void
     {
         if (EmployeeLocationSettings::ready()) {
-            MobileLocationInstallation::where('user_id', $userId)->update($this->stoppedFields());
-            MobileLocationCode::where('user_id', $userId)->where('purpose', 'start')->whereNull('consumed_at')->update(['consumed_at' => $this->now()]);
+            DB::transaction(function () use ($userId): void {
+                User::lockForUpdate()->find($userId);
+                MobileLocationInstallation::where('user_id', $userId)->update($this->stoppedFields());
+                MobileLocationCode::where('user_id', $userId)->where('purpose', 'start')->whereNull('consumed_at')->update(['consumed_at' => $this->now()]);
+            }, 3);
         }
     }
 
@@ -247,19 +285,25 @@ class EmployeeLocationService
     {
         OperationsAccess::own($actor, (int) $actor->id);
         $settings = EmployeeLocationSettings::read();
-        $result = ['enabled' => (bool) $settings['enabled'] && EmployeeLocationSettings::ready(), 'settings' => $settings, 'state' => 'disabled', 'consent' => null, 'installation' => null, 'assignments' => collect(), 'history' => collect(), 'last_point' => null, 'running' => false, 'needs_decision' => false];
-        if (! $result['enabled']) {
+        $ready = EmployeeLocationSettings::ready();
+        $result = ['enabled' => (bool) $settings['enabled'] && $ready, 'settings' => $settings, 'state' => 'disabled', 'consent' => null, 'installation' => null, 'assignments' => collect(), 'history' => collect(), 'last_point' => null, 'running' => false, 'needs_decision' => false];
+        if (! $ready) {
             return $result;
         }
         $now = $this->now();
-        $installation = MobileLocationInstallation::where('user_id', $actor->id)->whereNull('revoked_at')->with('assignment.device')->first();
-        $consent = EmployeeLocationConsent::where('user_id', $actor->id)->where('local_date', $now->setTimezone(self::ZONE)->toDateString())->first();
-        $entry = WorkTimeEntry::where('user_id', $actor->id)->whereIn('status', ['running', 'paused'])->latest('id')->first();
         $points = EmployeeLocationPoint::where('user_id', $actor->id)->where('measured_at', '>', $now->subDays(7)->format('Y-m-d H:i:s.u'))->latest('measured_at');
         $lastPoint = (clone $points)->first();
         $history = $includeHistory ? $points->limit(700)->get() : collect();
+        $result = array_replace($result, ['history' => $history, 'last_point' => $lastPoint]);
+        if (! $result['enabled']) {
+            return $result;
+        }
+        $installation = MobileLocationInstallation::where('user_id', $actor->id)->whereNull('revoked_at')->with('assignment.device')->first();
+        $consent = EmployeeLocationConsent::where('user_id', $actor->id)->where('local_date', $now->setTimezone(self::ZONE)->toDateString())->first();
+        $entry = WorkTimeEntry::where('user_id', $actor->id)->whereIn('status', ['running', 'paused'])->latest('id')->first();
         $granted = $consent && $consent->decision === 'accepted' && ! $consent->withdrawn_at && $consent->expires_at->gt($now) && $consent->explanation_version === $settings['explanation_version'] && $consent->installation_id === $installation?->id;
-        $state = ! $installation ? 'unpaired' : (! $granted ? 'consent_missing' : (! $entry ? 'not_working' : ($entry->status === 'paused' ? 'paused' : (! $installation->session_id ? 'start_required' : (! $installation->permit_expires_at?->gt($now) ? 'offline' : ($installation->quality_status === 'inaccurate' ? 'inaccurate' : 'active'))))));
+        $qualityState = in_array($installation?->quality_status, ['inaccurate', 'unavailable'], true) ? $installation->quality_status : 'active';
+        $state = ! $installation ? 'unpaired' : (! $granted ? 'consent_missing' : (! $entry ? 'not_working' : ($entry->status === 'paused' ? 'paused' : (! $installation->session_id ? 'start_required' : (! $installation->permit_expires_at?->gt($now) ? 'offline' : $qualityState)))));
 
         return array_replace($result, ['state' => $state, 'consent' => $consent, 'installation' => $installation, 'history' => $history, 'last_point' => $lastPoint, 'running' => $entry?->status === 'running',
             'needs_decision' => $entry?->status === 'running' && (! $consent || $consent->explanation_version !== $settings['explanation_version']),

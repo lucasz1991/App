@@ -1,0 +1,117 @@
+/* Native Leistungsdetails: chronological shifts and exact per-shift staffing. */
+.rt-service-detail-tab {
+    --service-detail-tab-muted: var(--rt-muted, #637188);
+    --service-detail-tab-border: var(--rt-border, #d7e0ea);
+    --service-detail-tab-surface: var(--rt-surface-muted, #f7f9fc);
+    --service-detail-tab-warning: var(--rt-warning, #a96505);
+    display: grid;
+    min-width: 0;
+    gap: 24px;
+    color: var(--rt-text, #182435);
+    font-size: 14px;
+    line-height: 1.5;
+    animation: rt-service-detail-tab-enter 160ms cubic-bezier(.23, 1, .32, 1) both;
+}
+.dark .rt-service-detail-tab {
+    --service-detail-tab-muted: var(--rt-dark-muted, #aeb9c9);
+    --service-detail-tab-border: var(--rt-dark-border, #2a394d);
+    --service-detail-tab-surface: var(--rt-dark-surface-muted, #182435);
+    --service-detail-tab-warning: var(--rt-dark-warning, #f5c361);
+    color: var(--rt-dark-text, #edf2f8);
+}
+.rt-service-detail-tab__heading,
+.rt-service-detail-day__heading,
+.rt-service-detail-shift__heading,
+.rt-service-detail-staffing__shift-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
+.rt-service-detail-tab h3,
+.rt-service-detail-tab h4 { margin: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.rt-service-detail-tab__heading p,
+.rt-service-detail-tab__note,
+.rt-service-detail-staffing__shift-heading p { margin: 4px 0 0; font-size: 12px; color: var(--service-detail-tab-muted); overflow-wrap: anywhere; }
+.rt-service-detail-tab__total { display: grid; flex: 0 0 auto; text-align: right; font-variant-numeric: tabular-nums; }
+.rt-service-detail-tab__total > strong { font-size: 28px; line-height: 1.2; font-weight: 600; }
+.rt-service-detail-tab__total > strong > span { color: var(--service-detail-tab-muted); font-size: 18px; font-weight: 500; }
+.rt-service-detail-tab__total > span { margin-top: 4px; font-size: 12px; color: var(--service-detail-tab-muted); }
+.rt-service-detail-day { display: grid; min-width: 0; gap: 12px; }
+.rt-service-detail-day__heading { justify-content: start; }
+.rt-service-detail-day__date { display: grid; flex: 0 0 48px; width: 48px; height: 48px; place-items: center; border-radius: 10px; background: var(--service-detail-tab-surface); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rt-service-detail-day__heading > div > span,
+.rt-service-detail-day__count { color: var(--service-detail-tab-muted); font-size: 12px; }
+.rt-service-detail-day__count { margin-left: auto; white-space: nowrap; }
+.rt-service-detail-shift-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.rt-service-detail-shift { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; min-width: 0; padding: 16px; border: 1px solid var(--service-detail-tab-border); border-radius: 12px; }
+.rt-service-detail-shift[data-active="false"] { background: var(--service-detail-tab-surface); }
+.rt-service-detail-shift__time { display: flex; flex-direction: column; align-items: center; align-self: start; gap: 4px; padding: 8px 4px; border-radius: 8px; background: var(--service-detail-tab-surface); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rt-service-detail-shift__time > span { color: var(--service-detail-tab-muted); font-size: 12px; line-height: 1; }
+.rt-service-detail-shift__time > small { color: var(--service-detail-tab-muted); font-size: 10px; font-weight: 500; }
+.rt-service-detail-shift__body { display: grid; min-width: 0; gap: 12px; }
+.rt-service-detail-shift__heading { align-items: start; flex-wrap: wrap; gap: 8px; }
+.rt-service-detail-shift__link { display: inline-flex; min-width: 0; min-height: 44px; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; font-size: 16px; line-height: 1.4; font-weight: 600; text-decoration: none; cursor: pointer; transition: color 140ms ease-out; }
+.rt-service-detail-shift__link > span { overflow-wrap: anywhere; }
+.rt-service-detail-shift__link > i { flex: 0 0 auto; color: var(--service-detail-tab-muted); font-size: 12px; }
+.rt-service-detail-shift__link:hover { color: var(--rt-red, #e4002b); }
+.rt-service-detail-shift__link:focus-visible,
+.rt-service-detail-staffing__profile:focus-visible,
+.rt-service-detail-tab summary:focus-visible { outline: 2px solid var(--rt-red, #e4002b); outline-offset: 4px; border-radius: 4px; }
+.rt-service-detail-status { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; color: var(--service-detail-tab-muted); }
+.rt-service-detail-status > i { font-size: 12px; }
+.rt-service-detail-shift__context { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; font-size: 12px; color: var(--service-detail-tab-muted); }
+.rt-service-detail-shift__context > span { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.rt-service-detail-shift__staffing { min-width: 0; }
+.rt-service-detail-shift__staffing .rt-service-staffing__content { gap: 8px; }
+.rt-service-detail-shift__staffing .rt-service-staffing__caption { font-size: 12px; }
+.rt-service-detail-shift__staffing .rt-service-avatar { width: 32px; height: 32px; margin-left: -12px; font-size: 11px; }
+.rt-service-detail-shift__staffing .rt-service-avatar:first-child { margin-left: 0; }
+.rt-service-detail-staffing__facts { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 12px 16px; border-radius: 10px; background: var(--service-detail-tab-surface); }
+.rt-service-detail-staffing__facts > span { display: inline-flex; align-items: center; gap: 6px; color: var(--service-detail-tab-muted); font-size: 12px; }
+.rt-service-detail-staffing__facts strong { color: inherit; font-size: 14px; font-variant-numeric: tabular-nums; }
+.rt-service-detail-staffing__facts > [data-open="true"] { color: var(--service-detail-tab-warning); }
+.rt-service-detail-staffing__groups { display: grid; gap: 24px; min-width: 0; }
+.rt-service-detail-staffing__shift { min-width: 0; }
+.rt-service-detail-staffing__shift-heading { align-items: start; padding-bottom: 12px; }
+.rt-service-detail-staffing__shift-heading > div { min-width: 0; }
+.rt-service-detail-staffing__shift-heading p > i { width: 16px; margin-right: 4px; }
+.rt-service-detail-staffing__people { margin: 0; padding: 0; list-style: none; }
+.rt-service-detail-staffing__person { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; padding: 12px 0; border-top: 1px solid var(--service-detail-tab-border); }
+.rt-service-detail-staffing__person > div,
+.rt-service-detail-staffing__profile { flex: 1 1 auto; min-width: 0; }
+.rt-service-detail-staffing__profile { display: block; text-decoration: none; border-radius: 8px; }
+.rt-service-detail-staffing__profile:hover .text-rt-text { color: var(--rt-red, #e4002b); }
+.rt-service-detail-staffing__unavailable,
+.rt-service-detail-staffing__vacancy { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rt-service-detail-staffing__unavailable > span,
+.rt-service-detail-staffing__vacancy-avatar { position: relative; display: grid; flex: 0 0 48px; width: 48px; height: 48px; place-items: center; border: 1px dashed var(--service-detail-tab-warning); border-radius: 50%; color: var(--service-detail-tab-warning); font-size: 20px; }
+.rt-service-detail-staffing__vacancy-avatar > i { position: absolute; top: 1px; right: 1px; width: 8px; height: 8px; border-radius: 50%; background: var(--rt-warning, #e6ac22); }
+.rt-service-detail-staffing__vacancy > div { display: grid; min-width: 0; gap: 4px; }
+.rt-service-detail-staffing__vacancy strong,
+.rt-service-detail-staffing__unavailable strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.rt-service-detail-staffing__vacancy > div > span { color: var(--service-detail-tab-muted); font-size: 12px; overflow-wrap: anywhere; }
+.rt-service-detail-staffing__open-label { flex: 0 0 auto; color: var(--service-detail-tab-warning); font-size: 12px; font-weight: 600; }
+.rt-service-detail-staffing__archive { padding-top: 16px; border-top: 1px solid var(--service-detail-tab-border); }
+.rt-service-detail-staffing__archive > .rt-service-detail-staffing__groups { margin-top: 16px; }
+.rt-service-detail-staffing__archive > summary,
+.rt-service-detail-staffing__previous > summary { min-height: 44px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--service-detail-tab-muted); }
+.rt-service-detail-staffing__archive > summary > i { margin-right: 6px; }
+.rt-service-detail-staffing__archive > summary > span,
+.rt-service-detail-staffing__previous > summary > span { margin-left: 8px; font-variant-numeric: tabular-nums; font-size: 12px; }
+.rt-service-detail-staffing__previous { margin-top: 4px; }
+.rt-service-detail-staffing__previous > summary { font-size: 12px; }
+.rt-service-detail-tab__empty { display: grid; justify-items: center; gap: 12px; padding: 32px 16px; text-align: center; background: var(--service-detail-tab-surface); border-radius: 12px; }
+.rt-service-detail-tab__empty > i { color: var(--service-detail-tab-muted); font-size: 28px; }
+.rt-service-detail-tab__empty > p { max-width: 380px; margin: 0; color: var(--service-detail-tab-muted); font-size: 14px; }
+@keyframes rt-service-detail-tab-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 479px) {
+    .rt-service-detail-tab { gap: 20px; }
+    .rt-service-detail-shift { grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 12px; }
+    .rt-service-detail-shift__time { font-size: 14px; }
+    .rt-service-detail-shift__link { font-size: 14px; }
+    .rt-service-detail-staffing__person { gap: 8px; flex-wrap: wrap; }
+    .rt-service-detail-staffing__person > .rt-service-detail-status { margin-left: 60px; }
+    .rt-service-detail-staffing__person > .rt-service-detail-staffing__open-label { margin-left: 60px; }
+    .rt-service-detail-staffing__profile { flex-basis: calc(100% - 8px); }
+    .rt-service-detail-staffing__shift-heading { flex-wrap: wrap; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .rt-service-detail-tab { animation: none; }
+    .rt-service-detail-shift__link { transition: none; }
+}

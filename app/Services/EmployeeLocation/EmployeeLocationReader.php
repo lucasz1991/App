@@ -67,6 +67,10 @@ class EmployeeLocationReader
                 $result[$id] = $this->unavailable('not_working', 'Arbeitszeiterfassung läuft nicht oder ist pausiert.');
             } elseif (! $installation->session_id) {
                 $result[$id] = $this->unavailable('service_stopped', 'Standortdienst wurde beendet.');
+            } elseif (! $installation->permit_id || ! $installation->permit_expires_at?->gt($now)
+                || $installation->consent_id !== (int) $consent->id || $installation->work_time_entry_id !== (int) $entry->id
+                || $installation->work_revision !== (int) $entry->revision) {
+                $result[$id] = $this->unavailable('permit_expired', 'Standorterfassung ist unterbrochen; die aktuelle Serverfreigabe fehlt oder ist abgelaufen.');
             } elseif (! $point || (int) $point->consent_id !== (int) $consent->id || (int) $point->installation_id !== (int) $installation->id
                 || (int) $point->work_time_entry_id !== (int) $entry->id || $point->measured_at->lt($consent->accepted_at) || $point->measured_at->lt($installation->session_started_at)) {
                 $result[$id] = $this->unavailable('no_point', 'Für die laufende Erfassung liegt kein Messpunkt vor.');
@@ -76,7 +80,7 @@ class EmployeeLocationReader
                 $result[$id] = $this->unavailable('inaccurate', 'Letzter Messpunkt ist nicht präzise genug.');
             } else {
                 $position = $point->position;
-                $result[$id] = ['status' => 'available', 'reason' => null, 'point' => ['latitude' => (float) $position['latitude'], 'longitude' => (float) $position['longitude'], 'accuracy_m' => $point->accuracy_m, 'measured_at' => $point->measured_at->toIso8601String()]];
+                $result[$id] = ['status' => 'available', 'reason' => null, 'point' => ['latitude' => (float) $position['latitude'], 'longitude' => (float) $position['longitude'], 'accuracy_m' => $point->accuracy_m, 'measured_at' => $point->measured_at->toISOString()]];
             }
         }
 

@@ -29,6 +29,8 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
     private var permitID: String?
     private var timer: Timer?
     private var lastRenewal: TimeInterval = 0
+    private var lastFixSeen: TimeInterval = 0
+    private var pendingQuality: String?
     private var generation = 0
     private var requestTask: Task<Void, Never>?
 
@@ -113,6 +115,8 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
                 try applyPermit(permit, sentAt: sentAt)
                 active = true
                 busy = false
+                lastFixSeen = continuousSeconds()
+                pendingQuality = nil
                 backgroundSession = CLBackgroundActivitySession()
                 locationManager.startUpdatingLocation()
                 timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -140,7 +144,14 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         guard active else { return }
         let now = continuousSeconds()
         guard policy.valid(now) else { stopLocal("Erfassung unterbrochen: Serverfreigabe abgelaufen"); return }
-        guard now - lastRenewal >= 60, !busy, let api else { return }
+        if now - lastRenewal < 60 || busy {
+            if policy.sampleDue(now) {
+                if now - lastFixSeen >= 30 { pendingQuality = "unavailable" }
+                if let pendingQuality { reportQuality(pendingQuality) }
+            }
+            return
+        }
+        guard let api else { return }
         let currentGeneration = generation
         busy = true
         let sentAt = now
@@ -161,12 +172,15 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         let now = continuousSeconds()
         guard active else { return }
         guard policy.valid(now) else { stopLocal("Erfassung unterbrochen: Serverfreigabe abgelaufen"); return }
+        lastFixSeen = now
         guard !busy, policy.sampleDue(now), let point = locations.last,
               let api, let permitID else { return }
         let age = Date().timeIntervalSince(point.timestamp)
         guard policy.acceptsFix(now: now, age: age, accuracy: point.horizontalAccuracy,
                                 latitude: point.coordinate.latitude, longitude: point.coordinate.longitude) else {
+            pendingQuality = point.horizontalAccuracy.isFinite && point.horizontalAccuracy > 50 ? "inaccurate" : "unavailable"
             status = "Messung ungenau oder veraltet – noch kein Punkt gespeichert"
+            if let pendingQuality { reportQuality(pendingQuality) }
             return
         }
         let currentGeneration = generation
@@ -181,6 +195,7 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
                 try Task.checkCancellation()
                 guard currentGeneration == generation, active, policy.valid(continuousSeconds()), response.accepted else { throw ClientError.invalidResponse }
                 policy.acknowledge(try serverDate(response.next_sample_at))
+                pendingQuality = nil
                 busy = false
                 status = "Standort gemeldet – nächste Meldung in etwa 15 Minuten"
             } catch {
@@ -189,10 +204,38 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         }
     }
 
+    private func reportQuality(_ quality: String) {
+        let now = continuousSeconds()
+        guard active, !busy, policy.qualityReportDue(now), let api, let permitID else { return }
+        let currentGeneration = generation
+        // Metadata only: this payload has no position, measurement time or coordinate history.
+        let payload: [String: Any] = ["permit_id": permitID, "quality_status": quality]
+        policy.markQualityReport(now)
+        busy = true
+        requestTask = Task {
+            do {
+                guard currentGeneration == generation, active, policy.valid(continuousSeconds()) else { throw ClientError.invalidResponse }
+                _ = try await api.post("quality", payload: payload, as: QualityResponse.self)
+                try Task.checkCancellation()
+                guard currentGeneration == generation, active, policy.valid(continuousSeconds()) else { throw ClientError.invalidResponse }
+                policy.markQualityReport(continuousSeconds())
+                busy = false
+            } catch {
+                guard currentGeneration == generation else { return }
+                if let apiError = error as? APIError, apiError.status == 429, policy.valid(continuousSeconds()) {
+                    policy.markQualityReport(continuousSeconds())
+                    busy = false
+                } else { handleError(error, message: "Erfassung unterbrochen: Qualitätsmeldung nicht bestätigt") }
+            }
+        }
+    }
+
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         // A temporary locationUnknown can recover without retaining the rejected coordinate.
         if let locationError = error as? CLError, locationError.code == .locationUnknown {
             status = "Standort derzeit nicht verfügbar"
+            pendingQuality = "unavailable"
+            reportQuality("unavailable")
         } else if active { stop() }
     }
 

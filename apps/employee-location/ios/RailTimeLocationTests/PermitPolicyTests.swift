@@ -50,4 +50,16 @@ final class PermitPolicyTests: XCTestCase {
             XCTAssertThrowsError(try APIClient.validateBase(base))
         }
     }
+    func testQualityMetadataIsThrottledAndDoesNotAdvanceSampleCadence() {
+        var policy = permit()
+        XCTAssertTrue(policy.qualityReportDue(6))
+        policy.markQualityReport(6)
+        XCTAssertFalse(policy.qualityReportDue(65.999))
+        XCTAssertTrue(policy.qualityReportDue(66))
+        XCTAssertTrue(policy.acceptsFix(now: 7, age: 0, accuracy: 1, latitude: 50, longitude: 8))
+        policy.acknowledge(Date(timeIntervalSince1970: 1000))
+        XCTAssertFalse(policy.qualityReportDue(66))
+        policy.invalidate()
+        XCTAssertFalse(policy.qualityReportDue(70))
+    }
 }

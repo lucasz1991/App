@@ -31,9 +31,12 @@ class ShiftSchedulingService
             $actor->assertDemandScope((int) $shift->order_demand_id);
         }
 
+        $siteSelection = app(SiteSnapshotService::class)->schedulingSelection($attributes, $context);
+
         if ($shift->exists && ! isset($context['travel_preflight']) && \Illuminate\Support\Facades\DB::transactionLevel() === 0) {
             $preview = clone $shift;
             $preview->fill($attributes);
+            $siteSelection?->apply($preview);
             app(SiteSnapshotService::class)->prepare($preview);
             if ($preview->published_revision > 0 && ! $preview->published_snapshot) {
                 $preview->published_snapshot = $shift->only(['order_id', 'title', 'role_name', 'starts_at', 'ends_at', 'timezone', 'location_name', 'location_snapshot', 'planned_break_minutes']);
@@ -45,7 +48,7 @@ class ShiftSchedulingService
             $context['travel_preflight'] = app(\App\Services\Routing\TravelAssessmentService::class)->preflight($preview, $users, $context);
         }
 
-        return OperationsTransaction::run(function () use ($shift, $attributes, $actor, $context): Shift {
+        return OperationsTransaction::run(function () use ($shift, $attributes, $actor, $context, $siteSelection): Shift {
             OperationsActor::authorize($actor instanceof User ? User::findOrFail($actor->id) : $actor, 'operations.manage', 'shift.save');
             $userIds = $shift->exists ? $shift->assignments()->blocking()->pluck('user_id')->all() : [];
             PlanningLocks::acquire($shift->exists ? [$shift->id] : [], $userIds, [(int) ($attributes['order_id'] ?? $shift->order_id)]);
@@ -113,6 +116,7 @@ class ShiftSchedulingService
             }
 
             $persistedShift->fill($attributes);
+            $siteSelection?->apply($persistedShift);
             app(SiteSnapshotService::class)->prepare($persistedShift);
             $persistedShift->status = $shiftStatus;
             if ($shiftStatus !== ShiftStatus::Cancelled && $persistedShift->exists

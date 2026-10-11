@@ -80,7 +80,7 @@ class ShiftSeriesService
         $this->check(count($rows) > 0, 'Keine Termine nach Wochentagen und Ausnahmen.');
 
         return ['rows' => $rows, 'definition' => $definition, 'request' => $data,
-            'fingerprint' => hash('sha256', json_encode([$data, $template->revision, $definition, $order->only(['updated_at', 'starts_at', 'ends_at', 'status']), $profile->id, $rows], JSON_THROW_ON_ERROR))];
+            'fingerprint' => hash('sha256', json_encode([$data, $template->revision, $definition, $order->only(['updated_at', 'starts_at', 'ends_at', 'status', 'customer_location_id', 'location_snapshot', 'location_name']), $profile->id, $rows], JSON_THROW_ON_ERROR))];
     }
 
     public function generate(array $data, string $fingerprint, string $key, User $actor): ShiftSeries

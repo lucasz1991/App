@@ -191,7 +191,7 @@ return new class extends Migration
             $table->char('token_hash', 64)->unique();
             $table->string('status', 24)->default('invited')->index();
             $table->timestamp('invited_at')->useCurrent();
-            $table->timestamp('expires_at')->index();
+            $table->dateTime('expires_at')->index();
             $table->timestamp('claimed_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->timestamp('revoked_at')->nullable();

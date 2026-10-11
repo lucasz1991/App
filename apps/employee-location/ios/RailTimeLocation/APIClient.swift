@@ -20,6 +20,10 @@ struct PointResponse: Decodable {
     let next_sample_at: String
     let server_time: String
 }
+struct QualityResponse: Decodable {
+    let reported: Bool
+    let server_time: String
+}
 
 final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask,
@@ -69,7 +73,7 @@ final class APIClient {
     func stop() async throws { _ = try await request("stop", payload: [:]) }
 
     private func request(_ action: String, payload: [String: Any]) async throws -> Data {
-        guard ["register", "start", "permit", "points", "stop"].contains(action) else { throw ClientError.invalidURL }
+        guard ["register", "start", "permit", "points", "quality", "stop"].contains(action) else { throw ClientError.invalidURL }
         let url = base.appendingPathComponent("api/employee-location/" + action)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

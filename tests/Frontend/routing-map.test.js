@@ -8,7 +8,7 @@ test('route uses counted same-origin tiles and provider coordinate pairs; teardo
     const fakeMap = { fitBounds: () => {}, invalidateSize: () => {}, remove: () => { seen.removed = true; } };
     const fakeLeaflet = {
         map: () => fakeMap,
-        tileLayer: (url) => { seen.url = url; return { addTo: () => {} }; },
+        tileLayer: (url) => { seen.url = url; return { on: (_, handler) => { seen.tileError = handler; return { addTo: () => {} }; } }; },
         polyline: (path) => { seen.path = path; return { addTo: () => ({ getBounds: () => [] }) }; },
         circleMarker: () => ({ addTo: () => {} }),
     };
@@ -21,10 +21,23 @@ test('route uses counted same-origin tiles and provider coordinate pairs; teardo
         await state.init();
         assert.equal(seen.url, '/operations/routing/tiles/{z}/{x}/{y}');
         assert.deepEqual(seen.path, [[52.5, 13.4], [52.6, 13.5]]);
+        seen.tileError();
+        assert.match(state.errorText, /Kartenhintergrund derzeit nicht verfügbar/);
+        assert.equal(state.map, fakeMap);
         state.destroy();
         assert.equal(seen.removed, true);
         assert.equal(seen.disconnected, true);
     } finally { globalThis.ResizeObserver = previous; }
+});
+
+test('Leaflet load failure produces an accessible status without creating a map', async () => {
+    let factory;
+    registerRoutingMap({ data: (_, value) => { factory = value; } }, async () => { throw new Error('network unavailable'); });
+    const state = factory([[52.5, 13.4], [52.6, 13.5]], '/tiles/__z__/__x__/__y__');
+    state.$el = { isConnected: true };
+    await state.init();
+    assert.equal(state.map, null);
+    assert.match(state.errorText, /Karte konnte nicht geladen werden/);
 });
 
 test('route removed while Leaflet loads cannot create a detached map', async () => {

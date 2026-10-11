@@ -74,6 +74,10 @@
                                         @empty
                                             <p class="rt-shift-distribution__note">{{ $item->starts_at->isPast() ? 'Die Schicht hat bereits begonnen. Besetzung über die Schichtdetails bearbeiten.' : 'Niemand ist ohne Planungskonflikt frei. Über die Schichtdetails lassen sich weitere Mitarbeitende mit Begründung prüfen.' }}</p>
                                         @endforelse
+                                        @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && count($distributionCandidates) > 0)
+                                            @php($travelEmployeeIds = collect($distributionCandidates)->pluck('user.id')->all())
+                                            <livewire:operations.shift-travel-panel :shift-id="$item->id" :employee-ids="$travelEmployeeIds" :key="'distribution-travel-'.$item->id.'-'.$item->revision.'-'.md5(implode(',', $travelEmployeeIds))" />
+                                        @endif
                                         <div class="rt-shift-distribution__assign-foot">
                                             <span>@if($viewMode === 'timeline')In der Zeitleiste markiert @else Passende Mitarbeitende @endif</span>
                                             <button type="button" x-on:click="$dispatch('operations-shift-detail-request', { id: {{ $item->id }} })">Schicht öffnen<i class="far fa-arrow-right" aria-hidden="true"></i></button>
@@ -86,13 +90,6 @@
                 </section>
             @endforeach
             </div>
-            @if($pendingShifts->hasPages())
-                <nav class="rt-shift-distribution__pagination" aria-label="Offene Schichten blättern">
-                    <button type="button" wire:click="previousPage('{{ $pendingShifts->getPageName() }}')" wire:loading.attr="disabled" wire:target="previousPage,nextPage" @disabled($pendingShifts->onFirstPage()) aria-label="Vorherige Seite"><i class="far fa-chevron-left" aria-hidden="true"></i></button>
-                    <span>Seite {{ $pendingShifts->currentPage() }} / {{ $pendingShifts->lastPage() }}</span>
-                    <button type="button" wire:click="nextPage('{{ $pendingShifts->getPageName() }}')" wire:loading.attr="disabled" wire:target="previousPage,nextPage" @disabled(! $pendingShifts->hasMorePages()) aria-label="Nächste Seite"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
-                </nav>
-            @endif
         @endif
     </section>
 
@@ -116,19 +113,41 @@
                     </li>
                 @endforeach
             </ol>
-            @if($unplannedOrders->hasPages())
-                <nav class="rt-shift-distribution__pagination" aria-label="Ungeplante Leistungen blättern">
-                    <button type="button" wire:click="previousPage('{{ $unplannedOrders->getPageName() }}')" wire:loading.attr="disabled" wire:target="previousPage,nextPage" @disabled($unplannedOrders->onFirstPage()) aria-label="Vorherige Seite"><i class="far fa-chevron-left" aria-hidden="true"></i></button>
-                    <span>Seite {{ $unplannedOrders->currentPage() }} / {{ $unplannedOrders->lastPage() }}</span>
-                    <button type="button" wire:click="nextPage('{{ $unplannedOrders->getPageName() }}')" wire:loading.attr="disabled" wire:target="previousPage,nextPage" @disabled(! $unplannedOrders->hasMorePages()) aria-label="Nächste Seite"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
-                </nav>
-            @endif
         @endif
     </section>
 
-    <footer class="rt-shift-distribution__footer">
-        @can('operations.inquiries.manage')
-            <a class="rt-shift-distribution__inquiries" href="{{ \App\Support\Operations\OperationsPages::moduleUrl('inquiries') }}" wire:navigate><i class="far fa-inbox" aria-hidden="true"></i>Anfragen<i class="far fa-arrow-right" aria-hidden="true"></i></a>
-        @endcan
+    <footer class="rt-shift-distribution__footer" aria-label="Offene Planung – Aktionen"
+        wire:loading.attr="inert" wire:loading.class="opacity-50"
+        wire:target="selectDistributionShift,assignFromDistribution,previousPage,nextPage,applyPeriod,movePeriod,currentWeek,rangeFrom,rangeTo,setView">
+        <div class="rt-shift-distribution__footer-actions" role="group" aria-label="Ausgewählte Schicht">
+            <button type="button" class="rt-shift-distribution__footer-button" data-distribution-focus
+                @if($distributionShift && $viewMode === 'timeline' && $nativeOperations)
+                    x-on:click="$dispatch('operations-timeline-distribution-focus', { owner: @js($this->getId()), shiftId: {{ $distributionShift->id }}, date: @js($distributionShift->starts_at->copy()->setTimezone($displayTimezone)->toDateString()), selected: false })"
+                @endif
+                x-bind:disabled="distributionTab !== 'shifts' || @js(! $distributionShift || $viewMode !== 'timeline' || ! $nativeOperations)"
+                @disabled(! $distributionShift || $viewMode !== 'timeline' || ! $nativeOperations) aria-label="Ausgewählte Schicht in der Zeitleiste zeigen" title="Ausgewählte Schicht in der Zeitleiste zeigen">
+                <i class="far fa-location-crosshairs" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="rt-shift-distribution__footer-button" data-distribution-clear
+                @if($distributionShift)
+                    wire:click="selectDistributionShift({{ $distributionShift->id }})"
+                    x-on:click="$dispatch('operations-timeline-distribution-focus', { owner: @js($this->getId()), shiftId: {{ $distributionShift->id }}, date: @js($distributionShift->starts_at->copy()->setTimezone($displayTimezone)->toDateString()), selected: true })"
+                @endif
+                x-bind:disabled="distributionTab !== 'shifts' || @js(! $distributionShift)"
+                @disabled(! $distributionShift) aria-label="Schichtauswahl aufheben" title="Schichtauswahl aufheben">
+                <i class="far fa-times-circle" aria-hidden="true"></i>
+            </button>
+        </div>
+        @foreach(['shifts' => $pendingShifts, 'orders' => $unplannedOrders] as $tab => $pages)
+            <nav class="rt-shift-distribution__pagination" aria-label="{{ $tab === 'shifts' ? 'Offene Schichten blättern' : 'Ungeplante Leistungen blättern' }}"
+                x-show="distributionTab === @js($tab)" :inert="distributionTab !== @js($tab)"
+                @if(($pendingShifts->total() > 0 || $unplannedOrders->total() === 0 ? 'shifts' : 'orders') !== $tab) style="display: none" @endif>
+                <button type="button" class="rt-shift-distribution__footer-button" wire:click="previousPage('{{ $pages->getPageName() }}')"
+                    @disabled($pages->onFirstPage()) aria-label="Vorherige Seite" title="Vorherige Seite"><i class="far fa-chevron-left" aria-hidden="true"></i></button>
+                <span class="rt-shift-distribution__page" aria-live="polite" aria-atomic="true"><span class="sr-only">Seite </span>{{ $pages->currentPage() }} / {{ $pages->lastPage() }}</span>
+                <button type="button" class="rt-shift-distribution__footer-button" wire:click="nextPage('{{ $pages->getPageName() }}')"
+                    @disabled(! $pages->hasMorePages()) aria-label="Nächste Seite" title="Nächste Seite"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
+            </nav>
+        @endforeach
     </footer>
 </div>

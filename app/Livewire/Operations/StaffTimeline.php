@@ -12,6 +12,7 @@ use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\StaffTimelineLayout;
 use App\Services\Operations\TimelinePlanningSuggestionService;
 use App\Services\Operations\TimelineWorkloadService;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
 use App\Support\Operations\OperationsTransaction;
@@ -171,14 +172,17 @@ class StaffTimeline extends Component
         $this->ensurePlanning();
         abort_unless($this->assignmentOpen && $this->planningShiftId && $this->planningUserId && $this->planningRevision !== null, 422);
         $this->validate(['assignmentStatus' => ['required', Rule::in(ShiftAssignmentStatus::blockingValues())]]);
-        OperationsTransaction::run(function () {
+        $initialShift = Shift::findOrFail($this->planningShiftId);
+        $initialUser = User::where('role', 'staff')->where('status', true)->findOrFail($this->planningUserId);
+        $travel = app(TravelAssessmentService::class)->preflight($initialShift, collect([$initialUser]));
+        OperationsTransaction::run(function () use ($travel) {
             PlanningLocks::acquire([$this->planningShiftId], [$this->planningUserId]);
             $shift = app(TimelinePlanningSuggestionService::class)->openShifts($this->from, $this->until, auth()->user())->whereKey($this->planningShiftId)->first();
             if (! $shift) {
                 throw ValidationException::withMessages(['workflow' => 'Für diese Schicht ist kein offener Einsatzplatz mehr verfügbar.']);
             }
             $user = User::where('role', 'staff')->where('status', true)->findOrFail($this->planningUserId);
-            app(ShiftAssignmentService::class)->assign($shift, $user, auth()->user(), $this->assignmentStatus, null, $this->planningRevision);
+            app(ShiftAssignmentService::class)->assign($shift, $user, auth()->user(), $this->assignmentStatus, null, $this->planningRevision, null, $travel);
         });
         $this->resetPlanningSelection();
         $this->dispatch('operations-plan-changed');

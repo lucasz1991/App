@@ -7,6 +7,7 @@ use App\Models\OperationsTerminalSession;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsEnhancementsSchema;
 use App\Support\Operations\OperationsTransaction;
@@ -77,7 +78,21 @@ class WorkTimeTerminalService
     {
         Validator::make(compact('token', 'terminalId') + $input, ['token' => 'required|string|size:64', 'terminalId' => 'required|uuid', 'event_key' => 'required|uuid', 'action' => 'required|in:start,pause,resume,stop,submit,activity', 'revision' => 'required|integer|min:0', 'kind' => 'nullable|string', 'assignment_id' => 'nullable|integer', 'plan_revision' => 'nullable|integer', 'work_context' => 'nullable|in:shift,internal,training,unplanned', 'title' => 'nullable|string|max:180', 'training_session_id' => 'nullable|integer'])->validate();
 
-        return OperationsTransaction::run(function () use ($token, $terminalId, $input, $location) {
+        $travel = null;
+        if ($input['action'] === 'start' && ($input['work_context'] ?? 'shift') === 'shift' && ! empty($input['assignment_id'])) {
+            $session = OperationsTerminalSession::where('token_hash', hash('sha256', $token))->where('terminal_id', $terminalId)->firstOrFail();
+            abort_unless(! $session->revoked_at && $session->expires_at->gt(now()->utc()), 403);
+            $actor = User::findOrFail($session->user_id);
+            $profile = OperationsTerminalProfile::whereNull('revoked_at')->where('terminal_id', $session->terminal_id)->findOrFail($session->operations_terminal_profile_id);
+            OperationsAccess::own($actor, $actor->id);
+            $this->location($profile, $location);
+            $assignment = ShiftAssignment::where('user_id', $actor->id)->with('shift')->find($input['assignment_id']);
+            if ($assignment?->shift) {
+                $travel = app(TravelAssessmentService::class)->preflight($assignment->shift, collect([$actor]));
+            }
+        }
+
+        return OperationsTransaction::run(function () use ($token, $terminalId, $input, $location, $travel) {
             $known = OperationsTerminalSession::where('token_hash', hash('sha256', $token))->where('terminal_id', $terminalId)->firstOrFail();
             $actor = User::lockForUpdate()->findOrFail($known->user_id);
             $session = OperationsTerminalSession::where('token_hash', hash('sha256', $token))->where('terminal_id', $terminalId)->lockForUpdate()->findOrFail($known->id);
@@ -90,7 +105,7 @@ class WorkTimeTerminalService
             $at = CarbonImmutable::now('UTC');
             $zone = config('operations.display_timezone', 'Europe/Berlin');
             $event = array_intersect_key($input, array_flip(['event_key', 'action', 'revision', 'kind', 'assignment_id', 'plan_revision', 'work_context', 'title', 'training_session_id'])) + ['sequence' => $session->sequence + 1, 'entry_capture_id' => $input['action'] === 'start' ? (string) Str::uuid() : $active->capture_id, 'occurred_at' => $at->toIso8601String(), 'timezone' => $zone, 'offset_minutes' => (int) ($at->setTimezone($zone)->offset / 60)];
-            $receipts = app(WorkTimeCaptureService::class)->ingest($actor, $session->device_id, [$event]);
+            $receipts = app(WorkTimeCaptureService::class)->ingest($actor, $session->device_id, [$event], [$input['event_key'] => $travel]);
             $session->forceFill(['sequence' => $session->sequence + 1, 'revoked_at' => now()->utc()])->save();
 
             // No personnel/contact/plan data or encryption key is returned to a kiosk.

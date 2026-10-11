@@ -58,7 +58,16 @@ class ShiftTravelPanel extends Component
         $shift = $this->currentShift();
         $users = User::whereIn('id', $this->employeeIds)->where('role', 'staff')->where('status', true)->get();
         $details = app(StaffEligibilityService::class)->assessDetailedMany($shift, $users, false, ['include_employee_location' => true, 'actor' => auth()->user()]);
-        $this->assessments = collect($details)->map(fn ($detail) => array_intersect_key($detail, array_flip(['issues', 'warnings', 'travel', 'arrival'])))->all();
+        $this->currentShift();
+        $this->assessments = collect($details)->map(function ($detail) {
+            $detail = array_intersect_key($detail, array_flip(['issues', 'warnings', 'travel', 'arrival']));
+            if (isset($detail['arrival'])) {
+                $reason = $detail['arrival']['reason'] ?? '';
+                $detail['arrival']['reason_label'] = str_contains($reason, ' ') ? $reason : TravelAssessmentService::reasonLabel($reason);
+            }
+
+            return $detail;
+        })->all();
         $this->geometry = [];
         $this->loaded = true;
     }
@@ -69,6 +78,7 @@ class ShiftTravelPanel extends Component
         abort_unless(in_array($employeeId, $this->employeeIds, true) && in_array($direction, ['before', 'after', 'arrival'], true), 403);
         $user = User::where('role', 'staff')->where('status', true)->findOrFail($employeeId);
         $result = app(TravelAssessmentService::class)->geometryFor($shift, $user, $direction, ['actor' => auth()->user()]);
+        $this->currentShift();
         $this->geometry = ($result['status'] ?? null) === 'known' ? ($result['points'] ?? []) : [];
         if ($this->geometry === []) {
             $this->addError('route', 'Die Route ist aktuell nicht verfügbar. Die Zuteilung bleibt bedienbar.');

@@ -25,6 +25,7 @@ export function serviceDetailPanel() {
         _destroyed: false,
         _listeners: [],
         _cancelRequest: null,
+        _focusFrame: null,
 
         init() {
             const scope = this.$el ?? this.$root;
@@ -105,6 +106,7 @@ export function serviceDetailPanel() {
             if (this.panelVisible && this.requestedServiceId === id && !this.error) return this.requestPromise;
 
             this.requestVersion += 1;
+            this.cancelFocusFrame();
             this.requestedServiceId = id;
             this.pendingServiceId = id;
             this.error = '';
@@ -118,6 +120,7 @@ export function serviceDetailPanel() {
         closeServiceDetail() {
             if (this.panelVisible || this.loading || this.pendingServiceId !== null || this.error) this.requestVersion += 1;
             this.panelVisible = false;
+            this.cancelFocusFrame();
             this.pendingServiceId = null;
             this.loading = false;
             this.error = '';
@@ -154,9 +157,35 @@ export function serviceDetailPanel() {
             // revealed. Transfer its focus only after Alpine applies x-show.
             await this.afterMorph();
             if (!this.isCurrent(version) || this.loading || this.error) return;
+            // Alpine's x-show schedules its actual display change in a frame,
+            // while nextTick alone can finish before that queued frame runs.
+            await this.afterVisibilityFrame();
+            if (!this.isCurrent(version) || this.loading || this.error) return;
             const detail = this.renderedDetails(id);
             if (!detail || detail.contains(detail.ownerDocument?.activeElement)) return;
-            detail.querySelector('[data-dialog-close]')?.focus({ preventScroll: true });
+            const close = detail.querySelector('[data-dialog-close]');
+            if (close?.isConnected && !close.disabled && close.getClientRects().length > 0) close.focus({ preventScroll: true });
+        },
+
+        afterVisibilityFrame() {
+            const scope = this.$el ?? this.$root;
+            const win = scope?.ownerDocument?.defaultView ?? globalThis.window;
+            if (typeof win?.requestAnimationFrame !== 'function') return Promise.resolve();
+            return new Promise(resolve => {
+                let frameId;
+                this._focusFrame = { resolve, cancel: () => win.cancelAnimationFrame?.(frameId) };
+                frameId = win.requestAnimationFrame(() => {
+                    if (this._focusFrame?.resolve === resolve) this._focusFrame = null;
+                    resolve();
+                });
+            });
+        },
+
+        cancelFocusFrame() {
+            const frame = this._focusFrame;
+            this._focusFrame = null;
+            frame?.cancel();
+            frame?.resolve();
         },
 
         afterMorph() {

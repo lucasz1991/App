@@ -1,6 +1,7 @@
 <section class="space-y-5" aria-label="TomTom Routenplanung">
     <header><h2 class="text-lg font-semibold">TomTom / Routenplanung</h2><p class="text-sm text-rt-muted">Pkw-Fahrzeiten zwischen bestätigten Einsatzorten. Ungeprüfte Fahrten werden als Hinweis angezeigt.</p></header>
     <form wire:submit="save" class="ops-form">
+        @if($errors->any())<ul class="ops-full text-sm text-red-700 dark:text-red-300" role="alert">@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul>@endif
         <div class="ops-full"><x-ui.forms.checkbox wire:model="config.enabled" label="Routenplanung aktivieren" /></div>
         <div class="ops-full space-y-2"><label for="tomtom-api-key" class="text-sm font-semibold">API-Schlüssel</label><x-ui.forms.input id="tomtom-api-key" type="password" wire:model="apiKey" autocomplete="new-password" placeholder="{{ $saved['has_api_key'] ? $saved['key_mask'] : 'TomTom-Schlüssel eingeben' }}" /><p class="text-sm text-rt-muted">Leere Eingabe behält den gespeicherten Schlüssel. Der Schlüssel bleibt auf dem Server.</p>@error('key')<p role="alert">{{ $message }}</p>@enderror</div>
         <x-operations.field label="Fahrtreserve (Minuten)" model="config.reserve_minutes" type="number" min="0" max="120" required />

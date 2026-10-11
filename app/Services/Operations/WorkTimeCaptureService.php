@@ -2,11 +2,14 @@
 
 namespace App\Services\Operations;
 
+use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeCaptureDevice;
 use App\Models\WorkTimeCaptureReceipt;
 use App\Models\WorkTimeEntry;
 use App\Models\WorkTimeEvent;
+use App\Services\Routing\TravelAssessmentService;
+use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\WorkTimeSchema;
@@ -47,7 +50,7 @@ class WorkTimeCaptureService
             'reviewed_event_keys' => WorkTimeCaptureReceipt::where('work_time_capture_device_id', $device->id)->where('status', 'reviewed')->latest('id')->limit(500)->pluck('event_key')->all()];
     }
 
-    public function ingest(User $actor, string $deviceId, array $events): array
+    public function ingest(User $actor, string $deviceId, array $events, array $travelPreflights = []): array
     {
         OperationsAccess::own($actor->fresh(), $actor->id);
         WorkTimeSchema::requireReady();
@@ -56,7 +59,20 @@ class WorkTimeCaptureService
         $results = [];
         foreach ($events as $event) {
             $event = array_intersect_key($event, array_flip(['event_key', 'sequence', 'action', 'kind', 'entry_capture_id', 'revision', 'occurred_at', 'timezone', 'offset_minutes', 'assignment_id', 'plan_revision', 'work_context', 'title', 'order_id', 'training_session_id']));
-            $results[] = OperationsTransaction::run(function () use ($actor, $deviceId, $event) {
+            $travel = $travelPreflights[$event['event_key']] ?? null;
+            if (! $travel instanceof TravelPreflight) {
+                $travel = null;
+            }
+            $currentDevice = WorkTimeCaptureDevice::where('public_id', $deviceId)->where('user_id', $actor->id)->whereNull('revoked_at')->first();
+            abort_unless($currentDevice, 403, 'Erfassungsgerät nicht mehr freigegeben.');
+            if (! $travel && $event['action'] === 'start' && ($event['work_context'] ?? 'shift') === 'shift' && ! empty($event['assignment_id'])
+                && (int) $event['sequence'] === (int) $currentDevice->last_sequence + 1 && ! WorkTimeCaptureReceipt::where('event_key', $event['event_key'])->exists()) {
+                $assignment = ShiftAssignment::where('user_id', $actor->id)->with('shift')->find($event['assignment_id']);
+                if ($assignment?->shift) {
+                    $travel = app(TravelAssessmentService::class)->preflight($assignment->shift, collect([$actor]));
+                }
+            }
+            $results[] = OperationsTransaction::run(function () use ($actor, $deviceId, $event, $travel) {
                 $device = WorkTimeCaptureDevice::where('public_id', $deviceId)->where('user_id', $actor->id)->whereNull('revoked_at')->lockForUpdate()->first();
                 abort_unless($device, 403, 'Erfassungsgerät nicht mehr freigegeben.');
                 ksort($event);
@@ -94,7 +110,7 @@ class WorkTimeCaptureService
                             if (empty($event['assignment_id']) || empty($event['plan_revision'])) {
                                 throw ValidationException::withMessages(['workflow' => 'Dienstbezug fehlt.']);
                             }
-                            $entry = $service->start((int) $event['assignment_id'], (int) $event['plan_revision'], $event['event_key'], $actor->fresh(), $at, null, true);
+                            $entry = $service->start((int) $event['assignment_id'], (int) $event['plan_revision'], $event['event_key'], $actor->fresh(), $at, null, true, $travel);
                         } else {
                             $entry = $service->startContext($event, $event['event_key'], $actor->fresh(), $at, true);
                         }
@@ -108,6 +124,9 @@ class WorkTimeCaptureService
                 } catch (ValidationException $exception) {
                     $status = 'conflict';
                     $reason = collect($exception->errors())->flatten()->first();
+                    if (is_string($reason) && str_starts_with($reason, 'Fahrzeit, Reserve und Ruhezeit')) {
+                        $reason = 'Fahrtkonflikt erkannt. Bitte die Disposition prüfen lassen.';
+                    }
                 } catch (HttpException $exception) {
                     $status = 'conflict';
                     $reason = $exception->getStatusCode() === 403 ? 'Berechtigung oder Freigabe geändert.' : 'Zuordnung oder Zeitstand muss geprüft werden.';

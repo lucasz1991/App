@@ -273,5 +273,7 @@ auth.json
 !/tests/Frontend/timeline-window-navigation.test.js
 !/tests/Feature/TomTomRoutingTest.php
 !/tests/Feature/EmployeeLocationTest.php
+!/tests/Feature/EmployeeLocationMigrationTest.php
 !/tests/Feature/RoutingSiteWorkflowTest.php
+!/tests/Feature/RoutingSiteSelectionSecurityTest.php
 !/tests/Frontend/routing-map.test.js

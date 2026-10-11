@@ -23,6 +23,9 @@
 @import './operations-panel.css';
 @import './table-records.css';
 @import './table-scroll.css';
+@import './table-pagination.css';
+@import './service-table.css';
+@import './service-detail-tabs.css';
 @import './customer-portal.css';
 @import './personnel-workspace.css';
 @import './employee-workspace.css';

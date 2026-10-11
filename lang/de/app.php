@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'employee_location_onboarding_title' => 'RailTime auf deinem Geschäftshandy',
+    'employee_location_onboarding_text' => 'Unter „Mein Arbeitstag“ findest du die Anleitung zur Installation der Web-App. Wenn der Betrieb den Standortdienst bereitstellt, verbindest du dort dein Geschäftshandy mit der zusätzlichen Android- oder iPhone-App. Die Standortfreigabe ist freiwillig und wird täglich erklärt und erneut gefragt; ohne Freigabe bleibt deine Zeiterfassung nutzbar.',
+    'employee_location_onboarding_action' => 'Mein Arbeitstag und Einrichtung öffnen',
 
     // Navigation / Topbar
     'dashboard' => 'Dashboard',

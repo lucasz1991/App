@@ -246,6 +246,14 @@
                                                 </template>
                                             </ul>
 
+                                            @if($audience === 'employee')
+                                                <section x-show.important="slide.id === 'intro'" class="rt-welcome-explainer mt-3" data-employee-location-onboarding>
+                                                    <h3 class="rt-welcome-explainer-title">{{ __('app.employee_location_onboarding_title') }}</h3>
+                                                    <p class="mt-2 text-xs leading-5">{{ __('app.employee_location_onboarding_text') }}</p>
+                                                    <a href="{{ route('operations.mine') }}" wire:navigate class="mt-2 inline-flex min-h-11 items-center text-sm font-semibold underline">{{ __('app.employee_location_onboarding_action') }}</a>
+                                                </section>
+                                            @endif
+
                                             <div class="mt-3 grid gap-2.5 sm:grid-cols-2">
                                                 <section class="rt-welcome-explainer rt-welcome-explainer--access">
                                                     <h3 class="rt-welcome-explainer-title">

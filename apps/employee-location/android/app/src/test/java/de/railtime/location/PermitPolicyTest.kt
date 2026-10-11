@@ -38,4 +38,16 @@ class PermitPolicyTest {
     @Test fun `a cached fix before the capture window is never uploaded`() {
         assertFalse(permit().acceptsFix(6_000L, 4_000L, 1.0, 50.0, 8.0))
     }
+    @Test fun `quality metadata is throttled and does not delay the next precise fix`() {
+        val policy = permit()
+        assertTrue(policy.qualityReportDue(6_000L))
+        policy.markQualityReport(6_000L)
+        assertFalse(policy.qualityReportDue(65_999L))
+        assertTrue(policy.qualityReportDue(66_000L))
+        assertTrue(policy.acceptsFix(7_000L, 7_000L, 1.0, 50.0, 8.0))
+        policy.acknowledge(1_000_000L)
+        assertFalse(policy.qualityReportDue(66_000L))
+        policy.invalidate()
+        assertFalse(policy.qualityReportDue(70_000L))
+    }
 }

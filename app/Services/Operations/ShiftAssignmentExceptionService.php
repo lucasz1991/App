@@ -13,7 +13,9 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\CustomerPortal\CustomerCapacityService;
+use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Routing\TomTomSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -121,6 +123,18 @@ class ShiftAssignmentExceptionService
         $conflicts = [];
         foreach ($assignments as $assignment) {
             $detail = $this->conflict($shift, $assignment->shift, (int) $rules['minimum_rest_minutes']);
+            if (! $detail) {
+                $travel = collect($assessment['travel'] ?? [])->first(fn ($leg) => (int) ($leg['shift_id'] ?? 0) === (int) $assignment->shift_id
+                    && in_array('travel_'.($leg['direction'] ?? ''), array_column($issues, 'code'), true));
+                if ($travel) {
+                    $detail = ['shift_id' => $assignment->shift_id, 'title' => $assignment->shift->title, 'location_name' => $assignment->shift->location_name,
+                        'starts_at' => $assignment->shift->starts_at->setTimezone($shift->timezone)->toIso8601String(),
+                        'ends_at' => $assignment->shift->ends_at->setTimezone($shift->timezone)->toIso8601String(),
+                        'type' => 'travel', 'direction' => $travel['direction'], 'overlap_minutes' => 0,
+                        'gap_minutes' => $travel['available_minutes'], 'required_rest_minutes' => $travel['rest_minutes'],
+                        'transfer_buffer_minutes' => (int) ($shift->disposition_details['transfer_buffer_minutes'] ?? 0), 'same_location' => false];
+                }
+            }
             if ($detail) {
                 $conflicts[] = ['source' => 'shift', 'assignment_id' => $assignment->id] + $detail;
             }
@@ -216,10 +230,26 @@ class ShiftAssignmentExceptionService
             ->whereHas('shift', fn ($query) => $query->notCancelled()->during($shift->starts_at->subMinutes($lookaround), $shift->ends_at->addMinutes($lookaround)))
             ->orderBy('id')->with('shift')->get();
         foreach ($peers as $peer) {
-            if ($this->currentDecision($peer->shift, $user, $peer, $assignment->id) === null) {
+            $peerContext = [];
+            $withoutContext = ['exclude_shift_ids' => [$peer->shift_id]];
+            if (TomTomSettings::all()['enabled']) {
+                $preflight = $context['travel_preflight'] ?? null;
+                $prepared = $preflight instanceof TravelPreflight ? ($preflight->peerExceptions[$user->id][$peer->shift_id] ?? null) : null;
+                if (! is_array($prepared) || (int) ($prepared['assignment_id'] ?? 0) !== (int) $peer->id
+                    || ! ($prepared['peer'] ?? null) instanceof TravelPreflight || ! ($prepared['without_peer'] ?? null) instanceof TravelPreflight) {
+                    continue;
+                }
+                $latest = OperationAudit::where('subject_type', 'ShiftAssignment')->where('subject_id', $peer->id)->where('action', 'assignment.temporal_exception')->latest('id')->value('id');
+                if ((int) $latest !== (int) ($prepared['audit_id'] ?? 0)) {
+                    continue;
+                }
+                $peerContext = ['travel_preflight' => $prepared['peer']];
+                $withoutContext = ['travel_preflight' => $prepared['without_peer']];
+            }
+            if ($this->currentDecision($peer->shift, $user, $peer, $assignment->id, $peerContext) === null) {
                 continue;
             }
-            $withoutPeer = app(StaffEligibilityService::class)->assessMany($shift, collect([$user]), true, ['exclude_shift_ids' => [$peer->shift_id]])[$user->id];
+            $withoutPeer = app(StaffEligibilityService::class)->assessMany($shift, collect([$user]), true, $withoutContext)[$user->id];
             if ($withoutPeer === []) {
                 return;
             }

@@ -13,15 +13,26 @@
             </x-operations.panel.header>
             @if($consolidated)
                 @php
-                    $detailTabIcons = ['overview'=>'far fa-briefcase', 'planning'=>'far fa-calendar-check', 'proofs'=>'far fa-file-check', 'costs'=>'far fa-coins', 'history'=>'far fa-clock-rotate-left'];
-                    $detailTabs = collect($this->detailSections())->map(fn ($label, $key) => ['label'=>$label, 'icon'=>$detailTabIcons[$key] ?? 'far fa-circle'])->all();
+                    $detailTabIcons = ['overview'=>'far fa-briefcase', 'shifts'=>'far fa-calendar-days', 'staffing'=>'far fa-users', 'planning'=>'far fa-calendar-check', 'proofs'=>'far fa-file-check', 'costs'=>'far fa-coins', 'history'=>'far fa-clock-rotate-left'];
+                    $detailTabs = collect($this->detailSections())->map(fn ($label, $key) => [
+                        'label'=>$label, 'icon'=>$detailTabIcons[$key] ?? 'far fa-circle',
+                        'count'=>match ($key) { 'shifts'=>$serviceDetailItem->count, 'staffing'=>$serviceDetailItem->summary['reserved'], default=>null },
+                        'alert'=>$key === 'staffing' && $serviceDetailItem->summary['open'] > 0,
+                    ])->all();
                     $detailPrefix = 'service-detail-'.$this->getId();
                 @endphp
                 <x-operations.panel.tabs :tabs="$detailTabs" label="Leistungsdetails" :id-prefix="$detailPrefix" action="setDetailSection" :active="$detailSection" />
             @endif
+
             <div class="rt-ops-panel__body rt-modal-content" data-service-detail-body>
                 <x-operations.feedback />
                 <div @if($consolidated) role="tabpanel" id="{{ $detailPrefix }}-panel-{{ $detailSection }}" aria-labelledby="{{ $detailPrefix }}-tab-{{ $detailSection }}" tabindex="0" @endif class="rt-service-detail-section" wire:loading.class="opacity-60" wire:target="setDetailSection">
+            @if($consolidated && $detailSection === 'shifts')
+                <x-operations.service-detail-shifts :item="$serviceDetailItem" :detail-only="$detailOnly" :planning-route="$planningRoute" />
+            @endif
+            @if($consolidated && $detailSection === 'staffing')
+                <x-operations.service-detail-staffing :item="$serviceDetailItem" />
+            @endif
             @if(!$consolidated || $detailSection === 'overview')
             <x-operations.service-detail-summary :item="$serviceDetailItem" />
             <div class="rt-service-detail-workflow">
@@ -72,7 +83,7 @@
             @endif
 
             <div @class(['mt-5 grid gap-4','lg:grid-cols-2'=>!$consolidated])>
-                @if(!$consolidated || $detailSection === 'planning')
+                @if(!$consolidated || (!$detailOnly && $detailSection === 'planning'))
                 <section>
                     <h3 class="text-sm font-semibold text-rt-text dark:text-white">Schichten</h3>
                     <div class="mt-2 divide-y divide-rt-border/60 rounded-xl border border-rt-border/70 dark:divide-rt-dark-border/60 dark:border-rt-dark-border/70">

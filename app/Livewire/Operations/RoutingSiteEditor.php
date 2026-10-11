@@ -9,6 +9,7 @@ use App\Services\Operations\OperationsAuditService;
 use App\Services\Operations\OrderSchedulingService;
 use App\Services\Operations\ShiftSchedulingService;
 use App\Services\Operations\SiteSnapshotService;
+use App\Services\Routing\RoutingSiteSelection;
 use App\Support\Operations\OperationsAccess;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -63,13 +64,15 @@ class RoutingSiteEditor extends Component
         $this->validate(['customerLocationId' => ['required', 'integer', 'min:1']]);
         $customerId = $record instanceof Shift ? $record->order->customer_id : $record->customer_id;
         $location = CustomerLocation::where('customer_id', $customerId)->findOrFail($this->customerLocationId);
-        $snapshot = app(SiteSnapshotService::class)->snapshotForLocation($location);
+        $selection = RoutingSiteSelection::fromLocation($location);
         // Explicit refresh also updates a saved snapshot of the same directory entry.
-        $attributes = ['customer_location_id' => $location->id, 'location_snapshot' => $snapshot, 'location_name' => $location->name];
+        $attributes = ['customer_location_id' => $location->id, 'location_name' => $location->name];
+        $context = ['routing_site_selection' => $selection];
         if ($record instanceof Shift) {
-            $record = app(ShiftSchedulingService::class)->save($record, $attributes + ['expected_revision' => $record->revision], auth()->user());
+            $record = app(ShiftSchedulingService::class)->save($record, $attributes + ['expected_revision' => $record->revision], auth()->user(), $context);
         } else {
-            $record = app(OrderSchedulingService::class)->save($record, $attributes + ['expected_updated_at' => $record->updated_at?->format('Y-m-d H:i:s.u')], auth()->user());
+            $context['expected_order_basis'] = $this->basis;
+            $record = app(OrderSchedulingService::class)->save($record, $attributes + ['expected_updated_at' => $record->updated_at?->format('Y-m-d H:i:s.u')], auth()->user(), $context);
             app(OperationsAuditService::class)->record($record, auth()->user(), 'order.location.confirmed', ['customer_location_id' => $location->id, 'source_revision' => $location->revision]);
         }
         $this->basis = $this->fingerprint($record);

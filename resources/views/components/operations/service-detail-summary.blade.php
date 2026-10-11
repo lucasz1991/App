@@ -38,6 +38,8 @@
         ? \App\Support\Operations\TimelineLocationPreview::fromOrder($order)
         : ['state' => 'unknown', 'label' => 'Standort nicht verortet'];
     $address = collect([$order?->street, trim(($order?->postal_code ?? '').' '.($order?->city ?? '')), $order?->country])->filter()->join(', ');
+    $orderFrom = $item->orderFrom ?? null;
+    $orderUntil = $item->orderUntil ?? null;
 @endphp
 <div {{ $attributes->class(['rt-service-detail-summary']) }} data-service-detail-summary data-service-summary-scope="complete" x-data="{ open: true }">
     <div class="rt-service-detail-summary__identity">
@@ -64,10 +66,13 @@
     <div class="rt-service-detail-summary__context">
         <section class="rt-service-detail-summary__period" aria-label="Zeitraum der gesamten Leistung">
             <div class="rt-service-detail-summary__section-heading"><h3><i class="far fa-calendar-alt" aria-hidden="true"></i> Zeitraum</h3></div>
+            @if($orderFrom && $orderUntil)
+                <p class="rt-service-detail-summary__note" data-service-order-period>Leistungszeitraum: {{ $orderFrom->format('d.m.Y H:i') }} – {{ $orderUntil->format('d.m.Y H:i') }}</p>
+            @endif
             @if($from && $until)
                 <dl class="rt-service-detail-summary__range">
-                    <div><dt>Beginn</dt><dd><time datetime="{{ $from->toIso8601String() }}">{{ $from->format('d.m.Y') }} <strong>{{ $from->format('H:i') }}</strong></time></dd></div>
-                    <div><dt>Ende</dt><dd><time datetime="{{ $until->toIso8601String() }}">{{ $until->format('d.m.Y') }} <strong>{{ $until->format('H:i') }}</strong></time></dd></div>
+                    <div><dt>{{ $item->count > 0 ? 'Erste Schicht' : 'Beginn' }}</dt><dd><time datetime="{{ $from->toIso8601String() }}">{{ $from->format('d.m.Y') }} <strong>{{ $from->format('H:i') }}</strong></time></dd></div>
+                    <div><dt>{{ $item->count > 0 ? 'Letzte Schicht endet' : 'Ende' }}</dt><dd><time datetime="{{ $until->toIso8601String() }}">{{ $until->format('d.m.Y') }} <strong>{{ $until->format('H:i') }}</strong></time></dd></div>
                 </dl>
                 <p class="rt-service-detail-summary__note">{{ $timezone }}@if($from->format('P') !== $until->format('P')) · Zeitumstellung: UTC {{ $from->format('P') }} → {{ $until->format('P') }}@endif</p>
             @endif

@@ -5,6 +5,7 @@ struct PermitPolicy {
     private var receivedMonotonic: TimeInterval = 0
     private var serverTime: TimeInterval = 0
     private var nextSampleTime: TimeInterval = 0
+    private var lastQualityReport: TimeInterval?
 
     mutating func authorize(serverTime: Date, expiresAt: Date, nextSampleAt: Date,
                             receivedMonotonic: TimeInterval, requestDuration: TimeInterval) {
@@ -31,4 +32,8 @@ struct PermitPolicy {
     }
     mutating func acknowledge(_ date: Date) { nextSampleTime = date.timeIntervalSince1970 }
     mutating func invalidate() { deadline = 0 }
+    func qualityReportDue(_ now: TimeInterval) -> Bool {
+        sampleDue(now) && (lastQualityReport == nil || now - lastQualityReport! >= 60)
+    }
+    mutating func markQualityReport(_ now: TimeInterval) { lastQualityReport = now }
 }

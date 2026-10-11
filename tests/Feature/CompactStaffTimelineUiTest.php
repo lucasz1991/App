@@ -560,9 +560,19 @@ class CompactStaffTimelineUiTest extends TestCase
     public function test_distribution_pagination_lives_in_the_sidebar_without_dropdown_contracts(): void
     {
         $view = file_get_contents(resource_path('views/livewire/admin/operations/partials/pending-distribution.blade.php'));
-        // Seitenpanel statt Aufklapper: Blättern bleibt im Panel, ohne Dropdown-Schließlogik.
-        $this->assertStringContainsString('<nav class="rt-shift-distribution__pagination" aria-label="Offene Schichten blättern">', $view);
-        $this->assertStringContainsString('<nav class="rt-shift-distribution__pagination" aria-label="Ungeplante Leistungen blättern">', $view);
+        // Both native named pagers share the stationary footer, not the scrolling tab bodies.
+        $footerPosition = strpos($view, '<footer class="rt-shift-distribution__footer"');
+        $this->assertNotFalse($footerPosition);
+        $footer = substr($view, $footerPosition);
+        $this->assertStringNotContainsString('rt-shift-distribution__pagination', substr($view, 0, $footerPosition));
+        $this->assertStringContainsString("@foreach(['shifts' => \$pendingShifts, 'orders' => \$unplannedOrders] as \$tab => \$pages)", $footer);
+        $this->assertStringContainsString('Offene Schichten blättern', $footer);
+        $this->assertStringContainsString('Ungeplante Leistungen blättern', $footer);
+        $this->assertStringContainsString('x-show="distributionTab === @js($tab)" :inert="distributionTab !== @js($tab)"', $footer);
+        $this->assertStringContainsString("previousPage('{{ \$pages->getPageName() }}')", $footer);
+        $this->assertStringContainsString("nextPage('{{ \$pages->getPageName() }}')", $footer);
+        $this->assertStringContainsString('@disabled($pages->onFirstPage())', $footer);
+        $this->assertStringContainsString('@disabled(! $pages->hasMorePages())', $footer);
         $this->assertStringNotContainsString('data-rt-dropdown-keep-open', $view);
     }
 

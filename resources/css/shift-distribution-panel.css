@@ -1,6 +1,6 @@
 /*
  * Schichtplan · „Noch zu verteilen“ als Seitenpanel
- * Bündig am rechten Rand, mit Abstand zur Liste. Offene Schichten nach Tagen,
+ * Im Seitenraster, mit Abstand zur Liste. Offene Schichten nach Tagen,
  * Auswahl zeigt passende Mitarbeitende zum direkten Einteilen; die Zeitleiste
  * markiert Tag und passende Zeilen (data-focus / data-focus-fit).
  */
@@ -15,13 +15,10 @@
     min-height: 0;
     flex: 0 0 auto;
     flex-direction: column;
-    /* Bündig rechts am Bildschirmrand: Seitenrand des Inhalts aufheben. */
-    margin-right: calc(-1 * var(--rt-page-gutter, 24px));
+    margin-right: 0;
     overflow: hidden;
     border: 1px solid var(--rt-shell-line, #dce1e6);
-    border-right: 0;
-    border-bottom: 0;
-    border-radius: 16px 0 0 0;
+    border-radius: 16px;
     background: var(--rt-shell-surface-solid, #fff);
     animation: rt-distribution-dock .3s cubic-bezier(.16, 1, .3, 1);
 }
@@ -39,10 +36,14 @@
 .rt-shift-distribution--side .rt-shift-distribution__heading { align-items: flex-start; }
 .rt-shift-distribution--side .rt-shift-distribution__header p { margin-top: 3px; }
 .rt-shift-distribution--side .rt-shift-distribution__group { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 10px; scrollbar-width: thin; }
-.rt-shift-distribution--side .rt-shift-distribution__footer { flex: 0 0 auto; padding: 0 16px; border: 0; background: var(--rt-shell-accent, #e4002b); }
-.rt-shift-distribution--side .rt-shift-distribution__inquiries { margin: 0; color: #fff; }
-.rt-shift-distribution--side .rt-shift-distribution__inquiries:hover { color: #fff; text-decoration: underline; }
-.rt-shift-distribution--side .rt-shift-distribution__inquiries:focus-visible { outline-color: #fff; outline-offset: -3px; }
+.rt-shift-distribution--side .rt-shift-distribution__footer { display: flex; min-height: 44px; flex: 0 0 auto; align-items: center; gap: 4px; padding: 0 8px; border: 0; border-radius: 0 0 16px 16px; background: var(--rt-shell-accent, #e4002b); color: #fff; }
+.rt-shift-distribution__footer-actions { display: flex; flex: none; }
+.rt-shift-distribution--side .rt-shift-distribution__pagination { min-width: 0; flex: 1; gap: 0; padding: 0; color: inherit; }
+.rt-shift-distribution--side .rt-shift-distribution__footer-button { display: inline-flex; width: 44px; height: 44px; min-height: 44px; flex: none; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: inherit; font-size: 14px; transition: background-color .15s ease; }
+.rt-shift-distribution--side .rt-shift-distribution__footer-button:hover:not(:disabled) { background: rgb(255 255 255 / .14); }
+.rt-shift-distribution--side .rt-shift-distribution__footer-button:focus-visible { outline: 2px solid #fff; outline-offset: -4px; background: rgb(255 255 255 / .14); }
+.rt-shift-distribution--side .rt-shift-distribution__footer-button:disabled { opacity: .4; cursor: default; }
+.rt-shift-distribution__page { min-width: 26px; flex: 1; text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* Platz für den AI-Assist-Starter unten rechts */
 body:has(.rt-ai-assist__stage) .rt-shift-distribution--side .rt-shift-distribution__footer { padding-right: 92px; }
 
@@ -116,7 +117,8 @@ body:has(.rt-ai-assist__stage) .rt-shift-distribution--side .rt-shift-distributi
     .rt-shift-distribution--side .rt-shift-distribution__group { padding: 2px 6px 6px; }
     .rt-shift-distribution--side .rt-shift-distribution__day-head { padding: 5px 6px 3px; }
     .rt-shift-distribution--side .rt-shift-distribution__item { min-height: 42px; gap: 8px; padding: 5px 6px; }
-    .rt-shift-distribution--side .rt-shift-distribution__footer { min-height: 34px; padding-inline: 10px; }
+    .rt-shift-distribution--side .rt-shift-distribution__footer { padding-inline: 4px; border-radius: 0 0 14px 14px; }
+    body:has(.rt-ai-assist__stage) .rt-shift-distribution--side .rt-shift-distribution__footer { padding-right: 72px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .rt-shift-distribution-side, .rt-shift-distribution__assign { animation: none; }

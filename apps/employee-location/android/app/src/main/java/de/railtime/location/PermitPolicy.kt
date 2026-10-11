@@ -7,6 +7,7 @@ class PermitPolicy {
     private var receivedMonoMs = 0L
     private var serverTimeMs = 0L
     private var nextSampleServerMs = 0L
+    private var lastQualityReportMs: Long? = null
 
     fun authorize(serverTimeMs: Long, expiresAtMs: Long, nextSampleAtMs: Long,
                   receivedMonoMs: Long, requestDurationMs: Long) {
@@ -22,6 +23,9 @@ class PermitPolicy {
     fun sampleDue(nowMonoMs: Long): Boolean = valid(nowMonoMs) && serverNow(nowMonoMs) >= nextSampleServerMs
     fun acknowledge(nextSampleAtMs: Long) { nextSampleServerMs = nextSampleAtMs }
     fun invalidate() { deadlineMs = 0L }
+    fun qualityReportDue(nowMonoMs: Long): Boolean = sampleDue(nowMonoMs) &&
+        (lastQualityReportMs == null || nowMonoMs - lastQualityReportMs!! >= 60_000L)
+    fun markQualityReport(nowMonoMs: Long) { lastQualityReportMs = nowMonoMs }
 
     fun acceptsFix(nowMonoMs: Long, fixMonoMs: Long, accuracyM: Double,
                    latitude: Double, longitude: Double): Boolean =

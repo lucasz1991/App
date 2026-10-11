@@ -1,6 +1,7 @@
 <section class="space-y-5" aria-label="Mitarbeiter-Standorte">
     <header><h2 class="text-lg font-semibold">Mitarbeiter-Standorte</h2><p class="text-sm text-rt-muted">Tägliche freiwillige Freigabe auf dem zugewiesenen Geschäftshandy; ausschließlich während laufender Arbeitszeiterfassung.</p></header>
     <form wire:submit="save" class="ops-form">
+        @if($errors->any())<ul class="ops-full text-sm text-red-700 dark:text-red-300" role="alert">@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul>@endif
         <div class="ops-full"><x-ui.forms.checkbox wire:model="config.enabled" label="Mitarbeiter-Standortdienst aktivieren" /><p class="mt-2 text-sm text-rt-muted">Erst nach Abnahme auf Geschäftshandys und Klärung des betrieblichen Zwecks einschließlich der Aufbewahrung aktivieren.</p></div>
         <div class="ops-full text-sm"><p>Intervall: 15 Minuten · Aufbewahrung: 7 Tage · erforderliche Genauigkeit: höchstens 50 Meter.</p><p>Neue Zustimmung täglich, Ende um Mitternacht (Europe/Berlin). Ohne Zustimmung bleibt die Zeiterfassung nutzbar.</p></div>
         <x-operations.field label="Erklärtext für die tägliche Freigabe" model="config.explanation_text" type="textarea" :wide="true" required />

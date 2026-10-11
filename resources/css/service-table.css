@@ -1,0 +1,87 @@
+/* Service rows use the same bounded native table and pager as Personal. */
+.rt-shift-plan .rt-shift-plan-split__main > [data-shift-view='orders'] {
+    overflow: hidden;
+}
+
+[data-shift-view='orders'] > [data-service-overview] {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+[data-service-overview] > [data-table-scroll='body'] {
+    min-height: 0;
+    border-radius: 12px 12px 0 0;
+}
+
+.rt-shift-plan [data-service-overview] .rt-table-head,
+.rt-shift-plan [data-service-overview] .rt-table-mobile-sort {
+    position: static;
+}
+
+.rt-shift-plan [data-service-overview] [data-table-scroll-body] {
+    border-radius: 0;
+}
+
+.rt-service-pagination {
+    padding: 0;
+}
+
+.rt-service-filter-trigger.rt-ui-button,
+.rt-service-bulk-trigger.rt-ui-button {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 10px;
+    color: var(--rt-shell-muted);
+    background: var(--rt-shell-surface-solid);
+    border-color: var(--rt-shell-line);
+}
+
+.rt-service-bulk-trigger:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+}
+
+.rt-service-filter-count {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    display: grid;
+    place-items: center;
+    min-width: 15px;
+    height: 15px;
+    padding-inline: 3px;
+    border-radius: 8px;
+    color: var(--rt-shell-accent);
+    background: var(--rt-accent-soft);
+    font-size: 9px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+}
+
+.rt-service-filter-fields {
+    display: grid;
+    gap: 12px;
+}
+
+/* The pager remains below the rowgroup even with the compact distribution dock. */
+@media (max-width: 1100px) {
+    .rt-shift-plan-split[data-view='orders'] {
+        overflow: hidden;
+    }
+    .rt-shift-plan-split[data-view='orders'] > .rt-shift-plan-split__main {
+        flex: 1 1 0;
+    }
+    .rt-shift-plan-split[data-view='orders'] > .rt-shift-distribution-side {
+        flex-shrink: 0;
+    }
+}

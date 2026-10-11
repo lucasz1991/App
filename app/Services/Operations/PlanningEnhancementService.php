@@ -12,6 +12,7 @@ use App\Models\ShiftBundleSnapshot;
 use App\Models\ShiftDependency;
 use App\Models\User;
 use App\Models\WorkforcePosition;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningEnhancementSchema;
@@ -192,7 +193,7 @@ class PlanningEnhancementService
     }
 
     /** All selected places succeed, or no assignment is written. */
-    public function bulkPreview(array $entries, User $actor): array
+    public function bulkPreview(array $entries, User $actor, array $travelPreflights = [], bool $lock = false): array
     {
         $this->access($actor);
         $entries = Validator::make(['entries' => $entries], ['entries' => 'required|array|min:1|max:100', 'entries.*.shift_id' => 'required|integer|distinct|exists:shifts,id', 'entries.*.revision' => 'required|integer|min:1', 'entries.*.user_ids' => 'required|array|min:1|max:100', 'entries.*.user_ids.*' => 'integer|exists:users,id'])->validate()['entries'];
@@ -220,7 +221,7 @@ class PlanningEnhancementService
             foreach ($entry['user_ids'] as $id) {
                 $user = User::findOrFail($id);
                 $additional = collect($virtual)->filter(fn ($v) => $v['user_id'] === $id && $v['shift']->id !== $shift->id)->pluck('shift')->all();
-                $issues = app(StaffEligibilityService::class)->assessMany($shift, collect([$user]), false, ['additional_shifts' => $additional])[$id];
+                $issues = app(StaffEligibilityService::class)->assessMany($shift, collect([$user]), $lock, ['additional_shifts' => $additional, 'travel_preflight' => $travelPreflights[$shift->id][$id] ?? null])[$id];
                 if ($shift->assignments->contains(fn ($a) => $a->user_id === $id && $a->status->blocksAvailability())) {
                     $issues[] = ['code' => 'assigned', 'message' => 'Bereits eingeteilt.'];
                 }
@@ -242,17 +243,18 @@ class PlanningEnhancementService
     public function bulkAssign(array $entries, string $fingerprint, User $actor): array
     {
         $this->access($actor);
+        $travel = app(TravelAssessmentService::class)->preflightForEntries($entries);
 
-        return OperationsTransaction::run(function () use ($entries, $fingerprint, $actor) {
+        return OperationsTransaction::run(function () use ($entries, $fingerprint, $actor, $travel) {
             $this->access($actor);
             PlanningLocks::acquire(array_column($entries, 'shift_id'), collect($entries)->pluck('user_ids')->flatten()->all());
-            $preview = $this->bulkPreview($entries, $actor);
+            $preview = $this->bulkPreview($entries, $actor, $travel, true);
             $this->check($preview['valid'] && hash_equals($preview['fingerprint'], $fingerprint), 'Sammelzuweisung enthält neue Konflikte. Vorschau erneuern.');
             $saved = [];
             foreach (collect($entries)->sortBy(fn ($entry) => Shift::findOrFail($entry['shift_id'])->starts_at) as $entry) {
                 foreach ($entry['user_ids'] as $id) {
                     $shift = Shift::findOrFail($entry['shift_id']);
-                    $saved[] = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail((int) $id), $actor, ShiftAssignmentStatus::Requested, null, $shift->revision)->id;
+                    $saved[] = app(ShiftAssignmentService::class)->assign($shift, User::findOrFail((int) $id), $actor, ShiftAssignmentStatus::Requested, null, $shift->revision, null, $travel[$shift->id][(int) $id])->id;
                 }
             }
 

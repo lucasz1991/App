@@ -11,12 +11,18 @@ use App\Models\Setting;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Models\WorkTimeCaptureReceipt;
+use App\Models\WorkTimeEntry;
 use App\Services\EmployeeLocation\EmployeeLocationReader;
+use App\Services\Operations\AiAssistService;
+use App\Services\Operations\PlanningEnhancementService;
+use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\PlanVariantService;
 use App\Services\Operations\ShiftAssignmentExceptionService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\WorkforceAccountService;
+use App\Services\Operations\WorkTimeTerminalService;
 use App\Services\Routing\RoutingUsageService;
 use App\Services\Routing\TomTomRoutingService;
 use App\Services\Routing\TravelAssessmentService;
@@ -26,6 +32,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -285,7 +292,7 @@ class TomTomRoutingTest extends TestCase
         $target = $this->shift('06:30', '07:30');
         $point = ['latitude' => 53.0, 'longitude' => 13.0, 'accuracy_m' => 12, 'measured_at' => now()->subMinutes(5)->toIso8601String()];
         $reader = \Mockery::mock(EmployeeLocationReader::class);
-        $reader->shouldReceive('latestForMany')->once()->andReturn([$this->employee->id => ['status' => 'available', 'reason' => null, 'point' => $point]]);
+        $reader->shouldReceive('latestForMany')->twice()->andReturn([$this->employee->id => ['status' => 'available', 'reason' => null, 'point' => $point]]);
         $reader->shouldReceive('latestForMany')->once()->andReturn([$this->employee->id => ['status' => 'consent_missing', 'reason' => 'Freigabe widerrufen', 'point' => null]]);
         $this->app->instance(EmployeeLocationReader::class, $reader);
         $service = app(TravelAssessmentService::class);
@@ -393,5 +400,210 @@ class TomTomRoutingTest extends TestCase
             $this->assertSame($old->id, $profiles[$user->id]['target']->id);
             $this->assertSame($index % 2 === 0 ? $new->id : $old->id, $profiles[$user->id]['neighbor']->id);
         }
+    }
+
+    public function test_calculation_deadline_leaves_unsent_routes_unreserved(): void
+    {
+        Http::fake(function () {
+            usleep(40000);
+
+            return Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 300, 'lengthInMeters' => 1000]]]]);
+        });
+        $requests = [];
+        for ($index = 0; $index < 6; $index++) {
+            $requests[$index] = $this->request();
+            $requests[$index]['origin']['latitude'] += $index;
+        }
+        $result = (new TomTomRoutingService(0.1))->summaryMany($requests);
+        $this->assertSame('provider_timeout', $result[5]['reason']);
+        $this->assertNull($result[5]['duration_seconds']);
+        Http::assertSentCount(3);
+        $this->assertSame(3, app(RoutingUsageService::class)->current()['routing_transactions']);
+    }
+
+    public function test_consent_revoked_during_provider_request_discards_arrival_and_geometry(): void
+    {
+        $this->enable(['use_employee_locations' => true]);
+        $target = $this->shift('06:30', '07:30');
+        $point = ['latitude' => 53.0, 'longitude' => 13.0, 'accuracy_m' => 12, 'measured_at' => now()->toIso8601String()];
+        $withdrawn = false;
+        $reader = \Mockery::mock(EmployeeLocationReader::class);
+        $reader->shouldReceive('latestForMany')->andReturnUsing(function () use (&$withdrawn, $point) {
+            return [$this->employee->id => $withdrawn ? ['status' => 'consent_missing', 'reason' => 'Widerrufen', 'point' => null] : ['status' => 'available', 'reason' => null, 'point' => $point]];
+        });
+        $this->app->instance(EmployeeLocationReader::class, $reader);
+        Http::fake(function () use (&$withdrawn) {
+            $withdrawn = true;
+
+            return Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 300, 'lengthInMeters' => 1000], 'legs' => [['points' => [['latitude' => 52, 'longitude' => 13], ['latitude' => 53, 'longitude' => 14]]]]]]]);
+        });
+        $service = app(TravelAssessmentService::class);
+        $arrival = $service->assessMany($target, collect([$this->employee]), ['include_employee_location' => true, 'actor' => $this->actor])[$this->employee->id]['arrival'];
+        $this->assertSame('unknown', $arrival['status']);
+        $this->assertArrayNotHasKey('duration_seconds', $arrival);
+        $withdrawn = false;
+        $geometry = $service->geometryFor($target, $this->employee, 'arrival', ['actor' => $this->actor]);
+        $this->assertSame('unknown', $geometry['status']);
+        $this->assertArrayNotHasKey('points', $geometry);
+    }
+
+    public function test_real_ai_application_rechecks_travel_before_its_outer_transaction(): void
+    {
+        $this->fakeRoute();
+        $target = $this->shift();
+        $this->reserve($this->shift('07:00', '08:00', 51));
+        $result = app(AiAssistService::class)->apply([[$target->id, $this->employee->id, $target->revision]], $this->actor);
+        $this->assertSame([], $result['done']);
+        $this->assertStringContainsString('Fahrzeit', $result['failed'][0]);
+        $this->assertFalse(ShiftAssignment::where('shift_id', $target->id)->exists());
+        Http::assertSentCount(1);
+    }
+
+    public function test_bulk_assignment_checks_virtual_route_before_any_write(): void
+    {
+        (require database_path('migrations/2026_10_06_100000_create_planning_enhancements.php'))->up();
+        $before = $this->shift('07:00', '08:00', 51);
+        $after = $this->shift();
+        Http::fake(function () {
+            $this->assertSame(0, DB::transactionLevel());
+
+            return Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 1800, 'lengthInMeters' => 1000]]]]);
+        });
+        try {
+            app(PlanningEnhancementService::class)->bulkAssign([
+                ['shift_id' => $before->id, 'revision' => $before->revision, 'user_ids' => [$this->employee->id]],
+                ['shift_id' => $after->id, 'revision' => $after->revision, 'user_ids' => [$this->employee->id]],
+            ], str_repeat('a', 64), $this->actor);
+            $this->fail('The known route conflict must block the whole distribution.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('Konflikte', $exception->getMessage());
+        }
+        $this->assertSame(0, ShiftAssignment::count());
+        Http::assertSentCount(2);
+    }
+
+    public function test_terminal_capture_checks_route_outside_locks_and_keeps_receipt_without_provider_metrics(): void
+    {
+        (require database_path('migrations/2026_10_04_123000_extend_work_time_contexts.php'))->up();
+        (require database_path('migrations/2026_10_06_102000_create_operations_enhancements.php'))->up();
+        $this->travelTo(CarbonImmutable::parse('2027-05-12T09:00:00+02:00'));
+        $target = $this->shift();
+        $target->forceFill(['status' => 'open', 'published_revision' => $target->revision])->save();
+        $this->reserve($target);
+        $this->reserve($this->shift('07:00', '08:00', 51));
+        $terminal = (string) Str::uuid();
+        $service = app(WorkTimeTerminalService::class);
+        $service->configure($this->employee, ['pin' => '729184', 'terminal_id' => $terminal, 'location_consent' => false], $this->employee);
+        $capability = $service->authenticate($this->employee->id, '729184', $terminal, 'routing-terminal-qa');
+        Http::fake(function () {
+            $this->assertSame(0, DB::transactionLevel());
+
+            return Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 1800, 'lengthInMeters' => 1000]]]]);
+        });
+        $receipt = $service->capture($capability['token'], $terminal, [
+            'event_key' => (string) Str::uuid(), 'action' => 'start', 'revision' => 0,
+            'assignment_id' => $target->assignments()->where('user_id', $this->employee->id)->firstOrFail()->id,
+            'plan_revision' => $target->revision, 'work_context' => 'shift',
+        ]);
+        $this->assertSame('conflict', $receipt['status']);
+        $this->assertStringContainsString('Fahrtkonflikt', $receipt['reason']);
+        $this->assertSame(0, WorkTimeEntry::count());
+        $this->assertStringNotContainsString('min fehlen', WorkTimeCaptureReceipt::firstOrFail()->reason);
+        Http::assertSentCount(1);
+    }
+
+    public function test_nested_binding_without_typed_preflight_is_rejected_but_fresh_unknown_is_allowed(): void
+    {
+        $target = $this->shift();
+        $this->reserve($this->shift('07:00', '08:00', 51));
+        try {
+            DB::transaction(fn () => app(ShiftAssignmentService::class)->assign($target, $this->employee, $this->actor));
+            $this->fail('An outer transaction must supply its fresh server preflight.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('Fahrzeitprüfung fehlt', $exception->getMessage());
+        }
+        $this->assertFalse(ShiftAssignment::where('shift_id', $target->id)->exists());
+        Http::assertNothingSent();
+        try {
+            DB::transaction(function () use ($target) {
+                $invalid = app(TravelAssessmentService::class)->preflight($target, collect([$this->employee]));
+                app(ShiftAssignmentService::class)->assign($target, $this->employee, $this->actor, ShiftAssignmentStatus::Requested, null, $target->revision, null, $invalid);
+            });
+            $this->fail('An unverified typed object made under locks cannot authorize binding.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('Fahrzeitprüfung fehlt', $exception->getMessage());
+        }
+        Http::assertNothingSent();
+        Http::fake(['api.tomtom.com/*' => Http::response([], 503)]);
+        $preflight = app(TravelAssessmentService::class)->preflight($target, collect([$this->employee]));
+        $assignment = DB::transaction(fn () => app(ShiftAssignmentService::class)->assign($target, $this->employee, $this->actor, ShiftAssignmentStatus::Requested, null, $target->revision, null, $preflight));
+        $this->assertSame(ShiftAssignmentStatus::Requested, $assignment->status);
+        Http::assertSentCount(1);
+    }
+
+    public function test_locked_schedule_assessment_cannot_skip_required_preflight(): void
+    {
+        $target = $this->shift();
+        $this->reserve($target);
+        try {
+            DB::transaction(fn () => app(StaffEligibilityService::class)->assessMany($target, collect([$this->employee]), true, ['skip_routing' => true]));
+            $this->fail('Binding schedule rechecks cannot bypass routing with a preview flag.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('Fahrzeitprüfung fehlt', $exception->getMessage());
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_audited_travel_pair_grant_can_publish_and_answer_both_duties_without_http_under_locks(): void
+    {
+        $before = $this->shift('07:00', '08:00', 51);
+        $this->reserve($before);
+        $beforeAssignment = $before->assignments()->sole();
+        $after = $this->shift();
+        Http::fake(function () {
+            $this->assertSame(0, DB::transactionLevel());
+
+            return Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 1800, 'lengthInMeters' => 1000]]]]);
+        });
+        $exceptions = app(ShiftAssignmentExceptionService::class);
+        $review = $exceptions->review($after, $this->employee, $this->actor);
+        $this->assertTrue($review['can_override']);
+        $this->assertSame($beforeAssignment->id, $review['conflicts'][0]['assignment_id']);
+        $afterAssignment = app(ShiftAssignmentService::class)->assign($after, $this->employee, $this->actor, ShiftAssignmentStatus::Requested, null, $after->revision, [
+            'fingerprint' => $review['fingerprint'], 'acknowledged' => true,
+            'reason' => 'Geprüfte Ausnahmekoordination dieser beiden konkreten Dienste.',
+        ]);
+        $publication = app(PlanPublicationService::class);
+        $publication->publish($before, $before->revision, $this->actor);
+        $publication->publish($after, $after->revision, $this->actor);
+        $publication->respond($beforeAssignment->id, $before->revision, true, $this->employee);
+        $publication->respond($afterAssignment->id, $after->revision, true, $this->employee);
+        $this->assertSame(ShiftAssignmentStatus::Confirmed, $beforeAssignment->fresh()->status);
+        $this->assertSame(ShiftAssignmentStatus::Confirmed, $afterAssignment->fresh()->status);
+        $audit = OperationAudit::where('action', 'assignment.temporal_exception')->sole();
+        $this->assertStringNotContainsString('duration_seconds', json_encode($audit->data));
+        $this->assertStringNotContainsString('min fehlen', json_encode($audit->data));
+
+        $fresh = $before->fresh();
+        $stale = app(TravelAssessmentService::class)->preflight($fresh, collect([$this->employee]));
+        $after->forceFill(['revision' => $after->revision + 1])->save();
+        try {
+            DB::transaction(fn () => $exceptions->assertEligibleForAssignment($fresh, $this->employee, $beforeAssignment->fresh(), ['travel_preflight' => $stale]));
+            $this->fail('A changed pair basis cannot keep using the old preflight or grant.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('geändert', $exception->getMessage());
+        }
+    }
+
+    public function test_normal_preflight_does_not_prepare_peer_routes_without_a_pair_grant(): void
+    {
+        $before = $this->shift('07:00', '08:00', 51);
+        $after = $this->shift();
+        $this->reserve($before);
+        $this->reserve($after);
+        $this->fakeRoute(300);
+        $preflight = app(TravelAssessmentService::class)->preflight($before, collect([$this->employee]));
+        $this->assertSame([], $preflight->peerExceptions);
+        Http::assertSentCount(1);
     }
 }

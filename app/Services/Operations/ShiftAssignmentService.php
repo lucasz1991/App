@@ -32,6 +32,7 @@ class ShiftAssignmentService
         OperationsAccess::authorize($actor, 'operations.manage');
         $assignmentStatus = $this->normalizeStatus($status);
         if ($assignmentStatus->blocksAvailability()) {
+            app(TravelAssessmentService::class)->assertBindingPreflight($travelPreflight);
             $travelPreflight ??= app(TravelAssessmentService::class)->preflight($shift->fresh() ?? $shift, collect([$assignee]));
         }
 

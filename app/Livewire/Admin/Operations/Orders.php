@@ -126,7 +126,10 @@ class Orders extends Component
     public function detailSections(): array
     {
         return array_filter([
-            'overview' => 'Übersicht', 'planning' => 'Bedarf & Planung',
+            'overview' => 'Übersicht',
+            'shifts' => $this->detailOnly ? 'Schichten' : null,
+            'staffing' => $this->detailOnly ? 'Besetzung' : null,
+            'planning' => 'Bedarf & Planung',
             'proofs' => OperationsEnhancementsSchema::ready() ? 'Leistungsnachweise' : null,
             'costs' => OperationsEnhancementsSchema::ready() && auth()->user()->can('operations.costs.manage') ? 'Kosten' : null,
             'history' => 'Verlauf',
@@ -571,12 +574,34 @@ class Orders extends Component
         })->values();
         $summary = ['shifts' => 0, 'required' => 0, 'reserved' => 0, 'confirmed' => 0, 'open' => 0];
         $seats = collect();
+        $shiftDetails = collect();
         foreach ($shifts as $shift) {
-            if (in_array($shift->status, [ShiftStatus::Completed, ShiftStatus::Cancelled], true)) {
-                continue;
-            }
+            $active = ! in_array($shift->status, [ShiftStatus::Completed, ShiftStatus::Cancelled], true);
             $blocking = $shift->assignments->filter(fn (ShiftAssignment $assignment): bool => $assignment->status->blocksAvailability());
             $reserved = $blocking->count();
+            $from = $date($shift, 'starts_at');
+            $until = $date($shift, 'ends_at');
+            $shiftDetails->push((object) [
+                'id' => $shift->id, 'shift' => $shift, 'active' => $active,
+                'from' => $from, 'until' => $until, 'day' => $from?->format('Y-m-d') ?? 'unknown',
+                'summary' => [
+                    'shifts' => 1, 'required' => max(0, (int) $shift->required_staff), 'reserved' => $reserved,
+                    'confirmed' => $blocking->where('status', ShiftAssignmentStatus::Confirmed)->count(),
+                    // Finished/cancelled shifts are history, never an actionable vacancy.
+                    'open' => $active ? max(0, $shift->required_staff - $reserved) : 0,
+                ],
+                'assignments' => $shift->assignments->map(fn (ShiftAssignment $assignment): array => [
+                    'id' => $assignment->id, 'user' => $assignment->user, 'status' => $assignment->status,
+                    'blocking' => $assignment->status->blocksAvailability(),
+                ])->values(),
+                'seats' => $blocking->map(fn (ShiftAssignment $assignment): array => [
+                    'id' => $assignment->id, 'user' => $assignment->user, 'shift' => $shift->title,
+                    'starts_at' => $from, 'ends_at' => $until,
+                ])->values(),
+            ]);
+            if (! $active) {
+                continue;
+            }
             $summary['shifts']++;
             $summary['required'] += $shift->required_staff;
             $summary['reserved'] += $reserved;
@@ -592,7 +617,9 @@ class Orders extends Component
 
         return (object) [
             'id' => $order->id, 'order' => $order, 'count' => $shifts->count(), 'shifts' => $shifts,
+            'shiftDetails' => $shiftDetails,
             'timezone' => $timezone, 'summary' => $summary, 'staffingSeats' => $seats,
+            'orderFrom' => $date($order, 'starts_at'), 'orderUntil' => $date($order, 'ends_at'),
             'staffingUsers' => $seats->pluck('user')->filter()->unique('id')->values(),
             'from' => $shifts->isEmpty() ? $date($order, 'starts_at') : $shifts->map(fn (Shift $shift) => $date($shift, 'starts_at'))->filter()->min(),
             'until' => $shifts->isEmpty() ? $date($order, 'ends_at') : $shifts->map(fn (Shift $shift) => $date($shift, 'ends_at'))->filter()->max(),

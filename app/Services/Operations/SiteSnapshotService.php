@@ -5,6 +5,9 @@ namespace App\Services\Operations;
 use App\Models\CustomerLocation;
 use App\Models\Order;
 use App\Models\Shift;
+use App\Services\Routing\RoutingSiteSelection;
+use App\Support\Operations\SchemaReadiness;
+use App\Support\Routing\TomTomSettings;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -12,9 +15,32 @@ use Illuminate\Validation\ValidationException;
 /** Own confirmed facts; changing the customer directory never moves a saved duty. */
 class SiteSnapshotService
 {
+    /** Scheduling attributes never accept a raw provider/client coordinate snapshot. */
+    public function schedulingSelection(array &$attributes, array $context = []): ?RoutingSiteSelection
+    {
+        unset($attributes['location_snapshot']);
+        $selection = $context['routing_site_selection'] ?? null;
+        if ($selection !== null && ! $selection instanceof RoutingSiteSelection) {
+            throw ValidationException::withMessages(['customerLocationId' => 'Standortauswahl muss serverseitig bestätigt werden.']);
+        }
+        if (! self::ready()) {
+            unset($attributes['customer_location_id']);
+
+            return null;
+        }
+        if ($selection instanceof RoutingSiteSelection) {
+            return $selection;
+        }
+        if (! empty($attributes['customer_location_id'])) {
+            return RoutingSiteSelection::fromLocation(CustomerLocation::findOrFail($attributes['customer_location_id']));
+        }
+
+        return null;
+    }
+
     public static function ready(): bool
     {
-        return \App\Support\Operations\SchemaReadiness::remember(__METHOD__, fn () => Schema::hasColumns('shifts', ['customer_location_id', 'location_snapshot'])
+        return SchemaReadiness::remember(__METHOD__, fn () => Schema::hasColumns('shifts', ['customer_location_id', 'location_snapshot'])
             && Schema::hasColumns('orders', ['customer_location_id', 'location_snapshot'])
             && Schema::hasColumns('customer_locations', ['latitude', 'longitude', 'coordinates_confirmed_at']));
     }
@@ -77,7 +103,7 @@ class SiteSnapshotService
 
     public function assertConfirmed(Shift $shift): void
     {
-        if (self::ready() && \App\Support\Routing\TomTomSettings::all()['enabled'] && ! self::confirmed($shift->location_snapshot)) {
+        if (self::ready() && TomTomSettings::all()['enabled'] && ! self::confirmed($shift->location_snapshot)) {
             throw ValidationException::withMessages(['workflow' => 'Vor einer verbindlichen Zuteilung oder Veröffentlichung muss der Einsatzstandort mit Koordinaten bestätigt werden.']);
         }
     }

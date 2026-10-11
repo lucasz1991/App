@@ -44,6 +44,10 @@ class StaffEligibilityService
     /** @return array<int, array{issues: array, warnings: array, travel: array, basis: string}> */
     public function assessDetailedMany(Shift $shift, Collection $users, bool $lock = false, array $context = []): array
     {
+        if ($lock && $users->isNotEmpty()) {
+            app(TravelAssessmentService::class)->assertBindingPreflight($context['travel_preflight'] ?? null);
+            unset($context['skip_routing'], $context['skip_provider']);
+        }
         if (($context['travel_preflight'] ?? null) instanceof TravelPreflight) {
             $context = array_replace($context['travel_preflight']->context, $context);
         }

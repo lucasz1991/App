@@ -32,6 +32,11 @@ class EmployeeLocationApiController extends Controller
         return response()->json($service->point($request->attributes->get('employee_location_installation'), $request->all()));
     }
 
+    public function quality(Request $request, EmployeeLocationService $service): JsonResponse
+    {
+        return response()->json($service->quality($request->attributes->get('employee_location_installation'), $request->all()));
+    }
+
     public function stop(Request $request, EmployeeLocationService $service): Response
     {
         $service->stop($request->attributes->get('employee_location_installation'));

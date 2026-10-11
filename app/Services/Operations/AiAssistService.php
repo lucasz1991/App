@@ -18,6 +18,7 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\AiCustomerCommunicationSchema;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
@@ -693,14 +694,15 @@ class AiAssistService
             $label = ($shift?->title ?? 'Schicht #'.$shiftId).' · '.($user?->name ?? 'Person #'.$userId);
             try {
                 abort_unless($shift && $user, 404);
-                $assignment = OperationsTransaction::run(function () use ($shift, $user, $actor, $revision) {
+                $travel = app(TravelAssessmentService::class)->preflight($shift, collect([$user]));
+                $assignment = OperationsTransaction::run(function () use ($shift, $user, $actor, $revision, $travel) {
                     PlanningLocks::acquire([$shift->id], [$user->id]);
                     // Noch offen und nicht begonnen? Eignung, Kapazität und Revision prüft assign() unter derselben Sperre.
                     $day = $shift->starts_at->setTimezone((string) config('operations.display_timezone', 'Europe/Berlin'))->toDateString();
                     if (! $this->planning->openShifts($day, $day, $actor)->whereKey($shift->id)->exists()) {
                         throw ValidationException::withMessages(['workflow' => 'Schicht ist nicht mehr offen.']);
                     }
-                    $assignment = app(ShiftAssignmentService::class)->assign($shift, $user, $actor, ShiftAssignmentStatus::Requested, self::NOTE, $revision);
+                    $assignment = app(ShiftAssignmentService::class)->assign($shift, $user, $actor, ShiftAssignmentStatus::Requested, self::NOTE, $revision, null, $travel);
                     app(OperationsAuditService::class)->record($shift, $actor, 'ai_assist.requested', ['user_id' => $user->id, 'assignment_id' => $assignment->id]);
 
                     return $assignment;

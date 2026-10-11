@@ -35,6 +35,8 @@ class LocationService : Service(), LocationListener {
     private var generation = 0
     private var requestRunning = false
     private var lastRenewal = 0L
+    private var lastFixSeen = 0L
+    private var pendingQuality: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -55,6 +57,7 @@ class LocationService : Service(), LocationListener {
         }
         api = ApiClient(registration.base, registration.token)
         active = true
+        running = true
         generation++
         val notification = notification("Serverfreigabe wird geprüft")
         if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
@@ -80,6 +83,10 @@ class LocationService : Service(), LocationListener {
             }
             if (permitId != null && now - lastRenewal >= 60_000L && !requestRunning) {
                 requestPermit("permit", JSONObject(), initial = false)
+            }
+            if (permitId != null && policy.sampleDue(now)) {
+                if (now - lastFixSeen >= 30_000L) pendingQuality = "unavailable"
+                pendingQuality?.let { reportQuality(it) }
             }
             handler.postDelayed(this, 1_000L)
         }
@@ -110,8 +117,12 @@ class LocationService : Service(), LocationListener {
                         require(policy.valid(receivedAt))
                         permitId = json.getString("permit_id")
                         lastRenewal = receivedAt
-                        if (initial) beginLocationUpdates()
-                        updateStatus("Aktiv – Meldung alle 15 Minuten während der Arbeitszeit")
+                        if (initial) {
+                            lastFixSeen = receivedAt
+                            pendingQuality = null
+                            beginLocationUpdates()
+                        }
+                        if (pendingQuality == null) updateStatus("Aktiv – Meldung alle 15 Minuten während der Arbeitszeit")
                     }.onFailure { stopTracking("Erfassung unterbrochen: ungültige Serverfreigabe", false) }
                 }, onFailure = { error ->
                     if (error is ApiFailure && error.status == 401) CredentialStore(this).clear()
@@ -140,10 +151,13 @@ class LocationService : Service(), LocationListener {
         val now = SystemClock.elapsedRealtime()
         if (!active) return
         if (!policy.valid(now)) { stopTracking("Serverfreigabe abgelaufen", false); return }
-        if (!location.hasAccuracy() || requestRunning || !policy.sampleDue(now)) return
+        lastFixSeen = now
+        if (requestRunning || !policy.sampleDue(now)) return
         val fixMs = location.elapsedRealtimeNanos / 1_000_000L
-        if (!policy.acceptsFix(now, fixMs, location.accuracy.toDouble(), location.latitude, location.longitude)) {
+        if (!location.hasAccuracy() || !policy.acceptsFix(now, fixMs, location.accuracy.toDouble(), location.latitude, location.longitude)) {
+            pendingQuality = if (location.hasAccuracy() && location.accuracy.isFinite() && location.accuracy > 50f) "inaccurate" else "unavailable"
             updateStatus("Messung ungenau oder veraltet – noch kein Punkt gespeichert")
+            reportQuality(pendingQuality!!)
             return
         }
         val client = api ?: return
@@ -170,11 +184,48 @@ class LocationService : Service(), LocationListener {
                     runCatching {
                         require(json.getBoolean("accepted"))
                         policy.acknowledge(Instant.parse(json.getString("next_sample_at")).toEpochMilli())
+                        pendingQuality = null
                         updateStatus("Standort gemeldet – nächste Meldung in etwa 15 Minuten")
                     }.onFailure { stopTracking("Erfassung unterbrochen: Antwort konnte nicht bestätigt werden", false) }
                 }, onFailure = { error ->
                     if (error is ApiFailure && error.status == 401) CredentialStore(this).clear()
                     stopTracking("Erfassung unterbrochen: Standort nicht bestätigt", false)
+                })
+            }
+        }
+    }
+
+    private fun reportQuality(quality: String) {
+        val now = SystemClock.elapsedRealtime()
+        if (!active || requestRunning || !policy.qualityReportDue(now)) return
+        val client = api ?: return
+        val id = permitId ?: return
+        val requestGeneration = generation
+        // Metadata only: inaccurate/stale coordinates are never copied into this request.
+        val payload = JSONObject().put("permit_id", id).put("quality_status", quality)
+        policy.markQualityReport(now)
+        requestRunning = true
+        executor.execute {
+            val response = runCatching {
+                check(active && requestGeneration == generation && policy.valid(SystemClock.elapsedRealtime()))
+                client.post("quality", payload)
+            }
+            handler.post {
+                if (!active || requestGeneration != generation) return@post
+                requestRunning = false
+                val receivedAt = SystemClock.elapsedRealtime()
+                if (!policy.valid(receivedAt)) {
+                    stopTracking("Erfassung unterbrochen: Serverfreigabe abgelaufen", false)
+                    return@post
+                }
+                policy.markQualityReport(receivedAt)
+                response.fold(onSuccess = { json ->
+                    runCatching { json.getBoolean("reported") }
+                        .onFailure { stopTracking("Erfassung unterbrochen: Qualitätsmeldung nicht bestätigt", false) }
+                }, onFailure = { error ->
+                    if (error is ApiFailure && error.status == 429) return@fold
+                    if (error is ApiFailure && error.status == 401) CredentialStore(this).clear()
+                    stopTracking("Erfassung unterbrochen: Qualitätsmeldung nicht bestätigt", false)
                 })
             }
         }
@@ -191,7 +242,7 @@ class LocationService : Service(), LocationListener {
     override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
 
     private fun updateStatus(text: String) {
-        getSharedPreferences("location_status", MODE_PRIVATE).edit().putString("text", text).apply()
+        getSharedPreferences("location_status", MODE_PRIVATE).edit().putString("text", text).putBoolean("active", active).apply()
         if (active) getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text))
     }
 
@@ -206,6 +257,7 @@ class LocationService : Service(), LocationListener {
     private fun stopTracking(text: String, notifyServer: Boolean) {
         val client = api
         active = false
+        running = false
         generation++
         policy.invalidate()
         permitId = null
@@ -219,6 +271,7 @@ class LocationService : Service(), LocationListener {
 
     override fun onDestroy() {
         active = false
+        running = false
         policy.invalidate()
         generation++
         handler.removeCallbacksAndMessages(null)
@@ -230,6 +283,8 @@ class LocationService : Service(), LocationListener {
 
     override fun onBind(intent: Intent?): IBinder? = null
     companion object {
+        @Volatile var running = false
+            private set
         const val START = "de.railtime.location.START"
         const val STOP = "de.railtime.location.STOP"
         private const val CHANNEL = "employee_location"

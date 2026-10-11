@@ -15,15 +15,23 @@ class OrderSchedulingService
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function save(Order $order, array $attributes, User $actor): Order
+    public function save(Order $order, array $attributes, User $actor, array $context = []): Order
     {
-        return OperationsTransaction::run(function () use ($order, $attributes, $actor): Order {
+        $siteSelection = app(SiteSnapshotService::class)->schedulingSelection($attributes, $context);
+
+        return OperationsTransaction::run(function () use ($order, $attributes, $actor, $siteSelection, $context): Order {
             $persistedOrder = $order->exists
                 ? Order::query()->lockForUpdate()->findOrFail($order->getKey())
                 : $order;
 
             if (array_key_exists('expected_updated_at', $attributes) && $persistedOrder->updated_at?->format('Y-m-d H:i:s.u') !== $attributes['expected_updated_at']) {
                 throw ValidationException::withMessages(['workflow' => 'Auftrag wurde geändert. Bitte neu laden.']);
+            }
+            if (isset($context['expected_order_basis'])) {
+                $basis = hash('sha256', json_encode([$persistedOrder->updated_at?->format('Y-m-d H:i:s.u'), $persistedOrder->revision, $persistedOrder->customer_location_id, $persistedOrder->location_snapshot], JSON_THROW_ON_ERROR));
+                if (! hash_equals($context['expected_order_basis'], $basis)) {
+                    throw ValidationException::withMessages(['customerLocationId' => 'Der Auftragsstandort wurde geändert. Bitte neu öffnen.']);
+                }
             }
             unset($attributes['expected_updated_at']);
 
@@ -72,6 +80,7 @@ class OrderSchedulingService
             }
 
             $persistedOrder->fill($attributes);
+            $siteSelection?->apply($persistedOrder);
             $persistedOrder->updated_by = $actor->getKey();
 
             if (! $persistedOrder->exists) {

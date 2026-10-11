@@ -3,7 +3,7 @@
         @php
             $installation = $locationStatus['installation'];
             $consent = $locationStatus['consent'];
-            $labels = ['unpaired' => 'Geschäftshandy verbinden', 'consent_missing' => 'Tagesfreigabe fehlt', 'not_working' => 'Keine laufende Arbeitszeit', 'paused' => 'Erfassung pausiert', 'start_required' => 'Standortdienst starten', 'offline' => 'Erfassung unterbrochen / Gerät offline', 'inaccurate' => 'Messung ungenau', 'active' => 'Standortdienst aktiv'];
+            $labels = ['unpaired' => 'Geschäftshandy verbinden', 'consent_missing' => 'Tagesfreigabe fehlt', 'not_working' => 'Keine laufende Arbeitszeit', 'paused' => 'Erfassung pausiert', 'start_required' => 'Standortdienst starten', 'offline' => 'Erfassung unterbrochen / Gerät offline', 'inaccurate' => 'Messung ungenau', 'unavailable' => 'Standortmessung derzeit nicht verfügbar', 'active' => 'Standortdienst aktiv'];
             $showExplanation = $explanationOpen || $locationStatus['needs_decision'];
         @endphp
         <div class="ops-panel ops-stack" aria-labelledby="employee-location-heading">
@@ -29,11 +29,25 @@
                     <p class="ops-muted">Letzter gespeicherter Punkt: {{ $locationStatus['last_point']->measured_at->setTimezone('Europe/Berlin')->format('d.m.Y H:i:s') }} · Genauigkeit {{ number_format($locationStatus['last_point']->accuracy_m, 0, ',', '.') }} m</p>
                 @else<p class="ops-muted">Noch kein Punkt gespeichert.</p>@endif
                 @if($locationStatus['state'] === 'active' && $installation->next_sample_at)<p class="ops-muted">Nächste Meldung ungefähr {{ $installation->next_sample_at->setTimezone('Europe/Berlin')->format('H:i') }} Uhr. Ausfälle werden nicht nachträglich aufgefüllt.</p>@endif
-                @if(in_array($locationStatus['state'], ['start_required', 'offline', 'inaccurate', 'active']) && $locationStatus['running'])
+                @if(in_array($locationStatus['state'], ['start_required', 'offline', 'inaccurate', 'unavailable', 'active']) && $locationStatus['running'])
                     <div class="ops-actions">
                         <x-ui.buttons.button-basic wire:click="prepareHandoff" wire:loading.attr="disabled" class="min-h-11">Standortdienst starten / fortsetzen</x-ui.buttons.button-basic>
-                        @if($handoffUrl)<a class="ops-link min-h-11 inline-flex items-center" href="{{ $handoffUrl }}" rel="noreferrer">Jetzt im Standortdienst öffnen (60 Sekunden gültig)</a>@endif
                     </div>
+                    @if($handoffCode && $handoffExpiresAt && now()->lt($handoffExpiresAt))
+                        @php
+                            $handoffExpiry = \Carbon\CarbonImmutable::parse($handoffExpiresAt);
+                            $handoffRemainingMs = max(0, (int) now()->diffInMilliseconds($handoffExpiry, false));
+                        @endphp
+                        <div class="ops-stack" wire:key="location-handoff-{{ hash('sha256', $handoffCode) }}" x-data="{ usable: true }" x-init="setTimeout(() => { usable = false; $wire.refreshStatus() }, {{ $handoffRemainingMs }})">
+                            <div class="ops-stack" x-show="usable">
+                                <a class="ops-link min-h-11 inline-flex items-center" href="{{ $handoffUrl }}" rel="noreferrer">Jetzt im Standortdienst öffnen</a>
+                                <label for="employee-location-start-code">Einmaliger Startcode · gültig bis {{ $handoffExpiry->setTimezone('Europe/Berlin')->format('H:i:s') }} Uhr</label>
+                                <input id="employee-location-start-code" type="text" readonly value="{{ $handoffCode }}" autocomplete="off" spellcheck="false" class="min-h-11 w-full" />
+                                <p class="ops-muted">Falls die App-Verknüpfung noch nicht funktioniert: Öffne den Standortdienst selbst und kopiere diesen Code in „Startcode“. Er gilt höchstens 60 Sekunden und nur einmal für dein verbundenes Geschäftshandy.</p>
+                            </div>
+                            <p class="ops-muted" x-show="!usable" x-cloak>Startcode abgelaufen. Bereite den Start erneut vor.</p>
+                        </div>
+                    @endif
                 @endif
                 @if($consent && $consent->decision === 'accepted' && !$consent->withdrawn_at)
                     <x-ui.buttons.button-basic wire:click="withdraw" wire:loading.attr="disabled" class="min-h-11">Freigabe widerrufen und heutige Punkte löschen</x-ui.buttons.button-basic>
@@ -53,13 +67,13 @@
                     @if($registrationCode && $registrationExpiresAt && now()->lt($registrationExpiresAt))<label for="employee-location-code">Verbindungscode · 15 Minuten gültig</label><input id="employee-location-code" type="text" readonly value="{{ $registrationCode }}" autocomplete="off" spellcheck="false" class="min-h-11 w-full" /><p class="ops-muted">Der Code ist nur für die Standortinstallation bestimmt. Gib ihn nicht an andere weiter.</p>@endif
                 </div>
             </details>
-            <details>
-                <summary class="min-h-11 cursor-pointer" wire:click="$set('historyOpen', true)">Mein Standortverlauf · letzte sieben Tage</summary>
-                @if($historyOpen)
-                    <div class="overflow-x-auto mt-3"><table class="w-full"><caption class="sr-only">Eigene gespeicherte Standortpunkte</caption><thead><tr><th scope="col">Messzeit</th><th scope="col">Koordinaten</th><th scope="col">Genauigkeit</th></tr></thead><tbody>@forelse($locationStatus['history'] as $point)<tr wire:key="own-location-{{ $point->id }}"><td class="p-2">{{ $point->measured_at->setTimezone('Europe/Berlin')->format('d.m.Y H:i:s') }}</td><td class="p-2">{{ number_format($point->position['latitude'], 6, ',', '.') }}, {{ number_format($point->position['longitude'], 6, ',', '.') }}</td><td class="p-2">{{ number_format($point->accuracy_m, 0, ',', '.') }} m</td></tr>@empty<tr><td colspan="3" class="p-2">Keine Punkte vorhanden.</td></tr>@endforelse</tbody></table></div>
-                    <x-ui.buttons.button-basic wire:click="deleteHistory" wire:confirm="Alle eigenen Standortpunkte löschen und die heutige Freigabe widerrufen?" class="min-h-11">Meinen Verlauf löschen</x-ui.buttons.button-basic>
-                @endif
-            </details>
+            @include('livewire.operations.partials.employee-location-history')
+        </div>
+    @elseif($locationStatus['last_point'])
+        <div class="ops-panel ops-stack" aria-labelledby="employee-location-history-heading">
+            <h3 id="employee-location-history-heading">Mein Standortverlauf</h3>
+            <p class="ops-muted">Die Standorterfassung ist ausgeschaltet. Deine noch gespeicherten Punkte kannst du weiterhin ansehen und löschen; sie verfallen spätestens nach sieben Tagen.</p>
+            @include('livewire.operations.partials.employee-location-history')
         </div>
     @endif
     <details class="ops-panel mt-3" x-data="railtimePwaInstall({messages:{installed:'RailTime ist als Web-App geöffnet.',ready:'RailTime kann auf diesem Gerät installiert werden.',manual:'Öffne im Browsermenü „Zum Home-Bildschirm“ oder „App installieren“.',error:'Installation konnte nicht gestartet werden.'}})">

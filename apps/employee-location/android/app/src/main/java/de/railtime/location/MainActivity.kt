@@ -99,7 +99,9 @@ class MainActivity : Activity() {
     private val statusPoll = object : Runnable {
         override fun run() {
             if (!visible) return
-            val text = getSharedPreferences("location_status", MODE_PRIVATE).getString("text", null)
+            val preferences = getSharedPreferences("location_status", MODE_PRIVATE)
+            val text = if (preferences.getBoolean("active", false) && !LocationService.running)
+                getString(R.string.service_interrupted) else preferences.getString("text", null)
             if (text != null && handoffCode == null) status.text = text
             handler.postDelayed(this, 2_000L)
         }

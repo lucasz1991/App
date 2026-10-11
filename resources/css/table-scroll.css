@@ -57,26 +57,24 @@
     }
 }
 
-/* Native pagination status stays at the visible row edge, even in document
-   flow. Teleport avoids clipping/transform ancestors; it never shifts rows. */
+/* Row content alone moves; native scrolling/head/footer geometry is stable. */
+[data-list-scroll-pagination] .rt-table-body { overflow-anchor: none; }
+
+/* One tiny spinner centered in the visible list, including document flow.
+   Teleport avoids clipping/transform ancestors; it never shifts rows. */
 .rt-list-pagination-loading {
     position: fixed;
     z-index: 40;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    min-height: 40px;
-    padding: 8px 12px;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
     transform: translate(-50%, -50%);
     pointer-events: none;
-    border: 1px solid var(--rt-shell-line);
-    border-radius: 12px;
-    background: var(--rt-shell-surface-solid);
-    color: var(--rt-shell-text);
-    box-shadow: var(--rt-shell-shadow);
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1.5;
+    color: var(--rt-shell-accent);
 }
-.rt-list-pagination-loading > svg { color: var(--rt-shell-accent); }
-.rt-list-pagination-loading > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-list-pagination-loading > svg { animation: none !important; }
+}

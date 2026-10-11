@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Admin\EmployeeLocationSettings;
+use App\Livewire\Admin\Settings as SystemSettings;
 use App\Livewire\Admin\TomTomSettings;
 use App\Livewire\Operations\RoutingSiteEditor;
 use App\Livewire\Operations\ShiftTravelPanel;
@@ -11,13 +12,16 @@ use App\Models\CustomerLocation;
 use App\Models\OperationsRuleProfile;
 use App\Models\Order;
 use App\Models\Shift;
-use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\PlanPublicationService;
-use App\Services\Operations\ShiftSchedulingService;
+use App\Services\Operations\PlanVariantService;
+use App\Services\Operations\ShiftSeriesService;
 use App\Services\Operations\SiteSnapshotService;
 use App\Support\Routing\TomTomSettings as RoutingSettings;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -75,6 +79,45 @@ class RoutingSiteWorkflowTest extends TestCase
         $this->assertNull($draft->location_snapshot);
     }
 
+    private function planningSchema(): void
+    {
+        (require database_path('migrations/2026_09_17_180000_create_operations_planning_extensions.php'))->up();
+        Schema::table('shifts', fn (Blueprint $table) => $table->json('disposition_details')->nullable());
+        (require database_path('migrations/2026_10_04_122000_create_workforce_planning_tables.php'))->up();
+    }
+
+    public function test_variant_copy_keeps_the_source_point_after_directory_coordinates_change(): void
+    {
+        $this->planningSchema();
+        $source = $this->shift();
+        $this->location->update(['latitude' => 53.0, 'revision' => 2]);
+        $service = app(PlanVariantService::class);
+        $variant = $service->capture([$source->id], 'Standortkopie', 7, $this->admin);
+        $preview = $service->preview($variant, $this->admin);
+        $service->approve($variant->id, 1, $preview['fingerprint'], $this->admin);
+        $ids = $service->apply($variant->id, 2, $this->admin);
+        $copy = Shift::findOrFail($ids[0]);
+        $this->assertSame(52.5, $copy->location_snapshot['latitude']);
+        $this->assertSame(1, $copy->location_snapshot['revision']);
+        $this->assertSame($source->customer_location_id, $copy->customer_location_id);
+    }
+
+    public function test_series_uses_the_confirmed_order_point_without_automatic_master_refresh(): void
+    {
+        $this->planningSchema();
+        $this->location->update(['latitude' => 53.0, 'revision' => 2]);
+        $service = app(ShiftSeriesService::class);
+        $template = $service->saveTemplate(null, null, ['name' => 'Standortserie', 'title' => 'Dienst', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'start_time' => '10:00', 'end_time' => '11:00', 'end_next_day' => false, 'required_staff' => 1, 'planned_break_minutes' => 0, 'location_name' => $this->order->location_name, 'qualification_ids' => []], $this->admin);
+        $request = ['template_id' => $template->id, 'order_id' => $this->order->id, 'from' => '2027-05-12', 'until' => '2027-05-13', 'weekdays' => [3, 4], 'exceptions' => []];
+        $preview = $service->preview($request, $this->admin);
+        $service->generate($request, $preview['fingerprint'], (string) Str::uuid(), $this->admin);
+        $this->assertSame(2, Shift::count());
+        foreach (Shift::all() as $shift) {
+            $this->assertSame(52.5, $shift->location_snapshot['latitude']);
+            $this->assertTrue(SiteSnapshotService::confirmed($shift->location_snapshot));
+        }
+    }
+
     public function test_foreign_customer_location_is_rejected(): void
     {
         $other = Customer::create(['company_name' => 'Fremder Kunde', 'is_active' => true]);
@@ -108,6 +151,20 @@ class RoutingSiteWorkflowTest extends TestCase
         $html = Livewire::actingAs($this->admin)->test(TomTomSettings::class)->html();
         $this->assertStringNotContainsString('secret-test-routing-key', $html);
         Livewire::actingAs($this->admin)->test(EmployeeLocationSettings::class)->assertSee('Mitarbeiter-Standorte');
+        Http::assertNothingSent();
+    }
+
+    public function test_settings_tabs_keep_the_declared_order_and_tomtom_url_selection(): void
+    {
+        (require database_path('migrations/2026_09_08_171000_create_employee_workplace_provisions.php'))->up();
+        Http::preventStrayRequests();
+        $settings = Livewire::actingAs($this->admin)->withQueryParams(['tab' => 'tomtom'])->test(SystemSettings::class)->assertSet('initialTab', 'tomtom');
+        $html = $settings->html();
+        $dropbox = strpos($html, 'data-tab-panel-id="dropbox"');
+        $tomtom = strpos($html, 'data-tab-panel-id="tomtom"');
+        $locations = strpos($html, 'data-tab-panel-id="employee-locations"');
+        $superadmin = strpos($html, 'data-tab-panel-id="superadmin"');
+        $this->assertTrue($dropbox < $tomtom && $tomtom < $locations && $locations < $superadmin);
         Http::assertNothingSent();
     }
 

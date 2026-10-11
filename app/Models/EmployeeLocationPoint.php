@@ -2,11 +2,12 @@
 
 namespace App\Models;
 
+use App\Support\EmployeeLocation\HasUtcDates;
 use Illuminate\Database\Eloquent\Model;
 
 class EmployeeLocationPoint extends Model
 {
-    use \App\Support\EmployeeLocation\HasUtcDates;
+    use HasUtcDates;
 
     protected $guarded = ['id'];
 

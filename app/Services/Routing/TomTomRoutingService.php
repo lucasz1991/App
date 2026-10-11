@@ -13,6 +13,8 @@ use Throwable;
 
 class TomTomRoutingService
 {
+    public function __construct(private readonly float $durationBudgetSeconds = 9.0) {}
+
     public function summaryMany(array $requests): array
     {
         return $this->calculateMany($requests, false);
@@ -55,6 +57,7 @@ class TomTomRoutingService
 
     private function calculateMany(array $requests, bool $geometry, bool $test = false): array
     {
+        $deadline = microtime(true) + min(10.0, max(0.01, $this->durationBudgetSeconds));
         $results = [];
         $unique = [];
         $links = [];
@@ -82,6 +85,13 @@ class TomTomRoutingService
         $calculated = [];
         // Three simultaneous requests bound provider pressure and response memory.
         foreach (array_chunk($unique, 3, true) as $chunk) {
+            if (microtime(true) >= $deadline) {
+                foreach ($chunk as $key => $request) {
+                    $calculated[$key] = self::unknown('provider_timeout');
+                }
+
+                continue;
+            }
             $reserved = [];
             foreach ($chunk as $key => $request) {
                 if (! app(RoutingUsageService::class)->reserve('routing_transactions')) {
@@ -95,10 +105,11 @@ class TomTomRoutingService
                 continue;
             }
             try {
-                $responses = Http::pool(function (Pool $pool) use ($reserved): array {
+                $timeout = min(6.0, max(0.05, $deadline - microtime(true)));
+                $responses = Http::pool(function (Pool $pool) use ($reserved, $timeout): array {
                     $calls = [];
                     foreach ($reserved as $key => $request) {
-                        $calls[] = $pool->as($key)->connectTimeout(2)->timeout(6)->get($request['url'], $request['query']);
+                        $calls[] = $pool->as($key)->connectTimeout(min(2.0, $timeout))->timeout($timeout)->get($request['url'], $request['query']);
                     }
 
                     return $calls;

@@ -65,8 +65,13 @@ export function listScrollPagination() {
     return {
         gate: null,
         pending: false,
+        loading: false,
         loadingDirection: 1,
         loadingStyle: '',
+        motionVersion: 0,
+        motionTween: null,
+        motionTarget: null,
+        motionResolve: null,
         destroyed: false,
         signature: '',
         touch: null,
@@ -83,7 +88,14 @@ export function listScrollPagination() {
             this.startListener = event => this.beginTouch(event);
             this.endListener = event => this.endTouch(event);
             this.cancelListener = () => { this.touch = null; this.gate.reset(); };
-            this.resetListener = () => { this.touch = null; this.gate.reset(); };
+            this.resetListener = () => {
+                this.motionVersion += 1;
+                this.cancelContentMotion();
+                this.pending = false;
+                this.loading = false;
+                this.touch = null;
+                this.gate.reset();
+            };
             this.$el.addEventListener('wheel', this.wheelListener, { passive: false });
             this.$el.addEventListener('touchstart', this.startListener, { passive: true });
             this.$el.addEventListener('touchend', this.endListener, { passive: true });
@@ -99,6 +111,10 @@ export function listScrollPagination() {
         },
         destroy() {
             this.destroyed = true;
+            this.motionVersion += 1;
+            this.cancelContentMotion();
+            this.pending = false;
+            this.loading = false;
             this.$el.removeEventListener('wheel', this.wheelListener);
             this.$el.removeEventListener('touchstart', this.startListener);
             this.$el.removeEventListener('touchend', this.endListener);
@@ -189,19 +205,66 @@ export function listScrollPagination() {
             const bottom = Math.min(rect.bottom, view.bottom, window.innerHeight);
             const left = Math.max(12, rect.left);
             const right = Math.min(window.innerWidth - 12, rect.right);
-            const y = bottom - top < 48 ? (top + bottom) / 2 : this.loadingDirection > 0 ? bottom - 24 : top + 24;
-            this.loadingStyle = `left:${(left + right) / 2}px;top:${y}px;max-width:${Math.max(0, Math.min(320, right - left - 16))}px`;
+            this.loadingStyle = `left:${(left + right) / 2}px;top:${(top + bottom) / 2}px`;
+        },
+        motionEngine() {
+            return typeof window !== 'undefined' ? window.gsap : null;
+        },
+        cancelContentMotion() {
+            const tween = this.motionTween;
+            this.motionTween = null;
+            tween?.kill();
+            this.motionResolve?.();
+            this.motionResolve = null;
+            if (this.motionTarget) {
+                this.motionEngine()?.set(this.motionTarget, { clearProps: 'transform,opacity,visibility,willChange,pointerEvents' });
+                this.motionTarget = null;
+            }
+        },
+        animateContent(phase, direction) {
+            const target = this.$el.querySelector('[data-list-pagination-content]');
+            const engine = this.motionEngine();
+            if (!target || !engine) return Promise.resolve();
+            this.motionTarget = target;
+            engine.set(target, { willChange: 'transform,opacity', pointerEvents: 'none' });
+            if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+                engine.set(target, { y: 0, autoAlpha: phase === 'exit' ? 0 : 1 });
+                return Promise.resolve();
+            }
+            return new Promise(resolve => {
+                this.motionResolve = resolve;
+                const complete = () => {
+                    this.motionTween = null;
+                    this.motionResolve = null;
+                    resolve();
+                };
+                const vars = { overwrite: 'auto', onComplete: complete, onInterrupt: complete };
+                this.motionTween = phase === 'exit'
+                    ? engine.to(target, { ...vars, y: -direction * 24, autoAlpha: 0, duration: .14, ease: 'power2.inOut' })
+                    : engine.fromTo(target, { y: direction * 32, autoAlpha: 0 },
+                        { ...vars, y: 0, autoAlpha: 1, duration: .26, ease: 'power3.out' });
+            });
+        },
+        isCurrentTransition(version, meta, page) {
+            return !this.destroyed && this.$el.isConnected && version === this.motionVersion
+                && this.$el.dataset.listPageName === meta.name && Number(this.$el.dataset.listPage) === page;
         },
         async changePage(direction, meta) {
             if (this.pending || !this.$el.closest('[wire\\:id]') || !Number.isInteger(meta.page) || !meta.name) return;
             this.loadingDirection = direction;
             if (typeof window !== 'undefined') this.updateLoadingPosition();
             this.pending = true;
+            this.loading = true;
+            const version = ++this.motionVersion;
             const page = meta.page + direction;
             try {
+                // Only the row content moves. Its style-only ignore keeps it
+                // hidden through the native morph while children stay live.
+                await this.animateContent('exit', direction);
+                if (!this.isCurrentTransition(version, meta, meta.page)) return;
                 await this.$wire.call('gotoPage', page, meta.name);
                 await this.$nextTick();
-                if (this.destroyed || !this.$el.isConnected || Number(this.$el.dataset.listPage) !== page) return;
+                if (!this.isCurrentTransition(version, meta, page)) return;
                 const context = this.context(this.$el.querySelector('.rt-table-body'));
                 if (!context) return;
                 if (context.documentPort) {
@@ -212,13 +275,19 @@ export function listScrollPagination() {
                 } else {
                     context.port.scrollTo({ top: direction > 0 ? 0 : context.port.scrollHeight, behavior: 'instant' });
                 }
+                this.loading = false;
+                await this.animateContent('enter', direction);
             } catch {
                 // Native Livewire transport reports failures. Never retry or
                 // reposition a failed/stale page change behind the user's back.
             } finally {
-                this.pending = false;
-                this.gate.coolDown(performance.now());
-                this.$el.dataset.listScrollSteps = '0';
+                if (version === this.motionVersion) {
+                    this.cancelContentMotion();
+                    this.pending = false;
+                    this.loading = false;
+                    this.gate.coolDown(performance.now());
+                    this.$el.dataset.listScrollSteps = '0';
+                }
             }
         },
     };

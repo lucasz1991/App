@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'employee_location_onboarding_title' => 'RailTime on your business phone',
+    'employee_location_onboarding_text' => 'My Workday includes instructions for installing the web app. If your company provides the location service, you can also connect your assigned phone to the Android or iPhone companion there. Location sharing is voluntary, explained and requested again each day. Time recording remains available without it.',
+    'employee_location_onboarding_action' => 'Open My Workday and setup',
 
     // Navigation / Topbar
     'dashboard' => 'Dashboard',

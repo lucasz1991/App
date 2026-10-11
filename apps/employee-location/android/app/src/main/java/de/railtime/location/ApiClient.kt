@@ -10,7 +10,7 @@ class ApiClient(val base: String, private val token: String? = null) {
     init { validateBase(base) }
 
     fun post(action: String, payload: JSONObject = JSONObject()): JSONObject {
-        require(action in setOf("register", "start", "permit", "points", "stop"))
+        require(action in setOf("register", "start", "permit", "points", "quality", "stop"))
         val endpoint = URI(base.trimEnd('/') + "/api/employee-location/" + action).toURL()
         val connection = endpoint.openConnection() as HttpsURLConnection
         connection.requestMethod = "POST"

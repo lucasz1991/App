@@ -27,6 +27,12 @@
                     'timeline' => 'Mitarbeiter und Zeiten im Überblick',
                 ];
             @endphp
+            @if($viewMode === 'orders')
+                <x-ui.buttons.button-basic type="button" mode="secondary" class="rt-service-bulk-trigger" disabled data-tables-bulk-unavailable data-service-bulk-trigger
+                    aria-label="Massenaktionen – keine Sammelaktionen für Leistungen verfügbar" title="Keine Sammelaktionen für Leistungen verfügbar">
+                    <i class="far fa-layer-group" aria-hidden="true"></i>
+                </x-ui.buttons.button-basic>
+            @endif
             <div @class(['rt-shift-plan-period-controls', 'rt-shift-plan-period-controls--date' => $timelineDatePicker])>
                 <x-ui.dropdown.anchor-dropdown align="left" width="auto" offset="6" :max-height="$timelineDatePicker ? 640 : 448" dropdown-id="shift-plan-period-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" :content-label="$timelineDatePicker ? 'Tag auswählen' : 'Planungszeitraum anpassen'" :dropdown-classes="$timelineDatePicker ? 'rt-shift-plan-date-dropdown' : 'rt-shift-plan-range-dropdown'" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                     <x-slot:trigger>
@@ -109,6 +115,9 @@
                         @endif
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>
+                @if($viewMode === 'orders')
+                    @include('livewire.admin.operations.partials.service-filter-trigger')
+                @endif
             </div>
     </template>
     @if($nativeOperations)
@@ -119,7 +128,7 @@
     @endif
     <div class="rt-shift-plan-split" data-distribution-open="{{ $distributionOpen ? 'true' : 'false' }}" data-view="{{ $viewMode }}">
     <div class="rt-shift-plan-split__main">
-    @if($viewMode !== 'timeline')
+    @if($viewMode !== 'timeline' && $viewMode !== 'orders')
     @if($contextCustomer)<p class="ops-muted" role="status" data-shift-customer-context>Kunde: {{ $contextCustomer->company_name }}</p>@endif
     <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all') + (int) ($attentionFilter !== 'all')">
         <details class="rt-shift-filters" x-bind:open="!desktopFilters">
@@ -129,17 +138,7 @@
                 <i class="far fa-chevron-down rt-shift-filters__chevron" aria-hidden="true"></i>
             </summary>
             <div class="rt-shift-filters__panel">
-                @if($viewMode === 'orders')
-                    <x-tables.filter-field label="Anzeige" icon="far fa-list-ol" for="service-page-size">
-                        <x-ui.forms.select id="service-page-size" wire:model.live="servicePerPage" aria-label="Leistungen pro Seite">
-                            @foreach([25, 50, 100] as $size)<option value="{{ $size }}">{{ $size }} pro Seite</option>@endforeach
-                        </x-ui.forms.select>
-                        @error('servicePerPage')<span class="text-xs text-rt-red">{{ $message }}</span>@enderror
-                    </x-tables.filter-field>
-                @endif
-                <x-tables.filter-field label="Auftrag" for="shift-order-filter"><x-ui.forms.select id="shift-order-filter" wire:model.live="orderFilter" search-model="orderSearch" aria-label="Auftrag"><option value="all">Alle Aufträge</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->title }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
-                <x-tables.filter-field label="Status" for="shift-status-filter"><x-ui.forms.select id="shift-status-filter" wire:model.live="statusFilter" aria-label="Schichtstatus filtern"><option value="all">Alle Status</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
-                @if($nativeOperations)<x-tables.filter-field label="Handlungsbedarf" for="shift-attention"><x-ui.forms.select id="shift-attention" wire:model.live="attentionFilter" aria-label="Handlungsbedarf"><option value="all">Alle Schichten</option><option value="conflicts">Besetzung mit Konflikten</option><option value="unpublished">Unveröffentlichte Änderungen</option><option value="awaiting">Rückmeldung ausstehend</option><option value="declined">Abgelehnte Dienste</option></x-ui.forms.select></x-tables.filter-field>@endif
+                @include('livewire.admin.operations.partials.shift-filter-fields')
             </div>
         </details>
     </x-tables.toolbar>
@@ -194,8 +193,7 @@
     </div>
     @if($viewMode === 'orders')
         <div class="rt-service-pagination" data-service-pagination aria-label="Leistungsseiten">
-            @unless($serviceGroups->hasPages())<span class="text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted" aria-live="polite">{{ $serviceGroups->firstItem() ?? 0 }}–{{ $serviceGroups->lastItem() ?? 0 }} von {{ $serviceGroups->total() }} Leistungen</span>@endunless
-            {{ $serviceGroups->onEachSide(1)->links(data: ['scrollTo' => false]) }}
+            <x-tables.pagination :paginator="$serviceGroups" label="Leistungsseiten" table-key="service-overview" />
         </div>
     @endif
     </div>
