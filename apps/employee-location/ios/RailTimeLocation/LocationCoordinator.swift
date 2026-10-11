@@ -70,7 +70,7 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
                 self.registration = registration
                 self.api = try APIClient(base: base, token: response.token)
                 paired = true
-                status = "Verbunden. Tagesfreigabe und Startlink unter Mein Arbeitstag öffnen."
+                status = "Verbunden. Sitzungsfreigabe und Startlink unter Mein Arbeitstag öffnen."
             } catch { status = "Registrierung abgelehnt oder Verbindung unterbrochen. Neuen Code in RailTime erstellen." }
             busy = false
         }
@@ -163,7 +163,7 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
                 try applyPermit(permit, sentAt: sentAt)
                 busy = false
             } catch {
-                if currentGeneration == generation { handleError(error, message: "Erfassung unterbrochen: Verbindung oder Tagesfreigabe fehlt") }
+                if currentGeneration == generation { handleError(error, message: "Erfassung unterbrochen: Verbindung oder Sitzungsfreigabe fehlt") }
             }
         }
     }

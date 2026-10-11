@@ -126,12 +126,15 @@
                     </x-ui.accordion.section>
                     <x-ui.accordion.section
                         section="push"
-                        :label="__('app.push_settings_title')"
-                        :description="__('app.push_settings_description')"
+                        label="Push und Standort"
+                        description="Deine Freigaben für die aktive Anmeldesitzung und die Einrichtung auf diesem Gerät."
                         icon="fad fa-bell"
                         id-prefix="profile-app"
                     >
-                        <livewire:settings.push-settings />
+                        <div class="space-y-5">
+                            <livewire:settings.session-permissions :automatic="false" />
+                            <livewire:settings.push-settings />
+                        </div>
                     </x-ui.accordion.section>
                 </div>
                 @break

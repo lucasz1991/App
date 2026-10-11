@@ -90,6 +90,10 @@ class TravelAssessmentService
             $withoutContext = $context;
             $withoutContext['exclude_shift_ids'] = array_values(array_unique(array_merge($context['exclude_shift_ids'] ?? [], [$peer->shift_id])));
             $withoutContext['additional_shifts'] = collect($context['additional_shifts'] ?? [])->reject(fn ($other) => $other instanceof Shift && (int) $other->id === (int) $peer->shift_id)->all();
+            if (isset($context['additional_shifts_by_user'][$peer->user_id])) {
+                $withoutContext['additional_shifts_by_user'][$peer->user_id] = collect($context['additional_shifts_by_user'][$peer->user_id])
+                    ->reject(fn ($other) => $other instanceof Shift && (int) $other->id === (int) $peer->shift_id)->all();
+            }
             $result[$peer->user_id][$peer->shift_id] = [
                 'audit_id' => $audit->id, 'assignment_id' => $peer->id,
                 'peer' => new TravelPreflight($this->assessMany($peer->shift, $employee, $peerContext), $peerContext, true),
@@ -157,7 +161,8 @@ class TravelAssessmentService
         $neighbors = [];
         $moments = [];
         foreach ($users as $user) {
-            $others = $assignments->get($user->id, collect())->pluck('shift')->merge(collect($context['additional_shifts'] ?? []));
+            $additional = array_merge($context['additional_shifts'] ?? [], $context['additional_shifts_by_user'][$user->id] ?? []);
+            $others = $assignments->get($user->id, collect())->pluck('shift')->merge(collect($additional));
             if (class_exists(CustomerCapacityService::class)) {
                 $others = $others->merge(app(CustomerCapacityService::class)->additionalShifts($shift, $user));
             }

@@ -4,10 +4,12 @@ namespace App\Livewire\Operations;
 
 use App\Models\MobileLocationCode;
 use App\Services\EmployeeLocation\EmployeeLocationService;
+use App\Services\Privacy\SessionPermissionService;
 use App\Support\EmployeeLocation\EmployeeLocationSettings;
 use App\Support\Operations\OperationsAccess;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class EmployeeLocationStatus extends Component
@@ -42,6 +44,7 @@ class EmployeeLocationStatus extends Component
         $this->explanationVersion = (int) EmployeeLocationSettings::read()['explanation_version'];
     }
 
+    #[On('session-permissions-updated')]
     public function refreshStatus(): void
     {
         $this->authorizeOwn();
@@ -59,27 +62,33 @@ class EmployeeLocationStatus extends Component
         $this->explanationOpen = true;
     }
 
-    public function accept(EmployeeLocationService $service): void
+    public function accept(SessionPermissionService $service): void
     {
         $this->authorizeOwn();
-        $service->decide(auth()->user(), true, $this->explanationVersion);
+        $service->decide(auth()->user(), 'location', true, $this->explanationVersion);
         $this->explanationOpen = false;
         $this->clearHandoff();
+        $this->dispatch('session-permissions-updated');
+        $this->dispatch('railtime-session-permissions-changed');
     }
 
-    public function decline(EmployeeLocationService $service): void
+    public function decline(SessionPermissionService $service): void
     {
         $this->authorizeOwn();
-        $service->decide(auth()->user(), false, $this->explanationVersion);
+        $service->decide(auth()->user(), 'location', false, $this->explanationVersion);
         $this->explanationOpen = false;
         $this->clearHandoff();
+        $this->dispatch('session-permissions-updated');
+        $this->dispatch('railtime-session-permissions-changed');
     }
 
-    public function withdraw(EmployeeLocationService $service): void
+    public function withdraw(SessionPermissionService $service): void
     {
         $this->authorizeOwn();
-        $service->withdraw(auth()->user());
+        $service->revoke(auth()->user(), 'location');
         $this->clearHandoff();
+        $this->dispatch('session-permissions-updated');
+        $this->dispatch('railtime-session-permissions-changed');
     }
 
     public function deleteHistory(EmployeeLocationService $service): void

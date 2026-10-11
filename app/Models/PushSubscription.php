@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Services\Privacy\SessionPermissionService;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Minishlink\WebPush\ContentEncoding;
 use NotificationChannels\WebPush\PushSubscription as BasePushSubscription;
 
 class PushSubscription extends BasePushSubscription
 {
+    protected $hidden = ['session_permission_grant_id'];
+
     protected $fillable = [
         'endpoint',
         'public_key',
@@ -52,5 +56,20 @@ class PushSubscription extends BasePushSubscription
     public static function hashEndpoint(string $endpoint): string
     {
         return hash('sha256', $endpoint);
+    }
+
+    public function sessionPermissionGrant(): BelongsTo
+    {
+        return $this->belongsTo(SessionPermissionGrant::class);
+    }
+
+    public function hasActiveSessionPermission(): bool
+    {
+        $grant = $this->sessionPermissionGrant?->fresh();
+
+        return $grant !== null
+            && (string) $grant->user_id === (string) $this->subscribable_id
+            && $this->subscribable_type === (new User)->getMorphClass()
+            && app(SessionPermissionService::class)->active($grant, 'push');
     }
 }

@@ -27,6 +27,15 @@ final class PermitPolicyTests: XCTestCase {
         policy.invalidate()
         XCTAssertFalse(policy.valid(6))
     }
+    func testServerAuthorizedPermitCrossesMidnightWithoutExtendingDeadline() {
+        let beforeMidnight = Date(timeIntervalSince1970: 1_791_755_990) // Berlin, 2026-10-11 23:59:50
+        var policy = PermitPolicy()
+        policy.authorize(serverTime: beforeMidnight, expiresAt: beforeMidnight.addingTimeInterval(120),
+                         nextSampleAt: beforeMidnight, receivedMonotonic: 1, requestDuration: 0)
+        XCTAssertTrue(policy.acceptsFix(now: 21, age: 0, accuracy: 1, latitude: 50, longitude: 8))
+        XCTAssertEqual(policy.serverNow(21), beforeMidnight.addingTimeInterval(20))
+        XCTAssertFalse(policy.valid(121))
+    }
     func testCadenceUsesServerRatherThanWallClock() {
         var policy = permit()
         policy.acknowledge(Date(timeIntervalSince1970: 1000))

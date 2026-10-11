@@ -1,10 +1,10 @@
 <section class="space-y-5" aria-label="Mitarbeiter-Standorte">
-    <header><h2 class="text-lg font-semibold">Mitarbeiter-Standorte</h2><p class="text-sm text-rt-muted">Tägliche freiwillige Freigabe auf dem zugewiesenen Geschäftshandy; ausschließlich während laufender Arbeitszeiterfassung.</p></header>
+    <header><h2 class="text-lg font-semibold">Mitarbeiter-Standorte</h2><p class="text-sm text-rt-muted">Freiwillige Freigabe für die aktive Anmeldesitzung auf dem zugewiesenen Geschäftshandy; ausschließlich während laufender Arbeitszeiterfassung.</p></header>
     <form wire:submit="save" class="ops-form">
         @if($errors->any())<ul class="ops-full text-sm text-red-700 dark:text-red-300" role="alert">@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul>@endif
         <div class="ops-full"><x-ui.forms.checkbox wire:model="config.enabled" label="Mitarbeiter-Standortdienst aktivieren" /><p class="mt-2 text-sm text-rt-muted">Erst nach Abnahme auf Geschäftshandys und Klärung des betrieblichen Zwecks einschließlich der Aufbewahrung aktivieren.</p></div>
-        <div class="ops-full text-sm"><p>Intervall: 15 Minuten · Aufbewahrung: 7 Tage · erforderliche Genauigkeit: höchstens 50 Meter.</p><p>Neue Zustimmung täglich, Ende um Mitternacht (Europe/Berlin). Ohne Zustimmung bleibt die Zeiterfassung nutzbar.</p></div>
-        <x-operations.field label="Erklärtext für die tägliche Freigabe" model="config.explanation_text" type="textarea" :wide="true" required />
+        <div class="ops-full text-sm"><p>Intervall: 15 Minuten · Aufbewahrung: 7 Tage · erforderliche Genauigkeit: höchstens 50 Meter.</p><p>Einmalige Entscheidung je aktiver Anmeldesitzung. Tatsächliche App-Nutzung verlängert die Sitzung und Freigabe; Abmeldung, Sitzungsablauf und Widerruf beenden sie. Keine erneute tägliche Nachfrage. Ohne Zustimmung bleibt die Zeiterfassung nutzbar.</p></div>
+        <x-operations.field label="Erklärtext für die Sitzungsfreigabe" model="config.explanation_text" type="textarea" :wide="true" required />
         <p class="ops-full text-sm text-rt-muted">Aktuelle Textversion {{ $config['explanation_version'] }}. Eine Textänderung erhöht die Version und beendet laufende Standortfreigaben.</p>
         <x-operations.field label="Installationslink Android" model="config.android_install_url" type="url" :wide="true" />
         <x-operations.field label="Installationslink iPhone" model="config.ios_install_url" type="url" :wide="true" />
@@ -14,5 +14,5 @@
         <div class="ops-full"><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Speichern</x-ui.buttons.button-basic></div>
     </form>
     <p class="text-sm" role="status">{{ $ready ? 'Standortspeicherung eingerichtet.' : 'Die Standortmigrationen müssen vor einer Aktivierung ausgeführt werden.' }}</p>
-    <p class="text-sm text-rt-muted">Gespeicherter Betriebszustand: {{ $runtime['enabled'] ? 'aktiviert' : 'deaktiviert' }} · {{ $runtime['installations'] }} verbundene Installationen · {{ $runtime['permits'] }} noch laufende Kurzfreigaben. Jede Meldung prüft Arbeitszeit, Tagesfreigabe und Gerätebindung erneut.</p>
+    <p class="text-sm text-rt-muted">Gespeicherter Betriebszustand: {{ $runtime['enabled'] ? 'aktiviert' : 'deaktiviert' }} · {{ $runtime['installations'] }} verbundene Installationen · {{ $runtime['permits'] }} noch laufende Kurzfreigaben. Jede Meldung prüft Arbeitszeit, aktive Anmeldesitzung, Freigabe und Gerätebindung erneut.</p>
 </section>

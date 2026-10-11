@@ -6,6 +6,7 @@ use App\Models\Device;
 use App\Models\DeviceAssignment;
 use App\Models\User;
 use App\Services\EmployeeLocation\EmployeeLocationService;
+use App\Services\Privacy\SessionPermissionService;
 use App\Support\EmployeeLocation\EmployeeLocationSettings;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -21,7 +22,7 @@ class EmployeeLocationServiceProvider extends ServiceProvider
         RateLimiter::for('employee-location', fn (Request $request) => Limit::perMinute(60)->by('employee-location:'.hash('sha256', (string) ($request->bearerToken() ?: $request->ip()))));
         Event::listen(Logout::class, function (Logout $event): void {
             if ($event->user instanceof User) {
-                app(EmployeeLocationService::class)->stopForUser((int) $event->user->id);
+                app(SessionPermissionService::class)->end($event->user);
             }
         });
         DeviceAssignment::updated(function (DeviceAssignment $assignment): void {

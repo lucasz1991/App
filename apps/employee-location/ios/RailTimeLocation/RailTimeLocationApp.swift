@@ -28,7 +28,7 @@ struct ContentView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Die Mitarbeiteroberfläche und die tägliche Zustimmung bleiben in RailTime. Dieser Dienst meldet nur während freigegebener Arbeitszeit alle 15 Minuten einen präzisen Punkt. Kein Offline-Verlauf und kein automatischer Neustart.")
+                    Text("Die Mitarbeiteroberfläche und die Zustimmung für die aktive Anmeldung bleiben in RailTime. Dieser Dienst meldet nur während freigegebener Arbeitszeit alle 15 Minuten einen präzisen Punkt. Kein Offline-Verlauf und kein automatischer Neustart.")
                     Text(coordinator.status).accessibilityAddTraits(.updatesFrequently)
                 }
                 Section("Geschäftshandy verbinden") {
@@ -46,7 +46,7 @@ struct ContentView: View {
                         .disabled(!coordinator.paired || coordinator.active || coordinator.busy)
                     Button("Standortdienst beenden", role: .destructive) { coordinator.stop() }
                         .disabled(!coordinator.paired)
-                    Button("Tagesfreigabe verwalten / widerrufen") {
+                    Button("Sitzungsfreigabe verwalten / widerrufen") {
                         if let url = coordinator.manageURL { openURL(url) }
                     }.disabled(!coordinator.paired)
                 }

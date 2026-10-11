@@ -1,0 +1,60 @@
+<div class="space-y-4">
+    <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" data-session-consent-notice>
+        Beide Freigaben sind freiwillig und unabhängig voneinander. Deine Entscheidung gilt für diese aktive Anmeldesitzung. Die normale Nutzung der App verlängert die Sitzung und damit diese Entscheidung. Es gibt keine erneute tägliche Nachfrage. Nach Abmeldung oder Sitzungsablauf wirst du erneut gefragt.
+    </p>
+    <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+        Du kannst deine Entscheidung jederzeit unter <a href="{{ route('profile.show', ['tab' => 'app']) }}" class="font-semibold text-rt-accent underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent">Mein Profil → Einstellungen → Push und Standort</a> ändern. Ohne Freigabe bleiben RailTime und die Zeiterfassung nutzbar.
+    </p>
+    <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted" data-session-idle-duration>
+        @php
+            $idleMinutes = \App\Support\Privacy\SessionLifetimePolicy::minutes(auth()->user());
+        @endphp
+        Diese Sitzung läuft nach {{ $idleMinutes % 60 === 0 ? ($idleMinutes / 60).' Stunden' : $idleMinutes.' Minuten' }} ohne App-Nutzung ab. Standortmeldungen des Hintergrunddienstes verlängern die Anmeldung nicht.
+    </p>
+    @foreach (['push' => 'Push-Benachrichtigungen', 'location' => 'Standort während der Arbeit'] as $purpose => $label)
+        @php
+            $available = $purpose === 'push' ? $permissions['push_available'] : $permissions['location_enabled'];
+            $decision = $permissions[$purpose.'_decision'];
+        @endphp
+        <section wire:key="{{ $permissionIdPrefix }}-{{ $purpose }}" class="rounded-xl border border-rt-border/70 p-4 dark:border-rt-dark-border/70" aria-labelledby="{{ $permissionIdPrefix }}-{{ $purpose }}-heading" data-session-permission-purpose="{{ $purpose }}">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h4 id="{{ $permissionIdPrefix }}-{{ $purpose }}-heading" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $label }}</h4>
+                <span class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted" role="status">{{ !$available ? 'Derzeit nicht verfügbar' : ($decision === 'accepted' ? 'Für diese Sitzung erlaubt' : ($decision === 'declined' ? 'Für diese Sitzung abgelehnt' : 'Noch keine Entscheidung')) }}</span>
+            </div>
+            @if ($purpose === 'push')
+                <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">RailTime darf dir Benachrichtigungen über neue Nachrichten und betriebliche Hinweise senden. Die Browserberechtigung und Einrichtung gelten separat für dieses Gerät. Auf dem iPhone wird die installierte Web-App benötigt.</p>
+            @elseif ($available)
+                <p class="mt-2 whitespace-pre-line text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $permissions['location_text'] }}</p>
+                <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Die Freigabe startet keine Ortung. Die regelmäßige Erfassung benötigt zusätzlich dein zugeordnetes Geschäftshandy, den nativen Standortdienst, dessen Geräteberechtigung und einen ausdrücklichen Start während laufender Arbeitszeit. Die Browser-Abfrage allein ermöglicht keinen Hintergrunddienst.</p>
+            @endif
+            @if ($available)
+                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                    <x-ui.buttons.button-basic mode="secondary" x-on:click="allow('{{ $purpose }}', @js($decision === 'accepted'))" x-bind:disabled="busy !== null" wire:loading.attr="disabled" class="min-h-11 rounded-xl" data-permission-allow="{{ $purpose }}">{{ $decision === 'accepted' ? 'Geräteberechtigung einrichten' : 'Erlauben' }}</x-ui.buttons.button-basic>
+                    @if ($decision === 'accepted')
+                        <x-ui.buttons.button-basic mode="secondary" wire:click="revoke('{{ $purpose }}')" x-bind:disabled="busy !== null" wire:loading.attr="disabled" class="min-h-11 rounded-xl" data-permission-withdraw="{{ $purpose }}">Freigabe widerrufen</x-ui.buttons.button-basic>
+                    @else
+                        <x-ui.buttons.button-basic mode="secondary" wire:click="decide('{{ $purpose }}', false)" x-bind:disabled="busy !== null" wire:loading.attr="disabled" class="min-h-11 rounded-xl" data-permission-decline="{{ $purpose }}">Ohne {{ $purpose === 'push' ? 'Push' : 'Standort' }} fortfahren</x-ui.buttons.button-basic>
+                    @endif
+                </div>
+                @if ($purpose === 'location' && $decision === 'accepted')
+                    <a href="{{ route('operations.mine') }}" class="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-rt-accent underline underline-offset-2">Standortdienst unter „Mein Arbeitstag“ einrichten</a>
+                    <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Ein Widerruf beendet die Erfassung und die Routing-Nutzung; gespeicherte Punkte dieser Freigabe werden gelöscht.</p>
+                @endif
+            @else
+                <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $purpose === 'push' ? 'Push ist serverseitig noch nicht eingerichtet oder ausgeschaltet.' : 'Arbeitsstandorte sind für dein Konto derzeit nicht aktiviert.' }}</p>
+                @if ($decision === 'accepted')
+                    <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Deine gespeicherte Freigabe kannst du auch bei ausgeschalteter Funktion widerrufen.</p>
+                    <x-ui.buttons.button-basic mode="secondary" wire:click="revoke('{{ $purpose }}')" x-bind:disabled="busy !== null" wire:loading.attr="disabled" class="mt-3 min-h-11 rounded-xl" data-permission-withdraw="{{ $purpose }}">Freigabe widerrufen</x-ui.buttons.button-basic>
+                @endif
+            @endif
+        </section>
+    @endforeach
+    <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Browser- und Geräteberechtigungen können trotz RailTime-Freigabe fehlen oder entzogen werden. Erlaube sie nur, wenn du sicher stehen kannst.</p>
+    @if ($permissions['expires_at'])
+        <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted" data-session-permission-expiry>Ohne weitere Nutzung läuft diese Sitzung voraussichtlich am {{ \Carbon\CarbonImmutable::parse($permissions['expires_at'])->setTimezone('Europe/Berlin')->format('d.m.Y \u\m H:i') }} Uhr ab.</p>
+    @endif
+    @error('permissions')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
+    @error('location')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
+    @error('push')<p role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-200">{{ $message }}</p>@enderror
+    <p x-cloak x-show="browserMessage" x-text="browserMessage" role="status" aria-live="polite" class="rounded-xl bg-rt-surface-muted p-3 text-sm leading-6 text-rt-text dark:bg-rt-dark-surface-muted dark:text-rt-dark-text"></p>
+</div>

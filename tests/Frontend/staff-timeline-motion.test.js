@@ -246,7 +246,7 @@ test('each native right-edge clamp is mirrored without inventing a leftward gest
         advance(tweens[0], 52, true);
         body.nativeOffset = maximum() - 20;
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelCompact, false, 'actual input away from the edge must still expand');
+        assert.equal(timeline.personnelCompact, true, 'actual input away from the edge keeps the manual collapse');
     });
 });
 
@@ -300,7 +300,7 @@ test('delayed end snapping after expansion remains layout movement until real in
         timeline.syncHorizontal(body);
         body.nativeOffset = maximum();
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelCompact, true, 'ordinary right input determines the next preference');
+        assert.equal(timeline.personnelCompact, false, 'ordinary right input keeps the manual expansion');
         assert.equal(body.scrollWrites, 0);
     }, { deferredNativeScroll: true });
 });
@@ -333,16 +333,16 @@ test('a delayed native end snap after resizing cannot compact staff without user
         timeline.syncHorizontal(body);
         body.nativeOffset = 1920;
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelCompact, true, 'subsequent actual right input still compacts staff');
+        assert.equal(timeline.personnelCompact, false, 'subsequent actual right input does not compact staff');
         body.nativeOffset = 1900;
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelCompact, false, 'subsequent actual left input still expands staff');
+        assert.equal(timeline.personnelCompact, false, 'subsequent actual left input keeps expanded staff');
         assert.equal(body.scrollTop, 144);
         assert.equal(body.scrollWrites, 0);
     }, { deferredNativeScroll: true });
 });
 
-test('horizontal wheel input scrolls the hidden body and reverses intent while vertical input remains native', () => {
+test('horizontal wheel input scrolls the hidden body without reversing manual width motion', () => {
     withMotion(({ timeline, tweens, advance, currentWidth }) => {
         timeline.applyPersonnelMode();
         compact(timeline);
@@ -359,23 +359,23 @@ test('horizontal wheel input scrolls the hidden body and reverses intent while v
         assert.equal(timeline.$refs.timelineBody.scrollTop, 148, 'diagonal trackpad input also keeps its vertical component');
         assert.equal(prevented, 1);
         timeline.wheelPersonnel(event(-30, 0));
-        assert.equal(timeline.personnelCompact, false);
+        assert.equal(timeline.personnelCompact, true);
         assert.equal(timeline.$refs.timelineBody.scrollLeft, 0);
         assert.equal(prevented, 2);
         timeline.applyPersonnelMode();
-        assert.equal(tweens[0].killed, true);
-        assert.equal(tweens[1].from, 116);
+        assert.equal(tweens[0].killed, false);
+        assert.equal(tweens.length, 1);
         assert.equal(currentWidth(), 116);
     });
 });
 
-test('right wheel direction survives an interior native snap-back and an opposite wheel changes intent immediately', () => {
+test('wheel direction survives native snap-back without changing the manual personnel mode', () => {
     withMotion(({ timeline, body, timers }) => {
         timeline.wheelPersonnel({ deltaX: 360, deltaY: 0, preventDefault() {} });
         for (const offset of [300, 360, 300, 265]) {
             body.nativeOffset = offset;
             timeline.syncHorizontal(body);
-            assert.equal(timeline.personnelCompact, true, `right wheel followed by native offset ${offset}`);
+            assert.equal(timeline.personnelCompact, false, `right wheel followed by native offset ${offset}`);
             assert.equal(timeline.$refs.timelineHeader.scrollLeft, offset);
             assert.equal(timeline.$refs.timelineScrollbar.scrollLeft, offset);
         }
@@ -391,7 +391,7 @@ test('right wheel direction survives an interior native snap-back and an opposit
         assert.equal(timers.size, 0);
         body.nativeOffset = 275;
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelCompact, true, 'native offset direction resumes after scrollend');
+        assert.equal(timeline.personnelCompact, false, 'native offset direction never changes staff mode');
         body.nativeOffset = 255;
         timeline.syncHorizontal(body);
         assert.equal(timeline.personnelCompact, false);
@@ -399,7 +399,7 @@ test('right wheel direction survives an interior native snap-back and an opposit
     });
 });
 
-test('day arrow direction survives native smooth-scroll overshoot and snapping until scrollend', () => {
+test('day arrows and native smooth-scroll overshoot preserve the manual personnel mode', () => {
     withMotion(({ timeline, body, timers }) => {
         timeline.applyPersonnelMode();
         timeline.measure();
@@ -409,7 +409,7 @@ test('day arrow direction survives native smooth-scroll overshoot and snapping u
         for (const offset of [600, 750, 720]) {
             body.nativeOffset = offset;
             timeline.syncHorizontal(body);
-            assert.equal(timeline.personnelCompact, true);
+            assert.equal(timeline.personnelCompact, false);
         }
         assert.deepEqual(body.scrollCalls[0], { left: 720, behavior: 'smooth' });
         timeline.finishHorizontalIntent();
@@ -424,13 +424,13 @@ test('day arrow direction survives native smooth-scroll overshoot and snapping u
 test('a manual header counter-command wins over the remaining native wheel sequence', () => {
     withMotion(({ timeline, body, timers }) => {
         timeline.wheelPersonnel({ deltaX: 360, deltaY: 0, preventDefault() {} });
-        assert.equal(timeline.personnelCompact, true);
-        timeline.togglePersonnelColumn();
         assert.equal(timeline.personnelCompact, false);
+        timeline.togglePersonnelColumn();
+        assert.equal(timeline.personnelCompact, true);
         for (const offset of [100, 360, 265]) {
             body.nativeOffset = offset;
             timeline.syncHorizontal(body);
-            assert.equal(timeline.personnelCompact, false, 'old wheel movement must not undo the explicit header command');
+            assert.equal(timeline.personnelCompact, true, 'old wheel movement must not undo the explicit header command');
         }
         timeline.finishHorizontalIntent();
         assert.equal(timers.size, 0);
@@ -504,7 +504,7 @@ test('a same-position body event cannot consume the pending delayed layout corre
     }, { gsap: false, deferredNativeScroll: true });
 });
 
-test('native footer input can reverse a running tween without losing its new offset', () => {
+test('native footer input never reverses a running manual width tween or loses its new offset', () => {
     withMotion(({ timeline, body, tweens, advance }) => {
         timeline.applyPersonnelMode();
         body.nativeOffset = 300;
@@ -514,24 +514,20 @@ test('native footer input can reverse a running tween without losing its new off
         timeline.$refs.timelineScrollbar.scrollLeft = 260;
         timeline.syncHorizontal(timeline.$refs.timelineScrollbar);
         assert.equal(body.scrollLeft, 260);
-        assert.equal(timeline.personnelCompact, false);
+        assert.equal(timeline.personnelCompact, true);
         timeline.applyPersonnelMode();
-        assert.equal(tweens[0].killed, true);
-        assert.equal(tweens[1].from, 116);
+        assert.equal(tweens[0].killed, false);
+        assert.equal(tweens.length, 1);
         assert.equal(body.scrollWrites, 1, 'only native footer input may write the body offset');
     });
 });
 
-test('header hover does not fight an explicit compact button, while actual staff hover still expands', () => {
-    withMotion(({ timeline, document }) => {
+test('neither header nor staff hover has an automatic width handler', () => {
+    withMotion(({ timeline }) => {
         timeline.applyPersonnelMode();
         compact(timeline);
-        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'mouse',
-            target: document.querySelector('[data-timeline-person-toggle]') });
+        assert.equal(Object.hasOwn(timeline, 'pointerPersonnel'), false);
         assert.equal(timeline.personnelCompact, true);
-        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'mouse',
-            target: document.getElementById('person') });
-        assert.equal(timeline.personnelCompact, false);
         assert.equal(timeline.compactRequested, true);
     });
 });
@@ -568,14 +564,14 @@ test('a responsive full-width change during expansion cannot leave a stale deskt
     });
 });
 
-test('day arrows set their direction explicitly and retain native smooth or instant scrolling', () => {
+test('day arrows set navigation direction without changing personnel mode and retain smooth or instant scrolling', () => {
     withMotion(({ timeline, body, setReduced }) => {
         timeline.applyPersonnelMode();
         timeline.measure();
         body.nativeOffset = 400;
         timeline.syncHorizontal(body, false);
         timeline.scrollDay(1);
-        assert.equal(timeline.compactRequested, true);
+        assert.equal(timeline.compactRequested, false);
         assert.deepEqual(body.scrollCalls[0], { left: 720, behavior: 'smooth' });
         setReduced(true);
         timeline.scrollDay(-1);

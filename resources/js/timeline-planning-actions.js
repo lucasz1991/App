@@ -15,6 +15,13 @@ export function timelineFocusPreviewPosition({ overlayLeft, overlayWidth, cellLe
     return { offset: clampedCenter - overlayLeft, badgeWidth };
 }
 
+// Tailwind's scale(2) doubles a long badge sideways. Keep the ripple's travel
+// equal in pixels on both axes, while animating only the separate border layer.
+export function timelineProposalPingScale(width, height, spread = 5) {
+    if (![width, height, spread].every(Number.isFinite) || width <= 0 || height <= 0 || spread < 0) return null;
+    return { x: 1 + 2 * spread / width, y: 1 + 2 * spread / height };
+}
+
 // One controller per timeline, not one Alpine component or request per day cell.
 export function timelinePlanning(ownerId = null) {
     return {
@@ -43,7 +50,9 @@ export function timelinePlanning(ownerId = null) {
         disposed: false,
         proposalObserver: null,
         proposalMutation: null,
+        proposalResize: null,
         observedProposals: new Set(),
+        proposalShells: new Map(),
         visibilityListener: null,
 
         init() {
@@ -55,6 +64,16 @@ export function timelinePlanning(ownerId = null) {
                 this.proposalObserver = new IntersectionObserver((entries) => {
                     for (const entry of entries) entry.target.dataset.inView = String(entry.isIntersecting);
                 }, { root: this.$root.querySelector('.rt-personnel-timeline-body') });
+                if (typeof ResizeObserver === 'function') {
+                    this.proposalResize = new ResizeObserver(entries => {
+                        for (const entry of entries) {
+                            const scale = timelineProposalPingScale(entry.contentRect.width, entry.contentRect.height);
+                            if (!scale) continue;
+                            entry.target.style.setProperty('--proposal-ping-x', scale.x);
+                            entry.target.style.setProperty('--proposal-ping-y', scale.y);
+                        }
+                    });
+                }
                 this.observeProposals();
                 this.proposalMutation = new MutationObserver(() => { this.observeProposals(); this.refreshFocusPreview(); });
                 this.proposalMutation.observe(this.$root, { childList: true, subtree: true });
@@ -65,10 +84,21 @@ export function timelinePlanning(ownerId = null) {
         },
         observeProposals() {
             for (const node of this.observedProposals) {
-                if (!node.isConnected) { this.proposalObserver.unobserve(node); this.observedProposals.delete(node); }
+                if (!node.isConnected) {
+                    this.proposalObserver.unobserve(node);
+                    const shell = this.proposalShells.get(node);
+                    if (shell) this.proposalResize?.unobserve(shell);
+                    this.proposalShells.delete(node);
+                    this.observedProposals.delete(node);
+                }
             }
             for (const node of this.$root.querySelectorAll('[data-timeline-proposal]')) {
-                if (!this.observedProposals.has(node)) { this.observedProposals.add(node); this.proposalObserver.observe(node); }
+                if (!this.observedProposals.has(node)) {
+                    this.observedProposals.add(node);
+                    this.proposalObserver.observe(node);
+                    const shell = node.closest('.rt-timeline-proposal-shell');
+                    if (shell) { this.proposalShells.set(node, shell); this.proposalResize?.observe(shell); }
+                }
             }
         },
         destroy() {
@@ -77,6 +107,8 @@ export function timelinePlanning(ownerId = null) {
             this.clearHover();
             this.proposalObserver?.disconnect();
             this.proposalMutation?.disconnect();
+            this.proposalResize?.disconnect();
+            this.proposalShells.clear();
             document.removeEventListener('visibilitychange', this.visibilityListener);
         },
         panelId() { return `rt-dropdown-timeline-planner-${this.$wire.$id}`; },

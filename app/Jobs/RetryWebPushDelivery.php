@@ -52,9 +52,10 @@ class RetryWebPushDelivery implements ShouldQueue
         $subscription = PushSubscription::query()
             ->whereKey($this->subscriptionId)
             ->whereNull('revoked_at')
+            ->with('sessionPermissionGrant')
             ->first();
 
-        if (! $subscription) {
+        if (! $subscription || ! $subscription->hasActiveSessionPermission()) {
             return;
         }
 

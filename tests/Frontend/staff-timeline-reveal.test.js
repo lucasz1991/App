@@ -87,6 +87,28 @@ test('measure and resize never replay existing rows; newly inserted visible band
     assert.deepEqual(calls[2].targets, [inserted]);
 }));
 
+test('lazy window data appears in place without replaying a long row entrance and clears an interrupted old entrance', () => fixture(({ root, grid, body, calls, document, measure, event }) => {
+    root.dataset.timelineAxisFrom = '2026-10-02';
+    root.dataset.timelineAxisUntil = '2026-10-14';
+    revealStaffTimeline(root, grid, body);
+    assert.equal(calls.length, 2);
+    assert.equal(event.style.getPropertyValue('opacity'), '0');
+    const incoming = document.createElement('div');
+    incoming.className = 'rt-personnel-timeline-event';
+    measure(incoming);
+    grid.append(incoming);
+    root.dataset.timelineAxisFrom = '2026-10-03';
+    root.dataset.timelineAxisUntil = '2026-10-15';
+    revealStaffTimeline(root, grid, body);
+    assert.equal(calls.length, 2, 'no new sequential entrance for loaded window contents');
+    assert.ok(calls.every(call => call.tween.killed));
+    assert.equal(event.style.getPropertyValue('opacity'), undefined);
+    assert.equal(incoming.style.getPropertyValue('opacity'), undefined);
+    assert.equal(root.querySelectorAll('[data-timeline-revealing]').length, 0);
+    revealStaffTimeline(root, grid, body);
+    assert.equal(calls.length, 2, 'incoming contents were marked seen without animation');
+}));
+
 test('completion restores prior inline opacity, translate and only owned styles', () => fixture(({ root, grid, body, person, event, calls }) => {
     person.style.setProperty('opacity', '.8');
     event.style.setProperty('translate', '3px 0px');

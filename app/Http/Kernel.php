@@ -2,6 +2,7 @@
 
 namespace App\Http;
 
+use App\Http\Middleware\ApplySessionLifetime;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\CheckUserStatus;
 use App\Http\Middleware\CompressLivewireResponse;
@@ -13,6 +14,7 @@ use App\Http\Middleware\RedirectIfAuthenticated;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\SanitizeBroadcastSocketId;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\TouchSessionPermissions;
 use App\Http\Middleware\TrimStrings;
 use App\Http\Middleware\TrustProxies;
 use App\Http\Middleware\ValidateSignature;
@@ -64,6 +66,7 @@ class Kernel extends HttpKernel
             EncryptCookies::class,
             AddQueuedCookiesToResponse::class,
             StartSession::class,
+            ApplySessionLifetime::class,
             SetLocale::class,
             ShareErrorsFromSession::class,
             VerifyCsrfToken::class,
@@ -72,6 +75,7 @@ class Kernel extends HttpKernel
             // Socket-ID wuerde sonst jede toOthers()-Aktion mit 500 beenden.
             SanitizeBroadcastSocketId::class,
             CheckUserStatus::class,
+            TouchSessionPermissions::class,
             LogActivity::class,
             MaintenanceMode::class,
         ],

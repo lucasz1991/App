@@ -1,6 +1,6 @@
 # RailTime employee location companions
 
-These two native companions collect location only. The employee UI, daily consent, device administration and time recording remain in the existing RailTime PWA. The server integration is disabled initially.
+These two native companions collect location only. The employee UI, login-session consent, device administration and time recording remain in the existing RailTime PWA. The server integration is disabled initially.
 
 The Android project is a Kotlin application with a native location foreground service; the iOS project is a SwiftUI application with Core Location and a background activity session. Minimum supported versions: Android 8 / API 26 and iOS 17. Application identifier on both platforms: `de.railtime.location`.
 
@@ -9,14 +9,15 @@ The Android project is a Kotlin application with a native location foreground se
 1. Install the RailTime PWA and the signed companion on the assigned business phone.
 2. Under **Mein Arbeitstag**, create the one-use device registration code. It lasts 15 minutes and is tied to the existing corporate device assignment.
 3. In the companion, enter the exact HTTPS RailTime origin and that code. Only this origin is paired; cross-origin redirects are rejected. Credentials are stored using Android Keystore encryption or iOS Keychain, without cloud/device transfer backup.
-4. Start time recording and explicitly permit today's location purpose in the PWA. Open **Standortdienst starten**. The verified link carries a one-use 60-second start code in its fragment, never in its query string or a server log.
+4. Start time recording and explicitly permit the work-location purpose for the active login session in the PWA. Open **Standortdienst starten**. The verified link carries a one-use 60-second start code in its fragment, never in its query string or a server log.
 5. Press **Standortdienst sichtbar starten** in the companion. Allow precise location and the Android ongoing notification. If the operating system permission dialog consumes the start-code lifetime, obtain a new code in the PWA.
-6. **Standortdienst beenden** stops the native session without altering work time. **Tagesfreigabe verwalten / widerrufen** opens the PWA. Pause, work end, logout, day change, revoked consent or a invalid device assignment prevent the server from renewing the session. A new visible start is required after interruption.
+6. **Standortdienst beenden** stops the native session without altering work time. **Sitzungsfreigabe verwalten / widerrufen** opens the PWA. Pause, work end, logout, login-session expiry, revoked consent or an invalid device assignment prevent the server from renewing the session. A new visible start is required after interruption.
 
 If an installed application does not receive the verified link yet, copy only the start code from the PWA into the companion's start-code input. Do not send credentials to another device or paste a RailTime account password into the companion.
 
 ## Capture and expiry
 
+- Location consent remains valid for the active login session and can be changed or withdrawn in the employee's own profile. It does not expire at midnight. Normal app usage can renew the authenticated session; the native service cannot do so. Logout or session expiry prevents further collection and routing use immediately on the server.
 - A permit lasts at most 120 seconds. The request roundtrip is deducted from the effective deadline; its deadline uses a monotonic clock that includes sleep. The companion requests renewal approximately every 60 seconds and checks expiry in each fix callback and before upload.
 - Only a fresh fix with measured accuracy at most 50 metres is accepted. Fixes older than 30 seconds, captured before the authorized sample window, outside coordinate bounds or after expiry are discarded.
 - The first authorized point is attempted immediately; later points follow the server's 900-second cadence. Intermediate OS fixes are discarded. The sample time is derived from server time and the relative age of the fix, preventing device wall-clock changes from extending authorization.

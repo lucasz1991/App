@@ -285,6 +285,11 @@ auth.json
 !/tests/Feature/TomTomRoutingTest.php
 !/tests/Feature/EmployeeLocationTest.php
 !/tests/Feature/EmployeeLocationMigrationTest.php
+!/tests/Feature/EmployeeSessionLifetimeTest.php
+!/tests/Feature/SessionPermissionsUiTest.php
+!/tests/Feature/SessionPermissionLifecycleTest.php
+!/tests/Feature/SessionPermissionMigrationTest.php
+!/tests/Feature/Push/PushSessionPermissionTest.php
 !/tests/Feature/RoutingSiteWorkflowTest.php
 !/tests/Feature/RoutingSiteSelectionSecurityTest.php
 !/tests/Frontend/routing-map.test.js
@@ -303,3 +308,4 @@ auth.json
 !/tests/Feature/AiIntakeManualRecognitionTest.php
 !/tests/Feature/DistributionAutoAssignmentTest.php
 !/tests/Feature/DistributionWorkbenchUiTest.php
+!/tests/Feature/MessageBoxBulkActionsTest.php

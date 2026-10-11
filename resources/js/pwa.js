@@ -386,6 +386,13 @@ export async function reconcilePushDeviceAccount({
 }
 
 export function setupRailtimePwa() {
+    if (currentWindow()) {
+        currentWindow().RailtimeSessionPermissions = {
+            requestPushPermission,
+            requestLocationPermission,
+            subscribePush: ensureCurrentDevicePushSubscription,
+        };
+    }
     const windowLike = currentWindow();
 
     if (!windowLike || lifecycleInitialized) {
@@ -661,6 +668,7 @@ export async function syncExistingPushSubscription({
     capabilities,
     serverEnabled,
     serverConfigured,
+    sessionAllowed = false,
     accountBinding,
     deviceBinding,
     subscribeUrl,
@@ -672,6 +680,7 @@ export async function syncExistingPushSubscription({
         || capabilities.permission !== 'granted'
         || !serverEnabled
         || !serverConfigured
+        || !sessionAllowed
         || !pushDeviceBindingMatches(deviceBinding, accountBinding)
     ) {
         return null;
@@ -680,6 +689,40 @@ export async function syncExistingPushSubscription({
     return request(subscribeUrl, {
         method: 'POST',
         body: JSON.stringify(serialize(subscription, capabilities)),
+    });
+}
+
+// Call these helpers only from the employee's explicit Allow button. Merely
+// opening the dialog or profile must never request an operating-system grant.
+export async function requestPushPermission(
+    windowLike = currentWindow(),
+    navigatorLike = currentNavigator(),
+) {
+    const capabilities = runtimeCapabilities(windowLike, navigatorLike);
+
+    if (!capabilities.supported) return 'unsupported';
+    if (capabilities.ios && !capabilities.standalone) return 'install-required';
+    if (capabilities.permission !== 'default') return capabilities.permission;
+
+    return windowLike.Notification.requestPermission();
+}
+
+export function requestLocationPermission(
+    navigatorLike = currentNavigator(),
+    windowLike = currentWindow(),
+) {
+    if (!windowLike?.isSecureContext || !navigatorLike?.geolocation?.getCurrentPosition) {
+        return Promise.resolve('unsupported');
+    }
+
+    return new Promise((resolve) => {
+        // The fix is discarded. Consent does not start a watch, upload a point,
+        // or authorize the separate native work-location service.
+        navigatorLike.geolocation.getCurrentPosition(
+            () => resolve('granted'),
+            (error) => resolve(error?.code === 1 ? 'denied' : 'unavailable'),
+            { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
+        );
     });
 }
 
@@ -794,6 +837,8 @@ export function registerRailtimePushSettings(Alpine) {
             enabled: Boolean(config.serverEnabled),
             configured: Boolean(config.serverConfigured),
             subscription_count: 0,
+            session_allowed: false,
+            session_decision: null,
             preferences: {},
         },
         preferences: Object.fromEntries(
@@ -803,6 +848,7 @@ export function registerRailtimePushSettings(Alpine) {
             ]),
         ),
         pwaStateListener: null,
+        sessionPermissionListener: null,
 
         async init() {
             this.pwaStateListener = () => {
@@ -810,6 +856,8 @@ export function registerRailtimePushSettings(Alpine) {
                 this.install = installState();
             };
             window.addEventListener(PWA_STATE_EVENT, this.pwaStateListener);
+            this.sessionPermissionListener = () => this.refresh();
+            window.addEventListener('railtime-session-permissions-changed', this.sessionPermissionListener);
 
             await this.refresh();
         },
@@ -817,6 +865,9 @@ export function registerRailtimePushSettings(Alpine) {
         destroy() {
             if (this.pwaStateListener) {
                 window.removeEventListener(PWA_STATE_EVENT, this.pwaStateListener);
+            }
+            if (this.sessionPermissionListener) {
+                window.removeEventListener('railtime-session-permissions-changed', this.sessionPermissionListener);
             }
         },
 
@@ -834,6 +885,12 @@ export function registerRailtimePushSettings(Alpine) {
             this.install = installState();
 
             try {
+                const status = await apiRequest(this.config.urls.status);
+                this.server = status;
+                this.preferences = {
+                    ...this.preferences,
+                    ...(status.preferences || {}),
+                };
                 if (this.capabilities.supported) {
                     const registration = await readyServiceWorkerRegistration();
                     const browserSubscription = await registration.pushManager.getSubscription();
@@ -854,6 +911,7 @@ export function registerRailtimePushSettings(Alpine) {
                                     capabilities: this.capabilities,
                                     serverEnabled: this.config.serverEnabled,
                                     serverConfigured: this.config.serverConfigured,
+                                    sessionAllowed: Boolean(status.session_allowed),
                                     accountBinding: this.config.accountBinding,
                                     deviceBinding: storedBinding,
                                     subscribeUrl: this.config.urls.subscribe,
@@ -907,12 +965,6 @@ export function registerRailtimePushSettings(Alpine) {
                     this.deviceBinding = readPushDeviceBinding();
                 }
 
-                const status = await apiRequest(this.config.urls.status);
-                this.server = status;
-                this.preferences = {
-                    ...this.preferences,
-                    ...(status.preferences || {}),
-                };
             } catch (error) {
                 this.error = messageFrom(error, this.text('loadFailed'));
             } finally {
@@ -923,6 +975,7 @@ export function registerRailtimePushSettings(Alpine) {
         get currentDeviceSubscribed() {
             return Boolean(
                 this.subscription
+                && this.server.session_allowed
                 && pushDeviceBindingMatches(this.deviceBinding, this.config.accountBinding),
             );
         },
@@ -954,6 +1007,7 @@ export function registerRailtimePushSettings(Alpine) {
             return this.initialized
                 && this.server.enabled
                 && this.server.configured
+                && this.server.session_allowed
                 && this.capabilities.supported
                 && (!this.capabilities.ios || this.capabilities.standalone)
                 && this.capabilities.permission !== 'denied'
@@ -983,6 +1037,7 @@ export function registerRailtimePushSettings(Alpine) {
             if (!this.capabilities.supported) return this.text('statusUnsupported');
             if (!this.server.enabled || !this.server.configured) return this.text('statusUnavailable');
             if (this.capabilities.permission === 'denied') return this.text('statusBlocked');
+            if (!this.server.session_allowed) return this.text('statusSessionConsent', 'Freigabe für diese Anmeldung fehlt');
             if (this.currentDeviceSubscribed) return this.text('statusActive');
 
             return this.text('statusReady');
@@ -1000,6 +1055,9 @@ export function registerRailtimePushSettings(Alpine) {
             }
             if (this.capabilities.permission === 'denied') {
                 return this.text('statusBlockedDescription');
+            }
+            if (!this.server.session_allowed) {
+                return this.text('statusSessionConsentDescription', 'Erlaube Push-Benachrichtigungen in deinen Profilfreigaben.');
             }
             if (this.currentDeviceSubscribed) return this.text('statusActiveDescription');
 
@@ -1040,7 +1098,7 @@ export function registerRailtimePushSettings(Alpine) {
                 let permission = this.capabilities.permission;
 
                 if (permission !== 'granted') {
-                    permission = await window.Notification.requestPermission();
+                    permission = await requestPushPermission();
                     this.capabilities = runtimeCapabilities();
                 }
 

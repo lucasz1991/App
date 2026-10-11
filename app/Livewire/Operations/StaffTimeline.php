@@ -201,13 +201,22 @@ class StaffTimeline extends Component
     public function syncDistribution(bool $open, ?int $shiftId = null): void
     {
         $this->ensurePlanning();
+        $focusShiftId = $open ? $shiftId : null;
+        if ($this->showSuggestions === $open && $this->focusShiftId === $focusShiftId) {
+            // Parent window changes also repeat the current panel state. Keep
+            // wire:init's deferred preview and avoid a second identical HTML
+            // projection/morph for this presentation-only notification.
+            $this->skipRender();
+
+            return;
+        }
         if ($open && ! $this->showSuggestions) {
             $this->previewVersion++;
         }
         $this->showSuggestions = $open;
         $this->suggestionsAvailable = true;
         $this->suggestionsReady = true;
-        $this->focusShiftId = $open ? $shiftId : null;
+        $this->focusShiftId = $focusShiftId;
         $this->resetValidation();
     }
 
@@ -253,6 +262,11 @@ class StaffTimeline extends Component
     public function loadSuggestions(): void
     {
         $this->ensurePlanning();
+        if ($this->suggestionsReady) {
+            $this->skipRender();
+
+            return;
+        }
         $this->suggestionsReady = true;
     }
 
@@ -360,7 +374,7 @@ class StaffTimeline extends Component
         $currentBlock = max(1, $this->getPage('staffPage'));
         $maxBlocks = max(1, (int) ceil($staffTotal / self::INITIAL_BATCH_SIZE));
         $visibleLimit = self::INITIAL_BATCH_SIZE * min($currentBlock, $maxBlocks);
-        $users = $staffQuery->paginate($visibleLimit, ['id', 'name', 'email', 'status', 'current_team_id', 'profile_photo_path'], 'staffPage', 1);
+        $users = $staffQuery->paginate($visibleLimit, ['id', 'name', 'email', 'status', 'current_team_id', 'profile_photo_path'], 'staffPage', 1, $staffTotal);
         $from = $axisFrom;
         $until = $axisUntil;
         $weekFrom = $from->startOfWeek(CarbonImmutable::MONDAY);
@@ -463,7 +477,7 @@ class StaffTimeline extends Component
 
     private function staffQuery(CarbonImmutable $from, CarbonImmutable $until): Builder
     {
-        $query = User::with(['profile', 'currentTeam'])
+        $query = User::with(['profile:id,user_id,first_name,last_name,position,weekly_working_hours', 'currentTeam'])
             ->where('role', 'staff')
             ->where(fn ($query) => $query->where('status', true)
                 ->orWhereIn('id', ShiftAssignment::blocking()

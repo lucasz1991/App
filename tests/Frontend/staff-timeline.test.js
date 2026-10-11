@@ -332,14 +332,14 @@ test('two label-collision lanes select compact density from the final client lay
     assert.equal(track.dataset.timelineLanes, '1', 'server lane metadata must not be rewritten');
     assert.equal(track.dataset.timelineDensity, 'compact');
     assert.equal(track.style.getPropertyValue('--timeline-lanes'), 2);
-    assert.deepEqual(events.map(event => event.style.getPropertyValue('--event-lane')), [0, 1]);
+    assert.deepEqual(events.map(event => Number(event.style.getPropertyValue('--event-lane'))), [0, 1]);
     const repeated = track.outerHTML;
     timeline.measureEventLabels(240);
     assert.equal(track.outerHTML, repeated, 'repeated measurements must not drift or reallocate lanes');
     timeline.measureEventLabels(1400);
     assert.equal(track.dataset.timelineDensity, 'normal');
     assert.equal(track.style.getPropertyValue('--timeline-lanes'), 1);
-    assert.deepEqual(events.map(event => event.style.getPropertyValue('--event-lane')), [0, 0]);
+    assert.deepEqual(events.map(event => Number(event.style.getPropertyValue('--event-lane'))), [0, 0]);
     assert.deepEqual(events.map(event => [event.style.getPropertyValue('--event-left'), event.style.getPropertyValue('--event-width')]), [['25%', '2%'], ['34%', '2%']]);
 });
 
@@ -352,12 +352,61 @@ test('three real overlap lanes remain readable and every duty stays selectable w
     timeline.measureEventLabels(240);
     assert.equal(track.dataset.timelineDensity, 'compact');
     assert.equal(track.style.getPropertyValue('--timeline-lanes'), 3);
-    assert.deepEqual(events.map(event => event.style.getPropertyValue('--event-lane')), [0, 1, 2]);
+    assert.deepEqual(events.map(event => Number(event.style.getPropertyValue('--event-lane'))), [0, 1, 2]);
     assert.equal(track.querySelectorAll('.rt-personnel-timeline-event').length, 3);
     assert.ok(events.every(event => !event.hasAttribute('hidden') && event.style.getPropertyValue('display') !== 'none'));
     timeline.measureEventLabels(1400);
     assert.equal(track.style.getPropertyValue('--timeline-lanes'), 3);
     assert.equal(track.dataset.timelineDensity, 'compact', 'true interval conflicts cannot collapse just because labels have more width');
+});
+
+test('large label batches finish all layout reads before the first CSS write and do not rewrite unchanged geometry', () => {
+    const count = 200;
+    let reads = 0;
+    let writes = 0;
+    const style = () => {
+        const values = new Map();
+        return { getPropertyValue: name => values.get(name), setProperty(name, value) {
+            assert.equal(reads, count, 'no CSS write may interrupt the batch of layout reads');
+            writes++;
+            values.set(name, String(value));
+        } };
+    };
+    const tracks = Array.from({ length: count }, () => {
+        const event = { dataset: { timeStart: '25', timeWidth: '2', timeLane: '0' }, style: style(),
+            querySelector: () => ({ getBoundingClientRect() { reads++; return { width: 90 }; } }) };
+        return { dataset: { timelineLanes: '1', timelineDensity: 'normal' }, style: style(), querySelectorAll: () => [event] };
+    });
+    const timeline = staffTimeline();
+    timeline.$refs = { timelineGrid: { querySelectorAll: () => tracks } };
+    timeline.measureEventLabels(240);
+    assert.equal(reads, count);
+    assert.equal(writes, count * 4);
+    assert.equal(timeline.eventGeometryDirty, false);
+    assert.equal(timeline.eventPeriodWidth, 240);
+    const initialWrites = writes;
+    reads = 0;
+    timeline.measureEventLabels(240);
+    assert.equal(reads, count);
+    assert.equal(writes, initialWrites, 'the same widths and lanes require no repeated style writes');
+});
+
+test('unchanged resize and focus measurements reuse labels until content or scale invalidates geometry', () => {
+    personnelHarness(({ timeline, root }) => {
+        let reads = 0;
+        for (const label of root.querySelectorAll('.rt-personnel-timeline-time-text')) {
+            label.getBoundingClientRect = () => { reads++; return { width: 90 }; };
+        }
+        timeline.applyPersonnelMode();
+        timeline.measure();
+        const firstReads = reads;
+        assert.ok(firstReads > 0);
+        for (let index = 0; index < 40; index++) timeline.measure();
+        assert.equal(reads, firstReads);
+        timeline.eventGeometryDirty = true;
+        timeline.measure();
+        assert.equal(reads, firstReads * 2);
+    });
 });
 
 function harness() {
@@ -466,66 +515,49 @@ test('responsive defaults start tablet and phone columns compact without changin
     }
 });
 
-test('a breakpoint default follows resizing but an explicit column choice survives until horizontal input', () => {
+test('the initial responsive mode changes only through the header even across resize and horizontal input', () => {
     personnelHarness(({ timeline, root, body, setCompactDefault }) => {
         timeline.applyPersonnelMode();
         assert.equal(timeline.personnelCompact, false);
         setCompactDefault(true);
         timeline.measure();
         timeline.applyPersonnelMode();
-        assert.equal(root.dataset.personnelCompact, 'true');
+        assert.equal(root.dataset.personnelCompact, 'false');
         timeline.togglePersonnelColumn();
         timeline.applyPersonnelMode();
-        assert.equal(timeline.personnelCompact, false);
+        assert.equal(timeline.personnelCompact, true);
         assert.equal(timeline.personnelExplicit, true);
         for (const compact of [false, true, false, true]) {
             setCompactDefault(compact);
             timeline.measure();
             timeline.applyPersonnelMode();
-            assert.equal(root.dataset.personnelCompact, 'false', 'viewport changes must not undo a deliberate expansion');
+            assert.equal(root.dataset.personnelCompact, 'true', 'viewport changes must not undo a deliberate collapse');
         }
         body.scrollLeft = 100;
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelExplicit, false);
-        assert.equal(timeline.personnelCompact, true, 'a real native horizontal input still determines the mode');
+        assert.equal(timeline.personnelExplicit, true);
+        assert.equal(timeline.personnelCompact, true, 'native horizontal input keeps the manual mode');
         setCompactDefault(false);
         timeline.measure();
         timeline.applyPersonnelMode();
-        assert.equal(root.dataset.personnelCompact, 'false');
+        assert.equal(root.dataset.personnelCompact, 'true');
     });
 });
 
-test('touch avatar focus does not open a compact column and keyboard focus still expands after touch', () => {
-    personnelHarness(({ timeline, document }) => {
+test('touch, hover and keyboard focus have no personnel width handlers', () => {
+    personnelHarness(({ timeline }) => {
         timeline.applyPersonnelMode();
-        const target = document.getElementById('person-button');
-        let keyboardFocus = false;
-        const originalMatches = target.matches.bind(target);
-        target.matches = (selector) => selector === ':focus-visible' ? keyboardFocus : originalMatches(selector);
-        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'touch', target });
-        timeline.focusPersonnel(target);
-        assert.equal(timeline.personnelPointerType, 'touch');
-        assert.equal(timeline.personnelFocused, false);
-        assert.equal(timeline.personnelCompact, true);
-        keyboardFocus = true;
-        timeline.focusPersonnel(target);
-        assert.equal(timeline.personnelFocused, true);
-        assert.equal(timeline.personnelCompact, false);
-        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'touch', target });
-        assert.equal(timeline.personnelFocused, false, 'switching back to touch clears the temporary keyboard expansion');
-        assert.equal(timeline.personnelCompact, true);
-        timeline.focusPersonnel(null);
+        assert.equal(Object.hasOwn(timeline, 'pointerPersonnel'), false);
+        assert.equal(Object.hasOwn(timeline, 'focusPersonnel'), false);
         assert.equal(timeline.personnelCompact, true);
         timeline.togglePersonnelColumn();
-        keyboardFocus = false;
-        timeline.focusPersonnel(target);
-        assert.equal(timeline.personnelCompact, false, 'a deliberate phone expansion stays open during an avatar tap');
+        assert.equal(timeline.personnelCompact, false);
         timeline.togglePersonnelColumn();
         assert.equal(timeline.personnelCompact, true);
     }, { compactDefault: true });
 });
 
-test('rightward scrolling compacts staff, leftward scrolling expands and vertical or tiny changes do not toggle', () => {
+test('horizontal and vertical native scrolling never alter the personnel mode', () => {
     const timeline = harness();
     const body = timeline.$refs.timelineBody;
     assert.equal(timeline.personnelCompact, false);
@@ -537,71 +569,45 @@ test('rightward scrolling compacts staff, leftward scrolling expands and vertica
     assert.equal(timeline.compactRequested, false);
     body.scrollLeft = 120;
     timeline.syncHorizontal(body);
-    assert.equal(timeline.personnelCompact, true);
+    assert.equal(timeline.personnelCompact, false);
     body.scrollTop = 360;
     timeline.syncHorizontal(body);
-    assert.equal(timeline.personnelCompact, true);
+    assert.equal(timeline.personnelCompact, false);
     body.scrollLeft = 100;
     timeline.syncHorizontal(body);
     assert.equal(timeline.personnelCompact, false);
     body.scrollLeft = 101;
     timeline.syncHorizontal(body);
-    assert.equal(timeline.personnelCompact, true);
+    assert.equal(timeline.personnelCompact, false);
 });
 
-test('mouse movement between staff rows and owned previews keeps temporary expansion without changing direction preference', () => {
-    personnelHarness(({ timeline, document }) => {
-        const first = document.getElementById('person-button');
-        const second = document.getElementById('second-person-button');
-        const preview = document.getElementById('preview-action');
-        const day = document.getElementById('day-cell');
+test('collapsed staff remains collapsed through both horizontal intent directions', () => {
+    personnelHarness(({ timeline }) => {
         timeline.setCompactRequested(true);
-        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'touch', target: first });
-        assert.equal(timeline.personnelCompact, true);
-        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'mouse', target: first });
-        assert.equal(timeline.personnelCompact, false);
-        assert.equal(timeline.compactRequested, true);
-        for (const target of [second, preview]) {
-            timeline.pointerPersonnel({ type: 'pointerout', pointerType: 'mouse', target: first, relatedTarget: target });
-            assert.equal(timeline.personnelCompact, false);
-        }
-        timeline.pointerPersonnel({ type: 'pointerout', pointerType: 'mouse', target: preview, relatedTarget: day });
-        assert.equal(timeline.personnelCompact, true);
-        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'mouse', target: document.getElementById('other-timeline-person') });
-        assert.equal(timeline.personnelCompact, true);
-    });
-});
-
-test('focus follows staff and nested teleported preview ownership but does not latch the header toggle or other timelines', () => {
-    personnelHarness(({ timeline, document }) => {
-        timeline.setCompactRequested(true);
-        for (const id of ['person-button', 'preview-action', 'nested-action']) {
-            timeline.focusPersonnel(document.getElementById(id));
-            assert.equal(timeline.personnelFocused, true, id);
-            assert.equal(timeline.personnelCompact, false, id);
-            assert.equal(timeline.compactRequested, true);
-        }
-        for (const target of [document.querySelector('[data-timeline-person-toggle]'), document.getElementById('unrelated-action'),
-            document.getElementById('other-timeline-person'), document.getElementById('day-cell'), null]) {
-            timeline.focusPersonnel(target);
-            assert.equal(timeline.personnelFocused, false);
+        for (const direction of [-1, 1]) {
+            timeline.holdHorizontalIntent(direction);
             assert.equal(timeline.personnelCompact, true);
         }
+        timeline.finishHorizontalIntent();
     });
 });
 
-test('an explicit header toggle changes the effective state even while hover and focus temporarily expand staff', () => {
-    personnelHarness(({ timeline, document }) => {
+test('manual staff mode has no temporary hover or focus state', () => {
+    personnelHarness(({ timeline }) => {
         timeline.setCompactRequested(true);
-        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'mouse', target: document.getElementById('person-button') });
-        timeline.focusPersonnel(document.getElementById('preview-action'));
-        assert.equal(timeline.personnelCompact, false);
-        timeline.togglePersonnelColumn();
-        assert.equal(timeline.personnelHovered, false);
-        assert.equal(timeline.personnelFocused, false);
+        assert.equal(Object.hasOwn(timeline, 'personnelHovered'), false);
+        assert.equal(Object.hasOwn(timeline, 'personnelFocused'), false);
         assert.equal(timeline.personnelCompact, true);
+    });
+});
+
+test('each explicit header toggle permanently alternates the current staff mode', () => {
+    personnelHarness(({ timeline }) => {
+        timeline.setCompactRequested(true);
         timeline.togglePersonnelColumn();
         assert.equal(timeline.personnelCompact, false);
+        timeline.togglePersonnelColumn();
+        assert.equal(timeline.personnelCompact, true);
     });
 });
 
@@ -658,7 +664,7 @@ test('native right-edge clamping becomes a layout baseline and cannot be interpr
         assert.equal(frames.size, 0, 'mode changes need no second layout frame');
         body.scrollLeft = 1652; // actual user scroll left after the clamp
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelCompact, false);
+        assert.equal(timeline.personnelCompact, true);
         timeline.applyPersonnelMode();
         assert.equal(body.scrollLeft, 1652);
         assert.equal(timeline.canScrollRight, true);
@@ -672,6 +678,7 @@ test('delayed native end snapping after collapse and expansion does not reverse 
         timeline.measure();
         body.nativeOffset = 1800;
         timeline.syncHorizontal(body);
+        timeline.setCompactRequested(true);
         assert.equal(timeline.personnelCompact, true);
         timeline.applyPersonnelMode();
         assert.equal(root.dataset.personnelCompact, 'true');
@@ -704,14 +711,14 @@ test('delayed native end snapping after collapse and expansion does not reverse 
         assert.equal(timeline.personnelCompact, false);
         body.nativeOffset = 1800;
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelCompact, true, 'ordinary user input still determines direction');
+        assert.equal(timeline.personnelCompact, false, 'ordinary user input keeps the manual expansion');
         timeline.applyPersonnelMode();
         body.nativeOffset = 1672;
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelCompact, true);
+        assert.equal(timeline.personnelCompact, false);
         body.nativeOffset = 1652;
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelCompact, false, 'actual user left input after the layout event must be honored');
+        assert.equal(timeline.personnelCompact, false, 'actual user left input keeps the manual expansion');
         assert.equal(body.scrollTop, 144);
         assert.equal(root.style.getPropertyValue('--timeline-day-width'), '360px');
     }, { deferredNativeScroll: true });
@@ -728,7 +735,7 @@ test('measurement rebases horizontal position without inventing a direction or r
         assert.equal(timeline.personnelCompact, true);
         body.scrollLeft = 210;
         timeline.syncHorizontal(body);
-        assert.equal(timeline.personnelCompact, false);
+        assert.equal(timeline.personnelCompact, true);
     });
 });
 
@@ -773,7 +780,7 @@ test('mirrored footer events do not cancel smooth body scrolling; native footer 
     assert.equal(body.scrollLeft, 100);
     assert.equal(timeline.personnelCompact, false, 'mirrored event must not be interpreted as a new user direction');
     timeline.syncHorizontal(body);
-    assert.equal(timeline.personnelCompact, true);
+    assert.equal(timeline.personnelCompact, false);
     scrollbar.scrollLeft = 300; // user moves the bottom scrollbar
     timeline.syncHorizontal(scrollbar);
     assert.equal(body.scrollLeft, 300);
@@ -862,7 +869,7 @@ test('restored server selection and sidebar hover never create automatic timelin
         const sidebarItem = document.createElement('button');
         document.body.append(sidebarItem);
         for (const type of ['pointerover', 'pointerout']) {
-            timeline.pointerPersonnel({ type, pointerType: 'mouse', target: sidebarItem, relatedTarget: sidebarItem });
+            sidebarItem.dispatchEvent(new document.defaultView.Event(type));
             timeline.measure();
         }
         assert.equal(scrolls.length, 0, 'a focused server render without an actual sidebar click must not scroll');
@@ -883,7 +890,7 @@ test('a sidebar click navigates immediately before server confirmation and later
         setDates(['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11']);
         const sidebarItem = document.createElement('button');
         document.body.append(sidebarItem);
-        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'mouse', target: sidebarItem });
+        sidebarItem.dispatchEvent(new document.defaultView.Event('pointerover'));
         timeline.measure();
         timeline.measure();
         assert.equal(scrolls.length, 1, 'changed scaffold indices, hover-induced layout and later morphs cannot replay a consumed click');

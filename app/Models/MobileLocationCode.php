@@ -13,5 +13,5 @@ class MobileLocationCode extends Model
 
     protected $hidden = ['code_hash'];
 
-    protected $casts = ['expires_at' => 'immutable_datetime', 'consumed_at' => 'immutable_datetime'];
+    protected $casts = ['expires_at' => 'immutable_datetime', 'consumed_at' => 'immutable_datetime', 'consent_id' => 'integer'];
 }

@@ -71,23 +71,29 @@ class TimelinePlanningSuggestionService
 
     private function rank(Shift $shift, User $actor, array $additionalByUser, ?Collection $staff = null): Collection
     {
-        $this->access($actor);
-        $shift = Shift::with(['qualifications', 'order.customer'])->findOrFail($shift->id);
+        // Only preview supplies this call-local projection. Public candidate
+        // actions still reload their actor and shift before fresh assessment.
+        if ($staff === null) {
+            $this->access($actor);
+            $shift = Shift::with(['qualifications', 'order.customer'])->findOrFail($shift->id);
+        }
+        $existing = $shift->assignments()->blocking()->pluck('user_id');
+        $shift->setAttribute('reserved_count', $existing->count());
         if (! $this->isOpen($shift)) {
             return collect();
         }
         $users = $staff ?? User::where('role', 'staff')->where('status', true)->orderBy('name')->orderBy('id')->get();
-        $existing = $shift->assignments()->blocking()->pluck('user_id');
-        $shift->setAttribute('reserved_count', $existing->count());
         $users = $users->reject(fn (User $user) => $existing->contains($user->id))->values();
-        $eligibility = app(StaffEligibilityService::class)->assessMany($shift, $users);
+        // The same fresh central assessment now handles every candidate's own
+        // virtual schedule in one batch, rather than repeating the whole read
+        // projection for each already-proposed employee.
+        $eligibility = app(StaffEligibilityService::class)->assessMany($shift, $users, false, ['additional_shifts_by_user' => $additionalByUser]);
         $ranked = collect();
         $wishes = app(WorkforcePlanningService::class)->wishSummaries($shift, $users);
         $loads = $this->batchLoads($shift, $users);
         foreach ($users as $user) {
             $additional = $additionalByUser[$user->id] ?? [];
-            $issues = $additional === [] ? ($eligibility[$user->id] ?? [])
-                : app(StaffEligibilityService::class)->assessMany($shift, collect([$user]), false, ['additional_shifts' => $additional])[$user->id];
+            $issues = $eligibility[$user->id] ?? [];
             if ($issues !== [] || $this->capacityIssues($shift, $user, $additionalByUser) !== []) {
                 continue;
             }
@@ -185,7 +191,7 @@ class TimelinePlanningSuggestionService
         return ! in_array($shift->status, [ShiftStatus::InProgress, ShiftStatus::Completed, ShiftStatus::Cancelled], true)
             && $shift->starts_at->gte(CarbonImmutable::now('UTC'))
             && $shift->order && ! in_array($shift->order->status, [OrderStatus::Completed, OrderStatus::Invoiced, OrderStatus::Cancelled], true)
-            && $shift->assignments()->blocking()->count() < $shift->required_staff;
+            && (int) $shift->reserved_count < $shift->required_staff;
     }
 
     private function issues(Shift $shift, User $user): array

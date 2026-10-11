@@ -4,13 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePushSubscriptionRequest;
 use App\Models\PushSubscription;
+use App\Models\SessionPermissionGrant;
 use App\Notifications\RailtimeWebPushNotification;
 use App\Rules\PushEndpoint;
+use App\Services\Privacy\SessionPermissionService;
 use App\Support\Push\PushCategory;
 use App\Support\Push\WebPushConfiguration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class PushSubscriptionController extends Controller
@@ -18,6 +21,9 @@ class PushSubscriptionController extends Controller
     public function status(Request $request): JsonResponse
     {
         $diagnostics = WebPushConfiguration::diagnostics();
+        $permissions = app(SessionPermissionService::class);
+        $grant = $permissions->current($request->user());
+        $sessionAllowed = $grant !== null && $permissions->active($grant, 'push');
         $preferences = collect(PushCategory::cases())
             ->mapWithKeys(fn (PushCategory $category): array => [
                 $category->value => (bool) $request->user()
@@ -32,10 +38,11 @@ class PushSubscriptionController extends Controller
             'ready' => $diagnostics['ready'],
             'configuration_issues' => $diagnostics['issues'],
             'auto_provisioned' => $diagnostics['auto_provisioned'],
-            'subscription_count' => $request->user()
-                ->pushSubscriptions()
-                ->whereNull('revoked_at')
-                ->count(),
+            'session_decision' => $grant?->push_decision,
+            'session_allowed' => $sessionAllowed,
+            'subscription_count' => $sessionAllowed ? $request->user()
+                ->pushSubscriptions()->whereNull('revoked_at')
+                ->where('session_permission_grant_id', $grant->id)->count() : 0,
             'preferences' => $preferences,
         ]);
     }
@@ -46,25 +53,38 @@ class PushSubscriptionController extends Controller
         abort_unless(WebPushConfiguration::isConfigured(), 503);
 
         $data = $request->validated();
-        $subscription = $request->user()->updatePushSubscription(
-            endpoint: $data['endpoint'],
-            key: $data['keys']['p256dh'],
-            token: $data['keys']['auth'],
-            contentEncoding: $data['contentEncoding'] ?? 'aes128gcm',
-        );
+        $permissions = app(SessionPermissionService::class);
+        $current = $permissions->current($request->user());
+        abort_unless($current && $permissions->active($current, 'push'), 403,
+            'Bitte Push-Benachrichtigungen zuerst für diese Anmeldung freigeben.');
 
-        $subscription->forceFill([
-            'device_name' => $data['deviceName'] ?? null,
-            'platform' => $data['platform'] ?? 'unknown',
-            'browser' => $data['browser'] ?? null,
-            'user_agent_hash' => filled($request->userAgent())
-                ? hash('sha256', $request->userAgent())
-                : null,
-            'last_seen_at' => now(),
-            'revoked_at' => null,
-        ])->save();
+        $subscription = DB::transaction(function () use ($request, $data, $permissions, $current): PushSubscription {
+            $grant = SessionPermissionGrant::query()->lockForUpdate()->find($current->id);
+            abort_unless($grant && $permissions->active($grant, 'push'), 403);
 
-        $request->user()->enableDefaultPushPreferences();
+            $subscription = $request->user()->updatePushSubscription(
+                endpoint: $data['endpoint'],
+                key: $data['keys']['p256dh'],
+                token: $data['keys']['auth'],
+                contentEncoding: $data['contentEncoding'] ?? 'aes128gcm',
+            );
+
+            $subscription->forceFill([
+                'session_permission_grant_id' => $grant->id,
+                'device_name' => $data['deviceName'] ?? null,
+                'platform' => $data['platform'] ?? 'unknown',
+                'browser' => $data['browser'] ?? null,
+                'user_agent_hash' => filled($request->userAgent())
+                    ? hash('sha256', $request->userAgent())
+                    : null,
+                'last_seen_at' => now(),
+                'revoked_at' => null,
+            ])->save();
+
+            $request->user()->enableDefaultPushPreferences();
+
+            return $subscription;
+        });
 
         return response()->json([
             'subscribed' => true,
@@ -121,6 +141,9 @@ class PushSubscriptionController extends Controller
     {
         abort_unless(config('webpush.enabled') && config('webpush.test_enabled'), 404);
         abort_unless(WebPushConfiguration::isConfigured(), 503);
+        $permissions = app(SessionPermissionService::class);
+        $grant = $permissions->current($request->user());
+        abort_unless($grant && $permissions->active($grant, 'push'), 403);
 
         $data = $request->validate([
             'subscription_id' => ['required', 'integer', 'min:1'],
@@ -128,6 +151,7 @@ class PushSubscriptionController extends Controller
         $subscription = $request->user()
             ->pushSubscriptions()
             ->whereNull('revoked_at')
+            ->where('session_permission_grant_id', $grant->id)
             ->find($data['subscription_id']);
 
         abort_if(! $subscription, 422, __('app.push_no_active_device'));

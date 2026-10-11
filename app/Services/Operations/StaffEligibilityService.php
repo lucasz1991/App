@@ -4,6 +4,7 @@ namespace App\Services\Operations;
 
 use App\Models\AbsenceRequest;
 use App\Models\EmployeeQualification;
+use App\Models\EmployeeWorkModel;
 use App\Models\OperationsRuleProfile;
 use App\Models\OrderDemand;
 use App\Models\PersonnelTraining;
@@ -94,6 +95,12 @@ class StaffEligibilityService
             ->where('starts_at', '<', $end->utc())->where('ends_at', '>', $start->utc()))->get()->keyBy('user_id');
         $accounts = class_exists(WorkforceAccountService::class) ? app(WorkforceAccountService::class) : null;
         $accountsReady = $accounts?->ready() ?? false;
+        // The legacy no-model guard returns no contract issues. Resolve that
+        // condition once for this fresh candidate batch, not once per employee.
+        // Configured contracts keep their complete native validation below.
+        $usersWithModels = $accountsReady
+            ? $query(EmployeeWorkModel::whereIn('user_id', $ids)->where('status', 'active'))->pluck('user_id')->flip()
+            : collect();
         $individualProfiles = $accountsReady ? $accounts->effectiveRulesFor($users, $start, $profile)
             : $users->mapWithKeys(fn ($user) => [$user->id => $profile]);
         $rest = max((int) ($profile?->minimum_rest_minutes ?? 0), (int) $individualProfiles->max('minimum_rest_minutes'));
@@ -118,8 +125,11 @@ class StaffEligibilityService
             ? app(StaffRegionalPreferenceService::class)->assessMany($shift, $users, $lock) : [];
         foreach ($users as $user) {
             $assessmentContext = $context;
+            // A server-side preview can batch virtual schedules without sharing
+            // one candidate's provisional duties with another candidate.
+            $assessmentContext['additional_shifts'] = array_merge($context['additional_shifts'] ?? [], $context['additional_shifts_by_user'][$user->id] ?? []);
             if (class_exists(CustomerCapacityService::class)) {
-                $assessmentContext['additional_shifts'] = array_merge($context['additional_shifts'] ?? [], app(CustomerCapacityService::class)->additionalShifts($shift, $user));
+                $assessmentContext['additional_shifts'] = array_merge($assessmentContext['additional_shifts'], app(CustomerCapacityService::class)->additionalShifts($shift, $user));
             }
             $profile = $individualProfiles->get($user->id);
             $issues = $externalRestrictions[$user->id] ?? [];
@@ -154,7 +164,7 @@ class StaffEligibilityService
                 $pool = Schema::hasTable('workforce_pools') ? WorkforcePool::find($demand->workforce_pool_id) : null;
                 $check($pool && $pool->is_active && Schema::hasTable('workforce_pool_user') && $pool->users()->whereKey($user->id)->exists(), 'pool', 'Mitarbeiter gehört nicht zum freigegebenen Bedarfspool.');
             }
-            if ($accountsReady) {
+            if ($accountsReady && $usersWithModels->has($user->id)) {
                 $issues = array_merge($issues, $accounts->planningIssues($shift, $user, $assessmentContext));
             }
             if ($personnelReady) {

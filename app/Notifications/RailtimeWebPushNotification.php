@@ -47,15 +47,9 @@ class RailtimeWebPushNotification extends Notification implements ShouldQueueAft
             return true;
         }
 
-        $subscriptions = $notifiable->pushSubscriptions()->whereNull('revoked_at');
-
-        if ($this->targetSubscriptionId !== null) {
-            $subscriptions->whereKey($this->targetSubscriptionId);
-        }
-
         if (! config('webpush.enabled')
             || ! WebPushConfiguration::isConfigured()
-            || $subscriptions->doesntExist()) {
+            || $notifiable->routeNotificationForWebPush($this)->isEmpty()) {
             return false;
         }
 

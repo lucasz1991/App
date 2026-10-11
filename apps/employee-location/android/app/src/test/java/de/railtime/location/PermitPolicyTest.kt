@@ -35,6 +35,15 @@ class PermitPolicyTest {
     @Test fun `expired permit rejects even an accurate fix`() {
         assertFalse(permit().acceptsFix(124_000L, 124_000L, 1.0, 50.0, 8.0))
     }
+    @Test fun `a server authorized permit crosses midnight without extending its deadline`() {
+        val beforeMidnight = 1_791_755_990_000L // Europe/Berlin, 2026-10-11 23:59:50
+        val policy = PermitPolicy().apply {
+            authorize(beforeMidnight, beforeMidnight + 120_000L, beforeMidnight, 1_000L, 0L)
+        }
+        assertTrue(policy.acceptsFix(21_000L, 21_000L, 1.0, 50.0, 8.0))
+        assertEquals(beforeMidnight + 20_000L, policy.serverNow(21_000L))
+        assertFalse(policy.valid(121_000L))
+    }
     @Test fun `a cached fix before the capture window is never uploaded`() {
         assertFalse(permit().acceptsFix(6_000L, 4_000L, 1.0, 50.0, 8.0))
     }

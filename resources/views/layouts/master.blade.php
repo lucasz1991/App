@@ -130,6 +130,9 @@
             </div>
         </main>
         @auth
+            @if ($chrome)
+                <livewire:settings.session-permissions />
+            @endif
             <livewire:messages.message-viewer-modal />
             <livewire:tools.file-pools.file-preview-modal />
             <x-chat.live-location-preview />

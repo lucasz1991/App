@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Events\MessageReceived;
 use App\Notifications\RailtimeWebPushNotification;
+use App\Services\Privacy\SessionPermissionService;
 use App\Support\Push\PushCategory;
 use App\Support\Push\PushDelivery;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -329,6 +330,11 @@ class User extends Authenticatable implements HasLocalePreference, MustVerifyEma
 
     public function routeNotificationForWebPush(?object $notification = null): Collection
     {
+        $permissions = app(SessionPermissionService::class);
+        if (! $permissions->ready()) {
+            return new Collection;
+        }
+
         $subscriptions = $this->pushSubscriptions()->whereNull('revoked_at');
 
         if ($notification instanceof RailtimeWebPushNotification
@@ -336,7 +342,15 @@ class User extends Authenticatable implements HasLocalePreference, MustVerifyEma
             $subscriptions->whereKey($notification->targetSubscriptionId);
         }
 
-        return $subscriptions->get();
+        $subscriptions = $subscriptions->with('sessionPermissionGrant')->get();
+        $active = $permissions->activeMany(
+            $subscriptions->pluck('sessionPermissionGrant')->filter(), 'push',
+        );
+
+        return $subscriptions
+            ->filter(fn (PushSubscription $subscription): bool => $subscription->sessionPermissionGrant?->user_id === $this->id
+                && ($active[$subscription->session_permission_grant_id] ?? false))
+            ->values();
     }
 
     public function deletePushSubscription(string $endpoint): void

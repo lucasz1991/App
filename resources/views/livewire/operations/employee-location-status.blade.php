@@ -3,24 +3,24 @@
         @php
             $installation = $locationStatus['installation'];
             $consent = $locationStatus['consent'];
-            $labels = ['unpaired' => 'Geschäftshandy verbinden', 'consent_missing' => 'Tagesfreigabe fehlt', 'not_working' => 'Keine laufende Arbeitszeit', 'paused' => 'Erfassung pausiert', 'start_required' => 'Standortdienst starten', 'offline' => 'Erfassung unterbrochen / Gerät offline', 'inaccurate' => 'Messung ungenau', 'unavailable' => 'Standortmessung derzeit nicht verfügbar', 'active' => 'Standortdienst aktiv'];
+            $labels = ['unpaired' => 'Geschäftshandy verbinden', 'consent_missing' => 'Freigabe für diese Anmeldesitzung fehlt', 'not_working' => 'Keine laufende Arbeitszeit', 'paused' => 'Erfassung pausiert', 'start_required' => 'Standortdienst starten', 'offline' => 'Erfassung unterbrochen / Gerät offline', 'inaccurate' => 'Messung ungenau', 'unavailable' => 'Standortmessung derzeit nicht verfügbar', 'active' => 'Standortdienst aktiv'];
             $showExplanation = $explanationOpen || $locationStatus['needs_decision'];
         @endphp
         <div class="ops-panel ops-stack" aria-labelledby="employee-location-heading">
             <header class="ops-toolbar"><div><h3 id="employee-location-heading">Standort während der Arbeit</h3><p class="ops-muted" role="status">{{ $labels[$locationStatus['state']] ?? 'Erfassung unterbrochen' }}</p></div><span class="ops-badge">15 Minuten · 7 Tage</span></header>
             @if($showExplanation)
                 <div class="ops-stack" role="group" aria-labelledby="employee-location-consent-heading">
-                    <h4 id="employee-location-consent-heading">Deine Entscheidung für heute · {{ now('Europe/Berlin')->format('d.m.Y') }}</h4>
+                    <h4 id="employee-location-consent-heading">Deine Entscheidung für diese Anmeldesitzung</h4>
                     <p style="white-space:pre-line">{{ $locationStatus['settings']['explanation_text'] }}</p>
-                    <p class="ops-muted">Die Freigabe gilt bis Mitternacht (Europe/Berlin). Eine Ablehnung hat keine Nachteile für deine Zeiterfassung. Bitte entscheide und starte den Dienst nur, wenn du sicher stehen kannst.</p>
+                    <p class="ops-muted">Die Freigabe gilt, solange deine Anmeldesitzung aktiv bleibt. Die Nutzung der App verlängert sie; eine neue tägliche Zustimmung ist nicht nötig. Abmeldung, Sitzungsablauf oder Widerruf beenden die Freigabe. Eine Ablehnung hat keine Nachteile für deine Zeiterfassung. Bitte entscheide und starte den Dienst nur, wenn du sicher stehen kannst.</p>
                     <div class="ops-actions">
-                        <x-ui.buttons.button-basic wire:click="accept" wire:loading.attr="disabled" :disabled="!$installation" class="min-h-11">Für heute erlauben</x-ui.buttons.button-basic>
-                        <x-ui.buttons.button-basic wire:click="decline" wire:loading.attr="disabled" class="min-h-11">Heute ohne Standort fortfahren</x-ui.buttons.button-basic>
+                        <x-ui.buttons.button-basic wire:click="accept" wire:loading.attr="disabled" class="min-h-11">Für diese Sitzung erlauben</x-ui.buttons.button-basic>
+                        <x-ui.buttons.button-basic wire:click="decline" wire:loading.attr="disabled" class="min-h-11">Ohne Standort fortfahren</x-ui.buttons.button-basic>
                     </div>
-                    @if(!$installation)<p class="ops-muted">Verbinde zuerst dein zugeordnetes Geschäftshandy, um die Standortfreigabe zu erteilen.</p>@endif
+                    @if(!$installation)<p class="ops-muted">Du kannst bereits entscheiden. Die Erfassung startet erst nach dem Verbinden und dem ausdrücklichen Start auf deinem Geschäftshandy.</p>@endif
                 </div>
             @else
-                <div class="ops-actions"><x-ui.buttons.button-basic wire:click="openExplanation" class="min-h-11">Erklärung und Tagesfreigabe öffnen</x-ui.buttons.button-basic></div>
+                <div class="ops-actions"><x-ui.buttons.button-basic wire:click="openExplanation" class="min-h-11">Erklärung und Freigabe öffnen</x-ui.buttons.button-basic><a class="ops-link min-h-11 inline-flex items-center" href="{{ route('profile.show', ['tab' => 'app']) }}">Push und Standort im eigenen Profil</a></div>
             @endif
             @error('location')<p role="alert" class="ops-warning">{{ $message }}</p>@enderror
             @if($installation)
@@ -49,9 +49,9 @@
                         </div>
                     @endif
                 @endif
-                @if($consent && $consent->decision === 'accepted' && !$consent->withdrawn_at)
-                    <x-ui.buttons.button-basic wire:click="withdraw" wire:loading.attr="disabled" class="min-h-11">Freigabe widerrufen und heutige Punkte löschen</x-ui.buttons.button-basic>
-                @endif
+            @endif
+            @if($consent && $consent->decision === 'accepted' && !$consent->withdrawn_at)
+                <x-ui.buttons.button-basic wire:click="withdraw" wire:loading.attr="disabled" class="min-h-11">Freigabe widerrufen und zugehörige Punkte löschen</x-ui.buttons.button-basic>
             @endif
             <details>
                 <summary class="min-h-11 cursor-pointer">Geschäftshandy einrichten oder wechseln</summary>

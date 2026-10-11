@@ -29,6 +29,7 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
     const ticks = [];
     const tweens = [];
     const commitHooks = new Set();
+    const morphHooks = new Set();
     const beginCommit = (id, calls = [], fields = {}) => {
         const successes = [], failures = [];
         const payload = { calls, ...fields };
@@ -73,7 +74,9 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
             browser.location.href = url;
         } },
         Livewire: { ...(hooks ? { hook(name, callback) {
-            assert.equal(name, 'commit'); commitHooks.add(callback); return () => commitHooks.delete(callback);
+            const listeners = name === 'morph.updating' ? morphHooks : commitHooks;
+            assert.ok(['commit', 'morph.updating'].includes(name));
+            listeners.add(callback); return () => listeners.delete(callback);
         } } : {}), find(id) {
             assert.equal(id, 'plan-owner');
             return availableOwner ? { applyPeriod(nextFrom, nextUntil) {
@@ -125,7 +128,7 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
     try {
         timeline.init();
         flushTicks();
-        await run({ timeline, root, body, header, scrollbar, calls, requests, replacements, events, observers, timers, frames, tweens, commitHooks, beginCommit,
+        await run({ timeline, root, body, header, scrollbar, calls, requests, replacements, events, observers, timers, frames, tweens, commitHooks, morphHooks, document, beginCommit,
             width, first: () => 3 * width(), maximum: () => body.scrollWidth - body.clientWidth,
             logicalMaximum: () => body.scrollWidth - body.clientWidth - 3 * width(), flushFrame, period, tick, flushTicks,
             finishScroll: () => { flushFrame(); body.scrollLeft = body.scrollCalls.at(-1).left; },
@@ -196,6 +199,121 @@ test('mount never changes URL and watches only validated period attributes for l
         const observation = observers.flatMap(observer => observer.targets).find(entry => entry.target === root);
         assert.deepEqual(observation.options, { attributes: true, attributeFilter: ['data-timeline-from', 'data-timeline-until', 'data-timeline-axis-from', 'data-timeline-axis-until',
             'data-timeline-focus-shift-id', 'data-timeline-focus-date'] });
+    });
+});
+
+test('incoming root morph preserves client day geometry before the server style can clamp scrolling', async () => {
+    await withWindow(({ timeline, root, body, document, morphHooks, width }) => {
+        timeline.applyPersonnelMode();
+        timeline.setCompactRequested(true);
+        timeline.applyPersonnelMode();
+        body.scrollLeft = 4 * width();
+        const offset = body.scrollLeft;
+        const current = root.getAttribute('style');
+        const incoming = document.createElement('div');
+        incoming.setAttribute('style', '--timeline-days:13;--timeline-selected-days:7');
+        Object.assign(incoming.dataset, { timelineAxisFrom: '2026-10-02', timelineAxisUntil: '2026-10-14' });
+        assert.equal(incoming.style.getPropertyValue('--timeline-day-width'), undefined);
+        morphHooks.forEach(hook => hook({ el: root, toEl: incoming }));
+        assert.equal(incoming.style.getPropertyValue('--timeline-day-width'), `${width()}px`);
+        assert.equal(Number(incoming.style.getPropertyValue('--timeline-display-days')), 13);
+        assert.equal(incoming.style.getPropertyValue('--timeline-content-offset'), 0);
+        assert.equal(incoming.dataset.personnelCompact, 'true');
+        assert.equal(root.getAttribute('style'), current, 'only detached incoming DOM is prepared');
+        assert.equal(body.scrollLeft, offset);
+        assert.equal(body.scrollTop, 288);
+    }, { hooks: true });
+});
+
+test('a slow earlier window morph aligns its loaded content to the newest wanted scaffold without moving it', async () => {
+    await withWindow(({ timeline, root, body, document, morphHooks, first, width }) => {
+        body.scrollLeft = first();
+        timeline.syncHorizontal(body, false);
+        timeline.shiftWindow(-1);
+        timeline.shiftWindow(-1);
+        timeline.shiftWindow(-1);
+        const incoming = document.createElement('div');
+        incoming.setAttribute('style', '--timeline-days:13;--timeline-selected-days:7');
+        Object.assign(incoming.dataset, { timelineAxisFrom: '2026-10-01', timelineAxisUntil: '2026-10-13' });
+        const offset = body.scrollLeft;
+        morphHooks.forEach(hook => hook({ el: root, toEl: incoming }));
+        assert.equal(incoming.style.getPropertyValue('--timeline-content-offset'), 2,
+            'Oct1 loaded start relative to newest Sep29 scaffold start');
+        assert.equal(incoming.style.getPropertyValue('--timeline-day-width'), `${width()}px`);
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-02');
+        assert.equal(body.scrollLeft, offset);
+    }, { hooks: true });
+});
+
+test('geometry morph hook is scoped to its root, cleaned on destroy and never mutates snapshots or other timelines', async () => {
+    await withWindow(({ timeline, root, document, morphHooks }) => {
+        const incoming = document.createElement('div');
+        incoming.setAttribute('style', '--timeline-days:13');
+        const unrelated = document.createElement('div');
+        morphHooks.forEach(hook => hook({ el: unrelated, toEl: incoming }));
+        assert.equal(incoming.getAttribute('style'), '--timeline-days:13');
+        assert.equal(incoming.dataset.personnelCompact, undefined);
+        assert.equal(morphHooks.size, 1);
+        const late = [...morphHooks][0];
+        timeline.destroy();
+        assert.equal(morphHooks.size, 0);
+        late({ el: root, toEl: incoming });
+        assert.equal(incoming.getAttribute('style'), '--timeline-days:13');
+    }, { hooks: true });
+});
+
+test('unchanged event and collision-lane morphs retain measured badge geometry while changed source events are remeasured', async () => {
+    await withWindow(({ timeline, root, document, morphHooks }) => {
+        const track = document.createElement('div');
+        track.className = 'rt-personnel-timeline-track';
+        track.dataset.timelineLanes = '1';
+        track.dataset.timelineDensity = 'compact';
+        track.style.setProperty('--timeline-lanes', '3');
+        track.innerHTML = '<div class="rt-personnel-timeline-event" data-time-start="25" data-time-width="1" data-time-lane="0" style="--time-label-offset:45px;--time-badge-width:90px;--event-lane:2"><span class="rt-personnel-timeline-time-text">08:00 – 10:00</span></div>';
+        root.append(track);
+        const incomingTrack = track.cloneNode(true);
+        incomingTrack.style.setProperty('--timeline-lanes', '1');
+        incomingTrack.dataset.timelineDensity = 'normal';
+        const incomingEvent = incomingTrack.querySelector('.rt-personnel-timeline-event');
+        incomingEvent.setAttribute('style', '--event-lane:0');
+        const existingEvent = track.querySelector('.rt-personnel-timeline-event');
+        morphHooks.forEach(hook => hook({ el: track, toEl: incomingTrack }));
+        morphHooks.forEach(hook => hook({ el: existingEvent, toEl: incomingEvent }));
+        assert.equal(incomingTrack.style.getPropertyValue('--timeline-lanes'), '3');
+        assert.equal(incomingTrack.dataset.timelineDensity, 'compact');
+        assert.equal(incomingEvent.style.getPropertyValue('--time-label-offset'), '45px');
+        assert.equal(incomingEvent.style.getPropertyValue('--time-badge-width'), '90px');
+        assert.equal(incomingEvent.style.getPropertyValue('--event-lane'), '2');
+        incomingEvent.dataset.timeStart = '50';
+        incomingEvent.setAttribute('style', '--event-lane:0');
+        incomingTrack.style.setProperty('--timeline-lanes', '1');
+        incomingTrack.dataset.timelineDensity = 'normal';
+        morphHooks.forEach(hook => hook({ el: track, toEl: incomingTrack }));
+        morphHooks.forEach(hook => hook({ el: existingEvent, toEl: incomingEvent }));
+        assert.equal(incomingTrack.style.getPropertyValue('--timeline-lanes'), '1');
+        assert.equal(incomingTrack.dataset.timelineDensity, 'normal');
+        assert.equal(incomingEvent.style.getPropertyValue('--time-badge-width'), undefined);
+        assert.equal(incomingEvent.style.getPropertyValue('--event-lane'), '0');
+        assert.equal(timeline.eventGeometryDirty, true);
+    }, { hooks: true });
+});
+
+test('day scaffold arrays are cached for repeated loading bindings and refreshed only for axis or focus changes', async () => {
+    await withWindow(({ timeline, root }) => {
+        const initial = timeline.windowScaffoldDays;
+        for (let index = 0; index < 200; index++) {
+            assert.equal(timeline.windowScaffoldDays, initial);
+            assert.equal(timeline.windowDayLoading(initial[index % initial.length].date), false);
+        }
+        root.dataset.timelineFocusDate = '2026-10-08';
+        const focused = timeline.windowScaffoldDays;
+        assert.notEqual(focused, initial);
+        assert.equal(focused.find(day => day.date === '2026-10-08').focus, true);
+        timeline.shiftWindow(1);
+        const moved = timeline.windowScaffoldDays;
+        assert.notEqual(moved, focused);
+        assert.equal(moved.length, 13);
+        assert.equal(moved.at(-1).pending, true);
     });
 });
 

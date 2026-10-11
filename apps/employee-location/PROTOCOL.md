@@ -15,7 +15,9 @@ Registration tokens are stored only in OS-protected credentials. Raw codes and c
 
 The exact verified link is `https://<paired-host>/employee-location/open#code=<one-use-code>&server=<encoded-HTTPS-origin>`. The companion validates origin, port and exact path, reads the fragment in memory and still requires an explicit visible start. The `server` fragment item is optional; if supplied it must exactly match the existing pairing. Handoff never changes the paired origin. Neither the fallback web page nor the association files receive the fragment in the HTTP request.
 
-Every renewed permit revalidates global enablement, employee state, corporate assignment, explanation version, today's consent and running unpaused work time. HTTP 401 clears local credentials. All other denied responses, malformed responses, transport failures and expiry stop collection locally; no automatic reconnect or offline upload is attempted.
+Every renewed permit revalidates global enablement, employee state, corporate assignment, explanation version, active login-session consent and running unpaused work time. HTTP 401 clears local credentials. All other denied responses, malformed responses, transport failures and expiry stop collection locally; no automatic reconnect or offline upload is attempted.
+
+Midnight does not end an otherwise valid login-session consent. Normal authenticated user interaction in the PWA can renew that login session under RailTime's configured inactivity limit. Native permit renewal, point uploads, quality reports and push delivery never extend the login session or its consent. A new login requires a new explicit decision. The API exposes only the short recording permit, never the browser session identifier or consent-grant credential.
 
 The native app discards out-of-window fixes before uploading. The server independently validates permit, measurement time, cadence, accuracy and event identity. Retrying the same event ID is idempotent server-side, though version 1 deliberately does not retry location requests. GPS does not create, alter or prove work time.
 

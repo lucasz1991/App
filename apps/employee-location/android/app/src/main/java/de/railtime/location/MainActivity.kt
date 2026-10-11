@@ -40,7 +40,7 @@ class MainActivity : Activity() {
         }
         fun label(text: String, size: Float = 16f) = TextView(this).apply { this.text = text; textSize = size; setPadding(0, dp(8), 0, dp(8)); container.addView(this) }
         label("RailTime Standortdienst", 24f)
-        label("Die Mitarbeiteroberfläche und die tägliche Zustimmung bleiben in RailTime. Dieser Dienst meldet nur während freigegebener Arbeitszeit alle 15 Minuten einen präzisen Punkt. Kein Offline-Verlauf und kein automatischer Neustart.")
+        label("Die Mitarbeiteroberfläche und die Zustimmung für die aktive Anmeldung bleiben in RailTime. Dieser Dienst meldet nur während freigegebener Arbeitszeit alle 15 Minuten einen präzisen Punkt. Kein Offline-Verlauf und kein automatischer Neustart.")
         status = label("Dienst nicht gestartet")
         baseInput = EditText(this).apply {
             hint = getString(R.string.ui_text_1)

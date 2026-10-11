@@ -15,17 +15,19 @@ final class EmployeeLocationSettings
 
     public const KEY = 'employee_location';
 
+    public const LEGACY_EXPLANATION = 'RailTime erfasst auf deinem zugeordneten Geschäftshandy während laufender Arbeitszeit zu Beginn und anschließend ungefähr alle 15 Minuten einen präzisen Standort. Das Betriebssystem kann dazwischen Positionen liefern; diese Zwischenwerte werden verworfen und weder gespeichert noch übertragen. Bei Pause, Arbeitsende, Widerruf oder um Mitternacht endet die Freigabe. Die Punkte werden sieben Tage aufbewahrt. Berechtigte Disponenten sehen den letzten geeigneten Punkt für Einsatzkoordination und Anreisehinweise. Für eine konkrete Routenberechnung können Koordinaten an TomTom übertragen werden. Deinen eigenen Verlauf kannst du einsehen und löschen. Hintergrundortung benötigt Geräteberechtigungen und Akku; Netz- oder Betriebssystemunterbrechungen können Lücken verursachen. Du kannst ablehnen oder jederzeit widerrufen. Deine Zeiterfassung bleibt ohne Standort nutzbar. Standortdaten erzeugen oder korrigieren keine Arbeitszeiten und werden in dieser Version nicht für Lohn- oder Anwesenheitsentscheidungen verwendet.';
+
     public const DEFAULTS = [
         'enabled' => false, 'interval_seconds' => 900, 'retention_days' => 7, 'accuracy_m' => 50,
-        'explanation_version' => 1,
-        'explanation_text' => 'RailTime erfasst auf deinem zugeordneten Geschäftshandy während laufender Arbeitszeit zu Beginn und anschließend ungefähr alle 15 Minuten einen präzisen Standort. Das Betriebssystem kann dazwischen Positionen liefern; diese Zwischenwerte werden verworfen und weder gespeichert noch übertragen. Bei Pause, Arbeitsende, Widerruf oder um Mitternacht endet die Freigabe. Die Punkte werden sieben Tage aufbewahrt. Berechtigte Disponenten sehen den letzten geeigneten Punkt für Einsatzkoordination und Anreisehinweise. Für eine konkrete Routenberechnung können Koordinaten an TomTom übertragen werden. Deinen eigenen Verlauf kannst du einsehen und löschen. Hintergrundortung benötigt Geräteberechtigungen und Akku; Netz- oder Betriebssystemunterbrechungen können Lücken verursachen. Du kannst ablehnen oder jederzeit widerrufen. Deine Zeiterfassung bleibt ohne Standort nutzbar. Standortdaten erzeugen oder korrigieren keine Arbeitszeiten und werden in dieser Version nicht für Lohn- oder Anwesenheitsentscheidungen verwendet.',
+        'explanation_version' => 2,
+        'explanation_text' => 'RailTime erfasst auf deinem zugeordneten Geschäftshandy während laufender Arbeitszeit zu Beginn und anschließend ungefähr alle 15 Minuten einen präzisen Standort. Das Betriebssystem kann dazwischen Positionen liefern; diese Zwischenwerte werden verworfen und weder gespeichert noch übertragen. Deine Zustimmung gilt für diese aktive Anmeldesitzung und wird bei tatsächlicher App-Nutzung zusammen mit der Sitzung verlängert. Bei Abmeldung, Sitzungsablauf oder Widerruf endet sie. Bei Pause und Arbeitsende stoppt die Erfassung; ein erneuter Start benötigt weiterhin deinen sichtbaren Start des Standortdienstes. Push-Benachrichtigungen und Standort werden getrennt freigegeben. In deinem Profil kannst du beide Entscheidungen jederzeit ändern oder widerrufen. Die Punkte werden sieben Tage aufbewahrt. Berechtigte Disponenten sehen den letzten geeigneten Punkt für Einsatzkoordination und Anreisehinweise. Für eine konkrete Routenberechnung können Koordinaten an TomTom übertragen werden. Deinen eigenen Verlauf kannst du einsehen und löschen. Hintergrundortung benötigt Geräteberechtigungen und Akku; Netz- oder Betriebssystemunterbrechungen können Lücken verursachen. Du kannst ablehnen oder jederzeit widerrufen. Deine Zeiterfassung bleibt ohne Standort nutzbar. Standortdaten erzeugen oder korrigieren keine Arbeitszeiten und werden in dieser Version nicht für Lohn- oder Anwesenheitsentscheidungen verwendet.',
         'android_install_url' => '', 'ios_install_url' => '', 'android_package' => 'de.railtime.location',
         'ios_bundle_id' => 'de.railtime.location', 'ios_app_id' => '', 'android_certificate_sha256' => '',
     ];
 
     public static function ready(): bool
     {
-        return Schema::hasTable('employee_location_points') && Schema::hasTable('employee_location_consents')
+        return Schema::hasTable('session_permission_grants') && Schema::hasTable('employee_location_points') && Schema::hasTable('employee_location_consents')
             && Schema::hasTable('mobile_location_installations') && Schema::hasTable('mobile_location_codes');
     }
 

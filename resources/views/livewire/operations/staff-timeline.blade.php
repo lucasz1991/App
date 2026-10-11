@@ -22,8 +22,6 @@
     @endif
 @endif
 <div class="rt-personnel-timeline" style="--timeline-days:{{ $days->count() }};--timeline-selected-days:{{ $selectedDays->count() }}" x-data="rtStaffTimeline" x-effect="applyPersonnelMode()"
-    x-on:pointerover.window="pointerPersonnel($event)" x-on:pointerout.window="pointerPersonnel($event)"
-    x-on:focusin.window="focusPersonnel($event.target)" x-on:focusout.window="focusPersonnel($event.relatedTarget)"
     x-on:operations-timeline-distribution-focus.window="requestDistributionFocus($event.detail)"
     data-no-sidebar-swipe data-rt-dropdown-scroll-root data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? 'true' : 'false' }}"
     data-timeline-window-navigation="{{ $periodNavigationOwner && $planningEnabled && !$absencesOnly ? 'true' : 'false' }}"
@@ -142,24 +140,17 @@
                 @php
                     $state = in_array($event['shift_status'] ?? null, ['in_progress', 'completed'], true) ? $event['shift_status'] : $event['status_value'];
                     $eventKey = $row['user']->id.'-'.$event['id'];
-                    $detailStart = $event['start']->copy()->setTimezone($zone);
-                    $detailEnd = $event['end']->copy()->setTimezone($zone);
-                    $detailDstChanged = $detailStart->offset !== $detailEnd->offset;
+                    $detailFacts = \App\Support\Operations\TimelineEventDetail::forEvent($event, $row, $zone, $absencesOnly, $state);
                 @endphp
                 <div class="rt-personnel-timeline-event" data-kind="{{ $event['kind'] }}" data-state="{{ $state }}" data-continues-before="{{ $event['continues_before'] ? 'true' : 'false' }}" data-continues-after="{{ $event['continues_after'] ? 'true' : 'false' }}" data-time-start="{{ $event['left_percent'] }}" data-time-width="{{ $event['width_percent'] }}" data-time-lane="{{ $event['lane'] }}" style="--event-left:{{ $event['left_percent'] }}%;--event-width:{{ $event['width_percent'] }}%;--event-lane:{{ $event['lane'] }}" wire:key="staff-event-{{ $eventKey }}">
-                    <x-ui.dropdown.anchor-dropdown align="left" width="96" :max-height="560" :open-on-hover="false" :fixed-height="true" :offset="8" content-role="dialog" :content-label="'Dienstdetails: '.$event['title']" layer-group="staff-timeline-events" :dropdown-id="'staff-event-'.$eventKey" trigger-classes="rt-personnel-timeline-event-trigger" class="rt-personnel-timeline-event-anchor" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text" data-timeline-event-dropdown>
-                        <x-slot:trigger>
-                            <button type="button" class="rt-personnel-timeline-bar" aria-label="{{ $event['local_label'] }} · {{ $event['title'] }} · {{ $event['status'] }}" aria-expanded="false" x-bind:aria-expanded="open ? 'true' : 'false'" aria-haspopup="dialog" aria-controls="rt-dropdown-staff-event-{{ $eventKey }}-content" x-on:click="$nextTick(() => { if (open) $refs.panel?.querySelector('[data-timeline-detail-focus]')?.focus({ preventScroll: true }); })" data-table-row-ignore>
+                            <button type="button" class="rt-personnel-timeline-bar" aria-label="{{ $event['local_label'] }} · {{ $event['title'] }} · {{ $event['status'] }}" aria-expanded="false" aria-haspopup="dialog" aria-controls="rt-dropdown-timeline-event-{{ $this->getId() }}-content"
+                                data-timeline-detail="{{ json_encode($detailFacts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) }}"
+                                x-on:click="$dispatch('rt-timeline-event-preview', { anchor: $el })" data-table-row-ignore>
                                 <span class="rt-personnel-timeline-time"><span class="rt-personnel-timeline-time-text">{{ $event['timeline_label'] }}</span></span>
                                 @foreach($event['time_segments'] as $segment)
                                     <span class="rt-personnel-timeline-mark" style="left:{{ ($segment['left_percent'] - $event['left_percent']) / $event['width_percent'] * 100 }}%;width:{{ $segment['width_percent'] / $event['width_percent'] * 100 }}%" aria-hidden="true"></span>
                                 @endforeach
                             </button>
-                        </x-slot:trigger>
-                        <x-slot:content>
-                            @include('livewire.operations.partials.timeline-event-detail')
-                        </x-slot:content>
-                    </x-ui.dropdown.anchor-dropdown>
                 </div>
             @endforeach
         </div>
@@ -208,6 +199,7 @@
         <div class="rt-personnel-timeline-scrollbar" x-ref="timelineScrollbar" x-on:scroll="syncHorizontal($event.target)"><div class="rt-personnel-timeline-scrollbar-width"></div></div>
     </div>
 </div>
+    @include('livewire.operations.partials.timeline-shared-event-detail')
 @if($planningEnabled && !$absencesOnly)
     <x-ui.dropdown.anchor-dropdown align="left" width="96" :external-trigger="true" dropdown-id="timeline-planner-{{ $this->getId() }}" layer-group="staff-timeline-events" content-role="dialog" content-label="Schicht einteilen" trigger-classes="hidden" class="rt-timeline-planner-host" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text" x-on:dropdown-closed.window="if ($event.detail?.id === layerId) closePlanner()" data-timeline-planner>
         <x-slot:trigger><button type="button" tabindex="-1" aria-hidden="true">Schichtauswahl</button></x-slot:trigger>

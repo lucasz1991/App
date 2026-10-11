@@ -6,9 +6,11 @@ use App\Models\DeviceAssignment;
 use App\Models\EmployeeLocationConsent;
 use App\Models\EmployeeLocationPoint;
 use App\Models\MobileLocationInstallation;
+use App\Models\SessionPermissionGrant;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
 use App\Services\Operations\PersonnelScopeService;
+use App\Services\Privacy\SessionPermissionService;
 use App\Support\EmployeeLocation\EmployeeLocationSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -39,16 +41,18 @@ class EmployeeLocationReader
             return $result;
         }
         $now = CarbonImmutable::now('UTC');
-        $date = $now->setTimezone(EmployeeLocationService::ZONE)->toDateString();
         $subjects = User::whereIn('id', $allowed)->get()->keyBy('id');
-        $consents = EmployeeLocationConsent::whereIn('user_id', $allowed)->where('local_date', $date)->where('purpose', 'work_routing')->get()->keyBy('user_id');
         $installations = MobileLocationInstallation::whereIn('user_id', $allowed)->whereNull('revoked_at')->get()->keyBy('user_id');
+        $consents = EmployeeLocationConsent::whereIn('id', $installations->pluck('consent_id')->filter())->where('purpose', 'work_routing')->get()->keyBy('user_id');
+        $grants = SessionPermissionGrant::whereIn('id', $consents->pluck('session_permission_grant_id')->filter())->get()->keyBy('id');
+        $activeGrants = app(SessionPermissionService::class)->activeMany($grants, 'location');
         $assignments = DeviceAssignment::whereIn('id', $installations->pluck('device_assignment_id'))->with('device')->get()->keyBy('id');
         $entries = WorkTimeEntry::whereIn('user_id', $allowed)->whereIn('status', ['running', 'paused'])->get()->keyBy('user_id');
         $points = EmployeeLocationPoint::whereIn('id', EmployeeLocationPoint::selectRaw('MAX(id)')->whereIn('user_id', $allowed)->groupBy('user_id'))->get()->keyBy('user_id');
         foreach ($allowed as $id) {
             $subject = $subjects->get($id);
             $consent = $consents->get($id);
+            $grant = $consent ? $grants->get($consent->session_permission_grant_id) : null;
             $installation = $installations->get($id);
             $entry = $entries->get($id);
             $point = $points->get($id);
@@ -56,8 +60,9 @@ class EmployeeLocationReader
             if (! $subject?->isActive()) {
                 $result[$id] = $this->unavailable('inactive', 'Mitarbeiterkonto ist inaktiv.');
             } elseif (! $consent || $consent->decision !== 'accepted' || $consent->withdrawn_at || $consent->expires_at->lte($now)
+                || ! $grant || ! ($activeGrants[$grant->id] ?? false)
                 || $consent->explanation_version !== (int) $settings['explanation_version'] || ! hash_equals($consent->explanation_hash, hash('sha256', $settings['explanation_text']))) {
-                $result[$id] = $this->unavailable('consent_missing', 'Aktuelle Tagesfreigabe fehlt.');
+                $result[$id] = $this->unavailable('consent_missing', 'Aktuelle Freigabe für eine aktive Anmeldesitzung fehlt.');
             } elseif (! $installation || ! $assignment || $assignment->status !== 'active' || $assignment->returned_at || (int) $assignment->user_id !== $id
                 || ! $assignment->device || $assignment->device->ownership !== 'corporate' || ! in_array($assignment->device->platform->value, ['android', 'ios'], true)
                 || ! in_array($assignment->device->lifecycle_status->value, ['assigned', 'in_service'], true)

@@ -3,11 +3,13 @@
 use App\Providers\AppServiceProvider;
 use App\Providers\AuthServiceProvider;
 use App\Providers\BroadcastServiceProvider;
+use App\Providers\EmployeeLocationServiceProvider;
 use App\Providers\EventServiceProvider;
 use App\Providers\FortifyServiceProvider;
 use App\Providers\JetstreamServiceProvider;
 use App\Providers\MicrosoftDeviceQueueServiceProvider;
 use App\Providers\RouteServiceProvider;
+use App\Providers\SessionLifetimeServiceProvider;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\ServiceProvider;
 
@@ -195,9 +197,10 @@ return [
          * Application Service Providers...
          */
         AppServiceProvider::class,
+        SessionLifetimeServiceProvider::class,
         MicrosoftDeviceQueueServiceProvider::class,
         AuthServiceProvider::class,
-        \App\Providers\EmployeeLocationServiceProvider::class,
+        EmployeeLocationServiceProvider::class,
         BroadcastServiceProvider::class,
         EventServiceProvider::class,
         RouteServiceProvider::class,

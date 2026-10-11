@@ -161,6 +161,11 @@ const contentReveals = new WeakMap();
 // Requests/anchors stay outside Alpine's proxy, so their identities survive a morph.
 const windowNavigations = new WeakMap();
 
+function timelineEventGeometryKey(event) {
+    return ['timeStart', 'timeWidth', 'timeLane', 'continuesBefore', 'continuesAfter']
+        .map(name => event.dataset[name] || '').join(':') + `:${event.querySelector('.rt-personnel-timeline-time-text')?.textContent || ''}`;
+}
+
 function restoreRevealTarget(target) {
     const opacity = target.dataset.timelineRevealOpacity;
     if (opacity) target.style.setProperty('opacity', opacity, target.dataset.timelineRevealPriority || '');
@@ -237,7 +242,7 @@ function startStaffTimelineReveal(root, grid, body) {
     let state = contentReveals.get(root);
     if (!state) {
         const media = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)') : null;
-        state = { seen: new WeakSet(), active: new Set(), media, reduce: null };
+        state = { seen: new WeakSet(), active: new Set(), media, reduce: null, axis: null };
         state.reduce = () => {
             if (media?.matches) [...state.active].forEach(batch => finishRevealBatch(state, batch));
         };
@@ -247,6 +252,15 @@ function startStaffTimelineReveal(root, grid, body) {
     const unseen = [...grid.querySelectorAll('.rt-personnel-timeline-name, .rt-personnel-timeline-event')]
         .filter(target => !state.seen.has(target));
     unseen.forEach(target => state.seen.add(target));
+    const axis = `${root.dataset.timelineAxisFrom || root.dataset.timelineFrom || ''}:${root.dataset.timelineAxisUntil || root.dataset.timelineUntil || ''}`;
+    const windowChanged = state.axis !== null && state.axis !== axis;
+    state.axis = axis;
+    // Navigation data is already positioned on the stable scaffold. Replaying a
+    // multi-second row entrance here hides loaded duties and makes a morph jump.
+    if (windowChanged) {
+        [...state.active].forEach(batch => finishRevealBatch(state, batch));
+        return;
+    }
     if (!unseen.length || !engine?.fromTo || state.media?.matches) return;
     // The whole loaded page enters at once: a later page batch (infinite scroll) gets its own entrance.
     const rendered = unseen.filter(target => {
@@ -300,6 +314,9 @@ export function staffTimeline() {
         canScrollRight: false,
         observer: null,
         contentObserver: null,
+        geometryCleanup: null,
+        eventGeometryDirty: true,
+        eventPeriodWidth: null,
         windowObserver: null,
         windowRoot: null,
         windowLoading: false,
@@ -315,9 +332,6 @@ export function staffTimeline() {
         compactRequested: false,
         personnelDefaultCompact: null,
         personnelExplicit: false,
-        personnelPointerType: null,
-        personnelHovered: false,
-        personnelFocused: false,
         appliedPersonnelCompact: null,
         layoutScrollOffset: null,
         measuredLayout: null,
@@ -353,11 +367,15 @@ export function staffTimeline() {
             const axis = this.windowDisplayAxis();
             const loaded = this.windowAxisPeriod();
             if (!axis) return [];
+            const state = this.windowNavigationState();
+            const key = `${axis.from}:${axis.until}:${loaded?.from}:${loaded?.until}:${this.timelineElement.dataset.timelineFocusDate || ''}`;
+            if (state.scaffoldKey === key) return state.scaffoldDays;
             const start = timelineCivilDay(axis.from);
             const end = timelineCivilDay(axis.until);
             const loadedFrom = loaded && timelineCivilDay(loaded.from);
             const loadedUntil = loaded && timelineCivilDay(loaded.until);
-            return Array.from({ length: Math.max(0, Math.min(100, end - start + 1)) }, (_, index) => {
+            state.scaffoldKey = key;
+            state.scaffoldDays = Array.from({ length: Math.max(0, Math.min(100, end - start + 1)) }, (_, index) => {
                 const day = start + index;
                 const value = new Date(day * CIVIL_DAY_MILLISECONDS);
                 const date = value.toISOString().slice(0, 10);
@@ -365,6 +383,7 @@ export function staffTimeline() {
                     pending: loadedFrom === null || loadedUntil === null || day < loadedFrom || day > loadedUntil,
                     focus: date === this.timelineElement.dataset.timelineFocusDate };
             });
+            return state.scaffoldDays;
         },
         get windowDisplayDayCount() { return this.windowScaffoldDays.length; },
         get windowDisplaySelectedDayCount() {
@@ -704,60 +723,27 @@ export function staffTimeline() {
             return this.drainWindowRequest();
         },
         get personnelCompact() {
-            return this.compactRequested && !this.personnelHovered && !this.personnelFocused;
+            return this.compactRequested;
         },
         setCompactRequested(compact) {
             this.compactRequested = Boolean(compact);
-            this.personnelExplicit = false;
+            this.personnelExplicit = true;
         },
         refreshPersonnelPreference(style = getComputedStyle(this.timelineElement)) {
             const compact = (style.getPropertyValue('--timeline-personnel-default-compact') || '').trim() === '1';
             const previous = this.personnelDefaultCompact;
             if (previous === compact) return;
             this.personnelDefaultCompact = compact;
-            // Responsive defaults never replace an explicit button choice.
-            // Preserve an input received before the first Alpine effect too.
-            if (!this.personnelExplicit && (previous !== null || !this.compactRequested)) {
+            // Only the initial layout selects a responsive default. Neither a
+            // resize nor scrolling/focusing/hovering may change the user's mode.
+            if (previous === null && !this.personnelExplicit) {
                 this.compactRequested = compact;
             }
         },
         togglePersonnelColumn() {
             const compact = !this.personnelCompact;
-            const pendingIntent = this.horizontalIntent !== null;
             this.finishHorizontalIntent();
-            this.personnelHovered = false;
-            this.personnelFocused = false;
-            if (pendingIntent) this.holdHorizontalIntent(compact ? 1 : -1);
-            else this.setCompactRequested(compact);
-            this.personnelExplicit = true;
-        },
-        ownsPersonnel(target) {
-            const visited = new Set();
-            while (target?.closest) {
-                const column = target.closest('[data-timeline-person-column]');
-                if (column && this.timelineElement.contains(column)) return true;
-                const owner = target.closest('[data-rt-dropdown-owner]')?.dataset.rtDropdownOwner;
-                if (!owner || visited.has(owner)) break;
-                visited.add(owner);
-                target = [...document.querySelectorAll('[data-rt-dropdown-root]')]
-                    .find(root => root.dataset.rtDropdownId === owner);
-            }
-            return false;
-        },
-        pointerPersonnel(event) {
-            if (event.pointerType !== 'mouse') {
-                if (event.type === 'pointerover' && this.ownsPersonnel(event.target)) {
-                    this.personnelPointerType = event.pointerType;
-                    this.personnelHovered = false;
-                    this.personnelFocused = false;
-                }
-                return;
-            }
-            const target = event.type === 'pointerout' ? event.relatedTarget : event.target;
-            const owns = this.ownsPersonnel(target);
-            if (owns) this.personnelPointerType = 'mouse';
-            // The explicit button must remain usable as its own column moves.
-            this.personnelHovered = !target?.closest?.('[data-timeline-person-toggle]') && owns;
+            this.setCompactRequested(compact);
         },
         wheelPersonnel(event) {
             this.cancelDistributionFocus();
@@ -788,7 +774,6 @@ export function staffTimeline() {
         },
         holdHorizontalIntent(direction) {
             this.horizontalIntent = direction > 0 ? 1 : -1;
-            this.setCompactRequested(direction > 0);
             this.queueIntentRelease();
         },
         queueIntentRelease() {
@@ -807,12 +792,53 @@ export function staffTimeline() {
             if (state) state.motionTarget = null;
             if (this.$refs?.timelineBody) this.lastScrollLeft = this.$refs.timelineBody.scrollLeft;
         },
-        focusPersonnel(target) {
-            // A preview is teleported, but still belongs to its employee trigger.
-            const owns = !target?.closest?.('[data-timeline-person-toggle]') && this.ownsPersonnel(target);
-            // A tap can focus an avatar without making the phone column jump open.
-            // Keyboard focus remains discoverable even after using touch.
-            this.personnelFocused = owns && (this.personnelPointerType !== 'touch' || target.matches(':focus-visible'));
+        preserveMorphGeometry({ el, toEl }) {
+            const root = this.timelineElement;
+            if (this.windowDisposed || !toEl?.style) return;
+            if (el !== root) {
+                const event = el?.classList?.contains('rt-personnel-timeline-event');
+                const track = el?.classList?.contains('rt-personnel-timeline-track');
+                if ((!event && !track) || !root.contains(el)) return;
+                if (event && toEl.classList?.contains('rt-personnel-timeline-event')
+                    && timelineEventGeometryKey(el) === timelineEventGeometryKey(toEl)) {
+                    for (const name of ['--event-lane', '--time-label-offset', '--time-badge-width']) {
+                        const value = el.style.getPropertyValue(name);
+                        if (value !== undefined && value !== '') toEl.style.setProperty(name, value);
+                    }
+                } else if (track && toEl.classList?.contains('rt-personnel-timeline-track')
+                    && el.dataset.timelineLanes === toEl.dataset.timelineLanes) {
+                    const previous = [...el.querySelectorAll('.rt-personnel-timeline-event')].map(timelineEventGeometryKey);
+                    const incoming = [...toEl.querySelectorAll('.rt-personnel-timeline-event')].map(timelineEventGeometryKey);
+                    if (previous.length && previous.length === incoming.length && previous.every((key, index) => key === incoming[index])) {
+                        const value = el.style.getPropertyValue('--timeline-lanes');
+                        if (value !== undefined && value !== '') toEl.style.setProperty('--timeline-lanes', value);
+                        toEl.dataset.timelineDensity = el.dataset.timelineDensity;
+                    }
+                }
+                return;
+            }
+            // Server event styles can drop client lane/badge geometry even when
+            // their source percentage attributes did not change on a focus morph.
+            this.eventGeometryDirty = true;
+            // The server owns dates/content, the client owns the scroll geometry.
+            // Preserve it before Livewire swaps attributes, not a frame later:
+            // otherwise the physical width collapses to CSS defaults and the
+            // browser clamps/anchors scrollLeft before measurement can restore it.
+            for (const name of ['--timeline-day-width', '--timeline-gutter', '--timeline-selected-days', '--timeline-display-days', '--timeline-content-offset']) {
+                const value = root.style.getPropertyValue(name);
+                if (value) toEl.style.setProperty(name, value);
+            }
+            if (this.windowNavigationEnabled) {
+                const loadedFrom = timelineCivilDay(toEl.dataset.timelineAxisFrom || toEl.dataset.timelineFrom);
+                const displayFrom = timelineCivilDay(this.windowDisplayAxis()?.from);
+                if (loadedFrom !== null && displayFrom !== null) toEl.style.setProperty('--timeline-content-offset', loadedFrom - displayFrom);
+            }
+            if (this.appliedPersonnelCompact !== null) toEl.dataset.personnelCompact = String(this.appliedPersonnelCompact);
+            const motion = personnelMotions.get(root);
+            if (motion) {
+                toEl.style.setProperty('--timeline-name-width', `${motion.width}px`);
+                toEl.dataset.personnelAnimating = 'true';
+            }
         },
         restorePersonnelRuntime() {
             if (this.appliedPersonnelCompact === null) return;
@@ -911,11 +937,18 @@ export function staffTimeline() {
             if (this.windowNavigationEnabled) this.windowNavigationState();
             this.bindWindowCommits();
             this.bindWindowScrollbarIntent();
+            if (typeof window.Livewire?.hook === 'function') {
+                this.geometryCleanup = window.Livewire.hook('morph.updating', detail => this.preserveMorphGeometry(detail));
+            }
             this.observer = new ResizeObserver(() => this.queueMeasure());
             this.observer.observe(this.$refs.timelineBody);
             this.observer.observe(this.$refs.timelineGrid);
-            this.contentObserver = new MutationObserver(() => this.queueMeasure());
-            this.contentObserver.observe(this.$refs.timelineGrid, { childList: true, subtree: true });
+            this.contentObserver = new MutationObserver(() => {
+                this.eventGeometryDirty = true;
+                this.queueMeasure();
+            });
+            this.contentObserver.observe(this.$refs.timelineGrid, { childList: true, subtree: true, characterData: true,
+                attributes: true, attributeFilter: ['data-time-start', 'data-time-width', 'data-time-lane', 'data-continues-before', 'data-continues-after', 'data-timeline-lanes'] });
             this.windowObserver = new MutationObserver((mutations = []) => {
                 if (this.windowDisposed) return;
                 // Focus attributes belong to Livewire, not Alpine's reactive
@@ -947,6 +980,8 @@ export function staffTimeline() {
             this.observer?.disconnect();
             this.contentObserver?.disconnect();
             this.windowObserver?.disconnect();
+            this.geometryCleanup?.();
+            this.geometryCleanup = null;
             if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
             clearPersonnelMotion(this.timelineElement);
             clearStaffTimelineReveals(this.timelineElement);
@@ -989,7 +1024,7 @@ export function staffTimeline() {
                 root.style.setProperty('--timeline-display-days', this.windowDisplayDayCount);
                 root.style.setProperty('--timeline-content-offset', this.windowContentOffset);
             }
-            this.measureEventLabels(width * days);
+            if (this.eventGeometryDirty || this.eventPeriodWidth !== width * days) this.measureEventLabels(width * days);
             if (resized) this.rebasePersonnelLayout(wasAtEnd, body.scrollLeft);
             else this.syncHorizontal(body, false);
             this.syncWindowPeriod(width);
@@ -1079,32 +1114,41 @@ export function staffTimeline() {
             this.finishHorizontalIntent();
         },
         measureEventLabels(periodWidth) {
+            const measurements = [];
+            // Gather all layout reads before any row writes. Alternating the two
+            // used to force a complete grid layout once per employee on a morph.
             for (const track of this.$refs.timelineGrid.querySelectorAll('.rt-personnel-timeline-track')) {
                 const events = [...track.querySelectorAll('.rt-personnel-timeline-event')];
                 if (!events.length) continue;
-                const positions = timelineEventLanes(events.map(event => ({
-                    start: parseFloat(event.dataset.timeStart) || 0,
-                    duration: parseFloat(event.dataset.timeWidth) || 0,
-                    lane: parseInt(event.dataset.timeLane, 10) || 0,
-                    continuesBefore: event.dataset.continuesBefore === 'true',
-                    continuesAfter: event.dataset.continuesAfter === 'true',
-                    labelWidth: event.querySelector('.rt-personnel-timeline-time-text')
-                        ? event.querySelector('.rt-personnel-timeline-time-text').getBoundingClientRect().width + 16
-                        : 0,
-                })), periodWidth);
-                positions.forEach((position, index) => {
-                    events[index].style.setProperty('--event-lane', position.lane);
-                    events[index].style.setProperty('--time-label-offset', `${position.labelOffset}px`);
-                    events[index].style.setProperty('--time-badge-width', `${position.badgeWidth}px`);
-                });
+                const positions = timelineEventLanes(events.map(event => {
+                    const label = event.querySelector('.rt-personnel-timeline-time-text');
+                    return {
+                        start: parseFloat(event.dataset.timeStart) || 0,
+                        duration: parseFloat(event.dataset.timeWidth) || 0,
+                        lane: parseInt(event.dataset.timeLane, 10) || 0,
+                        continuesBefore: event.dataset.continuesBefore === 'true',
+                        continuesAfter: event.dataset.continuesAfter === 'true',
+                        labelWidth: label ? label.getBoundingClientRect().width + 16 : 0,
+                    };
+                }), periodWidth);
                 const rowLaneCount = parseInt(track.dataset.timelineLanes, 10) || 1;
                 const laneCount = Math.max(rowLaneCount, Math.max(...positions.map(position => position.lane)) + 1);
-                track.style.setProperty('--timeline-lanes', laneCount);
+                measurements.push({ track, events, positions, laneCount });
+            }
+            for (const { track, events, positions, laneCount } of measurements) {
+                positions.forEach((position, index) => {
+                    for (const [name, value] of [['--event-lane', String(position.lane)], ['--time-label-offset', `${position.labelOffset}px`], ['--time-badge-width', `${position.badgeWidth}px`]]) {
+                        if (events[index].style.getPropertyValue(name) !== value) events[index].style.setProperty(name, value);
+                    }
+                });
+                if (track.style.getPropertyValue('--timeline-lanes') !== String(laneCount)) track.style.setProperty('--timeline-lanes', laneCount);
                 // Include readable-label collisions, not only the server's true overlaps.
                 // Two compact lanes fit the existing 48px row; further lanes stay visible.
                 const density = laneCount > 1 ? 'compact' : 'normal';
                 if (track.dataset.timelineDensity !== density) track.dataset.timelineDensity = density;
             }
+            this.eventGeometryDirty = false;
+            this.eventPeriodWidth = periodWidth;
         },
         syncHorizontal(source, detectDirection = true) {
             const { timelineBody: body, timelineHeader: header, timelineScrollbar: scrollbar } = this.$refs;
@@ -1140,9 +1184,6 @@ export function staffTimeline() {
             const layoutScroll = motionEdge || (this.layoutScrollOffset !== null && Math.abs(offset - this.layoutScrollOffset) < 1);
             const moved = Math.abs(offset - this.lastScrollLeft) >= 1;
             if (detectDirection && (layoutScroll || moved)) this.layoutScrollOffset = null;
-            if (detectDirection && !distributionFocusMotions.has(this.timelineElement) && !layoutScroll && moved && this.horizontalIntent === null) {
-                this.setCompactRequested(offset > this.lastScrollLeft);
-            }
             if (detectDirection && this.horizontalIntent !== null) this.queueIntentRelease();
             this.lastScrollLeft = offset;
             header.scrollLeft = offset;

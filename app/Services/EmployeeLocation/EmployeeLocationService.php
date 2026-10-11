@@ -11,9 +11,11 @@ use App\Models\EmployeeLocationConsentEvent;
 use App\Models\EmployeeLocationPoint;
 use App\Models\MobileLocationCode;
 use App\Models\MobileLocationInstallation;
+use App\Models\SessionPermissionGrant;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
+use App\Services\Privacy\SessionPermissionService;
 use App\Support\EmployeeLocation\EmployeeLocationSettings;
 use App\Support\Operations\OperationsAccess;
 use Carbon\CarbonImmutable;
@@ -53,6 +55,8 @@ class EmployeeLocationService
             abort_unless($device->platform->value === $data['platform'], 403, 'Geräteplattform stimmt nicht überein.');
             abort_if(MobileLocationInstallation::where('uuid', $data['installation_id'])->exists(), 409, 'Diese Installation ist bereits registriert.');
             $token = Str::random(80);
+            $previousIds = MobileLocationInstallation::where('user_id', $actor->id)->whereNull('revoked_at')->pluck('id');
+            $this->invalidateBoundDecisions($previousIds->all());
             MobileLocationInstallation::where('user_id', $actor->id)->whereNull('revoked_at')->update($this->stoppedFields() + ['revoked_at' => now()->utc()]);
             MobileLocationInstallation::create(['uuid' => $data['installation_id'], 'user_id' => $actor->id, 'device_assignment_id' => $assignment->id, 'platform' => $data['platform'], 'token_hash' => hash('sha256', $token)]);
             $code->forceFill(['consumed_at' => now()->utc()])->save();
@@ -69,17 +73,28 @@ class EmployeeLocationService
             $actor = User::lockForUpdate()->findOrFail($actor->id);
             $this->assertEmployee($actor);
             abort_unless($settings['explanation_version'] === $explanationVersion, 409, 'Die Erklärung wurde geändert. Bitte erneut lesen.');
+            $permissions = app(SessionPermissionService::class);
+            $grant = $permissions->current($actor);
+            abort_unless($grant, 403, 'Eine aktive Anmeldesitzung ist erforderlich.');
+            $grant = SessionPermissionGrant::lockForUpdate()->findOrFail($grant->id);
             $installation = MobileLocationInstallation::where('user_id', $actor->id)->whereNull('revoked_at')->lockForUpdate()->first();
-            if ($accept) {
-                $this->check($installation !== null, 'Bitte zuerst den Standortdienst mit deinem Geschäftshandy verbinden.');
+            $existing = EmployeeLocationConsent::where('session_permission_grant_id', $grant->id)->where('purpose', 'work_routing')->lockForUpdate()->first();
+            if ($existing && ! $existing->withdrawn_at && $existing->decision === ($accept ? 'accepted' : 'declined')
+                && ($existing->installation_id === null || $existing->installation_id === $installation?->id)
+                && $existing->explanation_version === $explanationVersion && hash_equals($existing->explanation_hash, hash('sha256', $settings['explanation_text']))) {
+                return $existing;
+            }
+            $grant = $permissions->recordDecision($actor, 'location', $accept, $explanationVersion);
+            if ($accept && $installation) {
                 $this->assertAssignment(DeviceAssignment::lockForUpdate()->findOrFail($installation->device_assignment_id), $actor);
             }
             $now = $this->now();
-            $consent = EmployeeLocationConsent::updateOrCreate(['user_id' => $actor->id, 'local_date' => $now->setTimezone(self::ZONE)->toDateString(), 'purpose' => 'work_routing'], [
+            $consent = EmployeeLocationConsent::updateOrCreate(['session_permission_grant_id' => $grant->id, 'purpose' => 'work_routing'], [
+                'user_id' => $actor->id, 'local_date' => $now->setTimezone(self::ZONE)->toDateString(),
                 'device_assignment_id' => $installation?->device_assignment_id, 'installation_id' => $installation?->id,
                 'explanation_version' => $settings['explanation_version'], 'explanation_hash' => hash('sha256', $settings['explanation_text']),
                 'decision' => $accept ? 'accepted' : 'declined', 'accepted_at' => $accept ? $now : null,
-                'expires_at' => $now->setTimezone(self::ZONE)->startOfDay()->addDay()->utc(), 'withdrawn_at' => null,
+                'expires_at' => $grant->expires_at, 'withdrawn_at' => null,
             ]);
             EmployeeLocationConsentEvent::create(['consent_id' => $consent->id, 'user_id' => $actor->id, 'device_assignment_id' => $installation?->device_assignment_id,
                 'installation_id' => $installation?->id, 'action' => $accept ? 'accepted' : 'declined', 'explanation_version' => $settings['explanation_version'],
@@ -102,7 +117,16 @@ class EmployeeLocationService
         }
         DB::transaction(function () use ($actor): void {
             User::lockForUpdate()->findOrFail($actor->id);
-            $consents = EmployeeLocationConsent::where('user_id', $actor->id)->where('local_date', $this->now()->setTimezone(self::ZONE)->toDateString())->lockForUpdate()->get();
+            $permissions = app(SessionPermissionService::class);
+            $grant = $permissions->current($actor);
+            if ($grant) {
+                $permissions->recordDecision($actor, 'location', false, (int) EmployeeLocationSettings::read()['explanation_version']);
+            }
+            // A profile withdrawal ends all still usable location grants for this employee.
+            // Other login sessions cannot keep a native installation alive after revocation.
+            SessionPermissionGrant::where('user_id', $actor->id)->whereNull('ended_at')->where('location_decision', 'accepted')
+                ->update(['location_decision' => 'declined', 'location_decided_at' => $this->now()]);
+            $consents = EmployeeLocationConsent::where('user_id', $actor->id)->where('expires_at', '>', $this->now()->format('Y-m-d H:i:s.u'))->where('decision', 'accepted')->lockForUpdate()->get();
             foreach ($consents as $consent) {
                 if (! $consent->withdrawn_at) {
                     $explained = EmployeeLocationConsentEvent::where('consent_id', $consent->id)->latest('id')->first();
@@ -138,9 +162,19 @@ class EmployeeLocationService
         return $this->transaction(function (array $settings) use ($actor): string {
             $actor = User::lockForUpdate()->findOrFail($actor->id);
             $installation = MobileLocationInstallation::where('user_id', $actor->id)->whereNull('revoked_at')->lockForUpdate()->firstOrFail();
+            $grant = app(SessionPermissionService::class)->current($actor);
+            abort_unless($grant && app(SessionPermissionService::class)->active($grant, 'location'), 403, 'Sitzungsfreigabe fehlt oder ist abgelaufen.');
+            $consent = EmployeeLocationConsent::where('session_permission_grant_id', $grant->id)->where('purpose', 'work_routing')->lockForUpdate()->first();
+            abort_unless($consent && $consent->decision === 'accepted' && ! $consent->withdrawn_at, 403, 'Sitzungsfreigabe fehlt.');
+            $assignment = DeviceAssignment::lockForUpdate()->findOrFail($installation->device_assignment_id);
+            $this->assertAssignment($assignment, $actor);
+            // A consent recorded before setup is bound only when the employee explicitly starts this assigned phone.
+            abort_unless($consent->installation_id === null || $consent->installation_id === (int) $installation->id, 403, 'Für eine neue Geräteinstallation bitte die Standortfreigabe erneut bestätigen.');
+            $consent->forceFill(['device_assignment_id' => $assignment->id, 'installation_id' => $installation->id])->save();
+            $installation->forceFill(['consent_id' => $consent->id])->save();
             [$assignment] = $this->authorizedState($actor, $installation, $settings);
 
-            return $this->issueCode($actor, $assignment, 'start', 60, $installation->id);
+            return $this->issueCode($actor, $assignment, 'start', 60, $installation->id, $consent->id);
         });
     }
 
@@ -151,6 +185,7 @@ class EmployeeLocationService
             $installation = MobileLocationInstallation::lockForUpdate()->findOrFail($installation->id);
             $code = $this->validCode($rawCode, 'start');
             abort_unless((int) $code->installation_id === $installation->id && (int) $code->user_id === $actor->id && (int) $code->device_assignment_id === $installation->device_assignment_id, 403);
+            abort_unless($code->consent_id && (int) $code->consent_id === (int) $installation->consent_id, 403, 'Standortübergabe gehört zu einer anderen Freigabe.');
             $this->authorizedState($actor, $installation, $settings);
             $installation->forceFill(['session_id' => (string) Str::uuid(), 'session_started_at' => $this->now(), 'permit_id' => null, 'next_sample_at' => $this->now()])->save();
             $code->forceFill(['consumed_at' => $this->now()])->save();
@@ -276,9 +311,20 @@ class EmployeeLocationService
     public function revokeAssignment(int $assignmentId): void
     {
         if (EmployeeLocationSettings::ready()) {
+            $this->invalidateBoundDecisions(MobileLocationInstallation::where('device_assignment_id', $assignmentId)->pluck('id')->all());
             MobileLocationInstallation::where('device_assignment_id', $assignmentId)->update($this->stoppedFields() + ['revoked_at' => $this->now()]);
             MobileLocationCode::where('device_assignment_id', $assignmentId)->whereNull('consumed_at')->update(['consumed_at' => $this->now()]);
         }
+    }
+
+    private function invalidateBoundDecisions(array $installationIds): void
+    {
+        if ($installationIds === []) {
+            return;
+        }
+        $grantIds = EmployeeLocationConsent::whereIn('installation_id', $installationIds)->whereNotNull('session_permission_grant_id')->pluck('session_permission_grant_id');
+        SessionPermissionGrant::whereIn('id', $grantIds)->whereNull('ended_at')
+            ->update(['location_decision' => null, 'location_version' => null, 'location_decided_at' => null]);
     }
 
     public function status(User $actor, bool $includeHistory = false): array
@@ -299,20 +345,23 @@ class EmployeeLocationService
             return $result;
         }
         $installation = MobileLocationInstallation::where('user_id', $actor->id)->whereNull('revoked_at')->with('assignment.device')->first();
-        $consent = EmployeeLocationConsent::where('user_id', $actor->id)->where('local_date', $now->setTimezone(self::ZONE)->toDateString())->first();
+        $grant = app(SessionPermissionService::class)->current($actor);
+        $consent = $grant ? EmployeeLocationConsent::where('session_permission_grant_id', $grant->id)->where('purpose', 'work_routing')->first() : null;
         $entry = WorkTimeEntry::where('user_id', $actor->id)->whereIn('status', ['running', 'paused'])->latest('id')->first();
-        $granted = $consent && $consent->decision === 'accepted' && ! $consent->withdrawn_at && $consent->expires_at->gt($now) && $consent->explanation_version === $settings['explanation_version'] && $consent->installation_id === $installation?->id;
+        $granted = $grant && app(SessionPermissionService::class)->active($grant, 'location') && $consent && $consent->decision === 'accepted' && ! $consent->withdrawn_at
+            && $consent->expires_at->gt($now) && $consent->explanation_version === $settings['explanation_version'] && $consent->installation_id === $installation?->id;
         $qualityState = in_array($installation?->quality_status, ['inaccurate', 'unavailable'], true) ? $installation->quality_status : 'active';
         $state = ! $installation ? 'unpaired' : (! $granted ? 'consent_missing' : (! $entry ? 'not_working' : ($entry->status === 'paused' ? 'paused' : (! $installation->session_id ? 'start_required' : (! $installation->permit_expires_at?->gt($now) ? 'offline' : $qualityState)))));
 
         return array_replace($result, ['state' => $state, 'consent' => $consent, 'installation' => $installation, 'history' => $history, 'last_point' => $lastPoint, 'running' => $entry?->status === 'running',
-            'needs_decision' => $entry?->status === 'running' && (! $consent || $consent->explanation_version !== $settings['explanation_version']),
+            'needs_decision' => ! $grant || $grant->location_decision === null || $grant->location_version !== (int) $settings['explanation_version'],
             'assignments' => DeviceAssignment::active()->where('user_id', $actor->id)->whereHas('device', fn ($query) => $query->where('ownership', 'corporate')->whereIn('platform', ['android', 'ios'])->whereIn('lifecycle_status', ['assigned', 'in_service']))->with('device')->get(),
         ]);
     }
 
     public function purge(): int
     {
+        app(SessionPermissionService::class)->purge();
         if (! EmployeeLocationSettings::ready()) {
             return 0;
         }
@@ -333,7 +382,9 @@ class EmployeeLocationService
     {
         [, $consent, $entry] = $this->authorizedState($actor, $installation, $settings);
         $now = $this->now();
-        $expires = $now->addSeconds(120)->min($consent->expires_at);
+        $grant = SessionPermissionGrant::find($consent->session_permission_grant_id);
+        abort_unless($grant, 403);
+        $expires = $now->addSeconds(120)->min($grant->expires_at);
         $installation->forceFill(['permit_id' => $installation->permit_id ?? (string) Str::uuid(), 'permit_expires_at' => $expires,
             'consent_id' => $consent->id, 'work_time_entry_id' => $entry->id, 'work_revision' => $entry->revision, 'last_seen_at' => $now])->save();
 
@@ -346,10 +397,12 @@ class EmployeeLocationService
         abort_unless(! $installation->revoked_at && $installation->user_id === (int) $actor->id, 403);
         $assignment = DeviceAssignment::lockForUpdate()->findOrFail($installation->device_assignment_id);
         $this->assertAssignment($assignment, $actor);
-        $consent = EmployeeLocationConsent::where('user_id', $actor->id)->where('local_date', $this->now()->setTimezone(self::ZONE)->toDateString())->lockForUpdate()->first();
+        $consent = $installation->consent_id ? EmployeeLocationConsent::where('user_id', $actor->id)->lockForUpdate()->find($installation->consent_id) : null;
+        $grant = $consent?->session_permission_grant_id ? SessionPermissionGrant::lockForUpdate()->find($consent->session_permission_grant_id) : null;
         abort_unless($consent && $consent->decision === 'accepted' && ! $consent->withdrawn_at && $consent->expires_at->gt($this->now())
+            && $grant && app(SessionPermissionService::class)->active($grant, 'location')
             && $consent->explanation_version === $settings['explanation_version'] && $consent->installation_id === $installation->id
-            && $consent->device_assignment_id === $assignment->id && hash_equals($consent->explanation_hash, hash('sha256', $settings['explanation_text'])), 403, 'Tagesfreigabe fehlt oder ist abgelaufen.');
+            && $consent->device_assignment_id === $assignment->id && hash_equals($consent->explanation_hash, hash('sha256', $settings['explanation_text'])), 403, 'Sitzungsfreigabe fehlt oder ist abgelaufen.');
         $entry = WorkTimeEntry::where('user_id', $actor->id)->where('status', 'running')->whereNull('ends_at')->lockForUpdate()->first();
         abort_unless($entry && ! $entry->paused_at && $entry->starts_at->lte($this->now()), 403, 'Es läuft keine Arbeitszeiterfassung.');
 
@@ -371,11 +424,11 @@ class EmployeeLocationService
         return $device;
     }
 
-    private function issueCode(User $actor, DeviceAssignment $assignment, string $purpose, int $seconds, ?int $installationId = null): string
+    private function issueCode(User $actor, DeviceAssignment $assignment, string $purpose, int $seconds, ?int $installationId = null, ?int $consentId = null): string
     {
         MobileLocationCode::where('user_id', $actor->id)->where('purpose', $purpose)->whereNull('consumed_at')->update(['consumed_at' => $this->now()]);
         $code = Str::random(48);
-        MobileLocationCode::create(['user_id' => $actor->id, 'device_assignment_id' => $assignment->id, 'installation_id' => $installationId, 'code_hash' => hash('sha256', $code), 'purpose' => $purpose, 'expires_at' => $this->now()->addSeconds($seconds)]);
+        MobileLocationCode::create(['user_id' => $actor->id, 'device_assignment_id' => $assignment->id, 'installation_id' => $installationId, 'consent_id' => $consentId, 'code_hash' => hash('sha256', $code), 'purpose' => $purpose, 'expires_at' => $this->now()->addSeconds($seconds)]);
 
         return $code;
     }
