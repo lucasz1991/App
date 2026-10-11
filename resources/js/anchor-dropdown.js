@@ -30,6 +30,7 @@ export function anchorDropdown(config) {
     scrollOnTrigger: config.scrollOnTrigger,
     headerOffset: config.headerOffset,
     matchTriggerWidth: config.matchTriggerWidth,
+    overlapAnchor: Boolean(config.overlapAnchor),
 
     init() {
       this.$watch('open', (isOpen) => {
@@ -398,6 +399,30 @@ export function anchorDropdown(config) {
       const anchoredLeft = this.horizontalAlign === 'left'
         ? triggerRect.left
         : triggerRect.right - panelWidth;
+      if (this.overlapAnchor) {
+        // Cell previews expand in place rather than consuming space beside
+        // the anchor. Only move them when needed to fit the visible viewport.
+        const maximumPanelHeight = Math.floor(Math.min(this.maximumHeight, maximumViewportHeight));
+        if (panelScroll) {
+          panelScroll.style.maxHeight = `${maximumPanelHeight}px`;
+          if (this.fixedHeight) panelScroll.style.height = `${maximumPanelHeight}px`;
+        }
+        const renderedPanelHeight = Math.min(
+          panel.offsetHeight || panel.getBoundingClientRect().height,
+          maximumPanelHeight,
+        );
+        Object.assign(panel.style, {
+          left: `${this.clamp(anchoredLeft, viewportLeft + viewportInset, viewportLeft + viewportWidth - viewportInset - panelWidth)}px`,
+          top: `${this.clamp(triggerRect.top, viewportTop + viewportInset, viewportTop + viewportHeight - viewportInset - renderedPanelHeight)}px`,
+          visibility: '',
+        });
+        this.placement = 'overlap';
+        panel.dataset.wideCentered = 'false';
+        panel.querySelector('[data-rt-dropdown-caret]')?.toggleAttribute('hidden', true);
+        panel.style.setProperty('--rt-dropdown-connector-size', '0px');
+        panel.style.removeProperty('visibility');
+        return;
+      }
       const triggerCenter = triggerRect.left + (triggerRect.width / 2);
       const caret = panel.querySelector('[data-rt-dropdown-caret]');
       const surfaceStyle = window.getComputedStyle(panelScroll || panel);

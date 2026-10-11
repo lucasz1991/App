@@ -55,7 +55,7 @@
     font-weight: 600;
 }
 .employee-directory .rt-employee-table .rt-table-row {
-    min-height: 72px;
+    min-height: 64px;
     border-bottom-color: var(--employee-line);
     transition: background-color 160ms cubic-bezier(.23, 1, .32, 1);
 }
@@ -66,6 +66,216 @@
 .employee-directory__pagination {
     padding-block: 16px !important;
     font-variant-numeric: tabular-nums;
+}
+
+/* Only the directory occupies the available viewport. Profiles, other
+   personnel views, modals and all default table callers stay in normal flow. */
+html:has([data-employee-directory-scroll]),
+body:has([data-employee-directory-scroll]) {
+    height: 100%;
+    overflow: hidden;
+}
+
+.rt-app-page-frame:has([data-employee-directory-scroll]) {
+    height: 100dvh;
+    min-height: 0 !important;
+}
+
+:is(.rt-page-content, .rt-page-content > .flex-1, .rt-page-section,
+    [data-page-loading-region], [data-page-live-content],
+    [data-page-workspace-content], .rt-personnel-workspace):has([data-employee-directory-scroll]),
+[data-employee-directory-scroll],
+[data-employee-directory-scroll] > :is(.ops-stack, .rt-page-section),
+[data-employee-directory-scroll] :is([data-page-loading-region], [data-page-live-content]) {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0 !important;
+}
+
+[data-employee-directory-scroll] > .ops-stack {
+    gap: 12px;
+}
+
+[data-employee-directory-scroll] :is(.ops-toolbar, .rt-table-toolbar,
+    .rt-employee-mobile-header, .employee-directory__pagination) {
+    flex: 0 0 auto;
+}
+
+[data-employee-directory-scroll] .employee-directory__results {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+[data-employee-directory-scroll] .employee-directory__pagination {
+    margin-top: 0;
+    padding: 0 12px !important;
+    border-top: 1px solid var(--employee-line);
+    background: var(--employee-paper);
+    border-radius: 0 0 12px 12px;
+}
+
+/* Directory composition: one native page-header row above the joined list. */
+.employee-directory .ops-toolbar:has(template) { display: none; }
+.employee-directory__controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex: 0 0 auto;
+    min-width: 0;
+}
+.employee-directory__search-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+.employee-directory__controls .rt-table-toolbar__search-field { min-width: 0; }
+.employee-directory__filter-panel { color: var(--rt-shell-text); }
+.employee-directory__filter-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    color: var(--employee-signal, var(--rt-shell-accent));
+    background: var(--employee-inset, var(--rt-shell-panel));
+    font-size: 11px;
+    position: absolute;
+    top: -4px;
+    right: -4px;
+}
+.employee-directory__filter-trigger { position: relative; }
+/* Teleported actions are outside .employee-workspace: scope by page marker. */
+[data-page-header]:has(.employee-directory__header-actions) :is([data-page-header-control], [data-page-info-button]),
+.employee-directory__header-actions :is(.rt-ui-button, [data-page-header-control]),
+.employee-directory__create,
+.employee-directory__controls :is(.employee-directory__filter-trigger, .rt-table-select-trigger, .rt-table-bulk-trigger, .rt-expandable-search__trigger) {
+    width: 44px !important; min-width: 44px !important;
+    height: 44px !important; min-height: 44px !important;
+    padding: 0 !important; border-radius: 10px !important;
+}
+.employee-directory__controls .rt-expandable-search { height: 44px; min-height: 44px; }
+.employee-directory__controls .rt-expandable-search[data-search-context] .rt-expandable-search__trigger {
+    width: 44px !important; min-width: 44px !important; height: 44px !important;
+}
+.employee-directory__controls .rt-expandable-search:not(.is-expanded) { width: 44px; min-width: 44px; }
+[data-page-header]:has(.employee-directory__controls) > .flex-1:first-of-type {
+    min-width: 0;
+}
+[data-page-header]:has(.employee-directory__controls) .rt-page-header-search {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+[data-page-header]:has(.employee-directory__controls) [data-page-header-metrics] {
+    display: none;
+}
+[data-page-header]:has(.employee-directory__controls) [data-page-header-action-list] {
+    overflow: visible !important;
+}
+.employee-directory__controls .rt-table-bulk { flex: 0 0 auto; }
+.employee-directory__controls .rt-expandable-search { flex-shrink: 0; }
+.employee-directory__create.rt-ui-button-primary { background: var(--rt-red, #e4002b) !important; border-color: var(--rt-red, #e4002b) !important; color: #fff !important; }
+.employee-directory__create.rt-ui-button-primary:hover { background: var(--rt-red-dark, #be0024) !important; }
+.employee-directory__results {
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px var(--employee-line);
+    background: var(--employee-paper);
+}
+.employee-directory .rt-employee-table.rt-table-frame { box-shadow: none !important; }
+.employee-directory .rt-table-body { border-radius: 0 !important; }
+.employee-directory__secondary { margin-top: 4px; font-size: 11px; color: var(--employee-muted); }
+.employee-directory__account-state { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
+.employee-directory__account-state > span { width: 6px; height: 6px; border-radius: 50%; background: var(--employee-muted); }
+.employee-directory__account-state[data-active='true'] > span { background: theme('colors.emerald.600'); }
+.employee-directory__account-state[data-active='false'] { color: var(--employee-muted); }
+.employee-directory__pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; font-size: 11px; }
+.employee-directory__range { color: var(--employee-ink); white-space: nowrap; }
+.employee-directory__range > span { color: var(--employee-muted); }
+.employee-directory__page-buttons { display: flex; align-items: center; }
+.employee-directory__page-buttons :is(button, .employee-directory__page-number) {
+    display: inline-flex; align-items: center; justify-content: center;
+    position: relative; width: 36px; height: 44px; color: var(--employee-muted);
+    border: 0; background: transparent; font-size: 11px;
+}
+.employee-directory__page-buttons button::before {
+    content: ''; position: absolute; inset: 8px 4px; border-radius: 6px; z-index: 0;
+    background: transparent; pointer-events: none;
+}
+.employee-directory__page-buttons button:hover { color: var(--employee-signal); }
+.employee-directory__page-buttons button[aria-current='page'] { color: var(--employee-signal); font-weight: 700; }
+.employee-directory__page-buttons button[aria-current='page']::before { box-shadow: inset 0 0 0 1px var(--employee-line); }
+.employee-directory__page-buttons button:focus-visible { outline: 2px solid var(--employee-signal); outline-offset: -4px; border-radius: 6px; }
+.employee-directory__page-buttons button:disabled { opacity: .35; cursor: default; }
+.employee-directory__mobile-page { display: none; }
+@media (max-width: 767px) {
+    .employee-directory__header-actions .employee-directory__create span { display: none; }
+    .employee-directory__header-actions .employee-directory__create { width: 40px; padding-inline: 0 !important; }
+    .employee-directory__page-buttons .employee-directory__page-number { display: none; }
+    .employee-directory__mobile-page { display: inline; color: var(--employee-muted); padding-inline: 8px; }
+    .employee-directory__controls { gap: 8px; }
+    .employee-directory .rt-employee-status-cell { max-width: 104px; text-align: right; }
+    [data-page-header]:has(.employee-directory__controls) { gap: 8px !important; }
+    [data-page-header]:has(.employee-directory__controls) [data-page-header-actions] { gap: 4px !important; }
+    .employee-directory__controls .rt-table-bulk,
+    .employee-directory__search-controls { gap: 4px !important; }
+    .employee-directory__controls { overflow-x: auto; scrollbar-width: none; }
+    .employee-directory__controls::-webkit-scrollbar { display: none; }
+    .employee-directory__controls .rt-expandable-search.is-mobile-layer { overflow: visible; }
+}
+@media (max-width: 359px) {
+    .employee-directory__controls .rt-table-bulk > button:disabled { display: none !important; }
+    /* At 320px retain two left targets without shrinking the hit areas.
+       The active bulk menu already provides the native Clear selection action. */
+    .employee-directory__controls .rt-table-bulk:has([data-tables-bulk-menu]) > .rt-table-select-trigger { display: none !important; }
+}
+@media (min-width: 768px) {
+    .employee-directory .rt-employee-table .rt-table-row { padding-block: 4px !important; }
+    .employee-directory .rt-table-row-grid > [role='cell'] { padding-block: 4px !important; }
+}
+
+@media (max-width: 1023px) {
+    [data-employee-directory-scroll] .rt-table-toolbar {
+        position: relative;
+        z-index: 2;
+    }
+
+    [data-employee-directory-scroll] .rt-table-toolbar__mobile-panel {
+        position: absolute;
+        inset: 100% 0 auto;
+        z-index: 20;
+        max-height: 35dvh;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        overscroll-behavior: contain;
+        background: var(--employee-paper);
+        border: 1px solid var(--employee-line);
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, .08);
+    }
+}
+
+@media (max-width: 479px) {
+    [data-employee-directory-scroll] .rt-table-toolbar__body {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        column-gap: 8px;
+    }
+
+    [data-employee-directory-scroll] .rt-table-toolbar__bulk { grid-column: 1; }
+    [data-employee-directory-scroll] .rt-table-toolbar__search-field { grid-column: 2; }
+    [data-employee-directory-scroll] .rt-table-toolbar__actions { grid-column: 3; }
+
+    [data-employee-directory-scroll] .rt-pagination .sm\:hidden :is(button, span.relative) {
+        min-height: 44px;
+        padding-inline: 8px !important;
+        font-size: 12px;
+        white-space: nowrap;
+    }
 }
 
 .employee-profile .employee-profile__identity,

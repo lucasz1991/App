@@ -86,17 +86,47 @@ class TimelinePlanningActionsTest extends TestCase
         // Gewählte Schicht: Tag und passende Zeilen markiert, Einteilen-Ziel je geeigneter Person.
         $timeline->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id)
             ->assertSet('focusShiftId', $this->shift->id)
+            ->assertSee('data-timeline-focus-shift-id="'.$this->shift->id.'"', false)
             ->assertSee('rt-timeline-focus-target', false)
             ->assertSee('data-focus="true"', false)
             ->assertSee('data-focus-fit="eligible"', false);
         $timeline->dispatch('operations-timeline-distribution', open: false, shiftId: $this->shift->id)
             ->assertSet('showSuggestions', false)->assertSet('focusShiftId', null)
+            ->assertSee('data-timeline-focus-shift-id=""', false)
             ->assertDontSee('data-timeline-proposal', false)
             ->assertDontSee('rt-timeline-focus-target', false);
 
         $styles = file_get_contents(resource_path('css/timeline-planning-actions.css'));
         $this->assertStringNotContainsString('rt-timeline-suggestion-legend', $styles);
         $this->assertStringContainsString('prefers-reduced-motion: reduce', $styles);
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_distribution_focus_intent_is_emitted_only_by_native_item_click_and_not_hover_or_focus(): void
+    {
+        $panel = file_get_contents(resource_path('views/livewire/admin/operations/partials/pending-distribution.blade.php'));
+        $dom = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        $dom->loadHTML($panel);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        $xpath = new \DOMXPath($dom);
+        $items = $xpath->query('//button[contains(concat(" ", normalize-space(@class), " "), " rt-shift-distribution__item ")]');
+        $this->assertGreaterThan(0, $items->length);
+        foreach ($items as $item) {
+            if (! str_contains($item->getAttribute('wire:click'), 'selectDistributionShift')) {
+                continue;
+            }
+            $this->assertStringContainsString('operations-timeline-distribution-focus', $item->getAttribute('x-on:click'));
+            $this->assertStringContainsString('owner:', $item->getAttribute('x-on:click'));
+            $this->assertStringContainsString('shiftId:', $item->getAttribute('x-on:click'));
+            $this->assertStringContainsString('selected:', $item->getAttribute('x-on:click'));
+            foreach ($item->attributes as $attribute) {
+                $this->assertDoesNotMatchRegularExpression('/(?:mouse(?:enter|over)|pointer(?:enter|over)|focus(?:in)?)(?:[.:-]|$)/', $attribute->name);
+            }
+        }
+        $this->assertStringContainsString('x-on:operations-timeline-distribution-focus.window="requestDistributionFocus($event.detail)"', file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php')));
+        $this->assertStringContainsString('x-on:pointerdown="cancelDistributionFocus()" x-on:keydown="cancelDistributionFocus()"', file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php')));
         $this->assertSame(0, ShiftAssignment::count());
     }
 

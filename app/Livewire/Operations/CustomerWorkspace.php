@@ -309,6 +309,14 @@ class CustomerWorkspace extends Component
         $this->selectCustomer($customerId);
     }
 
+    #[On('customer-logo-saved')]
+    public function refreshCustomerLogo(int $customerId): void
+    {
+        if ($customerId === $this->customerId) {
+            $this->customers()->findOrFail($customerId);
+        }
+    }
+
     private function canManage(): bool
     {
         return $this->actor()->can('operations.manage');

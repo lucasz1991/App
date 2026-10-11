@@ -61,6 +61,17 @@
 .rt-date-range-picker__actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .rt-date-range-picker__actions .rt-ui-button { min-height: 34px; font-size: 12px !important; }
 .rt-shift-plan-range-dropdown { width: 700px !important; }
+.rt-shift-plan-date-dropdown { width: 340px !important; }
+.rt-date-range-picker--single { grid-template-columns: minmax(0, 1fr); }
+.rt-date-range-picker--single .rt-date-range-picker__presets { flex-direction: row; justify-content: flex-end; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--range-line); }
+.rt-date-range-picker--single .rt-date-range-picker__preset { min-height: 40px; }
+.rt-date-range-picker--single .rt-date-range-picker__fields,
+.rt-date-range-picker--single .rt-date-range-picker__calendars { grid-template-columns: minmax(0, 1fr); }
+.rt-date-range-picker--single .rt-date-range-picker__day { height: 40px; }
+.rt-date-range-picker--single .rt-date-range-picker__month-nav { grid-template-columns: 40px minmax(0, 1fr) 40px; }
+.rt-date-range-picker--single .rt-date-range-picker__nav.rt-ui-button { width: 40px; min-height: 40px; }
+.rt-date-range-picker--single .rt-date-range-picker__footer { align-items: flex-start; }
+.rt-date-range-picker--single .rt-date-range-picker__status { flex-basis: 100%; max-width: none; }
 @media (max-width: 600px) {
     .rt-date-range-picker { grid-template-columns: minmax(0, 1fr); }
     .rt-date-range-picker__presets { flex-direction: row; gap: 4px; padding: 10px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--range-line); }
@@ -71,5 +82,6 @@
     .rt-date-range-picker__calendars { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 8px; }
     .rt-date-range-picker .rt-date-range-picker__day { height: 36px; }
     .rt-date-range-picker__footer { position: sticky; bottom: -12px; margin-inline: -12px; padding: 12px; background: var(--range-surface); }
+    .rt-date-range-picker--single .rt-date-range-picker__day { height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .rt-date-range-picker button { transition: none !important; } }

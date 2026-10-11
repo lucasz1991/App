@@ -10,6 +10,8 @@ use App\Livewire\Admin\Users\Messages\MessageForm;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\Team;
 use App\Models\User;
+use App\Models\UserProfile;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Locked;
@@ -50,7 +52,7 @@ class Employees extends Component
     public int $employeesTotal = 0;
 
     /** Spalten, nach denen sortiert werden darf */
-    private const SORTABLE_COLUMNS = ['id', 'name', 'email', 'created_at', 'last_activity_at'];
+    private const SORTABLE_COLUMNS = ['id', 'name', 'email', 'position', 'status', 'created_at', 'last_activity_at'];
 
     protected $listeners = [
         'employeeSaved' => '$refresh',
@@ -310,12 +312,6 @@ class Employees extends Component
             ->whereIn('role', $allowedRoles)
             // Super-Admin (#1) wird nicht als Mitarbeiter gefuehrt
             ->where('id', '!=', 1)
-            ->when($this->search, fn ($q) => $q->where(function ($qq) {
-                $s = '%'.$this->search.'%';
-                $qq->where('name', 'like', $s)
-                    ->orWhere('email', 'like', $s)
-                    ->orWhere('id', $this->search);
-            }))
             ->when($this->teamId, fn ($q) => $q->whereHas('teams', fn ($qq) => $qq->where('teams.id', $this->teamId)))
             ->when(
                 in_array($this->role, $allowedRoles, true),
@@ -326,15 +322,63 @@ class Employees extends Component
                 fn ($q) => $q->where('status', $this->accountStatus === 'active'),
             );
 
-        // Gesamtanzahl vor Pagination
-        $this->employeesTotal = (clone $base)->count();
-
         // Whitelist gegen manipulierte Livewire-Payloads
         $sortBy = in_array($this->sortBy, self::SORTABLE_COLUMNS, true) ? $this->sortBy : 'created_at';
         $sortDir = $this->sortDir === 'asc' ? 'asc' : 'desc';
         $perPage = min(max((int) $this->perPage, 5), 100);
 
-        return $base->orderBy($sortBy, $sortDir)
+        // Position is encrypted: never LIKE/order ciphertext or create a
+        // plaintext shadow column. Decode only the authorized, filtered scope.
+        $positions = collect();
+        if (trim($this->search) !== '' || $sortBy === 'position') {
+            UserProfile::query()->select(['id', 'user_id', 'position'])
+                ->whereIn('user_id', (clone $base)->select('users.id'))
+                ->chunkById(250, function ($profiles) use ($positions) {
+                    foreach ($profiles as $profile) {
+                        $positions->put((int) $profile->user_id, trim((string) $profile->position));
+                    }
+                });
+        }
+
+        if (trim($this->search) !== '') {
+            $search = trim($this->search);
+            $positionIds = $positions->filter(fn ($position) => mb_stripos($position, $search) !== false)->keys()->all();
+            $base->where(function ($query) use ($search, $positionIds) {
+                $query->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%')
+                    ->orWhere('id', $search)
+                    ->orWhereIntegerInRaw('id', $positionIds);
+            });
+        }
+
+        $this->employeesTotal = (clone $base)->count();
+
+        if ($sortBy === 'position') {
+            // Rank in memory, but hydrate only the current page. Avoid a giant
+            // CASE expression / database parameter limit on large directories.
+            $ids = (clone $base)->select('users.id')->orderBy('name')->orderBy('id')->pluck('id');
+            $orderedIds = $ids->sort(function ($left, $right) use ($positions, $sortDir) {
+                $a = $positions->get((int) $left, '');
+                $b = $positions->get((int) $right, '');
+                if ($a === '' || $b === '') {
+                    return ($a === '') <=> ($b === '');
+                }
+                $comparison = strnatcasecmp($a, $b);
+
+                return $sortDir === 'desc' ? -$comparison : $comparison;
+            })->values();
+            $page = $this->getPage();
+            $pageIds = $orderedIds->slice(($page - 1) * $perPage, $perPage);
+            $records = (clone $base)->whereIn('users.id', $pageIds)->get()->keyBy('id');
+
+            return new LengthAwarePaginator(
+                $pageIds->map(fn ($id) => $records->get($id))->filter()->values(),
+                $this->employeesTotal, $perPage, $page,
+                ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
+            );
+        }
+
+        return $base->orderBy($sortBy, $sortDir)->orderBy('id')
             ->paginate($perPage);
     }
 

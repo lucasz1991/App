@@ -1,150 +1,59 @@
-<div class="employee-workspace employee-directory">
+<div class="employee-workspace employee-directory" data-employee-directory-scroll x-data="{}">
     <x-dynamic-component :component="$embedded ? 'operations.surface' : 'ui.page'"
         :title="$embedded ? null : __('app.employees')"
         :count="number_format($employeesTotal, 0, ',', '.')"
         :auto-intro="!$embedded"
+        :show-back="false"
+        :title-in-topbar="!$embedded"
     >
         <x-slot:actions>
-            @can('employees.create')
-                <x-ui.buttons.button-basic
-                    type="button"
-                    mode="primary"
-                    wire:click="openCreate"
-                    wire:loading.attr="disabled"
-                    wire:target="openCreate"
-                    class="employee-directory__create"
-                    :title="__('app.new_employee_hint')"
-                >
-                    <i class="far fa-plus" aria-hidden="true"></i>
-                    <span>{{ __('app.new_employee') }}</span>
-                </x-ui.buttons.button-basic>
-            @endcan
-            <x-ui.dropdown.page-actions>
-                <x-dropdown-link wire:click.prevent="openInvite" :can="'employees.create'" :title="__('app.invite_employee_hint')">
-                    <i class="far fa-paper-plane mr-2"></i>
-                    {{ __('app.invite_employee') }}
-                </x-dropdown-link>
-                <x-dropdown-link wire:click.prevent="openTeamRbacModal" :can="'roles.manage'" :title="__('app.teams_permissions_hint')">
-                    <i class="far fa-shield-alt mr-2"></i>
-                    {{ __('app.teams_permissions') }}
-                </x-dropdown-link>
-            </x-ui.dropdown.page-actions>
+            @if($embedded)
+                <template x-teleport="[data-page-header-action-list]" wire:key="employee-header-actions">
+                    <div class="employee-directory__header-actions flex items-center gap-1">
+                        @include('livewire.admin.employees.directory-actions')
+                    </div>
+                </template>
+            @else
+                <div class="employee-directory__header-actions flex items-center gap-1">
+                @include('livewire.admin.employees.directory-actions')
+                </div>
+            @endif
         </x-slot:actions>
 
-        {{-- Listen-Toolbar: links Massenauswahl, rechts Suche/Filter --}}
-        <x-tables.toolbar
-            id="employee-list-filters"
-            data-anim="fade-up"
-            :single-line="true"
-            :filter-count="$this->activeFilterCount"
-            :title="__('app.filter_employees')"
-            reset-action="resetFilters"
-            search-for="employee-list-search"
-        >
-            <x-slot:bulk>
+        <template x-teleport="[data-page-header-search]" wire:key="employee-header-search">
+        <div class="employee-directory__controls" aria-label="Mitarbeiter auswählen und suchen">
+            <div class="employee-directory__search-controls">
                 <x-tables.bulk-actions :count="count($selectedEmployees)" select-all="toggleSelectAll">
                     <x-dropdown-link href="#" wire:click.prevent="clearSelection" tone="danger">
-                        <i class="far fa-align-slash mr-2"></i>
-                        {{ __('app.clear_selection') }}
+                        <i class="far fa-align-slash mr-2"></i>{{ __('app.clear_selection') }}
                     </x-dropdown-link>
                     <x-dropdown-link href="#" wire:click.prevent="messageSelected" :can="'users.messages.create'">
-                        <i class="far fa-paper-plane mr-2"></i>
-                        {{ __('app.compose_message') }}
+                        <i class="far fa-paper-plane mr-2"></i>{{ __('app.compose_message') }}
                     </x-dropdown-link>
                     <x-dropdown-link href="#" wire:click.prevent="exportSelected" tone="success">
-                        <i class="far fa-download mr-2"></i>
-                        {{ __('app.export') }}
+                        <i class="far fa-download mr-2"></i>{{ __('app.export') }}
                     </x-dropdown-link>
                 </x-tables.bulk-actions>
-            </x-slot:bulk>
-
-            <x-slot:search>
-                <x-tables.search-field
-                    id="employee-list-search"
-                    resultsCount="{{ $employees->count() }}"
-                    wire:model.live="search"
-                />
-            </x-slot:search>
-
-            <x-tables.filter-field :label="__('app.role')" icon="far fa-user-shield" for="employee-role-filter">
-                <x-ui.forms.select id="employee-role-filter" wire:model.live="role" :aria-label="__('app.role')" class="w-full">
-                    <option value="">{{ __('app.all_roles') }}</option>
-                    <option value="admin">{{ __('app.role_admin') }}</option>
-                    <option value="staff">{{ __('app.role_staff') }}</option>
-                </x-ui.forms.select>
-            </x-tables.filter-field>
-
-            <x-tables.filter-field :label="__('app.status')" icon="far fa-signal-alt-3" for="employee-status-filter">
-                <x-ui.forms.select id="employee-status-filter" wire:model.live="accountStatus" :aria-label="__('app.status')" class="w-full">
-                    <option value="">{{ __('app.all_statuses') }}</option>
-                    <option value="active">{{ ucfirst(__('app.active')) }}</option>
-                    <option value="inactive">{{ ucfirst(__('app.inactive')) }}</option>
-                </x-ui.forms.select>
-            </x-tables.filter-field>
-
-            <x-tables.filter-field :label="__('app.team')" icon="far fa-users" for="employee-team-filter">
-                <x-ui.forms.select id="employee-team-filter" wire:model.live="teamId" :aria-label="__('app.team')" class="w-full">
-                    <option value="">{{ __('app.all_teams') }}</option>
-                    @foreach($teams as $t)
-                        <option value="{{ $t->id }}">{{ $t->name }}</option>
-                    @endforeach
-                </x-ui.forms.select>
-            </x-tables.filter-field>
-
-            <x-tables.filter-field :label="__('app.display')" icon="far fa-list-ol" for="employee-page-size">
-                <x-ui.forms.select id="employee-page-size" wire:model.live="perPage" :aria-label="__('app.per_page', ['count' => $perPage])" class="w-full">
-                    <option value="15">{{ __('app.per_page', ['count' => 15]) }}</option>
-                    <option value="30">{{ __('app.per_page', ['count' => 30]) }}</option>
-                    <option value="50">{{ __('app.per_page', ['count' => 50]) }}</option>
-                    <option value="100">{{ __('app.per_page', ['count' => 100]) }}</option>
-                </x-ui.forms.select>
-            </x-tables.filter-field>
-
-            <x-slot:chips>
-                @if (trim($search) !== '')
-                    <x-tables.filter-chip :label="__('app.search')" :value="$search" wire:click="$set('search', '')" />
-                @endif
-                @if ($role !== '')
-                    <x-tables.filter-chip
-                        :label="__('app.role')"
-                        :value="$role === 'admin' ? __('app.role_admin') : __('app.role_staff')"
-                        wire:click="$set('role', '')"
-                    />
-                @endif
-                @if ($accountStatus !== '')
-                    <x-tables.filter-chip
-                        :label="__('app.status')"
-                        :value="$accountStatus === 'active' ? ucfirst(__('app.active')) : ucfirst(__('app.inactive'))"
-                        wire:click="$set('accountStatus', '')"
-                    />
-                @endif
-                @if ($teamId)
-                    <x-tables.filter-chip
-                        :label="__('app.team')"
-                        :value="$teams->firstWhere('id', (int) $teamId)?->name ?? __('app.team')"
-                        wire:click="$set('teamId', null)"
-                    />
-                @endif
-            </x-slot:chips>
-        </x-tables.toolbar>
+                <x-tables.search-field context="page-topbar" id="employee-list-search"
+                    placeholder="Name, E-Mail oder Funktion suchen" :results-count="$employees->count()"
+                    wire:model.live.debounce.300ms="search" />
+            </div>
+        </div>
+        </template>
 
         {{-- Tabelle --}}
-        <div class="employee-directory__results w-full" data-anim="fade-up" data-anim-delay="0.05">
-            <div class="rt-employee-mobile-header px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] md:hidden">
-                <div class="rt-employee-mobile-header-grid min-w-0">
-                    <span>{{ __('app.name') }}</span>
-                    <span class="text-right">{{ __('app.status') }}</span>
-                </div>
-                <span aria-hidden="true"></span>
-            </div>
+        <div class="employee-directory__results w-full">
             <x-tables.table
                 class="rt-employee-table"
                 :flush-top="true"
+                :scroll-body="true"
+                table-key="employee-directory"
+                label="Mitarbeiter"
                 :columns="[
-                    ['label'=>__('app.name'),'key'=>'name','width'=>'34%','sortable'=>true,'hideOn'=>'none'],
-                    ['label'=>__('app.status'),'key'=>'status','width'=>'26%','sortable'=>false,'hideOn'=>'none'],
-                    ['label'=>__('app.position'),'key'=>'position','width'=>'20%','sortable'=>false,'hideOn'=>'md'],
-                    ['label'=>__('app.last_active'),'key'=>'last_activity_at','width'=>'20%','sortable'=>true,'hideOn'=>'md'],
+                    ['label'=>__('app.name'),'key'=>'name','width'=>'32%','sortable'=>true,'hideOn'=>'none'],
+                    ['label'=>__('app.position'),'key'=>'position','width'=>'25%','sortable'=>true,'hideOn'=>'md'],
+                    ['label'=>__('app.status'),'key'=>'status','width'=>'25%','sortable'=>true,'hideOn'=>'none'],
+                    ['label'=>__('app.last_active'),'key'=>'last_activity_at','width'=>'18%','sortable'=>true,'hideOn'=>'md'],
                 ]"
                 :items="$employees"
                 :selected-items="$selectedEmployees"
@@ -157,8 +66,10 @@
                 :sort-by="$sortBy ?? null"
                 :sort-dir="$sortDir ?? 'asc'"
             />
-            <div class="employee-directory__pagination py-4">
-                {{ $employees->links() }}
+            <div class="employee-directory__pagination" data-employee-pagination
+                x-on:click="if ($event.target.closest('button')) $el.parentElement.querySelector('[data-table-scroll-body]')?.scrollTo({ top: 0 })"
+            >
+                {{ $employees->onEachSide(1)->links('livewire.admin.employees.directory-pagination', data: ['scrollTo' => false]) }}
             </div>
         </div>
     </x-dynamic-component>

@@ -13,8 +13,6 @@
     $roleKey = 'app.role_' . $item->role;
     $roleLabel = __($roleKey);
     $roleLabel = $roleLabel === $roleKey ? ucfirst((string) $item->role) : $roleLabel;
-    $roleColor = $item->isAdmin() ? 'purple' : 'sky';
-    $roleIcon = $item->isAdmin() ? 'fa-user-shield' : 'fa-user-tag';
 
     // Team und Rolle heissen haeufig gleich ("Mitarbeiter") — dann genuegt
     // eine Angabe.
@@ -29,6 +27,7 @@
 
 {{-- 0: Gemeinsame Personeninformation: Bild, Name und E-Mail --}}
 <div
+    role="cell"
     data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}"
     class="rt-employee-name-cell min-w-0 px-2 py-2 pr-4 {{ $hc(0) }}"
 >
@@ -47,68 +46,35 @@
     />
 </div>
 
-{{-- 1: Rolle, Kontostatus und Team in einer Spalte --}}
-<div
-    data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}"
-    class="rt-employee-status-cell flex min-w-0 flex-wrap items-center gap-1.5 px-2 py-2 {{ $hc(1) }}"
->
-    <x-ui.badge
-        :color="$roleColor"
-        class="rt-employee-status-badge"
-        :title="$roleLabel"
-    >
-        <i class="far {{ $roleIcon }}" aria-hidden="true"></i>
-        <span class="rt-employee-status-label">{{ $roleLabel }}</span>
-    </x-ui.badge>
-
-    @unless ($item->isActive())
-        <x-ui.badge color="red" class="rt-employee-status-badge" :title="ucfirst(__('app.inactive'))">
-            <i class="far fa-ban" aria-hidden="true"></i>
-            <span class="rt-employee-status-label">{{ ucfirst(__('app.inactive')) }}</span>
-        </x-ui.badge>
-    @endunless
-
-    {{-- Unterhalb der Tabellen-Bruchstelle bleibt nur Rolle und Sperrhinweis:
-         zwei Badges nebeneinander wuerden dort umbrechen und die Zeilen
-         unterschiedlich hoch machen. Das Team steht in der Schnellansicht. --}}
-    @if ($showTeam)
-        <x-ui.badge color="slate" class="hidden md:inline-flex" data-rt-employee-team-badge>
-            <i class="far fa-users" aria-hidden="true"></i>
-            {{ $team }}
-        </x-ui.badge>
-    @endif
+{{-- 1: Function, role and team are organizational facts, not account status. --}}
+<div role="cell" data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}"
+    class="rt-employee-position-cell min-w-0 px-2 py-2 {{ $hc(1) }}">
+    <span class="block truncate text-sm font-medium" title="{{ $position }}">{{ $position ?: '—' }}</span>
+    <span class="employee-directory__secondary block truncate" title="{{ $roleLabel }}{{ $showTeam ? ' · '.$team : '' }}">
+        {{ $roleLabel }}@if($showTeam) · {{ $team }}@endif
+    </span>
 </div>
 
-{{-- 2: Funktion --}}
-<div
-    data-rt-table-label="{{ $columnsMeta[2]['label'] ?? '' }}"
-    class="flex min-w-0 items-center px-2 py-2 {{ $hc(2) }}"
->
-    @if ($position)
-        <span class="truncate text-sm text-rt-text dark:text-rt-dark-text">{{ $position }}</span>
-    @else
-        <span class="text-sm text-rt-soft dark:text-rt-dark-soft">—</span>
-    @endif
+{{-- 2: Explicit account state, separate from the role. --}}
+<div role="cell" data-rt-table-label="{{ $columnsMeta[2]['label'] ?? '' }}"
+    class="rt-employee-status-cell min-w-0 px-2 py-2 {{ $hc(2) }}">
+    <span class="employee-directory__account-state" data-active="{{ $item->isActive() ? 'true' : 'false' }}">
+        <span aria-hidden="true"></span>{{ ucfirst(__($item->isActive() ? 'app.active' : 'app.inactive')) }}
+    </span>
+    <span class="employee-directory__secondary block truncate md:hidden">{{ $position ?: $roleLabel }}</span>
 </div>
 
-{{-- 3: Zuletzt aktiv --}}
-<div
-    data-rt-table-label="{{ $columnsMeta[3]['label'] ?? '' }}"
-    class="flex min-w-0 items-center gap-2 px-2 py-2 {{ $hc(3) }}"
->
+{{-- 3: Last activity remains a useful, sortable operational signal. --}}
+<div role="cell" data-rt-table-label="{{ $columnsMeta[3]['label'] ?? '' }}"
+    class="flex min-w-0 items-center gap-2 px-2 py-2 {{ $hc(3) }}">
     @if ($isOnline)
-        <span class="relative flex h-2 w-2 shrink-0" aria-hidden="true">
-            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
-            <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-        </span>
-        <span class="truncate text-sm font-semibold text-emerald-600 dark:text-emerald-300">{{ __('app.active_now') }}</span>
+        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>
+        <span class="truncate text-sm text-emerald-600 dark:text-emerald-300">{{ __('app.active_now') }}</span>
     @elseif ($lastActiveAt)
-        <span class="h-2 w-2 shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden="true"></span>
         <span class="truncate text-sm text-rt-muted dark:text-rt-dark-muted" title="{{ $lastActiveAt->format('d.m.Y H:i') }}">
             {{ $lastActiveAt->diffForHumans(short: true) }}
         </span>
     @else
-        <span class="h-2 w-2 shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden="true"></span>
         <span class="truncate text-sm text-rt-soft dark:text-rt-dark-soft">{{ __('app.never') }}</span>
     @endif
 </div>

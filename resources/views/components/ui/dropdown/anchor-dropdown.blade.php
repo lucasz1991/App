@@ -12,6 +12,7 @@
   'scrollOnTrigger'   => false,
   'headerOffset'      => 0,
   'matchTriggerWidth' => false,
+  'overlapAnchor'     => false,
   'triggerClasses'    => 'inline-flex',
   'contentRole'       => 'menu',
   'contentLabel'      => null,
@@ -82,6 +83,7 @@
       'scrollOnTrigger' => (bool) $scrollOnTrigger,
       'headerOffset' => (int) $headerOffset,
       'matchTriggerWidth' => $matchesTriggerWidth,
+      'overlapAnchor' => (bool) $overlapAnchor,
       'panelId' => $dropdownPanelId,
       'popupRole' => $contentRole === 'dialog' ? 'dialog' : 'menu',
     ]))"
@@ -142,11 +144,13 @@
         @if($trap) x-trap.inert.noscroll="open" @endif
       x-ref="panel"
     >
-        <span
-          aria-hidden="true"
-          class="rt-ui-dropdown-caret pointer-events-none absolute z-[1]"
-          data-rt-dropdown-caret
-        ></span>
+        @unless($overlapAnchor)
+          <span
+            aria-hidden="true"
+            class="rt-ui-dropdown-caret pointer-events-none absolute z-[1]"
+            data-rt-dropdown-caret
+          ></span>
+        @endunless
 
         <div
           id="{{ $dropdownPanelId }}"

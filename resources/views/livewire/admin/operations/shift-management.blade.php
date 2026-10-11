@@ -16,6 +16,7 @@
                     'timeline' => ['Zeitleiste', 'fa-clock'],
                 ];
                 [$currentViewLabel, $currentViewIcon] = $planViews[$viewMode];
+                $timelineDatePicker = $viewMode === 'timeline';
                 $rangeLabel = ($rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.Y') : '').' – '.($rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '');
                 $pendingTotal = $pendingShifts->total() + $unplannedOrders->total();
                 $viewDescriptions = [
@@ -26,17 +27,23 @@
                     'timeline' => 'Mitarbeiter und Zeiten im Überblick',
                 ];
             @endphp
-            <div class="rt-shift-plan-period-controls">
-                <x-ui.dropdown.anchor-dropdown align="left" width="auto" offset="6" dropdown-id="shift-plan-period-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" content-label="Planungszeitraum anpassen" dropdown-classes="rt-shift-plan-range-dropdown" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
+            <div @class(['rt-shift-plan-period-controls', 'rt-shift-plan-period-controls--date' => $timelineDatePicker])>
+                <x-ui.dropdown.anchor-dropdown align="left" width="auto" offset="6" :max-height="$timelineDatePicker ? 640 : 448" dropdown-id="shift-plan-period-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" :content-label="$timelineDatePicker ? 'Tag auswählen' : 'Planungszeitraum anpassen'" :dropdown-classes="$timelineDatePicker ? 'rt-shift-plan-date-dropdown' : 'rt-shift-plan-range-dropdown'" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                     <x-slot:trigger>
-                        <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-period-trigger" aria-label="Planungszeitraum auswählen: {{ $rangeLabel }}" title="{{ $rangeLabel }}">
+                        <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-period-trigger {{ $timelineDatePicker ? 'rt-shift-plan-date-trigger' : '' }}" aria-label="{{ $timelineDatePicker ? 'Zu einem Tag springen' : 'Planungszeitraum auswählen: '.$rangeLabel }}" title="{{ $timelineDatePicker ? 'Tag auswählen' : $rangeLabel }}">
                             <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                            @unless($timelineDatePicker)
                             <span><strong class="rt-calendar-period">{{ $rangeFrom ? \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') : '' }} – {{ $rangeTo ? \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') : '' }}</strong></span>
                             <i class="far fa-chevron-down rt-shift-plan-control__chevron" aria-hidden="true"></i>
+                            @endunless
                         </x-ui.buttons.button-basic>
                     </x-slot:trigger>
                     <x-slot:content>
-                        <x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod" apply-event="operations-timeline-period-request" :max-days="94" :reset-on-open="true" x-on:date-range-applied="close(true)" x-on:date-range-cancel="close(true)" />
+                        @if($timelineDatePicker)
+                            <x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod" apply-event="operations-timeline-period-request" selection-mode="single" :preset-keys="['week']" :max-days="94" :reset-on-open="true" x-on:date-range-applied="close(true)" x-on:date-range-cancel="close(true)" />
+                        @else
+                            <x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod" :max-days="94" :reset-on-open="true" x-on:date-range-applied="close(true)" x-on:date-range-cancel="close(true)" />
+                        @endif
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>
             </div>
@@ -122,6 +129,14 @@
                 <i class="far fa-chevron-down rt-shift-filters__chevron" aria-hidden="true"></i>
             </summary>
             <div class="rt-shift-filters__panel">
+                @if($viewMode === 'orders')
+                    <x-tables.filter-field label="Anzeige" icon="far fa-list-ol" for="service-page-size">
+                        <x-ui.forms.select id="service-page-size" wire:model.live="servicePerPage" aria-label="Leistungen pro Seite">
+                            @foreach([25, 50, 100] as $size)<option value="{{ $size }}">{{ $size }} pro Seite</option>@endforeach
+                        </x-ui.forms.select>
+                        @error('servicePerPage')<span class="text-xs text-rt-red">{{ $message }}</span>@enderror
+                    </x-tables.filter-field>
+                @endif
                 <x-tables.filter-field label="Auftrag" for="shift-order-filter"><x-ui.forms.select id="shift-order-filter" wire:model.live="orderFilter" search-model="orderSearch" aria-label="Auftrag"><option value="all">Alle Aufträge</option>@foreach($orders as $order)<option value="{{ $order->id }}">{{ $order->title }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
                 <x-tables.filter-field label="Status" for="shift-status-filter"><x-ui.forms.select id="shift-status-filter" wire:model.live="statusFilter" aria-label="Schichtstatus filtern"><option value="all">Alle Status</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
                 @if($nativeOperations)<x-tables.filter-field label="Handlungsbedarf" for="shift-attention"><x-ui.forms.select id="shift-attention" wire:model.live="attentionFilter" aria-label="Handlungsbedarf"><option value="all">Alle Schichten</option><option value="conflicts">Besetzung mit Konflikten</option><option value="unpublished">Unveröffentlichte Änderungen</option><option value="awaiting">Rückmeldung ausstehend</option><option value="declined">Abgelehnte Dienste</option></x-ui.forms.select></x-tables.filter-field>@endif
@@ -138,13 +153,15 @@
             ['label' => 'Planstatus', 'key' => 'status', 'width' => 'minmax(0,1fr)', 'sortable' => true],
         ];
     @endphp
-    <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="tableSort,setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
+    <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="tableSort,sortServices,servicePerPage,gotoPage,nextPage,previousPage,setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
         @if($viewMode === 'timeline')
             @if($nativeOperations)
                 <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :period-navigation-owner="$this->getId()" :search-in-header="true" :planning-enabled="true" :show-suggestions="$distributionOpen" :focus-shift-id="$distributionOpen ? $distributionShiftId : null" :key="'shift-plan-staff-timeline'" />
             @else
                 <div class="rt-shift-plan-unavailable" role="status"><i class="far fa-clock" aria-hidden="true"></i><span>Die Zeitleiste ist verfügbar, sobald der Mitarbeiter- und Abwesenheitsbereich eingerichtet ist.</span></div>
             @endif
+        @elseif($viewMode === 'orders')
+            @include('livewire.admin.operations.partials.service-overview')
         @elseif($viewMode === 'table' || $shifts->isEmpty())
             <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="shift-plan" class="rt-shift-plan-table" :flush-top="true" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-event="operations-shift-detail-request" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
         @else
@@ -175,6 +192,12 @@
             @endforeach
         @endif
     </div>
+    @if($viewMode === 'orders')
+        <div class="rt-service-pagination" data-service-pagination aria-label="Leistungsseiten">
+            @unless($serviceGroups->hasPages())<span class="text-xs tabular-nums text-rt-muted dark:text-rt-dark-muted" aria-live="polite">{{ $serviceGroups->firstItem() ?? 0 }}–{{ $serviceGroups->lastItem() ?? 0 }} von {{ $serviceGroups->total() }} Leistungen</span>@endunless
+            {{ $serviceGroups->onEachSide(1)->links(data: ['scrollTo' => false]) }}
+        </div>
+    @endif
     </div>
     @if($distributionOpen)
         <aside class="rt-shift-distribution-side" id="shift-distribution-side-{{ $this->getId() }}" aria-label="Noch zu verteilen" wire:key="shift-distribution-side">

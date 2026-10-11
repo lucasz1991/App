@@ -10,7 +10,7 @@
             @if($canCreate)<x-ui.buttons.button-basic type="button" wire:click="editCustomer({{ $customerId }})"><i class="far fa-pen" aria-hidden="true"></i>Bearbeiten</x-ui.buttons.button-basic>@endif
         </div>
         <div class="flex min-w-0 items-start gap-3 sm:gap-4">
-            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rt-surface-muted text-xl text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted sm:h-14 sm:w-14" aria-hidden="true"><i class="far fa-building"></i></span>
+            <x-operations.company-avatar :customer="$profileCustomer" :size="56" />
             <div class="min-w-0 flex-1">
                 @if($canCreate)<p class="mb-1 text-xs font-medium text-rt-muted dark:text-rt-dark-muted">{{ $profileCustomer->customer_number }}</p>@endif
                 <h2 class="break-words text-xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-3xl">{{ $customer->company_name }}</h2>

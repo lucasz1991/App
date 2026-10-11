@@ -8,6 +8,7 @@
     'selected' => false,
     'selectionIndicator' => false,
     'nameFormat' => 'full',
+    'localInitials' => false,
 ])
 
 @php
@@ -70,6 +71,8 @@
         12 => 'h-12 w-12 rounded-full',
         default => 'h-8 w-8 rounded-full',
     };
+    $initials = collect(preg_split('/[\s,]+/u', trim($displayName)) ?: [])
+        ->filter()->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))->take(2)->implode('') ?: '?';
 @endphp
 
 <div {{ $attributes->class(['flex min-w-0 items-center gap-2.5', 'opacity-90' => ! $hasUser]) }}>
@@ -98,6 +101,9 @@
     @endif
 
     <span class="relative shrink-0">
+        @if ($localInitials && ! filled($resolvedUser?->profile_photo_path))
+            <span class="{{ $sizeClass }} inline-flex items-center justify-center bg-rt-accent-soft text-sm font-semibold text-rt-accent ring-1 ring-rt-border/70 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent dark:ring-rt-dark-border/70" aria-hidden="true">{{ $initials }}</span>
+        @else
         <img
             src="{{ $hasUser && ! empty($resolvedUser->profile_photo_url) ? $resolvedUser->profile_photo_url : $avatarUrl }}"
             alt="{{ $displayName }}"
@@ -109,6 +115,7 @@
                 'grayscale' => ! $hasUser,
             ])
         >
+        @endif
 
         @if ($hasUser && $showPresence)
             <span

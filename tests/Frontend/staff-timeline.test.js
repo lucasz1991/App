@@ -817,4 +817,150 @@ test('a focused day outside the visible days is scrolled to its start, a visible
     assert.equal(timelineFocusOffset(0, 200, 400, 600, 800), 0);
     assert.equal(timelineFocusOffset(-1, 200, 0, 600, 800), null);
     assert.equal(timelineFocusOffset(3, 0, 0, 600, 800), null);
+    assert.equal(timelineFocusOffset(1, 200, 250, 600, 800), null, 'left partial overlap stays still');
+    assert.equal(timelineFocusOffset(4, 200, 250, 600, 800), null, 'right partial overlap stays still');
+    assert.equal(timelineFocusOffset(1, 200, 399.9, 200, 800), null, 'even a subpixel overlap counts as visible');
+    assert.equal(timelineFocusOffset(3, 200, 400.1, 200, 800), null);
+    assert.equal(timelineFocusOffset(1, 200, 400, 200, 800), 200, 'touching edges without overlap is offscreen');
+    assert.equal(timelineFocusOffset(3, NaN, 0, 600, 800), null);
+});
+
+function distributionFocusHarness(run, { reduced = true } = {}) {
+    personnelHarness(({ timeline, root, body, document }) => {
+        root.dataset.timelinePeriodOwner = 'distribution-owner';
+        let dates = Array.from({ length: 7 }, (_, index) => `2026-10-${String(5 + index).padStart(2, '0')}`);
+        const header = { scrollLeft: 0, clientWidth: 720,
+            querySelectorAll: () => dates.map(date => ({ dataset: { timelineDate: date } })) };
+        timeline.$refs.timelineHeader = header;
+        const scrolls = [];
+        const directions = [];
+        body.scrollTo = options => { scrolls.push(options); body.scrollLeft = options.left; };
+        timeline.holdHorizontalIntent = direction => directions.push(direction);
+        const previous = Object.getOwnPropertyDescriptor(globalThis, 'matchMedia');
+        globalThis.matchMedia = () => ({ matches: reduced });
+        const click = (shiftId = 81, date = '2026-10-10', selected = false, owner = 'distribution-owner') =>
+            timeline.requestDistributionFocus({ owner, shiftId, date, selected });
+        const confirm = (shiftId = 81, date = '2026-10-10') => {
+            root.dataset.timelineFocusShiftId = String(shiftId);
+            root.dataset.timelineFocusDate = date;
+        };
+        try {
+            timeline.measure();
+            run({ timeline, root, body, document, header, scrolls, directions, click, confirm,
+                setDates: values => { dates = values; } });
+        } finally {
+            timeline.destroy();
+            if (previous) Object.defineProperty(globalThis, 'matchMedia', previous);
+            else delete globalThis.matchMedia;
+        }
+    });
+}
+
+test('restored server selection and sidebar hover never create automatic timeline focus', () => {
+    distributionFocusHarness(({ timeline, document, confirm, scrolls }) => {
+        confirm();
+        const sidebarItem = document.createElement('button');
+        document.body.append(sidebarItem);
+        for (const type of ['pointerover', 'pointerout']) {
+            timeline.pointerPersonnel({ type, pointerType: 'mouse', target: sidebarItem, relatedTarget: sidebarItem });
+            timeline.measure();
+        }
+        assert.equal(scrolls.length, 0, 'a focused server render without an actual sidebar click must not scroll');
+        assert.equal(Object.hasOwn(timeline, 'distributionFocusIntent'), false);
+    });
+});
+
+test('a sidebar click navigates immediately before server confirmation and later renders never replay it', () => {
+    distributionFocusHarness(({ timeline, body, document, click, confirm, scrolls, directions, setDates }) => {
+        assert.equal(click(), true);
+        assert.deepEqual(scrolls, [{ left: 1800, behavior: 'instant' }]);
+        assert.equal(body.scrollLeft, 1800, 'presentation moves before any ranking/selection response');
+        assert.deepEqual(directions, [], 'focus navigation does not create a personnel-direction preference');
+        confirm();
+        timeline.measure();
+        assert.equal(scrolls.length, 1);
+        body.scrollLeft = 0;
+        setDates(['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11']);
+        const sidebarItem = document.createElement('button');
+        document.body.append(sidebarItem);
+        timeline.pointerPersonnel({ type: 'pointerover', pointerType: 'mouse', target: sidebarItem });
+        timeline.measure();
+        timeline.measure();
+        assert.equal(scrolls.length, 1, 'changed scaffold indices, hover-induced layout and later morphs cannot replay a consumed click');
+        assert.equal(body.scrollLeft, 0);
+    });
+});
+
+test('different clicked shifts on one day and deselect-then-reselect may navigate anew without waiting for server state', () => {
+    distributionFocusHarness(({ timeline, body, click, confirm, scrolls }) => {
+        click(); confirm(); timeline.measure();
+        body.scrollLeft = 0;
+        click(82); confirm(82); timeline.measure();
+        assert.equal(scrolls.length, 2, 'same date does not deduplicate a different clicked shift');
+        click(82, '2026-10-10', true);
+        body.scrollLeft = 0;
+        timeline.measure();
+        assert.equal(scrolls.length, 2, 'deselection never scrolls');
+        click(82); timeline.measure();
+        assert.equal(scrolls.length, 3, 'reselecting after deselection may focus again');
+    });
+});
+
+test('absent dates and zero-size geometry are ignored without a server-confirmed replay; a new valid click still works', () => {
+    distributionFocusHarness(({ timeline, body, header, click, confirm, scrolls, setDates }) => {
+        setDates(['2026-10-05']);
+        click(); confirm();
+        timeline.measure();
+        assert.equal(scrolls.length, 0);
+        setDates(Array.from({ length: 7 }, (_, index) => `2026-10-${String(5 + index).padStart(2, '0')}`));
+        header.clientWidth = 0;
+        click();
+        timeline.measure();
+        assert.equal(scrolls.length, 0);
+        header.clientWidth = 720;
+        timeline.measure();
+        assert.equal(scrolls.length, 0, 'later valid geometry cannot retry a consumed click automatically');
+        click();
+        assert.deepEqual(scrolls, [{ left: 1800, behavior: 'instant' }]);
+        assert.equal(body.scrollTop, 144);
+    }, { reduced: true });
+});
+
+test('full, either partial edge and subpixel-visible days cause absolutely no scroll or personnel-mode change', () => {
+    for (const [offset, date] of [[0, '2026-10-06'], [500, '2026-10-06'], [500, '2026-10-08'],
+        [719.9, '2026-10-06'], [720.1, '2026-10-09']]) {
+        distributionFocusHarness(({ timeline, body, click, confirm, scrolls, directions }) => {
+            body.scrollLeft = offset;
+            const writes = body.scrollWrites;
+            const compact = timeline.compactRequested;
+            click(81, date);
+            assert.equal(body.scrollLeft, offset);
+            assert.equal(body.scrollWrites, writes);
+            assert.equal(scrolls.length, 0);
+            assert.deepEqual(directions, []);
+            assert.equal(timeline.compactRequested, compact);
+            body.scrollLeft = 1800;
+            confirm(81, date); timeline.measure();
+            assert.equal(scrolls.length, 0, 'manual movement and delayed confirmation cannot retry a visible click');
+        });
+    }
+});
+
+test('unscoped or malformed sidebar focus requests cannot navigate and disposed timelines ignore late clicks', () => {
+    distributionFocusHarness(({ timeline, click, scrolls }) => {
+        for (const values of [[81, '2026-10-10', false, 'another-owner'], [0], [-1], ['81'], [1.5],
+            [81, '2026-02-30'], [81, '2026-10-10', undefined], [81, '2026-10-10', 'false']]) {
+            // Missing selected must be tested explicitly rather than filled by the helper's default.
+            const [shiftId, date = '2026-10-10', selected = false, owner = 'distribution-owner'] = values;
+            if (values.length === 3 && values[2] === undefined) {
+                assert.equal(timeline.requestDistributionFocus({ owner, shiftId, date }), false);
+            } else assert.equal(click(shiftId, date, selected, owner), false);
+            assert.equal(scrolls.length, 0);
+        }
+        click();
+        assert.equal(click(81, '2026-10-10', false, 'another-owner'), false);
+        assert.equal(scrolls.length, 1, 'another timeline must not navigate this one');
+        timeline.destroy();
+        assert.equal(click(), false, 'detached timelines ignore late clicks');
+    });
 });

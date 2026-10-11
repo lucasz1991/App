@@ -148,6 +148,86 @@ class TimelineWindowNavigationTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_single_anchor_picker_is_scoped_to_timeline_and_other_views_keep_the_range_picker(): void
+    {
+        $this->app->setLocale('de');
+        $parent = $this->parent();
+        $xpath = $this->xpath($parent->html());
+        $pickers = $xpath->query('//*[@data-rt-date-range-picker]');
+        $this->assertSame(1, $pickers->length);
+        $picker = $pickers->item(0);
+        $this->assertSame('single', $picker->getAttribute('data-selection-mode'));
+        $this->assertSame(1, $xpath->query('.//input', $picker)->length);
+        $this->assertSame(1, $xpath->query('.//*[@data-range-calendar="0"]', $picker)->length);
+        $this->assertSame(0, $xpath->query('.//*[@data-range-calendar="1"]', $picker)->length);
+        $this->assertSame(0, $xpath->query('.//*[contains(@class,"rt-date-range-picker__clear")]', $picker)->length);
+        $this->assertStringContainsString('Datum', $picker->textContent);
+        $this->assertStringNotContainsString('Von', $picker->textContent);
+        $this->assertStringNotContainsString('Bis', $picker->textContent);
+        $pickerConfig = str_replace('\\u0022', '"', $picker->getAttribute('x-data'));
+        $this->assertMatchesRegularExpression('/"presets"\s*:\s*\["week"\]/', $pickerConfig);
+        $this->assertStringContainsString('operations-timeline-period-request', $picker->getAttribute('x-data'));
+        $this->assertStringContainsString('if (request.handled) { await request.promise; return; }', $picker->getAttribute('x-data'));
+        $this->assertStringContainsString('range.from, range.until', $picker->getAttribute('x-data'));
+        $triggers = $xpath->query('//button[contains(concat(" ",normalize-space(@class)," ")," rt-shift-plan-date-trigger ")]');
+        $this->assertSame(1, $triggers->length);
+        $this->assertSame('Zu einem Tag springen', $triggers->item(0)->getAttribute('aria-label'));
+        $this->assertSame('', trim($triggers->item(0)->textContent));
+        $this->assertSame(1, $xpath->query('.//i[contains(@class,"fa-calendar-alt")]', $triggers->item(0))->length);
+
+        foreach (['table', 'day', 'staffing', 'orders'] as $view) {
+            $parent->call('setView', $view)->assertSet('viewMode', $view);
+            $xpath = $this->xpath($parent->html());
+            $pickers = $xpath->query('//*[@data-rt-date-range-picker]');
+            $this->assertSame(1, $pickers->length, $view);
+            $picker = $pickers->item(0);
+            $this->assertSame('range', $picker->getAttribute('data-selection-mode'), $view);
+            $this->assertSame(2, $xpath->query('.//input', $picker)->length, $view);
+            $this->assertSame(2, $xpath->query('.//*[@data-range-calendar]', $picker)->length, $view);
+            $this->assertSame(1, $xpath->query('.//*[contains(@class,"rt-date-range-picker__clear")]', $picker)->length, $view);
+            $this->assertSame(0, $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-shift-plan-date-trigger ")]')->length, $view);
+            $this->assertStringContainsString('Von', $picker->textContent, $view);
+            $this->assertStringContainsString('Bis', $picker->textContent, $view);
+            $this->assertSame(1, $xpath->query('//*[contains(@class,"rt-calendar-period")]')->length, $view);
+            $pickerConfig = str_replace('\\u0022', '"', $picker->getAttribute('x-data'));
+            $this->assertDoesNotMatchRegularExpression('/"presets"\s*:\s*\["week"\]/', $pickerConfig, $view);
+        }
+        $this->assertSame(0, Shift::count());
+        $this->assertSame(0, ShiftAssignment::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_single_anchor_request_keeps_the_exact_chosen_day_as_selected_start_across_dst_year_and_leap_day(): void
+    {
+        $parent = $this->parent();
+        $snapshots = [$parent->snapshot, $this->childSnapshot($parent->html())];
+        $childId = $snapshots[1]['memo']['id'];
+        $before = [Shift::count(), ShiftAssignment::count()];
+        foreach (['2027-10-29', '2027-12-31', '2028-02-29'] as $anchor) {
+            $until = CarbonImmutable::parse($anchor, 'Europe/Berlin')->addDays(6)->toDateString();
+            [$snapshots, $effects] = $this->bundle($snapshots, [0 => [['method' => 'applyPeriod', 'params' => [$anchor, $until], 'path' => '']]]);
+            $this->assertSame([$anchor, $until], [$snapshots[0]['data']['rangeFrom'], $snapshots[0]['data']['rangeTo']]);
+            $this->assertSame([$anchor, $until], [$snapshots[1]['data']['from'], $snapshots[1]['data']['until']]);
+            $this->assertSame($childId, $snapshots[1]['memo']['id']);
+            $this->assertSame($childId, $snapshots[0]['memo']['children']['shift-plan-staff-timeline'][1]);
+            $root = $this->xpath($effects[1]['html'])->query('//*[@data-timeline-window-navigation="true"]')->item(0);
+            $this->assertSame($anchor, $root->getAttribute('data-timeline-from'));
+            $this->assertSame($until, $root->getAttribute('data-timeline-until'));
+            $this->assertSame('7', $root->getAttribute('data-timeline-selected-days'));
+            $this->assertSame('3', $root->getAttribute('data-timeline-buffer-before'));
+            $this->assertSame('3', $root->getAttribute('data-timeline-buffer-after'));
+            $this->assertSame(13, $this->confirmedAxisDayCount($effects[1]['html']));
+            $periodEvent = collect($effects[0]['dispatches'])->firstWhere('name', 'operations-period-changed');
+            $this->assertSame(['from' => $anchor, 'until' => $until], $periodEvent['params']);
+            $xpath = $this->xpath($effects[1]['html']);
+            $this->assertSame(1, $xpath->query('//button[@data-timeline-cell-action and @data-date="'.$anchor.'"]')->length);
+            $previous = CarbonImmutable::parse($anchor)->subDay()->toDateString();
+            $this->assertSame(0, $xpath->query('//button[@data-timeline-cell-action and @data-date="'.$previous.'"]')->length);
+        }
+        $this->assertSame($before, [Shift::count(), ShiftAssignment::count()]);
+        Http::assertNothingSent();
+    }
+
     public function test_real_bundled_reactive_updates_roll_both_directions_across_dst_month_and_year_without_remounting(): void
     {
         $dst = $this->shift('DST night', '2027-10-30T22:00:00+02:00', '2027-10-31T06:00:00+01:00', true);
@@ -187,8 +267,12 @@ class TimelineWindowNavigationTest extends TestCase
             $this->assertStringContainsString('data-timeline-axis-until="'.CarbonImmutable::parse($until)->addDays(3)->toDateString().'"', $html);
             $this->assertStringContainsString($visible, $html);
             $this->assertStringNotContainsString($absent, $html);
-            $this->assertStringContainsString(CarbonImmutable::parse($from)->format('d.m.'), $effects[0]['html']);
-            $this->assertStringContainsString(CarbonImmutable::parse($until)->format('d.m.Y'), $effects[0]['html']);
+            // The timeline trigger is deliberately icon-only; confirmed date context
+            // still belongs to the parent and reaches the single picker via entanglement.
+            $parentPicker = $this->xpath($effects[0]['html'])->query('//*[@data-rt-date-range-picker and @data-selection-mode="single"]')->item(0);
+            $this->assertNotNull($parentPicker);
+            $this->assertStringContainsString('$wire.entangle(\'rangeFrom\')', $parentPicker->getAttribute('x-data'));
+            $this->assertStringContainsString('$wire.entangle(\'rangeTo\')', $parentPicker->getAttribute('x-data'));
             $periodEvent = collect($effects[0]['dispatches'])->firstWhere('name', 'operations-period-changed');
             $this->assertSame(['from' => $from, 'until' => $until], $periodEvent['params']);
         }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Admin\Operations\Calendar;
+use App\Livewire\Admin\Operations\Orders;
 use App\Livewire\Admin\Operations\ShiftManagement;
 use App\Models\Customer;
 use App\Models\Order;
@@ -10,6 +11,7 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Support\Operations\OperationsPages;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -429,7 +431,7 @@ class ShiftManagementViewsTest extends TestCase
                     && $group['summary'] === ['shifts' => 2, 'required' => 4, 'reserved' => 3, 'confirmed' => 2, 'open' => 1];
             })
             ->assertViewHas('openCount', 1)
-            ->assertSee('4 Einsatzplätze · 3 eingeplant · 2 bestätigt · 1 offen')
+            ->assertSee('3/4')->assertSee('2 bestätigt')->assertSee('1 Platz offen')->assertSee('4 Schichten')
             ->assertSee($this->order->order_number)->assertSee($this->order->title)->assertSee('Testkorridor');
     }
 
@@ -437,6 +439,79 @@ class ShiftManagementViewsTest extends TestCase
     {
         $this->expectException(CannotUpdateLockedPropertyException::class);
         Livewire::actingAs($this->admin)->test(ShiftManagement::class)->set('viewMode', 'unexpected');
+    }
+
+    public function test_service_overview_uses_one_list_and_opens_native_details_without_changing_workspace_url(): void
+    {
+        $this->shift('Erste Schicht');
+        $this->shift('Zweite Schicht');
+        Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('setView', 'orders')
+            ->assertSeeHtml('data-service-overview')
+            ->assertSeeHtml('service-overview-row-'.$this->order->id)
+            ->assertDontSeeHtml('data-shift-group=')
+            ->call('openServiceDetails', $this->order->id)
+            ->assertSet('selectedServiceId', $this->order->id)
+            ->assertSet('serviceDetailVersion', 1)
+            ->call('openServiceDetails', $this->order->id)
+            ->assertSet('serviceDetailVersion', 2);
+
+        Livewire::actingAs($this->admin)->test(Orders::class, [
+            'initialOrderId' => $this->order->id, 'detailOnly' => true, 'consolidated' => true,
+        ])->assertSet('detailOpen', true)
+            ->assertDontSeeHtml('data-page-header-metrics')
+            ->call('setDetailSection', 'planning')
+            ->assertSee('Erste Schicht')->assertSee('Zweite Schicht')
+            ->assertSeeHtml('operations-shift-detail-request')
+            ->assertNotDispatched('rt-workspace-url');
+    }
+
+    public function test_service_detail_selection_respects_customer_context(): void
+    {
+        $other = $this->order->replicate(['public_id', 'order_number']);
+        $other->customer_id = Customer::create(['company_name' => 'Andere Firma', 'customer_number' => 'OTHER', 'is_active' => true])->id;
+        $other->save();
+        $this->shift('Fremde Schicht', ['order_id' => $other->id]);
+        $this->expectException(ModelNotFoundException::class);
+        Livewire::actingAs($this->admin)->withQueryParams(['customer' => $this->order->customer_id])->test(ShiftManagement::class)
+            ->call('setView', 'orders')->call('openServiceDetails', $other->id);
+    }
+
+    public function test_service_columns_are_separate_and_sort_aggregates_in_both_directions(): void
+    {
+        $first = $this->order->replicate(['public_id', 'order_number']);
+        $first->title = 'Zulu Leistung';
+        $first->status = 'confirmed';
+        $first->save();
+        $first->customer->update(['company_name' => 'Alpha Kunde']);
+        $second = $this->order->replicate(['public_id', 'order_number']);
+        $second->title = 'Alpha Leistung';
+        $second->status = 'planned';
+        $second->customer_id = Customer::create(['company_name' => 'Zulu Kunde', 'customer_number' => 'SORT', 'is_active' => true])->id;
+        $second->save();
+        $this->shift('Erste', ['order_id' => $first->id]);
+        $this->shift('Weitere', ['order_id' => $first->id]);
+        $this->shift('Zweite', ['order_id' => $second->id, 'starts_at' => '2027-05-13 08:00:00', 'ends_at' => '2027-05-13 16:00:00']);
+
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('setView', 'orders')
+            ->assertDontSee('Leistung auswählen, um alle Details zu öffnen.')
+            ->assertDontSee('Leistung / Kunde')->assertDontSee('Zeitraum / Ort')
+            ->assertSeeHtml('sortServices')->assertSeeHtml('data-rt-table-label="Ort"')
+            ->assertSeeHtml('data-rt-table-label="Kunde"');
+        foreach (['service' => [$second->id, $first->id], 'customer' => [$first->id, $second->id], 'period' => [$first->id, $second->id], 'status' => [$first->id, $second->id]] as $key => $ids) {
+            $component->call('sortServices', $key, 'asc')->assertSet('serviceSortBy', $key)->assertSet('serviceSortDir', 'asc')
+                ->assertViewHas('orderGroups', fn ($groups) => $groups->keys()->all() === $ids && $groups[$first->id]['items']->count() === 2);
+            $component->call('sortServices', $key)->assertSet('serviceSortDir', 'desc')
+                ->assertViewHas('orderGroups', fn ($groups) => $groups->keys()->all() === array_reverse($ids));
+        }
+        $component->call('sortServices', 'location')->assertStatus(422);
+    }
+
+    public function test_service_column_header_stays_in_view_without_changing_shared_tables(): void
+    {
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $this->assertMatchesRegularExpression('/\[data-service-overview\] \.rt-table-head,[^{]+\{\s*position: sticky;\s*top: 0;\s*z-index: 3;/s', $css);
+        $this->assertStringContainsString('[data-service-overview] .rt-table-mobile-sort', $css);
     }
 
     public function test_shift_views_still_require_operations_management_permission(): void

@@ -30,6 +30,7 @@ use App\Support\Operations\OrderSelection;
 use App\Support\Operations\PlanningLocks;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
@@ -47,6 +48,65 @@ class ShiftManagement extends Component
     use WithPagination;
 
     public string $attentionFilter = 'all';
+
+    #[Locked]
+    public ?int $selectedServiceId = null;
+
+    #[Locked]
+    public int $serviceDetailVersion = 0;
+
+    #[Locked]
+    public string $serviceSortBy = 'period';
+
+    #[Locked]
+    public string $serviceSortDir = 'asc';
+
+    public int $servicePerPage = 50;
+
+    public function updatedServicePerPage(): void
+    {
+        $this->ensureAdmin();
+        $this->validateOnly('servicePerPage', ['servicePerPage' => ['integer', Rule::in([25, 50, 100])]]);
+        $this->resetPage('servicesPage');
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage('servicesPage');
+    }
+
+    public function updatedStatusFilter(): void
+    {
+        $this->resetPage('servicesPage');
+    }
+
+    public function updatedAttentionFilter(): void
+    {
+        $this->resetPage('servicesPage');
+    }
+
+    public function sortServices(string $key, ?string $dir = null): void
+    {
+        $this->ensureAdmin();
+        abort_unless(in_array($key, ['service', 'customer', 'period', 'status'], true), 422);
+        abort_unless($dir === null || in_array($dir, ['asc', 'desc'], true), 422);
+        $this->serviceSortDir = $dir ?? ($this->serviceSortBy === $key && $this->serviceSortDir === 'asc' ? 'desc' : 'asc');
+        $this->serviceSortBy = $key;
+        $this->resetPage('servicesPage');
+    }
+
+    public function openServiceDetails(int $id): void
+    {
+        $this->ensureAdmin();
+        abort_unless($this->viewMode === 'orders', 422);
+        $this->customerShifts()->where('order_id', $id)
+            ->when($this->orderFilter !== 'all', fn (Builder $query) => $query->where('order_id', (int) $this->orderFilter))
+            ->firstOrFail();
+        $this->selectedServiceId = $id;
+        $this->detailOpen = false;
+        $this->formOpen = false;
+        $this->serviceDetailVersion++;
+    }
 
     public string $candidateSearch = '';
 
@@ -130,6 +190,8 @@ class ShiftManagement extends Component
             $this->reset(['search', 'statusFilter', 'orderFilter', 'customerFilter', 'attentionFilter']);
         }
         $this->viewMode = $view;
+        $this->selectedServiceId = null;
+        $this->resetPage('servicesPage');
         $this->dispatch('shift-plan-view-changed', view: $view);
     }
 
@@ -139,6 +201,7 @@ class ShiftManagement extends Component
         $this->ensureAdmin();
         abort_unless($view === 'orders', 422);
         $this->viewMode = $view;
+        $this->resetPage('servicesPage');
     }
 
     public function movePeriod(int $direction): void
@@ -214,12 +277,14 @@ class ShiftManagement extends Component
             Order::query()->when($customer !== null, fn (Builder $query) => $query->where('customer_id', $customer))->findOrFail($order);
         }
         $this->dispatch('operations-planning-filters-changed', customer: $customer, order: $order);
+        $this->resetPage('servicesPage');
     }
 
     private function resetDistributionPages(): void
     {
         $this->resetPage('distributionShiftsPage');
         $this->resetPage('distributionOrdersPage');
+        $this->resetPage('servicesPage');
     }
 
     #[On('operations-plan-changed')]
@@ -768,8 +833,50 @@ class ShiftManagement extends Component
                 'customer' => $order?->customer?->company_name,
                 'items' => $items,
                 'summary' => $this->staffingSummary($items),
+                'staffingSeats' => $items
+                    ->reject(fn (Shift $shift) => in_array($shift->status, [ShiftStatus::Completed, ShiftStatus::Cancelled], true))
+                    ->flatMap(fn (Shift $shift) => $shift->assignments
+                        ->filter(fn (ShiftAssignment $assignment) => $assignment->status->blocksAvailability())
+                        ->map(fn (ShiftAssignment $assignment) => [
+                            'id' => $assignment->id, 'user' => $assignment->user, 'shift' => $shift->title,
+                            'starts_at' => $shift->starts_at, 'ends_at' => $shift->ends_at,
+                        ]))
+                    ->values(),
+                'staffingUsers' => $items
+                    ->reject(fn (Shift $shift) => in_array($shift->status, [ShiftStatus::Completed, ShiftStatus::Cancelled], true))
+                    ->flatMap(fn (Shift $shift) => $shift->assignments
+                        ->filter(fn (ShiftAssignment $assignment) => $assignment->status->blocksAvailability())
+                        ->pluck('user'))
+                    ->filter()->unique('id')->values(),
             ];
         });
+
+        // Sort the aggregated services, not their individual shifts or staffing counts.
+        $serviceSortValue = fn (array $group) => match ($this->serviceSortBy) {
+            'service' => $group['items']->first()->order?->title ?? '',
+            'customer' => $group['customer'] ?? '',
+            'status' => $group['items']->first()->order?->status?->label() ?? '',
+            default => $group['items']->min('starts_at')?->getTimestamp() ?? 0,
+        };
+        $orderGroups = $orderGroups->sort(function (array $a, array $b) use ($serviceSortValue): int {
+            $comparison = $this->serviceSortBy === 'period'
+                ? $serviceSortValue($a) <=> $serviceSortValue($b)
+                : strnatcasecmp($serviceSortValue($a), $serviceSortValue($b));
+
+            return ($this->serviceSortDir === 'desc' ? -$comparison : $comparison)
+                ?: ($a['items']->first()->order_id <=> $b['items']->first()->order_id);
+        });
+
+        // Pagination applies to complete services; never truncate their shifts or staffing totals.
+        $servicePerPage = in_array($this->servicePerPage, [25, 50, 100], true) ? $this->servicePerPage : 50;
+        $servicePage = min(max(1, (int) $this->getPage('servicesPage')), max(1, (int) ceil($orderGroups->count() / $servicePerPage)));
+        if ($this->viewMode === 'orders' && (int) $this->getPage('servicesPage') !== $servicePage) {
+            $this->setPage($servicePage, 'servicesPage');
+        }
+        $serviceGroups = new LengthAwarePaginator(
+            $orderGroups->forPage($servicePage, $servicePerPage), $orderGroups->count(), $servicePerPage, $servicePage,
+            ['pageName' => 'servicesPage', 'path' => request()->url()],
+        );
 
         $distributionShift = $this->distributionOpen && $this->distributionShiftId
             ? Shift::query()->with('order.customer')->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])->find($this->distributionShiftId)
@@ -787,6 +894,7 @@ class ShiftManagement extends Component
             'shifts' => $shifts,
             'dailyGroups' => $dailyGroups,
             'orderGroups' => $orderGroups,
+            'serviceGroups' => $serviceGroups,
             'staffingGroups' => collect([
                 'open' => 'Besetzung offen',
                 'awaiting' => 'Bestätigung ausstehend',

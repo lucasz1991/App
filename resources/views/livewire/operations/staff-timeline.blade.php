@@ -21,10 +21,11 @@
 <div class="rt-personnel-timeline" style="--timeline-days:{{ $days->count() }};--timeline-selected-days:{{ $selectedDays->count() }}" x-data="rtStaffTimeline" x-effect="applyPersonnelMode()"
     x-on:pointerover.window="pointerPersonnel($event)" x-on:pointerout.window="pointerPersonnel($event)"
     x-on:focusin.window="focusPersonnel($event.target)" x-on:focusout.window="focusPersonnel($event.relatedTarget)"
+    x-on:operations-timeline-distribution-focus.window="requestDistributionFocus($event.detail)"
     data-no-sidebar-swipe data-rt-dropdown-scroll-root data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? 'true' : 'false' }}"
     data-timeline-window-navigation="{{ $periodNavigationOwner && $planningEnabled && !$absencesOnly ? 'true' : 'false' }}"
     data-timeline-period-owner="{{ $periodNavigationOwner }}" data-timeline-from="{{ $from }}" data-timeline-until="{{ $until }}"
-    data-timeline-id="{{ $this->getId() }}" data-timeline-focus-date="{{ $focus['date'] }}"
+    data-timeline-id="{{ $this->getId() }}" data-timeline-focus-date="{{ $focus['date'] }}" data-timeline-focus-shift-id="{{ $focus['shift']?->id }}"
     data-timeline-axis-from="{{ $axisFrom->toDateString() }}" data-timeline-axis-until="{{ $axisUntil->subDay()->toDateString() }}"
     data-timeline-selected-days="{{ $selectedDays->count() }}"
     data-timeline-buffer-before="{{ (int) $axisFrom->diffInDays($selectedFrom) }}" data-timeline-buffer-after="{{ (int) $selectedUntil->diffInDays($axisUntil) }}"
@@ -80,7 +81,7 @@
         <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--next" x-cloak x-show="canScrollRight || windowNavigationEnabled" x-on:click="scrollDay(1)" aria-label="Weitere Tage rechts anzeigen" title="Weitere Tage rechts"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
         </div>
     </div>
-    <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:scroll.passive="syncHorizontal($event.target)" x-on:wheel="wheelPersonnel($event)" x-on:scrollend.passive="finishHorizontalIntent()" x-on:keydown.left="if ($event.target === $event.currentTarget) { $event.preventDefault(); scrollDay(-1); }" x-on:keydown.right="if ($event.target === $event.currentTarget) { $event.preventDefault(); scrollDay(1); }" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile oder die horizontale Bildlaufleiste">
+    <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:pointerdown="cancelDistributionFocus()" x-on:keydown="cancelDistributionFocus()" x-on:scroll.passive="syncHorizontal($event.target)" x-on:wheel="wheelPersonnel($event)" x-on:scrollend.passive="finishHorizontalIntent()" x-on:keydown.left="if ($event.target === $event.currentTarget) { $event.preventDefault(); scrollDay(-1); }" x-on:keydown.right="if ($event.target === $event.currentTarget) { $event.preventDefault(); scrollDay(1); }" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile, Pfeiltasten oder horizontales Scrollen">
     <div class="rt-personnel-timeline-grid" x-ref="timelineGrid"
         x-on:click="if (!windowContentLoading) openPlanner($event)" x-on:pointerover="if (!windowContentLoading) hoverCell($event)" x-on:pointerout="leaveCell($event)"
         x-on:focusin="if (!windowContentLoading) hoverCell($event)" x-on:focusout="leaveCell($event)">

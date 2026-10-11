@@ -52,6 +52,7 @@
             <x-operations.feedback />
             @if($tab==='profile')
                 <section class="ops-panel ops-stack"><h2 class="text-lg font-semibold">{{ $identity->name }}</h2><dl class="rt-customer-portal__details"><div><dt>E-Mail</dt><dd>{{ $identity->email }}</dd></div><div><dt>Kunde</dt><dd>{{ $customer['company_name'] }}</dd></div><div><dt>Rolle</dt><dd>{{ \App\Livewire\Operations\CustomerPortalManagement::ROLES[$membership->role] ?? 'Kontakt' }}</dd></div><div><dt>Kontakt</dt><dd>{{ $membership->contact->name }}</dd></div></dl></section>
+                <section class="ops-panel"><livewire:operations.customer-logo :customer-id="$customerId" :portal="true" :key="'portal-company-logo-'.$customerId" /></section>
                 @if($canChange)<div class="ops-actions"><x-ui.buttons.button-basic type="button" wire:click="create('master_data')">Stammdatenkorrektur</x-ui.buttons.button-basic></div>@endif
                 @if(\Illuminate\Support\Facades\Route::has('customer-portal.mfa.setup'))<a href="{{ route('customer-portal.mfa.setup') }}" class="rt-ui-button rt-ui-button-secondary"><x-customer-portal.icon name="shield" />Anmeldesicherheit</a>@endif
             @elseif($tab==='overview')

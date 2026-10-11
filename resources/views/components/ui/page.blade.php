@@ -6,6 +6,7 @@
     'backUrl' => null,
     'backLabel' => null,
     'showBack' => true,
+    'titleInTopbar' => false,
     // Schluessel fuer das Gesehen-Tracking; Standard ist der Routenname.
     'pageKey' => null,
     // Beim ERSTEN Besuch die Seiteninfo automatisch oeffnen. Dashboards
@@ -65,6 +66,7 @@
             :back-url="$backUrl"
             :back-label="$backLabel"
             :show-back="$showBack"
+            :title-in-topbar="$titleInTopbar"
         >
             @isset($actions)
                 <x-slot:actions>{{ $actions }}</x-slot:actions>

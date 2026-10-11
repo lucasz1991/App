@@ -119,7 +119,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
 
     public function test_short_date_range_remains_fully_named_and_uses_the_existing_date_picker(): void
     {
-        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('applyPeriod', '2027-12-30', '2028-01-03');
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('setView', 'table')->call('applyPeriod', '2027-12-30', '2028-01-03');
         $xpath = $this->xpath($component->html());
         $trigger = $xpath->query('//button[contains(@class,"rt-shift-plan-period-trigger")]')->item(0);
         $this->assertNotNull($trigger);
@@ -137,6 +137,38 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertSame('close(true)', $picker->getAttribute('x-on:date-range-cancel'));
         $component->call('applyPeriod', '2028-01-03', '2027-12-30')->assertHasErrors('rangeTo');
         $this->assertSame(0, Shift::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_timeline_date_trigger_is_icon_only_and_its_picker_has_one_date_and_calendar(): void
+    {
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('setView', 'timeline')->call('applyPeriod', '2027-12-30', '2028-01-05');
+        $xpath = $this->xpath($component->html());
+        $trigger = $xpath->query('//button[contains(@class,"rt-shift-plan-date-trigger")]')->item(0);
+        $this->assertNotNull($trigger);
+        $this->assertSame('', trim($trigger->textContent));
+        $this->assertSame('Zu einem Tag springen', $trigger->getAttribute('aria-label'));
+        $this->assertSame('Tag auswählen', $trigger->getAttribute('title'));
+        $this->assertSame(1, $xpath->query('.//i[contains(@class,"fa-calendar-alt") and @aria-hidden="true"]', $trigger)->length);
+        $this->assertSame(0, $xpath->query('.//span | .//i[contains(@class,"fa-chevron-down")]', $trigger)->length);
+        $dialog = $xpath->query('//*[@role="dialog" and @aria-label="Tag auswählen"]')->item(0);
+        $this->assertNotNull($dialog);
+        $picker = $xpath->query('.//*[@data-selection-mode="single"]', $dialog)->item(0);
+        $this->assertNotNull($picker);
+        $this->assertSame(1, $xpath->query('.//input[@type="text"]', $picker)->length);
+        $this->assertSame('Datum', trim($xpath->query('.//label/span', $picker)->item(0)->textContent));
+        $this->assertSame(1, $xpath->query('.//*[@data-range-calendar="0"]', $picker)->length);
+        $this->assertSame(0, $xpath->query('.//*[@data-range-calendar="1"] | .//*[contains(@class,"rt-date-range-picker__clear")]', $picker)->length);
+        foreach (['selectionMode', 'single', 'presets', 'week', 'operations-timeline-period-request', 'await request.promise'] as $contract) {
+            $this->assertStringContainsString($contract, $picker->getAttribute('x-data'));
+        }
+        $this->assertSame('close(true)', $picker->getAttribute('x-on:date-range-applied'));
+        $this->assertSame('close(true)', $picker->getAttribute('x-on:date-range-cancel'));
+        $css = file_get_contents(resource_path('css/disposition-workspace.css'));
+        $this->assertStringContainsString('.rt-shift-plan-period-controls--date { flex: 0 0 44px; }', $css);
+        $this->assertMatchesRegularExpression('/\.rt-shift-plan-period-controls--date \.rt-shift-plan-date-trigger\s*\{[^}]*width:\s*44px;[^}]*max-width:\s*44px;/s', $css);
+        $this->assertSame(0, ShiftAssignment::count());
         Http::assertNothingSent();
     }
 
@@ -303,7 +335,10 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $css = file_get_contents(resource_path('css/disposition-workspace.css'));
         $start = strpos($css, '/* One command row, with only secondary actions moving to the existing menu. */');
         $this->assertNotFalse($start);
-        $commands = substr($css, $start);
+        // This contract belongs to the shift-plan command row, not the later
+        // order/inbox toolbars whose status controls may legitimately wrap.
+        $end = strpos($css, '/* Auftragsübersicht:', $start);
+        $commands = substr($css, $start, $end === false ? null : $end - $start);
         $this->assertMatchesRegularExpression('/\.rt-disposition-page:has\(\.rt-shift-plan\) > \[data-page-header\]\s*\{[^}]*display:\s*grid !important;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s', $commands);
         $this->assertStringNotContainsString('grid-row: 2', $commands);
         $this->assertStringNotContainsString('flex-wrap: wrap', $commands);

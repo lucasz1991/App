@@ -84,6 +84,9 @@ class Orders extends Component
     public bool $profileEmbedded = false;
 
     #[Locked]
+    public bool $detailOnly = false;
+
+    #[Locked]
     public string $detailSection = 'overview';
 
     #[Locked]
@@ -199,16 +202,18 @@ class Orders extends Component
 
     public string $notes = '';
 
-    public function mount(?int $initialOrderId = null, ?int $customerId = null, string $initialSection = 'overview', bool $consolidated = false, ?int $initialRecordId = null, bool $profileEmbedded = false): void
+    public function mount(?int $initialOrderId = null, ?int $customerId = null, string $initialSection = 'overview', bool $consolidated = false, ?int $initialRecordId = null, bool $profileEmbedded = false, bool $detailOnly = false): void
     {
         $this->ensureAdmin();
         $this->mounting = true;
+        $this->detailOnly = $detailOnly;
+        abort_if($detailOnly && $initialOrderId === null, 404);
         abort_if($profileEmbedded && (! $consolidated || $customerId === null), 404);
         $this->profileEmbedded = $profileEmbedded;
         $this->status = $this->enumDefault(OrderStatus::class, 'requested');
         $this->priority = $this->enumDefault(OrderPriority::class, 'normal');
         $this->consolidated = $consolidated;
-        if ($consolidated && ! $profileEmbedded) {
+        if ($consolidated && ! $profileEmbedded && ! $detailOnly) {
             $state = self::listState(request()->query());
             $this->search = $state['search'];
             $this->statusFilter = $state['status'];
@@ -237,6 +242,10 @@ class Orders extends Component
     public function createOrder(): void
     {
         $this->ensureAdmin();
+        // The host owns its create action; this embedded instance supplies details only.
+        if ($this->detailOnly) {
+            return;
+        }
         $this->detailOpen = false;
         if ($this->consolidated) {
             $this->selectedOrderId = null;
@@ -306,7 +315,7 @@ class Orders extends Component
 
     private function syncUrl(): void
     {
-        if (! $this->consolidated || $this->profileEmbedded || $this->mounting) {
+        if (! $this->consolidated || $this->profileEmbedded || $this->detailOnly || $this->mounting) {
             return;
         }
         $this->ensureAdmin();
@@ -416,6 +425,9 @@ class Orders extends Component
         $this->formOpen = false;
         $this->resetOrderForm();
         $this->dispatch('swal:toast', type: 'success', text: 'Auftrag gespeichert.');
+        if ($this->detailOnly) {
+            $this->dispatch('operations-plan-changed');
+        }
     }
 
     public function changeStatus(string $status, OrderLifecycleService $lifecycle): void
@@ -429,6 +441,9 @@ class Orders extends Component
             $lifecycle->transition($order, $status, auth()->user());
             $this->resetValidation('statusChange');
             $this->dispatch('swal:toast', type: 'success', text: 'Auftragsstatus aktualisiert.');
+            if ($this->detailOnly) {
+                $this->dispatch('operations-plan-changed');
+            }
         } catch (ValidationException $exception) {
             $this->addError('statusChange', collect($exception->errors())->flatten()->first() ?: $exception->getMessage());
         } catch (\DomainException $exception) {
@@ -444,6 +459,7 @@ class Orders extends Component
         }
 
         $orders = $this->scopedQuery()
+            ->when($this->detailOnly, fn (Builder $query) => $query->whereRaw('1 = 0'))
             ->with('customer')
             ->withCount('shifts')
             ->when(trim($this->search) !== '', function (Builder $query): void {
@@ -494,13 +510,13 @@ class Orders extends Component
             'statusOptions' => $this->enumOptions(OrderStatus::class),
             'priorityOptions' => $this->enumOptions(OrderPriority::class),
             'transitionOptions' => $transitionOptions,
-            'openCount' => $this->scopedQuery()->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])->count(),
-            'startsSoonCount' => $this->scopedQuery()
+            'openCount' => $this->detailOnly ? 0 : $this->scopedQuery()->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])->count(),
+            'startsSoonCount' => $this->detailOnly ? 0 : $this->scopedQuery()
                 ->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])
                 ->whereBetween('starts_at', [now()->utc(), now()->addDays(7)->utc()])
                 ->count(),
-            'inProgressCount' => $this->scopedQuery()->where('status', OrderStatus::InProgress)->count(),
-            'withoutShiftsCount' => $this->scopedQuery()
+            'inProgressCount' => $this->detailOnly ? 0 : $this->scopedQuery()->where('status', OrderStatus::InProgress)->count(),
+            'withoutShiftsCount' => $this->detailOnly ? 0 : $this->scopedQuery()
                 ->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])
                 ->whereDoesntHave('shifts')
                 ->count(),

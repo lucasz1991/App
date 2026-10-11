@@ -147,6 +147,9 @@ class CustomerProfileData
             $query = app(CustomerPortalScope::class)->manageableCustomers($actor);
         }
         $columns = ['id', 'company_name'];
+        if (Schema::hasColumn('customers', 'logo_path')) {
+            $columns[] = 'logo_path';
+        }
         if ($manage) {
             $columns = array_merge($columns, ['customer_number', 'contact_name', 'email', 'phone', 'street', 'postal_code', 'city', 'country', 'notes', 'is_active', 'created_at', 'updated_at']);
         }

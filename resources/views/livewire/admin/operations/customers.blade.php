@@ -13,6 +13,7 @@
                     @if($selectedCustomer->notes)<div><dt class="ops-muted text-xs">Interne Notiz</dt><dd class="whitespace-pre-line break-words">{{ $selectedCustomer->notes }}</dd></div>@endif
                 </dl>
             </section>
+            <section class="ops-panel"><livewire:operations.customer-logo :customer-id="$selectedCustomer->id" :key="'admin-embedded-company-logo-'.$selectedCustomer->id" /></section>
         @elseif(!$formOpen)<div class="ops-empty">Keine Kundenstammdaten vorhanden.</div>@endif
     @else
     <x-tables.toolbar title="Filter" id="operations-customers-filters">
@@ -70,6 +71,7 @@
                     @endif
 
                     <div class="mt-5">
+                        @if($detailOpen)<div class="mb-5"><livewire:operations.customer-logo :customer-id="$selectedCustomer->id" :key="'admin-company-logo-'.$selectedCustomer->id" /></div>@endif
                         @if($detailOpen && \Illuminate\Support\Facades\Schema::hasTable('customer_contacts'))<livewire:operations.customer-relations :customer-id="$selectedCustomer->id" :key="'customer-relations-'.$selectedCustomer->id" />@endif
                         <h3 class="text-sm font-semibold text-rt-text dark:text-white">Letzte Aufträge</h3>
                         <div class="mt-2 divide-y divide-rt-border/60 rounded-xl border border-rt-border/70 dark:divide-rt-dark-border/60 dark:border-rt-dark-border/70">

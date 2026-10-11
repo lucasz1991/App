@@ -21,6 +21,7 @@ use App\Http\Controllers\Calls\CallTokenController;
 use App\Http\Controllers\ChatAttachmentController;
 use App\Http\Controllers\ChatExportController;
 use App\Http\Controllers\ChatLiveLocationController;
+use App\Http\Controllers\CustomerLogoController;
 use App\Http\Controllers\CustomerPortalAuthController;
 use App\Http\Controllers\CustomerPortalDocumentController;
 use App\Http\Controllers\CustomerProofAttachmentController;
@@ -126,6 +127,7 @@ Route::prefix('kundenportal')->withoutMiddleware([LogActivity::class, CheckUserS
         Route::get('/c/{customer}/anlagen/{attachment}', [CustomerPortalDocumentController::class, 'attachment'])->whereNumber(['customer', 'attachment'])->name('customer-portal.attachment.download');
         Route::get('/c/{customer}/export', [CustomerPortalDocumentController::class, 'report'])->whereNumber('customer')->name('customer-portal.report');
         Route::get('/c/{customer}/bericht', [CustomerPortalDocumentController::class, 'printReport'])->whereNumber('customer')->name('customer-portal.report.print');
+        Route::get('/c/{customer}/firmenlogo', [CustomerLogoController::class, 'portal'])->whereNumber('customer')->middleware('throttle:600,1')->name('customer-portal.logo');
         Route::get('/c/{customer}/{section?}', App\Livewire\CustomerPortal\Workspace::class)->whereNumber('customer')->where('section', 'overview|requests|orders|calendar|offers|proofs|documents|messages|reports|profile')->name('customer-portal.workspace');
     });
 });
@@ -241,6 +243,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
     Route::get('/mein-arbeitstag', PersonalWorkspace::class)->name('operations.mine');
     Route::get('/kundenportal-pruefung/anlagen/{id}', [CustomerPortalDocumentController::class, 'managerAttachment'])->whereNumber('id')->middleware('throttle:30,1')->name('customer-portal.manager.attachment');
+    Route::get('/kunden/{customer}/firmenlogo', [CustomerLogoController::class, 'internal'])->whereNumber('customer')->middleware('throttle:600,1')->name('operations.customers.logo');
     Route::get('/kundenportal-pruefung/dokumente/{id}', [CustomerPortalDocumentController::class, 'managerDocument'])->whereNumber('id')->middleware('throttle:30,1')->name('customer-portal.manager.document');
     Route::get('/leistungsnachweise/{id}/anlagen/{attachment}', CustomerProofAttachmentController::class)
         ->whereNumber('id')->whereUuid('attachment')->middleware('throttle:30,1')->name('operations.proofs.attachment');

@@ -400,6 +400,9 @@ body:has(#main-content .rt-shift-plan) { height: 100%; min-height: 0; overflow: 
 .rt-shift-plan-period-controls > [data-rt-dropdown-root],
 .rt-shift-plan-period-controls .rt-ui-dropdown-trigger { width: 100%; min-width: 0; max-width: 100%; }
 .rt-shift-plan-period-controls .rt-shift-plan-period-trigger { width: 100%; min-width: 44px; max-width: 100%; }
+.rt-shift-plan-period-controls--date { flex: 0 0 44px; }
+.rt-shift-plan-period-controls--date .rt-shift-plan-date-trigger { width: 44px; max-width: 44px; padding-inline: 0 !important; justify-content: center; }
+.rt-shift-plan-period-controls--date .rt-shift-plan-date-trigger > i:first-child { flex-basis: auto; }
 @media (max-width: 1024px) {
     .rt-shift-plan-header-controls { gap: 6px; }
     .rt-shift-plan-view-trigger.rt-ui-button { width: 44px; min-width: 44px !important; padding-inline: 0; justify-content: center; }

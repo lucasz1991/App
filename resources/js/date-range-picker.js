@@ -25,6 +25,7 @@ export const dateRangePicker = (config = {}) => ({
     min: parse(config.min) ? config.min : null,
     max: parse(config.max) ? config.max : null,
     maxDays: Number(config.maxDays) > 0 ? Number(config.maxDays) : null,
+    selectionMode: config.selectionMode === 'single' ? 'single' : 'range',
     draftFrom: '',
     draftUntil: '',
     fromText: '',
@@ -36,6 +37,8 @@ export const dateRangePicker = (config = {}) => ({
     touched: false,
     busy: false,
     failure: '',
+
+    get isSingle() { return this.selectionMode === 'single'; },
 
     init() {
         this.resetDraft();
@@ -66,7 +69,9 @@ export const dateRangePicker = (config = {}) => ({
 
     resetDraft() {
         this.draftFrom = parse(this.from) ? this.from : '';
-        this.draftUntil = parse(this.until) ? this.until : '';
+        this.draftUntil = this.isSingle
+            ? (this.draftFrom ? addDays(this.draftFrom, 6) : '')
+            : (parse(this.until) ? this.until : '');
         this.syncText();
         this.showRange();
         this.selectingEnd = false;
@@ -82,6 +87,11 @@ export const dateRangePicker = (config = {}) => ({
 
     showRange() {
         const left = monthStart(this.draftFrom || this.today);
+        if (this.isSingle) {
+            this.months = [left];
+            this.focused = [this.draftFrom || left];
+            return;
+        }
         const right = monthStart(this.draftUntil || this.today);
         this.months = [left, right > left ? right : addMonths(left, 1)];
         this.focused = [this.draftFrom || left, right > left ? (this.draftUntil || right) : this.months[1]];
@@ -112,11 +122,17 @@ export const dateRangePicker = (config = {}) => ({
         });
     },
 
-    isSelectable(value) {
+    isWithinBounds(value) {
         return !!parse(value) && (!this.min || value >= this.min) && (!this.max || value <= this.max);
     },
 
+    isSelectable(value) {
+        return this.isWithinBounds(value) && (!this.isSingle
+            || (this.isWithinBounds(addDays(value, 6)) && (!this.maxDays || this.maxDays >= 7)));
+    },
+
     state(value) {
+        if (this.isSingle) return this.draftFrom && value === this.draftFrom ? 'start' : '';
         let start = this.draftFrom;
         let end = this.selectingEnd ? (this.hover || start) : this.draftUntil;
         if (start && end && end < start) [start, end] = [end, start];
@@ -124,12 +140,16 @@ export const dateRangePicker = (config = {}) => ({
             : start && end && value > start && value < end ? 'between' : '';
     },
 
-    select(value, side) {
+    select(value, side = 0) {
         if (this.busy || !this.isSelectable(value)) return;
         this.failure = '';
         this.touched = true;
         this.focused[side] = value;
-        if (!this.selectingEnd) {
+        if (this.isSingle) {
+            this.draftFrom = value;
+            this.draftUntil = addDays(value, 6);
+            this.selectingEnd = false;
+        } else if (!this.selectingEnd) {
             this.draftFrom = value;
             this.draftUntil = '';
             this.selectingEnd = true;
@@ -145,6 +165,19 @@ export const dateRangePicker = (config = {}) => ({
         this.touched = true;
         this.failure = '';
         const parsed = this.parseText(value);
+        if (this.isSingle) {
+            this.fromText = value;
+            this.draftFrom = parsed || '';
+            this.draftUntil = parsed ? addDays(parsed, 6) : '';
+            this.selectingEnd = false;
+            this.hover = null;
+            if (parsed) {
+                this.months = [monthStart(parsed)];
+                this.focused = [parsed];
+                this.untilText = this.format(this.draftUntil);
+            } else this.untilText = '';
+            return;
+        }
         this[side === 0 ? 'fromText' : 'untilText'] = value;
         this[side === 0 ? 'draftFrom' : 'draftUntil'] = parsed || '';
         this.selectingEnd = false;
@@ -182,6 +215,7 @@ export const dateRangePicker = (config = {}) => ({
         const weekday = (parse(this.today).getUTCDay() + 6) % 7;
         const week = addDays(this.today, -weekday);
         const month = monthStart(this.today);
+        const keys = Array.isArray(config.presets) ? config.presets : (this.isSingle ? ['week'] : null);
         return [
             ['today', this.text('Heute', 'Today'), this.today, this.today],
             ['week', this.text('Diese Woche', 'This week'), week, addDays(week, 6)],
@@ -190,15 +224,16 @@ export const dateRangePicker = (config = {}) => ({
             ['thirty', this.text('Letzte 30 Tage', 'Last 30 days'), addDays(this.today, -29), this.today],
             ['month', this.text('Dieser Monat', 'This month'), month, addDays(addMonths(month, 1), -1)],
             ['last-month', this.text('Letzter Monat', 'Last month'), addMonths(month, -1), addDays(month, -1)],
-        ].map(([key, label, from, until]) => ({ key, label, from, until,
-            disabled: !this.isSelectable(from) || !this.isSelectable(until) || (this.maxDays && (parse(until) - parse(from)) / DAY + 1 > this.maxDays),
+        ].filter(([key]) => !keys || keys.includes(key)).map(([key, label, from, until]) => ({ key, label, from,
+            until: this.isSingle ? addDays(from, 6) : until,
+            disabled: !this.isSelectable(from) || (!this.isSingle && (!this.isSelectable(until) || (this.maxDays && (parse(until) - parse(from)) / DAY + 1 > this.maxDays))),
         }));
     },
 
     choosePreset(preset) {
         if (this.busy || preset.disabled) return;
         this.draftFrom = preset.from;
-        this.draftUntil = preset.until;
+        this.draftUntil = this.isSingle ? addDays(preset.from, 6) : preset.until;
         this.syncText();
         this.showRange();
         this.selectingEnd = false;
@@ -216,6 +251,13 @@ export const dateRangePicker = (config = {}) => ({
     },
 
     get validationMessage() {
+        if (this.isSingle) {
+            if (!parse(this.draftFrom)) return this.text('Datum wählen.', 'Choose a date.');
+            if (!this.isSelectable(this.draftFrom) || this.draftUntil !== addDays(this.draftFrom, 6)) {
+                return this.text('Dieses Datum ist nicht verfügbar.', 'This date is unavailable.');
+            }
+            return '';
+        }
         if (!parse(this.draftFrom) || !parse(this.draftUntil)) return this.text('Start- und Enddatum wählen.', 'Choose a start and end date.');
         if (!this.isSelectable(this.draftFrom) || !this.isSelectable(this.draftUntil)) return this.text('Dieser Zeitraum ist nicht verfügbar.', 'This range is unavailable.');
         if (this.draftUntil < this.draftFrom) return this.text('Das Enddatum muss nach dem Startdatum liegen.', 'The end date must follow the start date.');
@@ -228,6 +270,7 @@ export const dateRangePicker = (config = {}) => ({
     get summary() {
         if (this.failure) return this.failure;
         if (this.validationMessage) return this.validationMessage;
+        if (this.isSingle) return this.format(this.draftFrom);
         const days = (parse(this.draftUntil) - parse(this.draftFrom)) / DAY + 1;
         return this.text(`${days} ${days === 1 ? 'Tag' : 'Tage'} ausgewählt`, `${days} ${days === 1 ? 'day' : 'days'} selected`);
     },
@@ -245,7 +288,9 @@ export const dateRangePicker = (config = {}) => ({
             else { this.from = range.from; this.until = range.until; }
             this.$dispatch('date-range-applied', range);
         } catch {
-            this.failure = this.text('Der Zeitraum konnte nicht übernommen werden. Bitte erneut versuchen.', 'The range could not be applied. Please try again.');
+            this.failure = this.isSingle
+                ? this.text('Das Datum konnte nicht übernommen werden. Bitte erneut versuchen.', 'The date could not be applied. Please try again.')
+                : this.text('Der Zeitraum konnte nicht übernommen werden. Bitte erneut versuchen.', 'The range could not be applied. Please try again.');
         } finally {
             this.busy = false;
         }

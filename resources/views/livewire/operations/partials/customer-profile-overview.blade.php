@@ -28,6 +28,7 @@
                     @if($profileCustomer->created_at)<span>Angelegt {{ $profileCustomer->created_at->timezone(config('app.timezone'))->format('d.m.Y') }}</span>@endif
                     @if($profileCustomer->updated_at)<span>Geändert {{ $profileCustomer->updated_at->timezone(config('app.timezone'))->format('d.m.Y H:i') }}</span>@endif
                 </footer>
+                <div class="mt-5 border-t border-rt-border/70 pt-5 dark:border-rt-dark-border/70"><livewire:operations.customer-logo :customer-id="$customerId" :key="'customer-logo-'.$customerId" /></div>
             </section>
         @endif
         <aside class="{{ $surface }}" aria-label="Kundenportalstatus">

@@ -290,6 +290,23 @@ body[data-mode='dark'] .rt-shell-topbar {
 
 .rt-shell-planning-navigation:empty { display: none; }
 
+/* Opt-in page title beside the burger; all default page headings stay put. */
+.rt-shell-page-title-host { min-width: 0; max-width: 180px; padding-inline: 8px; }
+.rt-shell-page-title-host:empty { display: none; }
+.rt-shell-page-title {
+    margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 18px; line-height: 1.25; font-weight: 600; letter-spacing: -.025em;
+    color: var(--rt-shell-text);
+}
+@media (max-width: 639px) {
+    .rt-shell-topbar:has([data-topbar-page-title] > h1) .vertical-menu-btn { width: 44px !important; padding-inline: 8px !important; }
+    .rt-shell-page-title-host { max-width: 112px; padding-inline: 4px; }
+    .rt-shell-page-title { font-size: 16px; }
+}
+@media (max-width: 359px) {
+    .rt-shell-topbar:has([data-topbar-page-title] > h1) .rt-shell-brand-mark { display: none !important; }
+}
+
 /* The active page supplies the one topbar search. Unmounting it restores the
  * unchanged global search; no duplicate input or persistent search controller. */
 [data-topbar-page-search]:empty { display: none; }

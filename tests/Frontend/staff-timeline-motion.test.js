@@ -608,3 +608,211 @@ test('destroy kills its tween and queued layout work; late callbacks cannot touc
         assert.equal(body.scrollWrites, 0);
     });
 });
+
+function withFocusMotion(run, options = {}) {
+    withMotion(fixture => {
+        const { timeline, root, body, currentWidth } = fixture;
+        root.dataset.timelinePeriodOwner = 'focus-owner';
+        const header = timeline.$refs.timelineHeader;
+        Object.defineProperty(header, 'clientWidth', { get: () => body.clientWidth - currentWidth() });
+        header.querySelectorAll = () => Array.from({ length: 7 }, (_, index) =>
+            ({ dataset: { timelineDate: `2026-10-${String(5 + index).padStart(2, '0')}` } }));
+        const nativeScrollTo = body.scrollTo.bind(body);
+        body.scrollTo = options => { nativeScrollTo(options); if (options.behavior === 'instant') body.scrollLeft = options.left; };
+        timeline.applyPersonnelMode();
+        timeline.measure();
+        const click = (date = '2026-10-10', selected = false, shiftId = 81, owner = 'focus-owner') =>
+            timeline.requestDistributionFocus({ owner, date, selected, shiftId });
+        const advanceFocus = (tween, left, complete = false) => {
+            tween.state.left = left;
+            tween.options.onUpdate?.();
+            if (complete) tween.options.onComplete?.();
+        };
+        run({ ...fixture, header, click, advanceFocus });
+    }, options);
+}
+
+test('offscreen sidebar click starts a 420ms GSAP focus before server response and synchronizes every horizontal frame', () => {
+    withFocusMotion(({ timeline, root, body, header, click, tweens, timers, advanceFocus }) => {
+        assert.equal(click(), true);
+        const focus = tweens[0];
+        assert.equal(focus.state.left, 0);
+        assert.equal(focus.options.left, 1800);
+        assert.equal(focus.options.duration, 0.42);
+        assert.equal(focus.options.ease, 'power2.inOut');
+        assert.equal(root.dataset.timelineFocusShiftId, undefined, 'presentation does not wait for or change server selection');
+        advanceFocus(focus, 900);
+        assert.equal(body.scrollLeft, 900);
+        assert.equal(header.scrollLeft, 900);
+        assert.equal(timeline.$refs.timelineScrollbar.scrollLeft, 900);
+        assert.equal(body.scrollTop, 144);
+        timeline.lastScrollLeft = 400;
+        timeline.syncHorizontal(body);
+        assert.equal(timeline.compactRequested, false, 'self-generated scroll events cannot infer a personnel preference');
+        timeline.queueIntentRelease();
+        for (const [id, timer] of timers) if (timer.delay === 350) { timers.delete(id); timer.callback(); }
+        timeline.finishHorizontalIntent();
+        assert.equal(focus.killed, false, 'scrollend and ordinary intent timeout cannot cut the longer focus animation');
+        advanceFocus(focus, 1800, true);
+        assert.equal(body.scrollLeft, 1800);
+        assert.equal(header.scrollLeft, 1800);
+        assert.equal(timeline.$refs.timelineScrollbar.scrollLeft, 1800);
+        assert.equal(body.scrollTop, 144);
+        assert.equal(focus.killed, true);
+        advanceFocus(focus, 100, true);
+        assert.equal(body.scrollLeft, 1800, 'late completed tween callbacks are inert');
+    });
+});
+
+test('fully or partly visible click performs no tween, scroll write, native scroll call or personnel preference change', () => {
+    for (const [offset, date] of [[0, '2026-10-06'], [500, '2026-10-06'], [500, '2026-10-08'],
+        [719.9, '2026-10-06'], [720.1, '2026-10-09']]) {
+        withFocusMotion(({ timeline, body, click, tweens }) => {
+            body.nativeOffset = offset;
+            const writes = body.scrollWrites;
+            const mode = timeline.compactRequested;
+            click(date);
+            assert.equal(tweens.length, 0);
+            assert.equal(body.scrollWrites, writes);
+            assert.equal(body.scrollCalls.length, 0);
+            assert.equal(body.scrollLeft, offset);
+            assert.equal(timeline.compactRequested, mode);
+        });
+    }
+});
+
+test('rapid offscreen clicks replace only their own tween, while visible or deselect clicks stop it without adding movement', () => {
+    withFocusMotion(({ timeline, body, click, tweens, advanceFocus }) => {
+        click();
+        const first = tweens[0];
+        advanceFocus(first, 900);
+        assert.equal(click('2026-10-05', false, 82), true);
+        const second = tweens[1];
+        assert.equal(first.killed, true);
+        assert.equal(second.state.left, 900);
+        assert.equal(second.options.left, 0);
+        advanceFocus(first, 1800, true);
+        assert.equal(body.scrollLeft, 900, 'superseded completion cannot jump over the newer click');
+        const writes = body.scrollWrites;
+        const scrollCalls = body.scrollCalls.length;
+        click('2026-10-07', false, 83);
+        assert.equal(second.killed, true);
+        assert.equal(tweens.length, 2);
+        assert.equal(body.scrollWrites, writes);
+        assert.equal(body.scrollCalls.length, scrollCalls);
+        click();
+        const third = tweens[2];
+        assert.equal(click('2026-10-10', true), true);
+        assert.equal(third.killed, true);
+        assert.equal(tweens.length, 3);
+        advanceFocus(third, 1800, true);
+        assert.equal(body.scrollLeft, 900);
+        assert.equal(timeline.compactRequested, false);
+    });
+});
+
+test('wheel on either axis, arrow, footer input and body pointer/key cancellation stop focus and late frames cannot override user input', () => {
+    for (const cancel of [
+        timeline => timeline.wheelPersonnel({ deltaX: 0, deltaY: 40 }),
+        timeline => timeline.wheelPersonnel({ deltaX: -40, deltaY: 10, preventDefault() {} }),
+        timeline => timeline.scrollDay(-1),
+        timeline => timeline.noteWindowGesture(),
+        timeline => timeline.cancelDistributionFocus(),
+    ]) {
+        withFocusMotion(({ timeline, body, click, tweens, advanceFocus }) => {
+            click();
+            const focus = tweens[0];
+            advanceFocus(focus, 900);
+            cancel(timeline);
+            assert.equal(focus.killed, true);
+            const offset = body.scrollLeft;
+            const scrollCalls = body.scrollCalls.length;
+            advanceFocus(focus, 1800, true);
+            assert.equal(body.scrollLeft, offset);
+            assert.equal(body.scrollCalls.length, scrollCalls);
+        });
+    }
+});
+
+test('an existing personnel right-edge tween cannot pin over focus navigation, including after focus completes', () => {
+    withFocusMotion(({ timeline, root, body, click, tweens, advance, advanceFocus, currentWidth, maximum }) => {
+        body.nativeOffset = maximum();
+        timeline.syncHorizontal(body, false);
+        compact(timeline);
+        const personnel = tweens[0];
+        assert.equal(personnel.state.atEnd, true);
+        click('2026-10-05');
+        const focus = tweens[1];
+        assert.equal(personnel.state.atEnd, false, 'a new focus explicitly releases the old width-tween endpoint');
+        advanceFocus(focus, 900);
+        advance(personnel, 110);
+        assert.equal(body.scrollLeft, 900);
+        assert.equal(currentWidth(), 110);
+        assert.equal(root.dataset.personnelAnimating, 'true');
+        timeline.measure();
+        assert.equal(body.scrollLeft, 900, 'morph/measure preserves both active tween states');
+        advanceFocus(focus, 0, true);
+        advance(personnel, 52, true);
+        assert.equal(body.scrollLeft, 0, 'a delayed personnel completion cannot return to its former right edge');
+        assert.equal(body.scrollTop, 144);
+    });
+});
+
+test('reduced motion navigates immediately without GSAP and changing that preference ends an active focus safely', () => {
+    withFocusMotion(({ body, click, tweens, header }) => {
+        click();
+        assert.equal(tweens.length, 0);
+        assert.deepEqual(body.scrollCalls, [{ left: 1800, behavior: 'instant' }]);
+        assert.equal(body.scrollLeft, 1800);
+        assert.equal(header.scrollLeft, 1800);
+    }, { reduced: true });
+    withFocusMotion(({ body, click, tweens, advanceFocus, setReduced }) => {
+        click();
+        const focus = tweens[0];
+        advanceFocus(focus, 400);
+        setReduced(true);
+        advanceFocus(focus, 500);
+        assert.equal(body.scrollLeft, 1800);
+        assert.equal(focus.killed, true);
+        assert.equal(body.scrollTop, 144);
+    });
+});
+
+test('GSAP absence keeps native smooth fallback cancellable with bounded cleanup and no deferred server replay', () => {
+    withFocusMotion(({ timeline, body, click, timers }) => {
+        click();
+        assert.deepEqual(body.scrollCalls, [{ left: 1800, behavior: 'smooth' }]);
+        assert.equal([...timers.values()].filter(timer => timer.delay === 800).length, 1);
+        body.nativeOffset = 900;
+        timeline.syncHorizontal(body);
+        assert.equal(timeline.compactRequested, false);
+        timeline.cancelDistributionFocus();
+        assert.equal(body.scrollLeft, 900);
+        assert.equal(timers.size, 0);
+        assert.deepEqual(body.scrollCalls.at(-1), { left: 900, behavior: 'instant' });
+        click();
+        body.nativeOffset = 1800;
+        for (const [id, timer] of timers) if (timer.delay === 800) { timers.delete(id); timer.callback(); }
+        assert.equal(timers.size, 0);
+        assert.equal(body.scrollLeft, 1800);
+        timeline.measure();
+        assert.equal(body.scrollCalls.length, 3);
+    }, { gsap: false });
+});
+
+test('destroy and wrong-owner clicks cannot leave focus resources or allow late callbacks to touch another lifecycle', () => {
+    withFocusMotion(({ timeline, body, click, tweens, advanceFocus, timers, frames }) => {
+        click();
+        const focus = tweens[0];
+        advanceFocus(focus, 600);
+        assert.equal(click('2026-10-05', false, 82, 'another-owner'), false);
+        assert.equal(focus.killed, false);
+        timeline.destroy();
+        assert.equal(focus.killed, true);
+        assert.equal(timers.size, 0);
+        assert.equal(frames.size, 0);
+        advanceFocus(focus, 1800, true);
+        assert.equal(body.scrollLeft, 600);
+        assert.equal(click(), false);
+    });
+});

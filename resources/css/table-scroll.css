@@ -1,0 +1,58 @@
+/* Optional bounded table: header and mobile sort remain outside the sole
+   scrolling rowgroup. Anchor menus already teleport to body. Default tables
+   keep their original document-flow layout. */
+.rt-table-frame[data-table-scroll='body'],
+.rt-table-frame[data-table-scroll='body'] > .rt-table-core {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+.rt-table-frame[data-table-scroll='body'] > .rt-table-mobile-sort,
+.rt-table-frame[data-table-scroll='body'] .rt-table-head {
+    flex: 0 0 auto;
+}
+
+.rt-table-frame[data-table-scroll='body'] .rt-table-head,
+.rt-table-frame[data-table-scroll='body'] [data-table-scroll-body] {
+    scrollbar-width: thin;
+    scrollbar-gutter: stable;
+}
+
+.rt-table-frame[data-table-scroll='body'] .rt-table-head {
+    overflow: hidden;
+}
+
+.rt-table-frame[data-table-scroll='body'] [data-table-scroll-body] {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    border-radius: 0 0 12px 12px;
+}
+
+.rt-table-frame[data-table-scroll='body'] [data-table-scroll-body]:focus-visible {
+    outline: 2px solid var(--rt-shell-accent, #e4002b);
+    outline-offset: -2px;
+}
+
+.rt-table-frame[data-table-scroll='body'] [data-table-scroll-body]::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.rt-table-frame[data-table-scroll='body'] [data-table-scroll-body]::-webkit-scrollbar-thumb {
+    border-radius: 6px;
+    background: var(--rt-shell-scrollbar, rgba(125, 143, 168, .45));
+}
+
+.rt-table-frame[data-table-scroll='body'] [data-table-scroll-body]::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+@media (min-width: 768px) {
+    .rt-table-frame[data-table-scroll='body'] .rt-table-row-grid {
+        column-gap: 0 !important;
+    }
+}

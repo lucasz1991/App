@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
-import { staffTimeline, timelineShiftPeriod, timelineWindowOffsets, timelinePeriodUrl, timelineBufferedEdges } from '../../resources/js/staff-timeline.js';
+import { staffTimeline, timelineShiftPeriod, timelineWindowOffsets, timelinePeriodUrl, timelineBufferedEdges, timelineDiscardUnchangedRootUpdate } from '../../resources/js/staff-timeline.js';
 
 function dateOffset(value, days) {
     const date = new Date(`${value}T00:00:00Z`);
@@ -29,11 +29,12 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
     const ticks = [];
     const tweens = [];
     const commitHooks = new Set();
-    const beginCommit = (id, calls = []) => {
+    const beginCommit = (id, calls = [], fields = {}) => {
         const successes = [], failures = [];
-        for (const hook of commitHooks) hook({ component: { id }, commit: { calls },
+        const payload = { calls, ...fields };
+        for (const hook of commitHooks) hook({ component: { id }, commit: payload,
             succeed: callback => successes.push(callback), fail: callback => failures.push(callback) });
-        return { succeed: () => successes.forEach(callback => callback()), fail: () => failures.forEach(callback => callback()) };
+        return { payload, succeed: () => successes.forEach(callback => callback()), fail: () => failures.forEach(callback => callback()) };
     };
     let sequence = 0;
     let offset = 0;
@@ -193,7 +194,151 @@ test('mount never changes URL and watches only validated period attributes for l
         assert.equal(calls.length, 0);
         assert.equal(body.scrollLeft, first());
         const observation = observers.flatMap(observer => observer.targets).find(entry => entry.target === root);
-        assert.deepEqual(observation.options, { attributes: true, attributeFilter: ['data-timeline-from', 'data-timeline-until', 'data-timeline-axis-from', 'data-timeline-axis-until'] });
+        assert.deepEqual(observation.options, { attributes: true, attributeFilter: ['data-timeline-from', 'data-timeline-until', 'data-timeline-axis-from', 'data-timeline-axis-until',
+            'data-timeline-focus-shift-id', 'data-timeline-focus-date'] });
+    });
+});
+
+test('scaffold date click navigates immediately while contents load without extra period requests or confirmation replay', async () => {
+    await withWindow(({ timeline, root, body, header, logicalMaximum, calls, period, flushFrame, first }) => {
+        header.querySelectorAll = () => timeline.windowScaffoldDays.map(day => ({ dataset: { timelineDate: day.date } }));
+        root.dataset.timelineFocusShiftId = '81';
+        root.dataset.timelineFocusDate = '2026-10-10';
+        timeline.measure();
+        assert.equal(body.scrollCalls.length, 0, 'restored focus cannot move the window');
+        body.scrollLeft = logicalMaximum();
+        timeline.scrollDay(1);
+        flushFrame();
+        assert.deepEqual(calls, [['2026-10-06', '2026-10-12']]);
+        assert.equal(timeline.windowContentLoading, true);
+        body.scrollLeft = first();
+        const beforeConfirmation = body.scrollCalls.length;
+        timeline.requestDistributionFocus({ owner: 'plan-owner', shiftId: 81, date: '2026-10-12', selected: false });
+        assert.equal(body.scrollCalls.length, beforeConfirmation + 1, 'known structure navigates without waiting for loaded contents or focus truth');
+        assert.deepEqual(calls, [['2026-10-06', '2026-10-12']], 'presentation focus must not request another period');
+        assert.equal(root.dataset.timelineFocusDate, '2026-10-10', 'presentation cannot change server selection');
+        period('2026-10-06', '2026-10-12');
+        flushFrame();
+        assert.equal(body.scrollCalls.length, beforeConfirmation + 1, 'confirmed contents do not replay the click');
+        body.scrollLeft = logicalMaximum();
+        timeline.scrollDay(1);
+        flushFrame();
+        const afterNavigation = body.scrollCalls.length;
+        period('2026-10-07', '2026-10-13');
+        flushFrame();
+        timeline.measure();
+        assert.equal(body.scrollCalls.length, afterNavigation, 'same selected shift cannot replay after its date index changes or period resets');
+    }, { reduced: true });
+});
+
+test('a structurally rendered selected day with unloaded contents is immediately navigable and stays inside logical selected edges', async () => {
+    await withWindow(({ timeline, root, body, header, logicalMaximum, calls, flushFrame, first }) => {
+        header.querySelectorAll = () => timeline.windowScaffoldDays.map(day => ({ dataset: { timelineDate: day.date, pending: String(day.pending) } }));
+        body.scrollLeft = logicalMaximum();
+        for (let index = 0; index < 4; index++) timeline.scrollDay(1);
+        flushFrame();
+        assert.equal(timeline.windowDisplayPeriod.until, '2026-10-15');
+        assert.equal(timeline.windowDayLoading('2026-10-15'), true);
+        assert.equal(root.dataset.timelineUntil, '2026-10-11');
+        body.scrollLeft = first();
+        const before = calls.length;
+        timeline.requestDistributionFocus({ owner: 'plan-owner', shiftId: 81, date: '2026-10-15', selected: false });
+        assert.equal(body.scrollLeft, logicalMaximum());
+        assert.equal(calls.length, before, 'blank date structure does not require a focus-only period request');
+        assert.equal(root.dataset.timelineUntil, '2026-10-11', 'confirmed scope remains server-owned');
+        assert.equal(body.scrollTop, 288);
+    }, { reduced: true });
+});
+
+test('new picker selection and actual footer input cancel active focus without late tween or data response overwriting the newer viewport', async () => {
+    for (const input of ['picker', 'footer']) {
+        await withWindow(({ timeline, body, header, tweens, scrollbar, first, width }) => {
+            header.querySelectorAll = () => timeline.windowScaffoldDays.map(day => ({ dataset: { timelineDate: day.date } }));
+            timeline.requestDistributionFocus({ owner: 'plan-owner', shiftId: 81, date: '2026-10-10', selected: false });
+            const focus = tweens[0];
+            focus.state.left = first() + width();
+            focus.options.onUpdate();
+            if (input === 'picker') {
+                const detail = { owner: 'plan-owner', from: '2026-11-01', until: '2026-11-07' };
+                timeline.requestWindowPeriod({ detail });
+                detail.promise.catch(() => {});
+                assert.equal(detail.handled, true);
+            } else {
+                scrollbar.signal('pointerdown');
+                scrollbar.scrollLeft = 0;
+                timeline.syncHorizontal(scrollbar);
+            }
+            assert.equal(focus.killed, true);
+            const offset = body.scrollLeft;
+            focus.state.left = offset + width();
+            focus.options.onUpdate();
+            focus.options.onComplete();
+            assert.equal(body.scrollLeft, offset);
+            assert.equal(body.scrollTop, 288);
+        }, { gsap: true });
+    }
+});
+
+test('scoped server failures never rewind immediate presentation focus or invent another scroll', async () => {
+    await withWindow(({ timeline, root, body, header, beginCommit, flushFrame }) => {
+        header.querySelectorAll = () => timeline.windowScaffoldDays.map(day => ({ dataset: { timelineDate: day.date } }));
+        root.dataset.timelineFocusShiftId = '81';
+        root.dataset.timelineFocusDate = '2026-10-10';
+        timeline.requestDistributionFocus({ owner: 'plan-owner', shiftId: 81, date: '2026-10-10', selected: false });
+        assert.equal(body.scrollCalls.length, 1);
+        const offset = body.scrollLeft;
+        beginCommit('another-owner', [{ method: 'selectDistributionShift', params: [81] }]).fail();
+        beginCommit('plan-owner', [{ method: 'selectDistributionShift', params: [81] }]).fail();
+        flushFrame();
+        assert.equal(body.scrollCalls.length, 1);
+        assert.equal(body.scrollLeft, offset);
+        assert.equal(root.dataset.timelineFocusShiftId, '81');
+    }, { hooks: true, reduced: true });
+});
+
+test('same-date reselect navigates immediately and successful parent or child commits cannot replay it', async () => {
+    await withWindow(({ timeline, root, body, header, beginCommit, flushFrame, first }) => {
+        header.querySelectorAll = () => timeline.windowScaffoldDays.map(day => ({ dataset: { timelineDate: day.date } }));
+        root.dataset.timelineFocusShiftId = '81';
+        root.dataset.timelineFocusDate = '2026-10-10';
+        const selection = { owner: 'plan-owner', shiftId: 81, date: '2026-10-10', selected: false };
+        timeline.requestDistributionFocus(selection);
+        assert.equal(body.scrollCalls.length, 1);
+        timeline.requestDistributionFocus({ ...selection, selected: true });
+        body.scrollLeft = first();
+        timeline.requestDistributionFocus(selection);
+        assert.equal(body.scrollCalls.length, 2, 'reselection needs neither a new attribute nor a later response');
+        beginCommit('another-owner', [{ method: 'selectDistributionShift', params: [81] }]).succeed();
+        flushFrame();
+        assert.equal(body.scrollCalls.length, 2);
+        beginCommit('plan-owner', [{ method: 'selectDistributionShift', params: [81] }]).succeed();
+        assert.equal(body.scrollCalls.length, 2);
+        flushFrame();
+        assert.equal(body.scrollCalls.length, 2);
+        beginCommit('timeline-owner').succeed();
+        flushFrame();
+        assert.equal(body.scrollCalls.length, 2, 'success without new click intent cannot replay focus');
+    }, { hooks: true, reduced: true });
+});
+
+test('observed server focus attributes reactively refresh the scaffold highlight without creating scroll intent or observer recursion', async () => {
+    await withWindow(({ timeline, root, body, flushFrame }) => {
+        const revision = timeline.windowRevision;
+        root.dataset.timelineFocusShiftId = '81';
+        root.dataset.timelineFocusDate = '2026-10-10';
+        timeline.windowObserver.callback([{ attributeName: 'data-timeline-focus-shift-id' }, { attributeName: 'data-timeline-focus-date' }]);
+        assert.equal(timeline.windowRevision, revision + 1, 'one focus mutation batch invalidates the nonreactive dataset-backed header once');
+        assert.equal(timeline.windowScaffoldDays.find(day => day.date === '2026-10-10').focus, true);
+        flushFrame();
+        assert.equal(body.scrollCalls.length, 0);
+        assert.equal(Object.hasOwn(timeline, 'distributionFocusIntent'), false);
+        assert.equal(timeline.windowRevision, revision + 1, 'measuring or a header repaint does not observe a new root focus mutation');
+        timeline.windowObserver.callback([{ attributeName: 'data-timeline-from' }]);
+        flushFrame();
+        assert.equal(timeline.windowRevision, revision + 1, 'ordinary unchanged period attributes do not unnecessarily repaint focus');
+        timeline.destroy();
+        timeline.windowObserver.callback([{ attributeName: 'data-timeline-focus-date' }]);
+        assert.equal(timeline.windowRevision, revision + 1, 'detached observers cannot mutate reactive state');
     });
 });
 
@@ -982,4 +1127,173 @@ test('commit tracking is removed on destroy and late callbacks cannot restart th
         assert.equal(calls.length, 1);
         assert.equal(frames.size, 0);
     }, { hooks: true });
+});
+
+function unchangedRootCommit() {
+    const plain = {
+        rangeFrom: '2026-10-05', rangeTo: '2026-10-11', distributionOpen: true,
+        selectedServiceId: null, serviceDetailVersion: 0, servicePerPage: 50,
+        paginators: { distributionShiftsPage: 1, distributionOrdersPage: 1, servicesPage: 2 },
+        serviceFilters: { status: 'all', choices: ['draft', 'accepted'] },
+    };
+    const data = { ...plain,
+        paginators: [{ ...plain.paginators }, { s: 'arr' }],
+        serviceFilters: [{ status: 'all', choices: [['draft', 'accepted'], { s: 'arr' }] }, { s: 'arr' }],
+    };
+    const reordered = Object.fromEntries(Object.entries(plain).filter(([key]) => key !== 'servicePerPage'));
+    reordered.servicePerPage = 50;
+    return { snapshot: JSON.stringify({ data, memo: { id: 'plan-owner' }, checksum: 'signed-snapshot-unchanged' }),
+        updates: { '': reordered }, calls: [{ method: 'applyPeriod', params: ['2026-10-11', '2026-10-17'] }] };
+}
+
+test('only complete unchanged top-level reordered root data is removed after recursive snapshot synth unwrap', () => {
+    const commit = unchangedRootCommit();
+    const snapshot = commit.snapshot;
+    const calls = commit.calls;
+    assert.equal(timelineDiscardUnchangedRootUpdate(commit), true);
+    assert.deepEqual(commit.updates, {});
+    assert.equal(commit.snapshot, snapshot, 'signed snapshot, synth metadata and checksum remain byte-for-byte unchanged');
+    assert.equal(commit.calls, calls, 'server-authorized actions retain their original references and parameters');
+    assert.equal(JSON.parse(commit.snapshot).data.paginators[1].s, 'arr');
+});
+
+test('discarding a root no-op preserves every sibling update, action and checksum', () => {
+    const commit = unchangedRootCommit();
+    commit.updates.search = 'Dienst';
+    commit.updates['paginators.servicesPage'] = 3;
+    const sibling = { starts_at: '2026-10-11' };
+    commit.updates.form = sibling;
+    const snapshot = commit.snapshot;
+    const calls = JSON.stringify(commit.calls);
+    assert.equal(timelineDiscardUnchangedRootUpdate(commit), true);
+    assert.deepEqual(Object.keys(commit.updates), ['search', 'paginators.servicesPage', 'form']);
+    assert.equal(commit.updates.form, sibling);
+    assert.equal(commit.updates.search, 'Dienst');
+    assert.equal(commit.updates['paginators.servicesPage'], 3);
+    assert.equal(commit.snapshot, snapshot);
+    assert.equal(JSON.stringify(commit.calls), calls);
+});
+
+test('real root value and strict-type changes are never suppressed', () => {
+    for (const mutate of [
+        root => { root.rangeFrom = '2026-10-30'; },
+        root => { root.servicePerPage = '50'; },
+        root => { root.selectedServiceId = 1; },
+        root => { root.serviceDetailVersion = false; },
+        root => { root.paginators.servicesPage = 3; },
+        root => { root.serviceFilters.choices[0] = 'confirmed'; },
+    ]) {
+        const commit = unchangedRootCommit();
+        mutate(commit.updates['']);
+        const updates = JSON.stringify(commit.updates);
+        assert.equal(timelineDiscardUnchangedRootUpdate(commit), false);
+        assert.equal(JSON.stringify(commit.updates), updates);
+    }
+});
+
+test('missing, extra and substituted public root keys remain subject to ordinary Livewire server validation', () => {
+    for (const mutate of [
+        root => { delete root.servicePerPage; },
+        root => { root.additionalPublicValue = null; },
+        root => { delete root.servicePerPage; root.additionalPublicValue = 50; },
+    ]) {
+        const commit = unchangedRootCommit();
+        mutate(commit.updates['']);
+        assert.equal(timelineDiscardUnchangedRootUpdate(commit), false);
+        assert.equal(Object.hasOwn(commit.updates, ''), true);
+    }
+});
+
+test('nested object order, array order, array shape and nested key changes remain real updates', () => {
+    for (const mutate of [
+        root => { root.paginators = { servicesPage: 2, distributionOrdersPage: 1, distributionShiftsPage: 1 }; },
+        root => { root.serviceFilters = { choices: ['draft', 'accepted'], status: 'all' }; },
+        root => { root.serviceFilters.choices.reverse(); },
+        root => { root.serviceFilters.choices = { 0: 'draft', 1: 'accepted' }; },
+        root => { root.serviceFilters.choices.push('approved'); },
+        root => { delete root.paginators.servicesPage; },
+        root => { root.serviceFilters.extra = null; },
+    ]) {
+        const commit = unchangedRootCommit();
+        mutate(commit.updates['']);
+        const root = commit.updates[''];
+        assert.equal(timelineDiscardUnchangedRootUpdate(commit), false);
+        assert.equal(commit.updates[''], root);
+    }
+});
+
+test('malformed snapshots, non-object root replacements and absent empty-path updates are never changed', () => {
+    for (const commit of [
+        { updates: { '': {} } },
+        { snapshot: 'invalid-json', updates: { '': {} } },
+        { snapshot: JSON.stringify({ data: null }), updates: { '': {} } },
+        { snapshot: JSON.stringify({ data: {} }), updates: { '': [] } },
+        { snapshot: JSON.stringify({ data: {} }), updates: { '': null } },
+        { snapshot: JSON.stringify({ data: {} }), updates: { '': 'value' } },
+        { snapshot: JSON.stringify({ data: {} }), updates: { search: 'value' } },
+    ]) {
+        const before = JSON.stringify(commit);
+        assert.equal(timelineDiscardUnchangedRootUpdate(commit), false);
+        assert.equal(JSON.stringify(commit), before);
+    }
+});
+
+test('synthesized scalar and array snapshots compare their public values while opaque objects are not treated as no-ops', () => {
+    const commit = { snapshot: JSON.stringify({ data: { status: ['confirmed', { s: 'enm', class: 'Status' }],
+        model: [null, { s: 'mdl', class: 'Model' }], rows: [[{ id: 1, enabled: true }, { id: 2, enabled: false }], { s: 'clct' }] } }),
+        updates: { '': { rows: [{ id: 1, enabled: true }, { id: 2, enabled: false }], model: null, status: 'confirmed' } } };
+    assert.equal(timelineDiscardUnchangedRootUpdate(commit), true);
+    const opaque = { snapshot: JSON.stringify({ data: { value: '2026-10-11T00:00:00.000Z' } }),
+        updates: { '': { value: new Date('2026-10-11T00:00:00.000Z') } } };
+    assert.equal(timelineDiscardUnchangedRootUpdate(opaque), false, 'JSON serialization equivalence alone is not proof of strict public-data equality');
+});
+
+test('frozen canonical snapshot public data and synth metadata are never mutated by the no-op proof', () => {
+    const data = Object.freeze({ rangeFrom: '2026-10-05', paginators: Object.freeze([
+        Object.freeze({ staffPage: 2, servicesPage: 3 }), Object.freeze({ s: 'arr' }),
+    ]) });
+    const snapshot = Object.freeze({ data, checksum: 'frozen-signed-snapshot' });
+    const commit = { snapshot, updates: { '': { paginators: { staffPage: 2, servicesPage: 3 }, rangeFrom: '2026-10-05' } } };
+    assert.equal(timelineDiscardUnchangedRootUpdate(commit), true);
+    assert.equal(commit.snapshot, snapshot);
+    assert.equal(snapshot.data, data);
+    assert.equal(snapshot.data.paginators[1].s, 'arr');
+    assert.equal(snapshot.checksum, 'frozen-signed-snapshot');
+});
+
+test('unsupported cyclic snapshot data fails closed and retains the complete invalid root update', () => {
+    const cyclic = {};
+    cyclic.self = cyclic;
+    const root = { value: cyclic };
+    const commit = { snapshot: { data: { value: cyclic }, checksum: 'unchanged' }, updates: { '': root } };
+    assert.equal(timelineDiscardUnchangedRootUpdate(commit), false);
+    assert.equal(commit.updates[''], root);
+    assert.equal(commit.snapshot.data.value, cyclic);
+    assert.equal(commit.snapshot.checksum, 'unchanged');
+});
+
+test('the compatibility no-op check runs only for the embedded timeline period owner, never child or unrelated components', async () => {
+    await withWindow(({ beginCommit }) => {
+        for (const id of ['timeline-owner', 'another-owner', 'ai-assistant']) {
+            const fields = unchangedRootCommit();
+            const root = fields.updates[''];
+            const transaction = beginCommit(id, fields.calls, fields);
+            assert.equal(transaction.payload.updates[''], root);
+            transaction.succeed();
+        }
+        const fields = unchangedRootCommit();
+        const transaction = beginCommit('plan-owner', fields.calls, fields);
+        assert.equal(Object.hasOwn(transaction.payload.updates, ''), false);
+        transaction.succeed();
+    }, { hooks: true });
+});
+
+test('finite timelines never register or apply the buffered owner compatibility hook', async () => {
+    await withWindow(({ beginCommit, commitHooks }) => {
+        assert.equal(commitHooks.size, 0);
+        const fields = unchangedRootCommit();
+        const root = fields.updates[''];
+        const transaction = beginCommit('plan-owner', fields.calls, fields);
+        assert.equal(transaction.payload.updates[''], root);
+    }, { hooks: true, enabled: false });
 });

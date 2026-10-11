@@ -73,7 +73,7 @@ class DispositionDateControlsTest extends TestCase
             $this->assertStringContainsString('x-ui.forms.date-time-field', $source);
         }
         $source = file_get_contents(resource_path('views/livewire/admin/operations/shift-management.blade.php'));
-        $this->assertStringContainsString('content-label="Planungszeitraum anpassen"', $source);
+        $this->assertStringContainsString(":content-label=\"\$timelineDatePicker ? 'Tag auswählen' : 'Planungszeitraum anpassen'\"", $source);
         $this->assertStringContainsString('content-label="Schichtplanansicht auswählen"', $source);
         $this->assertStringContainsString("'timeline' => ['Zeitleiste', 'fa-clock']", $source);
         $this->assertStringNotContainsString('x-ui.buttons.multi-toggle id="shift-plan-view-toggle"', $source);
@@ -107,6 +107,22 @@ class DispositionDateControlsTest extends TestCase
         $this->assertStringContainsString('rtDateRangePicker', $html);
         $this->assertStringContainsString('data-range-calendar="0"', $html);
         $this->assertStringContainsString('data-range-calendar="1"', $html);
+        $this->assertStringNotContainsString('$wire.', $html);
+    }
+
+    public function test_single_date_picker_is_an_optional_shared_calendar_mode_without_range_fields(): void
+    {
+        $html = html_entity_decode(Blade::render('<x-ui.forms.date-range-picker from="2026-10-30" until="2026-11-05" selection-mode="single" :preset-keys="[\'week\']" />'), ENT_QUOTES);
+        $this->assertStringContainsString('data-selection-mode="single"', $html);
+        $this->assertStringContainsString('rt-date-range-picker--single', $html);
+        $this->assertSame(1, substr_count($html, 'data-range-calendar='));
+        $this->assertSame(1, substr_count($html, 'type="text"'));
+        $this->assertStringContainsString('<span>Datum</span>', $html);
+        $this->assertStringNotContainsString('<span>Von</span>', $html);
+        $this->assertStringNotContainsString('<span>Bis</span>', $html);
+        $this->assertStringNotContainsString('rt-date-range-picker__clear', $html);
+        $this->assertStringContainsString('selectionMode', $html);
+        $this->assertStringContainsString('week', $html);
         $this->assertStringNotContainsString('$wire.', $html);
     }
 

@@ -24,7 +24,7 @@ function fixture(options = { openOnHover: true }) {
         },
         clearTimeout(id) { timers.delete(id); },
     };
-    const config = { openOnHover: options.openOnHover, hoverOpenDelay: 100, hoverCloseDelay: 180, panelId: 'test-content', layerId: 'test', layerGroup: '', anchorSelector: null, horizontalAlign: 'left', preferredPlacement: 'bottom', offset: 8, maximumHeight: options.maxHeight ?? 448, fixedHeight: options.fixedHeight ?? false, popupRole: 'dialog', headerOffset: 0, matchTriggerWidth: false, scrollOnOpen: false, scrollOnTrigger: false };
+    const config = { openOnHover: options.openOnHover, hoverOpenDelay: 100, hoverCloseDelay: 180, panelId: 'test-content', layerId: 'test', layerGroup: '', anchorSelector: null, horizontalAlign: 'left', preferredPlacement: 'bottom', offset: 8, maximumHeight: options.maxHeight ?? 448, fixedHeight: options.fixedHeight ?? false, overlapAnchor: options.overlapAnchor ?? false, popupRole: 'dialog', headerOffset: 0, matchTriggerWidth: false, scrollOnOpen: false, scrollOnTrigger: false };
     const dropdown = new Function('window', 'document', 'Element', 'Node', 'CustomEvent', 'config', `${dropdownSource.replace('export function', 'function')}; return anchorDropdown(config);`)(window, document, Element, Node, class {}, config);
     const refs = {
         trigger: document.getElementById('trigger'),
@@ -120,6 +120,86 @@ function geometryFixture(options = {}, measurements = {}) {
     f.dropdown.open = true;
     return { ...f, geometry, caret, position: () => f.dropdown.syncAnchoredPanel(f.refs.panel) };
 }
+
+test('overlapping cell preview keeps the anchor coordinates and omits its connector', () => {
+    const f = geometryFixture({ overlapAnchor: true });
+    f.position();
+    assert.equal(f.dropdown.placement, 'overlap');
+    assert.equal(f.refs.panel.style.left, '300px');
+    assert.equal(f.refs.panel.style.top, '100px');
+    assert.equal(f.refs.panelScroll.style.maxHeight, '448px');
+    assert.equal(f.refs.panelScroll.style.height || '', '');
+    assert.equal(f.caret.hasAttribute('hidden'), true);
+    assert.equal(f.refs.panel.style.getPropertyValue('--rt-dropdown-connector-size'), '0px');
+    assert.match(blade, /'overlapAnchor'\s*=> false/);
+    assert.match(blade, /'overlapAnchor'\s*=> \(bool\) \$overlapAnchor/);
+    assert.match(blade, /@unless\(\$overlapAnchor\)[\s\S]*?data-rt-dropdown-caret[\s\S]*?@endunless/);
+
+    // Opt-in geometry must not replace the existing below-anchor default.
+    const ordinary = geometryFixture();
+    ordinary.position();
+    assert.equal(ordinary.dropdown.overlapAnchor, false);
+    assert.equal(ordinary.refs.panel.style.top, '136px');
+    assert.equal(ordinary.caret.hasAttribute('hidden'), false);
+});
+
+test('overlapping preview clamps at viewport edges without flipping below or above', () => {
+    const f = geometryFixture({ overlapAnchor: true }, { anchorLeft: 1100, anchorTop: 900 });
+    f.position();
+    assert.equal(f.dropdown.placement, 'overlap');
+    assert.equal(f.refs.panel.style.left, '804px');
+    assert.equal(f.refs.panel.style.top, '748px');
+    assert.equal(f.refs.panel.getBoundingClientRect().right, 1188);
+    assert.equal(f.refs.panel.getBoundingClientRect().bottom, 988);
+
+    Object.assign(f.geometry, { anchorLeft: 0, anchorTop: 0 });
+    f.position();
+    assert.equal(f.refs.panel.style.left, '12px');
+    assert.equal(f.refs.panel.style.top, '12px');
+    assert.equal(f.caret.hasAttribute('hidden'), true);
+});
+
+test('overlapping preview retains optional right alignment instead of forcing a new horizontal contract', () => {
+    const f = geometryFixture({ overlapAnchor: true }, { anchorLeft: 500, anchorWidth: 100 });
+    f.dropdown.horizontalAlign = 'right';
+    f.position();
+    assert.equal(f.refs.panel.style.left, '216px');
+    assert.equal(f.refs.panel.getBoundingClientRect().right, 600);
+    assert.equal(f.refs.panel.style.top, '100px');
+});
+
+test('overlapping wide mobile preview preserves anchor alignment instead of centering', () => {
+    const f = geometryFixture({ overlapAnchor: true }, { width: 360, height: 568, panelWidth: 280, anchorLeft: 30, anchorTop: 270 });
+    f.position();
+    assert.equal(f.refs.panel.style.left, '30px');
+    assert.equal(f.refs.panel.style.top, '270px');
+    assert.equal(f.refs.panel.dataset.wideCentered, 'false');
+    assert.equal(f.caret.hasAttribute('hidden'), true);
+});
+
+test('overlapping natural and fixed cards use the whole bounded visual viewport and remain stable', () => {
+    for (const fixedHeight of [false, true]) {
+        const f = geometryFixture({ overlapAnchor: true, fixedHeight, maxHeight: 560 }, { naturalHeight: 1800, anchorLeft: 180, anchorTop: 240 });
+        f.window.visualViewport = { width: 420, height: 400, offsetLeft: 40, offsetTop: 80 };
+        f.position();
+        assert.equal(f.refs.panelScroll.style.maxHeight, '376px');
+        assert.equal(f.refs.panelScroll.style.height || '', fixedHeight ? '376px' : '');
+        assert.equal(f.refs.panel.style.left, '64px');
+        assert.equal(f.refs.panel.style.top, '92px');
+        assert.equal(f.refs.panel.getBoundingClientRect().bottom, 468);
+        f.position();
+        assert.equal(f.refs.panel.style.top, '92px');
+        assert.equal(f.refs.panel.offsetHeight, 376);
+
+        Object.assign(f.window.visualViewport, { width: 900, height: 1000, offsetLeft: 20, offsetTop: 30 });
+        f.geometry.naturalHeight = 240;
+        f.position();
+        assert.equal(f.refs.panelScroll.style.maxHeight, '560px');
+        assert.equal(f.refs.panel.style.left, '180px');
+        assert.equal(f.refs.panel.style.top, '240px');
+        assert.equal(f.caret.hasAttribute('hidden'), true);
+    }
+});
 
 test('viewport-edge caret clears the full rounded corner on either side and placement', () => {
     for (const placement of ['top', 'bottom']) {
@@ -545,4 +625,45 @@ test('external close resets stale pointer state before the next hover preview', 
     f.dropdown.leaveHover(mouse, 'trigger');
     f.advance(180);
     assert.equal(f.dropdown.open, false);
+});
+
+test('overlap opt-in retains hover pinning, keyboard and touch access, exclusive layers and teardown', () => {
+    const f = fixture({ openOnHover: true, overlapAnchor: true });
+    f.dropdown.enterHover(mouse, 'trigger');
+    f.advance(100);
+    assert.equal(f.dropdown.open, true);
+    assert.equal(f.dropdown.pinned, false);
+    f.dropdown.toggle();
+    f.dropdown.leaveHover(mouse, 'trigger');
+    f.advance(1000);
+    assert.equal(f.dropdown.pinned, true);
+    assert.equal(f.dropdown.open, true);
+    f.dropdown.close(true);
+    assert.equal(f.document.activeElement, f.refs.trigger.querySelector('button'));
+
+    f.dropdown.focusHoverPanel();
+    assert.equal(f.dropdown.open, true);
+    assert.equal(f.document.activeElement, f.refs.panel.querySelector('a'));
+    f.dropdown.close(true);
+    f.dropdown.enterHover({ pointerType: 'touch' }, 'trigger');
+    assert.equal(f.pending(), 0);
+    f.dropdown.toggle();
+    assert.equal(f.dropdown.pinned, true);
+    f.dropdown.handleOutsideClick({ target: f.document.getElementById('outside') });
+    assert.equal(f.dropdown.open, false);
+
+    f.dropdown.layerGroup = 'service-staffing';
+    f.dropdown.toggle();
+    f.dropdown.handleLayerOpen({ detail: { group: 'unrelated', id: 'another-service' } });
+    assert.equal(f.dropdown.open, true);
+    f.dropdown.handleLayerOpen({ detail: { group: 'service-staffing', id: f.dropdown.layerId } });
+    assert.equal(f.dropdown.open, true);
+    f.dropdown.handleLayerOpen({ detail: { group: 'service-staffing', id: 'another-service' } });
+    assert.equal(f.dropdown.open, false);
+    f.dropdown.enterHover(mouse, 'trigger');
+    assert.equal(f.pending(), 1);
+    f.dropdown.destroy();
+    f.advance(1000);
+    assert.equal(f.dropdown.open, false);
+    assert.equal(f.pending(), 0);
 });

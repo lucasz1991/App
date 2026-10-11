@@ -23,10 +23,17 @@
     'detailRoute' => null,
     // Optional fuer Listen mit einem separaten, direkt angrenzenden Mobile-Header.
     'flushTop' => false,
+    // Opt-in: nur der Zeilenbereich scrollt innerhalb einer begrenzten Hoehe.
+    'scrollBody' => false,
+    // Global fuer numerisch paginierte Listen; lokale Ausnahme bleibt moeglich.
+    'scrollPagination' => true,
 ])
 
 @php
     $flushTop = filter_var($flushTop, FILTER_VALIDATE_BOOL);
+    $scrollBody = filter_var($scrollBody, FILTER_VALIDATE_BOOL);
+    $scrollPagination = filter_var($scrollPagination, FILTER_VALIDATE_BOOL)
+        && $items instanceof \Illuminate\Contracts\Pagination\Paginator;
 
     // Normalisiere Columns
     $columns = collect($columns)->map(function ($c) {
@@ -75,6 +82,16 @@
 <div
     {{ $attributes->merge(['class' => 'rt-ui-surface rt-ui-table rt-table-frame relative w-full min-w-0 max-w-full rounded-xl bg-rt-surface text-rt-text shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 '.($flushTop ? '' : 'mt-4 ').$class]) }}
     data-rt-premium-table
+    @if($scrollPagination)
+        x-data="rtListScrollPagination"
+        data-list-scroll-pagination
+        data-list-page="{{ $items->currentPage() }}"
+        data-list-page-name="{{ $items->getPageName() }}"
+        data-list-has-next="{{ $items->hasMorePages() ? 'true' : 'false' }}"
+        data-list-has-previous="{{ $items->onFirstPage() ? 'false' : 'true' }}"
+        wire:loading.attr="data-list-pagination-busy"
+    @endif
+    @if($scrollBody) data-table-scroll="body" @endif
     data-table-sortable="{{ $sortableColumns->isNotEmpty() ? 'true' : 'false' }}"
 >
     @if($sortableColumns->isNotEmpty())
@@ -130,7 +147,7 @@
     </div>
 
     {{-- Rows --}}
-    <div class="rt-table-body" role="rowgroup">
+    <div class="rt-table-body" role="rowgroup" @if($scrollBody) data-table-scroll-body tabindex="0" aria-label="{{ $label }} – scrollbarer Inhalt" @endif>
     @forelse($items as $item)
     @php
         $isSelected = in_array($item->id, (array) $selectedItems);

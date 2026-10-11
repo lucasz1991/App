@@ -10,6 +10,18 @@ use Tests\TestCase;
 
 class CompactStaffTimelineUiTest extends TestCase
 {
+    public function test_timeline_scrollbar_footer_has_no_visible_or_reserved_strip(): void
+    {
+        $css = file_get_contents(resource_path('css/operations-planning.css'));
+        $row = $this->cssDeclarationsFor($css, '.rt-personnel-timeline-scrollbar-row');
+        $this->assertStringContainsString('height: 0', $row);
+        $this->assertStringContainsString('overflow: hidden', $row);
+        $this->assertStringNotContainsString('border-top:', $row);
+        $this->assertStringContainsString('height: 0', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-scrollbar'));
+        $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $this->assertStringContainsString('x-ref="timelineScrollbar"', $view);
+    }
+
     public function test_planning_timeline_loading_is_local_delayed_and_never_replaces_the_scrollport(): void
     {
         $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));

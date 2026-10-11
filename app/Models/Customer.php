@@ -57,6 +57,41 @@ class Customer extends Model
         return 'public_id';
     }
 
+    public function getCompanyInitialsAttribute(): string
+    {
+        $parts = preg_split('/[\s\-\/]+/u', trim((string) $this->company_name), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        if (count($parts) === 1) {
+            return mb_strtoupper(mb_substr($parts[0], 0, 2));
+        }
+
+        return mb_strtoupper(implode('', array_map(fn (string $part) => mb_substr($part, 0, 1), array_slice($parts, 0, 2)))) ?: '?';
+    }
+
+    public function hasValidLogoPath(?string $path = null): bool
+    {
+        $path ??= $this->logo_path;
+
+        return is_string($path) && preg_match('#^customer-logos/'.(int) $this->id.'/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.png$#D', $path) === 1;
+    }
+
+    public function getLogoUrlAttribute(): ?string
+    {
+        return $this->logoUrl();
+    }
+
+    public function logoUrl(bool $portal = false): ?string
+    {
+        if (! $this->hasValidLogoPath()) {
+            return null;
+        }
+
+        return route($portal ? 'customer-portal.logo' : 'operations.customers.logo', [
+            'customer' => $this->id,
+            'v' => substr(hash('sha256', $this->logo_path), 0, 12),
+        ], false);
+    }
+
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);

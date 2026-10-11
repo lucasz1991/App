@@ -11,6 +11,7 @@
             'cancelled' => 'far fa-ban text-slate-500 dark:text-slate-400',
         ];
     @endphp
+    @unless($detailOnly)
     <template x-teleport="[data-page-header-metrics]">
         <section class="rt-disposition-summary rt-orders-summary" aria-label="Aufträge im gesamten Bestand">
             <div class="rt-disposition-summary__item">
@@ -44,6 +45,7 @@
             <div class="mt-3">{{ $orders->links(data: ['scrollTo' => '[data-operations-orders]']) }}</div>
         @endif
     </section>
+    @endunless
 
     <x-operations.modal :attributes="new \Illuminate\View\ComponentAttributeBag(['wire:model'.($consolidated ? '.live' : '') => 'detailOpen'])" title="Leistungsdetails" max-width="4xl" variant="drawer">
         @if($selectedOrder)
@@ -153,7 +155,11 @@
                                     @php($shiftStatus = $shift->status instanceof \BackedEnum ? $shift->status->value : (string) $shift->status)
                                     <div class="px-3.5 py-3" wire:key="order-shift-{{ $shift->id }}">
                                         <div class="flex items-center justify-between gap-2">
-                                            <x-ui.buttons.button-basic mode="link" data-no-navigate :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id, 'shift' => $shift->id])" class="min-h-11 min-w-0 text-left"><span class="break-words">{{ $shift->title }}</span></x-ui.buttons.button-basic>
+                                            @if($detailOnly)
+                                                <x-ui.buttons.button-basic mode="link" type="button" x-on:click="$wire.detailOpen = false; $dispatch('operations-shift-detail-request', { id: {{ $shift->id }} })" class="min-h-11 min-w-0 text-left"><span class="break-words">{{ $shift->title }}</span></x-ui.buttons.button-basic>
+                                            @else
+                                                <x-ui.buttons.button-basic mode="link" data-no-navigate :href="route($planningRoute, ['module' => 'shift-management', 'order' => $selectedOrder->id, 'shift' => $shift->id])" class="min-h-11 min-w-0 text-left"><span class="break-words">{{ $shift->title }}</span></x-ui.buttons.button-basic>
+                                            @endif
                                             <x-operations.status :value="$shiftStatus" />
                                         </div>
                                         <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->starts_at?->format('d.m.Y H:i') }} · {{ $shift->assignments->filter(fn ($assignment) => in_array(
