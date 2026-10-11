@@ -1,20 +1,14 @@
 @props(['preview', 'location' => null])
 @php
-    $located = ($preview['state'] ?? null) === 'located' && isset($preview['x'], $preview['y']);
+    $point = \App\Support\Operations\GermanyMap::fromPreview($preview);
+    $located = $point !== null;
     $precisionLabel = ($preview['confirmed'] ?? false) ? 'bestätigter Einsatzstandort.' : 'ungefähre Ortslage, keine genaue Einsatzadresse.';
     $mapLabel = $located ? 'Deutschland: '.$preview['place'].' – '.$precisionLabel : 'Deutschland: '.$preview['label'];
 @endphp
 <figure class="rt-event-mini-map" data-map-state="{{ $preview['state'] }}">
     <div class="rt-event-mini-map__heading">Deutschland</div>
-    <svg class="rt-event-mini-map__canvas" viewBox="{{ \App\Support\Operations\TimelineLocationPreview::viewBox() }}" role="img" aria-label="{{ $mapLabel }}">
-        <path class="rt-event-mini-map__outline" d="{{ \App\Support\Operations\TimelineLocationPreview::outlinePath() }}" />
-        @if($located)
-            <g class="rt-event-mini-map__marker" transform="translate({{ $preview['x'] }} {{ $preview['y'] }})" data-location-marker>
-                <circle r="10" class="rt-event-mini-map__halo" />
-                <circle r="4" class="rt-event-mini-map__dot" />
-            </g>
-        @endif
-    </svg>
+    <x-ui.germany-map class="rt-event-mini-map__canvas" :height="112" :label="$mapLabel"
+        :points="$located ? [$point + ['tone' => 'open', 'marker' => true, 'title' => $location ?: $point['label']]] : []" />
     <figcaption>
         <strong class="rt-event-mini-map__place" title="{{ $location ?: ($preview['place'] ?? 'Kein Einsatzort hinterlegt') }}">{{ $located ? $preview['place'] : ($location ?: 'Kein Einsatzort') }}</strong>
         <span class="rt-event-mini-map__precision">{{ $preview['label'] }}</span>

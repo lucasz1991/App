@@ -47,4 +47,7 @@
             @endif
         </button>
     @endforeach
+    @if(isset($selectionIndicator))
+        {{ $selectionIndicator }}
+    @endif
 </div>

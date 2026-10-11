@@ -4,7 +4,7 @@
     $timeline = $assignments->filter(fn ($assignment) => $assignment->shift?->ends_at?->isFuture())->values();
     $today = now($displayTimezone);
 @endphp
-<section class="rt-today-card rt-today-duties rt-today-enter" style="--i:6" aria-labelledby="personal-upcoming-heading">
+<section class="rt-today-card rt-today-duties rt-today-enter" style="--i:3" aria-labelledby="personal-upcoming-heading">
     <header class="rt-today-card__head">
         <div>
             <h3 id="personal-upcoming-heading">Nächste Dienste</h3>

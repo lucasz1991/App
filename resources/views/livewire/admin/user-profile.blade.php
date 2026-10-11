@@ -77,17 +77,23 @@
                     class="employee-profile__group" :title="$group">
                     <span class="employee-profile__group-icon"><i class="{{ $groupDefinition['icon'] }}" aria-hidden="true"></i></span>
                     <span class="employee-profile__group-label">{{ $groupDefinition['label'] }}</span>
-                    <span class="employee-profile__group-count" aria-hidden="true">{{ $groupTabs->count() }}</span>
                 </x-ui.buttons.button-basic>
             @endforeach
+            <span class="employee-profile__selection-marker" data-profile-marker="main" aria-hidden="true" wire:ignore
+                x-data="rtProfileTabMotion({ variant: 'main' })"></span>
         </nav>
         <div class="employee-profile__tab-row">
             <x-operations.panel.tabs :tabs="$profileGroups[$profileGroup]->all()"
                 :label="$profileGroup" :id-prefix="$profilePrefix" :active="$profileTab"
-                action="setProfileTab" class="employee-profile__tabs" />
+                action="setProfileTab" class="employee-profile__tabs">
+                <x-slot:selectionIndicator>
+                    <span class="employee-profile__selection-marker" data-profile-marker="sub" aria-hidden="true" wire:ignore
+                        x-data="rtProfileTabMotion({ variant: 'sub' })"></span>
+                </x-slot:selectionIndicator>
+            </x-operations.panel.tabs>
         </div>
         <div class="employee-profile__loading" wire:loading.delay wire:target="setProfileTab" role="status">
-            <i class="far fa-spinner fa-spin" aria-hidden="true"></i> Bereich wird geladen …
+            <i class="far fa-spinner fa-spin" aria-hidden="true"></i><span class="sr-only">Bereich wird geladen …</span>
         </div>
       </div>
 

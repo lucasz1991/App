@@ -32,6 +32,7 @@
 @import './employee-workspace.css';
 @import './personnel-management.css';
 @import './personal-workspace.css';
+@import './germany-map.css';
 
 @tailwind base;
 @tailwind components;

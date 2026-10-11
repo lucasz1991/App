@@ -85,7 +85,8 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
         $this->assertSame($this->employee->name, $this->headerNode($xpath, 'employee-profile__name-text')->textContent);
         $this->assertSame($this->employee->email, $this->headerNode($xpath, 'employee-profile__email-text')->textContent);
         $this->assertStringContainsString('#'.$this->employee->id, $this->headerNode($xpath, 'employee-profile__eyebrow')->textContent);
-        $this->assertCount(1, $xpath->query('//*[@data-profile-identity]//*[contains(@class,"employee-profile__account")]/h2'));
+        $this->assertCount(1, $xpath->query('//*[@data-profile-identity]//*[@data-profile-status]/h2'));
+        $this->assertSame('Geräte-Einrichtung', $this->text($xpath->query('//*[@data-profile-status]/h2')->item(0)));
         foreach (['status', 'member', 'activity'] as $key) {
             $this->assertCount(1, $xpath->query('//*[@data-profile-identity]//*[@data-profile-fact="'.$key.'"]'));
         }
@@ -238,8 +239,8 @@ class EmployeeProfileHeaderRefinementTest extends TestCase
             $groupKey = $group->getAttribute('data-profile-group');
             $this->assertArrayHasKey($groupKey, $expectedCounts);
             $counts = $xpath->query('.//*[contains(@class,"employee-profile__group-count") and @aria-hidden="true"]', $group);
-            $this->assertCount(1, $counts);
-            $this->assertSame((string) $expectedCounts[$groupKey], $this->text($counts->item(0)));
+            $this->assertCount(0, $counts);
+            $this->assertDoesNotMatchRegularExpression('/\d/u', $this->text($group));
         }
         $tablists = $xpath->query('//*[@data-profile-navigation]//*[@role="tablist"]');
         $this->assertCount(1, $tablists);

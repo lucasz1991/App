@@ -26,12 +26,16 @@
             <livewire:operations.employee-location-status :key="'employee-location-own-'.auth()->id()" />
             @include('livewire.operations.partials.personal-glance')
             <div class="rt-today-grid">
-                <section class="rt-today-card rt-today-tasks rt-today-enter" style="--i:5" aria-label="Meine Aufgaben">
+                <section class="rt-today-card rt-today-tasks rt-today-enter" style="--i:2" aria-label="Meine Aufgaben">
                     <livewire:operations.attention-center :personal="true" :key="'personal-tasks-'.auth()->id()" />
                 </section>
                 @include('livewire.operations.partials.personal-duty-timeline')
             </div>
-            <div class="rt-today-install rt-today-enter" style="--i:7">@include('livewire.operations.partials.pwa-install-card')</div>
+            <div class="rt-today-grid">
+                @include('livewire.operations.partials.personal-mini-calendar')
+                @include('livewire.operations.partials.personal-duty-map')
+            </div>
+            <div class="rt-today-install rt-today-enter" style="--i:6">@include('livewire.operations.partials.pwa-install-card')</div>
         </div>
     @elseif($tab === 'time')
         @if($workTimeReady)<livewire:operations.work-time-capture-review :personal="true" />@endif

@@ -1,0 +1,104 @@
+/* Deutschlandkarte (<x-ui.germany-map>): Umriss und Ländergrenzen als Masken,
+   damit Hell/Dunkel über Farbvariablen läuft. Akzent per --rt-map-accent anpassbar. */
+.rt-germany-map {
+    --map-accent: var(--rt-map-accent, var(--rt-shell-accent, #e4002b));
+    --map-ring: var(--rt-map-ring, var(--rt-shell-surface-solid, #fff));
+}
+/* Grundgröße ohne Spezifität: Jede Einbaustelle darf Höhe/Breite selbst setzen. */
+:where(.rt-germany-map) {
+    --map-h: var(--rt-map-height, var(--rt-map-default-height, 270px));
+    flex: none;
+    width: calc(var(--map-h) * 1154 / 1363);
+    max-width: 100%;
+    height: var(--map-h);
+}
+.rt-germany-map { position: relative; display: grid; place-items: center; container-type: size; }
+/* Die Bühne hält immer das Seitenverhältnis der Umrissgrafik, damit Prozentpunkte stimmen. */
+.rt-germany-map__stage { position: relative; width: min(100cqw, 100cqh * 1154 / 1363); aspect-ratio: 1154 / 1363; }
+.rt-germany-map__land, .rt-germany-map__borders { position: absolute; inset: 0; pointer-events: none; }
+.rt-germany-map__land {
+    background: color-mix(in srgb, var(--map-accent) 7%, var(--rt-shell-panel, #f1f4f8));
+    -webkit-mask: var(--rt-map-land) center / contain no-repeat;
+    mask: var(--rt-map-land) center / contain no-repeat;
+}
+.rt-germany-map__borders {
+    background: color-mix(in srgb, var(--rt-shell-muted, #637188) 28%, transparent);
+    -webkit-mask: var(--rt-map-borders) center / contain no-repeat;
+    mask: var(--rt-map-borders) center / contain no-repeat;
+}
+.rt-germany-map__pin {
+    --pin-size: 9px;
+    --pin-color: color-mix(in srgb, var(--map-accent) 60%, var(--map-ring));
+    position: absolute;
+    width: var(--pin-size);
+    height: var(--pin-size);
+    margin: calc(var(--pin-size) / -2) 0 0 calc(var(--pin-size) / -2);
+    border-radius: 50%;
+    background: var(--pin-color);
+    box-shadow: 0 0 0 2.5px var(--map-ring);
+}
+.rt-germany-map__pin[data-tone="open"] { --pin-color: var(--map-accent); }
+.rt-germany-map__pin[data-tone="awaiting"] { --pin-color: #f59e0b; }
+.rt-germany-map__pin[data-tone="staffed"] { --pin-color: #10b981; }
+.rt-germany-map__pin[data-tone="closed"] { --pin-color: color-mix(in srgb, var(--rt-shell-muted, #637188) 55%, transparent); }
+.rt-germany-map__pin[data-pulse] { z-index: 1; --pin-size: 13px; --pin-color: var(--map-accent); animation: rt-germany-map-ping 2.4s ease-out infinite; }
+@keyframes rt-germany-map-ping {
+    0% { box-shadow: 0 0 0 2.5px var(--map-ring), 0 0 0 2.5px color-mix(in srgb, var(--pin-color) 45%, transparent); }
+    70% { box-shadow: 0 0 0 2.5px var(--map-ring), 0 0 0 12px color-mix(in srgb, var(--pin-color) 0%, transparent); }
+    100% { box-shadow: 0 0 0 2.5px var(--map-ring), 0 0 0 2.5px color-mix(in srgb, var(--pin-color) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .rt-germany-map__pin[data-pulse] { animation: none; }
+}
+
+/* Schichtplan · Kartenansicht */
+.rt-shift-plan-map { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; min-width: 0; }
+.rt-shift-plan-map__canvas, .rt-shift-plan-map__side {
+    min-width: 0;
+    padding: 20px;
+    border-radius: 18px;
+    background: var(--rt-shell-surface-solid, #fff);
+    box-shadow: 0 0 0 1px var(--rt-shell-line, rgba(88, 102, 120, .14));
+}
+.rt-shift-plan-map__canvas { display: grid; justify-items: center; gap: 14px; }
+.rt-shift-plan-map__canvas .rt-germany-map { width: 100%; height: min(560px, 70vh); }
+.rt-shift-plan-map__legend, .rt-shift-plan-map__list { margin: 0; padding: 0; list-style: none; }
+.rt-shift-plan-map__legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; color: var(--rt-shell-muted, #637188); font-size: 12px; }
+.rt-shift-plan-map__legend li { display: inline-flex; align-items: center; gap: 6px; }
+.rt-shift-plan-map :is(.rt-shift-plan-map__legend, .rt-shift-plan-map__place) i[data-tone] { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--rt-shell-accent, #e4002b); }
+.rt-shift-plan-map i[data-tone="awaiting"] { background: #f59e0b; }
+.rt-shift-plan-map i[data-tone="staffed"] { background: #10b981; }
+.rt-shift-plan-map i[data-tone="closed"] { background: color-mix(in srgb, var(--rt-shell-muted, #637188) 55%, transparent); }
+.rt-shift-plan-map__side { display: grid; align-content: start; gap: 14px; }
+.rt-shift-plan-map__head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+.rt-shift-plan-map__head p, .rt-shift-plan-map__empty, .rt-shift-plan-map__note { margin: 2px 0 0; color: var(--rt-shell-muted, #637188); font-size: 13px; line-height: 1.5; }
+.rt-shift-plan-map__list { display: grid; gap: 2px; max-height: min(520px, 62vh); overflow-y: auto; }
+.rt-shift-plan-map__place {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    color: var(--rt-shell-text, inherit);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 150ms cubic-bezier(.23, 1, .32, 1);
+}
+.rt-shift-plan-map__place:hover { background: var(--rt-shell-panel, #f7f9fc); }
+.rt-shift-plan-map__place:focus-visible { outline: 2px solid var(--rt-shell-accent, #e4002b); outline-offset: 1px; }
+.rt-shift-plan-map__place > span { display: grid; gap: 1px; min-width: 0; }
+.rt-shift-plan-map__place strong { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.rt-shift-plan-map__place small { color: var(--rt-shell-muted, #637188); font-size: 12px; }
+.rt-shift-plan-map__place em { color: var(--rt-shell-accent, #e4002b); font-style: normal; font-weight: 600; }
+.rt-shift-plan-map__chevron { color: var(--rt-shell-muted, #637188); font-size: 11px; opacity: .5; }
+.rt-shift-plan-map__note { display: flex; gap: 8px; align-items: flex-start; padding-top: 12px; border-top: 1px solid var(--rt-shell-line, rgba(88, 102, 120, .14)); }
+.rt-shift-plan-map__note > i { margin-top: 3px; }
+@media (min-width: 1024px) {
+    .rt-shift-plan-map { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+}
+@media (max-width: 639px) {
+    .rt-shift-plan-map__canvas .rt-germany-map { height: 380px; }
+}

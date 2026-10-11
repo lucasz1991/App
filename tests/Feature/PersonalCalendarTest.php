@@ -66,6 +66,25 @@ class PersonalCalendarTest extends TestCase
             ->assertSee('Meine persönliche Notiz')->assertSeeHtml('role="dialog"');
     }
 
+    public function test_today_overview_shows_own_mini_calendar_and_duty_map_and_jumps_to_the_day(): void
+    {
+        $this->assignment();
+        $other = User::factory()->create(['role' => 'staff']);
+        $this->assignment($other, ['title' => 'Fremder Dienst', 'location_name' => 'München Nord']);
+        $test = Livewire::actingAs($this->employee)->test(MyWork::class)->assertSet('tab', 'today')
+            ->assertSee('Einsatzorte')->assertSee('Hamburg')->assertDontSee('Fremder Dienst')->assertDontSee('München Nord');
+        $calendar = $test->viewData('miniCalendar');
+        $this->assertSame('September 2026', $calendar['label']);
+        $day = collect($calendar['days'])->first(fn ($day) => $day['date']->toDateString() === '2026-09-17');
+        $this->assertSame([1, true, true], [$day['duties'], $day['open'], $day['is_today']]);
+        $this->assertSame(['Hamburg'], array_column($test->viewData('dutyMap')['points'], 'label'));
+        $test->call('shiftMiniMonth', 1)->assertSet('miniMonth', 1);
+        $this->assertSame('Oktober 2026', $test->viewData('miniCalendar')['label']);
+        $test->call('shiftMiniMonth', 0)->assertSet('miniMonth', 0)
+            ->call('openDay', '2026-09-18')->assertSet('tab', 'schedule')->assertSet('viewMode', 'day')->assertSet('anchorDate', '2026-09-18');
+        $test->call('openDay', 'kein-datum')->assertNotFound();
+    }
+
     public function test_navigation_date_validation_and_deep_link(): void
     {
         $test = Livewire::withQueryParams(['tab' => 'schedule'])->actingAs($this->employee)->test(MyWork::class)

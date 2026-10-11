@@ -406,11 +406,7 @@
 .rt-event-mini-calendar__day:is(.is-start, .is-end) { background: var(--rt-primary, #e4003b); color: #fff; }
 .rt-event-mini-calendar__range { margin-top: 8px; color: var(--detail-muted); font-size: 10px; line-height: 1.4; }
 .rt-event-mini-map { border-left: 1px solid var(--detail-border); padding-left: 12px; }
-.rt-event-mini-map__canvas { display: block; width: 100%; height: 112px; overflow: visible; }
-.rt-event-mini-map__outline { fill: var(--detail-surface); stroke: var(--detail-muted); stroke-opacity: .45; stroke-width: 1.25; stroke-linejoin: round; }
-.rt-event-mini-map__marker { color: var(--rt-primary, #e4003b); }
-.rt-event-mini-map__halo { fill: currentColor; fill-opacity: .15; }
-.rt-event-mini-map__dot { fill: currentColor; stroke: var(--detail-paper); stroke-width: 2; }
+.rt-event-mini-map__canvas { width: 100%; height: 112px; }
 .rt-event-mini-map figcaption { display: grid; gap: 2px; margin-top: 4px; }
 .rt-event-mini-map__place { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; }
 .rt-event-mini-map__precision { color: var(--detail-muted); font-size: 10px; line-height: 1.4; }

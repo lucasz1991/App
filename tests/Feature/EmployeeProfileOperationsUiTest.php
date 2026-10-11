@@ -96,8 +96,8 @@ class EmployeeProfileOperationsUiTest extends TestCase
         ));
         $this->assertSame('page', $groups->item(0)->getAttribute('aria-current'));
         $count = $xpath->query('.//*[contains(@class,"employee-profile__group-count") and @aria-hidden="true"]', $groups->item(0));
-        $this->assertCount(1, $count);
-        $this->assertSame('8', trim($count->item(0)->textContent));
+        $this->assertCount(0, $count);
+        $this->assertSame('Profil', trim($groups->item(0)->textContent));
         $this->assertSame(['userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices', 'masterData', 'documents', 'compensation'], array_map(
             static fn ($tab): string => $tab->getAttribute('data-panel-tab'),
             iterator_to_array($xpath->query('//*[@data-profile-navigation]//*[@role="tab"]')),

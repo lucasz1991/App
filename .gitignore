@@ -44,6 +44,8 @@ Homestead.json
 !/tests/Feature/EmployeeProfileOperationsUiTest.php
 !/tests/Feature/EmployeePhoneStatusTest.php
 !/tests/Feature/EmployeeProfileMenuRefinementTest.php
+!/tests/Feature/EmployeeProfileTabMotionUiTest.php
+!/tests/Feature/EmployeeProfileCompactHeaderUiTest.php
 !/tests/Feature/EmployeeOperationsDataTest.php
 !/tests/Feature/EmployeeProfileLocationHistoryTest.php
 !/tests/Feature/UserSuperAdminRoleRecognitionTest.php
@@ -277,6 +279,7 @@ auth.json
 !/tests/Feature/AiAssistTest.php
 !/tests/Feature/AreaMenuUiTest.php
 !/tests/Frontend/area-menu.test.js
+!/tests/Frontend/profile-tab-motion.test.js
 !/tests/Feature/TimelineWindowNavigationTest.php
 !/tests/Frontend/timeline-window-navigation.test.js
 !/tests/Feature/TomTomRoutingTest.php

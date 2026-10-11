@@ -219,13 +219,15 @@ class EmployeeProfileMenuRefinementTest extends TestCase
         $this->assertCount(1, $this->children($component->html(), 'profile.employee-operations'));
     }
 
-    public function test_phone_setup_panel_is_before_account_segment_and_never_invents_permission_or_installation(): void
+    public function test_phone_setup_icons_are_before_account_facts_inside_one_segment_and_never_invent_permission_or_installation(): void
     {
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])->assertSuccessful();
         $xpath = $this->xpath($component->html());
         $panels = $xpath->query('//*[@data-profile-identity]//*[@data-profile-phone-status]');
         $this->assertCount(1, $panels);
-        $this->assertCount(1, $xpath->query('following-sibling::*[contains(concat(" ",normalize-space(@class)," ")," employee-profile__account ")]', $panels->item(0)));
+        $this->assertCount(1, $xpath->query('ancestor::*[@data-profile-status]', $panels->item(0)));
+        $this->assertCount(1, $xpath->query('following-sibling::dl[contains(concat(" ",normalize-space(@class)," ")," employee-profile__facts ")]', $panels->item(0)));
+        $this->assertCount(1, $xpath->query('//*[@data-profile-identity]//*[@data-profile-status]'));
         $this->assertCount(3, $xpath->query('.//*[@data-phone-status and @data-status="unknown"]', $panels->item(0)));
         foreach (['installation', 'push', 'location'] as $key) {
             $facts = $xpath->query('.//*[@data-phone-status="'.$key.'" and @data-status="unknown"]/dd', $panels->item(0));
@@ -259,7 +261,7 @@ class EmployeeProfileMenuRefinementTest extends TestCase
         $component = Livewire::actingAs($reader->fresh())->test(UserProfile::class, ['userId' => $this->employee->id])
             ->assertSuccessful()->assertSet('profileTab', 'userDetails');
         $this->assertCount(0, $this->xpath($component->html())->query('//*[@data-profile-phone-status]'));
-        $this->assertCount(1, $this->xpath($component->html())->query('//*[@data-profile-identity]//*[contains(concat(" ",normalize-space(@class)," ")," employee-profile__account ")]'));
+        $this->assertCount(1, $this->xpath($component->html())->query('//*[@data-profile-identity]//*[@data-profile-status]//dl[contains(concat(" ",normalize-space(@class)," ")," employee-profile__facts ")]'));
         Http::assertNothingSent();
     }
 

@@ -38,7 +38,7 @@
       ]));
   @endphp
 
-  <div @class(['employee-profile__identity-layout', 'employee-profile__identity-layout--with-phone' => $phoneStatus !== null])>
+  <div class="employee-profile__identity-layout">
       {{-- Identitaet und Bearbeitungsfelder bleiben nativ. Kontostatus und
            aktuelle Praesenz sind bewusst zwei getrennte Angaben. --}}
       <div class="employee-profile__person">
@@ -61,7 +61,10 @@
                       <span class="sr-only">{{ ucfirst(__('app.inactive')) }}</span>
                   </span>
               @endunless
-
+              <span class="employee-profile__presence" data-online="{{ $user->isActive() && $isUserOnline ? 'true' : 'false' }}">
+                  <span aria-hidden="true"></span>
+                  <span class="sr-only">{{ ! $user->isActive() ? ucfirst(__('app.inactive')) : ($isUserOnline ? __('app.online') : __('app.offline')) }}</span>
+              </span>
           </span>
 
           <div class="employee-profile__person-copy">
@@ -99,48 +102,54 @@
                               {{ $badge['value'] }}
                           </x-ui.badge>
                       @endforeach
-                      <span class="employee-profile__presence" data-online="{{ $user->isActive() && $isUserOnline ? 'true' : 'false' }}">
-                          <span aria-hidden="true"></span>
-                          {{ ! $user->isActive() ? ucfirst(__('app.inactive')) : ($isUserOnline ? __('app.online') : __('app.offline')) }}
-                      </span>
               </div>
           </div>
       </div>
 
-      @if($phoneStatus !== null)
-          <section class="employee-profile__phone-setup" data-profile-phone-status aria-labelledby="{{ $profilePrefix }}-phone-title">
-              <header class="employee-profile__phone-heading">
-                  <i class="far fa-mobile-screen-button" aria-hidden="true"></i>
-                  <h2 id="{{ $profilePrefix }}-phone-title">Haupthandy &amp; App</h2>
-              </header>
-              <dl class="employee-profile__phone-facts">
+      <section class="employee-profile__status" data-profile-status aria-labelledby="{{ $profilePrefix }}-status-title">
+          <h2 id="{{ $profilePrefix }}-status-title">Geräte-Einrichtung</h2>
+          <div class="employee-profile__status-rail">
+              @if($phoneStatus !== null)
+              <dl class="employee-profile__status-group" data-profile-phone-status aria-label="Gerätestatus">
                   @foreach($phoneStatus['rows'] as $statusKey => $status)
-                      <div class="employee-profile__phone-fact" data-phone-status="{{ $statusKey }}" data-status="{{ $status['state'] }}">
-                          <dt><i class="{{ $status['icon'] }}" aria-hidden="true"></i> {{ $status['label'] }}</dt>
-                          <dd>{{ $status['value'] }}</dd>
+                      <div class="employee-profile__status-item" wire:key="{{ $profilePrefix }}-status-phone-{{ $statusKey }}" data-phone-status="{{ $statusKey }}" data-status="{{ $status['state'] }}">
+                          <dt>
+                              @include('livewire.admin.user-profile.partials.status-indicator', [
+                                  'indicatorKey' => 'phone-'.$statusKey,
+                                  'indicatorLabel' => $status['label'],
+                                  'indicatorValue' => $status['value'],
+                                  'indicatorIcon' => $status['icon'],
+                                  'indicatorState' => $status['state'],
+                                  'indicatorNote' => $statusKey === 'installation' ? $phoneStatus['device_label'] : null,
+                                  'indicatorEvidence' => $statusKey === 'installation' ? $phoneStatus['evidence_note'] : null,
+                                  'indicatorPhoneCount' => $statusKey === 'installation' ? $phoneStatus['assigned_phone_count'] : null,
+                              ])
+                          </dt>
+                          <dd class="sr-only">{{ $status['value'] }}</dd>
                       </div>
                   @endforeach
               </dl>
-              <p class="employee-profile__phone-device">{{ $phoneStatus['device_label'] }}@if($phoneStatus['assigned_phone_count'] > 0)<span> · {{ $phoneStatus['assigned_phone_count'] }} {{ $phoneStatus['assigned_phone_count'] === 1 ? 'Handy zugewiesen' : 'Handys zugewiesen' }}</span>@endif</p>
-              <p class="employee-profile__phone-note">{{ $phoneStatus['evidence_note'] }}</p>
-          </section>
-      @endif
-
-      <div class="employee-profile__account">
-        <h2>Konto &amp; Aktivität</h2>
-        <dl class="employee-profile__facts">
-          @foreach ($identityFacts as $index => $fact)
-              <div class="employee-profile__fact" data-profile-fact="{{ $fact['key'] }}">
-                  <dt>
-                      <i class="{{ $fact['icon'] }} w-3.5 text-center" aria-hidden="true"></i>
-                      {{ $fact['label'] }}
-                  </dt>
-                  <dd title="{{ $fact['value'] }}" @if(isset($fact['status'])) data-profile-account-status="{{ $fact['status'] }}" @endif>
-                      {{ $fact['value'] }}
-                  </dd>
-              </div>
-          @endforeach
-        </dl>
-      </div>
+              @endif
+              <dl class="employee-profile__status-group employee-profile__facts" aria-label="Konto und Aktivität">
+                  @foreach ($identityFacts as $fact)
+                      <div class="employee-profile__status-item" wire:key="{{ $profilePrefix }}-status-account-{{ $fact['key'] }}" data-profile-fact="{{ $fact['key'] }}">
+                          <dt>
+                              @include('livewire.admin.user-profile.partials.status-indicator', [
+                                  'indicatorKey' => 'account-'.$fact['key'],
+                                  'indicatorLabel' => $fact['label'],
+                                  'indicatorValue' => $fact['value'],
+                                  'indicatorIcon' => $fact['icon'],
+                                  'indicatorState' => $fact['status'] ?? ($fact['key'] === 'activity' && ! $lastActivityAt ? 'unknown' : 'info'),
+                                  'indicatorNote' => null,
+                                  'indicatorEvidence' => null,
+                                  'indicatorPhoneCount' => null,
+                              ])
+                          </dt>
+                          <dd class="sr-only" @if(isset($fact['status'])) data-profile-account-status="{{ $fact['status'] }}" @endif>{{ $fact['value'] }}</dd>
+                      </div>
+                  @endforeach
+              </dl>
+          </div>
+      </section>
   </div>
 </header>

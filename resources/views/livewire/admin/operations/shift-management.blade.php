@@ -14,6 +14,7 @@
                     'staffing' => ['Besetzung', 'fa-users'],
                     'orders' => ['Leistungsübersicht', 'fa-briefcase'],
                     'timeline' => ['Zeitleiste', 'fa-clock'],
+                    'map' => ['Karte', 'fa-map-marked-alt'],
                 ];
                 [$currentViewLabel, $currentViewIcon] = $planViews[$viewMode];
                 $timelineDatePicker = $viewMode === 'timeline';
@@ -25,6 +26,7 @@
                     'staffing' => 'Offene und besetzte Schichten',
                     'orders' => 'Schichten je Leistung bündeln',
                     'timeline' => 'Mitarbeiter und Zeiten im Überblick',
+                    'map' => 'Schichten nach Einsatzort auf der Deutschlandkarte',
                 ];
             @endphp
             @if($viewMode === 'orders')
@@ -161,6 +163,8 @@
             @endif
         @elseif($viewMode === 'orders')
             @include('livewire.admin.operations.partials.service-overview')
+        @elseif($viewMode === 'map')
+            @include('livewire.admin.operations.partials.shift-plan-map')
         @elseif($viewMode === 'table' || $shifts->isEmpty())
             <x-tables.table :columns="$shiftColumns" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="shift-plan" class="rt-shift-plan-table" :flush-top="true" :items="$shifts" :selected-items="[$selectedShiftId]" selection-action="selectShift" detail-event="operations-shift-detail-request" row-view="components.tables.rows.operations.shift-plan" empty="Keine Schichten für diese Filter gefunden." />
         @else

@@ -24,6 +24,7 @@ use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\StaffRegionalPreferenceService;
 use App\Services\Operations\TimelinePlanningSuggestionService;
 use App\Services\Routing\TravelAssessmentService;
+use App\Support\Operations\GermanyMap;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
@@ -186,7 +187,7 @@ class ShiftManagement extends Component
     public function setView(string $view): void
     {
         $this->ensureAdmin();
-        abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders', 'timeline'], true), 422);
+        abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders', 'timeline', 'map'], true), 422);
         if ($view === 'timeline') {
             $this->reset(['search', 'statusFilter', 'orderFilter', 'customerFilter', 'attentionFilter']);
         }
@@ -194,6 +195,15 @@ class ShiftManagement extends Component
         $this->selectedServiceId = null;
         $this->resetPage('servicesPage');
         $this->dispatch('shift-plan-view-changed', view: $view);
+    }
+
+    /** Aus der Kartenansicht: Schichten eines Ortes als Tabelle zeigen. */
+    public function showLocation(string $place): void
+    {
+        $this->ensureAdmin();
+        $this->search = mb_substr(trim($place), 0, 120);
+        $this->viewMode = 'table';
+        $this->dispatch('shift-plan-view-changed', view: 'table');
     }
 
     #[On('set-shift-plan-view')]
@@ -896,6 +906,7 @@ class ShiftManagement extends Component
             'nativeOperations' => OperationsAccess::ready(),
             'qualificationTypes' => OperationsAccess::ready() ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
             'shifts' => $shifts,
+            'planMap' => $this->viewMode === 'map' ? GermanyMap::planning($shifts) : null,
             'dailyGroups' => $dailyGroups,
             'orderGroups' => $orderGroups,
             'serviceGroups' => $serviceGroups,
