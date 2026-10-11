@@ -348,9 +348,11 @@ class StaffingAutomationTest extends TestCase
         $notice = OperationsAttentionItem::where('kind', 'staffing_offer')->firstOrFail();
         $this->assertTrue($inbox->items($this->anna, true)->contains('id', 'notice-'.$notice->id));
         $this->assertFalse($inbox->items($this->ben, true)->contains('id', 'notice-'.$notice->id));
-        $this->assertSame(route('operations.mine', ['area' => 'work', 'tab' => 'planning', 'planning_tab' => 'offers']), $inbox->destination('notice-'.$notice->id, $this->anna, true));
+        $this->assertSame(route('operations.mine', ['area' => 'planning', 'planning_tab' => 'offers']), $inbox->destination('notice-'.$notice->id, $this->anna, true));
         $this->actingAs($this->anna);
-        Livewire::withQueryParams(['tab' => 'planning', 'planning_tab' => 'offers'])->test(MyWork::class)->assertSet('tab', 'planning')->assertSeeLivewire(WorkforcePlanning::class);
+        Livewire::withQueryParams(['area' => 'planning', 'planning_tab' => 'offers'])->test(\App\Livewire\Operations\PersonalWorkspace::class)->assertSet('area', 'planning')->assertSeeLivewire(WorkforcePlanning::class);
+        // Alte Links aus bestehenden Benachrichtigungen landen weiter im Angebot.
+        Livewire::withQueryParams(['area' => 'work', 'tab' => 'planning', 'planning_tab' => 'offers'])->test(\App\Livewire\Operations\PersonalWorkspace::class)->assertSet('area', 'planning');
         Livewire::test(WorkforcePlanning::class, ['personal' => true, 'tab' => 'offers'])->assertSee('Offener Dienst');
         app(WorkforcePlanningService::class)->respondOffer($run->offer_id, 1, 'declined', $this->anna);
         $this->assertFalse($inbox->items($this->anna, true)->contains('id', 'notice-'.$notice->id));

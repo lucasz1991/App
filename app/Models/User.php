@@ -90,7 +90,7 @@ class User extends Authenticatable implements HasLocalePreference, MustVerifyEma
 
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return in_array($this->role, ['admin', 'superadmin'], true);
     }
 
     public function preferredLocale(): string
@@ -171,12 +171,12 @@ class User extends Authenticatable implements HasLocalePreference, MustVerifyEma
     }
 
     /**
-     * Benutzer #1 ist der Super-Admin: erscheint nicht in der
-     * Mitarbeiterliste und wird nicht im Activity-Log erfasst.
+     * Explizite Superadmin-Konten und der bestehende primaere Benutzer #1
+     * behalten den nicht delegierbaren Systemadministrator-Status.
      */
     public function isSuperAdmin(): bool
     {
-        return (int) $this->id === 1;
+        return $this->role === 'superadmin' || (int) $this->id === 1;
     }
 
     public function hasRbacPermission(string $permission): bool

@@ -18,6 +18,7 @@ use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\PlanVariantService;
 use App\Services\Operations\ShiftSeriesService;
 use App\Services\Operations\SiteSnapshotService;
+use App\Services\Routing\ServerRoutingCache;
 use App\Support\Routing\TomTomSettings as RoutingSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Schema\Blueprint;
@@ -39,10 +40,14 @@ class RoutingSiteWorkflowTest extends TestCase
 
     private CustomerLocation $location;
 
+    private string $routingCacheDirectory;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->buildMinimalRailTimeSchema();
+        $this->routingCacheDirectory = storage_path('framework/testing/routing-cache-workflow-'.Str::uuid());
+        $this->app->instance(ServerRoutingCache::class, new ServerRoutingCache($this->routingCacheDirectory));
         foreach (['2026_09_15_190000_create_operations_workflow_tables.php', '2026_10_04_121000_create_customer_workflow_extensions.php', '2026_10_11_120000_add_confirmed_routing_locations.php', '2026_10_11_120100_create_routing_monthly_usage_table.php'] as $file) {
             (require database_path('migrations/'.$file))->up();
         }
@@ -51,6 +56,14 @@ class RoutingSiteWorkflowTest extends TestCase
         $this->location = CustomerLocation::create(['customer_id' => $customer->id, 'name' => 'Bestätigter Einsatz', 'country' => 'DE', 'is_active' => true, 'revision' => 1, 'latitude' => 52.5, 'longitude' => 13.4, 'coordinates_confirmed_at' => now(), 'updated_by' => $this->admin->id]);
         $this->order = Order::create(['customer_id' => $customer->id, 'customer_location_id' => $this->location->id, 'title' => 'Standort QA', 'service_type' => 'Tf', 'status' => 'confirmed', 'priority' => 'normal', 'starts_at' => '2027-05-01T00:00+02:00', 'ends_at' => '2027-06-01T00:00+02:00', 'timezone' => 'Europe/Berlin', 'required_staff' => 3]);
         OperationsRuleProfile::create(['name' => 'QA', 'minimum_rest_minutes' => 0, 'maximum_shift_minutes' => 720, 'break_after_minutes' => 360, 'minimum_break_minutes' => 30, 'is_active' => true, 'approved_at' => now(), 'created_by' => $this->admin->id]);
+    }
+
+    protected function tearDown(): void
+    {
+        if (isset($this->routingCacheDirectory) && str_starts_with($this->routingCacheDirectory, storage_path('framework/testing/routing-cache-workflow-'))) {
+            \Illuminate\Support\Facades\File::deleteDirectory($this->routingCacheDirectory);
+        }
+        parent::tearDown();
     }
 
     private function shift(array $values = []): Shift
@@ -191,6 +204,107 @@ class RoutingSiteWorkflowTest extends TestCase
         $regular = User::factory()->create(['role' => 'admin', 'status' => true]);
         Livewire::actingAs($regular)->test(TomTomSettings::class)->assertForbidden();
         Livewire::actingAs($regular)->test(EmployeeLocationSettings::class)->assertForbidden();
+    }
+
+    public function test_server_cache_controls_save_without_provider_requests_or_contract_fields(): void
+    {
+        Http::preventStrayRequests();
+        $this->assertFalse(RoutingSettings::all()['enabled']);
+        $this->assertTrue(RoutingSettings::all()['server_cache_enabled']);
+        $this->assertSame(60, RoutingSettings::all()['server_tile_cache_minutes']);
+        $this->assertSame(5, RoutingSettings::all()['server_route_cache_minutes']);
+        $this->assertSame(15, RoutingSettings::all()['server_geometry_cache_minutes']);
+        $this->assertSame(128, RoutingSettings::all()['server_cache_max_mb']);
+        Livewire::actingAs($this->admin)->test(TomTomSettings::class)
+            ->assertSee('Server-Cache für alle Nutzer leeren')
+            ->assertSee('Verbindliche Zuteilungen, Verbindungstests und Anreisen vom aktuellen Mitarbeiterstandort werden frisch geprüft.')
+            ->assertDontSee('Vertragsreferenz')->assertDontSee('Lizenzfreigabe')
+            ->assertDontSee('Karten-Cache dieses Browsers')
+            ->set('config.server_tile_cache_minutes', 15)
+            ->call('save')->assertHasNoErrors()->assertNotDispatched('rt-routing-tile-cache-clear');
+        $this->assertSame(15, RoutingSettings::all()['server_tile_cache_minutes']);
+        $this->assertFalse(RoutingSettings::all()['enabled']);
+        Http::assertNothingSent();
+    }
+
+    public function test_server_cache_lifetimes_and_capacity_are_bounded_without_saving_invalid_values(): void
+    {
+        Http::preventStrayRequests();
+        foreach (['server_tile_cache_minutes' => [0, 1441], 'server_route_cache_minutes' => [0, 16], 'server_geometry_cache_minutes' => [0, 61], 'server_cache_max_mb' => [15, 1025]] as $key => $invalid) {
+            foreach ($invalid as $value) {
+                Livewire::actingAs($this->admin)->test(TomTomSettings::class)
+                    ->set('config.'.$key, $value)->call('save')->assertHasErrors($key);
+                $this->assertSame(RoutingSettings::DEFAULTS[$key], RoutingSettings::all()[$key]);
+            }
+        }
+        Livewire::actingAs($this->admin)->test(TomTomSettings::class)
+            ->set('config.server_cache_enabled', false)->call('save')->assertHasNoErrors();
+        $this->assertFalse(RoutingSettings::all()['server_cache_enabled']);
+        Http::assertNothingSent();
+    }
+
+    public function test_older_settings_payload_preserves_current_cache_configuration(): void
+    {
+        RoutingSettings::save(array_replace(RoutingSettings::DEFAULTS, ['server_tile_cache_minutes' => 15]));
+        $older = array_filter(RoutingSettings::DEFAULTS, fn (string $key) => ! str_starts_with($key, 'server_'), ARRAY_FILTER_USE_KEY);
+        RoutingSettings::save($older);
+        $this->assertSame(15, RoutingSettings::all()['server_tile_cache_minutes']);
+        $this->assertTrue(RoutingSettings::all()['server_cache_enabled']);
+    }
+
+    public function test_manual_cache_clear_has_no_settings_or_provider_side_effects(): void
+    {
+        Http::preventStrayRequests();
+        $before = RoutingSettings::all();
+        $cache = app(ServerRoutingCache::class);
+        $this->assertTrue($cache->put('summary', 'workflow-route', ['status' => 'known', 'duration_seconds' => 60, 'distance_meters' => 100], 60));
+        \Illuminate\Support\Facades\Cache::put('unrelated-routing-cache-test', 'retained', 60);
+        Livewire::actingAs($this->admin)->test(TomTomSettings::class)
+            ->call('clearServerCache')->assertNotDispatched('rt-routing-tile-cache-clear')->assertHasNoErrors();
+        $this->assertNull($cache->get('summary', 'workflow-route'));
+        $this->assertSame('retained', \Illuminate\Support\Facades\Cache::get('unrelated-routing-cache-test'));
+        $this->assertSame($before, RoutingSettings::all());
+        Http::assertNothingSent();
+    }
+
+    public function test_cache_clear_rechecks_current_employee_account_access(): void
+    {
+        $component = Livewire::actingAs($this->admin)->test(TomTomSettings::class);
+        $this->admin->update(['status' => false]);
+        auth()->setUser($this->admin->fresh());
+        $component->call('clearServerCache')->assertForbidden();
+    }
+
+    public function test_cache_configuration_and_key_changes_remove_shared_entries_without_provider_requests(): void
+    {
+        Http::preventStrayRequests();
+        $cache = app(ServerRoutingCache::class);
+        $data = ['status' => 'known', 'duration_seconds' => 60, 'distance_meters' => 100];
+        $this->assertTrue($cache->put('summary', 'old-settings', $data, 60));
+        Livewire::actingAs($this->admin)->test(TomTomSettings::class)
+            ->set('config.server_route_cache_minutes', 2)->call('save')->assertHasNoErrors();
+        $this->assertNull($cache->get('summary', 'old-settings'));
+        $this->assertTrue($cache->put('summary', 'old-key', $data, 60));
+        Livewire::actingAs($this->admin)->test(TomTomSettings::class)
+            ->set('apiKey', 'new-server-cache-key')->call('save')->assertHasNoErrors();
+        $this->assertNull($cache->get('summary', 'old-key'));
+        $this->assertTrue($cache->put('summary', 'removed-key', $data, 60));
+        Livewire::actingAs($this->admin)->test(TomTomSettings::class)->call('deleteKey')->assertHasNoErrors();
+        $this->assertNull($cache->get('summary', 'removed-key'));
+        $this->assertFalse(RoutingSettings::all()['enabled']);
+        Http::assertNothingSent();
+    }
+
+    public function test_expired_cache_command_uses_only_the_routing_namespace(): void
+    {
+        $cache = app(ServerRoutingCache::class);
+        $data = ['status' => 'known', 'duration_seconds' => 60, 'distance_meters' => 100];
+        $this->assertTrue($cache->put('summary', 'expiring', $data, 1));
+        $this->assertTrue($cache->put('summary', 'still-valid', $data, 60));
+        $this->travel(2)->seconds();
+        $this->artisan('routing:purge-cache')->assertExitCode(0);
+        $this->assertNull($cache->get('summary', 'expiring'));
+        $this->assertNotNull($cache->get('summary', 'still-valid'));
     }
 
     public function test_travel_panel_is_lazy_and_only_selected_people_can_request_geometry(): void

@@ -3,6 +3,7 @@ import { loadLeaflet } from './live-location-map.js';
 export function registerRoutingMap(Alpine, leafletLoader = loadLeaflet) {
     Alpine.data('rtRoutingMap', (points, tileUrl) => ({
         map: null,
+        tiles: null,
         observer: null,
         disposed: false,
         errorText: '',
@@ -20,20 +21,27 @@ export function registerRoutingMap(Alpine, leafletLoader = loadLeaflet) {
             if (this.disposed || !this.$el.isConnected) return;
             this.map = L.map(this.$el, { scrollWheelZoom: false });
             const path = valid.map((point) => [Number(point.latitude), Number(point.longitude)]);
-            L.tileLayer(tileUrl.replace('__z__', '{z}').replace('__x__', '{x}').replace('__y__', '{y}'), { maxZoom: 20, attribution: '&copy; TomTom' })
+            const template = tileUrl.replace('__z__', '{z}').replace('__x__', '{x}').replace('__y__', '{y}');
+            // The authenticated server endpoint owns reuse and always returns no-store to the browser.
+            this.tiles = L.tileLayer(template, { maxZoom: 20, attribution: '&copy; TomTom' });
+            this.tiles
                 .on('tileerror', () => { if (!this.disposed) this.errorText = 'Kartenhintergrund derzeit nicht verfügbar. Die berechnete Route bleibt sichtbar.'; })
                 .addTo(this.map);
             const route = L.polyline(path, { color: '#c62828', weight: 4 }).addTo(this.map);
             L.circleMarker(path[0], { radius: 6 }).addTo(this.map);
             L.circleMarker(path[path.length - 1], { radius: 6 }).addTo(this.map);
             this.map.fitBounds(route.getBounds(), { padding: [20, 20], maxZoom: 16, animate: false });
-            this.observer = new ResizeObserver(() => this.map?.invalidateSize({ animate: false }));
-            this.observer.observe(this.$el);
+            if (typeof ResizeObserver === 'function') {
+                this.observer = new ResizeObserver(() => this.map?.invalidateSize({ animate: false }));
+                this.observer.observe(this.$el);
+            }
         },
         destroy() {
             this.disposed = true;
             this.observer?.disconnect();
             this.map?.remove();
+            this.observer = null;
+            this.tiles = null;
             this.map = null;
         },
     }));

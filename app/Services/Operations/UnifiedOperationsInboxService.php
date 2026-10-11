@@ -24,6 +24,7 @@ use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
+use App\Support\Operations\PersonalWorkspaceAreas;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -184,10 +185,12 @@ class UnifiedOperationsInboxService
         $item = $this->items($actor, $personal)->firstWhere('id', $id);
         abort_unless($item, 404);
         if (($item->record_type ?? '') === 'shift-offer') {
-            return route('operations.mine', ['area' => 'work', 'tab' => 'planning', 'planning_tab' => 'offers']);
+            return route('operations.mine', ['area' => 'planning', 'planning_tab' => 'offers']);
         }
         if ($personal) {
-            return route('operations.mine', array_filter(['area' => $item->module === 'customer-capacity' ? 'capacity' : ($item->module === 'personnel-enhancements' ? 'personnel' : ($item->module === 'operations-enhancements' ? 'operations' : 'work')), 'tab' => $item->target_tab]));
+            [$area, $tab] = PersonalWorkspaceAreas::resolve($item->module === 'customer-capacity' ? 'capacity' : ($item->module === 'personnel-enhancements' ? 'personnel' : ($item->module === 'operations-enhancements' ? 'operations' : 'work')), $item->target_tab);
+
+            return route('operations.mine', array_filter(['area' => $area === 'work' ? null : $area, 'tab' => $tab ?: null]));
         }
         if ($item->module === 'ai-intake') {
             return OperationsPages::url('cases', array_filter(['view' => 'inbox', 'section' => 'ai-intake', 'source' => 'ai-intake', 'record' => $item->record_id, 'customer' => $item->customer_id]));

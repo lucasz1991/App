@@ -106,7 +106,7 @@ class DispositionMailboxService
         return $result + ($folder === $settings['imap_folder'] ? $this->classification($settings, $folder, $uid, $validity) : []);
     }
 
-    public function classify(User $actor, string $folder, int $uid, int $validity, string $classification): array
+    public function classify(User $actor, string $folder, int $uid, int $validity, string $classification, ?int $expectedReviewRevision = null, ?int $expectedIntakeRevision = null): array
     {
         $settings = $this->settings($actor);
         abort_unless($folder === $settings['imap_folder'] && isset(DispositionMailboxReview::LABELS[$classification]), 422);
@@ -115,11 +115,16 @@ class DispositionMailboxService
         // Check existence and UIDVALIDITY on the server before persisting a classification.
         $this->imap->readMessage($settings, $folder, $uid, $validity);
         $this->unchanged($actor, $settings);
-        OperationsTransaction::run(function () use ($actor, $settings, $folder, $uid, $validity, $classification): void {
+        OperationsTransaction::run(function () use ($actor, $settings, $folder, $uid, $validity, $classification, $expectedReviewRevision, $expectedIntakeRevision): void {
             $this->unchanged($actor, $settings);
             $review = DispositionMailboxReview::firstOrCreate($this->reviewIdentity($settings, $folder, $uid, $validity));
             $review = DispositionMailboxReview::lockForUpdate()->findOrFail($review->id);
+            abort_if($expectedReviewRevision !== null && $review->revision !== $expectedReviewRevision, 409, 'Die Mail wurde inzwischen geprüft. Bitte den aktuellen Stand laden.');
             $intake = $this->source($settings, $uid, $validity)?->intake;
+            if ($expectedIntakeRevision !== null) {
+                $intake = $intake ? AiIntake::lockForUpdate()->findOrFail($intake->id) : null;
+                abort_unless($intake && $intake->revision === $expectedIntakeRevision, 409, 'Der Eingang wurde inzwischen geändert. Bitte neu prüfen.');
+            }
             if ($classification === 'not_inquiry' && $intake && ! in_array($intake->status, ['paused', 'completed'], true)) {
                 app(AiIntakeService::class)->pause($intake, $actor, $intake->revision);
             }
@@ -133,7 +138,19 @@ class DispositionMailboxService
 
     public function importInquiry(User $actor, string $folder, int $uid, int $validity): AiIntake
     {
+        return $this->capture($actor, $folder, $uid, $validity, true);
+    }
+
+    /** Capture originals for an explicit recognition run without deciding their intent. */
+    public function captureForRecognition(User $actor, string $folder, int $uid, int $validity, int $expectedSettingsRevision): AiIntake
+    {
+        return $this->capture($actor, $folder, $uid, $validity, false, $expectedSettingsRevision);
+    }
+
+    private function capture(User $actor, string $folder, int $uid, int $validity, bool $asInquiry, ?int $expectedSettingsRevision = null): AiIntake
+    {
         $settings = $this->settings($actor);
+        abort_if($expectedSettingsRevision !== null && (int) $settings['revision'] !== $expectedSettingsRevision, 409, 'Das Postfach wurde geändert. Bitte neu öffnen.');
         abort_unless($folder === $settings['imap_folder'], 422);
         $this->identity($uid, $validity);
         $this->requireReviews();
@@ -144,7 +161,7 @@ class DispositionMailboxService
             $this->unchanged($actor, $settings);
             abort_unless(($message['uid'] ?? null) === $uid && ($message['uid_validity'] ?? null) === $validity && ($message['mailbox_id'] ?? '') === AiDispositionSettings::mailboxId($settings), 409);
 
-            return OperationsTransaction::run(function () use ($actor, $settings, $folder, $uid, $validity, $message, &$archivePaths): AiIntake {
+            return OperationsTransaction::run(function () use ($actor, $settings, $folder, $uid, $validity, $message, $asInquiry, &$archivePaths): AiIntake {
                 $this->unchanged($actor, $settings);
                 $review = DispositionMailboxReview::firstOrCreate($this->reviewIdentity($settings, $folder, $uid, $validity));
                 $review = DispositionMailboxReview::lockForUpdate()->findOrFail($review->id);
@@ -153,8 +170,10 @@ class DispositionMailboxService
                 if ($source) {
                     $archivePaths = array_merge($archivePaths, array_filter([$source->raw_path]), $source->attachments()->pluck('file_path')->all());
                 }
-                $review->update(['classification' => 'inquiry', 'intake_id' => $intake->id, 'reviewed_by' => $actor->id, 'revision' => $review->revision + 1]);
-                app(OperationsAuditService::class)->record($review, $actor, 'mailbox.import', ['intake_id' => $intake->id]);
+                if ($asInquiry || $review->intake_id !== $intake->id) {
+                    $review->update(['intake_id' => $intake->id, 'revision' => $review->revision + 1] + ($asInquiry ? ['classification' => 'inquiry', 'reviewed_by' => $actor->id] : []));
+                    app(OperationsAuditService::class)->record($review, $actor, $asInquiry ? 'mailbox.import' : 'mailbox.capture_for_recognition', ['intake_id' => $intake->id]);
+                }
 
                 return $intake;
             });
@@ -179,7 +198,7 @@ class DispositionMailboxService
 
         return ['id' => $delivery->id, 'intake_id' => $delivery->intake_id, 'subject' => $delivery->subject, 'to' => $delivery->recipient_email, 'from' => $settings['from_address'],
             'date' => ($delivery->sent_at ?? $delivery->created_at)?->toIso8601String(), 'text' => $delivery->body, 'status' => $delivery->status,
-            'status_label' => AiIntakeDelivery::STATUS_LABELS[$delivery->status] ?? 'Versand prüfen', 'type_label' => AiIntakeDelivery::TYPE_LABELS[$delivery->message_type ?? 'clarification'] ?? 'Nachricht',
+            'status_label' => ($delivery->metadata['manual_mailbox_test'] ?? false) ? 'Testentwurf · ohne Versand' : (AiIntakeDelivery::STATUS_LABELS[$delivery->status] ?? 'Versand prüfen'), 'type_label' => AiIntakeDelivery::TYPE_LABELS[$delivery->message_type ?? 'clarification'] ?? 'Nachricht', 'test_only' => (bool) ($delivery->metadata['manual_mailbox_test'] ?? false),
             'failure_code' => $delivery->failure_code, 'attachments' => [], 'source' => 'delivery'];
     }
 

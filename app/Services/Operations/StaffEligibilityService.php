@@ -22,6 +22,7 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\WorkforcePlanningSchema;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
@@ -42,7 +43,7 @@ class StaffEligibilityService
     }
 
     /** @return array<int, array{issues: array, warnings: array, travel: array, basis: string}> */
-    public function assessDetailedMany(Shift $shift, Collection $users, bool $lock = false, array $context = []): array
+    public function assessDetailedMany(Shift $shift, Collection $users, bool $lock = false, array $context = [], bool $display = false): array
     {
         if ($lock && $users->isNotEmpty()) {
             app(TravelAssessmentService::class)->assertBindingPreflight($context['travel_preflight'] ?? null);
@@ -52,7 +53,9 @@ class StaffEligibilityService
             $context = array_replace($context['travel_preflight']->context, $context);
         }
         $issues = $this->assessCoreMany($shift, $users, $lock, $context);
-        $details = app(TravelAssessmentService::class)->assessMany($shift, $users, $context, $lock);
+        // Display caching cannot weaken locked, transactional or preflight checks.
+        $display = $display && ! $lock && DB::transactionLevel() === 0 && ! (($context['travel_preflight'] ?? null) instanceof TravelPreflight);
+        $details = app(TravelAssessmentService::class)->assessMany($shift, $users, $context, $lock, $display);
         foreach ($users as $user) {
             $details[$user->id]['issues'] = array_merge($issues[$user->id] ?? [], $details[$user->id]['issues'] ?? []);
         }

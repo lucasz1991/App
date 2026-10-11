@@ -79,7 +79,8 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertCount(1, $sections['']);
         $this->assertSame('Dashboard', $sections[''][0]['title']);
         $this->assertSame('Persönlich', array_key_last($sections));
-        $this->assertSame(['Meine Geräte', 'Profil'], array_column($sections['Persönlich'], 'title'));
+        $personal = array_column(\App\Support\Operations\PersonalWorkspaceAreas::links()['Persönlich'] ?? [], 'title');
+        $this->assertSame(['Meine Geräte', ...(\App\Support\Operations\OperationsAccess::isEmployee($actor) ? $personal : []), 'Profil'], array_column($sections['Persönlich'], 'title'));
         $wagon = collect($sections['Mein Arbeitsplatz'])->firstWhere('title', 'Wagenliste');
         $this->assertNotNull($wagon);
         $this->assertSame('Arbeitsmittel', $wagon['group']);

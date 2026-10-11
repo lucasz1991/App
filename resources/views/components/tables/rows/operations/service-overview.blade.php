@@ -32,6 +32,8 @@
             @case('staffing')
                 @if($isOrderRow && $item->count === 0)
                     <span class="rt-table-meta" data-order-staffing-unplanned>Noch keine Schichten</span>
+                @elseif($isOrderRow && $item->summary['shifts'] === 0)
+                    <span class="rt-table-meta" data-order-staffing-history>Keine aktiven Schichten</span>
                 @else
                     <x-operations.service-staffing :seats="$item->staffingSeats" :summary="$item->summary" :timezone="$item->timezone" :preview-id="$previewPrefix.'-staffing-'.$item->id" />
                 @endif

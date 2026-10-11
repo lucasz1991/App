@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Support\Operations\AiCustomerCommunicationSchema;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsTransaction;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -233,6 +234,71 @@ class AiIntakeMailService
         });
     }
 
+    /** The guided mailbox test prepares a private native draft; it never schedules delivery. */
+    public function prepareManualClarification(AiIntake $intake, User $actor, int $expectedRevision, int $expectedSettingsRevision): AiIntakeDelivery
+    {
+        $actor = $this->authorizedActor($actor);
+        abort_unless(AiCustomerCommunicationSchema::ready(), 503, 'Kundennachrichten bitte zuerst einrichten.');
+
+        return OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision, $expectedSettingsRevision): AiIntakeDelivery {
+            $this->authorizedActor($actor);
+            $settings = AiDispositionSettings::all(true);
+            $fresh = AiIntake::lockForUpdate()->findOrFail($intake->id);
+            abort_unless((int) $settings['revision'] === $expectedSettingsRevision && $fresh->revision === $expectedRevision, 409, 'Die Grundlage wurde geändert. Bitte erneut prüfen.');
+            abort_unless($fresh->source_type === 'email' && $fresh->match_method === 'manual' && ($fresh->analysis['intent'] ?? '') === 'inquiry'
+                && ! $fresh->paused_at && ! in_array($fresh->status, ['paused', 'completed'], true), 422, 'Bitte zuerst die Anfrage und Kundenzuordnung bestätigen.');
+            $contact = CustomerContact::where('customer_id', $fresh->customer_id)->where('is_active', true)->find($fresh->customer_contact_id);
+            $message = $fresh->messages()->where('direction', 'inbound')->find($fresh->latest_inbound_message_id);
+            $metadata = $message?->metadata ?? [];
+            $email = strtolower(trim((string) $contact?->email));
+            abort_unless(Customer::active()->whereKey($fresh->customer_id)->exists() && $contact && $message && filter_var($email, FILTER_VALIDATE_EMAIL)
+                && hash_equals($email, strtolower(trim((string) $message->sender_email))) && (! $message->reply_to_email || hash_equals($email, strtolower(trim($message->reply_to_email))))
+                && ($metadata['mailbox_id'] ?? '') === AiDispositionSettings::mailboxId($settings), 422, 'Bitte einen aktiven Kundenkontakt mit der Absenderadresse dieser Mail bestätigen.');
+            abort_if(! empty($metadata['source_error']) || ($metadata['raw_archive_complete'] ?? true) === false || ($metadata['text_archive_complete'] ?? true) === false
+                || ! in_array(strtolower(trim((string) ($metadata['auto_submitted'] ?? ''))), ['', 'no'], true)
+                || in_array(strtolower((string) ($metadata['precedence'] ?? '')), ['bulk', 'junk', 'list'], true) || ($metadata['list_id'] ?? '') !== '' || ($metadata['is_bounce'] ?? false)
+                || hash_equals($email, strtolower($settings['from_address'])), 422, 'Die Mailquelle und den Empfänger zuerst manuell prüfen.');
+            $prompts = ['starts_at' => 'An welchem Datum und um welche Uhrzeit beginnt der Einsatz?', 'ends_at' => 'An welchem Datum und um welche Uhrzeit endet der Einsatz?', 'timezone' => 'In welcher Zeitzone gelten die Einsatzzeiten?',
+                'location_name' => 'An welchem Einsatzort findet der Einsatz statt?', 'role_name' => 'Welche Funktion oder Leistung wird benötigt?', 'required_staff' => 'Wie viele Mitarbeitende werden benötigt?',
+                'segments' => 'Welche einzelnen Einsatzabschnitte und Zeiten gehören zur Anfrage?', 'qualification_ids' => 'Welche Qualifikationen sind erforderlich?'];
+            $questions = [];
+            foreach ($fresh->proposals()->where('source_revision', $fresh->source_revision)->orderBy('position_index')->get() as $proposal) {
+                foreach ($proposal->payload['missing_fields'] ?? [] as $field) {
+                    if (isset($prompts[$field])) {
+                        $questions[] = 'Leistung '.($proposal->position_index + 1).': '.$prompts[$field];
+                    }
+                }
+            }
+            $questions = array_values(array_unique($questions));
+            abort_unless($questions !== [], 422, 'Es sind keine konkreten Rückfragen zu fehlenden Angaben vorhanden.');
+            $dedup = hash('sha256', 'mailbox-test-clarification|'.$fresh->id.'|'.$fresh->source_revision);
+            $existing = AiIntakeDelivery::where('dedup_key', $dedup)->first();
+            if ($existing) {
+                abort_unless($existing->status === 'draft' && $existing->customer_id === $fresh->customer_id && $existing->contact_id === $contact->id
+                    && $existing->settings_revision === (int) $settings['revision'] && $existing->intake_revision === $fresh->revision
+                    && hash_equals($existing->recipient_email, $email), 409, 'Der vorhandene Testentwurf wurde geändert. Bitte im Postausgang prüfen.');
+
+                return $existing;
+            }
+            $domain = substr(strrchr($settings['from_address'], '@') ?: '@railtime.invalid', 1);
+            $parent = $this->messageIds([$message->external_message_id]);
+            $references = $this->messageIds($metadata['references'] ?? []);
+            $delivery = AiIntakeDelivery::create([
+                'intake_id' => $fresh->id, 'message_id' => $message->id, 'customer_id' => $fresh->customer_id, 'contact_id' => $contact->id,
+                'message_type' => 'clarification', 'dedup_key' => $dedup, 'recipient_email' => $email, 'subject' => mb_substr('Rückfrage zu Ihrer Anfrage · '.$fresh->public_id, 0, 180),
+                'body' => "Guten Tag,\n\nfür die Bearbeitung Ihrer Anfrage fehlen noch folgende Angaben:\n\n".implode("\n", array_map(fn ($question) => '- '.$question, $questions))."\n\nBitte antworten Sie auf diese E-Mail. Ihre Anfrage ist noch keine verbindliche Auftragsbestätigung.\n\n".$settings['from_name'],
+                'status' => 'draft', 'settings_revision' => $settings['revision'], 'intake_revision' => $fresh->revision, 'source_revision' => $fresh->source_revision,
+                'question_round' => $fresh->question_round + 1, 'attempts' => 0, 'message_id_header' => 'ai-'.Str::uuid().'@'.$domain, 'in_reply_to' => $parent[0] ?? null,
+                'references' => array_slice(array_values(array_unique([...$references, ...$parent])), -20),
+                'metadata' => ['manual_mailbox_test' => true, 'prepared_by' => $actor->id, 'contact_revision' => (int) $contact->revision, 'supervisor_id' => $actor->id, 'dispatch_mode' => 'draft', 'created_as_draft' => true],
+                ...(Schema::hasColumn('ai_intake_deliveries', 'mailbox_id') ? ['mailbox_id' => AiDispositionSettings::mailboxId($settings)] : []),
+            ]);
+            app(OperationsAuditService::class)->record($delivery, $actor, 'mailbox.clarification_draft', ['intake_id' => $fresh->id, 'source_revision' => $fresh->source_revision]);
+
+            return $delivery;
+        });
+    }
+
     /** Concrete private review DTOs: never pass these templates or recipients to a provider or activity export. */
     public function draftMessages(User $actor): Collection
     {
@@ -342,6 +408,9 @@ class AiIntakeMailService
 
     private function contextValid(AiIntakeDelivery $delivery, AiIntake $intake, array $settings, ?CustomerContact $contact, bool $forApproval = false): bool
     {
+        if ($delivery->metadata['manual_mailbox_test'] ?? false) {
+            return false;
+        }
         $type = $this->type($delivery);
         $mode = $this->mode($settings, $type);
         if (! in_array($type, ['receipt', 'clarification', 'order_confirmation'], true) || ! $settings['enabled'] || $mode === 'off' || (int) $settings['revision'] !== $delivery->settings_revision || ! $contact || $intake->paused_at || in_array($intake->status, ['paused', 'failed'], true)

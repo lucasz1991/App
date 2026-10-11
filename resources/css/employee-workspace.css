@@ -1,3 +1,5 @@
+@import './employee-profile-shell.css';
+
 /* Personnel surfaces share the RailTime shell tokens and native controls. */
 .employee-workspace {
     --employee-paper: var(--rt-shell-surface-solid, #fff);

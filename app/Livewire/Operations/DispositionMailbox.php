@@ -6,6 +6,7 @@ use App\Models\AiIntake;
 use App\Models\AiIntakeDelivery;
 use App\Models\User;
 use App\Services\Operations\DispositionMailboxService;
+use App\Services\Operations\DispositionMailboxWorkflowService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\OperationsAccess;
 use Illuminate\Validation\ValidationException;
@@ -44,6 +45,18 @@ class DispositionMailbox extends Component
     #[Locked]
     public int $intakeRevision = 0;
 
+    #[Locked]
+    public array $guidedReview = [];
+
+    #[Locked]
+    public string $guidedStep = 'recognition';
+
+    public string $customerSearch = '';
+
+    public string $customerId = '';
+
+    public string $contactId = '';
+
     public function mount(): void
     {
         $this->actor();
@@ -64,12 +77,23 @@ class DispositionMailbox extends Component
         return app(DispositionMailboxService::class);
     }
 
+    private function workflow(): DispositionMailboxWorkflowService
+    {
+        return app(DispositionMailboxWorkflowService::class);
+    }
+
+    private function resetGuidedReview(): void
+    {
+        $this->reset('guidedReview', 'guidedStep', 'customerSearch', 'customerId', 'contactId');
+    }
+
     #[On('open-disposition-mailbox')]
     public function open(): void
     {
         $actor = $this->actor();
         abort_unless($this->mailbox()->available($actor), 404);
         $this->resetValidation();
+        $this->resetGuidedReview();
         $this->reset('selectedMessage', 'selectedIntakeId', 'mailboxPage', 'connectionState');
         $this->showMailbox = true;
         $this->perform(function () use ($actor): void {
@@ -85,6 +109,7 @@ class DispositionMailbox extends Component
     public function close(): void
     {
         $this->actor();
+        $this->resetGuidedReview();
         $this->showMailbox = false;
     }
 
@@ -96,6 +121,7 @@ class DispositionMailbox extends Component
             return;
         }
         $this->tab = $tab;
+        $this->resetGuidedReview();
         $this->reset('page', 'selectedMessage', 'mailboxPage');
         $this->perform(fn () => $this->loadPage($actor));
     }
@@ -107,6 +133,7 @@ class DispositionMailbox extends Component
             return;
         }
         $this->reset('page', 'selectedMessage');
+        $this->resetGuidedReview();
         if ($this->showMailbox) {
             $this->perform(fn () => $this->loadPage($actor));
         }
@@ -119,6 +146,7 @@ class DispositionMailbox extends Component
             return;
         }
         $this->reset('selectedMessage');
+        $this->resetGuidedReview();
         $this->perform(function () use ($actor): void {
             $this->connectionState = $this->mailbox()->connection($actor);
             if (($this->connectionState['connected'] ?? false) || $this->tab === 'outbox') {
@@ -139,6 +167,7 @@ class DispositionMailbox extends Component
             return;
         }
         $this->page--;
+        $this->resetGuidedReview();
         $this->reset('selectedMessage');
         $this->perform(fn () => $this->loadPage($actor));
     }
@@ -154,6 +183,7 @@ class DispositionMailbox extends Component
             return;
         }
         $this->page++;
+        $this->resetGuidedReview();
         $this->reset('selectedMessage');
         $this->perform(fn () => $this->loadPage($actor));
     }
@@ -180,7 +210,8 @@ class DispositionMailbox extends Component
                     'subject' => $delivery->subject ?: 'Kundennachricht', 'to' => $delivery->recipient_email,
                     'date' => ($delivery->sent_at ?? $delivery->created_at)?->toIso8601String(),
                     'status' => $delivery->status,
-                    'status_label' => AiIntakeDelivery::STATUS_LABELS[$delivery->status] ?? 'Versand prüfen',
+                    'status_label' => ($delivery->metadata['manual_mailbox_test'] ?? false) ? 'Testentwurf · ohne Versand' : (AiIntakeDelivery::STATUS_LABELS[$delivery->status] ?? 'Versand prüfen'),
+                    'test_only' => (bool) ($delivery->metadata['manual_mailbox_test'] ?? false),
                     'type_label' => AiIntakeDelivery::TYPE_LABELS[$delivery->message_type ?? 'clarification'] ?? 'Kundennachricht',
                 ])->all(),
             ];
@@ -200,6 +231,7 @@ class DispositionMailbox extends Component
         }
         abort_unless(in_array($this->tab, ['inbox', 'sent'], true), 422);
         abort_unless(collect($this->mailboxPage['messages'] ?? [])->contains(fn ($message) => (int) ($message['uid'] ?? 0) === $uid), 404);
+        $this->resetGuidedReview();
         $this->perform(function () use ($actor, $uid): void {
             $this->selectedMessage = $this->mailbox()->detail($actor, $this->mailboxPage['folder'], $uid, (int) $this->mailboxPage['uid_validity']);
             $this->selectedMessage['uid'] = $uid;
@@ -215,12 +247,14 @@ class DispositionMailbox extends Component
             return;
         }
         abort_unless($this->tab === 'outbox', 422);
+        $this->resetGuidedReview();
         $this->perform(fn () => $this->selectedMessage = $this->mailbox()->deliveryDetail($actor, $id));
     }
 
     public function clearSelection(): void
     {
         $this->actor();
+        $this->resetGuidedReview();
         $this->reset('selectedMessage');
     }
 
@@ -232,11 +266,163 @@ class DispositionMailbox extends Component
         }
         abort_unless($this->tab === 'inbox' && isset($this->selectedMessage['uid']), 422);
         abort_unless(in_array($classification, ['inquiry', 'not_inquiry', 'unreviewed'], true), 422);
+        $this->resetGuidedReview();
         $this->perform(function () use ($actor, $classification): void {
             $result = $this->mailbox()->classify($actor, $this->selectedMessage['folder'], (int) $this->selectedMessage['uid'], (int) $this->selectedMessage['uid_validity'], $classification);
             $this->selectedMessage = array_replace($this->selectedMessage, $result);
             $this->loadPage($actor);
             $this->dispatch('disposition-mailbox-updated');
+        });
+    }
+
+    public function startRecognition(): void
+    {
+        $actor = $this->actor();
+        if (! $this->contextCurrent()) {
+            return;
+        }
+        abort_unless($this->tab === 'inbox' && isset($this->selectedMessage['uid']), 422);
+        $this->resetGuidedReview();
+        $this->performGuided(function () use ($actor): void {
+            $review = $this->workflow()->recognize(
+                $actor, $this->selectedMessage['folder'], (int) $this->selectedMessage['uid'],
+                (int) $this->selectedMessage['uid_validity'], (int) $this->connectionState['settings_revision'],
+            );
+            $this->syncGuidedReview($review);
+            $this->customerId = $review['customer_id'] ? (string) $review['customer_id'] : '';
+            $this->contactId = $review['contact_id'] ? (string) $review['contact_id'] : '';
+            $this->guidedStep = 'recognition';
+            $this->dispatch('disposition-mailbox-updated');
+        });
+    }
+
+    private function guidedActor(): ?User
+    {
+        $actor = $this->actor();
+        if (! $this->contextCurrent()) {
+            return null;
+        }
+        abort_unless($this->tab === 'inbox' && $this->guidedReview !== []
+            && (int) ($this->guidedReview['uid'] ?? 0) === (int) ($this->selectedMessage['uid'] ?? -1)
+            && (int) ($this->guidedReview['uid_validity'] ?? 0) === (int) ($this->selectedMessage['uid_validity'] ?? -1)
+            && ($this->guidedReview['folder'] ?? null) === ($this->selectedMessage['folder'] ?? '')
+            && ($this->guidedReview['mailbox_id'] ?? null) === ($this->connectionState['mailbox_id'] ?? ''), 422);
+
+        return $actor;
+    }
+
+    private function syncGuidedReview(array $review): void
+    {
+        $this->guidedReview = $review;
+        $summary = array_intersect_key($review, array_flip(['intake_id', 'classification', 'classification_label', 'intake_status']));
+        $this->selectedMessage = array_replace($this->selectedMessage, $summary);
+        foreach ($this->mailboxPage['messages'] ?? [] as $index => $message) {
+            if ((int) ($message['uid'] ?? 0) === (int) $this->selectedMessage['uid']) {
+                $this->mailboxPage['messages'][$index] = array_replace($message, $summary);
+            }
+        }
+    }
+
+    public function confirmGuidedClassification(bool $inquiry): void
+    {
+        if (! $actor = $this->guidedActor()) {
+            return;
+        }
+        abort_unless($this->guidedStep === 'recognition', 422);
+        $this->performGuided(function () use ($actor, $inquiry): void {
+            $this->syncGuidedReview($this->workflow()->confirmClassification($actor, $this->guidedReview, $inquiry));
+            $this->guidedStep = $inquiry ? 'customer' : 'done';
+            $this->dispatch('disposition-mailbox-updated');
+        });
+    }
+
+    public function updatedCustomerSearch(): void
+    {
+        if (! $this->guidedActor()) {
+            return;
+        }
+        $this->validateOnly('customerSearch', ['customerSearch' => ['string', 'max:120']]);
+    }
+
+    public function updatedCustomerId(): void
+    {
+        if (! $this->guidedActor()) {
+            return;
+        }
+        $this->validateOnly('customerId', ['customerId' => ['nullable', 'integer', 'min:1']]);
+        $this->contactId = '';
+    }
+
+    public function confirmGuidedCustomer(): void
+    {
+        if (! $actor = $this->guidedActor()) {
+            return;
+        }
+        abort_unless($this->guidedStep === 'customer', 422);
+        $this->validate(['customerId' => ['required', 'integer', 'min:1'], 'contactId' => ['nullable', 'integer', 'min:1']]);
+        $this->performGuided(function () use ($actor): void {
+            $this->syncGuidedReview($this->workflow()->assignCustomer($actor, $this->guidedReview, (int) $this->customerId, $this->contactId === '' ? null : (int) $this->contactId));
+            $this->guidedStep = 'actions';
+            $this->dispatch('disposition-mailbox-updated');
+        });
+    }
+
+    public function createGuidedInquiries(): void
+    {
+        if (! $actor = $this->guidedActor()) {
+            return;
+        }
+        abort_unless($this->guidedStep === 'actions', 422);
+        $this->performGuided(function () use ($actor): void {
+            $this->syncGuidedReview($this->workflow()->createInquiries($actor, $this->guidedReview));
+            $this->dispatch('ai-intake-submitted');
+            $this->dispatch('disposition-mailbox-updated');
+        });
+    }
+
+    public function prepareGuidedClarification(): void
+    {
+        if (! $actor = $this->guidedActor()) {
+            return;
+        }
+        abort_unless($this->guidedStep === 'actions', 422);
+        $this->performGuided(function () use ($actor): void {
+            $this->syncGuidedReview($this->workflow()->prepareClarification($actor, $this->guidedReview));
+            $this->dispatch('disposition-mailbox-updated');
+        });
+    }
+
+    public function guidedBack(): void
+    {
+        if (! $actor = $this->guidedActor()) {
+            return;
+        }
+        $this->performGuided(function () use ($actor): void {
+            $this->syncGuidedReview($this->workflow()->refresh($actor, $this->guidedReview));
+            $this->guidedStep = match ($this->guidedStep) {
+                'actions' => 'customer', 'customer', 'done' => 'recognition', default => 'recognition',
+            };
+        });
+    }
+
+    public function closeGuidedReview(): void
+    {
+        $this->actor();
+        if (! $this->contextCurrent()) {
+            return;
+        }
+        $this->resetGuidedReview();
+        $this->resetValidation();
+    }
+
+    public function deferGuidedToNative(): void
+    {
+        if (! $actor = $this->guidedActor()) {
+            return;
+        }
+        $this->performGuided(function () use ($actor): void {
+            $this->syncGuidedReview($this->workflow()->refresh($actor, $this->guidedReview));
+            $this->showIntake($this->mailbox()->linkedIntake($actor, (int) $this->guidedReview['intake_id']));
         });
     }
 
@@ -271,6 +457,7 @@ class DispositionMailbox extends Component
 
     private function showIntake(AiIntake $intake): void
     {
+        $this->resetGuidedReview();
         $this->showMailbox = false;
         $this->selectedIntakeId = $intake->id;
         $this->intakeRevision++;
@@ -285,6 +472,7 @@ class DispositionMailbox extends Component
         }
 
         $this->reset('selectedMessage', 'mailboxPage', 'selectedIntakeId');
+        $this->resetGuidedReview();
         $this->connectionState['connected'] = false;
         $this->connectionState['error'] = 'Das Postfach wurde geändert. Bitte neu öffnen.';
         $this->addError('mailbox', 'Das Postfach wurde geändert. Bitte neu öffnen.');
@@ -312,10 +500,40 @@ class DispositionMailbox extends Component
         }
     }
 
-    public function render()
+    private function performGuided(callable $action): void
     {
         $this->actor();
+        $this->resetValidation();
+        try {
+            $action();
+        } catch (ValidationException $exception) {
+            foreach ($exception->errors() as $field => $messages) {
+                $this->addError($field, implode(' ', $messages));
+            }
+            $this->addError('guidedReview', implode(' ', array_slice($exception->validator->errors()->all(), 0, 5)));
+        } catch (HttpException $exception) {
+            if (in_array($exception->getStatusCode(), [403, 404], true)) {
+                throw $exception;
+            }
+            $this->addError('guidedReview', ($exception->getStatusCode() === 409
+                ? 'Diese Mailprüfung wurde inzwischen geändert. Die Mail erneut erkennen oder den aktuellen Eingang im Anfrage-Dialog prüfen.'
+                : 'Dieser Schritt konnte nicht abgeschlossen werden. Die erkannten Angaben, den Kunden und den Kontakt prüfen.').($exception->getMessage() !== '' ? ' '.mb_substr($exception->getMessage(), 0, 300) : ''));
+        } catch (Throwable) {
+            $this->addError('guidedReview', 'Die Mail konnte gerade nicht verarbeitet werden. Bitte erneut versuchen.');
+        }
+    }
 
-        return view('livewire.operations.disposition-mailbox', ['intakeLabels' => AiIntakeInbox::LABELS]);
+    public function render()
+    {
+        $actor = $this->actor();
+        $customerOptions = $contactOptions = [];
+        if ($this->guidedReview !== [] && $this->contextCurrent() && $this->guidedStep === 'customer') {
+            $customerOptions = $this->workflow()->customerOptions($actor, mb_substr(trim($this->customerSearch), 0, 120));
+            if (ctype_digit($this->customerId) && (int) $this->customerId > 0) {
+                $contactOptions = $this->workflow()->contactOptions($actor, (int) $this->customerId);
+            }
+        }
+
+        return view('livewire.operations.disposition-mailbox', ['intakeLabels' => AiIntakeInbox::LABELS, 'customerOptions' => $customerOptions, 'contactOptions' => $contactOptions]);
     }
 }

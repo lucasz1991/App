@@ -10,7 +10,13 @@ use Throwable;
 
 final class TomTomSettings
 {
-    public const DEFAULTS = ['enabled' => false, 'reserve_minutes' => 5, 'routing_monthly_limit' => 18000, 'tile_monthly_limit' => 180000, 'use_employee_locations' => false];
+    public const DEFAULTS = [
+        'enabled' => false, 'reserve_minutes' => 5, 'routing_monthly_limit' => 18000,
+        'tile_monthly_limit' => 180000, 'use_employee_locations' => false,
+        'server_cache_enabled' => true, 'server_tile_cache_enabled' => true, 'server_tile_cache_minutes' => 60,
+        'server_route_cache_enabled' => true, 'server_route_cache_minutes' => 5,
+        'server_geometry_cache_minutes' => 15, 'server_cache_max_mb' => 128,
+    ];
 
     /** Public configuration deliberately excludes the encrypted credential. */
     public static function all(): array
@@ -31,8 +37,16 @@ final class TomTomSettings
             'routing_monthly_limit' => ['required', 'integer', 'min:0', 'max:10000000'],
             'tile_monthly_limit' => ['required', 'integer', 'min:0', 'max:100000000'],
             'use_employee_locations' => ['required', 'boolean'],
+            'server_cache_enabled' => ['sometimes', 'boolean'],
+            'server_tile_cache_enabled' => ['sometimes', 'boolean'],
+            'server_tile_cache_minutes' => ['sometimes', 'integer', 'min:1', 'max:1440'],
+            'server_route_cache_enabled' => ['sometimes', 'boolean'],
+            'server_route_cache_minutes' => ['sometimes', 'integer', 'min:1', 'max:15'],
+            'server_geometry_cache_minutes' => ['sometimes', 'integer', 'min:1', 'max:60'],
+            'server_cache_max_mb' => ['sometimes', 'integer', 'min:16', 'max:1024'],
         ])->validate();
         $stored = self::stored();
+        unset($stored['tile_cache_enabled'], $stored['tile_cache_minutes']);
         $newKey = trim($newKey ?? '');
         if ($newKey !== '') {
             Validator::make(['key' => $newKey], ['key' => ['string', 'min:8', 'max:512', 'regex:/^[A-Za-z0-9_-]+$/']])->validate();

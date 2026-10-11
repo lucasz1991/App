@@ -3,6 +3,7 @@
 namespace App\Services\Routing;
 
 use App\Support\Routing\RoutingSchema;
+use App\Support\Routing\TileCachePolicy;
 use App\Support\Routing\TomTomSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Pool;
@@ -20,9 +21,20 @@ class TomTomRoutingService
         return $this->calculateMany($requests, false);
     }
 
+    /** Planned display only; binding and employee-location callers use summaryMany(). */
+    public function summaryManyForDisplay(array $requests): array
+    {
+        return $this->calculateMany($requests, false, false, true);
+    }
+
     public function geometry(array $origin, array $destination, mixed $departure): array
     {
         return $this->calculateMany(['route' => compact('origin', 'destination', 'departure')], true)['route'];
+    }
+
+    public function geometryForDisplay(array $origin, array $destination, mixed $departure): array
+    {
+        return $this->calculateMany(['route' => compact('origin', 'destination', 'departure')], true, false, true)['route'];
     }
 
     public function testConnection(): array
@@ -40,29 +52,67 @@ class TomTomRoutingService
         if ($reason !== null) {
             return self::unknown($reason);
         }
-        if (! app(RoutingUsageService::class)->reserve('map_tiles')) {
-            return self::unknown('budget_exhausted');
+        $apiKey = TomTomSettings::apiKey();
+        if ($apiKey === null) {
+            return self::unknown('missing_key');
         }
-        try {
-            $response = Http::connectTimeout(2)->timeout(6)->get('https://api.tomtom.com/map/1/tile/basic/main/'.$z.'/'.$x.'/'.$y.'.png', ['key' => TomTomSettings::apiKey(), 'tileSize' => 256]);
-            if (! $response->successful() || ! str_starts_with($response->header('Content-Type'), 'image/')) {
-                return self::unknown('provider_error');
+        $url = 'https://api.tomtom.com/map/1/tile/basic/main/'.$z.'/'.$x.'/'.$y.'.png';
+        $query = ['key' => $apiKey, 'tileSize' => 256];
+        $identity = $this->cacheIdentity($url, $query);
+        $load = function () use ($apiKey, $url, $query, $identity): array {
+            if (($reason = $this->unavailable()) !== null || $apiKey !== TomTomSettings::apiKey()) {
+                return self::unknown($reason ?? 'settings_changed');
+            }
+            if (($cached = $this->cached('tile', $identity, $apiKey)) !== null) {
+                return $cached;
+            }
+            if (! app(RoutingUsageService::class)->reserve('map_tiles')) {
+                return self::unknown('budget_exhausted');
             }
 
-            return ['status' => 'known', 'body' => $response->body(), 'content_type' => 'image/png'];
+            return $this->fetchTile($url, $query, $identity, $apiKey);
+        };
+
+        return $this->cacheEnabled('tile') ? app(ServerRoutingCache::class)->synchronized('tile', $identity, $load) : $load();
+    }
+
+    private function fetchTile(string $url, array $query, string $identity, string $apiKey): array
+    {
+        try {
+            $startedAt = microtime(true);
+            $response = Http::connectTimeout(2)->timeout(6)->get($url, $query);
+            $receivedAt = microtime(true);
+            $contentType = strtolower(trim(explode(';', $response->header('Content-Type'))[0]));
+            if (! $response->successful() || ! in_array($contentType, ['image/png', 'image/jpeg'], true) || $response->body() === '') {
+                return self::unknown('provider_error');
+            }
+            if (($reason = $this->unavailable()) !== null || $apiKey !== TomTomSettings::apiKey()) {
+                return self::unknown($reason ?? 'settings_changed');
+            }
+            $result = [
+                'status' => 'known', 'body' => $response->body(), 'content_type' => $contentType,
+            ];
+            $seconds = $this->sharedTileSeconds($response, $startedAt, $receivedAt);
+            if ($seconds > 0 && $this->cacheEnabled('tile')) {
+                app(ServerRoutingCache::class)->put('tile', $identity, $result, $seconds);
+            }
+
+            return $result;
         } catch (Throwable) {
             return self::unknown('provider_unavailable');
         }
     }
 
-    private function calculateMany(array $requests, bool $geometry, bool $test = false): array
+    private function calculateMany(array $requests, bool $geometry, bool $test = false, bool $display = false): array
     {
         $deadline = microtime(true) + min(10.0, max(0.01, $this->durationBudgetSeconds));
         $results = [];
         $unique = [];
         $links = [];
+        $kind = $geometry ? 'geometry' : 'summary';
         $unavailable = $this->unavailable($test);
         $apiKey = $unavailable === null ? TomTomSettings::apiKey() : null;
+        $unavailable ??= $apiKey === null ? 'missing_key' : null;
         foreach ($requests as $id => $request) {
             $results[$id] = self::unknown($unavailable ?? 'invalid_input');
             if ($unavailable !== null || ! self::validPoint($request['origin'] ?? []) || ! self::validPoint($request['destination'] ?? [])) {
@@ -81,16 +131,34 @@ class TomTomRoutingService
                 'key' => $apiKey, 'travelMode' => 'car', 'routeType' => 'fastest', 'traffic' => 'true',
                 'departAt' => $departure, 'routeRepresentation' => $geometry ? 'polyline' : 'summaryOnly',
             ]];
+            $unique[$key]['identity'] = $this->cacheIdentity($unique[$key]['url'], $unique[$key]['query']);
         }
         $calculated = [];
         // Three simultaneous requests bound provider pressure and response memory.
         foreach (array_chunk($unique, 3, true) as $chunk) {
+            $produce = function () use ($chunk, $display, $kind, $deadline, $test, $geometry, $apiKey, &$calculated): void {
+            if (($reason = $this->unavailable($test)) !== null || $apiKey !== TomTomSettings::apiKey()) {
+                foreach ($chunk as $key => $request) {
+                    $calculated[$key] = self::unknown($reason ?? 'settings_changed');
+                }
+
+                return;
+            }
+            foreach ($chunk as $key => $request) {
+                if ($display && ($cached = $this->cached($kind, $request['identity'], $apiKey)) !== null) {
+                    $calculated[$key] = $cached;
+                    unset($chunk[$key]);
+                }
+            }
+            if ($chunk === []) {
+                return;
+            }
             if (microtime(true) >= $deadline) {
                 foreach ($chunk as $key => $request) {
                     $calculated[$key] = self::unknown('provider_timeout');
                 }
 
-                continue;
+                return;
             }
             $reserved = [];
             foreach ($chunk as $key => $request) {
@@ -102,7 +170,7 @@ class TomTomRoutingService
                 $reserved[$key] = $request;
             }
             if ($reserved === []) {
-                continue;
+                return;
             }
             try {
                 $timeout = min(6.0, max(0.05, $deadline - microtime(true)));
@@ -115,7 +183,22 @@ class TomTomRoutingService
                     return $calls;
                 });
                 foreach ($reserved as $key => $request) {
-                    $calculated[$key] = $this->parse($responses[$key] ?? null, $geometry);
+                    if (($reason = $this->unavailable($test)) !== null || $apiKey !== TomTomSettings::apiKey()) {
+                        $calculated[$key] = self::unknown($reason ?? 'settings_changed');
+
+                        continue;
+                    }
+                    $result = $this->parse($responses[$key] ?? null, $geometry);
+                    if ($display && $result['status'] === 'known') {
+                        $result += ['cache_hit' => false, 'calculated_at' => CarbonImmutable::now()->utc()->toIso8601String(), 'expires_at' => null];
+                        if ($this->cacheEnabled($kind)) {
+                            $payload = array_diff_key($result, array_flip(['cache_hit', 'calculated_at', 'expires_at']));
+                            if (app(ServerRoutingCache::class)->put($kind, $request['identity'], $payload, $this->cacheSeconds($kind))) {
+                                $result['expires_at'] = CarbonImmutable::now()->utc()->addSeconds($this->cacheSeconds($kind))->toIso8601String();
+                            }
+                        }
+                    }
+                    $calculated[$key] = $result;
                 }
             } catch (Throwable) {
                 // Exception messages can contain URL credentials: never report/log them.
@@ -123,12 +206,86 @@ class TomTomRoutingService
                     $calculated[$key] = self::unknown('provider_unavailable');
                 }
             }
+            };
+            if ($display && $this->cacheEnabled($kind)) {
+                app(ServerRoutingCache::class)->synchronizedMany($kind, array_column($chunk, 'identity'), $produce);
+            } else {
+                $produce();
+            }
         }
         foreach ($links as $id => $key) {
             $results[$id] = $calculated[$key] ?? self::unknown('provider_unavailable');
         }
 
         return $results;
+    }
+
+    private function cacheIdentity(string $url, array $query): string
+    {
+        $credential = hash('sha256', (string) ($query['key'] ?? ''));
+        unset($query['key']);
+        ksort($query);
+
+        return hash('sha256', json_encode([$url, $query, $credential], JSON_THROW_ON_ERROR));
+    }
+
+    private function cacheEnabled(string $kind): bool
+    {
+        $settings = TomTomSettings::all();
+
+        return ($settings['server_cache_enabled'] ?? true) === true
+            && ($settings[$kind === 'tile' ? 'server_tile_cache_enabled' : 'server_route_cache_enabled'] ?? true) === true;
+    }
+
+    private function cacheSeconds(string $kind): int
+    {
+        $settings = TomTomSettings::all();
+
+        return match ($kind) {
+            'tile' => max(1, min(1440, (int) ($settings['server_tile_cache_minutes'] ?? 60))) * 60,
+            'geometry' => max(1, min(60, (int) ($settings['server_geometry_cache_minutes'] ?? 15))) * 60,
+            default => max(1, min(15, (int) ($settings['server_route_cache_minutes'] ?? 5))) * 60,
+        };
+    }
+
+    private function cached(string $kind, string $identity, string $apiKey): ?array
+    {
+        if (! $this->cacheEnabled($kind) || $this->unavailable() !== null || $apiKey !== TomTomSettings::apiKey()) {
+            return null;
+        }
+        $entry = app(ServerRoutingCache::class)->get($kind, $identity);
+        if ($entry === null) {
+            return null;
+        }
+        if (! $this->cacheEnabled($kind) || $this->unavailable() !== null || $apiKey !== TomTomSettings::apiKey()) {
+            return null;
+        }
+        $expires = CarbonImmutable::parse($entry['expires_at']);
+        $ceiling = CarbonImmutable::parse($entry['fetched_at'])->addSeconds($this->cacheSeconds($kind));
+        $expires = $expires->min($ceiling);
+        if ($expires->lte(CarbonImmutable::now())) {
+            return null;
+        }
+        $result = $entry['data'];
+        if ($kind !== 'tile') {
+            $result += ['cache_hit' => true, 'calculated_at' => $entry['fetched_at'], 'expires_at' => $expires->toIso8601String()];
+        }
+
+        return $result;
+    }
+
+    private function sharedTileSeconds(Response $response, float $startedAt, float $receivedAt): int
+    {
+        $control = strtolower($response->header('Cache-Control'));
+        if (preg_match('/(?:^|,)\s*private(?:\s*=|\s*,|\s*$)/', $control)) {
+            return 0;
+        }
+        $seconds = TileCachePolicy::remainingSeconds($response->headers(), $this->cacheSeconds('tile'), $startedAt, $receivedAt);
+        if (preg_match('/(?:^|,)\s*s-maxage\s*=\s*"?([0-9]+)"?(?:\s*,|\s*$)/', $control, $match)) {
+            $seconds = min($seconds, max(0, (int) $match[1] - (int) $response->header('Age')));
+        }
+
+        return $seconds;
     }
 
     private function unavailable(bool $test = false): ?string

@@ -318,6 +318,94 @@ class AiIntakeService
         }
     }
 
+    /** Explicit recognition prepares review data; it cannot perform the automatic workflow. */
+    public function analyzeManually(AiIntake $intake, User $actor, int $expectedRevision, int $expectedSettingsRevision): AiIntake
+    {
+        $this->access($actor);
+        $lock = Cache::lock('ai-intake:'.$intake->id, 660);
+        abort_unless($lock->get(), 409, 'Dieser Eingang wird bereits analysiert. Bitte den aktuellen Stand laden.');
+        $run = null;
+        try {
+            $current = OperationsTransaction::run(function () use ($intake, $actor, $expectedRevision, $expectedSettingsRevision, &$run): AiIntake {
+                $this->access($actor);
+                $settings = AiDispositionSettings::all(true);
+                abort_unless((int) $settings['revision'] === $expectedSettingsRevision, 409, 'Postfacheinstellungen wurden geändert. Bitte neu öffnen.');
+                $current = $this->current($intake, $expectedRevision);
+                abort_unless($current->source_type === 'email' && ! $current->paused_at && ! in_array($current->status, ['paused', 'completed', 'analyzing'], true), 409, 'Diesen Eingang bitte im bestehenden Vorgang prüfen.');
+                $message = $current->messages()->whereKey($current->latest_inbound_message_id)->where('direction', 'inbound')->first();
+                abort_unless($message && ($message->metadata['mailbox_id'] ?? '') === AiDispositionSettings::mailboxId($settings)
+                    && (int) ($message->metadata['uid'] ?? 0) > 0 && (int) ($message->metadata['uid_validity'] ?? 0) > 0, 409, 'Die Mail gehört nicht zum aktuellen Dispositionspostfach.');
+                abort_if($current->error_code !== 'mailbox_test_review' && (str_starts_with((string) $current->error_code, 'mailbox_') || in_array($current->error_code, ['sender_unverified', 'attachments_review', 'automatic_message_review'], true)), 422, 'Die vollständige Mailquelle und Anlagen zuerst manuell prüfen.');
+                $successful = $current->processed_source_revision === $current->source_revision && $current->analysis
+                    && $current->runs()->where('source_revision', $current->source_revision)->whereIn('kind', ['analysis', 'mailbox_test'])->where('status', 'succeeded')->exists();
+                if ($successful) {
+                    return $current;
+                }
+                abort_if($current->proposals()->where(function ($q): void {
+                    $q->whereNotNull('inquiry_id')->orWhereIn('status', ['approved', 'applied']);
+                })->exists() || $current->deliveries()->whereIn('status', ['draft', 'pending', 'sending', 'unknown'])->exists(), 409, 'Ein bestehender Anfrage- oder Versandvorgang muss zuerst persönlich geprüft werden.');
+                $current->proposals()->whereNotIn('status', ['applied', 'stale'])->update(['status' => 'stale', 'error_code' => 'manual_recognition_requested']);
+                $current->update(['status' => 'analyzing', 'error_code' => 'mailbox_test_processing', 'revision' => $current->revision + 1]);
+                $settings['supervisor_id'] = $actor->id;
+                $run = $this->run($current, 'mailbox_test', $settings);
+                $run->update(['configuration' => ['mode' => 'manual_review', 'actor_id' => $actor->id,
+                    'intake_revision' => $current->revision, 'mailbox_id' => AiDispositionSettings::mailboxId($settings)]]);
+                app(OperationsAuditService::class)->record($current, $actor, 'mailbox.analysis_requested', ['run_id' => $run->id, 'source_revision' => $current->source_revision]);
+
+                return $current;
+            });
+            if (! $run) {
+                return $current;
+            }
+            app(AiDispositionClient::class)->assertManualContext($run);
+            $extracted = app(AiIntakeExtractionService::class)->extract($current, $run);
+            app(AiDispositionClient::class)->assertManualContext($run);
+            $result = $this->validateExtraction($current, $extracted['result']);
+
+            return OperationsTransaction::run(function () use ($current, $actor, $run, $result, $extracted): AiIntake {
+                $this->access($actor);
+                $fresh = AiIntake::lockForUpdate()->findOrFail($current->id);
+                app(AiDispositionClient::class)->assertManualContext($run);
+                $fresh->update(['analysis' => $result, 'title' => $result['title'], 'summary' => $result['summary'], 'confidence' => $result['confidence'],
+                    'last_analyzed_at' => now()->utc(), 'processed_source_revision' => $fresh->source_revision,
+                    'status' => 'review', 'error_code' => 'mailbox_test_review', 'revision' => $fresh->revision + 1]);
+                $missing = $fresh->customer_id ? [] : ['customer_id'];
+                if ($result['intent'] === 'inquiry' && $result['extraction_complete'] && ! $result['overflow'] && count($result['positions']) <= 20
+                    && in_array($result['classification'], ['new_inquiry', 'reply'], true)) {
+                    foreach ($result['positions'] as $index => $position) {
+                        $demand = array_intersect_key($position, array_flip(['title', 'starts_at', 'ends_at', 'timezone', 'location_name', 'role_name', 'required_staff']));
+                        [$qualificationIds, $unmapped] = $this->qualifications($position);
+                        $demand['qualification_ids'] = $qualificationIds;
+                        $absent = $this->missing($demand);
+                        if ($unmapped !== []) {
+                            $absent[] = 'qualification_ids';
+                        }
+                        $missing = array_merge($missing, $absent);
+                        $proposal = $fresh->proposals()->firstOrNew(['source_revision' => $fresh->source_revision, 'position_index' => $index]);
+                        $proposal->fill(['revision' => $proposal->exists ? $proposal->revision + 1 : 1, 'status' => 'proposed', 'error_code' => null,
+                            'payload' => ['demand' => $demand, 'segments' => $position['segments'], 'evidence' => $position['evidence'], 'missing_fields' => $absent,
+                                'raw_requirements' => $position['qualification_requirements'] ?? [], 'unmapped_requirements' => $unmapped]])->save();
+                    }
+                }
+                $fresh->update(['missing_fields' => array_values(array_unique($missing))]);
+                $run->update(['status' => 'succeeded', 'result' => $result, 'model' => $extracted['model'] ?? null,
+                    'provider_request_id' => $extracted['request_id'] ?? null, 'cost_usd' => $extracted['cost_usd'] ?? null, 'finished_at' => now()->utc()]);
+                app(OperationsAuditService::class)->record($fresh, $actor, 'mailbox.analysis_completed', ['run_id' => $run->id, 'source_revision' => $fresh->source_revision]);
+
+                return $fresh;
+            });
+        } catch (Throwable $error) {
+            if ($run && $run->fresh()?->status === 'running') {
+                $run->update(['status' => 'failed', 'error_code' => $error instanceof ValidationException ? 'validation_review' : 'manual_analysis_failed', 'finished_at' => now()->utc()]);
+                AiIntake::whereKey($intake->id)->where('source_revision', $run->source_revision)->where('revision', $run->configuration['intake_revision'])
+                    ->where('status', 'analyzing')->where('error_code', 'mailbox_test_processing')->update(['status' => 'review', 'error_code' => 'mailbox_test_review']);
+            }
+            throw $error;
+        } finally {
+            $lock->release();
+        }
+    }
+
     public function assignCustomer(AiIntake $intake, User $actor, int $customerId, ?int $contactId = null, ?int $expectedRevision = null): void
     {
         $this->access($actor);
@@ -447,7 +535,7 @@ class AiIntakeService
             return 0;
         }
         $count = 0;
-        foreach (AiIntakeRun::where('kind', 'analysis')->where('status', 'running')->where('started_at', '<', now()->utc()->subMinutes(15))->orderBy('id')->limit(100)->get() as $run) {
+        foreach (AiIntakeRun::whereIn('kind', ['analysis', 'mailbox_test'])->where('status', 'running')->where('started_at', '<', now()->utc()->subMinutes(15))->orderBy('id')->limit(100)->get() as $run) {
             OperationsTransaction::run(function () use ($run, &$count): void {
                 $intake = AiIntake::lockForUpdate()->findOrFail($run->intake_id);
                 $record = AiIntakeRun::lockForUpdate()->findOrFail($run->id);
@@ -455,9 +543,9 @@ class AiIntakeService
                     return;
                 }
                 $record->update(['status' => 'failed', 'error_code' => 'worker_run_outcome_unknown', 'finished_at' => now()->utc()]);
-                $latest = $intake->runs()->where('kind', 'analysis')->latest('id')->value('id');
+                $latest = $intake->runs()->whereIn('kind', ['analysis', 'mailbox_test'])->latest('id')->value('id');
                 if ($latest === $record->id && $intake->source_revision === $record->source_revision && $intake->status === 'analyzing') {
-                    $intake->update(['status' => 'review', 'error_code' => 'worker_run_outcome_unknown', 'revision' => $intake->revision + 1]);
+                    $intake->update(['status' => 'review', 'error_code' => $record->kind === 'mailbox_test' ? 'mailbox_test_review' : 'worker_run_outcome_unknown', 'revision' => $intake->revision + 1]);
                     $count++;
                 }
             });
@@ -710,6 +798,16 @@ class AiIntakeService
             }
             if (! isset($evidence['segments'])) {
                 $position['segments'] = [];
+            }
+            foreach (['starts_at', 'ends_at'] as $field) {
+                if (filled($position[$field] ?? null)) {
+                    try {
+                        OperationsDateTime::local($position[$field], $position['timezone'], $field);
+                    } catch (ValidationException) {
+                        $position[$field] = null;
+                        $position['segments'] = [];
+                    }
+                }
             }
             if (! empty($position['starts_at']) && ! empty($position['ends_at'])) {
                 try {

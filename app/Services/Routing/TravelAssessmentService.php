@@ -53,7 +53,7 @@ class TravelAssessmentService
 
     public function preflight(Shift $shift, Collection $users, array $context = []): TravelPreflight
     {
-        unset($context['travel_preflight'], $context['skip_provider'], $context['skip_routing'], $context['include_employee_location']);
+        unset($context['travel_preflight'], $context['skip_provider'], $context['skip_routing'], $context['include_employee_location'], $context['display'], $context['cache'], $context['cache_purpose']);
 
         $outside = DB::transactionLevel() === 0;
         $assessment = $this->assessMany($shift, $users, $context);
@@ -120,7 +120,7 @@ class TravelAssessmentService
     }
 
     /** Route facts are ephemeral; basis contains only our own planning inputs. */
-    public function assessMany(Shift $shift, Collection $users, array $context = [], bool $lock = false): array
+    public function assessMany(Shift $shift, Collection $users, array $context = [], bool $lock = false, bool $display = false): array
     {
         if (($context['travel_preflight'] ?? null) instanceof TravelPreflight) {
             $context = array_replace($context['travel_preflight']->context, $context);
@@ -222,7 +222,9 @@ class TravelAssessmentService
                 unset($requests[$user->id.':before'], $requests[$user->id.':after']);
             }
         }
-        $routeResults = ($context['skip_provider'] ?? false) ? [] : app(TomTomRoutingService::class)->summaryMany($requests);
+        $routing = app(TomTomRoutingService::class);
+        $display = $display && ! $lock && DB::transactionLevel() === 0 && ! ($preflight instanceof TravelPreflight);
+        $routeResults = ($context['skip_provider'] ?? false) ? [] : ($display ? $routing->summaryManyForDisplay($requests) : $routing->summaryMany($requests));
         foreach ($users as $user) {
             foreach ($results[$user->id]['travel'] as $direction => &$leg) {
                 $route = $routeResults[$user->id.':'.$direction] ?? null;
@@ -295,7 +297,7 @@ class TravelAssessmentService
             return TomTomRoutingService::unknown('site_unconfirmed');
         }
 
-        return app(TomTomRoutingService::class)->geometry($leg['origin'], $leg['destination'], $leg['departure']);
+        return app(TomTomRoutingService::class)->geometryForDisplay($leg['origin'], $leg['destination'], $leg['departure']);
     }
 
     private function addEmployeeArrival(Shift $shift, Collection $users, array $context, array &$results): void

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,7 +28,11 @@ class RoleMiddleware
 
         $user = Auth::user();
 
-        if (! in_array($user->role, $roles, true)) {
+        $hasRequestedRole = $user instanceof User
+            && (in_array($user->role, $roles, true)
+                || (in_array('admin', $roles, true) && $user->isAdmin()));
+
+        if (! $hasRequestedRole) {
             $error = ['status' => 'Ihr Konto hat nicht die erforderliche Rolle für diesen Bereich.'];
 
             return $isAdminArea

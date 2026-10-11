@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Services\Routing\RoutingUsageService;
+use App\Services\Routing\ServerRoutingCache;
 use App\Services\Routing\TomTomRoutingService;
 use App\Support\Routing\TomTomSettings as Settings;
 use Illuminate\Support\Facades\Gate;
@@ -31,6 +32,8 @@ class TomTomSettings extends Component
     public function save(): void
     {
         $this->authorizeSettings();
+        $before = Settings::all();
+        $keyChanged = trim($this->apiKey) !== '';
         try {
             Settings::save($this->config, $this->apiKey);
         } finally {
@@ -39,6 +42,10 @@ class TomTomSettings extends Component
         }
         $this->reset('connection');
         $this->config = Settings::all();
+        $cacheKeys = array_filter(array_keys(Settings::DEFAULTS), fn (string $key) => str_starts_with($key, 'server_') || $key === 'enabled');
+        if ($keyChanged || array_intersect_key($before, array_flip($cacheKeys)) !== array_intersect_key($this->config, array_flip($cacheKeys))) {
+            app(ServerRoutingCache::class)->clear();
+        }
         $this->dispatch('swal:toast', type: 'success', text: 'Routenplanung gespeichert.');
     }
 
@@ -48,6 +55,14 @@ class TomTomSettings extends Component
         Settings::save(Settings::all(), null, true);
         $this->reset('apiKey', 'connection');
         $this->config = Settings::all();
+        app(ServerRoutingCache::class)->clear();
+    }
+
+    public function clearServerCache(): void
+    {
+        $this->authorizeSettings();
+        $removed = app(ServerRoutingCache::class)->clear();
+        $this->dispatch('swal:toast', type: 'success', text: 'Server-Cache für alle Nutzer geleert: '.$removed.' Einträge entfernt.');
     }
 
     public function test(): void
@@ -61,6 +76,9 @@ class TomTomSettings extends Component
     {
         $this->authorizeSettings();
 
-        return view('livewire.admin.tom-tom-settings', ['usage' => app(RoutingUsageService::class)->current(), 'saved' => Settings::all()]);
+        return view('livewire.admin.tom-tom-settings', [
+            'usage' => app(RoutingUsageService::class)->current(), 'saved' => Settings::all(),
+            'cacheStats' => app(ServerRoutingCache::class)->stats(),
+        ]);
     }
 }

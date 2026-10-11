@@ -10,6 +10,9 @@
                     <div><p class="font-semibold">{{ $direction === 'before' ? 'Vom vorherigen Einsatz' : 'Zum folgenden Einsatz' }} · {{ $leg['origin_label'] }} → {{ $leg['destination_label'] }}</p>
                         @if($leg['status'] === 'known')
                             <p>{{ $leg['duration_minutes'] }} min Fahrt + {{ $leg['reserve_minutes'] }} min Reserve + {{ $leg['rest_minutes'] }} min Ruhezeit · {{ $leg['available_minutes'] }} min verfügbar</p>
+                            @if(($leg['cache_hit'] ?? false) && !empty($leg['calculated_at']))
+                                <p class="text-xs text-rt-muted">Server-Cache · berechnet {{ \Carbon\CarbonImmutable::parse($leg['calculated_at'])->setTimezone('Europe/Berlin')->format('d.m. H:i:s') }}@if(!empty($leg['expires_at'])) · gültig bis {{ \Carbon\CarbonImmutable::parse($leg['expires_at'])->setTimezone('Europe/Berlin')->format('H:i:s') }}@endif. Vor einer verbindlichen Zuteilung wird die Fahrt frisch geprüft.</p>
+                            @endif
                             @if($leg['missing_minutes'] > 0)<p class="text-red-700 dark:text-red-300">{{ $leg['missing_minutes'] }} Minuten fehlen. Eine begründete Ausnahme ist erforderlich.</p>@endif
                             @unless($leg['same_location'])<button type="button" class="min-h-11 underline" wire:click="showRoute({{ $employeeId }}, '{{ $direction }}')" wire:loading.attr="disabled">Route anzeigen</button>@endunless
                         @else<p class="text-amber-700 dark:text-amber-300">Fahrt ungeprüft: {{ \App\Services\Routing\TravelAssessmentService::reasonLabel($leg['reason']) }}.</p>@endif
@@ -30,6 +33,9 @@
     @endforeach
     @error('route')<p role="alert" class="text-sm text-amber-700 dark:text-amber-300">{{ $message }}</p>@enderror
     @if($geometry)
+        @if(($geometryCache['cache_hit'] ?? false) && !empty($geometryCache['calculated_at']))
+            <p class="text-xs text-rt-muted">Route aus dem Server-Cache · berechnet {{ \Carbon\CarbonImmutable::parse($geometryCache['calculated_at'])->setTimezone('Europe/Berlin')->format('d.m. H:i:s') }}@if(!empty($geometryCache['expires_at'])) · gültig bis {{ \Carbon\CarbonImmutable::parse($geometryCache['expires_at'])->setTimezone('Europe/Berlin')->format('H:i:s') }}@endif. Vor einer verbindlichen Zuteilung wird die Fahrt frisch geprüft.</p>
+        @endif
         <div wire:ignore wire:key="routing-map-{{ md5(json_encode($geometry)) }}" x-data="rtRoutingMap(@js($geometry), @js(route('operations.routing.tile', ['z' => '__z__', 'x' => '__x__', 'y' => '__y__'], false)))" class="relative z-0 h-64 w-full overflow-hidden rounded-lg border border-rt-border" aria-label="Berechnete Route" role="region"><p x-show="errorText" x-cloak x-text="errorText" role="status" class="pointer-events-none absolute bottom-6 left-2 right-2 z-[1000] rounded bg-rt-surface p-2 text-xs text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"></p></div>
     @endif
 </section>

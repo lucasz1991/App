@@ -233,6 +233,14 @@ class CaseWorkspace extends Component
     public function planningPeriodChanged(mixed $from, mixed $until): void
     {
         $this->access();
+        if ($this->view === 'orders') {
+            OperationsAccess::authorize($this->actor(), 'operations.manage');
+            $period = Orders::listState(['from' => $from, 'until' => $until]);
+            $this->context['from'] = $period['from'];
+            $this->context['until'] = $period['until'];
+
+            return;
+        }
         if ($this->view !== 'shifts') {
             return;
         }
@@ -320,6 +328,10 @@ class CaseWorkspace extends Component
             $result['status'] = $state['status'] === 'all' ? null : $state['status'];
             if ($view === 'inbox') {
                 $result['filter'] = $state['filter'] === 'active' ? null : $state['filter'];
+            } elseif (isset($this->context['from'], $this->context['until'])) {
+                $period = Orders::listState(array_intersect_key($this->context, array_flip(['from', 'until'])));
+                $result['from'] = $period['from'];
+                $result['until'] = $period['until'];
             }
         }
 

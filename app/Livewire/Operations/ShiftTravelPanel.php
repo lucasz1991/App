@@ -28,6 +28,9 @@ class ShiftTravelPanel extends Component
     public array $geometry = [];
 
     #[Locked]
+    public array $geometryCache = [];
+
+    #[Locked]
     public bool $loaded = false;
 
     public function mount(int $shiftId, array $employeeIds): void
@@ -57,7 +60,7 @@ class ShiftTravelPanel extends Component
     {
         $shift = $this->currentShift();
         $users = User::whereIn('id', $this->employeeIds)->where('role', 'staff')->where('status', true)->get();
-        $details = app(StaffEligibilityService::class)->assessDetailedMany($shift, $users, false, ['include_employee_location' => true, 'actor' => auth()->user()]);
+        $details = app(StaffEligibilityService::class)->assessDetailedMany($shift, $users, false, ['include_employee_location' => true, 'actor' => auth()->user()], true);
         $this->currentShift();
         $this->assessments = collect($details)->map(function ($detail) {
             $detail = array_intersect_key($detail, array_flip(['issues', 'warnings', 'travel', 'arrival']));
@@ -69,6 +72,7 @@ class ShiftTravelPanel extends Component
             return $detail;
         })->all();
         $this->geometry = [];
+        $this->geometryCache = [];
         $this->loaded = true;
     }
 
@@ -80,6 +84,8 @@ class ShiftTravelPanel extends Component
         $result = app(TravelAssessmentService::class)->geometryFor($shift, $user, $direction, ['actor' => auth()->user()]);
         $this->currentShift();
         $this->geometry = ($result['status'] ?? null) === 'known' ? ($result['points'] ?? []) : [];
+        $this->geometryCache = $direction !== 'arrival' && ($result['cache_hit'] ?? false)
+            ? array_intersect_key($result, array_flip(['cache_hit', 'calculated_at', 'expires_at'])) : [];
         if ($this->geometry === []) {
             $this->addError('route', 'Die Route ist aktuell nicht verfügbar. Die Zuteilung bleibt bedienbar.');
         } else {

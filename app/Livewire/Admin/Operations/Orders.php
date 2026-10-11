@@ -37,6 +37,10 @@ class Orders extends Component
 
     public int $perPage = 50;
 
+    public string $rangeFrom = '';
+
+    public string $rangeTo = '';
+
     #[Locked]
     public string $sortBy = 'period';
 
@@ -123,8 +127,61 @@ class Orders extends Component
         if (array_key_exists('filter', $query)) {
             abort_unless(is_string($query['filter']) && mb_strlen($query['filter']) <= 100 && $query['filter'] === 'all', 422);
         }
+        if (array_key_exists('from', $query) || array_key_exists('until', $query)) {
+            abort_unless(is_string($query['from'] ?? null) && is_string($query['until'] ?? null), 422);
+            try {
+                [$state['from'], $state['until']] = self::validatedPeriod($query['from'], $query['until']);
+            } catch (ValidationException) {
+                abort(422, 'Ungültiger Auftragszeitraum.');
+            }
+        }
 
         return $state;
+    }
+
+    private static function displayTimezone(): string
+    {
+        $timezone = (string) config('operations.display_timezone', 'Europe/Berlin');
+        try {
+            new \DateTimeZone($timezone);
+
+            return $timezone;
+        } catch (\Throwable) {
+            return 'Europe/Berlin';
+        }
+    }
+
+    /** @return array{string, string} */
+    private static function validatedPeriod(string $from, string $until): array
+    {
+        $validated = validator(['rangeFrom' => $from, 'rangeTo' => $until], [
+            'rangeFrom' => ['required', 'string', 'regex:/\A(?!0000)\d{4}-\d{2}-\d{2}\z/', 'date_format:Y-m-d'],
+            'rangeTo' => ['required', 'string', 'regex:/\A(?!0000)\d{4}-\d{2}-\d{2}\z/', 'date_format:Y-m-d', 'after_or_equal:rangeFrom'],
+        ])->validate();
+        // Count nominal calendar dates in UTC, independent of 23/25-hour DST days.
+        $firstDay = CarbonImmutable::createFromFormat('!Y-m-d', $validated['rangeFrom'], 'UTC');
+        $lastDay = CarbonImmutable::createFromFormat('!Y-m-d', $validated['rangeTo'], 'UTC');
+        if ($firstDay->diffInDays($lastDay) > 93) {
+            throw ValidationException::withMessages(['rangeTo' => 'Bitte höchstens 94 Tage auswählen.']);
+        }
+
+        return [$validated['rangeFrom'], $validated['rangeTo']];
+    }
+
+    private function usesPeriodFilter(): bool
+    {
+        return $this->consolidated && ! $this->profileEmbedded && ! $this->detailOnly;
+    }
+
+    public function applyPeriod(string $from, string $until): void
+    {
+        $this->ensureAdmin();
+        abort_unless($this->usesPeriodFilter(), 403);
+        [$this->rangeFrom, $this->rangeTo] = self::validatedPeriod($from, $until);
+        $this->resetPage('ordersPage');
+        $this->resetValidation(['rangeFrom', 'rangeTo']);
+        $this->dispatch('operations-period-changed', from: $this->rangeFrom, until: $this->rangeTo);
+        $this->syncUrl();
     }
 
     private function scopedQuery(): Builder
@@ -239,6 +296,10 @@ class Orders extends Component
             $state = self::listState(request()->query());
             $this->search = $state['search'];
             $this->statusFilter = $state['status'];
+            $today = CarbonImmutable::now(self::displayTimezone())->startOfDay();
+            $this->rangeFrom = $state['from'] ?? $today->subDays(30)->toDateString();
+            $this->rangeTo = $state['until'] ?? $today->addDays(30)->toDateString();
+            $this->dispatch('operations-period-changed', from: $this->rangeFrom, until: $this->rangeTo);
         }
         $this->fulfilmentRecordId = $initialRecordId;
         abort_if($initialRecordId !== null && ($initialRecordId < 1 || $initialSection !== 'proofs' || $initialOrderId === null), 404);
@@ -341,7 +402,10 @@ class Orders extends Component
             return;
         }
         $this->ensureAdmin();
-        $state = self::listState(['search' => $this->search, 'status' => $this->statusFilter]);
+        $state = self::listState([
+            'search' => $this->search, 'status' => $this->statusFilter,
+            'from' => $this->rangeFrom, 'until' => $this->rangeTo,
+        ]);
         if ($this->selectedOrderId) {
             $this->scopedQuery()->findOrFail($this->selectedOrderId);
         }
@@ -351,6 +415,7 @@ class Orders extends Component
             'customer' => $this->customerFilterId, 'search' => $state['search'],
             'status' => $state['status'] === 'all' ? null : $state['status'], 'order' => $this->selectedOrderId,
             'record' => $proofId, 'record_type' => $proofId ? 'proof' : null,
+            'from' => $state['from'], 'until' => $state['until'],
         ]));
     }
 
@@ -479,9 +544,22 @@ class Orders extends Component
         if ($this->consolidated) {
             self::listState(['search' => $this->search, 'status' => $this->statusFilter]);
         }
+        $periodBounds = null;
+        if ($this->usesPeriodFilter()) {
+            [$from, $until] = self::validatedPeriod($this->rangeFrom, $this->rangeTo);
+            $zone = self::displayTimezone();
+            $periodBounds = [
+                CarbonImmutable::createFromFormat('!Y-m-d', $from, $zone)->startOfDay()->utc(),
+                CarbonImmutable::createFromFormat('!Y-m-d', $until, $zone)->endOfDay()->utc(),
+            ];
+        }
 
         $ordersQuery = $this->scopedQuery()
             ->when($this->detailOnly, fn (Builder $query) => $query->whereRaw('1 = 0'))
+            // Whole-day inclusive overlap applies to the contract, never to shift dates.
+            ->when($periodBounds, fn (Builder $query) => $query
+                ->where('starts_at', '<=', $periodBounds[1])
+                ->where('ends_at', '>=', $periodBounds[0]))
             ->with([
                 'customer',
                 'shifts.assignments' => fn ($query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues()),
@@ -543,6 +621,7 @@ class Orders extends Component
         return view('livewire.admin.operations.orders', [
             'orders' => $orders,
             'orderTableItems' => $orderTableItems,
+            'displayTimezone' => self::displayTimezone(),
             'selectedOrder' => $selectedOrder,
             'serviceDetailItem' => $serviceDetailItem,
             'serviceDetailSummary' => $serviceDetailItem?->summary ?? ['shifts' => 0, 'required' => 0, 'reserved' => 0, 'confirmed' => 0, 'open' => 0],

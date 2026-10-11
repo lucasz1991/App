@@ -18,8 +18,11 @@ final class ApplicationNavigation
             ? ['Mein Arbeitsplatz', 'Disposition', 'Personal', 'Kunden']
             : ['Disposition', 'Personal', 'Kunden', 'Mein Arbeitsplatz'], []);
         $ready = OperationsAccess::ready();
-        if ($ready && OperationsAccess::isEmployee($user)) {
-            $add('Mein Arbeitsplatz', 'Mein Arbeitstag', 'operations.mine', 'clock');
+        $personalLinks = $ready && OperationsAccess::isEmployee($user)
+            ? PersonalWorkspaceAreas::links(isset(OperationsPages::availableFor($user)['attention']))
+            : [];
+        foreach ($personalLinks['Mein Arbeitsplatz'] ?? [] as $link) {
+            $sections['Mein Arbeitsplatz'][] = $link;
         }
         foreach (OperationsPages::availableFor($user) as $page => $definition) {
             if ($page === 'cases') {
@@ -92,15 +95,21 @@ final class ApplicationNavigation
         }
 
         $add('Persönlich', 'Meine Geräte', 'devices.mine', 'smartphone');
+        foreach ($personalLinks['Persönlich'] ?? [] as $link) {
+            $sections['Persönlich'][] = $link;
+        }
         $add('Persönlich', 'Profil', 'profile.show', 'user', [], false);
 
         if (! empty($sections['Mein Arbeitsplatz'])) {
             $workplace = $sections['Mein Arbeitsplatz'];
+            // Globale Arbeitsliste zuerst, dann die persönliche, dann Arbeitstag und Gruppen.
             $isWorklist = fn (array $link): bool => ($link['parameters']['page'] ?? '') === 'attention';
-            $sections['Mein Arbeitsplatz'] = array_merge(
+            $isPersonalWorklist = fn (array $link): bool => $link['route'] === 'operations.mine' && ($link['parameters']['area'] ?? '') === 'inbox';
+            $sections['Mein Arbeitsplatz'] = array_values(array_merge(
                 array_filter($workplace, $isWorklist),
-                array_filter($workplace, fn (array $link): bool => ! $isWorklist($link)),
-            );
+                array_filter($workplace, $isPersonalWorklist),
+                array_filter($workplace, fn (array $link): bool => ! $isWorklist($link) && ! $isPersonalWorklist($link)),
+            ));
         }
 
         if (! empty($sections['Personal'])) {
@@ -157,7 +166,8 @@ final class ApplicationNavigation
             $key = $label === '' ? '__direct_'.count($groups) : $label;
             $groups[$key] ??= ['label' => $label, 'icon' => match ($label) {
                 'Planung' => 'calendar', 'Personalakte' => 'users', 'Nachweise & Schulungen' => 'award',
-                'Zeitwirtschaft' => 'clock', 'Arbeitsmodelle & Regeln' => 'sliders', 'Arbeitsmittel' => 'tool', default => 'layers',
+                'Zeitwirtschaft' => 'clock', 'Arbeitsmodelle & Regeln' => 'sliders', 'Arbeitsmittel' => 'tool',
+                default => PersonalWorkspaceAreas::GROUPS[$label] ?? 'layers',
             }, 'links' => []];
             $groups[$key]['links'][] = $link;
         }
@@ -214,6 +224,14 @@ final class ApplicationNavigation
 
             return ! isset($link['parameters']['section'])
                 || ($section ?: ($view === 'shifts' ? 'plan' : '')) === $link['parameters']['section'];
+        }
+        if ($link['route'] === 'operations.mine') {
+            if (! request()->routeIs('operations.mine')) {
+                return false;
+            }
+            [$area] = PersonalWorkspaceAreas::resolve(request()->query('area'), request()->query('tab'));
+
+            return $area === ($link['parameters']['area'] ?? 'work');
         }
         $patterns = match ($link['route']) {
             'admin.dashboard' => ['admin.dashboard', 'admin.index'],

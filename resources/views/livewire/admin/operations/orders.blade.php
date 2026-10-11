@@ -16,19 +16,19 @@
     @if(! $profileEmbedded)
     <template x-teleport="[data-page-header-metrics]">
         <section class="rt-disposition-summary rt-orders-summary" aria-label="Aufträge im gesamten Bestand">
-            <div class="rt-disposition-summary__item">
+            <div class="rt-disposition-summary__item" role="group" aria-label="{{ $openCount }} aktive Aufträge" title="Aktive Aufträge">
                 <span class="rt-disposition-summary__value">{{ number_format($openCount, 0, ',', '.') }}</span>
                 <span class="rt-disposition-summary__label">Aktiv</span>
             </div>
-            <div class="rt-disposition-summary__item">
+            <div class="rt-disposition-summary__item" role="group" aria-label="{{ $startsSoonCount }} demnächst beginnende Aufträge" title="Demnächst beginnende Aufträge">
                 <span class="rt-disposition-summary__value">{{ number_format($startsSoonCount, 0, ',', '.') }}</span>
                 <span class="rt-disposition-summary__label">Demnächst</span>
             </div>
-            <div class="rt-disposition-summary__item">
+            <div class="rt-disposition-summary__item" role="group" aria-label="{{ $inProgressCount }} laufende Aufträge" title="Laufende Aufträge">
                 <span class="rt-disposition-summary__value">{{ number_format($inProgressCount, 0, ',', '.') }}</span>
                 <span class="rt-disposition-summary__label">Laufend</span>
             </div>
-            <div class="rt-disposition-summary__item">
+            <div class="rt-disposition-summary__item" role="group" aria-label="{{ $withoutShiftsCount }} Aufträge ohne Schichten" title="Aufträge ohne Schichten">
                 <span class="rt-disposition-summary__value">{{ number_format($withoutShiftsCount, 0, ',', '.') }}</span>
                 <span class="rt-disposition-summary__label">Ohne Schichten</span>
             </div>
@@ -44,7 +44,12 @@
                 <x-ui.buttons.button-basic type="button" mode="secondary" class="rt-service-bulk-trigger" disabled data-tables-bulk-unavailable data-orders-bulk-trigger aria-label="Massenaktionen – keine Sammelaktionen für Leistungen verfügbar" title="Keine Sammelaktionen für Leistungen verfügbar"><i class="far fa-layer-group" aria-hidden="true"></i></x-ui.buttons.button-basic>
             </div>
         </template>
-        <template x-teleport="[data-page-header-actions]">@include('livewire.admin.operations.partials.orders-filter-trigger')</template>
+        <template x-teleport="[data-page-header-actions]">
+            <div class="rt-orders-table-filters" data-orders-table-filters>
+                @include('livewire.admin.operations.partials.orders-period-trigger')
+                @include('livewire.admin.operations.partials.orders-filter-trigger')
+            </div>
+        </template>
     @else
         <div class="rt-orders-list-controls" data-orders-list-controls>
             <x-ui.buttons.button-basic type="button" mode="secondary" class="rt-service-bulk-trigger" disabled data-tables-bulk-unavailable data-orders-bulk-trigger aria-label="Massenaktionen – keine Sammelaktionen für Leistungen verfügbar" title="Keine Sammelaktionen für Leistungen verfügbar"><i class="far fa-layer-group" aria-hidden="true"></i></x-ui.buttons.button-basic>

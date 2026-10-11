@@ -228,7 +228,10 @@ class OperationsAttentionTest extends TestCase
 
     public function test_personal_area_defaults_to_existing_clock_and_switch_is_server_checked(): void
     {
-        Livewire::actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'work')->call('setArea', 'inbox')->assertSee('Arbeitsliste')->call('setArea', 'personnel')->assertNotFound();
+        Livewire::actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'work');
+        Livewire::withQueryParams(['area' => 'inbox'])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'inbox')->assertSee('Arbeitsliste');
+        // Unbekannte oder nicht freigeschaltete Bereiche fallen auf den Arbeitstag zurück.
+        Livewire::withQueryParams(['area' => 'unbekannt'])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'work');
     }
 
     public function test_terminal_http_is_disabled_without_explicit_activation(): void
@@ -321,8 +324,8 @@ class OperationsAttentionTest extends TestCase
             $this->actingAs($this->manager)->get(route('operations.workspace', ['module' => $module] + $query))->assertRedirect($target);
             $this->get($target)->assertOk();
         }
-        foreach (['personnel', 'operations', 'inbox', 'work'] as $area) {
-            Livewire::actingAs($this->employee)->test(PersonalWorkspace::class)->call('setArea', $area)->assertOk();
+        foreach (array_keys(\App\Support\Operations\PersonalWorkspaceAreas::all()) as $area) {
+            Livewire::withQueryParams(['area' => $area])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', $area)->assertOk();
         }
     }
 

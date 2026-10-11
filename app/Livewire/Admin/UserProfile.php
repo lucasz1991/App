@@ -104,7 +104,7 @@ class UserProfile extends Component
         // Die reduzierte Personenvorschau steht allen aktiven Kolleginnen und
         // Kollegen offen. Vollstaendige Personalprofile bleiben dagegen
         // ausschliesslich Administratoren und der Verwaltung vorbehalten.
-        abort_unless(auth()->user()?->canViewManagementDashboard(), 403);
+        abort_unless(auth()->user() instanceof User && auth()->user()->canViewManagementDashboard(), 403);
         Gate::authorize('employees.view');
 
         $this->userId = $userId;
@@ -128,7 +128,7 @@ class UserProfile extends Component
 
     public function setProfileTab(string $tab): void
     {
-        abort_unless(auth()->user()?->canViewManagementDashboard(), 403);
+        abort_unless(auth()->user() instanceof User && auth()->user()->canViewManagementDashboard(), 403);
         Gate::authorize('employees.view');
         abort_unless(isset($this->profileTabs()[$tab]), 403);
         if ($this->dirtyInlineFields !== []) {
@@ -139,7 +139,7 @@ class UserProfile extends Component
 
     private function profileTabs(): array
     {
-        $tabs = ['userDetails' => ['label' => __('app.details'), 'icon' => 'fad fa-id-card']];
+        $tabs = ['userDetails' => ['label' => 'Übersicht', 'icon' => 'fad fa-id-card']];
         if (Gate::allows('users.profiles.view')) {
             $tabs['userNotes'] = ['label' => __('app.notes'), 'icon' => 'fad fa-sticky-note'];
         }
@@ -151,6 +151,9 @@ class UserProfile extends Component
         }
         if (Gate::allows('devices.view')) {
             $tabs['devices'] = ['label' => 'Geräte', 'icon' => 'fad fa-laptop'];
+        }
+        if (auth()->user()?->isActive() && auth()->user()->isAdmin() && $this->user->role === 'staff') {
+            $tabs['locations'] = ['label' => 'Standorte', 'icon' => 'far fa-location-dot'];
         }
         if ($this->personnelAllowed('employees.master-data.view')) {
             $tabs['masterData'] = ['label' => __('app.master_data'), 'icon' => 'fad fa-user-lock'];
@@ -444,7 +447,7 @@ class UserProfile extends Component
 
     public function render()
     {
-        abort_unless(auth()->user()?->canViewManagementDashboard(), 403);
+        abort_unless(auth()->user() instanceof User && auth()->user()->canViewManagementDashboard(), 403);
         Gate::authorize('employees.view');
         $employeeProfileTabs = $this->profileTabs();
         abort_unless(isset($employeeProfileTabs[$this->profileTab]), 403);

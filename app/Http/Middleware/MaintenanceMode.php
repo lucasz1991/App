@@ -2,20 +2,20 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Setting;
+use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\View;
-use App\Models\Setting;
-use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Symfony\Component\HttpFoundation\Response;
 
 class MaintenanceMode
 {
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -28,7 +28,7 @@ class MaintenanceMode
         $lastUpdated = $maintenanceSetting ? $maintenanceSetting->updated_at : null;
 
         // Falls Wartungsmodus aktiv ist und der Benutzer sich nicht im Admin-Bereich befindet, zeige die Wartungsseite
-        if ($maintenanceMode && (!Auth::check() || Auth::user()->role != 'admin')) {
+        if ($maintenanceMode && (! (Auth::user() instanceof User) || ! Auth::user()->isAdmin())) {
             return response()->view('errors.maintenance', ['lastUpdated' => $lastUpdated]);
         }
 

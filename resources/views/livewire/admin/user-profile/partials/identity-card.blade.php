@@ -29,6 +29,7 @@
       // Funktion und Team stehen links als Badges — rechts bleiben nur die
       // Angaben, die dort nicht schon zu sehen sind.
       $identityFacts = array_values(array_filter([
+          ['icon' => 'far fa-shield-check', 'label' => 'Kontostatus', 'value' => $user->isActive() ? 'Aktiv' : 'Inaktiv', 'status' => $user->isActive() ? 'active' : 'inactive'],
           $canViewMasterData && $profile?->personnel_nr
               ? ['icon' => 'far fa-id-badge', 'label' => __('app.personnel_nr'), 'value' => $profile->personnel_nr]
               : null,
@@ -114,7 +115,7 @@
                       <i class="{{ $fact['icon'] }} w-3.5 text-center" aria-hidden="true"></i>
                       {{ $fact['label'] }}
                   </dt>
-                  <dd title="{{ $fact['value'] }}">
+                  <dd title="{{ $fact['value'] }}" @if(isset($fact['status'])) data-profile-account-status="{{ $fact['status'] }}" @endif>
                       {{ $fact['value'] }}
                   </dd>
               </div>

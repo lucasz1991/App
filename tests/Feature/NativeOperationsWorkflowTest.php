@@ -111,7 +111,7 @@ class NativeOperationsWorkflowTest extends TestCase
             ->assertSet('formOpen', false)->call('createRules')->assertSet('formOpen', true);
         Livewire::actingAs($this->employee)->test(MyWork::class)
             ->assertSee('Testdienst')->assertSeeHtml('data-rt-premium-table')
-            ->call('showTab', 'records')->call('openForm', 'absence')->assertSet('absenceOpen', true)
+            ->call('openForm', 'absence')->assertSet('absenceOpen', true)
             ->call('openForm', 'qualification')->assertSet('qualificationOpen', true)->assertSet('absenceOpen', false)
             ->call('showTab', 'today')->assertSet('qualificationOpen', false);
     }
@@ -272,8 +272,11 @@ class NativeOperationsWorkflowTest extends TestCase
         }
         Livewire::test(InquiryInbox::class)->call('create')->assertSee('Neue Anfrage');
         $this->actingAs($this->employee);
-        foreach (['today', 'schedule', 'time', 'records', 'absences'] as $tab) {
+        foreach (['today', 'schedule', 'time'] as $tab) {
             Livewire::test(MyWork::class)->call('showTab', $tab)->assertOk()->assertDontSee('WILSON');
+        }
+        foreach (['records', 'absences'] as $focus) {
+            Livewire::test(MyWork::class, ['focus' => $focus])->assertSet('tab', $focus)->assertOk()->assertDontSee('WILSON');
         }
         $this->get(route('dashboard'))->assertOk()->assertSee('data-native-dashboard', false)->assertDontSee('planning_not_connected');
         // Das Dashboard ist seit dem individuellen Widget-Raster kein festes
@@ -323,7 +326,7 @@ class NativeOperationsWorkflowTest extends TestCase
             $type = QualificationType::create(['name' => 'Nachweis '.$index]);
             EmployeeQualification::create(['user_id' => $this->employee->id, 'qualification_type_id' => $type->id, 'valid_from' => '2027-01-01', 'valid_until' => '2028-01-01', 'created_at' => now()->subMinutes($index)]);
         }
-        Livewire::actingAs($this->employee)->test(MyWork::class)->call('showTab', 'records')
+        Livewire::actingAs($this->employee)->test(MyWork::class, ['focus' => 'records'])
             ->assertViewHas('qualifications', fn ($page) => $page->count() === 20 && ! $page->contains('qualification_type_id', $type->id))
             ->call('setPage', 2, 'qualificationsPage')
             ->assertViewHas('qualifications', fn ($page) => $page->count() === 1 && $page->contains('qualification_type_id', $type->id));

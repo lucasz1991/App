@@ -12,13 +12,11 @@ use App\Services\Operations\OperationsReportService;
 use App\Services\Operations\PersonnelWorkflowService;
 use App\Services\Operations\PlanChangeService;
 use App\Services\Operations\PlanPublicationService;
-use App\Services\Operations\WorkforceAccountService;
 use App\Services\Operations\WorkTimeExtensionService;
 use App\Services\Operations\WorkTimeService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\PersonalSchedule;
 use App\Support\Operations\ReportingPeriod;
-use App\Support\Operations\WorkforcePlanningSchema;
 use App\Support\Operations\WorkTimeSchema;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Schema;
@@ -103,17 +101,20 @@ class MyWork extends Component
         session()->flash('operations.saved', 'Arbeitszeit gespeichert.');
     }
 
+    /**
+     * Abwesenheiten und Qualifikationen haben eigene Menüpunkte und laufen
+     * als fokussierte Einzelansicht; der Arbeitstag selbst behält nur den Tag.
+     */
+    #[Locked]
+    public string $focus = '';
+
     private function tabs(): array
     {
-        $tabs = ['today' => 'Mein Tag', 'schedule' => 'Mein Kalender', 'time' => 'Meine Zeit', 'records' => 'Nachweise', 'absences' => 'Abwesenheiten'];
-        if (class_exists(WorkforceAccountService::class) && app(WorkforceAccountService::class)->ready()) {
-            $tabs['personnel'] = 'Personal';
-        }
-        if (class_exists(WorkforcePlanningSchema::class) && WorkforcePlanningSchema::ready()) {
-            $tabs['planning'] = 'Planung';
-        }
-
-        return $tabs;
+        return match ($this->focus) {
+            'absences' => ['absences' => 'Urlaub & Abwesenheit'],
+            'records' => ['records' => 'Qualifikationen'],
+            default => ['today' => 'Heute', 'schedule' => 'Kalender', 'time' => 'Zeiten'],
+        };
     }
 
     public string $timeFrom = '';
@@ -189,15 +190,17 @@ class MyWork extends Component
         session()->flash('operations.saved', 'Zeit nachgetragen.');
     }
 
-    public function mount(): void
+    public function mount(string $focus = '', string $initialTab = ''): void
     {
         $this->access();
         $this->eventKey = (string) Str::uuid();
         $this->today();
-        if (request()->query('tab') === 'schedule') {
-            $this->tab = 'schedule';
-        } elseif (request()->query('tab') === 'planning' && WorkforcePlanningSchema::ready()) {
-            $this->tab = 'planning';
+        $this->focus = in_array($focus, ['absences', 'records'], true) ? $focus : '';
+        $initialTab = $initialTab ?: (string) request()->query('tab', '');
+        $this->tab = $this->focus ?: (array_key_exists($initialTab, $this->tabs()) ? $initialTab : 'today');
+        // "Urlaub planen" auf dem Arbeitstag öffnet den Antrag direkt.
+        if ($this->focus === 'absences' && request()->boolean('new')) {
+            $this->absenceOpen = true;
         }
     }
 
@@ -421,6 +424,25 @@ class MyWork extends Component
         return $this->event($record, $match[1]);
     }
 
+    /**
+     * Kurzstatus der ausgelagerten Bereiche, damit auf dem Arbeitstag sichtbar
+     * bleibt, was ansteht – ohne deren Listen hier erneut zu führen.
+     */
+    private function glance(): array
+    {
+        $userId = auth()->id();
+        $now = now();
+        $nextAbsence = AbsenceRequest::where('user_id', $userId)->where('status', 'approved')->where('ends_at', '>', $now->utc())->orderBy('starts_at')->first(['id', 'kind', 'starts_at', 'ends_at']);
+
+        return [
+            'open_times' => WorkTimeSchema::ready() ? WorkTimeEntry::where('user_id', $userId)->whereIn('status', ['completed', 'returned'])->count() : 0,
+            'pending_absences' => AbsenceRequest::where('user_id', $userId)->where('status', 'pending')->count(),
+            'next_absence' => $nextAbsence?->starts_at->setTimezone($this->displayTimezone()),
+            'expiring_qualifications' => EmployeeQualification::where('user_id', $userId)->where('status', 'approved')
+                ->whereDate('valid_until', '>=', $now->toDateString())->whereDate('valid_until', '<=', $now->copy()->addDays(30)->toDateString())->count(),
+        ];
+    }
+
     public function render()
     {
         $this->access();
@@ -490,10 +512,11 @@ class MyWork extends Component
             },
             'assignments' => $visible,
             'activeTime' => $activeTime,
-            'times' => $timeQuery->latest('starts_at')->paginate(20, ['*'], 'timesPage'),
-            'qualifications' => EmployeeQualification::where('user_id', auth()->id())->with('type')->latest()->paginate(20, ['*'], 'qualificationsPage'),
-            'absences' => AbsenceRequest::where('user_id', auth()->id())->latest()->paginate(20, ['*'], 'absencesPage'),
-            'types' => QualificationType::where('is_active', true)->orderBy('name')->get(),
+            'glance' => $this->tab === 'today' ? $this->glance() : [],
+            'times' => $this->tab === 'time' ? $timeQuery->latest('starts_at')->paginate(20, ['*'], 'timesPage') : collect(),
+            'qualifications' => $this->tab === 'records' ? EmployeeQualification::where('user_id', auth()->id())->with('type')->latest()->paginate(20, ['*'], 'qualificationsPage') : collect(),
+            'absences' => $this->tab === 'absences' ? AbsenceRequest::where('user_id', auth()->id())->latest()->paginate(20, ['*'], 'absencesPage') : collect(),
+            'types' => $this->tab === 'records' ? QualificationType::where('is_active', true)->orderBy('name')->get() : collect(),
             'manualAssignments' => $this->tab === 'time' ? ShiftAssignment::where('user_id', auth()->id())->where('status', 'confirmed')->whereDoesntHave('timeEntry')->whereHas('shift', fn ($q) => $q->where('published_revision', '>', 0)->whereColumn('published_revision', 'revision')->where('starts_at', '<=', now()->utc())->where('ends_at', '>=', now()->subDays(90)->utc())->where('status', '!=', 'cancelled'))->with('shift')->limit(50)->get() : collect(),
         ]);
     }

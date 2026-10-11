@@ -39,6 +39,9 @@ Homestead.json
 !/tests/Feature/ImportedOrderStatusTest.php
 !/tests/Feature/DispositionTableSortingTest.php
 !/tests/Feature/SharedTableSortingUiTest.php
+!/tests/Feature/EmployeeProfileOverviewUiTest.php
+!/tests/Feature/EmployeeProfileLocationHistoryTest.php
+!/tests/Feature/UserSuperAdminRoleRecognitionTest.php
 !/tests/Feature/MobileSidebarSwipeUiTest.php
 !/tests/TestCase.php
 !/tests/Support/
@@ -277,3 +280,9 @@ auth.json
 !/tests/Feature/RoutingSiteWorkflowTest.php
 !/tests/Feature/RoutingSiteSelectionSecurityTest.php
 !/tests/Frontend/routing-map.test.js
+!/tests/Frontend/routing-tile-cache.test.js
+!/tests/Feature/RoutingTileCacheTest.php
+!/tests/Feature/OrdersServiceTableDataTest.php
+!/tests/Feature/ServiceOrdersSharedPresentationTest.php
+!/tests/Feature/OrdersPeriodFilterTest.php
+!/tests/Feature/OrdersPeriodControlsUiTest.php

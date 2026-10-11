@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Support\Operations\ApplicationNavigation;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsPages;
+use App\Support\Operations\PersonalWorkspaceAreas;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Bus;
@@ -52,7 +53,7 @@ class NavigationWorkflowStructureTest extends TestCase
     {
         $this->installSchema($schema);
         $actor = $this->actor($role, $abilities, $active, $team);
-        $before = $this->originalSections($actor);
+        $before = $this->withPersonalWorkspaceAreas($this->originalSections($actor), $actor);
         $after = ApplicationNavigation::sections($actor);
 
         $this->assertSame($this->contracts($this->withRequestedPlanningUpdates($this->consolidatePeople($before), $actor)), $this->contracts($after), 'Only the requested employee consolidation, offer destination, planning caption and resource-page title may change; every other leaf contract stays unchanged.');
@@ -422,6 +423,30 @@ class NavigationWorkflowStructureTest extends TestCase
         }
 
         return $groups;
+    }
+
+    /** Requested change: "Mein Arbeitstag" splits into grouped personal menu links; global worklist stays first. */
+    private function withPersonalWorkspaceAreas(array $sections, User $actor): array
+    {
+        $personal = OperationsAccess::ready() && OperationsAccess::isEmployee($actor)
+            ? PersonalWorkspaceAreas::links(isset(OperationsPages::availableFor($actor)['attention']))
+            : [];
+        if (isset($sections['Mein Arbeitsplatz'])) {
+            $isGlobal = fn (array $link): bool => ($link['parameters']['page'] ?? '') === 'attention';
+            $rest = array_filter($sections['Mein Arbeitsplatz'], fn (array $link): bool => $link['route'] !== 'operations.mine');
+            $mine = $personal['Mein Arbeitsplatz'] ?? [];
+            $isInbox = fn (array $link): bool => ($link['parameters']['area'] ?? '') === 'inbox';
+            $sections['Mein Arbeitsplatz'] = array_values(array_merge(
+                array_filter($rest, $isGlobal), array_filter($mine, $isInbox),
+                array_filter($mine, fn (array $link): bool => ! $isInbox($link)), array_filter($rest, fn (array $link): bool => ! $isGlobal($link)),
+            ));
+        }
+        if (isset($sections['Persönlich']) && ($personal['Persönlich'] ?? []) !== []) {
+            $profile = array_pop($sections['Persönlich']);
+            $sections['Persönlich'] = [...$sections['Persönlich'], ...$personal['Persönlich'], $profile];
+        }
+
+        return $sections;
     }
 
     private function withRequestedPlanningUpdates(array $sections, User $actor): array

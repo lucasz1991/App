@@ -181,21 +181,26 @@ body:has(.rt-ai-assist__stage) .rt-service-pagination {
     .rt-service-table .rt-table-row-grid > [data-service-column='staffing'] { grid-column: 5 / 7 !important; grid-row: 2; }
 }
 @container rt-service-list (max-width: 600px) {
-    .rt-service-table .rt-table-row-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
-    .rt-service-table .rt-table-row-grid > [data-service-column='service'] { grid-column: 1 / -1 !important; padding-right: 0; }
-    .rt-service-table .rt-table-row-grid > [data-service-column='status'] { grid-column: 1 / -1 !important; grid-row: 2; justify-self: start; padding: 0; }
-    .rt-service-table .rt-table-row-grid > [data-service-column='customer'] { grid-column: 1 !important; grid-row: 3; }
-    .rt-service-table .rt-table-row-grid > [data-service-column='location'] { grid-column: 2 !important; grid-row: 3; }
-    .rt-service-table .rt-table-row-grid > [data-service-column='period'] { grid-column: 1 / -1 !important; grid-row: 4; }
-    .rt-service-table .rt-table-row-grid > [data-service-column='count'] { grid-column: 1 !important; grid-row: 5; }
-    .rt-service-table .rt-table-row-grid > [data-service-column='staffing'] { grid-column: 2 !important; grid-row: 5; }
+    .rt-service-table .rt-table-row { padding: 8px; }
+    .rt-service-table .rt-table-row-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+    .rt-service-table .rt-table-record__eyebrow { line-height: 1.4; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='service'] { grid-column: 1 !important; padding-right: 0; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='status'] { grid-column: 2 !important; grid-row: 1; justify-self: end; padding: 0; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='customer'] { grid-column: 1 !important; grid-row: 2; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='location'] { grid-column: 2 !important; grid-row: 2; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='period'] { grid-column: 1 / -1 !important; grid-row: 3; }
+    .rt-service-table .rt-table-row-grid > .rt-table-cell[data-service-column='period'] { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 8px; align-items: start; }
+    .rt-service-table .rt-table-row-grid > .rt-table-cell[data-service-column='period']::before { padding-top: 4px; margin-bottom: 0; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='count'] { grid-column: 1 !important; grid-row: 4; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='staffing'] { grid-column: 2 !important; grid-row: 4; }
     .rt-service-table .rt-table-value { font-size: 12px; }
 }
 
 /* Only the consolidated Orders page owns a viewport scrollport. A table in a
    customer profile deliberately remains in normal document flow. */
 .rt-orders-list-controls { display: flex; align-items: center; gap: 8px; }
-.rt-disposition-page:has([data-orders-list-scroll]) [data-page-header-actions] > [data-rt-dropdown-root]:has([data-orders-filter-trigger]) { order: -1; }
+.rt-orders-table-filters { display: flex; flex: none; align-items: center; gap: 8px; }
+.rt-disposition-page:has([data-orders-list-scroll]) [data-page-header-actions] > [data-orders-table-filters] { order: -1; }
 .rt-orders-list { min-width: 0; }
 html:has(#main-content [data-orders-list-scroll]),
 body:has(#main-content [data-orders-list-scroll]) { height: 100%; min-height: 0; overflow: hidden !important; }
@@ -240,7 +245,8 @@ body:has(#main-content [data-orders-list-scroll]) { height: 100%; min-height: 0;
     body:has([data-area-menu]) #main-content:has([data-orders-list-scroll]) { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important; }
 }
 @media (max-width: 600px) {
-    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] { display: grid !important; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 4px; }
+    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] { display: grid !important; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; }
+    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] [data-page-header-actions] { grid-column: 1 / -1; grid-row: 2; justify-content: flex-end; }
     .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] .rt-page-header-metrics {
         position: static;
         width: auto;
@@ -249,4 +255,19 @@ body:has(#main-content [data-orders-list-scroll]) { height: 100%; min-height: 0;
     }
     .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] .rt-orders-summary { gap: 4px; padding: 0; }
     .rt-disposition-page:has([data-orders-list-scroll]) .rt-orders-summary .rt-disposition-summary__value { font-size: 12px; }
+}
+@media (min-width: 601px) and (max-width: 1200px) {
+    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] { display: grid !important; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; }
+    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] .rt-page-header-metrics { position: static; width: auto; max-width: none; transform: none; }
+    .rt-orders-period-trigger.rt-ui-button { width: 44px; max-width: 44px; padding-inline: 0 !important; justify-content: center; }
+    .rt-orders-period-trigger > span, .rt-orders-period-trigger .rt-shift-plan-control__chevron { display: none; }
+}
+@media (max-width: 600px) {
+    .rt-orders-table-filters { flex: 1 1 auto; min-width: 0; gap: 4px; }
+    [data-orders-period-control] { flex: 1 1 auto; min-width: 0; }
+    [data-orders-period-control] > .rt-ui-dropdown-trigger { width: 100%; min-width: 0; }
+    .rt-orders-period-trigger.rt-ui-button { width: 100%; max-width: none; min-width: 44px; }
+    .rt-orders-period-trigger > span { display: grid; }
+    .rt-orders-period-trigger .rt-shift-plan-control__chevron { display: block; }
+    .rt-orders-period-trigger .rt-calendar-period { font-size: 11px; }
 }
