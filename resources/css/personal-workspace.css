@@ -189,6 +189,7 @@
 }
 @media (max-width: 479px) {
     .rt-personal-glance { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .rt-personal-glance__tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
     .rt-personal-glance__tile { min-height: 64px; padding: 12px; }
     .rt-personal-glance__value { font-size: 14px; }
     .rt-personal-work-heading .rt-ui-button { width: 100%; }
@@ -320,9 +321,19 @@
 /* Modal-Hülle und deaktivierter Standortstatus sind leer und dürfen keine Lücke erzeugen. */
 .rt-personal-work .rt-personal-today__clock { gap: 0; }
 .rt-personal-today__clock > [data-employee-location-status]:has(.ops-panel) { margin-top: 16px; }
-.rt-personal-today .rt-personal-today__glance { order: 2; gap: 10px; }
-.rt-personal-today .rt-personal-duty-list { order: 3; }
-.rt-personal-today .rt-personal-today__install { order: 4; }
+.rt-personal-today .rt-personal-tasks { order: 2; }
+.rt-personal-today .rt-personal-today__glance { order: 3; gap: 10px; }
+.rt-personal-today .rt-personal-duty-list { order: 4; }
+.rt-personal-today .rt-personal-today__install { order: 5; }
+/* Meine Aufgaben: die eingebettete Liste übernimmt nur Umschalter und Tabelle, die Überschrift kommt vom Abschnitt. */
+.rt-personal-work .rt-personal-tasks { gap: 12px; }
+.rt-personal-work .rt-personal-tasks > .ops-toolbar > div { display: grid; gap: 4px; }
+.rt-personal-work .rt-personal-tasks h3 { font-size: 18px; letter-spacing: -.02em; }
+.rt-personal-work .rt-personal-tasks > .rt-ops { gap: 12px; }
+.rt-personal-work .rt-personal-tasks > .rt-ops > .ops-toolbar { justify-content: flex-start; }
+.rt-personal-work .rt-personal-tasks > .rt-ops > .ops-toolbar .ops-actions { gap: 4px; padding: 4px; border-radius: 12px; background: var(--personal-inset); }
+.rt-personal-work .rt-personal-tasks > .rt-ops > .ops-toolbar .ops-actions .rt-ui-button { min-height: 36px; padding-inline: 14px; border: 0; background: transparent !important; color: var(--personal-muted) !important; }
+.rt-personal-work .rt-personal-tasks > .rt-ops > .ops-toolbar .ops-actions .rt-ui-button-primary { background: var(--personal-sheet) !important; color: var(--personal-signal) !important; box-shadow: 0 1px 3px var(--personal-line); }
 .rt-personal-today__aside-title { margin: 0; color: var(--personal-muted); font-size: 12px; font-weight: 650; letter-spacing: .02em; }
 .rt-personal-today__install:not(:has(.rt-install-card:not([style*="display: none"]))) { display: none; }
 

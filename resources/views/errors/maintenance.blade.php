@@ -17,8 +17,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="theme-color" content="#f3f6fa" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0b1120" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#dce3ed" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#03060b" media="(prefers-color-scheme: dark)">
 
     <title>Wartung · RailTime</title>
 
@@ -35,7 +35,7 @@
     <style>
         :root {
             color-scheme: light;
-            --rt-canvas: #f3f6fa;
+            --rt-canvas: #dce3ed;
             --rt-surface: rgba(255, 255, 255, 0.94);
             --rt-surface-muted: #f7f9fc;
             --rt-border: #dbe3ee;
@@ -51,7 +51,7 @@
 
         html.rt-dark {
             color-scheme: dark;
-            --rt-canvas: #0b1120;
+            --rt-canvas: #03060b;
             --rt-surface: rgba(17, 24, 39, 0.94);
             --rt-surface-muted: #151e2e;
             --rt-border: #273449;
@@ -68,7 +68,7 @@
         @media (prefers-color-scheme: dark) {
             html:not(.rt-light) {
                 color-scheme: dark;
-                --rt-canvas: #0b1120;
+                --rt-canvas: #03060b;
                 --rt-surface: rgba(17, 24, 39, 0.94);
                 --rt-surface-muted: #151e2e;
                 --rt-border: #273449;

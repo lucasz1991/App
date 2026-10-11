@@ -68,7 +68,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, [
             'userId' => $this->employee->id,
             'embedded' => $embedded,
-        ])->assertSuccessful()->assertSet('profileTab', 'userDetails');
+        ])->call('setProfileTab', 'userDetails')->assertSuccessful()->assertSet('profileTab', 'userDetails');
 
         $component->assertViewHas('employeeProfileTabs', function (array $tabs): bool {
             $existing = [
@@ -121,6 +121,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
             'personnel_nr' => 'FIXTURE-PERSONNEL-42',
         ]);
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+            ->call('setProfileTab', 'userDetails')
             ->assertSee('Profile Overview Fixture')->assertSee('profile-overview@example.invalid')
             ->assertSee('+49 000 111')->assertSee('+49 000 222')->assertSee('Fixture Street 10')
             ->assertSee('04109')->assertSee('Leipzig')->assertSee('FIXTURE-PERSONNEL-42');
@@ -163,6 +164,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
         DB::enableQueryLog();
         try {
             $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+                ->call('setProfileTab', 'userDetails')
                 ->assertSuccessful()->assertSet('profileTab', 'userDetails')
                 ->assertViewHas('profile', null)
                 ->assertSet('inlineValues.weekly_working_hours', null);
@@ -182,7 +184,8 @@ class EmployeeProfileOverviewUiTest extends TestCase
     public function test_working_time_summary_preserves_quarter_hours_zero_and_missing_values(?string $stored, ?string $display): void
     {
         Profile::create(['user_id' => $this->employee->id, 'weekly_working_hours' => $stored]);
-        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id]);
+        $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+            ->call('setProfileTab', 'userDetails');
         $summaries = $this->xpath($component->html())->query('//*[@data-inline-edit-field="weekly_working_hours"]//*[@data-inline-edit-display]');
         $this->assertCount(1, $summaries);
         $text = trim(preg_replace('/\s+/u', ' ', $summaries->item(0)->textContent));
@@ -247,6 +250,7 @@ class EmployeeProfileOverviewUiTest extends TestCase
     {
         $email = $this->employee->email;
         $component = Livewire::actingAs($this->admin)->test(UserProfile::class, ['userId' => $this->employee->id])
+            ->call('setProfileTab', 'userDetails')
             ->set('inlineValues.email', 'not-an-email')
             ->call('setProfileTab', 'locations')->assertHasErrors('inlineValues.email')
             ->assertSet('profileTab', 'userDetails')->assertSet('dirtyInlineFields', ['email']);

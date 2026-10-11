@@ -384,8 +384,9 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertStringContainsString("canvas: '#dce3ed'", $tailwind);
         $this->assertStringContainsString("canvas: '#03060b'", $tailwind);
         $this->assertStringContainsString('background-color: #03060b !important;', $appCss);
-        $this->assertStringContainsString('--rt-shell-canvas: #dce3ed;', $shellCss);
-        $this->assertStringContainsString('--rt-shell-canvas: #03060b;', $shellCss);
+        $this->assertStringContainsString('--rt-app-canvas: #dce3ed;', $appCss);
+        $this->assertStringContainsString('--rt-app-canvas: #03060b;', $appCss);
+        $this->assertStringContainsString('--rt-shell-canvas: var(--rt-app-canvas);', $shellCss);
     }
 
     public function test_compact_secondary_actions_override_legacy_important_display_without_changing_global_utilities(): void

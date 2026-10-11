@@ -12,7 +12,7 @@
     --rt-shell-line-strong: rgba(100, 116, 139, 0.34);
     --rt-shell-surface: rgba(255, 255, 255, 0.93);
     --rt-shell-surface-solid: #ffffff;
-    --rt-shell-canvas: #dce3ed;
+    --rt-shell-canvas: var(--rt-app-canvas);
     --rt-shell-panel: #f7f9fc;
     --rt-shell-border: #d7e0ea;
     --rt-shell-topbar: #f6f8fb;
@@ -32,7 +32,7 @@ body[data-mode='dark'] {
     --rt-shell-line-strong: rgba(100, 116, 139, 0.62);
     --rt-shell-surface: rgba(12, 20, 33, 0.93);
     --rt-shell-surface-solid: #111a27;
-    --rt-shell-canvas: #03060b;
+    --rt-shell-canvas: var(--rt-app-canvas);
     --rt-shell-panel: #182435;
     --rt-shell-border: #2a394d;
     --rt-shell-topbar: #0c1421;

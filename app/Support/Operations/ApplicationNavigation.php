@@ -18,9 +18,7 @@ final class ApplicationNavigation
             ? ['Mein Arbeitsplatz', 'Disposition', 'Personal', 'Kunden']
             : ['Disposition', 'Personal', 'Kunden', 'Mein Arbeitsplatz'], []);
         $ready = OperationsAccess::ready();
-        $personalLinks = $ready && OperationsAccess::isEmployee($user)
-            ? PersonalWorkspaceAreas::links(isset(OperationsPages::availableFor($user)['attention']))
-            : [];
+        $personalLinks = $ready && OperationsAccess::isEmployee($user) ? PersonalWorkspaceAreas::links() : [];
         foreach ($personalLinks['Mein Arbeitsplatz'] ?? [] as $link) {
             $sections['Mein Arbeitsplatz'][] = $link;
         }
@@ -102,13 +100,10 @@ final class ApplicationNavigation
 
         if (! empty($sections['Mein Arbeitsplatz'])) {
             $workplace = $sections['Mein Arbeitsplatz'];
-            // Globale Arbeitsliste zuerst, dann die persönliche, dann Arbeitstag und Gruppen.
             $isWorklist = fn (array $link): bool => ($link['parameters']['page'] ?? '') === 'attention';
-            $isPersonalWorklist = fn (array $link): bool => $link['route'] === 'operations.mine' && ($link['parameters']['area'] ?? '') === 'inbox';
             $sections['Mein Arbeitsplatz'] = array_values(array_merge(
                 array_filter($workplace, $isWorklist),
-                array_filter($workplace, $isPersonalWorklist),
-                array_filter($workplace, fn (array $link): bool => ! $isWorklist($link) && ! $isPersonalWorklist($link)),
+                array_filter($workplace, fn (array $link): bool => ! $isWorklist($link)),
             ));
         }
 

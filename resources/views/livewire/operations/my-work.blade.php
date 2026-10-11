@@ -26,6 +26,10 @@
         <div class="rt-personal-today">
             <div class="rt-personal-today__main">
                 @include('livewire.operations.partials.personal-clock')
+                <section class="rt-personal-tasks ops-stack" aria-labelledby="personal-tasks-heading">
+                    <header class="ops-toolbar"><div><h3 id="personal-tasks-heading">Meine Aufgaben</h3><p class="ops-muted">Freigaben, Rückfragen und Erinnerungen, die auf dich warten.</p></div></header>
+                    <livewire:operations.attention-center :personal="true" :key="'personal-tasks-'.auth()->id()" />
+                </section>
                 <section class="rt-personal-duty-list ops-stack" aria-labelledby="personal-upcoming-heading">
                     <header class="ops-toolbar"><div><h3 id="personal-upcoming-heading">Nächste Dienste</h3><p class="ops-muted">Dein veröffentlichter Dienstplan für die nächsten 14 Tage.</p></div><x-ui.buttons.button-basic mode="link" wire:click="showTab('schedule')" wire:loading.attr="disabled" wire:target="showTab">Zum Kalender</x-ui.buttons.button-basic></header>
                     <x-tables.table class="rt-personal-record-list" :columns="[['label'=>'Dienstplan','key'=>'shift']]" :items="$assignments" row-view="components.tables.rows.operations.personal-shift" empty="Keine veröffentlichten Dienste in den nächsten 14 Tagen." />

@@ -1,13 +1,13 @@
 /* Portal-only customer desk. Timeline and internal Operations keep their styles. */
 .rt-customer-portal-page{
- --portal-platform:#f3f4f6;--portal-tray:#e9ebef;--portal-paper:#fff;--portal-inset:#f6f7f9;--portal-graphite:#20252f;--portal-secondary:#596270;--portal-muted:#66707e;--portal-hairline:rgba(38,48,64,.09);--portal-highlight:rgba(255,255,255,.85);
+ --portal-platform:var(--rt-app-canvas);--portal-tray:#e9ebef;--portal-paper:#fff;--portal-inset:#f6f7f9;--portal-graphite:#20252f;--portal-secondary:#596270;--portal-muted:#66707e;--portal-hairline:rgba(38,48,64,.09);--portal-highlight:rgba(255,255,255,.85);
  --portal-signal:#d90029;--portal-signal-wash:#fff0f3;--portal-ready:#286346;--portal-ready-wash:#edf6f0;--portal-pending:#845f22;--portal-pending-wash:#fbf4e8;--portal-spring:cubic-bezier(.32,.72,0,1);
  --portal-layer-nav:40;--portal-layer-shade:30;
  --rt-shell-canvas:var(--portal-platform);--rt-shell-surface:var(--portal-paper);--rt-shell-surface-solid:var(--portal-paper);--rt-shell-panel:var(--portal-inset);--rt-shell-text:var(--portal-graphite);--rt-shell-muted:var(--portal-muted);--rt-shell-soft:var(--portal-muted);--rt-shell-line:var(--portal-hairline);--rt-shell-border:var(--portal-hairline);--rt-shell-accent:var(--portal-signal);
  color:var(--portal-graphite);background:var(--portal-platform);-webkit-font-smoothing:antialiased
 }
 html.dark .rt-customer-portal-page{
- --portal-platform:#101216;--portal-tray:#1b1e24;--portal-paper:#20242b;--portal-inset:#191d23;--portal-graphite:#f1f2f5;--portal-secondary:#c0c5ce;--portal-muted:#a5aebb;--portal-hairline:rgba(226,231,240,.1);--portal-highlight:rgba(255,255,255,.05);
+ --portal-platform:var(--rt-app-canvas);--portal-tray:#1b1e24;--portal-paper:#20242b;--portal-inset:#191d23;--portal-graphite:#f1f2f5;--portal-secondary:#c0c5ce;--portal-muted:#a5aebb;--portal-hairline:rgba(226,231,240,.1);--portal-highlight:rgba(255,255,255,.05);
  --portal-signal:#ff7891;--portal-signal-wash:#3c252e;--portal-ready:#a6d8b9;--portal-ready-wash:#233a2e;--portal-pending:#e8c886;--portal-pending-wash:#3b3326
 }
 html body.rt-customer-portal-page,html.dark body.rt-customer-portal-page{color:var(--portal-graphite);background:var(--portal-platform)}

@@ -12,6 +12,7 @@
     $profileGroups = collect($employeeProfileTabs)->groupBy(fn ($definition) => $definition['group'] ?? 'Profil & Stammdaten', preserveKeys: true);
     $profileGroup = $employeeProfileTabs[$profileTab]['group'] ?? 'Profil & Stammdaten';
     $profileGroupLabels = [
+        'Betrieb' => ['label' => 'Betrieb', 'icon' => 'far fa-train'],
         'Profil & Stammdaten' => ['label' => 'Profil', 'icon' => 'far fa-user'],
         'Personalakte' => ['label' => 'Personalakte', 'icon' => 'far fa-folder-open'],
         'Entwicklung & Aufgaben' => ['label' => 'Entwicklung', 'icon' => 'far fa-graduation-cap'],
@@ -95,6 +96,18 @@
                 <section hidden role="tabpanel" id="{{ $profilePrefix }}-panel-{{ $tabId }}" aria-labelledby="{{ $profilePrefix }}-tab-{{ $tabId }}"></section>
             @endif
         @endforeach
+        @if(isset($employeeProfileTabs['operationsOverview']) && $profileTab === 'operationsOverview')
+            <x-operations.panel.tab name="operationsOverview" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
+                <livewire:profile.employee-operations :user-id="(int) $user->id" view-mode="overview" :key="'employee-operations-overview-'.$user->id" />
+            </x-operations.panel.tab>
+        @endif
+
+        @if(isset($employeeProfileTabs['shifts']) && $profileTab === 'shifts')
+            <x-operations.panel.tab name="shifts" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">
+                <livewire:profile.employee-operations :user-id="(int) $user->id" view-mode="shifts" :key="'employee-operations-shifts-'.$user->id" />
+            </x-operations.panel.tab>
+        @endif
+
         {{-- Native inline-edit actions remain within the existing server-owned tab. --}}
         @if($profileTab === 'userDetails')
             <x-operations.panel.tab name="userDetails" :id-prefix="$profilePrefix" model="$wire.profileTab" class="employee-profile__panel">

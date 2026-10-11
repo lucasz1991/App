@@ -109,6 +109,9 @@ class UserProfile extends Component
 
         $this->userId = $userId;
         $this->loadUser();
+        if (isset($this->profileTabs()['operationsOverview'])) {
+            $this->profileTab = 'operationsOverview';
+        }
 
         if ($this->personnelAllowed('employees.master-data.view') || $this->personnelAllowed('employees.compensation.view')) {
             activity('employee-master-data')
@@ -139,7 +142,15 @@ class UserProfile extends Component
 
     private function profileTabs(): array
     {
-        $tabs = ['userDetails' => ['label' => 'Übersicht', 'icon' => 'fad fa-id-card']];
+        $tabs = [];
+        if ($this->operationalProfileAllowed()) {
+            $tabs['operationsOverview'] = ['label' => 'Übersicht', 'icon' => 'far fa-chart-line', 'group' => 'Betrieb'];
+            $tabs['shifts'] = ['label' => 'Schichten', 'icon' => 'far fa-calendar-days', 'group' => 'Betrieb'];
+        }
+        if (auth()->user()?->isActive() && auth()->user()->isAdmin() && $this->user->role === 'staff') {
+            $tabs['locations'] = ['label' => 'Standorte', 'icon' => 'far fa-location-dot', 'group' => 'Betrieb'];
+        }
+        $tabs['userDetails'] = ['label' => 'Übersicht', 'icon' => 'fad fa-id-card'];
         if (Gate::allows('users.profiles.view')) {
             $tabs['userNotes'] = ['label' => __('app.notes'), 'icon' => 'fad fa-sticky-note'];
         }
@@ -152,9 +163,6 @@ class UserProfile extends Component
         if (Gate::allows('devices.view')) {
             $tabs['devices'] = ['label' => 'Geräte', 'icon' => 'fad fa-laptop'];
         }
-        if (auth()->user()?->isActive() && auth()->user()->isAdmin() && $this->user->role === 'staff') {
-            $tabs['locations'] = ['label' => 'Standorte', 'icon' => 'far fa-location-dot'];
-        }
         if ($this->personnelAllowed('employees.master-data.view')) {
             $tabs['masterData'] = ['label' => __('app.master_data'), 'icon' => 'fad fa-user-lock'];
             $tabs['documents'] = ['label' => __('app.employee_documents'), 'icon' => 'fad fa-folder-check'];
@@ -164,6 +172,18 @@ class UserProfile extends Component
         }
 
         return $tabs + EmployeeProfileSections::forUser(auth()->user(), $this->user);
+    }
+
+    private function operationalProfileAllowed(): bool
+    {
+        if ($this->user->role !== 'staff' || ! auth()->user() instanceof User) {
+            return false;
+        }
+        $actor = User::with('currentTeam')->find(auth()->id());
+
+        return $actor?->isActive() && $actor->canViewManagementDashboard()
+            && Gate::forUser($actor)->allows('employees.view')
+            && Gate::forUser($actor)->allows('operations.manage');
     }
 
     public function updatedInlineValues(mixed $value, string $field): void

@@ -4,14 +4,6 @@
     display: none !important;
 }
 
-.rt-app-page-frame:has(:is(.rt-personnel-page, .rt-personal-workspace-page, .employee-workspace)) {
-    background: #f7f8fa;
-}
-
-:is(.dark, body[data-mode="dark"]) .rt-app-page-frame:has(:is(.rt-personnel-page, .rt-personal-workspace-page, .employee-workspace)) {
-    background: #0c1421;
-}
-
 .rt-personnel-page {
     --personnel-accent: #8d253d;
     --personnel-accent-soft: #f6edf0;

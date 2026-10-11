@@ -37,6 +37,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Eine Seitenfarbe fuer alle App-Layouts, auch ohne das Shell-Bundle.
+   Karten, Controls und Dokument-/Druckflaechen bleiben eigene Oberflaechen. */
+:root {
+    --rt-app-canvas: #dce3ed;
+}
+
+html.dark,
+body[data-mode="dark"] {
+    --rt-app-canvas: #03060b;
+}
+
+body,
+#main-content,
+.rt-app-page-frame {
+    background-color: var(--rt-app-canvas) !important;
+}
+
 [x-cloak] {
     display: none !important;
 }

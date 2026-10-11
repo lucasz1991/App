@@ -195,6 +195,7 @@ class EmployeeProfileIntegrationTest extends TestCase
     {
         $this->actingAs($this->admin);
         $profile = Livewire::test(UserProfile::class, ['userId' => $this->employee->id, 'embedded' => $embedded])
+            ->call('setProfileTab', 'userDetails')
             ->assertSet('profileTab', 'userDetails')
             ->assertViewHas('employeeProfileTabs', fn (array $tabs) => array_diff(['userDetails', 'userNotes', 'userFiles', 'userMessages', 'devices', 'masterData', 'documents', 'compensation'], array_keys($tabs)) === []);
         $this->assertSame([], $this->personnelChildren($profile->html()));
@@ -282,6 +283,7 @@ class EmployeeProfileIntegrationTest extends TestCase
         $this->actingAs($this->admin);
         $email = $this->employee->email;
         Livewire::test(UserProfile::class, ['userId' => $this->employee->id])
+            ->call('setProfileTab', 'userDetails')
             ->set('inlineValues.email', 'not-an-email')
             ->call('setProfileTab', 'qualifications')
             ->assertHasErrors(['inlineValues.email'])

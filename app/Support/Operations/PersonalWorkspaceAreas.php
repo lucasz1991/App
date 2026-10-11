@@ -29,8 +29,8 @@ final class PersonalWorkspaceAreas
         $operations = OperationsNavigation::enhancementReady('operations-enhancements');
         $area = static fn (string $label, string $icon, string $group, string $view, ?string $tab = null, string $section = 'Mein Arbeitsplatz'): array => compact('label', 'icon', 'group', 'section', 'view', 'tab');
 
+        // Die persönliche Arbeitsliste ist Teil von „Mein Arbeitstag“ (Abschnitt „Meine Aufgaben“).
         return array_filter([
-            'inbox' => $area('Arbeitsliste', 'inbox', '', 'inbox'),
             'work' => $area('Mein Arbeitstag', 'clock', '', 'my-work'),
 
             'absences' => $area('Urlaub & Abwesenheit', 'sun', 'Abwesenheit & Planung', 'my-work', 'absences'),
@@ -72,7 +72,7 @@ final class PersonalWorkspaceAreas
         $legacy = match ($area) {
             'personnel' => ['workflows' => 'processes', 'documents' => 'documents', 'emergency' => 'emergency', 'development' => 'development', 'surveys' => 'feedback', 'sickness' => 'sickness'][$tab] ?? 'processes',
             'operations' => ['proofs' => 'proofs', 'travel' => 'travel', 'partners' => 'partners', 'terminal' => 'terminal'][$tab] ?? 'proofs',
-            '', 'work' => ['absences' => 'absences', 'records' => 'qualifications', 'personnel' => 'account', 'planning' => 'planning'][$tab] ?? 'work',
+            '', 'work', 'inbox' => ['absences' => 'absences', 'records' => 'qualifications', 'personnel' => 'account', 'planning' => 'planning'][$tab] ?? 'work',
             default => $area,
         };
         $key = isset($areas[$legacy]) ? $legacy : 'work';
@@ -82,13 +82,12 @@ final class PersonalWorkspaceAreas
     }
 
     /** Menülinks im Format von ApplicationNavigation, nach Abschnitt gruppiert. */
-    public static function links(bool $hasGlobalWorklist = false): array
+    public static function links(): array
     {
         $links = [];
         foreach (self::all() as $key => $area) {
-            $title = $key === 'inbox' && $hasGlobalWorklist ? 'Meine Arbeitsliste' : $area['label'];
             $links[$area['section']][] = [
-                'title' => $title, 'route' => 'operations.mine', 'icon' => $area['icon'],
+                'title' => $area['label'], 'route' => 'operations.mine', 'icon' => $area['icon'],
                 'parameters' => $key === 'work' ? [] : ['area' => $key], 'navigate' => true,
                 'group' => $area['group'] !== '' ? $area['group'] : null, 'excludedSections' => [],
             ];

@@ -47,5 +47,5 @@
 <meta name="msapplication-TileColor" content="#e4002b">
 <meta name="msapplication-TileImage" content="{{ route('pwa.icon', ['icon' => 'pwa-192.png']) }}">
 
-<meta name="theme-color" content="#f3f6fa" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0b1120" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#dce3ed" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#03060b" media="(prefers-color-scheme: dark)">

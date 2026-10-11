@@ -56,7 +56,7 @@
          vollstaendig gestaltet ist. Farben entsprechen den RailTime-Tokens. --}}
     <style>
         :root {
-            --rt-canvas: #f3f6fa;
+            --rt-canvas: #dce3ed;
             --rt-surface: #ffffff;
             --rt-border: #dbe3ee;
             --rt-text: #172033;
@@ -64,7 +64,7 @@
             --rt-accent: #e4002b;
         }
         html.rt-dark {
-            --rt-canvas: #0b1120;
+            --rt-canvas: #03060b;
             --rt-surface: #111827;
             --rt-border: #273449;
             --rt-text: #e7edf7;
@@ -73,7 +73,7 @@
         }
         @media (prefers-color-scheme: dark) {
             html:not(.rt-light) {
-                --rt-canvas: #0b1120;
+                --rt-canvas: #03060b;
                 --rt-surface: #111827;
                 --rt-border: #273449;
                 --rt-text: #e7edf7;

@@ -122,12 +122,83 @@
 .employee-profile[data-profile-shell] .employee-location-history__state p { color: var(--employee-muted); font-size: 13px; line-height: 1.6; margin: 0; max-width: 480px; }
 .employee-profile[data-profile-shell] .employee-location-history__notice { font-size: 12px; line-height: 1.6; padding: 12px 16px; color: var(--employee-muted); background: var(--profile-control-inset); border-radius: 10px; }
 .employee-profile[data-profile-shell] .employee-location-history__pagination { min-width: 0; border-top: 1px solid var(--profile-rail-line); }
+/* Individual duty planning reuses the existing profile/tab/table contracts. */
+.employee-profile[data-profile-shell] .employee-operations { min-width: 0; }
+.employee-profile[data-profile-shell] .employee-operations__header { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin: 4px 0 20px; }
+.employee-profile[data-profile-shell] .employee-operations__eyebrow { margin: 0 0 4px; color: var(--employee-muted); font-size: 11px; }
+.employee-profile[data-profile-shell] .employee-operations__header h2 { margin: 0; color: var(--employee-ink); font-size: 22px; font-weight: 650; letter-spacing: -.03em; }
+.employee-profile[data-profile-shell] .employee-operations__description { margin: 8px 0 0; color: var(--employee-muted); font-size: 13px; line-height: 1.6; }
+.employee-profile[data-profile-shell] .employee-operations__updated { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-top: 4px; color: var(--employee-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.employee-profile[data-profile-shell] .employee-operations__summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 0 0 20px; padding: 16px 20px; background: var(--profile-control-inset); border-radius: 12px; }
+.employee-profile[data-profile-shell] .employee-operations__summary dt { color: var(--employee-muted); font-size: 11px; line-height: 1.5; }
+.employee-profile[data-profile-shell] .employee-operations__summary dd { margin: 4px 0 0; color: var(--employee-ink); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.employee-profile[data-profile-shell] .employee-operations__overview { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.employee-profile[data-profile-shell] .employee-operations__schedule { min-width: 0; padding: 20px; background: var(--profile-record-surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--profile-rail-line); }
+.employee-profile[data-profile-shell] .employee-operations__section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.employee-profile[data-profile-shell] .employee-operations__section-heading h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.employee-profile[data-profile-shell] .employee-operations__section-heading > :is(span, i) { font-size: 11px; color: var(--employee-muted); }
+.employee-profile[data-profile-shell] .employee-operations__duty { display: grid; grid-template-columns: 108px minmax(0, 1fr) 44px; align-items: start; gap: 12px; padding-block: 16px; border-bottom: 1px solid var(--profile-rail-line); }
+.employee-profile[data-profile-shell] .employee-operations__duty--featured { padding: 4px 0 16px; }
+.employee-profile[data-profile-shell] .employee-operations__duty-date { display: flex; flex-direction: column; gap: 4px; font-variant-numeric: tabular-nums; }
+.employee-profile[data-profile-shell] .employee-operations__duty-date strong { font-size: 20px; font-weight: 600; letter-spacing: -.03em; }
+.employee-profile[data-profile-shell] .employee-operations__duty--featured .employee-operations__duty-date strong { font-size: 28px; }
+.employee-profile[data-profile-shell] .employee-operations__duty-date span { color: var(--employee-muted); font-size: 11px; line-height: 1.6; }
+.employee-profile[data-profile-shell] .employee-operations__duty-main { min-width: 0; }
+.employee-profile[data-profile-shell] .employee-operations__duty-labels { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.employee-profile[data-profile-shell] .employee-operations__duty-labels .rt-ui-badge { font-size: 10px; }
+.employee-profile[data-profile-shell] .employee-operations__time-state { color: var(--employee-muted); font-size: 10px; }
+.employee-profile[data-profile-shell] .employee-operations__duty h4 { margin: 0 0 8px; font-size: 14px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.employee-profile[data-profile-shell] .employee-operations__duty h4 a { display: inline-flex; align-items: center; min-height: 44px; color: var(--employee-ink); }
+.employee-profile[data-profile-shell] .employee-operations__duty h4 a:hover { color: var(--profile-duty-signal); }
+.employee-profile[data-profile-shell] .employee-operations__location { display: flex; gap: 6px; align-items: baseline; margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+.employee-profile[data-profile-shell] .employee-operations__location i { color: var(--employee-muted); }
+.employee-profile[data-profile-shell] .employee-operations__duty-meta,
+.employee-profile[data-profile-shell] .employee-operations__publication { margin: 8px 0 0; color: var(--employee-muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.employee-profile[data-profile-shell] .employee-operations__response-note { margin: 4px 0 0; color: var(--employee-muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.employee-profile[data-profile-shell] .employee-operations__open { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 8px; color: var(--employee-muted); background: var(--profile-control-inset); }
+.employee-profile[data-profile-shell] .employee-operations__open:hover { color: var(--profile-duty-signal); background: color-mix(in srgb, var(--profile-duty-signal) 6%, var(--profile-record-surface)); }
+.employee-profile[data-profile-shell] .employee-operations :is(a, button):focus-visible { outline: 2px solid var(--profile-duty-signal); outline-offset: 2px; }
+.employee-profile[data-profile-shell] .employee-operations__notice,
+.employee-profile[data-profile-shell] .employee-operations__footnote { margin: 16px 0 0; color: var(--employee-muted); font-size: 11px; line-height: 1.7; }
+.employee-profile[data-profile-shell] .employee-operations__past-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding-top: 20px; }
+.employee-profile[data-profile-shell] .employee-operations__past-heading h4 { margin: 0; font-size: 12px; font-weight: 600; }
+.employee-profile[data-profile-shell] .employee-operations__past-heading span { color: var(--employee-muted); font-size: 10px; }
+.employee-profile[data-profile-shell] .employee-operations__empty-context { margin: 12px 0; color: var(--employee-muted); font-size: 12px; line-height: 1.6; }
+.employee-profile[data-profile-shell] .employee-operations__empty-duty { padding: 32px 0; }
+.employee-profile[data-profile-shell] .employee-operations__empty-duty > i { font-size: 24px; color: var(--employee-muted); }
+.employee-profile[data-profile-shell] .employee-operations__empty-duty h4 { margin: 16px 0 8px; font-size: 16px; font-weight: 600; }
+.employee-profile[data-profile-shell] .employee-operations__empty-duty p { margin: 0; max-width: 360px; color: var(--employee-muted); font-size: 12px; line-height: 1.7; }
+.employee-profile[data-profile-shell] .employee-operations__state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 20px; text-align: center; background: var(--profile-record-surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--profile-rail-line); }
+.employee-profile[data-profile-shell] .employee-operations__state > i { font-size: 24px; color: var(--employee-muted); }
+.employee-profile[data-profile-shell] .employee-operations__state h3 { margin: 0; font-size: 16px; }
+.employee-profile[data-profile-shell] .employee-operations__state p { margin: 0; max-width: 480px; font-size: 13px; line-height: 1.7; color: var(--employee-muted); }
+.employee-profile[data-profile-shell] .employee-operations__controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+.employee-profile[data-profile-shell] .employee-operations__search { width: min(100%, 320px); min-width: 0; }
+.employee-profile[data-profile-shell] .employee-operations__results { min-width: 0; border-radius: 12px; background: var(--profile-record-surface); box-shadow: 0 0 0 1px var(--profile-rail-line); }
+.employee-profile[data-profile-shell] .employee-operations__table { box-shadow: none !important; background: var(--profile-record-surface) !important; }
+.employee-profile[data-profile-shell] .employee-operations__table .rt-table-head { min-height: 44px; padding: 12px 64px 12px 16px !important; color: var(--employee-muted); background: var(--profile-control-inset) !important; font-size: 11px; text-transform: none !important; letter-spacing: 0 !important; column-gap: 0; }
+.employee-profile[data-profile-shell] .employee-operations__table .rt-table-head-cell { padding: 0 !important; font-weight: 600; letter-spacing: inherit; }
+.employee-profile[data-profile-shell] .employee-operations__table .rt-table-body { display: block; padding: 0 !important; }
+.employee-profile[data-profile-shell] .employee-operations__table.rt-table-frame .rt-table-row { padding: 12px 64px 12px 16px !important; min-height: 100px; border: 0 !important; border-bottom: 1px solid var(--profile-rail-line) !important; border-radius: 0; background: var(--profile-record-surface); box-shadow: none; }
+.employee-profile[data-profile-shell] .employee-operations__table .rt-table-row-grid { display: grid; grid-template-columns: var(--rt-table-columns); }
+.employee-profile[data-profile-shell] .employee-operations__cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding-right: 16px; font-size: 12px; overflow-wrap: anywhere; }
+.employee-profile[data-profile-shell] .employee-operations__cell strong { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.employee-profile[data-profile-shell] .employee-operations__cell small { color: var(--employee-muted); font-size: 11px; line-height: 1.5; }
+.employee-profile[data-profile-shell] .employee-operations__shift-title { display: inline-flex; align-items: center; min-height: 44px; color: var(--employee-ink); font-size: 13px; font-weight: 600; }
+.employee-profile[data-profile-shell] .employee-operations__shift-title:hover { color: var(--profile-duty-signal); }
+.employee-profile[data-profile-shell] .employee-operations__mobile-status { display: none; }
+.employee-profile[data-profile-shell] .employee-operations__pagination { min-height: 44px; border-top: 1px solid var(--profile-rail-line); }
+.employee-profile[data-profile-shell] .employee-operations__validation { color: var(--profile-duty-signal); font-size: 12px; margin-block: 8px; }
 @media (max-width: 1023.98px) {
     .employee-profile[data-profile-shell] .employee-profile__identity-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
     .employee-profile[data-profile-shell] .employee-profile__account { padding: 16px; }
     .employee-profile[data-profile-shell] .employee-profile__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+    .employee-profile[data-profile-shell] .employee-profile__groups { display: flex; }
+    .employee-profile[data-profile-shell] .employee-profile__groups .employee-profile__group { flex: 0 0 auto; }
     .employee-profile[data-profile-shell] .employee-profile__groups .employee-profile__group { gap: 6px; padding-inline: 8px !important; font-size: 12px !important; }
     .employee-profile[data-profile-shell] .employee-location-history__layout { grid-template-columns: minmax(0, 1fr); }
+    .employee-profile[data-profile-shell] .employee-operations__header { flex-direction: column; gap: 8px; }
+    .employee-profile[data-profile-shell] .employee-operations__overview { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 767.98px) {
     .employee-profile[data-profile-shell] .employee-profile__identity { padding: 16px !important; }
@@ -161,6 +232,35 @@
     .employee-profile[data-profile-shell] .employee-location-history__summary dd { font-size: 16px; }
     .employee-profile[data-profile-shell] .employee-location-history__entry { padding: 16px; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; }
     .employee-profile[data-profile-shell] .employee-location-history__accuracy { grid-column: 2; }
+    .employee-profile[data-profile-shell] .employee-operations__header h2 { font-size: 20px; }
+    .employee-profile[data-profile-shell] .employee-operations__updated { flex-wrap: wrap; font-size: 10px; }
+    .employee-profile[data-profile-shell] .employee-operations__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 16px; }
+    .employee-profile[data-profile-shell] .employee-operations__summary dd { font-size: 22px; }
+    .employee-profile[data-profile-shell] .employee-operations__schedule { padding: 16px; }
+    .employee-profile[data-profile-shell] .employee-operations__section-heading { flex-wrap: wrap; gap: 8px; }
+    .employee-profile[data-profile-shell] .employee-operations__duty { grid-template-columns: 80px minmax(0, 1fr) 44px; gap: 8px; }
+    .employee-profile[data-profile-shell] .employee-operations__duty--featured .employee-operations__duty-date strong { font-size: 24px; }
+    .employee-profile[data-profile-shell] .employee-operations__controls { align-items: stretch; }
+    .employee-profile[data-profile-shell] .employee-operations__controls .rt-multi-toggle { width: 100%; max-width: 100%; scrollbar-width: none; }
+    .employee-profile[data-profile-shell] .employee-operations__controls .rt-multi-toggle::-webkit-scrollbar { display: none; }
+    .employee-profile[data-profile-shell] .employee-operations__controls .rt-multi-toggle[data-toggle-labels] .rt-multi-toggle__button { flex: 1 0 auto; padding-inline: 8px !important; gap: 6px; font-size: 11px; }
+    .employee-profile[data-profile-shell] .employee-operations__controls .rt-multi-toggle__label { font-size: 11px; }
+    .employee-profile[data-profile-shell] .employee-operations__controls .rt-multi-toggle__label--full { display: none; }
+    .employee-profile[data-profile-shell] .employee-operations__controls .rt-multi-toggle__label--compact { display: inline; }
+    .employee-profile[data-profile-shell] .employee-operations__search { width: 100%; }
+    .employee-profile[data-profile-shell] .employee-operations__table { --rt-table-header-columns: 80px minmax(0, 1fr); }
+    .employee-profile[data-profile-shell] .employee-operations__table .rt-table-row-grid { grid-template-columns: 80px minmax(0, 1fr); gap: 8px !important; }
+    .employee-profile[data-profile-shell] .employee-operations__table .rt-table-row-grid > .employee-operations__cell { grid-column: auto !important; }
+    .employee-profile[data-profile-shell] .employee-operations__table .rt-table-row { padding: 12px 56px 12px 12px !important; }
+    .employee-profile[data-profile-shell] .employee-operations__table .rt-table-head { padding: 12px 56px 12px 12px !important; column-gap: 8px; }
+    .employee-profile[data-profile-shell] .employee-operations__table .rt-table-head > .hidden { display: none !important; }
+    .employee-profile[data-profile-shell] .employee-operations__cell { padding-right: 0; font-size: 11px; }
+    .employee-profile[data-profile-shell] .employee-operations__cell--schedule strong { font-size: 12px; }
+    .employee-profile[data-profile-shell] .employee-operations__cell--schedule small { font-size: 9px; }
+    .employee-profile[data-profile-shell] .employee-operations__cell--status { display: none; }
+    .employee-profile[data-profile-shell] .employee-operations__mobile-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; }
+    .employee-profile[data-profile-shell] .employee-operations__mobile-status .rt-ui-badge { font-size: 10px; }
+    .employee-profile[data-profile-shell] .employee-operations__mobile-status > span { color: var(--employee-muted); font-size: 10px; line-height: 1.5; }
 }
 @media (max-width: 379.98px) {
     .employee-profile[data-profile-shell] .employee-profile__portrait { width: 56px; height: 56px; border-radius: 16px; }

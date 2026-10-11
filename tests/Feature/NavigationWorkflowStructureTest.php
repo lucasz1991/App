@@ -425,11 +425,11 @@ class NavigationWorkflowStructureTest extends TestCase
         return $groups;
     }
 
-    /** Requested change: "Mein Arbeitstag" splits into grouped personal menu links; global worklist stays first. */
+    /** Requested change: "Mein Arbeitstag" (incl. personal worklist) splits into grouped personal menu links; global worklist stays first. */
     private function withPersonalWorkspaceAreas(array $sections, User $actor): array
     {
         $personal = OperationsAccess::ready() && OperationsAccess::isEmployee($actor)
-            ? PersonalWorkspaceAreas::links(isset(OperationsPages::availableFor($actor)['attention']))
+            ? PersonalWorkspaceAreas::links()
             : [];
         if (isset($sections['Mein Arbeitsplatz'])) {
             $isGlobal = fn (array $link): bool => ($link['parameters']['page'] ?? '') === 'attention';

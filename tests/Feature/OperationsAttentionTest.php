@@ -229,7 +229,9 @@ class OperationsAttentionTest extends TestCase
     public function test_personal_area_defaults_to_existing_clock_and_switch_is_server_checked(): void
     {
         Livewire::actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'work');
-        Livewire::withQueryParams(['area' => 'inbox'])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'inbox')->assertSee('Arbeitsliste');
+        // Die persönliche Arbeitsliste ist in „Mein Arbeitstag“ aufgegangen; alte Links landen dort.
+        Livewire::withQueryParams(['area' => 'inbox'])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'work');
+        Livewire::actingAs($this->employee)->test(\App\Livewire\Operations\MyWork::class)->assertSee('Meine Aufgaben')->assertSeeLivewire(\App\Livewire\Operations\AttentionCenter::class);
         // Unbekannte oder nicht freigeschaltete Bereiche fallen auf den Arbeitstag zurück.
         Livewire::withQueryParams(['area' => 'unbekannt'])->actingAs($this->employee)->test(PersonalWorkspace::class)->assertSet('area', 'work');
     }

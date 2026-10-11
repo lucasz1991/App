@@ -26,7 +26,7 @@
     padding: clamp(24px, 4vh, 48px) 16px 48px;
     background:
         radial-gradient(circle at 50% 18%, rgba(228, 0, 43, .16), transparent 52%),
-        linear-gradient(160deg, #0b0f15, var(--rt-black) 55%, #05070a);
+        var(--rt-app-canvas, #03060b);
 }
 
 .rt-auth__brand {
@@ -244,7 +244,7 @@
 html:not(.dark) .rt-auth {
     background:
         radial-gradient(circle at 50% 16%, rgba(228, 0, 43, .12), transparent 54%),
-        linear-gradient(160deg, #f7f9fc, #eef2f7 55%, #e6ebf2);
+        var(--rt-app-canvas, #dce3ed);
 }
 
 html:not(.dark) .rt-auth__status {
@@ -303,7 +303,7 @@ html:not(.dark) .rt-logo-3d {
     background:
         radial-gradient(circle at 50% 7%, rgba(228, 0, 43, .14), transparent 34%),
         radial-gradient(circle at 84% 82%, rgba(159, 18, 57, .1), transparent 28%),
-        linear-gradient(155deg, #fbfcfe 0%, #f3f6fa 52%, #e9eef5 100%);
+        var(--rt-app-canvas, #dce3ed);
     isolation: isolate;
 }
 
@@ -354,7 +354,7 @@ html.dark .rt-auth--premium-login {
     background:
         radial-gradient(circle at 50% 7%, rgba(228, 0, 43, .19), transparent 34%),
         radial-gradient(circle at 84% 82%, rgba(159, 18, 57, .14), transparent 28%),
-        linear-gradient(155deg, #10151d 0%, #090d13 52%, #05070a 100%);
+        var(--rt-app-canvas, #03060b);
 }
 
 .rt-auth--premium-login .rt-auth__theme-toggle {
