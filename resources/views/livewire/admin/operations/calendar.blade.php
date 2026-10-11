@@ -56,6 +56,13 @@
                             <i class="far {{ $icon }}" aria-hidden="true"></i><span><strong>{{ $label }}</strong><small>{{ $description }}</small></span>@if($viewMode === $view)<i class="far fa-check rt-shift-plan-view-option__check" aria-hidden="true"></i>@endif
                         </button>
                     @endforeach
+                    @if(\App\Support\Operations\OperationsAccess::ready() && auth()->user()->can('operations.manage'))
+                        <div class="rt-shift-plan-view-divider" role="separator"></div>
+                        <x-ui.buttons.button-basic mode="link" role="menuitem" class="rt-shift-plan-view-option" data-calendar-planning-return
+                            :href="\App\Support\Operations\OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan', 'order' => $orderFilter !== 'all' ? (int) $orderFilter : null, 'customer' => $customerFilter !== 'all' ? (int) $customerFilter : null, 'from' => $planningRange['from'] ?? $weekStartDate->toDateString(), 'until' => $planningRange['until'] ?? $weekEndDate->toDateString()])">
+                            <i class="far fa-clock" aria-hidden="true"></i><span><strong>Schichtplanung öffnen</strong><small>Zeitleiste, Leistungsübersicht und Besetzung</small></span>
+                        </x-ui.buttons.button-basic>
+                    @endif
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
 

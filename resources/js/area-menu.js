@@ -98,6 +98,7 @@ export function areaMenu() {
             this.$el.replaceChildren(this.ink);
         },
         updateInk() {
+            if (this.ink.parentNode !== this.$el) this.$el.replaceChildren(this.ink);
             const parent = this.menu.getBoundingClientRect();
             const buttons = [...this.menu.querySelectorAll('[data-multi-toggle-option]')];
             const visuals = buttons.map(button => [...button.children].filter(child => child.matches('i, svg, .rt-multi-toggle__label')));

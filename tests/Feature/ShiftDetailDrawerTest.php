@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Support\Operations\OperationsPages;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Livewire;
@@ -251,6 +252,90 @@ class ShiftDetailDrawerTest extends TestCase
         $this->assertSame('unknown', $map->getAttribute('data-map-state'));
         $this->assertSame(0, $xpath->query('.//*[@data-location-marker]', $map)->length);
         $this->assertStringContainsString('Einsatzstelle ohne Ortsangabe', $map->textContent);
+    }
+
+    public function test_grouped_and_timeline_drawers_show_the_parent_and_total_sibling_shifts_outside_current_filters(): void
+    {
+        $order = $this->shift->order;
+        $outsidePeriod = $this->shift->replicate(['public_id']);
+        $outsidePeriod->forceFill(['title' => 'Weitere Woche', 'starts_at' => '2027-05-19 08:00:00', 'ends_at' => '2027-05-19 16:00:00'])->save();
+        $cancelled = $this->shift->replicate(['public_id']);
+        $cancelled->forceFill(['title' => 'Stornierte Schicht', 'status' => 'cancelled'])->save();
+        $deleted = $this->shift->replicate(['public_id']);
+        $deleted->save();
+        $deleted->delete();
+        $otherOrder = $order->replicate(['public_id', 'order_number']);
+        $otherOrder->title = 'Anderer Auftrag';
+        $otherOrder->save();
+        $unrelated = $this->shift->replicate(['public_id']);
+        $unrelated->order_id = $otherOrder->id;
+        $unrelated->save();
+        $before = $order->fresh()->getRawOriginal();
+
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->set('rangeFrom', '2027-05-12')->set('rangeTo', '2027-05-12');
+        foreach (['orders', 'timeline'] as $view) {
+            $component->call('setView', $view)->call('openDetails', $this->shift->id)
+                ->assertNoRedirect()
+                ->assertViewHas('selectedShift', fn (Shift $shift) => $shift->order->is($order) && (int) $shift->order->shifts_count === 3)
+                ->assertViewHas('shifts', fn ($shifts) => $shifts->every(fn (Shift $shift) => ! array_key_exists('shifts_count', $shift->order->getAttributes())));
+            $xpath = $this->panelXPath($component->html());
+            $context = $xpath->query('//*[@data-panel-mode="detail"]//*[@data-panel-section="overview"]//*[@data-shift-parent-context]')->item(0);
+            $this->assertNotNull($context);
+            foreach (['Auftrag / Leistung', $order->title, $order->order_number, 'Testkorridor', '3 Schichten insgesamt'] as $label) {
+                $this->assertStringContainsString($label, preg_replace('/\s+/', ' ', $context->textContent));
+            }
+            $this->assertSame(1, $xpath->query('//*[@data-shift-parent-context]')->length);
+        }
+        $this->assertSame($before, $order->fresh()->getRawOriginal());
+    }
+
+    public function test_parent_links_use_native_authorized_destinations_and_parent_values_are_escaped(): void
+    {
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        $order = $this->shift->order;
+        $order->update(['title' => '<img src=x onerror=alert(1)>', 'order_number' => '<script>Auftrag</script>']);
+        $order->customer->update(['company_name' => '<svg onload=alert(2)>']);
+
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('openDetails', $this->shift->id);
+        $xpath = $this->panelXPath($component->html());
+        $context = $xpath->query('//*[@data-shift-parent-context]')->item(0);
+        $this->assertNotNull($context);
+        foreach ([$order->title, $order->order_number, '<svg onload=alert(2)>', '1 Schicht insgesamt'] as $label) {
+            $this->assertStringContainsString($label, preg_replace('/\s+/', ' ', $context->textContent));
+        }
+        $this->assertSame(0, $xpath->query('.//img | .//script | .//svg', $context)->length);
+        foreach ([
+            'data-shift-parent-order-link' => ['view' => 'orders', 'section' => 'overview', 'order' => $order->id],
+            'data-shift-parent-shifts-link' => ['view' => 'shifts', 'section' => 'plan', 'order' => $order->id],
+        ] as $attribute => $parameters) {
+            $link = $xpath->query('.//a[@'.$attribute.']', $context)->item(0);
+            $this->assertNotNull($link);
+            $this->assertSame(OperationsPages::url('cases', $parameters), $link->getAttribute('href'));
+            $this->assertTrue($link->hasAttribute('wire:navigate'));
+        }
+    }
+
+    public function test_parent_context_avoids_links_when_native_workspace_is_unavailable_or_parent_was_deleted(): void
+    {
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('openDetails', $this->shift->id)
+            ->assertViewHas('nativeOperations', false);
+        $xpath = $this->panelXPath($component->html());
+        $context = $xpath->query('//*[@data-shift-parent-context]')->item(0);
+        $this->assertNotNull($context);
+        $this->assertStringContainsString('Korridorleistung', $context->textContent);
+        $this->assertSame(0, $xpath->query('.//a', $context)->length);
+
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        $this->shift->order->delete();
+        $component->call('openDetails', $this->shift->id)->assertViewHas('nativeOperations', true)
+            ->assertViewHas('selectedShift', fn (Shift $shift) => $shift->order === null);
+        $xpath = $this->panelXPath($component->html());
+        $context = $xpath->query('//*[@data-shift-parent-context]')->item(0);
+        $this->assertNotNull($context);
+        $this->assertStringContainsString('Zugehöriger Auftrag nicht verfügbar.', $context->textContent);
+        $this->assertSame(0, $xpath->query('.//a', $context)->length);
+        $this->assertStringNotContainsString('Schichten insgesamt', $context->textContent);
     }
 
     public function test_native_staffing_and_feedback_share_one_tab_with_existing_assignment_actions(): void

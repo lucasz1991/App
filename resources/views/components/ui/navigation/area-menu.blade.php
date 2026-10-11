@@ -6,5 +6,5 @@
     :navigate="$navigate" :disabled="$disabled" :show-labels="true"
     {{ $attributes->class(['rt-area-menu'])->merge(['data-area-menu' => '']) }}
 >
-    <span class="rt-area-menu__indicator" aria-hidden="true" x-data="rtAreaMenu"></span>
+    <span class="rt-area-menu__indicator" aria-hidden="true" x-data="rtAreaMenu" wire:ignore></span>
 </x-ui.buttons.multi-toggle>

@@ -19,6 +19,7 @@ class AreaMenuUiTest extends TestCase
         $xpath = new \DOMXPath($dom);
         $this->assertSame(1, $xpath->query('//*[@data-area-menu and @data-multi-toggle and @id="test-area"]')->length);
         $this->assertSame(1, $xpath->query('//*[@x-data="rtAreaMenu" and @aria-hidden="true"]')->length);
+        $this->assertSame(1, $xpath->query('//*[@x-data="rtAreaMenu" and @*[name()="wire:ignore"]]')->length);
         $this->assertSame(1, $xpath->query('//a[@aria-current="page" and @href="/files"]')->length);
         $this->assertSame(2, $xpath->query('//a[@*[name()="wire:navigate"]]')->length);
         $this->assertSame(1, $xpath->query('//button[@disabled and @data-toggle-value="blocked"]')->length);

@@ -12,7 +12,7 @@
                     'table' => ['Tabelle', 'fa-list-alt'],
                     'day' => ['Tagesübersicht', 'fa-calendar-day'],
                     'staffing' => ['Besetzung', 'fa-users'],
-                    'orders' => ['Leistungen', 'fa-briefcase'],
+                    'orders' => ['Leistungsübersicht', 'fa-briefcase'],
                     'timeline' => ['Zeitleiste', 'fa-clock'],
                 ];
                 [$currentViewLabel, $currentViewIcon] = $planViews[$viewMode];
@@ -52,11 +52,17 @@
                 <x-slot:content>
                     <p class="rt-shift-plan-menu-heading" role="presentation">Schichtplan anzeigen als</p>
                     @foreach($planViews as $view => [$label, $icon])
-                        @continue($view === 'orders')
                         <button type="button" role="menuitemradio" aria-checked="{{ $viewMode === $view ? 'true' : 'false' }}" wire:click="setView('{{ $view }}')" x-on:click="close()" class="rt-shift-plan-view-option">
                             <i class="far {{ $icon }}" aria-hidden="true"></i><span><strong>{{ $label }}</strong><small>{{ $viewDescriptions[$view] }}</small></span>@if($viewMode === $view)<i class="far fa-check rt-shift-plan-view-option__check" aria-hidden="true"></i>@endif
                         </button>
                     @endforeach
+                    @if($nativeOperations)
+                        @can('operations.manage')
+                            <a href="{{ \App\Support\Operations\OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'calendar', 'order' => $orderFilter !== 'all' ? (int) $orderFilter : null, 'customer' => $customerFilter !== 'all' ? (int) $customerFilter : null, 'from' => $rangeFrom, 'until' => $rangeTo]) }}" wire:navigate role="menuitem" x-on:click="close()" class="rt-shift-plan-view-option" data-shift-calendar-link>
+                                <i class="far fa-calendar-alt" aria-hidden="true"></i><span><strong>Kalender</strong><small>Schichten im Monats-, Wochen- oder Tageskalender</small></span>
+                            </a>
+                        @endcan
+                    @endif
                 </x-slot:content>
             </x-ui.dropdown.anchor-dropdown>
         </div>
@@ -107,6 +113,7 @@
     <div class="rt-shift-plan-split" data-distribution-open="{{ $distributionOpen ? 'true' : 'false' }}" data-view="{{ $viewMode }}">
     <div class="rt-shift-plan-split__main">
     @if($viewMode !== 'timeline')
+    @if($contextCustomer)<p class="ops-muted" role="status" data-shift-customer-context>Kunde: {{ $contextCustomer->company_name }}</p>@endif
     <x-tables.toolbar title="Filter" id="operations-shift-management-filters" :filter-count="(int) ($orderFilter !== 'all') + (int) ($statusFilter !== 'all') + (int) ($attentionFilter !== 'all')">
         <details class="rt-shift-filters" x-bind:open="!desktopFilters">
             <summary class="rt-shift-filters__trigger" aria-label="Schichtfilter öffnen" title="Schichtfilter">
@@ -134,7 +141,7 @@
     <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="tableSort,setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
         @if($viewMode === 'timeline')
             @if($nativeOperations)
-                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :search-in-header="true" :planning-enabled="true" :show-suggestions="$distributionOpen" :focus-shift-id="$distributionOpen ? $distributionShiftId : null" :key="'timeline-'.$rangeFrom.'-'.$rangeTo" />
+                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :period-navigation-owner="$this->getId()" :search-in-header="true" :planning-enabled="true" :show-suggestions="$distributionOpen" :focus-shift-id="$distributionOpen ? $distributionShiftId : null" :key="'shift-plan-staff-timeline'" />
             @else
                 <div class="rt-shift-plan-unavailable" role="status"><i class="far fa-clock" aria-hidden="true"></i><span>Die Zeitleiste ist verfügbar, sobald der Mitarbeiter- und Abwesenheitsbereich eingerichtet ist.</span></div>
             @endif
@@ -300,6 +307,28 @@
                                 </x-operations.panel.group>
                             @endif
                             @if($detailOpen)
+                                <x-operations.panel.group title="Auftrag / Leistung" data-shift-parent-context>
+                                    @if($selectedShift->order)
+                                        <dl class="rt-ops-panel__rows">
+                                            <x-operations.panel.row label="Leistung">{{ $selectedShift->order->title }}</x-operations.panel.row>
+                                            <x-operations.panel.row label="Auftragsnummer">{{ $selectedShift->order->order_number ?: '—' }}</x-operations.panel.row>
+                                            <x-operations.panel.row label="Kunde">{{ $selectedShift->order->customer?->company_name ?: '—' }}</x-operations.panel.row>
+                                            <x-operations.panel.row label="Schichten"><span class="rt-ops-panel__num">{{ $selectedShift->order->shifts_count }}</span> {{ (int) $selectedShift->order->shifts_count === 1 ? 'Schicht insgesamt' : 'Schichten insgesamt' }}</x-operations.panel.row>
+                                        </dl>
+                                        @if($nativeOperations)
+                                            @can('operations.manage')
+                                                <div class="mt-3 flex flex-wrap gap-2">
+                                                    <x-ui.buttons.button-basic mode="link" size="sm" :href="\App\Support\Operations\OperationsPages::url('cases', ['view' => 'orders', 'section' => 'overview', 'order' => $selectedShift->order->id])" data-shift-parent-order-link><i class="far fa-briefcase" aria-hidden="true"></i>Auftrag öffnen</x-ui.buttons.button-basic>
+                                                    <x-ui.buttons.button-basic mode="link" size="sm" :href="\App\Support\Operations\OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan', 'order' => $selectedShift->order->id])" data-shift-parent-shifts-link><i class="far fa-clock" aria-hidden="true"></i>Schichten dieser Leistung</x-ui.buttons.button-basic>
+                                                </div>
+                                            @endcan
+                                        @endif
+                                    @else
+                                        <p class="rt-ops-panel__text">Zugehöriger Auftrag nicht verfügbar.</p>
+                                    @endif
+                                </x-operations.panel.group>
+                            @endif
+                            @if($detailOpen)
                                 <x-operations.panel.group title="Zeit & Ort" data-shift-detail-previews>
                                     <div class="rt-ops-panel__previews">
                                         @if($shiftStart && $shiftEnd)
@@ -313,8 +342,6 @@
                             @endif
                             <x-operations.panel.group title="Einsatz">
                                 <dl class="rt-ops-panel__rows">
-                                    <x-operations.panel.row label="Leistung">{{ $selectedShift->order ? $selectedShift->order->order_number.' · '.$selectedShift->order->title : 'Leistung nicht verfügbar' }}</x-operations.panel.row>
-                                    <x-operations.panel.row label="Kunde">{{ $selectedShift->order?->customer?->company_name ?: '—' }}</x-operations.panel.row>
                                     <x-operations.panel.row label="Tätigkeit">{{ $selectedShift->role_name ?: '—' }}</x-operations.panel.row>
                                     <x-operations.panel.row label="Einsatzort">{{ $shiftLocation ?: 'Kein Einsatzort hinterlegt' }}</x-operations.panel.row>
                                     <x-operations.panel.row label="Zeitfenster">

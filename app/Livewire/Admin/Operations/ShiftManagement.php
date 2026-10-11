@@ -14,6 +14,7 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\PlanChangeService;
+use App\Services\Operations\PlanningCapacityService;
 use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\ShiftAssignmentExceptionService;
 use App\Services\Operations\ShiftAssignmentService;
@@ -93,6 +94,9 @@ class ShiftManagement extends Component
 
     public string $orderFilter = 'all';
 
+    #[Locked]
+    public string $customerFilter = 'all';
+
     public string $search = '';
 
     public string $statusFilter = 'all';
@@ -123,7 +127,7 @@ class ShiftManagement extends Component
         $this->ensureAdmin();
         abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders', 'timeline'], true), 422);
         if ($view === 'timeline') {
-            $this->reset(['search', 'statusFilter', 'orderFilter', 'attentionFilter']);
+            $this->reset(['search', 'statusFilter', 'orderFilter', 'customerFilter', 'attentionFilter']);
         }
         $this->viewMode = $view;
         $this->dispatch('shift-plan-view-changed', view: $view);
@@ -146,6 +150,7 @@ class ShiftManagement extends Component
         $this->rangeFrom = $from->addDays($days * $direction)->toDateString();
         $this->rangeTo = $to->addDays($days * $direction)->toDateString();
         $this->resetDistributionPages();
+        $this->notifyPlanningPeriod();
     }
 
     public function currentWeek(): void
@@ -155,6 +160,7 @@ class ShiftManagement extends Component
         $this->rangeFrom = $today->copy()->startOfWeek()->toDateString();
         $this->rangeTo = $today->copy()->endOfWeek()->toDateString();
         $this->resetDistributionPages();
+        $this->notifyPlanningPeriod();
     }
 
     public function applyPeriod(string $from, string $until): void
@@ -174,17 +180,39 @@ class ShiftManagement extends Component
         $this->resetDistributionPages();
         $this->resetValidation(['rangeFrom', 'rangeTo']);
         // AI-Assist rechnet Vorschläge für denselben Zeitraum.
-        $this->dispatch('operations-period-changed', from: $this->rangeFrom, until: $this->rangeTo);
+        $this->notifyPlanningPeriod();
     }
 
     public function updatedRangeFrom(): void
     {
+        $this->ensureAdmin();
         $this->resetDistributionPages();
+        $this->notifyPlanningPeriod();
     }
 
     public function updatedRangeTo(): void
     {
+        $this->ensureAdmin();
         $this->resetDistributionPages();
+        $this->notifyPlanningPeriod();
+    }
+
+    private function notifyPlanningPeriod(): void
+    {
+        [$from, $until] = $this->resolvedRange();
+        $this->dispatch('operations-period-changed', from: $from->toDateString(), until: $until->toDateString());
+    }
+
+    public function updatedOrderFilter(): void
+    {
+        $this->ensureAdmin();
+        $order = $this->orderFilter === 'all' ? null : filter_var($this->orderFilter, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        abort_if($order === false, 422);
+        $customer = $this->customerFilter === 'all' ? null : (int) $this->customerFilter;
+        if ($order !== null) {
+            Order::query()->when($customer !== null, fn (Builder $query) => $query->where('customer_id', $customer))->findOrFail($order);
+        }
+        $this->dispatch('operations-planning-filters-changed', customer: $customer, order: $order);
     }
 
     private function resetDistributionPages(): void
@@ -263,20 +291,37 @@ class ShiftManagement extends Component
         $this->rangeTo = $today->copy()->endOfWeek()->format('Y-m-d');
         $this->status = $this->enumDefault(ShiftStatus::class, 'draft');
         $this->assignmentStatus = $this->enumDefault(ShiftAssignmentStatus::class, 'confirmed');
+        if (request()->has('customer')) {
+            $value = request()->query('customer');
+            $customerId = is_string($value) || is_int($value) ? filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) : false;
+            abort_unless($customerId && Customer::whereKey($customerId)->exists(), 404);
+            $this->customerFilter = (string) $customerId;
+            $this->viewMode = 'orders';
+        }
         if (request()->has('order')) {
             $orderId = filter_var(request()->query('order'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
             abort_unless($orderId, 404);
-            $order = Order::query()->find($orderId);
+            $order = Order::query()->when($this->customerFilter !== 'all', fn (Builder $query) => $query->where('customer_id', (int) $this->customerFilter))->find($orderId);
             abort_unless($order, 404);
             $this->orderFilter = (string) $order->id;
             $this->rangeFrom = $order->starts_at->setTimezone($today->timezone)->toDateString();
             $this->rangeTo = $order->ends_at->setTimezone($today->timezone)->toDateString();
             $this->viewMode = 'orders';
         }
+        if (request()->hasAny(['from', 'until'])) {
+            abort_unless(is_string(request()->query('from')) && is_string(request()->query('until')), 422);
+            try {
+                [$from, $until] = app(PlanningCapacityService::class)->range(request()->query('from'), request()->query('until'));
+            } catch (ValidationException) {
+                abort(422, 'Ungültiger Planungszeitraum.');
+            }
+            $this->rangeFrom = $from->toDateString();
+            $this->rangeTo = $until->subDay()->toDateString();
+        }
         if (request()->query('services') === '1') {
             $this->viewMode = 'orders';
         }
-        $selection = Shift::query()->when($this->orderFilter !== 'all', fn (Builder $query) => $query->where('order_id', (int) $this->orderFilter));
+        $selection = $this->customerShifts()->when($this->orderFilter !== 'all', fn (Builder $query) => $query->where('order_id', (int) $this->orderFilter));
         $this->selectedShiftId = (clone $selection)->orderBy('starts_at')->value('id');
         if (request()->integer('shift')) {
             $selected = (clone $selection)->find(request()->integer('shift'));
@@ -285,6 +330,13 @@ class ShiftManagement extends Component
             $this->detailOpen = true;
         }
         $this->selectedPlanRevision = $this->selectedShiftId ? Shift::findOrFail($this->selectedShiftId)->revision : null;
+        $this->notifyPlanningPeriod();
+    }
+
+    private function customerShifts(): Builder
+    {
+        return Shift::query()->when($this->customerFilter !== 'all', fn (Builder $query) => $query
+            ->whereHas('order', fn (Builder $order) => $order->where('customer_id', (int) $this->customerFilter)));
     }
 
     #[On('operations-create')]
@@ -304,7 +356,7 @@ class ShiftManagement extends Component
         $this->ensureAdmin();
         // Das Formular ist der zweite Zustand des Schicht-Panels: Eine geöffnete
         // Schicht bleibt offen, damit "Abbrechen" und "Speichern" dorthin zurückführen.
-        $shift = Shift::query()->findOrFail($shiftId);
+        $shift = $this->customerShifts()->findOrFail($shiftId);
 
         $this->editingShiftId = $shift->id;
         $this->editingRevision = $shift->revision;
@@ -423,7 +475,7 @@ class ShiftManagement extends Component
     public function selectShift(int $shiftId): void
     {
         $this->ensureAdmin();
-        $selected = Shift::query()->findOrFail($shiftId);
+        $selected = $this->customerShifts()->findOrFail($shiftId);
         $this->selectedShiftId = $shiftId;
         $this->selectedPlanRevision = $selected->revision;
         $this->reset(['candidateSearch', 'employeeId']);
@@ -584,7 +636,7 @@ class ShiftManagement extends Component
 
         [$from, $to] = $this->resolvedRange();
 
-        $shiftQuery = Shift::query()
+        $shiftQuery = $this->customerShifts()
             ->with(['order.customer', 'assignments.user.profile', 'assignments.user.currentTeam'])
             ->where('ends_at', '>', $from->copy()->utc())
             ->where('starts_at', '<=', $to->copy()->utc())
@@ -616,7 +668,7 @@ class ShiftManagement extends Component
             $shiftQuery->orderBy('starts_at');
         }
         $shifts = $this->viewMode === 'timeline' && $this->attentionFilter === 'all'
-            && $this->orderFilter === 'all' && $this->statusFilter === 'all' && trim($this->search) === ''
+            && $this->orderFilter === 'all' && $this->customerFilter === 'all' && $this->statusFilter === 'all' && trim($this->search) === ''
             ? collect() : $shiftQuery->orderBy('id')->get();
 
         if (in_array($this->viewMode, ['table', 'orders'], true) && $this->sortBy === 'staffing') {
@@ -676,7 +728,11 @@ class ShiftManagement extends Component
         });
 
         $selectedShift = $this->selectedShiftId
-            ? Shift::query()->with(['order.customer', 'assignments.user.profile', 'assignments.user.currentTeam'])->find($this->selectedShiftId)
+            ? $this->customerShifts()->with([
+                'order' => fn ($query) => $query->with('customer')->when($this->detailOpen, fn ($order) => $order->withCount('shifts')),
+                'assignments.user.profile',
+                'assignments.user.currentTeam',
+            ])->find($this->selectedShiftId)
             : null;
 
         $summary = $this->staffingSummary($shifts);
@@ -747,7 +803,8 @@ class ShiftManagement extends Component
             'planChanges' => $native && $this->detailOpen && $selectedShift
                 ? ($selectedShift->revision !== $selectedShift->published_revision ? app(PlanChangeService::class)->changes($selectedShift) : app(PlanChangeService::class)->publishedChanges($selectedShift->id, $selectedShift->published_revision)) : [],
             'orders' => $this->formOpen || $this->viewMode !== 'timeline'
-                ? OrderSelection::options($this->orderSearch, [$this->orderId, $this->orderFilter]) : collect(),
+                ? OrderSelection::options($this->orderSearch, [$this->orderId, $this->orderFilter], $this->customerFilter !== 'all' ? (int) $this->customerFilter : null) : collect(),
+            'contextCustomer' => $this->customerFilter !== 'all' ? Customer::find((int) $this->customerFilter) : null,
             'employees' => $native ? collect() : User::query()->with(['profile', 'currentTeam'])->where('status', true)->where('role', 'staff')->orderBy('name')->get(),
             'statusOptions' => $this->enumOptions(ShiftStatus::class),
             'assignmentStatusOptions' => collect($this->enumOptions(ShiftAssignmentStatus::class))
@@ -769,6 +826,7 @@ class ShiftManagement extends Component
         $pendingShifts = $this->pendingShiftQuery($from, $to)->paginate(25, ['*'], 'distributionShiftsPage');
 
         $unplannedOrders = Order::query()->with('customer')
+            ->when($this->customerFilter !== 'all', fn (Builder $query) => $query->where('customer_id', (int) $this->customerFilter))
             ->whereNotIn('status', $closedOrders)
             ->where('ends_at', '>', $from->copy()->utc())
             ->where('starts_at', '<=', $to->copy()->utc())
@@ -807,7 +865,7 @@ class ShiftManagement extends Component
             ->whereColumn('shift_assignments.shift_id', 'shifts.id')
             ->whereIn('status', ShiftAssignmentStatus::blockingValues());
 
-        return Shift::query()
+        return $this->customerShifts()
             ->with(['order.customer'])
             ->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])
             ->whereNotIn('status', [ShiftStatus::Completed->value, ShiftStatus::Cancelled->value])

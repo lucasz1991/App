@@ -19,7 +19,7 @@ final class OperationsPages
         return [
             'attention' => ['title' => 'Arbeitsliste', 'icon' => 'inbox', 'segment' => 'Disposition'],
             'cases' => ['title' => 'Vorgänge & Aufträge', 'icon' => 'clipboard', 'segment' => 'Disposition'],
-            'shifts' => ['title' => 'Schichtplan', 'icon' => 'calendar', 'segment' => 'Disposition', 'group' => 'Planung'],
+            'shifts' => ['title' => 'Schichtplanung', 'icon' => 'calendar', 'segment' => 'Disposition', 'group' => 'Planung'],
             'planning' => ['title' => 'Ressourcen & Kapazität', 'icon' => 'layers', 'segment' => 'Disposition'],
             'duty' => ['title' => 'Leitstelle', 'icon' => 'activity', 'segment' => 'Disposition'],
             'customers' => ['title' => 'Kunden', 'icon' => 'briefcase', 'segment' => 'Kunden'],
@@ -88,19 +88,15 @@ final class OperationsPages
         return array_intersect_key(self::views($actor, 'cases'), array_flip(['inbox', 'offers', 'orders', 'shifts']));
     }
 
-    /** Topbar shortcuts include both existing sections of the shift workspace. */
+    /** Main workflow destinations; service display modes stay inside shift planning. */
     public static function planningShortcuts(User $actor): array
     {
-        $shortcuts = self::planningViews($actor);
-        if (isset($shortcuts['shifts'])) {
-            $shift = $shortcuts['shifts'];
-            unset($shortcuts['shifts']);
-            $shortcuts['services'] = ['value' => 'services', 'label' => 'Leistungen', 'icon' => 'fa-briefcase'];
-            $shortcuts['shifts'] = array_merge($shift, ['icon' => 'fa-clock']);
-            $shortcuts['calendar'] = ['value' => 'calendar', 'label' => 'Kalender', 'icon' => 'fa-calendar-alt'];
+        $views = self::planningViews($actor);
+        if (isset($views['shifts'])) {
+            $views['calendar'] = ['value' => 'calendar', 'label' => 'Kalender', 'icon' => 'fa-calendar-alt'];
         }
 
-        return $shortcuts;
+        return $views;
     }
 
     public static function availableFor(User $actor): array

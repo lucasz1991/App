@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\Operations\StaffTimelineLayout;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -105,6 +106,55 @@ class StaffTimelineLayoutTest extends TestCase
 
             return true;
         })->assertDontSee('PRIVATE WISH')->assertDontSee('PRIVATE TRAINING');
+    }
+
+    public function test_timeline_parent_fields_use_one_eager_order_query_and_omit_private_order_data(): void
+    {
+        $this->buildMinimalRailTimeSchema();
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $person = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $customer = Customer::create(['company_name' => 'Synthetic Rail', 'is_active' => true]);
+        $orders = collect();
+        foreach (range(1, 3) as $number) {
+            $order = Order::create(['customer_id' => $customer->id, 'title' => 'Leistung '.$number, 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => '2026-10-05T00:00', 'ends_at' => '2026-10-06T00:00', 'required_staff' => 1, 'created_by' => $admin->id, 'notes' => 'PRIVATE ORDER NOTE '.$number, 'requirements' => ['private' => 'PRIVATE ORDER REQUIREMENT']]);
+            $orders->push($order);
+            $shift = Shift::create(['order_id' => $order->id, 'title' => 'Dienst '.$number, 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2026-10-05T08:00', 'ends_at' => '2026-10-05T12:00', 'required_staff' => 1, 'status' => 'confirmed', 'created_by' => $admin->id]);
+            ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $person->id, 'status' => 'confirmed', 'assigned_by' => $admin->id]);
+        }
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        try {
+            $component = Livewire::actingAs($admin)->test(StaffTimeline::class, ['from' => '2026-10-05', 'until' => '2026-10-05'])
+                ->assertViewHas('rows', function ($rows) use ($orders): bool {
+                    $events = $rows->first()['events'];
+                    $this->assertCount(3, $events);
+                    foreach ($orders as $order) {
+                        $event = $events->firstWhere('order_title', $order->title);
+                        $this->assertNotNull($event);
+                        $this->assertSame($order->order_number, $event['order_number']);
+                    }
+                    $this->assertStringNotContainsString('PRIVATE ORDER', json_encode($events->all()));
+
+                    return true;
+                })->assertDontSee('PRIVATE ORDER');
+            $orderQueries = collect(DB::getQueryLog())->filter(fn (array $query) => preg_match('/^select .* from "orders" /i', $query['query']));
+            $this->assertCount(1, $orderQueries);
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+
+        $orders->first()->delete();
+        $component->call('$refresh')->assertViewHas('rows', function ($rows): bool {
+            $event = $rows->first()['events']->firstWhere('title', 'Dienst 1');
+            $this->assertNotNull($event);
+            $this->assertNull($event['order_title']);
+            $this->assertNull($event['order_number']);
+
+            return true;
+        })->assertSee('Zugehöriger Auftrag nicht verfügbar.');
     }
 
     private function event(string $start, string $end, string $id = 'shift-1'): array

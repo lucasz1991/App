@@ -42,7 +42,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
 
     public function test_view_trigger_removes_the_eyebrow_but_retains_the_current_name_and_radio_dropdown(): void
     {
-        $views = ['table' => ['Tabelle', 'fa-list-alt'], 'day' => ['Tagesübersicht', 'fa-calendar-day'], 'staffing' => ['Besetzung', 'fa-users'], 'orders' => ['Leistungen', 'fa-briefcase'], 'timeline' => ['Zeitleiste', 'fa-clock']];
+        $views = ['table' => ['Tabelle', 'fa-list-alt'], 'day' => ['Tagesübersicht', 'fa-calendar-day'], 'staffing' => ['Besetzung', 'fa-users'], 'orders' => ['Leistungsübersicht', 'fa-briefcase'], 'timeline' => ['Zeitleiste', 'fa-clock']];
         $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class);
         foreach ($views as $view => [$label, $icon]) {
             $component->call('setView', $view);
@@ -56,17 +56,12 @@ class ResponsiveShiftPlanControlsTest extends TestCase
             $this->assertSame(1, $xpath->query('.//i[@data-current-view="'.$view.'" and @aria-hidden="true" and contains(@class,"'.$icon.'")]', $trigger)->length);
             $menu = $xpath->query('//*[@aria-label="Schichtplanansicht auswählen"]')->item(0);
             $this->assertNotNull($menu);
-            $this->assertSame(4, $xpath->query('.//button[@role="menuitemradio"]', $menu)->length);
+            $this->assertSame(5, $xpath->query('.//button[@role="menuitemradio"]', $menu)->length);
             $selected = $xpath->query('.//button[@role="menuitemradio" and @aria-checked="true"]', $menu);
-            if ($view === 'orders') {
-                $this->assertSame(0, $selected->length);
-
-                continue;
-            }
             $this->assertSame(1, $selected->length);
             $this->assertSame("setView('".$view."')", $selected->item(0)->getAttribute('wire:click'));
             $this->assertSame('close()', $selected->item(0)->getAttribute('x-on:click'));
-            $this->assertSame(0, $xpath->query('.//a[@role="menuitem" and @href="'.OperationsPages::moduleUrl('calendar').'"]', $menu)->length);
+            $this->assertSame(1, $xpath->query('.//a[@role="menuitem" and @href="'.OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'calendar', 'from' => '2027-05-10', 'until' => '2027-05-16']).'"]', $menu)->length);
         }
         $this->assertSame(0, Shift::count());
         Http::assertNothingSent();

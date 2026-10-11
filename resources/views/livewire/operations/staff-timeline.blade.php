@@ -1,5 +1,6 @@
 <section class="rt-staff-timeline-layout min-w-0" aria-label="Mitarbeiter-Zeitleiste"
-    x-data="rtTimelinePlanning(@js($this->getId()))" x-on:operations-plan-changed.window="invalidate()">
+    x-data="rtTimelinePlanning(@js($this->getId()))" x-on:operations-plan-changed.window="invalidate()"
+    x-on:operations-timeline-window-reset.window="if ($event.detail.timelineId === @js($this->getId())) invalidate()">
 @if($planningEnabled && !$absencesOnly && $showSuggestions && !$suggestionsReady)
     {{-- Plan zuerst, Besetzungsvorschläge im Folgeaufruf --}}
     <span hidden wire:init="loadSuggestions" data-timeline-suggestions-pending></span>
@@ -16,7 +17,14 @@
 <div class="rt-personnel-timeline" style="--timeline-days:{{ $days->count() }}" x-data="rtStaffTimeline" x-effect="applyPersonnelMode()"
     x-on:pointerover.window="pointerPersonnel($event)" x-on:pointerout.window="pointerPersonnel($event)"
     x-on:focusin.window="focusPersonnel($event.target)" x-on:focusout.window="focusPersonnel($event.relatedTarget)"
-    data-no-sidebar-swipe data-rt-dropdown-scroll-root data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? 'true' : 'false' }}">
+    data-no-sidebar-swipe data-rt-dropdown-scroll-root data-timeline-motion="{{ $planningEnabled && !$absencesOnly ? 'true' : 'false' }}"
+    data-timeline-window-navigation="{{ $periodNavigationOwner && $planningEnabled && !$absencesOnly ? 'true' : 'false' }}"
+    data-timeline-period-owner="{{ $periodNavigationOwner }}" data-timeline-from="{{ $from }}" data-timeline-until="{{ $until }}"
+    x-bind:aria-busy="windowLoading ? 'true' : 'false'">
+    <div class="rt-timeline-window-feedback" x-show="windowLoading || windowError" x-cloak role="status" aria-live="polite">
+        <i class="far fa-spinner-third fa-spin" x-show="windowLoading" aria-hidden="true"></i>
+        <span x-text="windowLoading ? 'Weitere Tage werden geladen …' : windowError"></span>
+    </div>
     <div class="rt-timeline-loading-indicator" style="display: none" wire:loading.delay.flex wire:target="search,loadMore,refreshPlanning,loadSuggestions" role="status" aria-live="polite">
         <i class="far fa-spinner-third" aria-hidden="true"></i><span>Lädt …</span>
     </div>
@@ -42,8 +50,8 @@
                 @endforeach
             </div>
         </div>
-        <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--previous" x-cloak x-show="canScrollLeft" x-on:click="scrollDay(-1)" aria-label="Weitere Tage links anzeigen" title="Weitere Tage links"><i class="far fa-chevron-left" aria-hidden="true"></i></button>
-        <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--next" x-cloak x-show="canScrollRight" x-on:click="scrollDay(1)" aria-label="Weitere Tage rechts anzeigen" title="Weitere Tage rechts"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
+        <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--previous" x-cloak x-show="canScrollLeft || windowNavigationEnabled" x-bind:disabled="windowLoading" x-on:click="scrollDay(-1)" aria-label="Weitere Tage links anzeigen" title="Weitere Tage links"><i class="far fa-chevron-left" aria-hidden="true"></i></button>
+        <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--next" x-cloak x-show="canScrollRight || windowNavigationEnabled" x-bind:disabled="windowLoading" x-on:click="scrollDay(1)" aria-label="Weitere Tage rechts anzeigen" title="Weitere Tage rechts"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
         </div>
     </div>
     <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:scroll.passive="syncHorizontal($event.target)" x-on:wheel="wheelPersonnel($event)" x-on:scrollend.passive="finishHorizontalIntent()" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile oder die horizontale Bildlaufleiste">

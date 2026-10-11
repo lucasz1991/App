@@ -2,6 +2,7 @@
     $detailAllDay = $event['kind'] === 'absence' && $detailStart->isStartOfDay() && $detailEnd->isStartOfDay();
     $detailLastDay = $detailAllDay ? $detailEnd->copy()->subSecond() : $detailEnd;
     $detailTabId = 'timeline-detail-'.$row['user']->id.'-'.$event['kind'].'-'.($event['shift_id'] ?? $event['absence_id']);
+    $detailParent = collect([$event['order_title'] ?? null, $event['order_number'] ?? null])->filter(fn ($value) => filled($value))->implode(' · ');
 @endphp
 <article class="rt-personnel-timeline-detail flex h-full min-h-0 flex-col overflow-hidden" data-kind="{{ $event['kind'] }}" data-state="{{ $state }}" tabindex="-1" data-timeline-detail-focus
     x-data="{ detailTab: 'period' }"
@@ -10,6 +11,15 @@
         <div class="rt-personnel-timeline-detail-heading">
             <span class="rt-personnel-timeline-detail-status"><span aria-hidden="true"></span>{{ $event['status'] }}</span>
             <h3 class="rt-personnel-timeline-detail-title" title="{{ $event['title'] }}">{{ $event['title'] }}</h3>
+            @if($event['kind'] === 'shift')
+                <p class="rt-personnel-timeline-detail-note truncate" title="{{ $detailParent ?: 'Zugehöriger Auftrag nicht verfügbar.' }}" data-timeline-parent-context>
+                    @if($detailParent)
+                        <strong>Leistung:</strong> {{ $detailParent }}
+                    @else
+                        Zugehöriger Auftrag nicht verfügbar.
+                    @endif
+                </p>
+            @endif
         </div>
         <x-ui.buttons.button-basic type="button" class="rt-personnel-timeline-detail-close" aria-label="Dienstdetails schließen" title="Schließen" x-on:click.stop="close(true)" data-timeline-detail-close>
             <i class="far fa-xmark" aria-hidden="true"></i>

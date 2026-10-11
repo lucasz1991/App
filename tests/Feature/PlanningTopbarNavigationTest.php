@@ -40,11 +40,11 @@ class PlanningTopbarNavigationTest extends TestCase
         $this->customer = Customer::create(['company_name' => 'Synthetic Navigation Customer', 'is_active' => true]);
     }
 
-    public function test_case_navigation_has_one_shared_six_way_toggle_inside_the_topbar_teleport_with_offers_enabled(): void
+    public function test_case_navigation_has_five_main_destinations_with_calendar_last_for_every_display_mode(): void
     {
         $this->assertTrue(CommercialOfferService::ready());
         $this->assertArrayHasKey('offers', CaseWorkspace::availableViews($this->admin));
-        $expected = ['inbox' => 'Eingang', 'offers' => 'Angebote', 'orders' => 'Aufträge', 'services' => 'Leistungen', 'shifts' => 'Schichtplan', 'calendar' => 'Kalender'];
+        $expected = ['inbox' => 'Eingang', 'offers' => 'Angebote', 'orders' => 'Aufträge', 'shifts' => 'Schichtplanung', 'calendar' => 'Kalender'];
         foreach ([['inbox', 'overview'], ['orders', 'overview'], ['shifts', 'plan'], ['shifts', 'calendar'], ['offers', 'overview']] as [$view, $section]) {
             $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => $view, 'initialSection' => $section]);
             $xpath = $this->xpath($component->html());
@@ -67,6 +67,9 @@ class PlanningTopbarNavigationTest extends TestCase
                 $this->assertStringContainsString('aria-label="'.$label.'"', $component->html());
             }
             $this->assertStringContainsString('aria-current="page"', $component->html());
+            $active = $xpath->query('//*[@id="case-workspace-view"]//*[@data-toggle-value and @aria-current="page"]');
+            $this->assertSame(1, $active->length);
+            $this->assertSame($section === 'calendar' ? 'calendar' : $view, $active->item(0)->getAttribute('data-toggle-value'));
             $this->assertSame(0, $xpath->query('//*[@id="case-shift-section"]')->length);
             $this->assertSame(0, $xpath->query('//*[@id="case-workspace-view" and not(ancestor::template[@*[name()="x-teleport"]="[data-topbar-planning-navigation]"])]')->length);
             $this->assertSame(1, $xpath->query('//*[@data-case-workspace and @*[name()="x-data"]]')->length);
@@ -83,23 +86,24 @@ class PlanningTopbarNavigationTest extends TestCase
                 Gate::define($ability, fn (User $user): bool => $user->is($actor) && in_array($ability, $abilities, true));
             }
             $planning = OperationsPages::planningShortcuts($actor);
-            $expected = in_array('operations.manage', $abilities, true) ? ['offers', 'orders', 'services', 'shifts', 'calendar'] : ['inbox', 'offers'];
+            $expected = in_array('operations.manage', $abilities, true) ? ['offers', 'orders', 'shifts', 'calendar'] : ['inbox', 'offers'];
             $this->assertSame($expected, array_keys($planning));
             $component = Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => $expected[0]])->assertSuccessful();
             $xpath = $this->xpath($component->html());
             preg_match_all('/data-toggle-value="([^"]+)"/', $component->html(), $renderedValues);
             $this->assertSame($expected, $renderedValues[1]);
             $sidebar = collect(ApplicationNavigation::sections($actor)['Disposition'] ?? [])->filter(fn (array $item): bool => ($item['parameters']['page'] ?? '') === 'cases');
-            $sidebarExpected = in_array('operations.manage', $abilities, true) ? ['orders', 'offers', 'shifts', 'calendar'] : ['inbox', 'offers'];
+            $sidebarExpected = $expected;
             $this->assertSame($sidebarExpected, $sidebar->map(fn (array $item): string => ($item['parameters']['section'] ?? '') === 'calendar' ? 'calendar' : $item['parameters']['view'])->values()->all());
             $this->assertSame(array_map(fn (string $key): string => $planning[$key]['label'], $sidebarExpected), $sidebar->pluck('title')->values()->all());
             foreach ($sidebar as $item) {
-                $this->assertSame(in_array($item['parameters']['view'], ['offers', 'shifts'], true) ? 'Planung' : null, $item['group']);
+                $this->assertNull($item['group']);
             }
             $forbidden = $expected === ['inbox', 'offers'] ? 'orders' : 'inbox';
             $component->call('setPlanningView', $forbidden)->assertForbidden();
             if ($expected === ['inbox', 'offers']) {
                 Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => 'inbox'])->call('setPlanningView', 'calendar')->assertForbidden();
+                Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => 'inbox'])->call('setPlanningView', 'services')->assertForbidden();
             }
         }
     }
@@ -110,7 +114,11 @@ class PlanningTopbarNavigationTest extends TestCase
         $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'orders', 'context' => $context]);
         $xpath = $this->xpath($component->html());
         foreach (['orders', 'inbox', 'offers', 'services', 'shifts', 'calendar'] as $target) {
-            $this->assertMatchesRegularExpression('/data-toggle-value="'.preg_quote($target, '/').'"/', $component->html());
+            if ($target === 'services') {
+                $this->assertStringNotContainsString('data-toggle-value="'.$target.'"', $component->html());
+            } else {
+                $this->assertMatchesRegularExpression('/data-toggle-value="'.preg_quote($target, '/').'"/', $component->html());
+            }
             $parameters = $target === 'services'
                 ? ['view' => 'shifts', 'section' => 'plan', 'services' => '1'] + $context
                 : ['view' => $target === 'calendar' ? 'shifts' : $target];
@@ -131,11 +139,11 @@ class PlanningTopbarNavigationTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_missing_offer_schema_hides_only_offer_shortcuts_and_preserves_the_other_five_destinations(): void
+    public function test_missing_offer_schema_hides_only_offer_shortcuts_and_preserves_four_main_destinations(): void
     {
         Schema::drop('commercial_offer_revisions');
         $this->assertFalse(CommercialOfferService::ready());
-        $expected = ['inbox', 'orders', 'services', 'shifts', 'calendar'];
+        $expected = ['inbox', 'orders', 'shifts', 'calendar'];
         $this->assertSame($expected, array_keys(OperationsPages::planningShortcuts($this->admin)));
         $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'orders'])->assertSuccessful();
         $xpath = $this->xpath($component->html());
@@ -207,10 +215,34 @@ class PlanningTopbarNavigationTest extends TestCase
         foreach (['plan', 'calendar'] as $section) {
             $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts', 'initialSection' => $section, 'context' => $context]);
             foreach (['shifts' => 'plan', 'calendar' => 'calendar'] as $target => $destination) {
+                $link = $this->xpath($component->html())->query('//*[@id="case-workspace-view"]//a[@data-toggle-value="'.$target.'"]');
+                $this->assertSame(1, $link->length);
+                $this->assertSame(OperationsPages::url('cases', ['view' => 'shifts', 'section' => $destination] + $context), $link->item(0)->getAttribute('href'));
                 $component->call('setPlanningView', $target)->assertRedirect(OperationsPages::url('cases', ['view' => 'shifts', 'section' => $destination] + $context));
             }
             $component->call('setPlanningView', 'unrelated')->assertForbidden();
         }
+        $this->assertDatabaseCount('shifts', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_legacy_services_url_and_display_changes_keep_shift_planning_active_without_creating_records(): void
+    {
+        $component = Livewire::actingAs($this->admin)->withQueryParams(['services' => '1'])
+            ->test(CaseWorkspace::class, ['initialView' => 'shifts', 'initialSection' => 'plan'])
+            ->assertSet('servicesView', true)->assertSet('view', 'shifts');
+        $xpath = $this->xpath($component->html());
+        $active = $xpath->query('//*[@id="case-workspace-view"]//*[@data-toggle-value and @aria-current="page"]');
+        $this->assertSame(1, $active->length);
+        $this->assertSame('shifts', $active->item(0)->getAttribute('data-toggle-value'));
+        $this->assertSame(['inbox', 'offers', 'orders', 'shifts', 'calendar'], array_keys(OperationsPages::planningShortcuts($this->admin)));
+        $component->call('shiftPlanViewChanged', 'table')->assertSet('servicesView', false)
+            ->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan']));
+        $component->call('shiftPlanViewChanged', 'orders')->assertSet('servicesView', true)
+            ->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan', 'services' => '1']));
+        $component->call('setPlanningView', 'services')->assertSet('servicesView', true)
+            ->assertDispatched('set-shift-plan-view', view: 'orders');
+        $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('shifts', 0);
         Http::assertNothingSent();
     }
@@ -269,7 +301,8 @@ class PlanningTopbarNavigationTest extends TestCase
             $search = $xpath->query('.//*[@data-rt-search]', $templates->item(0))->item(0);
             $this->assertStringContainsString("window.Livewire.find('".$calendar->instance()->getId()."').entangle('search').live", $search->getAttribute('x-data'));
             $this->assertStringContainsString('isPageTopbarSearch: true', $search->getAttribute('x-data'));
-            $this->assertSame(1, $xpath->query('//input[@type="search"]')->length);
+            $this->assertSame(1, $xpath->query('.//input[@type="search"]', $templates->item(0))->length);
+            $this->assertSame(1, $xpath->query('//input[@type="search" and @*[name()="wire:model.live.debounce.300ms"]="search"]')->length);
             // Der Seitenkopf trägt die Steuerzeile; die Suche bleibt allein in der Topbar.
             $header = $xpath->query('//template[@*[name()="x-teleport"]="[data-page-header-search]"]');
             $this->assertSame(1, $header->length);
@@ -280,6 +313,126 @@ class PlanningTopbarNavigationTest extends TestCase
             $calendar->call('resetFilters')->assertSet('search', '')->assertViewHas('shifts', fn ($shifts) => $shifts->pluck('id')->all() === [$east->id, $west->id]);
         }
         $this->assertDatabaseCount('shifts', 2);
+        Http::assertNothingSent();
+    }
+
+    public function test_global_timeline_clears_parent_filter_urls_and_keeps_the_selected_period(): void
+    {
+        $period = ['from' => '2027-05-10', 'until' => '2027-05-16'];
+        $order = Order::create(['customer_id' => $this->customer->id, 'title' => 'Synthetic Planning Context', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-10T06:00', 'ends_at' => '2027-05-16T20:00', 'required_staff' => 1, 'created_by' => $this->admin->id]);
+        $shift = Shift::create(['order_id' => $order->id, 'title' => 'Synthetic Planning Shift', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-12T08:00', 'ends_at' => '2027-05-12T16:00', 'required_staff' => 1, 'status' => 'draft', 'created_by' => $this->admin->id]);
+        $orderBefore = $order->fresh()->getRawOriginal();
+        $shiftBefore = $shift->fresh()->getRawOriginal();
+        $context = ['customer' => $this->customer->id, 'order' => $order->id, 'shift' => $shift->id] + $period;
+        $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, [
+            'initialView' => 'shifts', 'initialSection' => 'plan', 'context' => $context,
+        ]);
+        $component->call('shiftPlanViewChanged', 'orders')->assertSet('context', $context)
+            ->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan', 'services' => '1'] + $context));
+        $component->call('shiftPlanViewChanged', 'timeline')->assertSet('servicesView', false)->assertSet('context', $period)
+            ->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan'] + $period));
+        $this->assertSame($orderBefore, $order->fresh()->getRawOriginal());
+        $this->assertSame($shiftBefore, $shift->fresh()->getRawOriginal());
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('shifts', 1);
+        Http::assertNothingSent();
+    }
+
+    public function test_child_date_and_filter_events_keep_both_main_planning_links_current_without_changing_records(): void
+    {
+        $this->travelTo(now('Europe/Berlin')->setDate(2027, 5, 12));
+        $order = Order::create(['customer_id' => $this->customer->id, 'title' => 'Synthetic Context Order', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-10T06:00', 'ends_at' => '2027-05-16T20:00', 'required_staff' => 1, 'created_by' => $this->admin->id]);
+        $otherCustomer = Customer::create(['company_name' => 'Synthetic Other Context', 'is_active' => true]);
+        $otherOrder = $order->replicate(['public_id', 'order_number']);
+        $otherOrder->customer_id = $otherCustomer->id;
+        $otherOrder->save();
+        $before = [$order->fresh()->getRawOriginal(), $otherOrder->fresh()->getRawOriginal()];
+        $period = ['from' => '2027-05-10', 'until' => '2027-05-16'];
+        $parent = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts', 'initialSection' => 'calendar']);
+        $calendar = Livewire::actingAs($this->admin)->withQueryParams(['order' => $order->id] + $period)->test(Calendar::class);
+        $this->assertSame(1, collect($calendar->effects['dispatches'])->where('name', 'operations-period-changed')->count());
+        $forward = function ($child) use ($parent): void {
+            foreach ($child->effects['dispatches'] ?? [] as $event) {
+                if (in_array($event['name'], ['operations-period-changed', 'operations-planning-filters-changed'], true)) {
+                    $parent->dispatch($event['name'], ...$event['params'])->assertSuccessful();
+                }
+            }
+        };
+        $assertLinks = function (array $context) use ($parent): void {
+            foreach (['shifts' => 'plan', 'calendar' => 'calendar'] as $target => $section) {
+                $link = $this->xpath($parent->html())->query('//*[@id="case-workspace-view"]//a[@data-toggle-value="'.$target.'"]')->item(0);
+                $this->assertNotNull($link);
+                $this->assertSame(OperationsPages::url('cases', ['view' => 'shifts', 'section' => $section] + $context), $link->getAttribute('href'));
+            }
+        };
+        $forward($calendar);
+        $filters = ['customer' => $this->customer->id, 'order' => $order->id];
+        $assertLinks($period + $filters);
+        foreach ([
+            ['nextPeriod', [], ['from' => '2027-05-31', 'until' => '2027-07-04']],
+            ['switchView', ['week'], ['from' => '2027-06-07', 'until' => '2027-06-13']],
+            ['previousPeriod', [], ['from' => '2027-05-31', 'until' => '2027-06-06']],
+            ['showDay', ['2027-07-15'], ['from' => '2027-07-15', 'until' => '2027-07-15']],
+            ['today', [], ['from' => '2027-05-12', 'until' => '2027-05-12']],
+        ] as [$action, $arguments, $current]) {
+            $calendar->call($action, ...$arguments)->assertDispatched('operations-period-changed', ...$current);
+            $forward($calendar);
+            $assertLinks($current + $filters);
+        }
+        $calendar->set('customerFilter', (string) $otherCustomer->id)->assertSet('orderFilter', 'all');
+        $forward($calendar);
+        $assertLinks($current + ['customer' => $otherCustomer->id]);
+        $calendar->set('orderFilter', (string) $otherOrder->id);
+        $forward($calendar);
+        $assertLinks($current + ['customer' => $otherCustomer->id, 'order' => $otherOrder->id]);
+        $calendar->call('resetFilters');
+        $forward($calendar);
+        $assertLinks($current);
+
+        $plan = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('applyPeriod', '2027-08-02', '2027-08-08');
+        $forward($plan);
+        $assertLinks(['from' => '2027-08-02', 'until' => '2027-08-08']);
+        $plan->set('orderFilter', (string) $order->id);
+        $forward($plan);
+        $plan->call('movePeriod', 1);
+        $forward($plan);
+        $assertLinks(['from' => '2027-08-09', 'until' => '2027-08-15', 'order' => $order->id]);
+        $plan->call('currentWeek');
+        $forward($plan);
+        $assertLinks($period + ['order' => $order->id]);
+        $this->assertSame($before, [$order->fresh()->getRawOriginal(), $otherOrder->fresh()->getRawOriginal()]);
+        $this->assertDatabaseCount('orders', 2);
+        $this->assertDatabaseCount('shifts', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_planning_context_events_reject_malformed_foreign_and_revoked_access_before_update(): void
+    {
+        foreach ([['2027-02-30', '2027-03-01'], ['2027-05-16', '2027-05-10'], ['2027-01-01', '2027-12-31'], [['2027-05-10'], '2027-05-16']] as [$from, $until]) {
+            Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts'])
+                ->dispatch('operations-period-changed', from: $from, until: $until)->assertStatus(422);
+        }
+        foreach (['1', 0, -1, ['1']] as $id) {
+            Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts'])
+                ->dispatch('operations-planning-filters-changed', customer: $id)->assertStatus(422);
+        }
+        Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts'])
+            ->dispatch('operations-planning-filters-changed', customer: 999999)->assertNotFound();
+        $other = Customer::create(['company_name' => 'Synthetic Foreign Context', 'is_active' => true]);
+        $order = Order::create(['customer_id' => $other->id, 'title' => 'Synthetic Foreign Order', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-10T06:00', 'ends_at' => '2027-05-16T20:00', 'required_staff' => 1, 'created_by' => $this->admin->id]);
+        Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts'])
+            ->dispatch('operations-planning-filters-changed', customer: $this->customer->id, order: $order->id)->assertNotFound();
+        $allowed = true;
+        Gate::define('operations.manage', function () use (&$allowed): bool {
+            return $allowed;
+        });
+        $periodParent = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts']);
+        $filterParent = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'shifts']);
+        $allowed = false;
+        $periodParent->dispatch('operations-period-changed', from: '2027-05-10', until: '2027-05-16')->assertForbidden();
+        $filterParent->dispatch('operations-planning-filters-changed', customer: $this->customer->id)->assertForbidden();
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('shifts', 0);
         Http::assertNothingSent();
     }
 

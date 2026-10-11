@@ -8,6 +8,8 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Support\Operations\OperationsPages;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
@@ -73,6 +75,60 @@ class CalendarUiComponentsTest extends TestCase
         $this->assertLessThan(strpos($day, 'data-calendar-shift="'.$staffed->id.'"'), strpos($day, 'data-calendar-shift="'.$open->id.'"'));
     }
 
+    public function test_calendar_returns_to_shared_planning_with_its_current_order_and_customer(): void
+    {
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $order = $this->order($admin);
+        $shift = $this->shift($order, $admin, 'Return context');
+        $original = $shift->fresh()->getRawOriginal();
+
+        $component = Livewire::actingAs($admin)->withQueryParams(['order' => $order->id])->test(Calendar::class)->call('switchView', 'week');
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+        $xpath = new \DOMXPath($dom);
+        $links = $xpath->query('//a[@data-calendar-planning-return]');
+        $this->assertSame(1, $links->length);
+        $this->assertSame(OperationsPages::url('cases', [
+            'view' => 'shifts', 'section' => 'plan', 'order' => $order->id, 'customer' => $order->customer_id,
+            'from' => '2026-09-14', 'until' => '2026-09-20',
+        ]), $links->item(0)->getAttribute('href'));
+        $this->assertSame('menuitem', $links->item(0)->getAttribute('role'));
+        $this->assertStringContainsString('Schichtplanung öffnen', $links->item(0)->textContent);
+        $this->assertSame(4, $xpath->query('//button[@data-calendar-view-option]')->length);
+        $this->assertSame($original, $shift->fresh()->getRawOriginal());
+    }
+
+    public function test_calendar_keeps_the_incoming_plan_period_until_the_user_changes_its_date_or_view(): void
+    {
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $order = $this->order($admin);
+        $period = ['from' => '2027-05-17', 'until' => '2027-05-23'];
+        $component = Livewire::actingAs($admin)->withQueryParams(['order' => $order->id, 'customer' => $order->customer_id] + $period)
+            ->test(Calendar::class)->assertSet('anchorDate', '2027-05-17')->assertSet('weekStart', '2027-05-17')
+            ->assertSet('planningRange', $period)->assertSet('customerFilter', (string) $order->customer_id)
+            ->assertDispatched('operations-period-changed', ...$period)
+            ->assertDispatched('operations-planning-filters-changed', customer: $order->customer_id, order: $order->id);
+        $this->assertSame(1, collect($component->effects['dispatches'])->where('name', 'operations-period-changed')->count());
+        $returnQuery = function () use ($component): array {
+            $dom = new \DOMDocument;
+            @$dom->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+            $link = (new \DOMXPath($dom))->query('//a[@data-calendar-planning-return]')->item(0);
+            parse_str(parse_url($link->getAttribute('href'), PHP_URL_QUERY), $query);
+
+            return $query;
+        };
+        $this->assertSame($period, array_intersect_key($returnQuery(), $period));
+        $component->call('switchView', 'week')->call('nextPeriod')->assertSet('planningRange', [])
+            ->assertSet('anchorDate', '2027-05-24');
+        $this->assertSame(['from' => '2027-05-24', 'until' => '2027-05-30'], array_intersect_key($returnQuery(), $period));
+        $component->call('showDay', '2027-05-27');
+        $this->assertSame(['from' => '2027-05-27', 'until' => '2027-05-27'], array_intersect_key($returnQuery(), $period));
+        $this->assertDatabaseCount('shifts', 0);
+        $this->assertSame('confirmed', $order->fresh()->status->value);
+    }
+
     public function test_date_and_view_navigation_preserve_customer_order_search_and_open_filter(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -119,7 +175,7 @@ class CalendarUiComponentsTest extends TestCase
             ->assertSeeHtml('data-calendar-panel-content')->assertSeeHtml('calendar-shift-detail-');
         // Bearbeiten bleibt dem Schichtplan vorbehalten.
         $component->call('openShift', $shift->id)->assertRedirect();
-        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        $this->expectException(ModelNotFoundException::class);
         Livewire::actingAs($admin)->test(Calendar::class)->call('openDetails', 999999);
     }
 

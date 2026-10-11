@@ -25,6 +25,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Reactive;
 use Livewire\Attributes\Renderless;
 use Livewire\Component;
 use Livewire\WithoutUrlPagination;
@@ -37,10 +38,19 @@ class StaffTimeline extends Component
     private const INITIAL_BATCH_SIZE = 24;
 
     #[Locked]
+    #[Reactive]
     public string $from;
 
     #[Locked]
+    #[Reactive]
     public string $until;
+
+    /** Only the embedded planning timeline can request another bounded time window. */
+    #[Locked]
+    public ?string $periodNavigationOwner = null;
+
+    #[Locked]
+    public string $renderedPeriod = '';
 
     public string $search = '';
 
@@ -270,6 +280,7 @@ class StaffTimeline extends Component
 
     public function mount(): void
     {
+        $this->renderedPeriod = $this->from.'|'.$this->until;
         $this->resetPage('staffPage');
         // Mit offenem Seitenpanel geöffnet: erst den Plan zeigen, Vorschläge im Folgeaufruf.
         $this->suggestionsAvailable = ! ($this->planningEnabled && ! $this->absencesOnly)
@@ -280,6 +291,26 @@ class StaffTimeline extends Component
     public function updatedSearch(): void
     {
         $this->resetPage('staffPage');
+    }
+
+    public function hydrate(): void
+    {
+        $this->synchronizePeriodContext();
+    }
+
+    private function synchronizePeriodContext(): void
+    {
+        $period = $this->from.'|'.$this->until;
+        if ($period === $this->renderedPeriod) {
+            return;
+        }
+        $this->renderedPeriod = $period;
+        $this->resetPlanningSelection();
+        $this->focusShiftId = null;
+        $this->previewVersion++;
+        $this->suggestionsAvailable = true;
+        $this->suggestionsReady = ! ($this->planningEnabled && ! $this->absencesOnly && $this->showSuggestions);
+        $this->dispatch('operations-timeline-window-reset', timelineId: $this->getId());
     }
 
     public function loadMore(): void
@@ -303,6 +334,7 @@ class StaffTimeline extends Component
     {
         OperationsAccess::authorize(auth()->user(), $this->absencesOnly ? 'operations.absences.review' : 'operations.manage');
         OperationsAccess::requireReady();
+        $this->synchronizePeriodContext();
         $this->validate(['from' => 'required|date_format:Y-m-d', 'until' => 'required|date_format:Y-m-d|after_or_equal:from']);
         $zone = config('operations.display_timezone', 'Europe/Berlin');
         $from = CarbonImmutable::parse($this->from, $zone);
@@ -333,7 +365,7 @@ class StaffTimeline extends Component
             $events = collect();
             foreach ($assignments->get($user->id, collect()) as $assignment) {
                 $shift = $assignment->shift;
-                $events->push(['id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $shift->title, 'start' => $shift->starts_at, 'end' => $shift->ends_at, 'detail' => $shift->order?->customer?->company_name, 'status' => $assignment->status->label(), 'status_value' => $assignment->status->value, 'shift_status' => $shift->status->value, 'shift_status_label' => $shift->status->label(), 'role_name' => $shift->role_name, 'location_name' => $shift->location_name ?: $shift->order?->location_name, 'location_preview' => TimelineLocationPreview::fromShift($shift), 'planned_break_minutes' => $shift->planned_break_minutes, 'shift_id' => $shift->id]);
+                $events->push(['id' => 'shift-'.$assignment->id, 'kind' => 'shift', 'title' => $shift->title, 'start' => $shift->starts_at, 'end' => $shift->ends_at, 'detail' => $shift->order?->customer?->company_name, 'order_title' => $shift->order?->title, 'order_number' => $shift->order?->order_number, 'status' => $assignment->status->label(), 'status_value' => $assignment->status->value, 'shift_status' => $shift->status->value, 'shift_status_label' => $shift->status->label(), 'role_name' => $shift->role_name, 'location_name' => $shift->location_name ?: $shift->order?->location_name, 'location_preview' => TimelineLocationPreview::fromShift($shift), 'planned_break_minutes' => $shift->planned_break_minutes, 'shift_id' => $shift->id]);
             }
             foreach ($absences->get($user->id, collect()) as $absence) {
                 $events->push(['id' => 'absence-'.$absence->id, 'absence_id' => $absence->id, 'kind' => 'absence', 'title' => ['vacation' => 'Urlaub', 'unavailable' => 'Nicht verfügbar', 'other' => 'Abwesenheit', 'sick' => $this->absencesOnly ? 'Krankmeldung' : 'Abwesenheit'][$absence->kind] ?? 'Abwesenheit', 'start' => $absence->starts_at, 'end' => $absence->ends_at, 'detail' => '', 'status' => ['approved' => 'Genehmigt', 'reported' => 'Gemeldet', 'pending' => 'Beantragt'][$absence->status] ?? OperationsNavigation::status($absence->status), 'status_value' => $absence->status, 'shift_status' => null, 'shift_id' => null]);

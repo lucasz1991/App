@@ -297,12 +297,32 @@ class CompactStaffTimelineUiTest extends TestCase
     public function test_event_detail_reuses_full_person_identity_and_keeps_all_operational_fields(): void
     {
         $html = $this->renderEventDetail();
-        foreach (['Dienstdetails schließen', 'close(true)', 'Marcel Schaarschmidt', 'title="Marcel Schaarschmidt"', 'min-w-0 truncate text-sm', 'Beginn', 'Ende', '05.10.2026', '06.10.2026', 'Kunde', 'Test Rail', 'Tätigkeit', 'Tf', 'Einsatzort', 'Bremen', 'Planstatus', 'Geplante Pause', '30 Minuten', 'Nicht hinterlegt', 'Eingeplant · KW 41', '8,5 h', 'Schicht öffnen', 'data-shift-detail-open="42"'] as $text) {
+        foreach (['Dienstdetails schließen', 'close(true)', 'Marcel Schaarschmidt', 'title="Marcel Schaarschmidt"', 'min-w-0 truncate text-sm', 'Beginn', 'Ende', '05.10.2026', '06.10.2026', 'Leistung:', 'RT-2026-000042', 'Kunde', 'Test Rail', 'Tätigkeit', 'Tf', 'Einsatzort', 'Bremen', 'Planstatus', 'Geplante Pause', '30 Minuten', 'Nicht hinterlegt', 'Eingeplant · KW 41', '8,5 h', 'Schicht öffnen', 'data-shift-detail-open="42"'] as $text) {
             $this->assertStringContainsString($text, $html);
         }
         $this->assertStringContainsString('&lt;Dienst&gt;', $html);
         $this->assertStringNotContainsString('<Dienst>', $html);
         $this->assertStringNotContainsString('Zeitumstellung', $html);
+    }
+
+    public function test_timeline_parent_context_stays_in_the_shared_header_and_escapes_values(): void
+    {
+        $html = $this->renderEventDetail(false, 23, 42, ['order_title' => '<img src=x onerror=alert(1)>', 'order_number' => '<script>RT-42</script>']);
+        $document = new \DOMDocument;
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
+        $xpath = new \DOMXPath($document);
+        $parent = $xpath->query('//article/header//*[@data-timeline-parent-context]')->item(0);
+        $this->assertNotNull($parent);
+        $this->assertStringContainsString('<img src=x onerror=alert(1)>', $parent->textContent);
+        $this->assertStringContainsString('<script>RT-42</script>', $parent->textContent);
+        $this->assertSame('<img src=x onerror=alert(1)> · <script>RT-42</script>', $parent->getAttribute('title'));
+        $this->assertSame(0, $xpath->query('.//img | .//script', $parent)->length);
+        $this->assertSame(0, $xpath->query('//*[@data-detail-tab]//*[@data-timeline-parent-context]')->length);
+
+        $missing = $this->renderEventDetail(false, 23, 42, ['order_title' => null, 'order_number' => null]);
+        $this->assertStringContainsString('Zugehöriger Auftrag nicht verfügbar.', $missing);
+        $this->assertStringNotContainsString('Leistung:', $missing);
+        $this->assertStringNotContainsString('data-timeline-parent-context', $this->renderEventDetail(true));
     }
 
     public function test_event_card_uses_shared_accessible_tabs_between_header_and_non_scrolling_content(): void
@@ -455,7 +475,7 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringNotContainsString('rt-event-mini-map__sources', $html);
     }
 
-    private function renderEventDetail(bool $absence = false, int $userId = 23, int $shiftId = 42): string
+    private function renderEventDetail(bool $absence = false, int $userId = 23, int $shiftId = 42, array $eventOverrides = []): string
     {
         $detailStart = CarbonImmutable::parse($absence ? '2026-10-05T00:00:00+02:00' : '2026-10-05T22:00:00+02:00');
         $detailEnd = CarbonImmutable::parse($absence ? '2026-10-07T00:00:00+02:00' : '2026-10-06T06:00:00+02:00');
@@ -465,10 +485,11 @@ class CompactStaffTimelineUiTest extends TestCase
             'detailStart' => $detailStart, 'detailEnd' => $detailEnd, 'detailDstChanged' => false,
             'state' => 'confirmed', 'zone' => 'Europe/Berlin', 'absencesOnly' => $absence,
             'row' => ['user' => $user, 'weekly_working_hours' => null, 'planned_hours_by_week' => ['2026-41' => 8.5]],
-            'event' => ['kind' => $absence ? 'absence' : 'shift', 'title' => $absence ? 'Urlaub' : '<Dienst>', 'status' => 'Bestätigt',
+            'event' => array_replace(['kind' => $absence ? 'absence' : 'shift', 'title' => $absence ? 'Urlaub' : '<Dienst>', 'status' => 'Bestätigt',
                 'detail' => $absence ? '' : 'Test Rail', 'role_name' => $absence ? null : 'Tf', 'location_name' => $absence ? null : 'Bremen',
+                'order_title' => $absence ? null : '<Leistung>', 'order_number' => $absence ? null : 'RT-2026-000042',
                 'shift_status_label' => $absence ? null : 'Veröffentlicht', 'planned_break_minutes' => $absence ? 0 : 30,
-                'iso_week' => '2026-41', 'visible_start' => $detailStart, 'shift_id' => $absence ? null : $shiftId, 'absence_id' => 12],
+                'iso_week' => '2026-41', 'visible_start' => $detailStart, 'shift_id' => $absence ? null : $shiftId, 'absence_id' => 12], $eventOverrides),
         ])->render();
     }
 

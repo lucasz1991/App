@@ -48,14 +48,14 @@ class NavigationWorkflowStructureTest extends TestCase
     }
 
     #[DataProvider('visibilityScenarios')]
-    public function test_current_menu_changes_only_explicit_employee_consolidation_offer_link_and_resource_title(string $schema, string $role, array $abilities, bool $active = true, ?string $team = null): void
+    public function test_current_menu_changes_only_explicit_personnel_and_workflow_navigation_contracts(string $schema, string $role, array $abilities, bool $active = true, ?string $team = null): void
     {
         $this->installSchema($schema);
         $actor = $this->actor($role, $abilities, $active, $team);
         $before = $this->originalSections($actor);
         $after = ApplicationNavigation::sections($actor);
 
-        $this->assertSame($this->contracts($this->withRequestedPlanningUpdates($this->consolidatePeople($before), $actor)), $this->contracts($after), 'Only individual employee entries, the requested offer destination and the resource-page title may change; every other leaf contract stays unchanged.');
+        $this->assertSame($this->contracts($this->withRequestedPlanningUpdates($this->consolidatePeople($before), $actor)), $this->contracts($after), 'Only the requested employee consolidation, offer destination, planning caption and resource-page title may change; every other leaf contract stays unchanged.');
         $peopleLinks = collect($after)->flatten(1)->filter(fn (array $link): bool => $link['route'] === 'operations.page' && ($link['parameters']['page'] ?? '') === 'people');
         $this->assertCount(isset(OperationsPages::availableFor($actor)['people']) ? 1 : 0, $peopleLinks);
         foreach (array_diff(array_unique([...array_keys($before), ...array_keys($after)]), ['', 'Disposition', 'Personal']) as $section) {
@@ -115,16 +115,16 @@ class NavigationWorkflowStructureTest extends TestCase
         $this->assertSame('Arbeitsliste', $sections['Mein Arbeitsplatz'][0]['title']);
         $this->assertSame('Arbeitsmittel', $sections['Mein Arbeitsplatz'][1]['group']);
         $this->assertSame([
-            '' => ['Eingang', 'Aufträge', 'Leitstelle'],
-            'Planung' => ['Angebote', 'Schichtplan', 'Kalender', 'Ressourcen & Kapazität'],
+            '' => ['Eingang', 'Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Leitstelle'],
+            'Planung' => ['Ressourcen & Kapazität'],
         ], $this->groupedTitles($sections['Disposition']));
-        $this->assertSame(['Eingang', 'Aufträge', 'Angebote', 'Schichtplan', 'Kalender', 'Ressourcen & Kapazität', 'Leitstelle'], array_column($sections['Disposition'], 'title'));
+        $this->assertSame(['Eingang', 'Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Ressourcen & Kapazität', 'Leitstelle'], array_column($sections['Disposition'], 'title'));
         $this->assertSame([
             '' => ['Mitarbeiter', 'Personalprozesse', 'Regelprofile'],
             'Zeitwirtschaft' => ['Urlaub & Konten', 'Zeitprüfung', 'Monatsabschluss & Export'],
         ], $this->groupedTitles($sections['Personal']));
         $this->assertSame(['', '', 'Zeitwirtschaft', ''], array_column(array_values(ApplicationNavigation::groups($sections['Personal'])), 'label'));
-        $this->assertSame(['inbox', 'offers', 'orders', 'shifts', 'calendar'], array_keys(OperationsPages::planningShortcuts($this->actor('admin'))), 'The offer shortcut follows the requested workflow without replacing any existing destination.');
+        $this->assertSame(['inbox', 'offers', 'orders', 'shifts', 'calendar'], array_keys(OperationsPages::planningShortcuts($this->actor('admin'))), 'Calendar is the final main destination; service display modes remain within shift planning.');
     }
 
     public function test_sidebar_and_mobile_navigation_render_the_same_preserved_destinations(): void
@@ -149,8 +149,8 @@ class NavigationWorkflowStructureTest extends TestCase
         $mobile = $this->xpath(view('components.operations.navigation', ['current' => 'qualifications', 'modules' => []])->render());
         $select = $mobile->query('//*[@data-rt-custom-select]');
         $this->assertCount(1, $select);
-        $this->assertSame(1, preg_match("/\\boptions:\\s*JSON\\.parse\\('([^']*)'\\)/s", $select->item(0)->getAttribute('x-data'), $matches));
-        $options = json_decode(json_decode('"'.$matches[1].'"', true, 512, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertNotSame('', $select->item(0)->getAttribute('data-rt-select-options'));
+        $options = json_decode($select->item(0)->getAttribute('data-rt-select-options'), true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame($destinations, array_column($options, 'value'));
         $this->assertSame([OperationsPages::url('people')], array_column(array_filter($options, fn (array $option): bool => $option['selected']), 'value'));
     }
@@ -176,7 +176,10 @@ class NavigationWorkflowStructureTest extends TestCase
         $this->assertSame('grid', $footer->query('//button[@aria-label="Verwaltung"]/i')->item(0)->getAttribute('data-feather'));
         $root = $footer->query('//*[@data-rt-dropdown-id="rt-dropdown-sidebar-administration"]')->item(0);
         $this->assertNotNull($root);
-        $this->assertStringContainsString("layerGroup: 'sidebar-footer'", $root->getAttribute('x-data'));
+        $this->assertSame(1, preg_match("/^rtAnchorDropdown\\(JSON\\.parse\\('([^']*)'\\)\\)$/s", $root->getAttribute('x-data'), $matches));
+        $configuration = json_decode(json_decode('"'.$matches[1].'"', true, 512, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('sidebar-footer', $configuration['layerGroup']);
+        $this->assertSame('rt-dropdown-sidebar-administration', $configuration['layerId']);
         $menu = $footer->query('//*[@id="rt-dropdown-sidebar-administration-content"]')->item(0);
         $this->assertSame('menu', $menu->getAttribute('role'));
         $this->assertSame('Verwaltung', $menu->getAttribute('aria-label'));
@@ -230,8 +233,9 @@ class NavigationWorkflowStructureTest extends TestCase
             ['cases', ['view' => 'inbox', 'section' => 'ai-intake'], 'Eingang'],
             ['cases', ['view' => 'offers', 'customer' => '12'], 'Angebote'],
             ['cases', ['view' => 'orders', 'order' => '12'], 'Aufträge'],
-            ['cases', ['view' => 'shifts', 'section' => 'plan'], 'Schichtplan'],
+            ['cases', ['view' => 'shifts', 'section' => 'plan'], 'Schichtplanung'],
             ['cases', ['view' => 'shifts', 'section' => 'calendar'], 'Kalender'],
+            ['cases', ['view' => 'shifts', 'section' => 'plan', 'services' => '1'], 'Schichtplanung'],
             ['planning', ['view' => 'staff', 'section' => 'pools'], 'Ressourcen & Kapazität'],
             ['duty', ['view' => 'board'], 'Leitstelle'],
             ['people', ['view' => 'employees'], 'Mitarbeiter'],
@@ -356,6 +360,10 @@ class NavigationWorkflowStructureTest extends TestCase
                     $this->assertSame('Bedarf & Planung', $link['title']);
                     $link['title'] = 'Ressourcen & Kapazität';
                 }
+                if ($link['route'] === 'operations.page' && $link['parameters'] === ['page' => 'cases', 'view' => 'shifts', 'section' => 'plan']) {
+                    $this->assertSame('Schichtplan', $link['title']);
+                    $link['title'] = 'Schichtplanung';
+                }
             }
             unset($link);
         }
@@ -417,7 +425,7 @@ class NavigationWorkflowStructureTest extends TestCase
                     $icon = match ($view) {
                         'inbox' => 'inbox', 'orders' => 'briefcase', 'shifts' => 'clipboard',
                     };
-                    $add($definition['segment'], $entry['label'], 'operations.page', $icon, $parameters, true, 'Planung');
+                    $add($definition['segment'], $view === 'shifts' ? 'Schichtplan' : $entry['label'], 'operations.page', $icon, $parameters, true, 'Planung');
                     if ($view === 'shifts') {
                         $add($definition['segment'], 'Kalender', 'operations.page', 'calendar', ['page' => 'cases', 'view' => 'shifts', 'section' => 'calendar'], true, 'Planung');
                     }

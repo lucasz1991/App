@@ -13,12 +13,14 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Models\User;
 use App\Services\Operations\CommercialOfferService;
+use App\Services\Operations\PlanningCapacityService;
 use App\Support\CustomerPortal\CustomerPortalIntakeSchema;
 use App\Support\CustomerPortal\CustomerPortalScope;
 use App\Support\CustomerPortal\CustomerPortalWorkflowSchema;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsEnhancementsSchema;
 use App\Support\Operations\OperationsPages;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -48,7 +50,7 @@ class CaseWorkspace extends Component
             'inbox' => ($operationsReady && $actor->can('operations.inquiries.manage')) || isset(self::availableSections($actor)['portal']) ? ['value' => 'inbox', 'label' => 'Eingang', 'icon' => 'fa-inbox'] : null,
             'offers' => CommercialOfferService::ready() && ($actor->can('operations.inquiries.manage') || $actor->can('operations.manage')) ? ['value' => 'offers', 'label' => 'Angebote', 'icon' => 'fa-file-invoice'] : null,
             'orders' => $operationsReady && ($actor->can('operations.manage') || ($actor->can('operations.costs.manage') && OperationsEnhancementsSchema::ready())) ? ['value' => 'orders', 'label' => 'Aufträge', 'icon' => 'fa-briefcase'] : null,
-            'shifts' => $operationsReady && $actor->can('operations.manage') ? ['value' => 'shifts', 'label' => 'Schichtplan', 'icon' => 'fa-calendar'] : null,
+            'shifts' => $operationsReady && $actor->can('operations.manage') ? ['value' => 'shifts', 'label' => 'Schichtplanung', 'icon' => 'fa-calendar'] : null,
         ]);
     }
 
@@ -186,7 +188,8 @@ class CaseWorkspace extends Component
     public function setPlanningView(string $target): void
     {
         $this->access();
-        abort_unless(isset(OperationsPages::planningShortcuts($this->actor())[$target]), 403);
+        $destination = in_array($target, ['services', 'calendar'], true) ? 'shifts' : $target;
+        abort_unless(isset(OperationsPages::planningShortcuts($this->actor())[$destination]), 403);
         if ($target === 'services') {
             if ($this->view === 'shifts' && $this->section === 'plan') {
                 $this->servicesView = true;
@@ -219,8 +222,54 @@ class CaseWorkspace extends Component
     {
         $this->access();
         abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders', 'timeline'], true), 422);
+        if ($view === 'timeline') {
+            unset($this->context['customer'], $this->context['order'], $this->context['shift']);
+        }
         $this->servicesView = $view === 'orders';
         $this->syncServicesViewUrl($this->servicesView);
+    }
+
+    #[On('operations-period-changed')]
+    public function planningPeriodChanged(mixed $from, mixed $until): void
+    {
+        $this->access();
+        if ($this->view !== 'shifts') {
+            return;
+        }
+        abort_unless(is_string($from) && is_string($until), 422);
+        try {
+            [$start, $end] = app(PlanningCapacityService::class)->range($from, $until);
+        } catch (ValidationException) {
+            abort(422, 'Ungültiger Planungszeitraum.');
+        }
+        $this->context['from'] = $start->toDateString();
+        $this->context['until'] = $end->subDay()->toDateString();
+    }
+
+    #[On('operations-planning-filters-changed')]
+    public function planningFiltersChanged(mixed $customer = null, mixed $order = null): void
+    {
+        $this->access();
+        if ($this->view !== 'shifts') {
+            return;
+        }
+        foreach ([$customer, $order] as $id) {
+            abort_unless($id === null || is_int($id) && $id > 0, 422);
+        }
+        $selectedCustomer = $customer !== null ? Customer::find($customer) : null;
+        $selectedOrder = $order !== null ? Order::find($order) : null;
+        abort_if($customer !== null && ! $selectedCustomer || $order !== null && ! $selectedOrder, 404);
+        abort_if($selectedCustomer && $selectedOrder && (int) $selectedOrder->customer_id !== (int) $selectedCustomer->id, 404);
+        if (($this->context['customer'] ?? null) === $customer && ($this->context['order'] ?? null) === $order) {
+            return;
+        }
+        $this->context = array_intersect_key($this->context, array_flip(['from', 'until']));
+        if ($customer !== null) {
+            $this->context['customer'] = $customer;
+        }
+        if ($order !== null) {
+            $this->context['order'] = $order;
+        }
     }
 
     private function syncServicesViewUrl(bool $active): void
@@ -302,11 +351,7 @@ class CaseWorkspace extends Component
     {
         $options = OperationsPages::planningShortcuts($this->actor());
         foreach ($options as $target => &$option) {
-            if ($target === 'services' && $this->view === 'shifts' && $this->section === 'plan') {
-                continue;
-            }
             $parameters = match ($target) {
-                'services' => ['view' => 'shifts', 'section' => 'plan', 'services' => '1'] + $this->context,
                 'shifts', 'calendar' => ['view' => 'shifts', 'section' => $target === 'calendar' ? 'calendar' : 'plan']
                     + ($this->view === 'shifts' ? $this->context : ['customer' => $this->context['customer'] ?? null]),
                 default => ['view' => $target, 'customer' => $this->context['customer'] ?? null] + $this->preservedListContext($target),

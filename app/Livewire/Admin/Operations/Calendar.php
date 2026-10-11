@@ -7,10 +7,12 @@ use App\Enums\ShiftStatus;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shift;
+use App\Services\Operations\PlanningCapacityService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OrderSelection;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -21,6 +23,9 @@ class Calendar extends Component
     public string $weekStart = '';
 
     public string $anchorDate = '';
+
+    #[Locked]
+    public array $planningRange = [];
 
     /** Monatsansicht ist der Einstieg: der ganze Monat mit Lücken auf einen Blick. */
     public string $viewMode = 'month';
@@ -49,9 +54,20 @@ class Calendar extends Component
     public function mount(): void
     {
         $this->ensureAdmin();
-        $this->today();
-        if (request()->integer('order')) {
-            $order = Order::query()->find(request()->integer('order'));
+        $date = CarbonImmutable::now($this->displayTimezone());
+        $this->anchorDate = $date->toDateString();
+        $this->weekStart = $date->startOfWeek()->toDateString();
+        if (request()->has('customer')) {
+            $value = request()->query('customer');
+            $customerId = is_string($value) || is_int($value) ? filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) : false;
+            abort_unless($customerId && Customer::whereKey($customerId)->exists(), 404);
+            $this->customerFilter = (string) $customerId;
+        }
+        if (request()->has('order')) {
+            $value = request()->query('order');
+            $orderId = is_string($value) || is_int($value) ? filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) : false;
+            abort_unless($orderId, 404);
+            $order = Order::query()->when($this->customerFilter !== 'all', fn (Builder $query) => $query->where('customer_id', (int) $this->customerFilter))->find($orderId);
             abort_unless($order, 404);
             $this->orderFilter = (string) $order->id;
             $this->customerFilter = (string) $order->customer_id;
@@ -61,6 +77,19 @@ class Calendar extends Component
                 $this->statusFilter = 'all';
             }
         }
+        if (request()->hasAny(['from', 'until'])) {
+            abort_unless(is_string(request()->query('from')) && is_string(request()->query('until')), 422);
+            try {
+                [$from, $until] = app(PlanningCapacityService::class)->range(request()->query('from'), request()->query('until'));
+            } catch (ValidationException) {
+                abort(422, 'Ungültiger Planungszeitraum.');
+            }
+            $this->planningRange = ['from' => $from->toDateString(), 'until' => $until->subDay()->toDateString()];
+            $this->anchorDate = $from->toDateString();
+            $this->weekStart = $from->startOfWeek()->toDateString();
+        }
+        $this->notifyPlanningPeriod();
+        $this->notifyPlanningFilters();
     }
 
     public function updatedCustomerFilter(): void
@@ -71,35 +100,49 @@ class Calendar extends Component
             && ! Order::whereKey($this->orderFilter)->where('customer_id', $this->customerFilter)->exists()) {
             $this->orderFilter = 'all';
         }
+        $this->notifyPlanningFilters();
+    }
+
+    public function updatedOrderFilter(): void
+    {
+        $this->ensureAdmin();
+        $this->notifyPlanningFilters();
     }
 
     public function resetFilters(): void
     {
         $this->ensureAdmin();
         $this->reset(['search', 'customerFilter', 'orderFilter', 'orderSearch', 'statusFilter', 'onlyOpen']);
+        $this->notifyPlanningFilters();
     }
 
     public function switchView(string $view): void
     {
         $this->ensureAdmin();
         abort_unless(in_array($view, ['day', 'week', 'month', 'list'], true), 404);
+        if ($this->viewMode !== $view) {
+            $this->planningRange = [];
+        }
         $this->viewMode = $view;
         $this->resetValidation();
+        $this->notifyPlanningPeriod();
     }
 
     public function updatedAnchorDate(): void
     {
         $this->ensureAdmin();
         $this->validate(['anchorDate' => 'required|date_format:Y-m-d']);
+        $this->planningRange = [];
         $this->weekStart = $this->resolvedAnchor()->startOfWeek()->toDateString();
+        $this->notifyPlanningPeriod();
     }
 
     public function showDay(string $date): void
     {
         $this->ensureAdmin();
         $this->anchorDate = $date;
-        $this->updatedAnchorDate();
         $this->viewMode = 'day';
+        $this->updatedAnchorDate();
     }
 
     public function previousPeriod(): void
@@ -115,6 +158,7 @@ class Calendar extends Component
     private function movePeriod(int $direction): void
     {
         $this->ensureAdmin();
+        $this->planningRange = [];
         $date = $this->resolvedAnchor();
         $date = match ($this->viewMode) {
             'day' => $date->addDays($direction),
@@ -123,28 +167,35 @@ class Calendar extends Component
         };
         $this->anchorDate = $date->toDateString();
         $this->weekStart = $date->startOfWeek()->toDateString();
+        $this->notifyPlanningPeriod();
     }
 
     public function previousWeek(): void
     {
         $this->ensureAdmin();
+        $this->planningRange = [];
         $this->weekStart = $this->resolvedWeekStart()->subWeek()->toDateString();
         $this->anchorDate = $this->weekStart;
+        $this->notifyPlanningPeriod();
     }
 
     public function nextWeek(): void
     {
         $this->ensureAdmin();
+        $this->planningRange = [];
         $this->weekStart = $this->resolvedWeekStart()->addWeek()->toDateString();
         $this->anchorDate = $this->weekStart;
+        $this->notifyPlanningPeriod();
     }
 
     public function today(): void
     {
         $this->ensureAdmin();
+        $this->planningRange = [];
         $date = CarbonImmutable::now($this->displayTimezone());
         $this->anchorDate = $date->toDateString();
         $this->weekStart = $date->startOfWeek()->toDateString();
+        $this->notifyPlanningPeriod();
     }
 
     public function openDetails(int $id): void
@@ -194,10 +245,8 @@ class Calendar extends Component
         return $this->resolvedAnchor()->startOfWeek();
     }
 
-    public function render()
+    private function visiblePeriod(): array
     {
-        $this->ensureAdmin();
-        abort_unless(in_array($this->viewMode, ['day', 'week', 'month', 'list'], true), 404);
         $anchor = $this->resolvedAnchor();
         $from = match ($this->viewMode) {
             'day' => $anchor->startOfDay(),
@@ -209,6 +258,38 @@ class Calendar extends Component
             'month' => $anchor->endOfMonth()->endOfWeek()->addDay()->startOfDay(),
             default => $from->addWeek(),
         };
+
+        return [$from, $until];
+    }
+
+    private function notifyPlanningPeriod(): void
+    {
+        [$from, $until] = $this->visiblePeriod();
+        $this->dispatch('operations-period-changed',
+            from: $this->planningRange['from'] ?? $from->toDateString(),
+            until: $this->planningRange['until'] ?? $until->subDay()->toDateString());
+    }
+
+    private function notifyPlanningFilters(): void
+    {
+        $customer = $this->customerFilter === 'all' ? null : filter_var($this->customerFilter, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $order = $this->orderFilter === 'all' ? null : filter_var($this->orderFilter, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        abort_if($customer === false || $order === false, 422);
+        if ($customer !== null) {
+            Customer::findOrFail($customer);
+        }
+        if ($order !== null) {
+            Order::query()->when($customer !== null, fn (Builder $query) => $query->where('customer_id', $customer))->findOrFail($order);
+        }
+        $this->dispatch('operations-planning-filters-changed', customer: $customer, order: $order);
+    }
+
+    public function render()
+    {
+        $this->ensureAdmin();
+        abort_unless(in_array($this->viewMode, ['day', 'week', 'month', 'list'], true), 404);
+        $anchor = $this->resolvedAnchor();
+        [$from, $until] = $this->visiblePeriod();
         $shifts = Shift::query()
             ->with(['order.customer', 'assignments.user'])
             ->where('ends_at', '>', $from->utc())

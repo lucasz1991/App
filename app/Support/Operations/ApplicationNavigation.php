@@ -23,24 +23,21 @@ final class ApplicationNavigation
         }
         foreach (OperationsPages::availableFor($user) as $page => $definition) {
             if ($page === 'cases') {
-                $views = OperationsPages::planningViews($user);
-                // Keep the direct intake/order links before the grouped planning tools.
-                foreach (['inbox', 'orders', 'offers', 'shifts'] as $view) {
+                $views = OperationsPages::planningShortcuts($user);
+                // Follow the same request-to-planning workflow as the area navigation.
+                foreach (['inbox', 'offers', 'orders', 'shifts', 'calendar'] as $view) {
                     if (! isset($views[$view])) {
                         continue;
                     }
                     $entry = $views[$view];
-                    $parameters = ['page' => 'cases', 'view' => $view];
-                    if ($view === 'shifts') {
-                        $parameters['section'] = 'plan';
+                    $parameters = ['page' => 'cases', 'view' => $view === 'calendar' ? 'shifts' : $view];
+                    if (in_array($view, ['shifts', 'calendar'], true)) {
+                        $parameters['section'] = $view === 'calendar' ? 'calendar' : 'plan';
                     }
                     $icon = match ($view) {
-                        'inbox' => 'inbox', 'orders' => 'briefcase', 'offers' => 'file-text', 'shifts' => 'clipboard',
+                        'inbox' => 'inbox', 'orders' => 'briefcase', 'offers' => 'file-text', 'shifts' => 'clipboard', 'calendar' => 'calendar',
                     };
-                    $add($definition['segment'], $entry['label'], 'operations.page', $icon, $parameters, true, in_array($view, ['offers', 'shifts'], true) ? 'Planung' : null);
-                    if ($view === 'shifts') {
-                        $add($definition['segment'], 'Kalender', 'operations.page', 'calendar', ['page' => 'cases', 'view' => 'shifts', 'section' => 'calendar'], true, 'Planung');
-                    }
+                    $add($definition['segment'], $entry['label'], 'operations.page', $icon, $parameters);
                 }
 
                 continue;

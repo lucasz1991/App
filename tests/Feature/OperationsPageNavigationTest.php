@@ -445,13 +445,13 @@ class OperationsPageNavigationTest extends TestCase
         $this->assertSame(['cases', 'cases', 'cases', 'cases', 'cases', 'planning', 'duty'], array_column(array_column($sections['Disposition'], 'parameters'), 'page'));
         $planning = ApplicationNavigation::groups($sections['Disposition'])['Planung'];
         $this->assertSame('calendar', $planning['icon']);
-        $this->assertSame(['Angebote', 'Schichtplan', 'Kalender', 'Ressourcen & Kapazität'], array_column($planning['links'], 'title'));
-        $this->assertSame(['Eingang', 'Aufträge', 'Leitstelle'], collect($sections['Disposition'])->whereNull('group')->pluck('title')->values()->all());
+        $this->assertSame(['Ressourcen & Kapazität'], array_column($planning['links'], 'title'));
+        $this->assertSame(['Eingang', 'Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Leitstelle'], collect($sections['Disposition'])->whereNull('group')->pluck('title')->values()->all());
         $this->assertFalse(collect($sections['Disposition'])->contains('title', 'Vorgänge & Aufträge'));
         $sidebar = view('layouts.application-navigation')->render();
         $destinations = $this->sidebarDestinations($sidebar);
         $this->assertSame(route('dashboard'), $destinations[0]);
-        $expected = [OperationsPages::url('cases', ['view' => 'inbox']), OperationsPages::url('cases', ['view' => 'orders']), ...array_map(fn ($link) => route($link['route'], $link['parameters']), $planning['links']), OperationsPages::url('duty'), OperationsPages::url('attention')];
+        $expected = [OperationsPages::url('cases', ['view' => 'inbox']), OperationsPages::url('cases', ['view' => 'offers']), OperationsPages::url('cases', ['view' => 'orders']), OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan']), OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'calendar']), ...array_map(fn ($link) => route($link['route'], $link['parameters']), $planning['links']), OperationsPages::url('duty'), OperationsPages::url('attention')];
         $this->assertSame(OperationsPages::url('cases', ['view' => 'inbox']), $destinations[1]);
         $this->assertSame($expected, array_values(array_filter($destinations, fn ($url) => in_array($url, $expected, true))));
     }
@@ -460,9 +460,9 @@ class OperationsPageNavigationTest extends TestCase
     {
         $this->operations();
         foreach ([
-            [['operations.inquiries.manage'], ['inbox', 'offers'], ['Angebote'], ['Eingang']],
+            [['operations.inquiries.manage'], ['inbox', 'offers'], [], ['Eingang', 'Angebote']],
             [['customers.portal.manage'], ['inbox'], [], ['Eingang']],
-            [['operations.manage'], ['offers', 'orders', 'shifts'], ['Angebote', 'Schichtplan', 'Kalender', 'Ressourcen & Kapazität'], ['Aufträge', 'Leitstelle']],
+            [['operations.manage'], ['offers', 'orders', 'shifts'], ['Ressourcen & Kapazität'], ['Angebote', 'Aufträge', 'Schichtplanung', 'Kalender', 'Leitstelle']],
             [['operations.costs.manage'], ['orders'], [], ['Aufträge']],
             [[], [], [], []],
         ] as [$abilities, $views, $labels, $directLabels]) {
@@ -534,15 +534,16 @@ class OperationsPageNavigationTest extends TestCase
             'offers customer' => [...$page, ['view' => 'offers', 'customer' => '123'], 'Angebote'],
             'offers revision' => [...$page, ['view' => 'offers', 'inquiry' => '12', 'revision' => '2'], 'Angebote'],
             'orders detail' => [...$page, ['view' => 'orders', 'section' => 'overview', 'order' => '12'], 'Aufträge'],
-            'default shift section' => [...$page, ['view' => 'shifts'], 'Schichtplan'],
-            'explicit plan section' => [...$page, ['view' => 'shifts', 'section' => 'plan'], 'Schichtplan'],
+            'default shift section' => [...$page, ['view' => 'shifts'], 'Schichtplanung'],
+            'explicit plan section' => [...$page, ['view' => 'shifts', 'section' => 'plan'], 'Schichtplanung'],
             'calendar section' => [...$page, ['view' => 'shifts', 'section' => 'calendar'], 'Kalender'],
-            'old shifts page' => ['/arbeitsplatz/ansicht/shifts', 'operations.page', 'arbeitsplatz/ansicht/{page}', [], 'Schichtplan'],
+            'legacy services section' => [...$page, ['view' => 'shifts', 'section' => 'plan', 'services' => '1'], 'Schichtplanung'],
+            'old shifts page' => ['/arbeitsplatz/ansicht/shifts', 'operations.page', 'arbeitsplatz/ansicht/{page}', [], 'Schichtplanung'],
             'old calendar page' => ['/arbeitsplatz/ansicht/shifts', 'operations.page', 'arbeitsplatz/ansicht/{page}', ['view' => 'calendar'], 'Kalender'],
             'resources page' => ['/arbeitsplatz/ansicht/planning', 'operations.page', 'arbeitsplatz/ansicht/{page}', ['view' => 'staff'], 'Ressourcen & Kapazität'],
             'legacy inbox' => ['/arbeitsplatz/inquiries', ...$legacy, [], 'Eingang'],
             'legacy orders' => ['/arbeitsplatz/orders', ...$legacy, [], 'Aufträge'],
-            'legacy plan' => ['/arbeitsplatz/shift-management', ...$legacy, [], 'Schichtplan'],
+            'legacy plan' => ['/arbeitsplatz/shift-management', ...$legacy, [], 'Schichtplanung'],
             'legacy calendar' => ['/arbeitsplatz/calendar', ...$legacy, [], 'Kalender'],
         ];
     }
@@ -575,10 +576,8 @@ class OperationsPageNavigationTest extends TestCase
     {
         $controls = $this->navigationXPath($html)->query('//*[@data-rt-custom-select]');
         $this->assertCount(1, $controls);
-        $state = $controls->item(0)->getAttribute('x-data');
-        $this->assertSame(1, preg_match("/\\boptions:\\s*JSON\\.parse\\('([^']*)'\\)/s", $state, $matches), 'The shared select must expose its safely serialized options.');
-        // Decode the JavaScript string and its JSON payload; never evaluate an Alpine expression.
-        $payload = json_decode('"'.$matches[1].'"', true, 512, JSON_THROW_ON_ERROR);
+        $payload = $controls->item(0)->getAttribute('data-rt-select-options');
+        $this->assertNotSame('', $payload, 'The shared select must expose its safely serialized options.');
 
         return json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
     }
