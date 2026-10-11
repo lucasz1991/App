@@ -280,9 +280,14 @@ auth.json
 !/tests/Feature/RoutingSiteWorkflowTest.php
 !/tests/Feature/RoutingSiteSelectionSecurityTest.php
 !/tests/Frontend/routing-map.test.js
-!/tests/Frontend/routing-tile-cache.test.js
 !/tests/Feature/RoutingTileCacheTest.php
+!/tests/Feature/ServerRoutingCacheTest.php
+!/tests/Feature/ServerRoutingIntegrationTest.php
 !/tests/Feature/OrdersServiceTableDataTest.php
 !/tests/Feature/ServiceOrdersSharedPresentationTest.php
 !/tests/Feature/OrdersPeriodFilterTest.php
 !/tests/Feature/OrdersPeriodControlsUiTest.php
+!/tests/Feature/DispositionMailboxTest.php
+!/tests/Feature/DispositionMailboxImapTest.php
+!/tests/Feature/DispositionMailboxWorkflowTest.php
+!/tests/Feature/AiIntakeManualRecognitionTest.php

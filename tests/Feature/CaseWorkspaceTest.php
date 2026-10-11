@@ -38,6 +38,7 @@ class CaseWorkspaceTest extends TestCase
     {
         parent::setUp();
         $this->buildMinimalRailTimeSchema();
+        $this->travelTo(now()->setDate(2027, 5, 12)->startOfDay());
         foreach (['2026_09_15_190000_create_operations_workflow_tables.php', '2026_07_18_000001_create_activity_log_table.php', '2026_07_22_000002_create_employee_document_requirements_table.php', '2026_10_04_121000_create_customer_workflow_extensions.php'] as $migration) {
             (require database_path('migrations/'.$migration))->up();
         }
@@ -378,14 +379,15 @@ class CaseWorkspaceTest extends TestCase
         $component = Livewire::withQueryParams(['search' => 'Synthetic URL', 'status' => 'confirmed'])
             ->test(Orders::class, ['initialOrderId' => $order->id, 'customerId' => $this->customer->id, 'initialSection' => 'history', 'consolidated' => true])
             ->assertSet('search', 'Synthetic URL')->assertSet('statusFilter', 'confirmed')->assertSet('selectedOrderId', $order->id);
+        $period = ['from' => $component->get('rangeFrom'), 'until' => $component->get('rangeTo')];
         $component->call('openDetails', $order->id)->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', [
             'view' => 'orders', 'section' => 'history', 'customer' => $this->customer->id, 'search' => 'Synthetic URL', 'status' => 'confirmed', 'order' => $order->id,
-        ]));
+        ] + $period));
         $component->set('search', 'Updated Order')->set('statusFilter', 'planned')->call('setDetailSection', 'overview')
-            ->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'orders', 'section' => 'overview', 'customer' => $this->customer->id, 'search' => 'Updated Order', 'status' => 'planned', 'order' => $order->id]));
+            ->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'orders', 'section' => 'overview', 'customer' => $this->customer->id, 'search' => 'Updated Order', 'status' => 'planned', 'order' => $order->id] + $period));
         $component->set('detailOpen', false)->assertSet('selectedOrderId', null)->assertSet('fulfilmentRecordId', null)
-            ->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'orders', 'section' => 'overview', 'customer' => $this->customer->id, 'search' => 'Updated Order', 'status' => 'planned']));
-        $component->call('resetFilters')->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'orders', 'section' => 'overview', 'customer' => $this->customer->id]));
+            ->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'orders', 'section' => 'overview', 'customer' => $this->customer->id, 'search' => 'Updated Order', 'status' => 'planned'] + $period));
+        $component->call('resetFilters')->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'orders', 'section' => 'overview', 'customer' => $this->customer->id] + $period));
         Livewire::withQueryParams(['search' => 'Synthetic URL', 'status' => 'confirmed'])->test(Orders::class, ['consolidated' => true])->assertSet('selectedOrderId', null)->assertSet('detailOpen', false);
         $this->assertSame('confirmed', $order->fresh()->status->value);
     }

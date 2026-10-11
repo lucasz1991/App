@@ -22,6 +22,8 @@ use App\Services\Routing\ServerRoutingCache;
 use App\Support\Routing\TomTomSettings as RoutingSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -61,7 +63,7 @@ class RoutingSiteWorkflowTest extends TestCase
     protected function tearDown(): void
     {
         if (isset($this->routingCacheDirectory) && str_starts_with($this->routingCacheDirectory, storage_path('framework/testing/routing-cache-workflow-'))) {
-            \Illuminate\Support\Facades\File::deleteDirectory($this->routingCacheDirectory);
+            File::deleteDirectory($this->routingCacheDirectory);
         }
         parent::tearDown();
     }
@@ -258,11 +260,11 @@ class RoutingSiteWorkflowTest extends TestCase
         $before = RoutingSettings::all();
         $cache = app(ServerRoutingCache::class);
         $this->assertTrue($cache->put('summary', 'workflow-route', ['status' => 'known', 'duration_seconds' => 60, 'distance_meters' => 100], 60));
-        \Illuminate\Support\Facades\Cache::put('unrelated-routing-cache-test', 'retained', 60);
+        Cache::put('unrelated-routing-cache-test', 'retained', 60);
         Livewire::actingAs($this->admin)->test(TomTomSettings::class)
             ->call('clearServerCache')->assertNotDispatched('rt-routing-tile-cache-clear')->assertHasNoErrors();
         $this->assertNull($cache->get('summary', 'workflow-route'));
-        $this->assertSame('retained', \Illuminate\Support\Facades\Cache::get('unrelated-routing-cache-test'));
+        $this->assertSame('retained', Cache::get('unrelated-routing-cache-test'));
         $this->assertSame($before, RoutingSettings::all());
         Http::assertNothingSent();
     }

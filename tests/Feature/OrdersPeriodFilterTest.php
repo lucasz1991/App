@@ -11,7 +11,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 
@@ -277,7 +276,7 @@ class OrdersPeriodFilterTest extends TestCase
         DB::enableQueryLog();
         DB::flushQueryLog();
         try {
-            $component->set('rangeFrom', '2027-02-30')->assertHasErrors(['rangeFrom']);
+            $component->set('rangeFrom', '2027-02-30')->assertStatus(422);
             $reads = array_filter(DB::getQueryLog(), fn (array $query): bool => str_starts_with(strtolower($query['query']), 'select * from "shifts"'));
             $this->assertSame([], array_values($reads));
         } finally {

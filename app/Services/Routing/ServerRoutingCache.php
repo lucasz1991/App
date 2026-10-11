@@ -19,6 +19,8 @@ final class ServerRoutingCache
 
     private const HEADER_KEYS = ['etag', 'last_modified', 'cache_control', 'date', 'expires', 'age'];
 
+    private array $producerGenerations = [];
+
     public function __construct(private readonly ?string $directory = null) {}
 
     /** Returns provider data and UTC cache timestamps; never a expired or corrupt entry. */
@@ -34,7 +36,12 @@ final class ServerRoutingCache
                 return null;
             }
             $entry = $this->read($this->path($root, $kind, $identity), $kind);
-            if ($entry === null || $this->expired($entry, $this->ttl($kind, $settings))) {
+            if ($entry === null) {
+                $this->discardUnreadable($root, $kind, $identity);
+
+                return null;
+            }
+            if ($this->expired($entry, $this->ttl($kind, $settings))) {
                 return null;
             }
 
@@ -46,7 +53,7 @@ final class ServerRoutingCache
     }
 
     /** Unknown responses, oversized entries and zero lifetimes never enter the cache. */
-    public function put(string $kind, string $identity, array $data, int $ttlSeconds, array $metadata = []): bool
+    public function put(string $kind, string $identity, array $data, int $ttlSeconds, array $metadata = [], ?string $expectedGeneration = null): bool
     {
         try {
             $settings = TomTomSettings::all();
@@ -62,6 +69,10 @@ final class ServerRoutingCache
             if ($root === null) {
                 return false;
             }
+            $expectedGeneration ??= $this->producerGenerations !== [] ? end($this->producerGenerations) : $this->generation();
+            if ($expectedGeneration === null) {
+                return false;
+            }
             $now = CarbonImmutable::now('UTC');
             $entry = [
                 'version' => self::VERSION, 'kind' => $kind, 'identity_hash' => hash('sha256', $identity),
@@ -71,45 +82,75 @@ final class ServerRoutingCache
             if ($kind === 'tile') {
                 $entry['data']['body'] = base64_encode($entry['data']['body']);
             }
-            $encrypted = Crypt::encryptString(json_encode($entry, JSON_THROW_ON_ERROR));
+            $header = array_intersect_key($entry, array_flip(['version', 'kind', 'identity_hash', 'fetched_at', 'expires_at']));
+            $encrypted = Crypt::encryptString(json_encode($header, JSON_THROW_ON_ERROR))."\n".Crypt::encryptString(json_encode($entry, JSON_THROW_ON_ERROR));
             if (strlen($encrypted) > self::ENTRY_LIMITS[$kind]) {
                 return false;
             }
 
-            return $this->namespaceLock($root, function () use ($root, $kind, $identity, $encrypted, $settings): bool {
+            return $this->namespaceLock($root, function () use ($root, $kind, $identity, $encrypted, $expectedGeneration, $entry): bool {
+                $settings = TomTomSettings::all();
+                $state = $this->state($root);
+                if ($state === null || ! hash_equals($state['generation'], $expectedGeneration) || ! $this->enabled($kind, $settings)) {
+                    return false;
+                }
                 $target = $this->path($root, $kind, $identity);
                 if (is_link($target)) {
                     return false;
                 }
                 $cap = min(1024, max(1, (int) ($settings['server_cache_max_mb'] ?? 128))) * 1048576;
-                $inventory = $this->inventory($root);
-                $bytes = 0;
-                $live = [];
-                foreach ($inventory as $item) {
-                    if ($item['expired'] || $item['path'] === $target) {
-                        if (! $this->remove($root, $item['path'])) {
-                            return false;
-                        }
-                    } else {
-                        $bytes += $item['bytes'];
-                        $live[] = $item;
-                    }
-                }
-                usort($live, fn (array $a, array $b): int => $a['fetched'] <=> $b['fetched']);
-                foreach ($live as $item) {
-                    if ($bytes + strlen($encrypted) <= $cap) {
-                        break;
-                    }
-                    if (! $this->remove($root, $item['path'])) {
-                        return false;
-                    }
-                    $bytes -= $item['bytes'];
-                }
-                if ($bytes + strlen($encrypted) > $cap) {
+                if (! $this->markDirty($root)) {
                     return false;
                 }
+                $oldSize = is_file($target) ? (int) filesize($target) : 0;
+                if ($cap < $state['bytes'] - $oldSize + strlen($encrypted) || ($state['next_expiry'] > 0 && $state['next_expiry'] <= CarbonImmutable::now('UTC')->getTimestamp())) {
+                    $live = [];
+                    foreach ($this->inventory($root) as $item) {
+                        if ($item['expired']) {
+                            if (! $this->remove($root, $item['path'])) {
+                                return false;
+                            }
+                        } else {
+                            $live[] = $item;
+                        }
+                    }
+                    $state = $this->aggregate($live, $state['generation']);
+                    $oldSize = is_file($target) ? (int) filesize($target) : 0;
+                    if ($cap < $state['bytes'] - $oldSize + strlen($encrypted)) {
+                        // Evict a batch to avoid a full directory scan for each subsequent tile.
+                        $lowWater = max(strlen($encrypted), (int) floor($cap * 0.9));
+                        usort($live, fn (array $a, array $b): int => $a['fetched'] <=> $b['fetched']);
+                        foreach ($live as $index => $item) {
+                            if ($lowWater >= $state['bytes'] - $oldSize + strlen($encrypted)) {
+                                break;
+                            }
+                            if ($item['path'] === $target) {
+                                continue;
+                            }
+                            if (! $this->remove($root, $item['path'])) {
+                                return false;
+                            }
+                            unset($live[$index]);
+                            $state['bytes'] -= $item['bytes'];
+                            $state['entries']--;
+                        }
+                        $state = $this->aggregate($live, $state['generation']);
+                    }
+                }
+                if ($cap < $state['bytes'] - $oldSize + strlen($encrypted)) {
+                    return false;
+                }
+                $existed = is_file($target);
+                if (! $this->atomicWrite($root, $target, $encrypted)) {
+                    // A dirty marker makes the next worker rebuild aggregates after any partial write.
+                    return false;
+                }
+                $state['bytes'] += strlen($encrypted) - $oldSize;
+                $state['entries'] += $existed ? 0 : 1;
+                $expiry = CarbonImmutable::parse($entry['expires_at'])->getTimestamp();
+                $state['next_expiry'] = $state['next_expiry'] > 0 ? min($state['next_expiry'], $expiry) : $expiry;
 
-                return $this->atomicWrite($root, $target, $encrypted);
+                return $this->saveState($root, $state);
             }, false);
         } catch (Throwable) {
             return false;
@@ -129,6 +170,7 @@ final class ServerRoutingCache
             throw new LogicException('Routing cache producers require an outside-transaction preflight.');
         }
         $locks = [];
+        $generation = null;
         try {
             $settings = TomTomSettings::all();
             $root = $this->enabled($kind, $settings) ? $this->root(true) : null;
@@ -151,15 +193,30 @@ final class ServerRoutingCache
                     }
                     $locks[] = $handle;
                 }
+                $generation = $this->generation();
             }
         } catch (Throwable) {
             $this->release($locks);
         }
+        $this->producerGenerations[] = $generation;
         try {
             // Callback exceptions propagate and must never cause a second provider request.
             return $callback();
         } finally {
+            array_pop($this->producerGenerations);
             $this->release($locks);
+        }
+    }
+
+    /** A clear changes this token, rejecting responses from already-running producers. */
+    public function generation(): ?string
+    {
+        try {
+            $root = $this->root(true);
+
+            return $root === null ? null : $this->namespaceLock($root, fn (): ?string => $this->state($root)['generation'] ?? null, null);
+        } catch (Throwable) {
+            return null;
         }
     }
 
@@ -168,7 +225,22 @@ final class ServerRoutingCache
         try {
             $root = isset(self::ENTRY_LIMITS[$kind]) && $this->validIdentity($identity) ? $this->root(false) : null;
 
-            return $root !== null && $this->namespaceLock($root, fn (): bool => $this->remove($root, $this->path($root, $kind, $identity)), false);
+            return $root !== null && $this->namespaceLock($root, function () use ($root, $kind, $identity): bool {
+                $state = $this->state($root);
+                $path = $this->path($root, $kind, $identity);
+                if ($state === null || ! $this->markDirty($root)) {
+                    return false;
+                }
+                if (is_file($path) && ! is_link($path)) {
+                    $state['bytes'] -= (int) filesize($path);
+                    $state['entries']--;
+                }
+                if (! $this->remove($root, $path)) {
+                    return false;
+                }
+
+                return $this->saveState($root, $state);
+            }, false);
         } catch (Throwable) {
             return false;
         }
@@ -192,10 +264,22 @@ final class ServerRoutingCache
         $stats = ['entries' => 0, 'bytes' => 0, 'expired_entries' => 0];
         try {
             $root = $this->root(false);
-            foreach ($root === null ? [] : $this->inventory($root) as $item) {
-                $stats['entries']++;
-                $stats['bytes'] += $item['bytes'];
-                $stats['expired_entries'] += (int) $item['expired'];
+            if ($root !== null) {
+                $stats = $this->namespaceLock($root, function () use ($root, $stats): array {
+                    $state = $this->state($root);
+                    if ($state === null) {
+                        return $stats;
+                    }
+                    $stats['entries'] = $state['entries'];
+                    $stats['bytes'] = $state['bytes'];
+                    if ($state['next_expiry'] > 0 && $state['next_expiry'] <= CarbonImmutable::now('UTC')->getTimestamp()) {
+                        foreach ($this->inventory($root) as $item) {
+                            $stats['expired_entries'] += (int) $item['expired'];
+                        }
+                    }
+
+                    return $stats;
+                }, $stats);
             }
         } catch (Throwable) {
             // An inaccessible cache must not affect planning or settings access.
@@ -213,12 +297,26 @@ final class ServerRoutingCache
             }
 
             return $this->namespaceLock($root, function () use ($root, $all): int {
+                $state = $this->state($root);
+                if ($state === null || ! $this->markDirty($root)) {
+                    return 0;
+                }
                 $removed = 0;
+                $remaining = [];
                 foreach ($this->inventory($root) as $item) {
                     if (($all || $item['expired']) && $this->remove($root, $item['path'])) {
                         $removed++;
+                    } else {
+                        $remaining[] = $item;
                     }
                 }
+                // Interrupted atomic writes are never reused and have no active writer under this lock.
+                foreach (glob($root.'/write-*.tmp') ?: [] as $path) {
+                    if (preg_match('/^write-[a-f0-9]{24}\.tmp$/', basename($path))) {
+                        $this->remove($root, $path);
+                    }
+                }
+                $this->saveState($root, $this->aggregate($remaining, $all ? bin2hex(random_bytes(16)) : $state['generation']));
 
                 return $removed;
             }, 0);
@@ -312,7 +410,12 @@ final class ServerRoutingCache
             return null;
         }
         $base = str_replace('\\', '/', $base);
-        $candidate = str_replace('\\', '/', $this->directory ?? storage_path('framework/cache/railtime-routing'));
+        $declaredBase = str_replace('\\', '/', storage_path('framework'));
+        $candidate = $this->directory === null ? $base.'/cache/railtime-routing' : str_replace('\\', '/', $this->directory);
+        if ($this->inside($candidate, $declaredBase)) {
+            // Laravel may legitimately place its whole storage directory on a shared deployment volume.
+            $candidate = $base.substr($candidate, strlen(rtrim($declaredBase, '/')));
+        }
         if (str_contains($candidate, '/../') || str_contains($candidate, '/./') || ! $this->inside($candidate, $base)) {
             return null;
         }
@@ -368,14 +471,21 @@ final class ServerRoutingCache
         if ($size === false || $size < 1 || $size > self::ENTRY_LIMITS[$kind]) {
             return null;
         }
-        $encrypted = @file_get_contents($path);
-        if ($encrypted === false || strlen($encrypted) > self::ENTRY_LIMITS[$kind]) {
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
             return null;
         }
         try {
+            $line = fgets($handle, 4096);
+            $header = $this->decodeHeader($line, $path, $kind);
+            $encrypted = stream_get_contents($handle, self::ENTRY_LIMITS[$kind] + 1);
+            if ($header === null || $encrypted === false || strlen($encrypted) > self::ENTRY_LIMITS[$kind]) {
+                return null;
+            }
             $entry = json_decode(Crypt::decryptString($encrypted), true, 64, JSON_THROW_ON_ERROR);
             if (($entry['version'] ?? null) !== self::VERSION || ($entry['kind'] ?? null) !== $kind
                 || basename($path) !== 'entry-'.$kind.'-'.($entry['identity_hash'] ?? '').'.cache'
+                || array_intersect_key($entry, $header) !== $header
                 || ! is_array($entry['data'] ?? null) || ! is_array($entry['metadata'] ?? null)) {
                 return null;
             }
@@ -402,6 +512,42 @@ final class ServerRoutingCache
             ];
         } catch (Throwable) {
             return null;
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    /** Maintenance reads a tiny authenticated header rather than decrypting provider bodies. */
+    private function readHeader(string $path, string $kind): ?array
+    {
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
+            return null;
+        }
+        try {
+            return $this->decodeHeader(fgets($handle, 4096), $path, $kind);
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    private function decodeHeader(string|false $line, string $path, string $kind): ?array
+    {
+        if ($line === false || ! str_ends_with($line, "\n")) {
+            return null;
+        }
+        try {
+            $header = json_decode(Crypt::decryptString(trim($line)), true, 16, JSON_THROW_ON_ERROR);
+            if (($header['version'] ?? null) !== self::VERSION || ($header['kind'] ?? null) !== $kind
+                || basename($path) !== 'entry-'.$kind.'-'.($header['identity_hash'] ?? '').'.cache') {
+                return null;
+            }
+            $fetched = CarbonImmutable::parse($header['fetched_at'])->getTimestamp();
+            $expiry = CarbonImmutable::parse($header['expires_at'])->getTimestamp();
+
+            return $expiry > $fetched && $expiry - $fetched <= 86400 ? $header : null;
+        } catch (Throwable) {
+            return null;
         }
     }
 
@@ -417,20 +563,89 @@ final class ServerRoutingCache
     private function inventory(string $root): array
     {
         $items = [];
+        $settings = TomTomSettings::all();
         foreach (glob($root.'/entry-*.cache') ?: [] as $path) {
             if (! preg_match('/^entry-(tile|summary|geometry)-[a-f0-9]{64}\.cache$/', basename($path)) || is_link($path) || ! is_file($path)) {
                 continue;
             }
             $kind = explode('-', basename($path))[1];
-            $entry = $this->read($path, $kind);
+            $bytes = (int) (@filesize($path) ?: 0);
+            $entry = $bytes > 0 && $bytes <= self::ENTRY_LIMITS[$kind] ? $this->readHeader($path, $kind) : null;
             $items[] = [
-                'path' => $path, 'bytes' => (int) (@filesize($path) ?: 0),
-                'expired' => $entry === null || $this->expired($entry),
+                'path' => $path, 'bytes' => $bytes,
+                'expired' => $entry === null || $this->expired($entry, $this->ttl($kind, $settings)),
                 'fetched' => $entry === null ? 0 : CarbonImmutable::parse($entry['fetched_at'])->getTimestamp(),
+                'expiry' => $entry === null ? CarbonImmutable::now('UTC')->getTimestamp() : min(CarbonImmutable::parse($entry['expires_at'])->getTimestamp(), CarbonImmutable::parse($entry['fetched_at'])->addSeconds($this->ttl($kind, $settings))->getTimestamp()),
             ];
         }
 
         return $items;
+    }
+
+    /** The tiny aggregate state makes normal insertions and status reads constant work. */
+    private function state(string $root): ?array
+    {
+        $path = $root.'/.state';
+        if (is_link($path) || is_link($root.'/.dirty')) {
+            return null;
+        }
+        $state = null;
+        try {
+            if (is_file($path) && filesize($path) <= 4096) {
+                $state = json_decode(Crypt::decryptString(file_get_contents($path)), true, 16, JSON_THROW_ON_ERROR);
+            }
+        } catch (Throwable) {
+            $state = null;
+        }
+        if (! is_array($state) || ! preg_match('/^[a-f0-9]{32}$/', $state['generation'] ?? '')
+            || ! is_int($state['entries'] ?? null) || $state['entries'] < 0
+            || ! is_int($state['bytes'] ?? null) || $state['bytes'] < 0
+            || ! is_int($state['next_expiry'] ?? null)) {
+            $state = null;
+        }
+        if ($state === null || file_exists($root.'/.dirty')) {
+            $state = $this->aggregate($this->inventory($root), $state['generation'] ?? bin2hex(random_bytes(16)));
+            if (! $this->saveState($root, $state)) {
+                return null;
+            }
+        }
+
+        return $state;
+    }
+
+    private function aggregate(array $items, string $generation): array
+    {
+        $state = ['generation' => $generation, 'entries' => count($items), 'bytes' => 0, 'next_expiry' => 0];
+        foreach ($items as $item) {
+            $state['bytes'] += $item['bytes'];
+            $state['next_expiry'] = $state['next_expiry'] > 0 ? min($state['next_expiry'], $item['expiry']) : $item['expiry'];
+        }
+
+        return $state;
+    }
+
+    private function markDirty(string $root): bool
+    {
+        $path = $root.'/.dirty';
+        if (is_link($path)) {
+            return false;
+        }
+        $written = @file_put_contents($path, '1', LOCK_EX);
+        if ($written !== false) {
+            @chmod($path, 0600);
+        }
+
+        return $written === 1;
+    }
+
+    private function saveState(string $root, array $state): bool
+    {
+        $encrypted = Crypt::encryptString(json_encode($state, JSON_THROW_ON_ERROR));
+        if (! $this->atomicWrite($root, $root.'/.state', $encrypted)) {
+            return false;
+        }
+
+        return ! file_exists($root.'/.dirty') || (! is_link($root.'/.dirty') && @unlink($root.'/.dirty'));
     }
 
     private function remove(string $root, string $path): bool
@@ -440,6 +655,20 @@ final class ServerRoutingCache
         }
 
         return ! file_exists($path) || (is_file($path) && @unlink($path));
+    }
+
+    private function discardUnreadable(string $root, string $kind, string $identity): void
+    {
+        $path = $this->path($root, $kind, $identity);
+        if (! is_file($path) || is_link($path)) {
+            return;
+        }
+        $this->namespaceLock($root, function () use ($root, $kind, $path): void {
+            // Another worker may already have replaced the failed read with a valid entry.
+            if ($this->read($path, $kind) === null && $this->markDirty($root) && $this->remove($root, $path)) {
+                $this->state($root);
+            }
+        }, null);
     }
 
     private function atomicWrite(string $root, string $target, string $encrypted): bool
@@ -464,6 +693,9 @@ final class ServerRoutingCache
             }
             fclose($handle);
             $handle = null;
+            if (is_link($target) || (file_exists($target) && (! is_file($target) || ! @unlink($target)))) {
+                return false;
+            }
             $written = @rename($temporary, $target);
             if ($written) {
                 @chmod($target, 0600);

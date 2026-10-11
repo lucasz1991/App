@@ -15,6 +15,7 @@ class RoutingTileController extends Controller
         if (($tile['status'] ?? null) !== 'known') {
             return response('', 503, ['Cache-Control' => 'private, no-store', 'Vary' => 'Cookie']);
         }
+
         return response($tile['body'], 200, [
             'Content-Type' => $tile['content_type'],
             'Cache-Control' => 'private, no-store', 'Vary' => 'Cookie', 'X-Content-Type-Options' => 'nosniff',

@@ -157,7 +157,7 @@ class Orders extends Component
         $validated = validator(['rangeFrom' => $from, 'rangeTo' => $until], [
             'rangeFrom' => ['required', 'string', 'regex:/\A(?!0000)\d{4}-\d{2}-\d{2}\z/', 'date_format:Y-m-d'],
             'rangeTo' => ['required', 'string', 'regex:/\A(?!0000)\d{4}-\d{2}-\d{2}\z/', 'date_format:Y-m-d', 'after_or_equal:rangeFrom'],
-        ])->validate();
+        ])->stopOnFirstFailure()->validate();
         // Count nominal calendar dates in UTC, independent of 23/25-hour DST days.
         $firstDay = CarbonImmutable::createFromFormat('!Y-m-d', $validated['rangeFrom'], 'UTC');
         $lastDay = CarbonImmutable::createFromFormat('!Y-m-d', $validated['rangeTo'], 'UTC');
@@ -171,6 +171,28 @@ class Orders extends Component
     private function usesPeriodFilter(): bool
     {
         return $this->consolidated && ! $this->profileEmbedded && ! $this->detailOnly;
+    }
+
+    public function updatingRangeFrom(string $value): void
+    {
+        $this->ensureAdmin();
+        abort_unless($this->usesPeriodFilter(), 403);
+        try {
+            self::validatedPeriod($value, $this->rangeTo);
+        } catch (ValidationException) {
+            abort(422, 'Ungültiger Auftragszeitraum.');
+        }
+    }
+
+    public function updatingRangeTo(string $value): void
+    {
+        $this->ensureAdmin();
+        abort_unless($this->usesPeriodFilter(), 403);
+        try {
+            self::validatedPeriod($this->rangeFrom, $value);
+        } catch (ValidationException) {
+            abort(422, 'Ungültiger Auftragszeitraum.');
+        }
     }
 
     public function applyPeriod(string $from, string $until): void

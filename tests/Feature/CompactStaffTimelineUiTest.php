@@ -568,7 +568,7 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringContainsString("@foreach(['shifts' => \$pendingShifts, 'orders' => \$unplannedOrders] as \$tab => \$pages)", $footer);
         $this->assertStringContainsString('Offene Schichten blättern', $footer);
         $this->assertStringContainsString('Ungeplante Leistungen blättern', $footer);
-        $this->assertStringContainsString('x-show="distributionTab === @js($tab)" :inert="distributionTab !== @js($tab)"', $footer);
+        $this->assertStringContainsString('x-show="distributionMode === \'list\' && distributionTab === @js($tab)" :inert="distributionMode !== \'list\' || distributionTab !== @js($tab)"', $footer);
         $this->assertStringContainsString("previousPage('{{ \$pages->getPageName() }}')", $footer);
         $this->assertStringContainsString("nextPage('{{ \$pages->getPageName() }}')", $footer);
         $this->assertStringContainsString('@disabled($pages->onFirstPage())', $footer);

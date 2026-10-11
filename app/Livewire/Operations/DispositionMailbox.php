@@ -528,9 +528,9 @@ class DispositionMailbox extends Component
         $actor = $this->actor();
         $customerOptions = $contactOptions = [];
         if ($this->guidedReview !== [] && $this->contextCurrent() && $this->guidedStep === 'customer') {
-            $customerOptions = $this->workflow()->customerOptions($actor, mb_substr(trim($this->customerSearch), 0, 120));
+            $customerOptions = $this->workflow()->customerOptions($actor, mb_substr(trim($this->customerSearch), 0, 120), ctype_digit($this->customerId) ? (int) $this->customerId : null);
             if (ctype_digit($this->customerId) && (int) $this->customerId > 0) {
-                $contactOptions = $this->workflow()->contactOptions($actor, (int) $this->customerId);
+                $contactOptions = $this->workflow()->contactOptions($actor, (int) $this->customerId, ctype_digit($this->contactId) ? (int) $this->contactId : null);
             }
         }
 

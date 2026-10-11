@@ -24,12 +24,14 @@ use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\WorkforceAccountService;
 use App\Services\Operations\WorkTimeTerminalService;
 use App\Services\Routing\RoutingUsageService;
+use App\Services\Routing\ServerRoutingCache;
 use App\Services\Routing\TomTomRoutingService;
 use App\Services\Routing\TravelAssessmentService;
 use App\Support\Routing\TomTomSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -46,6 +48,8 @@ class TomTomRoutingTest extends TestCase
     private User $employee;
 
     private Order $order;
+
+    private string $cacheDirectory;
 
     protected function setUp(): void
     {
@@ -65,6 +69,16 @@ class TomTomRoutingTest extends TestCase
         $this->order = Order::create(['customer_id' => $customer->id, 'title' => 'Routing QA', 'service_type' => 'Tf', 'status' => 'confirmed', 'priority' => 'normal', 'timezone' => 'Europe/Berlin', 'starts_at' => now(), 'ends_at' => now()->addDays(3), 'required_staff' => 5, 'created_by' => $this->actor->id]);
         Http::preventStrayRequests();
         $this->enable();
+        $this->cacheDirectory = storage_path('framework/testing/tomtom-routing-'.Str::uuid());
+        app()->instance(ServerRoutingCache::class, new ServerRoutingCache($this->cacheDirectory));
+    }
+
+    protected function tearDown(): void
+    {
+        if (isset($this->cacheDirectory) && str_starts_with($this->cacheDirectory, storage_path('framework/testing/tomtom-routing-'))) {
+            File::deleteDirectory($this->cacheDirectory);
+        }
+        parent::tearDown();
     }
 
     private function enable(array $values = []): void

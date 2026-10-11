@@ -49,15 +49,14 @@
 .employee-profile[data-profile-shell] .employee-overview__address-grid [data-address-field='street'],
 .employee-profile[data-profile-shell] .employee-overview__address-grid [data-address-field='country'] { grid-column: 1 / -1; }
 .employee-profile[data-profile-shell] .employee-overview__address-grid dt { padding: 4px 8px 0 !important; font-size: 11px !important; }
-.employee-profile[data-profile-shell] .employee-overview__address:only-of-type { grid-column: 1 / -1; }
 .employee-profile[data-profile-shell] .employee-location-history { display: flex; flex-direction: column; gap: 16px; min-width: 0; color: var(--employee-ink); }
 .employee-profile[data-profile-shell] .employee-location-history__header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
 .employee-profile[data-profile-shell] .employee-location-history__header h2 { font-size: 20px; font-weight: 650; margin: 4px 0 0; letter-spacing: -.025em; }
 .employee-profile[data-profile-shell] .employee-location-history__header p { margin: 6px 0 0; font-size: 12px; color: var(--employee-muted); line-height: 1.6; }
 .employee-profile[data-profile-shell] .employee-location-history__privacy { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; border-radius: 8px; padding: 8px 10px; background: var(--profile-control-inset); color: var(--employee-muted); font-size: 11px; }
 .employee-profile[data-profile-shell] .employee-location-history__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.employee-profile[data-profile-shell] .employee-location-history__day-navigation { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.employee-profile[data-profile-shell] .employee-location-history__day-select { min-width: 0; }
+.employee-profile[data-profile-shell] .employee-location-history__day-navigation { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 0; max-width: 340px; }
+.employee-profile[data-profile-shell] .employee-location-history__day-select { min-width: 0; flex: 1 1 0; }
 .employee-profile[data-profile-shell] .employee-location-history__summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 16px 20px; border-radius: 12px; background: var(--profile-control-inset); }
 .employee-profile[data-profile-shell] .employee-location-history__summary dt { color: var(--employee-muted); font-size: 11px; }
 .employee-profile[data-profile-shell] .employee-location-history__summary dd { margin: 6px 0 0; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -118,7 +117,8 @@
     .employee-profile[data-profile-shell] .employee-overview .employee-detail-group { padding: 16px !important; }
     .employee-profile[data-profile-shell] .employee-overview .employee-detail-row { grid-template-columns: minmax(84px, .7fr) minmax(0, 1.3fr); gap: 8px !important; }
     .employee-profile[data-profile-shell] .employee-location-history__header { flex-direction: column; gap: 8px; }
-    .employee-profile[data-profile-shell] .employee-location-history__summary { padding: 16px; gap: 12px; }
+    .employee-profile[data-profile-shell] .employee-location-history__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 16px; gap: 12px; }
+    .employee-profile[data-profile-shell] .employee-location-history__summary > div:first-child { grid-column: 1 / -1; }
     .employee-profile[data-profile-shell] .employee-location-history__summary dd { font-size: 16px; }
     .employee-profile[data-profile-shell] .employee-location-history__entry { padding: 16px; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; }
     .employee-profile[data-profile-shell] .employee-location-history__accuracy { grid-column: 2; }

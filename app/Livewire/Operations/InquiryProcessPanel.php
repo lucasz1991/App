@@ -32,9 +32,9 @@ class InquiryProcessPanel extends Component
 
     public bool $completeOpen = false;
 
-    public array $form = [];
+    public array $form = ['customer_contact_id' => '', 'assignee_id' => '', 'priority' => 'normal', 'due_at' => ''];
 
-    public array $followUp = [];
+    public array $followUp = ['title' => '', 'kind' => 'check', 'due_at' => '', 'assignee_id' => '', 'note' => ''];
 
     public string $completion = '';
 

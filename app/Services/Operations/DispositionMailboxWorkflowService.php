@@ -88,22 +88,31 @@ class DispositionMailboxWorkflowService
         });
     }
 
-    public function customerOptions(User $actor, string $search = ''): array
+    public function customerOptions(User $actor, string $search = '', ?int $selectedId = null): array
     {
         $this->settings($actor);
         abort_if(mb_strlen($search) > 120 || preg_match('/[\x00-\x1f]/', $search), 422);
 
-        return Customer::active()->when(trim($search) !== '', fn ($query) => $query->where('company_name', 'like', '%'.trim($search).'%'))
-            ->orderBy('company_name')->limit(20)->get(['id', 'company_name'])->map(fn ($customer) => ['id' => $customer->id, 'name' => $customer->company_name])->all();
+        $customers = Customer::active()->when(trim($search) !== '', fn ($query) => $query->where('company_name', 'like', '%'.trim($search).'%'))
+            ->orderBy('company_name')->limit(20)->get(['id', 'company_name']);
+        if ($selectedId && ! $customers->contains('id', $selectedId) && ($selected = Customer::active()->whereKey($selectedId)->first(['id', 'company_name']))) {
+            $customers = $customers->take(19)->push($selected);
+        }
+
+        return $customers->map(fn ($customer) => ['id' => $customer->id, 'name' => $customer->company_name])->all();
     }
 
-    public function contactOptions(User $actor, int $customerId): array
+    public function contactOptions(User $actor, int $customerId, ?int $selectedId = null): array
     {
         $this->settings($actor);
         abort_unless(Customer::active()->whereKey($customerId)->exists(), 404);
 
-        return CustomerContact::where('customer_id', $customerId)->where('is_active', true)->orderBy('name')->limit(30)->get(['id', 'name', 'email'])
-            ->map(fn ($contact) => ['id' => $contact->id, 'name' => $contact->name, 'email' => $contact->email])->all();
+        $contacts = CustomerContact::where('customer_id', $customerId)->where('is_active', true)->orderBy('name')->limit(30)->get(['id', 'name', 'email']);
+        if ($selectedId && ! $contacts->contains('id', $selectedId) && ($selected = CustomerContact::where('customer_id', $customerId)->where('is_active', true)->whereKey($selectedId)->first(['id', 'name', 'email']))) {
+            $contacts = $contacts->take(29)->push($selected);
+        }
+
+        return $contacts->map(fn ($contact) => ['id' => $contact->id, 'name' => $contact->name, 'email' => $contact->email])->all();
     }
 
     private function settings(User $actor, ?int $revision = null): array

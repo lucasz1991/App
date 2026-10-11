@@ -199,7 +199,17 @@ body:has(.rt-ai-assist__stage) .rt-service-pagination {
 /* Only the consolidated Orders page owns a viewport scrollport. A table in a
    customer profile deliberately remains in normal document flow. */
 .rt-orders-list-controls { display: flex; align-items: center; gap: 8px; }
-.rt-orders-table-filters { display: flex; flex: none; align-items: center; gap: 8px; }
+.rt-orders-table-filters {
+    --dispo-line: var(--rt-shell-line);
+    --dispo-surface: var(--rt-shell-surface-solid);
+    --dispo-subtle: var(--rt-shell-panel);
+    --dispo-text: var(--rt-shell-text);
+    --dispo-muted: var(--rt-shell-muted);
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+}
 .rt-disposition-page:has([data-orders-list-scroll]) [data-page-header-actions] > [data-orders-table-filters] { order: -1; }
 .rt-orders-list { min-width: 0; }
 html:has(#main-content [data-orders-list-scroll]),

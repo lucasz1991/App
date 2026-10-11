@@ -76,7 +76,5 @@
             @include('livewire.operations.partials.employee-location-history')
         </div>
     @endif
-    <details class="ops-panel mt-3" x-data="railtimePwaInstall({messages:{installed:'RailTime ist als Web-App geöffnet.',ready:'RailTime kann auf diesem Gerät installiert werden.',manual:'Öffne im Browsermenü „Zum Home-Bildschirm“ oder „App installieren“.',error:'Installation konnte nicht gestartet werden.'}})">
-        <summary class="min-h-11 cursor-pointer">RailTime auf dem Geschäftshandy installieren</summary><div class="ops-stack mt-3"><p>Android: im Browsermenü „App installieren“. iPhone: in Safari „Teilen“ → „Zum Home-Bildschirm“. Die Web-App enthält deinen Arbeitstag; für Ortung bei gesperrtem Display richtest du zusätzlich den Standortdienst ein.</p><p class="ops-muted" x-text="statusText()"></p><x-ui.buttons.button-basic x-on:click="installApp()" x-bind:disabled="disabled" class="min-h-11">Web-App installieren / Anleitung</x-ui.buttons.button-basic><p role="status" x-text="notice"></p><p role="alert" x-text="error"></p></div>
-    </details>
+    @include('livewire.operations.partials.pwa-install-card')
 </section>

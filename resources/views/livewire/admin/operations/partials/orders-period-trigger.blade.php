@@ -14,7 +14,7 @@
         </x-ui.buttons.button-basic>
     </x-slot:trigger>
     <x-slot:content>
-        <x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod" :max-days="94" :reset-on-open="true"
+        <x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod" :today="now($displayTimezone)->toDateString()" :max-days="94" :reset-on-open="true"
             x-on:date-range-applied="close(true)" x-on:date-range-cancel="close(true)" />
     </x-slot:content>
 </x-ui.dropdown.anchor-dropdown>

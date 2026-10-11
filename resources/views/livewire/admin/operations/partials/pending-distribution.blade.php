@@ -7,7 +7,9 @@
     $shiftDays = $pendingShifts->getCollection()->groupBy(fn ($shift) => $shift->starts_at->copy()->setTimezone($displayTimezone)->toDateString());
 @endphp
 {{-- Seitenpanel „Noch zu verteilen“: offene Schichten des Zeitraums auswählen und passende Mitarbeitende direkt einteilen. --}}
-<div class="rt-shift-distribution rt-shift-distribution--side" data-pending-distribution x-data="{ distributionTab: @js($pendingShifts->total() > 0 || $unplannedOrders->total() === 0 ? 'shifts' : 'orders') }">
+<div class="rt-shift-distribution rt-shift-distribution--side" data-pending-distribution
+    x-data="{ distributionTab: @js($pendingShifts->total() > 0 || $unplannedOrders->total() === 0 ? 'shifts' : 'orders'), distributionMode: 'list' }"
+    x-bind:data-distribution-mode="distributionMode">
     <header class="rt-shift-distribution__header">
         <h2 class="sr-only" id="{{ $distributionTabsId }}-title">Noch zu verteilen</h2>
         <div class="rt-shift-distribution__progress" role="img" aria-label="{{ $progressReserved }} von {{ $progressRequired }} Plätzen eingeplant" title="Gewählter Zeitraum · unabhängig von Listenfiltern. Angefragte und bestätigte Mitarbeiter zählen als eingeplant.">
@@ -18,10 +20,11 @@
         <p class="sr-only">{{ \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') }} – {{ \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') }}. Gewählter Zeitraum · unabhängig von Listenfiltern. Angefragte und bestätigte Mitarbeiter zählen als eingeplant. Bei offenem Panel zeigt die Zeitleiste unverbindliche Besetzungsvorschläge.</p>
     </header>
     <x-operations.panel.tabs class="rt-shift-distribution__tabs" label="Offene Planung nach Art" :id-prefix="$distributionTabsId" model="distributionTab"
+        x-show="distributionMode === 'list'" :inert="distributionMode !== 'list'"
         :tabs="['shifts' => ['label' => 'Schichten', 'count' => $pendingShifts->total()], 'orders' => ['label' => 'Leistungen', 'count' => $unplannedOrders->total()]]" />
 
     <section class="rt-shift-distribution__group" role="tabpanel" id="{{ $distributionTabsId }}-panel-shifts" aria-labelledby="{{ $distributionTabsId }}-tab-shifts"
-        x-show="distributionTab === 'shifts'" :inert="distributionTab !== 'shifts'" @unless($pendingShifts->total() > 0 || $unplannedOrders->total() === 0) style="display: none" @endunless>
+        x-show="distributionMode === 'list' && distributionTab === 'shifts'" :inert="distributionMode !== 'list' || distributionTab !== 'shifts'" @unless($pendingShifts->total() > 0 || $unplannedOrders->total() === 0) style="display: none" @endunless>
         @if($pendingShifts->total() === 0)
             <p class="rt-shift-distribution__empty" role="status"><i class="far fa-check-circle" aria-hidden="true"></i>Alle Schichten in diesem Zeitraum sind besetzt.</p>
         @else
@@ -31,8 +34,8 @@
                     $day = \Carbon\CarbonImmutable::parse($date, $displayTimezone)->locale('de');
                 @endphp
                 <section class="rt-shift-distribution__day" wire:key="distribution-day-{{ $date }}">
-                    <h3 class="rt-shift-distribution__day-head">
-                        <span>{{ $day->isoFormat('dd, DD.MM.') }}@if($date === $today)<em>Heute</em>@endif</span>
+                    <h3 class="rt-shift-distribution__day-head" data-today="{{ $date === $today ? 'true' : 'false' }}">
+                        <span><i class="far fa-calendar-day" aria-hidden="true"></i>{{ $day->isoFormat('dd, DD.MM.') }}@if($date === $today)<em>Heute</em>@endif</span>
                         <span>{{ $dayShifts->sum(fn ($shift) => max(0, $shift->required_staff - $shift->reserved_count)) }} frei</span>
                     </h3>
                     <ol class="rt-shift-distribution__entries">
@@ -45,6 +48,8 @@
                             <li class="rt-shift-distribution__entry" data-selected="{{ $selected ? 'true' : 'false' }}" wire:key="distribution-shift-{{ $item->id }}">
                                 <button type="button" class="rt-shift-distribution__item" wire:click="selectDistributionShift({{ $item->id }})" aria-expanded="{{ $selected ? 'true' : 'false' }}"
                                     x-on:click="$dispatch('operations-timeline-distribution-focus', { owner: @js($this->getId()), shiftId: {{ $item->id }}, date: @js($start->toDateString()), selected: @js($selected) })"
+                                    aria-controls="{{ $distributionTabsId }}-assignment-{{ $item->id }}"
+                                    title="{{ $item->title }} · {{ $start->format('d.m. H:i') }} – {{ $end->format('d.m. H:i') }}"
                                     aria-label="Besetzung vervollständigen: {{ $item->title }}, {{ $start->locale('de')->isoFormat('dd, DD.MM. HH:mm') }}">
                                     <span class="rt-shift-distribution__when" aria-hidden="true"><b>{{ $start->format('H:i') }}</b><small>{{ $end->format('H:i') }}</small></span>
                                     <span class="rt-shift-distribution__text">
@@ -55,7 +60,7 @@
                                     <i class="far {{ $selected ? 'fa-chevron-down' : 'fa-chevron-right' }} rt-shift-distribution__chevron" aria-hidden="true"></i>
                                 </button>
                                 @if($selected)
-                                    <div class="rt-shift-distribution__assign" role="group" aria-label="Mitarbeitende für {{ $item->title }}">
+                                    <div class="rt-shift-distribution__assign" id="{{ $distributionTabsId }}-assignment-{{ $item->id }}" role="group" aria-label="Mitarbeitende für {{ $item->title }}">
                                         <div class="rt-shift-distribution__assign-head">
                                             <span>Zuweisung</span>
                                             <div class="rt-shift-distribution__status" role="radiogroup" aria-label="Zuweisungsstatus">
@@ -79,7 +84,11 @@
                                             <livewire:operations.shift-travel-panel :shift-id="$item->id" :employee-ids="$travelEmployeeIds" :key="'distribution-travel-'.$item->id.'-'.$item->revision.'-'.md5(implode(',', $travelEmployeeIds))" />
                                         @endif
                                         <div class="rt-shift-distribution__assign-foot">
-                                            <span>@if($viewMode === 'timeline')In der Zeitleiste markiert @else Passende Mitarbeitende @endif</span>
+                                            <button type="button" class="rt-shift-distribution__selection-clear" data-distribution-clear
+                                                wire:click="selectDistributionShift({{ $item->id }})"
+                                                wire:loading.attr="disabled" wire:target="selectDistributionShift,assignFromDistribution,previousPage,nextPage,applyPeriod,movePeriod,currentWeek,rangeFrom,rangeTo"
+                                                x-on:click="$dispatch('operations-timeline-distribution-focus', { owner: @js($this->getId()), shiftId: {{ $item->id }}, date: @js($start->toDateString()), selected: true })"
+                                                aria-label="Schichtauswahl aufheben" title="Schichtauswahl aufheben"><i class="far fa-times" aria-hidden="true"></i></button>
                                             <button type="button" x-on:click="$dispatch('operations-shift-detail-request', { id: {{ $item->id }} })">Schicht öffnen<i class="far fa-arrow-right" aria-hidden="true"></i></button>
                                         </div>
                                     </div>
@@ -94,7 +103,7 @@
     </section>
 
     <section class="rt-shift-distribution__group" role="tabpanel" id="{{ $distributionTabsId }}-panel-orders" aria-labelledby="{{ $distributionTabsId }}-tab-orders"
-        x-show="distributionTab === 'orders'" :inert="distributionTab !== 'orders'" @if($pendingShifts->total() > 0 || $unplannedOrders->total() === 0) style="display: none" @endif>
+        x-show="distributionMode === 'list' && distributionTab === 'orders'" :inert="distributionMode !== 'list' || distributionTab !== 'orders'" @if($pendingShifts->total() > 0 || $unplannedOrders->total() === 0) style="display: none" @endif>
         @if($unplannedOrders->total() === 0)
             <p class="rt-shift-distribution__empty" role="status"><i class="far fa-check-circle" aria-hidden="true"></i>Alle Leistungen in diesem Zeitraum sind geplant.</p>
         @else
@@ -116,10 +125,24 @@
         @endif
     </section>
 
+    @if($nativeOperations && auth()->user()?->can('operations.manage'))
+        <section class="rt-shift-distribution__auto" data-distribution-auto-panel
+            x-cloak x-show="distributionMode === 'auto'" :inert="distributionMode !== 'auto'" style="display: none"
+            aria-labelledby="{{ $distributionTabsId }}-auto-title">
+            <header class="rt-shift-distribution__auto-head">
+                <i class="far fa-wand-magic-sparkles" aria-hidden="true"></i>
+                <h3 id="{{ $distributionTabsId }}-auto-title" x-ref="distributionAutoHeading" tabindex="-1">Automatisch zuordnen</h3>
+            </header>
+            <livewire:operations.distribution-auto-assignment :from="$rangeFrom" :until="$rangeTo" :customer-filter="$customerFilter"
+                :key="'distribution-auto-'.$this->getId().'-'.$rangeFrom.'-'.$rangeTo.'-'.$customerFilter" />
+        </section>
+    @endif
+
     <footer class="rt-shift-distribution__footer" aria-label="Offene Planung – Aktionen"
         wire:loading.attr="inert" wire:loading.class="opacity-50"
         wire:target="selectDistributionShift,assignFromDistribution,previousPage,nextPage,applyPeriod,movePeriod,currentWeek,rangeFrom,rangeTo,setView">
-        <div class="rt-shift-distribution__footer-actions" role="group" aria-label="Ausgewählte Schicht">
+        <div class="rt-shift-distribution__footer-actions" role="group" aria-label="Schichtplanung"
+            x-show="distributionMode === 'list'" :inert="distributionMode !== 'list'">
             <button type="button" class="rt-shift-distribution__footer-button" data-distribution-focus
                 @if($distributionShift && $viewMode === 'timeline' && $nativeOperations)
                     x-on:click="$dispatch('operations-timeline-distribution-focus', { owner: @js($this->getId()), shiftId: {{ $distributionShift->id }}, date: @js($distributionShift->starts_at->copy()->setTimezone($displayTimezone)->toDateString()), selected: false })"
@@ -128,19 +151,17 @@
                 @disabled(! $distributionShift || $viewMode !== 'timeline' || ! $nativeOperations) aria-label="Ausgewählte Schicht in der Zeitleiste zeigen" title="Ausgewählte Schicht in der Zeitleiste zeigen">
                 <i class="far fa-location-crosshairs" aria-hidden="true"></i>
             </button>
-            <button type="button" class="rt-shift-distribution__footer-button" data-distribution-clear
-                @if($distributionShift)
-                    wire:click="selectDistributionShift({{ $distributionShift->id }})"
-                    x-on:click="$dispatch('operations-timeline-distribution-focus', { owner: @js($this->getId()), shiftId: {{ $distributionShift->id }}, date: @js($distributionShift->starts_at->copy()->setTimezone($displayTimezone)->toDateString()), selected: true })"
-                @endif
-                x-bind:disabled="distributionTab !== 'shifts' || @js(! $distributionShift)"
-                @disabled(! $distributionShift) aria-label="Schichtauswahl aufheben" title="Schichtauswahl aufheben">
-                <i class="far fa-times-circle" aria-hidden="true"></i>
+            <button type="button" class="rt-shift-distribution__footer-button" data-distribution-auto x-ref="distributionAutoTrigger"
+                x-on:click="distributionMode = 'auto'; $nextTick(() => $refs.distributionAutoHeading?.focus({ preventScroll: true }))"
+                x-bind:disabled="distributionTab !== 'shifts' || @js(! $nativeOperations || ! auth()->user()?->can('operations.manage'))"
+                @disabled(! $nativeOperations || ! auth()->user()?->can('operations.manage'))
+                aria-label="Alle offenen Schichten automatisch zuordnen" title="Alle offenen Schichten automatisch zuordnen" aria-controls="{{ $distributionTabsId }}-auto-title">
+                <i class="far fa-wand-magic-sparkles" aria-hidden="true"></i>
             </button>
         </div>
         @foreach(['shifts' => $pendingShifts, 'orders' => $unplannedOrders] as $tab => $pages)
             <nav class="rt-shift-distribution__pagination" aria-label="{{ $tab === 'shifts' ? 'Offene Schichten blättern' : 'Ungeplante Leistungen blättern' }}"
-                x-show="distributionTab === @js($tab)" :inert="distributionTab !== @js($tab)"
+                x-show="distributionMode === 'list' && distributionTab === @js($tab)" :inert="distributionMode !== 'list' || distributionTab !== @js($tab)"
                 @if(($pendingShifts->total() > 0 || $unplannedOrders->total() === 0 ? 'shifts' : 'orders') !== $tab) style="display: none" @endif>
                 <button type="button" class="rt-shift-distribution__footer-button" wire:click="previousPage('{{ $pages->getPageName() }}')"
                     @disabled($pages->onFirstPage()) aria-label="Vorherige Seite" title="Vorherige Seite"><i class="far fa-chevron-left" aria-hidden="true"></i></button>
@@ -149,5 +170,9 @@
                     @disabled(! $pages->hasMorePages()) aria-label="Nächste Seite" title="Nächste Seite"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
             </nav>
         @endforeach
+        <button type="button" class="rt-shift-distribution__auto-back" data-distribution-auto-back
+            x-cloak x-show="distributionMode === 'auto'" :inert="distributionMode !== 'auto'" style="display: none"
+            x-on:click="distributionMode = 'list'; $nextTick(() => $refs.distributionAutoTrigger?.focus({ preventScroll: true }))"
+            aria-label="Zur Schichtliste zurück" title="Zur Schichtliste zurück"><i class="far fa-arrow-left" aria-hidden="true"></i><span>Schichtliste</span></button>
     </footer>
 </div>

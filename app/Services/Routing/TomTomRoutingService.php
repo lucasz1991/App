@@ -48,35 +48,41 @@ class TomTomRoutingService
         if ($z < 0 || $z > 20 || $x < 0 || $y < 0 || $x >= 2 ** $z || $y >= 2 ** $z) {
             return self::unknown('invalid_tile');
         }
-        $reason = $this->unavailable();
+        $configuration = TomTomSettings::serverConfiguration();
+        $reason = $this->unavailable(false, $configuration);
         if ($reason !== null) {
             return self::unknown($reason);
         }
-        $apiKey = TomTomSettings::apiKey();
+        $apiKey = $configuration['api_key'];
         if ($apiKey === null) {
             return self::unknown('missing_key');
         }
         $url = 'https://api.tomtom.com/map/1/tile/basic/main/'.$z.'/'.$x.'/'.$y.'.png';
         $query = ['key' => $apiKey, 'tileSize' => 256];
         $identity = $this->cacheIdentity($url, $query);
-        $load = function () use ($apiKey, $url, $query, $identity): array {
-            if (($reason = $this->unavailable()) !== null || $apiKey !== TomTomSettings::apiKey()) {
+        $cache = app(ServerRoutingCache::class);
+        $load = function () use ($apiKey, $url, $query, $identity, $cache): array {
+            $configuration = TomTomSettings::serverConfiguration();
+            if (($reason = $this->unavailable(false, $configuration)) !== null || $apiKey !== $configuration['api_key']) {
                 return self::unknown($reason ?? 'settings_changed');
             }
-            if (($cached = $this->cached('tile', $identity, $apiKey)) !== null) {
-                return $cached;
+            if (($cached = $this->cached('tile', $identity, $cache, $configuration['settings'])) !== null) {
+                $fresh = TomTomSettings::serverConfiguration();
+
+                return ($reason = $this->unavailable(false, $fresh)) !== null || $apiKey !== $fresh['api_key'] || ! $this->cacheEnabled('tile', $fresh['settings'])
+                    ? self::unknown($reason ?? 'settings_changed') : $cached;
             }
             if (! app(RoutingUsageService::class)->reserve('map_tiles')) {
                 return self::unknown('budget_exhausted');
             }
 
-            return $this->fetchTile($url, $query, $identity, $apiKey);
+            return $this->fetchTile($url, $query, $identity, $apiKey, $cache);
         };
 
-        return $this->cacheEnabled('tile') ? app(ServerRoutingCache::class)->synchronized('tile', $identity, $load) : $load();
+        return $this->cacheEnabled('tile', $configuration['settings']) ? $cache->synchronized('tile', $identity, $load) : $load();
     }
 
-    private function fetchTile(string $url, array $query, string $identity, string $apiKey): array
+    private function fetchTile(string $url, array $query, string $identity, string $apiKey, ServerRoutingCache $cache): array
     {
         try {
             $startedAt = microtime(true);
@@ -86,15 +92,16 @@ class TomTomRoutingService
             if (! $response->successful() || ! in_array($contentType, ['image/png', 'image/jpeg'], true) || $response->body() === '') {
                 return self::unknown('provider_error');
             }
-            if (($reason = $this->unavailable()) !== null || $apiKey !== TomTomSettings::apiKey()) {
+            $configuration = TomTomSettings::serverConfiguration();
+            if (($reason = $this->unavailable(false, $configuration)) !== null || $apiKey !== $configuration['api_key']) {
                 return self::unknown($reason ?? 'settings_changed');
             }
             $result = [
                 'status' => 'known', 'body' => $response->body(), 'content_type' => $contentType,
             ];
-            $seconds = $this->sharedTileSeconds($response, $startedAt, $receivedAt);
-            if ($seconds > 0 && $this->cacheEnabled('tile')) {
-                app(ServerRoutingCache::class)->put('tile', $identity, $result, $seconds);
+            $seconds = $this->sharedTileSeconds($response, $startedAt, $receivedAt, $configuration['settings']);
+            if ($seconds > 0 && $this->cacheEnabled('tile', $configuration['settings'])) {
+                $cache->put('tile', $identity, $result, $seconds);
             }
 
             return $result;
@@ -110,8 +117,10 @@ class TomTomRoutingService
         $unique = [];
         $links = [];
         $kind = $geometry ? 'geometry' : 'summary';
-        $unavailable = $this->unavailable($test);
-        $apiKey = $unavailable === null ? TomTomSettings::apiKey() : null;
+        $cache = $display ? app(ServerRoutingCache::class) : null;
+        $configuration = TomTomSettings::serverConfiguration();
+        $unavailable = $this->unavailable($test, $configuration);
+        $apiKey = $unavailable === null ? $configuration['api_key'] : null;
         $unavailable ??= $apiKey === null ? 'missing_key' : null;
         foreach ($requests as $id => $request) {
             $results[$id] = self::unknown($unavailable ?? 'invalid_input');
@@ -136,85 +145,93 @@ class TomTomRoutingService
         $calculated = [];
         // Three simultaneous requests bound provider pressure and response memory.
         foreach (array_chunk($unique, 3, true) as $chunk) {
-            $produce = function () use ($chunk, $display, $kind, $deadline, $test, $geometry, $apiKey, &$calculated): void {
-            if (($reason = $this->unavailable($test)) !== null || $apiKey !== TomTomSettings::apiKey()) {
-                foreach ($chunk as $key => $request) {
-                    $calculated[$key] = self::unknown($reason ?? 'settings_changed');
-                }
-
-                return;
-            }
-            foreach ($chunk as $key => $request) {
-                if ($display && ($cached = $this->cached($kind, $request['identity'], $apiKey)) !== null) {
-                    $calculated[$key] = $cached;
-                    unset($chunk[$key]);
-                }
-            }
-            if ($chunk === []) {
-                return;
-            }
-            if (microtime(true) >= $deadline) {
-                foreach ($chunk as $key => $request) {
-                    $calculated[$key] = self::unknown('provider_timeout');
-                }
-
-                return;
-            }
-            $reserved = [];
-            foreach ($chunk as $key => $request) {
-                if (! app(RoutingUsageService::class)->reserve('routing_transactions')) {
-                    $calculated[$key] = self::unknown('budget_exhausted');
-
-                    continue;
-                }
-                $reserved[$key] = $request;
-            }
-            if ($reserved === []) {
-                return;
-            }
-            try {
-                $timeout = min(6.0, max(0.05, $deadline - microtime(true)));
-                $responses = Http::pool(function (Pool $pool) use ($reserved, $timeout): array {
-                    $calls = [];
-                    foreach ($reserved as $key => $request) {
-                        $calls[] = $pool->as($key)->connectTimeout(min(2.0, $timeout))->timeout($timeout)->get($request['url'], $request['query']);
+            $produce = function () use ($chunk, $display, $kind, $deadline, $test, $geometry, $apiKey, $cache, &$calculated): void {
+                $configuration = TomTomSettings::serverConfiguration();
+                if (($reason = $this->unavailable($test, $configuration)) !== null || $apiKey !== $configuration['api_key']) {
+                    foreach ($chunk as $key => $request) {
+                        $calculated[$key] = self::unknown($reason ?? 'settings_changed');
                     }
 
-                    return $calls;
-                });
-                foreach ($reserved as $key => $request) {
-                    if (($reason = $this->unavailable($test)) !== null || $apiKey !== TomTomSettings::apiKey()) {
-                        $calculated[$key] = self::unknown($reason ?? 'settings_changed');
+                    return;
+                }
+                foreach ($chunk as $key => $request) {
+                    if ($display && ($cached = $this->cached($kind, $request['identity'], $cache, $configuration['settings'])) !== null) {
+                        $calculated[$key] = $cached;
+                        unset($chunk[$key]);
+                    }
+                }
+                if ($chunk === []) {
+                    return;
+                }
+                if (microtime(true) >= $deadline) {
+                    foreach ($chunk as $key => $request) {
+                        $calculated[$key] = self::unknown('provider_timeout');
+                    }
+
+                    return;
+                }
+                $reserved = [];
+                foreach ($chunk as $key => $request) {
+                    if (! app(RoutingUsageService::class)->reserve('routing_transactions')) {
+                        $calculated[$key] = self::unknown('budget_exhausted');
 
                         continue;
                     }
-                    $result = $this->parse($responses[$key] ?? null, $geometry);
-                    if ($display && $result['status'] === 'known') {
-                        $result += ['cache_hit' => false, 'calculated_at' => CarbonImmutable::now()->utc()->toIso8601String(), 'expires_at' => null];
-                        if ($this->cacheEnabled($kind)) {
-                            $payload = array_diff_key($result, array_flip(['cache_hit', 'calculated_at', 'expires_at']));
-                            if (app(ServerRoutingCache::class)->put($kind, $request['identity'], $payload, $this->cacheSeconds($kind))) {
-                                $result['expires_at'] = CarbonImmutable::now()->utc()->addSeconds($this->cacheSeconds($kind))->toIso8601String();
+                    $reserved[$key] = $request;
+                }
+                if ($reserved === []) {
+                    return;
+                }
+                try {
+                    $timeout = min(6.0, max(0.05, $deadline - microtime(true)));
+                    $responses = Http::pool(function (Pool $pool) use ($reserved, $timeout): array {
+                        $calls = [];
+                        foreach ($reserved as $key => $request) {
+                            $calls[] = $pool->as($key)->connectTimeout(min(2.0, $timeout))->timeout($timeout)->get($request['url'], $request['query']);
+                        }
+
+                        return $calls;
+                    });
+                    $configuration = TomTomSettings::serverConfiguration();
+                    $reason = $this->unavailable($test, $configuration);
+                    foreach ($reserved as $key => $request) {
+                        if ($reason !== null || $apiKey !== $configuration['api_key']) {
+                            $calculated[$key] = self::unknown($reason ?? 'settings_changed');
+
+                            continue;
+                        }
+                        $result = $this->parse($responses[$key] ?? null, $geometry);
+                        if ($display && $result['status'] === 'known') {
+                            $result += ['cache_hit' => false, 'calculated_at' => CarbonImmutable::now()->utc()->toIso8601String(), 'expires_at' => null];
+                            if ($this->cacheEnabled($kind, $configuration['settings'])) {
+                                $payload = array_diff_key($result, array_flip(['cache_hit', 'calculated_at', 'expires_at']));
+                                if ($cache->put($kind, $request['identity'], $payload, $this->cacheSeconds($kind, $configuration['settings']))) {
+                                    $entry = $cache->get($kind, $request['identity']);
+                                    $result['expires_at'] = $entry['expires_at'] ?? null;
+                                }
                             }
                         }
+                        $calculated[$key] = $result;
                     }
-                    $calculated[$key] = $result;
+                } catch (Throwable) {
+                    // Exception messages can contain URL credentials: never report/log them.
+                    foreach ($reserved as $key => $request) {
+                        $calculated[$key] = self::unknown('provider_unavailable');
+                    }
                 }
-            } catch (Throwable) {
-                // Exception messages can contain URL credentials: never report/log them.
-                foreach ($reserved as $key => $request) {
-                    $calculated[$key] = self::unknown('provider_unavailable');
-                }
-            }
             };
-            if ($display && $this->cacheEnabled($kind)) {
-                app(ServerRoutingCache::class)->synchronizedMany($kind, array_column($chunk, 'identity'), $produce);
+            if ($display && $this->cacheEnabled($kind, $configuration['settings'])) {
+                $cache->synchronizedMany($kind, array_column($chunk, 'identity'), $produce);
             } else {
                 $produce();
             }
         }
+        $fresh = $unique === [] ? $configuration : TomTomSettings::serverConfiguration();
+        $reason = $unique === [] ? $unavailable : $this->unavailable($test, $fresh);
         foreach ($links as $id => $key) {
-            $results[$id] = $calculated[$key] ?? self::unknown('provider_unavailable');
+            $result = $calculated[$key] ?? self::unknown('provider_unavailable');
+            $results[$id] = $reason !== null || $apiKey !== $fresh['api_key'] || (($result['cache_hit'] ?? false) && ! $this->cacheEnabled($kind, $fresh['settings']))
+                ? self::unknown($reason ?? 'settings_changed') : $result;
         }
 
         return $results;
@@ -229,18 +246,14 @@ class TomTomRoutingService
         return hash('sha256', json_encode([$url, $query, $credential], JSON_THROW_ON_ERROR));
     }
 
-    private function cacheEnabled(string $kind): bool
+    private function cacheEnabled(string $kind, array $settings): bool
     {
-        $settings = TomTomSettings::all();
-
         return ($settings['server_cache_enabled'] ?? true) === true
             && ($settings[$kind === 'tile' ? 'server_tile_cache_enabled' : 'server_route_cache_enabled'] ?? true) === true;
     }
 
-    private function cacheSeconds(string $kind): int
+    private function cacheSeconds(string $kind, array $settings): int
     {
-        $settings = TomTomSettings::all();
-
         return match ($kind) {
             'tile' => max(1, min(1440, (int) ($settings['server_tile_cache_minutes'] ?? 60))) * 60,
             'geometry' => max(1, min(60, (int) ($settings['server_geometry_cache_minutes'] ?? 15))) * 60,
@@ -248,20 +261,17 @@ class TomTomRoutingService
         };
     }
 
-    private function cached(string $kind, string $identity, string $apiKey): ?array
+    private function cached(string $kind, string $identity, ServerRoutingCache $cache, array $settings): ?array
     {
-        if (! $this->cacheEnabled($kind) || $this->unavailable() !== null || $apiKey !== TomTomSettings::apiKey()) {
+        if (! $this->cacheEnabled($kind, $settings)) {
             return null;
         }
-        $entry = app(ServerRoutingCache::class)->get($kind, $identity);
+        $entry = $cache->get($kind, $identity);
         if ($entry === null) {
             return null;
         }
-        if (! $this->cacheEnabled($kind) || $this->unavailable() !== null || $apiKey !== TomTomSettings::apiKey()) {
-            return null;
-        }
         $expires = CarbonImmutable::parse($entry['expires_at']);
-        $ceiling = CarbonImmutable::parse($entry['fetched_at'])->addSeconds($this->cacheSeconds($kind));
+        $ceiling = CarbonImmutable::parse($entry['fetched_at'])->addSeconds($this->cacheSeconds($kind, $settings));
         $expires = $expires->min($ceiling);
         if ($expires->lte(CarbonImmutable::now())) {
             return null;
@@ -274,30 +284,60 @@ class TomTomRoutingService
         return $result;
     }
 
-    private function sharedTileSeconds(Response $response, float $startedAt, float $receivedAt): int
+    private function sharedTileSeconds(Response $response, float $startedAt, float $receivedAt, array $settings): int
     {
         $control = strtolower($response->header('Cache-Control'));
         if (preg_match('/(?:^|,)\s*private(?:\s*=|\s*,|\s*$)/', $control)) {
             return 0;
         }
-        $seconds = TileCachePolicy::remainingSeconds($response->headers(), $this->cacheSeconds('tile'), $startedAt, $receivedAt);
-        if (preg_match('/(?:^|,)\s*s-maxage\s*=\s*"?([0-9]+)"?(?:\s*,|\s*$)/', $control, $match)) {
-            $seconds = min($seconds, max(0, (int) $match[1] - (int) $response->header('Age')));
+        $seconds = TileCachePolicy::remainingSeconds($response->headers(), $this->cacheSeconds('tile', $settings), $startedAt, $receivedAt);
+        $shared = null;
+        $hasMaxAge = false;
+        $directives = [];
+        foreach (explode(',', $control) as $directive) {
+            $parts = explode('=', trim($directive), 2);
+            $name = trim($parts[0]);
+            if ($name === 'max-age') {
+                $hasMaxAge = true;
+
+                continue;
+            }
+            if ($name === 's-maxage') {
+                if ($shared !== null || count($parts) !== 2 || ! preg_match('/^(?:[0-9]+|"[0-9]+")$/D', trim($parts[1]))) {
+                    return 0;
+                }
+                $shared = trim($parts[1]);
+
+                continue;
+            }
+            $directives[] = $directive;
+        }
+        if ($shared !== null) {
+            $headers = $response->headers();
+            foreach (array_keys($headers) as $name) {
+                if (strtolower($name) === 'cache-control') {
+                    unset($headers[$name]);
+                }
+            }
+            $headers['Cache-Control'] = [implode(',', array_merge($directives, ['max-age='.$shared]))];
+            $sharedSeconds = TileCachePolicy::remainingSeconds($headers, $this->cacheSeconds('tile', $settings), $startedAt, $receivedAt);
+            $seconds = $hasMaxAge ? min($seconds, $sharedSeconds) : $sharedSeconds;
         }
 
         return $seconds;
     }
 
-    private function unavailable(bool $test = false): ?string
+    private function unavailable(bool $test = false, ?array $configuration = null): ?string
     {
         // This guard applies even when nested callers forgot their outer preflight.
         if (DB::transactionLevel() > 0) {
             return 'transaction_requires_preflight';
         }
-        if (! $test && ! TomTomSettings::all()['enabled']) {
+        $configuration ??= TomTomSettings::serverConfiguration();
+        if (! $test && ! $configuration['settings']['enabled']) {
             return 'disabled';
         }
-        if (TomTomSettings::apiKey() === null) {
+        if ($configuration['api_key'] === null) {
             return 'missing_key';
         }
         if (! RoutingSchema::ready()) {

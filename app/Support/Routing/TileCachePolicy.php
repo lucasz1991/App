@@ -5,7 +5,7 @@ namespace App\Support\Routing;
 use DateTimeImmutable;
 use DateTimeZone;
 
-/** Permission for a private, volatile client cache; never a shared-server cache. */
+/** Conservative HTTP freshness calculation; shared-cache directives are applied by the caller. */
 final class TileCachePolicy
 {
     public static function remainingSeconds(array $headers, int $ceilingSeconds, float $requestStartedAt, float $receivedAt): int

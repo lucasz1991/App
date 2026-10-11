@@ -21,12 +21,21 @@ final class TomTomSettings
     /** Public configuration deliberately excludes the encrypted credential. */
     public static function all(): array
     {
+        return self::serverConfiguration()['settings'];
+    }
+
+    /** Internal request-phase snapshot; never expose this credential-bearing array to Livewire. */
+    public static function serverConfiguration(): array
+    {
         $stored = self::stored();
         $key = self::decryptKey($stored['api_key_encrypted'] ?? null);
 
-        return array_intersect_key($stored, self::DEFAULTS) + self::DEFAULTS + [
-            'has_api_key' => $key !== null,
-            'key_mask' => $key === null ? '' : '••••••••'.substr($key, -4),
+        return [
+            'settings' => array_intersect_key($stored, self::DEFAULTS) + self::DEFAULTS + [
+                'has_api_key' => $key !== null,
+                'key_mask' => $key === null ? '' : '••••••••'.substr($key, -4),
+            ],
+            'api_key' => $key,
         ];
     }
 
