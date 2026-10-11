@@ -40,6 +40,7 @@ Homestead.json
 !/tests/Feature/DispositionTableSortingTest.php
 !/tests/Feature/SharedTableSortingUiTest.php
 !/tests/Feature/EmployeeProfileOverviewUiTest.php
+!/tests/Feature/EmployeeProfileHeaderRefinementTest.php
 !/tests/Feature/EmployeeProfileLocationHistoryTest.php
 !/tests/Feature/UserSuperAdminRoleRecognitionTest.php
 !/tests/Feature/MobileSidebarSwipeUiTest.php

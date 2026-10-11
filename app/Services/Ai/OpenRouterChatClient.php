@@ -221,6 +221,8 @@ class OpenRouterChatClient
         ];
 
         if ($structuredSchema !== null) {
+            // Strict schema routing must not require optional model sampling controls.
+            unset($payload['temperature']);
             $payload['response_format'] = ['type' => 'json_schema', 'json_schema' => [
                 'name' => (string) ($structuredSchema['name'] ?? 'response'), 'strict' => true,
                 'schema' => $structuredSchema['schema'] ?? $structuredSchema,

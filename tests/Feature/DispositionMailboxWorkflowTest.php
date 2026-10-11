@@ -19,6 +19,8 @@ use App\Models\Setting;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Ai\OpenRouterChatClient;
+use App\Services\Ai\OpenRouterChatException;
 use App\Services\Operations\AiDispositionSmtpTransport;
 use App\Services\Operations\AiIntakeExtractionService;
 use App\Services\Operations\AiIntakeImapClient;
@@ -27,15 +29,22 @@ use App\Services\Operations\AiIntakeService;
 use App\Services\Operations\CustomerWorkflowService;
 use App\Services\Operations\DispositionMailboxService;
 use App\Services\Operations\DispositionMailboxWorkflowService;
+use App\Support\Ai\OpenRouterSettings;
 use App\Support\Operations\AiDispositionSettings;
 use Carbon\CarbonImmutable;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
@@ -395,19 +404,160 @@ class DispositionMailboxWorkflowTest extends TestCase
         $this->noAutomaticEffects();
     }
 
-    private function openMessage(array $positionChanges = [], array $resultChanges = []): Testable
+    private function openMessage(array $positionChanges = [], array $resultChanges = [], bool $realExtraction = false, array $emailChanges = []): Testable
     {
-        $this->mockExtraction($positionChanges, $resultChanges);
-        $this->imap->shouldReceive('fetch')->andReturn($this->email());
+        if (! $realExtraction) {
+            $this->mockExtraction($positionChanges, $resultChanges);
+        }
+        $email = $this->email($emailChanges);
+        $this->imap->shouldReceive('fetch')->andReturn($email);
         $this->imap->shouldReceive('snapshot')->andReturn(['uid_validity' => 401, 'uid_next' => 63]);
         $this->imap->shouldReceive('sentFolder')->andReturn('Sent');
-        $this->imap->shouldReceive('browse')->andReturnUsing(function ($settings, $folder, $page, $perPage, $search): array {
+        $this->imap->shouldReceive('browse')->andReturnUsing(function ($settings, $folder, $page, $perPage, $search) use ($email): array {
             return ['folder' => $folder, 'uid_validity' => $folder === 'Sent' ? 987 : 401, 'total' => 25, 'page' => $page, 'per_page' => $perPage,
-                'messages' => array_map(fn ($uid) => array_intersect_key($this->email(['uid' => $uid]), array_flip(['uid', 'from', 'to', 'date', 'seen', 'subject'])), [32, 31])];
+                'messages' => array_map(fn ($uid) => array_intersect_key(array_replace($email, ['uid' => $uid]), array_flip(['uid', 'from', 'to', 'date', 'seen', 'subject'])), [32, 31])];
         });
-        $this->imap->shouldReceive('readMessage')->andReturnUsing(fn ($settings, $folder, $uid, $validity) => $this->email(['folder' => $folder, 'uid' => $uid, 'uid_validity' => $validity]));
+        $this->imap->shouldReceive('readMessage')->andReturnUsing(fn ($settings, $folder, $uid, $validity) => array_replace($email, ['folder' => $folder, 'uid' => $uid, 'uid_validity' => $validity]));
 
         return Livewire::test(DispositionMailbox::class)->call('open')->call('selectMessage', 32);
+    }
+
+    private function welcomeEmail(): array
+    {
+        $body = 'Willkommen! Ihr neues E-Mail-Postfach wurde eingerichtet. Die Einrichtungshinweise finden Sie in Ihren Einstellungen.';
+
+        return [
+            'subject' => 'Willkommen bei Ihrem neuen Mailpostfach', 'text' => $body,
+            'raw' => "From: customer@example.test\r\nSubject: Willkommen bei Ihrem neuen Mailpostfach\r\n\r\n".$body,
+        ];
+    }
+
+    private function welcomeProviderResponse(): Response
+    {
+        $result = [
+            'intent' => 'other', 'classification' => 'unrelated', 'extraction_complete' => true, 'overflow' => false,
+            'title' => 'Willkommensmail zum neuen Postfach', 'summary' => 'Einrichtungshinweise ohne Personal- oder Leistungsanfrage.',
+            'confidence' => 1, 'positions' => [], 'questions' => [], 'customer_draft' => null,
+        ];
+
+        return new Response(200, ['Content-Type' => 'application/json'], json_encode([
+            'choices' => [['finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => json_encode($result, JSON_THROW_ON_ERROR)]]],
+        ], JSON_THROW_ON_ERROR));
+    }
+
+    private function mockedHttpProvider(array $responses, array &$history): void
+    {
+        OpenRouterSettings::save([
+            'api_key' => 'synthetic-provider-workflow-secret', 'api_url' => 'https://openrouter.ai/api/v1/chat/completions',
+            'text_model' => 'synthetic/text', 'data_model' => 'synthetic/data',
+        ]);
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler($responses));
+        $stack->push(Middleware::history($history));
+        $this->app->instance(OpenRouterChatClient::class, new OpenRouterChatClient(new Client(['handler' => $stack])));
+    }
+
+    public function test_real_structured_http_pipeline_recognizes_a_welcome_mail_without_inquiry_or_business_actions(): void
+    {
+        $history = [];
+        $this->mockedHttpProvider([$this->welcomeProviderResponse()], $history);
+        $component = $this->openMessage(realExtraction: true, emailChanges: $this->welcomeEmail())
+            ->call('startRecognition')->assertHasNoErrors()->assertSet('showMailbox', true)
+            ->assertSet('guidedStep', 'recognition')->assertSet('guidedReview.detected_classification', 'not_inquiry')
+            ->assertSet('guidedReview.classification', 'not_inquiry')->assertSet('guidedReview.positions', [])
+            ->assertSet('guidedReview.can_create_inquiries', false)->assertSet('guidedReview.can_prepare_clarification', false);
+        $intake = AiIntake::firstOrFail();
+        $this->assertSame('other', $intake->analysis['intent']);
+        $this->assertNull($intake->analysis['customer_draft']);
+        $this->assertNull($intake->customer_id);
+        $this->assertSame('mailbox_test_review', $intake->error_code);
+        $this->assertSame(0, AiIntakeProposal::count());
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->assertSame('unreviewed', DispositionMailboxReview::firstOrFail()->classification);
+        $this->assertNull(DispositionMailboxReview::firstOrFail()->reviewed_by);
+        $this->assertCount(1, $history);
+        $payload = json_decode((string) $history[0]['request']->getBody(), true, 32, JSON_THROW_ON_ERROR);
+        $this->assertSame('synthetic/data', $payload['model']);
+        $this->assertSame('json_schema', $payload['response_format']['type']);
+        $this->assertTrue($payload['response_format']['json_schema']['strict']);
+        $this->assertSame(AiIntakeExtractionService::schema(), $payload['response_format']['json_schema']['schema']);
+        $this->assertTrue($payload['provider']['require_parameters']);
+        $this->assertStringContainsString($this->welcomeEmail()['text'], json_encode($payload['messages'], JSON_UNESCAPED_UNICODE));
+        $this->assertStringNotContainsString(self::SOURCE, json_encode($payload['messages'], JSON_UNESCAPED_UNICODE));
+        $run = AiIntakeRun::firstOrFail();
+        $this->assertSame('succeeded', $run->status);
+        $this->assertNull($run->provider_request_id);
+        $this->assertNull($run->cost_usd);
+        $component->call('startRecognition')->assertHasNoErrors()->assertSet('guidedReview.intake_id', $intake->id);
+        $this->assertCount(1, $history);
+        $this->assertSame(1, AiIntakeMessage::count());
+        $this->assertSame(1, AiIntakeRun::count());
+        $component->call('confirmGuidedClassification', false)->assertHasNoErrors()->assertSet('guidedStep', 'done');
+        $this->assertSame('paused', $intake->fresh()->status);
+        $this->noAutomaticEffects();
+    }
+
+    public function test_http_404_provider_failure_has_safe_provider_guidance_logging_and_an_explicit_complete_retry(): void
+    {
+        $history = [];
+        $this->mockedHttpProvider([
+            new Response(404, ['Content-Type' => 'application/json'], json_encode([
+                'error' => ['code' => 404, 'message' => 'No endpoints found that support the requested parameters. RAW_PROVIDER_PAYLOAD: synthetic-provider-workflow-secret'],
+            ], JSON_THROW_ON_ERROR)),
+            $this->welcomeProviderResponse(),
+        ], $history);
+        Log::spy();
+        $component = $this->openMessage(realExtraction: true, emailChanges: $this->welcomeEmail())
+            ->call('startRecognition')->assertHasErrors('guidedReview')->assertSet('guidedReview', [])
+            ->assertSet('guidedStep', 'recognition')->assertSet('showMailbox', true)->assertSet('selectedMessage.uid', 32)
+            ->assertSee('Der Anbieter unterstützt das eingestellte AI-Modell oder die angeforderten Funktionen derzeit nicht.')
+            ->assertSee('Die AI-Verbindung in den Einstellungen prüfen.')
+            ->assertDontSee('RAW_PROVIDER_PAYLOAD')->assertDontSee('synthetic-provider-workflow-secret');
+        $intake = AiIntake::firstOrFail();
+        $this->assertSame('review', $intake->status);
+        $this->assertSame('mailbox_test_review', $intake->error_code);
+        $this->assertNull($intake->analysis);
+        $this->assertSame('failed', AiIntakeRun::firstOrFail()->status);
+        $this->assertSame(0, AiIntakeProposal::count());
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $originalSource = AiIntakeMessage::firstOrFail()->getRawOriginal();
+        $this->noAutomaticEffects();
+
+        $loggedContext = [];
+        Log::shouldHaveReceived('warning')->once()->withArgs(function (string $message, array $context) use (&$loggedContext): bool {
+            $this->assertSame('Disposition mailbox guided processing provider failure.', $message);
+            $loggedContext = $context;
+
+            return true;
+        });
+        $this->assertSame(OpenRouterChatException::class, $loggedContext['exception_class']);
+        $this->assertSame($this->admin->id, $loggedContext['actor_id']);
+        $this->assertSame(32, $loggedContext['uid']);
+        $this->assertSame('upstream_http_error', $loggedContext['reason_code']);
+        $this->assertSame(404, $loggedContext['upstream_status']);
+        $this->assertSame([], array_diff(array_keys($loggedContext), ['exception_class', 'actor_id', 'intake_id', 'uid', 'reason_code', 'upstream_status']));
+        $encodedContext = json_encode($loggedContext, JSON_THROW_ON_ERROR);
+        $this->assertStringNotContainsString('RAW_PROVIDER_PAYLOAD', $encodedContext);
+        $this->assertStringNotContainsString('synthetic-provider-workflow-secret', $encodedContext);
+        foreach (['exception', 'trace', 'message', 'body', 'payload', 'token', 'api_key', 'configuration', 'mail'] as $forbiddenKey) {
+            $this->assertArrayNotHasKey($forbiddenKey, $loggedContext);
+        }
+        $component->call('startRecognition')->assertHasNoErrors()->assertSet('guidedStep', 'recognition')
+            ->assertSet('guidedReview.intake_id', $intake->id)->assertSet('guidedReview.detected_classification', 'not_inquiry')
+            ->assertSet('guidedReview.positions', [])->assertSet('showMailbox', true);
+        $this->assertCount(2, $history);
+        $this->assertSame(['failed', 'succeeded'], AiIntakeRun::orderBy('id')->pluck('status')->all());
+        $this->assertSame(1, AiIntake::count());
+        $this->assertSame(1, AiIntakeMessage::count());
+        $this->assertSame(1, DispositionMailboxReview::count());
+        $this->assertSame($originalSource, AiIntakeMessage::firstOrFail()->getRawOriginal());
+        $this->assertSame('other', $intake->fresh()->analysis['intent']);
+        $this->assertSame(0, AiIntakeProposal::count());
+        $this->assertSame(0, OperationInquiry::count());
+        $this->assertSame(0, AiIntakeDelivery::count());
+        $this->noAutomaticEffects();
     }
 
     private function renderedAction(string $html, string $action): ?DOMElement

@@ -60,7 +60,18 @@
                                     <i class="far {{ $selected ? 'fa-chevron-down' : 'fa-chevron-right' }} rt-shift-distribution__chevron" aria-hidden="true"></i>
                                 </button>
                                 @if($selected)
-                                    <div class="rt-shift-distribution__assign" id="{{ $distributionTabsId }}-assignment-{{ $item->id }}" role="group" aria-label="Mitarbeitende für {{ $item->title }}">
+                                    <div class="rt-shift-distribution__assign" id="{{ $distributionTabsId }}-assignment-{{ $item->id }}" role="group" aria-label="Mitarbeitende für {{ $item->title }}"
+                                        x-init="$nextTick(() => {
+                                            const group = $el.closest('.rt-shift-distribution__group');
+                                            if (!group?.clientHeight) return;
+                                            const entry = $el.closest('.rt-shift-distribution__entry').getBoundingClientRect();
+                                            const viewport = group.getBoundingClientRect();
+                                            const top = viewport.top + 44, bottom = viewport.bottom - 8;
+                                            const delta = entry.height > bottom - top ? entry.top - top
+                                                : entry.bottom > bottom ? Math.min(entry.top - top, entry.bottom - bottom)
+                                                : entry.top < top ? entry.top - top : 0;
+                                            if (delta !== 0) group.scrollBy({ top: delta, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+                                        })">
                                         <div class="rt-shift-distribution__assign-head">
                                             <span>Zuweisung</span>
                                             <div class="rt-shift-distribution__status" role="radiogroup" aria-label="Zuweisungsstatus">

@@ -77,6 +77,7 @@ class DistributionAutoAssignment extends Component
         $this->preview = [];
         $this->outcome = [];
         $this->resetValidation('autoAssignment');
+        $this->dispatch('distribution-auto-preview-reset');
     }
 
     public function render()

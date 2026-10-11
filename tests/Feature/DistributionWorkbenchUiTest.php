@@ -140,7 +140,7 @@ class DistributionWorkbenchUiTest extends TestCase
         $this->assertSame('Alle offenen Schichten automatisch zuordnen', $auto->getAttribute('aria-label'));
         $this->assertSame($auto->getAttribute('aria-label'), $auto->getAttribute('title'));
         $this->assertSame('', trim($auto->textContent));
-        $this->assertSame(1, $xpath->query('./i[contains(@class,"fa-wand-magic-sparkles") and @aria-hidden="true"]', $auto)->length);
+        $this->assertSame(1, $xpath->query('./i[contains(@class,"fa-magic") and @aria-hidden="true"]', $auto)->length);
         $this->assertFalse($auto->hasAttribute('wire:click'));
         $this->assertFalse($auto->hasAttribute('disabled'));
         $this->assertStringContainsString("distributionMode = 'auto'", $auto->getAttribute('x-on:click'));
@@ -179,7 +179,12 @@ class DistributionWorkbenchUiTest extends TestCase
         $this->assertSame('prepare,apply', $loader->getAttribute('wire:target'));
         $this->assertSame('status', $loader->getAttribute('role'));
         $this->assertSame('display: none', $loader->getAttribute('style'));
+        $body = $this->node($xpath, '//div[contains(@class,"rt-distribution-auto__body")]');
+        $this->assertSame('region', $body->getAttribute('role'));
+        $this->assertSame('0', $body->getAttribute('tabindex'));
+        $this->assertSame('Vorschau und Planungshinweise', $body->getAttribute('aria-label'));
         $child->call('resetPreview')->assertStatus(200)->assertSet('preview', [])->assertSet('outcome', [])
+            ->assertDispatched('distribution-auto-preview-reset')
             ->assertNotDispatched('operations-plan-changed');
         $this->assertSame($before, $shift->fresh()->only(['revision', 'published_revision', 'status']));
         $this->assertSame(1, Shift::count());
@@ -236,6 +241,11 @@ class DistributionWorkbenchUiTest extends TestCase
         $item = $this->node($xpath, './button[contains(@class,"rt-shift-distribution__item")]', $selected);
         $this->assertStringContainsString($title, $item->getAttribute('title'));
         $this->assertStringContainsString($title, $item->getAttribute('aria-label'));
+        $assignment = $this->node($xpath, './/div[contains(concat(" ",normalize-space(@class)," ")," rt-shift-distribution__assign ")]', $selected);
+        $this->assertStringContainsString("closest('.rt-shift-distribution__group')", $assignment->getAttribute('x-init'));
+        $this->assertStringContainsString('group.scrollBy', $assignment->getAttribute('x-init'));
+        $this->assertStringContainsString('prefers-reduced-motion', $assignment->getAttribute('x-init'));
+        $this->assertStringNotContainsString('scrollIntoView', $assignment->getAttribute('x-init'));
         $clear = $this->node($xpath, './/button[@data-distribution-clear]', $selected);
         $this->assertSame(1, $xpath->query('ancestor::div[contains(concat(" ", normalize-space(@class), " "), " rt-shift-distribution__assign-foot ")]', $clear)->length);
         $this->assertSame(1, $xpath->query('../button[@*[name()="x-on:click" and contains(.,"operations-shift-detail-request")]]', $clear)->length);
@@ -270,6 +280,10 @@ class DistributionWorkbenchUiTest extends TestCase
         $title = $this->cssRule($css, ".rt-shift-distribution__entry[data-selected='true'] > .rt-shift-distribution__item .rt-shift-distribution__text strong");
         $this->assertStringContainsString('white-space: normal', $title);
         $this->assertStringContainsString('-webkit-line-clamp: 2', $title);
+        $candidateAction = $this->cssRule($css, '.rt-shift-distribution__candidate > .rt-ui-button');
+        $this->assertStringContainsString('grid-column: 2', $candidateAction);
+        $this->assertStringContainsString('grid-row: 1 / span 2', $candidateAction);
+        $this->assertStringContainsString('padding-bottom: 28px', $this->cssRule($css, 'body:has(.rt-ai-assist__stage) .rt-distribution-auto__actions'));
     }
 
     public function test_duplicate_page_bottom_padding_is_removed_only_inside_the_shift_planning_workspace(): void
@@ -278,5 +292,6 @@ class DistributionWorkbenchUiTest extends TestCase
         $this->assertMatchesRegularExpression('/[^{}]*:has\(\.rt-shift-plan\)[^{}]*\{[^}]*padding-bottom:\s*0\s*(?:!important)?\s*;/', $css);
         $this->assertDoesNotMatchRegularExpression('/(?:^|})\s*(?:body|main|\.container-fluid)\s*\{[^}]*padding-bottom:\s*0\s*(?:!important)?\s*;/', $css);
         $this->assertStringContainsString('[data-page-live-content]:has(.rt-shift-plan), .rt-shift-plan { row-gap: 0; }', $css);
+        $this->assertStringContainsString('.rt-shift-plan .rt-staff-timeline-layout { row-gap: 0; }', $css);
     }
 }

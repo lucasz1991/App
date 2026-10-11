@@ -52,15 +52,14 @@
         </x-ui.dropdown.page-actions>
     </x-slot:actions>
 
-    <div class="employee-profile__workspace relative" data-autosave-scope>
+    <div class="employee-profile__workspace employee-profile__dossier relative" data-autosave-scope>
       <x-ui.autosave-status
           event="employee-profile-field-saved"
           target="savePendingInlineChanges"
           dirty-target="inlineValues"
       />
 
-      <div class="employee-profile__dossier">
-        @include('livewire.admin.user-profile.partials.identity-card')
+      @include('livewire.admin.user-profile.partials.identity-card')
 
       <div class="employee-profile__navigation" data-profile-navigation x-data="{}">
         <nav class="employee-profile__groups" aria-label="Bereiche der Mitarbeiterakte">
@@ -88,7 +87,6 @@
         <div class="employee-profile__loading" wire:loading.delay wire:target="setProfileTab" role="status">
             <i class="far fa-spinner fa-spin" aria-hidden="true"></i> Bereich wird geladen …
         </div>
-      </div>
       </div>
 
     <div class="employee-profile__content" x-data="{}" wire:loading.class="employee-profile__content--loading" wire:target="setProfileTab">

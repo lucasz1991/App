@@ -1,5 +1,6 @@
-<div class="rt-distribution-auto" data-distribution-auto-content>
-    <div class="rt-distribution-auto__body">
+<div class="rt-distribution-auto" data-distribution-auto-content x-data="{}"
+    x-on:distribution-auto-preview-reset="$nextTick(() => $refs.autoPrepare?.focus({ preventScroll: true }))">
+    <div class="rt-distribution-auto__body" role="region" aria-label="Vorschau und Planungshinweise" tabindex="0">
         <p class="rt-distribution-auto__period"><i class="far fa-calendar-day" aria-hidden="true"></i>{{ \Carbon\CarbonImmutable::parse($from)->format('d.m.') }} – {{ \Carbon\CarbonImmutable::parse($until)->format('d.m.Y') }}</p>
         <p class="rt-distribution-auto__note">{{ $customerLabel ?? ($customerFilter === 'all' ? 'Alle Kunden' : 'Ausgewählter Kunde') }}</p>
         @error('autoAssignment')<p class="rt-shift-distribution__error" role="alert">{{ $message }}</p>@enderror
@@ -70,7 +71,7 @@
                 <x-ui.buttons.button-basic type="button" mode="primary" wire:click="apply" wire:loading.attr="disabled" wire:target="prepare,apply,resetPreview" data-distribution-auto-apply><i class="far fa-check" aria-hidden="true"></i>{{ $preview['summary']['planned_slots'] }} Zuordnungen übernehmen</x-ui.buttons.button-basic>
                 <p class="rt-distribution-auto__note">Übernimmt die Vorschau als „Angefragt“. Alle Bedingungen werden erneut geprüft.</p>
             @endif
-            <x-ui.buttons.button-basic type="button" :mode="$canApply ? 'secondary' : 'primary'" wire:click="prepare" wire:loading.attr="disabled" wire:target="prepare,apply,resetPreview" data-distribution-auto-prepare><i class="far {{ $prepared || $outcome !== [] ? 'fa-redo' : 'fa-magic' }}" aria-hidden="true"></i>{{ $prepared || $outcome !== [] ? 'Neu berechnen' : 'Vorschläge berechnen' }}</x-ui.buttons.button-basic>
+            <x-ui.buttons.button-basic type="button" :mode="$canApply ? 'secondary' : 'primary'" wire:click="prepare" wire:loading.attr="disabled" wire:target="prepare,apply,resetPreview" data-distribution-auto-prepare x-ref="autoPrepare"><i class="far {{ $prepared || $outcome !== [] ? 'fa-redo' : 'fa-magic' }}" aria-hidden="true"></i>{{ $prepared || $outcome !== [] ? 'Neu berechnen' : 'Vorschläge berechnen' }}</x-ui.buttons.button-basic>
             @if($prepared)
                 <x-ui.buttons.button-basic type="button" mode="link" wire:click="resetPreview" wire:loading.attr="disabled" wire:target="prepare,apply,resetPreview">Vorschau verwerfen</x-ui.buttons.button-basic>
             @endif

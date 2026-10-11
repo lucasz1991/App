@@ -114,15 +114,21 @@ class AiDispositionTransportTest extends TestCase
     {
         $this->enable();
         AssistantSettings::setEnabled(false);
+        OpenRouterSettings::save(['temperature' => 0.75, 'max_completion_tokens' => 768]);
         $history = [];
         $stack = HandlerStack::create(new MockHandler([new Response(200, [], json_encode(['id' => 'synthetic-generation', 'model' => 'synthetic/data', 'choices' => [['message' => ['content' => '{"summary":"synthetic"}']]], 'usage' => ['prompt_tokens' => 12, 'completion_tokens' => 6, 'total_tokens' => 18, 'cost' => 0.00012]]))]));
         $stack->push(Middleware::history($history));
         $client = new AiDispositionClient(new OpenRouterChatClient(new Client(['handler' => $stack])));
-        $response = $client->structured('intake', [['role' => 'user', 'content' => 'Synthetic request']], ['type' => 'object', 'properties' => ['summary' => ['type' => 'string']], 'required' => ['summary'], 'additionalProperties' => false]);
+        $schema = ['type' => 'object', 'properties' => ['summary' => ['type' => 'string']], 'required' => ['summary'], 'additionalProperties' => false];
+        $response = $client->structured('intake', [['role' => 'user', 'content' => 'Synthetic request']], $schema);
         $sent = json_decode((string) $history[0]['request']->getBody(), true);
+        $this->assertCount(1, $history);
         $this->assertSame('synthetic/data', $sent['model']);
-        $this->assertSame('json_schema', $sent['response_format']['type']);
-        $this->assertTrue($sent['provider']['require_parameters']);
+        $this->assertArrayNotHasKey('temperature', $sent);
+        $this->assertSame(['type' => 'json_schema', 'json_schema' => ['name' => 'intake', 'strict' => true, 'schema' => $schema]], $sent['response_format']);
+        $this->assertSame(['require_parameters' => true], $sent['provider']);
+        $this->assertSame(768, $sent['max_completion_tokens']);
+        $this->assertFalse($sent['stream']);
         $this->assertSame('Bearer synthetic-key', $history[0]['request']->getHeaderLine('Authorization'));
         $this->assertSame(18, $response->usage['total_tokens']);
         $this->assertSame(0.00012, $response->costUsd);
@@ -131,14 +137,44 @@ class AiDispositionTransportTest extends TestCase
 
     public function test_existing_complete_contract_does_not_send_schema_without_opt_in(): void
     {
+        OpenRouterSettings::save(['temperature' => 0.75]);
         $history = [];
         $stack = HandlerStack::create(new MockHandler([new Response(200, [], '{"choices":[{"message":{"content":"ordinary reply"}}]}')]));
         $stack->push(Middleware::history($history));
         $response = (new OpenRouterChatClient(new Client(['handler' => $stack])))->complete([['role' => 'user', 'content' => 'Hello']], OpenRouterModelProfile::Data);
         $sent = json_decode((string) $history[0]['request']->getBody(), true);
+        $this->assertCount(1, $history);
+        $this->assertSame(0.75, $sent['temperature']);
         $this->assertArrayNotHasKey('response_format', $sent);
+        $this->assertArrayNotHasKey('provider', $sent);
         $this->assertSame('ordinary reply', $response->content);
         $this->assertNull($response->costUsd);
+    }
+
+    public function test_structured_provider_rejection_never_retries_or_drops_required_parameters(): void
+    {
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(404, [], '{"error":{"message":"No endpoints found that support all request parameters."}}'),
+            new Response(200, [], '{"choices":[{"message":{"content":"{}"}}]}'),
+        ]));
+        $stack->push(Middleware::history($history));
+        $client = new OpenRouterChatClient(new Client(['handler' => $stack]));
+        $schema = ['type' => 'object', 'properties' => ['summary' => ['type' => 'string']], 'required' => ['summary'], 'additionalProperties' => false];
+        try {
+            $client->complete([['role' => 'user', 'content' => 'Synthetic request']], OpenRouterModelProfile::Data,
+                structuredSchema: ['name' => 'intake', 'schema' => $schema]);
+            $this->fail('Expected the original provider rejection without fallback');
+        } catch (OpenRouterChatException $error) {
+            $this->assertSame('upstream_http_error', $error->reasonCode);
+            $this->assertSame(404, $error->upstreamStatus);
+        }
+        $this->assertCount(1, $history);
+        $sent = json_decode((string) $history[0]['request']->getBody(), true);
+        $this->assertSame('synthetic/data', $sent['model']);
+        $this->assertArrayNotHasKey('temperature', $sent);
+        $this->assertSame(['require_parameters' => true], $sent['provider']);
+        $this->assertSame(['type' => 'json_schema', 'json_schema' => ['name' => 'intake', 'strict' => true, 'schema' => $schema]], $sent['response_format']);
     }
 
     public function test_incomplete_structured_response_is_rejected_and_preferences_do_not_replace_invariants(): void

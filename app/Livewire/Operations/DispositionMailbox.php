@@ -5,10 +5,12 @@ namespace App\Livewire\Operations;
 use App\Models\AiIntake;
 use App\Models\AiIntakeDelivery;
 use App\Models\User;
+use App\Services\Ai\OpenRouterChatException;
 use App\Services\Operations\DispositionMailboxService;
 use App\Services\Operations\DispositionMailboxWorkflowService;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\OperationsAccess;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
@@ -502,7 +504,7 @@ class DispositionMailbox extends Component
 
     private function performGuided(callable $action): void
     {
-        $this->actor();
+        $actor = $this->actor();
         $this->resetValidation();
         try {
             $action();
@@ -518,9 +520,49 @@ class DispositionMailbox extends Component
             $this->addError('guidedReview', ($exception->getStatusCode() === 409
                 ? 'Diese Mailprüfung wurde inzwischen geändert. Die Mail erneut erkennen oder den aktuellen Eingang im Anfrage-Dialog prüfen.'
                 : 'Dieser Schritt konnte nicht abgeschlossen werden. Die erkannten Angaben, den Kunden und den Kontakt prüfen.').($exception->getMessage() !== '' ? ' '.mb_substr($exception->getMessage(), 0, 300) : ''));
-        } catch (Throwable) {
+        } catch (OpenRouterChatException $exception) {
+            $knownReasons = ['not_configured', 'disposition_not_configured', 'rate_limit', 'disposition_rate_limit', 'upstream_http_error', 'transport_error', 'incomplete_structured_response', 'invalid_json', 'empty_response', 'upstream_payload_error', 'invalid_tool_response', 'endpoint_not_allowed', 'response_too_large', 'invalid_stream_event', 'upstream_stream_error', 'stream_read_error'];
+            $reason = in_array($exception->reasonCode, $knownReasons, true) ? $exception->reasonCode : 'unknown';
+            $status = $exception->upstreamStatus !== null && $exception->upstreamStatus >= 100 && $exception->upstreamStatus <= 599 ? $exception->upstreamStatus : null;
+            Log::warning('Disposition mailbox guided processing provider failure.', $this->guidedDiagnosticContext($actor, $exception) + ['reason_code' => $reason, 'upstream_status' => $status]);
+            $message = match (true) {
+                in_array($reason, ['not_configured', 'disposition_not_configured', 'endpoint_not_allowed'], true) => 'Die AI-Verbindung für die Mailerkennung ist nicht vollständig eingerichtet. Die AI-Einstellungen prüfen.',
+                in_array($reason, ['rate_limit', 'disposition_rate_limit'], true) => 'Die zulässige Anzahl an AI-Anfragen wurde erreicht. Die Mailerkennung später erneut versuchen.',
+                $status === 404 => 'Der Anbieter unterstützt das eingestellte AI-Modell oder die angeforderten Funktionen derzeit nicht. Die AI-Verbindung in den Einstellungen prüfen.',
+                in_array($status, [401, 403], true) => 'Der AI-Anbieter hat den Zugriff abgelehnt. Die AI-Zugangsdaten und die Modellfreigabe in den Einstellungen prüfen.',
+                $status === 402 => 'Das Guthaben beim AI-Anbieter reicht für die Mailerkennung nicht aus. Guthaben oder Abrechnung prüfen.',
+                $status === 429 => 'Der AI-Anbieter ist derzeit ausgelastet. Die Mailerkennung später erneut versuchen.',
+                ($status !== null && $status >= 500) || in_array($reason, ['transport_error', 'stream_read_error'], true) => 'Der AI-Anbieter ist gerade nicht erreichbar. Die Mailerkennung später erneut versuchen.',
+                in_array($reason, ['incomplete_structured_response', 'invalid_json', 'empty_response', 'invalid_tool_response', 'response_too_large', 'invalid_stream_event'], true) => 'Der AI-Anbieter hat keine vollständig auswertbare Antwort geliefert. Die Mail erneut erkennen oder im Anfrage-Dialog manuell prüfen.',
+                default => 'Der AI-Anbieter konnte die Mailerkennung gerade nicht abschließen. Bitte erneut versuchen.',
+            };
+            $this->addError('guidedReview', $message);
+        } catch (Throwable $exception) {
+            $context = $this->guidedDiagnosticContext($actor, $exception);
+            $file = str_replace('\\', '/', $exception->getFile());
+            $base = rtrim(str_replace('\\', '/', base_path()), '/').'/';
+            $relative = str_starts_with($file, $base) ? substr($file, strlen($base)) : '';
+            $context['exception_code'] = (int) $exception->getCode();
+            $context['source_file'] = preg_match('#^(app|vendor|bootstrap|resources)/[A-Za-z0-9_./-]+\.php$#D', $relative) ? $relative : 'outside_application';
+            $context['source_line'] = max(0, $exception->getLine());
+            Log::warning('Disposition mailbox guided processing failed.', $context);
             $this->addError('guidedReview', 'Die Mail konnte gerade nicht verarbeitet werden. Bitte erneut versuchen.');
         }
+    }
+
+    private function guidedDiagnosticContext(User $actor, Throwable $exception): array
+    {
+        $exceptionClass = $exception::class;
+        if (str_contains($exceptionClass, '@anonymous')) {
+            $exceptionClass = get_parent_class($exception) ?: Throwable::class;
+        }
+
+        return array_filter([
+            'exception_class' => $exceptionClass,
+            'actor_id' => (int) $actor->id,
+            'intake_id' => isset($this->guidedReview['intake_id']) || isset($this->selectedMessage['intake_id']) ? (int) ($this->guidedReview['intake_id'] ?? $this->selectedMessage['intake_id']) : null,
+            'uid' => isset($this->selectedMessage['uid']) ? (int) $this->selectedMessage['uid'] : null,
+        ], static fn ($value) => $value !== null);
     }
 
     public function render()
