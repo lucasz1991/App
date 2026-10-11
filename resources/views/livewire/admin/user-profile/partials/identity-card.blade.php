@@ -113,25 +113,7 @@
           <h2 id="{{ $profilePrefix }}-status-title">Einrichtungs Status</h2>
           <div class="employee-profile__status-rail">
               @if($phoneStatus !== null)
-              <dl class="employee-profile__status-group" data-profile-phone-status aria-label="Gerätestatus">
-                  @foreach($phoneStatus['rows'] as $statusKey => $status)
-                      <div class="employee-profile__status-item" wire:key="{{ $profilePrefix }}-status-phone-{{ $statusKey }}" data-phone-status="{{ $statusKey }}" data-status="{{ $status['state'] }}">
-                          <dt>
-                              @include('livewire.admin.user-profile.partials.status-indicator', [
-                                  'indicatorKey' => 'phone-'.$statusKey,
-                                  'indicatorLabel' => $status['label'],
-                                  'indicatorValue' => $status['value'],
-                                  'indicatorIcon' => $status['icon'],
-                                  'indicatorState' => $status['state'],
-                                  'indicatorNote' => $statusKey === 'installation' ? $phoneStatus['device_label'] : null,
-                                  'indicatorEvidence' => $statusKey === 'installation' ? $phoneStatus['evidence_note'] : null,
-                                  'indicatorPhoneCount' => $statusKey === 'installation' ? $phoneStatus['assigned_phone_count'] : null,
-                              ])
-                          </dt>
-                          <dd class="sr-only">{{ $status['value'] }}</dd>
-                      </div>
-                  @endforeach
-              </dl>
+                  <livewire:profile.employee-phone-status :user-id="(int) $user->id" :profile-prefix="$profilePrefix" :key="$profilePrefix.'-phone-status-'.$user->id" />
               @endif
               <dl class="employee-profile__status-group employee-profile__facts" aria-label="Konto und Aktivität">
                   @foreach ($identityFacts as $fact)

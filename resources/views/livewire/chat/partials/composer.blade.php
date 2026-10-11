@@ -97,6 +97,7 @@
                     x-model="draft"
                     @input.debounce.250ms="sendTyping()"
                     placeholder="{{ __('app.type_message') }}"
+                    aria-label="{{ __('app.type_message') }}"
                     autocomplete="off"
                     autocapitalize="sentences"
                     enterkeyhint="send"

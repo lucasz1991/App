@@ -2105,13 +2105,13 @@ body[data-mode='dark'] .rt-chat-member-page-button {
     .rt-chat-page {
         position: fixed !important;
         z-index: 35;
-        top: calc(var(--rt-chat-visual-top, 0px) + var(--rt-chat-topbar-inset, 70px) + var(--rt-page-gutter, 1rem));
-        right: var(--rt-page-gutter, 1rem);
-        left: var(--rt-page-gutter, 1rem);
+        top: calc(var(--rt-chat-visual-top, 0px) + var(--rt-chat-topbar-inset, 70px));
+        right: 0;
+        left: 0;
         width: auto;
         height: max(
             0px,
-            calc(var(--rt-chat-visual-height, 100dvh) - var(--rt-chat-topbar-inset, 70px) - var(--rt-page-gutter, 1rem) - var(--rt-page-gutter, 1rem))
+            calc(var(--rt-chat-visual-height, 100dvh) - var(--rt-chat-topbar-inset, 70px))
         ) !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -2120,13 +2120,18 @@ body[data-mode='dark'] .rt-chat-member-page-button {
 
     /*
      * Die Seite ist mobil immer an den VisualViewport gebunden. Ist die
-     * Topbar sichtbar, beginnt sie mit dem zentralen Seitenabstand darunter.
-     * Fixed umgeht das Containerpadding, daher wird derselbe Token hier als
-     * Inset verrechnet. Beim PWA-/Tastatur-Viewport faellt nur die Topbar weg;
-     * oberer und unterer Seitenabstand bleiben innerhalb des sichtbaren Raums.
+     * Topbar sichtbar, beginnt der Chat direkt darunter. Diese mobile
+     * Kommunikationsansicht fuellt die ganze Breite ohne Seiten-Gutter.
+     * Der gemessene VisualViewport enthaelt bereits die Tastaturkorrektur.
      */
     .rt-chat-page[data-keyboard-open='true'] {
         z-index: 45;
+    }
+
+    .rt-chat-shell {
+        border: 0;
+        border-radius: 0 !important;
+        box-shadow: none;
     }
 
     /*
@@ -2150,9 +2155,49 @@ body[data-mode='dark'] .rt-chat-member-page-button {
 
     .rt-chat-conversation-header {
         position: sticky !important;
-        min-height: 4.5rem;
+        min-height: 4rem;
         top: 0;
         z-index: 10;
+        /* Das Legacy-Tailwind-Bundle setzt diese Utilities mit !important. */
+        gap: 0.125rem !important;
+        padding: 0.5rem max(0.25rem, env(safe-area-inset-right)) 0.5rem max(0.25rem, env(safe-area-inset-left)) !important;
+        background: var(--chat-panel);
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+
+    .rt-chat-header-identity {
+        gap: 0.375rem !important;
+    }
+
+    .rt-chat-conversation-header .rt-chat-avatar > img,
+    .rt-chat-conversation-header .rt-chat-avatar > span:first-child {
+        width: 2.5rem !important;
+        height: 2.5rem !important;
+        font-size: 0.75rem !important;
+    }
+
+    .rt-chat-conversation-header .rt-chat-icon-button,
+    .rt-chat-conversation-header .rt-chat-options-trigger {
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 9999px;
+        box-shadow: none;
+    }
+
+    .rt-chat-conversation-header .rt-chat-header-action {
+        color: var(--chat-muted);
+    }
+
+    .rt-chat-conversation-header .rt-chat-header-action:hover {
+        color: var(--chat-accent);
+    }
+
+    .rt-chat-header-call-link {
+        min-width: 2.75rem;
+        min-height: 2.75rem;
+        padding-inline: 0.5rem !important;
+        border-radius: 9999px;
     }
 
     .rt-chat-transcript {
@@ -2161,10 +2206,10 @@ body[data-mode='dark'] .rt-chat-member-page-button {
 
     .rt-chat-composer {
         margin: 0 !important;
-        padding: 0.5rem 0.5rem max(0.65rem, env(safe-area-inset-bottom)) !important;
-        background: color-mix(in srgb, var(--chat-panel) 94%, transparent);
-        box-shadow: 0 -10px 28px -24px var(--chat-shadow-strong);
-        transition: padding-bottom 180ms ease-out;
+        padding: 0.5rem max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left)) !important;
+        background: var(--chat-panel);
+        box-shadow: none;
+        backdrop-filter: none;
     }
 
     .rt-chat-page[data-keyboard-open='true'] .rt-chat-composer {
@@ -2172,8 +2217,38 @@ body[data-mode='dark'] .rt-chat-member-page-button {
     }
 
     .rt-chat-composer > form {
-        min-height: 3.5rem;
+        min-height: 3rem;
         background: transparent;
+    }
+
+    .rt-chat-composer .rt-chat-composer-control,
+    .rt-chat-composer .rt-voice-recorder {
+        background: color-mix(in srgb, var(--chat-panel-muted) 82%, var(--chat-control));
+        border-color: color-mix(in srgb, var(--chat-line) 56%, transparent);
+        box-shadow: none;
+    }
+
+    .rt-chat-composer .rt-chat-composer-control:focus-within {
+        border-color: color-mix(in srgb, var(--chat-accent) 56%, var(--chat-line));
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--chat-accent) 12%, transparent);
+        transform: none;
+    }
+
+    .rt-chat-composer .rt-chat-composer-action--detached {
+        border-color: transparent;
+        color: var(--chat-muted);
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .rt-chat-composer .rt-chat-send-button {
+        border-color: transparent;
+        background: theme('colors.rt-red.DEFAULT');
+        box-shadow: none;
+    }
+
+    .rt-chat-composer .rt-chat-send-button::after {
+        display: none;
     }
 
     .rt-voice-recorder {

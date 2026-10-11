@@ -309,3 +309,12 @@ auth.json
 !/tests/Feature/DistributionAutoAssignmentTest.php
 !/tests/Feature/DistributionWorkbenchUiTest.php
 !/tests/Feature/MessageBoxBulkActionsTest.php
+
+!/tests/Feature/UserAppRuntimeReceiptTest.php
+!/tests/Frontend/runtime-status.test.js
+!/tests/Feature/TimelineLoadingProjectionTest.php
+!/tests/Feature/TimelinePreviewRoutingCacheTest.php
+!/tests/Feature/TimelinePreviewRouteBatchTest.php
+!/tests/Feature/TimelineSharedEventDetailTest.php
+!/tests/Frontend/timeline-event-details.test.js
+!/tests/Frontend/timeline-proposal-ping.test.js

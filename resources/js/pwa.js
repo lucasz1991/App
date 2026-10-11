@@ -1,3 +1,5 @@
+import { createRuntimeStatusReporter } from './pwa/runtime-status.js';
+
 const PWA_STATE_EVENT = 'railtime:pwa-state-changed';
 const PUSH_DEVICE_BINDING_STORAGE_KEY = 'railtime:webpush-device-binding:v1';
 
@@ -6,6 +8,7 @@ let serviceWorkerRegistrationPromise = null;
 let lifecycleInitialized = false;
 let installConfirmedInSession = false;
 let badgeObserver = null;
+let runtimeStatusReporter = null;
 
 function currentWindow() {
     return typeof window === 'undefined' ? null : window;
@@ -400,6 +403,8 @@ export function setupRailtimePwa() {
     }
 
     lifecycleInitialized = true;
+    runtimeStatusReporter = createRuntimeStatusReporter();
+    runtimeStatusReporter.start();
 
     windowLike.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault();
@@ -719,8 +724,14 @@ export function requestLocationPermission(
         // The fix is discarded. Consent does not start a watch, upload a point,
         // or authorize the separate native work-location service.
         navigatorLike.geolocation.getCurrentPosition(
-            () => resolve('granted'),
-            (error) => resolve(error?.code === 1 ? 'denied' : 'unavailable'),
+            () => {
+                runtimeStatusReporter?.noteGeolocationPermission('granted');
+                resolve('granted');
+            },
+            (error) => {
+                if (error?.code === 1) runtimeStatusReporter?.noteGeolocationPermission('denied');
+                resolve(error?.code === 1 ? 'denied' : 'unavailable');
+            },
             { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
         );
     });

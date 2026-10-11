@@ -52,21 +52,39 @@ class StaffEligibilityService
      */
     public function assessPreviewMany(Shift $shift, Collection $users, array $context = []): array
     {
-        $preflight = ($context['travel_preflight'] ?? null) instanceof TravelPreflight;
-        if ($preflight) {
-            $context = array_replace($context['travel_preflight']->context, $context);
-        }
-        $issues = $this->assessCoreMany($shift, $users, false, $context);
+        $issues = $this->assessPreviewCoreMany($shift, $users, $context);
         $eligible = $users->filter(fn (User $user) => ($issues[$user->id] ?? []) === [])->values();
         if ($eligible->isEmpty()) {
             return $issues;
         }
-        $details = app(TravelAssessmentService::class)->assessMany($shift, $eligible, $context, false, DB::transactionLevel() === 0 && ! $preflight);
+        $travelIssues = $this->assessPreviewRoutesMany($shift, $eligible, $context);
         foreach ($eligible as $user) {
-            $issues[$user->id] = array_merge($issues[$user->id] ?? [], $details[$user->id]['issues'] ?? []);
+            $issues[$user->id] = array_merge($issues[$user->id] ?? [], $travelIssues[$user->id] ?? []);
         }
 
         return $issues;
+    }
+
+    /** Fresh server-only projection; never a binding eligibility decision. */
+    public function assessPreviewCoreMany(Shift $shift, Collection $users, array $context = []): array
+    {
+        if (($context['travel_preflight'] ?? null) instanceof TravelPreflight) {
+            $context = array_replace($context['travel_preflight']->context, $context);
+        }
+
+        return $this->assessCoreMany($shift, $users, false, $context);
+    }
+
+    /** Small, server-owned candidate batch after fresh core/capacity/rank preparation. */
+    public function assessPreviewRoutesMany(Shift $shift, Collection $users, array $context = []): array
+    {
+        $preflight = ($context['travel_preflight'] ?? null) instanceof TravelPreflight;
+        if ($preflight) {
+            $context = array_replace($context['travel_preflight']->context, $context);
+        }
+
+        return collect(app(TravelAssessmentService::class)->assessMany($shift, $users, $context, false, DB::transactionLevel() === 0 && ! $preflight))
+            ->map(fn (array $result) => $result['issues'])->all();
     }
 
     /** @return array<int, array{issues: array, warnings: array, travel: array, basis: string}> */

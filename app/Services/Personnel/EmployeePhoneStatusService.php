@@ -5,6 +5,7 @@ namespace App\Services\Personnel;
 use App\Enums\DeviceLifecycleStatus;
 use App\Models\DeviceAssignment;
 use App\Models\User;
+use App\Models\UserAppRuntimeReceipt;
 use App\Services\Operations\PersonnelScopeService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -37,12 +38,9 @@ final class EmployeePhoneStatusService
             return null;
         }
 
-        // The current schema has no per-employee main-phone designation. PWA
-        // display mode/installation and browser permissions remain client-local.
-        // User-level push subscriptions cannot identify a handset; native GPS
-        // app registration or daily consent is neither PWA installation nor an
-        // OS permission receipt. Do not query those sensitive stores here.
-        return [
+        // Runtime reports describe their own mobile session. They never prove
+        // an inventory assignment, a main handset or native background tracking.
+        $result = [
             'primary_state' => 'unset',
             'device_label' => 'Haupthandy nicht festgelegt',
             'assigned_phone_count' => $this->assignedPhoneCount($userId),
@@ -51,8 +49,34 @@ final class EmployeePhoneStatusService
                 'push' => $this->unknown('Push-Freigabe', 'far fa-bell'),
                 'location' => $this->unknown('Standortberechtigung', 'far fa-location-dot'),
             ],
-            'evidence_note' => 'Haupthandy und gerätebezogene App-/Berechtigungsnachweise sind noch nicht hinterlegt.',
+            'evidence_note' => 'Haupthandy und gerätebezogene App-/Berechtigungsnachweise sind noch nicht hinterlegt. Aus einer mobilen App-Sitzung wurde noch kein Status empfangen. Bitte RailTime auf dem Handy neu öffnen, damit die Web-App ihren Einrichtungsstatus melden kann.',
         ];
+        $receipts = app(UserAppRuntimeReceiptService::class);
+        if (! $receipts->ready() || ! ($receipt = $receipts->latestMobileForUser($userId))) {
+            return $result;
+        }
+
+        $fresh = $receipts->isFresh($receipt);
+        $reportedAt = $receipt->received_at->setTimezone('Europe/Berlin')->format('d.m.Y H:i');
+        $result['device_label'] = 'Gemeldete '.($receipt->platform === 'ios' ? 'iOS' : 'Android').'-Sitzung · Haupthandy nicht festgelegt';
+        $result['evidence_note'] = ($fresh ? 'Meldung vom ' : 'Zuletzt gemeldet am ').$reportedAt.' Uhr. '
+            .($fresh ? 'Der Browser hat diese Zustände gemeldet; die Meldung ist höchstens 15 Minuten alt.' : 'Die Meldung ist älter als 15 Minuten und beschreibt keinen aktuellen Gerätestatus.')
+            .' Ein App-Bericht legt kein Haupthandy und keine Inventarzuordnung fest.';
+        $result['rows'] = [
+            'installation' => $this->runtimeRow('Web-App', 'far fa-mobile-screen-button', $receipt, $fresh, 'display_mode', [
+                'standalone' => ['active', 'Als Web-App geöffnet'], 'browser' => ['info', 'Im Browser geöffnet'],
+            ], 'Der Anzeigemodus meldet, wie RailTime auf diesem Gerät geöffnet wurde. Ein Browserfenster beweist keine Deinstallation.'),
+            'push' => $this->runtimeRow('Push-Freigabe', 'far fa-bell', $receipt, $fresh, 'notification_permission', [
+                'granted' => ['ready', 'Push im Browser erlaubt'], 'denied' => ['denied', 'Push im Browser blockiert'],
+                'default' => ['info', 'Push im Browser noch nicht entschieden'], 'unsupported' => ['unknown', 'Push auf dieser Plattform nicht unterstützt'],
+            ], 'Die Browserberechtigung ist von der RailTime-Sitzungsfreigabe getrennt. Tatsächlicher Push-Versand benötigt zusätzlich die Freigabe und eine aktive Push-Anmeldung auf diesem Gerät.'),
+            'location' => $this->runtimeRow('Standortberechtigung', 'far fa-location-dot', $receipt, $fresh, 'geolocation_permission', [
+                'granted' => ['ready', 'Standort im Browser erlaubt'], 'denied' => ['denied', 'Standort im Browser blockiert'],
+                'prompt' => ['info', 'Standort im Browser noch nicht entschieden'], 'unsupported' => ['unknown', 'Standortberechtigung auf dieser Plattform nicht auslesbar'],
+            ], 'Dies ist die Browserberechtigung, kein Nachweis einer laufenden Ortung. Arbeitsstandorte benötigen außerdem die RailTime-Freigabe, das zugeordnete Geschäftshandy, den nativen Standortdienst und dessen ausdrücklichen Start während laufender Arbeitszeit.'),
+        ];
+
+        return $result;
     }
 
     private function assignedPhoneCount(int $userId): ?int
@@ -79,5 +103,15 @@ final class EmployeePhoneStatusService
     private function unknown(string $label, string $icon): array
     {
         return ['label' => $label, 'icon' => $icon, 'state' => 'unknown', 'value' => 'Nicht gemeldet'];
+    }
+
+    private function runtimeRow(string $label, string $icon, UserAppRuntimeReceipt $receipt, bool $fresh, string $field, array $labels, string $explanation): array
+    {
+        [$state, $value] = $labels[$receipt->{$field}] ?? ['unknown', 'Nicht gemeldet'];
+        $reportedAt = $receipt->received_at->setTimezone('Europe/Berlin')->format('d.m.Y H:i');
+
+        return ['label' => $label, 'icon' => $icon, 'state' => $fresh ? $state : 'unknown',
+            'value' => $fresh ? $value : 'Zuletzt gemeldet: '.$value,
+            'evidence' => 'Meldung vom '.$reportedAt.' Uhr. '.($fresh ? '' : 'Älter als 15 Minuten; aktueller Zustand unbekannt. ').$explanation];
     }
 }

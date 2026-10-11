@@ -5,6 +5,7 @@ namespace App\Console;
 use App\Jobs\PurgeExpiredCallRecordings;
 use App\Jobs\ReconcileCallRecordings;
 use App\Services\EmployeeLocation\EmployeeLocationService;
+use App\Services\Personnel\UserAppRuntimeReceiptService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -23,6 +24,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('devices:purge-support-data')->hourly()->withoutOverlapping();
         $schedule->call(fn () => app(EmployeeLocationService::class)->purge())
             ->name('employee-location:purge')->hourly()->withoutOverlapping();
+        $schedule->call(fn () => app(UserAppRuntimeReceiptService::class)->purge())
+            ->name('app-runtime:purge')->hourly()->withoutOverlapping();
         // Entfernt stuendlich abgelaufene Dateien/Ordner, die auf
         // automatisches Loeschen gesetzt sind.
         $schedule->command('files:purge-expired')

@@ -92,7 +92,7 @@ class TimelinePlanningSuggestionService
         $eligibilityService = app(StaffEligibilityService::class);
         $context = ['additional_shifts_by_user' => $additionalByUser];
         $eligibility = $staff !== null
-            ? $eligibilityService->assessPreviewMany($shift, $users, $context)
+            ? $eligibilityService->assessPreviewCoreMany($shift, $users, $context)
             : $eligibilityService->assessMany($shift, $users, false, $context);
         $ranked = collect();
         $wishes = app(WorkforcePlanningService::class)->wishSummaries($shift, $users);
@@ -121,6 +121,13 @@ class TimelinePlanningSuggestionService
                 '_load_ratio' => $load['target_minutes'] > 0 ? $load['planned_minutes'] / $load['target_minutes'] : null]);
         }
 
+        $ranked = $staff !== null ? $this->routePreviewCandidates($shift, $ranked, $context) : $this->sortCandidates($ranked);
+
+        return $ranked->map(fn (array $candidate) => collect($candidate)->except(['_wish_priority', '_load_ratio'])->all());
+    }
+
+    private function sortCandidates(Collection $ranked): Collection
+    {
         // A single comparable basis avoids fabricated targets and a non-transitive mixed ratio/minutes sort.
         $useRatios = $ranked->isNotEmpty() && $ranked->every(fn (array $candidate) => $candidate['_load_ratio'] !== null);
 
@@ -139,7 +146,41 @@ class TimelinePlanningSuggestionService
             return ($left['planned_minutes'] <=> $right['planned_minutes'])
                 ?: strnatcasecmp($left['user']->name, $right['user']->name)
                 ?: ($left['user']->id <=> $right['user']->id);
-        })->values()->map(fn (array $candidate) => collect($candidate)->except(['_wish_priority', '_load_ratio'])->all());
+        })->values();
+    }
+
+    /** Route only as far as the exact homogeneous-basis top-k preview requires. */
+    private function routePreviewCandidates(Shift $shift, Collection $ranked, array $context): Collection
+    {
+        if ($ranked->isEmpty()) {
+            return $ranked;
+        }
+        $eligibility = app(StaffEligibilityService::class);
+        $hasRatios = $ranked->every(fn (array $candidate) => $candidate['_load_ratio'] !== null);
+        $noRatios = $ranked->every(fn (array $candidate) => $candidate['_load_ratio'] === null);
+        if (! $hasRatios && ! $noRatios) {
+            // Routing can remove the last unknown/zero target and thereby
+            // change the native comparator from minutes to ratios. Inspect all
+            // candidates in this case, then recompute the comparator exactly.
+            $issues = $eligibility->assessPreviewRoutesMany($shift, $ranked->pluck('user'), $context);
+
+            return $this->sortCandidates($ranked->filter(fn (array $candidate) => ($issues[$candidate['user']->id] ?? []) === []));
+        }
+        $ranked = $this->sortCandidates($ranked);
+        $needed = min(self::MAX_SLOTS, max(0, $shift->required_staff - (int) $shift->reserved_count));
+        $selected = collect();
+        $offset = 0;
+        while ($selected->count() < $needed && $offset < $ranked->count()) {
+            // At most three candidates per batch; one small backfill avoids a
+            // second roundtrip for the common one-candidate travel conflict.
+            $size = min(3, $needed - $selected->count() + 1);
+            $batch = $ranked->slice($offset, $size);
+            $offset += $batch->count();
+            $issues = $eligibility->assessPreviewRoutesMany($shift, $batch->pluck('user'), $context);
+            $selected = $selected->concat($batch->filter(fn (array $candidate) => ($issues[$candidate['user']->id] ?? []) === []));
+        }
+
+        return $selected->take($needed)->values();
     }
 
     /** @return array{proposals: Collection, open_total: int, limited: bool} */

@@ -1,6 +1,7 @@
 <?php
 
 require __DIR__.'/employee-location-web.php';
+require __DIR__.'/app-runtime-web.php';
 
 \Illuminate\Support\Facades\Route::get('/operations/routing/tiles/{z}/{x}/{y}', \App\Http\Controllers\RoutingTileController::class)
     ->where(['z' => '[0-9]{1,2}', 'x' => '[0-9]{1,7}', 'y' => '[0-9]{1,7}'])
