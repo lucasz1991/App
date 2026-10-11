@@ -93,6 +93,7 @@
     font-weight: 600;
     line-height: 1.4;
 }
+.rt-multi-toggle__label--compact { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
     .rt-multi-toggle .rt-multi-toggle__button.rt-ui-button {

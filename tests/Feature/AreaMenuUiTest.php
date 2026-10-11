@@ -11,7 +11,7 @@ class AreaMenuUiTest extends TestCase
     {
         $html = Blade::render('<x-ui.navigation.area-menu id="test-area" label="Personalbereich" :options="$options" value="files" action="setView" :navigate="true" />', ['options' => [
             ['value' => 'people', 'label' => 'Mitarbeiter', 'icon' => 'fa-users', 'href' => '/people'],
-            ['value' => 'files', 'label' => 'Nachweise', 'icon' => 'fa-folder', 'href' => '/files'],
+            ['value' => 'files', 'label' => 'Nachweise', 'compactLabel' => 'Akte', 'icon' => 'fa-folder', 'href' => '/files'],
             ['value' => 'blocked', 'label' => 'Gesperrt', 'icon' => 'fa-lock', 'href' => '/blocked', 'disabled' => true],
         ]]);
         $dom = new \DOMDocument;
@@ -22,7 +22,9 @@ class AreaMenuUiTest extends TestCase
         $this->assertSame(1, $xpath->query('//a[@aria-current="page" and @href="/files"]')->length);
         $this->assertSame(2, $xpath->query('//a[@*[name()="wire:navigate"]]')->length);
         $this->assertSame(1, $xpath->query('//button[@disabled and @data-toggle-value="blocked"]')->length);
-        $this->assertSame(3, $xpath->query('//span[contains(@class,"rt-multi-toggle__label")]')->length);
+        $this->assertSame(4, $xpath->query('//span[contains(@class,"rt-multi-toggle__label")]')->length);
+        $this->assertSame(1, $xpath->query('//span[@aria-hidden="true" and contains(@class,"rt-multi-toggle__label--compact")]')->length);
+        $this->assertSame(1, $xpath->query('//a[@aria-label="Nachweise"]')->length);
         $this->assertStringNotContainsString('@js', $html);
     }
 
@@ -46,6 +48,27 @@ class AreaMenuUiTest extends TestCase
         $this->assertStringContainsString('env(safe-area-inset-bottom', $css);
         $this->assertStringContainsString('body:has([data-area-menu]) #main-content', $css);
         $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $css);
-        $this->assertStringContainsString('transition: transform 220ms', $css);
+        $this->assertStringContainsString('transition: transform 280ms', $css);
+        $this->assertStringContainsString('height: calc(56px + env(safe-area-inset-bottom', $css);
+        $this->assertStringContainsString('min-height: 44px;', $css);
+    }
+
+    public function test_native_sidebar_no_longer_depends_on_the_legacy_planning_stylesheet(): void
+    {
+        $css = file_get_contents(resource_path('css/shell-redesign.css'));
+        $this->assertStringContainsString('.rt-shell-sidebar .metismenu .mm-collapse:not(.mm-show) { display: none; }', $css);
+        $this->assertStringContainsString('.rt-shell-sidebar .metismenu .mm-collapse.mm-show { display: block; }', $css);
+        $this->assertStringContainsString('margin-inline-start: 12px;', $css);
+        $this->assertStringContainsString('transition: height 220ms ease-out;', $css);
+    }
+
+    public function test_resource_workspace_reuses_the_component_without_replacing_existing_section_filters(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/operations/planning-page-workspace.blade.php'));
+        $this->assertStringContainsString('x-teleport="[data-area-menu-host]"', $view);
+        $this->assertStringContainsString('<x-ui.navigation.area-menu id="resources-workspace-view"', $view);
+        $this->assertStringContainsString('action="selectView"', $view);
+        $this->assertStringContainsString('change="$wire.selectSection($event.target.value)"', $view);
+        $this->assertStringContainsString("!\$embedded && \$page === 'planning'", $view);
     }
 }

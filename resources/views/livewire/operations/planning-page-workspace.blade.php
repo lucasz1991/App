@@ -2,10 +2,18 @@
     @php
         $icons = ['overview'=>'fa-compass','plan'=>'fa-clock','calendar'=>'fa-calendar','capacity'=>'fa-chart-bar','staff'=>'fa-users','tools'=>'fa-layer-group','logistics'=>'fa-route','board'=>'fa-tachometer-alt','cases'=>'fa-exclamation-triangle','transfers'=>'fa-exchange-alt'];
         $availableViews = $this->views();
-        $options = collect($availableViews)->map(fn($label,$key)=>['value'=>$key,'label'=>$label,'icon'=>$icons[$key]])->values()->all();
+        $compactLabels = ['overview'=>'Übersicht', 'capacity'=>'Kapazität', 'staff'=>'Personal', 'tools'=>'Werkzeuge', 'logistics'=>'Reisen'];
+        $options = collect($availableViews)->map(fn($label,$key)=>['value'=>$key,'label'=>$label,'icon'=>$icons[$key], 'compactLabel'=>$page === 'planning' ? ($compactLabels[$key] ?? null) : null])->values()->all();
     @endphp
-    @if(!$embedded && ($page !== 'shifts' || $view !== 'plan'))<header class="ops-toolbar">
-        <x-ui.buttons.multi-toggle :options="$options" :value="$view" action="selectView" label="Ansicht wählen" />
+    @if(!$embedded && $page === 'planning')
+        <template x-teleport="[data-area-menu-host]" wire:key="resources-area-navigation">
+            <x-ui.navigation.area-menu id="resources-workspace-view" label="Ressourcen & Kapazität" :options="$options" :value="$view" action="selectView" />
+        </template>
+    @endif
+    @if(!$embedded && ($page !== 'shifts' || $view !== 'plan') && ($page !== 'planning' || count($this->sections()) > 1))<header class="ops-toolbar">
+        @if($page !== 'planning')
+            <x-ui.buttons.multi-toggle :options="$options" :value="$view" action="selectView" label="Ansicht wählen" />
+        @endif
         @if(count($this->sections()) > 1)
             <x-ui.forms.select aria-label="Bereich wählen" change="$wire.selectSection($event.target.value)">
                 @foreach($this->sections() as $key=>$label)<option value="{{ $key }}" @selected($key === $section)>{{ $label }}</option>@endforeach

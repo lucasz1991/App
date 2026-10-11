@@ -800,11 +800,46 @@ body[data-mode='dark'] .rt-shell-sidebar {
 
 .rt-shell-sidebar [data-rt-sidebar-link],
 .rt-shell-sidebar [data-rt-sidebar-group] {
+    display: flex;
+    align-items: center;
     min-height: 2.75rem;
     margin-block: 0.14rem;
     border: 1px solid transparent;
     border-radius: 0 !important;
     isolation: isolate;
+}
+
+/* Native planning deliberately omits the legacy theme. Keep the shell's
+   spacing and MetisMenu visibility contract independent of that stylesheet. */
+.rt-shell-sidebar .sidebar-nav-link__icon {
+    display: inline-flex;
+    flex: 0 0 20px;
+    align-items: center;
+    justify-content: center;
+}
+.rt-shell-sidebar .sidebar-nav-link__icon svg {
+    width: 20px;
+    height: 20px;
+    margin: 0 !important;
+}
+.rt-shell-sidebar .sidebar-nav-link__label {
+    min-width: 0;
+    margin-inline-start: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.rt-shell-sidebar .metismenu .mm-collapse:not(.mm-show) { display: none; }
+.rt-shell-sidebar .metismenu .mm-collapse.mm-show { display: block; }
+.rt-shell-sidebar .metismenu .mm-collapsing {
+    position: relative;
+    height: 0;
+    overflow: hidden;
+    transition: height 220ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+    /* MetisMenu needs transitionend (or its timeout) to release its lock. */
+    .rt-shell-sidebar .metismenu .mm-collapsing { transition-duration: 1ms; }
 }
 
 .rt-shell-sidebar [data-rt-sidebar-link]::after,

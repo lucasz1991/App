@@ -29,6 +29,7 @@
         $normalizedOptions[] = [
             'value' => $optionValue,
             'label' => trim($option['label']),
+            'compactLabel' => is_string($option['compactLabel'] ?? null) && trim($option['compactLabel']) !== '' ? trim($option['compactLabel']) : null,
             'icon' => $option['icon'],
             'href' => $navigate && is_string($option['href'] ?? null) ? $option['href'] : null,
             'disabled' => $isDisabled || filter_var($option['disabled'] ?? false, FILTER_VALIDATE_BOOL),
@@ -188,7 +189,10 @@
             @else
                 <i class="far {{ $option['icon'] }}" aria-hidden="true"></i>
             @endif
-            <span class="{{ $showLabels ? 'rt-multi-toggle__label' : 'sr-only' }}">{{ $option['label'] }}</span>
+            <span @class([$showLabels ? 'rt-multi-toggle__label' : 'sr-only', 'rt-multi-toggle__label--full' => $showLabels && $option['compactLabel']])>{{ $option['label'] }}</span>
+            @if($showLabels && $option['compactLabel'])
+                <span class="rt-multi-toggle__label rt-multi-toggle__label--compact" aria-hidden="true">{{ $option['compactLabel'] }}</span>
+            @endif
         </x-ui.buttons.button-basic>
     @endforeach
     <template x-teleport="body" wire:ignore>
