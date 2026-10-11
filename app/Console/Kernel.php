@@ -19,6 +19,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('operations:ai-intake-poll')->everyMinute()->withoutOverlapping();
         $schedule->command('operations:staffing-automation')->everyMinute()->withoutOverlapping();
         $schedule->command('devices:purge-support-data')->hourly()->withoutOverlapping();
+        $schedule->call(fn () => app(\App\Services\EmployeeLocation\EmployeeLocationService::class)->purge())
+            ->name('employee-location:purge')->hourly()->withoutOverlapping();
         // Entfernt stuendlich abgelaufene Dateien/Ordner, die auf
         // automatisches Loeschen gesetzt sind.
         $schedule->command('files:purge-expired')

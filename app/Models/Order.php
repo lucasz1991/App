@@ -20,6 +20,7 @@ class Order extends Model
 {
     use CapturesDropboxChanges;
     use HasFactory;
+    use \App\Models\Concerns\HasRoutingSite;
     use HasZonedSchedule;
     use SoftDeletes;
 
@@ -36,6 +37,8 @@ class Order extends Model
         'ends_at',
         'timezone',
         'location_name',
+        'customer_location_id',
+        'location_snapshot',
         'street',
         'postal_code',
         'city',
@@ -52,6 +55,8 @@ class Order extends Model
         'priority' => OrderPriority::class,
         'required_staff' => 'integer',
         'requirements' => 'array',
+        'customer_location_id' => 'integer',
+        'location_snapshot' => 'array',
     ];
 
     protected static function booted(): void

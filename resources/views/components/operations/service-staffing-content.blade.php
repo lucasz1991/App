@@ -1,4 +1,4 @@
-@props(['seats', 'summary', 'expanded' => false, 'timezone' => 'Europe/Berlin'])
+@props(['seats', 'summary', 'expanded' => false, 'timezone' => 'Europe/Berlin', 'detailIdPrefix' => 'service-seat-detail'])
 @php
     $open = max(0, (int) $summary['open']);
     $staffingLabel = $summary['reserved'].' von '.$summary['required'].' Einsatzplätzen eingeplant, '.$summary['confirmed'].' bestätigt, '.$open.' offen';
@@ -23,7 +23,7 @@
                             $initials = collect(preg_split('/\s+/u', trim($name)) ?: [])->filter()->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))->take(2)->implode('') ?: '?';
                             $seatLabel = $name.' · '.$seat['shift'];
                         @endphp
-                        <span class="rt-service-avatar" aria-label="{{ $seatLabel }}" @if($expanded) data-service-preview-person="{{ $user?->id }}" data-service-preview-seat="{{ $seat['id'] }}" role="button" tabindex="0" aria-controls="service-seat-detail-{{ $seat['id'] }}" :aria-expanded="(activeSeat === {{ $seat['id'] }}).toString()" data-rt-dropdown-keep-open @pointerenter="if ($event.pointerType === 'mouse') activeSeat = {{ $seat['id'] }}" @focus="activeSeat = {{ $seat['id'] }}" @click.stop="activeSeat = {{ $seat['id'] }}" @keydown.enter.prevent.stop="activeSeat = {{ $seat['id'] }}" @keydown.space.prevent.stop="activeSeat = {{ $seat['id'] }}" @else title="{{ $seatLabel }}" data-service-person="{{ $user?->id }}" data-service-seat="{{ $seat['id'] }}" @endif>
+                        <span class="rt-service-avatar" aria-label="{{ $seatLabel }}" @if($expanded) data-service-preview-person="{{ $user?->id }}" data-service-preview-seat="{{ $seat['id'] }}" role="button" tabindex="0" aria-controls="{{ $detailIdPrefix }}-{{ $seat['id'] }}" :aria-expanded="(activeSeat === {{ $seat['id'] }}).toString()" data-rt-dropdown-keep-open @pointerenter="if ($event.pointerType === 'mouse') activeSeat = {{ $seat['id'] }}" @focus="activeSeat = {{ $seat['id'] }}" @click.stop="activeSeat = {{ $seat['id'] }}" @keydown.enter.prevent.stop="activeSeat = {{ $seat['id'] }}" @keydown.space.prevent.stop="activeSeat = {{ $seat['id'] }}" @else title="{{ $seatLabel }}" data-service-person="{{ $user?->id }}" data-service-seat="{{ $seat['id'] }}" @endif>
                             @if($user?->profile_photo_path)
                                 <img src="{{ $user->profile_photo_url }}" alt="" loading="lazy" onerror="this.hidden=true" />
                             @endif
@@ -50,7 +50,7 @@
                     $from = ($seat['starts_at'] ?? null)?->copy()->setTimezone($timezone);
                     $until = ($seat['ends_at'] ?? null)?->copy()->setTimezone($timezone);
                 @endphp
-                <div id="service-seat-detail-{{ $seat['id'] }}" class="rt-service-person-detail" data-service-person-detail="{{ $seat['id'] }}" x-show="activeSeat === {{ $seat['id'] }}" x-transition:enter="rt-service-person-enter" x-transition:enter-start="rt-service-person-enter-from" x-transition:enter-end="rt-service-person-enter-to" x-cloak>
+                <div id="{{ $detailIdPrefix }}-{{ $seat['id'] }}" class="rt-service-person-detail" data-service-person-detail="{{ $seat['id'] }}" x-show="activeSeat === {{ $seat['id'] }}" x-transition:enter="rt-service-person-enter" x-transition:enter-start="rt-service-person-enter-from" x-transition:enter-end="rt-service-person-enter-to" x-cloak>
                     @if($user)
                         <div class="rt-service-person-detail__body">
                             @if($canViewProfiles)

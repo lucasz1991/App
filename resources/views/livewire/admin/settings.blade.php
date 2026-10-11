@@ -25,6 +25,8 @@
             $settingsTabs['device-management'] = ['label' => $deviceManagementLabel, 'icon' => 'fad fa-network-wired'];
             $settingsTabs['ai-disposition'] = ['label' => 'AI-Disposition', 'icon' => 'fad fa-inbox'];
             $settingsTabs['dropbox'] = ['label' => 'Dropbox', 'icon' => 'fab fa-dropbox'];
+            $settingsTabs['tomtom'] = ['label' => 'TomTom / Routenplanung', 'icon' => 'fad fa-route'];
+            $settingsTabs['employee-locations'] = ['label' => 'Mitarbeiter-Standorte', 'icon' => 'fad fa-location-dot'];
             $settingsTabs['superadmin'] = ['label' => __('app.settings_superadmin'), 'icon' => 'fad fa-shield-alt'];
         }
 
@@ -101,6 +103,12 @@
                 'icon' => 'fad fa-shield-alt',
                 'items' => [__('app.assistant_runtime_settings'), __('app.calls_settings'), $assistantKnowledgeLabel],
             ];
+        }
+        if ($isSuperAdmin) {
+            array_splice($settingsTeasers, count($settingsTeasers) - 1, 0, [
+                ['tab' => 'tomtom', 'section' => '', 'label' => 'TomTom / Routenplanung', 'description' => 'Fahrzeiten, Fahrtreserve und Verbrauchsgrenzen einrichten.', 'icon' => 'fad fa-route', 'items' => ['Verbindung', 'Fahrzeiten', 'Verbrauch']],
+                ['tab' => 'employee-locations', 'section' => '', 'label' => 'Mitarbeiter-Standorte', 'description' => 'Tägliche Standortfreigabe und Geschäftshandy-Dienst einrichten.', 'icon' => 'fad fa-location-dot', 'items' => ['Tagesfreigabe', 'Geschäftshandy', 'Aufbewahrung']],
+            ]);
         }
     @endphp
 
@@ -501,10 +509,13 @@
             <livewire:admin.dropbox-settings />
         </x-ui.accordion.tab-panel>
 
+        <x-ui.accordion.tab-panel for="tomtom" :order="8" content-class=""><livewire:admin.tom-tom-settings /></x-ui.accordion.tab-panel>
+        <x-ui.accordion.tab-panel for="employee-locations" :order="9" content-class=""><livewire:admin.employee-location-settings /></x-ui.accordion.tab-panel>
+
         {{-- Superadmin: Sprach-/Modellrouting, Anrufbetrieb und Wissenspool.
              Der Tab wird nur für Benutzer #1 gerendert; alle Aktionen prüfen
              diese Grenze zusätzlich auf dem Server. --}}
-        <x-ui.accordion.tab-panel for="superadmin" :order="8" content-class="">
+        <x-ui.accordion.tab-panel for="superadmin" :order="10" content-class="">
         <div
             x-data="{
                 openAccordionSection: @js($initialTab === 'superadmin' && $initialSection !== '' ? $initialSection : 'assistant-runtime'),

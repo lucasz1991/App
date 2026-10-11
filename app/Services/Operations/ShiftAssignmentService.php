@@ -8,10 +8,13 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
+use App\Services\Routing\TravelAssessmentService;
+use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningLocks;
 use App\Support\Operations\WorkforcePlanningSchema;
+use App\Support\Routing\TomTomSettings;
 use Illuminate\Validation\ValidationException;
 
 class ShiftAssignmentService
@@ -24,11 +27,15 @@ class ShiftAssignmentService
         ?string $note = null,
         ?int $expectedRevision = null,
         ?array $exception = null,
+        ?TravelPreflight $travelPreflight = null,
     ): ShiftAssignment {
         OperationsAccess::authorize($actor, 'operations.manage');
         $assignmentStatus = $this->normalizeStatus($status);
+        if ($assignmentStatus->blocksAvailability()) {
+            $travelPreflight ??= app(TravelAssessmentService::class)->preflight($shift->fresh() ?? $shift, collect([$assignee]));
+        }
 
-        return OperationsTransaction::run(function () use ($shift, $assignee, $actor, $assignmentStatus, $note, $expectedRevision, $exception): ShiftAssignment {
+        return OperationsTransaction::run(function () use ($shift, $assignee, $actor, $assignmentStatus, $note, $expectedRevision, $exception, $travelPreflight): ShiftAssignment {
             OperationsAccess::authorize(User::findOrFail($actor->id), 'operations.manage');
             $lockedShift = PlanningLocks::acquire([$shift->id], [$assignee->id])->get($shift->id);
             abort_unless($lockedShift, 404);
@@ -49,14 +56,17 @@ class ShiftAssignmentService
             }
 
             if ($assignmentStatus->blocksAvailability()) {
+                if (TomTomSettings::all()['enabled'] && app(SiteSnapshotService::class)->ready()) {
+                    app(SiteSnapshotService::class)->assertConfirmed($lockedShift);
+                }
                 $this->assertShiftCanBeStaffed($lockedShift);
                 $this->assertCapacity($lockedShift, $lockedAssignee);
                 app(StaffRegionalPreferenceService::class)->assertAllowed($lockedShift, $lockedAssignee, true);
                 if ($exception === null) {
                     $this->assertNoOverlap($lockedShift, $lockedAssignee);
-                    app(StaffEligibilityService::class)->assertEligible($lockedShift, $lockedAssignee);
+                    app(StaffEligibilityService::class)->assertEligible($lockedShift, $lockedAssignee, ['travel_preflight' => $travelPreflight]);
                 } else {
-                    $exceptionReview = app(ShiftAssignmentExceptionService::class)->confirm($lockedShift, $lockedAssignee, $actor, $exception);
+                    $exceptionReview = app(ShiftAssignmentExceptionService::class)->confirm($lockedShift, $lockedAssignee, $actor, $exception, ['travel_preflight' => $travelPreflight]);
                 }
             }
 

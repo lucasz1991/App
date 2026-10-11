@@ -90,6 +90,7 @@
         data-list-has-next="{{ $items->hasMorePages() ? 'true' : 'false' }}"
         data-list-has-previous="{{ $items->onFirstPage() ? 'false' : 'true' }}"
         wire:loading.attr="data-list-pagination-busy"
+        x-bind:aria-busy="pending ? 'true' : 'false'"
     @endif
     @if($scrollBody) data-table-scroll="body" @endif
     data-table-sortable="{{ $sortableColumns->isNotEmpty() ? 'true' : 'false' }}"
@@ -255,4 +256,17 @@
     @endforelse
     </div>
     </div>
+    @if($scrollPagination)
+        <template x-teleport="body">
+            <div x-cloak x-show="pending" x-bind:style="loadingStyle"
+                class="rt-list-pagination-loading" data-list-pagination-loading
+                role="status" aria-live="polite" aria-atomic="true">
+                <svg class="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+                    <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                <span x-text="loadingDirection > 0 ? 'Nächste Seite wird geladen …' : 'Vorherige Seite wird geladen …'"></span>
+            </div>
+        </template>
+    @endif
 </div>

@@ -19,6 +19,7 @@ class PlanChangeService
         'order_id' => 'Auftrag', 'title' => 'Titel', 'role_name' => 'Funktion',
         'starts_at' => 'Beginn', 'ends_at' => 'Ende', 'timezone' => 'Zeitzone',
         'location_name' => 'Einsatzort', 'planned_break_minutes' => 'Pause (min)',
+        'location_snapshot' => 'Bestätigter Einsatzpunkt',
     ];
 
     public function changes(Shift $shift): array
@@ -51,6 +52,10 @@ class PlanChangeService
 
     private function format(string $key, mixed $value, string $timezone): string
     {
+        if ($key === 'location_snapshot') {
+            return SiteSnapshotService::confirmed(is_array($value) ? $value : null)
+                ? ($value['name'].' · '.$value['latitude'].', '.$value['longitude'].' · '.($value['address'] ?? '')) : 'Nicht bestätigt';
+        }
         if ($value === null || $value === '') {
             return '—';
         }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_text_1">RailTime-Adresse, z. B. https://firma.example</string>
+    <string name="ui_text_2">Einmaliger Registrierungscode aus RailTime</string>
+    <string name="ui_text_3">Geschäftshandy verbinden</string>
+    <string name="ui_text_4">Startcode (falls App-Link nicht geöffnet wurde)</string>
+    <string name="ui_text_5">Standortdienst sichtbar starten</string>
+    <string name="ui_text_6">Standortdienst beenden</string>
+    <string name="ui_text_7">Tagesfreigabe verwalten / widerrufen</string>
+    <string name="ui_text_8">Verbindung auf diesem Handy entfernen</string>
+    <string name="ui_text_9">Verbindung entfernt. Eine neue Registrierung ist erforderlich.</string>
+    <string name="ui_text_10">Geschäftshandy zuerst verbinden und Startlink erneut öffnen.</string>
+    <string name="ui_text_14">Startlink erhalten. Dienst startet erst nach Ihrer Bedienung.</string>
+    <string name="ui_text_15">HTTPS-Adresse und Registrierungscode eingeben.</string>
+    <string name="ui_text_16">Gerätezuweisung wird geprüft</string>
+    <string name="ui_text_17">Verbunden. Tagesfreigabe und Startcode unter Mein Arbeitstag öffnen.</string>
+    <string name="ui_text_18">Registrierung konnte nicht sicher gespeichert werden.</string>
+    <string name="ui_text_19">Registrierung abgelehnt oder keine Verbindung. Neuen Code in RailTime erstellen.</string>
+    <string name="ui_text_20">Geschäftshandy zuerst verbinden.</string>
+    <string name="ui_text_21">Neuen Startlink unter Mein Arbeitstag öffnen.</string>
+    <string name="ui_text_22">Dienst konnte nicht gestartet werden. App sichtbar öffnen und neuen Startcode verwenden.</string>
+    <string name="ui_text_23">Präzisen Standort und Benachrichtigungen erlauben, dann Start erneut drücken.</string>
+    <string name="invalid_start_link">Startlink ist ungültig oder gehört nicht zur verbundenen RailTime-Instanz.</string>
+</resources>

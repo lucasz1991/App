@@ -91,6 +91,7 @@ final class PersonalSchedule
                 'shift' => fn ($query) => $query->select(array_merge(
                     ['id', 'status', 'revision', 'published_revision', 'published_snapshot'],
                     self::PUBLISHED_FIELDS,
+                    \App\Services\Operations\SiteSnapshotService::ready() ? ['customer_location_id', 'location_snapshot'] : [],
                 )),
                 'timeEntry' => fn ($query) => $query->where('user_id', $user->id),
             ])
@@ -107,8 +108,12 @@ final class PersonalSchedule
         }
         $stale = $shift->published_revision !== $shift->revision;
         try {
-            $values = $stale ? $shift->published_snapshot : $shift->only(self::PUBLISHED_FIELDS);
-            $values = $this->validatedValues($values);
+            $source = $stale ? $shift->published_snapshot : $shift->only(array_merge(self::PUBLISHED_FIELDS, ['customer_location_id', 'location_snapshot']));
+            $values = $this->validatedValues($source);
+            if ($values !== null && \App\Services\Operations\SiteSnapshotService::confirmed($source['location_snapshot'] ?? null)) {
+                $values['location_snapshot'] = $source['location_snapshot'];
+                $values['customer_location_id'] = $source['customer_location_id'] ?? null;
+            }
         } catch (\Throwable) {
             return null;
         }

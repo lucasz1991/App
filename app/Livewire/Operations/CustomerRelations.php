@@ -76,7 +76,7 @@ class CustomerRelations extends Component
         $this->selectedId = $this->revision = null;
         $this->form = match ($kind) {
             'contact' => ['name' => '', 'email' => '', 'phone' => '', 'roles' => ['dispatch'], 'is_active' => true],
-            'location' => ['name' => '', 'street' => '', 'postal_code' => '', 'city' => '', 'country' => 'DE', 'access_note' => '', 'is_active' => true],
+            'location' => ['name' => '', 'street' => '', 'postal_code' => '', 'city' => '', 'country' => 'DE', 'access_note' => '', 'is_active' => true, 'latitude' => '', 'longitude' => '', 'coordinates_confirmed' => false],
             default => ['code' => '', 'label' => '', 'unit' => 'Stunde', 'price' => '', 'valid_from' => '', 'valid_until' => '', 'terms' => ''],
         };
         $this->formOpen = true;
@@ -100,6 +100,9 @@ class CustomerRelations extends Component
         $this->selectedId = $record->id;
         $this->revision = $record->revision;
         $this->form = $record->only(array_keys($this->form));
+        if ($kind === 'location') {
+            $this->form['coordinates_confirmed'] = (bool) $record->coordinates_confirmed_at;
+        }
     }
 
     public function endCondition(int $id): void

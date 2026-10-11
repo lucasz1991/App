@@ -1,0 +1,12 @@
+.toolchain/
+**/.gradle/
+**/build/
+**/local.properties
+**/xcuserdata/
+**/DerivedData/
+*.jks
+*.keystore
+*.mobileprovision
+*.ipa
+*.apk
+*.aab

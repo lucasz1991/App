@@ -1,0 +1,53 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ classes = {};
+ objectVersion = 56;
+ objects = {
+ 9B184C5775DB3AE57B90325C = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RailTimeLocationApp.swift"; sourceTree = "<group>"; };
+ 7B382B6F8D111E2B417D0EAA = { isa = PBXBuildFile; fileRef = 9B184C5775DB3AE57B90325C; };
+ 6914DA74A7C5E12D76E375FF = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocationCoordinator.swift"; sourceTree = "<group>"; };
+ BB2FB9B380C7E6E27637EB9B = { isa = PBXBuildFile; fileRef = 6914DA74A7C5E12D76E375FF; };
+ 117D59FE1D425E83E2655DCC = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient.swift"; sourceTree = "<group>"; };
+ E02D965F4DB82AC96BED6D04 = { isa = PBXBuildFile; fileRef = 117D59FE1D425E83E2655DCC; };
+ 317C5F5661B5B3EDC6A4688D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CredentialStore.swift"; sourceTree = "<group>"; };
+ BCB4D0AA9658D98534EC9CA4 = { isa = PBXBuildFile; fileRef = 317C5F5661B5B3EDC6A4688D; };
+ 4646FC8E1BEE9D200737FFCF = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PermitPolicy.swift"; sourceTree = "<group>"; };
+ 16BAD5A6FB766658E49A6A89 = { isa = PBXBuildFile; fileRef = 4646FC8E1BEE9D200737FFCF; };
+ FB0AFCE861D5AFFCD3912A7E = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HandoffLinks.swift"; sourceTree = "<group>"; };
+ 62D0B948495F1ECCB1F5A26A = { isa = PBXBuildFile; fileRef = FB0AFCE861D5AFFCD3912A7E; };
+ E49CB41C9D980B5427AEDE1B = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+ 7776945038F87E7735B0FE51 = { isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "RailTimeLocation.entitlements"; sourceTree = "<group>"; };
+ 67B0D1FCE5DE0E06193C24B6 = { isa = PBXFileReference; lastKnownFileType = text.xml; path = "PrivacyInfo.xcprivacy"; sourceTree = "<group>"; };
+ CE592D926B548708CFD0C61E = { isa = PBXBuildFile; fileRef = 67B0D1FCE5DE0E06193C24B6; };
+ 3FA65313F3EE7C23D31896E7 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PermitPolicyTests.swift"; sourceTree = "<group>"; };
+ C9F6181A603CEC80DBFCC70D = { isa = PBXBuildFile; fileRef = 3FA65313F3EE7C23D31896E7; };
+ 9D3678D486CFCA2896AF75ED = { isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Config.xcconfig"; sourceTree = "<group>"; };
+ 681C948D238C526E9E3424E0 = { isa = PBXFileReference; explicitFileType = wrapper.application; path = "RailTimeLocation.app"; sourceTree = BUILT_PRODUCTS_DIR; includeInIndex = 0; };
+ F739566ED5280322FF98A798 = { isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = "RailTimeLocationTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; includeInIndex = 0; };
+ FC233BDA2344D97687F5A251 = { isa = PBXGroup; children = (9B184C5775DB3AE57B90325C, 6914DA74A7C5E12D76E375FF, 117D59FE1D425E83E2655DCC, 317C5F5661B5B3EDC6A4688D, 4646FC8E1BEE9D200737FFCF, FB0AFCE861D5AFFCD3912A7E, E49CB41C9D980B5427AEDE1B, 7776945038F87E7735B0FE51, 67B0D1FCE5DE0E06193C24B6); path = "RailTimeLocation"; sourceTree = "<group>"; };
+ C4E2E7F217DE3642E7714F4E = { isa = PBXGroup; children = (3FA65313F3EE7C23D31896E7); path = "RailTimeLocationTests"; sourceTree = "<group>"; };
+ B9E7F2871A3402983868AFC8 = { isa = PBXGroup; children = (681C948D238C526E9E3424E0, F739566ED5280322FF98A798); name = Products; sourceTree = "<group>"; };
+ 19F479106CE8C3BA8C106518 = { isa = PBXGroup; children = (FC233BDA2344D97687F5A251, C4E2E7F217DE3642E7714F4E, 9D3678D486CFCA2896AF75ED, B9E7F2871A3402983868AFC8); sourceTree = "<group>"; };
+ AFF87A50730392B6633ACECE = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (7B382B6F8D111E2B417D0EAA, BB2FB9B380C7E6E27637EB9B, E02D965F4DB82AC96BED6D04, BCB4D0AA9658D98534EC9CA4, 16BAD5A6FB766658E49A6A89, 62D0B948495F1ECCB1F5A26A); runOnlyForDeploymentPostprocessing = 0; };
+ F9187E824FE171A6F0EFAE28 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (CE592D926B548708CFD0C61E); runOnlyForDeploymentPostprocessing = 0; };
+ 7A4C2DC8FCA657188648E999 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+ DEE94446A282611C16F7781C = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C9F6181A603CEC80DBFCC70D); runOnlyForDeploymentPostprocessing = 0; };
+ B10CDED79664567B030B2B4F = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+ 488864B3D19480A82F7F1786 = { isa = XCBuildConfiguration; baseConfigurationReference = 9D3678D486CFCA2896AF75ED; buildSettings = { CLANG_ENABLE_MODULES = "YES"; SDKROOT = "iphoneos"; SWIFT_VERSION = "5.0"; IPHONEOS_DEPLOYMENT_TARGET = "17.0"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; ENABLE_TESTABILITY = "YES"; }; name = Debug; };
+ 35B1014F135DE9B45529B733 = { isa = XCBuildConfiguration; baseConfigurationReference = 9D3678D486CFCA2896AF75ED; buildSettings = { CLANG_ENABLE_MODULES = "YES"; SDKROOT = "iphoneos"; SWIFT_VERSION = "5.0"; IPHONEOS_DEPLOYMENT_TARGET = "17.0"; SWIFT_OPTIMIZATION_LEVEL = "-O"; ENABLE_TESTABILITY = "NO"; }; name = Release; };
+ B4E10CAA9C5E22150B71559C = { isa = XCConfigurationList; buildConfigurations = (488864B3D19480A82F7F1786, 35B1014F135DE9B45529B733); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+ 2A04C20BF6D5C20A63A1D4CC = { isa = XCBuildConfiguration; baseConfigurationReference = 9D3678D486CFCA2896AF75ED; buildSettings = { PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = "de.railtime.location"; INFOPLIST_FILE = "RailTimeLocation/Info.plist"; CODE_SIGN_ENTITLEMENTS = "RailTimeLocation/RailTimeLocation.entitlements"; CODE_SIGN_STYLE = "Automatic"; TARGETED_DEVICE_FAMILY = "1,2"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; GENERATE_INFOPLIST_FILE = "NO"; SWIFT_EMIT_LOC_STRINGS = "YES"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; }; name = Debug; };
+ E28089EB494F94D6F9770EC2 = { isa = XCBuildConfiguration; baseConfigurationReference = 9D3678D486CFCA2896AF75ED; buildSettings = { PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = "de.railtime.location"; INFOPLIST_FILE = "RailTimeLocation/Info.plist"; CODE_SIGN_ENTITLEMENTS = "RailTimeLocation/RailTimeLocation.entitlements"; CODE_SIGN_STYLE = "Automatic"; TARGETED_DEVICE_FAMILY = "1,2"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; GENERATE_INFOPLIST_FILE = "NO"; SWIFT_EMIT_LOC_STRINGS = "YES"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; }; name = Release; };
+ 7BCEE9A04133D8A2FED7D4D3 = { isa = XCConfigurationList; buildConfigurations = (2A04C20BF6D5C20A63A1D4CC, E28089EB494F94D6F9770EC2); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+ 88B88E0179E3F72210D21B33 = { isa = XCBuildConfiguration; baseConfigurationReference = 9D3678D486CFCA2896AF75ED; buildSettings = { PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = "de.railtime.location.tests"; GENERATE_INFOPLIST_FILE = "YES"; TARGETED_DEVICE_FAMILY = "1,2"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RailTimeLocation.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RailTimeLocation"; BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = "Automatic"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks"; }; name = Debug; };
+ A8A9BF34DBF8F1867F207864 = { isa = XCBuildConfiguration; baseConfigurationReference = 9D3678D486CFCA2896AF75ED; buildSettings = { PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = "de.railtime.location.tests"; GENERATE_INFOPLIST_FILE = "YES"; TARGETED_DEVICE_FAMILY = "1,2"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RailTimeLocation.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RailTimeLocation"; BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = "Automatic"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks"; }; name = Release; };
+ AD7020964E1E033F765FE484 = { isa = XCConfigurationList; buildConfigurations = (88B88E0179E3F72210D21B33, A8A9BF34DBF8F1867F207864); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+ DAB01D73CBBCF1FEDE84E2D6 = { isa = PBXContainerItemProxy; containerPortal = 244210E48437B6556980A702; proxyType = 1; remoteGlobalIDString = C1E9827DB735CA9BAA54A540; remoteInfo = RailTimeLocation; };
+ F9A94CEF8CF7D85CE881E703 = { isa = PBXTargetDependency; target = C1E9827DB735CA9BAA54A540; targetProxy = DAB01D73CBBCF1FEDE84E2D6; };
+ C1E9827DB735CA9BAA54A540 = { isa = PBXNativeTarget; buildConfigurationList = 7BCEE9A04133D8A2FED7D4D3; buildPhases = (AFF87A50730392B6633ACECE, 7A4C2DC8FCA657188648E999, F9187E824FE171A6F0EFAE28); buildRules = (); dependencies = (); name = RailTimeLocation; productName = RailTimeLocation; productReference = 681C948D238C526E9E3424E0; productType = "com.apple.product-type.application"; };
+ 9805CBD60EB4F66728D5D195 = { isa = PBXNativeTarget; buildConfigurationList = AD7020964E1E033F765FE484; buildPhases = (DEE94446A282611C16F7781C, B10CDED79664567B030B2B4F); buildRules = (); dependencies = (F9A94CEF8CF7D85CE881E703); name = RailTimeLocationTests; productName = RailTimeLocationTests; productReference = F739566ED5280322FF98A798; productType = "com.apple.product-type.bundle.unit-test"; };
+ 244210E48437B6556980A702 = { isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 1600; TargetAttributes = { C1E9827DB735CA9BAA54A540 = { CreatedOnToolsVersion = 16.0; SystemCapabilities = { com.apple.BackgroundModes = { enabled = 1; }; com.apple.AssociatedDomains = { enabled = 1; }; }; }; 9805CBD60EB4F66728D5D195 = { CreatedOnToolsVersion = 16.0; TestTargetID = C1E9827DB735CA9BAA54A540; }; }; }; buildConfigurationList = B4E10CAA9C5E22150B71559C; compatibilityVersion = "Xcode 14.0"; developmentRegion = de; hasScannedForEncodings = 0; knownRegions = (de, en, Base); mainGroup = 19F479106CE8C3BA8C106518; productRefGroup = B9E7F2871A3402983868AFC8; projectDirPath = ""; projectRoot = ""; targets = (C1E9827DB735CA9BAA54A540, 9805CBD60EB4F66728D5D195); };
+ };
+ rootObject = 244210E48437B6556980A702;
+}

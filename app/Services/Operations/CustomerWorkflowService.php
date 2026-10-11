@@ -121,7 +121,21 @@ class CustomerWorkflowService
         $this->access($actor);
         $data = Validator::make($input, ['name' => ['required', 'string', 'max:180'], 'street' => ['nullable', 'string', 'max:180'],
             'postal_code' => ['nullable', 'string', 'max:20'], 'city' => ['nullable', 'string', 'max:100'], 'country' => ['required', 'regex:/^[A-Z]{2}$/'],
-            'access_note' => ['nullable', 'string', 'max:5000'], 'is_active' => ['required', 'boolean']])->validate();
+            'access_note' => ['nullable', 'string', 'max:5000'], 'is_active' => ['required', 'boolean'],
+            'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
+            'coordinates_confirmed' => ['sometimes', 'boolean']])->validate();
+        if (SiteSnapshotService::ready() && (array_key_exists('latitude', $input) || array_key_exists('longitude', $input))) {
+            $data['latitude'] = filled($data['latitude'] ?? null) ? (float) $data['latitude'] : null;
+            $data['longitude'] = filled($data['longitude'] ?? null) ? (float) $data['longitude'] : null;
+            if (($data['coordinates_confirmed'] ?? false) && ($data['latitude'] === null || $data['longitude'] === null)) {
+                throw ValidationException::withMessages(['form.latitude' => 'Bitte beide Koordinaten angeben, bevor der Einsatzpunkt bestätigt wird.']);
+            }
+            $data['coordinates_confirmed_at'] = ($data['coordinates_confirmed'] ?? false) ? now()->utc() : null;
+        } else {
+            unset($data['latitude'], $data['longitude']);
+        }
+        unset($data['coordinates_confirmed']);
 
         return OperationsTransaction::run(function () use ($customer, $id, $revision, $data, $actor) {
             Customer::lockForUpdate()->findOrFail($customer->id);

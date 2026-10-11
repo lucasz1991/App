@@ -66,7 +66,9 @@ class WorkTimeService
         $this->uuid($eventKey);
         $assignment = ShiftAssignment::where('user_id', $actor->id)->findOrFail($assignmentId);
 
-        return OperationsTransaction::run(function () use ($assignment, $planRevision, $eventKey, $actor, $capturedAt, $payloadHash, $requireNewEvent) {
+        $travel = app(\App\Services\Routing\TravelAssessmentService::class)->preflight($assignment->shift, collect([$actor]));
+
+        return OperationsTransaction::run(function () use ($assignment, $planRevision, $eventKey, $actor, $capturedAt, $payloadHash, $requireNewEvent, $travel) {
             Order::lockForUpdate()->findOrFail($assignment->shift->order_id);
             $shift = Shift::lockForUpdate()->findOrFail($assignment->shift_id);
             User::lockForUpdate()->findOrFail($actor->id);
@@ -86,7 +88,7 @@ class WorkTimeService
             $this->check($now->gte($shift->starts_at->subMinutes(config('operations.clock_start_early_minutes'))) && $now->lt($shift->ends_at), 'Der Dienst liegt außerhalb des Startzeitraums.');
             $this->check(! WorkTimeEntry::where('user_id', $actor->id)->whereIn('status', ['running', 'paused'])->exists(), 'Es läuft bereits eine Zeiterfassung.');
             $this->check(! WorkTimeEntry::where('shift_assignment_id', $assignment->id)->exists(), 'Für diesen Dienst existiert bereits eine Zeiterfassung.');
-            app(ShiftAssignmentExceptionService::class)->assertEligibleForAssignment($shift, $actor, $assignment);
+            app(ShiftAssignmentExceptionService::class)->assertEligibleForAssignment($shift, $actor, $assignment, ['travel_preflight' => $travel]);
             $entry = WorkTimeEntry::create([
                 'shift_assignment_id' => $assignment->id, 'user_id' => $actor->id, 'status' => 'running',
                 'timezone' => $shift->timezone, 'starts_at' => $now,
@@ -142,6 +144,9 @@ class WorkTimeService
             }
             $entry->revision++;
             $entry->save();
+            if (in_array($action, ['pause', 'stop'], true)) {
+                app(\App\Services\EmployeeLocation\EmployeeLocationService::class)->stopForUser((int) $entry->user_id);
+            }
             if (WorkTimeSchema::ready() && in_array($action, ['pause', 'resume', 'stop'], true)) {
                 app(WorkTimeActivityService::class)->clockTransition($entry, $action, $now);
                 if ($action === 'stop') {

@@ -50,7 +50,7 @@ class ShiftStaffingCandidates
         if ($users->isEmpty()) {
             return collect();
         }
-        $assessments = app(StaffEligibilityService::class)->assessMany($shift, $users);
+        $assessments = app(StaffEligibilityService::class)->assessMany($shift, $users, false, ['skip_routing' => true]);
         $regions = app(StaffRegionalPreferenceService::class)->assessMany($shift, $users);
         $exceptions = app(ShiftAssignmentExceptionService::class);
         $rank = ['eligible' => 0, 'review' => 1, 'blocked' => 2];

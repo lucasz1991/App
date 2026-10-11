@@ -26,6 +26,7 @@ class ShiftAssignmentExceptionService
         'contract_workday', 'contract_window', 'contract_weekly_limit',
         'configured_rolling_minutes', 'configured_consecutive_days', 'configured_night_count',
         'training_rest_before', 'training_rest_after',
+        'travel_before', 'travel_after',
     ];
 
     public function canOverride(User $actor): bool
@@ -41,12 +42,12 @@ class ShiftAssignmentExceptionService
     }
 
     /** Mutation callers must first acquire PlanningLocks for this shift and employee. */
-    public function review(Shift $shift, User $user, User $actor, bool $lock = false): array
+    public function review(Shift $shift, User $user, User $actor, bool $lock = false, array $context = []): array
     {
-        return $this->inspect($shift, $user, $actor, $lock);
+        return $this->inspect($shift, $user, $actor, $lock, false, $context);
     }
 
-    private function inspect(Shift $shift, User $user, User $actor, bool $lock, bool $existingAssignment = false): array
+    private function inspect(Shift $shift, User $user, User $actor, bool $lock, bool $existingAssignment = false, array $context = []): array
     {
         $actor = User::findOrFail($actor->id);
         OperationsAccess::authorize($actor, 'operations.manage');
@@ -82,7 +83,8 @@ class ShiftAssignmentExceptionService
             ? $query(OperationsRateRule::where('kind', 'planning')->whereNotNull('approved_at')->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $user->id))->orderBy('id'))->get()->map->only(['id', 'name', 'starts_on', 'ends_on', 'configuration', 'revision'])->all()
             : [];
 
-        $issues = app(StaffEligibilityService::class)->assessMany($shift, collect([$user]), $lock)[$user->id];
+        $assessment = app(StaffEligibilityService::class)->assessDetailedMany($shift, collect([$user]), $lock, $context)[$user->id];
+        $issues = $assessment['issues'];
         if ($end->lessThanOrEqualTo($start)) {
             $issues[] = ['code' => 'invalid_schedule', 'message' => 'Das Schichtende muss nach dem Schichtbeginn liegen.'];
         }
@@ -149,7 +151,8 @@ class ShiftAssignmentExceptionService
         $blocking = array_values(array_filter($issues, fn ($issue) => ! $this->isTemporalIssue($issue)));
         $snapshot = [
             'actor_id' => $actor->id, 'employee_id' => $user->id, 'shift' => $this->shiftSnapshot($shift),
-            'issues' => $issues, 'rules' => $rules, 'conflicts' => $conflicts, 'basis' => $basis,
+            'issues' => $this->withoutProviderFacts($issues), 'rules' => $rules, 'conflicts' => $conflicts, 'basis' => $basis,
+            'travel_basis' => $assessment['basis'],
             'profiles' => $profiles->map->only(['id', 'name', 'is_active', 'minimum_rest_minutes', 'maximum_shift_minutes', 'break_after_minutes', 'minimum_break_minutes', 'approved_at'])->all(),
             'work_models' => $workModels, 'rule_assignments' => $ruleAssignments, 'rate_rules' => $rateRules,
         ];
@@ -163,7 +166,7 @@ class ShiftAssignmentExceptionService
         ];
     }
 
-    public function confirm(Shift $shift, User $user, User $actor, array $confirmation): array
+    public function confirm(Shift $shift, User $user, User $actor, array $confirmation, array $context = []): array
     {
         $actor = User::findOrFail($actor->id);
         abort_unless($this->canOverride($actor), 403);
@@ -171,7 +174,7 @@ class ShiftAssignmentExceptionService
         if (($confirmation['acknowledged'] ?? null) !== true || mb_strlen($reason) < 20 || mb_strlen($reason) > 2000) {
             throw ValidationException::withMessages(['workflow' => 'Ausnahme ausdrücklich bestätigen und eine konkrete Begründung mit 20 bis 2.000 Zeichen angeben.']);
         }
-        $review = $this->review($shift, $user, $actor, true);
+        $review = $this->review($shift, $user, $actor, true, $context);
         if (! $review['can_override']) {
             throw ValidationException::withMessages(['workflow' => $review['blocking_issues'][0]['message'] ?? 'Keine freigabefähige zeitliche Ausnahme. Bitte die Auswahl erneut prüfen.']);
         }
@@ -179,14 +182,18 @@ class ShiftAssignmentExceptionService
             throw ValidationException::withMessages(['workflow' => 'Planungsgrundlagen haben sich geändert. Warnungen erneut prüfen und die Ausnahme neu bestätigen.']);
         }
 
+        // Audit the decision and our inputs, never provider durations or geometry.
+        $review['issues'] = $this->withoutProviderFacts($review['issues']);
+        $review['temporal_issues'] = $this->withoutProviderFacts($review['temporal_issues']);
+
         return $review + ['reason' => $reason, 'acknowledged' => true, 'legal_exemption' => false];
     }
 
     /** Publish/response only: honor a current audited decision, not a blanket or transferable waiver. */
-    public function assertEligibleForAssignment(Shift $shift, User $user, ShiftAssignment $assignment): void
+    public function assertEligibleForAssignment(Shift $shift, User $user, ShiftAssignment $assignment, array $context = []): void
     {
         app(StaffRegionalPreferenceService::class)->assertAllowed($shift, $user, true);
-        $issues = app(StaffEligibilityService::class)->assessMany($shift, collect([$user]), true)[$user->id];
+        $issues = app(StaffEligibilityService::class)->assessMany($shift, collect([$user]), true, $context)[$user->id];
         if ($issues === []) {
             return;
         }
@@ -198,7 +205,7 @@ class ShiftAssignmentExceptionService
             || collect($issues)->contains(fn ($issue) => ! $this->isTemporalIssue($issue))) {
             $reject();
         }
-        if ($this->currentDecision($shift, $user, $assignment) !== null) {
+        if ($this->currentDecision($shift, $user, $assignment, null, $context) !== null) {
             return;
         }
 
@@ -220,7 +227,7 @@ class ShiftAssignmentExceptionService
         $reject();
     }
 
-    private function currentDecision(Shift $shift, User $user, ShiftAssignment $assignment, ?int $requiredConflictAssignment = null): ?array
+    private function currentDecision(Shift $shift, User $user, ShiftAssignment $assignment, ?int $requiredConflictAssignment = null, array $context = []): ?array
     {
         $audit = OperationAudit::where('subject_type', 'ShiftAssignment')->where('subject_id', $assignment->id)
             ->where('action', 'assignment.temporal_exception')->latest('id')->first();
@@ -241,7 +248,7 @@ class ShiftAssignmentExceptionService
         if (! $approver || ! $this->canOverride($approver)) {
             return null;
         }
-        $review = $this->inspect($shift, $user, $approver, true, true);
+        $review = $this->inspect($shift, $user, $approver, true, true, $context);
         if (! $review['can_override'] || ! is_string($audit->data['fingerprint'] ?? null)
             || ! hash_equals($review['fingerprint'], $audit->data['fingerprint'])) {
             return null;
@@ -257,6 +264,7 @@ class ShiftAssignmentExceptionService
             'order_id' => $shift->order_id, 'role_name' => $shift->role_name,
             'starts_at' => $shift->starts_at->utc()->toIso8601String(), 'ends_at' => $shift->ends_at->utc()->toIso8601String(),
             'timezone' => $shift->timezone, 'location_name' => $shift->location_name,
+            'location_snapshot' => $shift->location_snapshot ?? [],
             // Publishing a draft only changes its visibility, not the approved planning basis.
             'status' => in_array($shift->status, [ShiftStatus::Draft, ShiftStatus::Open], true) ? 'open' : $shift->status?->value,
             'required_staff' => $shift->required_staff,
@@ -289,5 +297,11 @@ class ShiftAssignmentExceptionService
             'gap_minutes' => $overlap ? null : $gap, 'required_rest_minutes' => $rest,
             'transfer_buffer_minutes' => $buffer, 'same_location' => $sameLocation,
         ];
+    }
+
+    private function withoutProviderFacts(array $issues): array
+    {
+        return array_map(fn ($issue) => in_array($issue['code'] ?? '', ['travel_before', 'travel_after'], true)
+            ? ['code' => $issue['code'], 'message' => 'Fahrtkonflikt ausdrücklich geprüft.'] : $issue, $issues);
     }
 }

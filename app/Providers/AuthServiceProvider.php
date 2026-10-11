@@ -26,13 +26,17 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->registerPolicies();
 
-        Gate::before(static function ($user): ?bool {
+        Gate::before(static function ($user, string $ability): ?bool {
             if (! $user) {
                 return null;
             }
 
             if (! $user instanceof User) {
                 return false; // A customer principal never inherits internal admin/team abilities.
+            }
+
+            if ($ability === 'operations.locations.view') {
+                return $user->status && ($user->currentTeam?->rbac_permissions['operations.locations.view'] ?? false) === true;
             }
 
             return $user->isAdmin() ? true : null;

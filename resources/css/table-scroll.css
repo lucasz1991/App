@@ -56,3 +56,27 @@
         column-gap: 0 !important;
     }
 }
+
+/* Native pagination status stays at the visible row edge, even in document
+   flow. Teleport avoids clipping/transform ancestors; it never shifts rows. */
+.rt-list-pagination-loading {
+    position: fixed;
+    z-index: 40;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 12px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    border: 1px solid var(--rt-shell-line);
+    border-radius: 12px;
+    background: var(--rt-shell-surface-solid);
+    color: var(--rt-shell-text);
+    box-shadow: var(--rt-shell-shadow);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+}
+.rt-list-pagination-loading > svg { color: var(--rt-shell-accent); }
+.rt-list-pagination-loading > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

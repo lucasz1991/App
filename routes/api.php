@@ -10,6 +10,8 @@ use App\Http\Controllers\WorkTimeTerminalController;
 use App\Http\Middleware\OperationsApi;
 use Illuminate\Support\Facades\Route;
 
+require __DIR__.'/employee-location-api.php';
+
 // An explicitly activated kiosk can only obtain one-action clock capabilities.
 Route::prefix('v2/operations/terminal')->name('api.operations.terminal.')->middleware('throttle:30,1')->group(function () {
     Route::post('authenticate', [WorkTimeTerminalController::class, 'authenticate'])->name('authenticate');

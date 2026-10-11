@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
-import { timelinePlanning } from '../../resources/js/timeline-planning-actions.js';
+import { timelineFocusPreviewPosition, timelinePlanning } from '../../resources/js/timeline-planning-actions.js';
 
 const settled = () => new Promise(resolve => setImmediate(resolve));
 const suitable = { state: 'suitable', label: '2 passend', detail: 'Vorläufig geprüft · zum Auswählen klicken' };
@@ -12,8 +12,10 @@ async function fixture(run) {
     const events = [], timers = new Map();
     let now = 100000, nextTimer = 1;
     const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    const originalComputedStyle = Object.getOwnPropertyDescriptor(globalThis, 'getComputedStyle');
     const originalSetTimeout = globalThis.setTimeout, originalClearTimeout = globalThis.clearTimeout, originalNow = Date.now;
     globalThis.document = document;
+    globalThis.getComputedStyle = () => ({ getPropertyValue: () => '148px' });
     globalThis.setTimeout = (callback, delay) => {
         const id = nextTimer++;
         timers.set(id, { callback, at: now + delay });
@@ -51,7 +53,44 @@ async function fixture(run) {
     const icon = anchor => anchor.querySelector('[data-timeline-cell-status-icon]');
     const status = anchor => anchor.querySelector('[data-timeline-cell-status-text]');
     const hover = anchor => planner.hoverCell({ target: anchor, pointerType: 'mouse' });
-    try { await run({ planner, events, root, document, cell, advance, timers, icon, status, hover }); }
+    const focusCell = (user = 7, shift = 81, revision = 12, date = '2027-05-13') => {
+        root.classList.add('rt-personnel-timeline');
+        const body = document.createElement('div');
+        body.className = 'rt-personnel-timeline-body';
+        Object.defineProperties(body, { clientLeft: { value: 1 }, clientWidth: { value: 650 } });
+        const track = document.createElement('div');
+        track.className = 'rt-personnel-timeline-track';
+        root.append(body);
+        body.append(track);
+        const day = document.createElement('div');
+        day.className = 'rt-personnel-timeline-day';
+        day.dataset.focusFit = 'eligible';
+        const button = document.createElement('button');
+        button.className = 'rt-timeline-cell-action rt-timeline-focus-target';
+        Object.assign(button.dataset, { timelineProposal: '', focus: 'true', user: String(user), shift: String(shift), revision: String(revision), date });
+        button.setAttribute('aria-haspopup', 'dialog');
+        button.setAttribute('aria-label', 'Mitarbeiter fuer ausgewaehlte Schicht einteilen');
+        button.title = 'Keine Planungskonflikte';
+        day.append(button);
+        track.append(day);
+        const preview = document.createElement('div');
+        preview.className = 'rt-timeline-focus';
+        Object.assign(preview.dataset, { timeStart: '90', timeWidth: '8' });
+        preview.setAttribute('aria-hidden', 'true');
+        preview.innerHTML = '<span class="rt-personnel-timeline-time rt-timeline-focus-preview"><span class="rt-personnel-timeline-time-text">22:00 - 06:00</span></span><span class="rt-timeline-focus-duration"></span>';
+        track.append(preview);
+        const badge = preview.querySelector('.rt-timeline-focus-preview');
+        badge.style.setProperty('--time-label-offset', '94%');
+        badge.style.setProperty('--time-badge-width', '110px');
+        badge.style.getPropertyPriority = () => '';
+        const geometry = { bodyLeft: 0, overlayLeft: -1452, overlayWidth: 2100, cellLeft: 149, cellRight: 449, textWidth: 84 };
+        body.getBoundingClientRect = () => ({ left: geometry.bodyLeft });
+        preview.getBoundingClientRect = () => ({ left: geometry.overlayLeft, width: geometry.overlayWidth });
+        button.getBoundingClientRect = () => ({ left: geometry.cellLeft, right: geometry.cellRight });
+        badge.querySelector('.rt-personnel-timeline-time-text').getBoundingClientRect = () => ({ width: geometry.textWidth });
+        return { day, button, preview, badge, body, geometry };
+    };
+    try { await run({ planner, events, root, document, cell, focusCell, advance, timers, icon, status, hover }); }
     finally {
         planner.destroy();
         globalThis.setTimeout = originalSetTimeout;
@@ -59,8 +98,47 @@ async function fixture(run) {
         Date.now = originalNow;
         if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);
         else delete globalThis.document;
+        if (originalComputedStyle) Object.defineProperty(globalThis, 'getComputedStyle', originalComputedStyle);
+        else delete globalThis.getComputedStyle;
     }
 }
+
+const previewGeometry = { overlayLeft: 0, overlayWidth: 2100, cellLeft: 600, cellRight: 900, viewportLeft: 148, viewportRight: 948, startPercent: 30, widthPercent: 2, textWidth: 84 };
+
+test('focus preview normal short shift keeps a readable centered label inside its hovered day', () => {
+    assert.deepEqual(timelineFocusPreviewPosition(previewGeometry), { offset: 655, badgeWidth: 110 });
+});
+
+test('focus preview overnight center outside a visible day clamps its label without moving true duration geometry', () => {
+    const geometry = { ...previewGeometry, startPercent: 41, widthPercent: 5 };
+    assert.deepEqual(timelineFocusPreviewPosition(geometry), { offset: 845, badgeWidth: 110 });
+    assert.equal(geometry.startPercent, 41);
+    assert.equal(geometry.widthPercent, 5);
+});
+
+test('focus preview multi-day duration never creates a badge wider than the hovered visible day', () => {
+    assert.deepEqual(timelineFocusPreviewPosition({ ...previewGeometry, startPercent: 20, widthPercent: 60 }), { offset: 750, badgeWidth: 300 });
+});
+
+test('focus preview narrow left and right day fragments use available viewport without clipping readable times', () => {
+    assert.deepEqual(timelineFocusPreviewPosition({ ...previewGeometry, cellLeft: 100, cellRight: 180, startPercent: 0, widthPercent: 2 }), { offset: 203, badgeWidth: 110 });
+    assert.deepEqual(timelineFocusPreviewPosition({ ...previewGeometry, cellLeft: 900, cellRight: 1000, startPercent: 90, widthPercent: 2 }), { offset: 893, badgeWidth: 110 });
+    assert.deepEqual(timelineFocusPreviewPosition({ ...previewGeometry, viewportRight: 238, cellLeft: 100, cellRight: 180, startPercent: 0, widthPercent: 2 }), { offset: 193, badgeWidth: 90 });
+});
+
+test('focus preview respects actual text width, shifted loaded track and a fragment wide enough for its badge', () => {
+    assert.deepEqual(timelineFocusPreviewPosition({ ...previewGeometry, textWidth: 120 }), { offset: 668, badgeWidth: 136 });
+    assert.deepEqual(timelineFocusPreviewPosition({ ...previewGeometry, cellLeft: 800, cellRight: 1000, startPercent: 41, widthPercent: 5 }), { offset: 893, badgeWidth: 110 });
+    assert.deepEqual(timelineFocusPreviewPosition({ ...previewGeometry, overlayLeft: -1452, cellLeft: 149, cellRight: 449, viewportRight: 651, startPercent: 90, widthPercent: 8 }), { offset: 1817, badgeWidth: 168 });
+});
+
+test('focus preview rejects missing, malformed, zero and offscreen geometry', () => {
+    for (const change of [
+        { overlayWidth: 0 }, { cellRight: 600 }, { viewportRight: 148 }, { overlayLeft: NaN },
+        { widthPercent: 0 }, { startPercent: -1 }, { startPercent: 90, widthPercent: 20 },
+        { textWidth: -1 }, { cellLeft: 1000, cellRight: 1100 }, { overlayLeft: 1000 },
+    ]) assert.equal(timelineFocusPreviewPosition({ ...previewGeometry, ...change }), null);
+});
 
 test('each hover result uses one semantic icon and an accessible description rather than visible text', async () => fixture(({ planner, cell, icon, status }) => {
     const anchor = cell();
@@ -273,4 +351,224 @@ test('clicking an icon still opens the original cell anchor without an extra pre
     assert.equal(planner.plannerReady, true);
     assert.equal(status(anchor).textContent, '');
     assert.equal(anchor.dataset.fit, undefined);
+}));
+
+test('eligible full-day focus target hover and keyboard focus never request previewCell or replace its selected-shift reason', async () => fixture(async ({ planner, focusCell, hover, advance, timers, events }) => {
+    const { day, button, preview } = focusCell();
+    const calls = [];
+    planner.request = async (method, args) => { calls.push({ method, args }); return suitable; };
+    assert.equal(day.dataset.focusFit, 'eligible');
+    assert.equal(button.classList.contains('rt-timeline-cell-action'), true);
+    assert.equal(button.hasAttribute('data-timeline-cell-action'), false, 'visual class must not accidentally opt into ordinary cell preview');
+    assert.equal(button.hasAttribute('data-timeline-proposal'), true);
+    hover(button);
+    planner.hoverCell({ type: 'focusin', target: button });
+    planner.hoverCell({ target: preview.querySelector('.rt-personnel-timeline-time-text'), pointerType: 'mouse' });
+    advance(1000);
+    await settled();
+    assert.deepEqual(calls, []);
+    assert.equal(timers.size, 0);
+    assert.equal(planner.hoverAnchor, null);
+    assert.equal(planner.pending, null);
+    assert.equal(button.dataset.fit, undefined);
+    assert.equal(button.title, 'Keine Planungskonflikte');
+    assert.equal(preview.getAttribute('aria-hidden'), 'true');
+    assert.equal(events.length, 0);
+    assert.equal(planner.plannerVisible, false);
+}));
+
+test('clicking the full green focus cell uses the original selected shift, employee and revision with native review loading', async () => fixture(async ({ planner, focusCell, events, advance }) => {
+    const { button } = focusCell(7, 81, 12);
+    const calls = [];
+    let resolve;
+    planner.request = (method, args) => { calls.push({ method, args }); return new Promise(done => { resolve = done; }); };
+    planner.openPlanner({ target: button });
+    assert.deepEqual(calls, [{ method: 'openFocusCandidate', args: [81, 7, 12] }]);
+    assert.equal(planner.plannerVisible, true);
+    assert.equal(planner.plannerLoading, true);
+    assert.equal(planner.plannerReady, false);
+    assert.equal(events[0].name, 'rt-anchor-dropdown-open');
+    assert.equal(events[0].detail.anchor, button);
+    assert.equal(events[0].detail.id, 'rt-dropdown-timeline-planner-qa-cell');
+    assert.equal(planner.$wire.assignmentOpen, false, 'opening review must not make an assignment');
+    advance(1000);
+    assert.equal(calls.length, 1, 'the green target does not add a hover availability request while loading');
+    resolve();
+    await settled();
+    assert.equal(planner.plannerReady, true);
+    assert.equal(planner.plannerLoading, false);
+    assert.equal(events.filter(event => event.name === 'rt-anchor-dropdown-focus').length, 1);
+}));
+
+test('moving from ordinary hover into a focus cell cancels only the old preview timer and keeps click routing distinct', async () => fixture(async ({ planner, cell, focusCell, hover, advance }) => {
+    const ordinary = cell(3);
+    const { button } = focusCell(7, 81, 12);
+    const calls = [];
+    planner.request = async (method, args) => { calls.push({ method, args }); return suitable; };
+    hover(ordinary);
+    advance(100);
+    planner.leaveCell({ relatedTarget: button });
+    hover(button);
+    planner.hoverCell({ type: 'focusin', target: button });
+    advance(1000);
+    await settled();
+    assert.deepEqual(calls, [], 'the ordinary cell timer must not run after entering the already-ranked selected cell');
+    assert.equal(planner.hoverAnchor, null);
+    planner.openPlanner({ target: button });
+    await settled();
+    assert.deepEqual(calls, [{ method: 'openFocusCandidate', args: [81, 7, 12] }]);
+}));
+
+test('ordinary proposal remains openSuggestion and passive focus preview or native real-duty badges are not planner targets', async () => fixture(async ({ planner, root, document, focusCell, hover, advance, events }) => {
+    const { day, preview } = focusCell();
+    const duty = document.createElement('button');
+    duty.className = 'rt-personnel-timeline-bar';
+    duty.setAttribute('data-table-row-ignore', '');
+    duty.innerHTML = '<span class="rt-personnel-timeline-time-text">08:00 - 10:00</span>';
+    day.append(duty);
+    const calls = [];
+    planner.request = async (method, args) => { calls.push({ method, args }); };
+    for (const target of [preview.querySelector('.rt-personnel-timeline-time-text'), duty.querySelector('span')]) {
+        hover(target);
+        planner.hoverCell({ type: 'focusin', target });
+        planner.openPlanner({ target });
+    }
+    advance(1000);
+    await settled();
+    assert.deepEqual(calls, []);
+    assert.equal(events.length, 0, 'native duty click remains owned by its original detail dropdown');
+    assert.equal(planner.plannerVisible, false);
+    const proposal = document.createElement('button');
+    Object.assign(proposal.dataset, { timelineProposal: '', user: '7', shift: '82', revision: '3' });
+    proposal.innerHTML = '<i class="far fa-lightbulb"></i>';
+    root.append(proposal);
+    hover(proposal.querySelector('i'));
+    advance(1000);
+    assert.deepEqual(calls, []);
+    planner.openPlanner({ target: proposal.querySelector('i') });
+    await settled();
+    assert.deepEqual(calls, [{ method: 'openSuggestion', args: [82, 7, 3] }]);
+    assert.equal(events[0].detail.anchor, proposal);
+}));
+
+test('focus hover positions overnight text immediately without a request and refreshes only its active row on scroll', async () => fixture(({ planner, focusCell, hover, timers }) => {
+    const first = focusCell(), other = focusCell(8, 82);
+    let otherReads = 0;
+    other.preview.getBoundingClientRect = () => { otherReads++; throw new Error('inactive row must not be measured'); };
+    const duration = first.preview.querySelector('.rt-timeline-focus-duration');
+    duration.style.cssText = 'left:90%;width:8%';
+    const originalDuration = duration.getAttribute('style');
+    planner.request = () => { throw new Error('focus preview must stay client-only'); };
+    planner.refreshFocusPreview();
+    assert.equal(otherReads, 0);
+    hover(first.button);
+    assert.equal(planner.focusPreviewAnchor, first.button);
+    assert.equal(first.badge.style.getPropertyValue('--time-label-offset'), '1817px');
+    assert.equal(first.badge.style.getPropertyValue('--time-badge-width'), '168px');
+    assert.equal(duration.getAttribute('style'), originalDuration);
+    assert.equal(timers.size, 0);
+    first.geometry.overlayLeft -= 100;
+    first.geometry.cellLeft -= 100;
+    first.geometry.cellRight -= 100;
+    planner.refreshFocusPreview();
+    assert.equal(first.badge.style.getPropertyValue('--time-label-offset'), '1817px');
+    assert.equal(first.badge.style.getPropertyValue('--time-badge-width'), '168px');
+    assert.equal(otherReads, 0);
+    assert.equal(duration.getAttribute('style'), originalDuration);
+}));
+
+test('focus keyboard preview restores only its own label variables on leave, invalidate and destroy', async () => fixture(({ planner, focusCell }) => {
+    const { button, badge } = focusCell();
+    badge.style.setProperty('color', 'green');
+    for (const clear of [() => planner.leaveCell({ relatedTarget: null }), () => planner.invalidate(), () => planner.destroy()]) {
+        planner.hoverCell({ type: 'focusin', target: button });
+        assert.equal(planner.focusPreviewAnchor, button);
+        assert.equal(badge.style.getPropertyValue('--time-label-offset'), '1817px');
+        clear();
+        assert.equal(planner.focusPreviewAnchor, null);
+        assert.equal(planner.focusPreviewStyle, null);
+        assert.equal(badge.style.getPropertyValue('--time-label-offset'), '94%');
+        assert.equal(badge.style.getPropertyValue('--time-badge-width'), '110px');
+        assert.equal(badge.style.getPropertyValue('color'), 'green');
+    }
+    planner.hoverCell({ type: 'focusin', target: button });
+    assert.equal(planner.focusPreviewAnchor, null, 'disposed controller cannot retain another anchor');
+}));
+
+test('focus preview clears invalid, disabled, loading and disconnected anchors without requests', async () => fixture(({ planner, root, focusCell, hover }) => {
+    planner.request = () => { throw new Error('no preview request'); };
+    const { button, preview, badge, geometry } = focusCell();
+    hover(button);
+    root.dataset.contentLoading = 'true';
+    planner.refreshFocusPreview();
+    assert.equal(planner.focusPreviewAnchor, null);
+    assert.equal(badge.style.getPropertyValue('--time-label-offset'), '94%');
+    hover(button);
+    assert.equal(planner.focusPreviewAnchor, null);
+    delete root.dataset.contentLoading;
+    button.disabled = true;
+    hover(button);
+    assert.equal(planner.focusPreviewAnchor, null);
+    button.disabled = false;
+    geometry.overlayWidth = 0;
+    hover(button);
+    assert.equal(planner.focusPreviewAnchor, null);
+    geometry.overlayWidth = 2100;
+    preview.dataset.timeWidth = 'not-a-number';
+    hover(button);
+    assert.equal(planner.focusPreviewAnchor, null);
+    preview.dataset.timeWidth = '8';
+    hover(button);
+    button.remove();
+    planner.refreshFocusPreview();
+    assert.equal(planner.focusPreviewAnchor, null);
+    assert.equal(badge.style.getPropertyValue('--time-label-offset'), '94%');
+}));
+
+test('moving between focus cells restores the earlier badge and leaving inside the same anchor retains positioning', async () => fixture(({ planner, focusCell, hover }) => {
+    const first = focusCell(), second = focusCell(8, 82);
+    hover(first.button);
+    planner.leaveCell({ relatedTarget: first.button });
+    assert.equal(planner.focusPreviewAnchor, first.button);
+    hover(second.button);
+    assert.equal(first.badge.style.getPropertyValue('--time-label-offset'), '94%');
+    assert.equal(second.badge.style.getPropertyValue('--time-label-offset'), '1817px');
+    assert.equal(planner.focusPreviewAnchor, second.button);
+    planner.leaveCell({ relatedTarget: null });
+    assert.equal(second.badge.style.getPropertyValue('--time-label-offset'), '94%');
+}));
+
+test('focus cleanup does not overwrite newer server label styles and refresh adopts their baseline', async () => fixture(({ planner, focusCell, hover }) => {
+    const { button, badge } = focusCell();
+    hover(button);
+    badge.style.setProperty('--time-label-offset', '70%');
+    badge.style.setProperty('--time-badge-width', '120px');
+    planner.clearHover();
+    assert.equal(badge.style.getPropertyValue('--time-label-offset'), '70%');
+    assert.equal(badge.style.getPropertyValue('--time-badge-width'), '120px');
+    hover(button);
+    badge.style.setProperty('--time-label-offset', '60%');
+    badge.style.setProperty('--time-badge-width', '130px');
+    planner.refreshFocusPreview();
+    assert.equal(badge.style.getPropertyValue('--time-label-offset'), '1817px');
+    planner.clearHover();
+    assert.equal(badge.style.getPropertyValue('--time-label-offset'), '60%');
+    assert.equal(badge.style.getPropertyValue('--time-badge-width'), '130px');
+}));
+
+test('pointer leaving a keyboard-focused cell and focus leaving a hovered cell retain the current preview', async () => fixture(({ planner, focusCell, hover }) => {
+    const { button } = focusCell();
+    let focused = true, hovered = false;
+    const matches = button.matches.bind(button);
+    button.matches = selector => selector === ':focus-visible' ? focused : selector === ':hover' ? hovered : matches(selector);
+    hover(button);
+    planner.leaveCell({ type: 'pointerout', relatedTarget: null });
+    assert.equal(planner.focusPreviewAnchor, button);
+    focused = false;
+    hovered = true;
+    planner.leaveCell({ type: 'focusout', relatedTarget: null });
+    assert.equal(planner.focusPreviewAnchor, button);
+    hovered = false;
+    planner.leaveCell({ type: 'focusout', relatedTarget: null });
+    assert.equal(planner.focusPreviewAnchor, null);
 }));

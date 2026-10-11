@@ -197,6 +197,7 @@ return [
         AppServiceProvider::class,
         MicrosoftDeviceQueueServiceProvider::class,
         AuthServiceProvider::class,
+        \App\Providers\EmployeeLocationServiceProvider::class,
         BroadcastServiceProvider::class,
         EventServiceProvider::class,
         RouteServiceProvider::class,

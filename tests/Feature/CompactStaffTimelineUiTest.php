@@ -96,7 +96,7 @@ class CompactStaffTimelineUiTest extends TestCase
         foreach (['min-height: 0', 'flex: 1 1 auto', 'overflow-x: hidden', 'overflow-y: auto', 'overscroll-behavior: contain'] as $declaration) {
             $this->assertStringContainsString($declaration, $scrollport);
         }
-        $this->assertMatchesRegularExpression('/class="rt-personnel-timeline-body snap-x snap-mandatory"[^>]+x-ref="timelineBody"[^>]+x-on:scroll.passive="syncHorizontal\(\$event.target\)"/', $view);
+        $this->assertMatchesRegularExpression('/class="rt-personnel-timeline-body snap-x snap-mandatory"[^>]+x-ref="timelineBody"[^>]+x-on:scroll.passive="syncHorizontal\(\$event.target\); refreshFocusPreview\(\)"/', $view);
         $this->assertStringContainsString('x-ref="timelineHeader"', $view);
         $this->assertStringContainsString('x-ref="timelineScrollbar" x-on:scroll="syncHorizontal($event.target)"', $view);
         $this->assertStringContainsString('data-no-sidebar-swipe', $view);

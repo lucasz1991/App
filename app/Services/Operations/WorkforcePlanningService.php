@@ -14,6 +14,7 @@ use App\Models\StaffingCase;
 use App\Models\User;
 use App\Models\WorkforcePool;
 use App\Models\WorkTimeEntry;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
@@ -198,8 +199,14 @@ class WorkforcePlanningService
         $this->access($actor);
         Validator::make(['ids' => $userIds, 'timezone' => $timezone], ['ids' => 'required|array|min:1|max:500', 'ids.*' => 'integer|distinct|exists:users,id', 'timezone' => 'required|timezone'])->validate();
         $expiry = OperationsDateTime::local($expiresAt, $timezone, 'expires_at');
+        if ($actor instanceof StaffingAutomationActor) {
+            $actor->authorize('offer.create');
+            $actor->assertShiftScope($shiftId, $planRevision);
+            $actor->assertOfferScope($userIds);
+        }
+        $travel = app(TravelAssessmentService::class)->preflight(Shift::findOrFail($shiftId), User::whereKey($userIds)->get());
 
-        return OperationsTransaction::run(function () use ($shiftId, $planRevision, $userIds, $expiry, $actor) {
+        return OperationsTransaction::run(function () use ($shiftId, $planRevision, $userIds, $expiry, $actor, $travel) {
             $shift = PlanningLocks::acquire([$shiftId], $userIds)->get($shiftId);
             $this->access($actor);
             if ($actor instanceof StaffingAutomationActor) {
@@ -213,7 +220,7 @@ class WorkforcePlanningService
             $this->check($shift->assignments()->blocking()->count() < $shift->required_staff, 'Kein Einsatzplatz offen.');
             foreach (User::whereKey($userIds)->get() as $employee) {
                 $this->check(! $shift->assignments()->blocking()->where('user_id', $employee->id)->exists(), 'Mitarbeiter ist bereits eingeplant.');
-                app(StaffEligibilityService::class)->assertEligible($shift, $employee);
+                app(StaffEligibilityService::class)->assertEligible($shift, $employee, ['travel_preflight' => $travel]);
                 if ($actor instanceof StaffingAutomationActor) {
                     app(ShiftAssignmentService::class)->assertCapacity($shift, $employee);
                 }
@@ -230,8 +237,11 @@ class WorkforcePlanningService
     {
         $this->access($actor, true);
         $this->check(in_array($status, ['interested', 'declined', 'withdrawn'], true), 'Ungültige Rückmeldung.');
+        $initial = ShiftOffer::findOrFail($id);
+        abort_unless(in_array($actor->id, $initial->invited_user_ids, true), 403);
+        $travel = $status === 'interested' ? app(TravelAssessmentService::class)->preflight(Shift::findOrFail($initial->shift_id), collect([$actor])) : null;
 
-        return OperationsTransaction::run(function () use ($id, $revision, $status, $actor) {
+        return OperationsTransaction::run(function () use ($id, $revision, $status, $actor, $travel) {
             $offer = ShiftOffer::findOrFail($id);
             $shift = PlanningLocks::acquire([$offer->shift_id], [$actor->id])->get($offer->shift_id);
             $offer = ShiftOffer::lockForUpdate()->findOrFail($id);
@@ -241,7 +251,7 @@ class WorkforcePlanningService
             $response = ShiftOfferResponse::where('shift_offer_id', $id)->where('user_id', $actor->id)->lockForUpdate()->first() ?? new ShiftOfferResponse;
             $this->check(! in_array($response->status, ['approved', 'rejected'], true), 'Rückmeldung wurde bereits bearbeitet.');
             if ($status === 'interested') {
-                app(StaffEligibilityService::class)->assertEligible($shift, User::findOrFail($actor->id));
+                app(StaffEligibilityService::class)->assertEligible($shift, User::findOrFail($actor->id), ['travel_preflight' => $travel]);
                 app(ShiftAssignmentService::class)->assertCapacity($shift, $actor);
             }
             $response->fill(['shift_offer_id' => $id, 'user_id' => $actor->id, 'status' => $status, 'responded_at' => now()->utc(), 'revision' => $response->exists ? $response->revision + 1 : 1])->save();
@@ -254,7 +264,10 @@ class WorkforcePlanningService
     public function reviewOffer(int $responseId, int $revision, bool $approve, User $actor): void
     {
         $this->access($actor);
-        OperationsTransaction::run(function () use ($responseId, $revision, $approve, $actor) {
+        $initial = ShiftOfferResponse::with('offer')->findOrFail($responseId);
+        abort_if($actor->id === $initial->user_id, 403);
+        $travel = $approve ? app(TravelAssessmentService::class)->preflight(Shift::findOrFail($initial->offer->shift_id), collect([User::findOrFail($initial->user_id)])) : null;
+        OperationsTransaction::run(function () use ($responseId, $revision, $approve, $actor, $travel) {
             $response = ShiftOfferResponse::with('offer')->findOrFail($responseId);
             abort_if($actor->id === $response->user_id, 403);
             $shift = PlanningLocks::acquire([$response->offer->shift_id], [$response->user_id])->get($response->offer->shift_id);
@@ -263,7 +276,7 @@ class WorkforcePlanningService
             $this->check($response->revision === $revision && $response->status === 'interested' && $offer->status === 'open' && $offer->expires_at->isFuture(), 'Angebot wurde bereits bearbeitet oder ist abgelaufen.');
             $this->publishedFuture($shift, $offer->plan_revision);
             if ($approve) {
-                app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($response->user_id), $actor, ShiftAssignmentStatus::Requested, null, $offer->plan_revision);
+                app(ShiftAssignmentService::class)->assign($shift, User::findOrFail($response->user_id), $actor, ShiftAssignmentStatus::Requested, null, $offer->plan_revision, null, $travel);
             }
             $response->update(['status' => $approve ? 'approved' : 'rejected', 'revision' => $revision + 1, 'reviewed_by' => $actor->id]);
             if ($approve && $shift->assignments()->blocking()->count() >= $shift->required_staff) {
@@ -295,8 +308,13 @@ class WorkforcePlanningService
         $this->access($actor, true);
         $this->check($targetUserId !== $actor->id, 'Übergabe an sich selbst ist nicht möglich.');
         Validator::make(['note' => $note], ['note' => 'nullable|string|max:1000'])->validate();
+        $initialSource = ShiftAssignment::where('user_id', $actor->id)->with('shift')->findOrFail($sourceId);
+        $initialTarget = $targetId ? ShiftAssignment::where('user_id', $targetUserId)->with('shift')->findOrFail($targetId) : null;
+        $travelContext = ['exclude_shift_ids' => array_filter([$initialSource->shift_id, $initialTarget?->shift_id])];
+        $travelSource = app(TravelAssessmentService::class)->preflight($initialSource->shift, collect([User::findOrFail($targetUserId)]), $travelContext);
+        $travelTarget = $initialTarget ? app(TravelAssessmentService::class)->preflight($initialTarget->shift, collect([$actor]), $travelContext) : null;
 
-        return OperationsTransaction::run(function () use ($sourceId, $sourceRevision, $targetUserId, $targetId, $targetRevision, $note, $actor) {
+        return OperationsTransaction::run(function () use ($sourceId, $sourceRevision, $targetUserId, $targetId, $targetRevision, $note, $actor, $travelSource, $travelTarget) {
             $source = ShiftAssignment::where('user_id', $actor->id)->with('shift')->findOrFail($sourceId);
             $target = $targetId ? ShiftAssignment::where('user_id', $targetUserId)->with('shift')->findOrFail($targetId) : null;
             $this->check(! $target || $source->shift_id !== $target->shift_id, 'Ein Tausch benötigt zwei verschiedene Dienste.');
@@ -311,9 +329,9 @@ class WorkforcePlanningService
             $this->check(! $source->shift->assignments()->blocking()->where('user_id', $targetUserId)->exists(), 'Zielperson ist bereits im abzugebenden Dienst eingeplant.');
             $this->check(! $target || ! $target->shift->assignments()->blocking()->where('user_id', $actor->id)->exists(), 'Antragsteller ist bereits im Tauschdienst eingeplant.');
             $exclude = array_filter([$source->shift_id, $target?->shift_id]);
-            app(StaffEligibilityService::class)->assertEligible($source->shift, $recipient, ['exclude_shift_ids' => $exclude]);
+            app(StaffEligibilityService::class)->assertEligible($source->shift, $recipient, ['exclude_shift_ids' => $exclude, 'travel_preflight' => $travelSource]);
             if ($target) {
-                app(StaffEligibilityService::class)->assertEligible($target->shift, $actor, ['exclude_shift_ids' => $exclude]);
+                app(StaffEligibilityService::class)->assertEligible($target->shift, $actor, ['exclude_shift_ids' => $exclude, 'travel_preflight' => $travelTarget]);
             }
             $this->check(! ShiftTransferRequest::where('source_assignment_id', $sourceId)->whereIn('status', ['awaiting_target', 'pending'])->exists(), 'Für diesen Dienst besteht bereits eine Übergabeanfrage.');
             $request = ShiftTransferRequest::create(['source_assignment_id' => $sourceId, 'target_user_id' => $targetUserId, 'target_assignment_id' => $targetId, 'source_plan_revision' => $sourceRevision, 'target_plan_revision' => $targetRevision, 'note' => $note]);
@@ -358,7 +376,15 @@ class WorkforcePlanningService
     {
         $this->access($actor);
         Validator::make(['note' => $note], ['note' => ($approve ? 'nullable' : 'required|min:5').'|string|max:1000'])->validate();
-        OperationsTransaction::run(function () use ($id, $revision, $approve, $note, $actor) {
+        $initialRequest = ShiftTransferRequest::findOrFail($id);
+        $initialSources = $this->transferSources($initialRequest);
+        $initialSource = $initialSources->get($initialRequest->source_assignment_id);
+        $initialTarget = $initialSources->get($initialRequest->target_assignment_id);
+        abort_if(in_array($actor->id, [$initialSource->user_id, $initialRequest->target_user_id], true), 403);
+        $travelContext = ['exclude_shift_ids' => $initialSources->pluck('shift_id')->all()];
+        $travelSource = $approve ? app(TravelAssessmentService::class)->preflight($initialSource->shift, collect([User::findOrFail($initialRequest->target_user_id)]), $travelContext) : null;
+        $travelTarget = $approve && $initialTarget ? app(TravelAssessmentService::class)->preflight($initialTarget->shift, collect([User::findOrFail($initialSource->user_id)]), $travelContext) : null;
+        OperationsTransaction::run(function () use ($id, $revision, $approve, $note, $actor, $travelSource, $travelTarget) {
             $request = ShiftTransferRequest::findOrFail($id);
             $sources = $this->transferSources($request);
             $source = $sources->get($request->source_assignment_id);
@@ -377,9 +403,9 @@ class WorkforcePlanningService
                     $this->check(! $target->shift->assignments()->blocking()->where('user_id', $source->user_id)->exists(), 'Antragsteller ist bereits im Tauschdienst eingeplant.');
                 }
                 $exclude = $sources->pluck('shift_id')->all();
-                app(StaffEligibilityService::class)->assertEligible($source->shift, User::findOrFail($request->target_user_id), ['exclude_shift_ids' => $exclude]);
+                app(StaffEligibilityService::class)->assertEligible($source->shift, User::findOrFail($request->target_user_id), ['exclude_shift_ids' => $exclude, 'travel_preflight' => $travelSource]);
                 if ($target) {
-                    app(StaffEligibilityService::class)->assertEligible($target->shift, User::findOrFail($source->user_id), ['exclude_shift_ids' => $exclude]);
+                    app(StaffEligibilityService::class)->assertEligible($target->shift, User::findOrFail($source->user_id), ['exclude_shift_ids' => $exclude, 'travel_preflight' => $travelTarget]);
                 }
                 // Both releases happen inside the same transaction; fresh normal assignment guards then see the final schedule.
                 $assigner = app(ShiftAssignmentService::class);
@@ -387,9 +413,9 @@ class WorkforcePlanningService
                 if ($target) {
                     $assigner->cancel($target, $actor, 'Freigegebener Tausch');
                 }
-                $assigner->assign($source->shift, User::findOrFail($request->target_user_id), $actor, ShiftAssignmentStatus::Requested, null, $request->source_plan_revision);
+                $assigner->assign($source->shift, User::findOrFail($request->target_user_id), $actor, ShiftAssignmentStatus::Requested, null, $request->source_plan_revision, null, $travelSource);
                 if ($target) {
-                    $assigner->assign($target->shift, User::findOrFail($source->user_id), $actor, ShiftAssignmentStatus::Requested, null, $request->target_plan_revision);
+                    $assigner->assign($target->shift, User::findOrFail($source->user_id), $actor, ShiftAssignmentStatus::Requested, null, $request->target_plan_revision, null, $travelTarget);
                 }
             }
             $request->update(['status' => $approve ? 'approved' : 'rejected', 'reviewed_by' => $actor->id, 'review_note' => $note, 'revision' => $revision + 1]);
@@ -428,7 +454,9 @@ class WorkforcePlanningService
         $this->access($actor);
         $this->check(in_array($action, ['contact', 'escalate', 'resolve', 'handover'], true), 'Ungültige Aktion.');
         Validator::make($data, ['note' => 'required|string|min:5|max:1000', 'user_id' => 'nullable|integer|exists:users,id', 'channel' => 'nullable|in:phone,email,portal,chat', 'handed_over_at' => 'nullable|string', 'timezone' => 'nullable|timezone'])->validate();
-        OperationsTransaction::run(function () use ($id, $revision, $action, $data, $actor) {
+        $initialCase = StaffingCase::findOrFail($id);
+        $travel = $action === 'resolve' && ! empty($data['user_id']) ? app(TravelAssessmentService::class)->preflight(Shift::findOrFail($initialCase->shift_id), collect([User::findOrFail($data['user_id'])])) : null;
+        OperationsTransaction::run(function () use ($id, $revision, $action, $data, $actor, $travel) {
             $case = StaffingCase::findOrFail($id);
             $shift = PlanningLocks::acquire([$case->shift_id], array_filter([$data['user_id'] ?? null]))->get($case->shift_id);
             $case = StaffingCase::lockForUpdate()->findOrFail($id);
@@ -450,7 +478,7 @@ class WorkforcePlanningService
                     $replacement = $shift->assignments()->where('user_id', $data['user_id'])->where('status', 'confirmed')->first();
                     $this->check($replacement && $replacement->plan_revision === $shift->published_revision && $shift->revision === $shift->published_revision, 'Ersatzdienst muss aktuell bestätigt sein.');
                     $this->check($replacement->id !== $case->shift_assignment_id, 'Die ausgefallene Zuweisung ist kein Ersatz.');
-                    app(StaffEligibilityService::class)->assertEligible($shift, User::findOrFail($data['user_id']));
+                    app(StaffEligibilityService::class)->assertEligible($shift, User::findOrFail($data['user_id']), ['travel_preflight' => $travel]);
                     $case->replacement_assignment_id = $replacement->id;
                 } else {
                     $this->check(! $case->shift_assignment_id && $shift->assignments()->where('status', 'confirmed')->count() >= $shift->required_staff, 'Betroffener Einsatzplatz benötigt eine bestätigte Ersatzzuweisung.');

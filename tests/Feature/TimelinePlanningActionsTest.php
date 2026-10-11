@@ -62,6 +62,32 @@ class TimelinePlanningActionsTest extends TestCase
         return Livewire::actingAs($this->manager)->test(StaffTimeline::class, ['from' => '2027-05-10', 'until' => '2027-05-16', 'planningEnabled' => $enabled]);
     }
 
+    private function timelineXPath($timeline): \DOMXPath
+    {
+        $document = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8">'.$timeline->html());
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return new \DOMXPath($document);
+    }
+
+    private function timelineDay(\DOMXPath $xpath, User $user, string $date): \DOMElement
+    {
+        $cells = $xpath->query('//div[@*[name()="wire:key"]="staff-day-'.$user->id.'-'.$date.'"]');
+        $this->assertSame(1, $cells->length);
+
+        return $cells->item(0);
+    }
+
+    private function eligibleFocusDates(\DOMXPath $xpath, User $user): array
+    {
+        $cells = $xpath->query('//div[@*[name()="wire:key"]="staff-track-'.$user->id.'"]//div[contains(concat(" ", normalize-space(@class), " "), " rt-personnel-timeline-day ")][@data-focus-fit="eligible"]');
+
+        return array_map(fn (\DOMElement $cell) => $cell->getAttribute('data-timeline-date'), iterator_to_array($cells));
+    }
+
     public function test_cell_actions_are_opt_in_and_suggestions_default_off(): void
     {
         $this->timeline(false)->assertDontSee('data-timeline-cell-action', false)->assertDontSee('data-timeline-proposal', false)->call('toggleSuggestions')->assertForbidden();
@@ -99,6 +125,129 @@ class TimelinePlanningActionsTest extends TestCase
         $styles = file_get_contents(resource_path('css/timeline-planning-actions.css'));
         $this->assertStringNotContainsString('rt-timeline-suggestion-legend', $styles);
         $this->assertStringContainsString('prefers-reduced-motion: reduce', $styles);
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_selected_shift_uses_eligible_day_cells_and_a_read_only_time_preview(): void
+    {
+        $timeline = $this->timeline()->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id)
+            ->assertSet('focusShiftId', $this->shift->id)
+            ->assertSet('assignmentOpen', false)
+            ->assertSet('planningShiftId', null);
+        $xpath = $this->timelineXPath($timeline);
+        $focus = $timeline->viewData('focus');
+
+        foreach ([$this->anna, $this->ben] as $user) {
+            $this->assertSame(['2027-05-13'], $this->eligibleFocusDates($xpath, $user));
+            $cell = $this->timelineDay($xpath, $user, '2027-05-13');
+            $targets = $xpath->query('./button[contains(concat(" ", normalize-space(@class), " "), " rt-timeline-focus-target ")]', $cell);
+            $this->assertSame(1, $targets->length);
+            $target = $targets->item(0);
+            $this->assertStringContainsString('rt-timeline-cell-action', $target->getAttribute('class'));
+            $this->assertTrue($target->hasAttribute('data-timeline-proposal'));
+            $this->assertFalse($target->hasAttribute('data-timeline-cell-action'), 'Selected-shift cells must not trigger generic hover eligibility requests.');
+            $this->assertSame('true', $target->getAttribute('data-focus'));
+            $this->assertSame((string) $user->id, $target->getAttribute('data-user'));
+            $this->assertSame('2027-05-13', $target->getAttribute('data-date'));
+            $this->assertSame((string) $this->shift->id, $target->getAttribute('data-shift'));
+            $this->assertSame((string) $this->shift->fresh()->revision, $target->getAttribute('data-revision'));
+            $this->assertSame('windowContentLoading', $target->getAttribute('x-bind:disabled'));
+            $this->assertSame('dialog', $target->getAttribute('aria-haspopup'));
+            $this->assertStringContainsString($user->name, $target->getAttribute('aria-label'));
+            $this->assertStringContainsString($this->shift->title, $target->getAttribute('aria-label'));
+            $this->assertSame('', trim($target->textContent), 'The full-cell target must not display a permanent Einteilen badge.');
+
+            $track = $xpath->query('//div[@*[name()="wire:key"]="staff-track-'.$user->id.'"]')->item(0);
+            $previews = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " rt-timeline-focus-preview ")]', $track);
+            $this->assertSame(1, $previews->length);
+            $this->assertStringContainsString('rt-personnel-timeline-time', $previews->item(0)->getAttribute('class'));
+            $this->assertStringContainsString($focus['event']['timeline_label'], $previews->item(0)->textContent);
+            $overlays = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " rt-timeline-focus ")][@aria-hidden="true"]', $track);
+            $this->assertSame(1, $overlays->length);
+            $durations = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " rt-timeline-focus-duration ")]', $track);
+            $this->assertSame(count($focus['event']['time_segments']), $durations->length);
+            foreach ($focus['event']['time_segments'] as $index => $segment) {
+                $this->assertSame(1, preg_match('/left:([0-9.]+)%;width:([0-9.]+)%/', $durations->item($index)->getAttribute('style'), $geometry));
+                $this->assertEqualsWithDelta($segment['left_percent'], (float) $geometry[1], 0.000001);
+                $this->assertEqualsWithDelta($segment['width_percent'], (float) $geometry[2], 0.000001);
+            }
+
+            $ordinary = $this->timelineDay($xpath, $user, '2027-05-14');
+            $this->assertFalse($ordinary->hasAttribute('data-focus-fit'));
+            $this->assertSame(1, $xpath->query('./button[@data-timeline-cell-action]', $ordinary)->length);
+        }
+        $this->assertSame(0, $xpath->query('//button[contains(concat(" ", normalize-space(@class), " "), " rt-timeline-proposal ")][@data-shift="'.$this->shift->id.'"]')->length, 'The selected shift must not also appear as a permanently visible blue proposal.');
+        $styles = file_get_contents(resource_path('css/shift-distribution-panel.css'));
+        $this->assertSame(1, preg_match('/\.rt-timeline-focus\s*\{([^}]*)\}/', $styles, $base));
+        $this->assertStringContainsString('visibility: hidden', $base[1]);
+        $this->assertStringContainsString('opacity: 0', $base[1]);
+        $this->assertStringContainsString('pointer-events: none', $base[1]);
+        $this->assertStringContainsString(".rt-personnel-timeline-track:has(.rt-personnel-timeline-day[data-focus-fit='eligible']:hover, .rt-timeline-focus-target:focus-visible) .rt-timeline-focus", $styles);
+        $this->assertStringContainsString(".rt-personnel-timeline[data-content-loading='true'] .rt-timeline-focus { visibility: hidden; opacity: 0; }", $styles);
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_blocked_staff_has_no_selected_shift_day_tint_or_time_preview(): void
+    {
+        AbsenceRequest::create(['user_id' => $this->ben->id, 'kind' => 'vacation', 'status' => 'approved', 'starts_at' => '2027-05-13T00:00', 'ends_at' => '2027-05-14T00:00', 'timezone' => 'Europe/Berlin']);
+        $timeline = $this->timeline()->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id)
+            ->assertViewHas('focus', fn ($focus) => $focus['candidates']->keys()->all() === [$this->anna->id]);
+        $xpath = $this->timelineXPath($timeline);
+
+        $this->assertSame(['2027-05-13'], $this->eligibleFocusDates($xpath, $this->anna));
+        $this->assertSame([], $this->eligibleFocusDates($xpath, $this->ben));
+        $blocked = $this->timelineDay($xpath, $this->ben, '2027-05-13');
+        $this->assertFalse($blocked->hasAttribute('data-focus-fit'));
+        $this->assertSame(0, $xpath->query('./button[@data-focus="true"]', $blocked)->length);
+        $this->assertSame(1, $xpath->query('./button[@data-timeline-cell-action]', $blocked)->length);
+        $track = $xpath->query('//div[@*[name()="wire:key"]="staff-track-'.$this->ben->id.'"]')->item(0);
+        $this->assertSame(0, $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " rt-timeline-focus-preview ")]', $track)->length);
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_selected_overnight_shift_tints_only_half_open_intersecting_day_cells(): void
+    {
+        foreach ([['06:00', ['2027-05-13', '2027-05-14']], ['00:00', ['2027-05-13']]] as [$end, $expectedDates]) {
+            $this->shift->forceFill([
+                'starts_at' => CarbonImmutable::parse('2027-05-13T22:00:00+02:00'),
+                'ends_at' => CarbonImmutable::parse('2027-05-14T'.$end.':00+02:00'),
+                'planned_break_minutes' => $end === '00:00' ? 0 : 30,
+            ])->save();
+            $timeline = $this->timeline()->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id);
+            $xpath = $this->timelineXPath($timeline);
+            foreach ([$this->anna, $this->ben] as $user) {
+                $this->assertSame($expectedDates, $this->eligibleFocusDates($xpath, $user));
+                foreach ($expectedDates as $date) {
+                    $this->assertSame(1, $xpath->query('./button[@data-timeline-proposal][@data-focus="true"]', $this->timelineDay($xpath, $user, $date))->length);
+                }
+                $after = $this->timelineDay($xpath, $user, $end === '00:00' ? '2027-05-14' : '2027-05-15');
+                $this->assertFalse($after->hasAttribute('data-focus-fit'), 'A midnight endpoint is excluded from the following day.');
+                $this->assertSame(0, $xpath->query('./button[@data-focus="true"]', $after)->length);
+            }
+            $this->assertSame(0, ShiftAssignment::count());
+        }
+    }
+
+    public function test_closing_distribution_or_disabling_planning_removes_selected_shift_cells_and_preview(): void
+    {
+        $timeline = $this->timeline()->dispatch('operations-timeline-distribution', open: true, shiftId: $this->shift->id)
+            ->assertSee('rt-timeline-focus-preview', false)
+            ->dispatch('operations-timeline-distribution', open: false, shiftId: $this->shift->id)
+            ->assertSet('focusShiftId', null)
+            ->assertDontSee('rt-timeline-focus-target', false)
+            ->assertDontSee('rt-timeline-focus-preview', false);
+        $xpath = $this->timelineXPath($timeline);
+        $this->assertSame([], $this->eligibleFocusDates($xpath, $this->anna));
+        $this->assertSame([], $this->eligibleFocusDates($xpath, $this->ben));
+
+        foreach ([['planningEnabled' => false], ['planningEnabled' => true, 'absencesOnly' => true]] as $mode) {
+            $disabled = Livewire::actingAs($this->manager)->test(StaffTimeline::class, array_merge([
+                'from' => '2027-05-10', 'until' => '2027-05-16', 'focusShiftId' => $this->shift->id,
+            ], $mode))->assertDontSee('rt-timeline-focus-target', false)->assertDontSee('rt-timeline-focus-preview', false);
+            $disabledXPath = $this->timelineXPath($disabled);
+            $this->assertSame([], $this->eligibleFocusDates($disabledXPath, $this->anna));
+            $this->assertSame([], $this->eligibleFocusDates($disabledXPath, $this->ben));
+        }
         $this->assertSame(0, ShiftAssignment::count());
     }
 

@@ -21,6 +21,6 @@
             @endforeach
         </ul>
         @if($items->count() > $visibleShifts->count())<p class="rt-service-preview-note">{{ $items->count() - $visibleShifts->count() }} weitere {{ $items->count() - $visibleShifts->count() === 1 ? 'Schicht' : 'Schichten' }} in den Leistungsdetails.</p>@endif
-        @if($item->order)<button type="button" class="rt-service-preview-details" wire:click="openServiceDetails({{ $item->id }})" wire:loading.attr="disabled" wire:target="openServiceDetails">Alle Leistungsdetails <i class="far fa-arrow-right" aria-hidden="true"></i></button>@endif
+        @if($item->order)<button type="button" class="rt-service-preview-details" x-on:click="open = false; $dispatch('operations-service-detail-request', { id: {{ $item->id }}, ownerId: $wire.$id })">Alle Leistungsdetails <i class="far fa-arrow-right" aria-hidden="true"></i></button>@endif
     </x-slot:content>
 </x-operations.service-cell-preview>

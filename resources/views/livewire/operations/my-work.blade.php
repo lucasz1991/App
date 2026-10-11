@@ -22,6 +22,9 @@
         <header class="rt-personal-work-heading"><div><h2>Urlaub & Abwesenheiten</h2><p class="ops-muted">Zeiträume beantragen und den Stand deiner Anträge verfolgen.</p></div><x-ui.buttons.button-basic mode="primary" wire:click="openForm('absence')" wire:loading.attr="disabled">Abwesenheit beantragen</x-ui.buttons.button-basic></header>
     @endif
     <x-operations.feedback :show-offline="!$workTimeReady" />
+    @if(in_array($tab, ['today','time']))
+        <livewire:operations.employee-location-status :key="'employee-location-own-'.auth()->id()" />
+    @endif
     @if(in_array($tab, ['today','time']) && $workTimeReady)
         @include('operations.partials.work-clock')
         <x-operations.modal wire:model="generalManualOpen" title="Arbeitszeit nachtragen"><form wire:submit="saveGeneralManual" class="ops-form rt-personal-form">

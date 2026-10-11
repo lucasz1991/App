@@ -16,6 +16,8 @@ use App\Models\User;
 use App\Models\WorkforcePool;
 use App\Services\CustomerPortal\CustomerCapacityService;
 use App\Services\Dropbox\CompetencyRestrictions;
+use App\Services\Routing\TravelAssessmentService;
+use App\Services\Routing\TravelPreflight;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\WorkforcePlanningSchema;
 use Carbon\CarbonImmutable;
@@ -35,6 +37,26 @@ class StaffEligibilityService
 
     /** @return array<int, array<int, array{code: string, message: string}>> */
     public function assessMany(Shift $shift, Collection $users, bool $lock = false, array $context = []): array
+    {
+        return collect($this->assessDetailedMany($shift, $users, $lock, $context))->map(fn ($result) => $result['issues'])->all();
+    }
+
+    /** @return array<int, array{issues: array, warnings: array, travel: array, basis: string}> */
+    public function assessDetailedMany(Shift $shift, Collection $users, bool $lock = false, array $context = []): array
+    {
+        if (($context['travel_preflight'] ?? null) instanceof TravelPreflight) {
+            $context = array_replace($context['travel_preflight']->context, $context);
+        }
+        $issues = $this->assessCoreMany($shift, $users, $lock, $context);
+        $details = app(TravelAssessmentService::class)->assessMany($shift, $users, $context, $lock);
+        foreach ($users as $user) {
+            $details[$user->id]['issues'] = array_merge($issues[$user->id] ?? [], $details[$user->id]['issues'] ?? []);
+        }
+
+        return $details;
+    }
+
+    private function assessCoreMany(Shift $shift, Collection $users, bool $lock = false, array $context = []): array
     {
         $results = $users->mapWithKeys(fn (User $user) => [$user->id => []])->all();
         if ($users->isEmpty() || ! OperationsAccess::ready()) {

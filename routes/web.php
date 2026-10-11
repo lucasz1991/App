@@ -1,5 +1,11 @@
 <?php
 
+require __DIR__.'/employee-location-web.php';
+
+\Illuminate\Support\Facades\Route::get('/operations/routing/tiles/{z}/{x}/{y}', \App\Http\Controllers\RoutingTileController::class)
+    ->where(['z' => '[0-9]{1,2}', 'x' => '[0-9]{1,7}', 'y' => '[0-9]{1,7}'])
+    ->middleware(['auth', 'throttle:600,1'])->name('operations.routing.tile');
+
 use App\Http\Controllers\Admin\EmployeeProvisionPasswordController;
 use App\Http\Controllers\Admin\MailDocumentController;
 use App\Http\Controllers\Admin\MarketingCreativeController;

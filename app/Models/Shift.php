@@ -19,6 +19,7 @@ class Shift extends Model
 {
     use CapturesDropboxChanges;
     use HasFactory;
+    use \App\Models\Concerns\HasRoutingSite;
     use HasZonedSchedule;
     use SoftDeletes;
 
@@ -32,6 +33,8 @@ class Shift extends Model
         'ends_at',
         'timezone',
         'location_name',
+        'customer_location_id',
+        'location_snapshot',
         'required_staff',
         'status',
         'notes',
@@ -42,6 +45,8 @@ class Shift extends Model
 
     protected $casts = [
         'disposition_details' => 'array',
+        'customer_location_id' => 'integer',
+        'location_snapshot' => 'array',
         'required_staff' => 'integer',
         'status' => ShiftStatus::class,
         'revision' => 'integer',

@@ -30,6 +30,7 @@ class RbacCatalog
                 ['key' => 'operations.absences.review', 'label' => 'Abwesenheiten prüfen'],
                 ['key' => 'operations.time.review', 'label' => 'Zeitmeldungen prüfen und freigeben'],
                 ['key' => 'operations.time.export', 'label' => 'Freigegebene Zeitnachweise exportieren'],
+                ['key' => 'operations.locations.view', 'label' => 'Freigegebene aktuelle Mitarbeiterstandorte für Disposition einsehen'],
                 ['key' => 'operations.rules.manage', 'label' => 'Betriebliche Prüfregeln verwalten'],
                 ['key' => 'operations.costs.manage', 'label' => 'Private Auftragskosten verwalten'],
                 ['key' => 'operations.terminal.manage', 'label' => 'Terminalzugänge verwalten'],

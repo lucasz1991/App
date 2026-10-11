@@ -60,6 +60,9 @@
                     </div>
                 @endif
                 <p class="rt-staffing-note" aria-live="polite">{{ $candidates->count() }} von {{ $candidateTotal }} Mitarbeitenden · Bereits reservierte Personen stehen oben.</p>
+                @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && $candidates->isNotEmpty())
+                    <livewire:operations.shift-travel-panel :shift-id="$selectedShift->id" :employee-ids="$candidates->take(24)->pluck('id')->all()" :key="'shift-travel-'.$selectedShift->id.'-'.$selectedShift->revision.'-'.md5($candidates->take(24)->pluck('id')->join(','))" />
+                @endif
             @endif
         </section>
     @endif

@@ -4,13 +4,18 @@ namespace App\Livewire\Admin\Operations;
 
 use App\Enums\OrderPriority;
 use App\Enums\OrderStatus;
+use App\Enums\ShiftAssignmentStatus;
+use App\Enums\ShiftStatus;
 use App\Models\Customer;
 use App\Models\OperationInquiry;
 use App\Models\Order;
+use App\Models\Shift;
+use App\Models\ShiftAssignment;
 use App\Services\Operations\OrderLifecycleService;
 use App\Services\Operations\OrderSchedulingService;
 use App\Support\Operations\OperationsEnhancementsSchema;
 use App\Support\Operations\OperationsPages;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
@@ -85,6 +90,9 @@ class Orders extends Component
 
     #[Locked]
     public bool $detailOnly = false;
+
+    #[Locked]
+    public bool $embeddedDetail = false;
 
     #[Locked]
     public string $detailSection = 'overview';
@@ -202,11 +210,13 @@ class Orders extends Component
 
     public string $notes = '';
 
-    public function mount(?int $initialOrderId = null, ?int $customerId = null, string $initialSection = 'overview', bool $consolidated = false, ?int $initialRecordId = null, bool $profileEmbedded = false, bool $detailOnly = false): void
+    public function mount(?int $initialOrderId = null, ?int $customerId = null, string $initialSection = 'overview', bool $consolidated = false, ?int $initialRecordId = null, bool $profileEmbedded = false, bool $detailOnly = false, bool $embeddedDetail = false): void
     {
         $this->ensureAdmin();
         $this->mounting = true;
         $this->detailOnly = $detailOnly;
+        abort_if($embeddedDetail && ! $detailOnly, 404);
+        $this->embeddedDetail = $embeddedDetail;
         abort_if($detailOnly && $initialOrderId === null, 404);
         abort_if($profileEmbedded && (! $consolidated || $customerId === null), 404);
         $this->profileEmbedded = $profileEmbedded;
@@ -482,8 +492,10 @@ class Orders extends Component
             ->paginate(25, ['*'], 'ordersPage');
 
         $selectedOrder = $this->selectedOrderId
-            ? $this->scopedQuery()->with(['customer', 'shifts.assignments', 'statusHistory.changedBy.profile', 'statusHistory.changedBy.currentTeam'])->findOrFail($this->selectedOrderId)
+            ? $this->scopedQuery()->with(['customer', 'shifts.assignments.user.profile', 'shifts.assignments.user.currentTeam', 'statusHistory.changedBy.profile', 'statusHistory.changedBy.currentTeam'])->findOrFail($this->selectedOrderId)
             : null;
+
+        $serviceDetailItem = $this->serviceDetailProjection($selectedOrder);
 
         $transitionOptions = $selectedOrder
             ? collect($lifecycle->allowedTransitions($selectedOrder->status))
@@ -495,6 +507,8 @@ class Orders extends Component
         return view('livewire.admin.operations.orders', [
             'orders' => $orders,
             'selectedOrder' => $selectedOrder,
+            'serviceDetailItem' => $serviceDetailItem,
+            'serviceDetailSummary' => $serviceDetailItem?->summary ?? ['shifts' => 0, 'required' => 0, 'reserved' => 0, 'confirmed' => 0, 'open' => 0],
             'originInquiry' => $selectedOrder && auth()->user()->can('operations.inquiries.manage') && Schema::hasTable('operation_inquiries') ? OperationInquiry::where('order_id', $selectedOrder->id)->first() : null,
             'customers' => Customer::query()
                 ->when($this->profileEmbedded, fn (Builder $query) => $query->whereKey($this->customerFilterId))
@@ -521,6 +535,68 @@ class Orders extends Component
                 ->whereDoesntHave('shifts')
                 ->count(),
         ]);
+    }
+
+    /** Build the complete selected service from loaded data, independent of list filters/pages. */
+    private function serviceDetailProjection(?Order $order): ?object
+    {
+        if (! $order) {
+            return null;
+        }
+
+        $timezone = (string) config('operations.display_timezone', 'Europe/Berlin');
+        try {
+            new \DateTimeZone($timezone);
+        } catch (\Throwable) {
+            $timezone = 'Europe/Berlin';
+        }
+
+        // Never parse missing/invalid schedule data into "now" for a display preview.
+        $date = static function (Order|Shift $record, string $attribute) use ($timezone): ?CarbonImmutable {
+            try {
+                $value = $record->{$attribute};
+
+                return $value ? CarbonImmutable::instance($value)->setTimezone($timezone) : null;
+            } catch (\Throwable) {
+                return null;
+            }
+        };
+
+        $shifts = $order->shifts->sort(function (Shift $left, Shift $right) use ($date): int {
+            $leftDate = $date($left, 'starts_at');
+            $rightDate = $date($right, 'starts_at');
+
+            return (($leftDate?->getTimestamp() ?? PHP_INT_MAX) <=> ($rightDate?->getTimestamp() ?? PHP_INT_MAX))
+                ?: ($left->id <=> $right->id);
+        })->values();
+        $summary = ['shifts' => 0, 'required' => 0, 'reserved' => 0, 'confirmed' => 0, 'open' => 0];
+        $seats = collect();
+        foreach ($shifts as $shift) {
+            if (in_array($shift->status, [ShiftStatus::Completed, ShiftStatus::Cancelled], true)) {
+                continue;
+            }
+            $blocking = $shift->assignments->filter(fn (ShiftAssignment $assignment): bool => $assignment->status->blocksAvailability());
+            $reserved = $blocking->count();
+            $summary['shifts']++;
+            $summary['required'] += $shift->required_staff;
+            $summary['reserved'] += $reserved;
+            $summary['confirmed'] += $shift->assignments->where('status', ShiftAssignmentStatus::Confirmed)->count();
+            $summary['open'] += max(0, $shift->required_staff - $reserved);
+            foreach ($blocking as $assignment) {
+                $seats->push([
+                    'id' => $assignment->id, 'user' => $assignment->user, 'shift' => $shift->title,
+                    'starts_at' => $date($shift, 'starts_at'), 'ends_at' => $date($shift, 'ends_at'),
+                ]);
+            }
+        }
+
+        return (object) [
+            'id' => $order->id, 'order' => $order, 'count' => $shifts->count(), 'shifts' => $shifts,
+            'timezone' => $timezone, 'summary' => $summary, 'staffingSeats' => $seats,
+            'staffingUsers' => $seats->pluck('user')->filter()->unique('id')->values(),
+            'from' => $shifts->isEmpty() ? $date($order, 'starts_at') : $shifts->map(fn (Shift $shift) => $date($shift, 'starts_at'))->filter()->min(),
+            'until' => $shifts->isEmpty() ? $date($order, 'ends_at') : $shifts->map(fn (Shift $shift) => $date($shift, 'ends_at'))->filter()->max(),
+        ];
     }
 
     private function resetOrderForm(): void

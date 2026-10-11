@@ -1,0 +1,449 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Device;
+use App\Models\DeviceAssignment;
+use App\Models\EmployeeLocationConsent;
+use App\Models\EmployeeLocationPoint;
+use App\Models\MobileLocationCode;
+use App\Models\MobileLocationInstallation;
+use App\Models\Setting;
+use App\Models\Team;
+use App\Models\User;
+use App\Models\WorkTimeEntry;
+use App\Services\EmployeeLocation\EmployeeLocationReader;
+use App\Services\EmployeeLocation\EmployeeLocationService;
+use App\Services\Operations\WorkTimeService;
+use App\Support\EmployeeLocation\EmployeeLocationSettings;
+use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Logout;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Livewire\Livewire;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Tests\Support\BuildsMinimalRailTimeSchema;
+use Tests\TestCase;
+
+class EmployeeLocationTest extends TestCase
+{
+    use BuildsMinimalRailTimeSchema;
+
+    private User $employee;
+
+    private User $admin;
+
+    private DeviceAssignment $assignment;
+
+    private EmployeeLocationService $service;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->buildMinimalRailTimeSchema();
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        (require database_path('migrations/2026_10_04_123000_extend_work_time_contexts.php'))->up();
+        (require database_path('migrations/2026_08_17_070000_create_device_management_tables.php'))->up();
+        (require database_path('migrations/2026_10_11_120200_create_employee_location_tables.php'))->up();
+        Schema::create('personal_access_tokens', function (Blueprint $table): void {
+            $table->id();
+            $table->morphs('tokenable');
+            $table->string('name');
+            $table->string('token', 64)->unique();
+            $table->text('abilities')->nullable();
+            $table->timestamp('last_used_at')->nullable();
+            $table->timestamp('expires_at')->nullable();
+            $table->timestamps();
+        });
+        $this->travelTo(CarbonImmutable::parse('2026-10-11T08:00:00Z'));
+        $this->admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $this->employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $device = Device::create(['platform' => 'android', 'ownership' => 'corporate', 'lifecycle_status' => 'assigned', 'display_name' => 'Geschäftshandy']);
+        $this->assignment = DeviceAssignment::create(['device_id' => $device->id, 'user_id' => $this->employee->id, 'status' => 'active', 'assigned_at' => now()]);
+        $this->service = app(EmployeeLocationService::class);
+        EmployeeLocationSettings::save(['enabled' => true], $this->admin);
+    }
+
+    public function test_device_pairing_uses_hashed_one_use_code_and_revocable_location_only_token(): void
+    {
+        $code = $this->service->pairingCode($this->employee, $this->assignment->id);
+        $this->assertStringNotContainsString($code, json_encode(DB::table('mobile_location_codes')->first()));
+        $response = $this->service->register(['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'android']);
+        $this->assertSame(hash('sha256', $response['token']), MobileLocationInstallation::first()->token_hash);
+        $this->assertStringNotContainsString($response['token'], json_encode(MobileLocationInstallation::first()->toArray()));
+        $this->expectException(HttpException::class);
+        $this->service->register(['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'android']);
+    }
+
+    public function test_only_an_active_corporate_phone_assigned_to_the_employee_can_pair(): void
+    {
+        DB::table('devices')->where('id', $this->assignment->device_id)->update(['ownership' => 'byod']);
+        $this->expectException(HttpException::class);
+        $this->service->pairingCode($this->employee, $this->assignment->id);
+    }
+
+    public function test_pairing_expires_after_fifteen_minutes(): void
+    {
+        $code = $this->service->pairingCode($this->employee, $this->assignment->id);
+        $this->travel(15)->minutes();
+        $this->expectException(HttpException::class);
+        $this->service->register(['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'android']);
+    }
+
+    public function test_new_installation_revokes_the_previous_one_and_requires_new_consent(): void
+    {
+        [$installation] = $this->ready();
+        $code = $this->service->pairingCode($this->employee, $this->assignment->id);
+        $this->service->register(['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'android']);
+        $this->assertNotNull($installation->fresh()->revoked_at);
+        $this->assertSame('consent_missing', $this->service->status($this->employee)['state']);
+    }
+
+    public function test_declining_consent_keeps_time_running_and_is_not_repeated_on_every_refresh(): void
+    {
+        $entry = $this->work();
+        $this->service->decide($this->employee, false, 1);
+        $status = $this->service->status($this->employee);
+        $this->assertFalse($status['needs_decision']);
+        $this->assertSame('running', $entry->fresh()->status);
+        $this->assertDatabaseCount('employee_location_points', 0);
+    }
+
+    public function test_first_sample_is_encrypted_then_the_fifteen_minute_interval_is_enforced(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $sample = $this->sample($permit);
+        $response = $this->service->point($installation, $sample);
+        $this->assertTrue($response['accepted']);
+        $point = EmployeeLocationPoint::firstOrFail();
+        $this->assertSame(52.52, $point->position['latitude']);
+        $raw = DB::table('employee_location_points')->value('position');
+        $this->assertStringNotContainsString('52.52', $raw);
+        $this->assertStringNotContainsString('latitude', $raw);
+        $this->assertArrayNotHasKey('position', $point->toArray());
+        $this->travel(1)->seconds();
+        $this->expectException(ValidationException::class);
+        $this->service->point($installation, $this->sample($permit));
+    }
+
+    public function test_identical_sample_retry_is_idempotent_and_changed_retry_is_rejected(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $sample = $this->sample($permit);
+        $this->service->point($installation, $sample);
+        $this->assertTrue($this->service->point($installation, $sample)['duplicate']);
+        $this->assertDatabaseCount('employee_location_points', 1);
+        $this->expectException(HttpException::class);
+        $this->service->point($installation, array_replace($sample, ['longitude' => 11]));
+    }
+
+    public function test_second_sample_after_fifteen_minutes_needs_continuously_renewed_permits(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $this->service->point($installation, $this->sample($permit));
+        for ($minute = 0; $minute < 15; $minute++) {
+            $this->travel(1)->minutes();
+            $permit = $this->service->permit($installation);
+        }
+        $this->service->point($installation, $this->sample($permit));
+        $this->assertDatabaseCount('employee_location_points', 2);
+    }
+
+    public function test_expired_short_permit_cannot_be_silently_restarted_or_used_for_upload(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $this->travel(120)->seconds();
+        $this->assertDenied(fn () => $this->service->permit($installation));
+        $this->assertDenied(fn () => $this->service->point($installation, $this->sample($permit)));
+        $this->assertDatabaseCount('employee_location_points', 0);
+    }
+
+    public function test_imprecise_stale_and_future_points_are_not_saved(): void
+    {
+        [$installation, $permit] = $this->ready();
+        foreach ([['accuracy_m' => 51], ['measured_at' => now()->subSeconds(31)->toIso8601String()], ['measured_at' => now()->addSeconds(6)->toIso8601String()]] as $override) {
+            try {
+                $this->service->point($installation, array_replace($this->sample($permit), $override));
+                $this->fail('Invalid point was accepted.');
+            } catch (ValidationException) {
+                $this->assertDatabaseCount('employee_location_points', 0);
+            }
+        }
+    }
+
+    public function test_withdrawal_deletes_today_and_invalidates_permit_immediately(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $this->service->point($installation, $this->sample($permit));
+        $this->service->withdraw($this->employee);
+        $this->assertDatabaseCount('employee_location_points', 0);
+        $this->assertNotNull(EmployeeLocationConsent::first()->withdrawn_at);
+        $this->assertNull($installation->fresh()->session_id);
+        $this->assertDenied(fn () => $this->service->point($installation, $this->sample($permit)));
+        $this->assertSame('running', WorkTimeEntry::first()->status);
+    }
+
+    public function test_midnight_ends_consent_without_ending_night_work(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-10-11T21:59:30Z'));
+        [$installation, $permit] = $this->ready();
+        $this->assertSame('2026-10-11T22:00:00.000000Z', $permit['expires_at']);
+        $this->travel(30)->seconds();
+        $this->assertDenied(fn () => $this->service->permit($installation));
+        $this->assertTrue($this->service->status($this->employee)['needs_decision']);
+        $this->assertSame('running', WorkTimeEntry::first()->status);
+    }
+
+    public function test_work_pause_and_stop_clear_sessions_and_resume_does_not_auto_start(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $entry = WorkTimeEntry::first();
+        $entry = app(WorkTimeService::class)->clock($entry->id, $entry->revision, 'pause', (string) Str::uuid(), $this->employee);
+        $this->assertNull($installation->fresh()->session_id);
+        $this->assertDenied(fn () => $this->service->point($installation, $this->sample($permit)));
+        $entry = app(WorkTimeService::class)->clock($entry->id, $entry->revision, 'resume', (string) Str::uuid(), $this->employee);
+        $this->assertSame('start_required', $this->service->status($this->employee)['state']);
+        app(WorkTimeService::class)->clock($entry->id, $entry->revision, 'stop', (string) Str::uuid(), $this->employee);
+        $this->assertSame('not_working', $this->service->status($this->employee)['state']);
+    }
+
+    public function test_authority_checks_reject_returned_devices_and_inactive_users_even_without_events(): void
+    {
+        [$installation, $permit] = $this->ready();
+        DB::table('device_assignments')->where('id', $this->assignment->id)->update(['returned_at' => now(), 'status' => 'returned']);
+        $this->assertDenied(fn () => $this->service->point($installation, $this->sample($permit)));
+        DB::table('device_assignments')->where('id', $this->assignment->id)->update(['returned_at' => null, 'status' => 'active']);
+        DB::table('users')->where('id', $this->employee->id)->update(['status' => false]);
+        $this->assertDenied(fn () => $this->service->permit($installation));
+    }
+
+    public function test_device_return_and_logout_hooks_clear_native_authorization(): void
+    {
+        [$installation] = $this->ready();
+        Event::dispatch(new Logout('web', $this->employee));
+        $this->assertNull($installation->fresh()->session_id);
+        $this->assignment->update(['status' => 'returned', 'returned_at' => now()]);
+        $this->assertNotNull($installation->fresh()->revoked_at);
+    }
+
+    public function test_global_disable_and_explanation_revision_are_checked_uncached(): void
+    {
+        [$installation, $permit] = $this->ready();
+        EmployeeLocationSettings::save(['enabled' => false], $this->admin);
+        $this->assertDenied(fn () => $this->service->point($installation, $this->sample($permit)));
+        EmployeeLocationSettings::save(['enabled' => true, 'explanation_text' => EmployeeLocationSettings::DEFAULTS['explanation_text'].' Weitere Erklärung.'], $this->admin);
+        $this->assertSame(2, EmployeeLocationSettings::read()['explanation_version']);
+        $this->assertTrue($this->service->status($this->employee)['needs_decision']);
+        $this->assertDenied(fn () => $this->service->handoff($this->employee));
+    }
+
+    public function test_reader_has_no_implicit_administrator_access_and_checks_freshness(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $this->service->point($installation, $this->sample($permit));
+        $reader = app(EmployeeLocationReader::class);
+        $this->assertSame('available', $reader->latestForMany(collect([$this->employee]), ['actor' => $this->employee])[$this->employee->id]['status']);
+        $this->assertNull($reader->latestForMany(collect([$this->employee]), ['actor' => $this->admin])[$this->employee->id]['point']);
+        $team = Team::forceCreate(['user_id' => $this->admin->id, 'name' => 'Disposition', 'personal_team' => false, 'rbac_permissions' => ['operations.locations.view' => true]]);
+        $this->admin->forceFill(['current_team_id' => $team->id])->save();
+        $this->admin->unsetRelation('currentTeam');
+        $this->assertSame('available', $reader->latestForMany(collect([$this->employee]), ['actor' => $this->admin])[$this->employee->id]['status']);
+        $this->travel(15)->minutes();
+        $this->assertSame('available', $reader->latestForMany(collect([$this->employee]), ['actor' => $this->admin])[$this->employee->id]['status']);
+        $this->travel(1)->seconds();
+        $this->assertSame('stale', $reader->latestForMany(collect([$this->employee]), ['actor' => $this->admin])[$this->employee->id]['status']);
+    }
+
+    public function test_reader_and_upload_never_use_a_paused_or_revised_work_entry(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $this->service->point($installation, $this->sample($permit));
+        DB::table('work_time_entries')->update(['status' => 'paused', 'paused_at' => now()]);
+        $this->assertSame('not_working', app(EmployeeLocationReader::class)->latestForMany(collect([$this->employee]), ['actor' => $this->employee])[$this->employee->id]['status']);
+        $this->assertDenied(fn () => $this->service->permit($installation));
+        DB::table('work_time_entries')->update(['status' => 'running', 'paused_at' => null, 'revision' => 2]);
+        $this->assertDenied(fn () => $this->service->point($installation, $this->sample($permit)));
+    }
+
+    public function test_seven_day_retention_hides_expired_points_before_hourly_deletion(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $this->service->point($installation, $this->sample($permit));
+        DB::table('employee_location_points')->update(['measured_at' => now()->utc()->subDays(7)->format('Y-m-d H:i:s.u')]);
+        $this->assertTrue($this->service->status($this->employee, true)['history']->isEmpty());
+        $this->assertSame(1, $this->service->purge());
+        $this->assertDatabaseCount('employee_location_points', 0);
+    }
+
+    public function test_handoff_code_is_single_use_bound_to_installation_and_expires_in_sixty_seconds(): void
+    {
+        [$installation] = $this->ready();
+        $code = $this->service->handoff($this->employee);
+        $this->service->start($installation, $code);
+        $this->assertDenied(fn () => $this->service->start($installation, $code));
+        $code = $this->service->handoff($this->employee);
+        $this->travel(60)->seconds();
+        $this->assertDenied(fn () => $this->service->start($installation, $code));
+    }
+
+    public function test_employee_ui_explains_daily_choice_history_and_pwa_without_forcing_consent(): void
+    {
+        $this->work();
+        Livewire::actingAs($this->employee)->test(\App\Livewire\Operations\EmployeeLocationStatus::class)
+            ->assertSee('Für heute erlauben')->assertSee('Heute ohne Standort fortfahren')->assertSee('sieben Tage')
+            ->assertSee('RailTime auf dem Geschäftshandy installieren')->call('decline')->assertHasNoErrors();
+        $this->assertSame('declined', EmployeeLocationConsent::first()->decision);
+        $this->assertSame('running', WorkTimeEntry::first()->status);
+    }
+
+    public function test_native_http_contract_is_no_store_and_token_does_not_authorize_time_writes(): void
+    {
+        $code = $this->service->pairingCode($this->employee, $this->assignment->id);
+        $registration = $this->postJson('/api/employee-location/register', ['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'android'])
+            ->assertCreated()->assertJsonStructure(['token', 'installation_id', 'server_time']);
+        $this->assertStringContainsString('no-store', $registration->headers->get('Cache-Control'));
+        $this->service->decide($this->employee, true, 1);
+        $this->work();
+        $handoff = $this->service->handoff($this->employee);
+        $token = $registration->json('token');
+        $permit = $this->withToken($token)->postJson('/api/employee-location/start', ['code' => $handoff])
+            ->assertOk()->assertJsonStructure(['permit_id', 'expires_at', 'server_time', 'next_sample_at', 'work_time_entry_id']);
+        $this->withToken($token)->postJson('/api/employee-location/points', $this->sample($permit->json()))->assertOk()->assertJsonPath('accepted', true);
+        $this->withToken($token)->getJson('/api/v2/operations/me/work-times')->assertUnauthorized();
+        $this->withToken($token)->postJson('/api/employee-location/stop')->assertNoContent();
+        $this->withToken($token)->postJson('/api/employee-location/permit')->assertForbidden();
+    }
+
+    public function test_native_endpoint_rejects_another_device_and_session_tokens(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $this->postJson('/api/employee-location/points', $this->sample($permit))->assertUnauthorized();
+        $this->actingAs($this->employee)->postJson('/api/employee-location/points', $this->sample($permit))->assertUnauthorized();
+        $this->withToken(Str::random(80))->postJson('/api/employee-location/points', $this->sample($permit))->assertUnauthorized();
+        $this->assertDatabaseCount('employee_location_points', 0);
+    }
+
+    public function test_ios_business_device_uses_same_scoped_contract_and_rejects_wrong_platform(): void
+    {
+        DB::table('devices')->where('id', $this->assignment->device_id)->update(['platform' => 'ios']);
+        $code = $this->service->pairingCode($this->employee, $this->assignment->id);
+        $this->postJson('/api/employee-location/register', ['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'android'])->assertForbidden();
+        $this->postJson('/api/employee-location/register', ['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'ios'])->assertCreated();
+        $this->assertSame('ios', MobileLocationInstallation::first()->platform);
+    }
+
+    public function test_fractional_utc_clock_preserves_short_permit_and_precise_sample(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-10-11T08:00:00.925321Z'));
+        [$installation, $permit] = $this->ready();
+        $this->assertSame('2026-10-11T08:00:00.925321Z', $permit['server_time']);
+        $this->assertSame('2026-10-11T08:02:00.925321Z', $permit['expires_at']);
+        $sample = array_replace($this->sample($permit), ['measured_at' => now()->utc()->toISOString()]);
+        $this->service->point($installation, $sample);
+        $this->assertSame('2026-10-11T08:00:00.925321Z', EmployeeLocationPoint::first()->measured_at->toISOString());
+        $this->assertSame('2026-10-11T08:15:00.925321Z', $installation->fresh()->next_sample_at->toISOString());
+    }
+
+    public function test_precision_status_does_not_change_without_active_authorization(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $this->service->withdraw($this->employee);
+        $this->assertDenied(fn () => $this->service->point($installation, array_replace($this->sample($permit), ['accuracy_m' => 100])));
+        $this->assertSame('stopped', $installation->fresh()->quality_status);
+    }
+
+    public function test_history_delete_removes_own_points_and_keeps_clock_untouched(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $this->service->point($installation, $this->sample($permit));
+        $this->service->deleteHistory($this->employee);
+        $this->assertDatabaseCount('employee_location_points', 0);
+        $this->assertSame('running', WorkTimeEntry::first()->status);
+        $this->assertNotNull(EmployeeLocationConsent::first()->withdrawn_at);
+    }
+
+    public function test_consent_evidence_preserves_the_explained_text_after_purpose_revision_and_withdrawal(): void
+    {
+        $this->ready();
+        $initial = \App\Models\EmployeeLocationConsentEvent::first();
+        EmployeeLocationSettings::save(['explanation_text' => EmployeeLocationSettings::DEFAULTS['explanation_text'].' Ergänzung.'], $this->admin);
+        $this->service->withdraw($this->employee);
+        $this->assertSame(EmployeeLocationSettings::DEFAULTS['explanation_text'], $initial->fresh()->explanation_text);
+        $this->assertSame(['accepted', 'withdrawn'], \App\Models\EmployeeLocationConsentEvent::orderBy('id')->pluck('action')->all());
+        $this->assertSame($initial->explanation_hash, \App\Models\EmployeeLocationConsentEvent::latest('id')->first()->explanation_hash);
+        $this->assertArrayNotHasKey('position', $initial->toArray());
+    }
+
+    public function test_dispatcher_access_respects_explicit_personnel_responsibilities(): void
+    {
+        [$installation, $permit] = $this->ready();
+        $this->service->point($installation, $this->sample($permit));
+        $dispatcher = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $other = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $team = Team::forceCreate(['user_id' => $this->admin->id, 'name' => 'Disposition', 'personal_team' => false, 'rbac_permissions' => ['operations.locations.view' => true]]);
+        $dispatcher->forceFill(['current_team_id' => $team->id])->save();
+        Schema::create('personnel_responsibilities', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('responsible_user_id');
+            $table->date('starts_on');
+            $table->date('ends_on')->nullable();
+            $table->json('abilities');
+            $table->timestamps();
+        });
+        DB::table('personnel_responsibilities')->insert(['user_id' => $this->employee->id, 'responsible_user_id' => $dispatcher->id, 'starts_on' => '2026-10-01', 'abilities' => json_encode(['operations.locations.view'])]);
+        $result = app(EmployeeLocationReader::class)->latestForMany(collect([$this->employee, $other]), ['actor' => $dispatcher]);
+        $this->assertSame('available', $result[$this->employee->id]['status']);
+        $this->assertSame('unauthorized', $result[$other->id]['status']);
+        $this->assertNull($result[$other->id]['point']);
+        DB::table('personnel_responsibilities')->update(['abilities' => json_encode(['operations.time.review'])]);
+        $this->assertSame('unauthorized', app(EmployeeLocationReader::class)->latestForMany(collect([$this->employee]), ['actor' => $dispatcher])[$this->employee->id]['status']);
+    }
+
+    public function test_precision_link_associations_are_limited_to_location_open_path(): void
+    {
+        EmployeeLocationSettings::save(['android_certificate_sha256' => implode(':', array_fill(0, 32, 'AA')), 'ios_app_id' => 'ABCDEFGHIJ.de.railtime.location'], $this->admin);
+        $this->getJson('/.well-known/assetlinks.json')->assertOk()->assertJsonPath('0.target.package_name', 'de.railtime.location');
+        $this->getJson('/.well-known/apple-app-site-association')->assertOk()->assertJsonPath('applinks.details.0.paths.0', '/employee-location/open');
+        $response = $this->get('/employee-location/open')->assertOk()->assertSee('60 Sekunden');
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        $this->assertSame('no-referrer', $response->headers->get('Referrer-Policy'));
+    }
+
+    private function ready(): array
+    {
+        $code = $this->service->pairingCode($this->employee, $this->assignment->id);
+        $registered = $this->service->register(['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'android']);
+        $installation = MobileLocationInstallation::first();
+        $this->service->decide($this->employee, true, 1);
+        $this->work();
+        $handoff = $this->service->handoff($this->employee);
+        $permit = $this->service->start($installation, $handoff);
+
+        return [$installation, $permit, $registered['token']];
+    }
+
+    private function work(): WorkTimeEntry
+    {
+        return WorkTimeEntry::create(['user_id' => $this->employee->id, 'work_context' => 'internal', 'status' => 'running', 'timezone' => 'Europe/Berlin', 'starts_at' => now()->subMinutes(10), 'plan_snapshot' => ['title' => 'Interne Arbeit']]);
+    }
+
+    private function sample(array $permit): array
+    {
+        return ['permit_id' => $permit['permit_id'], 'event_id' => (string) Str::uuid(), 'latitude' => 52.52, 'longitude' => 13.405, 'accuracy_m' => 5, 'measured_at' => now()->utc()->toIso8601String()];
+    }
+
+    private function assertDenied(callable $operation): void
+    {
+        try {
+            $operation();
+            $this->fail('Operation should have been denied.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
+    }
+}

@@ -54,6 +54,7 @@ import { staffTimeline } from './staff-timeline';
 import { anchorDropdown } from './anchor-dropdown';
 import { timelinePlanning } from './timeline-planning-actions';
 import { shiftDetailDrawer } from './shift-detail-drawer';
+import { serviceDetailPanel } from './service-detail-panel';
 import { aiIntakeRecorder } from './ai-intake-recorder';
 import { workTimeCapture } from './work-time-capture';
 import { railtimeTabs } from './tabs';
@@ -80,6 +81,7 @@ import { modalBody, trackLivewireRequests } from './modal-body';
 import { filePreview } from './file-preview';
 import { filePoolDropzone, filePoolExternalDrop } from './filepool-upload';
 import { registerRailtimeLiveLocation } from './live-location';
+import { registerRoutingMap } from './routing-map';
 import {
     MAIL_SIGNATURE_SCHEMA,
     createMailBuilder,
@@ -682,6 +684,7 @@ registerRailtimePushSettings(Alpine);
 registerRailtimePwaInstall(Alpine);
 setupRailtimePwa();
 const rtLiveLocation = registerRailtimeLiveLocation(Alpine);
+registerRoutingMap(Alpine);
 
 Alpine.data('wagonListPrototype', wagonListPrototype);
 Alpine.data('wagonVideoCapture', wagonVideoCapture);
@@ -693,6 +696,7 @@ Alpine.data('rtStaffTimeline', staffTimeline);
 Alpine.data('rtAnchorDropdown', anchorDropdown);
 Alpine.data('rtTimelinePlanning', timelinePlanning);
 Alpine.data('rtShiftDetailDrawer', shiftDetailDrawer);
+Alpine.data('rtServiceDetailPanel', serviceDetailPanel);
 Alpine.data('rtWorkTimeCapture', workTimeCapture);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);

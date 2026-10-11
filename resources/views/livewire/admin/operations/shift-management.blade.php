@@ -386,6 +386,9 @@
                                     @endif
                                 </dl>
                             </x-operations.panel.group>
+                            @if(\App\Services\Operations\SiteSnapshotService::ready())
+                                <livewire:operations.routing-site-editor subject-type="shift" :subject-id="$selectedShift->id" :key="'routing-shift-'.$selectedShift->id.'-'.$selectedShift->revision" />
+                            @endif
                             @if(filled($selectedShift->notes))
                                 <x-operations.panel.group title="Interne Notizen" meta="nur intern">
                                     <p class="rt-ops-panel__text">{{ $selectedShift->notes }}</p>

@@ -1,31 +1,40 @@
-// Three deliberate edge gestures, not three raw wheel packets. Keep this
-// controller pagination-only: the existing Livewire owner still runs queries.
+// One deliberate extra edge gesture, not the tail of arriving at the edge.
+// Keep this controller pagination-only: the Livewire owner still runs queries.
 export function createScrollStepGate() {
     let direction = 0;
     let steps = 0;
+    let edgeDistance = 0;
+    let blockedBurst = false;
     let lastEvent = -Infinity;
     let quietUntil = -Infinity;
     return {
         count() { return steps; },
-        reset() { direction = 0; steps = 0; lastEvent = -Infinity; },
+        // A morph/cancel must not turn an arriving burst's inertia into a new
+        // gesture. Keep its clock; only a real rest starts another wheel burst.
+        reset() { direction = 0; steps = 0; edgeDistance = 0; blockedBurst = true; },
         coolDown(now) { this.reset(); quietUntil = now + 700; },
         observe(delta, now, eligible, discrete = false) {
             const previous = lastEvent;
             lastEvent = now;
             const nextDirection = Math.sign(delta);
             if (!eligible || !Number.isFinite(delta) || !nextDirection) {
-                direction = 0; steps = 0;
+                direction = 0; steps = 0; edgeDistance = 0; blockedBurst = true;
                 return false;
             }
-            if (nextDirection !== direction || now - previous > 1800) {
-                direction = nextDirection; steps = 0;
+            if (now < quietUntil) { blockedBurst = true; edgeDistance = 0; return false; }
+            if (discrete) {
+                if (Math.abs(delta) < 64) return false;
+            } else {
+                if (now - previous >= 180) { edgeDistance = 0; blockedBurst = false; }
+                if (blockedBurst) return false;
+                if (nextDirection !== direction) { direction = nextDirection; edgeDistance = 0; }
+                // A strong mouse impulse is immediate. Fine trackpad packets
+                // can form one clear gesture, but never accumulate across rests
+                // or out of the burst which merely scrolled to the boundary.
+                edgeDistance += Math.abs(delta);
+                if (Math.abs(delta) < 40 && edgeDistance < 100) return false;
             }
-            // Do not accumulate tiny trackpad jitter into a deliberate step.
-            if (Math.abs(delta) < (discrete ? 64 : 40) || now < quietUntil) return false;
-            // Trackpad inertia/one sustained swipe counts once until it rests.
-            if (!discrete && now - previous < 180) return false;
-            steps += 1;
-            if (steps < 3) return false;
+            steps = 1;
             this.coolDown(now);
             return true;
         },
@@ -56,6 +65,8 @@ export function listScrollPagination() {
     return {
         gate: null,
         pending: false,
+        loadingDirection: 1,
+        loadingStyle: '',
         destroyed: false,
         signature: '',
         touch: null,
@@ -65,6 +76,7 @@ export function listScrollPagination() {
         cancelListener: null,
         resetListener: null,
         observer: null,
+        positionListener: null,
         init() {
             this.gate = createScrollStepGate();
             this.wheelListener = event => this.handleWheel(event);
@@ -77,6 +89,9 @@ export function listScrollPagination() {
             this.$el.addEventListener('touchend', this.endListener, { passive: true });
             this.$el.addEventListener('touchcancel', this.cancelListener, { passive: true });
             document.addEventListener('livewire:navigating', this.resetListener);
+            this.positionListener = () => { if (this.pending) this.updateLoadingPosition(); };
+            window.addEventListener('resize', this.positionListener);
+            window.addEventListener('scroll', this.positionListener, true);
             this.observer = new MutationObserver(() => { this.touch = null; this.gate.reset(); });
             this.observer.observe(this.$el, { childList: true, subtree: true, characterData: true,
                 attributes: true, attributeFilter: ['data-list-page', 'data-list-page-name',
@@ -89,6 +104,8 @@ export function listScrollPagination() {
             this.$el.removeEventListener('touchend', this.endListener);
             this.$el.removeEventListener('touchcancel', this.cancelListener);
             document.removeEventListener('livewire:navigating', this.resetListener);
+            window.removeEventListener('resize', this.positionListener);
+            window.removeEventListener('scroll', this.positionListener, true);
             this.observer?.disconnect();
             this.gate?.reset();
             this.touch = null;
@@ -133,7 +150,7 @@ export function listScrollPagination() {
             // page scroll on the first/last page. Only contain edge gestures.
             if (eligible && event.cancelable) event.preventDefault();
             const complete = this.gate.observe(delta, performance.now(), eligible);
-            this.$el.dataset.listScrollSteps = String(complete ? 3 : this.gate.count());
+            this.$el.dataset.listScrollSteps = String(complete ? 1 : this.gate.count());
             if (complete) void this.changePage(direction, meta);
         },
         beginTouch(event) {
@@ -158,11 +175,27 @@ export function listScrollPagination() {
                 && (direction > 0 ? meta.next && start.down : meta.previous && start.up)
                 && this.atBoundary(direction, context);
             const complete = this.gate.observe(delta, performance.now(), eligible, true);
-            this.$el.dataset.listScrollSteps = String(complete ? 3 : this.gate.count());
+            this.$el.dataset.listScrollSteps = String(complete ? 1 : this.gate.count());
             if (complete) void this.changePage(direction, meta);
+        },
+        updateLoadingPosition() {
+            const body = this.$el.querySelector('.rt-table-body');
+            const context = this.context(body);
+            if (!context) return;
+            const rect = body.getBoundingClientRect();
+            const view = context.documentPort ? { top: 0, bottom: window.innerHeight } : context.port.getBoundingClientRect();
+            const header = document.querySelector('.rt-shell-topbar')?.getBoundingClientRect().bottom || 0;
+            const top = Math.max(rect.top, view.top, header);
+            const bottom = Math.min(rect.bottom, view.bottom, window.innerHeight);
+            const left = Math.max(12, rect.left);
+            const right = Math.min(window.innerWidth - 12, rect.right);
+            const y = bottom - top < 48 ? (top + bottom) / 2 : this.loadingDirection > 0 ? bottom - 24 : top + 24;
+            this.loadingStyle = `left:${(left + right) / 2}px;top:${y}px;max-width:${Math.max(0, Math.min(320, right - left - 16))}px`;
         },
         async changePage(direction, meta) {
             if (this.pending || !this.$el.closest('[wire\\:id]') || !Number.isInteger(meta.page) || !meta.name) return;
+            this.loadingDirection = direction;
+            if (typeof window !== 'undefined') this.updateLoadingPosition();
             this.pending = true;
             const page = meta.page + direction;
             try {

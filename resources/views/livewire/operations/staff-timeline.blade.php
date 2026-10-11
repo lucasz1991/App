@@ -1,9 +1,12 @@
 <section class="rt-staff-timeline-layout min-w-0" aria-label="Mitarbeiter-Zeitleiste"
     x-data="rtTimelinePlanning(@js($this->getId()))" x-on:operations-plan-changed.window="invalidate()"
+    x-on:resize.window="refreshFocusPreview()"
     x-on:operations-timeline-window-reset.window="if ($event.detail.timelineId === @js($this->getId())) invalidate()"
     x-on:operations-timeline-window-pending.window="if ($event.detail.timelineId === @js($this->getId())) invalidate()">
 @php
     $windowNavigation = (bool) ($periodNavigationOwner && $planningEnabled && !$absencesOnly);
+    $focusStart = $focus['shift']?->starts_at->copy()->setTimezone($zone);
+    $focusEnd = $focus['shift']?->ends_at->copy()->setTimezone($zone);
 @endphp
 @if($planningEnabled && !$absencesOnly && $showSuggestions && !$suggestionsReady)
     {{-- Plan zuerst, Besetzungsvorschläge im Folgeaufruf --}}
@@ -81,7 +84,7 @@
         <button type="button" class="rt-personnel-timeline-direction rt-personnel-timeline-direction--next" x-cloak x-show="canScrollRight || windowNavigationEnabled" x-on:click="scrollDay(1)" aria-label="Weitere Tage rechts anzeigen" title="Weitere Tage rechts"><i class="far fa-chevron-right" aria-hidden="true"></i></button>
         </div>
     </div>
-    <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:pointerdown="cancelDistributionFocus()" x-on:keydown="cancelDistributionFocus()" x-on:scroll.passive="syncHorizontal($event.target)" x-on:wheel="wheelPersonnel($event)" x-on:scrollend.passive="finishHorizontalIntent()" x-on:keydown.left="if ($event.target === $event.currentTarget) { $event.preventDefault(); scrollDay(-1); }" x-on:keydown.right="if ($event.target === $event.currentTarget) { $event.preventDefault(); scrollDay(1); }" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile, Pfeiltasten oder horizontales Scrollen">
+    <div class="rt-personnel-timeline-body snap-x snap-mandatory" x-ref="timelineBody" x-on:pointerdown="cancelDistributionFocus()" x-on:keydown="cancelDistributionFocus()" x-on:scroll.passive="syncHorizontal($event.target); refreshFocusPreview()" x-on:wheel="wheelPersonnel($event)" x-on:scrollend.passive="finishHorizontalIntent()" x-on:keydown.left="if ($event.target === $event.currentTarget) { $event.preventDefault(); scrollDay(-1); }" x-on:keydown.right="if ($event.target === $event.currentTarget) { $event.preventDefault(); scrollDay(1); }" tabindex="0" role="region" aria-label="Zeitfenster nach Mitarbeiter, vertikal scrollbar; weitere Tage über die Richtungspfeile, Pfeiltasten oder horizontales Scrollen">
     <div class="rt-personnel-timeline-grid" x-ref="timelineGrid"
         x-on:click="if (!windowContentLoading) openPlanner($event)" x-on:pointerover="if (!windowContentLoading) hoverCell($event)" x-on:pointerout="leaveCell($event)"
         x-on:focusin="if (!windowContentLoading) hoverCell($event)" x-on:focusout="leaveCell($event)">
@@ -113,8 +116,17 @@
         <div class="rt-timeline-loaded-track">
         @endif
         @foreach($row['days'] as $cell)
-            <div @class(['rt-personnel-timeline-day snap-start', 'rt-personnel-timeline-day--weekend' => $cell['date']->isWeekend(), 'rt-personnel-timeline-day--empty' => $cell['events']->isEmpty()]) wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
-                @if($planningEnabled && !$absencesOnly && $row['user']->status && $cell['date']->gte($selectedFrom) && $cell['date']->lt($selectedUntil))
+            @php
+                $focusEligible = $focus['event'] && $focus['candidates']->has($row['user']->id)
+                    && $cell['date']->lt($focusEnd) && $cell['date']->addDay()->gt($focusStart);
+            @endphp
+            <div @class(['rt-personnel-timeline-day snap-start', 'rt-personnel-timeline-day--weekend' => $cell['date']->isWeekend(), 'rt-personnel-timeline-day--empty' => $cell['events']->isEmpty()]) data-timeline-date="{{ $cell['date']->toDateString() }}" @if($focusEligible) data-focus-fit="eligible" @endif wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
+                @if($focusEligible)
+                    {{-- Die ganze passende Zelle ist das Ziel; die Zeitvorschau bleibt bis Hover/Fokus verborgen. --}}
+                    <button type="button" class="rt-timeline-cell-action rt-timeline-focus-target" x-bind:disabled="windowContentLoading"
+                        data-timeline-proposal data-focus="true" data-user="{{ $row['user']->id }}" data-date="{{ $cell['date']->toDateString() }}" data-shift="{{ $focus['shift']->id }}" data-revision="{{ $focus['shift']->revision }}"
+                        aria-haspopup="dialog" aria-label="{{ $row['user']->name }} für {{ $focus['shift']->title }} einteilen · {{ $focus['event']['timeline_label'] }}" title="{{ collect($focus['candidates']->get($row['user']->id)['reasons'] ?? [])->implode(' · ') }}"></button>
+                @elseif($planningEnabled && !$absencesOnly && $row['user']->status && $cell['date']->gte($selectedFrom) && $cell['date']->lt($selectedUntil))
                     @php
                         $cellStatusId = 'timeline-cell-status-'.$this->getId().'-'.$row['user']->id.'-'.$cell['date']->toDateString();
                     @endphp
@@ -152,18 +164,20 @@
             @endforeach
         </div>
         @if($focus['event'] && $focus['candidates']->has($row['user']->id))
-            {{-- Gewählte Schicht aus „Noch zu verteilen“: passende Mitarbeitende direkt in ihrer Zeile einteilen. --}}
-            <div class="rt-timeline-focus" wire:key="staff-focus-{{ $row['user']->id }}-{{ $focus['shift']->id }}">
-                <button type="button" class="rt-timeline-focus-target" x-bind:disabled="windowContentLoading" style="--proposal-left:{{ $focus['event']['left_percent'] }}%;--proposal-width:{{ $focus['event']['width_percent'] }}%"
-                    data-timeline-proposal data-focus="true" data-user="{{ $row['user']->id }}" data-shift="{{ $focus['shift']->id }}" data-revision="{{ $focus['shift']->revision }}"
-                    aria-haspopup="dialog" aria-label="{{ $row['user']->name }} für {{ $focus['shift']->title }} einteilen" title="{{ collect($focus['candidates']->get($row['user']->id)['reasons'] ?? [])->implode(' · ') }}">
-                    <i class="far fa-user-plus" aria-hidden="true"></i><span>Einteilen</span>
-                </button>
+            {{-- Eine rein visuelle Vorschau über der Zeitachse, ohne zweite Klickfläche oder eigene Lane. --}}
+            <div class="rt-timeline-focus" aria-hidden="true" data-time-start="{{ $focus['event']['left_percent'] }}" data-time-width="{{ $focus['event']['width_percent'] }}" wire:key="staff-focus-{{ $row['user']->id }}-{{ $focus['shift']->id }}">
+                <span class="rt-personnel-timeline-time rt-timeline-focus-preview" style="--time-label-offset:clamp(55px, {{ $focus['event']['left_percent'] + $focus['event']['width_percent'] / 2 }}%, calc(100% - 55px));--time-badge-width:max(110px, {{ $focus['event']['width_percent'] }}%)">
+                    <span class="rt-personnel-timeline-time-text">{{ $focus['event']['timeline_label'] }}</span>
+                </span>
+                @foreach($focus['event']['time_segments'] as $segment)
+                    <span class="rt-timeline-focus-duration" style="left:{{ $segment['left_percent'] }}%;width:{{ $segment['width_percent'] }}%"></span>
+                @endforeach
             </div>
         @endif
         @if($planningEnabled && !$absencesOnly && $showSuggestions)
             <div class="rt-timeline-proposals" aria-label="Unverbindliche Besetzungsvorschläge" wire:key="staff-proposals-{{ $row['user']->id }}">
                 @foreach($proposalRows->get($row['user']->id,collect()) as $proposal)
+                    @continue($focus['shift'] && $proposal['shift_id'] === $focus['shift']->id)
                     <span class="rt-timeline-proposal-duration" aria-hidden="true" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-width:{{ $proposal['width_percent'] }}%"></span>
                     <div class="rt-timeline-proposal-shell" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-center:{{ $proposal['left_percent'] + ($proposal['width_percent'] / 2) }}%;--proposal-width:{{ $proposal['width_percent'] }}%" data-fit="{{ $proposal['fit'] }}" wire:key="{{ $proposal['id'] }}">
                         <button type="button" class="rt-timeline-proposal" data-user="{{ $proposal['user_id'] }}" data-shift="{{ $proposal['shift_id'] }}" data-revision="{{ $proposal['revision'] }}" x-bind:disabled="windowContentLoading" data-fit="{{ $proposal['fit'] }}" data-urgency="{{ $proposal['urgency'] }}" aria-haspopup="dialog" aria-label="Vorschlag prüfen: {{ $row['user']->name }} · {{ $proposal['title'] }} · {{ $proposal['local_label'] }} · {{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }}" title="{{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }} · {{ $proposal['title'] }} · {{ implode(' · ',$proposal['reasons']) }}" data-timeline-proposal>

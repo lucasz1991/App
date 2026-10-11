@@ -112,6 +112,45 @@ class WorkforceAccountService
         });
     }
 
+    /** Batch several exact instants per employee without changing civil-date selection. */
+    public function effectiveRulesForMoments(Collection $users, array $momentsByUser, ?OperationsRuleProfile $fallback, bool $lock = false): Collection
+    {
+        $moments = collect($momentsByUser)->flatMap(fn ($values) => array_values($values));
+        if ($users->isEmpty() || $moments->isEmpty()) {
+            return collect();
+        }
+        $query = fn ($builder) => $lock ? $builder->lockForUpdate() : $builder;
+        $earliest = $moments->min(fn ($value) => $value->getTimestamp());
+        $latest = $moments->max(fn ($value) => $value->getTimestamp());
+        $firstDate = CarbonImmutable::createFromTimestampUTC($earliest)->subDay()->toDateString();
+        $lastDate = CarbonImmutable::createFromTimestampUTC($latest)->addDay()->toDateString();
+        $models = $query(EmployeeWorkModel::whereIn('user_id', $users->pluck('id'))->where('status', 'active')
+            ->where('starts_on', '<=', $lastDate)->where(fn ($q) => $q->whereNull('ends_on')->orWhere('ends_on', '>=', $firstDate))
+            ->orderByDesc('starts_on'))->get()->groupBy('user_id');
+        $days = collect($momentsByUser)->map(function ($values, $id) use ($models) {
+            return collect($values)->map(function ($moment) use ($models, $id) {
+                $at = CarbonImmutable::instance($moment);
+                $model = $models->get($id, collect())->first(function ($model) use ($at) {
+                    $day = $at->setTimezone($model->timezone)->toDateString();
+
+                    return $model->starts_on <= $day && ($model->ends_on === null || $model->ends_on >= $day);
+                });
+
+                return $at->setTimezone($model?->timezone ?? config('operations.display_timezone'))->toDateString();
+            });
+        });
+        $allDays = $days->flatMap(fn ($values) => $values->values());
+        $assignments = $query(EmployeeRuleAssignment::whereIn('user_id', $users->pluck('id'))->where('starts_on', '<=', $allDays->max())
+            ->where(fn ($q) => $q->whereNull('ends_on')->orWhere('ends_on', '>=', $allDays->min()))
+            ->with('profile')->orderByDesc('starts_on'))->get()->groupBy('user_id');
+
+        return $days->map(fn ($values, $id) => $values->map(function ($day) use ($assignments, $id, $fallback) {
+            $assignment = $assignments->get($id, collect())->first(fn ($row) => $row->starts_on <= $day && ($row->ends_on === null || $row->ends_on >= $day));
+
+            return $assignment ? $assignment->profile : $fallback;
+        })->all());
+    }
+
     public function effectivePolicy(User|int $user, CarbonInterface|string $date): ?EmployeeVacationPolicy
     {
         return $this->ready() ? $this->effective(EmployeeVacationPolicy::class, $user, $date)->where('status', 'active')->first() : null;

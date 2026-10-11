@@ -22,6 +22,11 @@ class OrderSchedulingService
                 ? Order::query()->lockForUpdate()->findOrFail($order->getKey())
                 : $order;
 
+            if (array_key_exists('expected_updated_at', $attributes) && $persistedOrder->updated_at?->format('Y-m-d H:i:s.u') !== $attributes['expected_updated_at']) {
+                throw ValidationException::withMessages(['workflow' => 'Auftrag wurde geändert. Bitte neu laden.']);
+            }
+            unset($attributes['expected_updated_at']);
+
             $startsAt = $attributes['starts_at'] ?? $persistedOrder->starts_at;
             $endsAt = $attributes['ends_at'] ?? $persistedOrder->ends_at;
 

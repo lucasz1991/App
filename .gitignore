@@ -271,3 +271,7 @@ auth.json
 !/tests/Frontend/area-menu.test.js
 !/tests/Feature/TimelineWindowNavigationTest.php
 !/tests/Frontend/timeline-window-navigation.test.js
+!/tests/Feature/TomTomRoutingTest.php
+!/tests/Feature/EmployeeLocationTest.php
+!/tests/Feature/RoutingSiteWorkflowTest.php
+!/tests/Frontend/routing-map.test.js

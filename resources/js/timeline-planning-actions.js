@@ -1,3 +1,20 @@
+// Position only the readable time label; the true-duration segments stay unchanged.
+export function timelineFocusPreviewPosition({ overlayLeft, overlayWidth, cellLeft, cellRight, viewportLeft, viewportRight, startPercent, widthPercent, textWidth }) {
+    const values = [overlayLeft, overlayWidth, cellLeft, cellRight, viewportLeft, viewportRight, startPercent, widthPercent, textWidth];
+    if (!values.every(Number.isFinite) || overlayWidth <= 0 || cellRight <= cellLeft || viewportRight <= viewportLeft
+        || startPercent < 0 || widthPercent <= 0 || startPercent + widthPercent > 100.001 || textWidth < 0) return null;
+    const left = Math.max(viewportLeft, overlayLeft), right = Math.min(viewportRight, overlayLeft + overlayWidth);
+    const cellStart = Math.max(left, cellLeft), cellEnd = Math.min(right, cellRight);
+    if (cellEnd <= cellStart) return null;
+    const minimum = Math.max(110, textWidth + 16);
+    const useCell = cellEnd - cellStart >= minimum;
+    const areaLeft = useCell ? cellStart : left, areaRight = useCell ? cellEnd : right;
+    const badgeWidth = Math.min(areaRight - areaLeft, Math.max(minimum, overlayWidth * widthPercent / 100));
+    const center = overlayLeft + (startPercent + widthPercent / 2) * overlayWidth / 100;
+    const clampedCenter = Math.max(areaLeft + badgeWidth / 2, Math.min(areaRight - badgeWidth / 2, center));
+    return { offset: clampedCenter - overlayLeft, badgeWidth };
+}
+
 // One controller per timeline, not one Alpine component or request per day cell.
 export function timelinePlanning(ownerId = null) {
     return {
@@ -20,6 +37,8 @@ export function timelinePlanning(ownerId = null) {
         inFlight: false,
         hoverTimer: null,
         hoverAnchor: null,
+        focusPreviewAnchor: null,
+        focusPreviewStyle: null,
         hoverCache: new Map(),
         disposed: false,
         proposalObserver: null,
@@ -37,7 +56,7 @@ export function timelinePlanning(ownerId = null) {
                     for (const entry of entries) entry.target.dataset.inView = String(entry.isIntersecting);
                 }, { root: this.$root.querySelector('.rt-personnel-timeline-body') });
                 this.observeProposals();
-                this.proposalMutation = new MutationObserver(() => this.observeProposals());
+                this.proposalMutation = new MutationObserver(() => { this.observeProposals(); this.refreshFocusPreview(); });
                 this.proposalMutation.observe(this.$root, { childList: true, subtree: true });
                 this.visibilityListener = () => { this.$root.dataset.motionPaused = String(document.hidden); };
                 document.addEventListener('visibilitychange', this.visibilityListener);
@@ -85,6 +104,16 @@ export function timelinePlanning(ownerId = null) {
             }
         },
         hoverCell(event) {
+            const focusAnchor = event.target.closest('.rt-timeline-focus-target');
+            if (focusAnchor?.classList?.contains('rt-timeline-focus-target')) {
+                if (this.disposed || event.pointerType === 'touch' || this.plannerVisible) return;
+                if (focusAnchor !== this.focusPreviewAnchor) {
+                    this.clearHover();
+                    this.focusPreviewAnchor = focusAnchor;
+                }
+                this.refreshFocusPreview();
+                return;
+            }
             const anchor = event.target.closest('[data-timeline-cell-action]');
             if (!anchor || event.pointerType === 'touch' || this.plannerVisible) return;
             if (anchor === this.hoverAnchor) return;
@@ -101,9 +130,64 @@ export function timelinePlanning(ownerId = null) {
             }, 280);
         },
         leaveCell(event) {
+            if (this.focusPreviewAnchor && !this.focusPreviewAnchor.contains(event.relatedTarget)) {
+                const retained = event.type === 'pointerout' ? this.focusPreviewAnchor.matches(':focus-visible')
+                    : event.type === 'focusout' && this.focusPreviewAnchor.matches(':hover');
+                if (!retained) this.clearFocusPreview();
+            }
             if (this.hoverAnchor && !this.hoverAnchor.contains(event.relatedTarget)) this.clearHover();
         },
+        refreshFocusPreview() {
+            const anchor = this.focusPreviewAnchor;
+            if (!anchor) return;
+            const timeline = anchor.closest('.rt-personnel-timeline');
+            if (this.disposed || !anchor.isConnected || anchor.disabled || timeline?.dataset.contentLoading === 'true') return this.clearFocusPreview();
+            const overlay = anchor.closest('.rt-personnel-timeline-track')?.querySelector('.rt-timeline-focus');
+            const preview = overlay?.querySelector('.rt-timeline-focus-preview');
+            const text = preview?.querySelector('.rt-personnel-timeline-time-text');
+            const body = anchor.closest('.rt-personnel-timeline-body');
+            if (!timeline || !overlay || !preview || !text || !body) return this.clearFocusPreview();
+            const bodyRect = body.getBoundingClientRect(), overlayRect = overlay.getBoundingClientRect(), cellRect = anchor.getBoundingClientRect();
+            const nameWidth = parseFloat(getComputedStyle(timeline).getPropertyValue('--timeline-name-width'));
+            const position = timelineFocusPreviewPosition({
+                overlayLeft: overlayRect.left, overlayWidth: overlayRect.width,
+                cellLeft: cellRect.left, cellRight: cellRect.right,
+                viewportLeft: bodyRect.left + body.clientLeft + nameWidth,
+                viewportRight: bodyRect.left + body.clientLeft + body.clientWidth,
+                startPercent: Number(overlay.dataset.timeStart), widthPercent: Number(overlay.dataset.timeWidth),
+                textWidth: text.getBoundingClientRect().width,
+            });
+            if (!position) return this.clearFocusPreview();
+            if (this.focusPreviewStyle?.node !== preview) {
+                this.clearFocusPreviewStyle();
+                this.focusPreviewStyle = { node: preview, values: new Map() };
+            }
+            for (const [property, value] of [['--time-label-offset', `${position.offset}px`], ['--time-badge-width', `${position.badgeWidth}px`]]) {
+                const previous = this.focusPreviewStyle.values.get(property);
+                const current = preview.style.getPropertyValue(property);
+                // A Livewire morph can install newer server styles on the same node.
+                const baseline = previous && current === previous.painted ? previous
+                    : { value: current, priority: preview.style.getPropertyPriority(property) };
+                if (current !== value) preview.style.setProperty(property, value);
+                this.focusPreviewStyle.values.set(property, { ...baseline, painted: value });
+            }
+        },
+        clearFocusPreviewStyle() {
+            const record = this.focusPreviewStyle;
+            if (!record) return;
+            for (const [property, previous] of record.values) {
+                if (record.node.style.getPropertyValue(property) !== previous.painted) continue;
+                if (previous.value) record.node.style.setProperty(property, previous.value, previous.priority);
+                else record.node.style.removeProperty(property);
+            }
+            this.focusPreviewStyle = null;
+        },
+        clearFocusPreview() {
+            this.focusPreviewAnchor = null;
+            this.clearFocusPreviewStyle();
+        },
         clearHover() {
+            this.clearFocusPreview();
             clearTimeout(this.hoverTimer);
             if (this.hoverAnchor) {
                 delete this.hoverAnchor.dataset.fit;
