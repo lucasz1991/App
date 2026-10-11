@@ -1,4 +1,4 @@
-<div class="min-w-0 space-y-5 text-rt-text dark:text-rt-dark-text" data-dropbox-settings>
+<div class="min-w-0 space-y-5 text-rt-text dark:text-rt-dark-text" data-dropbox-settings @if($ready && in_array($panel, ['sources', 'activity'], true)) wire:poll.15s.visible="refreshStatus" @endif>
     @if(!$ready)
         <p class="rounded-xl bg-rt-surface-muted p-4 text-sm dark:bg-rt-dark-surface-muted">Dropbox ist noch nicht eingerichtet. Die Datenbankerweiterung muss zuerst auf diesem Server installiert werden.</p>
     @else
@@ -88,8 +88,64 @@
                 <p class="text-xs text-rt-muted dark:text-rt-dark-muted">Aus der Datei werden Überschriften, Spaltenbreiten und Zellformate übernommen. Historische Daten, Bilder und Kommentare werden für neue Vorlagen entfernt; bestehende Arbeitsmappen bleiben erhalten.</p>
                 <div class="flex flex-wrap gap-2"><x-ui.buttons.button-basic type="button" mode="secondary" wire:click="saveTemplate('week_template')" wire:loading.attr="disabled">Als Wochenvorlage prüfen und speichern</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" mode="secondary" wire:click="saveTemplate('employee_template')" wire:loading.attr="disabled">Als Mitarbeiterblatt prüfen und speichern</x-ui.buttons.button-basic></div>
             </section>
-            <section class="space-y-3"><h4 class="font-semibold">Erkannte Quellen</h4>
-                @forelse($sources as $source)<div class="flex flex-wrap items-start justify-between gap-3 border-t border-rt-border/60 py-3 dark:border-rt-dark-border/60"><div class="min-w-0"><p class="break-all text-sm font-semibold">{{ $source->name }}</p><p class="break-all text-xs text-rt-muted dark:text-rt-dark-muted">{{ $source->path }}</p><p class="mt-1 text-xs">Einsatzwochen: {{ implode(', ', $source->weeks ?? []) ?: 'Noch zu prüfen' }}</p></div><div class="text-xs"><p>{{ match($source->state) { 'synchronized' => 'Synchronisiert', 'conflicts' => 'Konflikte prüfen', 'pending_export' => 'Rückübertragung offen', 'processing' => 'Abgleich läuft', 'preview' => 'Vorschau erstellt', 'missing' => 'Datei fehlt', 'excluded' => 'Nicht eingebunden', default => 'Neu erkannt' } }}</p><p class="mt-1 text-rt-muted dark:text-rt-dark-muted">Erstmals erkannt: {{ $source->first_seen_at->timezone('Europe/Berlin')->format('d.m.Y H:i') }}</p></div></div>@empty<p class="py-4 text-sm text-rt-muted dark:text-rt-dark-muted">Nach der Verbindung eine Vorschau starten. Passende Dateien erscheinen hier automatisch.</p>@endforelse
+            <section class="space-y-3" aria-labelledby="dropbox-source-results">
+                <div><h4 id="dropbox-source-results" class="font-semibold">Erkannte Quellen und Übernahme</h4><p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Je Liste: erkannte Excel-Einträge, tatsächlich gespeicherte Fachdaten und offene Punkte. Der Stand aktualisiert sich hier automatisch.</p></div>
+                @forelse($sources as $source)
+                    @php($report = $sourceReports[$source->id] ?? null)
+                    <article wire:key="dropbox-source-result-{{ $source->id }}" class="space-y-3 border-t border-rt-border/60 py-4 dark:border-rt-dark-border/60" aria-labelledby="dropbox-source-name-{{ $source->id }}" data-dropbox-source-result="{{ $source->id }}">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div class="min-w-0"><h5 id="dropbox-source-name-{{ $source->id }}" class="break-all text-sm font-semibold">{{ $source->name }}</h5><p class="break-all text-xs text-rt-muted dark:text-rt-dark-muted">{{ $source->path }}</p><p class="mt-1 text-xs">Einsatzwochen: {{ implode(', ', $source->weeks ?? []) ?: 'Noch zu prüfen' }}</p></div>
+                            <div class="text-xs"><p class="font-semibold">{{ match($source->state) { 'synchronized' => 'Synchronisiert', 'conflicts' => 'Konflikte prüfen', 'pending_export' => 'Rückübertragung offen', 'processing' => 'Abgleich läuft', 'preview' => 'Vorschau erstellt', 'missing' => 'Datei fehlt', 'excluded' => 'Nicht eingebunden', default => 'Neu erkannt' } }}</p><p class="mt-1 text-rt-muted dark:text-rt-dark-muted">Erstmals erkannt: {{ $source->first_seen_at?->timezone('Europe/Berlin')->format('d.m.Y H:i') ?? '—' }}</p></div>
+                        </div>
+                        @if($report)
+                            <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-rt-muted dark:text-rt-dark-muted">
+                                <p>Letzte Prüfung: {{ $report['generated_at'] ?? 'Zeitpunkt nicht verfügbar' }}</p>
+                                @if($report['has_counts'])<p class="tabular-nums">Verarbeitet: {{ $report['processed'] }} / {{ $report['total'] }} Excel-Einträge</p>@endif
+                                @if($report['preview'])<p>Vorschau – keine Übernahme ausgeführt</p>@elseif(!$report['complete'] && !$report['error'])<p>Teilstand – die Verarbeitung läuft weiter</p>@endif
+                                @if($report['newer_revision'])<p>Neuere Dateiversion wartet auf den Abgleich</p>@endif
+                            </div>
+                            @if($report['error'])<p class="text-xs leading-5"><strong>Abgleich unterbrochen:</strong> {{ $report['error'] }}@if($report['has_counts']) Der zuletzt gespeicherte Übernahmestand bleibt unten sichtbar.@endif</p>@endif
+                            @if($report['has_counts'])
+                            <table class="w-full text-left text-xs" aria-label="Übernahme aus {{ $source->name }}">
+                                <thead class="text-rt-muted dark:text-rt-dark-muted"><tr><th scope="col" class="pb-2 font-medium">Datenbereich</th><th scope="col" class="pb-2 pl-3 text-right font-medium">Excel-Einträge</th><th scope="col" class="pb-2 pl-3 text-right font-medium">In der App gespeichert</th></tr></thead>
+                                <tbody>
+                                    @foreach(['planning' => 'Schichten', 'contacts' => 'Kontakte', 'competencies' => 'Kompetenzangaben', 'availability_notes' => 'Verfügbarkeitsnotizen', 'availability_submissions' => 'Verfügbarkeitswünsche'] as $key => $label)
+                                        @if($report['detected'][$key] > 0 || $report['stored'][$key] > 0)
+                                            <tr data-dropbox-report-domain="{{ $key }}"><th scope="row" class="py-1 font-medium">{{ $label }}</th><td class="py-1 pl-3 text-right tabular-nums">{{ $report['detected'][$key] }}</td><td class="py-1 pl-3 text-right font-semibold tabular-nums">{{ $report['stored'][$key] }}</td></tr>
+                                        @endif
+                                    @endforeach
+                                </tbody>
+                            </table>
+                            @if($report['detected']['planning'] > 0 || $report['stored']['planning'] > 0)
+                                <p class="text-xs leading-5 tabular-nums"><strong>{{ $report['stored']['orders'] }} zugehörige Aufträge</strong> · {{ $report['stored']['assigned_shifts'] }} Schichten mit Mitarbeiterzuordnung · {{ $report['stored']['unassigned_shifts'] }} ohne Mitarbeiterzuordnung</p>
+                                @if($report['missing_employee'] > 0)<p class="text-xs leading-5">Bei {{ $report['missing_employee'] }} Einsatzzeilen fehlt eine Mitarbeiterangabe in Excel. Offene Zuordnungen stehen unter „Konflikte“.</p>@endif
+                            @endif
+                            @if($report['detected']['availability_cells'] > 0)<p class="text-xs leading-5 tabular-nums">{{ $report['employee_references'] }} Personen in der Verfügbarkeitsliste · Verfügbarkeitsfelder einschließlich leerer Felder: {{ $report['detected']['availability_cells'] }} erkannt, {{ $report['stored']['availability_cells'] }} gespeichert.</p>@endif
+                            @if($report['has_identity_counts'])<p class="text-xs leading-5 tabular-nums">Personenzuordnung: {{ $report['matched_employees'] }} {{ $report['matched_employees'] === 1 ? 'Mitarbeiterkonto' : 'Mitarbeiterkonten' }} erkannt · {{ $report['matched_providers'] }} Dienstleister erkannt · {{ $report['identity_review_count'] }} {{ $report['identity_review_count'] === 1 ? 'Zuordnung' : 'Zuordnungen' }} offen.</p>@endif
+                            <p class="text-xs leading-5 tabular-nums">Rückübertragung: {{ $report['pending_export'] }} offen@if($report['returned'] !== null) · {{ $report['returned'] }} durchgeführt@endif</p>
+                            @else
+                                <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Für diesen Prüfversuch liegt noch kein Übernahmeergebnis vor.</p>
+                            @endif
+                            @if($report['missing'] || $report['ignored_sheets'] || $report['issue_examples'] || $report['identity_review'])
+                                <details class="text-xs">
+                                    <summary class="min-h-11 cursor-pointer py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-rt-accent">Offene Punkte und ausgelassene Inhalte</summary>
+                                    <div class="space-y-3 pb-1 leading-5">
+                                        @if($report['missing'])<dl class="space-y-1">@foreach($report['missing'] as $missing)<div class="flex items-start justify-between gap-4"><dt>{{ $missing['label'] }}</dt><dd class="font-semibold tabular-nums">{{ $missing['count'] }}</dd></div>@endforeach</dl>@endif
+                                        @if($report['identity_review'])<div><p class="font-semibold">Personen mit offener Zuordnung (bis zu 20)</p><ul class="mt-1 space-y-1">@foreach($report['identity_review'] as $identity)<li class="break-words"><span class="font-medium">{{ $identity['name'] }}</span>: {{ $identity['label'] }}</li>@endforeach</ul><p class="mt-1 text-rt-muted dark:text-rt-dark-muted">Die Zuordnung kann im Bereich „Zuordnungen“ ergänzt werden.</p></div>@endif
+                                        @if($report['ignored_sheets'])<div><p class="font-semibold">Nicht übernommene Blätter</p><ul class="mt-1 space-y-1">@foreach($report['ignored_sheets'] as $ignored)<li class="break-words"><span class="font-medium">{{ $ignored['sheet'] }}</span>: {{ $ignored['label'] }}</li>@endforeach</ul></div>@endif
+                                        @if($report['issue_examples'])<div><p class="font-semibold">Betroffene Stellen (bis zu 20)</p><ul class="mt-1 space-y-1">@foreach($report['issue_examples'] as $example)<li class="break-words">{{ $example['sheet'] }}@if($example['row'] > 0) · Zeile {{ $example['row'] }}@endif: {{ $example['label'] }}</li>@endforeach</ul></div>@endif
+                                    </div>
+                                </details>
+                            @elseif(!$report['error'] && $report['has_counts'])
+                                <p class="text-xs text-rt-muted dark:text-rt-dark-muted">Keine offenen Datenhinweise in diesem Prüfstand.</p>
+                            @endif
+                        @else
+                            <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Noch kein Übernahmebericht vorhanden. Er wird beim nächsten automatischen Abgleich erstellt.</p>
+                        @endif
+                    </article>
+                @empty
+                    <p class="py-4 text-sm text-rt-muted dark:text-rt-dark-muted">Nach der Verbindung eine Vorschau starten. Passende Dateien erscheinen hier automatisch.</p>
+                @endforelse
             </section>
         @elseif($panel === 'identities')
             <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Excel-Bezeichnungen ausdrücklich einem Mitarbeiterkonto oder einem Dienstleister zuordnen. Es werden keine Anmeldekonten aus Excel angelegt.</p>

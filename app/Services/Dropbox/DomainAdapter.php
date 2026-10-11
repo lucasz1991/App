@@ -28,15 +28,22 @@ use Illuminate\Validation\ValidationException;
 
 class DomainAdapter
 {
+    public function __construct(private EmployeeIdentityResolver $identityResolver) {}
+
     public function identity(DropboxConnection $connection, string $name, string $kind = 'unresolved'): DropboxIdentity
     {
-        return SyncContext::import(fn () => DropboxIdentity::firstOrCreate([
+        $identity = SyncContext::import(fn () => DropboxIdentity::firstOrCreate([
             'connection_id' => $connection->id, 'alias' => WorkbookReader::normalize($name),
         ], ['kind' => $kind, 'details' => ['display_name' => trim($name)]]));
+
+        return $connection->isLocalImport() ? $identity : $this->identityResolver->resolve($connection, $identity);
     }
 
     public function current(DropboxRecord $record): array
     {
+        if (($record->metadata['kind'] ?? '') === 'availability_submission') {
+            return app(NativeAvailabilityWorkbook::class)->current($record);
+        }
         if (isset($record->metadata['historical_values'])) {
             return $record->metadata['historical_values'];
         }
@@ -103,6 +110,9 @@ class DomainAdapter
     public function create(DropboxConnection $connection, array $entry): DropboxRecord
     {
         return OperationsTransaction::run(function () use ($connection, $entry) {
+            if (($entry['locator']['kind'] ?? '') === 'availability_submission') {
+                return SyncContext::import(fn () => app(NativeAvailabilityWorkbook::class)->create($connection, $entry));
+            }
             if ($entry['domain'] === 'planning') {
                 $record = new DropboxRecord(['connection_id' => $connection->id, 'domain' => 'planning', 'model_type' => 'Shift', 'model_id' => 0, 'metadata' => ['imported_order' => true]]);
                 $this->apply($connection, $record, $entry['values']);
@@ -132,6 +142,11 @@ class DomainAdapter
             throw ValidationException::withMessages(['sync' => 'Diese frühere Mitarbeiterzuordnung ist storniert. Änderungen am aktuellen Einsatz in der Hauptübersicht vornehmen.']);
         }
         SyncContext::import(function () use ($connection, $record, $values) {
+            if (($record->metadata['kind'] ?? '') === 'availability_submission') {
+                app(NativeAvailabilityWorkbook::class)->apply($connection, $record, $values);
+
+                return;
+            }
             if ($record->domain === 'planning') {
                 $this->planning($connection, $record, $values);
 
@@ -272,6 +287,9 @@ class DomainAdapter
     /** All changed application entities resolve to records, including new draft assignments. */
     public function recordsFor(DropboxConnection $connection, string $type, int $id, bool $preview = false): Collection
     {
+        if ($type === 'EmployeeAvailability') {
+            return app(NativeAvailabilityWorkbook::class)->recordsFor($connection, $id, $preview);
+        }
         $shiftIds = match ($type) {
             'Shift' => [$id],
             'ShiftAssignment' => ShiftAssignment::whereKey($id)->pluck('shift_id')->all(),
@@ -337,7 +355,8 @@ class DomainAdapter
             }
         }
 
-        return DropboxRecord::where('connection_id', $connection->id)->where('model_type', $type)->where('model_id', $id)->get();
+        return DropboxRecord::where('connection_id', $connection->id)->where('model_type', $type)->where('model_id', $id)->get()
+            ->reject(fn ($record) => ($record->metadata['availability_legacy'] ?? false));
     }
 
     private function timeVersion(WorkTimeEntry $time): string

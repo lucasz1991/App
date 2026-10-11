@@ -56,12 +56,17 @@ class ResponsiveShiftPlanControlsTest extends TestCase
             $this->assertSame(1, $xpath->query('.//i[@data-current-view="'.$view.'" and @aria-hidden="true" and contains(@class,"'.$icon.'")]', $trigger)->length);
             $menu = $xpath->query('//*[@aria-label="Schichtplanansicht auswählen"]')->item(0);
             $this->assertNotNull($menu);
-            $this->assertSame(5, $xpath->query('.//button[@role="menuitemradio"]', $menu)->length);
+            $this->assertSame(4, $xpath->query('.//button[@role="menuitemradio"]', $menu)->length);
             $selected = $xpath->query('.//button[@role="menuitemradio" and @aria-checked="true"]', $menu);
+            if ($view === 'orders') {
+                $this->assertSame(0, $selected->length);
+
+                continue;
+            }
             $this->assertSame(1, $selected->length);
             $this->assertSame("setView('".$view."')", $selected->item(0)->getAttribute('wire:click'));
             $this->assertSame('close()', $selected->item(0)->getAttribute('x-on:click'));
-            $this->assertSame(1, $xpath->query('.//a[@role="menuitem" and @href="'.OperationsPages::moduleUrl('calendar').'"]', $menu)->length);
+            $this->assertSame(0, $xpath->query('.//a[@role="menuitem" and @href="'.OperationsPages::moduleUrl('calendar').'"]', $menu)->length);
         }
         $this->assertSame(0, Shift::count());
         Http::assertNothingSent();
@@ -88,7 +93,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $xpath = $this->xpath($component->html());
         $trigger = $xpath->query('//button[contains(@class,"rt-shift-plan-distribution-trigger")]')->item(0);
         $this->assertNotNull($trigger);
-        $this->assertSame('Noch zu verteilen: 9 Schichten und 1 Leistungen · Seitenleiste schließen', $trigger->getAttribute('aria-label'));
+        $this->assertSame('Noch zu verteilen: 9 Schichten und 1 Leistungen · Seitenleiste öffnen', $trigger->getAttribute('aria-label'));
         $this->assertStringNotContainsString('Offen', $trigger->textContent);
         $this->assertSame(0, $xpath->query('.//*[contains(@class,"rt-shift-plan-distribution-label")]', $trigger)->length);
         foreach (['shifts' => ['9', 'fa-clock'], 'orders' => ['1', 'fa-briefcase']] as $kind => [$count, $icon]) {
@@ -102,6 +107,10 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertNotNull($total);
         $this->assertSame('10', trim($total->textContent));
         $this->assertSame('true', $total->getAttribute('aria-hidden'));
+        $component->call('toggleDistribution');
+        $xpath = $this->xpath($component->html());
+        $trigger = $xpath->query('//button[contains(@class,"rt-shift-plan-distribution-trigger")]')->item(0);
+        $this->assertSame('Noch zu verteilen: 9 Schichten und 1 Leistungen · Seitenleiste schließen', $trigger->getAttribute('aria-label'));
         // Seitenpanel neben dem Plan statt Aufklapp-Dialog.
         $side = $xpath->query('//aside[contains(@class,"rt-shift-distribution-side") and @aria-label="Noch zu verteilen"]')->item(0);
         $this->assertNotNull($side);
@@ -221,10 +230,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertSame('Seitenhilfe', trim($help->textContent));
         $this->assertStringContainsString('close()', $help->getAttribute('x-on:click'));
         $back = $xpath->query('.//button[contains(@class,"rt-shift-plan-compact-action") and contains(@*[name()="x-on:click"],"backToPreviousPage")]', $menu)->item(0);
-        $this->assertNotNull($back);
-        $this->assertSame('Zurück', trim($back->textContent));
-        $this->assertStringContainsString('window.RTNavigation', $back->getAttribute('x-on:click'));
-        $this->assertStringContainsString('window.location.assign', $back->getAttribute('x-on:click'));
+        $this->assertNull($back);
         foreach (['open-shift-series-planner', 'open-ai-period-planning'] as $event) {
             $dispatch = $xpath->query('.//button[@role="menuitem" and contains(@*[name()="x-on:click"],"'.$event.'")]', $menu)->item(0);
             $this->assertNotNull($dispatch);
@@ -265,7 +271,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class);
         $xpath = $this->xpath($component->html());
         $trigger = $xpath->query('//button[contains(@class,"rt-shift-plan-distribution-trigger")]')->item(0);
-        $this->assertSame('Noch zu verteilen: 102 Schichten und 0 Leistungen · Seitenleiste schließen', $trigger->getAttribute('aria-label'));
+        $this->assertSame('Noch zu verteilen: 102 Schichten und 0 Leistungen · Seitenleiste öffnen', $trigger->getAttribute('aria-label'));
         $total = $xpath->query('.//*[@data-distribution-count="total"]', $trigger)->item(0);
         $this->assertNotNull($total);
         $this->assertSame('99+', trim($total->textContent));
@@ -289,7 +295,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertNotNull($menu);
         $this->assertSame(1, $xpath->query('.//button[contains(@class,"rt-shift-plan-compact-create") and @*[name()="wire:click"]="createShift"]', $menu)->length);
         $this->assertSame(1, $xpath->query('.//button[contains(@class,"rt-shift-plan-compact-action") and contains(@*[name()="x-on:click"],"rt-info:open")]', $menu)->length);
-        $this->assertSame(1, $xpath->query('.//button[contains(@class,"rt-shift-plan-compact-action") and contains(@*[name()="x-on:click"],"backToPreviousPage")]', $menu)->length);
+        $this->assertSame(0, $xpath->query('.//button[contains(@class,"rt-shift-plan-compact-action") and contains(@*[name()="x-on:click"],"backToPreviousPage")]', $menu)->length);
         $this->assertSame(0, $xpath->query('.//button[contains(@*[name()="x-on:click"],"open-shift-series-planner") or contains(@*[name()="x-on:click"],"open-ai-period-planning")]', $menu)->length);
         $this->assertSame(0, $xpath->query('//*[@data-shift-plan-timeline-suggestions]')->length);
         $component->call('createShift')->assertSet('formOpen', true);
@@ -303,7 +309,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $start = strpos($css, '/* One command row, with only secondary actions moving to the existing menu. */');
         $this->assertNotFalse($start);
         $commands = substr($css, $start);
-        $this->assertMatchesRegularExpression('/\.rt-disposition-page:has\(\.rt-shift-plan\) > \[data-page-header\]\s*\{[^}]*display:\s*grid !important;[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) auto;/s', $commands);
+        $this->assertMatchesRegularExpression('/\.rt-disposition-page:has\(\.rt-shift-plan\) > \[data-page-header\]\s*\{[^}]*display:\s*grid !important;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s', $commands);
         $this->assertStringNotContainsString('grid-row: 2', $commands);
         $this->assertStringNotContainsString('flex-wrap: wrap', $commands);
         $this->assertStringContainsString('.rt-shift-plan-header-controls { flex-wrap: nowrap; }', $commands);
@@ -315,7 +321,7 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertMatchesRegularExpression('/\.rt-shift-plan-view-trigger \.rt-shift-plan-control__label,\s*\.rt-shift-plan-view-trigger \.rt-shift-plan-control__chevron\s*\{\s*display:\s*none;\s*\}/s', $tablet);
         $mobile = $this->mediaBody($commands, 600);
         $this->assertStringContainsString('grid-template-columns: minmax(0, 1fr) auto', $mobile);
-        $this->assertStringContainsString('[data-page-header-control]:first-child', $mobile);
+        $this->assertStringNotContainsString('[data-page-header-control]:first-child', $mobile);
         $this->assertStringContainsString('[data-page-info-button] { display: none !important; }', $mobile);
         $this->assertStringContainsString('.rt-shift-plan-compact-action { display: flex; }', $mobile);
         $narrow = $this->mediaBody($commands, 480);
@@ -336,6 +342,20 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $this->assertStringContainsString(".dark .rt-timeline-suggestions-toggle[data-error='true']", $toggleCss);
         $this->assertStringNotContainsString('timelineBody', $commands);
         $this->assertStringNotContainsString('scroll-snap', $commands);
+
+        $panelCss = file_get_contents(resource_path('css/shift-distribution-panel.css'));
+        $responsivePanel = $this->mediaBody($panelCss, 1100);
+        $this->assertMatchesRegularExpression('/\.rt-shift-distribution-side\s*\{[^}]*order:\s*1;[^}]*max-height:\s*228px;/s', $responsivePanel);
+        $this->assertStringContainsString('.rt-shift-distribution--side .rt-shift-distribution__group { min-height: 0; flex: 1 1 auto; overflow-y: auto;', $panelCss);
+
+        $tailwind = file_get_contents(base_path('tailwind.config.js'));
+        $appCss = file_get_contents(resource_path('css/app.css'));
+        $shellCss = file_get_contents(resource_path('css/shell-redesign.css'));
+        $this->assertStringContainsString("canvas: '#edf2f7'", $tailwind);
+        $this->assertStringContainsString("canvas: '#070b12'", $tailwind);
+        $this->assertStringContainsString('background-color: #070b12 !important;', $appCss);
+        $this->assertStringContainsString('--rt-shell-canvas: #edf2f7;', $shellCss);
+        $this->assertStringContainsString('--rt-shell-canvas: #070b12;', $shellCss);
     }
 
     public function test_compact_secondary_actions_override_legacy_important_display_without_changing_global_utilities(): void
@@ -358,7 +378,8 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $commands = substr($css, strpos($css, '/* One command row, with only secondary actions moving to the existing menu. */'));
         $header = '.rt-disposition-page:has(.rt-shift-plan) > [data-page-header]';
         $mobile = $this->mediaBody($commands, 600);
-        $this->assertMatchesRegularExpression('/'.preg_quote($header.' > [data-page-header-control]:first-child,', '/').'\s*'.preg_quote($header.' > [data-page-header-actions] > [data-page-info-button]', '/').'\s*\{\s*display:\s*none !important;\s*\}/s', $mobile);
+        $this->assertStringNotContainsString($header.' > [data-page-header-control]:first-child', $mobile);
+        $this->assertStringContainsString(':show-back="! in_array($page, [\'cases\', \'shifts\', \'planning\', \'duty\'], true)"', file_get_contents(resource_path('views/livewire/operations/page-workspace.blade.php')));
         $narrow = $this->mediaBody($commands, 480);
         $this->assertMatchesRegularExpression('/'.preg_quote($header.' .rt-shift-plan-create,', '/').'\s*'.preg_quote($header.' > [data-page-header-actions] > div:has(> .rt-shift-plan-create)', '/').'\s*\{\s*display:\s*none !important;\s*\}/s', $narrow);
         $this->assertStringContainsString('.rt-shift-plan-compact-action { display: flex; }', $mobile);

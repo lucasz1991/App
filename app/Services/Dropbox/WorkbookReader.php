@@ -21,14 +21,14 @@ class WorkbookReader
         $file = tempnam(sys_get_temp_dir(), 'rt-read-');
         $book = null;
         try {
-            file_put_contents($file, $bytes);
+            file_put_contents($file, $package->readerBytes() ?? $bytes);
             $reader = new Xlsx;
             $reader->setReadDataOnly(false);
             $reader->setIncludeCharts(false);
             if ($profile === 'weekly') {
                 $names = $package->planningSheets();
                 if (! $names) {
-                    return ['rows' => [], 'sheets' => [], 'issues' => [['reason' => 'planning_headers_missing']], 'weeks' => []];
+                    return ['rows' => [], 'sheets' => [], 'issues' => [['reason' => 'planning_headers_missing']], 'weeks' => [], 'availability_groups' => [], 'coverage' => $this->coverage($package, [], [], [['reason' => 'planning_headers_missing']])];
                 }
                 $reader->setLoadSheetsOnly($names);
             }
@@ -38,7 +38,7 @@ class WorkbookReader
             $issues = [];
             foreach ($book->getWorksheetIterator() as $sheet) {
                 if ($profile === 'weekly') {
-                    if (in_array(self::normalize($sheet->getTitle()), ['kontaktliste extern dl', 'kontaktliste rail time', 'mitarbeiterverfügbarkeit'], true)) {
+                    if (in_array(self::normalize($sheet->getTitle()), ['kontaktliste extern dl', 'kontaktliste rail time', 'kontaktliste railtime', 'mitarbeiterverfügbarkeit', 'app-verfügbarkeiten'], true)) {
                         [$entries, $info, $warnings] = $this->matrix($sheet);
                     } else {
                         [$entries, $info, $warnings] = $this->planning($sheet);
@@ -53,9 +53,23 @@ class WorkbookReader
                 }
             }
             $weeks = array_values(array_unique(array_map(fn ($r) => app(WeekFileMatcher::class)->week($r['values']['date']), array_filter($rows, fn ($r) => $r['domain'] === 'planning' && ! empty($r['values']['date'])))));
+            foreach ($rows as $entry) {
+                if (($entry['locator']['kind'] ?? '') === 'availability_submission') {
+                    array_push($weeks, ...app(NativeAvailabilityWorkbook::class)->weeks($entry['values']['from'], $entry['values']['until']));
+                }
+            }
+            $weeks = array_values(array_unique($weeks));
             sort($weeks);
 
-            return compact('rows', 'sheets', 'issues', 'weeks');
+            $availabilityGroups = [];
+            foreach ($sheets as $name => $info) {
+                foreach ($info['ignored_groups'] ?? [] as $row) {
+                    $availabilityGroups[] = ['sheet' => $name, 'row' => $row];
+                }
+            }
+            $coverage = $this->coverage($package, $rows, $sheets, $issues);
+
+            return ['rows' => $rows, 'sheets' => $sheets, 'issues' => $issues, 'weeks' => $weeks, 'availability_groups' => $availabilityGroups, 'coverage' => $coverage];
         } finally {
             $book?->disconnectWorksheets();
             @unlink($file);
@@ -107,6 +121,10 @@ class WorkbookReader
                 $styles[$col] = $sheet->getCell($col.$row)->getXfIndex();
             }
             if (trim((string) ($fields['date'] ?? '')) === '') {
+                if (trim((string) ($fields['time'] ?? '')) !== '' && trim((string) ($fields['location'] ?? '')) !== '') {
+                    $warnings[] = ['sheet' => $sheet->getTitle(), 'row' => $row, 'reason' => 'planning_date_missing'];
+                }
+
                 continue;
             }
             $date = $this->date($fields['date']);
@@ -121,6 +139,9 @@ class WorkbookReader
             $fields['starts'] = $start;
             $fields['ends'] = $end;
             $fields['actual_end'] = $actual;
+            if (! $start || ! $end) {
+                $warnings[] = ['sheet' => $sheet->getTitle(), 'row' => $row, 'reason' => 'planning_time_missing', 'fields' => array_values(array_filter(['starts' => ! $start ? 'starts' : null, 'ends' => ! $end ? 'ends' : null])), 'retained' => true];
+            }
             $fields['draft'] = str_contains($fields['notes'] ?? '', '[ENTWURF]');
             $fields['notes'] = trim(str_replace('[ENTWURF]', '', $fields['notes'] ?? ''));
             $fields['cancelled'] = (bool) preg_match('/\bstorno\b|\bstorniert\b/iu', ($fields['cancellation'] ?? '').' '.($fields['notes'] ?? ''));
@@ -137,7 +158,11 @@ class WorkbookReader
             }
         }
 
-        return [$entries, $header ? ['columns' => $columns, 'styles' => $styles, 'header' => $header, 'last_row' => $lastRow, 'master' => str_contains(self::normalize($sheet->getTitle()), 'übersicht')] : null, $warnings];
+        if ($header && ($missing = array_values(array_diff(['location', 'date', 'time', 'customer'], $columns)))) {
+            $warnings[] = ['sheet' => $sheet->getTitle(), 'row' => $header, 'reason' => 'planning_columns_missing', 'fields' => $missing, 'retained' => true];
+        }
+
+        return [$entries, $header ? ['columns' => $columns, 'styles' => $styles, 'header' => $header, 'last_row' => $lastRow, 'master' => str_contains(self::normalize($sheet->getTitle()), 'übersicht') || str_contains(self::normalize($sheet->getTitle()), 'uebersicht')] : null, $warnings];
     }
 
     private function matrix(Worksheet $sheet): array
@@ -146,6 +171,9 @@ class WorkbookReader
         $entries = [];
         $warnings = [];
         $last = $sheet->getHighestDataRow();
+        if ($title === 'app-verfügbarkeiten') {
+            return app(NativeAvailabilityWorkbook::class)->read($sheet);
+        }
         if ($title === 'ortskunde') {
             for ($row = 2; $row <= $last; $row++) {
                 $location = $this->value($sheet, 'A'.$row);
@@ -159,24 +187,41 @@ class WorkbookReader
             return [$entries, ['kind' => 'local_knowledge', 'last_row' => $last], []];
         }
         if ($title === 'mitarbeiterverfügbarkeit') {
+            $ignoredGroups = [];
+            foreach ($sheet->getMergeCells() as $range) {
+                [$from, $to] = Coordinate::rangeBoundaries($range);
+                if ($from[0] <= 2 && $to[0] >= 3 && $from[1] === $to[1]) {
+                    $ignoredGroups[] = $from[1];
+                }
+            }
+            $people = 0;
+            $nonemptyNotes = 0;
             for ($row = 1; $row <= $last; $row++) {
                 $subject = $this->value($sheet, 'B'.$row);
-                if (! $subject || str_ends_with($subject, ':')) {
+                if (! $subject || str_ends_with($subject, ':') || in_array($row, $ignoredGroups, true)) {
+                    if ($subject && str_ends_with($subject, ':') && ! in_array($row, $ignoredGroups, true)) {
+                        $ignoredGroups[] = $row;
+                    }
+
                     continue;
                 }
+                $people++;
                 foreach (['C' => 'Wiederkehrende Verfügbarkeit', 'D' => 'Weitere Verfügbarkeitsangaben'] as $col => $name) {
-                    if ($this->value($sheet, $col.$row) === '') {
-                        continue;
+                    if ($this->value($sheet, $col.$row) !== '') {
+                        $nonemptyNotes++;
                     }
                     $entries[] = $this->entry('competencies', $sheet->getTitle(), $col.$row, $this->factValue($sheet, $col.$row), ['row' => $row, 'cell' => $col.$row, 'kind' => 'availability_note', 'subject' => $subject, 'name' => $name, 'scope' => $name]);
                 }
             }
 
-            return [$entries, ['kind' => 'availability_note', 'last_row' => $last, 'columns' => ['C' => ['name' => 'Wiederkehrende Verfügbarkeit', 'scope' => 'Wiederkehrende Verfügbarkeit'], 'D' => ['name' => 'Weitere Verfügbarkeitsangaben', 'scope' => 'Weitere Verfügbarkeitsangaben']]], []];
+            sort($ignoredGroups);
+
+            return [$entries, ['kind' => 'availability_note', 'last_row' => $last, 'people' => $people, 'nonempty_notes' => $nonemptyNotes, 'ignored_groups' => $ignoredGroups, 'columns' => ['C' => ['name' => 'Wiederkehrende Verfügbarkeit', 'scope' => 'Wiederkehrende Verfügbarkeit'], 'D' => ['name' => 'Weitere Verfügbarkeitsangaben', 'scope' => 'Weitere Verfügbarkeitsangaben']]], []];
         }
         $isStaff = $title === 'mitarbeiter übersicht';
+        $isStaffFullName = in_array($title, ['kontaktliste rail time', 'kontaktliste railtime'], true);
         $isProvider = in_array($title, ['dienstleister übersicht', 'kontaktliste extern dl'], true);
-        if ($isStaff || $isProvider) {
+        if ($isStaff || $isStaffFullName || $isProvider) {
             $columns = $isStaff
                 ? ['B' => 'last_name', 'C' => 'first_name', 'D' => 'reported_qualifications', 'E' => 'contact_email', 'F' => 'phone', 'G' => 'mobile', 'H' => 'city', 'I' => 'deployment_region', 'J' => 'birth_date', 'K' => 'birth_place', 'L' => 'nationality']
                 : ['B' => 'name', 'C' => 'reported_qualifications', 'D' => 'contact_email', 'E' => 'phone', 'F' => 'mobile', 'G' => 'city', 'H' => 'deployment_region', 'I' => 'notes'];
@@ -235,6 +280,31 @@ class WorkbookReader
         }
 
         return [$entries, ['kind' => $kind, 'columns' => $labels, 'last_row' => $last], $warnings];
+    }
+
+    private function coverage(WorkbookPackage $package, array $rows, array $sheets, array $issues): array
+    {
+        $domains = ['planning' => 0, 'contacts' => 0, 'competencies' => 0];
+        $withEmployee = 0;
+        foreach ($rows as $entry) {
+            $domains[$entry['domain']]++;
+            if ($entry['domain'] === 'planning' && trim((string) ($entry['values']['employee'] ?? '')) !== '') {
+                $withEmployee++;
+            }
+        }
+        $availability = array_filter($sheets, fn ($info) => ($info['kind'] ?? null) === 'availability_note');
+        $people = array_sum(array_column($availability, 'people'));
+        $notes = array_sum(array_column($availability, 'nonempty_notes'));
+
+        return [
+            'sheets_total' => count($package->sheets()),
+            'sheets_recognized' => count($sheets),
+            'ignored_sheets' => array_values(array_map(fn ($name) => ['sheet' => $name, 'reason' => 'unsupported_layout'], array_diff(array_keys($package->sheets()), array_keys($sheets)))),
+            'by_domain' => $domains,
+            'planning' => ['rows' => $domains['planning'], 'with_employee' => $withEmployee, 'without_employee' => $domains['planning'] - $withEmployee],
+            'availability' => ['people' => $people, 'nonempty_notes' => $notes, 'blank_note_cells' => 2 * $people - $notes],
+            'skipped_rows' => count(array_filter($issues, fn ($issue) => isset($issue['row']) && ! ($issue['retained'] ?? false))),
+        ];
     }
 
     private function factValue(Worksheet $sheet, string $address): array

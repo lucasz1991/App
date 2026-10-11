@@ -140,6 +140,7 @@
     x-on:scroll.window.capture="hideTooltip()"
     x-on:focusin.window="if (focusAfterLoad !== null && $event.target !== document.body && !$root.contains($event.target)) focusAfterLoad = null"
 >
+    {{ $slot }}
     @foreach($normalizedOptions as $option)
         @php
             // Keep values raw until the single attribute-bag merge below.

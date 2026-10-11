@@ -132,8 +132,19 @@ final class DashboardLayout
                 'size' => $existing?->size ?? $widget['defaultSize'],
                 'rows' => in_array($existing?->rows, [1, 2], true) ? $existing->rows : $widget['defaultRows'],
                 'hidden' => $existing?->hidden ?? ! $widget['defaultVisible'],
-                'position' => $existing?->position ?? (DashboardWidgetPlacement::where('user_id', $user->id)->max('position') ?? -1) + 1,
+                // Erstmals angefasst (z. B. nur vergroessert): Platz behalten.
+                // Mit "hoechste Position + 1" landete die Kachel vor allen noch
+                // unberuehrten (die 10_000+ tragen) und sprang nach ganz vorn.
+                'position' => $existing?->position ?? self::defaultPosition($user, $key),
             ], $changes),
         );
+    }
+
+    /** Dieselbe Ersatzposition, die forUser() unberuehrten Widgets gibt. */
+    private static function defaultPosition(User $user, string $key): int
+    {
+        $index = array_search($key, array_keys(WidgetRegistry::availableFor($user)), true);
+
+        return 10_000 + ($index === false ? 0 : $index);
     }
 }

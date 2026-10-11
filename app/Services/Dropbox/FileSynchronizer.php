@@ -47,15 +47,19 @@ class FileSynchronizer
         }
         $source->rev = $rev;
         $parsed = $connection->isLocalImport() && $prepared !== null ? $prepared : app(WorkbookReader::class)->read($download['bytes'], $source->profile);
+        $parsed = app(WeeklyAvailability::class)->contextualize($parsed, $source);
+        app(WeeklyAvailability::class)->ignoreGroups($source, $parsed, $preview);
         $summary = ['rows' => count($parsed['rows']), 'imported' => 0, 'exported' => 0, 'conflicts' => 0, 'new' => 0, 'preview' => $preview];
         $issueKeys = array_map(fn ($i) => ($i['reason'] ?? '').':'.($i['sheet'] ?? '').':'.($i['row'] ?? ''), $parsed['issues']);
-        DropboxConflict::where('source_id', $source->id)->whereIn('reason', ['invalid_date', 'planning_headers_missing'])->get()
+        DropboxConflict::where('source_id', $source->id)->whereIn('reason', ['invalid_date', 'planning_headers_missing', 'planning_date_missing', 'planning_time_missing', 'planning_columns_missing', 'availability_headers_missing', 'availability_row_invalid', 'availability_week_missing'])->get()
             ->filter(fn ($c) => ! in_array($c->reason.':'.($c->snapshot['sheet'] ?? '').':'.($c->snapshot['row'] ?? ''), $issueKeys, true))->each(fn ($c) => $c->update(['state' => 'resolved']));
         foreach ($parsed['issues'] as $issue) {
             $this->conflicts->put($connection, $source, null, $issue['reason'], $issue, ($issue['sheet'] ?? '').':'.($issue['row'] ?? ''));
             $summary['conflicts']++;
         }
         $entries = array_values(array_filter($parsed['rows'], fn ($r) => in_array($r['domain'], $connection->option('domains'), true)));
+        $parsed['coverage']['disabled_rows'] = count($parsed['rows']) - count($entries);
+        app(WeeklyAvailability::class)->rebind($connection, $source, $entries, $preview);
         if (! in_array('assignments', $connection->option('domains'), true)) {
             foreach ($entries as &$entry) {
                 if ($entry['domain'] === 'planning') {
@@ -72,7 +76,7 @@ class FileSynchronizer
             $selected[$entries[$i]['sheet'].'!'.$entries[$i]['slot']] = true;
         }
         // Match content before positions. Row numbers are only output addresses.
-        $existing = DropboxAppearance::where('source_id', $source->id)->get();
+        $existing = DropboxAppearance::where('source_id', $source->id)->get()->reject(fn ($a) => $a->locator['ignored_group'] ?? false);
         $used = [];
         $bound = [];
         $unbound = [];
@@ -301,6 +305,11 @@ class FileSynchronizer
             if ($end < count($entries)) {
                 break;
             }
+            if (($appearance->locator['kind'] ?? '') === 'availability_note'
+                && ($parsed['sheets'][$appearance->sheet]['kind'] ?? '') === 'availability_note'
+                && empty($parsed['sheets'][$appearance->sheet]['week'])) {
+                continue; // An unclear year is a scope issue, not a deleted cell.
+            }
             if (! isset($used[$appearance->id])) {
                 $this->conflicts->put($connection, $source, DropboxRecord::find($appearance->record_id), 'row_missing', ['sheet' => $appearance->sheet, 'previous_slot' => $appearance->slot], (string) $appearance->id);
                 $summary['conflicts']++;
@@ -320,17 +329,22 @@ class FileSynchronizer
             });
         }
         $more = ! $preview && $end < count($entries);
+        $summary['file_outgoing'] = ($offset > 0 ? (int) ($source->progress['outgoing_total'] ?? 0) : 0) + $summary['outgoing'];
+        $summary['file_exported'] = ($offset > 0 ? (int) ($source->progress['exported_total'] ?? 0) : 0) + $summary['exported'];
         if (! $more) {
             $summary['conflicts'] = DropboxConflict::where('source_id', $source->id)->whereIn('state', ['open', 'rechecking'])->count();
         }
-        $source->forceFill(['weeks' => $parsed['weeks'], 'rev' => $rev, 'state' => $more ? 'processing' : ($summary['conflicts'] ? 'conflicts' : ($preview ? 'preview' : ($summary['outgoing'] > $summary['exported'] ? 'pending_export' : 'synchronized')))]);
+        $source->forceFill(['weeks' => $parsed['weeks'], 'rev' => $rev, 'state' => $more ? 'processing' : ($summary['conflicts'] ? 'conflicts' : ($preview ? 'preview' : ($summary['file_outgoing'] > $summary['file_exported'] ? 'pending_export' : 'synchronized')))]);
         if (! $preview) {
-            $source->progress = $more ? ['next' => $end, 'rev' => $rev] : null;
+            $source->progress = $more ? ['next' => $end, 'rev' => $rev, 'outgoing_total' => $summary['file_outgoing'], 'exported_total' => $summary['file_exported']] : null;
             if (! $more) {
                 $source->processed_rev = $rev;
             }
         }
         $source->save();
+        if (! $preview) {
+            $source->forceFill(['last_report' => app(SourceSyncReport::class)->build($source, $parsed, $summary, $end, count($entries))])->save();
+        }
         if ($more && ! $connection->isLocalImport()) {
             $this->ledger->enqueue($connection, 'file', 'file:'.$source->id, ['source_id' => $source->id], 0);
         }
@@ -377,7 +391,7 @@ class FileSynchronizer
     {
         // Match the existing non-planning identity rule without scanning every
         // cell in a sheet for each repeated color/value in a large matrix.
-        return json_encode([$sheet, $locator['subject'] ?? null, $locator['kind'] ?? null, $locator['name'] ?? null], JSON_THROW_ON_ERROR);
+        return json_encode([$sheet, $locator['subject'] ?? null, $locator['kind'] ?? null, $locator['name'] ?? null, $locator['scope'] ?? null, $locator['wish_id'] ?? null], JSON_THROW_ON_ERROR);
     }
 
     private function sameIdentity(DropboxAppearance $appearance, array $entry): bool
@@ -386,7 +400,7 @@ class FileSynchronizer
             $old = $appearance->locator;
             $new = $entry['locator'];
 
-            return ($old['subject'] ?? null) === ($new['subject'] ?? null) && ($old['kind'] ?? null) === ($new['kind'] ?? null) && ($old['name'] ?? null) === ($new['name'] ?? null);
+            return ($old['subject'] ?? null) === ($new['subject'] ?? null) && ($old['kind'] ?? null) === ($new['kind'] ?? null) && ($old['name'] ?? null) === ($new['name'] ?? null) && ($old['scope'] ?? null) === ($new['scope'] ?? null) && ($old['wish_id'] ?? null) === ($new['wish_id'] ?? null);
         }
         $old = $appearance->last_excel;
         $new = $entry['values'];
@@ -421,6 +435,9 @@ class FileSynchronizer
 
     private function related(DropboxConnection $connection, DropboxSource $source, array $entry): ?DropboxRecord
     {
+        if (($entry['locator']['kind'] ?? '') === 'availability_submission') {
+            return app(NativeAvailabilityWorkbook::class)->related($connection, $source, $entry);
+        }
         if ($entry['domain'] !== 'planning') {
             $identity = $this->domain->identity($connection, $entry['locator']['subject']);
             if ($entry['domain'] === 'contacts') {

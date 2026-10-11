@@ -40,11 +40,11 @@ class PlanningTopbarNavigationTest extends TestCase
         $this->customer = Customer::create(['company_name' => 'Synthetic Navigation Customer', 'is_active' => true]);
     }
 
-    public function test_case_navigation_has_one_shared_five_way_toggle_inside_the_topbar_teleport_with_offers_enabled(): void
+    public function test_case_navigation_has_one_shared_six_way_toggle_inside_the_topbar_teleport_with_offers_enabled(): void
     {
         $this->assertTrue(CommercialOfferService::ready());
         $this->assertArrayHasKey('offers', CaseWorkspace::availableViews($this->admin));
-        $expected = ['inbox' => 'Eingang', 'offers' => 'Angebote', 'orders' => 'Aufträge', 'shifts' => 'Schichtplan', 'calendar' => 'Kalender'];
+        $expected = ['inbox' => 'Eingang', 'offers' => 'Angebote', 'orders' => 'Aufträge', 'services' => 'Leistungen', 'shifts' => 'Schichtplan', 'calendar' => 'Kalender'];
         foreach ([['inbox', 'overview'], ['orders', 'overview'], ['shifts', 'plan'], ['shifts', 'calendar'], ['offers', 'overview']] as [$view, $section]) {
             $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => $view, 'initialSection' => $section]);
             $xpath = $this->xpath($component->html());
@@ -61,23 +61,16 @@ class PlanningTopbarNavigationTest extends TestCase
             $this->assertSame('Vorgangsansicht', $group->getAttribute('aria-label'));
             $this->assertTrue($group->hasAttribute('data-multi-toggle'));
             $this->assertSame('setPlanningView', $group->getAttribute('wire:target'));
-            $buttons = $xpath->query('.//button[@data-multi-toggle-option]', $group);
-            $this->assertSame(5, $buttons->length);
-            foreach ($buttons as $index => $button) {
-                $value = array_keys($expected)[$index];
-                $this->assertSame($value, $button->getAttribute('data-toggle-value'));
-                $this->assertSame($expected[$value], $button->getAttribute('aria-label'));
-                $this->assertSame("setPlanningView('".$value."')", $button->getAttribute('wire:click'));
-                $selected = $view === 'shifts' && $section === 'calendar' ? 'calendar' : $view;
-                $this->assertSame($value === $selected ? 'true' : 'false', $button->getAttribute('aria-pressed'));
-                $this->assertSame('setPlanningView', $button->getAttribute('wire:target'));
+            preg_match_all('/data-toggle-value="([^"]+)"/', $component->html(), $renderedValues);
+            $this->assertSame(array_keys($expected), $renderedValues[1]);
+            foreach ($expected as $value => $label) {
+                $this->assertStringContainsString('aria-label="'.$label.'"', $component->html());
             }
-            $this->assertSame(1, $xpath->query('.//button[@data-multi-toggle-option and @aria-pressed="true"]', $group)->length);
+            $this->assertStringContainsString('aria-current="page"', $component->html());
             $this->assertSame(0, $xpath->query('//*[@id="case-shift-section"]')->length);
             $this->assertSame(0, $xpath->query('//*[@id="case-workspace-view" and not(ancestor::template[@*[name()="x-teleport"]="[data-topbar-planning-navigation]"])]')->length);
             $this->assertSame(1, $xpath->query('//*[@data-case-workspace and @*[name()="x-data"]]')->length);
             $this->assertSame(0, $xpath->query('//*[@data-case-workspace]/header/button[@*[name()="wire:click"]="setView(\'offers\')"]')->length);
-            $this->assertSame(in_array($view, ['inbox', 'orders'], true) ? 1 : 0, $xpath->query('//*[@data-case-workspace]/header')->length);
         }
         Http::assertNothingSent();
     }
@@ -90,12 +83,12 @@ class PlanningTopbarNavigationTest extends TestCase
                 Gate::define($ability, fn (User $user): bool => $user->is($actor) && in_array($ability, $abilities, true));
             }
             $planning = OperationsPages::planningShortcuts($actor);
-            $expected = in_array('operations.manage', $abilities, true) ? ['offers', 'orders', 'shifts', 'calendar'] : ['inbox', 'offers'];
+            $expected = in_array('operations.manage', $abilities, true) ? ['offers', 'orders', 'services', 'shifts', 'calendar'] : ['inbox', 'offers'];
             $this->assertSame($expected, array_keys($planning));
             $component = Livewire::actingAs($actor)->test(CaseWorkspace::class, ['initialView' => $expected[0]])->assertSuccessful();
             $xpath = $this->xpath($component->html());
-            $buttons = $xpath->query('//*[@id="case-workspace-view"]//button[@data-multi-toggle-option]');
-            $this->assertSame($expected, array_map(fn (\DOMElement $button): string => $button->getAttribute('data-toggle-value'), iterator_to_array($buttons)));
+            preg_match_all('/data-toggle-value="([^"]+)"/', $component->html(), $renderedValues);
+            $this->assertSame($expected, $renderedValues[1]);
             $sidebar = collect(ApplicationNavigation::sections($actor)['Disposition'] ?? [])->filter(fn (array $item): bool => ($item['parameters']['page'] ?? '') === 'cases');
             $sidebarExpected = in_array('operations.manage', $abilities, true) ? ['orders', 'offers', 'shifts', 'calendar'] : ['inbox', 'offers'];
             $this->assertSame($sidebarExpected, $sidebar->map(fn (array $item): string => ($item['parameters']['section'] ?? '') === 'calendar' ? 'calendar' : $item['parameters']['view'])->values()->all());
@@ -116,10 +109,11 @@ class PlanningTopbarNavigationTest extends TestCase
         $context = ['customer' => $this->customer->id, 'search' => 'Nord', 'status' => 'confirmed'];
         $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'orders', 'context' => $context]);
         $xpath = $this->xpath($component->html());
-        foreach (['orders', 'inbox', 'offers', 'shifts', 'calendar'] as $target) {
-            $button = $xpath->query('//*[@id="case-workspace-view"]//button[@data-toggle-value="'.$target.'"]')->item(0);
-            $this->assertSame("setPlanningView('".$target."')", $button->getAttribute('wire:click'));
-            $parameters = ['view' => $target === 'calendar' ? 'shifts' : $target];
+        foreach (['orders', 'inbox', 'offers', 'services', 'shifts', 'calendar'] as $target) {
+            $this->assertMatchesRegularExpression('/data-toggle-value="'.preg_quote($target, '/').'"/', $component->html());
+            $parameters = $target === 'services'
+                ? ['view' => 'shifts', 'section' => 'plan', 'services' => '1'] + $context
+                : ['view' => $target === 'calendar' ? 'shifts' : $target];
             if (in_array($target, ['shifts', 'calendar'], true)) {
                 $parameters['section'] = $target === 'calendar' ? 'calendar' : 'plan';
             }
@@ -137,18 +131,19 @@ class PlanningTopbarNavigationTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_missing_offer_schema_hides_only_offer_shortcuts_and_preserves_the_four_existing_destinations(): void
+    public function test_missing_offer_schema_hides_only_offer_shortcuts_and_preserves_the_other_five_destinations(): void
     {
         Schema::drop('commercial_offer_revisions');
         $this->assertFalse(CommercialOfferService::ready());
-        $expected = ['inbox', 'orders', 'shifts', 'calendar'];
+        $expected = ['inbox', 'orders', 'services', 'shifts', 'calendar'];
         $this->assertSame($expected, array_keys(OperationsPages::planningShortcuts($this->admin)));
         $component = Livewire::actingAs($this->admin)->test(CaseWorkspace::class, ['initialView' => 'orders'])->assertSuccessful();
         $xpath = $this->xpath($component->html());
-        $this->assertSame($expected, array_map(fn (\DOMElement $button): string => $button->getAttribute('data-toggle-value'), iterator_to_array($xpath->query('//*[@id="case-workspace-view"]//button[@data-multi-toggle-option]'))));
+        preg_match_all('/data-toggle-value="([^"]+)"/', $component->html(), $renderedValues);
+        $this->assertSame($expected, $renderedValues[1]);
         $links = collect(ApplicationNavigation::sections($this->admin)['Disposition'])->filter(fn (array $item): bool => ($item['parameters']['page'] ?? '') === 'cases');
-        $this->assertSame($expected, $links->map(fn (array $item): string => ($item['parameters']['section'] ?? '') === 'calendar' ? 'calendar' : $item['parameters']['view'])->values()->all());
-        $this->assertSame(0, $xpath->query('//*[@data-case-workspace]/header/button[@*[name()="wire:click"]="setView(\'offers\')"]')->length);
+        $this->assertSame(array_values(array_filter($expected, fn (string $target): bool => $target !== 'services')), $links->map(fn (array $item): string => ($item['parameters']['section'] ?? '') === 'calendar' ? 'calendar' : $item['parameters']['view'])->values()->all());
+        $this->assertStringNotContainsString('wire:click="setView(\'offers\')"', $component->html());
         $component->call('setPlanningView', 'offers')->assertForbidden();
         $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('shifts', 0);

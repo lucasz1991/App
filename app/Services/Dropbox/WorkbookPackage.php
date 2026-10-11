@@ -98,7 +98,7 @@ class WorkbookPackage
         }
         $names = [];
         foreach ($this->sheets() as $name => $part) {
-            if (in_array(WorkbookReader::normalize($name), ['kontaktliste extern dl', 'kontaktliste rail time', 'mitarbeiterverfügbarkeit'], true)) {
+            if (in_array(WorkbookReader::normalize($name), ['kontaktliste extern dl', 'kontaktliste rail time', 'kontaktliste railtime', 'mitarbeiterverfügbarkeit', 'app-verfügbarkeiten'], true)) {
                 $names[] = $name;
 
                 continue;
@@ -106,7 +106,7 @@ class WorkbookPackage
             $doc = $this->xml($part);
             $xp = new DOMXPath($doc);
             $xp->registerNamespace('s', self::NS);
-            foreach ($xp->query('/s:worksheet/s:sheetData/s:row[number(@r) <= 50]') as $row) {
+            foreach ($xp->query('/s:worksheet/s:sheetData/s:row') as $row) {
                 $labels = [];
                 foreach ($row->childNodes as $cell) {
                     if (! $cell instanceof DOMElement) {
@@ -126,6 +126,74 @@ class WorkbookPackage
         }
 
         return $names;
+    }
+
+    /** Compact unused named styles only in the reader's disposable copy. Cell styles and their indexes stay intact. */
+    public function readerBytes(): ?string
+    {
+        if (! isset($this->parts['xl/styles.xml'])) {
+            return null;
+        }
+        $doc = $this->xml('xl/styles.xml');
+        $baseStyles = $doc->getElementsByTagNameNS(self::NS, 'cellStyleXfs')->item(0);
+        $cellStyles = $doc->getElementsByTagNameNS(self::NS, 'cellXfs')->item(0);
+        if (! $baseStyles || ! $cellStyles) {
+            return null;
+        }
+        // DOMNodeList indexed iteration repeatedly walks the tree; sibling traversal stays linear for bloated style tables.
+        $bases = [];
+        for ($node = $baseStyles->firstChild; $node !== null; $node = $node->nextSibling) {
+            if ($node instanceof DOMElement && $node->localName === 'xf') {
+                $bases[] = $node;
+            }
+        }
+        if (count($bases) < 512) {
+            return null;
+        }
+        $used = [0 => true];
+        foreach ($cellStyles->getElementsByTagNameNS(self::NS, 'xf') as $style) {
+            $index = (int) $style->getAttribute('xfId');
+            if (! isset($bases[$index])) {
+                return null;
+            }
+            $used[$index] = true;
+        }
+        if (count($used) === count($bases)) {
+            return null;
+        }
+        ksort($used);
+        $map = array_flip(array_keys($used));
+        foreach ($bases as $index => $style) {
+            if (! isset($used[$index])) {
+                $baseStyles->removeChild($style);
+            }
+        }
+        $baseStyles->setAttribute('count', (string) count($used));
+        foreach ($cellStyles->getElementsByTagNameNS(self::NS, 'xf') as $style) {
+            $style->setAttribute('xfId', (string) $map[(int) $style->getAttribute('xfId')]);
+        }
+        $namedStyles = $doc->getElementsByTagNameNS(self::NS, 'cellStyles')->item(0);
+        if ($namedStyles) {
+            $retained = 0;
+            for ($style = $namedStyles->firstChild; $style !== null; $style = $next) {
+                $next = $style->nextSibling;
+                if (! $style instanceof DOMElement || $style->localName !== 'cellStyle') {
+                    continue;
+                }
+                $index = (int) $style->getAttribute('xfId');
+                if (! isset($used[$index])) {
+                    $namedStyles->removeChild($style);
+                } else {
+                    $style->setAttribute('xfId', (string) $map[$index]);
+                    $retained++;
+                }
+            }
+            $namedStyles->setAttribute('count', (string) $retained);
+        }
+        $copy = clone $this;
+        $copy->setXml('xl/styles.xml', $doc);
+
+        return $copy->bytes();
     }
 
     /** Cells: [sheet => [A1 => ['value' => scalar, 'color' => ?ARGB, 'style' => ?int]]]. */

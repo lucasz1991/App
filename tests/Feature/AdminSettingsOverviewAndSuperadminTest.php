@@ -70,6 +70,7 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
         $html = Livewire::actingAs($superAdmin)->test(Settings::class)->html();
 
         $this->assertStringContainsString('data-tab-panel-id="superadmin"', $html);
+        $this->assertStringContainsString('data-tab-panel-id="dropbox"', $html);
         $this->assertStringContainsString('data-tab-panel-id="device-management"', $html);
         $this->assertStringContainsString('data-device-management-settings', $html);
         $this->assertStringContainsString('type="password"', $html);
@@ -95,6 +96,7 @@ class AdminSettingsOverviewAndSuperadminTest extends TestCase
 
         $this->assertStringContainsString('assistant-enabled', $otherHtml);
         $this->assertStringNotContainsString('data-tab-panel-id="superadmin"', $otherHtml);
+        $this->assertStringNotContainsString('data-tab-panel-id="dropbox"', $otherHtml);
         $this->assertStringNotContainsString('data-tab-panel-id="device-management"', $otherHtml);
         $this->assertStringNotContainsString('data-device-management-settings', $otherHtml);
         $this->assertStringNotContainsString('Gespeicherte Verbindung testen', $otherHtml);

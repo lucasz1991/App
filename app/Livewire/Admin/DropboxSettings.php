@@ -19,9 +19,11 @@ use App\Services\Dropbox\DomainAdapter;
 use App\Services\Dropbox\DropboxClient;
 use App\Services\Dropbox\QualificationProjection;
 use App\Services\Dropbox\SyncHealth;
+use App\Services\Dropbox\SyncLabels;
 use App\Services\Dropbox\TemplateService;
 use App\Services\Dropbox\WorkbookReader;
 use App\Services\Dropbox\WorkLedger;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -487,6 +489,92 @@ class DropboxSettings extends Component
         $this->notice = 'Abschlussabgleich gestartet. Erst nach konfliktfreiem Abgleich und Archivierung wird die Kopplung beendet.';
     }
 
+    private function sourceReport(DropboxSource $source): ?array
+    {
+        $report = $source->last_report;
+        if (is_string($report)) {
+            $report = json_decode($report, true);
+        }
+        if (! is_array($report) || (($report['schema'] ?? null) !== 1 && empty($report['error_code']))) {
+            return null;
+        }
+
+        $count = static fn ($value): int => is_numeric($value) ? max(0, (int) $value) : 0;
+        $detected = $stored = [];
+        foreach (['planning', 'contacts', 'competencies', 'availability_notes', 'availability_cells', 'availability_submissions'] as $key) {
+            $detected[$key] = $count(data_get($report, 'detected.'.$key));
+            $stored[$key] = $count(data_get($report, 'stored.'.$key));
+        }
+        foreach (['orders', 'assigned_shifts', 'unassigned_shifts'] as $key) {
+            $stored[$key] = $count(data_get($report, 'stored.'.$key));
+        }
+        $missing = [];
+        foreach (is_array($report['missing'] ?? null) ? $report['missing'] : [] as $reason => $value) {
+            if ($count($value) > 0) {
+                $missing[] = ['label' => $this->reportReason((string) $reason), 'count' => $count($value)];
+            }
+        }
+        $ignoredSheets = [];
+        foreach (is_array($report['ignored_sheets'] ?? null) ? $report['ignored_sheets'] : [] as $sheet) {
+            if (is_array($sheet) && is_string($sheet['sheet'] ?? null)) {
+                $ignoredSheets[] = ['sheet' => $sheet['sheet'], 'label' => $this->reportReason((string) ($sheet['reason'] ?? 'unknown_layout'))];
+            }
+        }
+        $examples = [];
+        foreach (array_slice(is_array($report['issue_examples'] ?? null) ? $report['issue_examples'] : [], 0, 20) as $example) {
+            if (is_array($example)) {
+                $examples[] = ['sheet' => (string) ($example['sheet'] ?? ''), 'row' => $count($example['row'] ?? 0), 'label' => $this->reportReason((string) ($example['reason'] ?? 'validation_required'))];
+            }
+        }
+        $identityReview = [];
+        foreach (array_slice(is_array($report['identity_review'] ?? null) ? $report['identity_review'] : [], 0, 20) as $identity) {
+            if (is_array($identity) && is_string($identity['name'] ?? null)) {
+                $identityReview[] = ['name' => $identity['name'], 'label' => $this->reportReason((string) ($identity['reason'] ?? 'employee_unresolved'))];
+            }
+        }
+        try {
+            $generatedAt = isset($report['generated_at']) ? CarbonImmutable::parse($report['generated_at'])->timezone('Europe/Berlin')->format('d.m.Y H:i') : null;
+        } catch (\Throwable) {
+            $generatedAt = null;
+        }
+
+        return [
+            'detected' => $detected, 'stored' => $stored, 'missing' => $missing,
+            'ignored_sheets' => $ignoredSheets, 'issue_examples' => $examples,
+            'generated_at' => $generatedAt, 'preview' => (bool) ($report['preview'] ?? false),
+            'complete' => (bool) ($report['complete'] ?? false),
+            'has_counts' => isset($report['detected']) || isset($report['stored']),
+            'error' => ! empty($report['error_code']) ? SyncLabels::error((string) $report['error_code']) : null,
+            'newer_revision' => isset($report['rev']) && $source->rev !== null && $report['rev'] !== $source->rev,
+            'processed' => $count($report['processed'] ?? 0), 'total' => $count($report['total'] ?? 0),
+            'missing_employee' => $count($report['missing_employee'] ?? 0),
+            'employee_references' => $count($report['employee_references'] ?? 0),
+            'has_identity_counts' => array_key_exists('matched_employees', $report) || array_key_exists('matched_providers', $report),
+            'matched_employees' => $count($report['matched_employees'] ?? 0),
+            'matched_providers' => $count($report['matched_providers'] ?? 0),
+            'identity_review_count' => $count(data_get($report, 'missing.employee_unresolved', count($identityReview))),
+            'identity_review' => $identityReview,
+            'pending_export' => $count($report['pending_export'] ?? 0),
+            'returned' => isset($report['returned']) ? $count($report['returned']) : null,
+        ];
+    }
+
+    private function reportReason(string $reason): string
+    {
+        return match ($reason) {
+            'missing_employee', 'employee_missing' => 'Mitarbeiterangabe fehlt in der Einsatzzeile',
+            'employee_unresolved', 'unknown_employee' => 'Mitarbeiter noch keinem Konto zugeordnet',
+            'planning_headers_missing', 'unknown_layout', 'unsupported_layout' => 'Blattaufbau nicht erkannt',
+            'unsupported_sheet', 'sheet_not_selected' => 'Blatt gehört nicht zu den eingebundenen Datenbereichen',
+            'domain_disabled', 'disabled_domain' => 'Datenbereich ist ausgeschaltet',
+            'missing_time', 'missing_times', 'invalid_time' => 'Einsatzzeit fehlt oder ist nicht lesbar',
+            'missing_customer' => 'Kundenangabe fehlt',
+            'missing_location' => 'Einsatzort fehlt',
+            'empty_sheet' => 'Blatt enthält keine übernehmbaren Daten',
+            default => SyncLabels::error($reason),
+        };
+    }
+
     public function render()
     {
         $this->authorizeAdmin();
@@ -501,10 +589,12 @@ class DropboxSettings extends Component
             $this->identityForms[$identity->id] ??= ['kind' => $identity->kind, 'user_id' => $identity->user_id ?? ''];
         }
         $selectedConflict = $ready && $this->conflictId ? DropboxConflict::where('connection_id', $this->connectionId)->find($this->conflictId) : null;
+        $sources = $ready ? DropboxSource::where('connection_id', $this->connectionId)->orderByDesc('first_seen_at')->get() : collect();
 
         return view('livewire.admin.dropbox-settings', [
             'ready' => $ready, 'connection' => $connection, 'health' => $connection ? app(SyncHealth::class)->read() : null,
-            'sources' => $ready ? DropboxSource::where('connection_id', $this->connectionId)->orderByDesc('first_seen_at')->get() : collect(),
+            'sources' => $sources,
+            'sourceReports' => $this->panel === 'sources' ? $sources->mapWithKeys(fn (DropboxSource $source): array => [$source->id => $this->sourceReport($source)])->all() : [],
             'conflicts' => $ready ? DropboxConflict::where('connection_id', $this->connectionId)->whereIn('state', ['open', 'rechecking'])->latest()->paginate(10, ['*'], 'conflictsPage') : null,
             'selectedConflict' => $selectedConflict,
             'identities' => $identities, 'employees' => $ready ? User::where('role', 'staff')->where('status', true)->orderBy('name')->get(['id', 'name']) : collect(),

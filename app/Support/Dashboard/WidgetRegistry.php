@@ -21,6 +21,16 @@ final class WidgetRegistry
     public static function all(): array
     {
         return [
+            // Steht bewusst ganz oben: die Reihenfolge hier ist die Standard-
+            // Reihenfolge des Dashboards. Die Karte sehen nur Admin- und
+            // Verwaltungs-Zielgruppen (DispatchMapData::availableFor) - fuer
+            // Mitarbeiter und Gaeste aendert sich dadurch nichts.
+            'operations_dispatch_map' => [
+                'title' => 'Dispositionskarte', 'description' => 'Schichten und offene Anfragen am gewählten Tag mit ungefährem Einsatzort.',
+                'icon' => 'map-pin', 'section' => 'Disposition',
+                'ability' => static fn (User $u) => DispatchMapData::availableFor($u),
+                'defaultVisible' => true, 'defaultSize' => 'lg', 'defaultRows' => 2,
+            ],
             'my_work' => [
                 'title' => 'Mein Arbeitstag', 'description' => 'Laufende Zeiterfassung und die naechsten eigenen Dienste.',
                 'icon' => 'clock', 'section' => 'Mein Arbeitsplatz',
@@ -62,12 +72,6 @@ final class WidgetRegistry
                 'title' => 'Leistungen', 'description' => 'Auftraege in Bearbeitung.',
                 'icon' => 'clipboard', 'section' => 'Disposition', 'ability' => self::opsAbility('operations.manage'),
                 'defaultVisible' => true, 'defaultSize' => 'sm', 'defaultRows' => 1,
-            ],
-            'operations_dispatch_map' => [
-                'title' => 'Dispositionskarte', 'description' => 'Schichten und offene Anfragen am gewählten Tag mit ungefährem Einsatzort.',
-                'icon' => 'map-pin', 'section' => 'Disposition',
-                'ability' => static fn (User $u) => DispatchMapData::availableFor($u),
-                'defaultVisible' => true, 'defaultSize' => 'lg', 'defaultRows' => 2,
             ],
             'operations_shift_coverage' => [
                 'title' => 'Besetzung diese Woche', 'description' => 'Zugesagt gegenueber benoetigt, Tag fuer Tag.',

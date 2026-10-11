@@ -24,6 +24,7 @@
         if ($isSuperAdmin) {
             $settingsTabs['device-management'] = ['label' => $deviceManagementLabel, 'icon' => 'fad fa-network-wired'];
             $settingsTabs['ai-disposition'] = ['label' => 'AI-Disposition', 'icon' => 'fad fa-inbox'];
+            $settingsTabs['dropbox'] = ['label' => 'Dropbox', 'icon' => 'fab fa-dropbox'];
             $settingsTabs['superadmin'] = ['label' => __('app.settings_superadmin'), 'icon' => 'fad fa-shield-alt'];
         }
 
@@ -79,6 +80,18 @@
                 'items' => app()->getLocale() === 'de'
                     ? ['Subdomains oder Ports', 'Provider', 'Funktionstests']
                     : ['Subdomains or ports', 'Providers', 'Connection tests'],
+            ];
+            $settingsTeasers[] = [
+                'tab' => 'dropbox',
+                'section' => '',
+                'label' => 'Dropbox',
+                'description' => app()->getLocale() === 'de'
+                    ? 'Excel-Quellen, Synchronisierung, Zuordnungen und Konflikte verwalten.'
+                    : 'Manage Excel sources, synchronization, mappings and conflicts.',
+                'icon' => 'fab fa-dropbox',
+                'items' => app()->getLocale() === 'de'
+                    ? ['Verbindung', 'Quellen', 'Abgleich']
+                    : ['Connection', 'Sources', 'Synchronization'],
             ];
             $settingsTeasers[] = [
                 'tab' => 'superadmin',
@@ -479,15 +492,19 @@
         {{-- Geräte-Setup: Providerzugänge und Diagnosen bleiben ausschließlich
              bei Benutzer #1. Die Child-Komponente prüft diese Grenze in mount
              und in jeder einzelnen Aktion erneut auf dem Server. --}}
-        <x-ui.accordion.tab-panel for="device-management" :order="4" content-class="">
+        <x-ui.accordion.tab-panel for="device-management" :order="5" content-class="">
             <livewire:admin.device-management-settings />
             @if(auth()->user()?->isSuperAdmin())<livewire:admin.workplace-support-settings />@endif
+        </x-ui.accordion.tab-panel>
+
+        <x-ui.accordion.tab-panel for="dropbox" :order="7" content-class="">
+            <livewire:admin.dropbox-settings />
         </x-ui.accordion.tab-panel>
 
         {{-- Superadmin: Sprach-/Modellrouting, Anrufbetrieb und Wissenspool.
              Der Tab wird nur für Benutzer #1 gerendert; alle Aktionen prüfen
              diese Grenze zusätzlich auf dem Server. --}}
-        <x-ui.accordion.tab-panel for="superadmin" :order="5" content-class="">
+        <x-ui.accordion.tab-panel for="superadmin" :order="8" content-class="">
         <div
             x-data="{
                 openAccordionSection: @js($initialTab === 'superadmin' && $initialSection !== '' ? $initialSection : 'assistant-runtime'),
@@ -515,9 +532,6 @@
             @if(auth()->user()?->isSuperAdmin())
                 <x-admin.settings-accordion-section section="local-excel" label="Lokaler Excel-Import" description="Dateien vom Gerät einmalig in die App übernehmen" icon="fas fa-file-excel">
                     <livewire:admin.local-excel-import />
-                </x-admin.settings-accordion-section>
-                <x-admin.settings-accordion-section section="dropbox" label="Dropbox / Excel-Synchronisierung" description="Verbindung, beidseitiger Abgleich und Konflikte" icon="fab fa-dropbox">
-                    <livewire:admin.dropbox-settings />
                 </x-admin.settings-accordion-section>
             @endif
 
@@ -742,7 +756,7 @@
         </div>
     </x-ui.accordion.tab-panel>
     @if($isSuperAdmin)
-        <x-ui.accordion.tab-panel for="ai-disposition" :order="7" content-class="">
+        <x-ui.accordion.tab-panel for="ai-disposition" :order="6" content-class="">
             <livewire:admin.ai-disposition-configuration />
         </x-ui.accordion.tab-panel>
     @endif

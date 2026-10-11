@@ -38,7 +38,7 @@ class LocalOperationsDemoTest extends TestCase
     {
         parent::setUp();
         $this->buildMinimalRailTimeSchema();
-        foreach (['2026_09_15_190000_create_operations_workflow_tables', '2026_09_17_180000_create_operations_planning_extensions', '2026_09_22_100000_create_dropbox_sync_tables', '2026_09_23_090000_create_local_excel_imports_table'] as $migration) {
+        foreach (['2026_09_15_190000_create_operations_workflow_tables', '2026_09_17_180000_create_operations_planning_extensions', '2026_09_22_100000_create_dropbox_sync_tables', '2026_09_23_090000_create_local_excel_imports_table', '2026_10_11_070000_add_last_report_to_dropbox_sources'] as $migration) {
             (require database_path('migrations/'.$migration.'.php'))->up();
         }
         config(['app.url' => 'http://127.0.0.1:5555']);

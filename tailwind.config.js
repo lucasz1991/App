@@ -46,7 +46,7 @@ export default {
                 // werden in Layouts verwendet, damit ein Redesign zentral
                 // an dieser Stelle erfolgen kann.
                 rt: {
-                    canvas: '#f2f5f9',
+                    canvas: '#edf2f7',
                     surface: '#ffffff',
                     'surface-muted': '#f7f9fc',
                     topbar: '#f6f8fb',
@@ -61,7 +61,7 @@ export default {
                     'nav-hover': '#e7edf5',
                 },
                 'rt-dark': {
-                    canvas: '#080d16',
+                    canvas: '#070b12',
                     surface: '#111a27',
                     'surface-muted': '#182435',
                     topbar: '#0c1421',

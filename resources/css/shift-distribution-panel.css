@@ -104,7 +104,14 @@ body:has(.rt-ai-assist__stage) .rt-shift-distribution--side .rt-shift-distributi
 
 @media (max-width: 1100px) {
     .rt-shift-plan-split { flex-direction: column; overflow: auto; }
-    .rt-shift-distribution-side { order: -1; width: auto; max-height: 420px; margin-right: 0; border: 1px solid var(--rt-shell-line, #dce1e6); border-radius: 16px; }
+    .rt-shift-distribution-side { order: 1; width: auto; max-height: 228px; margin-right: 0; border: 1px solid var(--rt-shell-line, #dce1e6); border-radius: 14px; }
+    .rt-shift-distribution--side .rt-shift-distribution__header { min-height: 38px; padding: 4px 10px; }
+    .rt-shift-distribution--side .rt-shift-distribution__tabs { padding: 3px 6px; }
+    .rt-shift-distribution--side .rt-shift-distribution__tabs > button { min-height: 30px; }
+    .rt-shift-distribution--side .rt-shift-distribution__group { padding: 2px 6px 6px; }
+    .rt-shift-distribution--side .rt-shift-distribution__day-head { padding: 5px 6px 3px; }
+    .rt-shift-distribution--side .rt-shift-distribution__item { min-height: 42px; gap: 8px; padding: 5px 6px; }
+    .rt-shift-distribution--side .rt-shift-distribution__footer { min-height: 34px; padding-inline: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .rt-shift-distribution-side, .rt-shift-distribution__assign, .rt-timeline-focus-target { animation: none; }

@@ -65,6 +65,15 @@ class SourceScanner
                 } app(ConflictStore::class)->put($connection, null, null, 'matrix_missing', ['path' => $configured['path']], $configured['path']);
             }
         }
+        // A parser improvement must also revisit unchanged files retained by
+        // Dropbox's cursor, once per version; users need not upload them again.
+        if (! $preview) {
+            foreach (DropboxSource::where('connection_id', $connection->id)->whereNotIn('state', ['missing', 'excluded'])->get() as $source) {
+                if (($source->last_report['parser_version'] ?? null) !== SourceSyncReport::VERSION) {
+                    $this->ledger->enqueue($connection, 'file', 'file:'.$source->id, ['source_id' => $source->id], 0);
+                }
+            }
+        }
         DropboxConnection::whereKey($connection->id)->where('generation', $connection->generation)->update(['checked_at' => now()]);
     }
 

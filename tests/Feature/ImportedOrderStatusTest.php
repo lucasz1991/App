@@ -45,6 +45,7 @@ class ImportedOrderStatusTest extends TestCase
         (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
         (require database_path('migrations/2026_07_18_000001_create_activity_log_table.php'))->up();
         (require database_path('migrations/2026_09_22_100000_create_dropbox_sync_tables.php'))->up();
+        (require database_path('migrations/2026_10_11_070000_add_last_report_to_dropbox_sources.php'))->up();
         $this->travelTo(CarbonImmutable::parse('2026-09-23 12:00:00', 'Europe/Berlin'));
         Http::preventStrayRequests();
         Mail::fake();

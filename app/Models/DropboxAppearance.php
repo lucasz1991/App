@@ -14,6 +14,9 @@ class DropboxAppearance extends Model
     protected static function booted(): void
     {
         static::saving(function (self $appearance) {
+            if (($appearance->locator['kind'] ?? '') === 'availability_submission' && (int) ($appearance->baseline['wish_id'] ?? 0) > 0) {
+                $appearance->locator = [...$appearance->locator, 'wish_id' => (int) $appearance->baseline['wish_id']];
+            }
             $appearance->identity_hash = WorkbookReader::identityHash($appearance->last_excel ?? []);
         });
     }

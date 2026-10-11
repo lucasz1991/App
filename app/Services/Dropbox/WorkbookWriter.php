@@ -8,6 +8,9 @@ class WorkbookWriter
 {
     public function cells(array $entry, array $values): array
     {
+        if (($entry['locator']['kind'] ?? '') === 'availability_submission') {
+            return app(NativeAvailabilityWorkbook::class)->cells($entry, $values);
+        }
         if ($entry['domain'] === 'competencies') {
             return [$entry['locator']['cell'] => ['value' => $values['value'], 'color' => $values['color'] ?? null]];
         }

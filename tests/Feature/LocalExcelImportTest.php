@@ -48,6 +48,7 @@ class LocalExcelImportTest extends TestCase
         (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
         (require database_path('migrations/2026_07_18_000001_create_activity_log_table.php'))->up();
         (require database_path('migrations/2026_09_22_100000_create_dropbox_sync_tables.php'))->up();
+        (require database_path('migrations/2026_10_11_070000_add_last_report_to_dropbox_sources.php'))->up();
         (require database_path('migrations/2026_09_23_090000_create_local_excel_imports_table.php'))->up();
         Storage::fake('local');
         config(['cache.stores.file' => ['driver' => 'array']]);

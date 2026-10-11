@@ -10,6 +10,7 @@ use App\Services\Dropbox\DropboxApiException;
 use App\Services\Dropbox\FileSynchronizer;
 use App\Services\Dropbox\RecordExporter;
 use App\Services\Dropbox\SourceScanner;
+use App\Services\Dropbox\SourceSyncReport;
 use App\Services\Dropbox\WorkLedger;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -45,9 +46,9 @@ class ProcessDropboxWork implements ShouldQueue
             return;
         }
         $sequence = $item->requested;
+        $preview = (bool) ($item->payload['preview'] ?? false);
         try {
             $item->forceFill(['running_until' => now()->addSeconds(330), 'attempts' => $item->attempts + 1])->save();
-            $preview = (bool) ($item->payload['preview'] ?? false);
             match ($item->kind) {
                 'scan' => app(SourceScanner::class)->scan($connection, $preview),
                 'file' => app(FileSynchronizer::class)->sync($connection, DropboxSource::where('connection_id', $connection->id)->findOrFail($item->payload['source_id']), $preview),
@@ -69,6 +70,9 @@ class ProcessDropboxWork implements ShouldQueue
             DropboxWorkItem::whereKey($item->id)->update(['error_code' => $code, 'queued_until' => null, 'running_until' => null, 'available_at' => now()->addSeconds($delay)]);
             if ($code === 'reconnect_required') {
                 $connection->forceFill(['error_code' => $code])->save();
+            }
+            if ($item->kind === 'file' && ! $preview && ($source = DropboxSource::where('connection_id', $connection->id)->find($item->payload['source_id'] ?? 0))) {
+                app(SourceSyncReport::class)->failed($source, $code);
             }
             DB::table('dropbox_runs')->insert(['connection_id' => $connection->id, 'kind' => $item->kind, 'status' => 'error', 'summary' => json_encode(['work_id' => $item->id, 'code' => $code]), 'created_at' => now(), 'updated_at' => now()]);
         } finally {

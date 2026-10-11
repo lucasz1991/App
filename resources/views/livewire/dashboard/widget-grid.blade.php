@@ -17,20 +17,15 @@
         selbst tut das nicht - sonst waeren Ziehen/Groesse/Entfernen am
         Raster blockiert, sobald man in den Anpassen-Modus wechselt.
     --}}
-    <header class="ops-toolbar" data-anim="fade-up">
-        <div><p class="ops-kicker">{{ now(config('operations.display_timezone'))->translatedFormat('D, d. M Y') }}</p><h1>Willkommen, {{ auth()->user()->name }}</h1></div>
-        @if($editing)
-            <div class="ops-actions">
+    @if($editing)
+        <header class="ops-toolbar">
+            <div class="ops-actions" style="margin-left:auto;">
                 <button type="button" class="ops-btn" @click="pickerOpen = true">
                     <i data-feather="plus"></i>Widget hinzufügen
                 </button>
             </div>
-        @endif
-    </header>
-
-    @unless($editing)
-        <p class="ops-muted" data-widget-grid-hint style="margin-top:-12px;">Kachel gedrückt halten, um Widgets anzupassen.</p>
-    @endunless
+        </header>
+    @endif
 
     <div class="widget-grid" data-widget-track data-editing="{{ $editing ? 'true' : 'false' }}" x-data="dashboardWidgetGrid" data-anim-stagger>
         @forelse($visible as $item)

@@ -267,3 +267,5 @@ auth.json
 !/tests/Feature/AiCustomerCommunicationTest.php
 !/tests/Feature/StaffingAutomationTest.php
 !/tests/Feature/AiAssistTest.php
+!/tests/Feature/AreaMenuUiTest.php
+!/tests/Frontend/area-menu.test.js

@@ -93,9 +93,11 @@ final class OperationsPages
     {
         $shortcuts = self::planningViews($actor);
         if (isset($shortcuts['shifts'])) {
-            $shortcuts['shifts']['icon'] = 'fa-clock';
-            $shortcuts['calendar'] = ['value' => 'calendar', 'label' => 'Kalender', 'icon' => 'fa-calendar-alt'];
+            $shift = $shortcuts['shifts'];
+            unset($shortcuts['shifts']);
             $shortcuts['services'] = ['value' => 'services', 'label' => 'Leistungen', 'icon' => 'fa-briefcase'];
+            $shortcuts['shifts'] = array_merge($shift, ['icon' => 'fa-clock']);
+            $shortcuts['calendar'] = ['value' => 'calendar', 'label' => 'Kalender', 'icon' => 'fa-calendar-alt'];
         }
 
         return $shortcuts;

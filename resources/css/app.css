@@ -14,6 +14,7 @@
 @import './date-field.css';
 @import './date-range-picker.css';
 @import './multi-toggle.css';
+@import './area-menu.css';
 @import './disposition-workspace.css';
 @import './shift-distribution-panel.css';
 @import './ai-assist.css';
@@ -122,11 +123,11 @@ html {
  */
 body[data-mode="dark"] {
     color: #edf2f8;
-    background-color: #080d16;
+    background-color: #070b12;
 }
 
 html.dark .bg-rt-canvas,
-body[data-mode="dark"] .bg-rt-canvas { background-color: #080d16 !important; }
+body[data-mode="dark"] .bg-rt-canvas { background-color: #070b12 !important; }
 html.dark .bg-rt-surface,
 body[data-mode="dark"] .bg-rt-surface { background-color: #111a27 !important; }
 html.dark .bg-rt-surface-muted,

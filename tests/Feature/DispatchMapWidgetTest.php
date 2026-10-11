@@ -118,6 +118,41 @@ class DispatchMapWidgetTest extends TestCase
         $this->assertDatabaseCount('dashboard_widget_placements', 0);
     }
 
+    public function test_map_is_the_first_default_widget_for_admin_and_verwaltung_dashboards(): void
+    {
+        $verwaltung = $this->manager(['operations.manage', 'operations.inquiries.manage', 'employees.view']);
+        $administration = $this->manager(['operations.manage'], 'Administration');
+
+        foreach ([$this->admin, $verwaltung, $administration] as $user) {
+            $this->assertSame('operations_dispatch_map', DashboardLayout::visible($user)[0]['key']);
+        }
+
+        $employee = $this->manager(['operations.manage'], 'Mitarbeiter');
+        $this->assertNotContains('operations_dispatch_map', array_column(DashboardLayout::forUser($employee), 'key'));
+    }
+
+    public function test_first_touch_on_another_widget_keeps_the_map_in_front(): void
+    {
+        $order = array_column(DashboardLayout::visible($this->admin), 'key');
+
+        DashboardLayout::setSize($this->admin, 'messages', 'lg');
+        DashboardLayout::setRows($this->admin, 'files', 2);
+
+        $this->assertSame($order, array_column(DashboardLayout::visible($this->admin), 'key'));
+        $this->assertSame('operations_dispatch_map', DashboardLayout::visible($this->admin)[0]['key']);
+    }
+
+    public function test_a_deliberate_reorder_still_wins_over_the_default(): void
+    {
+        $keys = array_column(DashboardLayout::visible($this->admin), 'key');
+        $withMapLast = array_values(array_diff($keys, ['operations_dispatch_map']));
+        $withMapLast[] = 'operations_dispatch_map';
+
+        DashboardLayout::reorder($this->admin, $withMapLast);
+
+        $this->assertSame($withMapLast, array_column(DashboardLayout::visible($this->admin), 'key'));
+    }
+
     public function test_overlap_includes_overnight_and_excludes_boundary_cancelled_deleted_and_tomorrow(): void
     {
         $overnight = $this->shift(['title' => 'Overnight', 'starts_at' => '2026-10-08 22:00:00', 'ends_at' => '2026-10-09 06:00:00']);

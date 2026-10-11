@@ -76,7 +76,17 @@ class RecordExporter
     private function target(DropboxConnection $connection, DropboxRecord $record): ?DropboxSource
     {
         if ($record->metadata['target_source_id'] ?? null) {
-            return DropboxSource::where('connection_id', $connection->id)->whereKey($record->metadata['target_source_id'])->firstOrFail();
+            $source = DropboxSource::where('connection_id', $connection->id)->whereKey($record->metadata['target_source_id'])->firstOrFail();
+            if (in_array($record->metadata['kind'] ?? '', ['availability_note', 'availability_submission'], true)) {
+                $week = app(WeeklyAvailability::class)->recordWeek($record);
+                if (! $week || $source->profile !== 'weekly' || in_array($source->state, ['missing', 'excluded'], true)
+                    || ! $this->guard->pathAllowed($connection, $source->path)
+                    || app(WeeklyAvailability::class)->sourceWeek(['weeks' => $source->weeks ?? []], $source) !== $week) {
+                    throw ValidationException::withMessages(['sync' => 'Das gewählte Ziel gehört nicht zur Woche dieser Verfügbarkeitsangabe.']);
+                }
+            }
+
+            return $source;
         }
         if ($record->domain === 'planning') {
             $week = app(WeekFileMatcher::class)->week($this->domain->current($record)['date']);
@@ -93,6 +103,19 @@ class RecordExporter
 
             return null;
         }
+        if (in_array($record->metadata['kind'] ?? '', ['availability_note', 'availability_submission'], true)) {
+            $week = app(WeeklyAvailability::class)->recordWeek($record);
+            $sources = DropboxSource::where('connection_id', $connection->id)->where('profile', 'weekly')->whereNotIn('state', ['missing', 'excluded'])->get()
+                ->filter(fn ($source) => app(WeeklyAvailability::class)->sourceWeek(['weeks' => $source->weeks ?? []], $source) === $week);
+            if ($week && $sources->isEmpty() && ($record->metadata['kind'] ?? '') === 'availability_submission' && $connection->option('create_workbooks')) {
+                return null;
+            }
+            if (! $week || $sources->count() !== 1) {
+                throw ValidationException::withMessages(['sync' => 'Eine eindeutige Wochenmappe für diese Verfügbarkeitsangabe fehlt.']);
+            }
+
+            return $sources->first();
+        }
         $sources = DropboxSource::where('connection_id', $connection->id)->where('profile', 'matrix')->whereNotIn('state', ['missing', 'excluded'])->get();
         if ($sources->count() !== 1) {
             throw ValidationException::withMessages(['sync' => 'Eine eindeutige Kompetenzmatrix als Ziel fehlt.']);
@@ -104,7 +127,7 @@ class RecordExporter
     private function append(DropboxConnection $connection, DropboxRecord $record, ?DropboxSource $source): void
     {
         $values = $this->domain->current($record);
-        $week = $record->domain === 'planning' ? app(WeekFileMatcher::class)->week($values['date']) : null;
+        $week = $record->domain === 'planning' ? app(WeekFileMatcher::class)->week($values['date']) : app(WeeklyAvailability::class)->recordWeek($record);
         $path = $source?->path ?? rtrim($connection->option('folders')[0], '/').'/'.app(WeekFileMatcher::class)->filename($week, $connection->option('filename_rule'));
         // A partial import can already have uploaded its own revision. That does
         // not make later rows safe to append, and retries must not starve imports.
@@ -152,7 +175,23 @@ class RecordExporter
                 $rev = null;
             }
             $profile = $source?->profile ?? 'weekly';
+            $context = $source ?? new DropboxSource(['connection_id' => $connection->id, 'name' => basename($path), 'profile' => $profile, 'weeks' => $week ? [$week] : []]);
             $parsed = app(WorkbookReader::class)->read($bytes, $profile);
+            $parsed = app(WeeklyAvailability::class)->contextualize($parsed, $context);
+            if (($record->metadata['kind'] ?? '') === 'availability_submission' && ! isset($parsed['sheets'][NativeAvailabilityWorkbook::SHEET])) {
+                if (! $connection->option('create_sheets')) {
+                    throw new DropboxApiException('availability_sheet_missing');
+                }
+                $package = new WorkbookPackage($bytes);
+                $template = array_key_first($package->sheets());
+                $headers = [];
+                foreach (NativeAvailabilityWorkbook::HEADERS as $column => $label) {
+                    $headers[$column.'1'] = ['value' => $label];
+                }
+                $package->addEmployeeSheet(NativeAvailabilityWorkbook::SHEET, $template, $headers);
+                $bytes = $package->bytes();
+                $parsed = app(WeeklyAvailability::class)->contextualize(app(WorkbookReader::class)->read($bytes, $profile), $context);
+            }
             $appearances = $source ? DropboxAppearance::where('record_id', $record->id)->where('source_id', $source->id)->get() : collect();
             $changes = [];
             $extraCells = [];
@@ -209,7 +248,9 @@ class RecordExporter
                 if ($appearances->isNotEmpty()) {
                     return;
                 }
-                [$entry, $extraCells] = $this->matrixEntry($connection, $record, $parsed, $values);
+                [$entry, $extraCells] = ($record->metadata['kind'] ?? '') === 'availability_submission'
+                    ? app(NativeAvailabilityWorkbook::class)->appendEntry($connection, $record, $parsed, $values)
+                    : $this->matrixEntry($connection, $record, $parsed, $values);
                 $changes[] = ['entry' => $entry, 'values' => $values, 'record_id' => $record->id];
             }
             if (! $changes) {
@@ -270,6 +311,16 @@ class RecordExporter
         if ($kind === 'local_knowledge') {
             $cell = 'C'.$row;
             $extra[$sheet] = ['A'.$row => ['value' => $fact->name], 'B'.$row => ['value' => $subject]];
+        } elseif ($kind === 'availability_note') {
+            $other = collect($parsed['rows'])->first(fn ($entry) => $entry['sheet'] === $sheet
+                && WorkbookReader::normalize($entry['locator']['subject']) === $identity->alias);
+            if ($other) {
+                $row = $other['locator']['row'];
+            } else {
+                $extra[$sheet] = ['B'.$row => ['value' => $subject]];
+            }
+            $column = collect($info['columns'])->filter(fn ($column) => $column['name'] === $fact->name && $column['scope'] === $fact->scope)->keys()->first();
+            $cell = $column.$row;
         } else {
             $other = collect($parsed['rows'])->first(fn ($e) => $e['sheet'] === $sheet && WorkbookReader::normalize($e['locator']['subject']) === $identity->alias);
             if ($other) {
@@ -285,6 +336,11 @@ class RecordExporter
             $cell = $col.$row;
         }
 
-        return [['domain' => 'competencies', 'sheet' => $sheet, 'slot' => $cell, 'locator' => ['row' => $row, 'cell' => $cell, 'kind' => $kind, 'subject' => $subject, 'name' => $fact->name, 'scope' => $fact->scope]], $extra];
+        $locator = ['row' => $row, 'cell' => $cell, 'kind' => $kind, 'subject' => $subject, 'name' => $fact->name, 'scope' => $fact->scope];
+        if ($kind === 'availability_note') {
+            $locator['week'] = app(WeeklyAvailability::class)->recordWeek($record);
+        }
+
+        return [['domain' => 'competencies', 'sheet' => $sheet, 'slot' => $cell, 'locator' => $locator], $extra];
     }
 }

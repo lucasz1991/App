@@ -93,7 +93,6 @@
                         @if($planHelp)
                             <button type="button" role="menuitem" class="rt-shift-plan-view-option rt-shift-plan-compact-action" x-on:click="close(); $dispatch('rt-info:open', {{ \Illuminate\Support\Js::from($planHelpPayload) }})"><i class="far fa-info-circle" aria-hidden="true"></i><span><strong>Seitenhilfe</strong></span></button>
                         @endif
-                        <button type="button" role="menuitem" class="rt-shift-plan-view-option rt-shift-plan-compact-action" x-on:click="close(); window.RTNavigation ? window.RTNavigation.backToPreviousPage(@js(url('/'))) : window.location.assign(@js(url('/')))"><i class="far fa-arrow-left" aria-hidden="true"></i><span><strong>Zurück</strong></span></button>
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>
             </div>
