@@ -104,7 +104,14 @@
                                 @if($report['preview'])<p>Vorschau – keine Übernahme ausgeführt</p>@elseif(!$report['complete'] && !$report['error'])<p>Teilstand – die Verarbeitung läuft weiter</p>@endif
                                 @if($report['newer_revision'])<p>Neuere Dateiversion wartet auf den Abgleich</p>@endif
                             </div>
-                            @if($report['error'])<p class="text-xs leading-5"><strong>Abgleich unterbrochen:</strong> {{ $report['error'] }}@if($report['has_counts']) Der zuletzt gespeicherte Übernahmestand bleibt unten sichtbar.@endif</p>@endif
+                            @if($report['error'])
+                                <p class="text-xs leading-5">
+                                    <strong>Abgleich unterbrochen:</strong> {{ $report['error'] }}
+                                    @if($report['has_counts'])
+                                        <span>Der zuletzt gespeicherte Übernahmestand bleibt unten sichtbar.</span>
+                                    @endif
+                                </p>
+                            @endif
                             @if($report['has_counts'])
                             <table class="w-full text-left text-xs" aria-label="Übernahme aus {{ $source->name }}">
                                 <thead class="text-rt-muted dark:text-rt-dark-muted"><tr><th scope="col" class="pb-2 font-medium">Datenbereich</th><th scope="col" class="pb-2 pl-3 text-right font-medium">Excel-Einträge</th><th scope="col" class="pb-2 pl-3 text-right font-medium">In der App gespeichert</th></tr></thead>
@@ -122,7 +129,12 @@
                             @endif
                             @if($report['detected']['availability_cells'] > 0)<p class="text-xs leading-5 tabular-nums">{{ $report['employee_references'] }} Personen in der Verfügbarkeitsliste · Verfügbarkeitsfelder einschließlich leerer Felder: {{ $report['detected']['availability_cells'] }} erkannt, {{ $report['stored']['availability_cells'] }} gespeichert.</p>@endif
                             @if($report['has_identity_counts'])<p class="text-xs leading-5 tabular-nums">Personenzuordnung: {{ $report['matched_employees'] }} {{ $report['matched_employees'] === 1 ? 'Mitarbeiterkonto' : 'Mitarbeiterkonten' }} erkannt · {{ $report['matched_providers'] }} Dienstleister erkannt · {{ $report['identity_review_count'] }} {{ $report['identity_review_count'] === 1 ? 'Zuordnung' : 'Zuordnungen' }} offen.</p>@endif
-                            <p class="text-xs leading-5 tabular-nums">Rückübertragung: {{ $report['pending_export'] }} offen@if($report['returned'] !== null) · {{ $report['returned'] }} durchgeführt@endif</p>
+                            <p class="text-xs leading-5 tabular-nums">
+                                Rückübertragung: {{ $report['pending_export'] }} offen
+                                @if($report['returned'] !== null)
+                                    <span>· {{ $report['returned'] }} durchgeführt</span>
+                                @endif
+                            </p>
                             @else
                                 <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Für diesen Prüfversuch liegt noch kein Übernahmeergebnis vor.</p>
                             @endif
@@ -133,7 +145,22 @@
                                         @if($report['missing'])<dl class="space-y-1">@foreach($report['missing'] as $missing)<div class="flex items-start justify-between gap-4"><dt>{{ $missing['label'] }}</dt><dd class="font-semibold tabular-nums">{{ $missing['count'] }}</dd></div>@endforeach</dl>@endif
                                         @if($report['identity_review'])<div><p class="font-semibold">Personen mit offener Zuordnung (bis zu 20)</p><ul class="mt-1 space-y-1">@foreach($report['identity_review'] as $identity)<li class="break-words"><span class="font-medium">{{ $identity['name'] }}</span>: {{ $identity['label'] }}</li>@endforeach</ul><p class="mt-1 text-rt-muted dark:text-rt-dark-muted">Die Zuordnung kann im Bereich „Zuordnungen“ ergänzt werden.</p></div>@endif
                                         @if($report['ignored_sheets'])<div><p class="font-semibold">Nicht übernommene Blätter</p><ul class="mt-1 space-y-1">@foreach($report['ignored_sheets'] as $ignored)<li class="break-words"><span class="font-medium">{{ $ignored['sheet'] }}</span>: {{ $ignored['label'] }}</li>@endforeach</ul></div>@endif
-                                        @if($report['issue_examples'])<div><p class="font-semibold">Betroffene Stellen (bis zu 20)</p><ul class="mt-1 space-y-1">@foreach($report['issue_examples'] as $example)<li class="break-words">{{ $example['sheet'] }}@if($example['row'] > 0) · Zeile {{ $example['row'] }}@endif: {{ $example['label'] }}</li>@endforeach</ul></div>@endif
+                                        @if($report['issue_examples'])
+                                            <div>
+                                                <p class="font-semibold">Betroffene Stellen (bis zu 20)</p>
+                                                <ul class="mt-1 space-y-1">
+                                                    @foreach($report['issue_examples'] as $example)
+                                                        <li class="break-words">
+                                                            {{ $example['sheet'] }}
+                                                            @if($example['row'] > 0)
+                                                                <span>· Zeile {{ $example['row'] }}</span>
+                                                            @endif
+                                                            <span>: {{ $example['label'] }}</span>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            </div>
+                                        @endif
                                     </div>
                                 </details>
                             @elseif(!$report['error'] && $report['has_counts'])

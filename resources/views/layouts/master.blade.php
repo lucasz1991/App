@@ -91,7 +91,7 @@
         {{-- Einheitliche Content-Huelle fuer BEIDE Render-Wege:
              @extends-Seiten liefern @section('content'), Livewire-Seiten via
              ->layout() liefern $slot. Beide landen im selben Wrapper (gleicher
-             Sidebar-Offset, Gradient, Container) -> identische Seitenstruktur. --}}
+             Sidebar-Offset, Hintergrund, Container) -> identische Seitenstruktur. --}}
         <main id="main-content" tabindex="-1" @class([
             'bg-rt-canvas dark:bg-rt-dark-canvas',
             'rt-viewport-layout' => $viewportMode,
@@ -99,7 +99,7 @@
         ])>
             <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
                 <div @class([
-                    'relative isolate min-h-screen page-content rt-app-page-frame bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,245,249,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] dark:bg-[linear-gradient(180deg,rgba(12,20,33,0.98),rgba(8,13,22,1))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+                    'relative isolate min-h-screen page-content rt-app-page-frame bg-rt-canvas shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] dark:bg-rt-dark-canvas dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
                     'flex flex-col' => ! $viewportMode,
                 ])>
                     @persist('railtime-shell-ambient')

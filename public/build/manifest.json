@@ -48,12 +48,12 @@
     "src": "node_modules/leaflet/dist/leaflet.css"
   },
   "resources/css/app.css": {
-    "file": "assets/app-CoDr8xAJ.css",
+    "file": "assets/app--4rDHjOd.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/css/chat-redesign.css": {
-    "file": "assets/chat-redesign-CPbXOGO0.css",
+    "file": "assets/chat-redesign-CT7RM8R4.css",
     "src": "resources/css/chat-redesign.css",
     "isEntry": true
   },
@@ -62,12 +62,12 @@
     "src": "resources/css/chatbot.css"
   },
   "resources/css/shell-redesign.css": {
-    "file": "assets/shell-redesign-BQBmU7_v.css",
+    "file": "assets/shell-redesign-B26raCvY.css",
     "src": "resources/css/shell-redesign.css",
     "isEntry": true
   },
   "resources/css/tabs-redesign.css": {
-    "file": "assets/tabs-redesign-DdDvFNod.css",
+    "file": "assets/tabs-redesign-BG1VHHsi.css",
     "src": "resources/css/tabs-redesign.css",
     "isEntry": true
   },

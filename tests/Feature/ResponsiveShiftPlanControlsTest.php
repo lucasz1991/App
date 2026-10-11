@@ -351,11 +351,11 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         $tailwind = file_get_contents(base_path('tailwind.config.js'));
         $appCss = file_get_contents(resource_path('css/app.css'));
         $shellCss = file_get_contents(resource_path('css/shell-redesign.css'));
-        $this->assertStringContainsString("canvas: '#edf2f7'", $tailwind);
-        $this->assertStringContainsString("canvas: '#070b12'", $tailwind);
-        $this->assertStringContainsString('background-color: #070b12 !important;', $appCss);
-        $this->assertStringContainsString('--rt-shell-canvas: #edf2f7;', $shellCss);
-        $this->assertStringContainsString('--rt-shell-canvas: #070b12;', $shellCss);
+        $this->assertStringContainsString("canvas: '#dce3ed'", $tailwind);
+        $this->assertStringContainsString("canvas: '#03060b'", $tailwind);
+        $this->assertStringContainsString('background-color: #03060b !important;', $appCss);
+        $this->assertStringContainsString('--rt-shell-canvas: #dce3ed;', $shellCss);
+        $this->assertStringContainsString('--rt-shell-canvas: #03060b;', $shellCss);
     }
 
     public function test_compact_secondary_actions_override_legacy_important_display_without_changing_global_utilities(): void

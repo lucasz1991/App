@@ -123,11 +123,11 @@ html {
  */
 body[data-mode="dark"] {
     color: #edf2f8;
-    background-color: #070b12;
+    background-color: #03060b;
 }
 
 html.dark .bg-rt-canvas,
-body[data-mode="dark"] .bg-rt-canvas { background-color: #070b12 !important; }
+body[data-mode="dark"] .bg-rt-canvas { background-color: #03060b !important; }
 html.dark .bg-rt-surface,
 body[data-mode="dark"] .bg-rt-surface { background-color: #111a27 !important; }
 html.dark .bg-rt-surface-muted,
