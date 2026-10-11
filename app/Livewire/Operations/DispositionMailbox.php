@@ -272,8 +272,8 @@ class DispositionMailbox extends Component
         $this->perform(function () use ($actor, $classification): void {
             $result = $this->mailbox()->classify($actor, $this->selectedMessage['folder'], (int) $this->selectedMessage['uid'], (int) $this->selectedMessage['uid_validity'], $classification);
             $this->selectedMessage = array_replace($this->selectedMessage, $result);
-            $this->loadPage($actor);
             $this->dispatch('disposition-mailbox-updated');
+            $this->loadPage($actor);
         });
     }
 

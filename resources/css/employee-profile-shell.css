@@ -251,7 +251,7 @@
     .employee-profile[data-profile-shell] .employee-operations__table { --rt-table-header-columns: 80px minmax(0, 1fr); }
     .employee-profile[data-profile-shell] .employee-operations__table .rt-table-row-grid { grid-template-columns: 80px minmax(0, 1fr); gap: 8px !important; }
     .employee-profile[data-profile-shell] .employee-operations__table .rt-table-row-grid > .employee-operations__cell { grid-column: auto !important; }
-    .employee-profile[data-profile-shell] .employee-operations__table .rt-table-row { padding: 12px 56px 12px 12px !important; }
+    .employee-profile[data-profile-shell] .employee-operations__table.rt-table-frame .rt-table-row { padding: 12px 56px 12px 12px !important; }
     .employee-profile[data-profile-shell] .employee-operations__table .rt-table-head { padding: 12px 56px 12px 12px !important; column-gap: 8px; }
     .employee-profile[data-profile-shell] .employee-operations__table .rt-table-head > .hidden { display: none !important; }
     .employee-profile[data-profile-shell] .employee-operations__cell { padding-right: 0; font-size: 11px; }

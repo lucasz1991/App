@@ -263,14 +263,14 @@ class DispositionMailboxWorkflowTest extends TestCase
         $this->noAutomaticEffects();
     }
 
-    public function test_non_inquiry_confirmation_stops_the_guided_domain_actions_and_pauses_the_intake(): void
+    public function test_non_inquiry_confirmation_stops_the_guided_domain_actions_and_closes_the_intake(): void
     {
         $review = $this->recognize();
         $workflow = app(DispositionMailboxWorkflowService::class);
         $rejected = $workflow->confirmClassification($this->admin, $review, false);
 
         $this->assertSame('not_inquiry', $rejected['classification']);
-        $this->assertSame('paused', AiIntake::firstOrFail()->status);
+        $this->assertSame('not_inquiry', AiIntake::firstOrFail()->status);
         $this->rejected([409, 422], fn () => $workflow->createInquiries($this->admin, $rejected));
         $this->rejected([409, 422], fn () => $workflow->prepareClarification($this->admin, $rejected));
         $this->assertSame(0, OperationInquiry::count());
@@ -494,7 +494,7 @@ class DispositionMailboxWorkflowTest extends TestCase
         $this->assertSame(1, AiIntakeMessage::count());
         $this->assertSame(1, AiIntakeRun::count());
         $component->call('confirmGuidedClassification', false)->assertHasNoErrors()->assertSet('guidedStep', 'done');
-        $this->assertSame('paused', $intake->fresh()->status);
+        $this->assertSame('not_inquiry', $intake->fresh()->status);
         $this->noAutomaticEffects();
     }
 

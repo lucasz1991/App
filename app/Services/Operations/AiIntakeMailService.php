@@ -246,7 +246,7 @@ class AiIntakeMailService
             $fresh = AiIntake::lockForUpdate()->findOrFail($intake->id);
             abort_unless((int) $settings['revision'] === $expectedSettingsRevision && $fresh->revision === $expectedRevision, 409, 'Die Grundlage wurde geändert. Bitte erneut prüfen.');
             abort_unless($fresh->source_type === 'email' && $fresh->match_method === 'manual' && ($fresh->analysis['intent'] ?? '') === 'inquiry'
-                && ! $fresh->paused_at && ! in_array($fresh->status, ['paused', 'completed'], true), 422, 'Bitte zuerst die Anfrage und Kundenzuordnung bestätigen.');
+                && ! $fresh->paused_at && ! in_array($fresh->status, ['paused', 'completed', 'not_inquiry'], true), 422, 'Bitte zuerst die Anfrage und Kundenzuordnung bestätigen.');
             $contact = CustomerContact::where('customer_id', $fresh->customer_id)->where('is_active', true)->find($fresh->customer_contact_id);
             $message = $fresh->messages()->where('direction', 'inbound')->find($fresh->latest_inbound_message_id);
             $metadata = $message?->metadata ?? [];
@@ -353,7 +353,7 @@ class AiIntakeMailService
             $this->authorizedActor($actor);
             abort_unless($record->status === 'draft' && $record->intake_id === $intake->id && $record->settings_revision === $expectedSettingsRevision && $intake->revision === $expectedIntakeRevision, 409, 'Nachrichtenentwurf wurde geändert. Bitte neu laden.');
             $record->forceFill(['status' => 'canceled', 'failure_code' => 'personally_rejected'])->save();
-            if ($this->type($record) === 'clarification' && $intake->error_code === 'customer_message_approval_required') {
+            if ($intake->status !== 'not_inquiry' && $this->type($record) === 'clarification' && $intake->error_code === 'customer_message_approval_required') {
                 $intake->forceFill(['status' => 'review', 'error_code' => 'customer_clarification_rejected', 'revision' => $intake->revision + 1])->save();
             }
             $this->auditMessage($record, $actor, 'rejected', $intake->revision);
@@ -413,7 +413,7 @@ class AiIntakeMailService
         }
         $type = $this->type($delivery);
         $mode = $this->mode($settings, $type);
-        if (! in_array($type, ['receipt', 'clarification', 'order_confirmation'], true) || ! $settings['enabled'] || $mode === 'off' || (int) $settings['revision'] !== $delivery->settings_revision || ! $contact || $intake->paused_at || in_array($intake->status, ['paused', 'failed'], true)
+        if (! in_array($type, ['receipt', 'clarification', 'order_confirmation'], true) || ! $settings['enabled'] || $mode === 'off' || (int) $settings['revision'] !== $delivery->settings_revision || ! $contact || $intake->paused_at || in_array($intake->status, ['paused', 'failed', 'not_inquiry'], true)
             || $intake->source_revision !== $delivery->source_revision || $intake->latest_inbound_message_id !== $delivery->message_id || $contact->id !== (int) $delivery->contact_id || $intake->customer_id !== (int) $delivery->customer_id
             || $contact->revision !== (int) ($delivery->metadata['contact_revision'] ?? 0) || ! hash_equals(strtolower(trim($contact->email)), $delivery->recipient_email)) {
             return false;
@@ -489,7 +489,7 @@ class AiIntakeMailService
 
     private function verifiedContact(AiIntake $intake, array $settings): ?CustomerContact
     {
-        if (! AiDispositionSettings::supervisor($settings) || (int) $intake->supervising_user_id !== (int) $settings['supervisor_id'] || $intake->match_method !== 'contact_email' || $intake->source_type !== 'email') {
+        if ($intake->status === 'not_inquiry' || ! AiDispositionSettings::supervisor($settings) || (int) $intake->supervising_user_id !== (int) $settings['supervisor_id'] || $intake->match_method !== 'contact_email' || $intake->source_type !== 'email') {
             return null;
         }
         $customer = Customer::find($intake->customer_id);

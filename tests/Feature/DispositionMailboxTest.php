@@ -264,7 +264,7 @@ class DispositionMailboxTest extends TestCase
         $this->noSideEffects();
     }
 
-    public function test_not_inquiry_pauses_linked_processing_and_cancels_only_unsent_customer_deliveries(): void
+    public function test_not_inquiry_closes_linked_processing_and_cancels_only_unsent_customer_deliveries(): void
     {
         $this->configure();
         $intake = app(AiIntakeService::class)->receiveEmail($this->email(), $this->admin);
@@ -277,7 +277,7 @@ class DispositionMailboxTest extends TestCase
 
         $result = app(DispositionMailboxService::class)->classify($this->admin, 'INBOX', 32, 401, 'not_inquiry');
         $this->assertSame('not_inquiry', $result['classification']);
-        $this->assertSame('paused', $intake->fresh()->status);
+        $this->assertSame('not_inquiry', $intake->fresh()->status);
         $this->assertSame('canceled', $draft->fresh()->status);
         $this->assertSame('canceled', $pending->fresh()->status);
         $this->assertSame('sent', $sent->fresh()->status);

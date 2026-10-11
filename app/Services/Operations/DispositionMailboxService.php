@@ -120,13 +120,16 @@ class DispositionMailboxService
             $review = DispositionMailboxReview::firstOrCreate($this->reviewIdentity($settings, $folder, $uid, $validity));
             $review = DispositionMailboxReview::lockForUpdate()->findOrFail($review->id);
             abort_if($expectedReviewRevision !== null && $review->revision !== $expectedReviewRevision, 409, 'Die Mail wurde inzwischen geprüft. Bitte den aktuellen Stand laden.');
-            $intake = $this->source($settings, $uid, $validity)?->intake;
+            $source = $this->source($settings, $uid, $validity);
+            $intake = $source ? AiIntake::lockForUpdate()->findOrFail($source->intake_id) : null;
             if ($expectedIntakeRevision !== null) {
-                $intake = $intake ? AiIntake::lockForUpdate()->findOrFail($intake->id) : null;
                 abort_unless($intake && $intake->revision === $expectedIntakeRevision, 409, 'Der Eingang wurde inzwischen geändert. Bitte neu prüfen.');
             }
-            if ($classification === 'not_inquiry' && $intake && ! in_array($intake->status, ['paused', 'completed'], true)) {
-                app(AiIntakeService::class)->pause($intake, $actor, $intake->revision);
+            if ($intake && $source) {
+                $intake = app(AiIntakeService::class)->classifyMailboxSource($intake, $actor, $source->id, $classification, $intake->revision);
+            }
+            if ($review->classification === $classification && $review->reviewed_by !== null && $review->intake_id === $intake?->id) {
+                return;
             }
             $previous = $review->classification;
             $review->update(['classification' => $classification, 'intake_id' => $intake?->id, 'reviewed_by' => $actor->id, 'revision' => $review->revision + 1]);
@@ -169,8 +172,11 @@ class DispositionMailboxService
                 $source = $this->source($settings, $uid, $validity);
                 if ($source) {
                     $archivePaths = array_merge($archivePaths, array_filter([$source->raw_path]), $source->attachments()->pluck('file_path')->all());
+                    if ($asInquiry) {
+                        $intake = app(AiIntakeService::class)->classifyMailboxSource($intake, $actor, $source->id, 'inquiry', $intake->revision);
+                    }
                 }
-                if ($asInquiry || $review->intake_id !== $intake->id) {
+                if (($asInquiry && ($review->classification !== 'inquiry' || $review->reviewed_by === null)) || $review->intake_id !== $intake->id) {
                     $review->update(['intake_id' => $intake->id, 'revision' => $review->revision + 1] + ($asInquiry ? ['classification' => 'inquiry', 'reviewed_by' => $actor->id] : []));
                     app(OperationsAuditService::class)->record($review, $actor, $asInquiry ? 'mailbox.import' : 'mailbox.capture_for_recognition', ['intake_id' => $intake->id]);
                 }

@@ -11,7 +11,7 @@ class AiIntake extends Model
 {
     use HasUtcInstants;
 
-    public const STATUSES = ['received', 'analyzing', 'review', 'waiting_customer', 'ready', 'paused', 'failed', 'completed'];
+    public const STATUSES = ['received', 'analyzing', 'review', 'waiting_customer', 'ready', 'paused', 'failed', 'completed', 'not_inquiry'];
 
     protected $guarded = ['id'];
 

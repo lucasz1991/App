@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\Operations\DispositionMailboxService;
 use App\Support\Operations\UnifiedInboxProjection;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -64,6 +65,18 @@ class UnifiedInbox extends Component
 
     public function updatedChannel(): void
     {
+        $this->resetPage('inboxPage');
+    }
+
+    #[On('disposition-mailbox-updated')]
+    public function refreshMailbox(): void
+    {
+        $query = $this->query();
+        if (($this->detail['kind'] ?? null) === 'ai' && isset($this->detail['id'])
+            && ! $query->where('inbox.kind', 'ai')->where('inbox.id', $this->detail['id'])->exists()) {
+            $this->detail = null;
+            $this->detailRevision++;
+        }
         $this->resetPage('inboxPage');
     }
 

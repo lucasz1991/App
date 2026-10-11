@@ -138,6 +138,12 @@ class AiIntakeService
                 $intake = $this->replyIntake($message, $sender);
                 if ($intake) {
                     $intake = AiIntake::lockForUpdate()->findOrFail($intake->id);
+                    // A reply is a new source, never an implicit undo of a closed thread.
+                    if ($intake->status === 'not_inquiry') {
+                        $intake = null;
+                    }
+                }
+                if ($intake) {
                     $intake->source_revision++;
                     $intake->revision++;
                     $intake->status = $intake->status === 'paused' ? 'paused' : 'received';
@@ -235,7 +241,7 @@ class AiIntakeService
             }
             $intake = OperationsTransaction::run(function () use ($intakeId, $settings, &$run) {
                 $intake = AiIntake::lockForUpdate()->findOrFail($intakeId);
-                if (in_array($intake->status, ['paused', 'completed'], true) || $intake->processed_source_revision === $intake->source_revision || str_starts_with((string) $intake->error_code, 'mailbox_') || in_array($intake->error_code, ['attachments_review', 'automatic_message_review'], true)) {
+                if (in_array($intake->status, ['paused', 'completed', 'not_inquiry'], true) || $intake->processed_source_revision === $intake->source_revision || str_starts_with((string) $intake->error_code, 'mailbox_') || in_array($intake->error_code, ['attachments_review', 'automatic_message_review'], true)) {
                     return null;
                 }
                 $supervisor = User::findOrFail($settings['supervisor_id'] ?? 0);
@@ -252,8 +258,11 @@ class AiIntakeService
             $result = $this->validateExtraction($intake, $extracted['result']);
             OperationsTransaction::run(function () use ($intake, $run, $settings, $result, $extracted): void {
                 $current = AiIntake::lockForUpdate()->findOrFail($intake->id);
-                if ($current->source_revision !== $run->source_revision || $current->status === 'paused' || (int) AiDispositionSettings::all()['revision'] !== $run->settings_revision) {
-                    $run->update(['status' => 'stale', 'result' => $result, 'error_code' => 'source_changed', 'finished_at' => now()->utc()]);
+                $activeRun = $run->fresh();
+                if ($current->source_revision !== $run->source_revision || in_array($current->status, ['paused', 'completed', 'not_inquiry'], true) || $activeRun?->status !== 'running' || (int) AiDispositionSettings::all()['revision'] !== $run->settings_revision) {
+                    if ($activeRun?->status === 'running') {
+                        $activeRun->update(['status' => 'stale', 'result' => $result, 'error_code' => 'source_changed', 'finished_at' => now()->utc()]);
+                    }
 
                     return;
                 }
@@ -307,9 +316,8 @@ class AiIntakeService
             });
         } catch (Throwable $e) {
             $code = $e instanceof ValidationException ? 'validation_review' : 'processing_failed';
-            if ($run && $run->fresh()?->status === 'running') {
-                $run->update(['status' => 'failed', 'error_code' => $code, 'finished_at' => now()->utc()]);
-                AiIntake::whereKey($intakeId)->where('source_revision', $run->source_revision)->where('status', '!=', 'paused')->update(['status' => 'review', 'error_code' => $code]);
+            if ($run && AiIntakeRun::whereKey($run->id)->where('status', 'running')->update(['status' => 'failed', 'error_code' => $code, 'finished_at' => now()->utc()])) {
+                AiIntake::whereKey($intakeId)->where('source_revision', $run->source_revision)->where('status', 'analyzing')->update(['status' => 'review', 'error_code' => $code]);
             } elseif (! $run) {
                 AiIntake::whereKey($intakeId)->whereIn('status', ['received', 'analyzing'])->update(['status' => 'review', 'error_code' => 'automation_unavailable']);
             }
@@ -439,6 +447,7 @@ class AiIntakeService
             $this->access($actor);
             $probe = AiIntakeProposal::findOrFail($proposal->id);
             $intake = AiIntake::lockForUpdate()->findOrFail($probe->intake_id);
+            $this->actionable($intake);
             $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
             $this->revision($record->revision, $expectedRevision ?? $proposal->revision);
             abort_if($record->status === 'applied' || $record->source_revision !== $intake->source_revision, 409, 'Vorschlag ist nicht mehr aktuell.');
@@ -477,6 +486,7 @@ class AiIntakeService
             $this->access($actor, 'operations.manage');
             $probe = AiIntakeProposal::findOrFail($proposal->id);
             $intake = AiIntake::lockForUpdate()->findOrFail($probe->intake_id);
+            $this->actionable($intake);
             $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
             $this->revision($record->revision, $expectedRevision ?? $proposal->revision);
             abort_unless($record->source_revision === $intake->source_revision && $record->status === 'proposed' && $record->inquiry_id, 409, 'Vorschlag benötigt einen aktuellen Anfragevorgang.');
@@ -512,6 +522,7 @@ class AiIntakeService
             $this->access($actor);
             $probe = AiIntakeProposal::findOrFail($proposal->id);
             $intake = AiIntake::lockForUpdate()->findOrFail($probe->intake_id);
+            $this->actionable($intake);
             $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
             $this->revision($record->revision, $expectedRevision ?? $proposal->revision);
             abort_unless($record->source_revision === $intake->source_revision && $record->status !== 'applied' && $intake->customer_id, 409);
@@ -554,6 +565,43 @@ class AiIntakeService
         return $count;
     }
 
+    /** A human mailbox classification closes only its latest standalone source. */
+    public function classifyMailboxSource(AiIntake $intake, User $actor, int $messageId, string $classification, int $expectedRevision): AiIntake
+    {
+        $this->access($actor);
+        abort_unless(in_array($classification, ['inquiry', 'not_inquiry', 'unreviewed'], true), 422);
+
+        return OperationsTransaction::run(function () use ($intake, $actor, $messageId, $classification, $expectedRevision): AiIntake {
+            $this->access($actor);
+            $record = $this->current($intake, $expectedRevision, true);
+            abort_unless($record->source_type === 'email' && $record->messages()->whereKey($messageId)->where('direction', 'inbound')->exists(), 422);
+            if ($record->latest_inbound_message_id !== $messageId) {
+                return $record;
+            }
+            $previous = $record->status;
+            if ($classification === 'not_inquiry') {
+                if (in_array($previous, ['not_inquiry', 'completed'], true) || ! empty($record->inquiry_ids)
+                    || $record->proposals()->where(fn ($q) => $q->whereNotNull('inquiry_id')->orWhereIn('status', ['approved', 'applied']))->exists()) {
+                    return $record;
+                }
+                $record->update(['status' => 'not_inquiry', 'paused_at' => null, 'error_code' => 'mailbox_not_inquiry', 'missing_fields' => [], 'revision' => $record->revision + 1]);
+                $record->proposals()->whereNull('inquiry_id')->where('status', 'proposed')->increment('revision', 1, ['status' => 'stale', 'error_code' => 'mailbox_not_inquiry']);
+                $record->deliveries()->whereIn('status', ['draft', 'pending'])->update(['status' => 'canceled', 'failure_code' => 'mailbox_not_inquiry']);
+                $record->runs()->where('status', 'running')->update(['status' => 'stale', 'error_code' => 'mailbox_not_inquiry', 'finished_at' => now()->utc()]);
+                $action = 'ai.intake.not_inquiry';
+            } elseif ($previous === 'not_inquiry') {
+                // An explicit undo permits fresh human recognition, never resumes automation.
+                $record->update(['status' => 'review', 'paused_at' => null, 'error_code' => 'mailbox_test_review', 'processed_source_revision' => null, 'revision' => $record->revision + 1]);
+                $action = 'ai.intake.reopened';
+            } else {
+                return $record;
+            }
+            app(OperationsAuditService::class)->record($record, $actor, $action, ['message_id' => $messageId, 'source_revision' => $record->source_revision, 'from' => $previous, 'to' => $record->status]);
+
+            return $record;
+        });
+    }
+
     public function pause(AiIntake $intake, User $actor, ?int $expectedRevision = null): void
     {
         $this->access($actor);
@@ -591,13 +639,14 @@ class AiIntakeService
             try {
                 $intake = $proposal->intake;
                 $settings = AiDispositionSettings::all();
-                if (($settings['automation_mode'] ?? 'automatic') !== 'automatic' || $intake->status === 'paused') {
+                if (($settings['automation_mode'] ?? 'automatic') !== 'automatic' || in_array($intake->status, ['paused', 'not_inquiry'], true)) {
                     continue;
                 }
                 $run = $this->run($intake, 'apply', $settings, $proposal->id);
                 $applied = OperationsTransaction::run(function () use ($proposal, $run): bool {
                     $probe = AiIntakeProposal::findOrFail($proposal->id);
                     $intake = AiIntake::lockForUpdate()->findOrFail($probe->intake_id);
+                    $this->actionable($intake);
                     $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
                     if ($record->status === 'applied') {
                         $run->update(['status' => 'stale', 'error_code' => 'already_applied', 'finished_at' => now()->utc()]);
@@ -637,7 +686,7 @@ class AiIntakeService
                         $intake = AiIntake::lockForUpdate()->findOrFail($run->intake_id);
                         $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
                         AiIntakeRun::whereKey($run->id)->where('status', 'running')->update(['status' => 'failed', 'error_code' => 'proposal_application_review', 'finished_at' => now()->utc()]);
-                        if ($intake->status === 'paused' || $intake->source_revision !== $run->source_revision || $record->source_revision !== $run->source_revision || $record->revision !== $proposal->revision || $record->status !== 'approved') {
+                        if (in_array($intake->status, ['paused', 'not_inquiry'], true) || $intake->source_revision !== $run->source_revision || $record->source_revision !== $run->source_revision || $record->revision !== $proposal->revision || $record->status !== 'approved') {
                             return;
                         }
                         $record->update(['status' => 'failed', 'error_code' => 'proposal_application_review', 'revision' => $record->revision + 1]);
@@ -657,6 +706,7 @@ class AiIntakeService
             $this->access($actor, 'operations.manage');
             $probe = AiIntakeProposal::findOrFail($proposal->id);
             $intake = AiIntake::lockForUpdate()->findOrFail($probe->intake_id);
+            $this->actionable($intake);
             $record = AiIntakeProposal::where('intake_id', $intake->id)->lockForUpdate()->findOrFail($proposal->id);
             $this->revision($record->revision, $expectedRevision ?? $proposal->revision);
             $settings = AiDispositionSettings::all();
@@ -710,6 +760,8 @@ class AiIntakeService
 
     private function createInquiry(AiIntake $intake, AiIntakeProposal $proposal, User|OperationsAutomationActor $actor): bool
     {
+        $this->actionable($intake);
+        abort_if($proposal->status === 'stale' && $proposal->error_code === 'mailbox_not_inquiry', 409, 'Bitte die wieder geöffnete Mail zuerst erneut erkennen oder den Vorschlag persönlich prüfen.');
         if ($proposal->inquiry_id) {
             return true;
         }
@@ -948,7 +1000,7 @@ class AiIntakeService
         }
         $missing = array_values(array_unique($missing));
         $updates = ['missing_fields' => $missing, 'inquiry_ids' => $proposals->whereNotNull('inquiry_id')->pluck('inquiry_id')->unique()->values()->all()];
-        if ($intake->status !== 'paused') {
+        if (! in_array($intake->status, ['paused', 'not_inquiry'], true)) {
             $updates['status'] = $missing === [] ? 'ready' : 'review';
             if ($missing === []) {
                 $updates['error_code'] = null;
@@ -1011,6 +1063,9 @@ class AiIntakeService
             return null;
         }
         $intake = AiIntake::find($intakeIds->first());
+        if ($intake?->status === 'not_inquiry') {
+            return null;
+        }
         $previous = $intake?->messages()->where('direction', 'inbound')->latest('id')->first();
         if (! $previous || $previous->sender_email !== $sender || (string) ($previous->metadata['mailbox_id'] ?? 'disposition') !== (string) ($message['mailbox_id'] ?? 'disposition')) {
             return null;
@@ -1040,12 +1095,20 @@ class AiIntakeService
         OperationsAccess::authorize(User::findOrFail($actor->id), $ability);
     }
 
-    private function current(AiIntake $intake, ?int $revision): AiIntake
+    private function current(AiIntake $intake, ?int $revision, bool $allowNotInquiry = false): AiIntake
     {
         $record = AiIntake::lockForUpdate()->findOrFail($intake->id);
         $this->revision($record->revision, $revision ?? $intake->revision);
+        if (! $allowNotInquiry) {
+            $this->actionable($record);
+        }
 
         return $record;
+    }
+
+    private function actionable(AiIntake $intake): void
+    {
+        abort_if($intake->status === 'not_inquiry', 409, 'Diese Mail wurde persönlich als keine Anfrage abgeschlossen. Bitte zuerst die Postfachklassifikation ändern.');
     }
 
     private function revision(int $actual, int $expected): void

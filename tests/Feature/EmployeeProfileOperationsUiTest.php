@@ -516,6 +516,7 @@ class EmployeeProfileOperationsUiTest extends TestCase
         $this->assertStringContainsString('.employee-profile[data-profile-shell] .employee-operations__table .rt-table-body { display: block; padding: 0 !important;', $css);
         $this->assertStringContainsString('.employee-profile[data-profile-shell] .employee-operations__table .rt-table-row-grid > .employee-operations__cell { grid-column: auto !important;', $css);
         $this->assertStringContainsString('padding: 12px 56px 12px 12px !important; column-gap: 8px;', $css);
+        $this->assertStringContainsString('.employee-operations__table.rt-table-frame .rt-table-row { padding: 12px 56px 12px 12px !important;', $css);
         $this->assertStringContainsString('.employee-operations__table .rt-table-head > .hidden { display: none !important;', $css);
         $this->assertStringContainsString('.employee-operations__controls .rt-multi-toggle__label { font-size: 11px;', $css);
         $this->assertStringContainsString('.employee-operations__controls .rt-multi-toggle__label--full { display: none;', $css);

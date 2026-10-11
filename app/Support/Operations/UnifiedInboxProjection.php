@@ -22,7 +22,7 @@ final class UnifiedInboxProjection
         if (isset($sections['overview'])) {
             $q = DB::table('operation_inquiries as r')->selectRaw("r.id, 'inquiry' as kind, r.customer_id, r.title, r.status, CASE WHEN r.source_reference LIKE 'reviewed-import:%' THEN 'import' ELSE r.channel END as channel, r.updated_at, CASE WHEN r.order_id IS NOT NULL OR r.duplicate_of_id IS NOT NULL OR r.status IN ('rejected','converted') THEN 'done' WHEN r.status = 'offered' THEN 'waiting' WHEN r.status IN ('verified','accepted') THEN 'ready' ELSE 'review' END as bucket");
             if ($ai) {
-                $q->whereNotExists(fn ($linked) => $linked->selectRaw('1')->from('ai_intake_proposals as p')->join('ai_intakes as a', 'a.id', '=', 'p.intake_id')->whereColumn('p.inquiry_id', 'r.id')->whereColumn('p.source_revision', 'a.source_revision')->where('a.status', '!=', 'completed')->when($customer, fn ($s) => $s->where('a.customer_id', $customer)));
+                $q->whereNotExists(fn ($linked) => $linked->selectRaw('1')->from('ai_intake_proposals as p')->join('ai_intakes as a', 'a.id', '=', 'p.intake_id')->whereColumn('p.inquiry_id', 'r.id')->whereColumn('p.source_revision', 'a.source_revision')->whereNotIn('a.status', ['completed', 'not_inquiry'])->when($customer, fn ($s) => $s->where('a.customer_id', $customer)));
             }
             if ($portalCustomers) {
                 $q->whereNotExists(fn ($linked) => $linked->selectRaw('1')->from('customer_portal_submission_items as p')->whereColumn('p.inquiry_id', 'r.id')->whereIn('p.customer_id', $portalCustomers));
@@ -31,6 +31,7 @@ final class UnifiedInboxProjection
         }
         if ($ai) {
             $queries[] = DB::table('ai_intakes as r')->selectRaw("r.id, 'ai' as kind, r.customer_id, r.title, r.status, CASE WHEN r.source_type = 'email' THEN 'email' ELSE 'manual' END as channel, r.updated_at, CASE WHEN r.status = 'completed' THEN 'done' WHEN r.status = 'waiting_customer' THEN 'waiting' WHEN r.status = 'ready' THEN 'ready' ELSE 'review' END as bucket")
+                ->where('r.status', '!=', 'not_inquiry')
                 ->where(fn ($q) => $q->where('r.status', '!=', 'completed')->orWhereNotExists(fn ($p) => $p->selectRaw('1')->from('ai_intake_proposals as p')->whereColumn('p.intake_id', 'r.id')->whereNotNull('p.inquiry_id')))
                 ->when($customer, fn ($q) => $q->where('r.customer_id', $customer));
         }
