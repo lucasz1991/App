@@ -86,4 +86,7 @@ html:has([data-message-inbox-scroll]), body:has([data-message-inbox-scroll]) { h
     .rt-message-inbox__message { padding-right: 0; }
     .rt-message-inbox__mobile-date { display: block; margin-top: 5px; }
     .rt-message-inbox__subject { font-size: 12px; }
-    .rt-message-inbox__subject > span:not(.sr-only):not(.rt-message-in
+    .rt-message-inbox__subject > span:not(.sr-only):not(.rt-message-inbox__status-dot) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+    .rt-message-inbox__snippet { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) { .rt-message-inbox__control { transition: none; } }
