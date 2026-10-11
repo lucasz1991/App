@@ -294,6 +294,7 @@ export function staffTimeline() {
             return this.windowNavigationState().wanted;
         },
         windowDisplayAxis() {
+            if (!this.windowNavigationEnabled) return this.windowAxisPeriod();
             const period = this.windowDisplayPeriod;
             if (!period) return this.windowAxisPeriod();
             return { from: timelineDateOffset(period.from, -3) || '0001-01-01',
@@ -323,23 +324,27 @@ export function staffTimeline() {
             return period ? timelineCivilDay(period.until) - timelineCivilDay(period.from) + 1 : 0;
         },
         get windowBeforeDays() {
+            if (!this.windowNavigationEnabled) return this.windowBuffer('before');
             const axis = this.windowDisplayAxis();
             const period = this.windowDisplayPeriod;
             return axis && period ? timelineCivilDay(period.from) - timelineCivilDay(axis.from) : this.windowBuffer('before');
         },
         get windowAfterDays() {
+            if (!this.windowNavigationEnabled) return this.windowBuffer('after');
             const axis = this.windowDisplayAxis();
             const period = this.windowDisplayPeriod;
             return axis && period ? timelineCivilDay(axis.until) - timelineCivilDay(period.until) : this.windowBuffer('after');
         },
         get windowContentOffset() {
             this.windowRevision;
+            if (!this.windowNavigationEnabled) return 0;
             const loaded = this.windowAxisPeriod();
             const axis = this.windowDisplayAxis();
             return loaded && axis ? timelineCivilDay(loaded.from) - timelineCivilDay(axis.from) : 0;
         },
         get windowContentLoading() {
             this.windowRevision;
+            if (!this.windowNavigationEnabled) return false;
             const period = this.windowDisplayPeriod;
             const confirmed = this.windowNavigationState().period;
             return this.windowLoading || Boolean(period && confirmed && (period.from !== confirmed.from || period.until !== confirmed.until));
@@ -362,7 +367,9 @@ export function staffTimeline() {
             if (!state) {
                 const period = timelineWindowPeriod(root.dataset.timelineFrom, root.dataset.timelineUntil);
                 state = { period, wanted: period, axis: this.windowAxisPeriod(), positioned: false,
-                    request: null, ownPeriods: new Set(), motionTarget: null, displayVersion: 0,
+                    request: null, activeTransport: null, settlingTransport: null, retryRequested: false,
+                    ownPeriods: new Set(), motionTarget: null, displayVersion: 0, busyCommits: 0,
+                    lifecycleTracked: false, requestFrame: null, commitCleanup: null,
                     timer: null, frame: null, cleanup: null };
                 windowNavigations.set(root, state);
             }
@@ -415,6 +422,47 @@ export function staffTimeline() {
                 for (const name of ['pointerdown', 'wheel', 'keydown']) footer.removeEventListener(name, intent);
             };
         },
+        bindWindowCommits() {
+            if (!this.windowNavigationEnabled || typeof window.Livewire?.hook !== 'function') return;
+            const state = this.windowNavigationState();
+            if (state.lifecycleTracked) return;
+            state.lifecycleTracked = true;
+            const root = this.timelineElement;
+            state.commitCleanup = window.Livewire.hook('commit', ({ component, commit, succeed, fail }) => {
+                if (this.windowDisposed || ![root.dataset.timelineId, root.dataset.timelinePeriodOwner].includes(component.id)) return;
+                state.busyCommits++;
+                let finished = false;
+                const complete = (failed) => {
+                    if (finished || this.windowDisposed) return;
+                    finished = true;
+                    state.busyCommits = Math.max(0, state.busyCommits - 1);
+                    const request = state.activeTransport || state.settlingTransport;
+                    const ownCall = component.id === root.dataset.timelinePeriodOwner && request && commit.calls?.some(call =>
+                        call.method === 'applyPeriod' && call.params?.[0] === request.next.from && call.params?.[1] === request.next.until);
+                    if (failed && ownCall) {
+                        state.activeTransport = null;
+                        state.settlingTransport = null;
+                        this.failWindowRequest(request);
+                    }
+                    this.queueWindowDrain();
+                };
+                succeed(() => complete(false));
+                fail(() => complete(true));
+            });
+        },
+        queueWindowDrain() {
+            if (this.windowDisposed) return;
+            const state = this.windowNavigationState();
+            if (state.requestFrame !== null) return;
+            // Livewire's success hook runs before the request pool removes itself.
+            // A frame also lets queued 5ms child commits register before we ask
+            // the parent for another reactive period, avoiding separate stale pools.
+            state.requestFrame = requestAnimationFrame(() => {
+                state.requestFrame = null;
+                if (this.windowDisposed || state.busyCommits || state.settlingTransport) return;
+                this.drainWindowRequest();
+            });
+        },
         syncWindowPeriod(width) {
             if (!this.windowNavigationEnabled || this.windowDisposed) return false;
             const root = this.timelineElement;
@@ -445,12 +493,19 @@ export function staffTimeline() {
             const top = body.scrollTop;
             const expected = request && period.from === request.next.from && period.until === request.next.until;
             const owned = state.ownPeriods.has(`${period.from}:${period.until}`);
+            if (state.activeTransport?.next.from === period.from && state.activeTransport.next.until === period.until) {
+                if (state.lifecycleTracked && !state.activeTransport.settled) state.settlingTransport = state.activeTransport;
+                state.activeTransport = null;
+                state.retryRequested = false;
+            }
             // An older serialized response updates data, never a newer viewport.
             if (expected) this.clearWindowRequest(state);
             if (!expected && !owned) {
                 if (state.frame !== null) cancelAnimationFrame(state.frame);
                 state.frame = null;
                 this.clearWindowRequest(state);
+                state.activeTransport = null;
+                state.settlingTransport = null;
                 state.waiter?.reject(new Error('Zeitraum wurde durch eine neuere Auswahl ersetzt.'));
                 state.waiter = null;
                 state.wanted = period;
@@ -472,7 +527,10 @@ export function staffTimeline() {
                 state.waiter = null;
             }
             this.windowRevision++;
-            if (expected && !current) this.drainWindowRequest();
+            if (!current && !state.request && !state.activeTransport) {
+                if (state.lifecycleTracked) this.queueWindowDrain();
+                else this.drainWindowRequest();
+            }
             return true;
         },
         paintWindowPeriod(period) {
@@ -511,15 +569,23 @@ export function staffTimeline() {
                 state.waiter.resolve(); state.waiter = null;
             } else this.drainWindowRequest();
         },
-        retryWindow() { this.windowError = ''; return this.drainWindowRequest(); },
+        retryWindow() {
+            const state = this.windowNavigationState();
+            state.retryRequested = true;
+            this.windowError = '';
+            return this.drainWindowRequest();
+        },
         async drainWindowRequest() {
             if (!this.windowNavigationEnabled || this.windowDisposed) return;
             const root = this.timelineElement;
             const state = this.windowNavigationState();
             const next = state.wanted;
-            if (state.request || !next || (next.from === state.period?.from && next.until === state.period?.until)) return;
-            const request = { next, userMoved: false };
+            if (state.request || state.activeTransport || state.settlingTransport || state.busyCommits || this.windowError
+                || !next || (next.from === state.period?.from && next.until === state.period?.until)) return;
+            const request = { next, userMoved: false, settled: false };
             state.request = request;
+            state.activeTransport = request;
+            state.retryRequested = false;
             state.ownPeriods.add(`${next.from}:${next.until}`);
             if (state.ownPeriods.size > 12) state.ownPeriods.delete(state.ownPeriods.values().next().value);
             this.windowLoading = true;
@@ -529,9 +595,17 @@ export function staffTimeline() {
                 const owner = window.Livewire?.find?.(root.dataset.timelinePeriodOwner);
                 if (typeof owner?.applyPeriod !== 'function') throw new Error('Planning period owner unavailable');
                 await owner.applyPeriod(next.from, next.until);
+                request.settled = true;
+                if (state.settlingTransport === request) {
+                    state.settlingTransport = null;
+                    this.queueWindowDrain();
+                }
                 if (!this.windowDisposed && state.request === request) this.queueMeasure();
             } catch {
+                if (state.activeTransport === request) state.activeTransport = null;
+                if (state.settlingTransport === request) state.settlingTransport = null;
                 this.failWindowRequest(request);
+                if (!this.windowDisposed && state.retryRequested && !state.request) this.drainWindowRequest();
             }
         },
         shiftWindow(direction, steps = 1, wheelDelta = null) {
@@ -779,6 +853,7 @@ export function staffTimeline() {
             clearStaffTimelineReveals(this.timelineElement);
             this.refreshPersonnelPreference();
             if (this.windowNavigationEnabled) this.windowNavigationState();
+            this.bindWindowCommits();
             this.bindWindowScrollbarIntent();
             this.observer = new ResizeObserver(() => this.queueMeasure());
             this.observer.observe(this.$refs.timelineBody);
@@ -796,7 +871,9 @@ export function staffTimeline() {
             if (state) {
                 this.clearWindowRequest(state);
                 if (state.frame !== null) cancelAnimationFrame(state.frame);
+                if (state.requestFrame !== null) cancelAnimationFrame(state.requestFrame);
                 state.cleanup?.();
+                state.commitCleanup?.();
                 state.waiter?.reject(new Error('Zeitleiste wurde geschlossen.'));
                 windowNavigations.delete(this.timelineElement);
             }

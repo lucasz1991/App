@@ -149,7 +149,9 @@ export function timelinePlanning(ownerId = null) {
             this.plannerReady = false;
             this.requestVersion++;
             this.pending = null;
-            this.$wire.assignmentOpen = false;
+            // Do not dirty an already-closed child during optimistic navigation:
+            // its empty commit would compete with the parent's reactive date update.
+            if (this.$wire.assignmentOpen === true) this.$wire.assignmentOpen = false;
             this.$dispatch('rt-anchor-dropdown-close', { id: this.panelId() });
         },
         invalidate() {
@@ -191,7 +193,7 @@ export function timelinePlanning(ownerId = null) {
                 }
             } finally {
                 this.inFlight = false;
-                if (!this.plannerVisible && !this.disposed) this.$wire.assignmentOpen = false;
+                if (!this.plannerVisible && !this.disposed && this.$wire.assignmentOpen === true) this.$wire.assignmentOpen = false;
             }
         },
         request(method, args, wire = this.$wire) {

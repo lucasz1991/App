@@ -19,8 +19,12 @@
         <span class="widget-segment-warn" style="width:{{ $stats['pending'] / $total * 100 }}%"></span>
         <span class="widget-segment-danger" style="width:{{ $stats['blocked'] / $total * 100 }}%"></span>
     </div>
+    @if($rows === 1)
+        <p class="wv-chart-note"><span><i class="widget-segment-ok"></i>{{ $stats['ready'] }} bereit</span><span><i class="widget-segment-warn"></i>{{ $stats['pending'] }} offen</span><span><i class="widget-segment-danger"></i>{{ $stats['blocked'] }} blockiert</span></p>
+    @endif
+    @if($rows === 2)
     <div class="widget-detail wv-list">
-        @foreach($data['devices']->take($rows === 2 ? 4 : 1) as $device)
+        @foreach($data['devices']->take(4) as $device)
             <a class="wv-item" href="{{ $data['href'] }}" wire:navigate>
                 <span class="wv-item-ico ops-tone-neutral"><i data-feather="{{ $device['icon'] }}"></i></span>
                 <span class="wv-item-main">
@@ -31,6 +35,7 @@
             </a>
         @endforeach
     </div>
+    @endif
     @if($data['href'])<a class="widget-footer" href="{{ $data['href'] }}" wire:navigate>Meine Geräte öffnen →</a>@endif
 @elseif($data['stats']['available'])
     <x-dashboard.empty icon="smartphone">Dir sind noch keine Geräte zugewiesen.</x-dashboard.empty>

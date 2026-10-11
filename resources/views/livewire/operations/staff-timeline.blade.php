@@ -108,14 +108,16 @@
             @if(!$row['user']->status)<span class="ops-muted rt-timeline-person-status">Inaktiv</span>@endif
         </div>
         <div class="rt-personnel-timeline-track" data-timeline-lanes="{{ $row['lane_count'] }}" data-timeline-density="{{ $row['lane_count'] > 1 ? 'compact' : 'normal' }}" style="--timeline-lanes:{{ $row['lane_count'] }}" wire:key="staff-track-{{ $row['user']->id }}">
+        @if($windowNavigation)
         <div class="rt-timeline-loaded-track">
+        @endif
         @foreach($row['days'] as $cell)
             <div @class(['rt-personnel-timeline-day snap-start', 'rt-personnel-timeline-day--weekend' => $cell['date']->isWeekend(), 'rt-personnel-timeline-day--empty' => $cell['events']->isEmpty()]) wire:key="staff-day-{{ $row['user']->id }}-{{ $cell['date']->toDateString() }}">
                 @if($planningEnabled && !$absencesOnly && $row['user']->status && $cell['date']->gte($selectedFrom) && $cell['date']->lt($selectedUntil))
                     @php
                         $cellStatusId = 'timeline-cell-status-'.$this->getId().'-'.$row['user']->id.'-'.$cell['date']->toDateString();
                     @endphp
-                    <button type="button" class="rt-timeline-cell-action" data-user="{{ $row['user']->id }}" data-date="{{ $cell['date']->toDateString() }}" aria-haspopup="dialog" aria-label="Offene Schicht auswählen: {{ $row['user']->name }} · {{ $cell['date']->format('d.m.Y') }}" aria-describedby="{{ $cellStatusId }}" data-timeline-cell-action>
+                    <button type="button" class="rt-timeline-cell-action" data-user="{{ $row['user']->id }}" data-date="{{ $cell['date']->toDateString() }}" x-bind:disabled="windowContentLoading" aria-haspopup="dialog" aria-label="Offene Schicht auswählen: {{ $row['user']->name }} · {{ $cell['date']->format('d.m.Y') }}" aria-describedby="{{ $cellStatusId }}" data-timeline-cell-action>
                         <span class="rt-timeline-cell-status" aria-hidden="true"><i class="far fa-circle" data-timeline-cell-status-icon></i></span>
                         <span id="{{ $cellStatusId }}" class="sr-only" data-timeline-cell-status-text></span>
                     </button>
@@ -151,7 +153,7 @@
         @if($focus['event'] && $focus['candidates']->has($row['user']->id))
             {{-- Gewählte Schicht aus „Noch zu verteilen“: passende Mitarbeitende direkt in ihrer Zeile einteilen. --}}
             <div class="rt-timeline-focus" wire:key="staff-focus-{{ $row['user']->id }}-{{ $focus['shift']->id }}">
-                <button type="button" class="rt-timeline-focus-target" style="--proposal-left:{{ $focus['event']['left_percent'] }}%;--proposal-width:{{ $focus['event']['width_percent'] }}%"
+                <button type="button" class="rt-timeline-focus-target" x-bind:disabled="windowContentLoading" style="--proposal-left:{{ $focus['event']['left_percent'] }}%;--proposal-width:{{ $focus['event']['width_percent'] }}%"
                     data-timeline-proposal data-focus="true" data-user="{{ $row['user']->id }}" data-shift="{{ $focus['shift']->id }}" data-revision="{{ $focus['shift']->revision }}"
                     aria-haspopup="dialog" aria-label="{{ $row['user']->name }} für {{ $focus['shift']->title }} einteilen" title="{{ collect($focus['candidates']->get($row['user']->id)['reasons'] ?? [])->implode(' · ') }}">
                     <i class="far fa-user-plus" aria-hidden="true"></i><span>Einteilen</span>
@@ -163,7 +165,7 @@
                 @foreach($proposalRows->get($row['user']->id,collect()) as $proposal)
                     <span class="rt-timeline-proposal-duration" aria-hidden="true" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-width:{{ $proposal['width_percent'] }}%"></span>
                     <div class="rt-timeline-proposal-shell" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-center:{{ $proposal['left_percent'] + ($proposal['width_percent'] / 2) }}%;--proposal-width:{{ $proposal['width_percent'] }}%" data-fit="{{ $proposal['fit'] }}" wire:key="{{ $proposal['id'] }}">
-                        <button type="button" class="rt-timeline-proposal" data-user="{{ $proposal['user_id'] }}" data-shift="{{ $proposal['shift_id'] }}" data-revision="{{ $proposal['revision'] }}" data-fit="{{ $proposal['fit'] }}" data-urgency="{{ $proposal['urgency'] }}" aria-haspopup="dialog" aria-label="Vorschlag prüfen: {{ $row['user']->name }} · {{ $proposal['title'] }} · {{ $proposal['local_label'] }} · {{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }}" title="{{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }} · {{ $proposal['title'] }} · {{ implode(' · ',$proposal['reasons']) }}" data-timeline-proposal>
+                        <button type="button" class="rt-timeline-proposal" data-user="{{ $proposal['user_id'] }}" data-shift="{{ $proposal['shift_id'] }}" data-revision="{{ $proposal['revision'] }}" x-bind:disabled="windowContentLoading" data-fit="{{ $proposal['fit'] }}" data-urgency="{{ $proposal['urgency'] }}" aria-haspopup="dialog" aria-label="Vorschlag prüfen: {{ $row['user']->name }} · {{ $proposal['title'] }} · {{ $proposal['local_label'] }} · {{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }}" title="{{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }} · {{ $proposal['title'] }} · {{ implode(' · ',$proposal['reasons']) }}" data-timeline-proposal>
                             <i class="far {{ $proposal['fit'] === 'review' ? 'fa-exclamation-circle' : ($proposal['fit'] === 'preferred' ? 'fa-check-circle' : 'fa-lightbulb') }}" aria-hidden="true"></i>
                             <span>{{ $proposal['timeline_label'] }}</span>
                             @if($proposal['urgency'] !== 'normal')<i class="far fa-clock rt-timeline-proposal__urgency" aria-hidden="true"></i>@endif
@@ -173,7 +175,9 @@
                 @endforeach
             </div>
         @endif
+        @if($windowNavigation)
         </div>
+        @endif
         </div>
     @empty<div class="rt-personnel-timeline-empty">Keine Mitarbeiter gefunden.</div>@endforelse
     @if($users->hasMorePages())

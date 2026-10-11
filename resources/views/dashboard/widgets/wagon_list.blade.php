@@ -44,7 +44,7 @@
             <span class="wv-item-ico ops-tone-brand"><i data-feather="edit-3"></i></span>
             <span class="wv-item-main">
                 <span class="wv-truncate" x-text="drafts.length ? drafts[0].train + (drafts[0].route ? ' · ' + drafts[0].route : '') : ''"></span>
-                <small x-text="drafts.length ? drafts[0].wagons + ' Wagen erfasst · ' + ago(drafts[0].at) : ''"></small>
+                <small class="wv-truncate" x-text="drafts.length ? drafts[0].wagons + ' Wagen erfasst · ' + ago(drafts[0].at) : ''"></small>
             </span>
             <span class="wv-resume-cta">Weiter</span>
         </a>

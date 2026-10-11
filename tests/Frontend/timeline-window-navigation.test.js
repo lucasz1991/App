@@ -6,11 +6,13 @@ import { staffTimeline, timelineShiftPeriod, timelineWindowOffsets, timelinePeri
 function dateOffset(value, days) {
     const date = new Date(`${value}T00:00:00Z`);
     date.setUTCDate(date.getUTCDate() + days);
+    if (date.getUTCFullYear() < 1) return '0001-01-01';
+    if (date.getUTCFullYear() > 9999) return '9999-12-31';
     return date.toISOString().slice(0, 10);
 }
 
 async function withWindow(run, { enabled = true, reduced = false, from = '2026-10-05', until = '2026-10-11',
-    availableOwner = true, reject = false, deferredNextTick = false, gsap = false } = {}) {
+    availableOwner = true, reject = false, deferredNextTick = false, gsap = false, hooks = false } = {}) {
     const { document } = parseHTML('<!doctype html><html><body><div id="timeline"><div id="grid"></div></div></body></html>');
     const root = document.getElementById('timeline');
     Object.assign(root.dataset, { timelineWindowNavigation: String(enabled), timelinePeriodOwner: 'plan-owner', timelineFrom: from, timelineUntil: until });
@@ -26,6 +28,13 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
     const events = [];
     const ticks = [];
     const tweens = [];
+    const commitHooks = new Set();
+    const beginCommit = (id, calls = []) => {
+        const successes = [], failures = [];
+        for (const hook of commitHooks) hook({ component: { id }, commit: { calls },
+            succeed: callback => successes.push(callback), fail: callback => failures.push(callback) });
+        return { succeed: () => successes.forEach(callback => callback()), fail: () => failures.forEach(callback => callback()) };
+    };
     let sequence = 0;
     let offset = 0;
     let footerOffset = 0;
@@ -62,12 +71,15 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
             replacements.push({ state, title, url });
             browser.location.href = url;
         } },
-        Livewire: { find(id) {
+        Livewire: { ...(hooks ? { hook(name, callback) {
+            assert.equal(name, 'commit'); commitHooks.add(callback); return () => commitHooks.delete(callback);
+        } } : {}), find(id) {
             assert.equal(id, 'plan-owner');
             return availableOwner ? { applyPeriod(nextFrom, nextUntil) {
                 calls.push([nextFrom, nextUntil]);
                 if (reject) return Promise.reject(new Error('transport failed'));
-                return new Promise((resolve, rejectPromise) => requests.push({ resolve, reject: rejectPromise }));
+                const commit = hooks ? beginCommit(id, [{ method: 'applyPeriod', params: [nextFrom, nextUntil] }]) : null;
+                return new Promise((resolve, rejectPromise) => requests.push({ resolve, reject: rejectPromise, commit }));
             } } : undefined;
         } },
         matchMedia: () => ({ matches: reduce }),
@@ -112,7 +124,7 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
     try {
         timeline.init();
         flushTicks();
-        await run({ timeline, root, body, header, scrollbar, calls, requests, replacements, events, observers, timers, frames, tweens,
+        await run({ timeline, root, body, header, scrollbar, calls, requests, replacements, events, observers, timers, frames, tweens, commitHooks, beginCommit,
             width, first: () => 3 * width(), maximum: () => body.scrollWidth - body.clientWidth,
             logicalMaximum: () => body.scrollWidth - body.clientWidth - 3 * width(), flushFrame, period, tick, flushTicks,
             finishScroll: () => { flushFrame(); body.scrollLeft = body.scrollCalls.at(-1).left; },
@@ -552,9 +564,9 @@ test('reduced motion uses the same bounded request and instant edge navigation',
 });
 
 test('rejected owner calls keep the latest scaffold readable with explicit retry and do not publish unconfirmed dates', async () => {
-    await withWindow(async ({ timeline, body, calls, replacements, first, flushFrame }) => {
+    await withWindow(async ({ timeline, body, calls, replacements, first, finishScroll }) => {
         await timeline.scrollDay(-1);
-        flushFrame();
+        finishScroll();
         assert.equal(timeline.windowLoading, false);
         assert.match(timeline.windowError, /erneut versuchen/);
         assert.equal(body.scrollLeft, first());
@@ -626,7 +638,7 @@ test('foreign date-picker period supersedes pending edge restoration and a late 
         requests[0].resolve();
         await tick();
         flushFrame();
-        assert.equal(body.scrollCalls.length, 0);
+        assert.equal(body.scrollCalls.length, 1, 'the newer picker cancels only future movement, not an already-issued animation');
         assert.equal(body.scrollTop, 640);
         assert.equal(calls.length, 1);
         body.scrollLeft = 0;
@@ -643,7 +655,7 @@ test('a newer period before the animation frame cancels the scheduled old edge m
         period('2027-02-01', '2027-02-07');
         flushFrame();
         flushFrame();
-        assert.equal(body.scrollCalls.length, 0);
+        assert.equal(body.scrollCalls.length, 1);
         assert.equal(timeline.windowLoading, false);
     });
 });
@@ -683,4 +695,291 @@ test('destroy clears observers/timers/frames and late completions cannot revive 
         assert.equal(timeline.windowLoading, false);
         assert.equal(replacements.length, 0);
     });
+});
+
+test('rapid forward edge clicks remain immediate and coalesce intermediate ranges behind exactly one transport', async () => {
+    await withWindow(async ({ timeline, body, logicalMaximum, calls, requests, period, flushFrame, replacements, tick }) => {
+        body.scrollLeft = logicalMaximum();
+        for (let index = 0; index < 8; index++) timeline.scrollDay(1);
+        flushFrame();
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-13');
+        assert.equal(timeline.windowScaffoldDays.length, 13);
+        assert.equal(timeline.windowContentOffset, -8);
+        assert.deepEqual(calls, [['2026-10-06', '2026-10-12']]);
+        assert.equal(timeline.windowScaffoldDays.filter(day => day.pending).length, 8);
+        assert.equal(body.scrollTop, 288);
+        const offset = body.scrollLeft;
+        period('2026-10-06', '2026-10-12');
+        flushFrame();
+        assert.deepEqual(calls, [['2026-10-06', '2026-10-12'], ['2026-10-13', '2026-10-19']]);
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-13');
+        assert.equal(body.scrollLeft, offset);
+        assert.equal(replacements.length, 0, 'intermediate confirmed response must not overwrite the latest visible period URL');
+        requests[0].resolve();
+        await tick();
+        period('2026-10-13', '2026-10-19');
+        flushFrame();
+        requests[1].resolve();
+        await tick();
+        assert.equal(timeline.windowContentLoading, false);
+        assert.equal(timeline.windowContentOffset, 0);
+        assert.equal(timeline.windowScaffoldDays.some(day => day.pending), false);
+        assert.equal(replacements.length, 1);
+        assert.equal(new URL(replacements[0].url).searchParams.get('from'), '2026-10-13');
+    });
+});
+
+test('hundreds of pending moves keep date structure bounded and earlier data may fall entirely outside it', async () => {
+    await withWindow(({ timeline, calls, flushFrame }) => {
+        for (let index = 0; index < 300; index++) timeline.shiftWindow(-1);
+        flushFrame();
+        assert.equal(timeline.windowScaffoldDays.length, 13);
+        assert.equal(timeline.windowContentOffset, 300);
+        assert.equal(timeline.windowScaffoldDays.every(day => day.pending), true);
+        assert.equal(calls.length, 1);
+        assert.equal(timeline.windowDisplayPeriod.from, dateOffset('2026-10-05', -300));
+    });
+});
+
+test('pending reversal replaces the queued target and never starts overlapping parent requests', async () => {
+    await withWindow(({ timeline, calls, period, flushFrame, body, logicalMaximum }) => {
+        body.scrollLeft = logicalMaximum();
+        timeline.scrollDay(1);
+        timeline.shiftWindow(1);
+        timeline.shiftWindow(-1);
+        timeline.shiftWindow(-1);
+        timeline.shiftWindow(-1);
+        flushFrame();
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-04');
+        assert.equal(calls.length, 1);
+        period('2026-10-06', '2026-10-12');
+        flushFrame();
+        assert.deepEqual(calls[1], ['2026-10-04', '2026-10-10']);
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-04');
+    });
+});
+
+test('pending columns are date-specific, while previously loaded reserve days stay readable', async () => {
+    await withWindow(({ timeline }) => {
+        timeline.shiftWindow(1);
+        assert.equal(timeline.windowDayLoading('2026-10-12'), false);
+        assert.equal(timeline.windowDayLoading('2026-10-14'), false);
+        assert.equal(timeline.windowDayLoading('2026-10-15'), true);
+        timeline.shiftWindow(1);
+        timeline.shiftWindow(1);
+        timeline.shiftWindow(1);
+        assert.deepEqual(timeline.windowScaffoldDays.filter(day => day.pending).map(day => day.date),
+            ['2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']);
+    });
+});
+
+test('timeout preserves all navigation freedom and retry waits for the actual active transport before draining newest intent', async () => {
+    await withWindow(async ({ timeline, calls, requests, expireRequest, period, flushFrame, tick }) => {
+        timeline.shiftWindow(1);
+        expireRequest();
+        assert.equal(timeline.windowLoading, false);
+        assert.match(timeline.windowError, /erneut versuchen/);
+        timeline.shiftWindow(1);
+        timeline.shiftWindow(1);
+        await timeline.retryWindow();
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-08');
+        assert.equal(calls.length, 1, 'UI timeout must not start another still-overlapping applyPeriod transport');
+        requests[0].resolve();
+        await tick();
+        period('2026-10-06', '2026-10-12');
+        flushFrame();
+        assert.deepEqual(calls[1], ['2026-10-08', '2026-10-14']);
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-08');
+    });
+});
+
+test('planning period picker shares the serialized transport and immediately changes the bounded scaffold and selected scale', async () => {
+    await withWindow(async ({ timeline, root, calls, requests, period, flushFrame, tick, body }) => {
+        timeline.shiftWindow(1);
+        const detail = { owner: 'plan-owner', from: '2027-03-28', until: '2027-03-28', handled: false, promise: null };
+        timeline.requestWindowPeriod({ detail });
+        assert.equal(detail.handled, true);
+        assert.equal(timeline.windowDisplaySelectedDayCount, 1);
+        assert.equal(timeline.windowDisplayDayCount, 7);
+        assert.equal(timeline.windowScaffoldDays.every(day => day.pending), true);
+        assert.equal(calls.length, 1);
+        timeline.measure();
+        assert.equal(root.style.getPropertyValue('--timeline-day-width'), '700px');
+        assert.equal(String(root.style.getPropertyValue('--timeline-selected-days')), '1');
+        assert.equal(body.scrollTop, 288);
+        period('2026-10-06', '2026-10-12');
+        flushFrame();
+        assert.deepEqual(calls[1], ['2027-03-28', '2027-03-28']);
+        requests[0].resolve();
+        await tick();
+        period('2027-03-28', '2027-03-28');
+        flushFrame();
+        requests[1].resolve();
+        await detail.promise;
+        assert.equal(timeline.windowContentLoading, false);
+        assert.equal(timeline.windowDisplaySelectedDayCount, 1);
+    });
+});
+
+test('picker events are scoped to exact planning owner and malformed or oversized periods retain native server validation', async () => {
+    await withWindow(({ timeline, calls }) => {
+        for (const detail of [
+            { owner: 'another-owner', from: '2026-10-01', until: '2026-10-07' },
+            { owner: 'plan-owner', from: 'bad', until: '2026-10-07' },
+            { owner: 'plan-owner', from: '2026-01-01', until: '2026-12-31' },
+        ]) {
+            timeline.requestWindowPeriod({ detail });
+            assert.equal(detail.handled, undefined);
+            assert.equal(detail.promise, undefined);
+        }
+        assert.equal(calls.length, 0);
+    });
+});
+
+test('a newer picker rejects the superseded waiting selection and only the newest period is loaded after current transport', async () => {
+    await withWindow(async ({ timeline, calls, period, flushFrame }) => {
+        const first = { owner: 'plan-owner', from: '2026-11-01', until: '2026-11-07' };
+        timeline.requestWindowPeriod({ detail: first });
+        const rejected = assert.rejects(first.promise, /neuere Auswahl/);
+        const second = { owner: 'plan-owner', from: '2026-12-01', until: '2026-12-07' };
+        timeline.requestWindowPeriod({ detail: second });
+        await rejected;
+        assert.equal(calls.length, 1);
+        period('2026-11-01', '2026-11-07');
+        flushFrame();
+        assert.deepEqual(calls[1], ['2026-12-01', '2026-12-07']);
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-12-01');
+        period('2026-12-01', '2026-12-07');
+        flushFrame();
+        await second.promise;
+    });
+});
+
+test('picker rejection reports failure without destroying the selected day structure', async () => {
+    await withWindow(async ({ timeline }) => {
+        const detail = { owner: 'plan-owner', from: '2026-11-01', until: '2026-11-07' };
+        timeline.requestWindowPeriod({ detail });
+        await assert.rejects(detail.promise, /nicht geladen/);
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-11-01');
+        assert.equal(timeline.windowScaffoldDays.length, 13);
+        assert.equal(timeline.windowContentLoading, true);
+        assert.match(timeline.windowError, /erneut versuchen/);
+    }, { reject: true });
+});
+
+test('94 selected days plus reserve never produce more than 100 structural date columns', async () => {
+    await withWindow(({ timeline }) => {
+        assert.equal(timeline.windowDisplaySelectedDayCount, 94);
+        assert.equal(timeline.windowDisplayDayCount, 100);
+        timeline.shiftWindow(1, 100);
+        assert.equal(timeline.windowDisplayDayCount, 100);
+    }, { until: dateOffset('2026-10-05', 93) });
+});
+
+test('structural reserve clamps safely at supported calendar boundaries without invented year zero or year10000', async () => {
+    for (const [from, until, first, last] of [
+        ['0001-01-01', '0001-01-07', '0001-01-01', '0001-01-10'],
+        ['9999-12-25', '9999-12-31', '9999-12-22', '9999-12-31'],
+    ]) {
+        await withWindow(({ timeline, calls }) => {
+            assert.equal(timeline.windowScaffoldDays[0].date, first);
+            assert.equal(timeline.windowScaffoldDays.at(-1).date, last);
+            assert.equal(timeline.windowDisplayDayCount, 10);
+            timeline.shiftWindow(from === '0001-01-01' ? -1 : 1);
+            assert.equal(calls.length, 0);
+        }, { from, until });
+    }
+});
+
+test('finite timeline getters preserve actual loaded geometry without phantom reserve or loading state', async () => {
+    await withWindow(({ timeline, root }) => {
+        assert.equal(timeline.windowDisplayDayCount, 13);
+        assert.equal(timeline.windowContentOffset, 0);
+        assert.equal(timeline.windowContentLoading, false);
+        assert.equal(timeline.windowScaffoldDays[0].date, root.dataset.timelineAxisFrom);
+        assert.equal(timeline.windowScaffoldDays.at(-1).date, root.dataset.timelineAxisUntil);
+        const detail = { owner: 'plan-owner', from: '2026-11-01', until: '2026-11-07' };
+        timeline.requestWindowPeriod({ detail });
+        assert.equal(detail.handled, undefined);
+    }, { enabled: false });
+});
+
+test('a queued period waits for parent promise, parent commit, child reactive commit and next frame before reusing the request pool', async () => {
+    await withWindow(async ({ timeline, calls, requests, period, flushFrame, tick, beginCommit }) => {
+        timeline.shiftWindow(1);
+        timeline.shiftWindow(1);
+        const child = beginCommit('timeline-owner');
+        period('2026-10-06', '2026-10-12');
+        flushFrame();
+        assert.equal(calls.length, 1, 'child attributes alone do not mean the parent commit is settled');
+        requests[0].resolve();
+        await tick();
+        flushFrame();
+        assert.equal(calls.length, 1, 'busy parent and child pools still hold the queue');
+        requests[0].commit.succeed();
+        flushFrame();
+        assert.equal(calls.length, 1, 'the empty reactive child commit must settle before another parent request');
+        child.succeed();
+        assert.equal(calls.length, 1, 'pool cleanup completes only after the current success callback');
+        flushFrame();
+        assert.deepEqual(calls[1], ['2026-10-07', '2026-10-13']);
+    }, { hooks: true });
+});
+
+test('unrelated component requests never delay the timeline serialized latest target', async () => {
+    await withWindow(async ({ timeline, calls, requests, period, flushFrame, tick, beginCommit }) => {
+        const unrelated = beginCommit('ai-assistant');
+        timeline.shiftWindow(1);
+        timeline.shiftWindow(1);
+        period('2026-10-06', '2026-10-12');
+        requests[0].resolve();
+        requests[0].commit.succeed();
+        await tick();
+        flushFrame();
+        assert.equal(calls.length, 2);
+        unrelated.succeed();
+        flushFrame();
+        assert.equal(calls.length, 2);
+    }, { hooks: true });
+});
+
+test('scoped HTTP failure releases actual transport even when the action promise never rejects and explicit retry works', async () => {
+    await withWindow(async ({ timeline, calls, requests, flushFrame }) => {
+        timeline.shiftWindow(1);
+        requests[0].commit.fail();
+        assert.equal(timeline.windowLoading, false);
+        assert.equal(timeline.windowContentLoading, true);
+        assert.match(timeline.windowError, /erneut versuchen/);
+        flushFrame();
+        assert.equal(calls.length, 1, 'failure does not create an automatic retry loop');
+        timeline.retryWindow();
+        assert.equal(calls.length, 2, 'finished failed HTTP transport no longer blocks retry despite its unresolved method promise');
+        assert.deepEqual(calls[1], calls[0]);
+    }, { hooks: true });
+});
+
+test('a pre-existing child request defers the new period request but cannot block its immediate structural display', async () => {
+    await withWindow(({ timeline, calls, beginCommit, flushFrame }) => {
+        const child = beginCommit('timeline-owner');
+        timeline.shiftWindow(1);
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-06');
+        assert.equal(timeline.windowScaffoldDays.length, 13);
+        assert.equal(calls.length, 0);
+        child.succeed();
+        flushFrame();
+        assert.deepEqual(calls, [['2026-10-06', '2026-10-12']]);
+    }, { hooks: true });
+});
+
+test('commit tracking is removed on destroy and late callbacks cannot restart the queue or create frames', async () => {
+    await withWindow(({ timeline, calls, requests, commitHooks, frames }) => {
+        assert.equal(commitHooks.size, 1);
+        timeline.shiftWindow(1);
+        timeline.shiftWindow(1);
+        timeline.destroy();
+        assert.equal(commitHooks.size, 0);
+        requests[0].commit.succeed();
+        assert.equal(calls.length, 1);
+        assert.equal(frames.size, 0);
+    }, { hooks: true });
 });

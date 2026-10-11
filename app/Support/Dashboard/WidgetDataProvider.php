@@ -514,6 +514,7 @@ class WidgetDataProvider
                         'href' => \App\Support\Operations\OperationsPages::moduleUrl('shift-management', ['shift' => $shift->id, 'from' => $start->toDateString(), 'until' => $start->toDateString()]),
                     ];
                 })->values()->all(),
+            'gapCount' => $shifts->filter(fn (Shift $shift) => $shift->reserved < $shift->required_staff)->count(),
             'dayHrefs' => $days->map(fn ($day) => \App\Support\Operations\OperationsPages::moduleUrl('shift-management', ['from' => $day->toDateString(), 'until' => $day->toDateString()]))->values()->all(),
             'href' => \App\Support\Operations\OperationsPages::moduleUrl('shift-management'),
         ];

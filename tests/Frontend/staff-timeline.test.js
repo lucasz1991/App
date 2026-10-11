@@ -16,6 +16,33 @@ function planningFixture() {
     return { planner, events, cell };
 }
 
+test('invalidating an already closed planner never dirties the Livewire child during period navigation', () => {
+    const { planner } = planningFixture();
+    let open = false;
+    let writes = 0;
+    Object.defineProperty(planner.$wire, 'assignmentOpen', { get: () => open, set: value => { open = value; writes++; } });
+    planner.invalidate();
+    planner.invalidate();
+    assert.equal(writes, 0);
+    open = true;
+    planner.plannerVisible = true;
+    planner.invalidate();
+    assert.equal(writes, 1, 'an actual open server planning selection is still closed exactly once');
+    assert.equal(open, false);
+});
+
+test('finishing a hover preview does not write assignmentOpen=false to an already closed child', async () => {
+    const { planner, cell } = planningFixture();
+    let writes = 0;
+    Object.defineProperty(planner.$wire, 'assignmentOpen', { get: () => false, set: () => { writes++; } });
+    const anchor = cell(2);
+    planner.pending = { kind: 'hover', anchor, key: '2:2027-05-13', user: 2, date: '2027-05-13' };
+    planner.request = async () => ({ state: 'empty', label: 'Keine offenen Dienste' });
+    await planner.drain();
+    assert.equal(writes, 0);
+    assert.equal(planner.hoverCache.size, 1);
+});
+
 test('cell opens one anchored panel immediately; late closed results cannot reopen it', async () => {
     const { planner, cell, events } = planningFixture();
     let resolve;

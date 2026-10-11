@@ -140,6 +140,8 @@ class TimelineWindowNavigationTest extends TestCase
         $this->assertSame(1, $layers->length);
         $this->assertFalse($layers->item(0)->hasAttribute('wire:ignore'));
         $this->assertSame(13, $xpath->query('./div[contains(@class,"rt-personnel-timeline-day")]', $layers->item(0))->length);
+        $events = $xpath->query('//*[contains(concat(" ",normalize-space(@class)," ")," rt-personnel-timeline-event ")]');
+        $this->assertSame(1, $events->length);
         $this->assertSame(1, $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," rt-personnel-timeline-event ")]', $layers->item(0))->length);
         $this->assertStringContainsString('Loaded window duty', $html);
         $this->assertSame(1, ShiftAssignment::count());
