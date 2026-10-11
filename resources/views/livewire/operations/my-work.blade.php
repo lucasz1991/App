@@ -7,9 +7,7 @@
         @endforeach
     </nav>
     @endif
-    @if($tab === 'today')
-        @include('livewire.operations.partials.personal-today-head')
-    @elseif($tab === 'time')
+    @if($tab === 'time')
         <header class="rt-personal-work-heading"><div><h2>Meine Zeiten</h2><p class="ops-muted">Erfasste Zeiten prüfen, ergänzen und einreichen.</p></div></header>
     @elseif($tab === 'records')
         <header class="rt-personal-work-heading"><div><p class="ops-muted">Dokumente, Qualifikationen und Gültigkeit im Überblick.</p></div><x-ui.buttons.button-basic mode="primary" wire:click="openForm('qualification')" wire:loading.attr="disabled">Nachweis einreichen</x-ui.buttons.button-basic></header>
@@ -23,25 +21,17 @@
     @if($tab === 'schedule')
         @include('livewire.operations.partials.personal-calendar')
     @elseif($tab === 'today')
-        <div class="rt-personal-today">
-            <div class="rt-personal-today__main">
-                @include('livewire.operations.partials.personal-clock')
-                <section class="rt-personal-tasks ops-stack" aria-labelledby="personal-tasks-heading">
-                    <header class="ops-toolbar"><div><h3 id="personal-tasks-heading">Meine Aufgaben</h3><p class="ops-muted">Freigaben, Rückfragen und Erinnerungen, die auf dich warten.</p></div></header>
+        <div class="rt-today">
+            @include('livewire.operations.partials.personal-today-hero')
+            <livewire:operations.employee-location-status :key="'employee-location-own-'.auth()->id()" />
+            @include('livewire.operations.partials.personal-glance')
+            <div class="rt-today-grid">
+                <section class="rt-today-card rt-today-tasks rt-today-enter" style="--i:5" aria-label="Meine Aufgaben">
                     <livewire:operations.attention-center :personal="true" :key="'personal-tasks-'.auth()->id()" />
                 </section>
-                <section class="rt-personal-duty-list ops-stack" aria-labelledby="personal-upcoming-heading">
-                    <header class="ops-toolbar"><div><h3 id="personal-upcoming-heading">Nächste Dienste</h3><p class="ops-muted">Dein veröffentlichter Dienstplan für die nächsten 14 Tage.</p></div><x-ui.buttons.button-basic mode="link" wire:click="showTab('schedule')" wire:loading.attr="disabled" wire:target="showTab">Zum Kalender</x-ui.buttons.button-basic></header>
-                    <x-tables.table class="rt-personal-record-list" :columns="[['label'=>'Dienstplan','key'=>'shift']]" :items="$assignments" row-view="components.tables.rows.operations.personal-shift" empty="Keine veröffentlichten Dienste in den nächsten 14 Tagen." />
-                </section>
+                @include('livewire.operations.partials.personal-duty-timeline')
             </div>
-            <aside class="rt-personal-today__aside" aria-label="Überblick">
-                <div class="rt-personal-today__glance ops-stack">
-                    <h3 class="rt-personal-today__aside-title">Auf einen Blick</h3>
-                    @include('livewire.operations.partials.personal-glance')
-                </div>
-                <div class="rt-personal-today__install">@include('livewire.operations.partials.pwa-install-card')</div>
-            </aside>
+            <div class="rt-today-install rt-today-enter" style="--i:7">@include('livewire.operations.partials.pwa-install-card')</div>
         </div>
     @elseif($tab === 'time')
         @if($workTimeReady)<livewire:operations.work-time-capture-review :personal="true" />@endif

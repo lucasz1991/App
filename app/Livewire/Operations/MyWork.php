@@ -202,6 +202,9 @@ class MyWork extends Component
         if ($this->focus === 'absences' && request()->boolean('new')) {
             $this->absenceOpen = true;
         }
+        if ($this->focus === 'records' && request()->boolean('new')) {
+            $this->qualificationOpen = true;
+        }
     }
 
     private function access(): void

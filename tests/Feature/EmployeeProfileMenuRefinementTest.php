@@ -278,7 +278,7 @@ class EmployeeProfileMenuRefinementTest extends TestCase
             substr($css, $mobileStart),
         );
         $this->assertStringNotContainsString('.employee-overview__intro', $css);
-        $this->assertStringContainsString(".employee-profile__groups .employee-profile__group[aria-current='page']:hover { color: var(--profile-area-selection);", $css);
+        $this->assertStringContainsString(".employee-profile__groups .employee-profile__group[aria-current='page']:hover { color: var(--profile-duty-signal);", $css);
         $this->assertStringContainsString(".employee-profile__tabs .rt-ops-panel__tab[aria-selected='true']:hover { color: theme('colors.white'); background: var(--profile-area-selection);", $css);
         $this->assertStringContainsString('.employee-profile__group::after { transition: none; }', $css);
         $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $css);

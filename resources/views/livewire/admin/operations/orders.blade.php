@@ -15,24 +15,7 @@
     @unless($detailOnly)
     @if(! $profileEmbedded)
     <template x-teleport="[data-page-header-metrics]">
-        <section class="rt-disposition-summary rt-orders-summary" aria-label="Aufträge im gesamten Bestand">
-            <div class="rt-disposition-summary__item" role="group" aria-label="{{ $openCount }} aktive Aufträge" title="Aktive Aufträge">
-                <span class="rt-disposition-summary__value">{{ number_format($openCount, 0, ',', '.') }}</span>
-                <span class="rt-disposition-summary__label">Aktiv</span>
-            </div>
-            <div class="rt-disposition-summary__item" role="group" aria-label="{{ $startsSoonCount }} demnächst beginnende Aufträge" title="Demnächst beginnende Aufträge">
-                <span class="rt-disposition-summary__value">{{ number_format($startsSoonCount, 0, ',', '.') }}</span>
-                <span class="rt-disposition-summary__label">Demnächst</span>
-            </div>
-            <div class="rt-disposition-summary__item" role="group" aria-label="{{ $inProgressCount }} laufende Aufträge" title="Laufende Aufträge">
-                <span class="rt-disposition-summary__value">{{ number_format($inProgressCount, 0, ',', '.') }}</span>
-                <span class="rt-disposition-summary__label">Laufend</span>
-            </div>
-            <div class="rt-disposition-summary__item" role="group" aria-label="{{ $withoutShiftsCount }} Aufträge ohne Schichten" title="Aufträge ohne Schichten">
-                <span class="rt-disposition-summary__value">{{ number_format($withoutShiftsCount, 0, ',', '.') }}</span>
-                <span class="rt-disposition-summary__label">Ohne Schichten</span>
-            </div>
-        </section>
+        @include('livewire.admin.operations.partials.orders-summary')
     </template>
     @endif
     @if($boundedOrdersList)

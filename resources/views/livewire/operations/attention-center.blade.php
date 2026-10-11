@@ -1,7 +1,10 @@
-<section class="rt-ops ops-stack min-w-0" aria-label="{{ $mode === 'monitor' ? 'Leitstelle' : 'Arbeitsliste' }}">
+<section class="rt-ops ops-stack min-w-0 {{ $personal ? 'rt-personal-tasks-list' : '' }}" aria-label="{{ $mode === 'monitor' ? 'Leitstelle' : ($personal ? 'Meine Aufgaben' : 'Arbeitsliste') }}">
+    @if($personal)
+        @include('livewire.operations.partials.personal-tasks')
+    @else
     <header class="ops-toolbar">
         @if(!$embedded)<nav class="ops-actions" aria-label="Arbeitsbereiche">
-            @foreach($mode === 'monitor' ? ['board'=>'Dienststand','profiles'=>'Toleranzen'] : ['inbox'=>$personal ? 'Offen' : 'Arbeitsliste','reminders'=>'Erinnerungen'] as $key=>$label)
+            @foreach($mode === 'monitor' ? ['board'=>'Dienststand','profiles'=>'Toleranzen'] : ['inbox'=>'Arbeitsliste','reminders'=>'Erinnerungen'] as $key=>$label)
                 @if(($key !== 'profiles' || ($profilesReady && auth()->user()->can('operations.rules.manage'))) && ($key !== 'reminders' || ($preferencesReady && ($personal || auth()->user()->can('employees.master-data.edit')))))<x-ui.buttons.button-basic type="button" :mode="$tab === $key ? 'primary' : 'secondary'" wire:click="setTab('{{ $key }}')">{{ $label }}</x-ui.buttons.button-basic>@endif
             @endforeach
         </nav>@endif
@@ -10,14 +13,15 @@
     </header>
     <x-operations.feedback />
     @if($tab === 'board')<div class="ops-form"><x-operations.field label="Von" model="from" type="date" /><x-operations.field label="Bis" model="until" type="date" /></div>@endif
-    @if(!$personal || $tab !== 'inbox' || $search !== '' || $items->total() > 8)<x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="{{ $personal ? 'Aufgaben durchsuchen' : 'Arbeitsliste durchsuchen' }}" />@endif
+    <x-tables.search-field wire:model.live.debounce.300ms="search" placeholder="Arbeitsliste durchsuchen" />
     <x-tables.table :columns="match($tab) {
         'board'=>[['label'=>'Mitarbeiter / Dienst','key'=>'duty'],['label'=>'Plan / Meldung','key'=>'period'],['label'=>'Dienststand','key'=>'state'],['label'=>'Aktion','key'=>'actions']],
         'profiles'=>[['label'=>'Profil','key'=>'name'],['label'=>'Toleranzen','key'=>'tolerances'],['label'=>'Status','key'=>'active'],['label'=>'Aktion','key'=>'actions']],
         'reminders'=>[['label'=>'Erinnerung','key'=>'preference'],['label'=>'Vorlauf / Ruhefenster','key'=>'quiet'],['label'=>'Status','key'=>'active'],['label'=>'Aktion','key'=>'actions']],
         default=>[['label'=>'Vorgang','key'=>'work_item'],['label'=>'Frist / Status','key'=>'due'],['label'=>'Aktion','key'=>'actions']],
-    }" :items="$items" row-view="components.tables.rows.operations.attention-record" :empty="match(true) { $personal && $tab === 'inbox' => 'Nichts offen – du bist auf dem aktuellen Stand.', $tab === 'reminders' => 'Noch keine Erinnerungen angelegt.', default => 'Keine offenen Einträge.' }" />
+    }" :items="$items" row-view="components.tables.rows.operations.attention-record" :empty="$tab === 'reminders' ? 'Noch keine Erinnerungen angelegt.' : 'Keine offenen Einträge.'" />
     {{ $items->links() }}
+    @endif
     <x-operations.modal wire:model="formOpen" :title="$tab === 'profiles' ? 'Leitstellenprofil' : 'Erinnerung'" max-width="3xl">
         @if($formOpen)
         <form wire:submit="save" class="ops-form">

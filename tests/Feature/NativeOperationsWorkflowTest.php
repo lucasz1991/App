@@ -110,7 +110,7 @@ class NativeOperationsWorkflowTest extends TestCase
         Livewire::actingAs($this->admin)->test(PersonnelReview::class, ['module' => 'rules'])
             ->assertSet('formOpen', false)->call('createRules')->assertSet('formOpen', true);
         Livewire::actingAs($this->employee)->test(MyWork::class)
-            ->assertSee('Testdienst')->assertSeeHtml('data-rt-premium-table')
+            ->assertSee('Testdienst')->assertSeeHtml('data-personal-duty')
             ->call('openForm', 'absence')->assertSet('absenceOpen', true)
             ->call('openForm', 'qualification')->assertSet('qualificationOpen', true)->assertSet('absenceOpen', false)
             ->call('showTab', 'today')->assertSet('qualificationOpen', false);
