@@ -813,8 +813,8 @@ export function staffTimeline() {
                         const value = el.style.getPropertyValue('--timeline-lanes');
                         if (value !== undefined && value !== '') toEl.style.setProperty('--timeline-lanes', value);
                         toEl.dataset.timelineDensity = el.dataset.timelineDensity;
-                    }
-                }
+                    } else this.eventGeometryDirty = true;
+                } else this.eventGeometryDirty = true;
                 return;
             }
             // Server event styles can drop client lane/badge geometry even when

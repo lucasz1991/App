@@ -386,7 +386,8 @@ class MessageBoxBulkActionsTest extends TestCase
         $own = $this->message();
         $foreign = $this->message(['to_user' => $this->other->id]);
         $this->inbox()->call('openMessageDetail', $foreign->id)->assertNotDispatched('message-viewer:open');
-        $this->inbox()->call('openMessageDetail', $own->id)->assertDispatched('message-viewer:open', messageId: $own->id);
+        $this->inbox()->call('openMessageDetail', $own->id)->assertSet('openMessageId', null)
+            ->assertDispatched('message-viewer:open', messageId: $own->id);
         Livewire::actingAs($this->recipient)->withQueryParams(['open' => $foreign->id])->test(MessageBox::class)
             ->assertSet('openMessageId', null)->assertNotDispatched('message-viewer:open');
         Livewire::actingAs($this->recipient)->withQueryParams(['open' => $own->id])->test(MessageBox::class)
@@ -450,8 +451,15 @@ class MessageBoxBulkActionsTest extends TestCase
         $this->message(['status' => '2']);
         $component = $this->inbox();
         $xpath = $this->xpath($component->html());
-        $this->assertCount(1, $xpath->query('//template[@*[name()="x-teleport" and .="[data-page-header-search]"]]'));
-        $this->assertCount(1, $xpath->query('//template[@*[name()="x-teleport" and .="[data-page-header-metrics]"]]'));
+        $this->assertCount(0, $xpath->query('//template[@*[name()="x-teleport" and (.="[data-page-header-search]" or .="[data-page-header-metrics]")]]'));
+        $toolbars = $xpath->query('//*[@data-page-header]//*[@*[name()="wire:key" and .="inbox-toolbar"]]');
+        $this->assertCount(1, $toolbars);
+        $toolbar = $toolbars->item(0);
+        $this->assertStringContainsString('rt-message-inbox__toolbar', $toolbar->getAttribute('class'));
+        $this->assertCount(3, $xpath->query('./*', $toolbar));
+        $this->assertCount(1, $xpath->query('./div[contains(@class,"rt-message-inbox__selection")]', $toolbar));
+        $this->assertCount(1, $xpath->query('./p[contains(@class,"rt-message-inbox__summary") and @role="status"]', $toolbar));
+        $this->assertCount(1, $xpath->query('./div[contains(@class,"rt-message-inbox__actions")]', $toolbar));
         $search = $xpath->query('//input[@id="inbox-search"]');
         $this->assertCount(1, $search);
         $this->assertSame('Absender, Betreff oder Nachricht suchen', $search->item(0)->getAttribute('placeholder'));
@@ -466,6 +474,11 @@ class MessageBoxBulkActionsTest extends TestCase
         $this->assertFalse($allRead->item(0)->hasAttribute('disabled'));
         $this->assertCount(0, $xpath->query('//button[@aria-label="Zurück"]'));
         $this->assertStringContainsString(':title-in-topbar="true"', file_get_contents(resource_path('views/livewire/message-box.blade.php')));
+        $component->call('togglePageSelection')->assertViewHas('selectedCount', 2);
+        $xpath = $this->xpath($component->html());
+        $this->assertCount(1, $xpath->query('//*[@data-page-header]//*[@*[name()="wire:key" and .="inbox-toolbar"]]//*[@data-tables-bulk-menu]'));
+        $this->assertCount(1, $xpath->query('//*[@data-page-header]//*[@*[name()="wire:key" and .="inbox-toolbar"]]//input[@id="inbox-search"]'));
+        $this->assertCount(0, $xpath->query('//template[@*[name()="x-teleport" and (.="[data-page-header-search]" or .="[data-page-header-metrics]")]]'));
         $component->call('markAllAsRead');
         $xpath = $this->xpath($component->html());
         $this->assertTrue($xpath->query('//button[@*[name()="wire:click" and .="markAllAsRead"]]')->item(0)->hasAttribute('disabled'));

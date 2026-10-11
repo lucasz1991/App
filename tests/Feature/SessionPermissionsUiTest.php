@@ -154,6 +154,24 @@ class SessionPermissionsUiTest extends TestCase
         $this->assertSame([], $this->decisions);
     }
 
+    public function test_native_allow_buttons_compile_real_boolean_arguments_for_both_decision_states(): void
+    {
+        foreach ([false, true] as $accepted) {
+            $this->state['push_decision'] = $accepted ? 'accepted' : null;
+            $this->state['location_decision'] = $accepted ? 'accepted' : null;
+            $component = Livewire::actingAs($this->employee)->test(SessionPermissions::class);
+            $document = new \DOMDocument;
+            @$document->loadHTML('<html><body>'.$component->html().'</body></html>');
+            $xpath = new \DOMXPath($document);
+            foreach (['push', 'location'] as $purpose) {
+                $allow = $xpath->query('//button[@data-permission-allow="'.$purpose.'"]')->item(0);
+                $this->assertInstanceOf(\DOMElement::class, $allow);
+                $this->assertSame("allow('".$purpose."', ".($accepted ? 'true' : 'false').')', $allow->getAttribute('x-on:click'));
+                $this->assertStringNotContainsString('@js', $allow->getAttribute('x-on:click'));
+            }
+        }
+    }
+
     public function test_new_explanation_cannot_be_accepted_with_the_old_rendered_version(): void
     {
         $component = Livewire::actingAs($this->employee)->test(SessionPermissions::class);

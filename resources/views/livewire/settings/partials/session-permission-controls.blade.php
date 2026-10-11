@@ -29,7 +29,7 @@
             @endif
             @if ($available)
                 <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                    <x-ui.buttons.button-basic mode="secondary" x-on:click="allow('{{ $purpose }}', @js($decision === 'accepted'))" x-bind:disabled="busy !== null" wire:loading.attr="disabled" class="min-h-11 rounded-xl" data-permission-allow="{{ $purpose }}">{{ $decision === 'accepted' ? 'Geräteberechtigung einrichten' : 'Erlauben' }}</x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic mode="secondary" :x-on:click="'allow('.\Illuminate\Support\Js::from($purpose).', '.($decision === 'accepted' ? 'true' : 'false').')'" x-bind:disabled="busy !== null" wire:loading.attr="disabled" class="min-h-11 rounded-xl" data-permission-allow="{{ $purpose }}">{{ $decision === 'accepted' ? 'Geräteberechtigung einrichten' : 'Erlauben' }}</x-ui.buttons.button-basic>
                     @if ($decision === 'accepted')
                         <x-ui.buttons.button-basic mode="secondary" wire:click="revoke('{{ $purpose }}')" x-bind:disabled="busy !== null" wire:loading.attr="disabled" class="min-h-11 rounded-xl" data-permission-withdraw="{{ $purpose }}">Freigabe widerrufen</x-ui.buttons.button-basic>
                     @else

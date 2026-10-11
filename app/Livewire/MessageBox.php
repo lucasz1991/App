@@ -112,7 +112,6 @@ class MessageBox extends Component
             return;
         }
 
-        $this->openMessageId = $messageId;
         $this->dispatch('message-viewer:open', messageId: $messageId);
     }
 

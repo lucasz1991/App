@@ -319,14 +319,25 @@ class StaffTimelineLayoutTest extends TestCase
                 $this->assertCount(2, $event['time_segments']);
 
                 return true;
-            })
-            ->assertSee('datetime="2026-10-24T22:00:00+02:00"', false)
-            ->assertSee('datetime="2026-10-25T06:00:00+01:00"', false)
-            ->assertSee('UTC +02:00')->assertSee('UTC +01:00')
-            ->assertSee('24.10.2026')->assertSee('25.10.2026')
-            ->assertSee('9,0 h tatsächliche Dauer')
-            ->assertDontSee('7,0 h tatsächliche Dauer')
-            ->assertSee('38,5 h/Woche')->assertSee('8,5 h');
+            });
+
+        // Detailed DOM is mounted once on demand; its compact facts retain the
+        // full interval (not the clipped axis interval) and exact DST workload.
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$timeline->html());
+        $xpath = new \DOMXPath($dom);
+        $badges = $xpath->query('//button[@data-timeline-detail]');
+        $this->assertCount(1, $badges);
+        $facts = json_decode($badges->item(0)->getAttribute('data-timeline-detail'), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('2026-10-24T22:00:00+02:00', $facts['start']['iso']);
+        $this->assertSame('2026-10-25T06:00:00+01:00', $facts['end']['iso']);
+        $this->assertSame('+02:00', $facts['start']['offset']);
+        $this->assertSame('+01:00', $facts['end']['offset']);
+        $this->assertSame('24.10.2026', $facts['start']['date']);
+        $this->assertSame('25.10.2026', $facts['end']['date']);
+        $this->assertTrue($facts['dstChanged']);
+        $this->assertSame('9,0', $facts['elapsedHours']);
+        $this->assertSame(['38,5 h/Woche', '8,5 h'], array_column($facts['workload'], 'value'));
 
         preg_match_all('/<span class="rt-personnel-timeline-mark" style="left:([^%]+)%;width:([^%]+)%" aria-hidden="true"><\/span>/', $timeline->html(), $marks);
         $this->assertCount(2, $marks[0]);

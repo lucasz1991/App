@@ -116,4 +116,21 @@ final class TimelineMiniCalendarTest extends TestCase
         $this->assertStringNotContainsString('28.09.2026', $html);
         $this->assertStringContainsString('is-outside', $html);
     }
+
+    #[DataProvider('intervals')]
+    public function test_compact_seed_matches_native_calendar_without_building_or_transmitting_cells(string $start, string $end, array $selectedDates, string $range): void
+    {
+        $from = CarbonImmutable::parse($start, 'Europe/Berlin');
+        $until = CarbonImmutable::parse($end, 'Europe/Berlin');
+        $seed = TimelineMiniCalendar::forIntervalSeed($from, $until);
+        $calendar = TimelineMiniCalendar::forInterval($from, $until);
+        $this->assertArrayNotHasKey('days', $seed);
+        $this->assertSame($calendar['month_label'], $seed['monthLabel']);
+        $this->assertSame($calendar['range_label'], $seed['rangeLabel']);
+        $this->assertSame($calendar['accessible_label'], $seed['accessibleLabel']);
+        $this->assertSame($calendar['days'][0]['date'], $seed['gridStart']);
+        $this->assertSame(count($calendar['days']), $seed['count']);
+        $this->assertSame($selectedDates[0], $seed['first']);
+        $this->assertSame(end($selectedDates), $seed['last']);
+    }
 }

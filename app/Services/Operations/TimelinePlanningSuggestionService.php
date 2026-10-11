@@ -87,7 +87,13 @@ class TimelinePlanningSuggestionService
         // The same fresh central assessment now handles every candidate's own
         // virtual schedule in one batch, rather than repeating the whole read
         // projection for each already-proposed employee.
-        $eligibility = app(StaffEligibilityService::class)->assessMany($shift, $users, false, ['additional_shifts_by_user' => $additionalByUser]);
+        // Only this private, prepared display preview may reuse route summaries.
+        // Public ranking/selection and binding guards keep the fresh default.
+        $eligibilityService = app(StaffEligibilityService::class);
+        $context = ['additional_shifts_by_user' => $additionalByUser];
+        $eligibility = $staff !== null
+            ? $eligibilityService->assessPreviewMany($shift, $users, $context)
+            : $eligibilityService->assessMany($shift, $users, false, $context);
         $ranked = collect();
         $wishes = app(WorkforcePlanningService::class)->wishSummaries($shift, $users);
         $loads = $this->batchLoads($shift, $users);

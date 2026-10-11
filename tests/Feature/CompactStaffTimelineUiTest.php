@@ -120,13 +120,13 @@ class CompactStaffTimelineUiTest extends TestCase
         }
         foreach ([
             'x-effect="applyPersonnelMode()"',
-            'x-on:pointerover.window="pointerPersonnel($event)"',
-            'x-on:pointerout.window="pointerPersonnel($event)"',
-            'x-on:focusin.window="focusPersonnel($event.target)"',
-            'x-on:focusout.window="focusPersonnel($event.relatedTarget)"',
             'data-timeline-person-column wire:key="staff-person-',
         ] as $contract) {
             $this->assertStringContainsString($contract, $view);
+        }
+        foreach (['x-on:pointerover.window="pointerPersonnel($event)"', 'x-on:pointerout.window="pointerPersonnel($event)"',
+            'x-on:focusin.window="focusPersonnel($event.target)"', 'x-on:focusout.window="focusPersonnel($event.relatedTarget)"'] as $automaticExpansion) {
+            $this->assertStringNotContainsString($automaticExpansion, $view);
         }
         $css = file_get_contents(resource_path('css/operations-planning.css'));
         $button = $this->cssDeclarationsFor($css, '.rt-personnel-timeline-person-toggle');
@@ -183,7 +183,8 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringContainsString('transform: rotate(180deg)', $cue);
         $this->assertStringContainsString('transform: rotate(0)', $cue);
         $this->assertStringContainsString('transition: none', $cue);
-        $this->assertStringContainsString("target.matches(':focus-visible')", $script);
+        $this->assertStringContainsString('return this.compactRequested;', $script);
+        $this->assertStringNotContainsString("target.matches(':focus-visible')", $script);
         $this->assertStringContainsString('this.refreshPersonnelPreference(style)', $script);
         $this->assertStringContainsString('this.personnelExplicit = true', $script);
         $this->assertSame(1, substr_count($script, 'new ResizeObserver('));
@@ -292,8 +293,13 @@ class CompactStaffTimelineUiTest extends TestCase
     public function test_event_details_open_only_on_click_without_removing_workload_hover(): void
     {
         $view = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
-        $this->assertMatchesRegularExpression('/<x-ui\.dropdown\.anchor-dropdown[^>]+:open-on-hover="false"[^>]+data-timeline-event-dropdown>/', $view);
-        $this->assertStringContainsString("querySelector('[data-timeline-detail-focus]')?.focus({ preventScroll: true })", $view);
+        $shared = file_get_contents(resource_path('views/livewire/operations/partials/timeline-shared-event-detail.blade.php'));
+        $controller = file_get_contents(resource_path('js/timeline-event-details.js'));
+        $this->assertMatchesRegularExpression('/<x-ui\.dropdown\.anchor-dropdown\b[\s\S]*?:open-on-hover="false"[\s\S]*?data-timeline-event-dropdown>/', $shared);
+        $this->assertStringContainsString("x-on:click=\"\$dispatch('rt-timeline-event-preview', { anchor: \$el })\"", $view);
+        $this->assertStringContainsString('rt-anchor-dropdown-focus', $controller);
+        $this->assertStringContainsString('data-dropdown-initial-focus', $shared);
+        $this->assertStringContainsString("querySelector('[data-dropdown-initial-focus]')?.focus({ preventScroll: true })", file_get_contents(resource_path('js/anchor-dropdown.js')));
         $workload = file_get_contents(resource_path('views/livewire/operations/partials/timeline-workload.blade.php'));
         $this->assertStringContainsString(':open-on-hover="true"', $workload);
     }
@@ -371,7 +377,7 @@ class CompactStaffTimelineUiTest extends TestCase
         $partial = file_get_contents(resource_path('views/livewire/operations/partials/timeline-event-detail.blade.php'));
         $this->assertStringContainsString('<x-operations.panel.tabs', $partial);
         $this->assertStringContainsString('model="detailTab"', $partial);
-        $source = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $source = file_get_contents(resource_path('views/livewire/operations/partials/timeline-shared-event-detail.blade.php'));
         $this->assertStringContainsString(':fixed-height="true"', $source);
         $css = file_get_contents(resource_path('css/operations-planning.css'));
         $this->assertStringContainsString('display: grid', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-detail-panels'));
@@ -448,7 +454,7 @@ class CompactStaffTimelineUiTest extends TestCase
         $this->assertStringNotContainsString('GeoNames', $html);
         $this->assertStringNotContainsString('rt-event-mini-map__sources', $html);
         $this->assertStringNotContainsString('data-location-marker', $html);
-        $source = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $source = file_get_contents(resource_path('views/livewire/operations/partials/timeline-shared-event-detail.blade.php'));
         $this->assertStringContainsString('width="96" :max-height="560" :open-on-hover="false"', $source);
     }
 

@@ -5,7 +5,7 @@
     x-on:operations-timeline-window-pending.window="clearDetail($event)"
     x-on:operations-timeline-window-reset.window="clearDetail($event)"
     x-on:operations-plan-changed.window="clearDetail()">
-    <x-ui.dropdown.anchor-dropdown align="left" width="96" :max-height="560" :fixed-height="true" :offset="8"
+    <x-ui.dropdown.anchor-dropdown align="left" width="96" :max-height="560" :open-on-hover="false" :fixed-height="true" :offset="8"
         :external-trigger="true" :dropdown-id="'timeline-event-'.$this->getId()" layer-group="staff-timeline-events"
         content-role="dialog" content-label="Dienstdetails" trigger-classes="hidden"
         class="rt-personnel-timeline-event-anchor" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"

@@ -38,9 +38,35 @@ class StaffEligibilityService
     }
 
     /** @return array<int, array<int, array{code: string, message: string}>> */
-    public function assessMany(Shift $shift, Collection $users, bool $lock = false, array $context = []): array
+    public function assessMany(Shift $shift, Collection $users, bool $lock = false, array $context = [], bool $display = false): array
     {
-        return collect($this->assessDetailedMany($shift, $users, $lock, $context))->map(fn ($result) => $result['issues'])->all();
+        return collect($this->assessDetailedMany($shift, $users, $lock, $context, $display))->map(fn ($result) => $result['issues'])->all();
+    }
+
+    /**
+     * Unverbindliche Auswahlvorschau: alle Kernregeln frisch prüfen, Fahrten nur
+     * für noch geeignete Personen. Vollständige Konfliktdetails und verbindliche
+     * Prüfungen behalten assessMany/assessDetailedMany einschließlich Routing.
+     *
+     * @return array<int, array<int, array{code: string, message: string}>>
+     */
+    public function assessPreviewMany(Shift $shift, Collection $users, array $context = []): array
+    {
+        $preflight = ($context['travel_preflight'] ?? null) instanceof TravelPreflight;
+        if ($preflight) {
+            $context = array_replace($context['travel_preflight']->context, $context);
+        }
+        $issues = $this->assessCoreMany($shift, $users, false, $context);
+        $eligible = $users->filter(fn (User $user) => ($issues[$user->id] ?? []) === [])->values();
+        if ($eligible->isEmpty()) {
+            return $issues;
+        }
+        $details = app(TravelAssessmentService::class)->assessMany($shift, $eligible, $context, false, DB::transactionLevel() === 0 && ! $preflight);
+        foreach ($eligible as $user) {
+            $issues[$user->id] = array_merge($issues[$user->id] ?? [], $details[$user->id]['issues'] ?? []);
+        }
+
+        return $issues;
     }
 
     /** @return array<int, array{issues: array, warnings: array, travel: array, basis: string}> */

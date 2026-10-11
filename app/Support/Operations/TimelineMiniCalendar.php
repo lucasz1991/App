@@ -14,13 +14,8 @@ final class TimelineMiniCalendar
      */
     public static function forInterval(CarbonInterface $start, CarbonInterface $end): array
     {
-        $from = CarbonImmutable::instance($start)->locale('de');
-        $until = CarbonImmutable::instance($end)->setTimezone($from->getTimezone());
-        $firstDay = $from->startOfDay();
-        $lastDay = $until->greaterThan($from) ? $until->subMicrosecond()->startOfDay() : null;
-        $month = $from->startOfMonth();
-        $gridStart = $month->startOfWeek(CarbonInterface::MONDAY);
-        $cellCount = max(35, (int) ceil(($month->dayOfWeekIso - 1 + $month->daysInMonth) / 7) * 7);
+        [$firstDay, $lastDay, $month, $gridStart, $cellCount] = self::intervalContext($start, $end);
+        $seed = self::seed($firstDay, $lastDay, $month, $gridStart, $cellCount);
         $days = [];
 
         for ($index = 0; $index < $cellCount; $index++) {
@@ -36,6 +31,33 @@ final class TimelineMiniCalendar
             ];
         }
 
+        return [
+            'month_label' => $seed['monthLabel'], 'range_label' => $seed['rangeLabel'], 'accessible_label' => $seed['accessibleLabel'],
+            'days' => $days,
+        ];
+    }
+
+    /** Same calendar facts, without constructing unused cells for every closed badge. */
+    public static function forIntervalSeed(CarbonInterface $start, CarbonInterface $end): array
+    {
+        return self::seed(...self::intervalContext($start, $end));
+    }
+
+    private static function intervalContext(CarbonInterface $start, CarbonInterface $end): array
+    {
+        $from = CarbonImmutable::instance($start)->locale('de');
+        $until = CarbonImmutable::instance($end)->setTimezone($from->getTimezone());
+        $firstDay = $from->startOfDay();
+        $lastDay = $until->greaterThan($from) ? $until->subMicrosecond()->startOfDay() : null;
+        $month = $from->startOfMonth();
+        $gridStart = $month->startOfWeek(CarbonInterface::MONDAY);
+        $cellCount = max(35, (int) ceil(($month->dayOfWeekIso - 1 + $month->daysInMonth) / 7) * 7);
+
+        return [$firstDay, $lastDay, $month, $gridStart, $cellCount];
+    }
+
+    private static function seed(CarbonImmutable $firstDay, ?CarbonImmutable $lastDay, CarbonImmutable $month, CarbonImmutable $gridStart, int $cellCount): array
+    {
         $monthLabel = $month->translatedFormat('F Y');
         $rangeLabel = $lastDay === null ? 'Kein gültiger Zeitraum' : $firstDay->format('d.m.Y');
         if ($lastDay !== null && ! $firstDay->isSameDay($lastDay)) {
@@ -43,10 +65,10 @@ final class TimelineMiniCalendar
         }
 
         return [
-            'month_label' => $monthLabel,
-            'range_label' => $rangeLabel,
-            'accessible_label' => 'Kalender '.$monthLabel.'. '.($lastDay === null ? $rangeLabel : 'Markierter Zeitraum: '.$rangeLabel).'.',
-            'days' => $days,
+            'monthLabel' => $monthLabel, 'rangeLabel' => $rangeLabel,
+            'accessibleLabel' => 'Kalender '.$monthLabel.'. '.($lastDay === null ? $rangeLabel : 'Markierter Zeitraum: '.$rangeLabel).'.',
+            'gridStart' => $gridStart->toDateString(), 'count' => $cellCount, 'month' => $month->format('Y-m'),
+            'first' => $firstDay->toDateString(), 'last' => $lastDay?->toDateString(),
         ];
     }
 }

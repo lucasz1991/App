@@ -15,7 +15,7 @@ final class TimelineEventDetail
         $last = $allDay ? $end->subSecond() : $end;
         $dstChanged = $start->offset !== $end->offset;
         $parent = collect([$event['order_title'] ?? null, $event['order_number'] ?? null])->filter(fn ($value) => filled($value))->implode(' · ');
-        $calendar = TimelineMiniCalendar::forInterval($start, $end);
+        $calendar = TimelineMiniCalendar::forIntervalSeed($start, $end);
         $preview = $event['location_preview'] ?? ['state' => 'unknown', 'label' => 'Standort nicht verortet'];
         $point = GermanyMap::fromPreview($preview);
         $location = $event['location_name'] ?? null;
@@ -44,11 +44,7 @@ final class TimelineEventDetail
                 $planned !== null ? ['label' => 'Eingeplant · KW '.$event['visible_start']->setTimezone($zone)->isoWeek(), 'value' => number_format($planned, 1, ',', '.').' h'] : null,
             ])),
             // Only a civil-date seed travels with each badge, not 35–42 repeated calendar cells.
-            'calendar' => [
-                'monthLabel' => $calendar['month_label'], 'rangeLabel' => $calendar['range_label'], 'accessibleLabel' => $calendar['accessible_label'],
-                'gridStart' => $calendar['days'][0]['date'], 'count' => count($calendar['days']), 'month' => $start->format('Y-m'),
-                'first' => $start->toDateString(), 'last' => $end->gt($start) ? $end->subMicrosecond()->toDateString() : null,
-            ],
+            'calendar' => $calendar,
             // Preserve the existing approximate/confirmed distinction without exposing coordinates.
             'map' => [
                 'state' => $preview['state'], 'point' => $point ? ['left' => $point['left'], 'top' => $point['top']] : null,
