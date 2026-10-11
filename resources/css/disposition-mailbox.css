@@ -1,6 +1,7 @@
 .rt-disposition-mailbox-host { display: contents; }
 .rt-unified-inbox__toolbar > .ops-actions { flex-wrap: nowrap; flex-shrink: 0; }
-.rt-disposition-mailbox { gap: 14px; min-width: 0; }
+.rt-ui-modal[id^="disposition-mailbox-"] .rt-modal-content { display: flex; flex-direction: column; overflow: clip; }
+.rt-disposition-mailbox { display: flex; flex: 1; flex-direction: column; gap: 14px; min-height: 0; min-width: 0; }
 .rt-disposition-mailbox__account { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .rt-disposition-mailbox__address { margin: 0; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
 .rt-disposition-mailbox__connection { display: inline-flex; align-items: center; gap: 6px; color: var(--dispo-muted); font-size: 11px; }
@@ -16,7 +17,7 @@
 .rt-disposition-mailbox__feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; border: 1px solid var(--dispo-line); border-radius: 8px; color: var(--dispo-warning); background: var(--dispo-subtle); font-size: 12px; }
 .rt-disposition-mailbox__feedback > p { flex: 1 1 180px; margin: 0; overflow-wrap: anywhere; }
 .rt-disposition-mailbox__loading { align-items: center; gap: 8px; color: var(--dispo-muted); font-size: 11px; }
-.rt-disposition-mailbox__workspace { display: grid; grid-template-columns: minmax(220px, .9fr) minmax(0, 1.3fr); min-width: 0; min-height: 340px; height: min(61dvh, 630px); border: 1px solid var(--dispo-line); border-radius: 10px; overflow: hidden; background: var(--dispo-surface); }
+.rt-disposition-mailbox__workspace { display: grid; grid-template-columns: minmax(220px, .9fr) minmax(0, 1.3fr); min-width: 0; flex: 1; min-height: 0; height: clamp(180px, calc(100dvh - 470px), 630px); border: 1px solid var(--dispo-line); border-radius: 10px; overflow: hidden; background: var(--dispo-surface); }
 .rt-disposition-mailbox__workspace--loading { opacity: .6; pointer-events: none; }
 .rt-disposition-mailbox__list { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--dispo-line); }
 .rt-disposition-mailbox__list > ul { flex: 1; min-height: 0; margin: 0; padding: 0; list-style: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
@@ -70,7 +71,7 @@
     .rt-disposition-mailbox__tabs > button { gap: 5px; padding-inline: 6px; font-size: 11px; }
     .rt-disposition-mailbox__tabs > button > i { display: none; }
     .rt-disposition-mailbox__tabs .rt-disposition-mailbox__count { display: none; }
-    .rt-disposition-mailbox__workspace { grid-template-columns: minmax(0, 1fr); height: min(60dvh, 540px); min-height: 300px; }
+    .rt-disposition-mailbox__workspace { grid-template-columns: minmax(0, 1fr); height: clamp(180px, calc(100dvh - 470px), 540px); min-height: 0; }
     .rt-disposition-mailbox__list { border-right: 0; }
     .rt-disposition-mailbox__detail { display: none; padding: 14px; }
     .rt-disposition-mailbox__workspace--selected .rt-disposition-mailbox__list { display: none; }

@@ -212,6 +212,44 @@ body:has([data-employee-directory-scroll]) {
 .employee-directory__page-buttons button:focus-visible { outline: 2px solid var(--employee-signal); outline-offset: -4px; border-radius: 6px; }
 .employee-directory__page-buttons button:disabled { opacity: .35; cursor: default; }
 .employee-directory__mobile-page { display: none; }
+@media (max-width: 767.98px) {
+    /* Same compact Name/Status grid in the stationary head and every row.
+       Reserve the existing 44px action target + 8px gap + 8px right inset. */
+    .employee-directory .rt-employee-table[data-table-mobile-header] {
+        --employee-mobile-status-width: clamp(72px, 22vw, 104px);
+        --rt-table-header-columns: minmax(0, 1fr) var(--employee-mobile-status-width);
+    }
+    .employee-directory .rt-employee-table[data-table-mobile-header] .rt-table-head {
+        min-height: 45px;
+        align-items: center;
+        column-gap: 8px;
+        padding: 0 60px 0 12px !important;
+        text-transform: none;
+        letter-spacing: .025em;
+    }
+    .employee-directory .rt-employee-table[data-table-mobile-header] .rt-table-row-grid {
+        grid-template-columns: var(--rt-table-header-columns);
+    }
+    /* Legacy utility CSS starts md at 720px; this compact layout starts at 768px. */
+    .employee-directory .rt-employee-table[data-table-mobile-header] .rt-table-head > .hidden,
+    .employee-directory .rt-employee-table[data-table-mobile-header] .rt-table-row-grid > .hidden {
+        display: none !important;
+    }
+    .employee-directory .rt-employee-table[data-table-mobile-header] .rt-table-sort-control {
+        min-height: 44px;
+        padding: 0 !important;
+        gap: 6px !important;
+        font-weight: 600;
+        letter-spacing: inherit;
+    }
+    .employee-directory .rt-employee-table[data-table-mobile-header] [data-sort-key='status'] {
+        justify-content: flex-end !important;
+        text-align: right;
+    }
+    .employee-directory .rt-employee-table[data-table-mobile-header] [aria-sort]:not([aria-sort='none']) .rt-table-sort-control {
+        color: var(--employee-signal) !important;
+    }
+}
 @media (max-width: 767px) {
     .employee-directory__header-actions .employee-directory__create span { display: none; }
     .employee-directory__header-actions .employee-directory__create { width: 40px; padding-inline: 0 !important; }

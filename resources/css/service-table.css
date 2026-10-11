@@ -98,3 +98,155 @@ body:has(.rt-ai-assist__stage) .rt-service-pagination {
     .rt-service-pagination { padding-inline: 8px; }
     body:has(.rt-ai-assist__stage) .rt-service-pagination { padding-right: 76px; }
 }
+
+/* Services and Orders share the record layout. Container width, not viewport
+   width, decides when seven columns stop being legible beside a side panel. */
+.rt-service-table {
+    container: rt-service-list / inline-size;
+    background: var(--rt-shell-surface-solid);
+}
+.rt-service-table .rt-table-head { padding-right: 8px; }
+.rt-service-table .rt-table-row { padding-right: 8px; }
+.rt-service-table .rt-table-record__title {
+    display: block;
+    min-height: 44px;
+    padding-block: 4px;
+    max-width: 100%;
+    color: var(--rt-shell-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.rt-service-table .rt-table-record__title:focus-visible {
+    outline: 2px solid var(--rt-shell-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+.rt-service-table .rt-table-record__title:hover { color: var(--rt-shell-accent); }
+
+@container rt-service-list (max-width: 1040px) {
+    .rt-service-table .rt-table-head { display: none !important; }
+    .rt-service-table .rt-table-mobile-sort {
+        display: flex !important;
+        flex: none;
+        padding: 4px 8px;
+        border-bottom: 1px solid var(--rt-shell-line);
+    }
+    .rt-service-table .rt-table-body { display: block; padding: 0; }
+    .rt-service-table .rt-table-row {
+        margin: 0;
+        padding: 12px;
+        border-radius: 0;
+        box-shadow: none;
+        border: 0;
+        border-bottom: 1px solid var(--rt-shell-line);
+        background-color: transparent;
+    }
+    .rt-service-table .rt-table-row-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        align-items: start;
+        gap: 8px 16px;
+    }
+    .rt-service-table .rt-table-row-grid > .rt-table-cell[data-service-column] {
+        display: block;
+        padding: 0;
+        min-width: 0;
+        border: 0;
+    }
+    .rt-service-table .rt-table-row-grid > .rt-table-cell[data-service-column]::before {
+        display: block;
+        content: attr(data-rt-table-label);
+        padding: 0;
+        margin-bottom: 4px;
+        color: var(--rt-shell-muted);
+        font-size: 10px;
+        line-height: 1.5;
+    }
+    .rt-service-table .rt-table-row-grid > [data-service-column='service'] {
+        grid-column: 1 / 4 !important;
+        grid-row: 1;
+    }
+    .rt-service-table .rt-table-row-grid > [data-service-column='status'] {
+        grid-column: 6 / 7 !important;
+        grid-row: 1;
+        justify-self: end;
+        padding-top: 4px;
+    }
+    .rt-service-table .rt-table-row-grid > .rt-table-cell:is([data-service-column='service'], [data-service-column='status'])::before { display: none; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='customer'] { grid-column: 4 / 6 !important; grid-row: 1; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='period'] { grid-column: 1 / 3 !important; grid-row: 2; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='location'] { grid-column: 3 !important; grid-row: 2; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='count'] { grid-column: 4 !important; grid-row: 2; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='staffing'] { grid-column: 5 / 7 !important; grid-row: 2; }
+}
+@container rt-service-list (max-width: 600px) {
+    .rt-service-table .rt-table-row-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='service'] { grid-column: 1 / -1 !important; padding-right: 0; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='status'] { grid-column: 1 / -1 !important; grid-row: 2; justify-self: start; padding: 0; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='customer'] { grid-column: 1 !important; grid-row: 3; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='location'] { grid-column: 2 !important; grid-row: 3; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='period'] { grid-column: 1 / -1 !important; grid-row: 4; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='count'] { grid-column: 1 !important; grid-row: 5; }
+    .rt-service-table .rt-table-row-grid > [data-service-column='staffing'] { grid-column: 2 !important; grid-row: 5; }
+    .rt-service-table .rt-table-value { font-size: 12px; }
+}
+
+/* Only the consolidated Orders page owns a viewport scrollport. A table in a
+   customer profile deliberately remains in normal document flow. */
+.rt-orders-list-controls { display: flex; align-items: center; gap: 8px; }
+.rt-disposition-page:has([data-orders-list-scroll]) [data-page-header-actions] > [data-rt-dropdown-root]:has([data-orders-filter-trigger]) { order: -1; }
+.rt-orders-list { min-width: 0; }
+html:has(#main-content [data-orders-list-scroll]),
+body:has(#main-content [data-orders-list-scroll]) { height: 100%; min-height: 0; overflow: hidden !important; }
+#main-content:has([data-orders-list-scroll]) { height: 100dvh; min-height: 0; overflow: hidden; }
+#main-content:has([data-orders-list-scroll]) > .main-content { height: 100%; min-height: 0; overflow: hidden; }
+.main-content:has([data-orders-list-scroll]) > .page-content.rt-app-page-frame,
+.rt-page-content:has([data-orders-list-scroll]) > .flex-1,
+.rt-disposition-page:has([data-orders-list-scroll]) {
+    display: flex;
+    height: 100%;
+    min-height: 0 !important;
+    overflow: hidden;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+.page-content.rt-app-page-frame:has([data-orders-list-scroll]) > .rt-page-content { min-height: 0 !important; overflow: hidden; flex: 1 1 auto; }
+.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] { flex: none; }
+.rt-disposition-page:has([data-orders-list-scroll]) { gap: 16px; }
+.rt-disposition-page:has([data-orders-list-scroll]) > * + * { margin-top: 0 !important; }
+[data-page-live-content]:has([data-orders-list-scroll]),
+[data-case-workspace='orders']:has([data-orders-list-scroll]) { gap: 0; }
+.rt-disposition-page:has([data-orders-list-scroll]) > [data-page-loading-region],
+[data-page-loading-region]:has([data-orders-list-scroll]) > [data-page-live-content],
+[data-page-live-content] > [data-page-workspace-content]:has([data-orders-list-scroll]),
+[data-page-workspace-content] > [data-case-workspace='orders']:has([data-orders-list-scroll]),
+[data-case-workspace='orders']:has([data-orders-list-scroll]) > [data-operations-orders],
+[data-orders-list-scroll] {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+[data-orders-list-scroll] > .rt-service-table { min-height: 0; border-radius: 12px 12px 0 0; }
+[data-orders-list-scroll] .rt-table-head,
+[data-orders-list-scroll] .rt-table-mobile-sort { position: static; }
+[data-orders-list-scroll] [data-table-scroll-body] { border-radius: 0; }
+[data-orders-pagination] { flex: none; }
+.rt-disposition--orders:has([data-orders-list-scroll]) > * + * { margin-top: 0 !important; }
+@media (max-width: 767.98px) {
+    body:has([data-area-menu]) #main-content:has([data-orders-list-scroll]) { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+@media (max-width: 600px) {
+    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] { display: grid !important; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 4px; }
+    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] .rt-page-header-metrics {
+        position: static;
+        width: auto;
+        max-width: none;
+        transform: none;
+    }
+    .rt-disposition-page:has([data-orders-list-scroll]) > [data-page-header] .rt-orders-summary { gap: 4px; padding: 0; }
+    .rt-disposition-page:has([data-orders-list-scroll]) .rt-orders-summary .rt-disposition-summary__value { font-size: 12px; }
+}

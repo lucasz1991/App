@@ -126,7 +126,7 @@ class DispositionTableSortingTest extends TestCase
         foreach (range(28, 1) as $number) {
             $records->push($this->order(sprintf('Probe %02d', $number), ['starts_at' => sprintf('2027-05-%02d 08:00:00', $number), 'required_staff' => $number, 'status' => $number % 2 === 0 ? 'confirmed' : 'planned']));
         }
-        $component = Livewire::actingAs($this->admin)->test(Orders::class)->call('selectOrder', $records->first()->id);
+        $component = Livewire::actingAs($this->admin)->test(Orders::class)->set('perPage', 25)->call('selectOrder', $records->first()->id);
         foreach (['title' => 'title', 'period' => 'starts_at', 'staff' => 'required_staff', 'status' => 'status'] as $key => $column) {
             foreach (['asc', 'desc'] as $direction) {
                 $expected = $records->sort(function ($a, $b) use ($column, $direction) {

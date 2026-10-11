@@ -10,8 +10,10 @@
             'invoiced' => 'far fa-file-invoice text-emerald-600 dark:text-emerald-400',
             'cancelled' => 'far fa-ban text-slate-500 dark:text-slate-400',
         ];
+        $boundedOrdersList = $consolidated && ! $profileEmbedded && ! $detailOnly;
     @endphp
     @unless($detailOnly)
+    @if(! $profileEmbedded)
     <template x-teleport="[data-page-header-metrics]">
         <section class="rt-disposition-summary rt-orders-summary" aria-label="Aufträge im gesamten Bestand">
             <div class="rt-disposition-summary__item">
@@ -32,18 +34,28 @@
             </div>
         </section>
     </template>
-
-        <section class="rt-disposition-panel" aria-label="{{ __('pagination.orders_list') }}">
-        <x-tables.toolbar title="Leistungen filtern" id="operations-orders-filters" :search-in-header="true" :filter-count="(int) ($statusFilter !== 'all') + (int) (trim($search) !== '')" reset-action="resetFilters">
-            <x-slot:search><x-tables.search-field context="page" wire:model.live.debounce.300ms="search" placeholder="Leistungen suchen" aria-label="Leistungen suchen" /></x-slot:search>
-            <x-tables.filter-field label="Leistungsstatus" for="order-status-filter" label-hidden><x-ui.forms.select id="order-status-filter" wire:model.live="statusFilter" aria-label="Leistungsstatus"><option value="all" data-icon-class="{{ $statusFilterIcons['all'] }}">Alle Leistungen</option>@foreach($statusOptions as $option)<option value="{{ $option['value'] }}" data-icon-class="{{ $statusFilterIcons[$option['value']] ?? 'far fa-circle text-rt-muted dark:text-rt-dark-muted' }}">{{ $option['label'] }}</option>@endforeach</x-ui.forms.select></x-tables.filter-field>
-        </x-tables.toolbar>
-        <div wire:loading.class="opacity-60" wire:target="tableSort,search,statusFilter,resetFilters,gotoPage,nextPage,previousPage">
-            <x-tables.table :columns="[['label'=>'Leistung / Kunde', 'key'=>'title', 'width'=>'minmax(0, 1.7fr)','sortable'=>true], ['label'=>'Zeitraum / Ort', 'key'=>'period', 'width'=>'minmax(0, 1.2fr)','sortable'=>true], ['label'=>'Auftragsbedarf', 'key'=>'staff', 'width'=>'minmax(0, 1fr)','sortable'=>true], ['label'=>'Status', 'key'=>'status', 'width'=>'minmax(0, .85fr)','sortable'=>true]]" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="orders" :flush-top="true" :items="$orders" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" row-view="components.tables.rows.operations.order" actions-view="components.tables.rows.operations.order-actions" empty="Keine Leistungen für diese Auswahl gefunden." />
+    @endif
+    @if($boundedOrdersList)
+        <template x-teleport="[data-topbar-page-search]">
+            <x-tables.search-field context="page-topbar" wire:model.live.debounce.300ms="search" :results-count="$orders->count()" placeholder="Leistungen suchen" aria-label="Leistungen suchen" />
+        </template>
+        <template x-teleport="[data-page-header-search]">
+            <div class="rt-orders-list-controls" data-orders-list-controls>
+                <x-ui.buttons.button-basic type="button" mode="secondary" class="rt-service-bulk-trigger" disabled data-tables-bulk-unavailable data-orders-bulk-trigger aria-label="Massenaktionen – keine Sammelaktionen für Leistungen verfügbar" title="Keine Sammelaktionen für Leistungen verfügbar"><i class="far fa-layer-group" aria-hidden="true"></i></x-ui.buttons.button-basic>
+            </div>
+        </template>
+        <template x-teleport="[data-page-header-actions]">@include('livewire.admin.operations.partials.orders-filter-trigger')</template>
+    @else
+        <div class="rt-orders-list-controls" data-orders-list-controls>
+            <x-ui.buttons.button-basic type="button" mode="secondary" class="rt-service-bulk-trigger" disabled data-tables-bulk-unavailable data-orders-bulk-trigger aria-label="Massenaktionen – keine Sammelaktionen für Leistungen verfügbar" title="Keine Sammelaktionen für Leistungen verfügbar"><i class="far fa-layer-group" aria-hidden="true"></i></x-ui.buttons.button-basic>
+            @include('livewire.admin.operations.partials.orders-filter-trigger')
         </div>
-        @if($orders->hasPages())
-            <div class="mt-3">{{ $orders->links(data: ['scrollTo' => '[data-operations-orders]']) }}</div>
-        @endif
+    @endif
+    <section class="rt-orders-list" aria-label="{{ __('pagination.orders_list') }}" @if($boundedOrdersList) data-orders-list-scroll @endif>
+        <x-operations.service-table :items="$orderTableItems" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="orders" data-table-pagination-key="orders" :scroll-body="$boundedOrdersList" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" label="Aufträge und Leistungen" />
+        <div class="rt-service-pagination" data-orders-pagination>
+            <x-tables.pagination :paginator="$orders" table-key="orders" label="Auftragsseiten" />
+        </div>
     </section>
     @endunless
 

@@ -484,7 +484,7 @@ class Orders extends Component
             ->when($this->detailOnly, fn (Builder $query) => $query->whereRaw('1 = 0'))
             ->with([
                 'customer',
-                'shifts.assignments' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues()),
+                'shifts.assignments' => fn ($query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues()),
                 'shifts.assignments.user.profile',
                 'shifts.assignments.user.currentTeam',
             ])

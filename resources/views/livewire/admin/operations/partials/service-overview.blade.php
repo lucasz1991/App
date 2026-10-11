@@ -17,18 +17,9 @@
     // Keep the native page owner when adapting grouped services to table rows.
     // A plain collection would opt out of the shared scroll-pagination controller.
     $serviceItems = (clone $serviceGroups)->setCollection($serviceRows);
-    $serviceColumns = [
-        ['label' => 'Leistung', 'key' => 'service', 'width' => 'minmax(0,1.5fr)', 'sortable' => true],
-        ['label' => 'Kunde', 'key' => 'customer', 'width' => 'minmax(0,.9fr)', 'sortable' => true],
-        ['label' => 'Zeitraum', 'key' => 'period', 'width' => 'minmax(0,1.1fr)', 'sortable' => true],
-        ['label' => 'Ort', 'key' => 'location', 'width' => 'minmax(0,.9fr)'],
-        ['label' => 'Schichten', 'key' => 'count', 'width' => 'minmax(0,.6fr)'],
-        ['label' => 'Besetzung', 'key' => 'staffing', 'width' => 'minmax(0,1.15fr)'],
-        ['label' => 'Status', 'key' => 'status', 'width' => 'minmax(0,.8fr)', 'sortable' => true],
-    ];
 @endphp
 <section aria-label="Leistungsübersicht" data-service-overview data-service-detail-controller data-service-detail-panel-owner="{{ $this->getId() }}" x-data="rtServiceDetailPanel">
-    <x-tables.table :columns="$serviceColumns" :items="$serviceItems" sort-action="sortServices" :sort-by="$serviceSortBy" :sort-dir="$serviceSortDir" :selected-items="[$selectedServiceId]" selection-action="openServiceDetails" detail-action="openServiceDetails" table-key="service-overview" data-table-pagination-key="service-overview" label="Leistungen im gewählten Zeitraum" :flush-top="true" :scroll-body="true" row-view="components.tables.rows.operations.service-overview" empty="Keine Leistungen für diese Filter im gewählten Zeitraum gefunden." />
+    <x-operations.service-table :items="$serviceItems" sort-action="sortServices" :sort-by="$serviceSortBy" :sort-dir="$serviceSortDir" :selected-items="[$selectedServiceId]" selection-action="openServiceDetails" detail-action="openServiceDetails" table-key="service-overview" data-table-pagination-key="service-overview" label="Leistungen im gewählten Zeitraum" empty="Keine Leistungen für diese Filter im gewählten Zeitraum gefunden." />
     <x-operations.panel :id="'service-detail-panel-'.$this->getId()" label="Leistungsdetails" show-expression="panelVisible">
         <div class="rt-service-detail-host" data-service-detail-panel-owner="{{ $this->getId() }}" x-bind:aria-busy="loading">
             <div x-show="loading || error" x-cloak class="rt-service-detail-state">

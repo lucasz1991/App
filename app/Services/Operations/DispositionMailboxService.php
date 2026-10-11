@@ -10,9 +10,9 @@ use App\Models\User;
 use App\Support\Operations\AiDispositionSettings;
 use App\Support\Operations\AiIntakeSchema;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Operations\OperationsTransaction;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -115,7 +115,7 @@ class DispositionMailboxService
         // Check existence and UIDVALIDITY on the server before persisting a classification.
         $this->imap->readMessage($settings, $folder, $uid, $validity);
         $this->unchanged($actor, $settings);
-        DB::transaction(function () use ($actor, $settings, $folder, $uid, $validity, $classification): void {
+        OperationsTransaction::run(function () use ($actor, $settings, $folder, $uid, $validity, $classification): void {
             $this->unchanged($actor, $settings);
             $review = DispositionMailboxReview::firstOrCreate($this->reviewIdentity($settings, $folder, $uid, $validity));
             $review = DispositionMailboxReview::lockForUpdate()->findOrFail($review->id);
@@ -139,20 +139,27 @@ class DispositionMailboxService
         $this->requireReviews();
         AiIntakeSchema::requireReady();
         $message = $this->imap->fetch($settings, $uid, $validity);
+        $archivePaths = [];
         try {
             $this->unchanged($actor, $settings);
             abort_unless(($message['uid'] ?? null) === $uid && ($message['uid_validity'] ?? null) === $validity && ($message['mailbox_id'] ?? '') === AiDispositionSettings::mailboxId($settings), 409);
-            $intake = app(AiIntakeService::class)->receiveEmail($message, $actor);
-            DB::transaction(function () use ($actor, $settings, $folder, $uid, $validity, $intake): void {
+
+            return OperationsTransaction::run(function () use ($actor, $settings, $folder, $uid, $validity, $message, &$archivePaths): AiIntake {
                 $this->unchanged($actor, $settings);
                 $review = DispositionMailboxReview::firstOrCreate($this->reviewIdentity($settings, $folder, $uid, $validity));
                 $review = DispositionMailboxReview::lockForUpdate()->findOrFail($review->id);
+                $intake = app(AiIntakeService::class)->receiveEmail($message, $actor);
+                $source = $this->source($settings, $uid, $validity);
+                if ($source) {
+                    $archivePaths = array_merge($archivePaths, array_filter([$source->raw_path]), $source->attachments()->pluck('file_path')->all());
+                }
                 $review->update(['classification' => 'inquiry', 'intake_id' => $intake->id, 'reviewed_by' => $actor->id, 'revision' => $review->revision + 1]);
                 app(OperationsAuditService::class)->record($review, $actor, 'mailbox.import', ['intake_id' => $intake->id]);
-            });
 
-            return $intake;
+                return $intake;
+            });
         } finally {
+            app(AiIntakeAttachmentService::class)->discard($archivePaths);
             Storage::disk('local')->delete($message['_cleanup'] ?? []);
         }
     }
@@ -254,7 +261,7 @@ class DispositionMailboxService
         }
         $intake = $source?->intake;
         $analysis = $intake?->analysis ?? [];
-        $classification = $review?->classification;
+        $classification = $review?->reviewed_by ? $review->classification : null;
         if (! $classification) {
             $classification = match (true) {
                 ($analysis['intent'] ?? '') === 'inquiry' && in_array($analysis['classification'] ?? '', ['new_inquiry', 'reply'], true) => 'inquiry',
@@ -264,7 +271,7 @@ class DispositionMailboxService
         }
 
         return ['classification' => $classification, 'classification_label' => DispositionMailboxReview::LABELS[$classification] ?? 'Ungeprüft',
-            'classification_source' => $review ? 'manual' : ($classification === 'unreviewed' ? 'pending' : 'ai'), 'intake_id' => $intake?->id, 'intake_status' => $intake?->status];
+            'classification_source' => $review?->reviewed_by ? 'manual' : ($classification === 'unreviewed' ? 'pending' : 'ai'), 'intake_id' => $intake?->id, 'intake_status' => $intake?->status];
     }
 
     private function decorate(array $result, array $settings): array

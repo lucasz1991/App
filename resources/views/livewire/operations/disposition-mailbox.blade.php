@@ -24,13 +24,13 @@
     <x-dialog-modal :id="'disposition-mailbox-'.$componentId" wire:model.live="showMailbox" max-width="4xl" :instant="true">
         <x-slot:title>Dispositionspostfach</x-slot:title>
         <x-slot:content>
-            <section class="rt-disposition rt-disposition-mailbox ops-stack" aria-label="Dispositionspostfach" x-data="{ focusedMessage: null }" x-effect="const message = $wire.selectedMessage; const next = message.uid || message.id || null; if (next !== focusedMessage) { const previous = focusedMessage; focusedMessage = next; $nextTick(() => { if (next) $refs.mailboxDetail?.focus(); else if (previous) $refs.mailboxList?.querySelector('[data-message-id=&quot;' + previous + '&quot;]')?.focus(); }); }">
+            <section class="rt-disposition rt-disposition-mailbox ops-stack" aria-label="Dispositionspostfach" x-data="{ focusedMessage: null }" x-effect="const message = $wire.selectedMessage; const next = message.uid || message.id || null; if (next !== focusedMessage) { const previous = focusedMessage; focusedMessage = next; $nextTick(() => { if (next) $refs.mailboxDetail?.focus({ preventScroll: true }); else if (previous) $refs.mailboxList?.querySelector('[data-message-id=&quot;' + previous + '&quot;]')?.focus(); }); }">
                 <header class="rt-disposition-mailbox__account">
                     <div class="min-w-0">
                         <p class="rt-disposition-mailbox__address">{{ $connectionState['address'] ?? 'Dispositions-E-Mail-Konto' }}</p>
-                        <span class="rt-disposition-mailbox__connection" data-connected="{{ ($connectionState['connected'] ?? false) ? 'true' : 'false' }}"><i class="far {{ ($connectionState['connected'] ?? false) ? 'fa-circle-check' : 'fa-circle-exclamation' }}" aria-hidden="true"></i>{{ ($connectionState['connected'] ?? false) ? 'Postfach verbunden' : 'Verbindung prüfen' }}</span>
+                        <span class="rt-disposition-mailbox__connection" data-connected="{{ ($connectionState['connected'] ?? false) ? 'true' : 'false' }}"><i class="far {{ ($connectionState['connected'] ?? false) ? 'fa-check-circle' : 'fa-exclamation-circle' }}" aria-hidden="true"></i>{{ ($connectionState['connected'] ?? false) ? 'Postfach verbunden' : 'Verbindung prüfen' }}</span>
                     </div>
-                    <x-ui.buttons.button-basic type="button" wire:click="refresh" wire:loading.attr="disabled" aria-label="Postfach aktualisieren" title="Postfach aktualisieren"><i class="far fa-rotate-right" aria-hidden="true"></i><span class="rt-disposition-mailbox__refresh-label">Aktualisieren</span></x-ui.buttons.button-basic>
+                    <x-ui.buttons.button-basic type="button" wire:click="refresh" wire:loading.attr="disabled" aria-label="Postfach aktualisieren" title="Postfach aktualisieren"><i class="far fa-sync-alt" aria-hidden="true"></i><span class="rt-disposition-mailbox__refresh-label">Aktualisieren</span></x-ui.buttons.button-basic>
                 </header>
 
                 <nav class="rt-disposition-mailbox__tabs" aria-label="Postfachordner">
@@ -42,7 +42,7 @@
                 </nav>
 
                 @if(!empty($connectionState['error']))
-                    <div class="rt-disposition-mailbox__feedback" role="alert"><i class="far fa-circle-exclamation" aria-hidden="true"></i><p>{{ $connectionState['error'] }}</p><x-ui.buttons.button-basic type="button" size="sm" wire:click="open" wire:loading.attr="disabled">Erneut verbinden</x-ui.buttons.button-basic></div>
+                    <div class="rt-disposition-mailbox__feedback" role="alert"><i class="far fa-exclamation-circle" aria-hidden="true"></i><p>{{ $connectionState['error'] }}</p><x-ui.buttons.button-basic type="button" size="sm" wire:click="open" wire:loading.attr="disabled">Erneut verbinden</x-ui.buttons.button-basic></div>
                 @endif
                 @error('mailbox')@if($message !== ($connectionState['error'] ?? null))<div class="rt-disposition-mailbox__feedback" role="alert"><p>{{ $message }}</p><x-ui.buttons.button-basic type="button" size="sm" wire:click="open" wire:loading.attr="disabled">Erneut laden</x-ui.buttons.button-basic></div>@endif @enderror
 
@@ -86,7 +86,7 @@
                         @if($mailboxPage !== [] && $total > 0)
                             <footer class="rt-disposition-mailbox__pagination" aria-label="Nachrichtenseiten">
                                 <span>{{ number_format(($page - 1) * $perPage + 1, 0, ',', '.') }}–{{ number_format(min($page * $perPage, $total), 0, ',', '.') }} von {{ number_format($total, 0, ',', '.') }}</span>
-                                <div><x-ui.buttons.button-basic type="button" size="sm" wire:click="previousPage" :disabled="$page <= 1" wire:loading.attr="disabled" aria-label="Vorherige Nachrichtenseite"><i class="far fa-chevron-left" aria-hidden="true"></i></x-ui.buttons.button-basic><span aria-live="polite">{{ $page }} / {{ $lastPage }}</span><x-ui.buttons.button-basic type="button" size="sm" wire:click="nextPage" :disabled="$page >= $lastPage" wire:loading.attr="disabled" aria-label="Nächste Nachrichtenseite"><i class="far fa-chevron-right" aria-hidden="true"></i></x-ui.buttons.button-basic></div>
+                                <div><x-ui.buttons.button-basic type="button" size="sm" wire:click="previousPage" :disabled="$page <= 1 ? true : null" wire:loading.attr="disabled" aria-label="Vorherige Nachrichtenseite"><i class="far fa-chevron-left" aria-hidden="true"></i></x-ui.buttons.button-basic><span aria-live="polite">{{ $page }} / {{ $lastPage }}</span><x-ui.buttons.button-basic type="button" size="sm" wire:click="nextPage" :disabled="$page >= $lastPage ? true : null" wire:loading.attr="disabled" aria-label="Nächste Nachrichtenseite"><i class="far fa-chevron-right" aria-hidden="true"></i></x-ui.buttons.button-basic></div>
                             </footer>
                         @endif
                     </section>
@@ -100,7 +100,7 @@
                                 <div class="rt-disposition-mailbox__classification">
                                     <span class="rt-disposition-mailbox__badge" data-classification="{{ $classification }}">{{ $selectedMessage['classification_label'] ?? ['inquiry'=>'Anfrage','not_inquiry'=>'Keine Anfrage','unreviewed'=>'Ungeprüft'][$classification] ?? 'Ungeprüft' }}</span>
                                     @if(!empty($selectedMessage['intake_status']))<span class="rt-disposition-mailbox__meta">{{ $intakeLabels[$selectedMessage['intake_status']] ?? 'Verarbeitung prüfen' }}</span>@endif
-                                    <div class="rt-disposition-mailbox__classify-actions"><x-ui.buttons.button-basic type="button" size="sm" wire:click="classifyMessage('inquiry')" :disabled="$classification === 'inquiry'" wire:loading.attr="disabled">Anfrage</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" size="sm" wire:click="classifyMessage('not_inquiry')" :disabled="$classification === 'not_inquiry'" wire:loading.attr="disabled">Keine Anfrage</x-ui.buttons.button-basic>@if($classification !== 'unreviewed')<x-ui.buttons.button-basic type="button" mode="link" size="sm" wire:click="classifyMessage('unreviewed')" wire:loading.attr="disabled">Zurücksetzen</x-ui.buttons.button-basic>@endif</div>
+                                    <div class="rt-disposition-mailbox__classify-actions"><x-ui.buttons.button-basic type="button" size="sm" wire:click="classifyMessage('inquiry')" :disabled="$classification === 'inquiry' ? true : null" wire:loading.attr="disabled">Anfrage</x-ui.buttons.button-basic><x-ui.buttons.button-basic type="button" size="sm" wire:click="classifyMessage('not_inquiry')" :disabled="$classification === 'not_inquiry' ? true : null" wire:loading.attr="disabled">Keine Anfrage</x-ui.buttons.button-basic>@if($classification !== 'unreviewed')<x-ui.buttons.button-basic type="button" mode="link" size="sm" wire:click="classifyMessage('unreviewed')" wire:loading.attr="disabled">Zurücksetzen</x-ui.buttons.button-basic>@endif</div>
                                 </div>
                             @elseif($tab === 'outbox')
                                 <div class="rt-disposition-mailbox__classification"><span class="rt-disposition-mailbox__badge" data-delivery-status="{{ $selectedMessage['status'] ?? 'unknown' }}">{{ $selectedMessage['status_label'] ?? 'Versand prüfen' }}</span><span class="rt-disposition-mailbox__meta">{{ $selectedMessage['type_label'] ?? 'Kundennachricht' }}</span></div>
@@ -113,7 +113,7 @@
                             @endif
                             @if($tab === 'inbox' || $tab === 'outbox')
                                 <footer class="rt-disposition-mailbox__detail-actions">
-                                    @if(!empty($selectedMessage['intake_id']))<x-ui.buttons.button-basic type="button" mode="primary" wire:click="openLinkedIntake({{ (int) $selectedMessage['intake_id'] }})" wire:loading.attr="disabled"><i class="far fa-arrow-up-right-from-square" aria-hidden="true"></i>Anfrage prüfen</x-ui.buttons.button-basic>
+                                    @if(!empty($selectedMessage['intake_id']))<x-ui.buttons.button-basic type="button" mode="primary" wire:click="openLinkedIntake({{ (int) $selectedMessage['intake_id'] }})" wire:loading.attr="disabled"><i class="far fa-external-link-alt" aria-hidden="true"></i>Anfrage prüfen</x-ui.buttons.button-basic>
                                     @elseif($tab === 'inbox')<x-ui.buttons.button-basic type="button" mode="primary" wire:click="importSelectedInquiry" wire:loading.attr="disabled"><i class="far fa-inbox" aria-hidden="true"></i>Als Anfrage übernehmen</x-ui.buttons.button-basic>@endif
                                     @if($tab === 'outbox' && ($selectedMessage['status'] ?? '') === 'draft')<x-ui.buttons.button-basic type="button" x-on:click="$wire.close().then(() => { $dispatch('railtime-assistant-open'); $wire.dispatch('operations-assistant-action', { action: 'outbox' }); })">Nachricht freigeben / verwerfen</x-ui.buttons.button-basic>@endif
                                     @if($tab === 'inbox' && empty($selectedMessage['intake_id']))<p class="rt-disposition-mailbox__hint">Die Übernahme erstellt einen Eingang zur Prüfung. Weitere Schritte erfolgen im Anfrage-Dialog.</p>@endif

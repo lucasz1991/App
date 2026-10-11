@@ -12,6 +12,7 @@ use App\Models\AiIntakeProposal;
 use App\Models\AiIntakeRun;
 use App\Models\Customer;
 use App\Models\CustomerContact;
+use App\Models\DispositionMailboxReview;
 use App\Models\OperationAudit;
 use App\Models\OperationInquiry;
 use App\Models\OperationsRuleProfile;
@@ -78,7 +79,7 @@ class AiIntakeService
         }
     }
 
-    public function receiveEmail(array $message, ?User $manualActor = null): AiIntake
+    public function receiveEmail(array $message, ?User $manualActor = null, ?int $expectedSettingsRevision = null): AiIntake
     {
         AiIntakeSchema::requireReady();
         $settings = AiDispositionSettings::all();
@@ -87,6 +88,9 @@ class AiIntakeService
             abort_unless(($message['mailbox_id'] ?? '') === AiDispositionSettings::mailboxId($settings), 409);
         } else {
             abort_unless(AiDispositionSettings::enabled() && ! empty($settings['supervisor_id']), 409);
+        }
+        if ($expectedSettingsRevision !== null) {
+            abort_unless($settings['revision'] === $expectedSettingsRevision && ($message['mailbox_id'] ?? '') === AiDispositionSettings::mailboxId($settings), 409, 'mailbox_configuration_changed');
         }
         $sender = $this->email($message['from'] ?? '');
         $replyTo = $this->email($message['reply_to'] ?? $sender);
@@ -116,9 +120,17 @@ class AiIntakeService
         $paths = [];
         try {
             $record = OperationsTransaction::run(function () use ($message, $settings, $sender, $replyTo, $text, $raw, $receipt, $sourceError, $manualActor, &$paths) {
+                $currentSettings = AiDispositionSettings::all(true);
+                abort_unless($currentSettings['revision'] === $settings['revision'] && ($manualActor || $currentSettings['enabled']), 409, 'mailbox_configuration_changed');
                 if ($manualActor) {
                     $this->access($manualActor);
-                    abort_unless(AiDispositionSettings::all(true)['revision'] === $settings['revision'], 409);
+                }
+                // The same identity lock as manual classification closes the fetch/receipt race.
+                if (Schema::hasTable('disposition_mailbox_reviews') && ! empty($message['mailbox_id']) && (int) ($message['uid'] ?? 0) > 0 && (int) ($message['uid_validity'] ?? 0) > 0) {
+                    $review = DispositionMailboxReview::firstOrCreate(['mailbox_id' => $message['mailbox_id'], 'folder_hash' => hash('sha256', $settings['imap_folder']),
+                        'uid_validity' => (int) $message['uid_validity'], 'uid' => (int) $message['uid']]);
+                    $review = DispositionMailboxReview::lockForUpdate()->findOrFail($review->id);
+                    abort_if(! $manualActor && $review->classification === 'not_inquiry', 409, 'mailbox_not_inquiry');
                 }
                 if ($existing = AiIntakeMessage::where('receipt_key', $receipt)->first()) {
                     return $existing->intake;

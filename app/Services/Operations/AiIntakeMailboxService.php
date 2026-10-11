@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AiIntakeMailboxService
 {
@@ -152,8 +153,20 @@ class AiIntakeMailboxService
                 }
                 $message = $this->imap->fetch($settings, (int) $uid, (int) $snapshot['uid_validity']);
                 try {
-                    app(AiIntakeService::class)->receiveEmail($message);
+                    $afterFetch = AiDispositionSettings::all(true);
+                    if (! $afterFetch['enabled'] || $afterFetch['revision'] !== $settings['revision'] || AiDispositionSettings::mailboxId($afterFetch) !== $mailbox || ! AiDispositionSettings::supervisor($afterFetch)) {
+                        return ['state' => 'stale'];
+                    }
+                    app(AiIntakeService::class)->receiveEmail($message, null, (int) $settings['revision']);
                     $imported++;
+                    if ($historicalUids === []) {
+                        $runtime['cursor_uid'] = (int) $uid;
+                        $this->saveRuntime($runtime, (int) $settings['revision']);
+                    }
+                } catch (HttpException $error) {
+                    if ($error->getStatusCode() !== 409 || $error->getMessage() !== 'mailbox_not_inquiry') {
+                        throw $error;
+                    }
                     if ($historicalUids === []) {
                         $runtime['cursor_uid'] = (int) $uid;
                         $this->saveRuntime($runtime, (int) $settings['revision']);

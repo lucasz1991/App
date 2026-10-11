@@ -25,6 +25,8 @@
     'flushTop' => false,
     // Opt-in: nur der Zeilenbereich scrollt innerhalb einer begrenzten Hoehe.
     'scrollBody' => false,
+    // Opt-in fuer kompakte mobile Zeilen: echte Spaltenkoepfe statt Sortiermenue.
+    'mobileHeader' => false,
     // Global fuer numerisch paginierte Listen; lokale Ausnahme bleibt moeglich.
     'scrollPagination' => true,
 ])
@@ -32,6 +34,7 @@
 @php
     $flushTop = filter_var($flushTop, FILTER_VALIDATE_BOOL);
     $scrollBody = filter_var($scrollBody, FILTER_VALIDATE_BOOL);
+    $mobileHeader = filter_var($mobileHeader, FILTER_VALIDATE_BOOL);
     $scrollPagination = filter_var($scrollPagination, FILTER_VALIDATE_BOOL)
         && $items instanceof \Illuminate\Contracts\Pagination\Paginator;
 
@@ -93,9 +96,10 @@
         x-bind:aria-busy="pending ? 'true' : 'false'"
     @endif
     @if($scrollBody) data-table-scroll="body" @endif
+    @if($mobileHeader) data-table-mobile-header @endif
     data-table-sortable="{{ $sortableColumns->isNotEmpty() ? 'true' : 'false' }}"
 >
-    @if($sortableColumns->isNotEmpty())
+    @if($sortableColumns->isNotEmpty() && ! $mobileHeader)
         <div class="rt-table-mobile-sort md:hidden">
             <x-ui.dropdown.anchor-dropdown align="right" width="64">
                 <x-slot:trigger>
@@ -120,9 +124,9 @@
         </div>
     @endif
     <div class="rt-table-core" role="table" aria-label="{{ $label }}">
-    {{-- Header (nur md+) --}}
-    <div class="rt-ui-surface-muted rt-table-head hidden md:grid bg-rt-surface-muted p-2 pr-16 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
-         role="row" style="grid-template-columns: {{ $gridTemplate }};">
+    {{-- Mobile Kopfzeilen respektieren dieselben hideOn-Spalten wie die Zeilen. --}}
+    <div class="rt-ui-surface-muted rt-table-head {{ $mobileHeader ? 'grid' : 'hidden' }} md:grid bg-rt-surface-muted p-2 pr-16 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
+         role="row" style="grid-template-columns: {{ $mobileHeader ? 'var(--rt-table-header-columns, '.$gridTemplate.')' : $gridTemplate }};">
         @foreach($columns as $col)
             @php $hidden = $hideClass($col['hideOn']); @endphp
 

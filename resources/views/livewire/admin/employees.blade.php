@@ -47,6 +47,7 @@
                 class="rt-employee-table"
                 :flush-top="true"
                 :scroll-body="true"
+                :mobile-header="true"
                 table-key="employee-directory"
                 data-table-pagination-key="employee-directory"
                 label="Mitarbeiter"
