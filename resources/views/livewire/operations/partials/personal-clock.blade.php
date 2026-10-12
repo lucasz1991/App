@@ -1,4 +1,4 @@
-{{-- Zeiterfassung samt Standortstatus; gemeinsam für „Heute“ und „Zeiten“. --}}
+{{-- Zeiterfassung; gemeinsam für „Heute“ und „Zeiten“. --}}
 <div class="rt-personal-clock-block ops-stack">
     @if($workTimeReady)
         @include('operations.partials.work-clock')
@@ -16,5 +16,4 @@
     @elseif($activeTime)
         <section class="ops-panel ops-service ops-stack" aria-label="Laufende Zeiterfassung" wire:poll.15s><header class="ops-toolbar"><div><p class="ops-kicker">Seit {{ $activeTime->starts_at->format('H:i') }} · {{ $activeTime->timezone }}</p><h2>{{ $activeTime->plan_snapshot['title'] }}</h2></div><x-operations.status :value="$activeTime->status" /></header><p class="ops-clock">{{ \App\Support\Operations\OperationsDateTime::duration($activeTime->netSeconds()) }}</p><div class="ops-actions">@if($activeTime->status === 'running')<x-ui.buttons.button-basic wire:click="clock({{ $activeTime->id }},{{ $activeTime->revision }},'pause')" wire:loading.attr="disabled">Pause starten</x-ui.buttons.button-basic>@else<x-ui.buttons.button-basic mode="primary" wire:click="clock({{ $activeTime->id }},{{ $activeTime->revision }},'resume')" wire:loading.attr="disabled">Weiterarbeiten</x-ui.buttons.button-basic>@endif<x-ui.buttons.button-basic wire:click="clock({{ $activeTime->id }},{{ $activeTime->revision }},'stop')" wire:confirm="Zeiterfassung beenden?" wire:loading.attr="disabled">Dienst beenden</x-ui.buttons.button-basic></div></section>
     @endif
-    @if($withLocation ?? true)<livewire:operations.employee-location-status :key="'employee-location-own-'.auth()->id()" />@endif
 </div>

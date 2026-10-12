@@ -23,7 +23,6 @@
     @elseif($tab === 'today')
         <div class="rt-today">
             @include('livewire.operations.partials.personal-today-hero')
-            <livewire:operations.employee-location-status :key="'employee-location-own-'.auth()->id()" />
             @include('livewire.operations.partials.personal-glance')
             <div class="rt-today-grid">
                 <section class="rt-today-card rt-today-tasks rt-today-enter" style="--i:2" aria-label="Meine Aufgaben">

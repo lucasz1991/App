@@ -162,8 +162,8 @@ export function timelineDiscardUnchangedRootUpdate(commit) {
 export function timelineFocusOffset(index, width, offset, visible, maximum) {
     if (index < 0 || ![width, offset, visible, maximum].every(Number.isFinite) || width <= 0 || visible <= 0 || maximum < 0) return null;
     const start = index * width;
-    // A day that is already visible, even partly, must remain exactly in place.
-    if (start < offset + visible && start + width > offset) return null;
+    // Keep genuinely visible days still, ignoring rounding-only edge slivers.
+    if (start < offset + visible - 1 && start + width > offset + 1) return null;
     return Math.max(0, Math.min(maximum, start));
 }
 
@@ -187,25 +187,43 @@ export function timelineEventLanes(events, dayWidth, viewport = null) {
     const results = new Map();
     const width = Math.max(1, dayWidth);
     const ordered = events.map((event, index) => ({ ...event, index }))
-        .sort((a, b) => a.start - b.start || b.duration - a.duration);
+        .sort((a, b) => Boolean(a.proposal) - Boolean(b.proposal) || a.start - b.start || b.duration - a.duration);
     for (const event of ordered) {
         const start = Math.max(0, Math.min(width, event.start * width / 100));
         const end = Math.max(start, Math.min(width, (event.start + event.duration) * width / 100));
         const leftInset = event.continuesBefore ? 0 : 4;
         const rightInset = event.continuesAfter ? 0 : 4;
+        const fullLabelWidth = Math.min(Math.max(end - start, event.labelWidth || 0), Math.max(0, width - leftInset - rightInset));
+        const fullHalf = fullLabelWidth / 2;
+        const fullCenter = event.continuesBefore ? fullHalf : event.continuesAfter ? width - fullHalf
+            : Math.max(fullHalf + leftInset, Math.min(width - fullHalf - rightInset, (start + end) / 2));
         const visible = timelineViewportBadge(start, end, event.labelWidth || 0, viewport);
-        const labelWidth = visible?.badgeWidth ?? Math.min(Math.max(end - start, event.labelWidth || 0), Math.max(0, width - leftInset - rightInset));
+        const labelWidth = visible?.badgeWidth ?? fullLabelWidth;
         const half = labelWidth / 2;
-        const center = visible?.center ?? (event.continuesBefore ? half : event.continuesAfter ? width - half
-            : Math.max(half + leftInset, Math.min(width - half - rightInset, (start + end) / 2)));
-        const occupiedStart = Math.min(start, center - half);
-        const occupiedEnd = Math.max(end, center + half);
+        const center = visible?.center ?? fullCenter;
+        // A clipped badge moves while its day is panned. Allocate from a stable
+        // possible footprint so rows do not jump when the viewport center moves.
+        const reach = viewport ? Math.max(0, event.labelWidth || 0) : 0;
+        const padding = Math.max(0, event.collisionPadding || 0);
+        const occupiedStart = Math.min(start - reach, fullCenter - fullHalf) - padding;
+        const occupiedEnd = Math.max(end + reach, fullCenter + fullHalf) + padding;
         let lane = Math.max(0, event.lane || 0);
         while (lanes[lane]?.some(([from, until]) => occupiedStart < until + 4 && occupiedEnd + 4 > from)) lane++;
         (lanes[lane] ||= []).push([occupiedStart, occupiedEnd]);
         results.set(event.index, { lane, labelOffset: center - start, badgeWidth: labelWidth });
     }
     return events.map((_, index) => results.get(index));
+}
+
+// Place regular duties first, preserving their native lane floor. A suggestion
+// may reuse an empty part of any lane, but moves below every actual collision.
+export function timelineRowLanes(events, proposals, width, serverLanes = 1, viewport = null) {
+    const all = timelineEventLanes([...events, ...proposals.map(proposal => ({
+        ...proposal, proposal: true, lane: 0, collisionPadding: 5,
+        labelWidth: viewport ? proposal.labelWidth : Math.max(140, proposal.labelWidth || 0),
+    }))], width, viewport);
+    return { positions: all.slice(0, events.length), proposalPositions: all.slice(events.length),
+        laneCount: Math.max(1, events.length ? serverLanes : 0, ...all.map(position => position.lane + 1)) };
 }
 
 // Keep GSAP instances outside Alpine's reactive proxy and scoped to one timeline.
@@ -217,6 +235,8 @@ const windowNavigations = new WeakMap();
 const timelineLabelWidths = new WeakMap();
 const PROPOSAL_VIEWPORT_PROPERTIES = ['--proposal-visible-center', '--proposal-visible-width', '--proposal-visible-duration-left',
     '--proposal-visible-duration-width', '--proposal-visible-duration-transform'];
+const PROPOSAL_LAYOUT_PROPERTIES = ['--proposal-lane', '--proposal-badge-center', '--proposal-badge-width',
+    '--proposal-badge-duration-left', '--proposal-badge-duration-width', '--proposal-badge-duration-transform'];
 
 function timelineEventGeometryKey(event) {
     return ['timeStart', 'timeWidth', 'timeLane', 'continuesBefore', 'continuesAfter']
@@ -235,6 +255,11 @@ function restoreRevealTarget(target) {
     delete target.dataset.timelineRevealOpacity;
     delete target.dataset.timelineRevealPriority;
     delete target.dataset.timelineRevealTranslate;
+}
+
+function timelineProposalGeometryKey(shell) {
+    return ['--proposal-left', '--proposal-width'].map(name => shell.style.getPropertyValue(name)).join(':')
+        + ':' + shell.textContent;
 }
 
 // Entrance timing: first all employees of the page together, then the shifts row by row
@@ -372,6 +397,7 @@ export function staffTimeline() {
         observer: null,
         contentObserver: null,
         geometryCleanup: null,
+        dayRevealCleanup: null,
         zoomCleanup: null,
         timelineZoom: '',
         eventGeometryDirty: true,
@@ -612,7 +638,11 @@ export function staffTimeline() {
         noteWindowGesture() {
             this.cancelDistributionFocus();
             const state = windowNavigations.get(this.timelineElement);
-            if (state) state.motionTarget = null;
+            if (state) {
+                state.motionTarget = null;
+                if (state.frame !== null) cancelAnimationFrame(state.frame);
+                state.frame = null;
+            }
             const request = state?.request;
             if (request) request.userMoved = true;
         },
@@ -817,11 +847,14 @@ export function staffTimeline() {
                 if (!this.windowDisposed && state.retryRequested && !state.request) this.drainWindowRequest();
             }
         },
-        shiftWindow(direction, steps = 1, wheelDelta = null) {
+        shiftWindow(direction, steps = 1, wheelDelta = null, smoothWheel = false, revealDate = null) {
             if (!this.windowNavigationEnabled || this.windowDisposed || ![-1, 1].includes(direction)) return;
-            this.cancelDistributionFocus();
             const root = this.timelineElement;
             const state = this.windowNavigationState();
+            const body = this.$refs.timelineBody;
+            const offset = body.scrollLeft;
+            const targetOffset = state.motionTarget ?? offset;
+            this.cancelDistributionFocus();
             const previous = state.wanted;
             let next = previous;
             let moved = 0;
@@ -831,9 +864,6 @@ export function staffTimeline() {
                 next = candidate; moved++;
             }
             if (!next || !moved) return;
-            const body = this.$refs.timelineBody;
-            const offset = body.scrollLeft;
-            const targetOffset = state.motionTarget ?? offset;
             const width = parseFloat(getComputedStyle(root).getPropertyValue('--timeline-day-width')) || 0;
             const oldAxis = this.windowDisplayAxis();
             const version = this.paintWindowPeriod(next);
@@ -843,20 +873,27 @@ export function staffTimeline() {
             if (state.frame !== null) cancelAnimationFrame(state.frame);
             state.frame = null;
             this.holdHorizontalIntent(direction);
+            const motionVersion = this.horizontalMotionVersion;
             this.$nextTick(() => {
-                if (this.windowDisposed || state.displayVersion !== version) return;
+                if (this.windowDisposed || state.displayVersion !== version || this.horizontalMotionVersion !== motionVersion) return;
                 if (!width) return;
                 const edges = this.timelineScrollEdges(true);
-                const target = Math.max(edges.first, Math.min(edges.last, wheelDelta === null ? targetOffset : offset + wheelDelta - delta * width));
-                body.scrollLeft = Math.max(edges.first, Math.min(edges.last, offset - delta * width));
-                this.syncHorizontal(body, false);
+                const revealOffset = revealDate === null ? null
+                    : (timelineCivilDay(revealDate) - timelineCivilDay(this.windowDisplayAxis().from)) * width;
+                const target = Math.max(edges.first, Math.min(edges.last, revealOffset ?? (wheelDelta === null ? targetOffset : offset + wheelDelta - delta * width)));
                 state.motionTarget = target;
+                // Keep the old visible dates fixed on the new axis first.
+                // Reserve columns allow this presentation-only transition even
+                // when a full week fits and the selected first/last edge match.
+                body.scrollLeft = Math.max(0, Math.min(body.scrollWidth - body.clientWidth, offset - delta * width));
+                this.syncHorizontal(body, false);
+                state.motionKind = revealDate !== null ? 'focus' : smoothWheel ? 'wheel' : 'arrow';
                 state.frame = requestAnimationFrame(() => {
                     state.frame = null;
-                    if (this.windowDisposed || state.displayVersion !== version) return;
+                    if (this.windowDisposed || state.displayVersion !== version || this.horizontalMotionVersion !== motionVersion) return;
                     this.holdHorizontalIntent(direction);
-                    body.scrollTo({ left: target,
-                        behavior: wheelDelta !== null || matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+                    if (wheelDelta !== null && !smoothWheel) body.scrollTo({ left: target, behavior: 'instant' });
+                    else this.startHorizontalMotion(target, revealDate !== null ? 'focus' : smoothWheel ? 'wheel' : 'arrow');
                 });
             });
             return this.drainWindowRequest();
@@ -885,6 +922,34 @@ export function staffTimeline() {
             this.setCompactRequested(compact);
         },
         wheelPersonnel(event) {
+            const shifted = event.shiftKey && Math.abs(event.deltaX || 0) < 1 && Math.abs(event.deltaY || 0) >= 1;
+            const horizontal = shifted ? event.deltaY : event.deltaX;
+            const vertical = shifted ? 0 : event.deltaY;
+            const discrete = [1, 2].includes(event.deltaMode) || Boolean(event.shiftKey);
+            if (discrete && Math.abs(horizontal) >= Math.max(1, Math.abs(vertical || 0))) {
+                const body = this.$refs.timelineBody;
+                const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2
+                    ? this.$refs.timelineHeader.clientWidth || body.clientWidth : 1;
+                const delta = horizontal * unit;
+                const queued = distributionFocusMotions.get(this.timelineElement);
+                const navigation = windowNavigations.get(this.timelineElement);
+                const base = queued?.kind === 'wheel' ? queued.target
+                    : navigation?.motionKind === 'wheel' && Number.isFinite(navigation.motionTarget) ? navigation.motionTarget : body.scrollLeft;
+                this.noteWindowGesture();
+                const edges = this.timelineScrollEdges();
+                const unbounded = base + delta;
+                event.preventDefault();
+                if (vertical) body.scrollTop += vertical * unit;
+                if (this.windowNavigationEnabled && (unbounded < edges.first || unbounded > edges.last)) {
+                    const width = parseFloat(getComputedStyle(this.timelineElement).getPropertyValue('--timeline-day-width')) || 1;
+                    const overflow = unbounded < edges.first ? edges.first - unbounded : unbounded - edges.last;
+                    this.shiftWindow(delta < 0 ? -1 : 1, Math.ceil(overflow / width), unbounded - body.scrollLeft, true);
+                } else {
+                    this.holdHorizontalIntent(delta);
+                    this.startHorizontalMotion(Math.max(edges.first, Math.min(edges.last, unbounded)), 'wheel');
+                }
+                return;
+            }
             this.cancelDistributionFocus();
             if (Math.abs(event.deltaX) >= Math.max(1, Math.abs(event.deltaY))) {
                 this.noteWindowGesture();
@@ -934,15 +999,15 @@ export function staffTimeline() {
         preserveMorphGeometry({ el, toEl }) {
             const root = this.timelineElement;
             if (this.windowDisposed || !toEl?.style) return;
+            this.preserveHorizontalMotionBody(el, toEl);
             if (el !== root) {
                 const event = el?.classList?.contains('rt-personnel-timeline-event');
                 const track = el?.classList?.contains('rt-personnel-timeline-track');
                 const proposal = el?.classList?.contains('rt-timeline-proposal-shell');
                 if ((!event && !track && !proposal) || !root.contains(el)) return;
                 if (proposal && toEl.classList?.contains('rt-timeline-proposal-shell')
-                    && ['--proposal-left', '--proposal-width'].every(name => el.style.getPropertyValue(name) === toEl.style.getPropertyValue(name))
-                    && el.textContent === toEl.textContent) {
-                    for (const name of PROPOSAL_VIEWPORT_PROPERTIES) {
+                    && timelineProposalGeometryKey(el) === timelineProposalGeometryKey(toEl)) {
+                    for (const name of [...PROPOSAL_LAYOUT_PROPERTIES, ...PROPOSAL_VIEWPORT_PROPERTIES]) {
                         const value = el.style.getPropertyValue(name);
                         if (value !== undefined && value !== '') toEl.style.setProperty(name, value);
                     }
@@ -956,8 +1021,12 @@ export function staffTimeline() {
                     }
                 } else if (track && toEl.classList?.contains('rt-personnel-timeline-track')
                     && el.dataset.timelineLanes === toEl.dataset.timelineLanes) {
-                    const previous = [...el.querySelectorAll('.rt-personnel-timeline-event')].map(timelineEventGeometryKey);
-                    const incoming = [...toEl.querySelectorAll('.rt-personnel-timeline-event')].map(timelineEventGeometryKey);
+                    const geometry = element => [
+                        ...[...element.querySelectorAll('.rt-personnel-timeline-event')].map(timelineEventGeometryKey),
+                        ...[...element.querySelectorAll('.rt-timeline-proposal-shell')].map(timelineProposalGeometryKey),
+                    ];
+                    const previous = geometry(el);
+                    const incoming = geometry(toEl);
                     if (previous.length && previous.length === incoming.length && previous.every((key, index) => key === incoming[index])) {
                         const value = el.style.getPropertyValue('--timeline-lanes');
                         if (value !== undefined && value !== '') toEl.style.setProperty('--timeline-lanes', value);
@@ -1086,6 +1155,7 @@ export function staffTimeline() {
             this.refreshPersonnelPreference();
             if (this.windowNavigationEnabled) this.windowNavigationState();
             this.bindTimelineZoom();
+            this.bindDayReveal();
             this.bindWindowCommits();
             this.bindWindowScrollbarIntent();
             if (typeof window.Livewire?.hook === 'function') {
@@ -1135,6 +1205,8 @@ export function staffTimeline() {
             this.geometryCleanup = null;
             this.zoomCleanup?.();
             this.zoomCleanup = null;
+            this.dayRevealCleanup?.();
+            this.dayRevealCleanup = null;
             if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
             clearPersonnelMotion(this.timelineElement);
             clearStaffTimelineReveals(this.timelineElement);
@@ -1198,6 +1270,22 @@ export function staffTimeline() {
                 || detail.shiftId <= 0 || timelineCivilDay(detail.date) === null || typeof detail.selected !== 'boolean') return false;
             this.cancelDistributionFocus();
             if (detail.selected) return true;
+            return this.revealTimelineDate(detail.date);
+        },
+        bindDayReveal() {
+            if (!this.windowNavigationEnabled || typeof window?.addEventListener !== 'function') return;
+            const reveal = event => this.requestDayReveal(event.detail);
+            window.addEventListener('operations-timeline-day-reveal', reveal);
+            this.dayRevealCleanup = () => window.removeEventListener('operations-timeline-day-reveal', reveal);
+        },
+        requestDayReveal(detail) {
+            const owner = this.timelineElement.dataset.timelinePeriodOwner;
+            if (this.windowDisposed || !owner || detail?.owner !== owner || timelineCivilDay(detail.date) === null) return false;
+            this.cancelDistributionFocus();
+            return this.revealTimelineDate(detail.date);
+        },
+        revealTimelineDate(date) {
+            const root = this.timelineElement;
             // The clicked date is already rendered presentation state. Navigate
             // now; selection, ranking and assignment still follow server truth.
             const body = this.$refs.timelineBody;
@@ -1207,18 +1295,32 @@ export function staffTimeline() {
                 || ![width, body.scrollLeft, header.clientWidth, body.scrollWidth, body.clientWidth].every(Number.isFinite)
                 || width <= 0 || header.clientWidth <= 0 || body.clientWidth <= 0 || body.scrollWidth < body.clientWidth) return true;
             const heads = [...header.querySelectorAll('.rt-personnel-timeline-header-days > .rt-personnel-timeline-head')];
-            const index = heads.findIndex(head => head.dataset.timelineDate === detail.date);
+            const index = heads.findIndex(head => head.dataset.timelineDate === date);
             const requested = timelineFocusOffset(index, width, body.scrollLeft, header.clientWidth,
                 body.scrollWidth - body.clientWidth);
             if (requested === null) return true;
             const edges = this.timelineScrollEdges(true);
+            const period = this.windowDisplayPeriod;
+            if (this.windowNavigationEnabled && period && (date < period.from || date > period.until)) {
+                const direction = date < period.from ? -1 : 1;
+                const distance = direction < 0 ? timelineCivilDay(period.from) - timelineCivilDay(date)
+                    : timelineCivilDay(date) - timelineCivilDay(period.until);
+                this.shiftWindow(direction, distance, null, false, date);
+                return true;
+            }
             const target = Math.max(edges.first, Math.min(edges.last, requested));
             if (Math.abs(target - body.scrollLeft) < 1) return true;
+            this.finishHorizontalIntent();
+            return this.startHorizontalMotion(target);
+        },
+        startHorizontalMotion(target, kind = 'focus') {
+            const root = this.timelineElement;
+            const body = this.$refs.timelineBody;
+            if (this.windowDisposed || !Number.isFinite(target) || Math.abs(target - body.scrollLeft) < 1) return true;
             const personnel = personnelMotions.get(root);
             // A previous width tween must not later restore its old right edge
             // after this explicit navigation (including instant/reduced motion).
             if (personnel) personnel.atEnd = false;
-            this.finishHorizontalIntent();
             const reduceQuery = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)') : null;
             if (reduceQuery?.matches || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
                 body.scrollTo({ left: target, behavior: 'instant' });
@@ -1226,8 +1328,10 @@ export function staffTimeline() {
                 return true;
             }
             const engine = typeof window !== 'undefined' ? window.gsap : null;
-            const motion = { left: body.scrollLeft, target, reduceQuery, tween: null, timer: null, native: !engine?.to };
+            const motion = { left: body.scrollLeft, target, kind, reduceQuery, tween: null, timer: null, native: !engine?.to,
+                snap: body.style?.getPropertyValue('scroll-snap-type'), snapPriority: body.style?.getPropertyPriority?.('scroll-snap-type') || '' };
             distributionFocusMotions.set(root, motion);
+            body.style?.setProperty('scroll-snap-type', 'none');
             if (motion.native) {
                 body.scrollTo({ left: target, behavior: 'smooth' });
                 motion.timer = setTimeout(() => this.finishDistributionFocus(motion, false), 800);
@@ -1235,12 +1339,12 @@ export function staffTimeline() {
                 // Cancel any earlier native arrow movement before taking over.
                 body.scrollTo({ left: body.scrollLeft, behavior: 'instant' });
                 motion.tween = engine.to(motion, {
-                    left: target, duration: 0.42, ease: 'power2.inOut',
+                    left: target, duration: kind === 'wheel' ? .24 : kind === 'arrow' ? .32 : .42,
+                    ease: kind === 'wheel' ? 'power2.out' : 'power2.inOut',
                     onUpdate: () => {
                         if (this.windowDisposed || distributionFocusMotions.get(root) !== motion) return;
                         if (motion.reduceQuery?.matches) return this.finishDistributionFocus(motion);
-                        const current = this.timelineScrollEdges(true);
-                        body.scrollLeft = Math.max(current.first, Math.min(current.last, motion.left));
+                        body.scrollLeft = Math.max(0, Math.min(body.scrollWidth - body.clientWidth, motion.left));
                         this.syncHorizontal(body, false);
                     },
                     onComplete: () => this.finishDistributionFocus(motion),
@@ -1250,8 +1354,15 @@ export function staffTimeline() {
         },
         cancelDistributionFocus() {
             const root = this.timelineElement;
+            this.horizontalMotionVersion = (this.horizontalMotionVersion || 0) + 1;
+            const navigation = windowNavigations.get(root);
+            if (navigation) {
+                navigation.motionTarget = null;
+                if (navigation.frame !== null) cancelAnimationFrame(navigation.frame);
+                navigation.frame = null;
+            }
             const motion = distributionFocusMotions.get(root);
-            if (!motion) return;
+            if (!motion) return this.finishHorizontalIntent();
             distributionFocusMotions.delete(root);
             motion.tween?.kill();
             if (motion.timer !== null) clearTimeout(motion.timer);
@@ -1259,7 +1370,19 @@ export function staffTimeline() {
                 const body = this.$refs.timelineBody;
                 body.scrollTo({ left: body.scrollLeft, behavior: 'instant' });
             }
+            this.restoreHorizontalMotionBody(motion);
             this.finishHorizontalIntent();
+        },
+        preserveHorizontalMotionBody(el, toEl) {
+            if (el === this.$refs.timelineBody && distributionFocusMotions.has(this.timelineElement)) {
+                toEl.style.setProperty('scroll-snap-type', 'none');
+            }
+        },
+        restoreHorizontalMotionBody(motion) {
+            const style = this.$refs.timelineBody.style;
+            if (!style || style.getPropertyValue('scroll-snap-type') !== 'none') return;
+            if (motion.snap) style.setProperty('scroll-snap-type', motion.snap, motion.snapPriority);
+            else style.removeProperty('scroll-snap-type');
         },
         finishDistributionFocus(motion, moveToTarget = true) {
             if (this.windowDisposed || distributionFocusMotions.get(this.timelineElement) !== motion) return;
@@ -1271,19 +1394,19 @@ export function staffTimeline() {
                 const edges = this.timelineScrollEdges(true);
                 body.scrollLeft = Math.max(edges.first, Math.min(edges.last, motion.target));
             }
+            this.restoreHorizontalMotionBody(motion);
             this.syncHorizontal(body, false);
             this.finishHorizontalIntent();
         },
         measureEventLabels(periodWidth, viewport = null) {
             const measurements = [];
-            const proposalMeasurements = [];
             const reuseWidths = viewport && !this.eventGeometryDirty && this.eventPeriodWidth === periodWidth;
             // Gather all layout reads before any row writes. Alternating the two
             // used to force a complete grid layout once per employee on a morph.
             for (const track of this.$refs.timelineGrid.querySelectorAll('.rt-personnel-timeline-track')) {
                 const events = [...track.querySelectorAll('.rt-personnel-timeline-event')];
-                if (!events.length) continue;
-                const positions = timelineEventLanes(events.map(event => {
+                const shells = [...track.querySelectorAll('.rt-timeline-proposal-shell')];
+                const eventData = events.map(event => {
                     const label = event.querySelector('.rt-personnel-timeline-time-text');
                     return {
                         start: parseFloat(event.dataset.timeStart) || 0,
@@ -1293,26 +1416,21 @@ export function staffTimeline() {
                         continuesAfter: event.dataset.continuesAfter === 'true',
                         labelWidth: label ? this.readTimelineLabelWidth(label, reuseWidths) + 16 : 0,
                     };
-                }), periodWidth, viewport);
+                });
+                const proposals = shells.map(shell => {
+                    const start = parseFloat(shell.style?.getPropertyValue('--proposal-left'));
+                    const duration = parseFloat(shell.style?.getPropertyValue('--proposal-width'));
+                    const button = shell.querySelector('.rt-timeline-proposal');
+                    const labels = button ? [...button.querySelectorAll(':scope > span:not([aria-hidden]), :scope > i')] : [];
+                    const labelWidth = labels.reduce((sum, label) => sum + this.readTimelineLabelWidth(label, reuseWidths), 16)
+                        + Math.max(0, labels.length - 1) * 5;
+                    return { shell, start, duration, labelWidth, border: Number.isFinite(button?.clientLeft) ? button.clientLeft : 1 };
+                }).filter(proposal => [proposal.start, proposal.duration].every(Number.isFinite) && proposal.duration > 0);
                 const rowLaneCount = parseInt(track.dataset.timelineLanes, 10) || 1;
-                const laneCount = Math.max(rowLaneCount, Math.max(...positions.map(position => position.lane)) + 1);
-                measurements.push({ track, events, positions, laneCount });
+                const { positions, proposalPositions, laneCount } = timelineRowLanes(eventData, proposals, periodWidth, rowLaneCount, viewport);
+                measurements.push({ track, events, positions, proposals, proposalPositions, laneCount });
             }
-            // Suggestions do not participate in assignment/event lanes. Move only
-            // their readable shell; the strip remains at its real time coordinate.
-            for (const shell of this.$refs.timelineGrid.querySelectorAll('.rt-timeline-proposal-shell')) {
-                const start = parseFloat(shell.style?.getPropertyValue('--proposal-left')) * periodWidth / 100;
-                const duration = parseFloat(shell.style?.getPropertyValue('--proposal-width')) * periodWidth / 100;
-                if (![start, duration].every(Number.isFinite)) continue;
-                const button = shell.querySelector('.rt-timeline-proposal');
-                const labels = button ? [...button.querySelectorAll(':scope > span:not([aria-hidden]), :scope > i')] : [];
-                const labelWidth = labels.reduce((sum, label) => sum + this.readTimelineLabelWidth(label, reuseWidths), 16)
-                    + Math.max(0, labels.length - 1) * 5;
-                const position = timelineViewportBadge(start, start + duration, labelWidth, viewport);
-                if (position) position.durationLeft -= Number.isFinite(button?.clientLeft) ? button.clientLeft : 1;
-                proposalMeasurements.push({ shell, position });
-            }
-            for (const { track, events, positions, laneCount } of measurements) {
+            for (const { track, events, positions, proposals, proposalPositions, laneCount } of measurements) {
                 positions.forEach((position, index) => {
                     for (const [name, value] of [['--event-lane', String(position.lane)], ['--time-label-offset', `${position.labelOffset}px`], ['--time-badge-width', `${position.badgeWidth}px`]]) {
                         if (events[index].style.getPropertyValue(name) !== value) events[index].style.setProperty(name, value);
@@ -1323,13 +1441,23 @@ export function staffTimeline() {
                 // Two compact lanes fit the existing 48px row; further lanes stay visible.
                 const density = laneCount > 1 ? 'compact' : 'normal';
                 if (track.dataset.timelineDensity !== density) track.dataset.timelineDensity = density;
-            }
-            for (const { shell, position } of proposalMeasurements) {
-                const values = position ? [`${position.center}px`, `${position.badgeWidth}px`, `${position.durationLeft}px`, `${position.durationWidth}px`, 'none'] : null;
-                PROPOSAL_VIEWPORT_PROPERTIES.forEach((name, index) => {
-                    if (!values) {
-                        if (shell.style.getPropertyValue(name)) shell.style.removeProperty(name);
-                    } else if (shell.style.getPropertyValue(name) !== values[index]) shell.style.setProperty(name, values[index]);
+                proposals.forEach(({ shell, start, duration, border }, index) => {
+                    const position = proposalPositions[index];
+                    const center = start * periodWidth / 100 + position.labelOffset;
+                    const durationLeft = position.badgeWidth / 2 - position.labelOffset - border;
+                    const durationWidth = duration * periodWidth / 100;
+                    const values = [String(position.lane), center + 'px', position.badgeWidth + 'px', durationLeft + 'px', durationWidth + 'px', 'none'];
+                    PROPOSAL_LAYOUT_PROPERTIES.forEach((name, propertyIndex) => {
+                        if (shell.style.getPropertyValue(name) !== values[propertyIndex]) shell.style.setProperty(name, values[propertyIndex]);
+                    });
+                    const startPixels = start * periodWidth / 100;
+                    const visible = viewport && startPixels < viewport.until && startPixels + durationWidth > viewport.from;
+                    const overrides = visible ? [center + 'px', position.badgeWidth + 'px', durationLeft + 'px', durationWidth + 'px', 'none'] : null;
+                    PROPOSAL_VIEWPORT_PROPERTIES.forEach((name, propertyIndex) => {
+                        if (!overrides) {
+                            if (shell.style.getPropertyValue(name)) shell.style.removeProperty(name);
+                        } else if (shell.style.getPropertyValue(name) !== overrides[propertyIndex]) shell.style.setProperty(name, overrides[propertyIndex]);
+                    });
                 });
             }
             this.eventGeometryDirty = false;
@@ -1379,7 +1507,8 @@ export function staffTimeline() {
             // Reserve columns are preloaded for arrow transitions, not extra
             // selected dates. Native keyboard/snap input follows the same bound.
             const state = windowNavigations.get(this.timelineElement);
-            if (this.windowNavigationEnabled && state?.positioned) {
+            if (this.windowNavigationEnabled && state?.positioned && state.motionTarget === null
+                && !distributionFocusMotions.has(this.timelineElement)) {
                 const bounded = Math.max(selectedEdges.first, Math.min(selectedEdges.last, body.scrollLeft));
                 if (Math.abs(body.scrollLeft - bounded) >= 1) body.scrollLeft = bounded;
             }
@@ -1403,22 +1532,26 @@ export function staffTimeline() {
         },
         scrollDay(direction) {
             if (![-1, 1].includes(direction) || this.windowDisposed) return;
+            const queued = distributionFocusMotions.get(this.timelineElement);
+            const navigation = windowNavigations.get(this.timelineElement);
+            const queuedArrow = queued?.kind === 'arrow' ? queued.target
+                : navigation?.motionKind === 'arrow' ? navigation.motionTarget : null;
             this.cancelDistributionFocus();
             const body = this.$refs.timelineBody;
             const width = parseFloat(getComputedStyle(this.timelineElement).getPropertyValue('--timeline-day-width'));
             if (!width) return;
             const edges = this.timelineScrollEdges(true);
             const state = this.windowNavigationEnabled ? this.windowNavigationState() : null;
-            const offset = state?.motionTarget ?? body.scrollLeft;
+            const offset = queuedArrow ?? state?.motionTarget ?? body.scrollLeft;
             const atEdge = direction < 0 ? offset <= edges.first + 1 : offset >= edges.last - 1;
-            if (atEdge && this.windowNavigationEnabled) return this.shiftWindow(direction);
+            if (atEdge && this.windowNavigationEnabled) {
+                if (state) state.motionTarget = offset;
+                return this.shiftWindow(direction);
+            }
             this.holdHorizontalIntent(direction);
             const target = Math.max(edges.first, Math.min(edges.last, timelineDayOffset(offset, width, direction, edges.last)));
             if (state) state.motionTarget = target;
-            body.scrollTo({
-                left: target,
-                behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
-            });
+            this.startHorizontalMotion(target, 'arrow');
             if (state && this.windowContentLoading && !state.request) return this.drainWindowRequest();
         },
     };

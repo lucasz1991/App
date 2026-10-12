@@ -1,8 +1,9 @@
-/* Opt-in planning actions. Never take part in real event lanes or scroll measurement. */
+/* Opt-in planning actions. Suggestions move below colliding real duties. */
+.rt-personnel-timeline .rt-personnel-timeline-track:has(.rt-timeline-proposal-shell) { --timeline-lane-padding: 12px; }
 .rt-timeline-cell-action { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; padding: 0; background: transparent; cursor: pointer; }
 .rt-timeline-cell-action:focus-visible { outline: 2px solid var(--rt-red, #df0037); outline-offset: -3px; }
 .rt-timeline-proposals { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.rt-timeline-proposal-shell { position: absolute; left: var(--proposal-center, var(--proposal-left)); width: max(var(--proposal-width), 140px); top: 50%; height: 18px; transform: translate(-50%, -50%); isolation: isolate; }
+.rt-timeline-proposal-shell { position: absolute; left: var(--proposal-badge-center, var(--proposal-center, var(--proposal-left))); width: var(--proposal-badge-width, max(var(--proposal-width), 140px)); top: calc((100% - var(--timeline-lanes, 1) * var(--timeline-lane-height)) / 2 + var(--proposal-lane, 0) * var(--timeline-lane-height) + 2px); height: 18px; transform: translateX(-50%); isolation: isolate; }
 .rt-timeline-proposal { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; gap: 5px; align-items: center; justify-content: center; min-width: 2px; padding: 0 7px 2px; border: 1px dashed color-mix(in srgb, var(--proposal-color) 64%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--proposal-color) 9%, var(--rt-surface, #fff)); color: var(--proposal-color); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; pointer-events: auto; overflow: hidden; box-shadow: none; }
 .rt-timeline-proposal span { flex: 0 0 auto; overflow: visible; white-space: nowrap; }
 .rt-timeline-proposal:hover { border-style: solid; }
@@ -31,7 +32,7 @@
 }
 @media (prefers-reduced-motion: reduce) { .rt-timeline-proposal-ping.animate-ping { animation: none; } }
 .rt-timeline-proposal:hover + .rt-timeline-proposal-ping { border-style: solid; }
-.rt-timeline-proposal-duration { position: absolute; left: 50%; bottom: 0; z-index: 2; width: min(100%, max(3px, var(--proposal-duration-width))); height: 2px; transform: translateX(-50%); border-radius: 999px; background: var(--proposal-color); opacity: .95; pointer-events: none; }
+.rt-timeline-proposal-duration { position: absolute; left: var(--proposal-badge-duration-left, 50%); bottom: 0; z-index: 2; width: var(--proposal-badge-duration-width, min(100%, max(3px, var(--proposal-duration-width)))); height: 2px; transform: var(--proposal-badge-duration-transform, translateX(-50%)); border-radius: 999px; background: var(--proposal-color); opacity: .95; pointer-events: none; }
 .rt-personnel-timeline[data-timeline-zoom='day'] .rt-timeline-proposal-shell { left: var(--proposal-visible-center, var(--proposal-center, var(--proposal-left))); width: var(--proposal-visible-width, max(var(--proposal-width), 140px)); }
 .rt-personnel-timeline[data-timeline-zoom='day'] .rt-timeline-proposal-duration { left: var(--proposal-visible-duration-left, 50%); width: var(--proposal-visible-duration-width, min(100%, max(3px, var(--proposal-duration-width)))); transform: var(--proposal-visible-duration-transform, translateX(-50%)); }
 .rt-timeline-proposal:not([data-in-view='true']) + .rt-timeline-proposal-ping { animation: none; }

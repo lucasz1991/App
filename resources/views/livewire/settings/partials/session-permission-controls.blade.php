@@ -37,7 +37,6 @@
                     @endif
                 </div>
                 @if ($purpose === 'location' && $decision === 'accepted')
-                    <a href="{{ route('operations.mine') }}" class="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-rt-accent underline underline-offset-2">App-Standort unter „Mein Arbeitstag“ ansehen</a>
                     <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Ein Widerruf beendet die Erfassung und die Routing-Nutzung; gespeicherte Punkte dieser Freigabe werden gelöscht.</p>
                 @endif
             @else

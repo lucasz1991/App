@@ -22,6 +22,7 @@ function withMotion(run, { gsap = true, reduced = false, deferredNativeScroll = 
     const tweens = [];
     const frames = new Map();
     const timers = new Map();
+    const browserListeners = new Map();
     const cancelledFrames = [];
     let frameId = 0;
     let timerId = 0;
@@ -47,6 +48,7 @@ function withMotion(run, { gsap = true, reduced = false, deferredNativeScroll = 
         },
     };
     const body = {
+        style: document.createElement('div').style,
         clientWidth,
         offsetWidth: clientWidth + 15,
         scrollTop: 144,
@@ -77,7 +79,9 @@ function withMotion(run, { gsap = true, reduced = false, deferredNativeScroll = 
     const overrides = {
         document,
         Element: domWindow.Element,
-        window: { ...(gsap ? { gsap: engine } : {}), matchMedia },
+        window: { ...(gsap ? { gsap: engine } : {}), matchMedia,
+            addEventListener(name, callback) { browserListeners.set(name, callback); },
+            removeEventListener(name) { browserListeners.delete(name); } },
         matchMedia,
         getComputedStyle: () => ({ getPropertyValue(name) {
             return ({ '--timeline-name-full-width': `${fullWidth}px`,
@@ -100,7 +104,7 @@ function withMotion(run, { gsap = true, reduced = false, deferredNativeScroll = 
         if (complete) tween.options.onComplete?.();
     };
     try {
-        run({ timeline, root, body, document, tweens, frames, timers, cancelledFrames, currentWidth, maximum, advance,
+        run({ timeline, root, body, document, tweens, frames, timers, browserListeners, cancelledFrames, currentWidth, maximum, advance,
             setReduced: (value) => { reduceMotion = value; }, setFullWidth: (value) => { fullWidth = value; } });
     } finally {
         timeline.destroy();
@@ -412,13 +416,14 @@ test('day arrows and native smooth-scroll overshoot preserve the manual personne
             assert.equal(timeline.personnelCompact, false);
         }
         assert.deepEqual(body.scrollCalls[0], { left: 720, behavior: 'smooth' });
+        timeline.cancelDistributionFocus();
         timeline.finishHorizontalIntent();
         assert.equal(timers.size, 0);
         body.nativeOffset = 700;
         timeline.syncHorizontal(body);
         assert.equal(timeline.personnelCompact, false);
         assert.equal(body.scrollWrites, 0);
-    });
+    }, { gsap: false });
 });
 
 test('a manual header counter-command wins over the remaining native wheel sequence', () => {
@@ -564,19 +569,23 @@ test('a responsive full-width change during expansion cannot leave a stale deskt
     });
 });
 
-test('day arrows set navigation direction without changing personnel mode and retain smooth or instant scrolling', () => {
-    withMotion(({ timeline, body, setReduced }) => {
+test('day arrows use a 320ms accumulated GSAP target without changing personnel mode and reduced motion is instant', () => {
+    withMotion(({ timeline, body, tweens, setReduced }) => {
         timeline.applyPersonnelMode();
         timeline.measure();
         body.nativeOffset = 400;
         timeline.syncHorizontal(body, false);
         timeline.scrollDay(1);
         assert.equal(timeline.compactRequested, false);
-        assert.deepEqual(body.scrollCalls[0], { left: 720, behavior: 'smooth' });
+        assert.equal(tweens[0].options.left, 720);
+        assert.equal(tweens[0].options.duration, .32);
+        assert.equal(tweens[0].options.ease, 'power2.inOut');
+        assert.deepEqual(body.scrollCalls[0], { left: 400, behavior: 'instant' }, 'only an earlier native movement is stopped before GSAP owns frames');
         setReduced(true);
         timeline.scrollDay(-1);
         assert.equal(timeline.compactRequested, false);
-        assert.deepEqual(body.scrollCalls[1], { left: 0, behavior: 'instant' });
+        assert.equal(tweens[0].killed, true);
+        assert.deepEqual(body.scrollCalls[1], { left: 360, behavior: 'instant' }, 'a rapid reverse steps back from the queued target');
         assert.equal(body.scrollWrites, 0);
     });
 });
@@ -662,7 +671,7 @@ test('offscreen sidebar click starts a 420ms GSAP focus before server response a
 
 test('fully or partly visible click performs no tween, scroll write, native scroll call or personnel preference change', () => {
     for (const [offset, date] of [[0, '2026-10-06'], [500, '2026-10-06'], [500, '2026-10-08'],
-        [719.9, '2026-10-06'], [720.1, '2026-10-09']]) {
+        [718.9, '2026-10-06'], [721.1, '2026-10-09']]) {
         withFocusMotion(({ timeline, body, click, tweens }) => {
             body.nativeOffset = offset;
             const writes = body.scrollWrites;
@@ -811,4 +820,148 @@ test('destroy and wrong-owner clicks cannot leave focus resources or allow late 
         assert.equal(body.scrollLeft, 600);
         assert.equal(click(), false);
     });
+});
+
+test('explicit sidebar day reveal shares smooth navigation without mutating selection or accepting a foreign owner/date', () => {
+    withFocusMotion(({ timeline, root, body, tweens, advanceFocus }) => {
+        root.dataset.timelineFocusShiftId = '82';
+        for (const detail of [null, { owner: 'other', date: '2026-10-10' },
+            { owner: 'focus-owner', date: '2026-02-30' }]) {
+            assert.equal(timeline.requestDayReveal(detail), false);
+        }
+        assert.equal(tweens.length, 0);
+        assert.equal(timeline.requestDayReveal({ owner: 'focus-owner', date: '2026-10-10' }), true);
+        const first = tweens[0];
+        assert.equal(first.options.left, 1800);
+        assert.equal(first.options.duration, .42);
+        advanceFocus(first, 900);
+        timeline.requestDayReveal({ owner: 'focus-owner', date: '2026-10-05' });
+        assert.equal(first.killed, true);
+        assert.equal(tweens[1].options.left, 0);
+        advanceFocus(first, 1800, true);
+        assert.equal(body.scrollLeft, 900);
+        assert.equal(root.dataset.timelineFocusShiftId, '82', 'day navigation cannot select or deselect a shift');
+        assert.equal(timeline.compactRequested, false);
+    });
+});
+
+test('already visible and partly visible sidebar days have no new scroll writes or animations', () => {
+    for (const [offset, date] of [[0, '2026-10-06'], [500, '2026-10-06'], [500, '2026-10-08']]) {
+        withFocusMotion(({ timeline, body, tweens }) => {
+            body.nativeOffset = offset;
+            const writes = body.scrollWrites;
+            assert.equal(timeline.requestDayReveal({ owner: 'focus-owner', date }), true);
+            assert.equal(tweens.length, 0);
+            assert.equal(body.scrollWrites, writes);
+            assert.equal(body.scrollCalls.length, 0);
+            assert.equal(body.scrollLeft, offset);
+        });
+    }
+});
+
+test('rounding-only one-pixel edge slivers are revealed instead of being mistaken for a visible day', () => {
+    for (const [offset, date, target] of [[719.9, '2026-10-06', 360], [720.1, '2026-10-09', 1440]]) {
+        withFocusMotion(({ timeline, body, tweens }) => {
+            body.nativeOffset = offset;
+            assert.equal(timeline.requestDayReveal({ owner: 'focus-owner', date }), true);
+            assert.equal(tweens.length, 1);
+            assert.equal(tweens[0].options.left, target);
+            assert.equal(tweens[0].options.duration, .42);
+        });
+    }
+});
+
+test('day-reveal listener exists only for the planning timeline and is removed on teardown', () => {
+    withFocusMotion(({ timeline, root, body, browserListeners, tweens, frames, timers }) => {
+        timeline.bindDayReveal();
+        assert.equal(browserListeners.size, 0, 'finite consumers do not subscribe to planning navigation');
+        root.dataset.timelineWindowNavigation = 'true';
+        root.dataset.timelineFrom = '2026-10-05';
+        root.dataset.timelineUntil = '2026-10-11';
+        timeline.bindDayReveal();
+        const listener = browserListeners.get('operations-timeline-day-reveal');
+        assert.equal(typeof listener, 'function');
+        listener({ detail: { owner: 'focus-owner', date: '2026-10-10' } });
+        assert.equal(tweens.length, 1);
+        const offset = body.scrollLeft;
+        timeline.destroy();
+        assert.equal(browserListeners.size, 0);
+        assert.equal(tweens[0].killed, true);
+        assert.equal(frames.size, 0);
+        assert.equal(timers.size, 0);
+        listener({ detail: { owner: 'focus-owner', date: '2026-10-05' } });
+        assert.equal(body.scrollLeft, offset);
+        assert.equal(tweens.length, 1, 'late dispatch cannot restart a disposed timeline');
+    });
+});
+
+test('coarse line wheel and explicit Shift-wheel accumulate 240ms targets while pixel trackpad remains direct', () => {
+    for (const firstEvent of [{ deltaX: 3, deltaY: 0, deltaMode: 1 },
+        { deltaX: 0, deltaY: 48, deltaMode: 0, shiftKey: true }]) {
+        withFocusMotion(({ timeline, body, tweens, advanceFocus }) => {
+            body.nativeOffset = 400;
+            let prevented = 0;
+            const event = { ...firstEvent, preventDefault() { prevented++; } };
+            timeline.wheelPersonnel(event);
+            const first = tweens[0];
+            assert.equal(first.options.left, 448);
+            assert.equal(first.options.duration, .24);
+            assert.equal(first.options.ease, 'power2.out');
+            advanceFocus(first, 420);
+            timeline.wheelPersonnel(event);
+            assert.equal(first.killed, true);
+            assert.equal(tweens[1].options.left, 496, 'new steps accumulate from the outstanding target, not an incomplete frame');
+            assert.equal(body.scrollLeft, 420);
+            assert.equal(body.scrollTop, 144);
+            assert.equal(prevented, 2);
+            timeline.wheelPersonnel({ deltaX: 12.5, deltaY: 2, deltaMode: 0, preventDefault() {} });
+            assert.equal(tweens[1].killed, true);
+            assert.equal(tweens.length, 2, 'high-resolution pixel wheel is never animated twice');
+            assert.equal(body.scrollLeft, 432.5);
+            assert.equal(body.scrollTop, 146);
+            advanceFocus(first, 448, true);
+            assert.equal(body.scrollLeft, 432.5);
+        });
+    }
+});
+
+test('coarse page wheel uses the visible day viewport and reduced motion moves immediately', () => {
+    withFocusMotion(({ timeline, body, header, tweens }) => {
+        body.nativeOffset = 100;
+        timeline.wheelPersonnel({ deltaX: 1, deltaY: 0, deltaMode: 2, preventDefault() {} });
+        assert.equal(tweens[0].options.left, 100 + header.clientWidth);
+        assert.equal(tweens[0].options.duration, .24);
+    });
+    withFocusMotion(({ timeline, body, tweens }) => {
+        body.nativeOffset = 100;
+        timeline.wheelPersonnel({ deltaX: 3, deltaY: 0, deltaMode: 1, preventDefault() {} });
+        assert.equal(tweens.length, 0);
+        assert.equal(body.scrollLeft, 148);
+        assert.deepEqual(body.scrollCalls, [{ left: 148, behavior: 'instant' }]);
+        timeline.requestDayReveal({ owner: 'focus-owner', date: '2026-10-10' });
+        assert.equal(body.scrollLeft, 1800);
+        assert.equal(tweens.length, 0);
+    }, { reduced: true });
+});
+
+test('manual navigation suspends mandatory snap only during its tween and preserves that state through morphs', () => {
+    for (const original of ['', 'x mandatory']) {
+        withFocusMotion(({ timeline, body, document, click, tweens, advanceFocus }) => {
+            if (original) body.style.setProperty('scroll-snap-type', original);
+            click();
+            assert.equal(body.style.getPropertyValue('scroll-snap-type'), 'none');
+            const incoming = document.createElement('div');
+            timeline.preserveMorphGeometry({ el: body, toEl: incoming });
+            assert.equal(incoming.style.getPropertyValue('scroll-snap-type'), 'none');
+            advanceFocus(tweens[0], 1800, true);
+            assert.equal(body.style.getPropertyValue('scroll-snap-type') || '', original);
+            timeline.requestDayReveal({ owner: 'focus-owner', date: '2026-10-05' });
+            assert.equal(body.style.getPropertyValue('scroll-snap-type'), 'none');
+            timeline.cancelDistributionFocus();
+            assert.equal(body.style.getPropertyValue('scroll-snap-type') || '', original);
+            timeline.requestDayReveal({ owner: 'focus-owner', date: '2026-10-05' });
+            timeline.destroy();
+            assert.equal(body.style.getPropertyValue('scroll-snap-type') || '', original);
+        });
+    }
 });

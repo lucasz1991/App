@@ -21,6 +21,7 @@
     x-on:keydown.end.prevent="$focus.within($el).last()">
     @foreach($tabs as $key => $tab)
         <button type="button" role="tab" class="rt-ops-panel__tab"
+            @if(filled($tab['icon'] ?? null)) title="{{ $tab['label'] }}" @endif
             id="{{ $idPrefix }}-tab-{{ $key }}" aria-controls="{{ $idPrefix }}-panel-{{ $key }}"
             aria-selected="{{ ($action ? (string) $active === (string) $key : $loop->first) ? 'true' : 'false' }}" tabindex="{{ ($action ? (string) $active === (string) $key : $loop->first) ? '0' : '-1' }}"
             @if(! $action)

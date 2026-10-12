@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Livewire\Operations\EmployeeLocationStatus;
 use App\Livewire\Operations\MyWork;
+use App\Livewire\Settings\SessionPermissions;
 use App\Models\Device;
 use App\Models\DeviceAssignment;
 use App\Models\EmployeeLocationConsent;
@@ -449,11 +450,17 @@ class EmployeeLocationTest extends TestCase
     public function test_employee_ui_explains_session_choice_history_and_pwa_without_forcing_consent(): void
     {
         $this->work();
-        Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)
-            ->assertSee('Für diese Sitzung erlauben')->assertSee('Ohne Standort fortfahren')->assertSee('sieben Tage')
-            ->assertDontSee('RailTime als App installieren')->call('decline')->assertHasNoErrors();
-        // Die Installationsanleitung steht jetzt in der Seitenspalte von „Heute“.
-        Livewire::actingAs($this->employee)->test(MyWork::class)->assertSee('RailTime als App installieren');
+        Livewire::actingAs($this->employee)->test(SessionPermissions::class)
+            ->assertSet('dialogOpen', true)->assertSee('Push und Standort freigeben')->assertSee('Ohne Standort fortfahren')
+            ->call('decide', 'location', false)->assertHasNoErrors();
+        Livewire::actingAs($this->employee)->test(SessionPermissions::class, ['automatic' => false])
+            ->assertSee('Deine Freigaben')->assertSee('Für diese Sitzung abgelehnt')->assertSet('dialogOpen', false);
+        // Standortfreigaben bleiben im globalen Dialog und Profil; im Arbeitstag steht kein Standortbereich.
+        Livewire::actingAs($this->employee)->test(MyWork::class)
+            ->assertSee('RailTime als App installieren')->assertDontSeeLivewire(EmployeeLocationStatus::class)
+            ->assertDontSee('data-employee-location-status', false)->assertDontSee('App-Standort')
+            ->call('showTab', 'time')->assertSet('tab', 'time')->assertDontSeeLivewire(EmployeeLocationStatus::class)
+            ->assertDontSee('data-employee-location-status', false)->assertDontSee('App-Standort');
         $this->assertSame('declined', EmployeeLocationConsent::first()->decision);
         $this->assertSame('running', WorkTimeEntry::first()->status);
     }

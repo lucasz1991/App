@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { parseHTML } from 'linkedom';
-import { staffTimeline, timelineDayWidth, timelineDayOffset, timelineEventLanes, timelineFocusOffset, timelineViewportBadge } from '../../resources/js/staff-timeline.js';
+import { staffTimeline, timelineDayWidth, timelineDayOffset, timelineEventLanes, timelineRowLanes, timelineFocusOffset, timelineViewportBadge } from '../../resources/js/staff-timeline.js';
 import { timelinePlanning } from '../../resources/js/timeline-planning-actions.js';
 
 function planningFixture() {
@@ -324,6 +325,173 @@ function densityFixture(events, serverLanes = 1) {
     return { timeline, track, events: [...track.querySelectorAll('.rt-personnel-timeline-event')] };
 }
 
+function proposalDensityFixture(events, proposals, serverLanes = 1) {
+    const fixture = densityFixture(events, serverLanes);
+    fixture.track.insertAdjacentHTML('beforeend', '<div class="rt-timeline-proposals"></div>');
+    const container = fixture.track.querySelector('.rt-timeline-proposals');
+    container.innerHTML = proposals.map(proposal => '<div class="rt-timeline-proposal-shell" style="--proposal-left:' + proposal.start
+        + '%;--proposal-width:' + proposal.duration + '%"><button class="rt-timeline-proposal"><i></i><span>' + (proposal.label || '06:00 – 08:00')
+        + '</span><i></i><span class="rt-timeline-proposal-duration" aria-hidden="true"></span></button><div class="rt-timeline-proposal-ping"></div></div>').join('');
+    for (const label of container.querySelectorAll('span:not([aria-hidden]), i')) {
+        label.getBoundingClientRect = () => ({ width: label.tagName === 'I' ? 10 : 90 });
+    }
+    for (const button of container.querySelectorAll('button')) Object.defineProperty(button, 'clientLeft', { value: 1 });
+    return { ...fixture, shells: [...container.querySelectorAll('.rt-timeline-proposal-shell')] };
+}
+
+test('week minimum-width proposal collisions get separate lanes below colliding real duties while distant suggestions share a lane', () => {
+    const { positions, proposalPositions, laneCount } = timelineRowLanes([
+        { start: 32, duration: 3, labelWidth: 106, lane: 0 },
+        { start: 32, duration: 3, labelWidth: 106, lane: 1 },
+    ], [
+        { start: 32.142857, duration: 1.190476, labelWidth: 136 },
+        { start: 41.666667, duration: 4.761905, labelWidth: 136 },
+        { start: 80, duration: 2, labelWidth: 136 },
+    ], 630, 2);
+    assert.deepEqual(positions.map(position => position.lane), [0, 1]);
+    assert.deepEqual(proposalPositions.map(position => position.lane), [2, 3, 0]);
+    assert.deepEqual(proposalPositions.map(position => position.badgeWidth), [140, 140, 140]);
+    assert.equal(laneCount, 4);
+    const reversed = timelineRowLanes([], [
+        { start: 41.666667, duration: 4.761905, labelWidth: 136 },
+        { start: 32.142857, duration: 1.190476, labelWidth: 136 },
+    ], 630);
+    assert.deepEqual(reversed.proposalPositions.map(position => position.lane), [1, 0], 'chronological packing does not depend on DOM input order');
+});
+
+test('Tag collision lanes and row height stay stable throughout panning even when readable badges move at viewport edges', () => {
+    const events = [{ start: 45, duration: 8, labelWidth: 106 }];
+    const proposals = [
+        { start: 45, duration: 2, labelWidth: 136 },
+        { start: 50, duration: 4, labelWidth: 136 },
+        { start: 80, duration: 2, labelWidth: 136 },
+    ];
+    const views = [480, 490, 620, 720].map(from => timelineRowLanes(events, proposals, 1440, 1, { from, until: from + 240 }));
+    assert.deepEqual(views.map(view => view.laneCount), [3, 3, 3, 3]);
+    assert.ok(views.every(view => view.proposalPositions.every((position, index) => position.lane === views[0].proposalPositions[index].lane)));
+    assert.notEqual(views[0].proposalPositions[0].labelOffset, views[2].proposalPositions[0].labelOffset, 'only the visible badge location changes while panning');
+});
+
+test('DOM loaded tracks measure real duties and proposal-only rows together, keeping exact strip coordinates and shrinking after removal', () => {
+    const { timeline, track, events, shells } = proposalDensityFixture([{ start: 5, duration: 8 }], [
+        { start: 32.142857, duration: 1.190476 },
+        { start: 41.666667, duration: 4.761905, label: '22:00 – 06:00 →' },
+    ]);
+    const loaded = track.ownerDocument.createElement('div');
+    loaded.className = 'rt-timeline-loaded-track';
+    while (track.firstChild) loaded.append(track.firstChild);
+    track.append(loaded);
+    timeline.measureEventLabels(630);
+    assert.deepEqual(shells.map(shell => Number(shell.style.getPropertyValue('--proposal-lane'))), [0, 1], 'regular duties elsewhere do not reserve empty proposal lanes');
+    assert.equal(Number(events[0].style.getPropertyValue('--event-lane')), 0);
+    assert.equal(Number(track.style.getPropertyValue('--timeline-lanes')), 2);
+    assert.equal(track.dataset.timelineLanes, '1', 'server event lanes remain authoritative metadata');
+    assert.equal(track.dataset.timelineDensity, 'compact');
+    for (const [index, shell] of shells.entries()) {
+        const left = parseFloat(shell.style.getPropertyValue('--proposal-badge-center')) - parseFloat(shell.style.getPropertyValue('--proposal-badge-width')) / 2;
+        const stripLeft = left + 1 + parseFloat(shell.style.getPropertyValue('--proposal-badge-duration-left'));
+        assert.ok(Math.abs(stripLeft - [32.142857, 41.666667][index] * 630 / 100) < .00001);
+        assert.ok(Math.abs(parseFloat(shell.style.getPropertyValue('--proposal-badge-duration-width')) - [1.190476, 4.761905][index] * 630 / 100) < .00001);
+        assert.equal(shell.style.getPropertyValue('--proposal-badge-duration-transform'), 'none');
+    }
+    const repeated = track.outerHTML;
+    timeline.measureEventLabels(630);
+    assert.equal(track.outerHTML, repeated, 'a repeated measure never drifts lanes or duration geometry');
+    timeline.measureEventLabels(4200);
+    assert.deepEqual(shells.map(shell => Number(shell.style.getPropertyValue('--proposal-lane'))), [0, 0], 'a wider zoom can reuse now-separated footprints');
+    assert.equal(Number(track.style.getPropertyValue('--timeline-lanes')), 1);
+    assert.equal(track.dataset.timelineDensity, 'normal');
+    timeline.measureEventLabels(630);
+    assert.deepEqual(shells.map(shell => Number(shell.style.getPropertyValue('--proposal-lane'))), [0, 1], 'resizing back restores only the required collision lane');
+    events[0].remove();
+    timeline.measureEventLabels(630);
+    assert.deepEqual(shells.map(shell => Number(shell.style.getPropertyValue('--proposal-lane'))), [0, 1]);
+    assert.equal(Number(track.style.getPropertyValue('--timeline-lanes')), 2);
+    for (const shell of shells) shell.remove();
+    timeline.measureEventLabels(630);
+    assert.equal(Number(track.style.getPropertyValue('--timeline-lanes')), 1, 'empty rows return to native minimum height');
+    assert.equal(track.dataset.timelineDensity, 'normal');
+});
+
+test('shared native row CSS grows proposal lanes without clipping their badges or outer ping and keeps names on the same grid row', () => {
+    const eventCss = readFileSync(new URL('../../resources/css/operations-planning.css', import.meta.url), 'utf8');
+    const proposalCss = readFileSync(new URL('../../resources/css/timeline-planning-actions.css', import.meta.url), 'utf8');
+    assert.match(eventCss, /min-height:\s*max\(48px,\s*calc\(var\(--timeline-lanes, 1\) \* var\(--timeline-lane-height\) \+ var\(--timeline-lane-padding\)\)\)/);
+    assert.match(proposalCss, /\.rt-personnel-timeline \.rt-personnel-timeline-track:has\(\.rt-timeline-proposal-shell\)\s*\{\s*--timeline-lane-padding:\s*12px/);
+    const rule = proposalCss.match(/\.rt-timeline-proposal-shell\s*\{([^}]+)\}/)[1];
+    assert.ok(rule.includes('var(--proposal-lane, 0) * var(--timeline-lane-height) + 2px'));
+    assert.ok(rule.includes('height: 18px'));
+    assert.ok(rule.includes('transform: translateX(-50%)'), 'vertical centering must not shift a measured lane by half a badge');
+    const source = readFileSync(new URL('../../resources/views/livewire/operations/staff-timeline.blade.php', import.meta.url), 'utf8');
+    assert.match(source, /rt-personnel-timeline-name[\s\S]*?<\/div>\s*<div class="rt-personnel-timeline-track"/, 'name and growing track remain siblings in the same native grid');
+    for (const lanes of [1, 2, 3, 8]) {
+        const rowHeight = Math.max(48, lanes * 22 + 12);
+        const base = (rowHeight - lanes * 22) / 2;
+        const firstBadgeTop = base + 2;
+        const lastBadgeBottom = base + (lanes - 1) * 22 + 2 + 18;
+        assert.ok(firstBadgeTop - 5 >= 0);
+        assert.ok(lastBadgeBottom + 5 <= rowHeight);
+        assert.ok(lastBadgeBottom <= rowHeight, 'all lane badges remain in the shared name/track grid row');
+    }
+});
+
+test('proposal and combined row geometry survive unchanged morphs, but changed or removed proposals invalidate the measured row', () => {
+    const { timeline, track, shells } = proposalDensityFixture([], [
+        { start: 32, duration: 1.2 }, { start: 42, duration: 4.8 },
+    ]);
+    timeline.windowRoot = track.parentElement;
+    timeline.windowDisposed = false;
+    timeline.measureEventLabels(630);
+    const incoming = track.cloneNode(true);
+    incoming.style.setProperty('--timeline-lanes', '1');
+    delete incoming.dataset.timelineDensity;
+    for (const shell of incoming.querySelectorAll('.rt-timeline-proposal-shell')) {
+        for (const name of ['--proposal-lane', '--proposal-badge-center', '--proposal-badge-width', '--proposal-badge-duration-left', '--proposal-badge-duration-width', '--proposal-badge-duration-transform']) shell.style.removeProperty(name);
+    }
+    timeline.preserveMorphGeometry({ el: track, toEl: incoming });
+    assert.equal(Number(incoming.style.getPropertyValue('--timeline-lanes')), 2);
+    assert.equal(incoming.dataset.timelineDensity, 'compact');
+    const nextShell = incoming.querySelectorAll('.rt-timeline-proposal-shell')[1];
+    timeline.preserveMorphGeometry({ el: shells[1], toEl: nextShell });
+    assert.equal(Number(nextShell.style.getPropertyValue('--proposal-lane')), 1);
+    assert.equal(nextShell.style.getPropertyValue('--proposal-badge-duration-transform'), 'none');
+    incoming.querySelector('.rt-timeline-proposal-shell').remove();
+    timeline.eventGeometryDirty = false;
+    timeline.preserveMorphGeometry({ el: track, toEl: incoming });
+    assert.equal(timeline.eventGeometryDirty, true, 'proposal-only track changes must not retain stale row geometry');
+});
+
+test('mixed event and proposal rows batch every width read before CSS writes and reuse widths while the Tag viewport pans', () => {
+    const count = 20;
+    const first = proposalDensityFixture([{ start: 25, duration: 2 }], [{ start: 34, duration: 2 }]);
+    const grid = first.track.parentElement;
+    for (let index = 1; index < count; index++) {
+        grid.append(proposalDensityFixture([{ start: 25, duration: 2 }], [{ start: 34, duration: 2 }]).track);
+    }
+    let reads = 0, writes = 0;
+    for (const label of grid.querySelectorAll('.rt-personnel-timeline-time-text, .rt-timeline-proposal > span:not([aria-hidden]), .rt-timeline-proposal > i')) {
+        label.getBoundingClientRect = () => { reads++; return { width: label.tagName === 'I' ? 10 : 90 }; };
+    }
+    for (const element of grid.querySelectorAll('.rt-personnel-timeline-track, .rt-personnel-timeline-event, .rt-timeline-proposal-shell')) {
+        const original = element.style.setProperty.bind(element.style);
+        element.style.setProperty = (name, value) => {
+            assert.equal(reads, count * 4, 'mixed-row measurements must finish all DOM width reads before any row write');
+            writes++;
+            original(name, value);
+        };
+    }
+    first.timeline.$refs.timelineGrid = grid;
+    first.timeline.measureEventLabels(1440, { from: 480, until: 720 });
+    assert.equal(reads, count * 4);
+    const previousWrites = writes;
+    first.timeline.measureEventLabels(1440, { from: 490, until: 730 });
+    assert.equal(reads, count * 4, 'viewport motion reuses both native and proposal label caches');
+    assert.ok(writes >= previousWrites);
+    const unchangedWrites = writes;
+    first.timeline.measureEventLabels(1440, { from: 490, until: 730 });
+    assert.equal(writes, unchangedWrites, 'unchanged viewport geometry causes no duplicate writes');
+});
+
 test('Tag badges keep a complete readable night-duty label inside the visible day without moving its true time', () => {
     const viewport = { from: 480, until: 720 };
     const [night] = timelineEventLanes([{ start: 45.833333333333336, duration: 16.666666666666668, labelWidth: 106 }], 1440, viewport);
@@ -432,7 +600,8 @@ test('large label batches finish all layout reads before the first CSS write and
     const tracks = Array.from({ length: count }, () => {
         const event = { dataset: { timeStart: '25', timeWidth: '2', timeLane: '0' }, style: style(),
             querySelector: () => ({ getBoundingClientRect() { reads++; return { width: 90 }; } }) };
-        return { dataset: { timelineLanes: '1', timelineDensity: 'normal' }, style: style(), querySelectorAll: () => [event] };
+        return { dataset: { timelineLanes: '1', timelineDensity: 'normal' }, style: style(),
+            querySelectorAll: selector => selector === '.rt-personnel-timeline-event' ? [event] : [] };
     });
     const timeline = staffTimeline();
     timeline.$refs = { timelineGrid: { querySelectorAll: () => tracks } };
@@ -883,8 +1052,10 @@ test('a focused day outside the visible days is scrolled to its start, a visible
     assert.equal(timelineFocusOffset(3, 0, 0, 600, 800), null);
     assert.equal(timelineFocusOffset(1, 200, 250, 600, 800), null, 'left partial overlap stays still');
     assert.equal(timelineFocusOffset(4, 200, 250, 600, 800), null, 'right partial overlap stays still');
-    assert.equal(timelineFocusOffset(1, 200, 399.9, 200, 800), null, 'even a subpixel overlap counts as visible');
-    assert.equal(timelineFocusOffset(3, 200, 400.1, 200, 800), null);
+    assert.equal(timelineFocusOffset(1, 200, 399.9, 200, 800), 200, 'a subpixel border sliver must not suppress revealing the actual day');
+    assert.equal(timelineFocusOffset(3, 200, 400.1, 200, 800), 600);
+    assert.equal(timelineFocusOffset(1, 200, 399, 200, 800), 200, 'a single border pixel is not usable day content');
+    assert.equal(timelineFocusOffset(1, 200, 398.9, 200, 800), null, 'a genuinely visible partial day stays still');
     assert.equal(timelineFocusOffset(1, 200, 400, 200, 800), 200, 'touching edges without overlap is offscreen');
     assert.equal(timelineFocusOffset(3, NaN, 0, 600, 800), null);
 });
@@ -990,9 +1161,9 @@ test('absent dates and zero-size geometry are ignored without a server-confirmed
     }, { reduced: true });
 });
 
-test('full, either partial edge and subpixel-visible days cause absolutely no scroll or personnel-mode change', () => {
+test('full and genuinely visible partial-edge days cause absolutely no scroll or personnel-mode change', () => {
     for (const [offset, date] of [[0, '2026-10-06'], [500, '2026-10-06'], [500, '2026-10-08'],
-        [719.9, '2026-10-06'], [720.1, '2026-10-09']]) {
+        [718.9, '2026-10-06'], [721.1, '2026-10-09']]) {
         distributionFocusHarness(({ timeline, body, click, confirm, scrolls, directions }) => {
             body.scrollLeft = offset;
             const writes = body.scrollWrites;

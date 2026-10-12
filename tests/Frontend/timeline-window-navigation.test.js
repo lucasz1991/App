@@ -357,7 +357,8 @@ test('real zoom initialization reads persisted Tag and default Woche without cha
             assert.equal(body.scrollLeft, first());
             assert.equal(replacements.length, 0);
             assert.equal(calls.length, 0);
-            assert.equal(browserListeners.size, 2);
+            assert.equal(browserListeners.size, 3);
+            assert.equal(browserListeners.has('operations-timeline-day-reveal'), true);
         }, { zoom: mode });
     }
 });
@@ -835,10 +836,97 @@ test('pending wheel movement rolls a bounded scaffold with per-date loading and 
         flushFrame();
         assert.equal(body.scrollLeft, first());
         assert.equal(body.scrollTop, 298);
-        assert.equal(body.scrollCalls.length, 2, 'wheel movement executes before either response');
+        assert.equal(body.scrollCalls.length, 3, 'arrow, its native cancellation and direct wheel movement execute before either response');
         assert.deepEqual(calls, [['2026-10-04', '2026-10-10'], ['2026-09-30', '2026-10-06']]);
         assert.equal(timeline.windowDisplayPeriod.from, '2026-09-30');
     });
+});
+
+test('coarse wheel at a lazy-window edge rebases immediately and accumulates the pending smooth target without extra transport', async () => {
+    await withWindow(({ timeline, body, first, width, calls, flushFrame, tweens }) => {
+        const event = { deltaX: -3, deltaY: 0, deltaMode: 1, preventDefault() {} };
+        timeline.wheelPersonnel(event);
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-04');
+        assert.equal(body.scrollLeft, first() + width(), 'structural compensation is immediate, not a moving tween');
+        assert.equal(tweens.length, 0, 'scaffold is corrected before the animation frame');
+        timeline.wheelPersonnel(event);
+        assert.equal(tweens.length, 1);
+        assert.equal(tweens[0].options.left, first() + width() - 96, 'the second coarse step keeps the first pending target');
+        assert.equal(tweens[0].options.duration, .24);
+        assert.equal(calls.length, 1);
+        flushFrame();
+        assert.equal(tweens.length, 1, 'an older edge frame must not create a second tween after a newer wheel input');
+    }, { gsap: true });
+});
+
+test('a real gesture before deferred nextTick cancels obsolete edge motion before its frame exists', async () => {
+    for (const gesture of [timeline => timeline.noteWindowGesture(), timeline => timeline.cancelDistributionFocus()]) {
+        await withWindow(({ timeline, body, logicalMaximum, flushTicks, flushFrame, tweens, calls }) => {
+            body.scrollLeft = logicalMaximum();
+            timeline.scrollDay(1);
+            gesture(timeline);
+            body.scrollLeft = 1300;
+            const offset = body.scrollLeft;
+            flushTicks();
+            flushFrame();
+            assert.equal(body.scrollLeft, offset, 'a later structural callback cannot rebase actual manual input');
+            assert.equal(tweens.length, 0);
+            assert.equal(body.scrollCalls.length, 0);
+            assert.equal(calls.length, 1, 'canceling presentation does not fake a canceled transport');
+        }, { deferredNextTick: true, gsap: true });
+    }
+});
+
+test('reserve-day opening shifts the bounded scaffold immediately and animates to the exact newly selected day before data returns', async () => {
+    for (const [date, offsetDays, expectedFrom] of [['2026-10-04', 3, '2026-10-04'],
+        ['2026-10-02', 5, '2026-10-02']]) {
+        await withWindow(({ timeline, root, body, header, width, first, calls, requests, flushFrame, tweens }) => {
+            header.querySelectorAll = () => timeline.windowScaffoldDays.map(day => ({ dataset: { timelineDate: day.date } }));
+            body.scrollLeft = offsetDays * width();
+            const previousSelectedShift = root.dataset.timelineFocusShiftId = '82';
+            assert.equal(timeline.requestDayReveal({ owner: 'plan-owner', date }), true);
+            assert.equal(timeline.windowDisplayPeriod.from, expectedFrom);
+            assert.equal(timeline.windowScaffoldDays.length, 13);
+            assert.equal(calls.length, 1);
+            assert.equal(requests.length, 1);
+            assert.equal(tweens.length, 0);
+            flushFrame();
+            assert.equal(tweens.length, 1);
+            assert.equal(tweens[0].options.left, first(), 'requested reserve day is left-aligned on its new axis, not clamped on the old one');
+            assert.equal(tweens[0].options.duration, .42);
+            tweens[0].state.left = first();
+            tweens[0].options.onUpdate();
+            tweens[0].options.onComplete();
+            assert.equal(body.scrollLeft, first());
+            assert.equal(root.dataset.timelineFocusShiftId, previousSelectedShift);
+            assert.equal(timeline.windowLoading, true, 'navigation is independent from pending transport');
+        }, { gsap: true });
+    }
+});
+
+test('a seven-day Woche viewport preserves the previous visual anchor through a reserve-day transition instead of jumping', async () => {
+    await withWindow(({ timeline, body, header, width, first, flushFrame, tweens }) => {
+        body.clientWidth = 934;
+        body.offsetWidth = 940;
+        header.clientWidth = 784;
+        timeline.measure();
+        assert.equal(width(), 112);
+        header.querySelectorAll = () => timeline.windowScaffoldDays.map(day => ({ dataset: { timelineDate: day.date } }));
+        timeline.requestDayReveal({ owner: 'plan-owner', date: '2026-10-04' });
+        assert.equal(body.scrollLeft, first() + width(), 'the old first day stays at the same visual position after the axis rebase');
+        flushFrame();
+        assert.equal(tweens.length, 1);
+        assert.equal(tweens[0].options.left, first());
+        const midpoint = first() + width() / 2;
+        tweens[0].state.left = midpoint;
+        tweens[0].options.onUpdate();
+        assert.equal(body.scrollLeft, midpoint, 'intermediate transition frames cannot be clamped prematurely to the selected edge');
+        tweens[0].options.onComplete();
+        assert.equal(body.scrollLeft, first());
+        body.scrollLeft = first() + width();
+        timeline.syncHorizontal(body);
+        assert.equal(body.scrollLeft, first(), 'manual movement retains the ordinary selected-edge boundary after completion');
+    }, { gsap: true, zoom: 'week' });
 });
 
 test('Alpine directive $el on an arrow still resolves the initialized timeline owner and measures the actual root', async () => {
@@ -952,7 +1040,8 @@ test('new horizontal wheel intent while data replenishes preserves the user offs
         flushFrame();
         assert.equal(body.scrollLeft, offset);
         assert.equal(body.scrollTop, top);
-        assert.equal(body.scrollCalls.length, 1);
+        assert.equal(body.scrollCalls.length, 2);
+        assert.equal(body.scrollCalls.at(-1).behavior, 'instant', 'real input cancels the earlier native fallback without replaying it');
     });
 });
 
@@ -968,7 +1057,8 @@ test('new selected-range footer movement while loading has priority over the imm
         flushFrame();
         flushFrame();
         assert.equal(body.scrollLeft, first() + 500);
-        assert.equal(body.scrollCalls.length, 1);
+        assert.equal(body.scrollCalls.length, 2);
+        assert.equal(body.scrollCalls.at(-1).behavior, 'instant');
     });
 });
 
@@ -1105,7 +1195,8 @@ test('foreign date-picker period supersedes pending edge restoration and a late 
         requests[0].resolve();
         await tick();
         flushFrame();
-        assert.equal(body.scrollCalls.length, 1, 'the newer picker cancels only future movement, not an already-issued animation');
+        assert.equal(body.scrollCalls.length, 2, 'the newer picker stops the issued native movement and a late response cannot replay it');
+        assert.equal(body.scrollCalls.at(-1).behavior, 'instant');
         assert.equal(body.scrollTop, 640);
         assert.equal(calls.length, 1);
         body.scrollLeft = 0;
@@ -1122,7 +1213,8 @@ test('a newer period before the animation frame cancels the scheduled old edge m
         period('2027-02-01', '2027-02-07');
         flushFrame();
         flushFrame();
-        assert.equal(body.scrollCalls.length, 1);
+        assert.equal(body.scrollCalls.length, 2);
+        assert.equal(body.scrollCalls.at(-1).behavior, 'instant');
         assert.equal(timeline.windowLoading, false);
     });
 });
@@ -1131,7 +1223,7 @@ test('standalone/absence timelines keep finite arrow behavior and do not call th
     await withWindow(({ timeline, body, calls, period, flushFrame, replacements }) => {
         assert.equal(timeline.windowNavigationEnabled, false);
         timeline.scrollDay(-1);
-        assert.deepEqual(body.scrollCalls, [{ left: 0, behavior: 'smooth' }]);
+        assert.deepEqual(body.scrollCalls, [], 'the finite left edge needs no redundant same-position animation');
         assert.equal(calls.length, 0);
         period('2026-10-04', '2026-10-10');
         flushFrame();
