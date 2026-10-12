@@ -23,6 +23,7 @@ use App\Support\Operations\OperationsNavigation;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningLocks;
 use App\Support\Operations\TimelineLocationPreview;
+use App\Support\Routing\TomTomSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -240,7 +241,7 @@ class StaffTimeline extends Component
         }
         $this->showSuggestions = $open;
         $this->suggestionsAvailable = true;
-        $this->suggestionsReady = ! $open;
+        $this->suggestionsReady = ! $open || ! TomTomSettings::all()['enabled'];
         $this->focusShiftId = $focusShiftId;
         $this->resetValidation();
     }
@@ -269,7 +270,7 @@ class StaffTimeline extends Component
         $this->ensurePlanning();
         $this->showSuggestions = ! $this->showSuggestions;
         $this->suggestionsAvailable = true;
-        $this->suggestionsReady = ! $this->showSuggestions;
+        $this->suggestionsReady = ! $this->showSuggestions || ! TomTomSettings::all()['enabled'];
         $this->previewVersion += $this->showSuggestions ? 1 : 0;
         $this->resetValidation();
     }
@@ -281,7 +282,7 @@ class StaffTimeline extends Component
             $this->ensurePlanning();
             $this->previewVersion++;
             $this->suggestionsAvailable = true;
-            $this->suggestionsReady = ! $this->showSuggestions;
+            $this->suggestionsReady = ! $this->showSuggestions || ! TomTomSettings::all()['enabled'];
         }
     }
 
@@ -306,6 +307,10 @@ class StaffTimeline extends Component
     private function planningPreview(): array
     {
         $preview = Cache::get($this->previewKey());
+        if (! is_array($preview) && ! TomTomSettings::all()['enabled']) {
+            $preview = app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user());
+            Cache::put($this->previewKey(), $preview, 90);
+        }
         if (! is_array($preview)) {
             $this->suggestionsReady = false;
         }

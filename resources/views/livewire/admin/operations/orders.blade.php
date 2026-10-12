@@ -19,7 +19,7 @@
         </template>
         <template x-teleport="[data-page-header-search]">
             <div class="rt-orders-list-controls" data-orders-list-controls>
-                <x-ui.buttons.button-basic type="button" mode="secondary" class="rt-service-bulk-trigger" disabled data-tables-bulk-unavailable data-orders-bulk-trigger aria-label="Massenaktionen – keine Sammelaktionen für Leistungen verfügbar" title="Keine Sammelaktionen für Leistungen verfügbar"><i class="far fa-layer-group" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                <x-operations.service-table-selection :count="count($selectedServiceRows)" />
             </div>
         </template>
         <template x-teleport="[data-page-header-actions]">
@@ -30,12 +30,12 @@
         </template>
     @else
         <div class="rt-orders-list-controls" data-orders-list-controls>
-            <x-ui.buttons.button-basic type="button" mode="secondary" class="rt-service-bulk-trigger" disabled data-tables-bulk-unavailable data-orders-bulk-trigger aria-label="Massenaktionen – keine Sammelaktionen für Leistungen verfügbar" title="Keine Sammelaktionen für Leistungen verfügbar"><i class="far fa-layer-group" aria-hidden="true"></i></x-ui.buttons.button-basic>
+            <x-operations.service-table-selection :count="count($selectedServiceRows)" />
             @include('livewire.admin.operations.partials.orders-filter-trigger')
         </div>
     @endif
     <section class="rt-orders-list" aria-label="{{ __('pagination.orders_list') }}" @if($boundedOrdersList) data-orders-list-scroll @endif>
-        <x-operations.service-table :items="$orderTableItems" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="orders" data-table-pagination-key="orders" :scroll-body="$boundedOrdersList" :selected-items="[$selectedOrderId]" selection-action="selectOrder" detail-action="openDetails" label="Aufträge und Leistungen" />
+        <x-operations.service-table :items="$orderTableItems" sort-action="tableSort" :sort-by="$sortBy" :sort-dir="$sortDir" table-key="orders" data-table-pagination-key="orders" :scroll-body="$boundedOrdersList" :selected-items="[$selectedOrderId]" :bulk-selected-items="$selectedServiceRows" bulk-selection-action="toggleServiceSelection" selection-action="selectOrder" detail-action="openDetails" label="Aufträge und Leistungen" />
         <div class="rt-service-pagination" data-orders-pagination>
             <x-tables.pagination :paginator="$orders" table-key="orders" label="Auftragsseiten" />
         </div>

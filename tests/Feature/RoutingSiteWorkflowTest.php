@@ -16,6 +16,8 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\PlanVariantService;
+use App\Services\Operations\ShiftAssignmentService;
+use App\Services\Operations\ShiftSchedulingService;
 use App\Services\Operations\ShiftSeriesService;
 use App\Services\Operations\SiteSnapshotService;
 use App\Services\Routing\ServerRoutingCache;
@@ -84,6 +86,30 @@ class RoutingSiteWorkflowTest extends TestCase
         $copy->public_id = null;
         $copy->save();
         $this->assertSame(52.5, $copy->location_snapshot['latitude']);
+    }
+
+    public function test_disabled_provider_still_requires_confirmed_binding_sites_but_allows_unassigned_drafts(): void
+    {
+        RoutingSettings::save(RoutingSettings::DEFAULTS);
+        Http::preventStrayRequests();
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $shift = $this->shift(['location_name' => 'Ort noch zu bestätigen']);
+        $saved = app(ShiftSchedulingService::class)->save($shift, ['notes' => 'Entwurf bleibt bearbeitbar', 'expected_revision' => $shift->revision], $this->admin);
+        $this->assertNull($saved->location_snapshot);
+        foreach ([
+            fn () => app(ShiftAssignmentService::class)->assign($saved, $employee, $this->admin),
+            fn () => app(PlanPublicationService::class)->publish($saved, $saved->revision, $this->admin),
+        ] as $action) {
+            try {
+                $action();
+                $this->fail('Binding action without a confirmed site must be rejected even with routing disabled.');
+            } catch (ValidationException $exception) {
+                $this->assertStringContainsString('Einsatzstandort', $exception->getMessage());
+            }
+        }
+        $this->assertSame(0, $saved->assignments()->count());
+        $this->assertSame(0, $saved->fresh()->published_revision);
+        Http::assertNothingSent();
     }
 
     public function test_raw_location_change_clears_precision_instead_of_guessing(): void

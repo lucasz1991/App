@@ -15,22 +15,23 @@ class PlanningTravelDisplay
     {
         $core = app(StaffEligibilityService::class)->assessPreviewCoreMany($shift, $users, $context);
         $fresh = app(TravelAssessmentService::class)->assessMany($shift, $users, array_replace($context, ['skip_provider' => true, 'include_employee_location' => false]));
+        $settings = TomTomSettings::all();
         foreach ($fresh as $id => &$detail) {
             $previous = $stored[$id] ?? null;
-            if ($this->reusable($detail, $previous)) {
+            if ($this->reusable($detail, $previous, $settings)) {
                 // Recompute core rules every render; only reuse the planned route facts.
                 $detail = array_replace($detail, array_intersect_key($previous, array_flip(['travel', 'warnings', '_display_checked_at'])));
                 $detail['issues'] = array_values(array_filter($previous['issues'] ?? [], fn ($issue) => str_starts_with($issue['code'] ?? '', 'travel_')));
             }
             $detail['issues'] = collect(array_merge($core[$id] ?? [], $detail['issues'] ?? []))->unique('code')->values()->all();
-            $detail += $this->status($detail);
+            $detail += $this->status($detail, (bool) $settings['enabled']);
         }
         unset($detail);
 
         return $fresh;
     }
 
-    public function reusable(array $current, ?array $previous): bool
+    public function reusable(array $current, ?array $previous, ?array $settings = null): bool
     {
         if (! $previous || empty($current['basis']) || ! hash_equals($current['basis'], (string) ($previous['basis'] ?? '')) || empty($previous['_display_checked_at'])) {
             return false;
@@ -38,7 +39,8 @@ class PlanningTravelDisplay
         try {
             $now = CarbonImmutable::now('UTC');
             $checked = CarbonImmutable::parse($previous['_display_checked_at']);
-            $minutes = max(1, min(5, (int) TomTomSettings::all()['server_route_cache_minutes']));
+            $settings ??= TomTomSettings::all();
+            $minutes = max(1, min(5, (int) $settings['server_route_cache_minutes']));
             if ($checked->isAfter($now) || $checked->addMinutes($minutes)->lte($now)) {
                 return false;
             }
@@ -64,10 +66,11 @@ class PlanningTravelDisplay
         return $details;
     }
 
-    public function status(array $detail): array
+    public function status(array $detail, ?bool $enabled = null): array
     {
         $legs = collect($detail['travel'] ?? []);
-        $state = ! TomTomSettings::all()['enabled'] ? 'disabled'
+        $enabled ??= (bool) TomTomSettings::all()['enabled'];
+        $state = ! $enabled ? 'disabled'
             : (collect($detail['issues'] ?? [])->contains(fn ($issue) => str_starts_with($issue['code'] ?? '', 'travel_')) ? 'conflict'
                 : ($legs->contains(fn ($leg) => ($leg['status'] ?? null) !== 'known')
                     ? ($legs->contains(fn ($leg) => ($leg['reason'] ?? '') === 'pending') ? 'pending' : 'unknown') : 'known'));

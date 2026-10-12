@@ -19,7 +19,7 @@
     $serviceItems = (clone $serviceGroups)->setCollection($serviceRows);
 @endphp
 <section aria-label="Leistungsübersicht" data-service-overview data-service-detail-controller data-service-detail-panel-owner="{{ $this->getId() }}" x-data="rtServiceDetailPanel">
-    <x-operations.service-table :items="$serviceItems" sort-action="sortServices" :sort-by="$serviceSortBy" :sort-dir="$serviceSortDir" :selected-items="[$selectedServiceId]" selection-action="openServiceDetails" detail-action="openServiceDetails" table-key="service-overview" data-table-pagination-key="service-overview" label="Leistungen im gewählten Zeitraum" empty="Keine Leistungen für diese Filter im gewählten Zeitraum gefunden." />
+    <x-operations.service-table :items="$serviceItems" sort-action="sortServices" :sort-by="$serviceSortBy" :sort-dir="$serviceSortDir" :selected-items="[$selectedServiceId]" :bulk-selected-items="$selectedServiceRows" bulk-selection-action="toggleServiceSelection" selection-action="openServiceDetails" detail-action="openServiceDetails" table-key="service-overview" data-table-pagination-key="service-overview" label="Leistungen im gewählten Zeitraum" empty="Keine Leistungen für diese Filter im gewählten Zeitraum gefunden." />
     <x-operations.panel :id="'service-detail-panel-'.$this->getId()" label="Leistungsdetails" show-expression="panelVisible">
         <div class="rt-service-detail-host" data-service-detail-panel-owner="{{ $this->getId() }}" x-bind:aria-busy="loading">
             <div x-show="loading || error" x-cloak class="rt-service-detail-state">

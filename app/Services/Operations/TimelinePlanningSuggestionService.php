@@ -11,6 +11,7 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Routing\TomTomRoutingService;
 use App\Support\Operations\OperationsAccess;
+use App\Support\Routing\TomTomSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -107,6 +108,7 @@ class TimelinePlanningSuggestionService
         $eligibility = $staff !== null ? $eligibilityService->assessPreviewCoreMany($shift, $users, $context)
             : collect($routeDetails)->map(fn ($detail) => $detail['issues'])->all();
         $ranked = collect();
+        $routingEnabled = (bool) TomTomSettings::all()['enabled'];
         $wishes = app(WorkforcePlanningService::class)->wishSummaries($shift, $users);
         $loads = $this->batchLoads($shift, $users);
         foreach ($users as $user) {
@@ -119,7 +121,7 @@ class TimelinePlanningSuggestionService
             $load = $this->projectLoad($loads[$user->id], $additional);
             $wishPriority = ['preferred' => 0, 'available' => 1, 'unknown' => 2, 'free_requested' => 3][$wish] ?? 2;
             $route = $routeDetails[$user->id] ?? ['issues' => [], 'warnings' => [], 'travel' => []];
-            $route += app(PlanningTravelDisplay::class)->status($route);
+            $route += app(PlanningTravelDisplay::class)->status($route, $routingEnabled);
             $reasons = [in_array($route['route_state'], ['pending', 'unknown'], true) ? 'Kernregeln geprüft · '.$route['route_label'] : 'Keine bekannten Planungskonflikte'];
             $wishLabel = ['preferred' => 'Wunschdienst', 'available' => 'Verfügbarkeit gemeldet', 'free_requested' => 'Freiwunsch vorhanden'][$wish] ?? null;
             if ($wishLabel) {
@@ -203,10 +205,11 @@ class TimelinePlanningSuggestionService
 
     private function routeCandidates(Collection $candidates, array $details): Collection
     {
+        $enabled = (bool) TomTomSettings::all()['enabled'];
         return $candidates->filter(fn ($candidate) => isset($details[$candidate['user']->id]) && $details[$candidate['user']->id]['issues'] === [])
-            ->map(function ($candidate) use ($details) {
+            ->map(function ($candidate) use ($details, $enabled) {
                 $detail = $details[$candidate['user']->id];
-                $detail += app(PlanningTravelDisplay::class)->status($detail);
+                $detail += app(PlanningTravelDisplay::class)->status($detail, $enabled);
                 $candidate['travel'] = $detail;
                 $candidate['warnings'] = $detail['warnings'];
                 $candidate['reasons'][0] = in_array($detail['route_state'], ['pending', 'unknown'], true) ? 'Kernregeln geprüft · '.$detail['route_label'] : 'Keine bekannten Planungskonflikte';

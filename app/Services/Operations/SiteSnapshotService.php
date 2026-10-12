@@ -7,7 +7,6 @@ use App\Models\Order;
 use App\Models\Shift;
 use App\Services\Routing\RoutingSiteSelection;
 use App\Support\Operations\SchemaReadiness;
-use App\Support\Routing\TomTomSettings;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -103,7 +102,7 @@ class SiteSnapshotService
 
     public function assertConfirmed(Shift $shift): void
     {
-        if (self::ready() && TomTomSettings::all()['enabled'] && ! self::confirmed($shift->location_snapshot)) {
+        if (self::ready() && ! self::confirmed($shift->location_snapshot)) {
             throw ValidationException::withMessages(['workflow' => 'Vor einer verbindlichen Zuteilung oder Veröffentlichung muss der Einsatzstandort mit Koordinaten bestätigt werden.']);
         }
     }

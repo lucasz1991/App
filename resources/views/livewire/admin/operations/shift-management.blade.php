@@ -30,10 +30,7 @@
                 ];
             @endphp
             @if($viewMode === 'orders')
-                <x-ui.buttons.button-basic type="button" mode="secondary" class="rt-service-bulk-trigger" disabled data-tables-bulk-unavailable data-service-bulk-trigger
-                    aria-label="Massenaktionen – keine Sammelaktionen für Leistungen verfügbar" title="Keine Sammelaktionen für Leistungen verfügbar">
-                    <i class="far fa-layer-group" aria-hidden="true"></i>
-                </x-ui.buttons.button-basic>
+                <x-operations.service-table-selection :count="count($selectedServiceRows)" />
             @endif
             <div @class(['rt-shift-plan-period-controls', 'rt-shift-plan-period-controls--date' => $timelineDatePicker])>
                 <x-ui.dropdown.anchor-dropdown align="left" width="auto" offset="6" :max-height="$timelineDatePicker ? 640 : 448" dropdown-id="shift-plan-period-{{ $this->getId() }}" layer-group="operations-shift-plan" content-role="dialog" :content-label="$timelineDatePicker ? 'Tag auswählen' : 'Planungszeitraum anpassen'" :dropdown-classes="$timelineDatePicker ? 'rt-shift-plan-date-dropdown' : 'rt-shift-plan-range-dropdown'" content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">

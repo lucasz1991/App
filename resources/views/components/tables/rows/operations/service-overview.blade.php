@@ -3,8 +3,11 @@
     $isOrderRow = isset($item->requiredStaff);
 @endphp
 @foreach($columnsMeta as $column)
-    <div class="rt-table-cell {{ $column['key'] === 'service' ? 'rt-table-cell--primary' : '' }} {{ $column['key'] === 'status' ? 'rt-table-cell--status' : '' }} {{ in_array($column['key'], ['customer', 'staffing', 'period', 'location', 'count'], true) ? 'rt-table-cell--service-staffing' : '' }} {{ $hideClass($column['hideOn']) }}" data-service-column="{{ $column['key'] }}" data-rt-table-label="{{ $column['label'] }}">
+    <div class="rt-table-cell {{ $column['key'] === 'selection' ? 'rt-service-selection-cell' : '' }} {{ $column['key'] === 'service' ? 'rt-table-cell--primary' : '' }} {{ $column['key'] === 'status' ? 'rt-table-cell--status' : '' }} {{ in_array($column['key'], ['customer', 'staffing', 'period', 'location', 'count'], true) ? 'rt-table-cell--service-staffing' : '' }} {{ $hideClass($column['hideOn']) }}" @if($column['key'] === 'selection') data-service-selection-column data-table-row-ignore @else data-service-column="{{ $column['key'] }}" @endif data-rt-table-label="{{ $column['label'] }}">
         @switch($column['key'])
+            @case('selection')
+                <x-ui.forms.checkbox :id="$tableKey.'-select-'.$item->id" :checked="$item->bulkSelected" wire:click="{{ $item->bulkSelectionAction }}({{ $item->id }})" wire:loading.attr="disabled" wire:target="{{ $item->bulkSelectionAction }},toggleSelectAllServices,clearServiceSelection" :aria-label="'Leistung auswählen: '.($item->order?->title ?: $item->id)" data-service-row-checkbox />
+                @break
             @case('service')
                 <div class="rt-table-record">
                     <div class="rt-table-record__body">

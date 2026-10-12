@@ -14,7 +14,6 @@ use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsTransaction;
 use App\Support\Operations\PlanningLocks;
 use App\Support\Operations\WorkforcePlanningSchema;
-use App\Support\Routing\TomTomSettings;
 use Illuminate\Validation\ValidationException;
 
 class ShiftAssignmentService
@@ -57,9 +56,7 @@ class ShiftAssignmentService
             }
 
             if ($assignmentStatus->blocksAvailability()) {
-                if (TomTomSettings::all()['enabled'] && app(SiteSnapshotService::class)->ready()) {
-                    app(SiteSnapshotService::class)->assertConfirmed($lockedShift);
-                }
+                app(SiteSnapshotService::class)->assertConfirmed($lockedShift);
                 $this->assertShiftCanBeStaffed($lockedShift);
                 $this->assertCapacity($lockedShift, $lockedAssignee);
                 app(StaffRegionalPreferenceService::class)->assertAllowed($lockedShift, $lockedAssignee, true);
