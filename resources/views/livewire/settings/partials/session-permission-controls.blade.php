@@ -9,9 +9,9 @@
         @php
             $idleMinutes = \App\Support\Privacy\SessionLifetimePolicy::minutes(auth()->user());
         @endphp
-        Diese Sitzung läuft nach {{ $idleMinutes % 60 === 0 ? ($idleMinutes / 60).' Stunden' : $idleMinutes.' Minuten' }} ohne App-Nutzung ab. Standortmeldungen des Hintergrunddienstes verlängern die Anmeldung nicht.
+        Diese Sitzung läuft nach {{ $idleMinutes % 60 === 0 ? ($idleMinutes / 60).' Stunden' : $idleMinutes.' Minuten' }} ohne App-Nutzung ab. Automatische Standortmeldungen verlängern die Anmeldung nicht. Bei geändertem Erklärtext ist einmalig eine neue Entscheidung erforderlich.
     </p>
-    @foreach (['push' => 'Push-Benachrichtigungen', 'location' => 'Standort während der Arbeit'] as $purpose => $label)
+    @foreach (['push' => 'Push-Benachrichtigungen', 'location' => 'Standort für die Einsatzplanung'] as $purpose => $label)
         @php
             $available = $purpose === 'push' ? $permissions['push_available'] : $permissions['location_enabled'];
             $decision = $permissions[$purpose.'_decision'];
@@ -25,7 +25,7 @@
                 <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">RailTime darf dir Benachrichtigungen über neue Nachrichten und betriebliche Hinweise senden. Die Browserberechtigung und Einrichtung gelten separat für dieses Gerät. Auf dem iPhone wird die installierte Web-App benötigt.</p>
             @elseif ($available)
                 <p class="mt-2 whitespace-pre-line text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $permissions['location_text'] }}</p>
-                <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Die Freigabe startet keine Ortung. Die regelmäßige Erfassung benötigt zusätzlich dein zugeordnetes Geschäftshandy, den nativen Standortdienst, dessen Geräteberechtigung und einen ausdrücklichen Start während laufender Arbeitszeit. Die Browser-Abfrage allein ermöglicht keinen Hintergrunddienst.</p>
+                <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Mit Freigabe und Geräteberechtigung wird bei aktiver App-Nutzung dein letzter präziser Punkt gespeichert. Die Web-App erfasst im Hintergrund und bei gesperrtem Display keine neuen Positionen. Eine fehlende oder veraltete Position verschlechtert deine Einsatzberechtigung nicht.</p>
             @endif
             @if ($available)
                 <div class="mt-3 grid gap-2 sm:grid-cols-2">

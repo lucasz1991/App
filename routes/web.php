@@ -311,10 +311,6 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::delete('/chat/live-locations/{liveLocation:uuid}/profile-history', [ChatLiveLocationController::class, 'withdrawProfileHistory'])
         ->middleware('throttle:chat-live-location-sync')
         ->name('chat.live-locations.profile-history.destroy');
-    Route::get('/chat/live-locations/{liveLocation:uuid}/native', [\App\Http\Controllers\ChatNativeLocationController::class, 'status'])
-        ->middleware('throttle:30,1')->name('chat.live-locations.native-status');
-    Route::post('/chat/live-locations/{liveLocation:uuid}/native/start', [\App\Http\Controllers\ChatNativeLocationController::class, 'handoff'])
-        ->middleware('throttle:30,1')->name('chat.live-locations.native-start');
     // Videoanrufe: Anruf-Fenster + Token-Ausgabe (Token immer frisch per fetch,
     // nie im Livewire-Snapshot – siehe LIVEKIT_INTEGRATION_PLAN.md).
     // Uebersichten: Anrufverlauf und offene Besprechungsraeume. Muessen VOR

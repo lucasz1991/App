@@ -11,6 +11,8 @@
     $mayStop = ($canStop ?? $own) && $location?->isActive();
     $stopUrl = $mayStop ? route('chat.live-locations.destroy', ['liveLocation' => $location]) : null;
     $senderName = $message->sender?->name ?? __('app.unknown');
+    $profileHistoryConsent = $own && $location?->profileHistoryEnabled();
+    $profileHistoryUrl = $profileHistoryConsent ? route('chat.live-locations.profile-history.destroy', ['liveLocation' => $location]) : null;
 @endphp
 
 @if ($location && isset($position['latitude'], $position['longitude']))
@@ -41,6 +43,8 @@
         data-live-location-stop-url="{{ $stopUrl }}"
         data-live-location-can-stop="{{ $mayStop ? 'true' : 'false' }}"
         data-live-location-sender-name="{{ $senderName }}"
+        data-live-location-profile-history-consent="{{ $profileHistoryConsent ? 'true' : 'false' }}"
+        data-live-location-profile-history-url="{{ $profileHistoryUrl }}"
         data-chat-action-ignore
         data-no-chat-swipe
         class="rt-live-location-card {{ $own ? 'is-own' : 'is-other' }} min-w-0 max-w-full overflow-hidden rounded-[1rem]"
@@ -112,6 +116,11 @@
                 style="display: none;"
                 role="alert"
             ></p>
+        </div>
+        <div x-cloak x-show="profileHistoryConsent && profileHistoryUrl" class="border-t border-rt-border/50 bg-rt-surface px-3 py-2 text-xs text-rt-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted">
+            <p>{{ __('app.chat_live_location_profile_history_active') }}</p>
+            <button type="button" x-on:click.stop="withdrawProfileHistory()" x-bind:disabled="withdrawingHistory" class="mt-1 inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red disabled:opacity-50 dark:text-rt-dark-accent">{{ __('app.chat_live_location_profile_history_withdraw') }}</button>
+            <p x-show="error" x-text="error" role="alert" class="text-red-700 dark:text-red-200"></p>
         </div>
     </div>
 @else

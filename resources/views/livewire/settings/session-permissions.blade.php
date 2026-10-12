@@ -30,7 +30,8 @@
                     await helper.subscribePush(@js($permissionClient));
                     this.browserMessage = 'Push ist für diese Anmeldesitzung auf diesem Gerät eingerichtet.';
                 } else if (purpose === 'location' && permission === 'granted') {
-                    this.browserMessage = 'Die Browserberechtigung ist erteilt. Der Standortdienst auf dem Geschäftshandy muss weiterhin eingerichtet und ausdrücklich gestartet werden.';
+                    window.dispatchEvent(new CustomEvent('railtime-location-browser-permission-granted'));
+                    this.browserMessage = 'Dein letzter präziser Standort kann während aktiver App-Nutzung für Anreisehinweise gespeichert werden. Im Standby werden keine neuen Positionen erfasst.';
                 } else if (permission === 'denied') {
                     this.browserMessage = 'Deine RailTime-Freigabe ist gespeichert. Die Geräteberechtigung ist blockiert; du kannst sie in den Browser- oder Geräteeinstellungen ändern.';
                 } else if (permission === 'install-required') {

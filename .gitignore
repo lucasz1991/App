@@ -325,3 +325,4 @@ auth.json
 !/tests/Frontend/app-lifecycle.test.js
 
 !/tests/Frontend/service-worker-push.test.js
+!/tests/Frontend/distribution-accordion.test.js

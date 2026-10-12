@@ -140,9 +140,6 @@ export function normalizeLiveLocationShare(payload = {}) {
         canStop: booleanValue(source?.can_stop ?? source?.canStop, false),
         profileHistoryConsent: booleanValue(source?.profile_history_consent ?? source?.profileHistoryConsent),
         profileHistoryUrl: stringValue(routes.profile_history ?? source?.profile_history_url ?? source?.profileHistoryUrl),
-        nativeStatusUrl: stringValue(routes.native_status ?? source?.native_status_url ?? source?.nativeStatusUrl),
-        nativeHandoffUrl: stringValue(routes.native_handoff ?? source?.native_handoff_url ?? source?.nativeHandoffUrl),
-        nativeActive: booleanValue(source?.native_active ?? source?.nativeActive),
         senderName: stringValue(source?.sender_name ?? source?.senderName),
     };
 }
@@ -409,6 +406,7 @@ export class LiveLocationCoordinator {
         this._watchGeneration = 0;
         this._stoppingShares = new Set();
         this._lastReconcileOk = false;
+        this._historyWithdrawn = new Set();
     }
 
     snapshot() {
@@ -690,11 +688,13 @@ export class LiveLocationCoordinator {
                 .filter((share) => isLiveLocationActive(share, this.now()));
             this.activeShares = shares.map((share) => ({
                 ...share,
+                profileHistoryConsent: share.profileHistoryConsent && !this._historyWithdrawn.has(share.id),
                 _lastPublished: validLiveLocationCoordinates(share.latitude, share.longitude)
                     ? {
                         latitude: share.latitude,
                         longitude: share.longitude,
                         publishedAt: timestamp(share.locatedAt) ?? 0,
+                        measuredAt: timestamp(share.locatedAt) ?? 0,
                     }
                     : null,
             }));
@@ -740,6 +740,22 @@ export class LiveLocationCoordinator {
     }
 
     _positionOnce() {
+        // Chat and the voluntary app-use projection share an in-flight sensor read.
+        if (!this._capturePromise) {
+            this._capturePromise = this._requestPositionOnce().finally(() => { this._capturePromise = null; });
+        }
+        return this._capturePromise;
+    }
+
+    async capturePosition() {
+        if (!this._canMeasure()) throw new Error('Standortmessung ist nur in der geöffneten App möglich.');
+        const generation = this._positionGeneration;
+        const position = await this._positionOnce();
+        if (generation !== this._positionGeneration || !this._canMeasure()) throw new Error('Standortmessung wurde unterbrochen.');
+        return this._freshPosition(position);
+    }
+
+    _requestPositionOnce() {
         return new Promise((resolve, reject) => {
             if (!this.supported) {
                 reject(new Error(
@@ -844,6 +860,7 @@ export class LiveLocationCoordinator {
                 latitude: finiteNumber(share.latitude) ?? payload.latitude,
                 longitude: finiteNumber(share.longitude) ?? payload.longitude,
                 publishedAt: this.now(),
+                measuredAt: timestamp(payload.measured_at),
             };
             this.activeShares = this.activeShares.filter((activeShare) => (
                 activeShare.chatId !== share.chatId || activeShare.id === share.id
@@ -930,7 +947,7 @@ export class LiveLocationCoordinator {
         if (!this.supported
             || !this._canMeasure()
             || this._watchId !== null
-            || !this.activeShares.some((share) => !share.nativeActive && !this._stoppingShares.has(share.id))
+            || !this.activeShares.some((share) => !this._stoppingShares.has(share.id))
             || this.permissionState === 'denied') {
             return;
         }
@@ -993,7 +1010,8 @@ export class LiveLocationCoordinator {
 
         const now = this.now();
         const candidates = this.activeShares.filter((share) => share.updateUrl
-            && !share.nativeActive && !this._stoppingShares.has(share.id)
+            && !this._stoppingShares.has(share.id)
+            && timestamp(next.measured_at) > (share._lastPublished?.measuredAt ?? -1)
             && isLiveLocationActive(share, now)
             && (force || shouldPublishLiveLocation(share._lastPublished, next, now, {
                 minimumInterval: this.minimumUpdateInterval,
@@ -1030,10 +1048,13 @@ export class LiveLocationCoordinator {
                         accuracy: updated.accuracy ?? next.accuracy,
                         updateUrl: updated.updateUrl || share.updateUrl,
                         stopUrl: updated.stopUrl || share.stopUrl,
+                        profileHistoryConsent: (updated.id ? updated.profileHistoryConsent : share.profileHistoryConsent)
+                            && !this._historyWithdrawn.has(share.id),
                         _lastPublished: {
                             latitude: next.latitude,
                             longitude: next.longitude,
                             publishedAt: this.now(),
+                            measuredAt: timestamp(next.measured_at),
                         },
                     };
 
@@ -1215,28 +1236,12 @@ export class LiveLocationCoordinator {
         const shareId = identifier(typeof shareOrId === 'object' ? shareOrId.id : shareOrId);
         if (!shareId || !endpoint || this._loggedOut) throw new Error('Die Freigabe ist nicht verfügbar.');
         await this.request(endpoint, { method: 'DELETE' });
+        this._historyWithdrawn.add(shareId);
         this.activeShares = this.activeShares.map((share) => share.id === shareId
             ? { ...share, profileHistoryConsent: false } : share);
         this._emit();
         dispatchWindowEvent(this.window, 'railtime:live-location-history-withdrawn', { shareId });
         return true;
-    }
-
-    async nativeStatus(endpoint) {
-        if (!endpoint || this._loggedOut) return null;
-        return this.request(endpoint, { method: 'GET' });
-    }
-
-    async nativeHandoff(endpoint) {
-        if (!endpoint || this._loggedOut) throw new Error('Der Standortdienst ist nicht verfügbar.');
-        const response = await this.request(endpoint, { method: 'POST' });
-        // Handoffs are server-authored, same-origin verified Universal/App Links.
-        const link = new URL(response?.app_link, this.window?.location?.href);
-        if (link.protocol !== 'https:' || link.origin !== this.window?.location?.origin
-            || link.pathname !== '/employee-location/open' || !link.hash.includes('code=')) {
-            throw new Error('Der Standortdienst hat keinen gültigen Startlink geliefert.');
-        }
-        return link.href;
     }
 
     handleLogout() {
@@ -1302,7 +1307,7 @@ export class LiveLocationCoordinator {
             this._ensureWatch();
 
             try {
-                if (!this.activeShares.some((share) => !share.nativeActive && !this._stoppingShares.has(share.id))) return true;
+                if (!this.activeShares.some((share) => !this._stoppingShares.has(share.id))) return true;
                 const position = await this._positionOnce();
                 await this._handlePosition(position, { force: true });
             } catch (_) {
@@ -1429,14 +1434,6 @@ export function createLiveLocationStore(coordinator) {
 
         withdrawProfileHistory(shareOrId, endpoint) {
             return coordinator.withdrawProfileHistory(shareOrId, endpoint);
-        },
-
-        nativeStatus(endpoint) {
-            return coordinator.nativeStatus(endpoint);
-        },
-
-        nativeHandoff(endpoint) {
-            return coordinator.nativeHandoff(endpoint);
         },
 
         resume() {
@@ -1576,9 +1573,6 @@ function cardDataset(element) {
     assign('sender_name', data.liveLocationSenderName);
     assign('profile_history_consent', data.liveLocationProfileHistoryConsent);
     assign('profile_history_url', data.liveLocationProfileHistoryUrl);
-    assign('native_status_url', data.liveLocationNativeStatusUrl);
-    assign('native_handoff_url', data.liveLocationNativeHandoffUrl);
-    assign('native_active', data.liveLocationNativeActive);
 
     return source;
 }
@@ -1618,9 +1612,6 @@ function assignShare(component, share) {
     component.senderName = share.senderName;
     component.profileHistoryConsent = share.profileHistoryConsent;
     component.profileHistoryUrl = share.profileHistoryUrl;
-    component.nativeStatusUrl = share.nativeStatusUrl;
-    component.nativeHandoffUrl = share.nativeHandoffUrl;
-    component.nativeActive = share.nativeActive;
 }
 
 function componentShare(component) {
@@ -1638,24 +1629,16 @@ function componentShare(component) {
             update: component.updateUrl,
             stop: component.stopUrl,
             profile_history: component.profileHistoryUrl,
-            native_status: component.nativeStatusUrl,
-            native_handoff: component.nativeHandoffUrl,
         },
         can_stop: component.canStop,
         sender_name: component.senderName,
         profile_history_consent: component.profileHistoryConsent,
-        native_active: component.nativeActive,
     };
 }
 
 function shareOwnerActions(config = {}) {
     return {
         withdrawingHistory: false,
-        nativeStatus: null,
-        nativeBusy: false,
-        nativeLink: '',
-        nativeLinkExpiresAt: 0,
-        _ownerRequest: 0,
         _historyListener: null,
 
         bindOwnerActions() {
@@ -1670,8 +1653,6 @@ function shareOwnerActions(config = {}) {
         },
 
         destroyOwnerActions() {
-            this._ownerRequest += 1;
-            this.nativeLink = '';
             (config.windowLike ?? globalThis.window)?.removeEventListener?.(
                 'railtime:live-location-history-withdrawn', this._historyListener,
             );
@@ -1680,11 +1661,12 @@ function shareOwnerActions(config = {}) {
         async withdrawProfileHistory() {
             const store = componentStore(this);
             if (!this.profileHistoryUrl || !store?.withdrawProfileHistory) return false;
+            const shareId = this.shareId;
             this.withdrawingHistory = true;
             this.error = '';
             try {
                 await store.withdrawProfileHistory(this.shareId, this.profileHistoryUrl);
-                this.profileHistoryConsent = false;
+                if (this.shareId === shareId) this.profileHistoryConsent = false;
                 return true;
             } catch (error) {
                 this.error = stringValue(error?.message, 'Die Freigabe konnte nicht widerrufen werden.');
@@ -1694,43 +1676,7 @@ function shareOwnerActions(config = {}) {
             }
         },
 
-        async loadNativeStatus() {
-            const requestId = ++this._ownerRequest;
-            const shareId = this.shareId;
-            this.nativeStatus = null;
-            this.nativeLink = '';
-            if (!this.nativeStatusUrl || !this.isActive) return;
-            try {
-                const status = await componentStore(this)?.nativeStatus?.(this.nativeStatusUrl);
-                if (requestId !== this._ownerRequest || shareId !== this.shareId || this._destroyed) return;
-                this.nativeStatus = status;
-            } catch (_) {
-                if (requestId === this._ownerRequest) this.nativeStatus = { available: false, reason: 'unavailable' };
-            }
-        },
 
-        async prepareNativeHandoff() {
-            if (!this.nativeHandoffUrl || !this.isActive || !this.nativeStatus?.available || this.nativeBusy) return;
-            const requestId = ++this._ownerRequest;
-            const shareId = this.shareId;
-            this.nativeBusy = true;
-            this.nativeLink = '';
-            this.error = '';
-            try {
-                const link = await componentStore(this)?.nativeHandoff?.(this.nativeHandoffUrl);
-                if (requestId !== this._ownerRequest || shareId !== this.shareId || !this.isActive || this._destroyed) return;
-                this.nativeLink = link || '';
-                this.nativeLinkExpiresAt = Date.now() + 55_000;
-            } catch (error) {
-                this.error = stringValue(error?.message, 'Der Standortdienst konnte nicht vorbereitet werden.');
-            } finally {
-                this.nativeBusy = false;
-            }
-        },
-
-        get hasNativeLink() {
-            return Boolean(this.nativeLink) && this.nowMs < this.nativeLinkExpiresAt && this.isActive;
-        },
     };
 }
 
@@ -1757,9 +1703,6 @@ export function railtimeLiveLocationCard(config = {}) {
         senderName: initial.senderName,
         profileHistoryConsent: initial.profileHistoryConsent,
         profileHistoryUrl: initial.profileHistoryUrl,
-        nativeStatusUrl: initial.nativeStatusUrl,
-        nativeHandoffUrl: initial.nativeHandoffUrl,
-        nativeActive: initial.nativeActive,
         nowMs: Date.now(),
         busy: false,
         stopping: false,
@@ -1836,6 +1779,7 @@ export function railtimeLiveLocationCard(config = {}) {
 
         init() {
             this._destroyed = false;
+            this.bindOwnerActions();
             this.syncFromElement();
             const windowLike = config.windowLike ?? globalThis.window;
             const mapElement = this.$refs?.map;
@@ -1868,6 +1812,8 @@ export function railtimeLiveLocationCard(config = {}) {
                         'data-live-location-status',
                         'data-live-location-stop-url',
                         'data-live-location-can-stop',
+                        'data-live-location-profile-history-consent',
+                        'data-live-location-profile-history-url',
                     ],
                 });
             }
@@ -2013,6 +1959,7 @@ export function railtimeLiveLocationCard(config = {}) {
 
         destroy() {
             this._destroyed = true;
+            this.destroyOwnerActions();
             this._observer?.disconnect();
             this._mutationObserver?.disconnect();
             const windowLike = config.windowLike ?? globalThis.window;
@@ -2029,6 +1976,7 @@ export function railtimeLiveLocationCard(config = {}) {
 
 export function railtimeLiveLocationPreview(config = {}) {
     return {
+        ...shareOwnerActions(config),
         messages: config.messages || {},
         open: false,
         share: null,
@@ -2048,6 +1996,8 @@ export function railtimeLiveLocationPreview(config = {}) {
         stopUrl: '',
         canStop: false,
         senderName: '',
+        profileHistoryConsent: false,
+        profileHistoryUrl: '',
         nowMs: Date.now(),
         mapReady: false,
         mapError: '',
@@ -2123,6 +2073,7 @@ export function railtimeLiveLocationPreview(config = {}) {
 
         init() {
             const windowLike = config.windowLike ?? globalThis.window;
+            this.bindOwnerActions();
             this._destroyed = false;
             this._previewListener = (event) => this.openWith(event);
             this._cardListener = (event) => {
@@ -2318,6 +2269,7 @@ export function railtimeLiveLocationPreview(config = {}) {
         destroy() {
             const windowLike = config.windowLike ?? globalThis.window;
             this._destroyed = true;
+            this.destroyOwnerActions();
             windowLike?.removeEventListener?.('railtime:live-location-preview', this._previewListener);
             windowLike?.removeEventListener?.('railtime:live-location-card-updated', this._cardListener);
             windowLike?.removeEventListener?.('railtime:live-location-changed', this._signalListener);

@@ -101,7 +101,7 @@
             </div>
 
             <div class="pointer-events-none absolute inset-x-3 bottom-7 z-30 sm:left-1/2 sm:right-auto sm:w-[min(44rem,calc(100%-2rem))] sm:-translate-x-1/2" data-live-location-map-overlay>
-                <div class="pointer-events-auto rounded-2xl bg-white/95 p-3 shadow-2xl ring-1 ring-black/10 backdrop-blur-2xl dark:bg-slate-950/90 dark:ring-white/10 sm:p-4">
+                <div class="pointer-events-auto max-h-[70dvh] overflow-y-auto overscroll-contain rounded-2xl bg-white/95 p-3 shadow-2xl ring-1 ring-black/10 backdrop-blur-2xl dark:bg-slate-950/90 dark:ring-white/10 sm:p-4">
                     <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
                         <div class="min-w-0 flex-1">
                             <p class="truncate text-sm font-extrabold text-slate-950 dark:text-white" x-text="senderName || @js(__('app.unknown'))"></p>
@@ -142,6 +142,10 @@
                                 <span>{{ __('app.chat_live_location_stop') }}</span>
                             </button>
                         </div>
+                    </div>
+                    <div x-cloak x-show="profileHistoryConsent && profileHistoryUrl" class="mt-3 border-t border-slate-200 pt-3 text-xs leading-5 text-slate-600 dark:border-white/10 dark:text-slate-300">
+                        <p>{{ __('app.chat_live_location_profile_history_active') }}</p>
+                        <button type="button" x-on:click="withdrawProfileHistory()" x-bind:disabled="withdrawingHistory" class="mt-1 inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red disabled:opacity-50 dark:text-rt-dark-accent">{{ __('app.chat_live_location_profile_history_withdraw') }}</button>
                     </div>
                 </div>
             </div>

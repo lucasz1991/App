@@ -5,23 +5,30 @@
     $progressPercent = $progressRequired > 0 ? round($progressReserved / $progressRequired * 100, 1) : 0;
     $today = now($displayTimezone)->toDateString();
     $shiftDays = $pendingShifts->getCollection()->groupBy(fn ($shift) => $shift->starts_at->copy()->setTimezone($displayTimezone)->toDateString());
+    $selectedDay = $distributionShift?->starts_at->copy()->setTimezone($displayTimezone)->toDateString();
+    $initialDay = $shiftDays->has($selectedDay) ? $selectedDay : ($shiftDays->has($rangeFrom) ? $rangeFrom : $shiftDays->keys()->first());
 @endphp
 {{-- Seitenpanel „Noch zu verteilen“: offene Schichten des Zeitraums auswählen und passende Mitarbeitende direkt einteilen. --}}
 <div class="rt-shift-distribution rt-shift-distribution--side" data-pending-distribution
-    x-data="{ distributionTab: @js($pendingShifts->total() > 0 || $unplannedOrders->total() === 0 ? 'shifts' : 'orders'), distributionMode: 'list' }"
+    x-data="distributionPanel({ distributionTab: @js($pendingShifts->total() > 0 || $unplannedOrders->total() === 0 ? 'shifts' : 'orders') })"
+    data-distribution-days="{{ $shiftDays->keys()->values()->toJson() }}"
+    data-distribution-context="{{ json_encode([$rangeFrom, $rangeTo, $customerFilter, $pendingShifts->currentPage()]) }}"
+    data-distribution-selected="{{ json_encode($distributionShift ? ['id' => (int) $distributionShift->id, 'date' => $selectedDay] : null) }}"
+    data-distribution-preferred-day="{{ $rangeFrom }}"
     x-bind:data-distribution-mode="distributionMode">
     <header class="rt-shift-distribution__header">
         <h2 class="sr-only" id="{{ $distributionTabsId }}-title">Noch zu verteilen</h2>
+        <x-operations.panel.tabs class="rt-shift-distribution__tabs" label="Offene Planung nach Art" :id-prefix="$distributionTabsId" model="distributionTab"
+            x-show="distributionMode === 'list'" ::inert="distributionMode !== 'list'"
+            :tabs="['shifts' => ['label' => 'Schichten', 'icon' => 'far fa-clock', 'count' => $pendingShifts->total()], 'orders' => ['label' => 'Leistungen', 'icon' => 'far fa-briefcase', 'count' => $unplannedOrders->total()]]" />
+        <span class="rt-shift-distribution__auto-label" x-cloak x-show="distributionMode === 'auto'"><i class="far fa-magic" aria-hidden="true"></i>Besetzung</span>
         <div class="rt-shift-distribution__progress" role="img" aria-label="{{ $progressReserved }} von {{ $progressRequired }} Plätzen eingeplant" title="Gewählter Zeitraum · unabhängig von Listenfiltern. Angefragte und bestätigte Mitarbeiter zählen als eingeplant.">
-            <div class="rt-shift-distribution__progress-text"><strong>{{ $progressReserved }}/{{ $progressRequired }}</strong><span>Plätze eingeplant</span><b>{{ max(0, $progressRequired - $progressReserved) }} offen</b></div>
+            <div class="rt-shift-distribution__progress-text"><strong>{{ $progressReserved }}/{{ $progressRequired }}</strong><span class="sr-only">Plätze eingeplant</span><b>{{ max(0, $progressRequired - $progressReserved) }} offen</b></div>
             <span class="rt-shift-distribution__meter" aria-hidden="true"><span style="width: {{ $progressPercent }}%"></span></span>
         </div>
         <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-distribution__close" wire:click="toggleDistribution" wire:loading.attr="disabled" wire:target="toggleDistribution" aria-label="Offene Planung schließen" title="Seitenleiste schließen"><i class="far fa-times" aria-hidden="true"></i></x-ui.buttons.button-basic>
         <p class="sr-only">{{ \Carbon\CarbonImmutable::parse($rangeFrom)->format('d.m.') }} – {{ \Carbon\CarbonImmutable::parse($rangeTo)->format('d.m.Y') }}. Gewählter Zeitraum · unabhängig von Listenfiltern. Angefragte und bestätigte Mitarbeiter zählen als eingeplant. Bei offenem Panel zeigt die Zeitleiste unverbindliche Besetzungsvorschläge.</p>
     </header>
-    <x-operations.panel.tabs class="rt-shift-distribution__tabs" label="Offene Planung nach Art" :id-prefix="$distributionTabsId" model="distributionTab"
-        x-show="distributionMode === 'list'" ::inert="distributionMode !== 'list'"
-        :tabs="['shifts' => ['label' => 'Schichten', 'count' => $pendingShifts->total()], 'orders' => ['label' => 'Leistungen', 'count' => $unplannedOrders->total()]]" />
 
     <section class="rt-shift-distribution__group" role="tabpanel" id="{{ $distributionTabsId }}-panel-shifts" aria-labelledby="{{ $distributionTabsId }}-tab-shifts"
         x-show="distributionMode === 'list' && distributionTab === 'shifts'" :inert="distributionMode !== 'list' || distributionTab !== 'shifts'" @unless($pendingShifts->total() > 0 || $unplannedOrders->total() === 0) style="display: none" @endunless>
@@ -32,13 +39,27 @@
             @foreach($shiftDays as $date => $dayShifts)
                 @php
                     $day = \Carbon\CarbonImmutable::parse($date, $displayTimezone)->locale('de');
+                    $dayCounts = $pendingShiftDayCounts[$date];
+                    $dayId = $distributionTabsId.'-day-'.$date;
+                    $daySummary = $dayCounts['shifts'].' Schichten · '.$dayCounts['open_places'].' freie Plätze · '.$dayCounts['requested_places'].' ausstehende Zusagen · auf dieser Seite';
                 @endphp
-                <section class="rt-shift-distribution__day" wire:key="distribution-day-{{ $date }}">
-                    <h3 class="rt-shift-distribution__day-head" data-today="{{ $date === $today ? 'true' : 'false' }}">
-                        <span><i class="far fa-calendar-day" aria-hidden="true"></i>{{ $day->isoFormat('dd, DD.MM.') }}@if($date === $today)<em>Heute</em>@endif</span>
-                        <span>{{ $dayShifts->sum(fn ($shift) => max(0, $shift->required_staff - $shift->reserved_count)) }} frei</span>
+                <section class="rt-shift-distribution__day" wire:key="distribution-day-{{ $date }}" x-bind:data-open="openDay === @js($date)">
+                    <h3 class="rt-shift-distribution__day-heading">
+                        <button type="button" class="rt-shift-distribution__day-head" data-distribution-day-toggle data-today="{{ $date === $today ? 'true' : 'false' }}"
+                            id="{{ $dayId }}-toggle" aria-controls="{{ $dayId }}-entries" aria-expanded="{{ $initialDay === $date ? 'true' : 'false' }}"
+                            x-bind:aria-expanded="openDay === @js($date)" x-on:click="toggleDay(@js($date))" x-on:keydown="navigateDays($event)"
+                            title="{{ $day->isoFormat('dddd, DD.MM.YYYY') }} · {{ $daySummary }}" aria-label="{{ $day->isoFormat('dddd, DD.MM.YYYY') }} · {{ $daySummary }}">
+                            <span class="rt-shift-distribution__day-date"><i class="far fa-calendar-day" aria-hidden="true"></i>{{ $day->isoFormat('dd, DD.MM.') }}@if($date === $today)<em>Heute</em>@endif</span>
+                            <span class="rt-shift-distribution__day-indicators" aria-hidden="true">
+                                <span data-status="shifts" title="{{ $dayCounts['shifts'] }} Schichten auf dieser Seite"><i class="far fa-clock"></i>{{ $dayCounts['shifts'] }}</span>
+                                <span data-status="open" title="{{ $dayCounts['open_places'] }} freie Plätze"><i class="far fa-user-plus"></i>{{ $dayCounts['open_places'] }}</span>
+                                @if($dayCounts['requested_places'] > 0)<span data-status="requested" title="{{ $dayCounts['requested_places'] }} ausstehende Zusagen"><i class="far fa-hourglass-half"></i>{{ $dayCounts['requested_places'] }}</span>@endif
+                            </span>
+                            <i class="far fa-chevron-down rt-shift-distribution__day-caret" aria-hidden="true"></i>
+                        </button>
                     </h3>
-                    <ol class="rt-shift-distribution__entries">
+                    <ol class="rt-shift-distribution__entries" id="{{ $dayId }}-entries" aria-labelledby="{{ $dayId }}-toggle"
+                        x-cloak x-show="openDay === @js($date)" :inert="openDay !== @js($date)" @if($initialDay !== $date) style="display: none" @endif>
                         @foreach($dayShifts as $item)
                             @php
                                 $selected = $distributionShift && $distributionShift->id === $item->id;
@@ -65,6 +86,7 @@
                                             const group = $el.closest('.rt-shift-distribution__group');
                                             if (!group?.clientHeight) return;
                                             const entry = $el.closest('.rt-shift-distribution__entry').getBoundingClientRect();
+                                            if (!entry.height) return;
                                             const viewport = group.getBoundingClientRect();
                                             const top = viewport.top + 44, bottom = viewport.bottom - 8;
                                             const delta = entry.height > bottom - top ? entry.top - top
@@ -158,7 +180,7 @@
             x-show="distributionMode === 'list'" :inert="distributionMode !== 'list'">
             <button type="button" class="rt-shift-distribution__footer-button" data-distribution-focus
                 @if($distributionShift && $viewMode === 'timeline' && $nativeOperations)
-                    x-on:click="$dispatch('operations-timeline-distribution-focus', { owner: @js($this->getId()), shiftId: {{ $distributionShift->id }}, date: @js($distributionShift->starts_at->copy()->setTimezone($displayTimezone)->toDateString()), selected: false })"
+                    x-on:click="revealDay(@js($selectedDay)); $dispatch('operations-timeline-distribution-focus', { owner: @js($this->getId()), shiftId: {{ $distributionShift->id }}, date: @js($distributionShift->starts_at->copy()->setTimezone($displayTimezone)->toDateString()), selected: false })"
                 @endif
                 x-bind:disabled="distributionTab !== 'shifts' || @js(! $distributionShift || $viewMode !== 'timeline' || ! $nativeOperations)"
                 @disabled(! $distributionShift || $viewMode !== 'timeline' || ! $nativeOperations) aria-label="Ausgewählte Schicht in der Zeitleiste zeigen" title="Ausgewählte Schicht in der Zeitleiste zeigen">

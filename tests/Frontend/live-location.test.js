@@ -53,7 +53,7 @@ function responseShare({
     };
 }
 
-function geolocationHarness(position = null) {
+function geolocationHarness(position = null, now = () => Date.now()) {
     const current = position || {
         coords: {
             latitude: 50.1109,
@@ -74,7 +74,7 @@ function geolocationHarness(position = null) {
         api: {
             getCurrentPosition(success) {
                 currentCalls += 1;
-                success(current);
+                success({ ...current, timestamp: current.timestamp ?? now() });
             },
             watchPosition(success) {
                 watchCalls += 1;
@@ -87,7 +87,7 @@ function geolocationHarness(position = null) {
             },
         },
         emit(next = current) {
-            watchSuccess?.(next);
+            watchSuccess?.({ ...next, timestamp: next.timestamp ?? now() });
         },
         watchCalls: () => watchCalls,
         clearCalls: () => clearCalls,
@@ -223,7 +223,7 @@ test('marks a location as paused after the bounded heartbeat freshness window', 
 
 test('starts multiple shares with one watcher and uses only server-authored update and stop URLs', async () => {
     let now = 100_000;
-    const geo = geolocationHarness();
+    const geo = geolocationHarness(null, () => now);
     const windowLike = coordinatorWindow();
     const timers = coordinatorTimers();
     const requests = [];
@@ -282,6 +282,8 @@ test('starts multiple shares with one watcher and uses only server-authored upda
         body: {
             chat_id: 17,
             duration_minutes: 15,
+            profile_history_consent: false,
+            measured_at: new Date(now).toISOString(),
             latitude: 50.1109,
             longitude: 8.6821,
             accuracy: 8.5,
@@ -299,6 +301,7 @@ test('starts multiple shares with one watcher and uses only server-authored upda
 
     now += 31_000;
     await coordinator._handlePosition({
+        timestamp: now,
         coords: {
             latitude: 50.112,
             longitude: 8.684,
@@ -469,9 +472,9 @@ test('foreground recovery recreates a potentially stale native watcher exactly o
     coordinator.destroy();
 });
 
-test('publishes the latest already known fix once with keepalive before suspension', async () => {
+test('does not publish an already sent fix again when the page is suspended', async () => {
     let now = 100_000;
-    const geo = geolocationHarness();
+    const geo = geolocationHarness(null, () => now);
     const timers = coordinatorTimers();
     const requests = [];
     const coordinator = new LiveLocationCoordinator({
@@ -495,20 +498,17 @@ test('publishes the latest already known fix once with keepalive before suspensi
     requests.length = 0;
     now += 2_000;
 
-    assert.equal(await coordinator._flushLatestPosition({ keepalive: true }), true);
     assert.equal(await coordinator._flushLatestPosition({ keepalive: true }), false);
-    assert.equal(requests.length, 1);
-    assert.equal(requests[0].method, 'PATCH');
-    assert.equal(requests[0].keepalive, true);
-    assert.equal(requests[0].url, '/chat/live-locations/018f-live-location-a');
+    assert.equal(await coordinator._flushLatestPosition({ keepalive: true }), false);
+    assert.equal(requests.length, 0);
 
     coordinator.destroy();
 });
 
-test('keeps both the active update and a queued suspension fix unload-safe', async () => {
+test('a queued copy of an in-flight fix does not upload the same measurement twice', async () => {
     let now = 100_000;
     let releaseUpdate;
-    const geo = geolocationHarness();
+    const geo = geolocationHarness(null, () => now);
     const timers = coordinatorTimers();
     const requests = [];
     const updateGate = new Promise((resolve) => {
@@ -540,6 +540,7 @@ test('keeps both the active update and a queued suspension fix unload-safe', asy
     now += 31_000;
 
     const activeUpdate = coordinator._handlePosition({
+        timestamp: now,
         coords: { latitude: 50.112, longitude: 8.684, accuracy: 6 },
     }, { force: true });
     await Promise.resolve();
@@ -549,9 +550,8 @@ test('keeps both the active update and a queued suspension fix unload-safe', asy
     await activeUpdate;
 
     const updates = requests.filter((request) => request.method === 'PATCH');
-    assert.equal(updates.length, 2);
+    assert.equal(updates.length, 1);
     assert.equal(updates[0].keepalive, true);
-    assert.equal(updates[1].keepalive, true);
 
     coordinator.destroy();
 });

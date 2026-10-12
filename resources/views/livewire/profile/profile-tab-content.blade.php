@@ -134,6 +134,7 @@
                         <div class="space-y-5">
                             <livewire:settings.session-permissions :automatic="false" />
                             <livewire:settings.push-settings />
+                            <livewire:settings.chat-location-privacy />
                         </div>
                     </x-ui.accordion.section>
                 </div>

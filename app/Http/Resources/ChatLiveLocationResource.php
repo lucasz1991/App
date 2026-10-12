@@ -31,8 +31,6 @@ class ChatLiveLocationResource extends JsonResource
                 'update' => route('chat.live-locations.update', $this->resource),
                 'stop' => route('chat.live-locations.destroy', $this->resource),
                 'profile_history' => $owner ? route('chat.live-locations.profile-history.destroy', $this->resource) : null,
-                'native_status' => $owner ? route('chat.live-locations.native-status', $this->resource) : null,
-                'native_handoff' => $owner ? route('chat.live-locations.native-start', $this->resource) : null,
             ],
         ];
     }

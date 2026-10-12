@@ -7,10 +7,26 @@ use App\Models\ChatLocationPoint;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ChatLocationHistoryService
 {
     public const CONSENT_VERSION = 1;
+
+    public function ready(): bool
+    {
+        return Schema::hasTable('chat_location_points') && Schema::hasColumn('chat_live_locations', 'profile_history_accepted_at');
+    }
+
+    public function consentAttributes(array $data): array
+    {
+        if (! ($data['profile_history_consent'] ?? false)) {
+            return [];
+        }
+        abort_unless($this->ready(), 503, 'Der Standortverlauf ist noch nicht eingerichtet.');
+
+        return ['profile_history_accepted_at' => CarbonImmutable::now('UTC'), 'profile_history_version' => self::CONSENT_VERSION];
+    }
 
     /** Called under the share row lock, after current ownership/membership checks. */
     public function record(ChatLiveLocation $share, array $data): void
@@ -49,6 +65,7 @@ class ChatLocationHistoryService
     /** Withdrawal is possible after stopping, expiry or leaving the original chat. */
     public function withdraw(ChatLiveLocation $share, User $actor): ChatLiveLocation
     {
+        abort_unless($this->ready(), 409);
         return DB::transaction(function () use ($share, $actor): ChatLiveLocation {
             $locked = ChatLiveLocation::whereKey($share->id)->lockForUpdate()->firstOrFail();
             abort_unless((int) $locked->user_id === (int) $actor->id, 403);
@@ -64,9 +81,12 @@ class ChatLocationHistoryService
     /** Bounded batches; expiry is also enforced in every read, independent of cron. */
     public function purge(): int
     {
+        if (! $this->ready()) {
+            return 0;
+        }
         $deleted = 0;
         do {
-            $ids = ChatLocationPoint::where('measured_at', '<=', CarbonImmutable::now('UTC')->subDays(7))
+            $ids = ChatLocationPoint::where('measured_at', '<=', CarbonImmutable::now('UTC')->subDays(7)->format('Y-m-d H:i:s.u'))
                 ->orWhereIn('chat_live_location_id', function ($shares): void {
                     $shares->select('chat_live_locations.id')->from('chat_live_locations')
                         ->join('chat_messages', 'chat_messages.id', '=', 'chat_live_locations.chat_message_id')

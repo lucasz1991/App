@@ -119,8 +119,7 @@ class ChatLiveLocationService
                 'last_position_at' => $startedAt,
                 'expires_at' => $startedAt->copy()->addMinutes($duration),
                 'version' => 1,
-                'profile_history_accepted_at' => ($data['profile_history_consent'] ?? false) ? $startedAt->copy()->utc() : null,
-                'profile_history_version' => ($data['profile_history_consent'] ?? false) ? ChatLocationHistoryService::CONSENT_VERSION : null,
+                ...app(ChatLocationHistoryService::class)->consentAttributes($data),
             ]);
 
             app(ChatLocationHistoryService::class)->record($location, $data);

@@ -103,6 +103,7 @@ class EmployeeLocationService
             $this->stopForUser((int) $actor->id);
             if (! $accept) {
                 EmployeeLocationPoint::where('consent_id', $consent->id)->delete();
+                app(BrowserLocationService::class)->forgetForGrant((int) $grant->id);
             }
 
             return $consent;
@@ -139,6 +140,7 @@ class EmployeeLocationService
             $this->stopForUser((int) $actor->id);
             MobileLocationCode::where('user_id', $actor->id)->where('purpose', 'start')->whereNull('consumed_at')->update(['consumed_at' => $this->now()]);
             EmployeeLocationPoint::whereIn('consent_id', $consents->pluck('id'))->delete();
+            app(BrowserLocationService::class)->forgetForUser((int) $actor->id);
         }, 3);
     }
 
@@ -362,11 +364,12 @@ class EmployeeLocationService
     public function purge(): int
     {
         app(SessionPermissionService::class)->purge();
+        $browserCount = app(BrowserLocationService::class)->purge();
         if (! EmployeeLocationSettings::ready()) {
-            return 0;
+            return $browserCount;
         }
         $cutoff = $this->now()->subDays(7);
-        $count = 0;
+        $count = $browserCount;
         do {
             $ids = EmployeeLocationPoint::where('measured_at', '<=', $cutoff->format('Y-m-d H:i:s.u'))->orderBy('id')->limit(1000)->pluck('id');
             $deleted = $ids->isEmpty() ? 0 : EmployeeLocationPoint::whereIn('id', $ids)->delete();

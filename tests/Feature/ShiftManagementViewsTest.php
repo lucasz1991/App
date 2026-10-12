@@ -12,6 +12,9 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Support\Operations\OperationsPages;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -28,6 +31,7 @@ class ShiftManagementViewsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Http::preventStrayRequests();
         $this->buildMinimalRailTimeSchema();
         config(['app.timezone' => 'UTC', 'operations.display_timezone' => 'Europe/Berlin']);
         $this->travelTo(now()->setDate(2027, 5, 12)->startOfDay());
@@ -79,7 +83,8 @@ class ShiftManagementViewsTest extends TestCase
         Livewire::actingAs($this->admin)->test(ShiftManagement::class)
             ->call('toggleDistribution')
             ->set('search', 'kein Treffer')->set('statusFilter', 'draft')
-            ->assertViewHas('pendingShifts', fn ($items) => $items->total() === 1 && $items->first()->id === $open->id && $items->first()->reserved_count === 2)
+            ->assertViewHas('pendingShifts', fn ($items) => $items->total() === 1 && $items->first()->id === $open->id && $items->first()->reserved_count === 2 && $items->first()->requested_count === 1)
+            ->assertViewHas('pendingShiftDayCounts', ['2027-05-12' => ['shifts' => 1, 'open_places' => 2, 'requested_places' => 1]])
             ->assertViewHas('unplannedOrders', fn ($items) => $items->total() === 0)
             ->assertSee('2 frei')
             ->call('openDetails', $open->id)->assertSet('selectedShiftId', $open->id)->assertSet('detailOpen', true);
@@ -116,14 +121,127 @@ class ShiftManagementViewsTest extends TestCase
         Livewire::actingAs($this->admin)->test(ShiftManagement::class)
             ->call('toggleDistribution')
             ->assertViewHas('pendingShifts', fn ($items) => $items->total() === 27 && $items->count() === 25)
+            ->assertViewHas('pendingShiftDayCounts', ['2027-05-12' => ['shifts' => 25, 'open_places' => 25, 'requested_places' => 0]])
             ->call('nextPage', 'distributionShiftsPage')
             ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 2 && $items->count() === 2)
+            ->assertViewHas('pendingShiftDayCounts', ['2027-05-12' => ['shifts' => 2, 'open_places' => 2, 'requested_places' => 0]])
             ->call('applyPeriod', '2027-05-10', '2027-05-16')
             ->assertDispatched('operations-period-changed', from: '2027-05-10', until: '2027-05-16')
             ->assertViewHas('pendingShifts', fn ($items) => $items->currentPage() === 1)
             ->call('applyPeriod', '2027-06-01', '2027-06-02')
+            ->assertViewHas('pendingShiftDayCounts', [])
             ->assertSee('Alle Schichten in diesem Zeitraum sind besetzt.')
             ->assertSee('Alle Leistungen in diesem Zeitraum sind geplant.');
+    }
+
+    public function test_pending_day_counters_count_requested_assignments_not_the_shift_status_or_open_slots(): void
+    {
+        $mixed = $this->shift('Gemischte Besetzung', ['required_staff' => 5, 'status' => 'draft']);
+        $this->assignment($mixed, 'requested');
+        $this->assignment($mixed, 'requested');
+        $this->assignment($mixed, 'confirmed');
+        $this->assignment($mixed, 'declined');
+        $this->assignment($mixed, 'cancelled');
+        $this->shift('Schichtstatus ohne Anfrage', ['required_staff' => 3, 'status' => 'requested']);
+        $next = $this->shift('Nächster Tag', ['required_staff' => 2, 'starts_at' => '2027-05-13 08:00:00', 'ends_at' => '2027-05-13 16:00:00']);
+        $this->assignment($next, 'confirmed');
+        $full = $this->shift('Vollständig reserviert');
+        $this->assignment($full, 'requested');
+
+        Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->assertViewHas('pendingShiftDayCounts', [
+                '2027-05-12' => ['shifts' => 2, 'open_places' => 5, 'requested_places' => 2],
+                '2027-05-13' => ['shifts' => 1, 'open_places' => 1, 'requested_places' => 0],
+            ]);
+        $this->assertDatabaseCount('shift_assignments', 7);
+    }
+
+    public function test_pending_day_counters_follow_local_start_sections_including_overnight_and_dst(): void
+    {
+        $this->shift('Nacht in UTC', ['timezone' => 'UTC', 'starts_at' => '2027-03-27 23:00:00', 'ends_at' => '2027-03-28 02:00:00']);
+        $this->shift('Nacht beginnt am Vortag', ['starts_at' => '2027-03-27 22:00:00', 'ends_at' => '2027-03-28 06:00:00']);
+        Livewire::actingAs($this->admin)->withQueryParams(['from' => '2027-03-27', 'until' => '2027-03-28'])
+            ->test(ShiftManagement::class)->assertViewHas('pendingShiftDayCounts', [
+                '2027-03-27' => ['shifts' => 1, 'open_places' => 1, 'requested_places' => 0],
+                '2027-03-28' => ['shifts' => 1, 'open_places' => 1, 'requested_places' => 0],
+            ]);
+    }
+
+    public function test_pending_day_counters_keep_native_customer_closed_order_and_soft_delete_scopes(): void
+    {
+        $wanted = $this->shift('Eigener Kunde', ['required_staff' => 2]);
+        $this->assignment($wanted, 'requested');
+        $foreignCustomer = Customer::create(['company_name' => 'Fremder Kunde', 'is_active' => true]);
+        $foreignOrder = $this->order->replicate(['public_id', 'order_number']);
+        $foreignOrder->customer_id = $foreignCustomer->id;
+        $foreignOrder->save();
+        $this->shift('Fremder Kunde', ['order_id' => $foreignOrder->id, 'required_staff' => 10]);
+        foreach (['completed', 'invoiced', 'cancelled'] as $status) {
+            $closed = $this->order->replicate(['public_id', 'order_number']);
+            $closed->status = $status;
+            $closed->save();
+            $this->shift('Geschlossener Auftrag', ['order_id' => $closed->id]);
+        }
+        $deletedOrder = $this->order->replicate(['public_id', 'order_number']);
+        $deletedOrder->save();
+        $this->shift('Gelöschter Auftrag', ['order_id' => $deletedOrder->id]);
+        $deletedOrder->delete();
+        $this->shift('Abgeschlossen', ['status' => 'completed']);
+        $this->shift('Storniert', ['status' => 'cancelled']);
+        $this->shift('Gelöscht')->delete();
+        Livewire::actingAs($this->admin)->withQueryParams(['customer' => $this->order->customer_id])
+            ->test(ShiftManagement::class)->assertViewHas('pendingShiftDayCounts', [
+                '2027-05-12' => ['shifts' => 1, 'open_places' => 1, 'requested_places' => 1],
+            ]);
+    }
+
+    public function test_pending_day_counters_refresh_after_response_and_full_staffing_without_writing(): void
+    {
+        $shift = $this->shift('Antwort abwarten', ['required_staff' => 2]);
+        $this->assignment($shift, 'requested');
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->assertViewHas('pendingShiftDayCounts', ['2027-05-12' => ['shifts' => 1, 'open_places' => 1, 'requested_places' => 1]]);
+        ShiftAssignment::where('shift_id', $shift->id)->first()->update(['status' => 'confirmed']);
+        $component->call('refreshPlan')
+            ->assertViewHas('pendingShiftDayCounts', ['2027-05-12' => ['shifts' => 1, 'open_places' => 1, 'requested_places' => 0]]);
+        $this->assignment($shift, 'confirmed');
+        $component->call('refreshPlan')->assertViewHas('pendingShiftDayCounts', []);
+        $this->assertDatabaseCount('shift_assignments', 2);
+        $this->assertDatabaseCount('shifts', 1);
+        $this->admin->forceFill(['status' => false])->save();
+        $component->call('refreshPlan')->assertForbidden();
+    }
+
+    public function test_pending_requested_count_is_batched_without_loading_assignments_or_per_day_queries(): void
+    {
+        $first = $this->shift('Erste Schicht', ['required_staff' => 2]);
+        $this->assignment($first, 'requested');
+        $component = new ShiftManagement;
+        $method = new \ReflectionMethod(ShiftManagement::class, 'pendingShiftQuery');
+        $from = Carbon::parse('2027-05-10', 'Europe/Berlin')->startOfDay();
+        $to = Carbon::parse('2027-05-16', 'Europe/Berlin')->endOfDay();
+        $fetch = function () use ($component, $method, $from, $to): array {
+            DB::enableQueryLog();
+            DB::flushQueryLog();
+            $items = $method->invoke($component, $from, $to)->limit(25)->get();
+            $queries = DB::getQueryLog();
+            DB::disableQueryLog();
+
+            return [$items, $queries];
+        };
+        [$single, $singleQueries] = $fetch();
+        foreach (range(1, 24) as $number) {
+            $day = 10 + $number % 7;
+            $this->shift('Schicht '.$number, ['starts_at' => sprintf('2027-05-%02d 08:00:00', $day), 'ends_at' => sprintf('2027-05-%02d 16:00:00', $day)]);
+        }
+        [$many, $manyQueries] = $fetch();
+        $this->assertCount(1, $single);
+        $this->assertCount(25, $many);
+        $this->assertCount(3, $singleQueries, 'One shift query and the existing order/customer eager-load queries only.');
+        $this->assertCount(count($singleQueries), $manyQueries);
+        $this->assertSame(1, (int) $many->firstWhere('id', $first->id)->requested_count);
+        $this->assertTrue($many->every(fn (Shift $item) => ! $item->relationLoaded('assignments')));
+        $this->assertStringContainsString('requested_count', $manyQueries[0]['query']);
     }
 
     public function test_header_uses_calendar_and_current_view_icons_with_accessible_labels(): void

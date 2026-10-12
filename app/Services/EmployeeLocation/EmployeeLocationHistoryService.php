@@ -3,6 +3,7 @@
 namespace App\Services\EmployeeLocation;
 
 use App\Models\EmployeeLocationPoint;
+use App\Models\ChatLocationPoint;
 use App\Models\User;
 use App\Services\Operations\PersonnelScopeService;
 use App\Support\EmployeeLocation\EmployeeLocationSettings;
@@ -12,6 +13,8 @@ use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /** Read-only, request-local projection; never cache employee coordinates. */
@@ -86,18 +89,37 @@ class EmployeeLocationHistoryService
             || ! app(PersonnelScopeService::class)->allows($actor, $employee, 'operations.locations.view')) {
             return $view;
         }
-        if (! EmployeeLocationSettings::ready()) {
+        $workReady = EmployeeLocationSettings::ready();
+        $chatReady = Schema::hasTable('chat_location_points');
+        if (! $workReady && ! $chatReady) {
             return array_replace($view, ['state' => 'unconfigured']);
         }
-        $settings = EmployeeLocationSettings::read();
+        $settings = $workReady ? EmployeeLocationSettings::read() : ['enabled' => false];
         $now = CarbonImmutable::now('UTC');
-        $query = $this->historyQuery((int) $employee->id, $date, $now);
+        $queries = [];
+        if ($workReady) {
+            $queries[] = $this->historyQuery((int) $employee->id, $date, $now)
+                ->select(['id', 'position', 'accuracy_m', 'measured_at'])->selectRaw("'work' as source")->toBase();
+        }
+        if ($chatReady) {
+            $queries[] = $this->chatHistoryQuery((int) $employee->id, $date, $now)
+                ->select(['id', 'position', 'accuracy_m', 'measured_at'])->selectRaw("'chat' as source")->toBase();
+        }
+        $combined = array_shift($queries);
+        foreach ($queries as $part) {
+            $combined->unionAll($part);
+        }
+        $query = DB::query()->fromSub($combined, 'location_history');
         $total = (clone $query)->count();
         $page = max(1, min($page, max(1, (int) ceil($total / self::PER_PAGE))));
-        $points = (clone $query)->orderByDesc('measured_at')->orderByDesc('id')
-            ->offset(($page - 1) * self::PER_PAGE)->limit(self::PER_PAGE)->get();
+        $points = (clone $query)->orderByDesc('measured_at')->orderByDesc('source')->orderByDesc('id')
+            ->offset(($page - 1) * self::PER_PAGE)->limit(self::PER_PAGE)->get()
+            ->map(fn ($row) => (new EmployeeLocationPoint)->newFromBuilder((array) $row));
         $latestPoint = $page === 1 ? $points->first()
-            : (clone $query)->orderByDesc('measured_at')->orderByDesc('id')->first();
+            : (clone $query)->orderByDesc('measured_at')->orderByDesc('source')->orderByDesc('id')->first();
+        if ($latestPoint && ! $latestPoint instanceof EmployeeLocationPoint) {
+            $latestPoint = (new EmployeeLocationPoint)->newFromBuilder((array) $latestPoint);
+        }
         $latest = $latestPoint ? $this->projectPoint($latestPoint) : null;
         $records = new LengthAwarePaginator($points->map(fn ($point) => $this->projectPoint($point)), $total, self::PER_PAGE, $page, [
             'path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => self::PAGE_NAME,
@@ -124,11 +146,36 @@ class EmployeeLocationHistoryService
                     ->where('history_consent.user_id', $userId)
                     ->whereColumn('history_consent.installation_id', 'employee_location_points.installation_id')
                     ->whereColumn('history_consent.device_assignment_id', 'employee_location_points.device_assignment_id')
-                    ->where('history_consent.local_date', $date->toDateString())
+                    ->where(function ($dateScope) use ($date): void {
+                        $dateScope->where('history_consent.local_date', $date->toDateString());
+                        if (Schema::hasColumn('employee_location_consents', 'session_permission_grant_id')) {
+                            $dateScope->orWhereNotNull('history_consent.session_permission_grant_id');
+                        }
+                    })
                     ->where('history_consent.purpose', 'work_routing')->where('history_consent.decision', 'accepted')
                     ->whereNull('history_consent.withdrawn_at')->whereNotNull('history_consent.accepted_at')
                     ->whereColumn('history_consent.accepted_at', '<=', 'employee_location_points.measured_at')
                     ->whereColumn('history_consent.expires_at', '>', 'employee_location_points.measured_at');
+            });
+    }
+
+    private function chatHistoryQuery(int $userId, CarbonImmutable $date, CarbonImmutable $now): Builder
+    {
+        return ChatLocationPoint::query()->where('user_id', $userId)
+            ->where('measured_at', '>', $now->subDays(7)->format('Y-m-d H:i:s.u'))
+            ->where('measured_at', '<=', $now->format('Y-m-d H:i:s.u'))
+            ->where('measured_at', '>=', $date->utc()->format('Y-m-d H:i:s.u'))
+            ->where('measured_at', '<', $date->addDay()->utc()->format('Y-m-d H:i:s.u'))
+            ->whereBetween('accuracy_m', [0, 50])
+            ->whereExists(function ($shares) use ($userId): void {
+                $shares->selectRaw('1')->from('chat_live_locations as history_share')
+                    ->join('chat_messages as history_message', 'history_message.id', '=', 'history_share.chat_message_id')
+                    ->whereColumn('history_share.id', 'chat_location_points.chat_live_location_id')
+                    ->where('history_share.user_id', $userId)->where('history_message.user_id', $userId)
+                    ->whereNotNull('history_share.profile_history_accepted_at')
+                    ->whereNotNull('history_share.profile_history_version')
+                    ->whereColumn('history_share.profile_history_accepted_at', '<=', 'chat_location_points.received_at')
+                    ->whereNull('history_share.profile_history_withdrawn_at')->whereNull('history_message.deleted_at');
             });
     }
 
@@ -146,7 +193,9 @@ class EmployeeLocationHistoryService
         $measured = CarbonImmutable::instance($point->measured_at)->setTimezone(self::ZONE);
 
         return [
-            'id' => (int) $point->id, 'date' => $measured->toDateString(), 'time' => $measured->format('H:i'),
+            'id' => (int) $point->id, 'key' => $point->source.':'.$point->id,
+            'source' => $point->source, 'source_label' => $point->source === 'chat' ? 'Chat-Standortfreigabe' : 'Arbeitsstandort',
+            'date' => $measured->toDateString(), 'time' => $measured->format('H:i'),
             'measured_at' => $measured->toIso8601String(), 'display_date' => $measured->format('d.m.Y'),
             'accuracy' => number_format((float) $point->accuracy_m, 0, ',', '.').' m',
             'latitude' => $valid ? (float) $latitude : null, 'longitude' => $valid ? (float) $longitude : null,

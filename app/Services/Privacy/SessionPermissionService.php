@@ -6,6 +6,7 @@ use App\Models\EmployeeLocationConsent;
 use App\Models\SessionPermissionGrant;
 use App\Models\User;
 use App\Services\EmployeeLocation\EmployeeLocationService;
+use App\Services\EmployeeLocation\BrowserLocationService;
 use App\Support\EmployeeLocation\EmployeeLocationSettings;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Privacy\SessionLifetimePolicy;
@@ -130,6 +131,9 @@ class SessionPermissionService
         $query = SessionPermissionGrant::where('user_id', $user->id)->whereNull('ended_at');
         if (is_string($uuid)) {
             $query->where('uuid', $uuid);
+        }
+        foreach ((clone $query)->pluck('id') as $grantId) {
+            app(BrowserLocationService::class)->forgetForGrant((int) $grantId);
         }
         $query->update(['ended_at' => $this->now(), 'session_identifier' => null]);
         if (request()->hasSession()) {

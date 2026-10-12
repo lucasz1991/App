@@ -966,6 +966,17 @@ class ShiftManagement extends Component
             return $this->pendingDistribution($from, $to);
         }
 
+        // These day indicators describe only the displayed 25-row page, not
+        // unseen shifts on the same date or the full-period progress above.
+        $timezone = config('operations.display_timezone', 'Europe/Berlin');
+        $pendingShiftDayCounts = $pendingShifts->getCollection()
+            ->groupBy(fn (Shift $shift) => $shift->starts_at->setTimezone($timezone)->toDateString())
+            ->map(fn (Collection $items): array => [
+                'shifts' => $items->count(),
+                'open_places' => (int) $items->sum(fn (Shift $shift) => max(0, (int) $shift->required_staff - (int) $shift->reserved_count)),
+                'requested_places' => (int) $items->sum('requested_count'),
+            ])->all();
+
         // Fortschritt für den Zeitraum, ebenfalls unabhängig von Listenfiltern.
         $periodShifts = Shift::query()
             ->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])
@@ -979,7 +990,7 @@ class ShiftManagement extends Component
             'reserved' => (int) $periodShifts->sum(fn (Shift $shift) => min((int) $shift->required_staff, (int) $shift->reserved_count)),
         ];
 
-        return compact('pendingShifts', 'unplannedOrders', 'distributionProgress');
+        return compact('pendingShifts', 'pendingShiftDayCounts', 'unplannedOrders', 'distributionProgress');
     }
 
     private function pendingShiftQuery(Carbon $from, Carbon $to): Builder
@@ -991,7 +1002,10 @@ class ShiftManagement extends Component
 
         return $this->customerShifts()
             ->with(['order.customer'])
-            ->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])
+            ->withCount([
+                'assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues()),
+                'assignments as requested_count' => fn (Builder $query) => $query->where('status', ShiftAssignmentStatus::Requested->value),
+            ])
             ->whereNotIn('status', [ShiftStatus::Completed->value, ShiftStatus::Cancelled->value])
             ->whereHas('order', fn (Builder $query) => $query->whereNotIn('status', $closedOrders))
             ->where('ends_at', '>', $from->copy()->utc())

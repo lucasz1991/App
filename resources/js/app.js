@@ -53,6 +53,7 @@ import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { staffTimeline } from './staff-timeline';
 import { anchorDropdown } from './anchor-dropdown';
 import { timelinePlanning } from './timeline-planning-actions';
+import { distributionPanel } from './distribution-accordion';
 import { timelineEventDetails } from './timeline-event-details';
 import { shiftDetailDrawer } from './shift-detail-drawer';
 import { serviceDetailPanel } from './service-detail-panel';
@@ -83,6 +84,7 @@ import { modalBody, trackLivewireRequests } from './modal-body';
 import { filePreview } from './file-preview';
 import { filePoolDropzone, filePoolExternalDrop } from './filepool-upload';
 import { registerRailtimeLiveLocation } from './live-location';
+import { createEmployeeLastLocation } from './employee-last-location';
 import { registerRoutingMap } from './routing-map';
 import {
     MAIL_SIGNATURE_SCHEMA,
@@ -100,6 +102,7 @@ import {
 
 ensureRailTimeNavigationCoordinator(window, document);
 Alpine.data('aiIntakeRecorder', aiIntakeRecorder);
+Alpine.data('distributionPanel', distributionPanel);
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const loadAdminDashboardMotion = () => import('./admin-dashboard-motion');
@@ -654,6 +657,7 @@ registerRailtimePushSettings(Alpine);
 registerRailtimePwaInstall(Alpine);
 setupRailtimePwa();
 const rtLiveLocation = registerRailtimeLiveLocation(Alpine);
+createEmployeeLastLocation().start();
 registerRoutingMap(Alpine);
 
 Alpine.data('wagonListPrototype', wagonListPrototype);

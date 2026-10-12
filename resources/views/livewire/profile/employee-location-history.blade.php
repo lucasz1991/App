@@ -55,9 +55,9 @@
         </div>
 
         @if(!$locationHistory['enabled'])
-            <p class="employee-location-history__notice"><i class="far fa-pause-circle" aria-hidden="true"></i> Die Erfassung ist deaktiviert. Vorhandene, freigegebene Messpunkte bleiben nur innerhalb der Aufbewahrungsfrist sichtbar.</p>
+            <p class="employee-location-history__notice"><i class="far fa-pause-circle" aria-hidden="true"></i> Die Erfassung ist deaktiviert. Dies betrifft den Arbeitsstandortdienst; ausdrücklich freigegebene Chat-Standorte werden unabhängig davon angezeigt. Vorhandene Messpunkte bleiben nur innerhalb der Aufbewahrungsfrist sichtbar.</p>
         @endif
-        <p class="employee-location-history__notice">Dies ist ein Verlauf, kein Live-Standort. Lücken können durch Pausen, fehlende Tagesfreigaben, Netz- oder Geräteunterbrechungen entstehen. Aus Messpunkten werden keine Arbeitszeiten abgeleitet.</p>
+        <p class="employee-location-history__notice">Dies ist ein Verlauf, kein Live-Standort. Arbeitsstandorte und ausdrücklich für das Personalprofil freigegebene Chat-Standorte sind nach Quelle gekennzeichnet. Lücken können durch Pausen, fehlende Freigaben, Netz- oder Geräteunterbrechungen entstehen. Aus Messpunkten werden keine Arbeitszeiten abgeleitet.</p>
         @if($locationHistory['partial_day'])
             <p class="employee-location-history__notice">Teil des Tages: Für das älteste Datum liegen nur Messungen nach {{ $locationHistory['cutoff_time'] }} innerhalb der siebentägigen Aufbewahrungsfrist.</p>
         @endif
@@ -74,9 +74,9 @@
                     <div class="employee-location-history__timeline-heading"><h3>Messungen</h3><span>Neueste zuerst</span></div>
                     <ol aria-label="Gespeicherte Standortmessungen">
                         @foreach($locationHistory['records'] as $record)
-                            <li class="employee-location-history__entry" wire:key="employee-location-{{ $userId }}-point-{{ $record['id'] }}">
+                            <li class="employee-location-history__entry" wire:key="employee-location-{{ $userId }}-point-{{ $record['key'] }}">
                                 <time class="employee-location-history__time" datetime="{{ $record['measured_at'] }}">{{ $record['time'] }}<span>{{ $record['display_date'] }}</span></time>
-                                <div class="employee-location-history__point"><strong>GPS-Messpunkt</strong><span>{{ $record['coordinates'] ?? 'Koordinaten nicht verfügbar' }}</span></div>
+                                <div class="employee-location-history__point"><strong>GPS-Messpunkt · {{ $record['source_label'] }}</strong><span>{{ $record['coordinates'] ?? 'Koordinaten nicht verfügbar' }}</span></div>
                                 <span class="employee-location-history__accuracy" title="Gemeldete Messgenauigkeit"><i class="far fa-crosshairs" aria-hidden="true"></i> ± {{ $record['accuracy'] }}</span>
                             </li>
                         @endforeach

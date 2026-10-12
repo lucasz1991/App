@@ -4,12 +4,16 @@ namespace Tests\Feature;
 
 use App\Livewire\Profile\EmployeeLocationHistory;
 use App\Models\CustomerPortalIdentity;
+use App\Models\Chat;
+use App\Models\ChatLiveLocation;
+use App\Models\ChatLocationPoint;
 use App\Models\Device;
 use App\Models\DeviceAssignment;
 use App\Models\EmployeeLocationConsent;
 use App\Models\EmployeeLocationPoint;
 use App\Models\MobileLocationInstallation;
 use App\Models\Setting;
+use App\Models\SessionPermissionGrant;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
@@ -53,6 +57,7 @@ class EmployeeProfileLocationHistoryTest extends TestCase
         (require database_path('migrations/2026_10_04_123000_extend_work_time_contexts.php'))->up();
         (require database_path('migrations/2026_08_17_070000_create_device_management_tables.php'))->up();
         (require database_path('migrations/2026_10_11_120200_create_employee_location_tables.php'))->up();
+        (require database_path('migrations/2026_10_11_200000_create_session_permission_grants.php'))->up();
         $this->travelTo(CarbonImmutable::parse('2026-10-11T18:00:00Z'));
         Http::preventStrayRequests();
         $this->admin = User::factory()->create(['role' => 'admin', 'status' => true]);
@@ -239,6 +244,47 @@ class EmployeeProfileLocationHistoryTest extends TestCase
             ->assertSee('locationHistoryPage')->call('previousDay')->assertSet('paginators.locationHistoryPage', 1);
     }
 
+    public function test_mixed_sources_share_one_bounded_chronology_and_unique_render_keys(): void
+    {
+        $chat = Chat::create(['type' => 'direct', 'created_by' => $this->employee->id]);
+        $message = $chat->messages()->create(['user_id' => $this->employee->id, 'body' => '', 'message_type' => 'live_location']);
+        $share = ChatLiveLocation::create(['chat_message_id' => $message->id, 'user_id' => $this->employee->id,
+            'duration_minutes' => 90, 'latest_position' => [], 'last_position_at' => now(), 'expires_at' => now()->addHour(),
+            'profile_history_accepted_at' => CarbonImmutable::parse('2026-10-11T07:00:00Z'), 'profile_history_version' => 1]);
+        foreach (range(0, 12) as $minute) {
+            $at = CarbonImmutable::parse('2026-10-11T08:00:00Z')->addMinutes($minute);
+            $this->point($at->toIso8601String());
+            ChatLocationPoint::create(['chat_live_location_id' => $share->id, 'user_id' => $this->employee->id,
+                'position' => ['latitude' => 53.55, 'longitude' => 9.99], 'accuracy_m' => 8,
+                'measured_at' => $at->addSeconds(30), 'received_at' => $at->addSeconds(30)]);
+        }
+        $first = $this->service->read($this->employee->id, '2026-10-11');
+        $this->assertSame(26, $first['total']);
+        $this->assertCount(20, $first['records']);
+        $this->assertSame(['chat', 'work', 'chat', 'work'], $first['records']->take(4)->pluck('source')->all());
+        $second = $this->service->read($this->employee->id, '2026-10-11', 2);
+        $this->assertCount(6, $second['records']);
+        $this->assertSame($first['latest'], $second['latest']);
+        $keys = $first['records']->pluck('key')->merge($second['records']->pluck('key'));
+        $this->assertCount(26, $keys->unique());
+        Livewire::test(EmployeeLocationHistory::class, ['userId' => $this->employee->id])
+            ->assertSee('Chat-Standortfreigabe')->assertSee('Arbeitsstandort');
+        $message->delete();
+        $this->assertSame(13, $this->service->read($this->employee->id, '2026-10-11')['total']);
+    }
+
+    public function test_session_consent_keeps_valid_following_day_points_without_accepting_invalid_daily_consents(): void
+    {
+        $point = $this->point('2026-10-11T08:00:00Z');
+        $grant = SessionPermissionGrant::create(['uuid' => (string) Str::uuid(), 'user_id' => $this->employee->id,
+            'session_hash' => hash('sha256', 'isolated-test-session'), 'last_activity_at' => now()->utc(), 'expires_at' => now()->utc()->addDays(3)]);
+        EmployeeLocationConsent::whereKey($point->consent_id)->update(['session_permission_grant_id' => $grant->id,
+            'local_date' => '2026-10-10', 'accepted_at' => '2026-10-10 08:00:00.000000', 'expires_at' => '2026-10-13 08:00:00.000000']);
+        $this->assertSame(1, $this->service->read($this->employee->id, '2026-10-11')['total']);
+        EmployeeLocationConsent::whereKey($point->consent_id)->update(['session_permission_grant_id' => null]);
+        $this->assertSame(0, $this->service->read($this->employee->id, '2026-10-11')['total']);
+    }
+
     public function test_no_coordinates_are_public_livewire_properties_and_the_target_id_is_locked(): void
     {
         $this->point('2026-10-11T08:00:00Z');
@@ -318,6 +364,7 @@ class EmployeeProfileLocationHistoryTest extends TestCase
     {
         Livewire::test(EmployeeLocationHistory::class, ['userId' => $this->employee->id])->assertSee('Keine freigegebenen Messpunkte')->assertDontSee('GPS-Messpunkt');
         Schema::drop('mobile_location_codes');
+        Schema::drop('chat_location_points');
         $queries = $this->locationQueries(fn () => Livewire::test(EmployeeLocationHistory::class, ['userId' => $this->employee->id])->assertSee('Standortverlauf noch nicht eingerichtet')->assertDontSee('GPS-Messpunkt'));
         $this->assertSame([], $queries);
         $this->assertTrue(EmployeeLocationSettings::read()['enabled']);

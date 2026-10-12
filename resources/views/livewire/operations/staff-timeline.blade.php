@@ -223,42 +223,84 @@
         <x-slot:trigger><button type="button" tabindex="-1" aria-hidden="true">Schichtauswahl</button></x-slot:trigger>
         <x-slot:content>
         <div class="rt-timeline-planner" data-rt-dropdown-keep-open x-bind:aria-busy="plannerLoading">
-        <header class="rt-timeline-planner__header"><strong tabindex="-1" data-dropdown-initial-focus>Schicht einteilen</strong><button type="button" x-on:click="close(true)" aria-label="Schichtauswahl schließen"><i class="far fa-times" aria-hidden="true"></i></button></header>
+        <header class="rt-timeline-planner__header">
+            <div><span class="rt-timeline-planner__eyebrow">Disposition</span><strong tabindex="-1" data-dropdown-initial-focus>Schicht einteilen</strong></div>
+            <button type="button" class="rt-timeline-planner__close" x-on:click="close(true)" aria-label="Schichtauswahl schließen" title="Schließen"><i class="far fa-times" aria-hidden="true"></i></button>
+        </header>
         <div x-cloak x-show.important="plannerLoading" role="status" aria-live="polite" class="rt-timeline-planner__loading">
             <i class="far fa-spinner-third" aria-hidden="true"></i>
             <strong>Schichten werden geladen</strong>
             <span>Verfügbarkeit wird geprüft …</span>
         </div>
         <p x-cloak x-show.important="plannerError" x-text="plannerError" role="alert" class="rt-timeline-planner__message"></p>
-        <div x-cloak x-show.important="plannerReady && !plannerLoading && !plannerError" data-timeline-planner-results>
+        <div x-cloak x-show.important="plannerReady && !plannerLoading && !plannerError" class="rt-timeline-planner__results" data-timeline-planner-results>
         @error('workflow')<p role="alert" class="rt-timeline-planner__error">{{ $message }}</p>@enderror
         @if($assignmentOpen)
-        @if($planningUser)<x-user.public-info :user="$planningUser" :show-email="false" :show-presence="false" />@endif
-        @if($planningDate)<p class="ops-muted">{{ \Carbon\CarbonImmutable::parse($planningDate)->format('d.m.Y') }}</p>@endif
+        @if($planningUser)
+            <div class="rt-timeline-planner__person">
+                <span class="rt-timeline-planner__eyebrow">Mitarbeiter</span>
+                <x-user.public-info :user="$planningUser" :show-email="false" :show-presence="false" />
+            </div>
+        @endif
         @if($planningShift)
-            <h3>{{ $planningShift->title }}</h3>
-            @php($planningTimeFormat = $planningShift->starts_at->setTimezone($zone)->offset !== $planningShift->ends_at->setTimezone($zone)->offset ? 'd.m. H:i P' : 'd.m. H:i')
-            <dl class="ops-meta"><div><dt>Zeitraum</dt><dd>{{ $planningShift->starts_at->setTimezone($zone)->format($planningTimeFormat) }} – {{ $planningShift->ends_at->setTimezone($zone)->format($planningTimeFormat) }}</dd></div><div><dt>Kunde</dt><dd>{{ $planningShift->order?->customer?->company_name }}</dd></div></dl>
-            @if($planningReasons)<ul class="ops-muted">@foreach($planningReasons as $reason)<li>{{ $reason }}</li>@endforeach</ul>@endif
-            <form wire:submit="confirmAssignment" class="ops-stack">
-                <x-operations.field label="Zuweisung" model="assignmentStatus" type="select"><option value="requested">Angefragt</option><option value="confirmed">Bestätigt</option></x-operations.field>
-                <div class="ops-actions"><x-ui.buttons.button-basic type="submit" mode="primary" wire:loading.attr="disabled">Einteilen</x-ui.buttons.button-basic>@if($planningDate)<x-ui.buttons.button-basic type="button" wire:click="backToCellChoices" wire:loading.attr="disabled">Andere Schicht</x-ui.buttons.button-basic>@endif</div>
+            @php
+                $planningTimeFormat = $planningShift->starts_at->setTimezone($zone)->offset !== $planningShift->ends_at->setTimezone($zone)->offset ? 'd.m. H:i P' : 'd.m. H:i';
+                $planningStatusHintId = 'timeline-assignment-hint-'.$this->getId();
+            @endphp
+            <section class="rt-timeline-planner__shift" aria-label="Gewählte Schicht">
+                <span class="rt-timeline-planner__eyebrow">Gewählte Schicht</span>
+                <h3>{{ $planningShift->title }}</h3>
+                <dl class="rt-timeline-planner__facts">
+                    <div class="rt-timeline-planner__period"><dt><i class="far fa-clock" aria-hidden="true"></i> Zeitraum</dt><dd>{{ $planningShift->starts_at->setTimezone($zone)->format($planningTimeFormat) }} – {{ $planningShift->ends_at->setTimezone($zone)->format($planningTimeFormat) }}</dd></div>
+                    @if(filled($planningShift->order?->customer?->company_name))<div><dt>Kunde</dt><dd>{{ $planningShift->order->customer->company_name }}</dd></div>@endif
+                </dl>
+            </section>
+            @if($planningReasons)
+                <section class="rt-timeline-planner__reasons" aria-label="Prüfungshinweise">
+                    <span class="rt-timeline-planner__eyebrow">Prüfungshinweise</span>
+                    <ul>@foreach($planningReasons as $reason)<li>{{ $reason }}</li>@endforeach</ul>
+                </section>
+            @endif
+            <form wire:submit="confirmAssignment" class="rt-timeline-planner__form">
+                <fieldset class="rt-timeline-planner__status" aria-describedby="{{ $planningStatusHintId }}" wire:loading.attr="disabled" wire:target="confirmAssignment,backToCellChoices">
+                    <legend>Zuweisung</legend>
+                    <div class="rt-timeline-planner__status-options">
+                        <label class="rt-timeline-planner__status-option">
+                            <input type="radio" name="timeline-assignment-status-{{ $this->getId() }}" value="requested" wire:model="assignmentStatus" @checked($assignmentStatus === 'requested') required>
+                            <span><strong>Angefragt</strong><small>Zusage steht noch aus</small></span>
+                        </label>
+                        <label class="rt-timeline-planner__status-option">
+                            <input type="radio" name="timeline-assignment-status-{{ $this->getId() }}" value="confirmed" wire:model="assignmentStatus" @checked($assignmentStatus === 'confirmed') required>
+                            <span><strong>Bestätigt</strong><small>Bestätigt einplanen</small></span>
+                        </label>
+                    </div>
+                    <p id="{{ $planningStatusHintId }}">Erst mit „Einteilen“ wird die Schicht zugewiesen.</p>
+                    <x-ui.forms.input-error for="assignmentStatus" />
+                </fieldset>
+                <footer class="rt-timeline-planner__footer">
+                    @if($planningDate)<x-ui.buttons.button-basic type="button" mode="secondary" class="rt-timeline-planner__back" wire:click="backToCellChoices" wire:loading.attr="disabled"><i class="far fa-arrow-left" aria-hidden="true"></i> Andere Schicht</x-ui.buttons.button-basic>@endif
+                    <x-ui.buttons.button-basic type="submit" mode="primary" class="rt-timeline-planner__confirm" wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="confirmAssignment">Einteilen</span>
+                        <span wire:loading.inline-flex wire:target="confirmAssignment"><i class="far fa-spinner-third" aria-hidden="true"></i> Wird eingeteilt</span>
+                    </x-ui.buttons.button-basic>
+                </footer>
             </form>
         @else
+            <div class="rt-timeline-planner__choice-heading"><strong>Offene Schichten</strong>@if($planningDate)<span>{{ \Carbon\CarbonImmutable::parse($planningDate)->format('d.m.Y') }}</span>@endif</div>
             <div class="rt-timeline-choices" aria-label="Offene Schichten">
             @forelse($choices as $choice)
                 <article class="rt-timeline-choice" data-fit="{{ $choice->eligible ? 'suitable' : 'blocked' }}" wire:key="timeline-choice-{{ $choice->id }}">
-                    <div><strong>{{ $choice->title }}</strong><span>{{ $choice->period }}</span><small>{{ $choice->open }} {{ $choice->open === 1 ? 'Platz frei' : 'Plätze frei' }}</small></div>
+                    <div class="rt-timeline-choice__main"><strong>{{ $choice->title }}</strong><span class="rt-timeline-choice__period">{{ $choice->period }}</span><small class="rt-timeline-choice__places">{{ $choice->open }} {{ $choice->open === 1 ? 'Platz frei' : 'Plätze frei' }}</small></div>
                     @if($choice->eligible)
-                        <x-ui.buttons.button-basic type="button" size="sm" wire:click="selectCellShift({{ $choice->id }},{{ $choice->revision }})" wire:loading.attr="disabled" aria-label="Auswählen: {{ $choice->title }}">Auswählen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
+                        <x-ui.buttons.button-basic type="button" size="sm" mode="secondary" class="rt-timeline-choice__select" wire:click="selectCellShift({{ $choice->id }},{{ $choice->revision }})" wire:loading.attr="disabled" aria-label="Auswählen: {{ $choice->title }}">Auswählen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
                     @else
-                        <p><i class="far fa-ban" aria-hidden="true"></i> Nicht passend</p>
-                        <ul>@foreach($choice->issues as $issue)<li>{{ $issue['message'] }}</li>@endforeach</ul>
+                        <p class="rt-timeline-choice__blocked"><i class="far fa-ban" aria-hidden="true"></i> Nicht passend</p>
+                        <ul class="rt-timeline-choice__issues">@foreach($choice->issues as $issue)<li>{{ $issue['message'] }}</li>@endforeach</ul>
                     @endif
                 </article>
             @empty<p class="rt-timeline-planner__message">Keine offenen Schichten an diesem Tag.</p>@endforelse
             </div>
-            @if($choices->count() === 30)<p class="ops-muted">Erste 30 Einsätze · weitere über „Noch zu verteilen“</p>@endif
+            @if($choices->count() === 30)<p class="rt-timeline-planner__limit">Erste 30 Einsätze · weitere über „Noch zu verteilen“</p>@endif
         @endif
         @endif
         </div></div>

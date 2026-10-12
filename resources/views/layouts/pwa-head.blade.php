@@ -13,6 +13,10 @@
      nach jedem wire:navigate neu uebernommen. --}}
 <meta name="rt-sound-map" content="{{ json_encode(\App\Support\Sound\SoundLibrary::mapFor(auth()->user()), JSON_THROW_ON_ERROR) }}">
 @auth
+    @if (\App\Support\Operations\OperationsAccess::isEmployee(auth()->user()) && \Illuminate\Support\Facades\Route::has('employee-location.browser.status'))
+        <meta name="rt-employee-location-browser-status-url" content="{{ route('employee-location.browser.status') }}">
+        <meta name="rt-employee-location-browser-point-url" content="{{ route('employee-location.browser.point') }}">
+    @endif
     @if (\Illuminate\Support\Facades\Route::has('pwa.session-status'))
         <meta name="rt-pwa-session-status-url" content="{{ route('pwa.session-status') }}">
     @endif

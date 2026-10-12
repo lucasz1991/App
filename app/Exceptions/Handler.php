@@ -4,6 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -21,11 +22,27 @@ class Handler extends ExceptionHandler
         'two_factor_secret',
         'two_factor_pending_secret',
         'two_factor_recovery_codes',
+        'latitude',
+        'longitude',
+        'position',
+        'altitude',
+        'heading',
+        'speed',
+        'permit_id',
+        'session_id',
+        'token',
     ];
 
     public function register(): void
     {
         $this->reportable(function (Throwable $e) {
+            if ($this->isLocationRequest(request())) {
+                // Database/transport errors can contain bound location values
+                // or device credentials. Keep only the failure type.
+                Log::error('Standortanfrage fehlgeschlagen.', ['error_class' => $e::class]);
+
+                return false;
+            }
             Log::error($e->getMessage(), ['exception' => $e]);
         });
 
@@ -69,5 +86,29 @@ class Handler extends ExceptionHandler
 
             return null;
         });
+    }
+
+    public function render($request, Throwable $e)
+    {
+        if (! $this->isLocationRequest($request)) {
+            return parent::render($request, $e);
+        }
+
+        // Location endpoints are JSON-only, even when an invalid caller omits
+        // Accept. Never flash submitted points to a browser session.
+        $request->headers->set('Accept', 'application/json');
+        $response = parent::render($request, $e);
+        if ($response->getStatusCode() >= 500) {
+            $response = response()->json(['message' => 'Die Standortanfrage konnte nicht verarbeitet werden.'], $response->getStatusCode());
+        }
+        $response->headers->set('Cache-Control', 'private, no-store, max-age=0');
+        $response->headers->set('Referrer-Policy', 'no-referrer');
+
+        return $response;
+    }
+
+    private function isLocationRequest(Request $request): bool
+    {
+        return $request->is('chat/live-locations/*', 'chat/*/live-locations', 'api/employee-location/*', 'employee-location/browser-*');
     }
 }

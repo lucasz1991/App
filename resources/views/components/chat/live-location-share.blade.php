@@ -49,6 +49,15 @@
         close-action="closePicker()"
     >
         <div class="space-y-4">
+            @if (\App\Support\Operations\OperationsAccess::isEmployee(auth()->user()))
+            <label class="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl bg-rt-surface-muted p-3 text-sm text-rt-text ring-1 ring-rt-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text dark:ring-rt-dark-border">
+                <input type="checkbox" x-model="profileHistoryConsent" x-bind:disabled="busy" class="mt-0.5 h-5 w-5 shrink-0 rounded border-rt-border text-rt-red focus:ring-rt-red" aria-describedby="{{ $modalId }}-history-hint">
+                <span>
+                    <span class="block font-semibold">{{ __('app.chat_live_location_profile_history_allow') }}</span>
+                    <span id="{{ $modalId }}-history-hint" class="mt-1 block text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.chat_live_location_profile_history_hint') }}</span>
+                </span>
+            </label>
+            @endif
             <div class="grid gap-2 sm:grid-cols-5" role="group" aria-label="{{ __('app.chat_live_location_choose_duration') }}">
                 <template x-for="minutes in durations" :key="minutes">
                     <button

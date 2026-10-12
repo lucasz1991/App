@@ -307,6 +307,93 @@ class TimelinePlanningActionsTest extends TestCase
         $this->assertSame(0, $this->shift->fresh()->published_revision);
     }
 
+    public function test_assignment_planner_has_native_dialog_context_radios_and_an_explicit_loading_footer(): void
+    {
+        \Illuminate\Support\Facades\Http::preventStrayRequests();
+        $timeline = $this->timeline()->call('openCell', $this->ben->id, '2027-05-13');
+        $xpath = $this->timelineXPath($timeline);
+        $this->assertSame(1, $xpath->query('//article[@data-fit="suitable"]//button[@*[name()="wire:click"]="selectCellShift('.$this->shift->id.',1)"]')->length);
+        $this->assertSame(0, ShiftAssignment::count());
+
+        $timeline->call('selectCellShift', $this->shift->id, 1)->assertHasNoErrors()
+            ->assertSee('Ben Beta')->assertSee('Offener Donnerstag')->assertSee('13.05. 08:00 – 13.05. 16:00')->assertSee('Rail QA');
+        $xpath = $this->timelineXPath($timeline);
+        $planner = $xpath->query('//div[contains(concat(" ",normalize-space(@class)," ")," rt-timeline-planner ")]')->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $planner);
+        $this->assertSame('plannerLoading', $planner->getAttribute('x-bind:aria-busy'));
+        $this->assertTrue($planner->hasAttribute('data-rt-dropdown-keep-open'));
+        $this->assertSame(1, $xpath->query('ancestor::div[@role="dialog"][@aria-label="Schicht einteilen"]', $planner)->length);
+        $this->assertSame(1, $xpath->query('.//strong[@data-dropdown-initial-focus][@tabindex="-1"]', $planner)->length);
+        $this->assertSame('close(true)', $xpath->query('.//button[@aria-label="Schichtauswahl schließen"]', $planner)->item(0)->getAttribute('x-on:click'));
+        $this->assertSame(1, $xpath->query('.//div[@data-timeline-planner-results][@*[name()="x-show.important"]="plannerReady && !plannerLoading && !plannerError"]', $planner)->length);
+
+        $form = $xpath->query('.//form[@*[name()="wire:submit"]="confirmAssignment"]', $planner)->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $form);
+        $fieldset = $xpath->query('./fieldset', $form)->item(0);
+        $this->assertSame('Zuweisung', trim($xpath->query('./legend', $fieldset)->item(0)->textContent));
+        $this->assertSame('confirmAssignment,backToCellChoices', $fieldset->getAttribute('wire:target'));
+        $this->assertSame('disabled', $fieldset->getAttribute('wire:loading.attr'));
+        $this->assertSame(1, $xpath->query('.//p[@id="'.$fieldset->getAttribute('aria-describedby').'"]', $fieldset)->length);
+        $radios = $xpath->query('.//input[@type="radio"]', $fieldset);
+        $this->assertSame(2, $radios->length);
+        $this->assertSame(['requested', 'confirmed'], array_map(fn (\DOMElement $radio) => $radio->getAttribute('value'), iterator_to_array($radios)));
+        foreach ($radios as $radio) {
+            $this->assertSame('assignmentStatus', $radio->getAttribute('wire:model'));
+            $this->assertSame('timeline-assignment-status-'.$timeline->instance()->getId(), $radio->getAttribute('name'));
+            $this->assertTrue($radio->hasAttribute('required'));
+            $this->assertSame(1, $xpath->query('parent::label/span/strong', $radio)->length);
+        }
+        $this->assertTrue($radios->item(0)->hasAttribute('checked'));
+        $this->assertFalse($radios->item(1)->hasAttribute('checked'));
+        $this->assertSame(0, $xpath->query('.//select', $form)->length);
+        $footer = $xpath->query('./footer', $form)->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $footer);
+        $confirm = $xpath->query('./button[@type="submit"]', $footer)->item(0);
+        $this->assertStringContainsString('rt-ui-button-primary', $confirm->getAttribute('class'));
+        $this->assertSame('disabled', $confirm->getAttribute('wire:loading.attr'));
+        $this->assertFalse($confirm->hasAttribute('disabled'));
+        $this->assertSame(1, $xpath->query('./span[@*[name()="wire:loading.inline-flex"]][@*[name()="wire:target"]="confirmAssignment"]', $confirm)->length);
+        $this->assertSame(1, $xpath->query('./button[@type="button"][@*[name()="wire:click"]="backToCellChoices"]', $footer)->length);
+        $this->assertSame(0, ShiftAssignment::count(), 'Rendering and changing presentation never assigns a person.');
+
+        $timeline->set('assignmentStatus', 'confirmed');
+        $xpath = $this->timelineXPath($timeline);
+        $this->assertSame(1, $xpath->query('//input[@type="radio"][@value="confirmed"][@checked]')->length);
+        $this->assertSame(0, $xpath->query('//input[@type="radio"][@value="requested"][@checked]')->length);
+        $timeline->call('backToCellChoices')->assertSet('planningShiftId', null)->assertSee('Auswählen')->assertDontSee('rt-timeline-planner__confirm', false);
+        $this->assertSame(0, ShiftAssignment::count());
+    }
+
+    public function test_assignment_planner_keeps_blocked_reasons_empty_feedback_and_native_workflow_errors_visible(): void
+    {
+        \Illuminate\Support\Facades\Http::preventStrayRequests();
+        AbsenceRequest::create(['user_id' => $this->ben->id, 'kind' => 'vacation', 'status' => 'approved', 'starts_at' => '2027-05-13T00:00', 'ends_at' => '2027-05-14T00:00', 'timezone' => 'Europe/Berlin']);
+        $timeline = $this->timeline()->call('openCell', $this->ben->id, '2027-05-13');
+        $xpath = $this->timelineXPath($timeline);
+        $choice = $xpath->query('//article[@data-fit="blocked"]')->item(0);
+        $this->assertInstanceOf(\DOMElement::class, $choice);
+        $this->assertSame(0, $xpath->query('.//button', $choice)->length);
+        $this->assertGreaterThan(0, $xpath->query('.//ul/li', $choice)->length);
+        foreach ($timeline->viewData('choices')->first()->issues as $issue) {
+            $this->assertStringContainsString($issue['message'], $choice->textContent);
+        }
+        $timeline->call('selectCellShift', $this->shift->id, 1)->assertHasErrors('workflow');
+        $xpath = $this->timelineXPath($timeline);
+        $this->assertSame(1, $xpath->query('//p[@role="alert"][contains(concat(" ",normalize-space(@class)," ")," rt-timeline-planner__error ")]')->length);
+        $timeline->call('openCell', $this->ben->id, '2027-05-14')->assertSee('Keine offenen Schichten an diesem Tag.');
+        $this->assertSame(0, ShiftAssignment::count());
+
+        $source = file_get_contents(resource_path('views/livewire/operations/staff-timeline.blade.php'));
+        $styles = file_get_contents(resource_path('css/timeline-planning-actions.css'));
+        $this->assertStringContainsString('rt-timeline-planner__reasons', $source);
+        $this->assertStringContainsString('@foreach($planningReasons as $reason)<li>{{ $reason }}</li>@endforeach', $source);
+        $this->assertStringContainsString('.rt-timeline-planner__close { display: grid; flex: 0 0 44px; width: 44px; height: 44px;', $styles);
+        $this->assertMatchesRegularExpression('/\.rt-timeline-planner__footer\s*\{[^}]*position: sticky;[^}]*bottom: 0;/', $styles);
+        $this->assertStringContainsString('.rt-timeline-planner__status-option:has(input:focus-visible)', $styles);
+        $this->assertStringContainsString('@media (max-width: 399px)', $styles);
+        $this->assertMatchesRegularExpression('/@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.rt-timeline-planner__confirm \.fa-spinner-third[^}]*animation: none;/', $styles);
+    }
+
     public function test_distribution_sidebar_assigns_directly_moves_on_and_rejects_full_or_stale_shifts(): void
     {
         $next = Shift::create(['order_id' => $this->shift->order_id, 'title' => 'Offener Freitag', 'role_name' => 'Tf', 'timezone' => 'Europe/Berlin', 'starts_at' => '2027-05-14T08:00', 'ends_at' => '2027-05-14T16:00', 'required_staff' => 1, 'planned_break_minutes' => 30, 'status' => 'draft', 'created_by' => $this->manager->id, 'revision' => 1, 'published_revision' => 0]);
