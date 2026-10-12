@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { loadCallRoomFactory } from './fixtures/call-room-factory.js';
 
-let alpineInit;
-let callRoomFactory;
 
 globalThis.window = {
     innerWidth: 1024,
@@ -22,16 +21,7 @@ globalThis.window = {
     clearTimeout,
 };
 
-globalThis.document = {
-    addEventListener(name, listener) {
-        if (name === 'alpine:init') {
-            alpineInit = listener;
-        }
-    },
-};
-
-await import('../../resources/js/calls.js?recording-gate-tests');
-alpineInit();
+const callRoomFactory = await loadCallRoomFactory();
 
 const labels = {
     connecting: 'connecting',

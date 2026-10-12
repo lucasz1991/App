@@ -110,7 +110,7 @@ class CallRingingSignalTest extends TestCase
 
         // Das vorgebaute Tailwind setzt Utilities mit !important — Sichtbarkeit
         // muss deshalb ueber x-show.important laufen.
-        $this->assertStringContainsString('x-show.important="! failed && (! connected || outgoingRinging)"', $blade);
+        $this->assertStringContainsString('x-show.important="! failed && ! terminal && (! connected || outgoingRinging)"', $blade);
 
         // Und die Wellen-Animation existiert wirklich im Stylesheet.
         $css = File::get(resource_path('css/app.css'));

@@ -28,7 +28,7 @@ class SessionActivity
             return false;
         }
         if ($request->expectsJson() || $request->ajax() || $request->isMethod('HEAD')
-            || $request->is('app/runtime-status', 'employee-location/open', '.well-known/*', 'broadcasting/*', 'api/*')) {
+            || $request->is('pwa/runtime-status', 'employee-location/open', '.well-known/*', 'broadcasting/*', 'api/*')) {
             return false;
         }
 

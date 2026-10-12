@@ -14,7 +14,9 @@ import {
     RoomEvent,
     Track,
     ConnectionState,
+    DisconnectReason,
 } from 'livekit-client';
+import '../css/call-window.css';
 import {
     clampSelfPreviewPosition,
     isSelfPreviewCenterOutside,
@@ -26,12 +28,24 @@ document.addEventListener('alpine:init', () => {
     window.Alpine.data('callRoom', (config) => ({
         room: null,
         connected: false,
+        connectionBusy: false,
+        leaving: false,
+        terminal: false,
+        disposed: false,
+        disconnectPromise: null,
+        micBusy: false,
+        cameraBusy: false,
+        screenShareBusy: false,
         statusLabel: config.labels.connecting,
         participantCount: 1,
         panelOpen: window.innerWidth >= 1024,
         panelTab: 'participants',
+        panelTrigger: null,
         participantMayPublish: Boolean(config.canPublish),
         canPublish: Boolean(config.canPublish),
+        sfuCanPublish: null,
+        recordingCanPublish: false,
+        permissionAbortController: null,
         recordingEnabled: false,
         recordingStatus: 'disabled',
         recordingPolicyVersion: null,
@@ -65,6 +79,10 @@ document.addEventListener('alpine:init', () => {
         selfPreviewDragCleanup: null,
         selfPreviewResizeCleanup: null,
         selfPreviewGeometryFrame: null,
+        callViewportHeight: null,
+        callViewportWidth: null,
+        callViewportTop: 0,
+        callViewportFrame: null,
         // Hochkant nur dort, wo die Kamera wirklich hochkant aufnimmt: Handy
         // aufrecht in der Hand. Am Rechner (und am quer gehaltenen Handy)
         // liefert die Kamera Querformat — ein 9:16-Rahmen wuerde das Bild dann
@@ -88,6 +106,105 @@ document.addEventListener('alpine:init', () => {
         failed: false,
         everConnected: false,
         tiles: new Map(),
+
+        get canControlMedia() {
+            return Boolean(this.room && this.connected && this.canPublish
+                && !this.connectionBusy && !this.leaving && !this.terminal
+                && !this.failed && !this.recordingRequiresAcknowledgement);
+        },
+
+        get screenShareSupported() {
+            return typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+        },
+
+        isParticipantConnected(identity) {
+            // participantCount makes transport roster changes reactive even
+            // though LiveKit owns the participant Map outside Alpine.
+            const hasParticipants = this.participantCount > 0;
+            if (!hasParticipants || !this.connected || !this.room
+                || typeof identity !== 'string' || !identity.trim() || identity !== identity.trim()) return false;
+
+            return this.room.localParticipant?.identity === identity
+                || this.room.remoteParticipants?.has(identity) === true;
+        },
+
+        togglePanel(tab, trigger = null) {
+            if (this.panelOpen && this.panelTab === tab) {
+                this.closePanel();
+                return;
+            }
+
+            this.panelTab = tab;
+            this.panelTrigger = trigger;
+            this.panelOpen = true;
+
+            if (window.innerWidth < 1024) {
+                this.$nextTick(() => this.$refs.panelClose?.focus());
+            }
+        },
+
+        closePanel() {
+            if (!this.panelOpen) return;
+
+            this.panelOpen = false;
+            const trigger = this.panelTrigger;
+            this.panelTrigger = null;
+            this.$nextTick(() => {
+                if (trigger?.isConnected !== false) trigger?.focus();
+            });
+        },
+
+        isActiveRoom(room, generation = this.connectionGeneration) {
+            return !this.disposed && this.room === room
+                && generation === this.connectionGeneration && !this.terminal;
+        },
+
+        resetMediaState() {
+            this.micOn = false;
+            this.cameraOn = false;
+            this.screenSharing = false;
+            this.selfVideoVisible = false;
+            this.audioBlocked = false;
+            this.deviceSetupNeeded = false;
+            this.sfuCanPublish = null;
+            this.recordingCanPublish = false;
+            this.micBusy = false;
+            this.cameraBusy = false;
+            this.screenShareBusy = false;
+            this.remoteCount = 0;
+            this.participantCount = 1;
+        },
+
+        syncLocalMediaState(activeRoom = this.room) {
+            const participant = activeRoom?.localParticipant;
+            if (!participant || activeRoom !== this.room) return;
+
+            const enabled = (source, property) => {
+                if (typeof participant[property] === 'boolean') return participant[property];
+                const publications = participant.trackPublications;
+                if (!publications) return null;
+                return [...publications.values()].some((publication) =>
+                    publication.source === source && publication.track && !publication.isMuted);
+            };
+
+            const microphone = enabled(Track.Source.Microphone, 'isMicrophoneEnabled');
+            const camera = enabled(Track.Source.Camera, 'isCameraEnabled');
+            const screen = enabled(Track.Source.ScreenShare, 'isScreenShareEnabled');
+            if (microphone !== null) this.micOn = microphone;
+            if (camera !== null) this.cameraOn = camera;
+            if (screen !== null) this.screenSharing = screen;
+        },
+
+        clearTiles(activeRoom = null) {
+            const participants = activeRoom
+                ? [activeRoom.localParticipant, ...activeRoom.remoteParticipants?.values() || []]
+                : [];
+            participants.forEach((participant) => participant?.trackPublications?.forEach((publication) => {
+                publication.track?.detach();
+            }));
+            this.tiles.forEach((tile) => tile.root.remove());
+            this.tiles.clear();
+        },
 
         async init() {
             this.watchViewportShape();
@@ -198,6 +315,7 @@ document.addEventListener('alpine:init', () => {
             this.stopRecordingPolling();
             this.connected = false;
             this.failed = true;
+            this.terminal = false;
             this.statusLabel = label || config.labels.connectionFailed;
             // Ein Freizeichen ueber einer Fehlermeldung waere schlicht gelogen.
             this.syncRingback();
@@ -207,17 +325,24 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        async finishTerminalSession(label = config.labels.ended) {
+            await this.disconnect();
+            if (this.disposed) return;
+            this.failed = false;
+            this.terminal = true;
+            this.recordingRequiresAcknowledgement = false;
+            this.statusLabel = label;
+        },
+
         /** Nach einem Fehlschlag neu verbinden (Button im Fehler-Panel). */
         async retry() {
-            this.stopRecordingPolling();
+            if (this.disposed || this.connectionBusy || this.leaving) return;
+
+            await this.disconnect();
+            if (this.disposed) return;
             this.failed = false;
+            this.terminal = false;
             this.statusLabel = config.labels.connecting;
-
-            try { await this.room?.disconnect(); } catch (_) {}
-            this.room = null;
-            this.tiles.forEach((tile) => tile.root.remove());
-            this.tiles.clear();
-
             await this.connect();
         },
 
@@ -247,6 +372,13 @@ document.addEventListener('alpine:init', () => {
             return `transform: translate3d(${this.selfPreviewDockX}px, ${this.selfPreviewDockY}px, 0);`;
         },
 
+        get callViewportStyle() {
+            const height = Number.isFinite(this.callViewportHeight) && this.callViewportHeight > 0
+                ? `${Math.round(this.callViewportHeight)}px` : '100dvh';
+            const top = Number.isFinite(this.callViewportTop) ? Math.max(0, Math.round(this.callViewportTop)) : 0;
+            return `--rt-call-visual-height: ${height}; --rt-call-visual-top: ${top}px;`;
+        },
+
         /**
          * Format der Eigenvorschau an die Geraeteform binden.
          *
@@ -256,6 +388,45 @@ document.addEventListener('alpine:init', () => {
          * Handy wechselt korrekt mit.
          */
         watchViewportShape() {
+            this.selfPreviewShapeCleanup?.();
+            const viewport = window.visualViewport;
+            const measure = () => {
+                const visualHeight = Number(viewport?.height);
+                const layoutHeight = Number(window.innerHeight);
+                const visualWidth = Number(viewport?.width);
+                const layoutWidth = Number(window.innerWidth);
+                this.callViewportWidth = Number.isFinite(visualWidth) && visualWidth > 0
+                    ? visualWidth : (Number.isFinite(layoutWidth) && layoutWidth > 0 ? layoutWidth : null);
+                this.callViewportHeight = Number.isFinite(visualHeight) && visualHeight > 0
+                    ? visualHeight : (Number.isFinite(layoutHeight) && layoutHeight > 0 ? layoutHeight : null);
+                const top = Number(viewport?.offsetTop);
+                this.callViewportTop = Number.isFinite(top) ? Math.max(0, top) : 0;
+            };
+            const refresh = () => {
+                if (this.disposed || this.callViewportFrame !== null) return;
+                this.callViewportFrame = requestAnimationFrame(() => {
+                    this.callViewportFrame = null;
+                    if (this.disposed) return;
+                    measure();
+                    this.queueSelfPreviewGeometry();
+                });
+            };
+            const cleanupViewport = () => {
+                window.removeEventListener('resize', refresh);
+                window.removeEventListener('orientationchange', refresh);
+                viewport?.removeEventListener('resize', refresh);
+                viewport?.removeEventListener('scroll', refresh);
+                if (this.callViewportFrame !== null) {
+                    cancelAnimationFrame(this.callViewportFrame);
+                    this.callViewportFrame = null;
+                }
+            };
+            window.addEventListener('resize', refresh, { passive: true });
+            window.addEventListener('orientationchange', refresh, { passive: true });
+            viewport?.addEventListener('resize', refresh, { passive: true });
+            viewport?.addEventListener('scroll', refresh, { passive: true });
+            measure();
+            this.selfPreviewShapeCleanup = cleanupViewport;
             if (typeof window.matchMedia !== 'function') return;
 
             const query = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
@@ -273,11 +444,17 @@ document.addEventListener('alpine:init', () => {
 
             if (typeof query.addEventListener === 'function') {
                 query.addEventListener('change', apply);
-                this.selfPreviewShapeCleanup = () => query.removeEventListener('change', apply);
+                this.selfPreviewShapeCleanup = () => {
+                    query.removeEventListener('change', apply);
+                    cleanupViewport();
+                };
             } else if (typeof query.addListener === 'function') {
                 // Safari vor 14 kennt nur den alten Weg.
                 query.addListener(apply);
-                this.selfPreviewShapeCleanup = () => query.removeListener(apply);
+                this.selfPreviewShapeCleanup = () => {
+                    query.removeListener(apply);
+                    cleanupViewport();
+                };
             }
         },
 
@@ -524,96 +701,122 @@ document.addEventListener('alpine:init', () => {
 
         /** Muss aus einer echten Nutzergeste heraus laufen (Klick). */
         async unlockAudio() {
+            const activeRoom = this.room;
+            const generation = this.connectionGeneration;
+            if (!activeRoom || !this.connected || this.terminal || this.leaving || this.disposed) return;
             try {
-                await this.room?.startAudio();
-                this.audioBlocked = ! this.room?.canPlaybackAudio;
+                await activeRoom.startAudio();
+                if (this.isActiveRoom(activeRoom, generation)) this.audioBlocked = !activeRoom.canPlaybackAudio;
             } catch (error) {
                 console.error('[calls] Audio konnte nicht freigegeben werden.', error);
             }
         },
 
         async connect() {
+            if (this.disposed || this.connectionBusy || this.leaving) return;
+
             const generation = ++this.connectionGeneration;
+            this.connectionBusy = true;
+            this.terminal = false;
+            this.failed = false;
+            this.connected = false;
+            this.everConnected = false;
+            this.statusLabel = config.labels.connecting;
             let response;
             let session;
 
             try {
-                response = await this.requestSession();
+                try {
+                    response = await this.requestSession();
 
-                if (!response.ok) {
-                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        const payload = await response.json().catch(() => ({}));
 
-                    if (generation !== this.connectionGeneration) return;
+                        if (generation !== this.connectionGeneration) return;
 
-                    if (payload.recording) {
-                        this.applyRecordingSession(payload.recording);
-                    }
+                        if (payload.recording) {
+                            this.applyRecordingSession(payload.recording);
+                        }
 
-                    if (response.status === 428 && payload.recording?.requiresAcknowledgement) {
-                        this.recordingEnabled = true;
-                        this.recordingStatus = 'acknowledgement_required';
-                        this.recordingPolicyVersion = payload.recording.policyVersion || config.recordingPolicyVersion;
-                        this.recordingRequiresAcknowledgement = true;
-                        this.recordingAcknowledgementError = '';
-                        this.canPublish = false;
-                        this.statusLabel = config.labels.recordingAcknowledgementRequired;
+                        if (response.status === 428 && payload.recording?.requiresAcknowledgement) {
+                            this.recordingEnabled = true;
+                            this.recordingStatus = 'acknowledgement_required';
+                            this.recordingPolicyVersion = payload.recording.policyVersion || config.recordingPolicyVersion;
+                            this.recordingRequiresAcknowledgement = true;
+                            this.recordingAcknowledgementError = '';
+                            this.canPublish = false;
+                            this.statusLabel = config.labels.recordingAcknowledgementRequired;
 
+                            return;
+                        }
+
+                        if ([403, 410].includes(response.status)) {
+                            await this.finishTerminalSession(payload.message || config.labels.ended);
+                            return;
+                        }
+
+                        this.fail(payload.message || config.labels.connectionFailed, `Token-Endpoint HTTP ${response.status}`);
                         return;
                     }
 
-                    this.fail(payload.message || config.labels.connectionFailed, `Token-Endpoint HTTP ${response.status}`);
+                    session = await response.json();
+                } catch (error) {
+                    if (generation !== this.connectionGeneration || error?.name === 'AbortError') return;
+
+                    this.fail(config.labels.connectionFailed, error);
                     return;
                 }
 
-                session = await response.json();
-            } catch (error) {
-                if (generation !== this.connectionGeneration || error?.name === 'AbortError') return;
-
-                this.fail(config.labels.connectionFailed, error);
-                return;
-            }
-
-            if (generation !== this.connectionGeneration) return;
-
-            this.applyRecordingSession(session.recording);
-
-            const options = {
-                adaptiveStream: true,
-                dynacast: true,
-            };
-
-            if (Array.isArray(session.iceServers) && session.iceServers.length > 0) {
-                options.rtcConfig = { iceServers: session.iceServers };
-            }
-
-            this.room = new Room(options);
-            this.bindRoomEvents();
-
-            try {
-                await this.room.connect(session.wsUrl, session.token);
-            } catch (error) {
                 if (generation !== this.connectionGeneration) return;
 
-                this.fail(config.labels.connectionFailed, error);
-                return;
-            }
+                this.applySessionRole(session);
+                this.applyRecordingSession(session.recording);
 
-            if (generation !== this.connectionGeneration) {
-                await this.room?.disconnect().catch(() => {});
+                const options = {
+                    adaptiveStream: true,
+                    dynacast: true,
+                };
 
-                return;
-            }
+                if (Array.isArray(session.iceServers) && session.iceServers.length > 0) {
+                    options.rtcConfig = { iceServers: session.iceServers };
+                }
 
-            this.connected = true;
-            this.everConnected = true;
-            this.failed = false;
-            this.renderAllParticipants();
-            this.syncRingback();
+                const activeRoom = new Room(options);
+                this.room = activeRoom;
+                this.bindRoomEvents(activeRoom, generation);
 
-            if (this.recordingEnabled && this.recordingStatus !== 'active') {
-                this.startRecordingPolling();
-            } else if (this.canPublish) {
-                await this.enableDevices(false);
+                try {
+                    await activeRoom.connect(session.wsUrl, session.token);
+                } catch (error) {
+                    if (generation !== this.connectionGeneration) return;
+
+                    await this.disconnect();
+                    if (this.disposed) return;
+                    this.fail(config.labels.connectionFailed, error);
+                    return;
+                }
+
+                if (!this.isActiveRoom(activeRoom, generation)) {
+                    await activeRoom.disconnect().catch(() => {});
+
+                    return;
+                }
+
+                this.connected = true;
+                this.everConnected = true;
+                this.failed = false;
+                this.renderAllParticipants();
+                this.syncRingback();
+
+                if (this.recordingEnabled && this.recordingStatus !== 'active') {
+                    this.startRecordingPolling();
+                } else if (this.canPublish) {
+                    await this.enableDevices(false);
+                }
+            } finally {
+                if (generation === this.connectionGeneration) {
+                    this.connectionBusy = false;
+                }
             }
         },
 
@@ -644,9 +847,59 @@ document.addEventListener('alpine:init', () => {
             this.recordingPolicyVersion = recording?.policyVersion || this.recordingPolicyVersion || config.recordingPolicyVersion;
             this.recordingStartDeadlineAt = recording?.startDeadlineAt || this.recordingStartDeadlineAt;
             this.recordingRequiresAcknowledgement = Boolean(recording?.requiresAcknowledgement);
-            this.canPublish = this.recordingEnabled
-                ? Boolean(recording?.canPublish)
-                : this.participantMayPublish;
+            this.recordingCanPublish = Boolean(recording?.canPublish);
+            this.canPublish = (this.recordingEnabled ? this.recordingCanPublish : this.participantMayPublish)
+                && this.sfuCanPublish !== false && !this.recordingRequiresAcknowledgement;
+        },
+
+        applySessionRole(session) {
+            if (['viewer', 'speaker', 'host'].includes(session?.role)) {
+                this.participantMayPublish = session.role !== 'viewer';
+            }
+        },
+
+        async syncPublishingPermission(participant, activeRoom, generation) {
+            if (participant !== activeRoom.localParticipant || typeof participant.permissions?.canPublish !== 'boolean') return;
+            this.sfuCanPublish = participant.permissions.canPublish;
+            if (!this.recordingEnabled) this.participantMayPublish = this.sfuCanPublish;
+            this.canPublish = (this.recordingEnabled ? this.recordingCanPublish : this.participantMayPublish)
+                && this.sfuCanPublish && !this.recordingRequiresAcknowledgement;
+
+            // Preparing recordings already have their own poll. An active
+            // recording role change needs fresh server approval without
+            // cancelling that poll or automatically opening any device.
+            if (!this.connected || !this.recordingEnabled || this.recordingStatus !== 'active') return;
+            this.permissionAbortController?.abort();
+            const controller = new AbortController();
+            this.permissionAbortController = controller;
+            try {
+                const response = await fetch(config.tokenUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': config.csrf, Accept: 'application/json' },
+                    signal: controller.signal,
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!this.isActiveRoom(activeRoom, generation) || this.permissionAbortController !== controller) return;
+                if (response.ok) {
+                    this.applySessionRole(payload);
+                    this.applyRecordingSession(payload.recording);
+                } else {
+                    this.canPublish = false;
+                    if ([403, 410].includes(response.status)) {
+                        await this.finishTerminalSession(payload.message || config.labels.ended);
+                    } else if (response.status === 428 && payload.recording?.requiresAcknowledgement) {
+                        this.applyRecordingSession(payload.recording);
+                        this.recordingRequiresAcknowledgement = true;
+                        await this.disconnect();
+                    }
+                }
+            } catch (error) {
+                if (error?.name !== 'AbortError' && this.isActiveRoom(activeRoom, generation)) {
+                    console.warn('[calls] Medienrechte konnten nicht aktualisiert werden.', error);
+                }
+            } finally {
+                if (this.permissionAbortController === controller) this.permissionAbortController = null;
+            }
         },
 
         get recordingStatusLabel() {
@@ -695,6 +948,9 @@ document.addEventListener('alpine:init', () => {
 
                 if (generation !== this.connectionGeneration) return;
 
+                await this.disconnectPromise;
+                if (generation !== this.connectionGeneration || this.disposed) return;
+
                 this.recordingRequiresAcknowledgement = false;
                 this.recordingStatus = 'requested';
                 this.statusLabel = config.labels.connecting;
@@ -736,6 +992,11 @@ document.addEventListener('alpine:init', () => {
                             this.applyRecordingSession(payload.recording);
                         }
 
+                        if ([403, 410].includes(response.status)) {
+                            await this.finishTerminalSession(payload.message || config.labels.ended);
+                            return;
+                        }
+
                         if (response.status === 428 && payload.recording?.requiresAcknowledgement) {
                             this.recordingRequiresAcknowledgement = true;
                             this.recordingPolicyVersion = payload.recording.policyVersion || this.recordingPolicyVersion;
@@ -752,6 +1013,7 @@ document.addEventListener('alpine:init', () => {
                             return;
                         }
                     } else {
+                        this.applySessionRole(payload);
                         this.applyRecordingSession(payload.recording);
 
                         if (this.recordingStatus === 'active'
@@ -786,7 +1048,7 @@ document.addEventListener('alpine:init', () => {
                     // nicht in einen unaufgezeichneten Ersatzmodus schicken.
                     console.warn('[calls] Aufnahme-Status konnte nicht abgefragt werden.', error);
                 } finally {
-                    this.recordingPollInFlight = false;
+                    if (generation === this.connectionGeneration) this.recordingPollInFlight = false;
                 }
 
                 if (this.recordingStatus !== 'active'
@@ -822,16 +1084,22 @@ document.addEventListener('alpine:init', () => {
          * echtes Problem vor, und die Meldung nennt es beim Namen.
          */
         async enableDevices(fromGesture) {
+            const activeRoom = this.room;
+            const generation = this.connectionGeneration;
+            if (!activeRoom || !this.connected || !this.canPublish || this.terminal || this.failed) return;
             let needsGesture = false;
 
             // Mikrofon und Kamera GETRENNT behandeln: Frueher liess ein
             // Kamerafehler auch das bereits aktive Mikrofon als "nicht
             // verfuegbar" erscheinen – die Meldung war schlicht falsch.
-            if (! this.micOn) {
+            if (!this.micOn && !this.micBusy) {
+                this.micBusy = true;
                 try {
                     await this.enableTrack('microphone');
+                    if (!this.isActiveRoom(activeRoom, generation)) return;
                     this.micOn = true;
                 } catch (error) {
+                    if (!this.isActiveRoom(activeRoom, generation)) return;
                     console.error('[calls] Mikrofon nicht verfuegbar:', error);
 
                     if (fromGesture) {
@@ -839,14 +1107,19 @@ document.addEventListener('alpine:init', () => {
                     } else {
                         needsGesture = true;
                     }
+                } finally {
+                    if (generation === this.connectionGeneration) this.micBusy = false;
                 }
             }
 
-            if (this.startWithVideo && ! this.cameraOn) {
+            if (this.startWithVideo && !this.cameraOn && !this.cameraBusy) {
+                this.cameraBusy = true;
                 try {
                     await this.enableTrack('camera');
+                    if (!this.isActiveRoom(activeRoom, generation)) return;
                     this.cameraOn = true;
                 } catch (error) {
+                    if (!this.isActiveRoom(activeRoom, generation)) return;
                     // Kein Grund, den Anruf zu stoeren: Ton laeuft weiter,
                     // die Kamera laesst sich jederzeit nachtraeglich zuschalten.
                     console.error('[calls] Kamera nicht verfuegbar:', error);
@@ -856,6 +1129,8 @@ document.addEventListener('alpine:init', () => {
                     } else {
                         needsGesture = true;
                     }
+                } finally {
+                    if (generation === this.connectionGeneration) this.cameraBusy = false;
                 }
             }
 
@@ -864,6 +1139,7 @@ document.addEventListener('alpine:init', () => {
 
         /** Klick auf den Aktivieren-Knopf (echte Nutzergeste). */
         async retryDevices() {
+            if (!this.canControlMedia || this.micBusy || this.cameraBusy) return;
             this.deviceSetupNeeded = false;
             await this.enableDevices(true);
         },
@@ -877,8 +1153,9 @@ document.addEventListener('alpine:init', () => {
          */
         async enableTrack(kind) {
             const activeRoom = this.room;
+            const generation = this.connectionGeneration;
 
-            if (! activeRoom || ! this.canPublish) {
+            if (!activeRoom || !this.isActiveRoom(activeRoom, generation) || !this.canPublish || this.failed || this.leaving) {
                 throw new DOMException('Call is no longer publishable.', 'AbortError');
             }
 
@@ -889,10 +1166,18 @@ document.addEventListener('alpine:init', () => {
                     await activeRoom.localParticipant.setMicrophoneEnabled(true);
                 }
 
+                if (!this.isActiveRoom(activeRoom, generation) || !this.canPublish) {
+                    await activeRoom.localParticipant.setCameraEnabled?.(false).catch(() => {});
+                    await activeRoom.localParticipant.setMicrophoneEnabled?.(false).catch(() => {});
+                    throw new DOMException('Call was closed while enabling media.', 'AbortError');
+                }
                 return;
             } catch (error) {
                 const name = error?.name || '';
 
+                if (!this.isActiveRoom(activeRoom, generation)) {
+                    throw new DOMException('Call was closed while enabling media.', 'AbortError');
+                }
                 if (name === 'NotAllowedError' || name === 'SecurityError') {
                     throw error;
                 }
@@ -900,7 +1185,7 @@ document.addEventListener('alpine:init', () => {
                 console.warn(`[calls] LiveKit-Weg fuer ${kind} scheiterte (${name || 'unbekannt'}), versuche direkten Weg:`, error);
             }
 
-            if (this.room !== activeRoom || ! this.canPublish) {
+            if (!this.isActiveRoom(activeRoom, generation) || !this.canPublish) {
                 throw new DOMException('Call was closed while enabling media.', 'AbortError');
             }
 
@@ -909,65 +1194,98 @@ document.addEventListener('alpine:init', () => {
             );
             const track = kind === 'camera' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
 
-            if (this.room !== activeRoom || ! this.canPublish) {
+            if (!this.isActiveRoom(activeRoom, generation) || !this.canPublish) {
                 stream.getTracks().forEach((mediaTrack) => mediaTrack.stop());
                 throw new DOMException('Call was closed while opening media.', 'AbortError');
             }
 
-            await activeRoom.localParticipant.publishTrack(track, {
-                source: kind === 'camera' ? Track.Source.Camera : Track.Source.Microphone,
-            });
+            try {
+                await activeRoom.localParticipant.publishTrack(track, {
+                    source: kind === 'camera' ? Track.Source.Camera : Track.Source.Microphone,
+                });
+                if (!this.isActiveRoom(activeRoom, generation) || !this.canPublish) {
+                    await activeRoom.localParticipant.unpublishTrack?.(track).catch(() => {});
+                    throw new DOMException('Call was closed while publishing media.', 'AbortError');
+                }
+            } catch (error) {
+                stream.getTracks().forEach((mediaTrack) => mediaTrack.stop());
+                throw error;
+            }
         },
 
-        bindRoomEvents() {
-            this.room
-                .on(RoomEvent.ParticipantConnected, () => this.renderAllParticipants())
-                .on(RoomEvent.ParticipantDisconnected, () => this.renderAllParticipants())
-                .on(RoomEvent.TrackSubscribed, () => this.renderAllParticipants())
-                .on(RoomEvent.TrackUnsubscribed, () => this.renderAllParticipants())
-                .on(RoomEvent.LocalTrackPublished, () => this.renderAllParticipants())
-                .on(RoomEvent.LocalTrackUnpublished, () => this.renderAllParticipants())
-                .on(RoomEvent.ActiveSpeakersChanged, (speakers) => this.highlightSpeakers(speakers))
+        bindRoomEvents(activeRoom = this.room, generation = this.connectionGeneration) {
+            const current = (callback) => (...args) => {
+                if (this.isActiveRoom(activeRoom, generation)) return callback(...args);
+            };
+            const render = () => {
+                this.syncLocalMediaState(activeRoom);
+                this.renderAllParticipants();
+            };
+
+            activeRoom
+                .on(RoomEvent.ParticipantConnected, current(render))
+                .on(RoomEvent.ParticipantDisconnected, current(render))
+                .on(RoomEvent.TrackSubscribed, current(render))
+                .on(RoomEvent.TrackUnsubscribed, current((track) => { track?.detach(); render(); }))
+                .on(RoomEvent.LocalTrackPublished, current(render))
+                .on(RoomEvent.LocalTrackUnpublished, current(render))
+                .on(RoomEvent.ParticipantPermissionsChanged, current((_previous, participant) =>
+                    this.syncPublishingPermission(participant, activeRoom, generation)))
+                .on(RoomEvent.ActiveSpeakersChanged, current((speakers) => this.highlightSpeakers(speakers)))
                 // Browser blockieren Autoplay ohne Nutzergeste. Ohne diesen
                 // Zweig bliebe der Anruf dauerhaft stumm, ohne dass irgendetwas
                 // darauf hinweist – die Kacheln sehen voellig normal aus.
-                .on(RoomEvent.AudioPlaybackStatusChanged, () => {
-                    this.audioBlocked = ! this.room.canPlaybackAudio;
-                })
-                .on(RoomEvent.TrackMuted, (publication, participant) => {
-                    if (participant === this.room.localParticipant && publication.kind === Track.Kind.Audio) {
-                        this.micOn = false;
+                .on(RoomEvent.AudioPlaybackStatusChanged, current(() => {
+                    this.audioBlocked = !activeRoom.canPlaybackAudio;
+                }))
+                .on(RoomEvent.TrackMuted, current((publication, participant) => {
+                    if (participant === activeRoom.localParticipant && publication.kind === Track.Kind.Audio) {
                         this.toast(config.labels.muted, 'warning');
                     }
-                    this.renderAllParticipants();
-                })
-                .on(RoomEvent.TrackUnmuted, () => this.renderAllParticipants())
-                .on(RoomEvent.ConnectionStateChanged, (state) => {
+                    render();
+                }))
+                .on(RoomEvent.TrackUnmuted, current(render))
+                .on(RoomEvent.ConnectionStateChanged, current((state) => {
                     if (state === ConnectionState.Reconnecting) {
                         this.connected = false;
                         this.statusLabel = config.labels.reconnecting;
                     } else if (state === ConnectionState.Connected) {
                         this.connected = true;
                     }
-                })
-                .on(RoomEvent.Disconnected, (reason) => {
+                    this.syncRingback();
+                }))
+                .on(RoomEvent.Disconnected, current((reason) => {
                     this.stopRecordingPolling();
                     this.connectionGeneration += 1;
                     this.sessionAbortController?.abort();
                     this.sessionAbortController = null;
+                    this.permissionAbortController?.abort();
+                    this.permissionAbortController = null;
                     this.room = null;
                     this.connected = false;
+                    this.connectionBusy = false;
+                    this.recordingPollInFlight = false;
+                    this.resetMediaState();
+                    this.clearTiles(activeRoom);
                     this.syncRingback();
 
-                    // Kam nie eine Medienverbindung zustande, ist das ein
-                    // FEHLER (z. B. blockierte UDP-Ports) — kein Anrufende.
-                    if (! this.everConnected) {
+                    const ended = [
+                        DisconnectReason.CLIENT_INITIATED,
+                        DisconnectReason.PARTICIPANT_REMOVED,
+                        DisconnectReason.ROOM_DELETED,
+                        DisconnectReason.ROOM_CLOSED,
+                        DisconnectReason.DUPLICATE_IDENTITY,
+                        'clientInitiated',
+                    ].includes(reason);
+                    if (!ended) {
                         this.fail(config.labels.connectionFailed, `Disconnected: ${reason ?? 'unbekannt'}`);
                         return;
                     }
 
+                    this.terminal = true;
+                    this.failed = false;
                     this.statusLabel = config.labels.ended;
-                });
+                }));
         },
 
         renderAllParticipants() {
@@ -1118,60 +1436,63 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
-        async toggleMic() {
-            if (!this.room || !this.canPublish) return;
-            const enable = ! this.micOn;
-            this.micOn = enable;
+        async toggleMic() { await this.toggleMedia('microphone'); },
+
+        async toggleCamera() { await this.toggleMedia('camera'); },
+
+        async toggleMedia(kind) {
+            const state = kind === 'camera' ? 'cameraOn' : 'micOn';
+            const busy = kind === 'camera' ? 'cameraBusy' : 'micBusy';
+            if (!this.canControlMedia || this[busy]) return;
+
+            const activeRoom = this.room;
+            const generation = this.connectionGeneration;
+            const enable = !this[state];
+            this[busy] = true;
 
             try {
                 if (enable) {
-                    await this.enableTrack('microphone');
+                    await this.enableTrack(kind);
+                } else if (kind === 'camera') {
+                    await activeRoom.localParticipant.setCameraEnabled(false);
                 } else {
-                    await this.room.localParticipant.setMicrophoneEnabled(false);
+                    await activeRoom.localParticipant.setMicrophoneEnabled(false);
                 }
+                if (!this.isActiveRoom(activeRoom, generation)) return;
+                this[state] = enable;
+                this.syncLocalMediaState(activeRoom);
             } catch (error) {
-                // Auf den TATSAECHLICHEN Zustand zuruecksetzen: Scheitert das
-                // AUSschalten, laeuft das Mikrofon real weiter – ein Knopf,
-                // der dann "stumm" zeigte, waere ein Privacy-Problem.
-                this.micOn = ! enable;
-                console.error('[calls] Mikrofon-Umschalten fehlgeschlagen:', error);
-
-                // Ein stiller Ruecksprung des Knopfs liesse den Nutzer raten.
-                if (enable) {
-                    this.toast(this.deviceErrorLabel(error, 'microphone'), 'warning');
-                }
-            }
-        },
-
-        async toggleCamera() {
-            if (!this.room || !this.canPublish) return;
-            const enable = ! this.cameraOn;
-            this.cameraOn = enable;
-
-            try {
-                if (enable) {
-                    await this.enableTrack('camera');
-                } else {
-                    await this.room.localParticipant.setCameraEnabled(false);
-                }
-            } catch (error) {
-                // Wie beim Mikrofon: Nach Disable-Fehler laeuft die Kamera
-                // real weiter – die Anzeige muss das widerspiegeln.
-                this.cameraOn = ! enable;
-                console.error('[calls] Kamera-Umschalten fehlgeschlagen:', error);
-
-                if (enable) {
-                    this.toast(this.deviceErrorLabel(error, 'camera'), 'warning');
-                }
+                if (!this.isActiveRoom(activeRoom, generation)) return;
+                this.syncLocalMediaState(activeRoom);
+                console.error(`[calls] ${kind}-Umschalten fehlgeschlagen:`, error);
+                if (enable) this.toast(this.deviceErrorLabel(error, kind), 'warning');
+            } finally {
+                if (generation === this.connectionGeneration) this[busy] = false;
             }
         },
 
         async toggleScreenShare() {
-            if (!this.room || !this.canPublish) return;
-            this.screenSharing = !this.screenSharing;
-            await this.room.localParticipant.setScreenShareEnabled(this.screenSharing).catch(() => {
-                this.screenSharing = false;
-            });
+            if (!this.canControlMedia || this.screenShareBusy || !this.screenShareSupported) return;
+            const activeRoom = this.room;
+            const generation = this.connectionGeneration;
+            const enable = !this.screenSharing;
+            this.screenShareBusy = true;
+            try {
+                await activeRoom.localParticipant.setScreenShareEnabled(enable);
+                if (!this.isActiveRoom(activeRoom, generation)) {
+                    await activeRoom.localParticipant.setScreenShareEnabled(false).catch(() => {});
+                    return;
+                }
+                this.screenSharing = enable;
+                this.syncLocalMediaState(activeRoom);
+            } catch (error) {
+                if (this.isActiveRoom(activeRoom, generation)) {
+                    this.syncLocalMediaState(activeRoom);
+                    console.warn('[calls] Bildschirmfreigabe konnte nicht geaendert werden.', error);
+                }
+            } finally {
+                if (generation === this.connectionGeneration) this.screenShareBusy = false;
+            }
         },
 
         toast(text, type = 'info') {
@@ -1179,23 +1500,43 @@ document.addEventListener('alpine:init', () => {
         },
 
         disconnect() {
+            if (this.leaving && this.disconnectPromise) return this.disconnectPromise;
+            const activeRoom = this.room;
             this.stopRecordingPolling();
             this.connectionGeneration += 1;
             this.sessionAbortController?.abort();
             this.sessionAbortController = null;
+            this.permissionAbortController?.abort();
+            this.permissionAbortController = null;
+            this.room = null;
+            this.connected = false;
+            this.connectionBusy = false;
+            this.terminal = true;
+            this.leaving = true;
+            this.statusLabel = config.labels.ended;
+            this.recordingPollInFlight = false;
+            this.resetMediaState();
+            this.clearTiles(activeRoom);
             // Immer stoppen, nicht nur ueber syncRingback: beim Auflegen faehrt
             // die Seite gleich darauf weg, und ein weiterlaufender Timer im
             // globalen RTSound-Objekt wuerde nach dem Anruf weiter tuten.
             this.ringbackActive = false;
             window.RTSound?.stopRingback();
 
-            if (this.room) {
-                this.room.disconnect();
-                this.room = null;
-            }
+            const operation = Promise.resolve().then(() => activeRoom?.disconnect()).catch((error) => {
+                console.warn('[calls] Verbindung konnte nicht vollstaendig getrennt werden.', error);
+            }).finally(() => {
+                if (this.disconnectPromise === operation) {
+                    this.disconnectPromise = null;
+                    this.leaving = false;
+                }
+            });
+            this.disconnectPromise = operation;
+            return operation;
         },
 
         destroy() {
+            this.disposed = true;
             this.selfPreviewDragCleanup?.();
             this.selfPreviewShapeCleanup?.();
             this.selfPreviewResizeCleanup?.();

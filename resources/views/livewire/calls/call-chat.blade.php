@@ -249,8 +249,9 @@
                     wire:model="messageText"
                     rows="1"
                     maxlength="5000"
+                    aria-label="{{ __('app.calls_chat_message_placeholder') }}"
                     class="min-h-11 max-h-32 min-w-0 flex-1 resize-none rounded-xl border-0 bg-rt-surface-muted px-3 py-2.5 text-sm text-rt-text outline-none ring-1 ring-rt-border/60 focus:ring-2 focus:ring-rt-accent/40 dark:bg-rt-dark-surface-muted dark:text-rt-dark-text dark:ring-rt-dark-border/60"
-                    placeholder="{{ __('app.calls_chat_message_placeholder') }}"
+                    placeholder="{{ __('app.message') }} …"
                     x-on:keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.send(); }"
                 ></textarea>
                 <button

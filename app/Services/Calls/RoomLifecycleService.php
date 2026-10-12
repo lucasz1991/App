@@ -182,21 +182,67 @@ class RoomLifecycleService
      */
     public function leave(Room $room, RoomParticipant $participant): void
     {
+        $room->refresh();
+        $participant = $room->participants()->find($participant->getKey());
+
+        if (! $room->isActive() || ! $participant
+            || ! in_array($participant->connectionState(), ['invited', 'joined', 'left'], true)) {
+            return;
+        }
+
         $othersConnected = $room->participants()
             ->whereKeyNot($participant->getKey())
             ->where('connection', 'joined')
             ->exists();
+
+        // Der LEFT-Webhook kann vor der Auflegen-Aktion ankommen. Auch dann
+        // beendet das bewusste Auflegen den letzten Anruf samt Klingeln und
+        // die eigene Standortfreigabe, ohne das LEFT-Ereignis zu wiederholen.
+        if ($participant->connectionState() === 'left') {
+            if (! $othersConnected && $participant->isModerator()) {
+                $this->cancel($room);
+
+                return;
+            }
+
+            if ($room->call_chat_id && $participant->user_id) {
+                $this->liveLocations->stopForUserInChat(
+                    (int) $room->call_chat_id,
+                    (int) $participant->user_id,
+                    ChatLiveLocation::STOP_CALL_LEFT,
+                );
+            }
+
+            if (! $othersConnected) {
+                $this->markEnded($room, 'empty');
+            }
+
+            return;
+        }
+
+        $left = [
+            'connection' => 'left',
+            'left_at' => now(),
+        ];
+
+        // Ein parallel entfernter Teilnehmer darf durch Auflegen nie wieder
+        // von 'disconnected' auf den erneut beitrittsfaehigen Zustand fallen.
+        $updated = $room->participants()
+            ->whereKey($participant->getKey())
+            ->whereIn('connection', ['invited', 'joined'])
+            ->update($left);
+
+        if ($updated === 0) {
+            return;
+        }
+
+        $participant->forceFill($left);
 
         if (! $othersConnected && $participant->isModerator()) {
             $this->cancel($room);
 
             return;
         }
-
-        $participant->forceFill([
-            'connection' => 'left',
-            'left_at' => now(),
-        ])->save();
 
         if ($room->call_chat_id && $participant->user_id) {
             $this->liveLocations->stopForUserInChat(

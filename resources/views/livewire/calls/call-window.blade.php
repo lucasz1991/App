@@ -1,10 +1,13 @@
+@section('title', $room->name)
+
 {{-- Echtes Vollbild: Das Layout rendert hier OHNE Topbar/Sidebar
      (layouts.master mit chrome=false) - waehrend eines Anrufs ist die
      App-Navigation Ablenkung, kein Werkzeug. Verlassen fuehrt ueber
      Auflegen zurueck in den Chat. fixed+z-[200] bleibt als Absicherung
      gegen darunterliegende Seitenreste. --}}
 <div
-    class="fixed inset-0 z-[200] overflow-hidden bg-[#0b0e13]"
+    class="rt-call-window z-[200] overflow-hidden bg-[#0b0e13]"
+    :style="callViewportStyle"
     data-rt-overlay-layer
     data-rt-overlay-base="200"
     x-data="callRoom({
@@ -40,11 +43,13 @@
     })"
     x-on:beforeunload.window="disconnect()"
     x-on:rt-call-waiting.window="setWaiting($event.detail.waiting)"
+    x-on:keydown.escape="if (panelOpen && ! $event.defaultPrevented) { closePanel(); $event.stopPropagation() }"
 >
-    <div class="flex h-full min-h-0 flex-col overflow-hidden bg-rt-anthracite">
+    <div class="rt-call-layout flex h-full min-h-0 flex-col overflow-hidden bg-rt-anthracite">
 
         {{-- Kopfzeile --}}
-        <div class="flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6">
+        <header class="rt-call-header flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6" :inert="recordingRequiresAcknowledgement">
+            <div class="rt-call-identity">
             <span class="relative flex h-2.5 w-2.5">
                 <span x-show.important="connected" class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60"></span>
                 <span class="relative inline-flex h-2.5 w-2.5 rounded-full" :class="connected ? 'bg-emerald-500' : 'bg-amber-400'"></span>
@@ -54,15 +59,22 @@
                 <p class="truncate text-sm font-extrabold tracking-[-0.025em] text-white sm:text-[15px]">
                     {{ $room->name }}
                 </p>
-                <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-white/50">
+                <p class="rt-call-status text-[10px] font-bold text-white/50" role="status">
                     <span x-show="connected" x-cloak>{{ __('app.calls_in_progress') }} · <span x-text="participantCount"></span> {{ __('app.calls_participants') }}</span>
                     <span x-show="! connected" x-text="statusLabel"></span>
                 </p>
             </div>
+            </div>
+
+            <div class="rt-call-header-actions">
+            <span class="rt-call-kind">
+                <i class="far {{ data_get($room->settings, 'video', true) ? 'fa-video' : 'fa-phone' }}" aria-hidden="true"></i>
+                {{ data_get($room->settings, 'video', true) ? __('app.calls_video_call') : __('app.calls_audio_call') }}
+            </span>
 
             <div
                 x-cloak
-                x-show="recordingEnabled"
+                x-show.important="recordingEnabled"
                 class="inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-white/[0.07] text-[11px] font-bold text-white/80 ring-1 ring-white/10 sm:h-auto sm:min-h-10 sm:w-auto sm:px-3"
                 role="status"
                 aria-live="polite"
@@ -98,7 +110,8 @@
                             type="button"
                             aria-label="{{ __('app.calls_invite_people') }}"
                             title="{{ __('app.calls_invite_people') }}"
-                            class="inline-flex h-11 items-center gap-2 rounded-xl bg-white/[0.07] px-3 text-xs font-bold text-white/80 ring-1 ring-white/10 transition hover:bg-white/[0.12] hover:text-white"
+                            class="rt-call-header-action inline-flex h-11 items-center gap-2 rounded-xl bg-white/[0.07] px-3 text-xs font-bold text-white/80 ring-1 ring-white/10 transition hover:bg-white/[0.12] hover:text-white"
+                            :disabled="terminal || leaving"
                         >
                             <i class="far fa-user-plus" aria-hidden="true"></i>
                             <span class="hidden sm:inline">{{ __('app.calls_invite_people') }}</span>
@@ -144,32 +157,37 @@
 
             <button
                 type="button"
-                x-on:click="if (panelOpen && panelTab === 'chat') { panelOpen = false } else { panelTab = 'chat'; panelOpen = true }"
-                class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                x-on:click="togglePanel('chat', $el)"
+                class="rt-call-header-action inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                 :class="panelOpen && panelTab === 'chat' ? 'bg-white/10 text-white' : ''"
+                :aria-expanded="(panelOpen && panelTab === 'chat').toString()"
+                aria-controls="rt-call-panel-{{ $room->id }}"
                 title="{{ __('app.calls_chat') }}"
                 aria-label="{{ __('app.calls_chat') }}"
             >
-                <i class="far fa-message-dots" aria-hidden="true"></i>
+                <i class="far fa-comment-dots" aria-hidden="true"></i>
             </button>
 
             <button
                 type="button"
-                x-on:click="if (panelOpen && panelTab === 'participants') { panelOpen = false } else { panelTab = 'participants'; panelOpen = true }"
-                class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                x-on:click="togglePanel('participants', $el)"
+                class="rt-call-header-action inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                 :class="panelOpen && panelTab === 'participants' ? 'bg-white/10 text-white' : ''"
+                :aria-expanded="(panelOpen && panelTab === 'participants').toString()"
+                aria-controls="rt-call-panel-{{ $room->id }}"
                 title="{{ __('app.calls_participants') }}"
                 aria-label="{{ __('app.calls_participants') }}"
             >
                 <i class="far fa-users" aria-hidden="true"></i>
             </button>
-        </div>
+            </div>
+        </header>
 
         {{-- Buehne: Video-Grid + Teilnehmer-Panel --}}
-        <div class="relative flex min-h-0 flex-1">
+        <div class="rt-call-main relative flex min-h-0 flex-1">
             <div
                 x-ref="selfPreviewStage"
-                class="relative min-h-0 flex-1 overflow-hidden p-2 sm:p-3"
+                class="rt-call-stage relative min-h-0 flex-1 overflow-hidden p-2 sm:p-3"
                 data-rt-self-preview-stage
             >
                 {{-- Die Bestätigung ist versioniert und wird aktiv per Klick
@@ -177,10 +195,12 @@
                 <div
                     x-cloak
                     x-show.important="recordingRequiresAcknowledgement"
-                    class="absolute inset-0 z-50 flex items-center justify-center bg-[#0b0e13]/95 p-4 backdrop-blur-sm"
+                    class="rt-call-recording-notice absolute inset-0 z-50 flex items-center justify-center bg-[#0b0e13]/95 p-4 backdrop-blur-sm"
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="call-recording-notice-title"
+                    x-effect="if (recordingRequiresAcknowledgement) $nextTick(() => $refs.recordingAccept?.focus())"
+                    x-on:keydown.tab="const controls = Array.from($el.querySelectorAll('button:not([disabled])')); const first = controls[0]; const last = controls[controls.length - 1]; if ($event.shiftKey && document.activeElement === first) { $event.preventDefault(); last?.focus() } else if (! $event.shiftKey && document.activeElement === last) { $event.preventDefault(); first?.focus() }"
                 >
                     <div class="w-full max-w-lg rounded-3xl bg-rt-surface p-6 text-left shadow-2xl ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70 sm:p-8">
                         <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-500">
@@ -205,13 +225,16 @@
                         <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                             <button
                                 type="button"
-                                x-on:click="$wire.leaveCall()"
+                                x-on:click="disconnect(); $wire.leaveCall()"
+                                wire:loading.attr="disabled"
+                                wire:target="leaveCall"
                                 class="inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-bold text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text"
                             >
                                 {{ __('app.calls_recording_decline') }}
                             </button>
                             <button
                                 type="button"
+                                x-ref="recordingAccept"
                                 x-on:click="acknowledgeRecording()"
                                 :disabled="recordingAcknowledgementSubmitting"
                                 class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-5 text-sm font-bold text-white transition hover:bg-rt-red-dark disabled:cursor-wait disabled:opacity-60"
@@ -226,10 +249,10 @@
                 {{-- Autoplay-Sperre: ohne Nutzergeste bleibt der Anruf stumm. --}}
                 <button
                     x-cloak
-                    x-show.important="audioBlocked"
+                    x-show.important="audioBlocked && connected && ! terminal"
                     type="button"
                     x-on:click="unlockAudio()"
-                    class="absolute inset-x-0 top-2 z-20 mx-auto flex w-max items-center gap-2 rounded-full bg-rt-accent px-4 py-2 text-sm font-bold text-white shadow-rt-lg"
+                    class="rt-call-device-notice absolute inset-x-0 top-2 z-20 mx-auto flex w-max items-center gap-2 rounded-full bg-rt-accent px-4 py-2 text-sm font-bold text-white shadow-rt-lg"
                 >
                     <i class="far fa-volume-up" aria-hidden="true"></i>
                     {{ __('app.calls_enable_audio') }}
@@ -241,10 +264,11 @@
                      ab. Dieser Klick ist die Geste. --}}
                 <button
                     x-cloak
-                    x-show.important="deviceSetupNeeded"
+                    x-show.important="deviceSetupNeeded && canControlMedia"
                     type="button"
                     x-on:click="retryDevices()"
-                    class="absolute inset-x-0 z-20 mx-auto flex w-max items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-bold text-white shadow-rt-lg transition-colors hover:bg-emerald-600"
+                    class="rt-call-device-notice absolute inset-x-0 z-20 mx-auto flex w-max items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-bold text-white shadow-rt-lg transition-colors hover:bg-emerald-600"
+                    :disabled="micBusy || cameraBusy"
                     :class="audioBlocked ? 'top-14' : 'top-2'"
                 >
                     <i class="far fa-microphone" aria-hidden="true"></i>
@@ -258,8 +282,8 @@
                      Einladung raus ist, "klingelt" sobald ein Geraet der
                      Gegenseite das Laeuten bestaetigt hat. --}}
                 <div
-                    x-show.important="! failed && (! connected || outgoingRinging)"
-                    class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 px-6 text-center"
+                    x-show.important="! failed && ! terminal && (! connected || outgoingRinging)"
+                    class="rt-call-state absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 px-6 text-center"
                 >
                     <div class="rt-call-signal" :class="ringsThere ? 'rt-call-signal--live' : ''">
                         <span class="rt-call-signal__wave" aria-hidden="true"></span>
@@ -294,8 +318,8 @@
                      Ladekreis mit der Aufschrift "beendet" mehr. --}}
                 <div
                     x-cloak
-                    x-show.important="failed"
-                    class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 px-6 text-center"
+                    x-show.important="failed && ! terminal"
+                    class="rt-call-state absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 px-6 text-center"
                 >
                     <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/15 text-rose-400">
                         <i class="far fa-wifi-slash text-xl" aria-hidden="true"></i>
@@ -306,10 +330,11 @@
                             {{ __('app.calls_connection_failed_hint') }}
                         </p>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="rt-call-state-actions flex items-center gap-2">
                         <button
                             type="button"
                             x-on:click="retry()"
+                            :disabled="connectionBusy || leaving"
                             class="inline-flex h-11 items-center gap-2 rounded-full bg-rt-red px-5 text-sm font-bold text-white transition-colors hover:bg-rt-red-dark"
                         >
                             <i class="far fa-rotate-right" aria-hidden="true"></i>
@@ -318,11 +343,27 @@
                         <button
                             type="button"
                             x-on:click="disconnect(); $wire.leaveCall()"
+                            wire:loading.attr="disabled"
+                            wire:target="leaveCall"
                             class="inline-flex h-11 items-center gap-2 rounded-full bg-white/10 px-5 text-sm font-bold text-white/80 transition-colors hover:bg-white/20"
                         >
                             {{ __('app.calls_back_to_chat') }}
                         </button>
                     </div>
+                </div>
+
+                <div x-cloak x-show.important="terminal" class="rt-call-state absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 px-6 text-center" role="status">
+                    <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white/70">
+                        <i class="far fa-phone-slash text-xl" aria-hidden="true"></i>
+                    </span>
+                    <div>
+                        <p class="text-sm font-bold text-white" x-text="statusLabel"></p>
+                        <p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-white/60">{{ __('app.calls_ended_hint') }}</p>
+                    </div>
+                    <button type="button" wire:click="leaveCall" wire:loading.attr="disabled" wire:target="leaveCall" class="inline-flex min-h-11 items-center gap-2 rounded-full bg-white/10 px-5 text-sm font-bold text-white hover:bg-white/20">
+                        <i class="far fa-arrow-left" aria-hidden="true"></i>
+                        {{ __('app.calls_back_to_chat') }}
+                    </button>
                 </div>
 
                 {{-- Kacheln legt calls.js dynamisch an. wire:ignore ist
@@ -338,16 +379,15 @@
                 {{-- Die eigene Kamera liegt als frei verschiebbare Vorschau
                      über der Bühne. Wird ihr Mittelpunkt herausgezogen, bleibt
                      an der Austrittskante ein zugänglicher Restore-Button. --}}
+                <div x-cloak x-show.important="selfVideoVisible && ! selfPreviewMinimized" class="pointer-events-none absolute inset-0 z-30">
                 <div
                     wire:ignore
                     x-ref="selfPreview"
                     id="rt-self-preview-{{ $room->uuid }}"
-                    x-show.important="selfVideoVisible && ! selfPreviewMinimized"
-                    x-cloak
                     x-on:pointerdown="startSelfPreviewDrag($event)"
                     x-bind:data-dragging="selfPreviewDragging.toString()"
                     :style="selfPreviewStyle"
-                    class="rt-call-self-preview absolute left-0 top-0 z-30 touch-none cursor-grab overflow-hidden rounded-2xl bg-black/70 shadow-2xl ring-1 ring-white/20 focus-within:ring-2 focus-within:ring-white/70 active:cursor-grabbing"
+                    class="rt-call-self-preview pointer-events-auto absolute left-0 top-0 z-30 touch-none cursor-grab overflow-hidden rounded-2xl bg-black/70 shadow-2xl ring-1 ring-white/20 focus-within:ring-2 focus-within:ring-white/70 active:cursor-grabbing"
                     role="group"
                     aria-label="{{ __('app.you') }}"
                     data-rt-self-preview
@@ -366,15 +406,15 @@
                         <i class="far fa-compress" aria-hidden="true"></i>
                     </button>
                 </div>
+                </div>
 
+                <div x-cloak x-show.important="selfVideoVisible && selfPreviewMinimized" class="pointer-events-none absolute inset-0 z-30">
                 <button
                     type="button"
                     x-ref="selfPreviewRestore"
-                    x-show.important="selfVideoVisible && selfPreviewMinimized"
-                    x-cloak
                     x-on:click="restoreSelfPreview()"
                     :style="selfPreviewRestoreStyle"
-                    class="absolute left-0 top-0 z-30 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rt-red text-sm text-white shadow-2xl ring-1 ring-white/30 transition-colors hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    class="pointer-events-auto absolute left-0 top-0 z-30 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rt-red text-sm text-white shadow-2xl ring-1 ring-white/30 transition-colors hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                     title="{{ __('app.calls_restore_self_video') }}"
                     aria-label="{{ __('app.calls_restore_self_video') }}"
                     aria-controls="rt-self-preview-{{ $room->uuid }}"
@@ -382,17 +422,31 @@
                 >
                     <i class="far fa-expand" aria-hidden="true"></i>
                 </button>
+                </div>
             </div>
 
             {{-- Gemeinsames Seitenpanel: Teilnehmer oder persistenter Call-Chat. --}}
+            <button type="button" x-cloak x-show.important="panelOpen" x-on:click="closePanel()" class="rt-call-panel-backdrop" tabindex="-1" aria-label="{{ __('app.close') }}"></button>
             <aside
+                id="rt-call-panel-{{ $room->id }}"
+                aria-label="{{ __('app.calls_panel') }}"
+                :inert="recordingRequiresAcknowledgement"
+                :role="panelOpen && (callViewportWidth ?? window.innerWidth) < 1024 ? 'dialog' : 'complementary'"
+                :aria-modal="panelOpen && (callViewportWidth ?? window.innerWidth) < 1024 ? 'true' : null"
+                x-on:keydown.tab="if (window.innerWidth < 1024) { const controls = Array.from($el.querySelectorAll('button, a[href], input, textarea, select, [tabindex]')).filter(el => ! el.disabled && el.tabIndex >= 0 && el.getClientRects().length); const first = controls[0]; const last = controls[controls.length - 1]; if ($event.shiftKey && document.activeElement === first) { $event.preventDefault(); last?.focus() } else if (! $event.shiftKey && document.activeElement === last) { $event.preventDefault(); first?.focus() } }"
                 x-cloak
-                x-show="panelOpen"
+                x-show.important="panelOpen"
                 x-transition:enter="transition duration-200 ease-out"
                 x-transition:enter-start="translate-x-4 opacity-0"
                 x-transition:enter-end="translate-x-0 opacity-100"
-                class="absolute inset-y-2 right-2 z-20 flex w-[min(24rem,calc(100vw-1rem))] min-h-0 flex-col overflow-hidden rounded-[1.1rem] bg-rt-surface shadow-rt-lg dark:bg-rt-dark-surface sm:static sm:inset-auto sm:m-3 sm:ml-0 sm:w-80"
+                class="rt-call-panel absolute inset-y-2 right-2 z-40 flex w-[min(24rem,calc(100vw-1rem))] min-h-0 flex-col overflow-hidden rounded-[1.1rem] bg-rt-surface shadow-rt-lg dark:bg-rt-dark-surface lg:static lg:inset-auto lg:m-3 lg:ml-0 lg:w-80"
             >
+                <div class="rt-call-panel-heading">
+                    <p class="text-sm font-bold text-rt-text dark:text-rt-dark-text">{{ __('app.calls_panel') }}</p>
+                    <button type="button" x-ref="panelClose" x-on:click="closePanel()" class="rt-call-panel-close text-rt-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:text-rt-dark-text" aria-label="{{ __('app.close') }}">
+                        <i class="far fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
                 <div class="grid shrink-0 grid-cols-2 gap-1 border-b border-rt-border/60 p-2 dark:border-rt-dark-border/60" role="tablist" aria-label="{{ __('app.calls_panel') }}">
                     <button
                         type="button"
@@ -400,6 +454,12 @@
                         class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition"
                         :class="panelTab === 'participants' ? 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent' : 'text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted'"
                         role="tab"
+                        id="rt-call-participants-tab-{{ $room->id }}"
+                        aria-controls="rt-call-participants-{{ $room->id }}"
+                        x-on:keydown.arrow-right.prevent="panelTab = 'chat'; $refs.callChatTab.focus()"
+                        x-on:keydown.arrow-left.prevent="panelTab = 'chat'; $refs.callChatTab.focus()"
+                        x-ref="callParticipantsTab"
+                        :tabindex="panelTab === 'participants' ? 0 : -1"
                         :aria-selected="(panelTab === 'participants').toString()"
                     >
                         <i class="far fa-users" aria-hidden="true"></i>
@@ -411,16 +471,22 @@
                         class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition"
                         :class="panelTab === 'chat' ? 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent' : 'text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted'"
                         role="tab"
+                        id="rt-call-chat-tab-{{ $room->id }}"
+                        aria-controls="rt-call-chat-{{ $room->id }}"
+                        x-on:keydown.arrow-left.prevent="panelTab = 'participants'; $refs.callParticipantsTab.focus()"
+                        x-on:keydown.arrow-right.prevent="panelTab = 'participants'; $refs.callParticipantsTab.focus()"
+                        x-ref="callChatTab"
+                        :tabindex="panelTab === 'chat' ? 0 : -1"
                         :aria-selected="(panelTab === 'chat').toString()"
                     >
-                        <i class="far fa-message-dots" aria-hidden="true"></i>
+                        <i class="far fa-comment-dots" aria-hidden="true"></i>
                         {{ __('app.calls_chat') }}
                     </button>
                 </div>
 
-                <div x-show="panelTab === 'participants'" class="scroll-container min-h-0 flex-1 overflow-y-auto p-3" role="tabpanel">
+                <div id="rt-call-participants-{{ $room->id }}" aria-labelledby="rt-call-participants-tab-{{ $room->id }}" x-show="panelTab === 'participants'" class="scroll-container min-h-0 flex-1 overflow-y-auto p-3" role="tabpanel">
                     <p class="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-rt-muted dark:text-rt-dark-muted">
-                        {{ __('app.calls_participants') }} ({{ $room->participants->count() }})
+                        {{ __('app.calls_participants') }}
                     </p>
 
                     <ul class="space-y-1">
@@ -452,13 +518,13 @@
                                     ])>
                                         {{ __('app.calls_role_'.$participant->role) }}
                                     </span>
-                                    @if ($participant->isConnected())
-                                        <span class="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" title="online"></span>
-                                    @endif
+                                    <span x-cloak x-show.important="isParticipantConnected(@js($participant->livekit_identity))" class="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" title="online"></span>
                                 </span>
+                                <span x-show.important="! isParticipantConnected(@js($participant->livekit_identity))" class="mt-1 block text-[11px] text-rt-muted dark:text-rt-dark-muted">{{ __('app.calls_not_connected') }}</span>
                             </span>
 
                             @if ($canModerate && $participant->role !== 'host' && (int) $participant->user_id !== auth()->id())
+                                <div x-cloak x-show.important="isParticipantConnected(@js($participant->livekit_identity))" class="shrink-0">
                                 <x-ui.dropdown.anchor-dropdown
                                     align="right"
                                     width="56"
@@ -492,13 +558,14 @@
                                         </div>
                                     </x-slot>
                                 </x-ui.dropdown.anchor-dropdown>
+                                </div>
                             @endif
                         </li>
                     @endforeach
                     </ul>
                 </div>
 
-                <div x-show="panelTab === 'chat'" class="min-h-0 flex-1" role="tabpanel">
+                <div id="rt-call-chat-{{ $room->id }}" aria-labelledby="rt-call-chat-tab-{{ $room->id }}" x-show="panelTab === 'chat'" class="min-h-0 flex-1" role="tabpanel">
                     @if ($room->callChat)
                         <livewire:calls.call-chat :room="$room" :key="'active-call-chat-'.$room->id" />
                     @endif
@@ -507,75 +574,87 @@
         </div>
 
         {{-- Steuerleiste --}}
-        <div class="shrink-0 px-3 pb-3 pt-2 sm:px-5 sm:pb-5">
-        <div class="mx-auto flex w-max max-w-full items-center justify-center gap-1.5 rounded-2xl bg-white/[0.07] p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl sm:gap-2 sm:rounded-[1.35rem] sm:p-2">
+        <footer class="rt-call-footer shrink-0 px-3 pb-3 pt-2 sm:px-5 sm:pb-5" :inert="recordingRequiresAcknowledgement">
+        <div class="rt-call-controls mx-auto flex w-max max-w-full items-center justify-center" aria-label="{{ __('app.calls_panel') }}">
             <button
                 type="button"
                 x-on:click="toggleMic()"
-                :disabled="! canPublish"
-                class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-base transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:w-12 sm:rounded-2xl"
-                :class="micOn ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-rose-600 text-white ring-2 ring-rose-400/60 hover:bg-rose-500'"
+                :disabled="! canControlMedia || micBusy"
+                :aria-pressed="micOn.toString()"
+                :aria-busy="micBusy.toString()"
+                class="rt-call-control inline-flex h-11 w-11 items-center justify-center rounded-xl text-base disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:w-12 sm:rounded-2xl"
+                :class="micOn ? 'rt-call-control--active' : 'rt-call-control--off'"
                 :title="micOn ? @js(__('app.calls_mute')) : @js(__('app.calls_unmute'))"
                 :aria-label="micOn ? @js(__('app.calls_mute')) : @js(__('app.calls_unmute'))"
             >
                 <i class="far" :class="micOn ? 'fa-microphone' : 'fa-microphone-slash'" aria-hidden="true"></i>
+                <span>{{ __('app.calls_microphone') }}</span>
             </button>
 
             <button
                 type="button"
                 x-on:click="toggleCamera()"
-                :disabled="! canPublish"
-                class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-base transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:w-12 sm:rounded-2xl"
-                :class="cameraOn ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-rose-600 text-white ring-2 ring-rose-400/60 hover:bg-rose-500'"
+                :disabled="! canControlMedia || cameraBusy"
+                :aria-pressed="cameraOn.toString()"
+                :aria-busy="cameraBusy.toString()"
+                class="rt-call-control inline-flex h-11 w-11 items-center justify-center rounded-xl text-base disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:w-12 sm:rounded-2xl"
+                :class="cameraOn ? 'rt-call-control--active' : 'rt-call-control--off'"
                 :title="cameraOn ? @js(__('app.calls_camera_off')) : @js(__('app.calls_camera_on'))"
                 :aria-label="cameraOn ? @js(__('app.calls_camera_off')) : @js(__('app.calls_camera_on'))"
             >
                 <i class="far" :class="cameraOn ? 'fa-video' : 'fa-video-slash'" aria-hidden="true"></i>
+                <span>{{ __('app.calls_camera') }}</span>
             </button>
 
             <button
                 type="button"
                 x-on:click="toggleScreenShare()"
-                :disabled="! canPublish"
-                class="hidden h-12 w-12 items-center justify-center rounded-2xl text-base transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:inline-flex"
-                :class="screenSharing ? 'bg-emerald-500 text-white ring-2 ring-emerald-300/60 hover:bg-emerald-600' : 'bg-slate-600 text-white hover:bg-slate-500'"
+                x-show.important="screenShareSupported"
+                :disabled="! canControlMedia || screenShareBusy"
+                :aria-pressed="screenSharing.toString()"
+                :aria-busy="screenShareBusy.toString()"
+                class="rt-call-control rt-call-control--screen hidden h-12 w-12 items-center justify-center rounded-2xl text-base disabled:cursor-not-allowed disabled:opacity-40 sm:inline-flex"
+                :class="screenSharing ? 'rt-call-control--active' : ''"
                 :title="screenSharing ? @js(__('app.calls_screen_share_stop')) : @js(__('app.calls_screen_share'))"
                 :aria-label="screenSharing ? @js(__('app.calls_screen_share_stop')) : @js(__('app.calls_screen_share'))"
             >
                 <i class="far fa-desktop" aria-hidden="true"></i>
+                <span>{{ __('app.calls_screen') }}</span>
             </button>
 
             <button
                 type="button"
                 x-on:click="disconnect(); $wire.leaveCall()"
-                class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-bold text-white shadow-rt-glow transition-all hover:bg-rt-red-dark active:scale-[0.97] sm:h-12 sm:rounded-2xl sm:px-6"
+                :disabled="leaving"
+                wire:loading.attr="disabled"
+                wire:target="leaveCall,endCall"
+                class="rt-call-control rt-call-control--hangup inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-bold text-white hover:bg-rt-red-dark sm:h-12 sm:rounded-2xl sm:px-6"
                 title="{{ __('app.calls_leave') }}"
+                aria-label="{{ __('app.calls_leave') }}"
             >
                 <i class="far fa-phone-slash" aria-hidden="true"></i>
-                <span class="hidden sm:inline">{{ __('app.calls_leave') }}</span>
+                <span>{{ __('app.calls_leave') }}</span>
             </button>
 
             @if ($canModerate)
                 <button
                     type="button"
                     x-on:click="disconnect(); $wire.endCall()"
-                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white/10 px-3 text-sm font-bold text-white/80 transition-all hover:bg-white/20 hover:text-white active:scale-[0.97] sm:h-12 sm:rounded-2xl sm:px-4"
-                    title="{{ __('app.calls_ended') }}"
+                    :disabled="leaving"
+                    wire:loading.attr="disabled"
+                    wire:target="leaveCall,endCall"
+                    class="rt-call-control rt-call-control--end inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white/10 px-3 text-sm font-bold text-white/80 hover:bg-white/20 hover:text-white sm:h-12 sm:rounded-2xl sm:px-4"
+                    title="{{ __('app.calls_end_for_everyone') }}"
+                    aria-label="{{ __('app.calls_end_for_everyone') }}"
                 >
                     <i class="far fa-power-off" aria-hidden="true"></i>
-                    <span class="hidden lg:inline">{{ __('app.calls_ended') }}</span>
+                    <span>{{ __('app.calls_end_short') }}</span>
                 </button>
             @endif
         </div>
-        </div>
+        </footer>
     </div>
 
-    {{-- Muss INNERHALB des einzigen Wurzelelements liegen: ausserhalb zaehlt
-         Livewire es als zweites Wurzelelement und wirft (bei APP_DEBUG=true)
-         MultipleRootElementsDetectedException. Die Position im Dokument bleibt
-         vor @vite(app.js) im Layout, damit calls.js seinen alpine:init-Listener
-         noch vor Livewire.start() registriert. --}}
-    <div wire:ignore>
-        @vite(['resources/js/calls.js'])
-    </div>
+    {{-- calls.js wird vom Layout vor app.js geladen, damit callRoom beim
+         Alpine-Start registriert ist. Das Fenster bleibt ein Wurzelelement. --}}
 </div>

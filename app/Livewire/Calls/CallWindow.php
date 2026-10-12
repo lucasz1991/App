@@ -14,6 +14,7 @@ use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomEventRecorder;
 use App\Services\Calls\RoomLifecycleService;
 use App\Services\Chat\ChatLiveLocationService;
+use Illuminate\Support\Collection;
 use Livewire\Attributes\Renderless;
 use Livewire\Component;
 
@@ -111,6 +112,13 @@ class CallWindow extends Component
         return $this->room->invitations()
             ->where('status', 'pending')
             ->where('expires_at', '>', now())
+            ->whereNotExists(function ($newer): void {
+                $newer->selectRaw('1')
+                    ->from('room_invitations as newer_invitation')
+                    ->whereColumn('newer_invitation.room_id', 'room_invitations.room_id')
+                    ->whereColumn('newer_invitation.invitee_id', 'room_invitations.invitee_id')
+                    ->whereColumn('newer_invitation.id', '>', 'room_invitations.id');
+            })
             ->with('invitee')
             ->get()
             ->map(fn (RoomInvitation $invitation): array => [
@@ -132,7 +140,7 @@ class CallWindow extends Component
         // Bewusst ohne Pruefung auf connection === 'joined': dieser Zustand
         // entsteht erst durch den participant_joined-Webhook. Wer waehrend des
         // Klingelns auflegt, waere sonst wirkungslos aufgelegt.
-        if ($room && $me) {
+        if ($room?->isActive() && $me && ! $me->isRemoved()) {
             $lifecycle->leave($room, $me);
         }
 
@@ -142,7 +150,7 @@ class CallWindow extends Component
     /** Anruf fuer alle beenden (nur Moderation). */
     public function endCall(RoomLifecycleService $lifecycle): void
     {
-        abort_unless($this->room->canModerate(auth()->user()), 403, __('app.calls_permission_denied'));
+        $this->authorizeModeration();
 
         $lifecycle->endCall($this->room, 'ended');
 
@@ -227,15 +235,15 @@ class CallWindow extends Component
 
     public function inviteUsers(CallInvitationService $invitations): void
     {
-        abort_unless($this->room->canModerate(auth()->user()), 403, __('app.calls_permission_denied'));
+        $this->authorizeModeration();
 
         $ids = collect($this->inviteeIds)->map(fn ($id) => (int) $id)->filter()->unique();
-        $existing = $this->room->participants()->pluck('user_id');
+        $unavailable = $this->unavailableInviteeIds();
         $users = User::query()
             ->whereKey($ids)
             ->where('status', true)
             ->get()
-            ->reject(fn (User $user) => $existing->contains($user->id));
+            ->reject(fn (User $user) => $unavailable->contains((int) $user->id));
 
         $sent = $invitations->invite($this->room, auth()->user(), $users);
         $this->inviteeIds = [];
@@ -262,7 +270,7 @@ class CallWindow extends Component
 
     protected function moderatableParticipant(int $participantId): RoomParticipant
     {
-        abort_unless($this->room->canModerate(auth()->user()), 403, __('app.calls_permission_denied'));
+        $this->authorizeModeration();
 
         $target = $this->room->participants()->findOrFail($participantId);
 
@@ -271,6 +279,62 @@ class CallWindow extends Component
         abort_if((int) $target->user_id === (int) auth()->id(), 422);
 
         return $target;
+    }
+
+    /** Jede Aktion prueft die aktuelle Teilnahme, auch bei einem alten Fenster. */
+    protected function authorizeModeration(): void
+    {
+        $room = $this->room->fresh(['participants']);
+        $user = auth()->user();
+
+        abort_unless($room?->isActive(), 410, __('app.calls_ended'));
+        abort_unless(
+            $user && ($user->isAdmin() || $user->hasRbacPermission('calls.join'))
+                && $room->mayJoin($user)
+                && $room->canModerate($user),
+            403,
+            __('app.calls_permission_denied'),
+        );
+
+        $this->room = $room;
+    }
+
+    /**
+     * Nur laufende Teilnahmen und aktuelle Einladungen blockieren eine neue
+     * Einladung. Abgelehnte, verpasste, verlassene oder entfernte Personen
+     * koennen bewusst erneut eingeladen werden; inviteOne oeffnet sie dann.
+     *
+     * @return Collection<int, int>
+     */
+    protected function unavailableInviteeIds(): Collection
+    {
+        $latest = $this->room->invitations()
+            ->latest('id')
+            ->get(['id', 'invitee_id', 'status', 'expires_at'])
+            ->unique('invitee_id')
+            ->keyBy('invitee_id');
+        $unavailable = collect([(int) auth()->id()]);
+
+        foreach ($this->room->participants as $participant) {
+            $invitation = $latest->get($participant->user_id);
+
+            if ($participant->isConnected()
+                || ($participant->connectionState() === 'invited'
+                    && ($participant->isModerator() || $invitation?->status === 'accepted'))) {
+                $unavailable->push((int) $participant->user_id);
+            }
+        }
+
+        foreach ($latest as $invitation) {
+            $participant = $this->room->participants->firstWhere('user_id', $invitation->invitee_id);
+
+            if ($invitation->isPending() && ! $invitation->isExpired()
+                && ! in_array($participant?->connectionState(), ['left', 'disconnected'], true)) {
+                $unavailable->push((int) $invitation->invitee_id);
+            }
+        }
+
+        return $unavailable->filter()->unique()->values();
     }
 
     protected function redirectAfterCall(): void
@@ -294,11 +358,11 @@ class CallWindow extends Component
             'inviteCandidates' => $this->room->canModerate(auth()->user())
                 ? User::query()
                     ->where('status', true)
-                    ->whereNotIn('id', $this->room->participants->pluck('user_id')->filter())
+                    ->whereNotIn('id', $this->unavailableInviteeIds())
                     ->orderBy('name')
                     ->get(['id', 'name', 'email', 'profile_photo_path'])
                     ->filter(fn (User $user) => $user->isAdmin() || $user->hasRbacPermission('calls.join'))
                 : collect(),
-        ])->layout('layouts.master', ['contentMode' => 'viewport', 'chrome' => false]);
+        ])->layout('layouts.master', ['contentMode' => 'viewport', 'chrome' => false, 'callWindow' => true]);
     }
 }

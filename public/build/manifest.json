@@ -109,10 +109,13 @@
     ]
   },
   "resources/js/calls.js": {
-    "file": "assets/calls-Cc9gZQrv.js",
+    "file": "assets/calls-DQPb1vDF.js",
     "name": "calls",
     "src": "resources/js/calls.js",
-    "isEntry": true
+    "isEntry": true,
+    "css": [
+      "assets/calls-BmwyFaOR.css"
+    ]
   },
   "resources/js/customer-portal.js": {
     "file": "assets/customer-portal-Bw6sEzmZ.js",

@@ -55,7 +55,12 @@
          bei wire:navigate verfolgen und bei einem neuen Build vollstaendig
          neu laden. Im ersetzten <body> wuerde eine neue Hash-Datei sonst eine
          zweite Alpine-/Livewire-Instanz starten. --}}
-    @vite(['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css', 'resources/js/app.js'])
+    {{-- Das Anrufmodul registriert callRoom vor dem Alpine-Start im App-Modul. --}}
+    @vite(array_merge(
+        ['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css'],
+        ($callWindow ?? false) ? ['resources/js/calls.js'] : [],
+        ['resources/js/app.js'],
+    ))
     @livewireStyles
     {{-- Seitenbezogene Styles muessen nach den globalen Bundles kommen, damit
          sie die gemeinsame UI gezielt erweitern koennen. --}}

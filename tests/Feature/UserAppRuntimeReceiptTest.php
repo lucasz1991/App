@@ -227,7 +227,7 @@ class UserAppRuntimeReceiptTest extends TestCase
     public function test_endpoint_accepts_only_own_authenticated_json_and_never_exposes_identifiers(): void
     {
         $before = $this->grant->fresh()->getRawOriginal();
-        $response = $this->postJson('/app/runtime-status', $this->payload())
+        $response = $this->postJson('/pwa/runtime-status', $this->payload())
             ->assertOk()->assertExactJson(['recorded' => true, 'received_at' => now()->utc()->toISOString()]);
         $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
         $this->assertSame('no-referrer', $response->headers->get('Referrer-Policy'));
@@ -239,20 +239,20 @@ class UserAppRuntimeReceiptTest extends TestCase
 
     public function test_endpoint_rejects_anonymous_requests_and_missing_csrf_and_oversized_or_non_json_payload(): void
     {
-        $this->post('/app/runtime-status', $this->payload())->assertStatus(415);
-        $this->postJson('/app/runtime-status', $this->payload() + ['extra' => str_repeat('x', 2200)])->assertStatus(413);
+        $this->post('/pwa/runtime-status', $this->payload())->assertStatus(415);
+        $this->postJson('/pwa/runtime-status', $this->payload() + ['extra' => str_repeat('x', 2200)])->assertStatus(413);
         $this->app->bind(VerifyCsrfToken::class, RuntimeReceiptCsrfMiddleware::class);
-        $this->postJson('/app/runtime-status', $this->payload())->assertStatus(419);
+        $this->postJson('/pwa/runtime-status', $this->payload())->assertStatus(419);
         auth('web')->forgetUser();
         $this->browserLogoutCookie();
         $this->app->bind(VerifyCsrfToken::class, VerifyCsrfToken::class);
-        $this->postJson('/app/runtime-status', $this->payload())->assertUnauthorized();
+        $this->postJson('/pwa/runtime-status', $this->payload())->assertUnauthorized();
         $this->assertDatabaseCount('user_app_runtime_receipts', 0);
     }
 
     public function test_runtime_route_never_counts_as_session_activity_even_with_html_accept(): void
     {
-        $request = Request::create('/app/runtime-status', 'POST', [], [], [], ['HTTP_ACCEPT' => 'text/html', 'CONTENT_TYPE' => 'application/json'], json_encode($this->payload()));
+        $request = Request::create('/pwa/runtime-status', 'POST', [], [], [], ['HTTP_ACCEPT' => 'text/html', 'CONTENT_TYPE' => 'application/json'], json_encode($this->payload()));
         $this->assertFalse(SessionActivity::isInteraction($request));
     }
 

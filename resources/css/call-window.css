@@ -1,0 +1,404 @@
+/* Native call window: a calm media stage with explicit, reachable controls. */
+.rt-call-window {
+    --call-canvas: #0b0e13;
+    --call-surface: #141a23;
+    --call-control: #222a36;
+    --call-muted: #aab4c3;
+    --call-border: rgb(255 255 255 / 9%);
+    --call-red: theme('colors.rt-red.DEFAULT');
+    position: fixed;
+    top: var(--rt-call-visual-top, 0px);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    height: var(--rt-call-visual-height, 100dvh);
+    color: #f4f6fa;
+    background: var(--call-canvas);
+    color-scheme: dark;
+}
+
+.rt-call-window .rt-call-layout {
+    background: var(--call-canvas);
+}
+
+.rt-call-window .rt-call-header {
+    min-height: 72px;
+    gap: 16px !important;
+    padding: max(12px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left)) !important;
+    border-bottom: 1px solid var(--call-border);
+    background: var(--call-surface);
+}
+
+.rt-call-identity {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 0%;
+    align-items: center;
+    gap: 12px;
+}
+
+.rt-call-identity > span {
+    flex: none;
+}
+
+.rt-call-window .rt-call-status {
+    margin-top: 3px;
+    overflow: hidden;
+    color: var(--call-muted);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.5;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rt-call-header-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}
+
+.rt-call-kind {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    color: var(--call-muted);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.rt-call-window .rt-call-header-actions button {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    border-radius: 12px;
+    box-shadow: none;
+}
+
+.rt-call-window .rt-call-header-action {
+    height: 44px !important;
+    padding-right: 12px !important;
+    padding-left: 12px !important;
+    background: transparent;
+}
+
+.rt-call-window .rt-call-header-action:hover,
+.rt-call-window .rt-call-header-action[aria-expanded='true'] {
+    background: var(--call-control);
+    color: #fff;
+}
+
+.rt-call-window .rt-call-stage {
+    min-width: 0;
+    padding: 12px !important;
+}
+
+.rt-call-window .rt-call-grid {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.rt-call-window .rt-call-grid > .rt-call-tile {
+    border: 1px solid var(--call-border);
+    box-shadow: none;
+}
+
+.rt-call-window .rt-call-state {
+    min-width: 0;
+    overflow-y: auto;
+    padding: 24px !important;
+    overscroll-behavior: contain;
+}
+
+.rt-call-state-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.rt-call-window .rt-call-state-actions > button {
+    min-height: 44px;
+    transition: background-color 160ms ease-out, opacity 160ms ease-out;
+}
+
+.rt-call-window .rt-call-device-notice {
+    max-width: calc(100% - 24px);
+    min-height: 44px;
+    justify-content: center;
+    white-space: normal;
+    box-shadow: none;
+}
+
+.rt-call-window .rt-call-panel-backdrop {
+    position: absolute;
+    z-index: 35;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    background: rgb(0 0 0 / 48%);
+}
+
+.rt-call-window .rt-call-panel {
+    border: 1px solid var(--call-border);
+    color-scheme: normal;
+}
+
+/* The embedded native CallChat must shrink with the panel, including keyboard
+   and landscape viewports; its standalone history keeps its own minimum. */
+.rt-call-panel [role='tabpanel'] > [wire\:id] {
+    min-height: 0 !important;
+}
+
+.rt-call-panel input[type='text'],
+.rt-call-panel textarea {
+    font-size: 16px !important;
+}
+
+.rt-call-panel-heading {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 8px 0 16px;
+}
+
+.rt-call-window .rt-call-panel-close {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+}
+
+.rt-call-window .rt-call-footer {
+    padding: 12px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)) !important;
+    border-top: 1px solid var(--call-border);
+    background: var(--call-surface);
+}
+
+.rt-call-window .rt-call-controls {
+    gap: 8px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.rt-call-window .rt-call-control {
+    min-width: 64px !important;
+    width: 64px !important;
+    min-height: 64px !important;
+    height: 64px !important;
+    flex: none;
+    flex-direction: column;
+    gap: 6px !important;
+    padding: 8px 4px !important;
+    border: 1px solid transparent;
+    border-radius: 14px !important;
+    background: var(--call-control);
+    color: #edf1f7;
+    box-shadow: none;
+    transition: background-color 160ms ease-out, border-color 160ms ease-out, opacity 160ms ease-out;
+}
+
+.rt-call-control > i {
+    font-size: 18px;
+    line-height: 22px;
+}
+
+.rt-call-control > span {
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 14px;
+}
+
+.rt-call-window .rt-call-control:hover:not(:disabled) {
+    background: #303a48;
+}
+
+.rt-call-window .rt-call-control--active {
+    border-color: rgb(255 255 255 / 28%);
+    background: #303a48;
+}
+
+.rt-call-window .rt-call-control--off {
+    color: #f4bcc7;
+}
+
+.rt-call-window .rt-call-control--hangup {
+    background: var(--call-red);
+    color: #fff;
+}
+
+.rt-call-window .rt-call-control--hangup:hover:not(:disabled) {
+    background: theme('colors.rt-red.dark');
+}
+
+.rt-call-window .rt-call-control--end {
+    border-color: var(--call-border);
+    background: transparent;
+    color: var(--call-muted);
+}
+
+.rt-call-window button:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.rt-call-window button:focus-visible {
+    outline: 2px solid #f4f6fa;
+    outline-offset: 3px;
+}
+
+.rt-call-window .rt-call-panel button:focus-visible {
+    outline-color: var(--call-red);
+}
+
+.rt-call-window .rt-call-recording-notice {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    color-scheme: normal;
+}
+
+@media (min-width: 1024px) {
+    .rt-call-window .rt-call-panel {
+        position: static !important;
+        width: 320px !important;
+        flex: 0 0 320px;
+        margin: 12px 12px 12px 0 !important;
+    }
+
+    .rt-call-window .rt-call-panel-backdrop {
+        display: none !important;
+    }
+}
+
+@media (max-width: 1023.98px) {
+    .rt-call-window .rt-call-panel {
+        top: 8px;
+        right: max(8px, env(safe-area-inset-right));
+        bottom: 8px;
+        width: min(384px, calc(100% - 16px)) !important;
+        max-width: calc(100% - 16px);
+        box-shadow: 0 8px 32px rgb(0 0 0 / 20%);
+    }
+}
+
+@media (max-width: 639.98px) {
+    .rt-call-window .rt-call-header {
+        flex-wrap: wrap;
+        gap: 8px !important;
+        padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)) !important;
+    }
+
+    .rt-call-identity {
+        flex-basis: 100%;
+    }
+
+    .rt-call-header-actions {
+        width: 100%;
+        justify-content: flex-end;
+        gap: 4px;
+    }
+
+    .rt-call-kind {
+        flex: 1 1 0%;
+        overflow: hidden;
+        font-size: 10px;
+        text-overflow: ellipsis;
+    }
+
+    .rt-call-window .rt-call-grid {
+        grid-auto-rows: minmax(140px, 1fr);
+    }
+
+    .rt-call-window .rt-call-header-action {
+        padding-right: 10px !important;
+        padding-left: 10px !important;
+    }
+
+    .rt-call-window .rt-call-stage {
+        padding: 0 !important;
+    }
+
+    .rt-call-window .rt-call-control--screen {
+        display: none !important;
+    }
+
+    .rt-call-window .rt-call-controls {
+        gap: 6px !important;
+    }
+
+    .rt-call-window .rt-call-footer {
+        padding-top: 10px !important;
+        padding-bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    }
+
+    .rt-call-window .rt-call-state {
+        gap: 16px !important;
+        padding: 20px 16px !important;
+    }
+}
+
+@media (max-height: 520px) {
+    .rt-call-window .rt-call-header {
+        flex-wrap: nowrap;
+        min-height: 60px;
+        gap: 8px !important;
+        padding-top: max(8px, env(safe-area-inset-top)) !important;
+        padding-bottom: 8px !important;
+    }
+
+    .rt-call-identity {
+        flex-basis: 0%;
+    }
+
+    .rt-call-header-actions {
+        width: auto;
+    }
+
+    .rt-call-kind {
+        display: none;
+    }
+
+    .rt-call-window .rt-call-status {
+        max-width: 20ch;
+    }
+
+    .rt-call-window .rt-call-state {
+        justify-content: flex-start;
+        gap: 12px !important;
+        padding-top: 20px !important;
+    }
+
+    .rt-call-window .rt-call-footer {
+        padding-top: 6px !important;
+        padding-bottom: max(6px, env(safe-area-inset-bottom)) !important;
+    }
+
+    .rt-call-window .rt-call-control {
+        min-height: 56px !important;
+        height: 56px !important;
+        gap: 2px !important;
+    }
+
+    .rt-call-window .rt-call-recording-notice {
+        align-items: flex-start;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-call-window *,
+    .rt-call-window *::before,
+    .rt-call-window *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+}

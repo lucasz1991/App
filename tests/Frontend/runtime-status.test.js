@@ -44,7 +44,7 @@ function harness({ status = 204, fetchImpl = null, permissionApi = true } = {}) 
         clearTimeout(id) { timers.delete(id); },
     });
     const documentLike = Object.assign(eventTarget(), {
-        visibilityState: 'visible', readyState: 'complete', endpoint: '/app/runtime-status',
+        visibilityState: 'visible', readyState: 'complete', endpoint: '/pwa/runtime-status',
         querySelector(selector) {
             if (selector.includes('rt-app-runtime-status-url')) return this.endpoint ? { content: this.endpoint } : null;
             if (selector.includes('csrf-token')) return { content: 'test-csrf' };
@@ -68,7 +68,7 @@ test('reports only four enum fields for the actual app context with same-origin 
     assert.deepEqual(JSON.parse(h.calls[0][1].body), {
         platform: 'android', display_mode: 'standalone', notification_permission: 'default', geolocation_permission: 'granted',
     });
-    assert.equal(h.calls[0][0], 'https://app.example.test/app/runtime-status');
+    assert.equal(h.calls[0][0], 'https://app.example.test/pwa/runtime-status');
     assert.equal(h.calls[0][1].method, 'POST');
     assert.equal(h.calls[0][1].credentials, 'same-origin');
     assert.equal(h.calls[0][1].cache, 'no-store');
@@ -116,9 +116,9 @@ test('no reporting or permission query without authentication metadata, in backg
     const h = harness();
     h.documentLike.endpoint = null;
     assert.equal(await h.reporter.report(), false);
-    h.documentLike.endpoint = 'https://other.example.test/app/runtime-status';
+    h.documentLike.endpoint = 'https://other.example.test/pwa/runtime-status';
     assert.equal(await h.reporter.report(), false);
-    h.documentLike.endpoint = '/app/runtime-status';
+    h.documentLike.endpoint = '/pwa/runtime-status';
     h.documentLike.visibilityState = 'hidden';
     assert.equal(await h.reporter.report(), false);
     h.documentLike.visibilityState = 'visible';
