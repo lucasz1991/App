@@ -26,12 +26,13 @@ class EmployeeLocationReader
             return $result;
         }
         $actor = $context['actor'] ?? auth()->user();
+        $actor = $actor instanceof User ? User::with('currentTeam')->find($actor->id) : null;
         if (! $actor instanceof User || ! $actor->isActive()) {
             return $ids->mapWithKeys(fn ($id) => [$id => $this->unavailable('unauthorized', 'Standortzugriff ist nicht freigegeben.')])->all();
         }
         // Gate::before and User::hasRbacPermission grant administrators broad access.
         // Location viewing deliberately requires an explicit stored team permission too.
-        $explicit = (bool) ($actor->currentTeam?->rbac_permissions['operations.locations.view'] ?? false);
+        $explicit = ($actor->currentTeam?->rbac_permissions['operations.locations.view'] ?? false) === true;
         $scopeIds = $explicit ? app(PersonnelScopeService::class)->visibleUserIds($actor, 'operations.locations.view') : [];
         $allowed = $ids->filter(fn ($id) => $id === (int) $actor->id || ($explicit && ($scopeIds === null || in_array($id, $scopeIds, true))))->values();
         foreach ($ids->diff($allowed) as $id) {

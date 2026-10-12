@@ -5,10 +5,11 @@ function readJson(value, fallback) {
     try { return JSON.parse(value); } catch { return fallback; }
 }
 
-// Presentation only: collapsing a day never clears a native shift selection,
-// starts a request, or moves the timeline. One observer follows server metadata.
+// Presentation only: collapsing a day never clears a native shift selection.
+// Only an explicit opening asks the owned timeline to reveal an off-screen day.
 export function distributionPanel(initial = {}) {
     let observer = null;
+    let rootElement = null;
     let alive = false;
     let previousContext = null;
     let previousSelection = null;
@@ -18,18 +19,20 @@ export function distributionPanel(initial = {}) {
         openDay: null,
         days: [],
         init() {
+            rootElement = this.$el;
             alive = true;
             this.refreshDays();
             if (typeof MutationObserver !== 'undefined') {
                 observer = new MutationObserver(() => { if (alive) this.refreshDays(); });
-                observer.observe(this.$el, { attributes: true, attributeFilter: [
+                observer.observe(rootElement, { attributes: true, attributeFilter: [
                     'data-distribution-days', 'data-distribution-context',
                     'data-distribution-selected', 'data-distribution-preferred-day',
                 ] });
             }
         },
         refreshDays() {
-            const data = this.$el.dataset;
+            if (!rootElement) return;
+            const data = rootElement.dataset;
             const rawDays = readJson(data.distributionDays, []);
             this.days = Array.isArray(rawDays) ? [...new Set(rawDays.filter(dayKey))].slice(0, 25) : [];
             const selection = readJson(data.distributionSelected, null);
@@ -50,14 +53,17 @@ export function distributionPanel(initial = {}) {
             previousSelection = selectionKey;
         },
         toggleDay(date) {
-            if (this.days.includes(date)) this.openDay = this.openDay === date ? null : date;
+            if (!this.days.includes(date)) return;
+            this.openDay = this.openDay === date ? null : date;
+            const owner = rootElement?.dataset.distributionOwner;
+            if (this.openDay && owner) this.$dispatch?.('operations-timeline-day-reveal', { owner, date });
         },
         revealDay(date) {
             if (this.days.includes(date)) this.openDay = date;
         },
         navigateDays(event) {
             if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-            const buttons = [...this.$el.querySelectorAll('[data-distribution-day-toggle]')];
+            const buttons = [...(rootElement?.querySelectorAll('[data-distribution-day-toggle]') ?? [])];
             const index = buttons.indexOf(event.target);
             if (index < 0 || !buttons.length) return;
             const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
@@ -69,6 +75,7 @@ export function distributionPanel(initial = {}) {
             alive = false;
             observer?.disconnect();
             observer = null;
+            rootElement = null;
         },
     };
 }

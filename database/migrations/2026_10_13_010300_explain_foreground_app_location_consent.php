@@ -19,13 +19,16 @@ return new class extends Migration
             }
             $values = json_decode($row->value, true, 512, JSON_THROW_ON_ERROR);
             $text = $values['explanation_text'] ?? '';
-            if ($text === EmployeeLocationSettings::DEFAULTS['explanation_text']) {
+            $alreadyExplained = str_starts_with($text, EmployeeLocationSettings::DEFAULTS['explanation_text']);
+            if ($alreadyExplained && (int) ($values['explanation_version'] ?? 0) >= EmployeeLocationSettings::BROWSER_EXPLANATION_VERSION) {
                 return;
             }
             // Preserve custom explanations as a supplement; every changed
             // collection context requires a fresh, explicit session decision.
             $custom = ! in_array($text, ['', EmployeeLocationSettings::LEGACY_EXPLANATION, EmployeeLocationSettings::LEGACY_SESSION_EXPLANATION], true);
-            $values['explanation_text'] = EmployeeLocationSettings::DEFAULTS['explanation_text'].($custom ? "\n\nBisherige betriebliche Zusatzinformation:\n".$text : '');
+            if (! $alreadyExplained) {
+                $values['explanation_text'] = EmployeeLocationSettings::DEFAULTS['explanation_text'].($custom ? "\n\nBisherige betriebliche Zusatzinformation:\n".$text : '');
+            }
             $values['explanation_version'] = max(EmployeeLocationSettings::BROWSER_EXPLANATION_VERSION, ((int) ($values['explanation_version'] ?? 0)) + 1);
             DB::table('settings')->where('id', $row->id)->update(['value' => json_encode($values, JSON_THROW_ON_ERROR), 'updated_at' => now()]);
             if (Schema::hasTable('mobile_location_installations')) {

@@ -1,4 +1,4 @@
-<section data-employee-location-status x-data x-on:worktime-synced.window.debounce.400ms="$wire.refreshStatus()" @if($locationStatus['enabled']) wire:poll.60s="refreshStatus" @endif>
+<section data-employee-location-status x-data x-on:worktime-synced.window.debounce.400ms="$wire.refreshStatus()" x-on:railtime-app-location-updated.window.debounce.400ms="$wire.refreshStatus()" @if($locationStatus['enabled']) wire:poll.60s="refreshStatus" @endif>
     @if($locationStatus['enabled'])
         @php
             $installation = $locationStatus['installation'];
@@ -7,22 +7,36 @@
             $showExplanation = $explanationOpen || $locationStatus['needs_decision'];
         @endphp
         <div class="ops-panel ops-stack" aria-labelledby="employee-location-heading">
-            <header class="ops-toolbar"><div><h3 id="employee-location-heading">Standort während der Arbeit</h3><p class="ops-muted" role="status">{{ $labels[$locationStatus['state']] ?? 'Erfassung unterbrochen' }}</p></div><span class="ops-badge">15 Minuten · 7 Tage</span></header>
+            <header class="ops-toolbar"><div><h3 id="employee-location-heading">App-Standort</h3><p class="ops-muted" role="status">{{ !$browserLocationStatus['consented'] ? 'Freigabe für diese Anmeldesitzung fehlt' : ($browserLocationStatus['last_point_at'] ? 'Letzter Punkt aus der App-Nutzung verfügbar' : 'Noch kein präziser App-Standort empfangen') }}</p></div><span class="ops-badge">Letzter Punkt · höchstens 15 Minuten aktuell</span></header>
+            <p class="ops-muted">Mit deiner Freigabe wird bei der aktiven Nutzung der sichtbaren RailTime-App der letzte präzise Standort ersetzt, höchstens einmal pro Minute. Das funktioniert unabhängig von deiner Zeiterfassung und ohne zusätzlichen Standortdienst. Schichtplanung und Anreisehinweise dürfen nur einen höchstens 15 Minuten alten Punkt verwenden.</p>
+            @if($browserLocationStatus['last_point_at'])
+                <p><strong>Zuletzt gemeldet:</strong> {{ \Carbon\CarbonImmutable::parse($browserLocationStatus['last_point_at'])->setTimezone('Europe/Berlin')->format('d.m.Y H:i:s') }} · Genauigkeit {{ number_format($browserLocationStatus['accuracy_m'], 0, ',', '.') }} m</p>
+            @endif
+            <p class="ops-muted">Bei geschlossenem oder gesperrtem Handy pausiert die Web-App. Beim nächsten Benutzen kann sie wieder einen aktuellen Punkt melden. Es gibt keinen App-Standortverlauf; abgelaufene Punkte sind sofort ausgeschlossen und werden spätestens im stündlichen Löschlauf entfernt.</p>
             @if($showExplanation)
                 <div class="ops-stack" role="group" aria-labelledby="employee-location-consent-heading">
                     <h4 id="employee-location-consent-heading">Deine Entscheidung für diese Anmeldesitzung</h4>
                     <p style="white-space:pre-line">{{ $locationStatus['settings']['explanation_text'] }}</p>
-                    <p class="ops-muted">Die Freigabe gilt, solange deine Anmeldesitzung aktiv bleibt. Die Nutzung der App verlängert sie; eine neue tägliche Zustimmung ist nicht nötig. Abmeldung, Sitzungsablauf oder Widerruf beenden die Freigabe. Eine Ablehnung hat keine Nachteile für deine Zeiterfassung. Bitte entscheide und starte den Dienst nur, wenn du sicher stehen kannst.</p>
+                    <p class="ops-muted">Die Freigabe gilt, solange deine Anmeldesitzung aktiv bleibt. Die Nutzung der App verlängert sie; eine neue tägliche Zustimmung ist nicht nötig. Abmeldung, Sitzungsablauf oder Widerruf beenden die Freigabe. Eine Ablehnung hat keine Nachteile für deine Zeiterfassung. Bitte entscheide nur, wenn du sicher stehen kannst.</p>
                     <div class="ops-actions">
                         <x-ui.buttons.button-basic wire:click="accept" wire:loading.attr="disabled" class="min-h-11">Für diese Sitzung erlauben</x-ui.buttons.button-basic>
                         <x-ui.buttons.button-basic wire:click="decline" wire:loading.attr="disabled" class="min-h-11">Ohne Standort fortfahren</x-ui.buttons.button-basic>
                     </div>
-                    @if(!$installation)<p class="ops-muted">Du kannst bereits entscheiden. Die Erfassung startet erst nach dem Verbinden und dem ausdrücklichen Start auf deinem Geschäftshandy.</p>@endif
+                    <p class="ops-muted">Die Standortberechtigung deines Browsers wird zusätzlich benötigt. Du kannst sie unter „Mein Profil → Einstellungen → Push und Standort“ einrichten.</p>
                 </div>
             @else
                 <div class="ops-actions"><x-ui.buttons.button-basic wire:click="openExplanation" class="min-h-11">Erklärung und Freigabe öffnen</x-ui.buttons.button-basic><a class="ops-link min-h-11 inline-flex items-center" href="{{ route('profile.show', ['tab' => 'app']) }}">Push und Standort im eigenen Profil</a></div>
             @endif
             @error('location')<p role="alert" class="ops-warning">{{ $message }}</p>@enderror
+            @if($browserLocationStatus['consented'] || ($consent && $consent->decision === 'accepted' && !$consent->withdrawn_at))
+                <x-ui.buttons.button-basic wire:click="withdraw" wire:loading.attr="disabled" class="min-h-11">Freigabe widerrufen und zugehörige Punkte löschen</x-ui.buttons.button-basic>
+            @endif
+            @if($nativeConfigured)
+            <details>
+                <summary class="min-h-11 cursor-pointer">Optionaler Arbeitsstandortdienst</summary>
+                <div class="ops-stack mt-3">
+                    <p class="ops-muted">Zusätzlich eingerichtete native Arbeitsstandorte: alle 15 Minuten während laufender Arbeitszeit, sieben Tage Aufbewahrung. Für den App-Standort oben ist diese Einrichtung nicht erforderlich.</p>
+                    <p class="ops-muted" role="status">{{ $labels[$locationStatus['state']] ?? 'Erfassung unterbrochen' }}</p>
             @if($installation)
                 <p><strong>Geschäftshandy:</strong> {{ $installation->assignment?->device?->display_name ?: $installation->assignment?->device?->asset_tag }} · {{ $installation->platform === 'ios' ? 'iPhone' : 'Android' }}</p>
                 @if($locationStatus['last_point'])
@@ -50,9 +64,6 @@
                     @endif
                 @endif
             @endif
-            @if($consent && $consent->decision === 'accepted' && !$consent->withdrawn_at)
-                <x-ui.buttons.button-basic wire:click="withdraw" wire:loading.attr="disabled" class="min-h-11">Freigabe widerrufen und zugehörige Punkte löschen</x-ui.buttons.button-basic>
-            @endif
             <details>
                 <summary class="min-h-11 cursor-pointer">Geschäftshandy einrichten oder wechseln</summary>
                 <div class="ops-stack mt-3">
@@ -67,7 +78,12 @@
                     @if($registrationCode && $registrationExpiresAt && now()->lt($registrationExpiresAt))<label for="employee-location-code">Verbindungscode · 15 Minuten gültig</label><input id="employee-location-code" type="text" readonly value="{{ $registrationCode }}" autocomplete="off" spellcheck="false" class="min-h-11 w-full" /><p class="ops-muted">Der Code ist nur für die Standortinstallation bestimmt. Gib ihn nicht an andere weiter.</p>@endif
                 </div>
             </details>
+                </div>
+            </details>
+            @endif
+            @if($locationStatus['last_point'] || $historyOpen)
             @include('livewire.operations.partials.employee-location-history')
+            @endif
         </div>
     @elseif($locationStatus['last_point'])
         <div class="ops-panel ops-stack" aria-labelledby="employee-location-history-heading">

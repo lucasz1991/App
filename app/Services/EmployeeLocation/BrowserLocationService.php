@@ -28,11 +28,12 @@ class BrowserLocationService
         $enabled = $this->ready() && $settings['enabled'] && (int) $settings['explanation_version'] >= 3;
         $grant = $enabled ? app(SessionPermissionService::class)->current($user) : null;
         $consented = $grant && app(SessionPermissionService::class)->active($grant, 'location');
-        $point = $consented ? BrowserLocationPoint::where('session_permission_grant_id', $grant->id)->where('user_id', $user->id)->where('measured_at', '>', $this->now()->subMinutes(15))->first() : null;
+        $point = $consented ? BrowserLocationPoint::where('session_permission_grant_id', $grant->id)->where('user_id', $user->id)->where('measured_at', '>', $this->now()->subMinutes(15)->format('Y-m-d H:i:s.u'))->first() : null;
 
         return ['enabled' => $enabled && $user->isActive() && OperationsAccess::isEmployee($user), 'consented' => (bool) $consented,
             'reason' => ! $enabled ? 'disabled' : (! $consented ? 'consent_missing' : null),
             'last_point_at' => $point?->measured_at->toISOString(),
+            'accuracy_m' => $point?->accuracy_m,
             'next_capture_at' => $point ? $point->received_at->addSeconds(60)->toISOString() : $this->now()->toISOString(),
             'server_time' => $this->now()->toISOString()];
     }
@@ -86,8 +87,8 @@ class BrowserLocationService
         if (! $this->ready() || ! $settings['enabled'] || (int) $settings['explanation_version'] < 3 || $allowedIds->isEmpty()) {
             return [];
         }
-        $points = BrowserLocationPoint::whereIn('user_id', $allowedIds)->where('measured_at', '>', $this->now()->subMinutes(15))
-            ->where('measured_at', '<=', $this->now()->addSeconds(5))->where('accuracy_m', '<=', 50)->latest('measured_at')->orderByDesc('id')->get();
+        $points = BrowserLocationPoint::whereIn('user_id', $allowedIds)->where('measured_at', '>', $this->now()->subMinutes(15)->format('Y-m-d H:i:s.u'))
+            ->where('measured_at', '<=', $this->now()->addSeconds(5)->format('Y-m-d H:i:s.u'))->whereBetween('accuracy_m', [0, 50])->latest('measured_at')->orderByDesc('id')->get();
         $grants = SessionPermissionGrant::whereIn('id', $points->pluck('session_permission_grant_id')->unique())->get()->keyBy('id');
         $active = app(SessionPermissionService::class)->activeMany($grants, 'location');
         $result = [];
@@ -101,6 +102,7 @@ class BrowserLocationService
                 $position = $point->position;
                 if (! is_array($position) || ! isset($position['latitude'], $position['longitude'])
                     || ! is_numeric($position['latitude']) || ! is_numeric($position['longitude'])
+                    || ! is_finite((float) $position['latitude']) || ! is_finite((float) $position['longitude'])
                     || abs((float) $position['latitude']) > 90 || abs((float) $position['longitude']) > 180) {
                     continue;
                 }
@@ -150,12 +152,15 @@ class BrowserLocationService
         if (! Schema::hasTable('browser_location_points')) {
             return 0;
         }
+        $cutoff = $this->now()->subMinutes(15)->format('Y-m-d H:i:s.u');
         $count = 0;
         do {
-            $ids = BrowserLocationPoint::where('measured_at', '<=', $this->now()->subMinutes(15))->orderBy('id')->limit(1000)->pluck('id');
-            $deleted = $ids->isEmpty() ? 0 : BrowserLocationPoint::whereIn('id', $ids)->delete();
+            $ids = BrowserLocationPoint::where('measured_at', '<=', $cutoff)->orderBy('id')->limit(1000)->pluck('id');
+            // Capture replaces the same row. A fresh replacement after this
+            // selection must survive the cleanup of its previous expired value.
+            $deleted = $ids->isEmpty() ? 0 : BrowserLocationPoint::whereIn('id', $ids)->where('measured_at', '<=', $cutoff)->delete();
             $count += $deleted;
-        } while ($deleted === 1000);
+        } while ($ids->count() === 1000);
 
         return $count;
     }

@@ -200,7 +200,7 @@ export function normalizeGeolocationPosition(position) {
     return {
         latitude,
         longitude,
-        accuracy: Math.max(0, finiteNumber(coordinates.accuracy) ?? 0),
+        accuracy: finiteNumber(coordinates.accuracy),
         altitude: finiteNumber(coordinates.altitude),
         altitude_accuracy: finiteNumber(
             coordinates.altitude_accuracy ?? coordinates.altitudeAccuracy,
@@ -606,6 +606,9 @@ export class LiveLocationCoordinator {
         if (age > MAXIMUM_MEASUREMENT_AGE || age < -5_000) {
             throw new RangeError('Die Standortmessung ist veraltet. Bitte ermittle einen neuen Standort.');
         }
+        if (!Number.isFinite(next.accuracy) || next.accuracy < 0) {
+            throw new RangeError('Die Genauigkeit der Standortmessung ist nicht verfügbar.');
+        }
         return next;
     }
 
@@ -665,7 +668,7 @@ export class LiveLocationCoordinator {
     }
 
     async reconcile({ quiet = false } = {}) {
-        if (!this.activeUrl || this._destroyed || this._loggedOut || !this._sessionReady) {
+        if (!this.activeUrl || !this._canMeasure()) {
             return this.snapshot();
         }
 
@@ -993,13 +996,6 @@ export class LiveLocationCoordinator {
         const generation = this._positionGeneration;
         const next = this._freshPosition(position);
         this._latestPosition = next;
-
-        if (!this.online) {
-            this._pendingPosition = next;
-            this._pendingPositionForce ||= force;
-            this._pendingPositionKeepalive ||= keepalive;
-            return false;
-        }
 
         if (this._updateInFlight) {
             this._pendingPosition = next;

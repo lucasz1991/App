@@ -69,7 +69,8 @@ class SessionPermissionsUiTest extends TestCase
             ->assertSet('dialogOpen', true)->assertSee('Push und Standort freigeben')
             ->assertSee('Noch keine Entscheidung')->assertSee('Ohne Push fortfahren')->assertSee('Ohne Standort fortfahren')
             ->assertSee('72 Stunden')->assertSee('keine erneute tägliche Nachfrage')
-            ->assertSee('Browser- und Geräteberechtigungen')->assertSee('Die Freigabe startet keine Ortung')
+            ->assertSee('Browser- und Geräteberechtigungen')->assertSee('während aktiver App-Nutzung')
+            ->assertSee('Im Standby werden keine neuen Positionen erfasst.')
             ->assertSee('data-permission-allow="push"', false)->assertSee('data-permission-allow="location"', false)
             ->assertDontSee(' checked', false);
         $this->assertSame([], $this->decisions);

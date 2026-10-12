@@ -121,7 +121,7 @@ class EmployeeLocationTest extends TestCase
         $this->assertSame('consent_missing', $this->ownStatus()['state']);
         $this->assertTrue($this->ownStatus()['needs_decision']);
         $this->assertNull(app(SessionPermissionService::class)->snapshot($this->employee)['location_decision']);
-        $this->ownDecide(true, 2);
+        $this->ownDecide(true, 3);
         $newInstallation = MobileLocationInstallation::whereNull('revoked_at')->firstOrFail();
         $this->service->start($newInstallation, $this->ownHandoff());
         $this->assertSame('active', $this->ownStatus()['state']);
@@ -130,7 +130,7 @@ class EmployeeLocationTest extends TestCase
     public function test_declining_consent_keeps_time_running_and_is_not_repeated_on_every_refresh(): void
     {
         $entry = $this->work();
-        $this->ownDecide(false, 2);
+        $this->ownDecide(false, 3);
         $status = $this->ownStatus();
         $this->assertFalse($status['needs_decision']);
         $this->assertSame('running', $entry->fresh()->status);
@@ -139,7 +139,7 @@ class EmployeeLocationTest extends TestCase
 
     public function test_consent_before_pairing_is_bound_only_at_explicit_native_handoff(): void
     {
-        $consent = $this->ownDecide(true, 2);
+        $consent = $this->ownDecide(true, 3);
         $this->assertNull($consent->installation_id);
         $code = $this->service->pairingCode($this->employee, $this->assignment->id);
         $this->service->register(['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'android']);
@@ -303,7 +303,7 @@ class EmployeeLocationTest extends TestCase
         EmployeeLocationSettings::save(['enabled' => false], $this->admin);
         $this->assertDenied(fn () => $this->service->point($installation, $this->sample($permit)));
         EmployeeLocationSettings::save(['enabled' => true, 'explanation_text' => EmployeeLocationSettings::DEFAULTS['explanation_text'].' Weitere Erklärung.'], $this->admin);
-        $this->assertSame(3, EmployeeLocationSettings::read()['explanation_version']);
+        $this->assertSame(4, EmployeeLocationSettings::read()['explanation_version']);
         $this->assertTrue($this->ownStatus()['needs_decision']);
         $this->assertDenied(fn () => $this->ownHandoff());
     }
@@ -487,12 +487,12 @@ class EmployeeLocationTest extends TestCase
     public function test_session_dialog_uses_the_current_explanation_version_after_midnight(): void
     {
         $this->ready();
-        $component = Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)->assertSet('explanationVersion', 2);
+        $component = Livewire::actingAs($this->employee)->test(EmployeeLocationStatus::class)->assertSet('explanationVersion', 3);
         EmployeeLocationSettings::save(['explanation_text' => EmployeeLocationSettings::DEFAULTS['explanation_text'].' Neue Erklärung.'], $this->admin);
         $this->travelTo(CarbonImmutable::parse('2026-10-11T22:00:00Z'));
-        $component->call('refreshStatus')->assertSet('explanationVersion', 3)->assertSee('Neue Erklärung.')->assertSee('Für diese Sitzung erlauben')
+        $component->call('refreshStatus')->assertSet('explanationVersion', 4)->assertSee('Neue Erklärung.')->assertSee('Für diese Sitzung erlauben')
             ->call('accept')->assertHasNoErrors();
-        $this->assertSame(3, EmployeeLocationConsent::where('local_date', '2026-10-12')->firstOrFail()->explanation_version);
+        $this->assertSame(4, EmployeeLocationConsent::where('local_date', '2026-10-12')->firstOrFail()->explanation_version);
         $this->assertSame('running', WorkTimeEntry::first()->status);
     }
 
@@ -530,7 +530,7 @@ class EmployeeLocationTest extends TestCase
         $registration = $this->postJson('/api/employee-location/register', ['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'android'])
             ->assertCreated()->assertJsonStructure(['token', 'installation_id', 'server_time']);
         $this->assertStringContainsString('no-store', $registration->headers->get('Cache-Control'));
-        $this->ownDecide(true, 2);
+        $this->ownDecide(true, 3);
         $this->work();
         $handoff = $this->ownHandoff();
         $token = $registration->json('token');
@@ -666,7 +666,7 @@ class EmployeeLocationTest extends TestCase
         $code = $this->service->pairingCode($this->employee, $this->assignment->id);
         $registered = $this->service->register(['code' => $code, 'installation_id' => (string) Str::uuid(), 'platform' => 'android']);
         $installation = MobileLocationInstallation::first();
-        $this->ownDecide(true, 2);
+        $this->ownDecide(true, 3);
         $this->work();
         $handoff = $this->ownHandoff();
         $permit = $this->service->start($installation, $handoff);

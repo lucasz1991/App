@@ -66,6 +66,7 @@ class ChatLocationHistoryService
     public function withdraw(ChatLiveLocation $share, User $actor): ChatLiveLocation
     {
         abort_unless($this->ready(), 409);
+
         return DB::transaction(function () use ($share, $actor): ChatLiveLocation {
             $locked = ChatLiveLocation::whereKey($share->id)->lockForUpdate()->firstOrFail();
             abort_unless((int) $locked->user_id === (int) $actor->id, 403);

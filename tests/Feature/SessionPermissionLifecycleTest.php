@@ -57,7 +57,7 @@ class SessionPermissionLifecycleTest extends TestCase
         $this->assertNull($snapshot['push_decision']);
         $this->assertNull($snapshot['location_decision']);
         $this->permissions->decide($this->employee, 'push', true);
-        $this->permissions->decide($this->employee, 'location', false, 2);
+        $this->permissions->decide($this->employee, 'location', false, EmployeeLocationSettings::BROWSER_EXPLANATION_VERSION);
         $snapshot = $this->permissions->snapshot($this->employee);
         $this->assertFalse($snapshot['needs_decision']);
         $this->assertSame('accepted', $snapshot['push_decision']);
@@ -68,7 +68,7 @@ class SessionPermissionLifecycleTest extends TestCase
 
     public function test_location_can_be_accepted_before_a_phone_is_paired_without_starting_recording(): void
     {
-        $grant = $this->permissions->decide($this->employee, 'location', true, 2);
+        $grant = $this->permissions->decide($this->employee, 'location', true, EmployeeLocationSettings::BROWSER_EXPLANATION_VERSION);
         $consent = EmployeeLocationConsent::firstOrFail();
         $this->assertSame($grant->id, $consent->session_permission_grant_id);
         $this->assertNull($consent->installation_id);
@@ -79,7 +79,7 @@ class SessionPermissionLifecycleTest extends TestCase
 
     public function test_midnight_and_daily_app_use_preserve_the_same_explicit_decisions(): void
     {
-        $grant = $this->permissions->decide($this->employee, 'location', true, 2);
+        $grant = $this->permissions->decide($this->employee, 'location', true, EmployeeLocationSettings::BROWSER_EXPLANATION_VERSION);
         $this->permissions->decide($this->employee, 'push', false);
         $accepted = EmployeeLocationConsent::first()->accepted_at;
         $this->travel(1)->days();
@@ -94,7 +94,7 @@ class SessionPermissionLifecycleTest extends TestCase
 
     public function test_expired_session_cannot_revive_old_decisions_even_with_the_same_session_identifier(): void
     {
-        $old = $this->permissions->decide($this->employee, 'location', true, 2);
+        $old = $this->permissions->decide($this->employee, 'location', true, EmployeeLocationSettings::BROWSER_EXPLANATION_VERSION);
         $this->permissions->decide($this->employee, 'push', true);
         $this->travel(72)->hours();
         $this->assertNull($this->permissions->current($this->employee));
@@ -163,10 +163,10 @@ class SessionPermissionLifecycleTest extends TestCase
 
     public function test_same_decision_retry_does_not_rewrite_acceptance_or_audit_evidence(): void
     {
-        $grant = $this->permissions->decide($this->employee, 'location', true, 2);
+        $grant = $this->permissions->decide($this->employee, 'location', true, EmployeeLocationSettings::BROWSER_EXPLANATION_VERSION);
         $accepted = EmployeeLocationConsent::first()->accepted_at;
         $this->travel(5)->minutes();
-        $retry = $this->permissions->decide($this->employee, 'location', true, 2);
+        $retry = $this->permissions->decide($this->employee, 'location', true, EmployeeLocationSettings::BROWSER_EXPLANATION_VERSION);
         $this->assertSame($grant->id, $retry->id);
         $this->assertTrue(EmployeeLocationConsent::first()->accepted_at->equalTo($accepted));
         $this->assertDatabaseCount('employee_location_consent_events', 1);
@@ -186,7 +186,7 @@ class SessionPermissionLifecycleTest extends TestCase
 
     public function test_native_and_queued_reads_require_an_existing_unexpired_database_session(): void
     {
-        $grant = $this->permissions->decide($this->employee, 'location', true, 2);
+        $grant = $this->permissions->decide($this->employee, 'location', true, EmployeeLocationSettings::BROWSER_EXPLANATION_VERSION);
         (require database_path('migrations/2023_07_04_121951_create_sessions_table.php'))->up();
         config(['session.driver' => 'database']);
         $this->app->instance('request', Request::create('/api/employee-location/permit', 'POST'));
@@ -219,7 +219,7 @@ class SessionPermissionLifecycleTest extends TestCase
 
     public function test_expired_session_credentials_are_removed_without_deleting_consent_evidence(): void
     {
-        $grant = $this->permissions->decide($this->employee, 'location', true, 2);
+        $grant = $this->permissions->decide($this->employee, 'location', true, EmployeeLocationSettings::BROWSER_EXPLANATION_VERSION);
         $this->travel(72)->hours();
         $this->assertSame(1, $this->permissions->purge());
         $this->assertNull($grant->fresh()->session_identifier);

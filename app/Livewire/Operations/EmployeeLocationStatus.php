@@ -3,6 +3,7 @@
 namespace App\Livewire\Operations;
 
 use App\Models\MobileLocationCode;
+use App\Services\EmployeeLocation\BrowserLocationService;
 use App\Services\EmployeeLocation\EmployeeLocationService;
 use App\Services\Privacy\SessionPermissionService;
 use App\Support\EmployeeLocation\EmployeeLocationSettings;
@@ -127,7 +128,14 @@ class EmployeeLocationStatus extends Component
             $this->explanationVersion = (int) $status['settings']['explanation_version'];
         }
 
-        return view('livewire.operations.employee-location-status', ['locationStatus' => $status]);
+        $browser = app(BrowserLocationService::class)->status(auth()->user());
+        $settings = $status['settings'];
+        $nativeConfigured = $status['installation'] || $settings['android_install_url'] || $settings['ios_install_url']
+            || $settings['android_certificate_sha256'] || $settings['ios_app_id'];
+
+        return view('livewire.operations.employee-location-status', [
+            'locationStatus' => $status, 'browserLocationStatus' => $browser, 'nativeConfigured' => (bool) $nativeConfigured,
+        ]);
     }
 
     private function authorizeOwn(): void

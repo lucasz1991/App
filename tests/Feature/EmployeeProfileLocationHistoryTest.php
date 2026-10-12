@@ -3,20 +3,21 @@
 namespace Tests\Feature;
 
 use App\Livewire\Profile\EmployeeLocationHistory;
-use App\Models\CustomerPortalIdentity;
 use App\Models\Chat;
 use App\Models\ChatLiveLocation;
 use App\Models\ChatLocationPoint;
+use App\Models\CustomerPortalIdentity;
 use App\Models\Device;
 use App\Models\DeviceAssignment;
 use App\Models\EmployeeLocationConsent;
 use App\Models\EmployeeLocationPoint;
 use App\Models\MobileLocationInstallation;
-use App\Models\Setting;
 use App\Models\SessionPermissionGrant;
+use App\Models\Setting;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\WorkTimeEntry;
+use App\Services\EmployeeLocation\BrowserLocationService;
 use App\Services\EmployeeLocation\EmployeeLocationHistoryService;
 use App\Services\Operations\PersonnelScopeService;
 use App\Support\EmployeeLocation\EmployeeLocationSettings;
@@ -283,6 +284,31 @@ class EmployeeProfileLocationHistoryTest extends TestCase
         $this->assertSame(1, $this->service->read($this->employee->id, '2026-10-11')['total']);
         EmployeeLocationConsent::whereKey($point->consent_id)->update(['session_permission_grant_id' => null]);
         $this->assertSame(0, $this->service->read($this->employee->id, '2026-10-11')['total']);
+    }
+
+    public function test_latest_app_point_is_scoped_and_separate_from_retained_history_and_public_state(): void
+    {
+        (require database_path('migrations/2026_10_13_010200_create_browser_location_points.php'))->up();
+        $this->mock(BrowserLocationService::class, function ($mock): void {
+            $mock->shouldReceive('latestForMany')->twice()->withArgs(fn ($ids) => $ids->all() === [$this->employee->id])->andReturn([
+                $this->employee->id => ['status' => 'available', 'reason' => null, 'point' => [
+                    'latitude' => 52.52, 'longitude' => 13.405, 'accuracy_m' => 7,
+                    'measured_at' => '2026-10-11T17:59:00Z', 'source' => 'browser',
+                ]],
+            ]);
+        });
+        $view = $this->service->read($this->employee->id, '2026-10-11');
+        $this->assertSame(0, $view['total']);
+        $this->assertNull($view['latest']);
+        $this->assertSame('App-Standort', $view['current_app']['source_label']);
+        $this->assertSame('19:59', $view['current_app']['time']);
+        $component = Livewire::test(EmployeeLocationHistory::class, ['userId' => $this->employee->id])
+            ->assertSee('Letzter gemeldeter App-Standort')->assertSee('52,52000 / 13,40500');
+        $this->assertStringNotContainsString('52.52', json_encode($component->instance()->all()));
+        $this->team->update(['rbac_permissions' => []]);
+        $restricted = $this->service->read($this->employee->id, '2026-10-11');
+        $this->assertSame('restricted', $restricted['state']);
+        $this->assertNull($restricted['current_app']);
     }
 
     public function test_no_coordinates_are_public_livewire_properties_and_the_target_id_is_locked(): void

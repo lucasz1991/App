@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\UtcImmutableDateTime;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -53,9 +54,9 @@ class ChatLiveLocation extends Model
         'expires_at' => 'datetime',
         'stopped_at' => 'datetime',
         'version' => 'integer',
-        'profile_history_accepted_at' => \App\Casts\UtcImmutableDateTime::class,
+        'profile_history_accepted_at' => UtcImmutableDateTime::class,
         'profile_history_version' => 'integer',
-        'profile_history_withdrawn_at' => \App\Casts\UtcImmutableDateTime::class,
+        'profile_history_withdrawn_at' => UtcImmutableDateTime::class,
     ];
 
     protected static function booted(): void

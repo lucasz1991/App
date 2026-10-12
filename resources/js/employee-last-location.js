@@ -14,12 +14,15 @@ export function createEmployeeLastLocation({
     let started = false;
     let destroyed = false;
     let terminal = false;
+    let recoverableForbidden = false;
     let verified = true;
     let generation = 0;
     let consented = false;
     let permission = 'unknown';
     let permissionStatus = null;
     let permissionListener = null;
+    let permissionQueryUnavailable = !navigatorLike?.permissions?.query;
+    const shownLocationNotices = new Set();
     let nextCaptureAt = 0;
     let nextStatusAt = 0;
     let capture = null;
@@ -44,17 +47,21 @@ export function createEmployeeLastLocation({
         listeners.push(() => target?.removeEventListener?.(name, callback, options));
     }
 
-    function suspend({ end = false } = {}) {
+    function suspend({ end = false, recoverable = false } = {}) {
         generation += 1;
         verified = false;
         consented = false;
-        if (end) terminal = true;
+        if (end) {
+            terminal = true;
+            recoverableForbidden = recoverable;
+        }
         requests.forEach((controller) => controller.abort());
         requests.clear();
         refreshing = null;
     }
 
     async function request(url, { body, method = 'GET' } = {}) {
+        const requestGeneration = generation;
         const Controller = windowLike?.AbortController ?? globalThis.AbortController;
         const controller = Controller ? new Controller() : null;
         if (controller) requests.add(controller);
@@ -69,8 +76,9 @@ export function createEmployeeLastLocation({
                 ...(controller ? { signal: controller.signal } : {}),
                 ...(body ? { body: JSON.stringify(body) } : {}),
             });
+            if (requestGeneration !== generation || destroyed) return null;
             if ([401, 403, 419].includes(response.status)) {
-                suspend({ end: true });
+                suspend({ end: true, recoverable: response.status === 403 });
                 return null;
             }
             if (!response.ok) return null;
@@ -97,8 +105,28 @@ export function createEmployeeLastLocation({
                 permissionStatus.addEventListener?.('change', permissionListener);
             }
             permission = permissionStatus.state || 'unknown';
-        } catch (_) { /* Older WebKit requires the explicit permission-success event. */ }
+        } catch (_) {
+            // Older WebKit cannot report a permission state. A real foreground
+            // sensor request, after server consent, lets the OS decide it.
+            permissionQueryUnavailable = true;
+        }
         return permission;
+    }
+
+    function locationError(error) {
+        const denied = Number(error?.code) === 1;
+        if (denied) permission = 'denied';
+        const code = denied ? 'permission-denied' : 'unavailable';
+        if (shownLocationNotices.has(code) || !usable()) return;
+        shownLocationNotices.add(code);
+        const Event = windowLike?.CustomEvent ?? globalThis.CustomEvent;
+        if (typeof Event !== 'function') return;
+        windowLike?.dispatchEvent?.(new Event('swal:toast', { detail: {
+            type: 'info', sound: false, timer: 8_000,
+            text: denied
+                ? 'Der Standortzugriff ist im Browser blockiert. RailTime bleibt nutzbar. Du kannst die Berechtigung unter deinen Profil-Freigaben erneut einrichten.'
+                : 'Der Standort konnte gerade nicht bestimmt werden. RailTime bleibt nutzbar; es wurde kein neuer Standort gespeichert.',
+        } }));
     }
 
     async function measure() {
@@ -123,9 +151,14 @@ export function createEmployeeLastLocation({
         const version = generation;
         nextCaptureAt = now() + CAPTURE_INTERVAL;
         capture = (async () => {
-            if (await readPermission() !== 'granted' || version !== generation || !usable()) return false;
+            const actualPermission = await readPermission();
+            const mayAskOperatingSystem = permissionQueryUnavailable && actualPermission === 'unknown';
+            if ((actualPermission !== 'granted' && !mayAskOperatingSystem) || version !== generation || !usable()) return false;
             try {
                 const point = await measure();
+                if (version !== generation || !usable() || !consented) return false;
+                // Success is real device evidence, never inferred from RailTime consent.
+                if (mayAskOperatingSystem) permission = 'granted';
                 const measured = Date.parse(point.measured_at || '');
                 const age = now() - measured;
                 if (version !== generation || !usable() || !consented || permission !== 'granted'
@@ -142,8 +175,15 @@ export function createEmployeeLastLocation({
                 if (version !== generation || !usable()) return false;
                 const next = Date.parse(result?.next_capture_at || '');
                 if (Number.isFinite(next)) nextCaptureAt = Math.max(nextCaptureAt, next);
+                if (result?.accepted === true && result?.stored === true) {
+                    const Event = windowLike?.CustomEvent ?? globalThis.CustomEvent;
+                    if (typeof Event === 'function') windowLike?.dispatchEvent?.(new Event('railtime-app-location-updated', { detail: { stored: true } }));
+                }
                 return result?.accepted === true;
-            } catch (_) { return false; }
+            } catch (error) {
+                if (version === generation && usable()) locationError(error);
+                return false;
+            }
         })();
         try { return await capture; } finally { capture = null; }
     }
@@ -198,6 +238,20 @@ export function createEmployeeLastLocation({
             generation += 1;
             consented = false;
             refreshing = null;
+            requests.forEach((controller) => controller.abort());
+            if (terminal && recoverableForbidden) {
+                // A revoked location purpose may be explicitly allowed again.
+                // Re-verify the original account first; logout/account changes stay terminal.
+                terminal = false;
+                recoverableForbidden = false;
+                if (typeof windowLike?.RailtimeAppLifecycle?.recover === 'function') {
+                    windowLike.RailtimeAppLifecycle.recover({ force: true });
+                } else if (!meta('rt-pwa-session-status-url')) {
+                    verified = true;
+                    refresh({ force: true });
+                }
+                return;
+            }
             refresh({ force: true });
         });
         listen(windowLike, 'railtime-location-browser-permission-granted', () => {

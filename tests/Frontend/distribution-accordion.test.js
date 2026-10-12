@@ -5,6 +5,21 @@ import { distributionPanel } from '../../resources/js/distribution-accordion.js'
 
 const dates = ['2027-05-09', '2027-05-10', '2027-05-11'];
 
+test('only explicitly opening a known day dispatches a reveal to its own timeline', () => fixture(({ panel, root, requests, refresh }) => {
+    root.dataset.distributionOwner = 'shift-owner-17';
+    panel.toggleDay(dates[1]); // Close the initially open day.
+    assert.deepEqual(requests, []);
+    panel.toggleDay(dates[0]);
+    assert.deepEqual(requests, [['operations-timeline-day-reveal', { owner: 'shift-owner-17', date: dates[0] }]]);
+    panel.toggleDay(dates[2]);
+    assert.equal(requests.length, 2);
+    panel.toggleDay(dates[2]);
+    panel.toggleDay('not-a-day');
+    panel.revealDay(dates[1]);
+    refresh({ distributionContext: 'changed-context' });
+    assert.equal(requests.length, 2, 'close, invalid date, focus reveal and metadata refresh are not navigation gestures');
+}));
+
 function fixture(run, { days = dates, context = '2027-05-10|2027-05-16|all|1', selected = null,
     preferred = '2027-05-10', initial = {}, observer = true } = {}) {
     const { document } = parseHTML('<div data-pending-distribution></div>');
@@ -64,6 +79,16 @@ test('initial day prefers the selected range start rather than the preceding ove
 test('a real selected shift takes initial priority over the preferred day', () => fixture(({ panel }) => {
     assert.equal(panel.openDay, '2027-05-11');
 }, { selected: { id: 81, date: '2027-05-11' } }));
+
+test('malformed selected-shift ids cannot override the preferred day on initialization or a new context', () => {
+    for (const id of [0, -1, '81', null, Number.MAX_SAFE_INTEGER + 1]) {
+        fixture(({ panel, refresh }) => {
+            assert.equal(panel.openDay, '2027-05-10');
+            refresh({ distributionContext: 'another-page', distributionSelected: JSON.stringify({ id, date: '2027-05-09' }) });
+            assert.equal(panel.openDay, '2027-05-10');
+        }, { selected: { id, date: '2027-05-11' } });
+    }
+});
 
 test('missing preferred and off-page selection fall back to the first displayed day, with truthful empty state', () => {
     fixture(({ panel }) => assert.equal(panel.openDay, dates[0]), { preferred: '2027-05-12', selected: { id: 81, date: '2027-05-14' } });
@@ -183,6 +208,21 @@ test('keyboard arrows wrap and Home/End move focus only; unrelated keys and nest
     panel.navigateDays(event('Tab', buttons[0]));
     assert.equal(prevented, 4);
     assert.equal(focusCalls.length, 4);
+}));
+
+test('Alpine event-button $el context cannot replace the captured root for keyboard navigation or observer metadata', () => fixture(({ panel, root, refresh, focusCalls, requests, scrolls }) => {
+    const buttons = [...root.querySelectorAll('[data-distribution-day-toggle]')];
+    panel.$el = buttons[0];
+    let prevented = 0;
+    panel.navigateDays({ key: 'ArrowDown', target: buttons[0], preventDefault: () => prevented++ });
+    assert.equal(prevented, 1);
+    assert.deepEqual(focusCalls, ['2027-05-10']);
+    assert.equal(panel.openDay, '2027-05-10', 'keyboard navigation is focus only');
+    refresh({ distributionSelected: JSON.stringify({ id: 81, date: '2027-05-11' }) });
+    assert.deepEqual(panel.days, dates);
+    assert.equal(panel.openDay, '2027-05-11', 'metadata is read from the original panel, not the event button');
+    assert.deepEqual(requests, []);
+    assert.deepEqual(scrolls, []);
 }));
 
 test('destroy disconnects the single observer and a queued callback cannot repaint detached presentation state', () => fixture(({ panel, root, observers }) => {

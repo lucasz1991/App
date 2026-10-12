@@ -19,6 +19,7 @@ use App\Services\Operations\TimelinePlanningSuggestionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
@@ -309,7 +310,7 @@ class TimelinePlanningActionsTest extends TestCase
 
     public function test_assignment_planner_has_native_dialog_context_radios_and_an_explicit_loading_footer(): void
     {
-        \Illuminate\Support\Facades\Http::preventStrayRequests();
+        Http::preventStrayRequests();
         $timeline = $this->timeline()->call('openCell', $this->ben->id, '2027-05-13');
         $xpath = $this->timelineXPath($timeline);
         $this->assertSame(1, $xpath->query('//article[@data-fit="suitable"]//button[@*[name()="wire:click"]="selectCellShift('.$this->shift->id.',1)"]')->length);
@@ -360,13 +361,17 @@ class TimelinePlanningActionsTest extends TestCase
         $xpath = $this->timelineXPath($timeline);
         $this->assertSame(1, $xpath->query('//input[@type="radio"][@value="confirmed"][@checked]')->length);
         $this->assertSame(0, $xpath->query('//input[@type="radio"][@value="requested"][@checked]')->length);
+        $timeline->set('assignmentStatus', 'cancelled')->call('confirmAssignment')->assertHasErrors('assignmentStatus');
+        $xpath = $this->timelineXPath($timeline);
+        $this->assertSame(1, $xpath->query('//fieldset//p[@role="alert"]')->length);
+        $this->assertSame(0, ShiftAssignment::count());
         $timeline->call('backToCellChoices')->assertSet('planningShiftId', null)->assertSee('Auswählen')->assertDontSee('rt-timeline-planner__confirm', false);
         $this->assertSame(0, ShiftAssignment::count());
     }
 
     public function test_assignment_planner_keeps_blocked_reasons_empty_feedback_and_native_workflow_errors_visible(): void
     {
-        \Illuminate\Support\Facades\Http::preventStrayRequests();
+        Http::preventStrayRequests();
         AbsenceRequest::create(['user_id' => $this->ben->id, 'kind' => 'vacation', 'status' => 'approved', 'starts_at' => '2027-05-13T00:00', 'ends_at' => '2027-05-14T00:00', 'timezone' => 'Europe/Berlin']);
         $timeline = $this->timeline()->call('openCell', $this->ben->id, '2027-05-13');
         $xpath = $this->timelineXPath($timeline);
@@ -391,7 +396,8 @@ class TimelinePlanningActionsTest extends TestCase
         $this->assertMatchesRegularExpression('/\.rt-timeline-planner__footer\s*\{[^}]*position: sticky;[^}]*bottom: 0;/', $styles);
         $this->assertStringContainsString('.rt-timeline-planner__status-option:has(input:focus-visible)', $styles);
         $this->assertStringContainsString('@media (max-width: 399px)', $styles);
-        $this->assertMatchesRegularExpression('/@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.rt-timeline-planner__confirm \.fa-spinner-third[^}]*animation: none;/', $styles);
+        $reducedMotion = substr($styles, strrpos($styles, '@media (prefers-reduced-motion: reduce)'));
+        $this->assertMatchesRegularExpression('/\.rt-timeline-planner__confirm \.fa-spinner-third[^}]*\{\s*animation: none;/', $reducedMotion);
     }
 
     public function test_distribution_sidebar_assigns_directly_moves_on_and_rejects_full_or_stale_shifts(): void

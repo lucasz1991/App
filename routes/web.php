@@ -34,9 +34,10 @@ use App\Http\Controllers\CustomerPortalDocumentController;
 use App\Http\Controllers\CustomerProofAttachmentController;
 use App\Http\Controllers\DeviceInventoryTemplateController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
+use App\Http\Controllers\Operations\AiIntakeSourceController;
 use App\Http\Controllers\OperationsEvidenceController;
-use App\Http\Controllers\OperationsWorkspaceRedirectController;
 use App\Http\Controllers\OperationsTravelReceiptController;
+use App\Http\Controllers\OperationsWorkspaceRedirectController;
 use App\Http\Controllers\OutlookAddin\OutlookAddinController;
 use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -74,10 +75,9 @@ use App\Livewire\Devices\MyDevices;
 use App\Livewire\HelpCenter;
 use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
-use App\Livewire\Operations\PersonalWorkspace;
 use App\Livewire\Operations\PageWorkspace;
+use App\Livewire\Operations\PersonalWorkspace;
 use App\Livewire\Operations\WagonListPrototype;
-use App\Livewire\Operations\Workspace;
 use App\Livewire\SupportCases;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
@@ -254,8 +254,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/kundenportal-pruefung/dokumente/{id}', [CustomerPortalDocumentController::class, 'managerDocument'])->whereNumber('id')->middleware('throttle:30,1')->name('customer-portal.manager.document');
     Route::get('/leistungsnachweise/{id}/anlagen/{attachment}', CustomerProofAttachmentController::class)
         ->whereNumber('id')->whereUuid('attachment')->middleware('throttle:30,1')->name('operations.proofs.attachment');
-    Route::get('/ai-annahme/anlagen/{id}', [\App\Http\Controllers\Operations\AiIntakeSourceController::class, 'attachment'])->whereNumber('id')->middleware('throttle:30,1')->name('operations.ai-intake.attachment');
-    Route::get('/ai-annahme/original/{id}', [\App\Http\Controllers\Operations\AiIntakeSourceController::class, 'original'])->whereNumber('id')->middleware('throttle:30,1')->name('operations.ai-intake.original');
+    Route::get('/ai-annahme/anlagen/{id}', [AiIntakeSourceController::class, 'attachment'])->whereNumber('id')->middleware('throttle:30,1')->name('operations.ai-intake.attachment');
+    Route::get('/ai-annahme/original/{id}', [AiIntakeSourceController::class, 'original'])->whereNumber('id')->middleware('throttle:30,1')->name('operations.ai-intake.original');
     Route::get('/reisen/{id}/belege/{receipt}', OperationsTravelReceiptController::class)
         ->whereNumber('id')->whereUuid('receipt')->middleware('throttle:30,1')->name('operations.travel.receipt');
     Route::post('/mein-arbeitstag/zeiten/bootstrap', [WorkTimeCaptureController::class, 'bootstrap'])

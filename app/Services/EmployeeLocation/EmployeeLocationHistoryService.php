@@ -2,8 +2,8 @@
 
 namespace App\Services\EmployeeLocation;
 
-use App\Models\EmployeeLocationPoint;
 use App\Models\ChatLocationPoint;
+use App\Models\EmployeeLocationPoint;
 use App\Models\User;
 use App\Services\Operations\PersonnelScopeService;
 use App\Support\EmployeeLocation\EmployeeLocationSettings;
@@ -12,8 +12,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
@@ -80,7 +80,7 @@ class EmployeeLocationHistoryService
                     default => $today->subDays($offset)->locale('de')->isoFormat('dd, D. MMM').($today->subDays($offset)->isSameDay($firstDay) && ! $cutoff->isStartOfDay() ? ' · Teil des Tages' : ''),
                 },
             ])->all(),
-            'map' => null, 'total' => 0,
+            'map' => null, 'total' => 0, 'current_app' => null,
         ];
         // Deliberately stronger than the ordinary admin Gate bypass, including
         // self access: the explicitly stored permission AND personnel scope
@@ -88,6 +88,18 @@ class EmployeeLocationHistoryService
         if (($actor->currentTeam?->rbac_permissions['operations.locations.view'] ?? false) !== true
             || ! app(PersonnelScopeService::class)->allows($actor, $employee, 'operations.locations.view')) {
             return $view;
+        }
+        if (Schema::hasTable('browser_location_points')) {
+            $current = app(BrowserLocationService::class)->latestForMany(collect([(int) $employee->id]))[$employee->id] ?? null;
+            if (($current['status'] ?? null) === 'available' && isset($current['point'])) {
+                $point = $current['point'];
+                $projection = new EmployeeLocationPoint([
+                    'position' => ['latitude' => $point['latitude'], 'longitude' => $point['longitude']],
+                    'accuracy_m' => $point['accuracy_m'], 'measured_at' => $point['measured_at'],
+                ]);
+                $projection->setAttribute('source', 'browser');
+                $view['current_app'] = $this->projectPoint($projection);
+            }
         }
         $workReady = EmployeeLocationSettings::ready();
         $chatReady = Schema::hasTable('chat_location_points');
@@ -194,7 +206,9 @@ class EmployeeLocationHistoryService
 
         return [
             'id' => (int) $point->id, 'key' => $point->source.':'.$point->id,
-            'source' => $point->source, 'source_label' => $point->source === 'chat' ? 'Chat-Standortfreigabe' : 'Arbeitsstandort',
+            'source' => $point->source, 'source_label' => match ($point->source) {
+                'chat' => 'Chat-Standortfreigabe', 'browser' => 'App-Standort', default => 'Arbeitsstandort',
+            },
             'date' => $measured->toDateString(), 'time' => $measured->format('H:i'),
             'measured_at' => $measured->toIso8601String(), 'display_date' => $measured->format('d.m.Y'),
             'accuracy' => number_format((float) $point->accuracy_m, 0, ',', '.').' m',

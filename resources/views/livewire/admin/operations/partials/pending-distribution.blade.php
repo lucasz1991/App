@@ -11,6 +11,7 @@
 {{-- Seitenpanel „Noch zu verteilen“: offene Schichten des Zeitraums auswählen und passende Mitarbeitende direkt einteilen. --}}
 <div class="rt-shift-distribution rt-shift-distribution--side" data-pending-distribution
     x-data="distributionPanel({ distributionTab: @js($pendingShifts->total() > 0 || $unplannedOrders->total() === 0 ? 'shifts' : 'orders') })"
+    data-distribution-owner="{{ $this->getId() }}"
     data-distribution-days="{{ $shiftDays->keys()->values()->toJson() }}"
     data-distribution-context="{{ json_encode([$rangeFrom, $rangeTo, $customerFilter, $pendingShifts->currentPage()]) }}"
     data-distribution-selected="{{ json_encode($distributionShift ? ['id' => (int) $distributionShift->id, 'date' => $selectedDay] : null) }}"
@@ -41,7 +42,7 @@
                     $day = \Carbon\CarbonImmutable::parse($date, $displayTimezone)->locale('de');
                     $dayCounts = $pendingShiftDayCounts[$date];
                     $dayId = $distributionTabsId.'-day-'.$date;
-                    $daySummary = $dayCounts['shifts'].' Schichten · '.$dayCounts['open_places'].' freie Plätze · '.$dayCounts['requested_places'].' ausstehende Zusagen · auf dieser Seite';
+                    $daySummary = $dayCounts['shifts'].($dayCounts['shifts'] === 1 ? ' Schicht' : ' Schichten').' · '.$dayCounts['open_places'].($dayCounts['open_places'] === 1 ? ' freier Platz' : ' freie Plätze').' · '.$dayCounts['requested_places'].($dayCounts['requested_places'] === 1 ? ' ausstehende Zusage' : ' ausstehende Zusagen').' · auf dieser Seite';
                 @endphp
                 <section class="rt-shift-distribution__day" wire:key="distribution-day-{{ $date }}" x-bind:data-open="openDay === @js($date)">
                     <h3 class="rt-shift-distribution__day-heading">

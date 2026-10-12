@@ -4,6 +4,7 @@ namespace App\Console;
 
 use App\Jobs\PurgeExpiredCallRecordings;
 use App\Jobs\ReconcileCallRecordings;
+use App\Services\Chat\ChatLocationHistoryService;
 use App\Services\EmployeeLocation\EmployeeLocationService;
 use App\Services\Personnel\UserAppRuntimeReceiptService;
 use Illuminate\Console\Scheduling\Schedule;
@@ -22,7 +23,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('operations:staffing-automation')->everyMinute()->withoutOverlapping();
         $schedule->command('routing:purge-cache')->everyMinute()->withoutOverlapping();
         $schedule->command('devices:purge-support-data')->hourly()->withoutOverlapping();
-        $schedule->call(fn () => app(\App\Services\Chat\ChatLocationHistoryService::class)->purge())
+        $schedule->call(fn () => app(ChatLocationHistoryService::class)->purge())
             ->name('chat-location-history:purge')->hourly()->withoutOverlapping();
         $schedule->call(fn () => app(EmployeeLocationService::class)->purge())
             ->name('employee-location:purge')->hourly()->withoutOverlapping();

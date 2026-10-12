@@ -24,6 +24,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -360,7 +361,11 @@ class StaffTimeline extends Component
         OperationsAccess::authorize(auth()->user(), $this->absencesOnly ? 'operations.absences.review' : 'operations.manage');
         OperationsAccess::requireReady();
         $this->synchronizePeriodContext();
-        $this->validate(['from' => 'required|date_format:Y-m-d', 'until' => 'required|date_format:Y-m-d|after_or_equal:from']);
+        // Livewire's successful validate() clears the entire ErrorBag. A read
+        // projection must not erase a rejected assignment's workflow/status errors.
+        Validator::make(['from' => $this->from, 'until' => $this->until], [
+            'from' => 'required|date_format:Y-m-d', 'until' => 'required|date_format:Y-m-d|after_or_equal:from',
+        ])->validate();
         $zone = config('operations.display_timezone', 'Europe/Berlin');
         $from = CarbonImmutable::parse($this->from, $zone);
         $until = CarbonImmutable::parse($this->until, $zone)->addDay();

@@ -986,3 +986,135 @@ test('live-location runtime never writes coordinates to local or session storage
 
     assert.doesNotMatch(source, /localStorage|sessionStorage/);
 });
+
+function lifecycleTarget(extra = {}) {
+    const listeners = new Map();
+    return { ...extra,
+        addEventListener(name, fn) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); },
+        removeEventListener(name, fn) { listeners.get(name)?.delete(fn); },
+        emit(name, detail = {}) { listeners.get(name)?.forEach((fn) => fn({ detail })); },
+    };
+}
+
+test('profile-history consent is separate, unchecked again on each new picker and sent explicitly', async () => {
+    const options = [];
+    const picker = railtimeLiveLocationShare({ chatId: 17, startUrl: '/start' });
+    picker.$store = { liveLocation: { supported: true, start: async (input) => { options.push(input); return { id: 'share' }; } } };
+    picker.openPicker();
+    assert.equal(picker.profileHistoryConsent, false);
+    picker.profileHistoryConsent = true;
+    await picker.share(15);
+    assert.equal(options[0].profileHistoryConsent, true);
+    picker.openPicker();
+    await picker.share(15);
+    assert.equal(options[1].profileHistoryConsent, false);
+});
+
+test('stale, future and missing measurement timestamps never start a Chat share', async () => {
+    const now = Date.now();
+    for (const measured of [now - 31_000, now + 6_000, null]) {
+        let writes = 0;
+        const geo = geolocationHarness({ coords: { latitude: 50, longitude: 8, accuracy: 8 }, timestamp: measured }, () => measured);
+        const coordinator = new LiveLocationCoordinator({ windowLike: coordinatorWindow(), documentLike: null,
+            navigatorLike: { geolocation: geo.api, onLine: true }, ...coordinatorTimers(), now: () => now,
+            request: async () => { writes++; return responseShare(); } });
+        await assert.rejects(() => coordinator.start({ chatId: 17, durationMinutes: 15, startUrl: '/start' }), /veraltet/);
+        assert.equal(writes, 0);
+        coordinator.destroy();
+    }
+});
+
+test('hidden Chat clears its watch and old callbacks, then waits for a verified session and fresh server share', async () => {
+    const geo = geolocationHarness();
+    const windowLike = lifecycleTarget(coordinatorWindow());
+    const documentLike = lifecycleTarget({ visibilityState: 'visible', querySelector: () => ({ content: '/pwa/session-status' }) });
+    let active = true;
+    let updates = 0;
+    const coordinator = new LiveLocationCoordinator({ windowLike, documentLike,
+        navigatorLike: { geolocation: geo.api, onLine: true, permissions: { query: async () => ({ state: 'granted' }) } },
+        activeUrl: '/active', ...coordinatorTimers(), request: async (_url, options) => {
+            if (options.method === 'PATCH') { updates++; return responseShare(); }
+            return { live_locations: active ? [responseShare().live_location] : [] };
+        } });
+    await coordinator.initialize();
+    documentLike.visibilityState = 'hidden';
+    documentLike.emit('visibilitychange');
+    assert.equal(coordinator.watching, false);
+    geo.emit();
+    await Promise.resolve();
+    assert.equal(updates, 0);
+    documentLike.visibilityState = 'visible';
+    documentLike.emit('visibilitychange');
+    await Promise.resolve();
+    assert.equal(geo.watchCalls(), 1);
+    active = false;
+    windowLike.emit('railtime:app-connection-state', { state: 'ready' });
+    await coordinator._resumePromise;
+    assert.equal(coordinator.activeShares.length, 0);
+    assert.equal(geo.watchCalls(), 1);
+    assert.equal(updates, 0);
+    coordinator.destroy();
+});
+
+test('late update responses cannot recreate a stopped share or a logged-out session', async () => {
+    for (const action of ['stop', 'logout']) {
+        let now = Date.now();
+        let release;
+        const gate = new Promise((resolve) => { release = resolve; });
+        const coordinator = new LiveLocationCoordinator({ windowLike: coordinatorWindow(), documentLike: null,
+            navigatorLike: { geolocation: geolocationHarness(null, () => now).api, onLine: true },
+            ...coordinatorTimers(), now: () => now, request: async (_url, options) => {
+                if (options.method === 'PATCH') await gate;
+                return responseShare();
+            } });
+        await coordinator.start({ chatId: 17, durationMinutes: 15, startUrl: '/start' });
+        now += 31_000;
+        const update = coordinator._handlePosition({ coords: { latitude: 50, longitude: 8, accuracy: 8 }, timestamp: now });
+        await Promise.resolve();
+        if (action === 'stop') await coordinator.stop('018f-live-location-a'); else coordinator.handleLogout();
+        release();
+        await update;
+        assert.equal(coordinator.activeShares.length, 0);
+        assert.equal(coordinator.watching, false);
+        coordinator.destroy();
+    }
+});
+
+test('a failed resume check never uploads against old locally remembered shares', async () => {
+    const geo = geolocationHarness();
+    let fail = false;
+    let updates = 0;
+    const coordinator = new LiveLocationCoordinator({ windowLike: coordinatorWindow(), documentLike: null,
+        navigatorLike: { geolocation: geo.api, onLine: true, permissions: { query: async () => ({ state: 'granted' }) } },
+        activeUrl: '/active', ...coordinatorTimers(), request: async (_url, options) => {
+            if (fail) throw new Error('Server unavailable');
+            if (options.method === 'PATCH') updates++;
+            return { live_locations: [responseShare().live_location] };
+        } });
+    await coordinator.initialize();
+    fail = true;
+    assert.equal(await coordinator._resumeAfterVisibility(), false);
+    assert.equal(coordinator.watching, false);
+    assert.equal(geo.currentCalls(), 0);
+    assert.equal(updates, 0);
+    coordinator.destroy();
+});
+
+test('history revocation stays available after sharing ends and does not change a subsequently opened share', async () => {
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const calls = [];
+    const preview = railtimeLiveLocationPreview({ windowLike: coordinatorWindow() });
+    preview.$store = { liveLocation: { withdrawProfileHistory: async (id, url) => { calls.push([id, url]); await gate; } } };
+    preview.shareId = 'old';
+    preview.status = 'stopped';
+    preview.profileHistoryConsent = true;
+    preview.profileHistoryUrl = '/old/history';
+    const withdrawal = preview.withdrawProfileHistory();
+    preview.shareId = 'new';
+    preview.profileHistoryConsent = true;
+    release();
+    await withdrawal;
+    assert.deepEqual(calls, [['old', '/old/history']]);
+    assert.equal(preview.profileHistoryConsent, true);
+});

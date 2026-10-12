@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Livewire\Admin\Operations\Calendar;
 use App\Livewire\Admin\Operations\Orders;
 use App\Livewire\Admin\Operations\ShiftManagement;
+use App\Livewire\Operations\StaffTimeline;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shift;
@@ -15,8 +16,10 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 
@@ -242,6 +245,42 @@ class ShiftManagementViewsTest extends TestCase
         $this->assertSame(1, (int) $many->firstWhere('id', $first->id)->requested_count);
         $this->assertTrue($many->every(fn (Shift $item) => ! $item->relationLoaded('assignments')));
         $this->assertStringContainsString('requested_count', $manyQueries[0]['query']);
+    }
+
+    public function test_timeline_render_keeps_business_errors_and_still_rejects_invalid_or_unbounded_periods(): void
+    {
+        (require database_path('migrations/2026_09_15_190000_create_operations_workflow_tables.php'))->up();
+        $this->actingAs($this->admin);
+        $timeline = new StaffTimeline;
+        $timeline->from = '2027-05-10';
+        $timeline->until = '2027-05-16';
+        $timeline->renderedPeriod = $timeline->from.'|'.$timeline->until;
+        $timeline->addError('workflow', 'Synthetic rejected assignment');
+        $timeline->addError('assignmentStatus', 'Synthetic rejected status');
+        $timeline->render();
+        $this->assertSame('Synthetic rejected assignment', $timeline->getErrorBag()->first('workflow'));
+        $this->assertSame('Synthetic rejected status', $timeline->getErrorBag()->first('assignmentStatus'));
+        foreach ([['', '2027-05-16', 'from'], ['2027-02-29', '2027-03-01', 'from'], ['2027-05-16', '2027-05-10', 'until']] as [$from, $until, $field]) {
+            $timeline->from = $from;
+            $timeline->until = $until;
+            $timeline->renderedPeriod = $from.'|'.$until;
+            try {
+                $timeline->render();
+                $this->fail('Invalid render period must still fail validation.');
+            } catch (ValidationException $error) {
+                $this->assertArrayHasKey($field, $error->errors());
+            }
+        }
+        $timeline->from = '2027-01-01';
+        $timeline->until = '2027-12-31';
+        $timeline->renderedPeriod = $timeline->from.'|'.$timeline->until;
+        try {
+            $timeline->render();
+            $this->fail('The existing 94-day bound must remain enforced.');
+        } catch (HttpException $error) {
+            $this->assertSame(422, $error->getStatusCode());
+        }
+        $this->assertDatabaseCount('shift_assignments', 0);
     }
 
     public function test_header_uses_calendar_and_current_view_icons_with_accessible_labels(): void

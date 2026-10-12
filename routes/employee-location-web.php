@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\EmployeeLocation\EmployeeLocationLinksController;
 use App\Http\Controllers\EmployeeLocation\BrowserLocationController;
+use App\Http\Controllers\EmployeeLocation\EmployeeLocationLinksController;
 use App\Http\Middleware\EmployeeLocationPrivacy;
 use App\Http\Middleware\LogActivity;
 use Illuminate\Support\Facades\Route;

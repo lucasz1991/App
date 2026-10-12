@@ -8,6 +8,20 @@
         <span class="employee-location-history__privacy"><i class="far fa-shield-check" aria-hidden="true"></i> Geschützter Verlauf</span>
     </header>
 
+    @if($locationHistory['current_app'])
+        <section aria-label="Letzter gemeldeter App-Standort" class="space-y-3">
+            <h3 class="font-semibold">Letzter gemeldeter App-Standort</h3>
+            <div class="employee-location-history__summary">
+                <div><span>Messzeit · Europe/Berlin</span><strong>{{ $locationHistory['current_app']['display_date'] }} · {{ $locationHistory['current_app']['time'] }}</strong></div>
+                <div><span>Genauigkeit</span><strong>± {{ $locationHistory['current_app']['accuracy'] }}</strong></div>
+                <div><span>Gemeldete Position</span><strong>{{ $locationHistory['current_app']['coordinates'] ?? 'Koordinaten nicht verfügbar' }}</strong></div>
+            </div>
+            <p class="employee-location-history__notice">Höchstens 15 Minuten alt. Der App-Standort wird nur während sichtbarer App-Nutzung gemeldet und jeweils ersetzt. Er gehört nicht zum gespeicherten Verlauf darunter und belegt keine aktuelle Anwesenheit.</p>
+        </section>
+    @elseif($locationHistory['state'] !== 'restricted')
+        <p class="employee-location-history__notice">Aktueller App-Standort nicht verfügbar. Eine gültige Freigabe und ein höchstens 15 Minuten alter, präziser Messpunkt sind erforderlich.</p>
+    @endif
+
     @if($locationHistory['state'] === 'restricted')
         <div class="employee-location-history__state" role="status">
             <span class="employee-location-history__state-icon"><i class="far fa-lock" aria-hidden="true"></i></span>

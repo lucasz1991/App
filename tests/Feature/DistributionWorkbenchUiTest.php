@@ -100,7 +100,7 @@ class DistributionWorkbenchUiTest extends TestCase
         $panel = $this->panel()->assertSeeLivewire(DistributionAutoAssignment::class);
         $xpath = $this->xpath($panel->html());
         $side = $this->node($xpath, '//div[@data-pending-distribution]');
-        $this->assertStringContainsString("distributionMode: 'list'", $side->getAttribute('x-data'));
+        $this->assertStringContainsString('distributionPanel(', $side->getAttribute('x-data'));
         $this->assertSame('distributionMode', $side->getAttribute('x-bind:data-distribution-mode'));
         $auto = $this->node($xpath, './/section[@data-distribution-auto-panel]', $side);
         $this->assertTrue($auto->hasAttribute('x-cloak'));
@@ -220,11 +220,14 @@ class DistributionWorkbenchUiTest extends TestCase
         $this->shift($order, 'Donnerstag ein Platz');
         $this->shift($order, 'Freitag ein Platz', '2027-05-14');
         $xpath = $this->xpath($this->panel()->html());
-        $bands = $xpath->query('//h3[contains(concat(" ",normalize-space(@class)," ")," rt-shift-distribution__day-head ")]');
+        $bands = $xpath->query('//h3[contains(concat(" ",normalize-space(@class)," ")," rt-shift-distribution__day-heading ")]/button[@data-distribution-day-toggle]');
         $this->assertSame(2, $bands->length);
         foreach ($bands as $index => $band) {
             $this->assertStringContainsString($index === 0 ? '13.05.' : '14.05.', $band->textContent);
-            $this->assertStringContainsString($index === 0 ? '3 frei' : '1 frei', $band->textContent);
+            $this->assertSame($index === 0 ? '3' : '1', trim($this->node($xpath, './/span[@data-status="open"]', $band)->textContent));
+            $this->assertStringContainsString($index === 0 ? '3 freie Plätze' : '1 freier Platz', $band->getAttribute('aria-label'));
+            $this->assertSame('button', $band->getAttribute('type'));
+            $this->assertNotSame('', $band->getAttribute('aria-controls'));
             $this->assertSame('false', $band->getAttribute('data-today'));
             $this->assertSame(1, $xpath->query('.//i[contains(@class,"fa-calendar-day") and @aria-hidden="true"]', $band)->length);
         }
@@ -268,8 +271,10 @@ class DistributionWorkbenchUiTest extends TestCase
         $this->assertStringContainsString('overflow: hidden', $side);
         $mobile = substr($css, strpos($css, '@media (max-width: 1100px)'));
         $this->assertStringContainsString('width: auto', $this->cssRule($mobile, '.rt-shift-distribution-side'));
-        $day = $this->cssRule($css, '.rt-shift-distribution__day-head');
-        $this->assertStringContainsString('position: sticky', $day);
+        $heading = $this->cssRule($css, '.rt-shift-distribution--side .rt-shift-distribution__day-heading');
+        $this->assertStringContainsString('position: sticky', $heading);
+        $day = $this->cssRule($css, '.rt-shift-distribution--side .rt-shift-distribution__day-head');
+        $this->assertStringContainsString('min-height: 44px', $day);
         $this->assertStringContainsString('background: var(--panel-day)', $day);
         $this->assertStringContainsString('--panel-day: color-mix(in srgb, var(--panel-text)', $css);
         $this->assertStringContainsString('color: var(--panel-text)', $day);

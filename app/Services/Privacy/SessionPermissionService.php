@@ -5,8 +5,8 @@ namespace App\Services\Privacy;
 use App\Models\EmployeeLocationConsent;
 use App\Models\SessionPermissionGrant;
 use App\Models\User;
-use App\Services\EmployeeLocation\EmployeeLocationService;
 use App\Services\EmployeeLocation\BrowserLocationService;
+use App\Services\EmployeeLocation\EmployeeLocationService;
 use App\Support\EmployeeLocation\EmployeeLocationSettings;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Privacy\SessionLifetimePolicy;
@@ -128,14 +128,20 @@ class SessionPermissionService
             return;
         }
         $uuid = request()->hasSession() ? request()->session()->get(self::SESSION_KEY) : null;
-        $query = SessionPermissionGrant::where('user_id', $user->id)->whereNull('ended_at');
-        if (is_string($uuid)) {
-            $query->where('uuid', $uuid);
-        }
-        foreach ((clone $query)->pluck('id') as $grantId) {
-            app(BrowserLocationService::class)->forgetForGrant((int) $grantId);
-        }
-        $query->update(['ended_at' => $this->now(), 'session_identifier' => null]);
+        DB::transaction(function () use ($user, $uuid): void {
+            // Serialize logout with a concurrent foreground capture so a point
+            // cannot be stored after its session has been ended and purged.
+            User::lockForUpdate()->findOrFail($user->id);
+            $query = SessionPermissionGrant::where('user_id', $user->id)->whereNull('ended_at');
+            if (is_string($uuid)) {
+                $query->where('uuid', $uuid);
+            }
+            $ids = (clone $query)->lockForUpdate()->pluck('id');
+            $query->update(['ended_at' => $this->now(), 'session_identifier' => null]);
+            foreach ($ids as $grantId) {
+                app(BrowserLocationService::class)->forgetForGrant((int) $grantId);
+            }
+        }, 3);
         if (request()->hasSession()) {
             request()->session()->forget(self::SESSION_KEY);
         }

@@ -15,7 +15,7 @@
 @auth
     @if (\App\Support\Operations\OperationsAccess::isEmployee(auth()->user()) && \Illuminate\Support\Facades\Route::has('employee-location.browser.status'))
         <meta name="rt-employee-location-browser-status-url" content="{{ route('employee-location.browser.status') }}">
-        <meta name="rt-employee-location-browser-point-url" content="{{ route('employee-location.browser.point') }}">
+        <meta name="rt-employee-location-browser-point-url" content="{{ route('employee-location.browser.store') }}">
     @endif
     @if (\Illuminate\Support\Facades\Route::has('pwa.session-status'))
         <meta name="rt-pwa-session-status-url" content="{{ route('pwa.session-status') }}">
