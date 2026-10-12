@@ -221,7 +221,7 @@ class CaseWorkspace extends Component
     public function shiftPlanViewChanged(string $view): void
     {
         $this->access();
-        abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders', 'timeline'], true), 422);
+        abort_unless(in_array($view, ['table', 'day', 'staffing', 'orders', 'timeline', 'map'], true), 422);
         if ($view === 'timeline') {
             unset($this->context['customer'], $this->context['order'], $this->context['shift']);
         }

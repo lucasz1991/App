@@ -51,6 +51,37 @@
     .rt-germany-map__pin[data-pulse] { animation: none; }
 }
 
+/* Linked list hover/focus: animate only this separate, transparent border. */
+.rt-map-highlight {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 2;
+    box-sizing: border-box;
+    width: var(--map-highlight-size, 30px);
+    height: var(--map-highlight-size, 30px);
+    border: 2px solid var(--rt-map-accent, var(--rt-shell-accent, #e4002b));
+    border-radius: 50%;
+    background: transparent;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+.rt-map-highlight[data-map-active="true"] {
+    opacity: 1;
+    visibility: visible;
+    animation: rt-map-highlight-ring 1.4s ease-out infinite;
+}
+.rt-germany-map [data-map-point][data-map-active="true"] { z-index: 3; }
+@keyframes rt-map-highlight-ring {
+    0% { transform: translate(-50%, -50%) scale(.75); opacity: 1; }
+    75%, 100% { transform: translate(-50%, -50%) scale(1.6); opacity: .15; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .rt-map-highlight[data-map-active="true"] { animation: none; opacity: 1; }
+}
+
 /* Schichtplan · Kartenansicht */
 .rt-shift-plan-map { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; min-width: 0; }
 .rt-shift-plan-map__canvas, .rt-shift-plan-map__side {

@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Features\SupportTesting\Testable;
@@ -141,6 +142,80 @@ class CaseWorkspaceTest extends TestCase
         $this->actingAs($this->admin);
         Livewire::test(CaseWorkspace::class, ['initialView' => ''])->assertSet('view', 'inbox')->assertSet('section', 'overview');
         Livewire::test(CaseWorkspace::class, ['initialView' => 'unsupported'])->assertNotFound();
+    }
+
+    public function test_shift_plan_map_event_preserves_period_and_scopes_and_leaves_services_mode(): void
+    {
+        Http::preventStrayRequests();
+        $order = $this->order();
+        $context = ['from' => '2026-10-10', 'until' => '2026-10-16', 'customer' => $this->customer->id, 'order' => $order->id];
+        $this->actingAs($this->admin);
+
+        Livewire::withQueryParams(['services' => '1', 'distribution' => 'true'])
+            ->test(CaseWorkspace::class, ['initialView' => 'shifts', 'initialSection' => 'plan', 'context' => $context])
+            ->assertSet('servicesView', true)
+            ->dispatch('shift-plan-view-changed', view: 'map')
+            ->assertStatus(200)
+            ->assertSet('view', 'shifts')
+            ->assertSet('section', 'plan')
+            ->assertSet('servicesView', false)
+            ->assertSet('context', $context)
+            ->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', ['view' => 'shifts', 'section' => 'plan'] + $context));
+
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('shifts', 0);
+        $this->assertDatabaseCount('shift_assignments', 0);
+    }
+
+    public function test_shift_plan_view_events_keep_existing_mode_and_timeline_scope_contracts(): void
+    {
+        Http::preventStrayRequests();
+        $order = $this->order();
+        $context = ['from' => '2026-10-10', 'until' => '2026-10-16', 'customer' => $this->customer->id, 'order' => $order->id];
+        $this->actingAs($this->admin);
+
+        foreach (['table', 'day', 'staffing', 'orders', 'timeline'] as $mode) {
+            $expectedContext = $mode === 'timeline' ? array_intersect_key($context, array_flip(['from', 'until'])) : $context;
+            Livewire::test(CaseWorkspace::class, ['initialView' => 'shifts', 'initialSection' => 'plan', 'context' => $context])
+                ->dispatch('shift-plan-view-changed', view: $mode)
+                ->assertStatus(200)
+                ->assertSet('servicesView', $mode === 'orders')
+                ->assertSet('context', $expectedContext)
+                ->assertDispatched('rt-workspace-url', url: OperationsPages::url('cases', [
+                    'view' => 'shifts', 'section' => 'plan', 'services' => $mode === 'orders' ? '1' : null,
+                ] + $expectedContext));
+        }
+    }
+
+    public function test_shift_plan_view_event_still_rejects_unknown_mode(): void
+    {
+        Http::preventStrayRequests();
+        $this->actingAs($this->admin);
+        Livewire::test(CaseWorkspace::class, ['initialView' => 'shifts', 'initialSection' => 'plan'])
+            ->dispatch('shift-plan-view-changed', view: 'unsupported')
+            ->assertStatus(422);
+    }
+
+    public function test_shift_plan_map_event_rechecks_fresh_actor_status(): void
+    {
+        Http::preventStrayRequests();
+        $this->actingAs($this->admin);
+        $workspace = Livewire::test(CaseWorkspace::class, ['initialView' => 'shifts', 'initialSection' => 'plan']);
+        $this->admin->update(['status' => false]);
+
+        $workspace->dispatch('shift-plan-view-changed', view: 'map')->assertForbidden();
+    }
+
+    public function test_shift_plan_map_event_rechecks_current_operations_permission(): void
+    {
+        Http::preventStrayRequests();
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        Gate::define('operations.manage', fn ($user) => $user->id === $employee->id);
+        $this->actingAs($employee);
+        $workspace = Livewire::test(CaseWorkspace::class, ['initialView' => 'shifts', 'initialSection' => 'plan']);
+        Gate::define('operations.manage', fn () => false);
+
+        $workspace->dispatch('shift-plan-view-changed', view: 'map')->assertForbidden();
     }
 
     public function test_parent_workspace_mounts_actual_inquiry_offer_and_order_lists_not_literal_directives(): void

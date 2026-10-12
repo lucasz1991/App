@@ -150,6 +150,7 @@ a.ops-kpi:hover, a.ops-tile:hover { transform:translateY(-1px); border-color:tra
 .wv-dispatch-map__inquiry { width:8px; height:8px; background:var(--ops-warn); border-radius:2px; }
 /* Mehrere Eintraege an einem Ort: Zahl als kleines Abzeichen am Punkt. */
 .wv-dispatch-map__marker { position:relative; }
+.wv-dispatch-map__marker > :not(.rt-map-highlight) { z-index:3; }
 .wv-dispatch-map__count { position:absolute; top:-6px; right:-8px; min-width:16px; height:16px; padding:0 4px; border-radius:999px; background:var(--ops-ink); color:var(--ops-sheet); font-size:9.5px; font-weight:800; line-height:16px; text-align:center; font-variant-numeric:tabular-nums; pointer-events:none; }
 /* Tageslage ueber Karte und Liste */
 .wv-dispatch-map__stats { display:flex; flex-wrap:wrap; gap:5px; margin:-4px 0 6px; flex-shrink:0; }

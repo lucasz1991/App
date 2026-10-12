@@ -172,6 +172,55 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_date_picker_identity_changes_between_map_range_and_timeline_single_modes(): void
+    {
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)
+            ->call('applyPeriod', '2026-10-10', '2026-10-16');
+        $owner = $component->instance()->getId();
+        $identities = [];
+
+        foreach (['timeline', 'map', 'timeline', 'map'] as $view) {
+            $component->call('setView', $view)->assertStatus(200)
+                ->assertSet('rangeFrom', '2026-10-10')->assertSet('rangeTo', '2026-10-16');
+            $xpath = $this->xpath($component->html());
+            $pickers = $xpath->query('//*[@data-rt-date-range-picker]');
+            $this->assertSame(1, $pickers->length, 'Each view renders exactly one date-picker owner');
+            $picker = $pickers->item(0);
+            $single = $view === 'timeline';
+            $mode = $single ? 'single' : 'range';
+            $key = $picker->getAttribute('wire:key');
+
+            $this->assertSame('shift-plan-date-picker-'.$owner.'-'.$mode, $key);
+            if (isset($identities[$mode])) {
+                $this->assertSame($identities[$mode], $key, 'Same-mode updates retain widget identity');
+            }
+            $identities[$mode] = $key;
+            $this->assertSame($mode, $picker->getAttribute('data-selection-mode'));
+            $this->assertSame($single ? 1 : 2, $xpath->query('.//input[@type="text"]', $picker)->length);
+            $this->assertSame($single ? 1 : 2, $xpath->query('.//*[@data-range-calendar]', $picker)->length);
+            $this->assertSame(1, $xpath->query('.//template[@x-for="preset in presets"]', $picker)->length);
+            $expression = $picker->getAttribute('x-data');
+            $configuration = str_replace('\\u0022', '"', $expression);
+            $this->assertMatchesRegularExpression('/"selectionMode"\s*:\s*"'.$mode.'"/', $configuration);
+            if ($single) {
+                $this->assertMatchesRegularExpression('/"presets"\s*:\s*\[\s*"week"\s*\]/', $configuration);
+                $this->assertStringContainsString('operations-timeline-period-request', $expression);
+                $this->assertStringContainsString('await request.promise', $expression);
+            } else {
+                $this->assertMatchesRegularExpression('/"presets"\s*:\s*null/', $configuration);
+                $this->assertStringNotContainsString('operations-timeline-period-request', $expression);
+            }
+        }
+
+        $this->assertNotSame($identities['single'], $identities['range'], 'Mode changes must remount Alpine preset scopes');
+        $component->call('applyPeriod', '2026-10-17', '2026-10-23')->assertStatus(200);
+        $updated = $this->xpath($component->html())->query('//*[@data-rt-date-range-picker]')->item(0);
+        $this->assertSame($identities['range'], $updated->getAttribute('wire:key'), 'Date changes alone must not remount the widget');
+        $this->assertSame(0, Shift::count());
+        $this->assertSame(0, ShiftAssignment::count());
+        Http::assertNothingSent();
+    }
+
     public function test_timeline_zoom_controls_follow_the_icon_date_picker_and_use_scoped_local_native_buttons(): void
     {
         $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('setView', 'timeline');

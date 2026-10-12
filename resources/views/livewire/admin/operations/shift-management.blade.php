@@ -48,9 +48,9 @@
                     </x-slot:trigger>
                     <x-slot:content>
                         @if($timelineDatePicker)
-                            <x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod" apply-event="operations-timeline-period-request" selection-mode="single" :preset-keys="['week']" :max-days="94" :reset-on-open="true" x-on:date-range-applied="close(true)" x-on:date-range-cancel="close(true)" />
+                            <x-ui.forms.date-range-picker wire:key="shift-plan-date-picker-{{ $this->getId() }}-single" from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod" apply-event="operations-timeline-period-request" selection-mode="single" :preset-keys="['week']" :max-days="94" :reset-on-open="true" x-on:date-range-applied="close(true)" x-on:date-range-cancel="close(true)" />
                         @else
-                            <x-ui.forms.date-range-picker from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod" :max-days="94" :reset-on-open="true" x-on:date-range-applied="close(true)" x-on:date-range-cancel="close(true)" />
+                            <x-ui.forms.date-range-picker wire:key="shift-plan-date-picker-{{ $this->getId() }}-range" from-model="rangeFrom" until-model="rangeTo" apply-action="applyPeriod" :max-days="94" :reset-on-open="true" x-on:date-range-applied="close(true)" x-on:date-range-cancel="close(true)" />
                         @endif
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>

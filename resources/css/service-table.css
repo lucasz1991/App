@@ -125,6 +125,57 @@ body:has(.rt-ai-assist__stage) .rt-service-pagination {
 }
 .rt-service-table .rt-table-record__title:hover { color: var(--rt-shell-accent); }
 
+/* A quiet, immediate preview-intent cue during the native hover delay. It never
+   shifts the grid or obscures text/avatars; leaving the field cancels it. */
+.rt-service-table .rt-service-staffing__trigger {
+    position: relative;
+    isolation: isolate;
+}
+.rt-service-table .rt-service-staffing__trigger::before,
+.rt-service-table .rt-service-staffing__trigger::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    opacity: 0;
+}
+.rt-service-table .rt-service-staffing__trigger::before {
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--rt-accent-soft);
+    transition: opacity 140ms cubic-bezier(.23, 1, .32, 1);
+}
+.rt-service-table .rt-service-staffing__trigger::after {
+    right: 4px;
+    bottom: 1px;
+    left: 4px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--rt-shell-accent);
+    transform: scaleX(0);
+    transform-origin: left;
+}
+.rt-service-table .rt-service-staffing__trigger[data-service-preview-state='pending']::before,
+.rt-service-table .rt-service-staffing__trigger[data-service-preview-state='open']::before { opacity: .8; }
+.rt-service-table .rt-service-staffing__trigger[data-service-preview-state='pending']::after {
+    opacity: .65;
+    animation: rt-service-preview-intent var(--rt-service-hover-wait, 600ms) linear both;
+}
+.rt-service-table .rt-service-staffing__trigger:focus-visible::before { opacity: .8; }
+@keyframes rt-service-preview-intent {
+    from { transform: scaleX(.06); }
+    to { transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .rt-service-table .rt-service-staffing__trigger::before { transition: none; }
+    .rt-service-table .rt-service-staffing__trigger[data-service-preview-state='pending']::after { animation: none; transform: scaleX(1); }
+}
+.rt-service-customer-preview__identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rt-service-customer-preview__identity > div { min-width: 0; }
+.rt-service-customer-preview__identity strong { display: block; color: var(--rt-shell-text); font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
+.rt-service-customer-preview__number { display: block; margin-top: 4px; color: var(--rt-shell-muted); font-size: 12px; }
+.rt-service-customer-preview__link { margin-top: 16px; max-width: 100%; }
+
 @container rt-service-list (max-width: 1040px) {
     .rt-service-table .rt-table-head { display: none !important; }
     .rt-service-table .rt-table-mobile-sort {

@@ -21,6 +21,8 @@
     'detailAction' => null,
     'detailEvent' => null,
     'detailRoute' => null,
+    // Opt-in: ein Klick oeffnet Details statt der sonstigen Zeilenauswahl.
+    'detailOnClick' => false,
     // Optional fuer Listen mit einem separaten, direkt angrenzenden Mobile-Header.
     'flushTop' => false,
     // Opt-in: nur der Zeilenbereich scrollt innerhalb einer begrenzten Hoehe.
@@ -35,6 +37,7 @@
     $flushTop = filter_var($flushTop, FILTER_VALIDATE_BOOL);
     $scrollBody = filter_var($scrollBody, FILTER_VALIDATE_BOOL);
     $mobileHeader = filter_var($mobileHeader, FILTER_VALIDATE_BOOL);
+    $detailOnClick = filter_var($detailOnClick, FILTER_VALIDATE_BOOL);
     $scrollPagination = filter_var($scrollPagination, FILTER_VALIDATE_BOOL)
         && $items instanceof \Illuminate\Contracts\Pagination\Paginator;
 
@@ -177,6 +180,7 @@
         role="row"
         tabindex="0"
         data-table-row-interactive="true"
+        data-table-row-click="{{ $detailOnClick ? 'details' : 'selection' }}"
         data-detail-available="{{ ($rowDetailUrl || $safeDetailAction || $safeDetailEvent) ? 'true' : 'false' }}"
         data-selected="{{ $isSelected ? 'true' : 'false' }}"
         aria-selected="{{ $isSelected ? 'true' : 'false' }}"
@@ -187,6 +191,7 @@
             detailAction: @js($safeDetailAction),
             detailEvent: @js($safeDetailEvent),
             detailUrl: @js($rowDetailUrl),
+            detailOnClick: @js($detailOnClick),
             isControl(event) {
                 return event.target instanceof Element
                     && event.target.closest('a, button, input, select, textarea, label, [role=button], [data-table-row-ignore]');
@@ -198,6 +203,12 @@
             },
             queueSelection(event) {
                 if (this.isControl(event)) return;
+                if (this.detailOnClick) {
+                    // The first click owns opening; don't submit again on dblclick.
+                    if (event.detail > 1) return;
+                    this.openDetails(event);
+                    return;
+                }
                 window.clearTimeout(this.clickTimer);
                 this.clickTimer = window.setTimeout(() => this.toggleSelection(), 220);
             },
@@ -219,6 +230,10 @@
             },
             handleKeyboard(event) {
                 if (this.isControl(event)) return;
+                if (this.detailOnClick) {
+                    if (!event.repeat) this.openDetails(event);
+                    return;
+                }
                 if ((event.ctrlKey || event.metaKey) && (this.detailUrl || this.detailAction || this.detailEvent)) {
                     this.openDetails(event);
                     return;
@@ -230,8 +245,9 @@
             }
         }"
         x-on:click="queueSelection($event)"
-        x-on:dblclick.prevent="openDetails($event)"
+        @unless($detailOnClick) x-on:dblclick.prevent="openDetails($event)" @endunless
         x-on:keydown.enter.prevent="handleKeyboard($event)"
+        @if($detailOnClick) x-on:keydown.space="if (!isControl($event)) { $event.preventDefault(); handleKeyboard($event) }" @endif
     >
         <div role="presentation" class="rt-table-row-grid content-start items-center gap-1.5 sm:gap-x-3 md:gap-0" style="--rt-table-columns: {{ $gridTemplate }};">
         {{-- Zellen --}}

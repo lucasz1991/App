@@ -74,10 +74,17 @@ export function serviceDetailPanel() {
         },
 
         captureServiceSelection(event) {
-            if (this._destroyed || (event.type === 'keydown' && (event.key !== 'Enter' || event.repeat))) return;
+            const isSpace = event.type === 'keydown' && event.key === ' ';
+            if (this._destroyed || (event.type === 'keydown' && (event.repeat || (event.key !== 'Enter' && !isSpace)))) return;
             const scope = this.$el ?? this.$root;
             const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
             if (!target?.closest || !scope?.contains(target)) return;
+
+            // Space belongs to the row only when its shared table explicitly
+            // opts into single-click details. Native buttons and previews keep
+            // their own Space activation, rather than being captured here.
+            if (isSpace && (target.closest(controls) || target.closest('[wire\\:click]')
+                || target.closest('[data-table-row-click]')?.getAttribute('data-table-row-click') !== 'details')) return;
 
             const action = target.closest('[wire\\:click]');
             const actionMatch = action?.getAttribute('wire:click')?.match(/^\s*openServiceDetails\(\s*(\d+)\s*\)\s*$/);

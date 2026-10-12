@@ -196,6 +196,54 @@ class DispatchMapCompactUiTest extends TestCase
         $this->assertSame(1, $xpath->query($card.'//*[@data-widget-resize-handle="height" and @aria-valuenow="1"]')->length);
     }
 
+    public function test_shift_rows_link_highlights_to_their_own_grouped_marker_without_inventing_unknown_points(): void
+    {
+        $first = $this->shift(['title' => 'Hamburg first']);
+        $this->shift(['title' => 'Hamburg second']);
+        $this->shift(['title' => 'Berlin shift', 'location_name' => 'Berlin']);
+        $this->shift(['title' => 'Unknown shift', 'location_name' => 'Unknown synthetic locality']);
+        $component = $this->grid()->assertOk();
+        $xpath = $this->xpath($component->html());
+        $root = $xpath->query('//*[@data-dispatch-map]')->item(0);
+        $this->assertSame('rtMapHighlight()', $root->getAttribute('x-data'));
+        $this->assertStringContainsString('kind; place; mapReset()', $root->getAttribute('x-effect'));
+        $points = $xpath->query('//*[@data-dispatch-map]//*[@data-map-point]');
+        $this->assertSame(2, $points->length);
+        $keys = [];
+        foreach ($points as $point) {
+            $key = $point->getAttribute('data-map-point');
+            $keys[] = $key;
+            $ring = $xpath->query('.//*[@data-map-highlight]', $point)->item(0);
+            $this->assertSame($key, $ring->getAttribute('data-map-highlight'));
+            $this->assertSame('true', $ring->getAttribute('aria-hidden'));
+        }
+        $rows = $xpath->query('//a[@data-dispatch-entry="shift"]');
+        $this->assertSame(4, $rows->length);
+        $known = [];
+        foreach ($rows as $row) {
+            foreach (['pointerleave' => 'mapUnhover', 'pointercancel' => 'mapUnhover', 'focusin' => 'mapFocus', 'focusout' => 'mapBlur'] as $event => $method) {
+                $this->assertSame($method.'($el.dataset.dispatchLocationKey)', $row->getAttribute('x-on:'.$event));
+            }
+            $this->assertStringContainsString('pointerType', $row->getAttribute('x-on:pointerenter'));
+            $this->assertStringContainsString('mapHover', $row->getAttribute('x-on:pointerenter'));
+            $key = $row->getAttribute('data-dispatch-location-key');
+            if (str_contains($row->textContent, 'Unknown shift')) {
+                $this->assertSame('unlocated', $key);
+                $this->assertNotContains($key, $keys);
+            } else {
+                $this->assertContains($key, $keys);
+                $known[] = $key;
+            }
+        }
+        $this->assertCount(2, array_unique($known));
+        $this->assertDatabaseCount('shifts', 4);
+        $scope = $root->getAttribute('wire:key');
+        $first->delete();
+        $refreshed = $this->xpath($component->call('$refresh')->assertOk()->html());
+        $this->assertNotSame($scope, $refreshed->query('//*[@data-dispatch-map]')->item(0)->getAttribute('wire:key'));
+        $this->assertSame(2, $refreshed->query('//*[@data-dispatch-map]//*[@data-map-point]')->length, 'Removing a row resets highlight even when its grouped location marker remains.');
+    }
+
     private function grid()
     {
         return Livewire::actingAs($this->admin)->test(WidgetGrid::class);

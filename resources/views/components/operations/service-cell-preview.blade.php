@@ -3,7 +3,7 @@
     align="left"
     width="auto"
     :open-on-hover="true"
-    :hover-open-delay="300"
+    :hover-open-delay="600"
     :hover-close-delay="180"
     :dropdown-id="$previewId"
     layer-group="service-staffing"
@@ -16,7 +16,10 @@
     :data-service-cell-preview="$kind"
 >
     <x-slot:trigger>
-        <div class="rt-service-staffing__trigger" role="button" tabindex="0" aria-label="{{ $label }} vergrößern" data-table-row-ignore @keydown.enter.prevent.stop="toggle()" @keydown.space.prevent.stop="toggle()">
+        <div class="rt-service-staffing__trigger" role="button" tabindex="0" aria-label="{{ $label }} vergrößern" data-table-row-ignore
+            x-bind:data-service-preview-state="open ? 'open' : (hoverOpenTimer !== null ? 'pending' : 'idle')"
+            x-bind:style="{ '--rt-service-hover-wait': hoverOpenDelay + 'ms' }"
+            @keydown.enter.prevent.stop="toggle()" @keydown.space.prevent.stop="toggle()">
             {{ $trigger }}
         </div>
     </x-slot:trigger>

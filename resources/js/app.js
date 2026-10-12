@@ -51,6 +51,7 @@ import {
 } from './mobile-sidebar-swipe';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { staffTimeline } from './staff-timeline';
+import { mapHighlight } from './map-highlight';
 import { anchorDropdown } from './anchor-dropdown';
 import { timelinePlanning } from './timeline-planning-actions';
 import { distributionPanel } from './distribution-accordion';
@@ -667,6 +668,7 @@ Alpine.data('rtDateField', dateField);
 Alpine.data('rtDateRangePicker', dateRangePicker);
 Alpine.data('rtDateTimeField', dateTimeField);
 Alpine.data('rtStaffTimeline', staffTimeline);
+Alpine.data('rtMapHighlight', mapHighlight);
 Alpine.data('rtAnchorDropdown', anchorDropdown);
 Alpine.data('rtTimelinePlanning', timelinePlanning);
 Alpine.data('rtTimelineEventDetails', timelineEventDetails);

@@ -26,5 +26,5 @@
 @endphp
 <x-tables.table :columns="$columns" :items="$items" :sort-action="$sortAction" :sort-by="$sortBy" :sort-dir="$sortDir"
     :selected-items="$selectedItems" :selection-action="$selectionAction" :detail-action="$detailAction" :table-key="$tableKey"
-    :label="$label" :scroll-body="$scrollBody" :flush-top="true" :empty="$empty"
+    :label="$label" :scroll-body="$scrollBody" :flush-top="true" :empty="$empty" :detail-on-click="true"
     row-view="components.tables.rows.operations.service-overview" class="rt-service-table" {{ $attributes }} />

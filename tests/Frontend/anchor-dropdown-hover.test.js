@@ -499,8 +499,8 @@ for (const { name, source } of servicePreviewSources) {
     const hoverOpenDelay = Number(source.match(/:hover-open-delay="(\d+)"/)?.[1]);
     const serviceFixture = () => fixture({ openOnHover: true, hoverOpenDelay });
 
-    test(`${name} opts into 300ms while the shared dropdown default remains 100ms`, () => {
-        assert.equal(hoverOpenDelay, 300);
+    test(`${name} opts into 600ms while the shared dropdown default remains 100ms`, () => {
+        assert.equal(hoverOpenDelay, 600);
         assert.match(source, /:hover-close-delay="180"/);
         assert.match(source, /:open-on-hover="true"/);
         assert.match(source, /@keydown\.enter\.prevent\.stop="toggle\(\)"/);
@@ -508,8 +508,8 @@ for (const { name, source } of servicePreviewSources) {
         assert.match(blade, /'hoverOpenDelay'\s*=> 100/);
     });
 
-    test(`${name} opens only after a complete 300ms dwell and cancels quick passes`, () => {
-        for (const elapsed of [0, 100, 299]) {
+    test(`${name} opens only after a complete 600ms dwell and cancels quick passes`, () => {
+        for (const elapsed of [0, 100, 299, 300, 599]) {
             const quick = serviceFixture();
             quick.dropdown.enterHover(mouse, 'trigger');
             quick.advance(elapsed);
@@ -523,7 +523,7 @@ for (const { name, source } of servicePreviewSources) {
 
         const dwell = serviceFixture();
         dwell.dropdown.enterHover(mouse, 'trigger');
-        dwell.advance(299);
+        dwell.advance(599);
         assert.equal(dwell.dropdown.open, false);
         dwell.advance(1);
         assert.equal(dwell.dropdown.open, true);
@@ -531,14 +531,14 @@ for (const { name, source } of servicePreviewSources) {
         assert.deepEqual(dwell.dispatched, ['dropdown-open']);
     });
 
-    test(`${name} re-entry starts a fresh 300ms dwell rather than carrying a previous pass`, () => {
+    test(`${name} re-entry starts a fresh 600ms dwell rather than carrying a previous pass`, () => {
         const f = serviceFixture();
         f.dropdown.enterHover(mouse, 'trigger');
-        f.advance(299);
+        f.advance(599);
         f.dropdown.leaveHover(mouse, 'trigger');
         f.advance(50);
         f.dropdown.enterHover(mouse, 'trigger');
-        f.advance(299);
+        f.advance(599);
         assert.equal(f.dropdown.open, false);
         f.advance(1);
         assert.equal(f.dropdown.open, true);
@@ -588,7 +588,7 @@ for (const { name, source } of servicePreviewSources) {
     test(`${name} keeps the 180ms crossing grace and clears pending hover on close or teardown`, () => {
         const crossing = serviceFixture();
         crossing.dropdown.enterHover(mouse, 'trigger');
-        crossing.advance(300);
+        crossing.advance(600);
         crossing.dropdown.leaveHover(mouse, 'trigger');
         crossing.advance(179);
         assert.equal(crossing.dropdown.open, true);
@@ -604,7 +604,7 @@ for (const { name, source } of servicePreviewSources) {
         for (const method of ['close', 'destroy']) {
             const f = serviceFixture();
             f.dropdown.enterHover(mouse, 'trigger');
-            f.advance(299);
+            f.advance(599);
             f.dropdown[method]();
             f.advance(1000);
             assert.equal(f.dropdown.open, false);

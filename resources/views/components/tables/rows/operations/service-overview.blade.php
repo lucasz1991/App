@@ -3,7 +3,7 @@
     $isOrderRow = isset($item->requiredStaff);
 @endphp
 @foreach($columnsMeta as $column)
-    <div class="rt-table-cell {{ $column['key'] === 'service' ? 'rt-table-cell--primary' : '' }} {{ $column['key'] === 'status' ? 'rt-table-cell--status' : '' }} {{ in_array($column['key'], ['staffing', 'period', 'location', 'count'], true) ? 'rt-table-cell--service-staffing' : '' }} {{ $hideClass($column['hideOn']) }}" data-service-column="{{ $column['key'] }}" data-rt-table-label="{{ $column['label'] }}">
+    <div class="rt-table-cell {{ $column['key'] === 'service' ? 'rt-table-cell--primary' : '' }} {{ $column['key'] === 'status' ? 'rt-table-cell--status' : '' }} {{ in_array($column['key'], ['customer', 'staffing', 'period', 'location', 'count'], true) ? 'rt-table-cell--service-staffing' : '' }} {{ $hideClass($column['hideOn']) }}" data-service-column="{{ $column['key'] }}" data-rt-table-label="{{ $column['label'] }}">
         @switch($column['key'])
             @case('service')
                 <div class="rt-table-record">
@@ -18,7 +18,7 @@
                 </div>
                 @break
             @case('customer')
-                <div class="rt-service-customer"><x-operations.company-avatar :customer="$item->order?->customer" :size="30" /><span class="rt-table-value">{{ $item->order?->customer?->company_name ?: 'Kunde nicht hinterlegt' }}</span></div>
+                <x-operations.service-customer-preview :customer="$item->order?->customer" :preview-id="$previewPrefix.'-customer-'.$item->id" />
                 @break
             @case('period')
                 <x-operations.service-period-preview :start="$item->from" :end="$item->until" :preview-id="$previewPrefix.'-period-'.$item->id" />
