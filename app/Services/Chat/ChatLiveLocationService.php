@@ -119,7 +119,11 @@ class ChatLiveLocationService
                 'last_position_at' => $startedAt,
                 'expires_at' => $startedAt->copy()->addMinutes($duration),
                 'version' => 1,
+                'profile_history_accepted_at' => ($data['profile_history_consent'] ?? false) ? $startedAt->copy()->utc() : null,
+                'profile_history_version' => ($data['profile_history_consent'] ?? false) ? ChatLocationHistoryService::CONSENT_VERSION : null,
             ]);
+
+            app(ChatLocationHistoryService::class)->record($location, $data);
 
             if (! $lockedChat->isCall()) {
                 DB::table('chat_user')
@@ -193,6 +197,8 @@ class ChatLiveLocationService
                 'last_position_at' => now(),
                 'version' => max(1, (int) $locked->version) + 1,
             ])->save();
+
+            app(ChatLocationHistoryService::class)->record($locked, $data);
 
             return [$locked, true, false];
         });

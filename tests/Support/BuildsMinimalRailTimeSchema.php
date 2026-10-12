@@ -461,5 +461,6 @@ trait BuildsMinimalRailTimeSchema
             $table->string('ringing_via', 20)->nullable();
             $table->timestamps();
         });
+        (require database_path('migrations/2026_10_13_000100_create_chat_location_history.php'))->up();
     }
 }

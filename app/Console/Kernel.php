@@ -22,6 +22,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('operations:staffing-automation')->everyMinute()->withoutOverlapping();
         $schedule->command('routing:purge-cache')->everyMinute()->withoutOverlapping();
         $schedule->command('devices:purge-support-data')->hourly()->withoutOverlapping();
+        $schedule->call(fn () => app(\App\Services\Chat\ChatLocationHistoryService::class)->purge())
+            ->name('chat-location-history:purge')->hourly()->withoutOverlapping();
         $schedule->call(fn () => app(EmployeeLocationService::class)->purge())
             ->name('employee-location:purge')->hourly()->withoutOverlapping();
         $schedule->call(fn () => app(UserAppRuntimeReceiptService::class)->purge())

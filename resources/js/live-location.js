@@ -8,13 +8,14 @@ export const LIVE_LOCATION_DURATIONS = Object.freeze([15, 30, 45, 60, 90]);
 
 const POSITION_OPTIONS = Object.freeze({
     enableHighAccuracy: true,
-    maximumAge: 5_000,
+    maximumAge: 0,
     timeout: 15_000,
 });
 const MINIMUM_UPDATE_INTERVAL = 5_000;
 const DISTANCE_UPDATE_METERS = 20;
 const HEARTBEAT_UPDATE_INTERVAL = 30_000;
 const LIVE_LOCATION_FRESHNESS_WINDOW = 75_000;
+const MAXIMUM_MEASUREMENT_AGE = 30_000;
 const ACTIVE_STATUSES = new Set(['active', 'sharing']);
 
 function finiteNumber(value) {
@@ -137,6 +138,11 @@ export function normalizeLiveLocationShare(payload = {}) {
             routes.stop ?? source?.stop_url ?? source?.stopUrl,
         ),
         canStop: booleanValue(source?.can_stop ?? source?.canStop, false),
+        profileHistoryConsent: booleanValue(source?.profile_history_consent ?? source?.profileHistoryConsent),
+        profileHistoryUrl: stringValue(routes.profile_history ?? source?.profile_history_url ?? source?.profileHistoryUrl),
+        nativeStatusUrl: stringValue(routes.native_status ?? source?.native_status_url ?? source?.nativeStatusUrl),
+        nativeHandoffUrl: stringValue(routes.native_handoff ?? source?.native_handoff_url ?? source?.nativeHandoffUrl),
+        nativeActive: booleanValue(source?.native_active ?? source?.nativeActive),
         senderName: stringValue(source?.sender_name ?? source?.senderName),
     };
 }
@@ -209,6 +215,9 @@ export function normalizeGeolocationPosition(position) {
 
 export function liveLocationPositionPayload(position) {
     const normalized = normalizeGeolocationPosition(position);
+    const measured = finiteNumber(position?.timestamp) ?? timestamp(position?.measured_at);
+
+    if (measured !== null) normalized.measured_at = new Date(measured).toISOString();
 
     return Object.fromEntries(
         Object.entries(normalized).filter(([, value]) => value !== null),
@@ -394,6 +403,12 @@ export class LiveLocationCoordinator {
         this._latestPosition = null;
         this._lastBackgroundFlushAt = Number.NEGATIVE_INFINITY;
         this._destroyed = false;
+        this._sessionReady = true;
+        this._loggedOut = false;
+        this._positionGeneration = 0;
+        this._watchGeneration = 0;
+        this._stoppingShares = new Set();
+        this._lastReconcileOk = false;
     }
 
     snapshot() {
@@ -516,26 +531,37 @@ export class LiveLocationCoordinator {
 
         this._listen(this.document, 'visibilitychange', () => {
             if (this.document?.visibilityState === 'hidden') {
-                this._flushLatestPosition({ keepalive: true });
+                this._suspend();
 
                 return;
             }
 
             if (this.document?.visibilityState === 'visible') {
-                this._resumeAfterVisibility();
+                this._requestResume();
             }
         });
-        this._listen(this.window, 'pageshow', () => this._resumeAfterVisibility());
-        this._listen(this.document, 'resume', () => this._resumeAfterVisibility());
-        this._listen(this.window, 'pagehide', () => this._flushLatestPosition({ keepalive: true }));
+        this._listen(this.window, 'pageshow', () => this._requestResume());
+        this._listen(this.document, 'resume', () => this._requestResume());
+        this._listen(this.window, 'pagehide', () => this._suspend());
+        this._listen(this.window, 'railtime:app-connection-state', (event) => {
+            const state = event?.detail?.state;
+            if (state === 'ready' && !this._loggedOut) {
+                this._sessionReady = true;
+                this._resumeAfterVisibility();
+            } else if (['session-expired', 'account-changed', 'session-required'].includes(state)) {
+                this.handleLogout();
+            } else if (['recovering', 'offline'].includes(state)) {
+                this._suspend();
+            }
+        });
         this._listen(this.window, 'online', () => {
             this.online = true;
             this._emit();
-            this.reconcile({ quiet: true }).catch(() => null);
-            this._flushPendingPosition();
+            this._requestResume();
         });
         this._listen(this.window, 'offline', () => {
             this.online = false;
+            this._suspend();
             this._emit();
         });
         this._listen(this.document, 'livewire:navigated', () => {
@@ -550,6 +576,39 @@ export class LiveLocationCoordinator {
                 this.handleLogout();
             }
         }, true);
+    }
+
+    _hasSessionProbe() {
+        return Boolean(this.document?.querySelector?.('meta[name="rt-pwa-session-status-url"]')?.content);
+    }
+
+    _suspend() {
+        this._positionGeneration += 1;
+        if (this._hasSessionProbe()) this._sessionReady = false;
+        this._clearWatch();
+        this._clearPositionMemory();
+        this._emit();
+    }
+
+    _requestResume() {
+        // The shared lifecycle verifies the original account and renews CSRF first.
+        if (!this._hasSessionProbe()) return this._resumeAfterVisibility();
+        return Promise.resolve(false);
+    }
+
+    _canMeasure() {
+        return !this._destroyed && !this._loggedOut && this._sessionReady
+            && this.online && this.document?.visibilityState !== 'hidden';
+    }
+
+    _freshPosition(position) {
+        const next = liveLocationPositionPayload(position);
+        const measured = timestamp(next.measured_at);
+        const age = measured === null ? Infinity : this.now() - measured;
+        if (age > MAXIMUM_MEASUREMENT_AGE || age < -5_000) {
+            throw new RangeError('Die Standortmessung ist veraltet. Bitte ermittle einen neuen Standort.');
+        }
+        return next;
     }
 
     async _refreshPermissionState() {
@@ -584,6 +643,8 @@ export class LiveLocationCoordinator {
                         reveal: previousState !== this.permissionState,
                     });
                     this._clearWatch();
+                    this._positionGeneration += 1;
+                    this._clearPositionMemory();
                 } else {
                     this._setResumeNeeded(false);
                 }
@@ -606,11 +667,12 @@ export class LiveLocationCoordinator {
     }
 
     async reconcile({ quiet = false } = {}) {
-        if (!this.activeUrl || this._destroyed) {
+        if (!this.activeUrl || this._destroyed || this._loggedOut || !this._sessionReady) {
             return this.snapshot();
         }
 
         const generation = ++this._reconcileGeneration;
+        this._lastReconcileOk = false;
 
         if (!quiet) {
             this.busy = 'reconcile';
@@ -636,6 +698,7 @@ export class LiveLocationCoordinator {
                     }
                     : null,
             }));
+            this._lastReconcileOk = true;
             this.error = '';
             this.errorCode = '';
             this._scheduleExpiry();
@@ -660,6 +723,9 @@ export class LiveLocationCoordinator {
                 this._clearWatch();
             }
         } catch (error) {
+            this._clearWatch();
+            this._clearPositionMemory();
+            if ([401, 403, 419].includes(Number(error?.status))) this.handleLogout();
             if (!quiet) {
                 this._setError(error, 'reconcile_failed');
             }
@@ -724,7 +790,7 @@ export class LiveLocationCoordinator {
         });
     }
 
-    async start({ chatId, durationMinutes, startUrl, replyToMessageId = null } = {}) {
+    async start({ chatId, durationMinutes, startUrl, replyToMessageId = null, profileHistoryConsent = false } = {}) {
         const normalizedChatId = positiveInteger(chatId);
         const duration = Number(durationMinutes);
         const endpoint = stringValue(startUrl);
@@ -736,6 +802,8 @@ export class LiveLocationCoordinator {
         if (!endpoint) {
             throw new TypeError('Die Server-URL fuer die Standortfreigabe fehlt.');
         }
+        if (!this._canMeasure()) throw new Error('Bitte öffne RailTime mit einer aktiven Anmeldung, um den Standort zu teilen.');
+        const generation = this._positionGeneration;
 
         this.busy = 'start';
         this.error = '';
@@ -745,11 +813,13 @@ export class LiveLocationCoordinator {
 
         try {
             const position = await this._positionOnce();
-            const currentPosition = liveLocationPositionPayload(position);
+            if (generation !== this._positionGeneration || !this._canMeasure()) return null;
+            const currentPosition = this._freshPosition(position);
             this._latestPosition = currentPosition;
             const payload = {
                 chat_id: normalizedChatId,
                 duration_minutes: duration,
+                profile_history_consent: profileHistoryConsent === true,
                 ...currentPosition,
             };
             const replyId = positiveInteger(replyToMessageId);
@@ -763,6 +833,7 @@ export class LiveLocationCoordinator {
                 body: JSON.stringify(payload),
             });
             const share = normalizeLiveLocationResponse(response);
+            if (generation !== this._positionGeneration || !this._canMeasure()) return null;
 
             if (!share.id || !share.updateUrl || !share.stopUrl) {
                 throw new Error('Die Serverantwort fuer den Live-Standort ist unvollstaendig.');
@@ -811,6 +882,11 @@ export class LiveLocationCoordinator {
     }
 
     async resume() {
+        if (!this._canMeasure()) return false;
+        if (this.activeUrl) {
+            await this.reconcile({ quiet: true });
+            if (!this._lastReconcileOk) return false;
+        }
         if (this.activeShares.length === 0) {
             this._setResumeNeeded(false);
             this._clearResumeError();
@@ -852,19 +928,26 @@ export class LiveLocationCoordinator {
 
     _ensureWatch() {
         if (!this.supported
+            || !this._canMeasure()
             || this._watchId !== null
-            || this.activeShares.length === 0
+            || !this.activeShares.some((share) => !share.nativeActive && !this._stoppingShares.has(share.id))
             || this.permissionState === 'denied') {
             return;
         }
 
+        const generation = ++this._watchGeneration;
         this._watchId = this.navigator.geolocation.watchPosition(
-            (position) => this._handlePosition(position).catch(() => null),
+            (position) => {
+                if (generation === this._watchGeneration) this._handlePosition(position).catch(() => null);
+            },
             (error) => {
+                if (generation !== this._watchGeneration) return;
                 if (error?.code === 1) {
                     this.permissionState = 'denied';
                     this._setResumeNeeded(this.supported, { reveal: true });
                     this._clearWatch();
+                    this._positionGeneration += 1;
+                    this._clearPositionMemory();
                     this._setResumeError(error, 'permission_denied');
 
                     return;
@@ -879,6 +962,7 @@ export class LiveLocationCoordinator {
     }
 
     _clearWatch() {
+        this._watchGeneration += 1;
         if (this._watchId !== null) {
             this.navigator?.geolocation?.clearWatch?.(this._watchId);
             this._watchId = null;
@@ -888,7 +972,9 @@ export class LiveLocationCoordinator {
     }
 
     async _handlePosition(position, { force = false, keepalive = false } = {}) {
-        const next = liveLocationPositionPayload(position);
+        if (!this._canMeasure() || this.permissionState === 'denied') return false;
+        const generation = this._positionGeneration;
+        const next = this._freshPosition(position);
         this._latestPosition = next;
 
         if (!this.online) {
@@ -907,6 +993,7 @@ export class LiveLocationCoordinator {
 
         const now = this.now();
         const candidates = this.activeShares.filter((share) => share.updateUrl
+            && !share.nativeActive && !this._stoppingShares.has(share.id)
             && isLiveLocationActive(share, now)
             && (force || shouldPublishLiveLocation(share._lastPublished, next, now, {
                 minimumInterval: this.minimumUpdateInterval,
@@ -932,6 +1019,9 @@ export class LiveLocationCoordinator {
                         keepalive: true,
                     });
                     const updated = normalizeLiveLocationResponse(response);
+                    if (generation !== this._positionGeneration || !this._canMeasure()
+                        || this._stoppingShares.has(share.id)
+                        || !this.activeShares.some((current) => current.id === share.id)) return;
                     const merged = {
                         ...share,
                         ...(updated.id ? updated : {}),
@@ -947,16 +1037,15 @@ export class LiveLocationCoordinator {
                         },
                     };
 
-                    this._upsertShare(merged);
+                    if (isLiveLocationActive(merged, this.now())) this._upsertShare(merged);
+                    else this._removeShare(share.id);
                 } catch (error) {
                     if ([404, 410].includes(Number(error?.status))) {
                         this._removeShare(share.id);
                         return;
                     }
 
-                    if ([401, 419].includes(Number(error?.status))) {
-                        this._clearWatch();
-                    }
+                    if ([401, 403, 419].includes(Number(error?.status))) this.handleLogout();
 
                     this._setError(error, 'update_failed');
                 }
@@ -973,7 +1062,7 @@ export class LiveLocationCoordinator {
             this._pendingPositionForce = false;
             this._pendingPositionKeepalive = false;
 
-            if (pending) {
+            if (pending && generation === this._positionGeneration && this._canMeasure()) {
                 this._handlePosition(pending, {
                     force: pendingForce,
                     keepalive: pendingKeepalive,
@@ -1077,6 +1166,10 @@ export class LiveLocationCoordinator {
         if (!requestedId || !endpoint) {
             throw new TypeError('Die Freigabe kann ohne Server-URL nicht beendet werden.');
         }
+        // Stop locally before the request. A slow old PATCH must never revive it.
+        this._stoppingShares.add(requestedId);
+        this._positionGeneration += 1;
+        this._clearPositionMemory();
 
         this.busy = `stop:${requestedId}`;
         this.error = '';
@@ -1118,7 +1211,38 @@ export class LiveLocationCoordinator {
         return Promise.allSettled(shares.map((share) => this.stop(share)));
     }
 
+    async withdrawProfileHistory(shareOrId, endpoint) {
+        const shareId = identifier(typeof shareOrId === 'object' ? shareOrId.id : shareOrId);
+        if (!shareId || !endpoint || this._loggedOut) throw new Error('Die Freigabe ist nicht verfügbar.');
+        await this.request(endpoint, { method: 'DELETE' });
+        this.activeShares = this.activeShares.map((share) => share.id === shareId
+            ? { ...share, profileHistoryConsent: false } : share);
+        this._emit();
+        dispatchWindowEvent(this.window, 'railtime:live-location-history-withdrawn', { shareId });
+        return true;
+    }
+
+    async nativeStatus(endpoint) {
+        if (!endpoint || this._loggedOut) return null;
+        return this.request(endpoint, { method: 'GET' });
+    }
+
+    async nativeHandoff(endpoint) {
+        if (!endpoint || this._loggedOut) throw new Error('Der Standortdienst ist nicht verfügbar.');
+        const response = await this.request(endpoint, { method: 'POST' });
+        // Handoffs are server-authored, same-origin verified Universal/App Links.
+        const link = new URL(response?.app_link, this.window?.location?.href);
+        if (link.protocol !== 'https:' || link.origin !== this.window?.location?.origin
+            || link.pathname !== '/employee-location/open' || !link.hash.includes('code=')) {
+            throw new Error('Der Standortdienst hat keinen gültigen Startlink geliefert.');
+        }
+        return link.href;
+    }
+
     handleLogout() {
+        this._loggedOut = true;
+        this._sessionReady = false;
+        this._positionGeneration += 1;
         this._reconcileGeneration += 1;
         this.activeShares = [];
         this._clearPositionMemory();
@@ -1145,6 +1269,7 @@ export class LiveLocationCoordinator {
     }
 
     async _resumeAfterVisibility() {
+        if (!this._canMeasure()) return false;
         if (this._resumePromise) {
             return this._resumePromise;
         }
@@ -1152,9 +1277,10 @@ export class LiveLocationCoordinator {
         this._resumePromise = (async () => {
             if (this.activeUrl) {
                 await this.reconcile({ quiet: true });
+                if (!this._lastReconcileOk) return false;
             }
 
-            if (this.activeShares.length === 0) {
+            if (!this._canMeasure() || this.activeShares.length === 0) {
                 this._setResumeNeeded(false);
                 this._emit();
 
@@ -1176,6 +1302,7 @@ export class LiveLocationCoordinator {
             this._ensureWatch();
 
             try {
+                if (!this.activeShares.some((share) => !share.nativeActive && !this._stoppingShares.has(share.id))) return true;
                 const position = await this._positionOnce();
                 await this._handlePosition(position, { force: true });
             } catch (_) {
@@ -1246,6 +1373,7 @@ export class LiveLocationCoordinator {
 
     destroy() {
         this._destroyed = true;
+        this._positionGeneration += 1;
         this._reconcileGeneration += 1;
         this._clearPositionMemory();
         this._clearWatch();
@@ -1299,6 +1427,18 @@ export function createLiveLocationStore(coordinator) {
             return coordinator.stopAll(reason);
         },
 
+        withdrawProfileHistory(shareOrId, endpoint) {
+            return coordinator.withdrawProfileHistory(shareOrId, endpoint);
+        },
+
+        nativeStatus(endpoint) {
+            return coordinator.nativeStatus(endpoint);
+        },
+
+        nativeHandoff(endpoint) {
+            return coordinator.nativeHandoff(endpoint);
+        },
+
         resume() {
             return coordinator.resume();
         },
@@ -1339,6 +1479,7 @@ export function railtimeLiveLocationShare(config = {}) {
         open: false,
         busy: false,
         error: '',
+        profileHistoryConsent: false,
 
         get canShare() {
             const store = componentStore(this);
@@ -1348,6 +1489,7 @@ export function railtimeLiveLocationShare(config = {}) {
 
         openPicker() {
             this.error = '';
+            this.profileHistoryConsent = false;
             this.open = true;
         },
 
@@ -1389,6 +1531,7 @@ export function railtimeLiveLocationShare(config = {}) {
                     durationMinutes: duration,
                     startUrl: this.startUrl,
                     replyToMessageId: this.replyToMessageId,
+                    profileHistoryConsent: this.profileHistoryConsent === true,
                 });
                 this.open = false;
 
@@ -1431,6 +1574,11 @@ function cardDataset(element) {
     assign('stop_url', data.liveLocationStopUrl);
     assign('can_stop', data.liveLocationCanStop);
     assign('sender_name', data.liveLocationSenderName);
+    assign('profile_history_consent', data.liveLocationProfileHistoryConsent);
+    assign('profile_history_url', data.liveLocationProfileHistoryUrl);
+    assign('native_status_url', data.liveLocationNativeStatusUrl);
+    assign('native_handoff_url', data.liveLocationNativeHandoffUrl);
+    assign('native_active', data.liveLocationNativeActive);
 
     return source;
 }
@@ -1468,6 +1616,11 @@ function assignShare(component, share) {
     component.stopUrl = share.stopUrl;
     component.canStop = share.canStop;
     component.senderName = share.senderName;
+    component.profileHistoryConsent = share.profileHistoryConsent;
+    component.profileHistoryUrl = share.profileHistoryUrl;
+    component.nativeStatusUrl = share.nativeStatusUrl;
+    component.nativeHandoffUrl = share.nativeHandoffUrl;
+    component.nativeActive = share.nativeActive;
 }
 
 function componentShare(component) {
@@ -1484,9 +1637,100 @@ function componentShare(component) {
         routes: {
             update: component.updateUrl,
             stop: component.stopUrl,
+            profile_history: component.profileHistoryUrl,
+            native_status: component.nativeStatusUrl,
+            native_handoff: component.nativeHandoffUrl,
         },
         can_stop: component.canStop,
         sender_name: component.senderName,
+        profile_history_consent: component.profileHistoryConsent,
+        native_active: component.nativeActive,
+    };
+}
+
+function shareOwnerActions(config = {}) {
+    return {
+        withdrawingHistory: false,
+        nativeStatus: null,
+        nativeBusy: false,
+        nativeLink: '',
+        nativeLinkExpiresAt: 0,
+        _ownerRequest: 0,
+        _historyListener: null,
+
+        bindOwnerActions() {
+            this._historyListener = (event) => {
+                if (identifier(event?.detail?.shareId) === identifier(this.shareId)) {
+                    this.profileHistoryConsent = false;
+                }
+            };
+            (config.windowLike ?? globalThis.window)?.addEventListener?.(
+                'railtime:live-location-history-withdrawn', this._historyListener,
+            );
+        },
+
+        destroyOwnerActions() {
+            this._ownerRequest += 1;
+            this.nativeLink = '';
+            (config.windowLike ?? globalThis.window)?.removeEventListener?.(
+                'railtime:live-location-history-withdrawn', this._historyListener,
+            );
+        },
+
+        async withdrawProfileHistory() {
+            const store = componentStore(this);
+            if (!this.profileHistoryUrl || !store?.withdrawProfileHistory) return false;
+            this.withdrawingHistory = true;
+            this.error = '';
+            try {
+                await store.withdrawProfileHistory(this.shareId, this.profileHistoryUrl);
+                this.profileHistoryConsent = false;
+                return true;
+            } catch (error) {
+                this.error = stringValue(error?.message, 'Die Freigabe konnte nicht widerrufen werden.');
+                return false;
+            } finally {
+                this.withdrawingHistory = false;
+            }
+        },
+
+        async loadNativeStatus() {
+            const requestId = ++this._ownerRequest;
+            const shareId = this.shareId;
+            this.nativeStatus = null;
+            this.nativeLink = '';
+            if (!this.nativeStatusUrl || !this.isActive) return;
+            try {
+                const status = await componentStore(this)?.nativeStatus?.(this.nativeStatusUrl);
+                if (requestId !== this._ownerRequest || shareId !== this.shareId || this._destroyed) return;
+                this.nativeStatus = status;
+            } catch (_) {
+                if (requestId === this._ownerRequest) this.nativeStatus = { available: false, reason: 'unavailable' };
+            }
+        },
+
+        async prepareNativeHandoff() {
+            if (!this.nativeHandoffUrl || !this.isActive || !this.nativeStatus?.available || this.nativeBusy) return;
+            const requestId = ++this._ownerRequest;
+            const shareId = this.shareId;
+            this.nativeBusy = true;
+            this.nativeLink = '';
+            this.error = '';
+            try {
+                const link = await componentStore(this)?.nativeHandoff?.(this.nativeHandoffUrl);
+                if (requestId !== this._ownerRequest || shareId !== this.shareId || !this.isActive || this._destroyed) return;
+                this.nativeLink = link || '';
+                this.nativeLinkExpiresAt = Date.now() + 55_000;
+            } catch (error) {
+                this.error = stringValue(error?.message, 'Der Standortdienst konnte nicht vorbereitet werden.');
+            } finally {
+                this.nativeBusy = false;
+            }
+        },
+
+        get hasNativeLink() {
+            return Boolean(this.nativeLink) && this.nowMs < this.nativeLinkExpiresAt && this.isActive;
+        },
     };
 }
 
@@ -1496,6 +1740,7 @@ export function railtimeLiveLocationCard(config = {}) {
     );
 
     return {
+        ...shareOwnerActions(config),
         messages: config.messages || {},
         shareId: initial.id,
         messageId: initial.messageId,
@@ -1510,6 +1755,11 @@ export function railtimeLiveLocationCard(config = {}) {
         stopUrl: initial.stopUrl,
         canStop: initial.canStop,
         senderName: initial.senderName,
+        profileHistoryConsent: initial.profileHistoryConsent,
+        profileHistoryUrl: initial.profileHistoryUrl,
+        nativeStatusUrl: initial.nativeStatusUrl,
+        nativeHandoffUrl: initial.nativeHandoffUrl,
+        nativeActive: initial.nativeActive,
         nowMs: Date.now(),
         busy: false,
         stopping: false,

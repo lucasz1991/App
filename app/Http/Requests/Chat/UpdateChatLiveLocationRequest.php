@@ -15,6 +15,7 @@ class UpdateChatLiveLocationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'measured_at' => ['sometimes', 'nullable', 'date'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'accuracy' => ['required', 'numeric', 'between:0,50000'],

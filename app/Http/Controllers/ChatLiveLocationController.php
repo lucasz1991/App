@@ -9,6 +9,7 @@ use App\Models\Chat;
 use App\Models\ChatLiveLocation;
 use App\Models\User;
 use App\Services\Chat\ChatLiveLocationService;
+use App\Services\Chat\ChatLocationHistoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -78,6 +79,15 @@ class ChatLiveLocationController extends Controller
         return $this->noStore(response()->json([
             'live_location' => $this->resource($request, $location),
         ]));
+    }
+
+    public function withdrawProfileHistory(Request $request, ChatLiveLocation $liveLocation): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 403);
+        $location = app(ChatLocationHistoryService::class)->withdraw($liveLocation, $user);
+
+        return $this->noStore(response()->json(['profile_history_consent' => $location->profileHistoryEnabled()]));
     }
 
     /** @return array<string, mixed> */

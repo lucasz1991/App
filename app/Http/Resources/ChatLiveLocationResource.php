@@ -13,6 +13,7 @@ class ChatLiveLocationResource extends JsonResource
     public function toArray(Request $request): array
     {
         $message = $this->message;
+        $owner = (int) $request->user()?->id === (int) $this->user_id;
 
         return [
             'id' => $this->uuid,
@@ -25,9 +26,13 @@ class ChatLiveLocationResource extends JsonResource
             'last_position_at' => $this->last_position_at?->toIso8601String(),
             'version' => (int) $this->version,
             'position' => $this->position(),
+            'profile_history_consent' => $owner && $this->profileHistoryEnabled(),
             'routes' => [
                 'update' => route('chat.live-locations.update', $this->resource),
                 'stop' => route('chat.live-locations.destroy', $this->resource),
+                'profile_history' => $owner ? route('chat.live-locations.profile-history.destroy', $this->resource) : null,
+                'native_status' => $owner ? route('chat.live-locations.native-status', $this->resource) : null,
+                'native_handoff' => $owner ? route('chat.live-locations.native-start', $this->resource) : null,
             ],
         ];
     }

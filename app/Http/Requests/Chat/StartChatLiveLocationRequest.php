@@ -19,6 +19,8 @@ class StartChatLiveLocationRequest extends FormRequest
         return [
             'duration_minutes' => ['required', 'integer', Rule::in(ChatLiveLocation::ALLOWED_DURATIONS)],
             'reply_to_message_id' => ['nullable', 'integer', 'min:1'],
+            'profile_history_consent' => ['sometimes', 'boolean'],
+            'measured_at' => ['required_if:profile_history_consent,true', 'nullable', 'date'],
             ...$this->positionRules(),
         ];
     }

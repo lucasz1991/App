@@ -37,6 +37,9 @@ class ChatLiveLocation extends Model
         'stopped_at',
         'stop_reason',
         'version',
+        'profile_history_accepted_at',
+        'profile_history_version',
+        'profile_history_withdrawn_at',
     ];
 
     protected $hidden = [
@@ -50,6 +53,9 @@ class ChatLiveLocation extends Model
         'expires_at' => 'datetime',
         'stopped_at' => 'datetime',
         'version' => 'integer',
+        'profile_history_accepted_at' => \App\Casts\UtcImmutableDateTime::class,
+        'profile_history_version' => 'integer',
+        'profile_history_withdrawn_at' => \App\Casts\UtcImmutableDateTime::class,
     ];
 
     protected static function booted(): void
@@ -103,6 +109,11 @@ class ChatLiveLocation extends Model
     public function isActive(): bool
     {
         return $this->status() === 'active';
+    }
+
+    public function profileHistoryEnabled(): bool
+    {
+        return $this->profile_history_accepted_at !== null && $this->profile_history_withdrawn_at === null;
     }
 
     public function remainingSeconds(): int
