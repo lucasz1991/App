@@ -10,11 +10,14 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\PersonnelScopeService;
+use App\Services\Operations\PlanningTravelDisplay;
+use App\Services\Operations\StaffEligibilityService;
 use App\Services\Operations\ShiftAssignmentService;
 use App\Services\Operations\StaffTimelineLayout;
 use App\Services\Operations\TimelinePlanningSuggestionService;
 use App\Services\Operations\TimelineWorkloadService;
 use App\Services\Routing\TravelAssessmentService;
+use App\Services\Routing\TomTomRoutingService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsNavigation;
 use App\Support\Operations\OperationsTransaction;
@@ -115,10 +118,24 @@ class StaffTimeline extends Component
     #[Locked]
     public array $planningReasons = [];
 
+    #[Locked]
+    public array $planningTravel = [];
+
+    #[On('shift-travel-refresh-requested')]
+    public function loadPlanningTravel(int $shiftId): void
+    {
+        $this->ensurePlanning();
+        abort_unless($this->assignmentOpen && $this->planningShiftId === $shiftId && $this->planningUserId, 403);
+        $shift = app(TimelinePlanningSuggestionService::class)->openShifts($this->from, $this->until, auth()->user())->findOrFail($shiftId);
+        $users = User::whereKey($this->planningUserId)->where('role', 'staff')->where('status', true)->get();
+        $details = TomTomRoutingService::withinOperation(fn () => app(StaffEligibilityService::class)->assessDetailedMany($shift, $users, false, ['include_employee_location' => true, 'actor' => auth()->user()], true));
+        $this->planningTravel[$shiftId] = app(PlanningTravelDisplay::class)->stamp($details);
+    }
+
     public function openCell(int $userId, string $date): void
     {
         $this->ensurePlanning();
-        app(TimelinePlanningSuggestionService::class)->cellChoices($userId, $date, $this->from, $this->until, auth()->user());
+        app(TimelinePlanningSuggestionService::class)->cellChoices($userId, $date, $this->from, $this->until, auth()->user(), true);
         $this->resetPlanningSelection();
         $this->planningUserId = $userId;
         $this->planningDate = $date;
@@ -129,13 +146,13 @@ class StaffTimeline extends Component
     public function previewCell(int $userId, string $date): array
     {
         $this->ensurePlanning();
-        $choices = app(TimelinePlanningSuggestionService::class)->cellChoices($userId, $date, $this->from, $this->until, auth()->user());
+        $choices = app(TimelinePlanningSuggestionService::class)->cellChoices($userId, $date, $this->from, $this->until, auth()->user(), true);
         $eligible = $choices->where('eligible', true)->count();
 
         return ['state' => $eligible > 0 ? 'suitable' : ($choices->isEmpty() ? 'empty' : 'blocked'),
             'label' => $eligible > 0 ? $eligible.' passend'.($choices->count() === 30 ? ' · Auswahl begrenzt' : '')
                 : ($choices->isEmpty() ? 'Keine offenen Dienste' : 'Keine passende Schicht'),
-            'detail' => $eligible > 0 ? 'Vorläufig geprüft · zum Auswählen klicken'
+            'detail' => $eligible > 0 ? 'Kernregeln geprüft · Fahrten beim Auswählen prüfen'
                 : ($choices->isEmpty() ? 'Für diesen Tag ist nichts zu verteilen.' : 'Details und Konfliktgründe per Klick anzeigen.')];
     }
 
@@ -143,7 +160,7 @@ class StaffTimeline extends Component
     {
         $this->ensurePlanning();
         abort_unless($this->assignmentOpen && $this->planningUserId && $this->planningDate, 422);
-        $choice = app(TimelinePlanningSuggestionService::class)->cellChoices($this->planningUserId, $this->planningDate, $this->from, $this->until, auth()->user())
+        $choice = app(TimelinePlanningSuggestionService::class)->cellChoices($this->planningUserId, $this->planningDate, $this->from, $this->until, auth()->user(), true, $this->planningTravel)
             ->first(fn ($choice) => $choice['shift']->id === $shiftId);
         if (! $choice || $choice['revision'] !== $revision || ! $choice['eligible']) {
             throw ValidationException::withMessages(['workflow' => 'Einsatz oder Eignung wurde geändert. Bitte neu auswählen.']);
@@ -223,7 +240,7 @@ class StaffTimeline extends Component
         }
         $this->showSuggestions = $open;
         $this->suggestionsAvailable = true;
-        $this->suggestionsReady = true;
+        $this->suggestionsReady = ! $open;
         $this->focusShiftId = $focusShiftId;
         $this->resetValidation();
     }
@@ -252,7 +269,7 @@ class StaffTimeline extends Component
         $this->ensurePlanning();
         $this->showSuggestions = ! $this->showSuggestions;
         $this->suggestionsAvailable = true;
-        $this->suggestionsReady = true;
+        $this->suggestionsReady = ! $this->showSuggestions;
         $this->previewVersion += $this->showSuggestions ? 1 : 0;
         $this->resetValidation();
     }
@@ -264,17 +281,19 @@ class StaffTimeline extends Component
             $this->ensurePlanning();
             $this->previewVersion++;
             $this->suggestionsAvailable = true;
+            $this->suggestionsReady = ! $this->showSuggestions;
         }
     }
 
     public function loadSuggestions(): void
     {
         $this->ensurePlanning();
-        if ($this->suggestionsReady) {
+        if ($this->suggestionsReady && Cache::has($this->previewKey())) {
             $this->skipRender();
 
             return;
         }
+        Cache::put($this->previewKey(), app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user()), 90);
         $this->suggestionsReady = true;
     }
 
@@ -286,9 +305,17 @@ class StaffTimeline extends Component
      */
     private function planningPreview(): array
     {
-        $key = implode(':', ['staff-timeline-preview', auth()->id(), $this->getId(), $this->from, $this->until, $this->previewVersion]);
+        $preview = Cache::get($this->previewKey());
+        if (! is_array($preview)) {
+            $this->suggestionsReady = false;
+        }
 
-        return Cache::remember($key, 90, fn () => app(TimelinePlanningSuggestionService::class)->preview($this->from, $this->until, auth()->user()));
+        return $preview ?? ['proposals' => collect(), 'open_total' => 0, 'limited' => false];
+    }
+
+    private function previewKey(): string
+    {
+        return implode(':', ['staff-timeline-preview', auth()->id(), $this->getId(), $this->from, $this->until, $this->previewVersion]);
     }
 
     private function ensurePlanning(): void
@@ -300,7 +327,7 @@ class StaffTimeline extends Component
 
     private function resetPlanningSelection(): void
     {
-        $this->reset(['planningUserId', 'planningDate', 'planningShiftId', 'planningRevision', 'planningReasons', 'assignmentOpen', 'assignmentStatus']);
+        $this->reset(['planningUserId', 'planningDate', 'planningShiftId', 'planningRevision', 'planningReasons', 'assignmentOpen', 'assignmentStatus', 'planningTravel']);
         $this->resetValidation();
     }
 
@@ -445,14 +472,15 @@ class StaffTimeline extends Component
         $focus = $this->focusData($days, $layout, $zone);
         $planningUser = $this->assignmentOpen && $this->planningUserId ? User::find($this->planningUserId) : null;
         $planningShift = $this->assignmentOpen && $this->planningShiftId ? Shift::with('order.customer')->find($this->planningShiftId) : null;
+        $planningAssessment = $planningShift && $planningUser ? (app(PlanningTravelDisplay::class)->current($planningShift, collect([$planningUser]), $this->planningTravel[$planningShift->id] ?? [])[$planningUser->id] ?? []) : [];
         $choices = $this->assignmentOpen && $this->planningDate && $this->planningUserId && ! $this->planningShiftId
-            ? app(TimelinePlanningSuggestionService::class)->cellChoices($this->planningUserId, $this->planningDate, $this->from, $this->until, auth()->user())->map(fn ($choice) => (object) [
+            ? app(TimelinePlanningSuggestionService::class)->cellChoices($this->planningUserId, $this->planningDate, $this->from, $this->until, auth()->user(), true, $this->planningTravel)->map(fn ($choice) => (object) [
                 'id' => $choice['shift']->id, 'title' => $choice['shift']->title, 'revision' => $choice['revision'],
                 'period' => $this->planningPeriod($choice['shift'], $zone),
-                'open' => max(0, $choice['shift']->required_staff - $choice['shift']->reserved_count), 'eligible' => $choice['eligible'], 'issues' => $choice['issues'],
+                'open' => max(0, $choice['shift']->required_staff - $choice['shift']->reserved_count), 'eligible' => $choice['eligible'], 'issues' => $choice['issues'], 'travel' => $choice['travel'],
             ]) : collect();
 
-        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'selectedDays', 'selectedFrom', 'selectedUntil', 'axisFrom', 'axisUntil', 'zone', 'dayAttention', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices', 'focus'));
+        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'selectedDays', 'selectedFrom', 'selectedUntil', 'axisFrom', 'axisUntil', 'zone', 'dayAttention', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'planningAssessment', 'choices', 'focus'));
     }
 
     /**
@@ -535,7 +563,7 @@ class StaffTimeline extends Component
             'shift' => $shift,
             'date' => $shift->starts_at->setTimezone($zone)->toDateString(),
             'event' => $event,
-            'candidates' => app(TimelinePlanningSuggestionService::class)->rankedCandidates($shift, auth()->user())->keyBy(fn (array $candidate) => $candidate['user']->id),
+            'candidates' => app(TimelinePlanningSuggestionService::class)->rankedCandidatesForDisplay($shift, auth()->user())->keyBy(fn (array $candidate) => $candidate['user']->id),
         ];
     }
 

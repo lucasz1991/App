@@ -147,7 +147,9 @@ class StaffEligibilityService
             : collect();
         $individualProfiles = $accountsReady ? $accounts->effectiveRulesFor($users, $start, $profile)
             : $users->mapWithKeys(fn ($user) => [$user->id => $profile]);
-        $rest = max((int) ($profile?->minimum_rest_minutes ?? 0), (int) $individualProfiles->max('minimum_rest_minutes'));
+        // A neighbouring duty can use an earlier/later, stricter profile. This
+        // known minimum remains binding even if route calculation is unavailable.
+        $rest = max((int) ($profile?->minimum_rest_minutes ?? 0), (int) $individualProfiles->max('minimum_rest_minutes'), (int) OperationsRuleProfile::max('minimum_rest_minutes'));
         $excludes = array_unique(array_merge($context['exclude_shift_ids'] ?? [], $shift->id ? [$shift->id] : []));
         $lookaround = max($rest, (int) ($shift->disposition_details['transfer_buffer_minutes'] ?? 0), Schema::hasColumn('shifts', 'disposition_details') ? 10080 : 0);
         $conflicts = $query(ShiftAssignment::blocking()->whereIn('user_id', $ids)->whereNotIn('shift_id', $excludes)
@@ -167,14 +169,22 @@ class StaffEligibilityService
         $externalRestrictions = app(CompetencyRestrictions::class)->forShift($shift, $users, $lock);
         $regionalRestrictions = class_exists(StaffRegionalPreferenceService::class)
             ? app(StaffRegionalPreferenceService::class)->assessMany($shift, $users, $lock) : [];
+        $additionalByUser = [];
+        $restMoments = [];
+        foreach ($users as $user) {
+            $additionalByUser[$user->id] = array_merge($context['additional_shifts'] ?? [], $context['additional_shifts_by_user'][$user->id] ?? []);
+            if (class_exists(CustomerCapacityService::class)) {
+                $additionalByUser[$user->id] = array_merge($additionalByUser[$user->id], app(CustomerCapacityService::class)->additionalShifts($shift, $user));
+            }
+            $others = $conflicts->get($user->id, collect())->pluck('shift')->merge($additionalByUser[$user->id]);
+            $restMoments[$user->id] = $others->mapWithKeys(fn ($other) => [$other->id ?: 'virtual_'.spl_object_id($other) => $other->starts_at])->all();
+        }
+        $neighborProfiles = $accountsReady ? $accounts->effectiveRulesForMoments($users, $restMoments, $profile, $lock) : collect();
         foreach ($users as $user) {
             $assessmentContext = $context;
             // A server-side preview can batch virtual schedules without sharing
             // one candidate's provisional duties with another candidate.
-            $assessmentContext['additional_shifts'] = array_merge($context['additional_shifts'] ?? [], $context['additional_shifts_by_user'][$user->id] ?? []);
-            if (class_exists(CustomerCapacityService::class)) {
-                $assessmentContext['additional_shifts'] = array_merge($assessmentContext['additional_shifts'], app(CustomerCapacityService::class)->additionalShifts($shift, $user));
-            }
+            $assessmentContext['additional_shifts'] = $additionalByUser[$user->id];
             $profile = $individualProfiles->get($user->id);
             $issues = $externalRestrictions[$user->id] ?? [];
             $check = function (bool $ok, string $code, string $message) use (&$issues): void {
@@ -196,7 +206,12 @@ class StaffEligibilityService
             }
             $otherShifts = $conflicts->get($user->id, collect())->pluck('shift')->merge(collect($assessmentContext['additional_shifts'] ?? []));
             $rest = $profile?->minimum_rest_minutes ?? 0;
-            $overlap = $otherShifts->contains(fn ($other) => $other !== $shift && $other->starts_at->lt($end->addMinutes($rest)) && $other->ends_at->gt($start->subMinutes($rest)));
+            $overlap = $otherShifts->contains(function ($other) use ($shift, $start, $end, $rest, $neighborProfiles, $user): bool {
+                $otherProfile = $neighborProfiles->get($user->id)[$other->id ?: 'virtual_'.spl_object_id($other)] ?? null;
+                $requiredRest = max($rest, (int) $otherProfile?->minimum_rest_minutes);
+
+                return $other !== $shift && $other->starts_at->lt($end->addMinutes($requiredRest)) && $other->ends_at->gt($start->subMinutes($requiredRest));
+            });
             $check(! $overlap, 'rest_overlap', 'Schichtüberschneidung oder unterschrittene Ruhezeit.');
             $buffer = (int) ($shift->disposition_details['transfer_buffer_minutes'] ?? 0);
             if ($buffer > 0) {

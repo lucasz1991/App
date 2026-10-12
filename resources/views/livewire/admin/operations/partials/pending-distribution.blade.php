@@ -107,7 +107,7 @@
                                         @forelse($distributionCandidates as $candidate)
                                             <div class="rt-shift-distribution__candidate" wire:key="distribution-candidate-{{ $item->id }}-{{ $candidate['user']->id }}">
                                                 <x-user.public-info :user="$candidate['user']" :size="7" :show-email="false" :show-presence="false" />
-                                                <span class="rt-shift-distribution__candidate-reason">{{ collect($candidate['reasons'])->slice(1)->first() ?? 'Keine Planungskonflikte' }}</span>
+                                                <span class="rt-shift-distribution__candidate-reason" data-routing-state="{{ $candidate['travel']['route_state'] ?? 'pending' }}">{{ $candidate['travel']['route_label'] ?? 'Fahrt noch nicht geprüft' }} · {{ collect($candidate['reasons'])->slice(1)->first() ?? 'Kernregeln geprüft' }}@foreach($candidate['warnings'] ?? [] as $warning)<br>{{ $warning['message'] }}@endforeach</span>
                                                 <x-ui.buttons.button-basic type="button" size="sm" :mode="$loop->first ? 'primary' : 'secondary'" wire:click="assignFromDistribution({{ $item->id }},{{ $candidate['user']->id }},{{ (int) $item->revision }})" wire:loading.attr="disabled" wire:target="assignFromDistribution" aria-label="{{ $candidate['user']->name }} für {{ $item->title }} einteilen">Einteilen</x-ui.buttons.button-basic>
                                             </div>
                                         @empty
@@ -115,7 +115,12 @@
                                         @endforelse
                                         @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && count($distributionCandidates) > 0)
                                             @php($travelEmployeeIds = collect($distributionCandidates)->pluck('user.id')->all())
-                                            <livewire:operations.shift-travel-panel :shift-id="$item->id" :employee-ids="$travelEmployeeIds" :key="'distribution-travel-'.$item->id.'-'.$item->revision.'-'.md5(implode(',', $travelEmployeeIds))" />
+                                            @php
+                                                $distributionRouteInitial = array_intersect_key($planningTravel[$item->id] ?? [], array_flip($travelEmployeeIds));
+                                                $distributionRoutesPending = collect($distributionCandidates)->contains(fn($candidate) => ($candidate['travel']['route_state'] ?? '') === 'pending' || !isset($distributionRouteInitial[$candidate['user']->id]));
+                                            @endphp
+                                            @if($distributionRoutesPending)<div x-data x-intersect.once="$wire.loadShiftTravel({{ $item->id }})" wire:key="distribution-route-start-{{ $item->id }}-{{ $item->revision }}-{{ md5(implode(',', $travelEmployeeIds)) }}" role="status" class="rt-shift-distribution__note">Fahrzeiten werden nachgeladen …</div>@endif
+                                            <livewire:operations.shift-travel-panel :shift-id="$item->id" :employee-ids="$travelEmployeeIds" :initial-assessments="$distributionRouteInitial ?: null" :parent-managed="true" :key="'distribution-travel-'.$item->id.'-'.$item->revision.'-'.md5(implode(',', $travelEmployeeIds).json_encode($distributionRouteInitial))" />
                                         @endif
                                         <div class="rt-shift-distribution__assign-foot">
                                             <button type="button" class="rt-shift-distribution__selection-clear" data-distribution-clear

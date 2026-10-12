@@ -99,6 +99,118 @@ class ServerRoutingIntegrationTest extends TestCase
         ShiftAssignment::create(['shift_id' => $shift->id, 'user_id' => $this->employee->id, 'status' => ShiftAssignmentStatus::Confirmed, 'assigned_by' => $this->actor->id, 'plan_revision' => $shift->revision]);
     }
 
+    public function test_one_planning_operation_deduplicates_exact_routes_across_service_instances_and_nested_calls(): void
+    {
+        $this->fakeRoute();
+        $request = $this->request();
+        TomTomRoutingService::withinOperation(function () use ($request): void {
+            $first = (new TomTomRoutingService)->summaryMany(['first' => $request]);
+            $second = TomTomRoutingService::withinOperation(fn () => (new TomTomRoutingService)->summaryMany(['second' => $request]));
+            $this->assertSame($first['first'], $second['second']);
+            Http::assertSentCount(1);
+        });
+        (new TomTomRoutingService)->summaryMany(['outside' => $request]);
+        Http::assertSentCount(2);
+        $this->assertSame(2, app(RoutingUsageService::class)->current()['routing_transactions']);
+    }
+
+    public function test_operation_scope_is_disposed_after_failure_and_does_not_bypass_transaction_guard(): void
+    {
+        $this->fakeRoute();
+        try {
+            TomTomRoutingService::withinOperation(function (): void {
+                app(TomTomRoutingService::class)->summaryMany(['a' => $this->request()]);
+                DB::beginTransaction();
+                try {
+                    $result = app(TomTomRoutingService::class)->summaryMany(['a' => $this->request()]);
+                    $this->assertSame('transaction_requires_preflight', $result['a']['reason']);
+                } finally {
+                    DB::rollBack();
+                }
+                throw new \RuntimeException('scope-test');
+            });
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('scope-test', $exception->getMessage());
+        }
+        TomTomRoutingService::withinOperation(fn () => app(TomTomRoutingService::class)->summaryMany(['a' => $this->request()]));
+        Http::assertSentCount(2);
+    }
+
+    public function test_operation_keeps_binding_display_direction_departure_and_saved_connection_tests_separate(): void
+    {
+        $this->fakeRoute();
+        TomTomRoutingService::withinOperation(function (): void {
+            $routing = app(TomTomRoutingService::class);
+            $request = $this->request();
+            $routing->summaryManyForDisplay(['a' => $request]);
+            $routing->summaryMany(['a' => $request]);
+            $routing->summaryMany(['reversed' => ['origin' => $request['destination'], 'destination' => $request['origin'], 'departure' => $request['departure']],
+                'later' => array_replace($request, ['departure' => $request['departure']->addSecond()])]);
+            $routing->testConnection();
+            $routing->testConnection();
+        });
+        Http::assertSentCount(6);
+    }
+
+    public function test_one_operation_deadline_prevents_reserving_additional_provider_calls(): void
+    {
+        Http::fake(function () {
+            usleep(25000);
+
+            return Http::response(['routes' => [['summary' => ['travelTimeInSeconds' => 120, 'lengthInMeters' => 1000]]]], 200);
+        });
+        TomTomRoutingService::withinOperation(function (): void {
+            app(TomTomRoutingService::class)->summaryMany(['a' => $this->request()]);
+            $other = array_replace($this->request(), ['departure' => now()->addHours(2)]);
+            $result = app(TomTomRoutingService::class)->summaryMany(['b' => $other]);
+            $this->assertSame('provider_timeout', $result['b']['reason']);
+        }, 0.01);
+        Http::assertSentCount(1);
+        $this->assertSame(1, app(RoutingUsageService::class)->current()['routing_transactions']);
+    }
+
+    public function test_operation_rechecks_settings_key_and_cache_generation_between_calls(): void
+    {
+        $this->fakeRoute();
+        TomTomRoutingService::withinOperation(function (): void {
+            $routing = app(TomTomRoutingService::class);
+            $routing->summaryManyForDisplay(['a' => $this->request()]);
+            app(ServerRoutingCache::class)->clear();
+            $routing->summaryManyForDisplay(['a' => $this->request()]);
+            TomTomSettings::save(TomTomSettings::all(), 'rotated-test-key');
+            $routing->summaryManyForDisplay(['a' => $this->request()]);
+            TomTomSettings::save(array_replace(TomTomSettings::all(), ['enabled' => false]));
+            $result = $routing->summaryManyForDisplay(['a' => $this->request()]);
+            $this->assertSame('disabled', $result['a']['reason']);
+        });
+        Http::assertSentCount(3);
+    }
+
+    public function test_contended_shared_route_returns_pending_without_another_paid_request(): void
+    {
+        $this->fakeRoute();
+        $request = $this->request();
+        $query = ['key' => 'global-routing-test-key', 'travelMode' => 'car', 'routeType' => 'fastest', 'traffic' => 'true',
+            'departAt' => $request['departure']->utc()->toIso8601String(), 'routeRepresentation' => 'summaryOnly'];
+        $method = new \ReflectionMethod(TomTomRoutingService::class, 'cacheIdentity');
+        $identity = $method->invoke(app(TomTomRoutingService::class), 'https://api.tomtom.com/routing/1/calculateRoute/52.5200000,13.4000000:53.5500000,10.0000000/json', $query);
+        app(ServerRoutingCache::class)->generation();
+        $stripe = (int) hexdec(substr(hash('sha256', 'summary:'.$identity), 0, 2)) % 64;
+        $holder = fopen($this->cacheDirectory.DIRECTORY_SEPARATOR.'stripe-'.str_pad((string) $stripe, 2, '0', STR_PAD_LEFT).'.lock', 'c+b');
+        $this->assertTrue(flock($holder, LOCK_EX));
+        try {
+            $result = app(TomTomRoutingService::class)->summaryManyForDisplay(['a' => $request]);
+            $this->assertSame('calculation_pending', $result['a']['reason']);
+            Http::assertNothingSent();
+            $this->assertSame(0, app(RoutingUsageService::class)->current()['routing_transactions']);
+        } finally {
+            flock($holder, LOCK_UN);
+            fclose($holder);
+        }
+        $this->assertSame('known', app(TomTomRoutingService::class)->summaryManyForDisplay(['a' => $request])['a']['status']);
+        Http::assertSentCount(1);
+    }
+
     public function test_tiles_are_shared_between_authorized_users_without_browser_cache_headers(): void
     {
         $this->fakeTile();

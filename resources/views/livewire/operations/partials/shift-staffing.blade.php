@@ -10,6 +10,15 @@
             <p class="rt-staffing-note">Noch niemand zugewiesen. Wählen Sie unten passende Mitarbeitende aus.</p>
         @endif
         @if($detailOpen && \App\Support\Operations\WorkforcePlanningSchema::ready())
+            @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && $feedback->filter(fn($entry) => $entry->status->blocksAvailability())->isNotEmpty())
+                @php
+                    $assignedRouteIds = $feedback->filter(fn($entry) => $entry->status->blocksAvailability())->pluck('user_id')->unique()->take(24)->all();
+                    $assignedRouteInitial = array_intersect_key($planningTravel[$selectedShift->id] ?? [], array_flip($assignedRouteIds));
+                @endphp
+                <div x-data x-intersect.once="$wire.loadShiftTravel({{ $selectedShift->id }})" wire:key="assigned-travel-start-{{ $selectedShift->id }}-{{ $selectedShift->revision }}">
+                    <livewire:operations.shift-travel-panel :shift-id="$selectedShift->id" :employee-ids="$assignedRouteIds" :initial-assessments="$assignedRouteInitial ?: null" :parent-managed="true" :key="'assigned-travel-'.$selectedShift->id.'-'.$selectedShift->revision.'-'.md5(json_encode($assignedRouteInitial))" />
+                </div>
+            @endif
             <details class="rt-staffing-more"><summary>Planungsvarianten</summary><livewire:operations.plan-variants :shift-ids="[$selectedShift->id]" :key="'variants-'.$selectedShift->id" /></details>
         @endif
     </section>
@@ -29,7 +38,7 @@
         <livewire:operations.ai-planning-helper :shift-id="$selectedShift->id" :key="'ai-planning-shift-'.$selectedShift->id.'-'.$selectedShift->revision" />
         <section class="rt-staffing-section" aria-label="Mitarbeitende finden" data-staffing-candidates>
             <div class="rt-staffing-heading">
-                <div><h3>Mitarbeitende finden</h3><p>Beste Planungseignung zuerst · alle Treffer werden vorab sortiert</p></div>
+                <div><h3>Mitarbeitende finden</h3><p>Kernregeln zuerst · Fahrten werden für angezeigte Personen ergänzt</p></div>
                 @if($candidatesReady)<span class="rt-staffing-count">{{ $candidateTotal }}</span>@endif
             </div>
             @if(!$candidatesReady)
@@ -61,9 +70,14 @@
                 @endif
                 <p class="rt-staffing-note" aria-live="polite">{{ $candidates->count() }} von {{ $candidateTotal }} Mitarbeitenden · Bereits reservierte Personen stehen oben.</p>
                 @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && $candidates->isNotEmpty())
-                    <p class="rt-staffing-note">Fahrzeiten werden für sichtbare Gruppen nachgeladen. Die Eignungsrangfolge bleibt erhalten; jede verbindliche Zuteilung prüft die Übergänge erneut.</p>
+                    @php($pendingTravelIds = $candidates->filter(fn($person) => $person->staffing_state !== 'blocked' && (($person->planning_travel['route_state'] ?? '') === 'pending' || !isset($planningTravel[$selectedShift->id][$person->id])))->pluck('id')->all())
+                    @if($pendingTravelIds)
+                        <div x-data x-intersect.once="$wire.loadShiftTravel({{ $selectedShift->id }})" wire:key="candidate-travel-load-{{ $selectedShift->id }}-{{ $selectedShift->revision }}-{{ md5(json_encode($pendingTravelIds)) }}" role="status" class="rt-staffing-note">Fahrzeiten werden nachgeladen …</div>
+                    @endif
+                    <p class="rt-staffing-note">Bekannte Fahrzeitkonflikte fließen in Eignung und Filter ein. Bei gleicher Bewertung zählen kürzere geplante Fahrten nur in vollständig geprüften Vergleichsgruppen. Jede verbindliche Zuteilung prüft die Übergänge erneut.</p>
                     @foreach($candidates->chunk(24) as $travelCandidates)
-                        <livewire:operations.shift-travel-panel :shift-id="$selectedShift->id" :employee-ids="$travelCandidates->pluck('id')->all()" :key="'shift-travel-'.$selectedShift->id.'-'.$selectedShift->revision.'-'.md5($travelCandidates->pluck('id')->join(','))" />
+                        @php($candidateRouteInitial = array_intersect_key($planningTravel[$selectedShift->id] ?? [], array_flip($travelCandidates->pluck('id')->all())))
+                        <livewire:operations.shift-travel-panel :shift-id="$selectedShift->id" :employee-ids="$travelCandidates->pluck('id')->all()" :initial-assessments="$candidateRouteInitial ?: null" :parent-managed="true" :key="'shift-travel-'.$selectedShift->id.'-'.$selectedShift->revision.'-'.md5($travelCandidates->pluck('id')->join(',').json_encode($candidateRouteInitial))" />
                     @endforeach
                 @endif
             @endif

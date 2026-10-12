@@ -10,7 +10,7 @@
 @endphp
 @if($planningEnabled && !$absencesOnly && $showSuggestions && !$suggestionsReady)
     {{-- Plan zuerst, Besetzungsvorschläge im Folgeaufruf --}}
-    <span hidden wire:init="loadSuggestions" data-timeline-suggestions-pending></span>
+    <span hidden wire:key="timeline-suggestions-load-{{ $previewVersion }}-{{ $from }}-{{ $until }}" wire:init="loadSuggestions" data-timeline-suggestions-pending></span>
 @endif
 @if(!$absencesOnly)
     @if($searchInHeader)
@@ -260,6 +260,12 @@
                 </section>
             @endif
             <form wire:submit="confirmAssignment" class="rt-timeline-planner__form">
+                @if(\App\Support\Routing\TomTomSettings::all()['enabled'] && $planningUser)
+                    @php($timelineTravelInitial = $planningTravel[$planningShift->id] ?? [])
+                    @if(!$timelineTravelInitial)<div x-data x-intersect.once="$wire.loadPlanningTravel({{ $planningShift->id }})" wire:key="timeline-travel-load-{{ $planningShift->id }}-{{ $planningUser->id }}-{{ $planningShift->revision }}" role="status">Fahrzeiten werden nachgeladen …</div>@endif
+                    <livewire:operations.shift-travel-panel :shift-id="$planningShift->id" :employee-ids="[$planningUser->id]" :initial-assessments="$timelineTravelInitial ?: null" :parent-managed="true" :key="'timeline-travel-'.$planningShift->id.'-'.$planningUser->id.'-'.$planningShift->revision.'-'.md5(json_encode($timelineTravelInitial))" />
+                    @if(!empty($planningAssessment['issues']))<div role="alert"><ul>@foreach($planningAssessment['issues'] as $issue)<li>{{ $issue['message'] }}</li>@endforeach</ul><button type="button" class="underline min-h-11" x-on:click="$dispatch('operations-shift-detail-request', { id: {{ $planningShift->id }} })">In Schichtdetails prüfen</button></div>@endif
+                @endif
                 <fieldset class="rt-timeline-planner__status" aria-describedby="{{ $planningStatusHintId }}" wire:loading.attr="disabled" wire:target="confirmAssignment,backToCellChoices">
                     <legend>Zuweisung</legend>
                     <div class="rt-timeline-planner__status-options">
@@ -277,7 +283,7 @@
                 </fieldset>
                 <footer class="rt-timeline-planner__footer">
                     @if($planningDate)<x-ui.buttons.button-basic type="button" mode="secondary" class="rt-timeline-planner__back" wire:click="backToCellChoices" wire:loading.attr="disabled"><i class="far fa-arrow-left" aria-hidden="true"></i> Andere Schicht</x-ui.buttons.button-basic>@endif
-                    <x-ui.buttons.button-basic type="submit" mode="primary" class="rt-timeline-planner__confirm" wire:loading.attr="disabled">
+                    <x-ui.buttons.button-basic type="submit" mode="primary" class="rt-timeline-planner__confirm" wire:loading.attr="disabled" :disabled="!empty($planningAssessment['issues'])">
                         <span wire:loading.remove wire:target="confirmAssignment">Einteilen</span>
                         <span wire:loading.inline-flex wire:target="confirmAssignment"><i class="far fa-spinner-third" aria-hidden="true"></i> Wird eingeteilt</span>
                     </x-ui.buttons.button-basic>
@@ -288,7 +294,7 @@
             <div class="rt-timeline-choices" aria-label="Offene Schichten">
             @forelse($choices as $choice)
                 <article class="rt-timeline-choice" data-fit="{{ $choice->eligible ? 'suitable' : 'blocked' }}" wire:key="timeline-choice-{{ $choice->id }}">
-                    <div class="rt-timeline-choice__main"><strong>{{ $choice->title }}</strong><span class="rt-timeline-choice__period">{{ $choice->period }}</span><small class="rt-timeline-choice__places">{{ $choice->open }} {{ $choice->open === 1 ? 'Platz frei' : 'Plätze frei' }}</small></div>
+                    <div class="rt-timeline-choice__main"><strong>{{ $choice->title }}</strong><span class="rt-timeline-choice__period">{{ $choice->period }}</span><small class="rt-timeline-choice__places">{{ $choice->open }} {{ $choice->open === 1 ? 'Platz frei' : 'Plätze frei' }}</small><span data-routing-state="{{ $choice->travel['route_state'] }}">{{ $choice->travel['route_label'] }}</span>@foreach($choice->travel['warnings'] ?? [] as $warning)<small>{{ $warning['message'] }}</small>@endforeach</div>
                     @if($choice->eligible)
                         <x-ui.buttons.button-basic type="button" size="sm" mode="secondary" class="rt-timeline-choice__select" wire:click="selectCellShift({{ $choice->id }},{{ $choice->revision }})" wire:loading.attr="disabled" aria-label="Auswählen: {{ $choice->title }}">Auswählen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
                     @else

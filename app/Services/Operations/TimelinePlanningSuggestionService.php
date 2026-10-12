@@ -9,6 +9,7 @@ use App\Models\PersonnelTrainingParticipant;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Routing\TomTomRoutingService;
 use App\Support\Operations\OperationsAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -43,7 +44,7 @@ class TimelinePlanningSuggestionService
     }
 
     /** @return Collection<int, array{shift: Shift, revision: int, eligible: bool, issues: array}> */
-    public function cellChoices(int $userId, string $date, string $from, string $until, User $actor): Collection
+    public function cellChoices(int $userId, string $date, string $from, string $until, User $actor, bool $displayOnly = false, array $stored = []): Collection
     {
         $query = $this->openShifts($from, $until, $actor);
         Validator::make(compact('date'), ['date' => 'required|date_format:Y-m-d'])->validate();
@@ -51,11 +52,14 @@ class TimelinePlanningSuggestionService
         $user = User::where('role', 'staff')->where('status', true)->findOrFail($userId);
         $day = CarbonImmutable::parse($date, config('operations.display_timezone', 'Europe/Berlin'));
 
-        return $query->during($day, $day->addDay())->limit(30)->get()->map(function (Shift $shift) use ($user): array {
-            $issues = $this->issues($shift, $user);
+        return TomTomRoutingService::withinOperation(fn () => $query->during($day, $day->addDay())->limit(30)->get()->map(function (Shift $shift) use ($user, $displayOnly, $stored): array {
+            $detail = $displayOnly ? app(PlanningTravelDisplay::class)->current($shift, collect([$user]), $stored[$shift->id] ?? [])[$user->id]
+                : app(StaffEligibilityService::class)->assessDetailedMany($shift, collect([$user]))[$user->id];
+            $detail += app(PlanningTravelDisplay::class)->status($detail);
+            $issues = array_merge($detail['issues'], $this->capacityIssues($shift, $user));
 
-            return ['shift' => $shift, 'revision' => (int) $shift->revision, 'eligible' => $issues === [], 'issues' => $issues];
-        });
+            return ['shift' => $shift, 'revision' => (int) $shift->revision, 'eligible' => $issues === [], 'issues' => $issues, 'travel' => $detail, 'warnings' => $detail['warnings']];
+        }));
     }
 
     /**
@@ -66,10 +70,16 @@ class TimelinePlanningSuggestionService
      */
     public function rankedCandidates(Shift $shift, User $actor, array $additionalByUser = []): Collection
     {
-        return $this->rank($shift, $actor, $additionalByUser);
+        return TomTomRoutingService::withinOperation(fn () => $this->rank($shift, $actor, $additionalByUser));
     }
 
-    private function rank(Shift $shift, User $actor, array $additionalByUser, ?Collection $staff = null): Collection
+    /** Immediate display projection. Its stored routes are never accepted by write guards. */
+    public function rankedCandidatesForDisplay(Shift $shift, User $actor, array $routes = []): Collection
+    {
+        return $this->rank($shift, $actor, [], null, $routes);
+    }
+
+    private function rank(Shift $shift, User $actor, array $additionalByUser, ?Collection $staff = null, ?array $displayRoutes = null): Collection
     {
         // Only preview supplies this call-local projection. Public candidate
         // actions still reload their actor and shift before fresh assessment.
@@ -91,9 +101,11 @@ class TimelinePlanningSuggestionService
         // Public ranking/selection and binding guards keep the fresh default.
         $eligibilityService = app(StaffEligibilityService::class);
         $context = ['additional_shifts_by_user' => $additionalByUser];
-        $eligibility = $staff !== null
-            ? $eligibilityService->assessPreviewCoreMany($shift, $users, $context)
-            : $eligibilityService->assessMany($shift, $users, false, $context);
+        $routeDetails = $displayRoutes !== null
+            ? app(PlanningTravelDisplay::class)->current($shift, $users, $displayRoutes, $context)
+            : ($staff === null ? $eligibilityService->assessDetailedMany($shift, $users, false, $context) : []);
+        $eligibility = $staff !== null ? $eligibilityService->assessPreviewCoreMany($shift, $users, $context)
+            : collect($routeDetails)->map(fn ($detail) => $detail['issues'])->all();
         $ranked = collect();
         $wishes = app(WorkforcePlanningService::class)->wishSummaries($shift, $users);
         $loads = $this->batchLoads($shift, $users);
@@ -106,7 +118,9 @@ class TimelinePlanningSuggestionService
             $wish = $wishes->get($user->id)['state'];
             $load = $this->projectLoad($loads[$user->id], $additional);
             $wishPriority = ['preferred' => 0, 'available' => 1, 'unknown' => 2, 'free_requested' => 3][$wish] ?? 2;
-            $reasons = ['Keine Planungskonflikte'];
+            $route = $routeDetails[$user->id] ?? ['issues' => [], 'warnings' => [], 'travel' => []];
+            $route += app(PlanningTravelDisplay::class)->status($route);
+            $reasons = [in_array($route['route_state'], ['pending', 'unknown'], true) ? 'Kernregeln geprüft · '.$route['route_label'] : 'Keine bekannten Planungskonflikte'];
             $wishLabel = ['preferred' => 'Wunschdienst', 'available' => 'Verfügbarkeit gemeldet', 'free_requested' => 'Freiwunsch vorhanden'][$wish] ?? null;
             if ($wishLabel) {
                 $reasons[] = $wishLabel;
@@ -116,6 +130,7 @@ class TimelinePlanningSuggestionService
                 $reasons[] = 'Gepflegtes Wochensoll: '.number_format($load['target_minutes'] / 60, 1, ',', '.').' h';
             }
             $ranked->push(['user' => $user, 'reasons' => $reasons, 'wish' => $wish,
+                'travel' => $route, 'warnings' => $route['warnings'] ?? [],
                 'planned_minutes' => $load['planned_minutes'], 'target_minutes' => $load['target_minutes'],
                 '_wish_priority' => $wishPriority,
                 '_load_ratio' => $load['target_minutes'] > 0 ? $load['planned_minutes'] / $load['target_minutes'] : null]);
@@ -130,8 +145,10 @@ class TimelinePlanningSuggestionService
     {
         // A single comparable basis avoids fabricated targets and a non-transitive mixed ratio/minutes sort.
         $useRatios = $ranked->isNotEmpty() && $ranked->every(fn (array $candidate) => $candidate['_load_ratio'] !== null);
+        $cohortKey = fn (array $candidate) => json_encode([$candidate['_wish_priority'], $useRatios ? $candidate['_load_ratio'] : null, $candidate['planned_minutes']]);
+        $knownCohorts = $ranked->groupBy($cohortKey)->map(fn (Collection $cohort) => $cohort->every(fn ($candidate) => ($candidate['travel']['planned_duration_seconds'] ?? null) !== null));
 
-        return $ranked->sort(function (array $left, array $right) use ($useRatios): int {
+        return $ranked->sort(function (array $left, array $right) use ($useRatios, $cohortKey, $knownCohorts): int {
             $wish = $left['_wish_priority'] <=> $right['_wish_priority'];
             if ($wish !== 0) {
                 return $wish;
@@ -144,6 +161,7 @@ class TimelinePlanningSuggestionService
             }
 
             return ($left['planned_minutes'] <=> $right['planned_minutes'])
+                ?: (($knownCohorts[$cohortKey($left)] ?? false) ? (($left['travel']['planned_duration_seconds'] ?? 0) <=> ($right['travel']['planned_duration_seconds'] ?? 0)) : 0)
                 ?: strnatcasecmp($left['user']->name, $right['user']->name)
                 ?: ($left['user']->id <=> $right['user']->id);
         })->values();
@@ -162,9 +180,9 @@ class TimelinePlanningSuggestionService
             // Routing can remove the last unknown/zero target and thereby
             // change the native comparator from minutes to ratios. Inspect all
             // candidates in this case, then recompute the comparator exactly.
-            $issues = $eligibility->assessPreviewRoutesMany($shift, $ranked->pluck('user'), $context);
+            $details = $eligibility->assessDetailedMany($shift, $ranked->pluck('user'), false, $context, true);
 
-            return $this->sortCandidates($ranked->filter(fn (array $candidate) => ($issues[$candidate['user']->id] ?? []) === []));
+            return $this->sortCandidates($this->routeCandidates($ranked, $details));
         }
         $ranked = $this->sortCandidates($ranked);
         $needed = min(self::MAX_SLOTS, max(0, $shift->required_staff - (int) $shift->reserved_count));
@@ -176,15 +194,34 @@ class TimelinePlanningSuggestionService
             $size = min(3, $needed - $selected->count() + 1);
             $batch = $ranked->slice($offset, $size);
             $offset += $batch->count();
-            $issues = $eligibility->assessPreviewRoutesMany($shift, $batch->pluck('user'), $context);
-            $selected = $selected->concat($batch->filter(fn (array $candidate) => ($issues[$candidate['user']->id] ?? []) === []));
+            $details = $eligibility->assessDetailedMany($shift, $batch->pluck('user'), false, $context, true);
+            $selected = $selected->concat($this->routeCandidates($batch, $details));
         }
 
         return $selected->take($needed)->values();
     }
 
+    private function routeCandidates(Collection $candidates, array $details): Collection
+    {
+        return $candidates->filter(fn ($candidate) => isset($details[$candidate['user']->id]) && $details[$candidate['user']->id]['issues'] === [])
+            ->map(function ($candidate) use ($details) {
+                $detail = $details[$candidate['user']->id];
+                $detail += app(PlanningTravelDisplay::class)->status($detail);
+                $candidate['travel'] = $detail;
+                $candidate['warnings'] = $detail['warnings'];
+                $candidate['reasons'][0] = in_array($detail['route_state'], ['pending', 'unknown'], true) ? 'Kernregeln geprüft · '.$detail['route_label'] : 'Keine bekannten Planungskonflikte';
+
+                return $candidate;
+            });
+    }
+
     /** @return array{proposals: Collection, open_total: int, limited: bool} */
     public function preview(string $from, string $until, User $actor): array
+    {
+        return TomTomRoutingService::withinOperation(fn () => $this->preparedPreview($from, $until, $actor));
+    }
+
+    private function preparedPreview(string $from, string $until, User $actor): array
     {
         $query = $this->openShifts($from, $until, $actor);
         $total = (clone $query)->count();
@@ -206,7 +243,7 @@ class TimelinePlanningSuggestionService
                 $hoursUntilStart = CarbonImmutable::now('UTC')->diffInHours($shift->starts_at, false);
                 $urgency = $hoursUntilStart <= 24 ? 'urgent' : ($hoursUntilStart <= 72 ? 'soon' : 'normal');
                 $proposals->push(['shift' => $shift, 'user' => $candidate['user'], 'revision' => (int) $shift->revision, 'reasons' => $candidate['reasons'],
-                    'fit' => $fit, 'fit_label' => ['preferred' => 'Passend mit Dienstwunsch / Verfügbarkeit', 'suitable' => 'Konfliktfreie Alternative', 'review' => 'Freiwunsch prüfen'][$fit],
+                    'fit' => $fit, 'fit_label' => in_array($candidate['travel']['route_state'], ['pending', 'unknown'], true) ? 'Fahrt ungeprüft · vorläufiger Vorschlag' : ['preferred' => 'Passend mit Dienstwunsch / Verfügbarkeit', 'suitable' => 'Keine bekannten Konflikte', 'review' => 'Freiwunsch prüfen'][$fit],
                     'urgency' => $urgency, 'urgency_label' => ['urgent' => 'Beginn innerhalb von 24 Stunden', 'soon' => 'Beginn innerhalb von 72 Stunden', 'normal' => 'Beginn in mehr als 72 Stunden'][$urgency]]);
                 $additionalByUser[$candidate['user']->id][] = $shift;
             }

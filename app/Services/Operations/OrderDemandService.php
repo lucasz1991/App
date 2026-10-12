@@ -9,10 +9,12 @@ use App\Models\QualificationType;
 use App\Models\Shift;
 use App\Models\User;
 use App\Models\WorkforcePool;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsActor;
 use App\Support\Operations\OperationsAutomationActor;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
+use App\Support\Operations\PlanningLocks;
 use App\Support\Operations\PlanningSchema;
 use App\Support\Operations\WorkforcePlanningSchema;
 use Carbon\CarbonImmutable;
@@ -35,9 +37,12 @@ class OrderDemandService
         }
         $data = Validator::make($data, $rules)->validate();
         [$start, $end] = OperationsDateTime::interval($data['starts_at'], $data['ends_at'], $data['timezone']);
+        $initialShifts = $id && $extended ? Shift::where('order_demand_id', $id)->where('order_id', $orderId)->notCancelled()->get() : collect();
+        $travel = app(TravelAssessmentService::class)->preflightForAssignedShifts($initialShifts);
 
-        return OperationsTransaction::run(function () use ($orderId, $id, $revision, $data, $start, $end, $actor, $extended) {
+        return OperationsTransaction::run(function () use ($orderId, $id, $revision, $data, $start, $end, $actor, $extended, $initialShifts, $travel) {
             $this->access($actor, 'demand.save');
+            PlanningLocks::acquire($initialShifts->pluck('id')->all(), [], [$orderId]);
             $order = Order::lockForUpdate()->findOrFail($orderId);
             $this->check($order->status->value !== 'cancelled' && $start->gte($order->starts_at) && $end->lte($order->ends_at), 'Bedarf muss in einem aktiven Auftragszeitraum liegen.');
             $demand = $id ? OrderDemand::where('order_id', $orderId)->lockForUpdate()->findOrFail($id) : new OrderDemand;
@@ -61,7 +66,7 @@ class OrderDemandService
                 $this->check($demand->maximum_staff === null || $this->coverage($demand)['peak_planned'] <= $demand->maximum_staff, 'Bereits geplante Einsatzplätze überschreiten den Höchstbedarf.');
                 foreach ($demand->shifts()->notCancelled()->with('assignments.user')->get() as $shift) {
                     foreach ($shift->assignments->filter(fn ($a) => $a->status->blocksAvailability()) as $assignment) {
-                        app(StaffEligibilityService::class)->assertEligible($shift, $assignment->user);
+                        app(StaffEligibilityService::class)->assertEligible($shift, $assignment->user, ['travel_preflight' => $travel[$shift->id] ?? null]);
                     }
                 }
             }

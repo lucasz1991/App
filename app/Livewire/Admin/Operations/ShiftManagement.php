@@ -15,6 +15,7 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\PlanChangeService;
 use App\Services\Operations\PlanningCapacityService;
+use App\Services\Operations\PlanningTravelDisplay;
 use App\Services\Operations\PlanPublicationService;
 use App\Services\Operations\ShiftAssignmentExceptionService;
 use App\Services\Operations\ShiftAssignmentService;
@@ -46,6 +47,8 @@ use Livewire\WithPagination;
 class ShiftManagement extends Component
 {
     use SupportsOperationsUi;
+    use SupportsServiceTableSelection;
+    use SupportsPlanningTravel;
     use SupportsShiftStaffing;
     use WithPagination;
 
@@ -64,6 +67,26 @@ class ShiftManagement extends Component
     public string $serviceSortDir = 'asc';
 
     public int $servicePerPage = 50;
+
+    protected function serviceSelectionAvailable(): bool
+    {
+        return $this->viewMode === 'orders';
+    }
+
+    protected function serviceSelectionState(): array
+    {
+        return [$this->viewMode, $this->customerFilter, $this->orderFilter, $this->search, $this->statusFilter,
+            $this->attentionFilter, $this->rangeFrom, $this->rangeTo, $this->servicePerPage,
+            $this->serviceSortBy, $this->serviceSortDir, $this->getPage('servicesPage')];
+    }
+
+    protected function selectableServiceRowIds(array $candidateIds): array
+    {
+        [$from, $to] = $this->resolvedRange();
+
+        return $this->filteredServiceShifts($from, $to)->whereIn('order_id', $candidateIds)
+            ->distinct()->pluck('order_id')->all();
+    }
 
     public function updatedServicePerPage(): void
     {
@@ -710,14 +733,9 @@ class ShiftManagement extends Component
         }
     }
 
-    public function render()
+    private function filteredServiceShifts(Carbon $from, Carbon $to): Builder
     {
-        $this->ensureAdmin();
-
-        [$from, $to] = $this->resolvedRange();
-
-        $shiftQuery = $this->customerShifts()
-            ->with(['order.customer', 'assignments.user.profile', 'assignments.user.currentTeam'])
+        return $this->customerShifts()
             ->where('ends_at', '>', $from->copy()->utc())
             ->where('starts_at', '<=', $to->copy()->utc())
             ->when($this->orderFilter !== 'all', fn (Builder $query) => $query->where('order_id', (int) $this->orderFilter))
@@ -733,6 +751,15 @@ class ShiftManagement extends Component
                         ->orWhere('order_number', 'like', $term)
                         ->orWhereHas('customer', fn (Builder $customer) => $customer->where('company_name', 'like', $term))));
             });
+    }
+
+    public function render()
+    {
+        $this->ensureAdmin();
+
+        [$from, $to] = $this->resolvedRange();
+        $shiftQuery = $this->filteredServiceShifts($from, $to)
+            ->with(['order.customer', 'assignments.user.profile', 'assignments.user.currentTeam']);
 
         if (in_array($this->viewMode, ['table', 'orders'], true) && $this->sortBy !== 'staffing') {
             $sortColumn = match ($this->sortBy) {
@@ -768,9 +795,11 @@ class ShiftManagement extends Component
         $native = OperationsAccess::ready();
         foreach ($shifts as $shift) {
             $active = $shift->assignments->filter(fn ($assignment) => $assignment->status->blocksAvailability());
-            $issues = $native && ! in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true)
-                ? app(StaffEligibilityService::class)->assessMany($shift, $active->pluck('user')->filter()) : [];
+            $details = $native && ! in_array($shift->status, [ShiftStatus::Cancelled, ShiftStatus::Completed], true)
+                ? app(PlanningTravelDisplay::class)->current($shift, $active->pluck('user')->filter(), $this->planningTravel[$shift->id] ?? []) : [];
+            $issues = collect($details)->map(fn ($detail) => $detail['issues'])->all();
             $shift->setAttribute('planning_conflict_count', collect($issues)->filter(fn ($reasons) => $reasons !== [])->count());
+            $shift->setAttribute('planning_route_unchecked_count', collect($details)->filter(fn ($detail) => in_array($detail['route_state'], ['pending', 'unknown'], true))->count());
             $shift->setAttribute('feedback_pending', $shift->assignments->filter(fn ($a) => $a->status === ShiftAssignmentStatus::Requested && $a->plan_revision > 0 && $a->plan_revision === $shift->published_revision)->count());
             $shift->setAttribute('feedback_declined', $shift->assignments->filter(fn ($a) => $a->status === ShiftAssignmentStatus::Declined && $a->plan_revision > 0 && $a->plan_revision === $shift->published_revision)->count());
         }
@@ -817,22 +846,21 @@ class ShiftManagement extends Component
 
         $summary = $this->staffingSummary($shifts);
         $rankedCandidates = $native && $this->detailOpen && $this->candidatesReady && $selectedShift
-            ? app(ShiftStaffingCandidates::class)->ranked($selectedShift, [
-                'search' => $this->candidateSearch, 'qualification_id' => $this->candidateQualification,
-                'pool_id' => $this->candidatePool, 'suitability' => $this->candidateSuitability, 'region' => $this->candidateRegion,
-            ]) : collect();
+            ? app(ShiftStaffingCandidates::class)->ranked($selectedShift, $this->staffingFilters(), $this->planningTravel[$selectedShift->id] ?? []) : collect();
         $candidates = $rankedCandidates->take($this->candidateLimit)->values();
         if ($candidates->isNotEmpty()) {
             (new \Illuminate\Database\Eloquent\Collection($candidates->all()))->load(['profile', 'currentTeam']);
         }
-        $assignmentIssues = $native && $this->detailOpen && $selectedShift
-            ? app(StaffEligibilityService::class)->assessMany($selectedShift, $selectedShift->assignments->filter(fn ($a) => $a->status->blocksAvailability())->pluck('user')->filter()) : [];
+        $assignmentTravel = $native && $this->detailOpen && $selectedShift
+            ? app(PlanningTravelDisplay::class)->current($selectedShift, $selectedShift->assignments->filter(fn ($a) => $a->status->blocksAvailability())->pluck('user')->filter(), $this->planningTravel[$selectedShift->id] ?? []) : [];
+        $assignmentIssues = collect($assignmentTravel)->map(fn ($detail) => $detail['issues'])->all();
         $openings = $native && $this->detailOpen && $selectedShift ? app(PlanChangeService::class)->openings($selectedShift->assignments, (int) $selectedShift->published_revision) : collect();
         $exceptionAudits = $native && $this->detailOpen && $selectedShift ? OperationAudit::with('actor')
             ->where('subject_type', 'ShiftAssignment')->whereIn('subject_id', $selectedShift->assignments->pluck('id'))
             ->where('action', 'assignment.temporal_exception')->orderByDesc('id')->get()->groupBy('subject_id')->map->first() : collect();
-        $feedback = $native && $this->detailOpen && $selectedShift ? $selectedShift->assignments->whereIn('status', [ShiftAssignmentStatus::Requested, ShiftAssignmentStatus::Confirmed, ShiftAssignmentStatus::Declined])->map(function ($assignment) use ($selectedShift, $assignmentIssues, $openings, $exceptionAudits) {
+        $feedback = $native && $this->detailOpen && $selectedShift ? $selectedShift->assignments->whereIn('status', [ShiftAssignmentStatus::Requested, ShiftAssignmentStatus::Confirmed, ShiftAssignmentStatus::Declined])->map(function ($assignment) use ($selectedShift, $assignmentIssues, $assignmentTravel, $openings, $exceptionAudits) {
             $assignment->setAttribute('planning_issues', $assignmentIssues[$assignment->user_id] ?? []);
+            $assignment->setAttribute('planning_travel', $assignmentTravel[$assignment->user_id] ?? []);
             $assignment->setAttribute('exception_review', $exceptionAudits->get($assignment->id));
             $opened = $assignment->plan_revision > 0 && $assignment->plan_revision === $selectedShift->published_revision ? $openings->get($assignment->id) : null;
             $assignment->setAttribute('plan_opened_at', $opened ? CarbonImmutable::parse($opened->getRawOriginal('created_at'), 'UTC') : null);
@@ -891,12 +919,13 @@ class ShiftManagement extends Component
             $orderGroups->forPage($servicePage, $servicePerPage), $orderGroups->count(), $servicePerPage, $servicePage,
             ['pageName' => 'servicesPage', 'path' => request()->url()],
         );
+        $this->syncServiceTableSelection($serviceGroups->getCollection()->map(fn ($group) => $group['items']->first()->order_id)->all());
 
         $distributionShift = $this->distributionOpen && $this->distributionShiftId
             ? Shift::query()->with('order.customer')->withCount(['assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues())])->find($this->distributionShiftId)
             : null;
         $distributionCandidates = $distributionShift && $native
-            ? app(TimelinePlanningSuggestionService::class)->rankedCandidates($distributionShift, auth()->user())->take(6)->values()
+            ? app(TimelinePlanningSuggestionService::class)->rankedCandidatesForDisplay($distributionShift, auth()->user(), $this->planningTravel[$distributionShift->id] ?? [])->take(6)->values()
             : collect();
 
         return view('livewire.admin.operations.shift-management', [

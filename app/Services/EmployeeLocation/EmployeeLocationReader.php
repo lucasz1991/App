@@ -92,9 +92,16 @@ class EmployeeLocationReader
 
         // An explicitly permitted visible-app point is independent of work time and native pairing.
         // It remains advisory: planning/qualification eligibility never depends on having one.
-        foreach (app(BrowserLocationService::class)->latestForMany($allowed) as $id => $browser) {
+        foreach (app(BrowserLocationService::class)->latestDetailedForMany($allowed) as $id => $browser) {
             $existing = $result[$id]['point'] ?? null;
-            if (! $existing || CarbonImmutable::parse($browser['point']['measured_at'])->gt(CarbonImmutable::parse($existing['measured_at']))) {
+            if (in_array($result[$id]['status'], ['inactive', 'unauthorized'], true)) {
+                continue;
+            }
+            if ($browser['status'] === 'available') {
+                if (! $existing || CarbonImmutable::parse($browser['point']['measured_at'])->gt(CarbonImmutable::parse($existing['measured_at']))) {
+                    $result[$id] = $browser;
+                }
+            } elseif (! $existing && (! $installations->has($id) || ! in_array($browser['status'], ['consent_missing', 'disabled'], true))) {
                 $result[$id] = $browser;
             }
         }

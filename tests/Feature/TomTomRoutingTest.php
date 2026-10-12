@@ -493,7 +493,8 @@ class TomTomRoutingTest extends TestCase
             $this->assertStringContainsString('Konflikte', $exception->getMessage());
         }
         $this->assertSame(0, ShiftAssignment::count());
-        Http::assertSentCount(2);
+        // Both virtual neighbours use the same directed leg in this operation.
+        Http::assertSentCount(1);
     }
 
     public function test_terminal_capture_checks_route_outside_locks_and_keeps_receipt_without_provider_metrics(): void

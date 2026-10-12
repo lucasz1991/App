@@ -83,31 +83,66 @@ class BrowserLocationService
     /** Internal batched reader. Caller supplies only personnel IDs it has already authorized. */
     public function latestForMany(Collection $allowedIds): array
     {
+        return array_filter($this->latestDetailedForMany($allowedIds), fn (array $result): bool => $result['status'] === 'available');
+    }
+
+    /** Unavailable results never expose coordinates, including expired encrypted points. */
+    public function latestDetailedForMany(Collection $allowedIds): array
+    {
+        $unavailable = static fn (string $status, string $reason): array => ['status' => $status, 'reason' => $reason, 'point' => null];
         $settings = EmployeeLocationSettings::read();
-        if (! $this->ready() || ! $settings['enabled'] || (int) $settings['explanation_version'] < 3 || $allowedIds->isEmpty()) {
+        if (! $this->ready() || ! $settings['enabled'] || (int) $settings['explanation_version'] < 3) {
+            return $allowedIds->mapWithKeys(fn ($id) => [$id => $unavailable('disabled', 'App-Standorte sind deaktiviert.')])->all();
+        }
+        if ($allowedIds->isEmpty()) {
             return [];
         }
-        $points = BrowserLocationPoint::whereIn('user_id', $allowedIds)->where('measured_at', '>', $this->now()->subMinutes(15)->format('Y-m-d H:i:s.u'))
-            ->where('measured_at', '<=', $this->now()->addSeconds(5)->format('Y-m-d H:i:s.u'))->whereBetween('accuracy_m', [0, 50])->latest('measured_at')->orderByDesc('id')->get();
-        $grants = SessionPermissionGrant::whereIn('id', $points->pluck('session_permission_grant_id')->unique())->get()->keyBy('id');
+        $now = $this->now();
+        $result = $allowedIds->mapWithKeys(fn ($id) => [$id => $unavailable('consent_missing', 'Aktuelle Standortfreigabe für eine aktive Anmeldung fehlt.')])->all();
+        $grants = SessionPermissionGrant::whereIn('user_id', $allowedIds)->where('location_decision', 'accepted')
+            ->whereNull('ended_at')->where('expires_at', '>', $now)->get()->keyBy('id');
         $active = app(SessionPermissionService::class)->activeMany($grants, 'location');
-        $result = [];
+        $grants = $grants->filter(fn ($grant) => $active[$grant->id] ?? false);
+        foreach ($grants as $grant) {
+            $result[$grant->user_id] = $unavailable('no_point', 'Freigabe vorhanden; noch kein geeigneter App-Standort empfangen.');
+        }
+        $points = BrowserLocationPoint::whereIn('session_permission_grant_id', $grants->keys())->whereIn('user_id', $allowedIds)
+            ->latest('measured_at')->orderByDesc('id')->get();
+        $diagnosed = [];
         foreach ($points as $point) {
             $grant = $grants->get($point->session_permission_grant_id);
-            if (isset($result[$point->user_id]) || ! $grant || $grant->user_id !== $point->user_id || ! ($active[$grant->id] ?? false)
+            if (($result[$point->user_id]['status'] ?? null) === 'available' || ! $grant || $grant->user_id !== $point->user_id
                 || ! $grant->location_decided_at || $point->measured_at->lt($grant->location_decided_at)) {
                 continue;
             }
-            try {
-                $position = $point->position;
-                if (! is_array($position) || ! isset($position['latitude'], $position['longitude'])
-                    || ! is_numeric($position['latitude']) || ! is_numeric($position['longitude'])
-                    || ! is_finite((float) $position['latitude']) || ! is_finite((float) $position['longitude'])
-                    || abs((float) $position['latitude']) > 90 || abs((float) $position['longitude']) > 180) {
-                    continue;
+            $failure = null;
+            if ($point->measured_at->lte($now->subMinutes(15))) {
+                $failure = $unavailable('stale', 'Letzter App-Standort ist mindestens 15 Minuten alt.');
+            } elseif ($point->measured_at->gt($now->addSeconds(5))) {
+                $failure = $unavailable('invalid_point', 'Messzeit des letzten App-Standorts ist ungültig.');
+            } elseif ($point->accuracy_m < 0 || $point->accuracy_m > 50) {
+                $failure = $unavailable('inaccurate', 'Letzter App-Standort ist nicht präzise genug (höchstens 50 Meter).');
+            }
+            $position = null;
+            if ($failure === null) {
+                try {
+                    $position = $point->position;
+                    if (! is_array($position) || ! isset($position['latitude'], $position['longitude'])
+                        || ! is_numeric($position['latitude']) || ! is_numeric($position['longitude'])
+                        || ! is_finite((float) $position['latitude']) || ! is_finite((float) $position['longitude'])
+                        || abs((float) $position['latitude']) > 90 || abs((float) $position['longitude']) > 180) {
+                        $failure = $unavailable('invalid_point', 'Letzter App-Standort ist nicht verwendbar.');
+                    }
+                } catch (\Throwable) {
+                    $failure = $unavailable('invalid_point', 'Letzter App-Standort ist nicht verwendbar.');
                 }
-            } catch (\Throwable) {
-                // Corrupt encrypted coordinates are unavailable, never logged or silently fabricated.
+            }
+            if ($failure !== null) {
+                if (! isset($diagnosed[$point->user_id])) {
+                    $result[$point->user_id] = $failure;
+                    $diagnosed[$point->user_id] = true;
+                }
+
                 continue;
             }
             $result[$point->user_id] = ['status' => 'available', 'reason' => null, 'point' => [

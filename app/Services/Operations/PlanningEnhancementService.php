@@ -151,8 +151,9 @@ class PlanningEnhancementService
     {
         $this->access($actor);
         Validator::make(compact('scope'), ['scope' => 'required|string|max:120'])->validate();
+        $travel = app(TravelAssessmentService::class)->preflightForAssignedShifts(Shift::whereKey($shiftId)->get(), [], true);
 
-        return OperationsTransaction::run(function () use ($shiftId, $shiftRevision, $bundleId, $bundleRevision, $scope, $actor) {
+        return OperationsTransaction::run(function () use ($shiftId, $shiftRevision, $bundleId, $bundleRevision, $scope, $actor, $travel) {
             $this->access($actor);
             PlanningLocks::acquire([$shiftId]);
             $shift = Shift::findOrFail($shiftId);
@@ -165,7 +166,7 @@ class PlanningEnhancementService
             $shift->qualifications()->syncWithoutDetaching(collect($bundle->requirements)->where('mandatory', true)->pluck('id')->all());
             $shift->forceFill(['revision' => $shiftRevision + 1])->save();
             foreach ($shift->assignments()->blocking()->with('user')->get() as $assignment) {
-                app(StaffEligibilityService::class)->assertEligible($shift, $assignment->user);
+                app(StaffEligibilityService::class)->assertEligible($shift, $assignment->user, ['travel_preflight' => $travel[$shift->id] ?? null]);
             }
             app(OperationsAuditService::class)->record($snapshot, $actor, 'bundle.snapshot.attached');
 
@@ -266,8 +267,9 @@ class PlanningEnhancementService
     {
         $this->access($actor);
         $data = Validator::make($data, ['predecessor_id' => 'required|integer|different:successor_id|exists:shifts,id', 'successor_id' => 'required|integer|exists:shifts,id', 'predecessor_revision' => 'required|integer', 'successor_revision' => 'required|integer', 'handover_location' => 'required|string|max:160', 'transfer_minutes' => 'required|integer|min:0|max:10080', 'train_code' => 'nullable|string|max:120', 'vehicle_code' => 'nullable|string|max:120', 'same_employee' => 'required|boolean'])->validate();
+        $travel = app(TravelAssessmentService::class)->preflightForAssignedShifts(Shift::whereKey([$data['predecessor_id'], $data['successor_id']])->get());
 
-        return OperationsTransaction::run(function () use ($data, $actor) {
+        return OperationsTransaction::run(function () use ($data, $actor, $travel) {
             $this->access($actor);
             $shifts = PlanningLocks::acquire([$data['predecessor_id'], $data['successor_id']]);
             foreach (['predecessor', 'successor'] as $key) {
@@ -281,8 +283,12 @@ class PlanningEnhancementService
             foreach ([$a, $b] as $s) {
                 $this->check($this->scheduleIssues($s) === [], 'Dienstkette verletzt Ressourcen-/Übergaberegeln.');
                 foreach ($s->assignments()->blocking()->with('user')->get() as $assignment) {
-                    app(StaffEligibilityService::class)->assertEligible($s, $assignment->user);
+                    app(StaffEligibilityService::class)->assertEligible($s, $assignment->user, ['travel_preflight' => $travel[$s->id] ?? null]);
                 }
+            }
+            // Validate both route bases before our own revision bumps change
+            // the neighbour snapshot of the second duty.
+            foreach ([$a, $b] as $s) {
                 $s->forceFill(['revision' => $s->revision + 1])->save();
             }
             app(OperationsAuditService::class)->record($dependency, $actor, 'dependency.created');

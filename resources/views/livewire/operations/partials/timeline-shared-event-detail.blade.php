@@ -111,6 +111,7 @@
                 </section>
             </div>
             <footer class="rt-personnel-timeline-detail-footer">
+                @if($planningEnabled && !$absencesOnly)<x-ui.buttons.button-basic type="button" x-show="detail.shiftId" x-on:click="$dispatch('operations-shift-detail-request', { id: detail.shiftId }); close()">Fahrten & Besetzung prüfen</x-ui.buttons.button-basic>@endif
                 <x-ui.buttons.button-basic type="button" mode="primary" x-show="detail.shiftId" x-on:click="$dispatch('operations-shift-detail-request', { id: detail.shiftId }); close()" x-bind:data-shift-detail-open="detail.shiftId">Schicht öffnen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
                 <x-ui.buttons.button-basic type="button" mode="primary" x-show="!detail.shiftId && detail.absenceId" x-on:click="$dispatch('operations-open-absence', { id: detail.absenceId }); close()">Abwesenheit öffnen <i class="far fa-arrow-right" aria-hidden="true"></i></x-ui.buttons.button-basic>
             </footer>

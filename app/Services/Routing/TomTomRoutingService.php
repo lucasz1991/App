@@ -14,7 +14,25 @@ use Throwable;
 
 class TomTomRoutingService
 {
+    /** Only alive during one explicit planning operation, including nested services. */
+    private static ?array $operation = null;
+
     public function __construct(private readonly float $durationBudgetSeconds = 9.0) {}
+
+    public static function withinOperation(callable $callback, float $seconds = 9.0): mixed
+    {
+        if (self::$operation !== null) {
+            return $callback();
+        }
+        self::$operation = ['deadline' => microtime(true) + min(10.0, max(0.01, $seconds)), 'results' => []];
+        try {
+            return $callback();
+        } finally {
+            // No route facts survive this operation, even with long-lived workers
+            // or exceptions. Display and binding phases have separate identities.
+            self::$operation = null;
+        }
+    }
 
     public function summaryMany(array $requests): array
     {
@@ -79,7 +97,19 @@ class TomTomRoutingService
             return $this->fetchTile($url, $query, $identity, $apiKey, $cache);
         };
 
-        return $this->cacheEnabled('tile', $configuration['settings']) ? $cache->synchronized('tile', $identity, $load) : $load();
+        return $this->cacheEnabled('tile', $configuration['settings'])
+            ? $cache->synchronized('tile', $identity, $load, function () use ($cache, $identity, $apiKey): array {
+                $configuration = TomTomSettings::serverConfiguration();
+                if (($reason = $this->unavailable(false, $configuration)) !== null || $apiKey !== $configuration['api_key']) {
+                    return self::unknown($reason ?? 'settings_changed');
+                }
+
+                $cached = $this->cached('tile', $identity, $cache, $configuration['settings']);
+                $fresh = TomTomSettings::serverConfiguration();
+
+                return ($reason = $this->unavailable(false, $fresh)) !== null || $apiKey !== $fresh['api_key'] || ! $this->cacheEnabled('tile', $fresh['settings'])
+                    ? self::unknown($reason ?? 'settings_changed') : ($cached ?? self::unknown('calculation_pending'));
+            }) : $load();
     }
 
     private function fetchTile(string $url, array $query, string $identity, string $apiKey, ServerRoutingCache $cache): array
@@ -113,6 +143,9 @@ class TomTomRoutingService
     private function calculateMany(array $requests, bool $geometry, bool $test = false, bool $display = false): array
     {
         $deadline = microtime(true) + min(10.0, max(0.01, $this->durationBudgetSeconds));
+        if (self::$operation !== null) {
+            $deadline = min($deadline, self::$operation['deadline']);
+        }
         $results = [];
         $unique = [];
         $links = [];
@@ -143,8 +176,21 @@ class TomTomRoutingService
             $unique[$key]['identity'] = $this->cacheIdentity($unique[$key]['url'], $unique[$key]['query']);
         }
         $calculated = [];
+        $operationKeys = [];
+        $pending = $unique;
+        if (self::$operation !== null && ! $test) {
+            $generation = $display && $this->cacheEnabled($kind, $configuration['settings']) ? $cache->generation() : null;
+            $policy = hash('sha256', json_encode([$display, $configuration['settings'], $generation], JSON_THROW_ON_ERROR));
+            foreach ($unique as $key => $request) {
+                $operationKeys[$key] = $policy.':'.$request['identity'];
+                if (isset(self::$operation['results'][$operationKeys[$key]])) {
+                    $calculated[$key] = self::$operation['results'][$operationKeys[$key]];
+                    unset($pending[$key]);
+                }
+            }
+        }
         // Three simultaneous requests bound provider pressure and response memory.
-        foreach (array_chunk($unique, 3, true) as $chunk) {
+        foreach (array_chunk($pending, 3, true) as $chunk) {
             $produce = function () use ($chunk, $display, $kind, $deadline, $test, $geometry, $apiKey, $cache, &$calculated): void {
                 $configuration = TomTomSettings::serverConfiguration();
                 if (($reason = $this->unavailable($test, $configuration)) !== null || $apiKey !== $configuration['api_key']) {
@@ -220,14 +266,27 @@ class TomTomRoutingService
                     }
                 }
             };
-            if ($display && $this->cacheEnabled($kind, $configuration['settings'])) {
-                $cache->synchronizedMany($kind, array_column($chunk, 'identity'), $produce);
+            if ($display && microtime(true) < $deadline && $this->cacheEnabled($kind, $configuration['settings'])) {
+                $cache->synchronizedMany($kind, array_column($chunk, 'identity'), $produce, function () use ($chunk, $kind, $cache, &$calculated): void {
+                    $settings = TomTomSettings::all();
+                    foreach ($chunk as $key => $request) {
+                        $calculated[$key] = $this->cached($kind, $request['identity'], $cache, $settings) ?? self::unknown('calculation_pending');
+                    }
+                });
             } else {
                 $produce();
             }
         }
         $fresh = $unique === [] ? $configuration : TomTomSettings::serverConfiguration();
         $reason = $unique === [] ? $unavailable : $this->unavailable($test, $fresh);
+        if (self::$operation !== null && ! $test && $reason === null && $apiKey === $fresh['api_key']) {
+            foreach ($operationKeys as $key => $operationKey) {
+                $value = $calculated[$key] ?? null;
+                if ($value !== null && ($value['reason'] ?? null) !== 'calculation_pending' && count(self::$operation['results']) < 6000) {
+                    self::$operation['results'][$operationKey] = $value;
+                }
+            }
+        }
         foreach ($links as $id => $key) {
             $result = $calculated[$key] ?? self::unknown('provider_unavailable');
             $results[$id] = $reason !== null || $apiKey !== $fresh['api_key'] || (($result['cache_hit'] ?? false) && ! $this->cacheEnabled($kind, $fresh['settings']))

@@ -9,6 +9,8 @@
         <div class="rt-staffing-fit" data-fit="{{ $item->staffing_state }}">
             <div class="rt-staffing-fit__heading"><strong>{{ $item->staffing_score }}<small>/100</small></strong><span>{{ $item->staffing_label }}</span></div>
             <span class="rt-staffing-fit__track" aria-hidden="true"><span style="width:{{ (int) $item->staffing_score }}%"></span></span>
+            <span class="rt-table-meta" data-routing-state="{{ $item->planning_travel['route_state'] ?? 'pending' }}">{{ $item->planning_travel['route_label'] ?? 'Fahrt noch nicht geprüft' }}@if(($item->planning_travel['planned_duration_seconds'] ?? null) !== null && !empty($item->planning_travel['travel'])) · {{ (int) ceil($item->planning_travel['planned_duration_seconds'] / 60) }} min gesamt @endif</span>
+            @foreach($item->planning_warnings ?? [] as $warning)<span class="rt-table-meta text-amber-700 dark:text-amber-300">{{ $warning['message'] }}</span>@endforeach
             <details class="rt-staffing-reasons"><summary>Gründe anzeigen</summary><ul>@foreach($item->staffing_reasons as $reason)<li>{{ $reason }}</li>@endforeach</ul></details>
         </div>
     @else

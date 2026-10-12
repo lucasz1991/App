@@ -158,19 +158,20 @@ final class ServerRoutingCache
     }
 
     /** Consumers recheck get() inside this callback before making a provider request. */
-    public function synchronized(string $kind, string $identity, Closure $callback): mixed
+    public function synchronized(string $kind, string $identity, Closure $callback, ?Closure $onContention = null): mixed
     {
-        return $this->synchronizedMany($kind, [$identity], $callback);
+        return $this->synchronizedMany($kind, [$identity], $callback, $onContention);
     }
 
     /** Sorted stripe acquisition protects overlapping provider batches without deadlocks. */
-    public function synchronizedMany(string $kind, array $identities, Closure $callback): mixed
+    public function synchronizedMany(string $kind, array $identities, Closure $callback, ?Closure $onContention = null): mixed
     {
         if (DB::transactionLevel() > 0) {
             throw new LogicException('Routing cache producers require an outside-transaction preflight.');
         }
         $locks = [];
         $generation = null;
+        $contended = false;
         try {
             $settings = TomTomSettings::all();
             $root = $this->enabled($kind, $settings) ? $this->root(true) : null;
@@ -189,6 +190,7 @@ final class ServerRoutingCache
                     $handle = $this->acquire($root.'/stripe-'.str_pad((string) $stripe, 2, '0', STR_PAD_LEFT).'.lock', $deadline);
                     if ($handle === null) {
                         $this->release($locks);
+                        $contended = true;
                         break;
                     }
                     $locks[] = $handle;
@@ -197,6 +199,11 @@ final class ServerRoutingCache
             }
         } catch (Throwable) {
             $this->release($locks);
+        }
+        if ($contended && $onContention !== null) {
+            // A second reader may reuse the completed entry, but must not start
+            // another paid request while its producer still owns this stripe.
+            return $onContention();
         }
         $this->producerGenerations[] = $generation;
         try {

@@ -8,6 +8,7 @@ use App\Models\OperationsRuleProfile;
 use App\Models\QualificationType;
 use App\Models\ShiftAssignment;
 use App\Models\User;
+use App\Services\Routing\TravelAssessmentService;
 use App\Support\Operations\OperationsAccess;
 use App\Support\Operations\OperationsDateTime;
 use App\Support\Operations\OperationsTransaction;
@@ -167,8 +168,13 @@ class PersonnelWorkflowService
         $data = Validator::make($data, ['name' => 'required|string|max:120', 'minimum_rest_minutes' => 'required|integer|min:0|max:10080', 'maximum_shift_minutes' => 'required|integer|min:1|max:1440', 'break_after_minutes' => 'required|integer|min:0|max:1440', 'minimum_break_minutes' => 'required|integer|min:0|max:1439', 'confirmed' => 'accepted'])->validate();
         $this->check($data['minimum_break_minutes'] < $data['maximum_shift_minutes'], 'Pause muss kürzer als die Höchstdauer sein.');
         unset($data['confirmed']);
+        $initialAssignments = ! app(WorkforcePlanReviewService::class)->ready()
+            ? ShiftAssignment::blocking()->whereHas('shift', fn ($q) => $q->notCancelled()->upcoming())->with('shift')->get() : collect();
+        $travel = app(TravelAssessmentService::class)->preflightForAssignedShifts($initialAssignments->pluck('shift')->unique('id'), [
+            'routing_fallback_profile' => new OperationsRuleProfile($data + ['is_active' => true, 'created_by' => $actor->id, 'approved_at' => now()->utc()]),
+        ]);
 
-        return OperationsTransaction::run(function () use ($data, $actor) {
+        return OperationsTransaction::run(function () use ($data, $actor, $travel) {
             // The creator lock serializes first-profile setup; profiles are immutable versions.
             User::orderBy('id')->lockForUpdate()->get(['id']);
             OperationsRuleProfile::where('is_active', true)->update(['is_active' => false]);
@@ -182,7 +188,10 @@ class PersonnelWorkflowService
                     }
                 } else {
                     // Preserve the unmigrated legacy rule workflow until a review queue exists.
-                    app(StaffEligibilityService::class)->assertEligible($assignment->shift, $assignment->user);
+                    $prepared = $travel[$assignment->shift_id] ?? null;
+                    app(TravelAssessmentService::class)->assertBindingPreflight($prepared);
+                    $rebased = $prepared ? app(TravelAssessmentService::class)->rebasePreflight($assignment->shift, $assignment->user, $prepared) : null;
+                    app(StaffEligibilityService::class)->assertEligible($assignment->shift, $assignment->user, ['travel_preflight' => $rebased]);
                 }
             }
             $this->audit->record($profile, $actor, 'rules.activated', $data + ['planning_reviews' => $impacts]);

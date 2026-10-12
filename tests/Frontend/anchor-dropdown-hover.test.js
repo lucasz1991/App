@@ -21,6 +21,8 @@ function fixture(options = { openOnHover: true }) {
     let nextTimer = 0;
     const timers = new Map();
     const window = {
+        innerWidth: options.viewportWidth ?? 1200,
+        innerHeight: options.viewportHeight ?? 1000,
         setTimeout(callback, delay) {
             const id = ++nextTimer;
             timers.set(id, { callback, at: now + delay });
@@ -28,7 +30,7 @@ function fixture(options = { openOnHover: true }) {
         },
         clearTimeout(id) { timers.delete(id); },
     };
-    const config = { openOnHover: options.openOnHover, hoverOpenDelay: options.hoverOpenDelay ?? 100, hoverCloseDelay: 180, panelId: 'test-content', layerId: 'test', layerGroup: '', anchorSelector: null, horizontalAlign: 'left', preferredPlacement: 'bottom', offset: 8, maximumHeight: options.maxHeight ?? 448, fixedHeight: options.fixedHeight ?? false, overlapAnchor: options.overlapAnchor ?? false, popupRole: 'dialog', headerOffset: 0, matchTriggerWidth: false, scrollOnOpen: false, scrollOnTrigger: false };
+    const config = { openOnHover: options.openOnHover, hoverOpenDelay: options.hoverOpenDelay ?? 100, hoverCloseDelay: 180, hoverCursorProgress: options.hoverCursorProgress ?? false, panelId: 'test-content', layerId: 'test', layerGroup: '', anchorSelector: null, horizontalAlign: 'left', preferredPlacement: 'bottom', offset: 8, maximumHeight: options.maxHeight ?? 448, fixedHeight: options.fixedHeight ?? false, overlapAnchor: options.overlapAnchor ?? false, popupRole: 'dialog', headerOffset: 0, matchTriggerWidth: false, scrollOnOpen: false, scrollOnTrigger: false };
     const dropdown = new Function('window', 'document', 'Element', 'Node', 'CustomEvent', 'config', `${dropdownSource.replace('export function', 'function')}; return anchorDropdown(config);`)(window, document, Element, Node, class {}, config);
     const refs = {
         trigger: document.getElementById('trigger'),
@@ -494,22 +496,156 @@ test('teleported panel close notifies only its identified timeline controller', 
 });
 
 const mouse = { pointerType: 'mouse' };
+const progressTemplate = blade.match(/@if\(\$hoverCursorProgress && \$openOnHover\)[\s\S]*?@endif/)?.[0];
+assert.ok(progressTemplate, 'Cursor progress remains an explicit native Anchor opt-in.');
+const progressVisibility = progressTemplate.match(/x-show="([^"]+)"/)?.[1];
+assert.ok(progressVisibility, 'Donut visibility must use the actual native pending timer state.');
+const progressVisible = state => new Function('state', `with (state) { return (${progressVisibility}); }`)(state);
+const cursorFixture = options => fixture({ openOnHover: true, hoverOpenDelay: 400, hoverCursorProgress: true, ...options });
+
+test('cursor donut follows the pointer upper-right without a second timer or dwell restart', () => {
+    const f = cursorFixture();
+    f.dropdown.enterHover({ ...mouse, clientX: 100, clientY: 300 }, 'trigger');
+    const openingTimer = f.dropdown.hoverOpenTimer;
+    assert.equal(progressVisible(f.dropdown), true);
+    assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [112, 276]);
+    assert.equal(f.pending(), 1);
+    f.advance(200);
+    f.dropdown.trackHoverCursor({ ...mouse, clientX: 180, clientY: 340 });
+    assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [192, 316]);
+    assert.equal(f.dropdown.hoverOpenTimer, openingTimer);
+    assert.equal(f.pending(), 1);
+    f.advance(199);
+    assert.equal(f.dropdown.open, false);
+    assert.equal(progressVisible(f.dropdown), true);
+    f.advance(1);
+    assert.equal(f.dropdown.open, true);
+    assert.equal(progressVisible(f.dropdown), false);
+    assert.equal(f.pending(), 0);
+    f.dropdown.trackHoverCursor({ ...mouse, clientX: 700, clientY: 500 });
+    assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [192, 316]);
+});
+
+test('cursor donut clamps the complete 16px cue inside viewport and visual viewport edges', () => {
+    const f = cursorFixture();
+    f.dropdown.trackHoverCursor({ ...mouse, clientX: -100, clientY: -100 });
+    assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [4, 4]);
+    f.dropdown.trackHoverCursor({ ...mouse, clientX: 1199, clientY: 1100 });
+    assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [1180, 980]);
+    f.window.visualViewport = { width: 420, height: 400, offsetLeft: 40, offsetTop: 80 };
+    f.dropdown.trackHoverCursor({ ...mouse, clientX: 200, clientY: 200 });
+    assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [212, 176]);
+    f.dropdown.trackHoverCursor({ ...mouse, clientX: 0, clientY: 0 });
+    assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [44, 84]);
+    f.dropdown.trackHoverCursor({ ...mouse, clientX: 1000, clientY: 1000 });
+    assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [440, 460]);
+
+    delete f.window.visualViewport;
+    delete f.window.innerWidth;
+    delete f.window.innerHeight;
+    Object.defineProperties(f.document.documentElement, { clientWidth: { value: 320 }, clientHeight: { value: 568 } });
+    f.dropdown.trackHoverCursor({ ...mouse, clientX: 319, clientY: 567 });
+    assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [300, 543]);
+    assert.equal(f.pending(), 0);
+});
+
+test('cursor progress stays opt-in, decorative and invisible for immediate keyboard or touch opening', () => {
+    assert.match(blade, /'hoverCursorProgress'\s*=> false/);
+    assert.match(blade, /'hoverCursorProgress'\s*=> \(bool\) \$hoverCursorProgress/);
+    assert.match(blade, /@if\(\$hoverCursorProgress\) @pointermove="trackHoverCursor\(\$event\)" @endif/);
+    assert.match(progressTemplate, /x-teleport="body"/);
+    assert.match(progressTemplate, /aria-hidden="true" focusable="false"/);
+    assert.match(progressTemplate, /transform: 'translate3d\('/);
+
+    const ordinary = fixture({ openOnHover: true });
+    ordinary.dropdown.enterHover({ ...mouse, clientX: 100, clientY: 300 }, 'trigger');
+    ordinary.dropdown.trackHoverCursor({ ...mouse, clientX: 200, clientY: 500 });
+    assert.equal(ordinary.dropdown.hoverCursorProgress, false);
+    assert.deepEqual([ordinary.dropdown.hoverCursorX, ordinary.dropdown.hoverCursorY], [0, 0]);
+    ordinary.advance(100);
+    assert.equal(ordinary.dropdown.open, true);
+
+    for (const pointerType of ['touch', 'pen']) {
+        const f = cursorFixture();
+        f.dropdown.enterHover({ pointerType, clientX: 100, clientY: 300 }, 'trigger');
+        f.dropdown.trackHoverCursor({ pointerType, clientX: 100, clientY: 300 });
+        assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [0, 0]);
+        assert.equal(progressVisible(f.dropdown), false);
+        assert.equal(f.pending(), 0);
+        f.dropdown.toggle();
+        assert.equal(f.dropdown.open, true);
+        assert.equal(progressVisible(f.dropdown), false);
+    }
+
+    const keyboard = cursorFixture();
+    keyboard.dropdown.focusHoverPanel();
+    assert.equal(keyboard.dropdown.open, true);
+    assert.equal(progressVisible(keyboard.dropdown), false);
+    assert.equal(keyboard.pending(), 0);
+});
+
+test('cursor progress ignores invalid coordinates and disappears immediately on cancellation and teardown', () => {
+    for (const terminate of ['leave', 'close', 'destroy', 'keyboard', 'click', 'layer']) {
+        const f = cursorFixture();
+        f.dropdown.enterHover({ ...mouse, clientX: 100, clientY: 300 }, 'trigger');
+        f.advance(399);
+        for (const invalid of [{ clientX: NaN, clientY: 300 }, { clientX: 100, clientY: Infinity }, { clientX: '100', clientY: 300 }, {}]) {
+            f.dropdown.trackHoverCursor({ ...mouse, ...invalid });
+            assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [112, 276]);
+        }
+        if (terminate === 'leave') f.dropdown.leaveHover(mouse, 'trigger');
+        if (terminate === 'close') f.dropdown.close();
+        if (terminate === 'destroy') f.dropdown.destroy();
+        if (terminate === 'keyboard') f.dropdown.focusHoverPanel();
+        if (terminate === 'click') f.dropdown.toggle();
+        if (terminate === 'layer') {
+            f.dropdown.layerGroup = 'service-staffing';
+            f.dropdown.handleLayerOpen({ detail: { group: 'service-staffing', id: 'another-cell' } });
+        }
+        assert.equal(progressVisible(f.dropdown), false, terminate);
+        assert.equal(f.dropdown.hoverOpenTimer, null, terminate);
+        f.advance(1000);
+        assert.equal(f.dropdown.open, ['keyboard', 'click'].includes(terminate), terminate);
+        assert.equal(f.pending(), 0, terminate);
+    }
+});
+
+test('cursor donut re-entry restarts the same complete 400ms pending visual contract', () => {
+    const f = cursorFixture();
+    f.dropdown.enterHover({ ...mouse, clientX: 100, clientY: 300 }, 'trigger');
+    const firstTimer = f.dropdown.hoverOpenTimer;
+    f.advance(399);
+    f.dropdown.leaveHover(mouse, 'trigger');
+    assert.equal(progressVisible(f.dropdown), false);
+    f.advance(50);
+    f.dropdown.enterHover({ ...mouse, clientX: 500, clientY: 400 }, 'trigger');
+    assert.equal(progressVisible(f.dropdown), true);
+    assert.notEqual(f.dropdown.hoverOpenTimer, firstTimer);
+    assert.deepEqual([f.dropdown.hoverCursorX, f.dropdown.hoverCursorY], [512, 376]);
+    assert.equal(f.pending(), 1);
+    f.advance(399);
+    assert.equal(f.dropdown.open, false);
+    f.advance(1);
+    assert.equal(f.dropdown.open, true);
+    assert.equal(progressVisible(f.dropdown), false);
+});
 
 for (const { name, source } of servicePreviewSources) {
     const hoverOpenDelay = Number(source.match(/:hover-open-delay="(\d+)"/)?.[1]);
     const serviceFixture = () => fixture({ openOnHover: true, hoverOpenDelay });
 
-    test(`${name} opts into 600ms while the shared dropdown default remains 100ms`, () => {
-        assert.equal(hoverOpenDelay, 600);
+    test(`${name} opts into 400ms while the shared dropdown default remains 100ms`, () => {
+        assert.equal(hoverOpenDelay, 400);
         assert.match(source, /:hover-close-delay="180"/);
+        assert.match(source, /:hover-cursor-progress="true"/);
         assert.match(source, /:open-on-hover="true"/);
         assert.match(source, /@keydown\.enter\.prevent\.stop="toggle\(\)"/);
         assert.match(source, /@keydown\.space\.prevent\.stop="toggle\(\)"/);
         assert.match(blade, /'hoverOpenDelay'\s*=> 100/);
     });
 
-    test(`${name} opens only after a complete 600ms dwell and cancels quick passes`, () => {
-        for (const elapsed of [0, 100, 299, 300, 599]) {
+    test(`${name} opens only after a complete 400ms dwell and cancels quick passes`, () => {
+        for (const elapsed of [0, 100, 299, 300, 399]) {
             const quick = serviceFixture();
             quick.dropdown.enterHover(mouse, 'trigger');
             quick.advance(elapsed);
@@ -523,7 +659,7 @@ for (const { name, source } of servicePreviewSources) {
 
         const dwell = serviceFixture();
         dwell.dropdown.enterHover(mouse, 'trigger');
-        dwell.advance(599);
+        dwell.advance(399);
         assert.equal(dwell.dropdown.open, false);
         dwell.advance(1);
         assert.equal(dwell.dropdown.open, true);
@@ -531,14 +667,14 @@ for (const { name, source } of servicePreviewSources) {
         assert.deepEqual(dwell.dispatched, ['dropdown-open']);
     });
 
-    test(`${name} re-entry starts a fresh 600ms dwell rather than carrying a previous pass`, () => {
+    test(`${name} re-entry starts a fresh 400ms dwell rather than carrying a previous pass`, () => {
         const f = serviceFixture();
         f.dropdown.enterHover(mouse, 'trigger');
-        f.advance(599);
+        f.advance(399);
         f.dropdown.leaveHover(mouse, 'trigger');
         f.advance(50);
         f.dropdown.enterHover(mouse, 'trigger');
-        f.advance(599);
+        f.advance(399);
         assert.equal(f.dropdown.open, false);
         f.advance(1);
         assert.equal(f.dropdown.open, true);
@@ -588,7 +724,7 @@ for (const { name, source } of servicePreviewSources) {
     test(`${name} keeps the 180ms crossing grace and clears pending hover on close or teardown`, () => {
         const crossing = serviceFixture();
         crossing.dropdown.enterHover(mouse, 'trigger');
-        crossing.advance(600);
+        crossing.advance(400);
         crossing.dropdown.leaveHover(mouse, 'trigger');
         crossing.advance(179);
         assert.equal(crossing.dropdown.open, true);
@@ -604,7 +740,7 @@ for (const { name, source } of servicePreviewSources) {
         for (const method of ['close', 'destroy']) {
             const f = serviceFixture();
             f.dropdown.enterHover(mouse, 'trigger');
-            f.advance(599);
+            f.advance(399);
             f.dropdown[method]();
             f.advance(1000);
             assert.equal(f.dropdown.open, false);

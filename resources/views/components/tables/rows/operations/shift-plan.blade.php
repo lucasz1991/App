@@ -43,6 +43,7 @@
                     <span class="rt-table-meta tabular-nums">{{ $confirmed }} bestätigt @if($reserved > $confirmed) · {{ $reserved - $confirmed }} angefragt @endif</span>
                     @if(!$closed && $missing > 0)<p class="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">{{ $missing }} {{ $missing === 1 ? 'Platz offen' : 'Plätze offen' }}</p>@endif
                     @if($item->planning_conflict_count)<p class="mt-1 text-xs font-semibold text-red-700 dark:text-red-300"><i class="far fa-triangle-exclamation" aria-hidden="true"></i> {{ $item->planning_conflict_count }} mit Konflikt</p>@endif
+                    @if($item->planning_route_unchecked_count)<p class="mt-1 text-xs text-amber-700 dark:text-amber-300">{{ $item->planning_route_unchecked_count }} Fahrt(en) ungeprüft <button type="button" wire:click.stop="loadShiftTravel({{ $item->id }})" wire:loading.attr="disabled" class="underline min-h-11">Fahrten prüfen</button></p>@endif
                     @if($item->feedback_pending)<span class="rt-table-meta">{{ $item->feedback_pending }} {{ $item->feedback_pending === 1 ? 'Rückmeldung offen' : 'Rückmeldungen offen' }}</span>@endif
                     @if($item->feedback_declined)<p class="mt-1 text-xs font-semibold text-red-700 dark:text-red-300">{{ $item->feedback_declined }} abgelehnt</p>@endif
                 </div>

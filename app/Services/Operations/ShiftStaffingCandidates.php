@@ -23,7 +23,7 @@ class ShiftStaffingCandidates
      *
      * @return Collection<int, User>
      */
-    public function ranked(Shift $shift, array $filters = []): Collection
+    public function ranked(Shift $shift, array $filters = [], array $travel = []): Collection
     {
         OperationsAccess::requireReady();
         $shift = Shift::with(['qualifications', 'order'])->findOrFail($shift->id);
@@ -50,12 +50,13 @@ class ShiftStaffingCandidates
         if ($users->isEmpty()) {
             return collect();
         }
-        $assessments = app(StaffEligibilityService::class)->assessMany($shift, $users, false, ['skip_routing' => true]);
+        $details = app(PlanningTravelDisplay::class)->current($shift, $users, $travel);
+        $assessments = collect($details)->map(fn ($detail) => $detail['issues'])->all();
         $regions = app(StaffRegionalPreferenceService::class)->assessMany($shift, $users);
         $exceptions = app(ShiftAssignmentExceptionService::class);
         $rank = ['eligible' => 0, 'review' => 1, 'blocked' => 2];
 
-        return $users->map(function (User $user) use ($assessments, $regions, $exceptions) {
+        $ranked = $users->map(function (User $user) use ($assessments, $details, $regions, $exceptions) {
             // Missing assessment must never be interpreted as an eligible employee.
             $issues = $assessments[$user->id] ?? [['code' => 'assessment_missing', 'message' => 'Eignungsprüfung nicht vollständig.']];
             $region = $regions[$user->id] ?? ['state' => 'unknown', 'label' => 'Region ungeklärt', 'detail' => 'Regionale Prüfung nicht verfügbar.', 'score_adjustment' => 0, 'blocked' => false];
@@ -89,6 +90,8 @@ class ShiftStaffingCandidates
             $user->setAttribute('staffing_label', $label);
             $user->setAttribute('staffing_reasons', array_values(array_unique($reasons)));
             $user->setAttribute('planning_issues', $issues);
+            $user->setAttribute('planning_travel', $details[$user->id] ?? []);
+            $user->setAttribute('planning_warnings', $details[$user->id]['warnings'] ?? []);
             $user->setAttribute('staffing_region', $region);
             $user->setAttribute('staffing_score_breakdown', [
                 'base' => 85, 'region' => $regionalAdjustment,
@@ -103,9 +106,15 @@ class ShiftStaffingCandidates
 
             return ($suitability === 'all' || $user->staffing_state === $suitability)
                 && ($region === 'all' || ($user->staffing_region['state'] ?? 'unknown') === $region);
-        })->sort(function (User $a, User $b) use ($rank) {
+        });
+        // A cohort-wide comparator is transitive. Unknown durations never become zero.
+        $knownCohorts = $ranked->groupBy(fn (User $user) => $user->staffing_state.':'.$user->staffing_score)
+            ->map(fn (Collection $cohort) => $cohort->every(fn (User $user) => ($user->planning_travel['planned_duration_seconds'] ?? null) !== null));
+
+        return $ranked->sort(function (User $a, User $b) use ($rank, $knownCohorts) {
             return ($rank[$a->staffing_state] <=> $rank[$b->staffing_state])
                 ?: ($b->staffing_score <=> $a->staffing_score)
+                ?: (($knownCohorts[$a->staffing_state.':'.$a->staffing_score] ?? false) ? (($a->planning_travel['planned_duration_seconds'] ?? 0) <=> ($b->planning_travel['planned_duration_seconds'] ?? 0)) : 0)
                 ?: strnatcmp(mb_strtolower($a->name), mb_strtolower($b->name))
                 ?: ($a->id <=> $b->id);
         })->values();

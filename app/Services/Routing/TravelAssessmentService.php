@@ -30,6 +30,29 @@ class TravelAssessmentService
     /** Server-only final distribution; virtual duties are scoped to each selected employee. */
     public function preflightForEntries(array $entries): array
     {
+        return TomTomRoutingService::withinOperation(fn () => $this->prepareEntries($entries));
+    }
+
+    /** Prepare an existing staffed workflow before it acquires database locks. */
+    public function preflightForAssignedShifts(Collection $shifts, array $context = [], bool $nextRevision = false): array
+    {
+        return TomTomRoutingService::withinOperation(function () use ($shifts, $context, $nextRevision): array {
+            $assignments = ShiftAssignment::blocking()->whereIn('shift_id', $shifts->pluck('id'))->with('user')->get()->groupBy('shift_id');
+            $prepared = [];
+            foreach ($shifts as $shift) {
+                $projected = clone $shift;
+                if ($nextRevision) {
+                    $projected->revision++;
+                }
+                $prepared[$shift->id] = $this->preflight($projected, $assignments->get($shift->id, collect())->pluck('user'), $context);
+            }
+
+            return $prepared;
+        });
+    }
+
+    private function prepareEntries(array $entries): array
+    {
         if ($entries === []) {
             return [];
         }
@@ -157,7 +180,8 @@ class TravelAssessmentService
         if ($lock) {
             OperationsRuleProfile::orderBy('id')->lockForUpdate()->get();
         }
-        $fallback = OperationsRuleProfile::where('is_active', true)->first();
+        $fallback = ($context['routing_fallback_profile'] ?? null) instanceof OperationsRuleProfile
+            ? $context['routing_fallback_profile'] : OperationsRuleProfile::where('is_active', true)->first();
         $neighbors = [];
         $moments = [];
         foreach ($users as $user) {
@@ -199,6 +223,9 @@ class TravelAssessmentService
                     'origin_label' => $originShift->location_snapshot['name'] ?? $originShift->location_name,
                     'destination_label' => $destinationShift->location_snapshot['name'] ?? $destinationShift->location_name,
                     'departure' => $originShift->ends_at->utc()->toIso8601String(),
+                    'origin_ends_at' => $originShift->ends_at->utc()->toIso8601String(),
+                    'destination_starts_at' => $destinationShift->starts_at->utc()->toIso8601String(),
+                    'origin_title' => $originShift->title, 'destination_title' => $destinationShift->title,
                     'available_seconds' => (int) $gapSeconds, 'available_minutes' => (int) floor($gapSeconds / 60),
                     'reserve_minutes' => $same ? 0 : (int) $settings['reserve_minutes'], 'rest_minutes' => $rest,
                     'same_location' => $same, 'duration_seconds' => $same ? 0 : null,
@@ -322,6 +349,7 @@ class TravelAssessmentService
             if ($valid && $target !== null && TomTomSettings::all()['enabled']) {
                 $requests[$user->id] = ['origin' => $point, 'destination' => $target, 'departure' => $now];
                 $results[$user->id]['arrival'] += ['measured_at' => $point['measured_at'], 'accuracy_m' => $point['accuracy_m']];
+                $results[$user->id]['arrival']['basis'] = hash('sha256', json_encode($point, JSON_THROW_ON_ERROR));
             }
         }
         $routes = ($context['skip_provider'] ?? false) ? [] : app(TomTomRoutingService::class)->summaryMany($requests);
@@ -383,6 +411,7 @@ class TravelAssessmentService
             'site_unconfirmed' => 'Einsatzstandort nicht bestätigt', 'budget_exhausted' => 'Monatsgrenze erreicht',
             'schema_missing' => 'Routenplanung noch nicht eingerichtet',
             'provider_limit' => 'TomTom-Limit erreicht', 'transaction_requires_preflight' => 'Vorprüfung fehlt',
+            'calculation_pending' => 'Eine gleiche Route wird bereits berechnet; bitte kurz erneut prüfen',
             'provider_unavailable' => 'Anbieter derzeit nicht erreichbar', 'provider_timeout' => 'Zeitlimit der Fahrtprüfung erreicht', default => 'Route derzeit nicht berechenbar',
         };
     }

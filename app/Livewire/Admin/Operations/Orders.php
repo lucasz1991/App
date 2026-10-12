@@ -29,6 +29,7 @@ use Livewire\WithPagination;
 class Orders extends Component
 {
     use SupportsOperationsUi;
+    use SupportsServiceTableSelection;
     use WithPagination;
 
     public string $search = '';
@@ -209,6 +210,23 @@ class Orders extends Component
     private function scopedQuery(): Builder
     {
         return Order::query()->when($this->customerFilterId, fn (Builder $query) => $query->where('customer_id', $this->customerFilterId));
+    }
+
+    protected function serviceSelectionAvailable(): bool
+    {
+        return ! $this->detailOnly;
+    }
+
+    protected function serviceSelectionState(): array
+    {
+        return [$this->customerFilterId, $this->detailOnly, $this->consolidated, $this->profileEmbedded,
+            $this->search, $this->statusFilter, $this->rangeFrom, $this->rangeTo, $this->perPage,
+            $this->sortBy, $this->sortDir, $this->getPage('ordersPage')];
+    }
+
+    protected function selectableServiceRowIds(array $candidateIds): array
+    {
+        return $this->filteredOrdersQuery()->whereIn('orders.id', $candidateIds)->pluck('orders.id')->all();
     }
 
     public function detailSections(): array
@@ -560,7 +578,7 @@ class Orders extends Component
         }
     }
 
-    public function render(OrderLifecycleService $lifecycle)
+    private function filteredOrdersQuery(): Builder
     {
         $this->ensureAdmin();
         if ($this->consolidated) {
@@ -576,19 +594,12 @@ class Orders extends Component
             ];
         }
 
-        $ordersQuery = $this->scopedQuery()
+        return $this->scopedQuery()
             ->when($this->detailOnly, fn (Builder $query) => $query->whereRaw('1 = 0'))
             // Whole-day inclusive overlap applies to the contract, never to shift dates.
             ->when($periodBounds, fn (Builder $query) => $query
                 ->where('starts_at', '<=', $periodBounds[1])
                 ->where('ends_at', '>=', $periodBounds[0]))
-            ->with([
-                'customer',
-                'shifts.assignments' => fn ($query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues()),
-                'shifts.assignments.user.profile',
-                'shifts.assignments.user.currentTeam',
-            ])
-            ->withCount('shifts')
             ->when(trim($this->search) !== '', function (Builder $query): void {
                 $term = '%'.trim($this->search).'%';
                 $query->where(function (Builder $query) use ($term): void {
@@ -608,6 +619,16 @@ class Orders extends Component
                 default => 'starts_at',
             }, $this->sortDir === 'desc' ? 'desc' : 'asc')
             ->orderBy('id');
+    }
+
+    public function render(OrderLifecycleService $lifecycle)
+    {
+        $ordersQuery = $this->filteredOrdersQuery()->with([
+            'customer',
+            'shifts.assignments' => fn ($query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues()),
+            'shifts.assignments.user.profile',
+            'shifts.assignments.user.currentTeam',
+        ])->withCount('shifts');
 
         // Bound and clamp before loading relations so even stale page URLs load one page only.
         $perPage = in_array($this->perPage, [25, 50, 100], true) ? $this->perPage : 50;
@@ -617,6 +638,7 @@ class Orders extends Component
             $this->setPage($ordersPage, 'ordersPage');
         }
         $orders = $ordersQuery->paginate($perPage, ['*'], 'ordersPage', $ordersPage, $totalOrders);
+        $this->syncServiceTableSelection($orders->pluck('id')->all());
         $orderTableItems = (clone $orders)->setCollection($orders->getCollection()->map(function (Order $order): object {
             $item = $this->serviceDetailProjection($order);
             // Orders show the contractual period, not the first/last constituent shift.

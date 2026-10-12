@@ -11,6 +11,9 @@ export function anchorDropdown(config) {
     openOnHover: config.openOnHover,
     hoverOpenDelay: config.hoverOpenDelay,
     hoverCloseDelay: config.hoverCloseDelay,
+    hoverCursorProgress: Boolean(config.hoverCursorProgress),
+    hoverCursorX: 0,
+    hoverCursorY: 0,
     placement: 'bottom',
     positionFrame: null,
     positionObserver: null,
@@ -155,11 +158,27 @@ export function anchorDropdown(config) {
       this.hoverCloseTimer = null;
     },
 
+    trackHoverCursor(event) {
+      if (!this.hoverCursorProgress || this.open || event.pointerType !== 'mouse') return;
+      if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return;
+
+      // A tiny fixed cue follows the pointer, never the table's scroll content.
+      // Keep its upper-right offset inside the visible viewport at the edges.
+      const viewport = window.visualViewport;
+      const left = viewport?.offsetLeft ?? 0;
+      const top = viewport?.offsetTop ?? 0;
+      const width = viewport?.width ?? window.innerWidth ?? document.documentElement.clientWidth;
+      const height = viewport?.height ?? window.innerHeight ?? document.documentElement.clientHeight;
+      this.hoverCursorX = this.clamp(event.clientX + 12, left + 4, left + width - 20);
+      this.hoverCursorY = this.clamp(event.clientY - 24, top + 4, top + height - 20);
+    },
+
     enterHover(event, area) {
       // Touch keeps normal click semantics and never opens a ghost preview.
       if (!this.openOnHover || event.pointerType !== 'mouse') return;
 
       this.clearHoverTimers();
+      if (area === 'trigger') this.trackHoverCursor(event);
       if (area === 'trigger') this.pointerOverTrigger = true;
       if (area === 'panel') this.pointerOverPanel = true;
       if (this.open || area !== 'trigger') return;

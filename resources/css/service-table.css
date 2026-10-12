@@ -125,14 +125,13 @@ body:has(.rt-ai-assist__stage) .rt-service-pagination {
 }
 .rt-service-table .rt-table-record__title:hover { color: var(--rt-shell-accent); }
 
-/* A quiet, immediate preview-intent cue during the native hover delay. It never
-   shifts the grid or obscures text/avatars; leaving the field cancels it. */
+/* Native timer-bound preview intent: a restrained tint in the cell and a small
+   clockwise donut beside the cursor. No second timer, no table layout shift. */
 .rt-service-table .rt-service-staffing__trigger {
     position: relative;
     isolation: isolate;
 }
-.rt-service-table .rt-service-staffing__trigger::before,
-.rt-service-table .rt-service-staffing__trigger::after {
+.rt-service-table .rt-service-staffing__trigger::before {
     content: '';
     position: absolute;
     pointer-events: none;
@@ -145,30 +144,39 @@ body:has(.rt-ai-assist__stage) .rt-service-pagination {
     background: var(--rt-accent-soft);
     transition: opacity 140ms cubic-bezier(.23, 1, .32, 1);
 }
-.rt-service-table .rt-service-staffing__trigger::after {
-    right: 4px;
-    bottom: 1px;
-    left: 4px;
-    height: 2px;
-    border-radius: 2px;
-    background: var(--rt-shell-accent);
-    transform: scaleX(0);
-    transform-origin: left;
-}
 .rt-service-table .rt-service-staffing__trigger[data-service-preview-state='pending']::before,
 .rt-service-table .rt-service-staffing__trigger[data-service-preview-state='open']::before { opacity: .8; }
-.rt-service-table .rt-service-staffing__trigger[data-service-preview-state='pending']::after {
-    opacity: .65;
-    animation: rt-service-preview-intent var(--rt-service-hover-wait, 600ms) linear both;
-}
 .rt-service-table .rt-service-staffing__trigger:focus-visible::before { opacity: .8; }
-@keyframes rt-service-preview-intent {
-    from { transform: scaleX(.06); }
-    to { transform: scaleX(1); }
+.rt-service-hover-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 200;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    overflow: visible;
+    color: var(--rt-shell-accent);
+}
+.rt-service-hover-progress circle { fill: none; stroke-width: 2; }
+.rt-service-hover-progress__track { stroke: var(--rt-shell-line); }
+.rt-service-hover-progress__fill {
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    opacity: .8;
+}
+.rt-service-hover-progress[data-progress-state='pending'] .rt-service-hover-progress__fill {
+    animation: rt-service-preview-cursor-fill var(--rt-service-hover-wait, 400ms) linear both;
+}
+@keyframes rt-service-preview-cursor-fill {
+    from { stroke-dashoffset: 100; }
+    to { stroke-dashoffset: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
     .rt-service-table .rt-service-staffing__trigger::before { transition: none; }
-    .rt-service-table .rt-service-staffing__trigger[data-service-preview-state='pending']::after { animation: none; transform: scaleX(1); }
+    .rt-service-hover-progress[data-progress-state='pending'] .rt-service-hover-progress__fill { animation: none; stroke-dashoffset: 0; }
 }
 .rt-service-customer-preview__identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .rt-service-customer-preview__identity > div { min-width: 0; }

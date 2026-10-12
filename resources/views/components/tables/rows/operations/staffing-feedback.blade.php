@@ -7,6 +7,8 @@
         </div>
     @elseif($column['key'] === 'response')
         <div>
+            @if($item->planning_travel)<span class="rt-table-meta" data-routing-state="{{ $item->planning_travel['route_state'] }}">{{ $item->planning_travel['route_label'] }}</span>@endif
+            @foreach($item->planning_travel['warnings'] ?? [] as $warning)<span class="rt-table-meta text-amber-700 dark:text-amber-300">{{ $warning['message'] }}</span>@endforeach
             <x-operations.status :value="$item->status->value" :label="$item->status->label()" />
             @if($item->plan_revision > 0 && $item->plan_revision === $item->shift->published_revision)
                 <span class="rt-table-meta">Revision {{ $item->plan_revision }}@if($item->responded_at) · {{ $item->responded_at->setTimezone($displayTimezone ?? config('operations.display_timezone'))->format('d.m. H:i') }}@endif</span>
