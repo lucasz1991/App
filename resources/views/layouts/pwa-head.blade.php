@@ -13,6 +13,9 @@
      nach jedem wire:navigate neu uebernommen. --}}
 <meta name="rt-sound-map" content="{{ json_encode(\App\Support\Sound\SoundLibrary::mapFor(auth()->user()), JSON_THROW_ON_ERROR) }}">
 @auth
+    @if (\Illuminate\Support\Facades\Route::has('pwa.session-status'))
+        <meta name="rt-pwa-session-status-url" content="{{ route('pwa.session-status') }}">
+    @endif
     @if (\Illuminate\Support\Facades\Route::has('app.runtime-status'))
         <meta name="rt-app-runtime-status-url" content="{{ route('app.runtime-status') }}">
     @endif

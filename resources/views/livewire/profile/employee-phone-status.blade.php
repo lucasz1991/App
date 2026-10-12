@@ -9,9 +9,9 @@
                         'indicatorValue' => $status['value'],
                         'indicatorIcon' => $status['icon'],
                         'indicatorState' => $status['state'],
-                        'indicatorNote' => $statusKey === 'installation' ? $phoneStatus['device_label'] : null,
-                        'indicatorEvidence' => $statusKey === 'installation' ? $phoneStatus['evidence_note'].' '.($status['evidence'] ?? '') : ($status['evidence'] ?? null),
-                        'indicatorPhoneCount' => $statusKey === 'installation' ? $phoneStatus['assigned_phone_count'] : null,
+                        'indicatorNote' => $phoneStatus['device_label'],
+                        'indicatorEvidence' => trim($phoneStatus['evidence_note'].' '.($status['evidence'] ?? '')),
+                        'indicatorPhoneCount' => null,
                     ])
                 </dt>
                 <dd class="sr-only">{{ $status['value'] }}</dd>

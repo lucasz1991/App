@@ -197,3 +197,16 @@ test('temporary server failures wait for a bounded cooldown instead of immediate
     assert.equal(await h.reporter.report(), false);
     assert.equal(h.calls.length, 2);
 });
+
+test('reporting resumes after lifecycle independently verifies the same authenticated session', async () => {
+    let status = 419;
+    const h = harness({ fetchImpl: async () => ({ status, ok: status === 200 }) });
+    assert.equal(await h.reporter.report(), false);
+    h.time.value = 60_000;
+    status = 200;
+    assert.equal(await h.reporter.report(), false);
+    assert.equal(await h.reporter.resumeAfterSessionCheck(), true);
+    assert.equal(h.calls.length, 2);
+    assert.equal(h.sensorCalls(), 0);
+    assert.equal(h.promptCalls(), 0);
+});

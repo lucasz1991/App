@@ -105,65 +105,137 @@ export function workTimeCapture(options) {
         ready: false, busy: false, syncing: false, offline: !navigator.onLine,
         pending: 0, conflicts: 0, error: '', active: null, context: 'internal', title: '', trainingId: '', activityKind: 'work', startDialogOpen: false,
         key: null, store: null, device: null, sequence: 0, scope: '', base: null,
-        _online: null, _offline: null, _pagehide: null, _pageshow: null, _visibility: null, _channel: null, _timer: null, _destroyed: false, now: Date.now(),
+        _online: null, _offline: null, _pagehide: null, _pageshow: null, _visibility: null, _connection: null,
+        _channel: null, _timer: null, _destroyed: false, _generation: 0, _bootstrap: null, _accountBinding: '', now: Date.now(),
 
         async init() {
-            this._online = () => { this.offline = false; void this.sync(); };
+            this._accountBinding = document.querySelector('meta[name="rt-push-account-binding"]')?.content || '';
+            this._online = () => { this.offline = false; void this.resume(); };
             this._offline = () => { this.offline = true; };
-            this._pagehide = () => { this.key = null; this.ready = false; };
-            this._pageshow = event => { if (event.persisted) { if (navigator.onLine) window.location.reload(); else this.error = 'Zum Anmelden online verbinden.'; } };
-            this._visibility = () => { if (document.visibilityState === 'visible') void this.sync(); };
+            this._pagehide = () => { this.clearKey(); };
+            this._pageshow = event => { if (event.persisted) void this.resume(); };
+            this._visibility = () => { if (document.visibilityState === 'visible') void this.resume(); };
+            this._connection = event => {
+                if (['session-required', 'account-changed'].includes(event.detail?.state)) {
+                    this.clearKey();
+                    this.error = 'Sitzung geändert. Erneut online anmelden.';
+                } else if (event.detail?.state === 'ready') {
+                    if (!this._accountBinding || event.detail.account_binding !== this._accountBinding
+                        || document.querySelector('meta[name="rt-push-account-binding"]')?.content !== this._accountBinding) {
+                        this.clearKey();
+                        this.error = 'Sitzung geändert. Erneut online anmelden.';
+                        return;
+                    }
+                    void (this.ready && this.key ? this.sync() : this.bootstrap());
+                }
+            };
             window.addEventListener('online', this._online);
             window.addEventListener('offline', this._offline);
             window.addEventListener('pagehide', this._pagehide);
             window.addEventListener('pageshow', this._pageshow);
             document.addEventListener('visibilitychange', this._visibility);
+            window.addEventListener('railtime:app-connection-state', this._connection);
+            await this.bootstrap();
+        },
+
+        clearKey() {
+            this._generation += 1;
+            this.key = null;
+            this.ready = false;
+            this._bootstrap = null;
+        },
+
+        assertCurrent(generation) {
+            if (!this._destroyed && generation === this._generation) return;
+            const error = new Error('Erfassung unterbrochen. Gespeicherte Ereignisse bleiben erhalten.');
+            error.interrupted = true;
+            throw error;
+        },
+
+        async resume() {
+            if (this._destroyed || document.visibilityState === 'hidden') return;
+            if (!navigator.onLine) {
+                this.offline = true;
+                if (!this.key) this.error = 'Zum Anmelden online verbinden.';
+                return;
+            }
+            // The shared lifecycle refreshes CSRF and verifies the same account
+            // before emitting ready. The authorized bootstrap still checks ownership.
+            if (window.RailtimeAppLifecycle?.recover) {
+                await window.RailtimeAppLifecycle.recover();
+                return;
+            }
+            await (this.ready && this.key ? this.sync() : this.bootstrap());
+        },
+
+        bootstrap() {
+            if (this._bootstrap) return this._bootstrap;
+            if (this._destroyed || document.visibilityState === 'hidden') return;
             if (!navigator.onLine) { this.error = 'Zum Anmelden online verbinden.'; return; }
             if (!globalThis.crypto?.subtle || !globalThis.indexedDB || !navigator.locks) {
                 this.error = 'Offline-Erfassung wird von diesem Browser nicht unterstützt.'; return;
             }
-            try {
-                this.store = await CaptureStore.open();
+            const generation = this._generation;
+            const current = () => !this._destroyed && generation === this._generation;
+            const task = (async () => { try {
+                this.store ||= await CaptureStore.open();
+                if (!current()) { if (this._destroyed) this.store.close(); return; }
                 await navigator.locks.request('railtime-worktime-identity:' + options.actorId, async () => {
+                    if (!current()) return;
                     const identityKey = 'railtime-worktime-device-' + options.actorId;
-                    const response = await this.post(options.bootstrapUrl, { device_id: localStorage.getItem(identityKey) });
+                    const response = await this.post(options.bootstrapUrl, { device_id: this.device || localStorage.getItem(identityKey) });
+                    if (!current()) { response.key = null; return; }
                     this.assertIdentity(response);
-                    if (this._destroyed) return;
+                    const raw = Uint8Array.from(atob(response.key), value => value.charCodeAt(0));
+                    response.key = null;
+                    let key;
+                    try { key = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']); }
+                    finally { raw.fill(0); }
+                    if (!current()) return;
                     this.device = response.device_id;
                     localStorage.setItem(identityKey, this.device);
                     this.scope = options.actorId + ':' + this.device;
-                    const raw = Uint8Array.from(atob(response.key), value => value.charCodeAt(0));
-                    this.key = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-                    raw.fill(0);
-                    response.key = null;
+                    this.key = key;
                     this.base = response.active;
                     this.sequence = response.last_sequence;
                 });
-                if (this._destroyed || !this.key) return;
-                this.ready = true;
+                if (!current() || !this.key) return;
                 await navigator.locks.request('railtime-worktime:' + this.scope, async () => {
+                    if (!current() || !this.key) return;
                     if (!await this.store.state(this.scope)) await this.store.saveState(this.scope, await encryptCapture(this.key, { active: this.base }), this.sequence);
                 });
-                this._timer = setInterval(() => { this.now = Date.now(); }, 1000);
-                if (globalThis.BroadcastChannel) {
+                if (!current() || !this.key) return;
+                this.ready = true;
+                this.offline = false;
+                this.error = '';
+                this._timer ||= setInterval(() => { this.now = Date.now(); }, 1000);
+                if (!this._channel && globalThis.BroadcastChannel) {
                     this._channel = new BroadcastChannel('railtime-worktime:' + this.scope);
-                    this._channel.onmessage = () => { void this.restore(); };
+                    this._channel.onmessage = () => { void this.restore().catch(error => { if (!error.interrupted) this.error = 'Gespeicherte Erfassungen konnten nicht geladen werden.'; }); };
                 }
                 await this.sync();
-            } catch (error) { this.error = error.message || 'Zeituhr konnte nicht eingerichtet werden.'; }
+            } catch (error) { if (current()) this.error = error.message || 'Zeituhr konnte nicht eingerichtet werden.'; }
+            })().finally(() => { if (this._bootstrap === task) this._bootstrap = null; });
+            this._bootstrap = task;
+            return task;
         },
 
         async post(url, payload) {
+            const generation = this._generation;
             const response = await fetch(url, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: {
                 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
             }, body: JSON.stringify(payload) });
+            this.assertCurrent(generation);
             if (!response.ok) {
-                if ([401, 403, 419].includes(response.status)) { this.key = null; this.ready = false; }
+                if ([401, 403, 419].includes(response.status)) { this.clearKey(); this.error = 'Erneut online anmelden.'; }
                 const error = new Error([401, 403, 419].includes(response.status) ? 'Erneut online anmelden.' : 'Synchronisation fehlgeschlagen. Ereignisse bleiben gespeichert.');
                 error.status = response.status;
                 throw error;
             }
-            return response.json();
+            const state = await response.json();
+            if (this._destroyed || generation !== this._generation) state.key = null;
+            this.assertCurrent(generation);
+            return state;
         },
 
         assertIdentity(state) {
@@ -177,43 +249,60 @@ export function workTimeCapture(options) {
             }
         },
 
-        async restore() {
+        async restore(generation = this._generation) {
             if (!this.key || !this.store) return;
-            const shared = await this.store.state(this.scope);
-            if (shared) this.base = (await decryptCapture(this.key, shared)).active;
-            const rows = await this.store.rows(this.scope);
+            const key = this.key, scope = this.scope;
+            const shared = await this.store.state(scope);
+            this.assertCurrent(generation);
+            const base = shared ? (await decryptCapture(key, shared)).active : this.base;
+            const rows = await this.store.rows(scope);
+            this.assertCurrent(generation);
+            let active = base;
+            for (const row of rows) {
+                const event = await decryptCapture(key, row);
+                this.assertCurrent(generation);
+                if (row.status !== 'conflict') active = projectCapture(active, event);
+            }
+            this.base = base;
             this.pending = rows.filter(row => row.status !== 'conflict').length;
             this.conflicts = rows.filter(row => row.status === 'conflict').length;
-            this.active = this.base;
-            for (const row of rows) {
-                const event = await decryptCapture(this.key, row);
-                if (row.status !== 'conflict') this.active = projectCapture(this.active, event);
-            }
+            this.active = active;
             this.activityKind = this.active?.kind || 'work';
         },
 
-        async refreshState() {
-            const rows = await this.store.rows(this.scope);
+        async refreshState(generation = this._generation) {
+            const key = this.key, scope = this.scope, device = this.device;
+            this.assertCurrent(generation);
+            const rows = await this.store.rows(scope);
+            this.assertCurrent(generation);
             const batches = rows.length ? Array.from({ length: Math.ceil(rows.length / 500) }, (_, i) => rows.slice(i * 500, (i + 1) * 500)) : [[]];
             let state;
             for (const batch of batches) {
-                state = await this.post(options.bootstrapUrl, { device_id: this.device, event_keys: batch.map(row => row.id) });
+                this.assertCurrent(generation);
+                state = await this.post(options.bootstrapUrl, { device_id: device, event_keys: batch.map(row => row.id) });
+                this.assertCurrent(generation);
                 this.assertIdentity(state);
                 state.key = null;
                 if (!this.key || this._destroyed) return;
                 for (const result of state.receipts || []) {
+                    this.assertCurrent(generation);
                     const row = batch.find(item => item.id === result.event_key);
                     if (!row) continue;
                     if (['accepted', 'reviewed'].includes(result.status)) await this.store.remove(row.id);
                     else if (result.status === 'conflict' && row.status !== 'conflict') {
-                        const event = await decryptCapture(this.key, row);
-                        await this.store.update({ ...row, ...await encryptCapture(this.key, { ...event, conflict_reason: result.reason }), status: 'conflict' });
+                        const event = await decryptCapture(key, row);
+                        const encrypted = await encryptCapture(key, { ...event, conflict_reason: result.reason });
+                        this.assertCurrent(generation);
+                        await this.store.update({ ...row, ...encrypted, status: 'conflict' });
                     }
                 }
             }
+            const sequence = Math.max(state.last_sequence, await this.store.sequence(scope));
+            const encrypted = await encryptCapture(key, { active: state.active });
+            this.assertCurrent(generation);
             this.base = state.active;
-            this.sequence = Math.max(state.last_sequence, await this.store.sequence(this.scope));
-            await this.store.saveState(this.scope, await encryptCapture(this.key, { active: state.active }), this.sequence);
+            this.sequence = sequence;
+            await this.store.saveState(scope, encrypted, sequence);
         },
 
         elapsed() {
@@ -226,23 +315,28 @@ export function workTimeCapture(options) {
 
         async capture(detail) {
             if (!this.ready || !this.key || this.busy || this.conflicts) return;
+            const generation = this._generation, key = this.key, scope = this.scope;
             this.busy = true;
             this.error = '';
             try {
-                await navigator.locks.request('railtime-worktime:' + this.scope, async () => {
+                await navigator.locks.request('railtime-worktime:' + scope, async () => {
+                    this.assertCurrent(generation);
                     if (navigator.onLine) {
-                        try { await this.refreshState(); }
-                        catch (error) { if (!this.key || error.status && error.status < 500) throw error; this.offline = true; }
+                        try { await this.refreshState(generation); }
+                        catch (error) { if (error.interrupted || !this.key || error.status && error.status < 500) throw error; this.offline = true; }
                     }
-                    await this.restore();
-                    const rows = await this.store.rows(this.scope);
+                    await this.restore(generation);
+                    const rows = await this.store.rows(scope);
+                    this.assertCurrent(generation);
                     if (rows.some(row => row.status === 'conflict')) throw new Error('Offene Erfassungen zuerst prüfen.');
-                    const sequence = Math.max(this.sequence, await this.store.sequence(this.scope)) + 1;
+                    const sequence = Math.max(this.sequence, await this.store.sequence(scope)) + 1;
+                    this.assertCurrent(generation);
                     const action = detail.action;
                     if (action === 'start' && this.active && ['running', 'paused'].includes(this.active.status)) throw new Error('Es läuft bereits eine Zeiterfassung.');
                     if (action === 'submit') {
                         for (const row of rows) {
-                            const pending = await decryptCapture(this.key, row);
+                            const pending = await decryptCapture(key, row);
+                            this.assertCurrent(generation);
                             if (pending.action === action && pending.entry_capture_id === detail.entry_capture_id && pending.revision === detail.revision) return;
                         }
                     }
@@ -258,15 +352,18 @@ export function workTimeCapture(options) {
                         entry_capture_id: action === 'start' ? crypto.randomUUID() : (detail.entry_capture_id || this.active?.capture_id),
                         revision: action === 'start' ? 0 : (detail.revision ?? this.active?.revision) };
                     if (!event.entry_capture_id || !Number.isInteger(event.revision)) throw new Error('Zeitstand neu laden.');
-                    const encrypted = await encryptCapture(this.key, event);
+                    const encrypted = await encryptCapture(key, event);
+                    this.assertCurrent(generation);
                     // Counter and encrypted event commit together; an encryption/quota failure creates no lost sequence.
-                    await this.store.append({ ...encrypted, id: event.event_key, scope: this.scope, sequence, status: 'pending' });
+                    await this.store.append({ ...encrypted, id: event.event_key, scope, sequence, status: 'pending' });
+                    this.assertCurrent(generation);
                     this.sequence = sequence;
                     this._channel?.postMessage('changed');
                 });
-                await this.restore();
+                await this.restore(generation);
+                this.assertCurrent(generation);
                 await this.sync();
-            } catch (error) { this.error = error.message || 'Erfassung nicht gespeichert.'; }
+            } catch (error) { if (!error.interrupted && generation === this._generation) this.error = error.message || 'Erfassung nicht gespeichert.'; }
             finally { this.busy = false; }
         },
 
@@ -277,18 +374,23 @@ export function workTimeCapture(options) {
 
         async sync() {
             if (!this.ready || !this.key || this.syncing || !navigator.onLine) return;
+            const generation = this._generation, key = this.key, scope = this.scope, device = this.device;
             this.syncing = true;
             try {
-                await navigator.locks.request('railtime-worktime:' + this.scope, async () => {
-                    await this.refreshState();
+                await navigator.locks.request('railtime-worktime:' + scope, async () => {
+                    this.assertCurrent(generation);
+                    await this.refreshState(generation);
                     for (let batch = 0; batch < 100; batch++) {
-                    const rows = (await this.store.rows(this.scope)).filter(row => row.status !== 'conflict').slice(0, 50);
+                    const rows = (await this.store.rows(scope)).filter(row => row.status !== 'conflict').slice(0, 50);
+                    this.assertCurrent(generation);
                     if (!rows.length) break;
                     const events = [];
-                    for (const row of rows) events.push(await decryptCapture(this.key, row));
-                    const response = await this.post(options.syncUrl, { device_id: this.device, events });
-                    if (!this.key || this._destroyed) return;
+                    for (const row of rows) events.push(await decryptCapture(key, row));
+                    this.assertCurrent(generation);
+                    const response = await this.post(options.syncUrl, { device_id: device, events });
+                    this.assertCurrent(generation);
                     for (const result of response.results) {
+                        this.assertCurrent(generation);
                         const row = rows.find(item => item.id === result.event_key);
                         if (!row) continue;
                         if (result.status === 'accepted') {
@@ -297,22 +399,29 @@ export function workTimeCapture(options) {
                             await this.store.remove(row.id);
                         } else if (result.status === 'conflict') {
                             const event = events.find(item => item.event_key === result.event_key);
-                            const encrypted = await encryptCapture(this.key, { ...event, conflict_reason: result.reason });
+                            const encrypted = await encryptCapture(key, { ...event, conflict_reason: result.reason });
+                            this.assertCurrent(generation);
                             await this.store.update({ ...row, ...encrypted, status: 'conflict' });
                             this.error = result.reason || 'Erfassung muss geprüft werden.';
                         }
                     }
                     if (response.results.some(result => result.status === 'awaiting') || response.results.every(result => !['accepted', 'conflict', 'reviewed'].includes(result.status))) break;
                     }
-                    await this.refreshState();
+                    await this.refreshState(generation);
+                    this.assertCurrent(generation);
                     this._channel?.postMessage('changed');
                 });
-                await this.restore();
+                await this.restore(generation);
+                this.assertCurrent(generation);
                 window.dispatchEvent(new CustomEvent('worktime-synced'));
             } catch (error) {
+                if (error.interrupted || generation !== this._generation) return;
                 this.offline = !navigator.onLine;
                 this.error = navigator.onLine ? (error.status ? error.message : 'Verbindung unterbrochen. Ereignisse bleiben gespeichert.') : '';
-                if (this.key) await this.restore();
+                if (this.key) {
+                    try { await this.restore(generation); }
+                    catch (restoreError) { if (!restoreError.interrupted) this.error = 'Gespeicherte Erfassungen konnten nicht geladen werden.'; }
+                }
             } finally { this.syncing = false; }
         },
 
@@ -323,10 +432,10 @@ export function workTimeCapture(options) {
             window.removeEventListener('pagehide', this._pagehide);
             window.removeEventListener('pageshow', this._pageshow);
             document.removeEventListener('visibilitychange', this._visibility);
+            window.removeEventListener('railtime:app-connection-state', this._connection);
             clearInterval(this._timer);
             this._channel?.close();
-            this.key = null;
-            this.ready = false;
+            this.clearKey();
             this.store?.close();
         },
     };

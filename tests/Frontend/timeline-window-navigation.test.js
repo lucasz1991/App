@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
-import { staffTimeline, timelineShiftPeriod, timelineWindowOffsets, timelinePeriodUrl, timelineBufferedEdges, timelineDiscardUnchangedRootUpdate } from '../../resources/js/staff-timeline.js';
+import { staffTimeline, timelineShiftPeriod, timelineWindowOffsets, timelinePeriodUrl, timelineBufferedEdges, timelineDiscardUnchangedRootUpdate,
+    timelineZoomMode, timelineZoomUrl, timelineDayWidth, timelineDayAttention, timelineDayAttentionLabel } from '../../resources/js/staff-timeline.js';
 
 function dateOffset(value, days) {
     const date = new Date(`${value}T00:00:00Z`);
@@ -12,13 +13,16 @@ function dateOffset(value, days) {
 }
 
 async function withWindow(run, { enabled = true, reduced = false, from = '2026-10-05', until = '2026-10-11',
-    availableOwner = true, reject = false, deferredNextTick = false, gsap = false, hooks = false } = {}) {
+    availableOwner = true, reject = false, deferredNextTick = false, gsap = false, hooks = false, zoom = null } = {}) {
     const { document } = parseHTML('<!doctype html><html><body><div id="timeline"><div id="grid"></div></div></body></html>');
     const root = document.getElementById('timeline');
     Object.assign(root.dataset, { timelineWindowNavigation: String(enabled), timelinePeriodOwner: 'plan-owner', timelineFrom: from, timelineUntil: until });
     Object.assign(root.dataset, { timelineAxisFrom: /^\d{4}-\d{2}-\d{2}$/.test(from) ? dateOffset(from, -3) : '2026-10-02',
         timelineAxisUntil: dateOffset(until, 3), timelineSelectedDays: '7', timelineBufferBefore: '3', timelineBufferAfter: '3', timelineId: 'timeline-owner' });
     const timeline = staffTimeline();
+    // Existing transport/race fixtures deliberately keep their fixed adaptive
+    // geometry. Explicit zoom fixtures below exercise the real production bind.
+    if (zoom === null) timeline.bindTimelineZoom = () => {};
     const frames = new Map();
     const timers = new Map();
     const observers = [];
@@ -30,6 +34,7 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
     const tweens = [];
     const commitHooks = new Set();
     const morphHooks = new Set();
+    const browserListeners = new Map();
     const beginCommit = (id, calls = [], fields = {}) => {
         const successes = [], failures = [];
         const payload = { calls, ...fields };
@@ -68,7 +73,9 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
             tweens.push(tween);
             return tween;
         } } } : {}),
-        location: { href: 'http://localhost/arbeitsplatz/ansicht/cases?view=shifts&section=plan&status=all&distribution=true#selected' },
+        location: { href: `http://localhost/arbeitsplatz/ansicht/cases?view=shifts&section=plan&status=all&distribution=true${['day', 'week'].includes(zoom) ? `&zoom=${zoom}` : ''}#selected` },
+        addEventListener(name, callback) { browserListeners.set(name, callback); },
+        removeEventListener(name) { browserListeners.delete(name); },
         history: { state: { preserved: true }, replaceState(state, title, url) {
             replacements.push({ state, title, url });
             browser.location.href = url;
@@ -128,7 +135,7 @@ async function withWindow(run, { enabled = true, reduced = false, from = '2026-1
     try {
         timeline.init();
         flushTicks();
-        await run({ timeline, root, body, header, scrollbar, calls, requests, replacements, events, observers, timers, frames, tweens, commitHooks, morphHooks, document, beginCommit,
+        await run({ timeline, root, body, header, scrollbar, calls, requests, replacements, events, observers, timers, frames, tweens, commitHooks, morphHooks, document, browser, browserListeners, beginCommit,
             width, first: () => 3 * width(), maximum: () => body.scrollWidth - body.clientWidth,
             logicalMaximum: () => body.scrollWidth - body.clientWidth - 3 * width(), flushFrame, period, tick, flushTicks,
             finishScroll: () => { flushFrame(); body.scrollLeft = body.scrollCalls.at(-1).left; },
@@ -198,7 +205,7 @@ test('mount never changes URL and watches only validated period attributes for l
         assert.equal(body.scrollLeft, first());
         const observation = observers.flatMap(observer => observer.targets).find(entry => entry.target === root);
         assert.deepEqual(observation.options, { attributes: true, attributeFilter: ['data-timeline-from', 'data-timeline-until', 'data-timeline-axis-from', 'data-timeline-axis-until',
-            'data-timeline-focus-shift-id', 'data-timeline-focus-date'] });
+            'data-timeline-focus-shift-id', 'data-timeline-focus-date', 'data-timeline-day-attention'] });
     });
 });
 
@@ -314,6 +321,203 @@ test('day scaffold arrays are cached for repeated loading bindings and refreshed
         assert.notEqual(moved, focused);
         assert.equal(moved.length, 13);
         assert.equal(moved.at(-1).pending, true);
+    });
+});
+
+test('zoom helpers accept only explicit Tag/Woche URL modes and preserve every unrelated query and hash', () => {
+    assert.equal(timelineZoomMode('http://localhost/cases?zoom=day'), 'day');
+    for (const href of ['http://localhost/cases', 'http://localhost/cases?zoom=week', 'http://localhost/cases?zoom=month', 'invalid']) {
+        assert.equal(timelineZoomMode(href), 'week');
+    }
+    const url = new URL(timelineZoomUrl('http://localhost/cases?view=shifts&from=2026-10-05&until=2026-10-11&distribution=true&customer=4#picked', 'day'));
+    assert.equal(url.pathname, '/cases');
+    assert.equal(url.hash, '#picked');
+    assert.deepEqual(Object.fromEntries(url.searchParams), { view: 'shifts', from: '2026-10-05', until: '2026-10-11', distribution: 'true', customer: '4', zoom: 'day' });
+    assert.equal(timelineZoomUrl('http://localhost/cases', 'month'), null);
+    assert.equal(timelineZoomUrl('invalid', 'day'), null);
+    assert.equal(new URL(timelinePeriodUrl(url.href, '2026-10-06', '2026-10-12')).searchParams.get('zoom'), 'day');
+});
+
+test('Tag fits exactly one day; Woche fits seven when possible and never compresses below a readable whole-day minimum', () => {
+    assert.equal(timelineDayWidth(980, 260, 7, 'day'), 980);
+    assert.equal(timelineDayWidth(980, 260, 7, 'week'), 140);
+    assert.equal(timelineDayWidth(700, 260, 7, 'week'), 700 / 6);
+    assert.equal(timelineDayWidth(236, 260, 7, 'week'), 118);
+    assert.equal(timelineDayWidth(140, 260, 7, 'week'), 140);
+    assert.equal(timelineDayWidth(85, 260, 7, 'week'), 85, 'an impossibly narrow viewport keeps one reachable day');
+    assert.equal(timelineDayWidth(700, 260, 7), 350, 'other timeline consumers keep their original adaptive scale');
+});
+
+test('real zoom initialization reads persisted Tag and default Woche without changing URL or loading records', async () => {
+    for (const mode of ['day', 'week', 'default']) {
+        await withWindow(({ timeline, root, width, body, first, replacements, calls, browserListeners }) => {
+            assert.equal(timeline.timelineZoom, mode === 'day' ? 'day' : 'week');
+            assert.equal(root.dataset.timelineZoom, timeline.timelineZoom);
+            assert.equal(width(), mode === 'day' ? 700 : 700 / 6);
+            assert.equal(body.scrollLeft, first());
+            assert.equal(replacements.length, 0);
+            assert.equal(calls.length, 0);
+            assert.equal(browserListeners.size, 2);
+        }, { zoom: mode });
+    }
+});
+
+test('local zoom at the selected left day is immediate, preserves native data state and does not request another period', async () => {
+    await withWindow(({ timeline, root, width, body, first, calls, replacements, browser }) => {
+        const top = body.scrollTop;
+        assert.equal(timeline.requestTimelineZoom({ detail: { owner: 'plan-owner', mode: 'day' } }), true);
+        assert.equal(width(), 700);
+        assert.equal(body.scrollLeft, first());
+        assert.equal(body.scrollTop, top);
+        assert.equal(root.dataset.timelineZoom, 'day');
+        assert.equal(new URL(browser.location.href).searchParams.get('zoom'), 'day');
+        assert.equal(calls.length, 0);
+        assert.equal(replacements.length, 1);
+        assert.equal(timeline.requestTimelineZoom({ detail: { owner: 'plan-owner', mode: 'week' } }), true);
+        assert.equal(width(), 700 / 6);
+        assert.equal(body.scrollLeft, first());
+        assert.equal(calls.length, 0);
+        assert.equal(timeline.windowDisplayDayCount, 13);
+        assert.equal(timeline.windowBeforeDays, 3);
+        assert.equal(timeline.windowAfterDays, 3);
+    }, { zoom: 'week' });
+});
+
+test('switching Tag at a later visible date into Woche rebases that left day immediately and waits for confirmed range before URL dates change', async () => {
+    await withWindow(async ({ timeline, body, width, calls, requests, first, period, tick, flushFrame, browser }) => {
+        body.scrollLeft = first() + 3 * width(); // Oct8 is the currently visible Tag.
+        timeline.syncHorizontal(body, false);
+        assert.equal(timeline.requestTimelineZoom({ detail: { owner: 'plan-owner', mode: 'week' } }), true);
+        assert.equal(timeline.windowDisplayPeriod.from, '2026-10-08');
+        assert.equal(timeline.windowDisplayPeriod.until, '2026-10-14');
+        assert.equal(body.scrollLeft, first());
+        assert.deepEqual(calls, [['2026-10-08', '2026-10-14']]);
+        assert.equal(new URL(browser.location.href).searchParams.has('from'), false);
+        assert.equal(new URL(browser.location.href).searchParams.get('zoom'), 'week');
+        requests[0].resolve(); await tick();
+        period('2026-10-08', '2026-10-14'); flushFrame();
+        assert.equal(body.scrollLeft, first());
+        const url = new URL(browser.location.href);
+        assert.equal(url.searchParams.get('from'), '2026-10-08');
+        assert.equal(url.searchParams.get('until'), '2026-10-14');
+        assert.equal(url.searchParams.get('zoom'), 'week');
+        assert.equal(url.searchParams.get('status'), 'all');
+        assert.equal(url.searchParams.get('distribution'), 'true');
+        assert.equal(url.hash, '#selected');
+    }, { zoom: 'day' });
+});
+
+test('zoom rebase queues behind earlier date transport and late data cannot restore old zoom, width or left date', async () => {
+    await withWindow(async ({ timeline, root, body, first, width, calls, requests, period, tick, flushFrame }) => {
+        body.scrollLeft = first();
+        timeline.shiftWindow(-1);
+        flushFrame();
+        body.scrollLeft = first() + 2 * width();
+        timeline.requestTimelineZoom({ detail: { owner: 'plan-owner', mode: 'week' } });
+        const latest = { ...timeline.windowDisplayPeriod };
+        assert.equal(calls.length, 1);
+        requests[0].resolve(); await tick();
+        period('2026-10-04', '2026-10-10'); flushFrame();
+        assert.deepEqual(timeline.windowDisplayPeriod, latest);
+        assert.equal(root.dataset.timelineZoom, 'week');
+        assert.equal(width(), 700 / 6);
+        assert.equal(body.scrollLeft, first());
+        assert.equal(calls.length, 2, 'the existing serializer loads only the latest rebased wanted period');
+    }, { zoom: 'day' });
+});
+
+test('manual column toggles and resizing keep the left civil day and Tag exact available width', async () => {
+    await withWindow(({ timeline, body, width, first }) => {
+        timeline.applyPersonnelMode();
+        body.scrollLeft = first() + width();
+        timeline.syncHorizontal(body, false);
+        timeline.togglePersonnelColumn();
+        timeline.applyPersonnelMode();
+        timeline.measure();
+        assert.equal(timeline.personnelCompact, true);
+        assert.equal(width(), 798);
+        assert.equal(body.scrollLeft / width(), 4);
+        body.clientWidth = 390; body.offsetWidth = 396;
+        timeline.measure();
+        assert.equal(width(), 338);
+        assert.equal(body.scrollLeft / width(), 4);
+        assert.equal(timeline.personnelCompact, true, 'viewport changes never alter the manual column mode');
+    }, { zoom: 'day' });
+});
+
+test('foreign, invalid and disposed zoom events cannot move dates, change URL or mutate another timeline', async () => {
+    await withWindow(({ timeline, root, body, width, replacements, calls, browserListeners }) => {
+        const offset = body.scrollLeft;
+        const oldWidth = width();
+        for (const detail of [{ owner: 'foreign', mode: 'day' }, { owner: 'plan-owner', mode: 'month' }, null]) {
+            assert.equal(timeline.requestTimelineZoom({ detail }), false);
+        }
+        assert.equal(width(), oldWidth);
+        assert.equal(body.scrollLeft, offset);
+        assert.equal(root.dataset.timelineZoom, 'week');
+        assert.equal(replacements.length, 0);
+        assert.equal(calls.length, 0);
+        const late = browserListeners.get('operations-timeline-zoom-request');
+        timeline.destroy();
+        assert.equal(browserListeners.size, 0);
+        late({ detail: { owner: 'plan-owner', mode: 'day' } });
+        assert.equal(root.dataset.timelineZoom, 'week');
+    }, { zoom: 'week' });
+});
+
+test('same-workspace URL rewrites retain zoom but leaving planning or entering services never contaminates another view', async () => {
+    await withWindow(({ timeline, browser, browserListeners, replacements }) => {
+        const retain = browserListeners.get('rt-workspace-url-updated');
+        browser.location.href = 'http://localhost/arbeitsplatz/ansicht/cases?view=shifts&section=plan&from=2026-10-08&until=2026-10-14#new';
+        retain();
+        assert.equal(new URL(browser.location.href).searchParams.get('zoom'), 'day');
+        assert.equal(new URL(browser.location.href).searchParams.get('from'), '2026-10-08');
+        assert.equal(new URL(browser.location.href).hash, '#new');
+        for (const query of ['view=orders', 'view=shifts&section=calendar', 'view=shifts&section=plan&services=1']) {
+            browser.location.href = `http://localhost/arbeitsplatz/ansicht/cases?${query}`;
+            const count = replacements.length;
+            retain();
+            assert.equal(replacements.length, count);
+            assert.equal(new URL(browser.location.href).searchParams.has('zoom'), false);
+        }
+        assert.equal(timeline.timelineZoom, 'day');
+    }, { zoom: 'day' });
+});
+
+test('known day attention distinguishes explicit zero from missing data, filters malformed values and gives readable plural labels', () => {
+    const counts = { shifts: 3, open_shifts: 2, open_places: 4, awaiting_shifts: 2, requested_places: 1 };
+    const source = { '2026-10-05': counts, '2026-10-06': { shifts: 0, open_shifts: 0, open_places: 0, awaiting_shifts: 0, requested_places: 0 },
+        'bad': counts, '2026-10-07': { ...counts, shifts: -1 }, '2026-10-08': { ...counts, open_places: '4' } };
+    const values = timelineDayAttention(JSON.stringify(source));
+    assert.deepEqual(Object.keys(values), ['2026-10-05', '2026-10-06']);
+    assert.equal(values['2026-10-06'].shifts, 0);
+    assert.equal(values['2026-10-09'], undefined);
+    assert.equal(timelineDayAttentionLabel('Mo., 05.10.', counts), 'Mo., 05.10. · 3 Schichten benötigen Bearbeitung · 4 offene Plätze · 1 ausstehende Zusage');
+    assert.equal(timelineDayAttentionLabel('Mo.', { ...counts, shifts: 1, open_places: 1, requested_places: 2 }), 'Mo. · 1 Schicht benötigt Bearbeitung · 1 offener Platz · 2 ausstehende Zusagen');
+    assert.equal(timelineDayAttentionLabel('Mo.', null), '');
+    for (const invalid of ['malformed', '[]', 'null', '0', 'x'.repeat(65537)]) assert.equal(Object.keys(timelineDayAttention(invalid)).length, 0);
+});
+
+test('attention metadata is cached once per confirmed dataset and new unloaded dates never advertise fake zero counters', async () => {
+    await withWindow(({ timeline, root }) => {
+        const counts = { shifts: 1, open_shifts: 1, open_places: 2, awaiting_shifts: 0, requested_places: 0 };
+        root.dataset.timelineDayAttention = JSON.stringify({ '2026-10-05': counts, '2026-10-15': counts });
+        const initial = timeline.windowScaffoldDays;
+        const map = timeline.windowDayAttention;
+        assert.equal(initial.find(day => day.date === '2026-10-05').attention.shifts, 1);
+        assert.match(initial.find(day => day.date === '2026-10-05').attentionLabel, /1 Schicht benötigt Bearbeitung/);
+        for (let index = 0; index < 200; index++) {
+            assert.equal(timeline.windowDayAttention, map);
+            assert.equal(timeline.windowScaffoldDays, initial);
+        }
+        timeline.shiftWindow(1);
+        const missing = timeline.windowScaffoldDays.find(day => day.date === '2026-10-15');
+        assert.equal(missing.pending, true);
+        assert.equal(missing.attention, null, 'an out-of-loaded-axis counter remains unconfirmed');
+        assert.equal(missing.attentionLabel, '');
+        root.dataset.timelineDayAttention = JSON.stringify({ '2026-10-05': { ...counts, shifts: 2 } });
+        assert.notEqual(timeline.windowDayAttention, map);
+        assert.equal(timeline.windowScaffoldDays.find(day => day.date === '2026-10-05').attention.shifts, 2);
     });
 });
 

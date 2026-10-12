@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
-import { staffTimeline, timelineDayWidth, timelineDayOffset, timelineEventLanes, timelineFocusOffset } from '../../resources/js/staff-timeline.js';
+import { staffTimeline, timelineDayWidth, timelineDayOffset, timelineEventLanes, timelineFocusOffset, timelineViewportBadge } from '../../resources/js/staff-timeline.js';
 import { timelinePlanning } from '../../resources/js/timeline-planning-actions.js';
 
 function planningFixture() {
@@ -323,6 +323,63 @@ function densityFixture(events, serverLanes = 1) {
     for (const label of track.querySelectorAll('.rt-personnel-timeline-time-text')) label.getBoundingClientRect = () => ({ width: 90 });
     return { timeline, track, events: [...track.querySelectorAll('.rt-personnel-timeline-event')] };
 }
+
+test('Tag badges keep a complete readable night-duty label inside the visible day without moving its true time', () => {
+    const viewport = { from: 480, until: 720 };
+    const [night] = timelineEventLanes([{ start: 45.833333333333336, duration: 16.666666666666668, labelWidth: 106 }], 1440, viewport);
+    assert.equal(night.badgeWidth, 106);
+    assert.ok(Math.abs(night.labelOffset - 7) < .00001);
+    const position = timelineViewportBadge(660, 900, 106, viewport);
+    assert.equal(position.center - position.badgeWidth / 2, 614);
+    assert.equal(position.center + position.badgeWidth / 2, 720);
+    assert.equal(position.durationLeft, 46);
+    assert.equal(position.durationWidth, 240, 'the duration is still eight hours, not the readable two-hour intersection');
+    const following = timelineViewportBadge(660, 900, 106, { from: 720, until: 960 });
+    assert.equal(following.center - following.badgeWidth / 2, 720, 'a continued duty meets the left edge without a gap');
+    assert.equal(timelineViewportBadge(960, 1100, 106, viewport), null, 'offscreen duties are not made visible artificially');
+    assert.equal(timelineViewportBadge(660, 900, 106, { from: NaN, until: 720 }), null);
+});
+
+test('Tag geometry writes only readable event variables and keeps original start, width and lanes intact', () => {
+    const { timeline, track, events: [event] } = densityFixture([{ start: 45.833333333333336, duration: 16.666666666666668 }]);
+    timeline.measureEventLabels(1440, { from: 480, until: 720 });
+    assert.equal(event.style.getPropertyValue('--time-badge-width'), '106px');
+    assert.ok(Math.abs(parseFloat(event.style.getPropertyValue('--time-label-offset')) - 7) < .00001);
+    assert.equal(event.style.getPropertyValue('--event-left'), '45.833333333333336%');
+    assert.equal(event.style.getPropertyValue('--event-width'), '16.666666666666668%');
+    assert.equal(track.style.getPropertyValue('--timeline-lanes'), 1);
+    timeline.measureEventLabels(1440);
+    assert.ok(Math.abs(parseFloat(event.style.getPropertyValue('--time-badge-width')) - 240) < .00001, 'Woche restores the unmodified full-duty geometry');
+    assert.equal(timeline.eventViewportKey, null);
+});
+
+test('Tag suggestions use a readable clipped shell while their duration stays at the actual time, then Woche clears local overrides', () => {
+    const { timeline, track } = densityFixture([]);
+    track.innerHTML = `<div class="rt-timeline-proposal-shell" style="--proposal-left:45.833333333333336%;--proposal-width:16.666666666666668%">
+        <button class="rt-timeline-proposal"><i></i><span>22:00 – 06:00 →</span><i></i><span class="rt-timeline-proposal-duration" aria-hidden="true"></span></button>
+    </div>`;
+    const shell = track.querySelector('.rt-timeline-proposal-shell');
+    const button = shell.querySelector('button');
+    Object.defineProperty(button, 'clientLeft', { value: 1 });
+    let reads = 0;
+    for (const label of button.querySelectorAll('span:not([aria-hidden]), i')) label.getBoundingClientRect = () => { reads++; return { width: label.tagName === 'I' ? 10 : 90 }; };
+    timeline.measureEventLabels(1440, { from: 480, until: 720 });
+    assert.equal(shell.style.getPropertyValue('--proposal-visible-width'), '136px');
+    assert.equal(shell.style.getPropertyValue('--proposal-visible-center'), '652px');
+    assert.equal(shell.style.getPropertyValue('--proposal-visible-duration-left'), '75px', 'strip origin corrects the button border to keep real 22:00');
+    assert.ok(Math.abs(parseFloat(shell.style.getPropertyValue('--proposal-visible-duration-width')) - 240) < .00001);
+    assert.equal(shell.style.getPropertyValue('--proposal-visible-duration-transform'), 'none');
+    assert.equal(reads, 3);
+    timeline.measureEventLabels(1440, { from: 490, until: 730 });
+    assert.equal(reads, 3, 'a changed scroll anchor reuses text/icon widths instead of forcing per-row layout reads');
+    assert.equal(shell.style.getPropertyValue('--proposal-left'), '45.833333333333336%');
+    assert.equal(shell.style.getPropertyValue('--proposal-width'), '16.666666666666668%');
+    timeline.measureEventLabels(1440);
+    assert.equal(shell.style.getPropertyValue('--proposal-visible-center'), undefined);
+    assert.equal(shell.style.getPropertyValue('--proposal-visible-width'), undefined);
+    assert.equal(shell.style.getPropertyValue('--proposal-visible-duration-left'), undefined);
+    assert.equal(shell.style.getPropertyValue('--proposal-visible-duration-width'), undefined);
+});
 
 test('two label-collision lanes select compact density from the final client layout and resize back to normal', () => {
     const { timeline, track, events } = densityFixture([

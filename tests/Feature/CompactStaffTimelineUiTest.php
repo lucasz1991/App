@@ -46,7 +46,7 @@ class CompactStaffTimelineUiTest extends TestCase
         foreach (['#991d38', '#851930', '#682137', '#581c2e'] as $oldHeaderColor) {
             $this->assertStringNotContainsString($oldHeaderColor, $workspace);
         }
-        $this->assertStringContainsString('var(--timeline-state-color) 19%', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-time'));
+        $this->assertStringContainsString('var(--timeline-state-color) 11%', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-time'));
         $this->assertStringContainsString('var(--timeline-state-color) 17%', $this->cssDeclarationsFor($css, '.dark .rt-personnel-timeline-time'));
         $this->assertStringContainsString('opacity: .95', $this->cssDeclarationsFor($css, '.rt-personnel-timeline-mark'));
         foreach (['confirmed', 'requested', 'in_progress', 'completed'] as $state) {

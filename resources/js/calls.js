@@ -24,6 +24,12 @@ import {
     selfPreviewDockPosition,
 } from './call-self-preview.js';
 
+// Alpine proxies component state, including SDK class instances. Native room
+// ownership and SDK calls must use the underlying instance on both sides.
+function rawCallValue(value) {
+    return typeof window.Alpine?.raw === 'function' ? window.Alpine.raw(value) : value;
+}
+
 document.addEventListener('alpine:init', () => {
     window.Alpine.data('callRoom', (config) => ({
         room: null,
@@ -121,11 +127,12 @@ document.addEventListener('alpine:init', () => {
             // participantCount makes transport roster changes reactive even
             // though LiveKit owns the participant Map outside Alpine.
             const hasParticipants = this.participantCount > 0;
-            if (!hasParticipants || !this.connected || !this.room
+            const activeRoom = rawCallValue(this.room);
+            if (!hasParticipants || !this.connected || !activeRoom
                 || typeof identity !== 'string' || !identity.trim() || identity !== identity.trim()) return false;
 
-            return this.room.localParticipant?.identity === identity
-                || this.room.remoteParticipants?.has(identity) === true;
+            return activeRoom.localParticipant?.identity === identity
+                || activeRoom.remoteParticipants?.has(identity) === true;
         },
 
         togglePanel(tab, trigger = null) {
@@ -155,8 +162,9 @@ document.addEventListener('alpine:init', () => {
         },
 
         isActiveRoom(room, generation = this.connectionGeneration) {
-            return !this.disposed && this.room === room
-                && generation === this.connectionGeneration && !this.terminal;
+            const activeRoom = rawCallValue(this.room);
+            return Boolean(activeRoom && !this.disposed && activeRoom === rawCallValue(room)
+                && generation === this.connectionGeneration && !this.terminal);
         },
 
         resetMediaState() {
@@ -176,8 +184,9 @@ document.addEventListener('alpine:init', () => {
         },
 
         syncLocalMediaState(activeRoom = this.room) {
+            activeRoom = rawCallValue(activeRoom);
             const participant = activeRoom?.localParticipant;
-            if (!participant || activeRoom !== this.room) return;
+            if (!participant || activeRoom !== rawCallValue(this.room)) return;
 
             const enabled = (source, property) => {
                 if (typeof participant[property] === 'boolean') return participant[property];
@@ -196,6 +205,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         clearTiles(activeRoom = null) {
+            activeRoom = rawCallValue(activeRoom);
             const participants = activeRoom
                 ? [activeRoom.localParticipant, ...activeRoom.remoteParticipants?.values() || []]
                 : [];
@@ -701,7 +711,7 @@ document.addEventListener('alpine:init', () => {
 
         /** Muss aus einer echten Nutzergeste heraus laufen (Klick). */
         async unlockAudio() {
-            const activeRoom = this.room;
+            const activeRoom = rawCallValue(this.room);
             const generation = this.connectionGeneration;
             if (!activeRoom || !this.connected || this.terminal || this.leaving || this.disposed) return;
             try {
@@ -859,6 +869,8 @@ document.addEventListener('alpine:init', () => {
         },
 
         async syncPublishingPermission(participant, activeRoom, generation) {
+            activeRoom = rawCallValue(activeRoom);
+            participant = rawCallValue(participant);
             if (participant !== activeRoom.localParticipant || typeof participant.permissions?.canPublish !== 'boolean') return;
             this.sfuCanPublish = participant.permissions.canPublish;
             if (!this.recordingEnabled) this.participantMayPublish = this.sfuCanPublish;
@@ -1084,7 +1096,7 @@ document.addEventListener('alpine:init', () => {
          * echtes Problem vor, und die Meldung nennt es beim Namen.
          */
         async enableDevices(fromGesture) {
-            const activeRoom = this.room;
+            const activeRoom = rawCallValue(this.room);
             const generation = this.connectionGeneration;
             if (!activeRoom || !this.connected || !this.canPublish || this.terminal || this.failed) return;
             let needsGesture = false;
@@ -1152,7 +1164,7 @@ document.addEventListener('alpine:init', () => {
          * nur fuer alles andere existiert der zweite Weg.
          */
         async enableTrack(kind) {
-            const activeRoom = this.room;
+            const activeRoom = rawCallValue(this.room);
             const generation = this.connectionGeneration;
 
             if (!activeRoom || !this.isActiveRoom(activeRoom, generation) || !this.canPublish || this.failed || this.leaving) {
@@ -1214,6 +1226,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         bindRoomEvents(activeRoom = this.room, generation = this.connectionGeneration) {
+            activeRoom = rawCallValue(activeRoom);
             const current = (callback) => (...args) => {
                 if (this.isActiveRoom(activeRoom, generation)) return callback(...args);
             };
@@ -1289,14 +1302,15 @@ document.addEventListener('alpine:init', () => {
         },
 
         renderAllParticipants() {
-            if (!this.room) {
+            const activeRoom = rawCallValue(this.room);
+            if (!activeRoom) {
                 return;
             }
 
             const grid = this.$refs.grid;
-            const participants = [this.room.localParticipant, ...this.room.remoteParticipants.values()];
+            const participants = [activeRoom.localParticipant, ...activeRoom.remoteParticipants.values()];
             this.participantCount = participants.length;
-            this.remoteCount = this.room.remoteParticipants.size;
+            this.remoteCount = activeRoom.remoteParticipants.size;
             // Sobald jemand wirklich da ist, hoert das Freizeichen auf.
             this.syncRingback();
 
@@ -1322,6 +1336,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         ensureTile(participant) {
+            participant = rawCallValue(participant);
             let tile = this.tiles.get(participant.identity);
 
             if (tile) {
@@ -1330,7 +1345,7 @@ document.addEventListener('alpine:init', () => {
             }
 
             const root = document.createElement('div');
-            const isLocal = participant === this.room.localParticipant;
+            const isLocal = participant === rawCallValue(this.room).localParticipant;
             root.className = isLocal
                 ? 'rt-call-tile rt-call-tile--local absolute inset-0 flex min-h-0 items-center justify-center overflow-hidden bg-black'
                 : 'rt-call-tile relative flex min-h-0 items-center justify-center overflow-hidden rounded-[1.1rem] bg-white/[0.04] ring-1 ring-white/10 transition-shadow';
@@ -1339,7 +1354,7 @@ document.addEventListener('alpine:init', () => {
             const video = document.createElement('video');
             video.autoplay = true;
             video.playsInline = true;
-            video.muted = participant === this.room.localParticipant;
+            video.muted = isLocal;
             video.className = 'absolute inset-0 hidden h-full w-full object-cover';
 
             const audio = document.createElement('audio');
@@ -1376,7 +1391,8 @@ document.addEventListener('alpine:init', () => {
         },
 
         attachTracks(participant, tile) {
-            const isLocal = participant === this.room.localParticipant;
+            participant = rawCallValue(participant);
+            const isLocal = participant === rawCallValue(this.room).localParticipant;
             const preferredVideoSource = isLocal ? Track.Source.Camera : Track.Source.ScreenShare;
             let selectedVideoPublication = null;
             let audioMuted = true;
@@ -1387,7 +1403,7 @@ document.addEventListener('alpine:init', () => {
                 if (publication.kind === Track.Kind.Audio) {
                     audioMuted = publication.isMuted;
 
-                    if (track && participant !== this.room.localParticipant) {
+                    if (track && !isLocal) {
                         track.attach(tile.audio);
                     }
                 }
@@ -1420,7 +1436,7 @@ document.addEventListener('alpine:init', () => {
             tile.placeholder.classList.toggle('hidden', hasVideo);
             tile.mutedIcon.classList.toggle('hidden', !audioMuted);
 
-            if (participant === this.room.localParticipant) {
+            if (isLocal) {
                 this.selfVideoVisible = hasVideo;
             }
         },
@@ -1445,7 +1461,7 @@ document.addEventListener('alpine:init', () => {
             const busy = kind === 'camera' ? 'cameraBusy' : 'micBusy';
             if (!this.canControlMedia || this[busy]) return;
 
-            const activeRoom = this.room;
+            const activeRoom = rawCallValue(this.room);
             const generation = this.connectionGeneration;
             const enable = !this[state];
             this[busy] = true;
@@ -1473,7 +1489,7 @@ document.addEventListener('alpine:init', () => {
 
         async toggleScreenShare() {
             if (!this.canControlMedia || this.screenShareBusy || !this.screenShareSupported) return;
-            const activeRoom = this.room;
+            const activeRoom = rawCallValue(this.room);
             const generation = this.connectionGeneration;
             const enable = !this.screenSharing;
             this.screenShareBusy = true;
@@ -1501,7 +1517,7 @@ document.addEventListener('alpine:init', () => {
 
         disconnect() {
             if (this.leaving && this.disconnectPromise) return this.disconnectPromise;
-            const activeRoom = this.room;
+            const activeRoom = rawCallValue(this.room);
             this.stopRecordingPolling();
             this.connectionGeneration += 1;
             this.sessionAbortController?.abort();

@@ -20,7 +20,7 @@ class EmployeeSessionLifetimeTest extends TestCase
         parent::setUp();
         $this->buildMinimalRailTimeSchema();
         (require database_path('migrations/2023_07_04_121951_create_sessions_table.php'))->up();
-        config(['session.lifetime' => 120, 'session.ordinary_lifetime' => 120, 'session.employee_lifetime' => 4320]);
+        config(['session.lifetime' => 120, 'session.ordinary_lifetime' => 120, 'session.employee_lifetime' => 4320, 'session.administrator_lifetime' => 4320]);
         $this->travelTo(now()->startOfDay());
     }
 
@@ -43,9 +43,37 @@ class EmployeeSessionLifetimeTest extends TestCase
         $this->assertSame('', $this->handler()->read('employee-weekend'));
     }
 
-    public function test_admin_and_non_employee_logins_keep_two_hour_timeout(): void
+    public function test_admin_and_superadmin_expire_at_exactly_72_idle_hours(): void
     {
-        foreach (['admin', 'guest', 'customer'] as $role) {
+        foreach (['admin', 'superadmin'] as $role) {
+            $user = User::factory()->create(['role' => $role, 'status' => true]);
+            $this->insertSession($user, $role.'-valid', 4319);
+            $this->insertSession($user, $role.'-expired', 4320);
+            $this->assertSame('fixture-payload', $this->handler()->read($role.'-valid'));
+            $this->assertSame('', $this->handler()->read($role.'-expired'));
+            $this->assertSame(4320, SessionLifetimePolicy::minutes($user));
+            $this->handler()->gc(120 * 60);
+            $this->assertTrue(DB::table('sessions')->where('id', $role.'-valid')->exists());
+            $user->update(['status' => false]);
+            $this->assertSame('', $this->handler()->read($role.'-valid'));
+            $this->assertSame(120, SessionLifetimePolicy::minutes($user->fresh()));
+        }
+    }
+
+    public function test_recovery_probe_never_extends_idle_time_even_with_html_accept(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $this->actingAs($admin);
+        $this->insertSession($admin, 'resume', 3000);
+        $before = DB::table('sessions')->where('id', 'resume')->value('last_activity');
+        $this->app->instance('request', Request::create('/pwa/session-status', 'GET', [], [], [], ['HTTP_ACCEPT' => 'text/html', 'HTTP_SEC_FETCH_MODE' => 'navigate']));
+        $this->handler()->write('resume', 'recovery-payload');
+        $this->assertSame($before, DB::table('sessions')->where('id', 'resume')->value('last_activity'));
+    }
+
+    public function test_other_roles_keep_two_hour_timeout(): void
+    {
+        foreach (['guest', 'customer', 'editor'] as $role) {
             $user = User::factory()->create(['role' => $role, 'status' => true]);
             $this->insertSession($user, $role, 120);
             $this->assertSame('', $this->handler()->read($role));
@@ -58,7 +86,7 @@ class EmployeeSessionLifetimeTest extends TestCase
         $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
         $this->insertSession($employee, 'role-change', 180);
         $this->assertSame('fixture-payload', $this->handler()->read('role-change'));
-        DB::table('users')->where('id', $employee->id)->update(['role' => 'admin']);
+        DB::table('users')->where('id', $employee->id)->update(['role' => 'customer']);
         $this->assertSame('', $this->handler()->read('role-change'));
         DB::table('users')->where('id', $employee->id)->update(['role' => 'staff', 'status' => false]);
         $this->assertSame('', $this->handler()->read('role-change'));
@@ -73,7 +101,7 @@ class EmployeeSessionLifetimeTest extends TestCase
         $this->assertTrue(DB::table('sessions')->where('id', 'active')->exists());
     }
 
-    public function test_response_cookie_lifetime_reflects_login_identity_without_leaking_to_admin(): void
+    public function test_response_cookie_lifetime_reflects_login_identity_without_leaking_to_customers(): void
     {
         $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
         $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
@@ -89,8 +117,15 @@ class EmployeeSessionLifetimeTest extends TestCase
         $request = Request::create('/administrator');
         $request->setUserResolver(fn () => $admin);
         (new ApplySessionLifetime)->handle($request, fn () => response('admin'));
+        $this->assertSame(4320, config('session.lifetime'));
+        $this->assertSame(4320, SessionLifetimePolicy::minutes($admin));
+        $customer = User::factory()->create(['role' => 'customer', 'status' => true]);
+        $request->setUserResolver(fn () => $customer);
+        (new ApplySessionLifetime)->handle($request, fn () => response('customer'));
         $this->assertSame(120, config('session.lifetime'));
-        $this->assertSame(120, SessionLifetimePolicy::minutes($admin));
+        $request->setUserResolver(fn () => null);
+        (new ApplySessionLifetime)->handle($request, fn () => response('guest'));
+        $this->assertSame(120, config('session.lifetime'));
     }
 
     public function test_background_polling_does_not_renew_database_session_but_document_navigation_does(): void

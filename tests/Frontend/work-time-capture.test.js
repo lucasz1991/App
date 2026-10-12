@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { encryptCapture, decryptCapture, projectCapture, workTimeCapture } from '../../resources/js/work-time-capture.js';
+import { CaptureStore, encryptCapture, decryptCapture, projectCapture, workTimeCapture } from '../../resources/js/work-time-capture.js';
 
 test('AES-GCM encrypts minimal event data and rejects changed ciphertext', async () => {
     const key = await webcrypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
@@ -79,4 +79,210 @@ test('two tabs retain device source instants without request-specific server clo
         if(originalNavigator) Object.defineProperty(globalThis,'navigator',originalNavigator);
         else delete globalThis.navigator;
     }
+});
+
+async function captureRuntime(t, { realSync = false } = {}) {
+    const globals = ['navigator', 'window', 'document', 'localStorage', 'indexedDB', 'BroadcastChannel', 'fetch', 'CustomEvent'];
+    const descriptors = new Map(globals.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+    const originalOpen = CaptureStore.open;
+    const windowLike = new EventTarget();
+    let reloads = 0;
+    windowLike.location = { reload: () => reloads++ };
+    const documentLike = new EventTarget();
+    documentLike.visibilityState = 'visible';
+    const metas = { 'csrf-token': { content: 'fresh-csrf' }, 'rt-push-account-binding': { content: 'account-one' } };
+    documentLike.querySelector = selector => metas[/meta\[name="([^"]+)"\]/.exec(selector)?.[1]] || null;
+    const storage = new Map();
+    const locks = new Map();
+    const browserNavigator = { onLine: true, locks: { request: (name, callback) => {
+        const next = (locks.get(name) || Promise.resolve()).catch(() => {}).then(callback);
+        locks.set(name, next);
+        return next;
+    } } };
+    class DetailEvent extends Event { constructor(name, options = {}) { super(name); this.detail = options.detail; } }
+    const values = { navigator: browserNavigator, window: windowLike, document: documentLike,
+        localStorage: { getItem: name => storage.get(name) || null, setItem: (name, value) => storage.set(name, value) },
+        indexedDB: {}, BroadcastChannel: undefined, CustomEvent: DetailEvent };
+    for (const [name, value] of Object.entries(values)) Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
+    const rawKey = new Uint8Array(32).fill(7);
+    const key = await webcrypto.subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    const rows = [];
+    let savedState = null;
+    let sequence = 0;
+    const store = { rows: async () => rows, state: async () => savedState, sequence: async () => sequence,
+        saveState: async (_scope, state, nextSequence) => { savedState = state; sequence = Math.max(sequence, nextSequence); },
+        remove: async id => rows.splice(rows.findIndex(row => row.id === id), 1), close: () => {},
+        append: async row => { rows.push(row); sequence = row.sequence; },
+        update: async row => { rows[rows.findIndex(existing => existing.id === row.id)] = row; } };
+    CaptureStore.open = async () => store;
+    const calls = [];
+    let actor = 1;
+    let active = null;
+    let serverSequence = 0;
+    let responder = null;
+    const response = data => ({ ok: true, status: 200, json: async () => data });
+    globalThis.fetch = async (url, options) => {
+        const payload = JSON.parse(options.body);
+        calls.push({ url, payload, csrf: options.headers['X-CSRF-TOKEN'], ready: component.ready, generation: component._generation });
+        if (responder) return responder(url, payload);
+        if (url === '/capture/sync') {
+            active = projectCapture(active, payload.events[0]);
+            serverSequence = payload.events.at(-1).sequence;
+            return response({ results: payload.events.map(event => ({ event_key: event.event_key, status: 'accepted', entry_id: 9, revision: active.revision })) });
+        }
+        return response({ actor_id: actor, device_id: 'device-one', key: Buffer.from(rawKey).toString('base64'),
+            active, last_sequence: serverSequence, receipts: [] });
+    };
+    const component = workTimeCapture({ actorId: 1, timezone: 'Europe/Berlin', bootstrapUrl: '/capture/bootstrap', syncUrl: '/capture/sync' });
+    let syncs = 0;
+    if (!realSync) component.sync = async () => { syncs++; await component.restore(); };
+    t.after(() => {
+        component.destroy();
+        CaptureStore.open = originalOpen;
+        for (const name of globals) {
+            const descriptor = descriptors.get(name);
+            if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name];
+        }
+    });
+    await component.init();
+    return { component, key, store, rows, calls, storage, windowLike, documentLike, browserNavigator, metas,
+        reloads: () => reloads, syncs: () => syncs, actor: value => { actor = value; }, respond: callback => { responder = callback; }, response,
+        emit: (state, account_binding = 'account-one') => windowLike.dispatchEvent(new DetailEvent('railtime:app-connection-state', { detail: { state, account_binding } })) };
+}
+
+test('BFCache return reboots the same account securely without reloading or losing form state', async t => {
+    const runtime = await captureRuntime(t);
+    const { component, windowLike, metas } = runtime;
+    component.title = 'Unsubmitted title';
+    component.context = 'training';
+    component.trainingId = '7';
+    component.startDialogOpen = true;
+    windowLike.RailtimeAppLifecycle = { recover: async () => { metas['csrf-token'].content = 'resumed-csrf'; runtime.emit('ready'); return true; } };
+    windowLike.dispatchEvent(new Event('pagehide'));
+    assert.equal(component.key, null);
+    assert.equal(component.ready, false);
+    const pageshow = new Event('pageshow');
+    pageshow.persisted = true;
+    windowLike.dispatchEvent(pageshow);
+    await component._bootstrap;
+    assert.equal(component.ready, true);
+    assert.equal(runtime.calls.length, 2);
+    assert.equal(runtime.calls.at(-1).csrf, 'resumed-csrf');
+    assert.equal(runtime.syncs(), 2);
+    assert.equal(runtime.reloads(), 0);
+    assert.equal(component.title, 'Unsubmitted title');
+    assert.equal(component.context, 'training');
+    assert.equal(component.trainingId, '7');
+    assert.equal(component.startDialogOpen, true);
+    assert.deepEqual([...runtime.storage.values()], ['device-one']);
+});
+
+test('offline BFCache return keeps encrypted events and waits for authorized online recovery', async t => {
+    const runtime = await captureRuntime(t);
+    const event = { action: 'start', entry_capture_id: 'one', event_key: 'one', sequence: 1, title: 'Offline draft', occurred_at: '2026-10-12T08:00:00Z' };
+    runtime.rows.push({ ...await encryptCapture(runtime.key, event), id: 'one', sequence: 1, scope: '1:device-one', status: 'pending' });
+    runtime.windowLike.dispatchEvent(new Event('pagehide'));
+    runtime.browserNavigator.onLine = false;
+    await runtime.component.resume();
+    assert.equal(runtime.component.key, null);
+    assert.equal(runtime.component.ready, false);
+    assert.equal(runtime.calls.length, 1);
+    assert.equal(runtime.rows.length, 1);
+    assert.equal(runtime.reloads(), 0);
+    runtime.browserNavigator.onLine = true;
+    await runtime.component.resume();
+    assert.equal(runtime.component.ready, true);
+    assert.equal(runtime.component.active.title, 'Offline draft');
+});
+
+test('recovery refuses another account or changed account binding before restoring or replaying outbox', async t => {
+    const runtime = await captureRuntime(t);
+    runtime.windowLike.dispatchEvent(new Event('pagehide'));
+    runtime.emit('ready', 'other-account');
+    assert.equal(runtime.calls.length, 1);
+    assert.equal(runtime.component.key, null);
+    runtime.actor(2);
+    runtime.emit('ready');
+    await runtime.component._bootstrap;
+    assert.equal(runtime.calls.length, 2);
+    assert.equal(runtime.syncs(), 1);
+    assert.equal(runtime.component.ready, false);
+    assert.equal(runtime.component.key, null);
+    assert.match(runtime.component.error, /Sitzung geändert/);
+    assert.equal(runtime.calls.some(call => call.url === '/capture/sync'), false);
+});
+
+test('pagehide and destroy invalidate an in-flight key bootstrap and late responses cannot restore readiness', async t => {
+    const runtime = await captureRuntime(t);
+    runtime.component.clearKey();
+    let release;
+    runtime.respond(() => new Promise(resolve => { release = resolve; }));
+    const pending = runtime.component.bootstrap();
+    await new Promise(resolve => setImmediate(resolve));
+    runtime.windowLike.dispatchEvent(new Event('pagehide'));
+    runtime.component.destroy();
+    release(runtime.response({ actor_id: 1, device_id: 'device-one', key: Buffer.alloc(32, 7).toString('base64'), active: null, last_sequence: 0 }));
+    await pending;
+    assert.equal(runtime.component.ready, false);
+    assert.equal(runtime.component.key, null);
+    assert.equal(runtime.syncs(), 1);
+    runtime.emit('ready');
+    assert.equal(runtime.calls.length, 2);
+});
+
+test('authorized resume sends the existing encrypted owned outbox exactly once', async t => {
+    const runtime = await captureRuntime(t, { realSync: true });
+    const event = { action: 'start', entry_capture_id: 'entry-one', event_key: 'event-one', sequence: 1, revision: 0,
+        title: 'Previously captured', occurred_at: '2026-10-12T08:00:00Z', timezone: 'Europe/Berlin' };
+    await runtime.store.append({ ...await encryptCapture(runtime.key, event), id: event.event_key, sequence: 1, scope: '1:device-one', status: 'pending' });
+    runtime.windowLike.dispatchEvent(new Event('pagehide'));
+    const first = runtime.component.bootstrap();
+    const second = runtime.component.bootstrap();
+    assert.equal(first, second);
+    await first;
+    assert.equal(runtime.component.ready, true);
+    assert.equal(runtime.component.active.title, 'Previously captured');
+    assert.equal(runtime.rows.length, 0);
+    const submissions = runtime.calls.filter(call => call.url === '/capture/sync');
+    assert.equal(submissions.length, 1);
+    assert.deepEqual(submissions[0].payload.events, [event]);
+    runtime.emit('session-required');
+    assert.equal(runtime.component.ready, false);
+    assert.equal(runtime.component.key, null);
+    await runtime.component.capture({ action: 'stop' });
+    assert.equal(runtime.calls.filter(call => call.url === '/capture/sync').length, 1);
+});
+
+test('an interrupted old sync cannot use a newly bootstrapped key or publish stale state', async t => {
+    const runtime = await captureRuntime(t, { realSync: true });
+    const event = { action: 'start', entry_capture_id: 'entry-race', event_key: 'event-race', sequence: 1, revision: 0,
+        title: 'Before suspension', occurred_at: '2026-10-12T08:00:00Z', timezone: 'Europe/Berlin' };
+    await runtime.store.append({ ...await encryptCapture(runtime.key, event), id: event.event_key, sequence: 1, scope: '1:device-one', status: 'pending' });
+    const readRows = runtime.store.rows;
+    let reads = 0;
+    let release;
+    runtime.store.rows = async scope => {
+        if (++reads === 2) await new Promise(resolve => { release = resolve; });
+        return readRows(scope);
+    };
+    const oldSync = runtime.component.sync();
+    for (let spin = 0; !release && spin < 30; spin++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(typeof release, 'function');
+    runtime.windowLike.dispatchEvent(new Event('pagehide'));
+    const resumedGeneration = runtime.component._generation;
+    const resumed = runtime.component.bootstrap();
+    for (let spin = 0; !runtime.component.key && spin < 30; spin++) await new Promise(resolve => setImmediate(resolve));
+    assert.ok(runtime.component.key);
+    assert.equal(runtime.component.ready, false);
+    release();
+    await oldSync;
+    await resumed;
+    const submissions = runtime.calls.filter(call => call.url === '/capture/sync');
+    assert.equal(submissions.length, 1);
+    assert.equal(submissions[0].ready, true);
+    assert.equal(submissions[0].generation, resumedGeneration);
+    assert.equal(runtime.component.ready, true);
+    assert.equal(runtime.component.syncing, false);
+    assert.equal(runtime.component.active.title, 'Before suspension');
+    assert.equal(runtime.rows.length, 0);
 });

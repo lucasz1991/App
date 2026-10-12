@@ -3,7 +3,7 @@
 .rt-timeline-cell-action:focus-visible { outline: 2px solid var(--rt-red, #df0037); outline-offset: -3px; }
 .rt-timeline-proposals { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .rt-timeline-proposal-shell { position: absolute; left: var(--proposal-center, var(--proposal-left)); width: max(var(--proposal-width), 140px); top: 50%; height: 18px; transform: translate(-50%, -50%); isolation: isolate; }
-.rt-timeline-proposal { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; gap: 5px; align-items: center; justify-content: center; min-width: 2px; padding: 0 7px 2px; border: 1px dashed color-mix(in srgb, var(--proposal-color) 72%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--proposal-color) 9%, var(--rt-surface, #fff)); color: var(--proposal-color); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; pointer-events: auto; overflow: visible; box-shadow: 0 1px 2px color-mix(in srgb, var(--proposal-color) 10%, transparent); }
+.rt-timeline-proposal { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; gap: 5px; align-items: center; justify-content: center; min-width: 2px; padding: 0 7px 2px; border: 1px dashed color-mix(in srgb, var(--proposal-color) 64%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--proposal-color) 9%, var(--rt-surface, #fff)); color: var(--proposal-color); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; pointer-events: auto; overflow: hidden; box-shadow: none; }
 .rt-timeline-proposal span { flex: 0 0 auto; overflow: visible; white-space: nowrap; }
 .rt-timeline-proposal:hover { border-style: solid; }
 .rt-timeline-proposal:focus-visible { outline: 2px solid var(--rt-red, #df0037); outline-offset: -2px; }
@@ -20,18 +20,20 @@
 .dark .rt-timeline-cell-action[data-fit='blocked'], .dark .rt-timeline-cell-action[data-fit='error'] { --fit-color: var(--rt-dark-accent, #ff597b); }
 .dark .rt-timeline-cell-action[data-fit='empty'] { --fit-color: var(--rt-dark-muted, #a5b2c5); }
 @media (prefers-reduced-motion: reduce) { .rt-timeline-cell-action[data-fit='checking'] .rt-timeline-cell-status > i { animation: none; } }
-[data-fit='preferred'] { --proposal-color: #16816e; }
-[data-fit='suitable'] { --proposal-color: #397db1; }
-[data-fit='review'] { --proposal-color: #ad7328; }
-.rt-timeline-proposal-ping { position: absolute; inset: 0; z-index: 0; border: 1px dashed color-mix(in srgb, var(--proposal-color) 72%, transparent); border-radius: 6px; background: transparent; pointer-events: none; }
+[data-fit='preferred'] { --proposal-color: #087a69; }
+[data-fit='suitable'] { --proposal-color: #087984; }
+[data-fit='review'] { --proposal-color: #a04c22; }
+.rt-timeline-proposal-ping { position: absolute; inset: 0; z-index: 0; border: 2px solid var(--proposal-color); border-radius: 6px; background: transparent; pointer-events: none; }
 .rt-timeline-proposal-ping.animate-ping { animation-name: rt-timeline-border-ping; }
 @keyframes rt-timeline-border-ping {
-    0% { transform: scale(1); opacity: .65; }
+    0% { transform: scale(1); opacity: .95; }
     75%, 100% { transform: scale(var(--proposal-ping-x, 1), var(--proposal-ping-y, 1)); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .rt-timeline-proposal-ping.animate-ping { animation: none; } }
 .rt-timeline-proposal:hover + .rt-timeline-proposal-ping { border-style: solid; }
-.rt-timeline-proposal-duration { position: absolute; left: var(--proposal-left); top: calc(50% + 7px); z-index: 2; width: max(3px, var(--proposal-width)); height: 2px; border-radius: 999px; background: var(--proposal-color); opacity: .95; pointer-events: none; }
+.rt-timeline-proposal-duration { position: absolute; left: 50%; bottom: 0; z-index: 2; width: min(100%, max(3px, var(--proposal-duration-width))); height: 2px; transform: translateX(-50%); border-radius: 999px; background: var(--proposal-color); opacity: .95; pointer-events: none; }
+.rt-personnel-timeline[data-timeline-zoom='day'] .rt-timeline-proposal-shell { left: var(--proposal-visible-center, var(--proposal-center, var(--proposal-left))); width: var(--proposal-visible-width, max(var(--proposal-width), 140px)); }
+.rt-personnel-timeline[data-timeline-zoom='day'] .rt-timeline-proposal-duration { left: var(--proposal-visible-duration-left, 50%); width: var(--proposal-visible-duration-width, min(100%, max(3px, var(--proposal-duration-width)))); transform: var(--proposal-visible-duration-transform, translateX(-50%)); }
 .rt-timeline-proposal:not([data-in-view='true']) + .rt-timeline-proposal-ping { animation: none; }
 [data-motion-paused='true'] .rt-timeline-proposal-ping { animation-play-state: paused; }
 .rt-timeline-proposal > i { flex: 0 0 auto; font-size: 10px; }
@@ -112,9 +114,11 @@
 .rt-timeline-choice > p { color: #be3e52; font-size: 11px; }
 .rt-timeline-choice ul { flex-basis: 100%; padding-left: 16px; list-style: disc; color: var(--rt-muted, #637188); font-size: 11px; }
 .dark .rt-timeline-proposal { background: color-mix(in srgb, var(--proposal-color) 9%, var(--rt-dark-surface, #171d28)); }
-.dark [data-fit='preferred'], .dark .rt-timeline-workload[data-state='full'] { --proposal-color: #59bda6; color: #59bda6; }
-.dark [data-fit='suitable'], .dark .rt-timeline-workload[data-state='available'] { --proposal-color: #71ace0; color: #71ace0; }
-.dark [data-fit='review'] { --proposal-color: #d7a461; }
+.dark [data-fit='preferred'] { --proposal-color: #72d7b9; }
+.dark [data-fit='suitable'] { --proposal-color: #75d2d9; }
+.dark [data-fit='review'] { --proposal-color: #f9b38b; }
+.dark .rt-timeline-workload[data-state='full'] { color: #59bda6; }
+.dark .rt-timeline-workload[data-state='available'] { color: #71ace0; }
 .dark .rt-timeline-workload-detail p, .dark .rt-timeline-workload-detail dt, .dark .rt-timeline-workload-detail header > span,
 .dark .rt-timeline-choice span, .dark .rt-timeline-choice small, .dark .rt-timeline-choice ul { color: var(--rt-dark-muted, #a5b2c5); }
 .dark .rt-timeline-choice { border-color: var(--rt-dark-border, #303846); }

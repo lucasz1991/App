@@ -172,6 +172,51 @@ class ResponsiveShiftPlanControlsTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_timeline_zoom_controls_follow_the_icon_date_picker_and_use_scoped_local_native_buttons(): void
+    {
+        $component = Livewire::actingAs($this->admin)->test(ShiftManagement::class)->call('setView', 'timeline');
+        $xpath = $this->xpath($component->html());
+        $group = $xpath->query('//*[@data-timeline-zoom-controls]')->item(0);
+        $this->assertNotNull($group);
+        $this->assertSame('group', $group->getAttribute('role'));
+        $this->assertTrue($group->hasAttribute('wire:ignore'), 'The client owns presentation zoom across server period morphs');
+        $this->assertSame($component->instance()->getId(), $group->getAttribute('data-timeline-zoom-owner'));
+        $previous = $xpath->query('preceding-sibling::*[1]', $group)->item(0);
+        $this->assertStringContainsString('rt-shift-plan-period-controls', $previous->getAttribute('class'));
+        $this->assertSame(1, $xpath->query('.//button[contains(@class,"rt-shift-plan-date-trigger")]', $previous)->length);
+        foreach (['day' => 'Tag', 'week' => 'Woche'] as $mode => $label) {
+            $button = $xpath->query('.//button[@data-timeline-zoom-mode="'.$mode.'"]', $group)->item(0);
+            $this->assertNotNull($button);
+            $this->assertSame('button', $button->getAttribute('type'));
+            $this->assertSame($label, trim($button->textContent));
+            $this->assertFalse($button->hasAttribute('disabled'), 'Both local zoom modes must remain available');
+            $this->assertSame($mode === 'week' ? 'true' : 'false', $button->getAttribute('aria-pressed'));
+            $this->assertStringContainsString('operations-timeline-zoom-request', $button->getAttribute('x-on:click'));
+            $this->assertStringContainsString('$'."el.closest('[data-timeline-zoom-owner]').dataset.timelineZoomOwner", $button->getAttribute('x-on:click'));
+            $this->assertStringNotContainsString('@js(', $button->getAttribute('x-on:click'), 'Component attributes must contain executable emitted JavaScript');
+            $this->assertFalse($button->hasAttribute('wire:click'));
+        }
+        foreach (['table', 'day', 'staffing', 'orders'] as $view) {
+            $component->call('setView', $view);
+            $this->assertSame(0, $this->xpath($component->html())->query('//*[@data-timeline-zoom-controls]')->length);
+        }
+        $this->assertSame(0, ShiftAssignment::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_timeline_zoom_initial_day_url_selects_tag_without_mutating_period_or_business_data(): void
+    {
+        $component = Livewire::withQueryParams(['zoom' => 'day', 'from' => '2027-05-12', 'until' => '2027-05-18'])
+            ->actingAs($this->admin)->test(ShiftManagement::class);
+        $xpath = $this->xpath($component->html());
+        $this->assertSame('true', $xpath->query('//button[@data-timeline-zoom-mode="day"]')->item(0)->getAttribute('aria-pressed'));
+        $this->assertSame('false', $xpath->query('//button[@data-timeline-zoom-mode="week"]')->item(0)->getAttribute('aria-pressed'));
+        $component->assertSet('rangeFrom', '2027-05-12')->assertSet('rangeTo', '2027-05-18');
+        $this->assertSame(0, Shift::count());
+        $this->assertSame(0, ShiftAssignment::count());
+        Http::assertNothingSent();
+    }
+
     public function test_proposals_follow_the_distribution_sidebar_without_a_header_switch(): void
     {
         $component = Livewire::actingAs($this->admin)->test(StaffTimeline::class, ['from' => '2027-05-10', 'until' => '2027-05-16', 'planningEnabled' => true, 'searchInHeader' => true]);

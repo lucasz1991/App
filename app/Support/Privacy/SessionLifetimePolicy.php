@@ -8,8 +8,15 @@ class SessionLifetimePolicy
 {
     public static function minutes(?User $user): int
     {
-        return $user?->role === 'staff' && $user->isActive()
-            ? (int) config('session.employee_lifetime', 4320)
-            : (int) config('session.ordinary_lifetime', config('session.lifetime', 120));
+        if ($user?->isActive()) {
+            if ($user->role === 'staff') {
+                return (int) config('session.employee_lifetime', 4320);
+            }
+            if ($user->isAdmin()) {
+                return (int) config('session.administrator_lifetime', 4320);
+            }
+        }
+
+        return (int) config('session.ordinary_lifetime', config('session.lifetime', 120));
     }
 }

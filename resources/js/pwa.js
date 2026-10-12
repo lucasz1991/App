@@ -1,4 +1,5 @@
 import { createRuntimeStatusReporter } from './pwa/runtime-status.js';
+import { createAppLifecycle } from './pwa/app-lifecycle.js';
 
 const PWA_STATE_EVENT = 'railtime:pwa-state-changed';
 const PUSH_DEVICE_BINDING_STORAGE_KEY = 'railtime:webpush-device-binding:v1';
@@ -405,6 +406,10 @@ export function setupRailtimePwa() {
     lifecycleInitialized = true;
     runtimeStatusReporter = createRuntimeStatusReporter();
     runtimeStatusReporter.start();
+    windowLike.RailtimeAppLifecycle = createAppLifecycle({
+        onRecovered: () => runtimeStatusReporter.resumeAfterSessionCheck(),
+    });
+    windowLike.RailtimeAppLifecycle.start();
 
     windowLike.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault();

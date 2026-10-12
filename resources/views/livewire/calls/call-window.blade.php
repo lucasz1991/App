@@ -6,6 +6,7 @@
      Auflegen zurueck in den Chat. fixed+z-[200] bleibt als Absicherung
      gegen darunterliegende Seitenreste. --}}
 <div
+    wire:ignore.self
     class="rt-call-window z-[200] overflow-hidden bg-[#0b0e13]"
     :style="callViewportStyle"
     data-rt-overlay-layer

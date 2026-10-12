@@ -23,7 +23,7 @@ class UserAppRuntimeReceiptService
     public function ready(): bool
     {
         return Schema::hasColumns('user_app_runtime_receipts', ['id', 'user_id', 'session_permission_grant_id', ...self::PAYLOAD_FIELDS, 'received_at', 'created_at', 'updated_at'])
-            && Schema::hasColumns('session_permission_grants', ['id', 'uuid', 'user_id', 'session_hash', 'session_identifier', 'expires_at', 'ended_at'])
+            && Schema::hasColumns('session_permission_grants', ['id', 'uuid', 'user_id', 'session_hash', 'session_identifier', 'last_activity_at', 'expires_at', 'ended_at'])
             && Schema::hasColumns('users', ['id', 'status', 'role']);
     }
 
@@ -62,7 +62,7 @@ class UserAppRuntimeReceiptService
 
     public function latestForUser(int $userId): ?UserAppRuntimeReceipt
     {
-        return $this->latestMobileForUser($userId) ?? $this->latestEligible($userId, ['desktop', 'unknown']);
+        return $this->latestEligible($userId, ['ios', 'android', 'desktop', 'unknown']);
     }
 
     public function isFresh(UserAppRuntimeReceipt $receipt): bool
@@ -83,12 +83,17 @@ class UserAppRuntimeReceiptService
             return null;
         }
         $now = CarbonImmutable::now('UTC');
-        $query = UserAppRuntimeReceipt::where('user_id', $userId)->whereIn('platform', $platforms)
+        // Only a real interaction advances last_activity_at. A periodic status
+        // report must not displace the device the employee actually used last.
+        $query = UserAppRuntimeReceipt::query()->select('user_app_runtime_receipts.*')
+            ->join('session_permission_grants as runtime_grant', 'runtime_grant.id', '=', 'user_app_runtime_receipts.session_permission_grant_id')
+            ->where('user_app_runtime_receipts.user_id', $userId)->whereIn('platform', $platforms)
             ->where('received_at', '>', $now->subDays(7)->format('Y-m-d H:i:s.u'))
             ->where('received_at', '<=', $now->format('Y-m-d H:i:s.u'))
-            ->whereHas('sessionPermissionGrant', fn (Builder $query) => $query->where('user_id', $userId)->whereNull('ended_at')
-                ->where('expires_at', '>', $now->format('Y-m-d H:i:s.u')))
-            ->with('sessionPermissionGrant')->orderByDesc('received_at')->orderByDesc('id');
+            ->where('runtime_grant.user_id', $userId)->whereNull('runtime_grant.ended_at')
+            ->where('runtime_grant.expires_at', '>', $now->format('Y-m-d H:i:s.u'))
+            ->where('runtime_grant.last_activity_at', '<=', $now->format('Y-m-d H:i:s.u'))
+            ->with('sessionPermissionGrant')->orderByDesc('runtime_grant.last_activity_at')->orderByDesc('runtime_grant.id');
         $currentGrantId = app(SessionPermissionService::class)->current($user)?->id;
         $database = config('session.driver') === 'database';
 
@@ -120,6 +125,13 @@ class UserAppRuntimeReceiptService
                 }
             }
             foreach ($batch as $receipt) {
+                $grant = $receipt->sessionPermissionGrant;
+                // The grant is eager-loaded separately; a concurrent logout
+                // or account-session removal must not revive its observation.
+                if (! $grant || $grant->ended_at || $grant->expires_at->lte($now)
+                    || (int) $grant->user_id !== $userId || $grant->last_activity_at->gt($now)) {
+                    continue;
+                }
                 if (! $database || $receipt->session_permission_grant_id === $currentGrantId) {
                     return $receipt;
                 }
@@ -130,9 +142,12 @@ class UserAppRuntimeReceiptService
                 }
             }
             $last = $batch->last();
-            $lastTime = $last->received_at->format('Y-m-d H:i:s.u');
-            $query->where(fn (Builder $query) => $query->where('received_at', '<', $lastTime)
-                ->orWhere(fn (Builder $query) => $query->where('received_at', $lastTime)->where('id', '<', $last->id)));
+            $lastTime = $last->sessionPermissionGrant?->last_activity_at?->format('Y-m-d H:i:s.u');
+            if ($lastTime === null) {
+                return null;
+            }
+            $query->where(fn (Builder $query) => $query->where('runtime_grant.last_activity_at', '<', $lastTime)
+                ->orWhere(fn (Builder $query) => $query->where('runtime_grant.last_activity_at', $lastTime)->where('runtime_grant.id', '<', $last->session_permission_grant_id)));
         } while ($batch->count() === 25);
 
         return null;

@@ -214,8 +214,8 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
         $this->assertCount(1, $xpath->query('//*[@data-profile-fact="activity"]//button[@data-state="unknown"]'));
         $this->assertSame(__('app.never'), $this->text($xpath->query('//*[@data-profile-fact="activity"]/dd')->item(0)));
         $installation = $xpath->query('//*[@data-profile-status]//*[@role="dialog" and @aria-label="Web-App"]')->item(0);
-        $this->assertStringContainsString('Haupthandy nicht festgelegt', $installation->textContent);
-        $this->assertStringContainsString('App-/Berechtigungsnachweise sind noch nicht hinterlegt', $installation->textContent);
+        $this->assertStringContainsString('Automatische Geräteauswahl', $installation->textContent);
+        $this->assertStringContainsString('noch kein Status empfangen', $installation->textContent);
         $this->assertDatabaseCount('push_subscriptions', 0);
         $this->assertDatabaseCount('employee_location_consents', 0);
         Http::assertNothingSent();
@@ -296,14 +296,14 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
         $xpath = $this->xpath($this->profileComponent()->html());
         $this->assertCount(3, $xpath->query('//*[@data-profile-phone-status]//*[@data-status="unknown"]'));
         $dialog = $xpath->query('//*[@data-profile-status]//*[@role="dialog" and @aria-label="Web-App"]')->item(0);
-        $this->assertStringContainsString('Haupthandy nicht festgelegt', $dialog->textContent);
+        $this->assertStringContainsString('Automatische Geräteauswahl', $dialog->textContent);
         $this->assertStringNotContainsString('0 Handy', $dialog->textContent);
         $this->assertStringNotContainsString('Installiert', $dialog->textContent);
         $this->assertStringNotContainsString('Genehmigt', $dialog->textContent);
         Http::assertNothingSent();
     }
 
-    public function test_assigned_phone_count_is_available_only_in_detail_and_never_implies_primary_or_app_permissions(): void
+    public function test_automatic_status_details_do_not_show_inventory_counts_or_infer_app_permissions(): void
     {
         foreach ([$this->employee, $this->employee, User::factory()->create(['role' => 'staff'])] as $owner) {
             $phone = Device::create(['display_name' => 'PRIVATE-HARDWARE-NAME', 'form_factor' => 'phone',
@@ -315,8 +315,9 @@ class EmployeeProfileCompactHeaderUiTest extends TestCase
         $component = $this->profileComponent()->assertDontSee('PRIVATE-HARDWARE-NAME');
         $xpath = $this->xpath($component->html());
         $dialog = $xpath->query('//*[@data-profile-status]//*[@role="dialog" and @aria-label="Web-App"]')->item(0);
-        $this->assertStringContainsString('2 Handys zugewiesen', $this->text($dialog));
-        $this->assertStringContainsString('Haupthandy nicht festgelegt', $dialog->textContent);
+        $this->assertStringNotContainsString('Handys zugewiesen', $this->text($dialog));
+        $this->assertStringNotContainsString('Haupthandy', $dialog->textContent);
+        $this->assertStringContainsString('Automatische Geräteauswahl', $dialog->textContent);
         $this->assertCount(3, $xpath->query('//*[@data-profile-phone-status]//*[@data-status="unknown"]'));
         $this->assertStringNotContainsString('is_primary', $component->html());
         $this->assertStringNotContainsString('location_permission', $component->html());

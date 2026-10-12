@@ -1,8 +1,47 @@
 // Fit a whole number of days beside the sticky employee column, including on phones.
-export function timelineDayWidth(available, minimum, count) {
+export function timelineDayWidth(available, minimum, count, zoom = null) {
     const days = Math.max(1, count);
-    const visible = Math.min(days, Math.max(1, Math.floor(available / minimum)));
+    const visible = zoom === 'day' ? 1 : zoom === 'week'
+        ? Math.min(days, 7, Math.max(1, Math.floor(available / 112)))
+        : Math.min(days, Math.max(1, Math.floor(available / minimum)));
     return Math.max(1, available / visible);
+}
+
+export function timelineZoomMode(href) {
+    try { return new URL(href).searchParams.get('zoom') === 'day' ? 'day' : 'week'; }
+    catch { return 'week'; }
+}
+
+export function timelineZoomUrl(href, mode) {
+    if (!['day', 'week'].includes(mode)) return null;
+    try {
+        const url = new URL(href);
+        url.searchParams.set('zoom', mode);
+        return url.href;
+    } catch { return null; }
+}
+
+export function timelineDayAttention(raw) {
+    const result = Object.create(null);
+    if (typeof raw !== 'string' || raw.length > 65536) return result;
+    try {
+        const source = JSON.parse(raw);
+        if (!source || Array.isArray(source) || typeof source !== 'object') return result;
+        const fields = ['shifts', 'open_shifts', 'open_places', 'awaiting_shifts', 'requested_places'];
+        for (const [date, values] of Object.entries(source).slice(0, 100)) {
+            if (timelineCivilDay(date) === null || !values || Array.isArray(values) || typeof values !== 'object'
+                || !fields.every(field => Number.isSafeInteger(values[field]) && values[field] >= 0)) continue;
+            result[date] = Object.fromEntries(fields.map(field => [field, values[field]]));
+        }
+    } catch { /* Missing/unconfirmed counters stay unknown rather than inventing zero. */ }
+    return result;
+}
+
+export function timelineDayAttentionLabel(label, attention) {
+    if (!attention) return '';
+    return `${label} · ${attention.shifts} ${attention.shifts === 1 ? 'Schicht benötigt' : 'Schichten benötigen'} Bearbeitung`
+        + ` · ${attention.open_places} ${attention.open_places === 1 ? 'offener Platz' : 'offene Plätze'}`
+        + ` · ${attention.requested_places} ${attention.requested_places === 1 ? 'ausstehende Zusage' : 'ausstehende Zusagen'}`;
 }
 
 export function timelineDayOffset(offset, width, direction, maximum) {
@@ -129,7 +168,21 @@ export function timelineFocusOffset(index, width, offset, visible, maximum) {
 }
 
 // Readable badges span the complete duty; their strip keeps short duties precise.
-export function timelineEventLanes(events, dayWidth) {
+export function timelineViewportBadge(start, end, labelWidth, viewport) {
+    if (!viewport || ![start, end, labelWidth, viewport.from, viewport.until].every(Number.isFinite)
+        || end <= start || viewport.until <= viewport.from || start >= viewport.until || end <= viewport.from) return null;
+    const from = Math.max(start, viewport.from);
+    const until = Math.min(end, viewport.until);
+    const leftInset = start < viewport.from ? 0 : 4;
+    const rightInset = end > viewport.until ? 0 : 4;
+    const badgeWidth = Math.min(Math.max(until - from, labelWidth), viewport.until - viewport.from - leftInset - rightInset);
+    const half = Math.max(0, badgeWidth) / 2;
+    const center = Math.max(viewport.from + leftInset + half,
+        Math.min(viewport.until - rightInset - half, (from + until) / 2));
+    return { center, badgeWidth: Math.max(0, badgeWidth), durationLeft: start - (center - half), durationWidth: end - start };
+}
+
+export function timelineEventLanes(events, dayWidth, viewport = null) {
     const lanes = [];
     const results = new Map();
     const width = Math.max(1, dayWidth);
@@ -140,10 +193,11 @@ export function timelineEventLanes(events, dayWidth) {
         const end = Math.max(start, Math.min(width, (event.start + event.duration) * width / 100));
         const leftInset = event.continuesBefore ? 0 : 4;
         const rightInset = event.continuesAfter ? 0 : 4;
-        const labelWidth = Math.min(Math.max(end - start, event.labelWidth || 0), Math.max(0, width - leftInset - rightInset));
+        const visible = timelineViewportBadge(start, end, event.labelWidth || 0, viewport);
+        const labelWidth = visible?.badgeWidth ?? Math.min(Math.max(end - start, event.labelWidth || 0), Math.max(0, width - leftInset - rightInset));
         const half = labelWidth / 2;
-        const center = event.continuesBefore ? half : event.continuesAfter ? width - half
-            : Math.max(half + leftInset, Math.min(width - half - rightInset, (start + end) / 2));
+        const center = visible?.center ?? (event.continuesBefore ? half : event.continuesAfter ? width - half
+            : Math.max(half + leftInset, Math.min(width - half - rightInset, (start + end) / 2)));
         const occupiedStart = Math.min(start, center - half);
         const occupiedEnd = Math.max(end, center + half);
         let lane = Math.max(0, event.lane || 0);
@@ -160,6 +214,9 @@ const distributionFocusMotions = new WeakMap();
 const contentReveals = new WeakMap();
 // Requests/anchors stay outside Alpine's proxy, so their identities survive a morph.
 const windowNavigations = new WeakMap();
+const timelineLabelWidths = new WeakMap();
+const PROPOSAL_VIEWPORT_PROPERTIES = ['--proposal-visible-center', '--proposal-visible-width', '--proposal-visible-duration-left',
+    '--proposal-visible-duration-width', '--proposal-visible-duration-transform'];
 
 function timelineEventGeometryKey(event) {
     return ['timeStart', 'timeWidth', 'timeLane', 'continuesBefore', 'continuesAfter']
@@ -315,8 +372,11 @@ export function staffTimeline() {
         observer: null,
         contentObserver: null,
         geometryCleanup: null,
+        zoomCleanup: null,
+        timelineZoom: '',
         eventGeometryDirty: true,
         eventPeriodWidth: null,
+        eventViewportKey: null,
         windowObserver: null,
         windowRoot: null,
         windowLoading: false,
@@ -368,7 +428,8 @@ export function staffTimeline() {
             const loaded = this.windowAxisPeriod();
             if (!axis) return [];
             const state = this.windowNavigationState();
-            const key = `${axis.from}:${axis.until}:${loaded?.from}:${loaded?.until}:${this.timelineElement.dataset.timelineFocusDate || ''}`;
+            const attention = this.windowDayAttention;
+            const key = `${axis.from}:${axis.until}:${loaded?.from}:${loaded?.until}:${this.timelineElement.dataset.timelineFocusDate || ''}:${state.attentionRevision || 0}`;
             if (state.scaffoldKey === key) return state.scaffoldDays;
             const start = timelineCivilDay(axis.from);
             const end = timelineCivilDay(axis.until);
@@ -379,11 +440,89 @@ export function staffTimeline() {
                 const day = start + index;
                 const value = new Date(day * CIVIL_DAY_MILLISECONDS);
                 const date = value.toISOString().slice(0, 10);
-                return { date, label: TIMELINE_DAY_LABEL.format(value), weekend: [0, 6].includes(value.getUTCDay()),
-                    pending: loadedFrom === null || loadedUntil === null || day < loadedFrom || day > loadedUntil,
-                    focus: date === this.timelineElement.dataset.timelineFocusDate };
+                const label = TIMELINE_DAY_LABEL.format(value);
+                const pending = loadedFrom === null || loadedUntil === null || day < loadedFrom || day > loadedUntil;
+                const dayAttention = pending ? null : attention[date] || null;
+                return { date, label, weekend: [0, 6].includes(value.getUTCDay()), pending,
+                    focus: date === this.timelineElement.dataset.timelineFocusDate, attention: dayAttention,
+                    attentionLabel: timelineDayAttentionLabel(label, dayAttention) };
             });
             return state.scaffoldDays;
+        },
+        get windowDayAttention() {
+            const state = this.windowNavigationState();
+            const raw = this.timelineElement.dataset.timelineDayAttention || '';
+            if (state.attentionRaw !== raw) {
+                state.attentionRaw = raw;
+                state.attention = timelineDayAttention(raw);
+                state.attentionRevision = (state.attentionRevision || 0) + 1;
+            }
+            return state.attention;
+        },
+        bindTimelineZoom() {
+            if (!this.windowNavigationEnabled) return;
+            this.timelineZoom = timelineZoomMode(window.location?.href);
+            this.timelineElement.dataset.timelineZoom = this.timelineZoom;
+            const change = event => this.requestTimelineZoom(event);
+            const retain = () => {
+                if (this.windowDisposed || !this.windowNavigationEnabled) return;
+                try {
+                    const url = new URL(window.location.href);
+                    if (url.searchParams.get('view') !== 'shifts' || (url.searchParams.get('section') || 'plan') !== 'plan'
+                        || url.searchParams.get('services') === '1') return;
+                } catch { return; }
+                this.persistTimelineZoom();
+            };
+            window.addEventListener?.('operations-timeline-zoom-request', change);
+            window.addEventListener?.('rt-workspace-url-updated', retain);
+            this.zoomCleanup = () => {
+                window.removeEventListener?.('operations-timeline-zoom-request', change);
+                window.removeEventListener?.('rt-workspace-url-updated', retain);
+            };
+        },
+        persistTimelineZoom() {
+            const url = timelineZoomUrl(window.location?.href, this.timelineZoom);
+            if (url && window.history?.replaceState && url !== window.location.href) {
+                window.history.replaceState(window.history.state, '', url);
+            }
+        },
+        requestTimelineZoom(event) {
+            const detail = event?.detail;
+            const root = this.timelineElement;
+            if (this.windowDisposed || !this.windowNavigationEnabled || detail?.owner !== root.dataset.timelinePeriodOwner
+                || !['day', 'week'].includes(detail?.mode)) return false;
+            if (detail.mode === this.timelineZoom) return true;
+            const body = this.$refs.timelineBody;
+            const width = parseFloat(getComputedStyle(root).getPropertyValue('--timeline-day-width'));
+            const heads = this.$refs.timelineHeader?.querySelectorAll?.('.rt-personnel-timeline-header-days > .rt-personnel-timeline-head');
+            const axisFrom = timelineCivilDay(heads?.[0]?.dataset.timelineDate || this.windowDisplayAxis()?.from);
+            const anchor = axisFrom !== null && Number.isFinite(width) && width > 0 && Number.isFinite(body.scrollLeft)
+                ? axisFrom + Math.floor((body.scrollLeft + .5) / width) : timelineCivilDay(this.windowDisplayPeriod?.from);
+            if (anchor === null) return false;
+            this.cancelDistributionFocus();
+            this.finishHorizontalIntent();
+            body.scrollTo?.({ left: body.scrollLeft, behavior: 'instant' });
+            const state = this.windowNavigationState();
+            if (state.frame !== null) cancelAnimationFrame(state.frame);
+            state.frame = null;
+            state.motionTarget = null;
+            state.displayVersion++;
+            this.timelineZoom = detail.mode;
+            root.dataset.timelineZoom = this.timelineZoom;
+            const date = new Date(anchor * CIVIL_DAY_MILLISECONDS).toISOString().slice(0, 10);
+            const span = timelineCivilDay(state.wanted.until) - timelineCivilDay(state.wanted.from);
+            const until = timelineDateOffset(date, span);
+            const next = until && timelineWindowPeriod(date, until);
+            // A full week cannot keep a later Tag anchor inside the old logical
+            // seven-day bound. Rebase locally first; only this exceptional new
+            // period needs the existing serialized native authoritative request.
+            if (next && next.from !== state.wanted.from) this.paintWindowPeriod(next);
+            this.measure(anchor);
+            this.persistTimelineZoom();
+            this.$dispatch?.('operations-timeline-zoom-updated', { owner: root.dataset.timelinePeriodOwner, mode: this.timelineZoom });
+            this.$dispatch?.('rt-workspace-url-updated');
+            this.drainWindowRequest();
+            return true;
         },
         get windowDisplayDayCount() { return this.windowScaffoldDays.length; },
         get windowDisplaySelectedDayCount() {
@@ -798,7 +937,17 @@ export function staffTimeline() {
             if (el !== root) {
                 const event = el?.classList?.contains('rt-personnel-timeline-event');
                 const track = el?.classList?.contains('rt-personnel-timeline-track');
-                if ((!event && !track) || !root.contains(el)) return;
+                const proposal = el?.classList?.contains('rt-timeline-proposal-shell');
+                if ((!event && !track && !proposal) || !root.contains(el)) return;
+                if (proposal && toEl.classList?.contains('rt-timeline-proposal-shell')
+                    && ['--proposal-left', '--proposal-width'].every(name => el.style.getPropertyValue(name) === toEl.style.getPropertyValue(name))
+                    && el.textContent === toEl.textContent) {
+                    for (const name of PROPOSAL_VIEWPORT_PROPERTIES) {
+                        const value = el.style.getPropertyValue(name);
+                        if (value !== undefined && value !== '') toEl.style.setProperty(name, value);
+                    }
+                    return;
+                }
                 if (event && toEl.classList?.contains('rt-personnel-timeline-event')
                     && timelineEventGeometryKey(el) === timelineEventGeometryKey(toEl)) {
                     for (const name of ['--event-lane', '--time-label-offset', '--time-badge-width']) {
@@ -834,6 +983,7 @@ export function staffTimeline() {
                 if (loadedFrom !== null && displayFrom !== null) toEl.style.setProperty('--timeline-content-offset', loadedFrom - displayFrom);
             }
             if (this.appliedPersonnelCompact !== null) toEl.dataset.personnelCompact = String(this.appliedPersonnelCompact);
+            if (this.timelineZoom) toEl.dataset.timelineZoom = this.timelineZoom;
             const motion = personnelMotions.get(root);
             if (motion) {
                 toEl.style.setProperty('--timeline-name-width', `${motion.width}px`);
@@ -935,6 +1085,7 @@ export function staffTimeline() {
             clearStaffTimelineReveals(this.timelineElement);
             this.refreshPersonnelPreference();
             if (this.windowNavigationEnabled) this.windowNavigationState();
+            this.bindTimelineZoom();
             this.bindWindowCommits();
             this.bindWindowScrollbarIntent();
             if (typeof window.Livewire?.hook === 'function') {
@@ -953,14 +1104,14 @@ export function staffTimeline() {
                 if (this.windowDisposed) return;
                 // Focus attributes belong to Livewire, not Alpine's reactive
                 // state. Refresh the client-owned header highlight explicitly.
-                if (mutations.some(record => ['data-timeline-focus-shift-id', 'data-timeline-focus-date'].includes(record.attributeName))) {
+                if (mutations.some(record => ['data-timeline-focus-shift-id', 'data-timeline-focus-date', 'data-timeline-day-attention'].includes(record.attributeName))) {
                     this.windowRevision++;
                 }
                 this.queueMeasure();
             });
             this.windowObserver.observe(this.timelineElement, { attributes: true,
                 attributeFilter: ['data-timeline-from', 'data-timeline-until', 'data-timeline-axis-from', 'data-timeline-axis-until',
-                    'data-timeline-focus-shift-id', 'data-timeline-focus-date'] });
+                    'data-timeline-focus-shift-id', 'data-timeline-focus-date', 'data-timeline-day-attention'] });
             this.$nextTick(() => this.measure());
         },
         destroy() {
@@ -982,6 +1133,8 @@ export function staffTimeline() {
             this.windowObserver?.disconnect();
             this.geometryCleanup?.();
             this.geometryCleanup = null;
+            this.zoomCleanup?.();
+            this.zoomCleanup = null;
             if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
             clearPersonnelMotion(this.timelineElement);
             clearStaffTimelineReveals(this.timelineElement);
@@ -993,30 +1146,34 @@ export function staffTimeline() {
                 this.measure();
             });
         },
-        measure() {
+        measure(zoomAnchor = null) {
             const body = this.$refs.timelineBody;
             const root = this.timelineElement;
             this.restorePersonnelRuntime();
             const style = getComputedStyle(root);
             this.refreshPersonnelPreference(style);
-            // The time scale stays identical when only the employee column changes.
             const fullNameWidth = parseFloat(style.getPropertyValue('--timeline-name-full-width'))
                 || parseFloat(style.getPropertyValue('--timeline-name-width'));
+            const zoomed = this.windowNavigationEnabled && ['day', 'week'].includes(this.timelineZoom);
+            const nameWidth = zoomed ? parseFloat(style.getPropertyValue('--timeline-name-width')) || fullNameWidth : fullNameWidth;
             const days = parseInt(style.getPropertyValue('--timeline-days'), 10) || 1;
-            const layout = `${body.clientWidth}:${fullNameWidth}:${days}`;
+            const layout = `${body.clientWidth}:${fullNameWidth}:${nameWidth}:${days}:${this.timelineZoom}`;
             const resized = this.measuredLayout !== null && this.measuredLayout !== layout;
             const wasAtEnd = this.canScrollLeft && !this.canScrollRight;
             this.measuredLayout = layout;
             const motion = personnelMotions.get(root);
             // Let the responsive CSS tokens own the endpoint after a breakpoint change.
             if (motion && Math.abs(motion.fullWidth - fullNameWidth) >= 1) this.finishPersonnelMotion(motion);
-            const available = body.clientWidth - fullNameWidth;
+            const available = body.clientWidth - nameWidth;
             if (available <= 0) return;
             const display = this.windowNavigationEnabled && this.windowDisplayPeriod;
             const selectedDays = display ? timelineCivilDay(display.until) - timelineCivilDay(display.from) + 1 : days;
             const width = timelineDayWidth(available,
                 parseFloat(style.getPropertyValue('--timeline-day-min-width')) || 190,
-                selectedDays);
+                selectedDays, zoomed ? this.timelineZoom : null);
+            const previousWidth = parseFloat(style.getPropertyValue('--timeline-day-width'));
+            const anchorOffset = zoomAnchor !== null ? (zoomAnchor - timelineCivilDay(this.windowDisplayAxis()?.from)) * width
+                : zoomed && resized && previousWidth > 0 ? body.scrollLeft / previousWidth * width : null;
             root.style.setProperty('--timeline-day-width', `${width}px`);
             root.style.setProperty('--timeline-gutter', `${body.offsetWidth - body.clientWidth}px`);
             if (this.windowNavigationEnabled) {
@@ -1024,9 +1181,13 @@ export function staffTimeline() {
                 root.style.setProperty('--timeline-display-days', this.windowDisplayDayCount);
                 root.style.setProperty('--timeline-content-offset', this.windowContentOffset);
             }
-            if (this.eventGeometryDirty || this.eventPeriodWidth !== width * days) this.measureEventLabels(width * days);
-            if (resized) this.rebasePersonnelLayout(wasAtEnd, body.scrollLeft);
+            if (anchorOffset !== null && Number.isFinite(anchorOffset)) {
+                body.scrollLeft = anchorOffset;
+                this.syncHorizontal(body, false);
+            } else if (resized) this.rebasePersonnelLayout(wasAtEnd, body.scrollLeft);
             else this.syncHorizontal(body, false);
+            if (this.timelineZoom !== 'day' && (this.eventGeometryDirty || this.eventPeriodWidth !== width * days
+                || this.eventViewportKey !== null)) this.measureEventLabels(width * days);
             this.syncWindowPeriod(width);
             revealStaffTimeline(root, this.$refs.timelineGrid, body);
         },
@@ -1113,8 +1274,10 @@ export function staffTimeline() {
             this.syncHorizontal(body, false);
             this.finishHorizontalIntent();
         },
-        measureEventLabels(periodWidth) {
+        measureEventLabels(periodWidth, viewport = null) {
             const measurements = [];
+            const proposalMeasurements = [];
+            const reuseWidths = viewport && !this.eventGeometryDirty && this.eventPeriodWidth === periodWidth;
             // Gather all layout reads before any row writes. Alternating the two
             // used to force a complete grid layout once per employee on a morph.
             for (const track of this.$refs.timelineGrid.querySelectorAll('.rt-personnel-timeline-track')) {
@@ -1128,12 +1291,26 @@ export function staffTimeline() {
                         lane: parseInt(event.dataset.timeLane, 10) || 0,
                         continuesBefore: event.dataset.continuesBefore === 'true',
                         continuesAfter: event.dataset.continuesAfter === 'true',
-                        labelWidth: label ? label.getBoundingClientRect().width + 16 : 0,
+                        labelWidth: label ? this.readTimelineLabelWidth(label, reuseWidths) + 16 : 0,
                     };
-                }), periodWidth);
+                }), periodWidth, viewport);
                 const rowLaneCount = parseInt(track.dataset.timelineLanes, 10) || 1;
                 const laneCount = Math.max(rowLaneCount, Math.max(...positions.map(position => position.lane)) + 1);
                 measurements.push({ track, events, positions, laneCount });
+            }
+            // Suggestions do not participate in assignment/event lanes. Move only
+            // their readable shell; the strip remains at its real time coordinate.
+            for (const shell of this.$refs.timelineGrid.querySelectorAll('.rt-timeline-proposal-shell')) {
+                const start = parseFloat(shell.style?.getPropertyValue('--proposal-left')) * periodWidth / 100;
+                const duration = parseFloat(shell.style?.getPropertyValue('--proposal-width')) * periodWidth / 100;
+                if (![start, duration].every(Number.isFinite)) continue;
+                const button = shell.querySelector('.rt-timeline-proposal');
+                const labels = button ? [...button.querySelectorAll(':scope > span:not([aria-hidden]), :scope > i')] : [];
+                const labelWidth = labels.reduce((sum, label) => sum + this.readTimelineLabelWidth(label, reuseWidths), 16)
+                    + Math.max(0, labels.length - 1) * 5;
+                const position = timelineViewportBadge(start, start + duration, labelWidth, viewport);
+                if (position) position.durationLeft -= Number.isFinite(button?.clientLeft) ? button.clientLeft : 1;
+                proposalMeasurements.push({ shell, position });
             }
             for (const { track, events, positions, laneCount } of measurements) {
                 positions.forEach((position, index) => {
@@ -1147,8 +1324,37 @@ export function staffTimeline() {
                 const density = laneCount > 1 ? 'compact' : 'normal';
                 if (track.dataset.timelineDensity !== density) track.dataset.timelineDensity = density;
             }
+            for (const { shell, position } of proposalMeasurements) {
+                const values = position ? [`${position.center}px`, `${position.badgeWidth}px`, `${position.durationLeft}px`, `${position.durationWidth}px`, 'none'] : null;
+                PROPOSAL_VIEWPORT_PROPERTIES.forEach((name, index) => {
+                    if (!values) {
+                        if (shell.style.getPropertyValue(name)) shell.style.removeProperty(name);
+                    } else if (shell.style.getPropertyValue(name) !== values[index]) shell.style.setProperty(name, values[index]);
+                });
+            }
             this.eventGeometryDirty = false;
             this.eventPeriodWidth = periodWidth;
+            this.eventViewportKey = viewport ? `${viewport.from}:${viewport.until}` : null;
+        },
+        readTimelineLabelWidth(label, reuse) {
+            const cached = timelineLabelWidths.get(label);
+            if (reuse && cached?.text === label.textContent) return cached.width;
+            const width = label.getBoundingClientRect().width;
+            timelineLabelWidths.set(label, { text: label.textContent, width });
+            return width;
+        },
+        measureDayViewportLabels() {
+            if (this.timelineZoom !== 'day') return;
+            const root = this.timelineElement;
+            const width = parseFloat(root.style.getPropertyValue('--timeline-day-width'));
+            const days = parseInt(root.style.getPropertyValue('--timeline-days'), 10) || 1;
+            const visible = this.$refs.timelineHeader?.clientWidth;
+            if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(visible) || visible <= 0) return;
+            const from = this.$refs.timelineBody.scrollLeft - this.windowContentOffset * width;
+            const viewport = { from, until: from + visible };
+            if (!this.eventGeometryDirty && this.eventPeriodWidth === width * days
+                && this.eventViewportKey === `${viewport.from}:${viewport.until}`) return;
+            this.measureEventLabels(width * days, viewport);
         },
         syncHorizontal(source, detectDirection = true) {
             const { timelineBody: body, timelineHeader: header, timelineScrollbar: scrollbar } = this.$refs;
@@ -1193,6 +1399,7 @@ export function staffTimeline() {
             this.mirroredScrollbarLeft = scrollbar.scrollLeft;
             this.canScrollLeft = offset > selectedEdges.first + 1;
             this.canScrollRight = offset < selectedEdges.last - 1;
+            this.measureDayViewportLabels();
         },
         scrollDay(direction) {
             if (![-1, 1].includes(direction) || this.windowDisposed) return;

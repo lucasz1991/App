@@ -190,17 +190,20 @@ export function timelinePlanning(ownerId = null) {
                 textWidth: text.getBoundingClientRect().width,
             });
             if (!position) return this.clearFocusPreview();
-            if (this.focusPreviewStyle?.node !== preview) {
+            // The label and its sibling duration clip share the parent's
+            // geometry. Moving only the label would leave the ink clipped to
+            // the original, potentially offscreen badge position.
+            if (this.focusPreviewStyle?.node !== overlay) {
                 this.clearFocusPreviewStyle();
-                this.focusPreviewStyle = { node: preview, values: new Map() };
+                this.focusPreviewStyle = { node: overlay, values: new Map() };
             }
             for (const [property, value] of [['--time-label-offset', `${position.offset}px`], ['--time-badge-width', `${position.badgeWidth}px`]]) {
                 const previous = this.focusPreviewStyle.values.get(property);
-                const current = preview.style.getPropertyValue(property);
+                const current = overlay.style.getPropertyValue(property);
                 // A Livewire morph can install newer server styles on the same node.
                 const baseline = previous && current === previous.painted ? previous
-                    : { value: current, priority: preview.style.getPropertyPriority(property) };
-                if (current !== value) preview.style.setProperty(property, value);
+                    : { value: current, priority: overlay.style.getPropertyPriority(property) };
+                if (current !== value) overlay.style.setProperty(property, value);
                 this.focusPreviewStyle.values.set(property, { ...baseline, painted: value });
             }
         },

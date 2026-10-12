@@ -53,12 +53,12 @@ class EmployeePhoneStatusTest extends TestCase
         $this->employee = User::factory()->create(['role' => 'staff', 'status' => true]);
     }
 
-    public function test_authorized_empty_profile_has_honest_main_phone_and_permission_unknown_states(): void
+    public function test_authorized_empty_profile_selects_automatically_without_inventing_permission_states(): void
     {
         $view = $this->read();
         $this->assertNotNull($view);
-        $this->assertSame('unset', $view['primary_state']);
-        $this->assertSame('Haupthandy nicht festgelegt', $view['device_label']);
+        $this->assertSame('automatic', $view['selection']);
+        $this->assertSame('Automatische Geräteauswahl', $view['device_label']);
         $this->assertSame(0, $view['assigned_phone_count']);
         $this->assertSame(['installation', 'push', 'location'], array_keys($view['rows']));
         foreach ($view['rows'] as $row) {
@@ -66,7 +66,7 @@ class EmployeePhoneStatusTest extends TestCase
             $this->assertSame('unknown', $row['state']);
             $this->assertSame('Nicht gemeldet', $row['value']);
         }
-        $this->assertStringContainsString('nicht hinterlegt', $view['evidence_note']);
+        $this->assertStringContainsString('noch kein Status empfangen', $view['evidence_note']);
         Http::assertNothingSent();
     }
 
@@ -75,14 +75,14 @@ class EmployeePhoneStatusTest extends TestCase
         $phone = $this->phone();
         $one = $this->read();
         $this->assertSame(1, $one['assigned_phone_count']);
-        $this->assertSame('unset', $one['primary_state']);
+        $this->assertSame('automatic', $one['selection']);
         $this->assertSame('unknown', $one['rows']['installation']['state']);
         $this->phone();
         DeviceAssignment::create(['device_id' => $phone->id, 'user_id' => $this->employee->id,
             'status' => 'active', 'assigned_at' => now()->subMinute()]);
         $many = $this->read();
         $this->assertSame(2, $many['assigned_phone_count']);
-        $this->assertSame('unset', $many['primary_state']);
+        $this->assertSame('automatic', $many['selection']);
         $this->assertSame($one['rows'], $many['rows']);
     }
 
@@ -221,7 +221,7 @@ class EmployeePhoneStatusTest extends TestCase
         Schema::drop('device_assignments');
         $view = $this->read();
         $this->assertNull($view['assigned_phone_count']);
-        $this->assertSame('unset', $view['primary_state']);
+        $this->assertSame('automatic', $view['selection']);
         $this->assertSame('unknown', $view['rows']['installation']['state']);
     }
 
@@ -256,7 +256,7 @@ class EmployeePhoneStatusTest extends TestCase
         DB::flushQueryLog();
         $view = $this->read();
         $queries = implode('\n', array_column(DB::getQueryLog(), 'query'));
-        $this->assertSame('unset', $view['primary_state']);
+        $this->assertSame('automatic', $view['selection']);
         $this->assertSame(1, $view['assigned_phone_count']);
         $this->assertSame(['unknown', 'unknown', 'unknown'], array_column($view['rows'], 'state'));
         foreach (['push_subscriptions', 'mobile_location_installations', 'employee_location_consents',
@@ -282,7 +282,7 @@ class EmployeePhoneStatusTest extends TestCase
         $this->app['request']->headers->set('X-Notification-Permission', 'granted');
         $this->app['request']->headers->set('X-Location-Permission', 'granted');
         $view = app(EmployeePhoneStatusService::class)->read($this->employee->id);
-        $this->assertSame('unset', $view['primary_state']);
+        $this->assertSame('automatic', $view['selection']);
         $this->assertSame(['unknown', 'unknown', 'unknown'], array_column($view['rows'], 'state'));
         $this->assertStringNotContainsString('PRIVATE-ADMIN-BROWSER', json_encode($view));
     }
@@ -308,9 +308,9 @@ class EmployeePhoneStatusTest extends TestCase
         DB::enableQueryLog();
         DB::flushQueryLog();
         $view = $this->read();
-        $this->assertSame('unset', $view['primary_state']);
+        $this->assertSame('automatic', $view['selection']);
         $this->assertSame(0, $view['assigned_phone_count']);
-        $this->assertSame('Gemeldete iOS-Sitzung · Haupthandy nicht festgelegt', $view['device_label']);
+        $this->assertSame('Automatisch gewählt: iPhone / iPad', $view['device_label']);
         $this->assertSame(['active', 'ready', 'ready'], array_column($view['rows'], 'state'));
         $this->assertSame('Als Web-App geöffnet', $view['rows']['installation']['value']);
         $this->assertSame('Push im Browser erlaubt', $view['rows']['push']['value']);
@@ -327,12 +327,12 @@ class EmployeePhoneStatusTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_newer_desktop_reports_do_not_replace_the_employees_mobile_evidence(): void
+    public function test_newer_automatic_desktop_report_does_not_displace_more_recent_mobile_use(): void
     {
-        $this->runtimeReceipt(['platform' => 'android', 'received_at' => now()->subMinutes(5)]);
-        $this->runtimeReceipt(['platform' => 'desktop', 'display_mode' => 'browser', 'notification_permission' => 'denied', 'geolocation_permission' => 'denied']);
+        $this->runtimeReceipt(['platform' => 'android', 'received_at' => now()->subMinutes(5)], grant: ['last_activity_at' => now()->subMinutes(5)]);
+        $this->runtimeReceipt(['platform' => 'desktop', 'display_mode' => 'browser', 'notification_permission' => 'denied', 'geolocation_permission' => 'denied'], grant: ['last_activity_at' => now()->subMinutes(10)]);
         $view = $this->read();
-        $this->assertStringContainsString('Android-Sitzung', $view['device_label']);
+        $this->assertSame('Automatisch gewählt: Android-Gerät', $view['device_label']);
         $this->assertSame('Als Web-App geöffnet', $view['rows']['installation']['value']);
         $this->assertSame('Push im Browser erlaubt', $view['rows']['push']['value']);
         $this->assertStringContainsString('11.10.2026 11:55', $view['evidence_note']);
@@ -342,10 +342,48 @@ class EmployeePhoneStatusTest extends TestCase
     {
         $this->runtimeReceipt(user: $this->admin);
         $this->runtimeReceipt(user: User::factory()->create(['role' => 'staff', 'status' => true]));
-        $this->runtimeReceipt(['platform' => 'desktop']);
         $view = $this->read();
         $this->assertSame(['unknown', 'unknown', 'unknown'], array_column($view['rows'], 'state'));
-        $this->assertSame('Haupthandy nicht festgelegt', $view['device_label']);
+        $this->assertSame('Automatische Geräteauswahl', $view['device_label']);
+    }
+
+    public function test_status_automatically_switches_between_phone_and_computer_with_distinct_usage_and_report_times(): void
+    {
+        $phone = $this->runtimeReceipt(['received_at' => now()->subMinutes(2)], grant: ['last_activity_at' => now()->subMinutes(3)]);
+        $computer = $this->runtimeReceipt(['platform' => 'desktop', 'display_mode' => 'browser', 'notification_permission' => 'denied', 'geolocation_permission' => 'prompt'], grant: ['last_activity_at' => now()->subMinute()]);
+        $view = $this->read();
+        $this->assertSame('Automatisch gewählt: Computer', $view['device_label']);
+        $this->assertSame(['info', 'denied', 'info'], array_column($view['rows'], 'state'));
+        $this->assertStringContainsString('Letzte App-Nutzung: 11.10.2026 11:59 Uhr.', $view['evidence_note']);
+        $this->assertStringContainsString('Letzte Statusmeldung: 11.10.2026 12:00 Uhr.', $view['evidence_note']);
+
+        $phone->sessionPermissionGrant->forceFill(['last_activity_at' => now()])->save();
+        $view = $this->read();
+        $this->assertSame('Automatisch gewählt: iPhone / iPad', $view['device_label']);
+        $this->assertSame(['active', 'ready', 'ready'], array_column($view['rows'], 'state'));
+        $this->assertStringContainsString('Letzte App-Nutzung: 11.10.2026 12:00 Uhr.', $view['evidence_note']);
+        $this->assertStringContainsString('Letzte Statusmeldung: 11.10.2026 11:58 Uhr.', $view['evidence_note']);
+        $this->assertDatabaseCount('device_assignments', 0);
+
+        $phone->sessionPermissionGrant->forceFill(['ended_at' => now()])->save();
+        $this->assertSame('Automatisch gewählt: Computer', $this->read()['device_label']);
+        $computer->sessionPermissionGrant->forceFill(['expires_at' => now()])->save();
+        $this->assertSame(['unknown', 'unknown', 'unknown'], array_column($this->read()['rows'], 'state'));
+    }
+
+    public function test_each_status_popup_has_one_report_time_and_no_primary_phone_or_inventory_setup(): void
+    {
+        $this->runtimeReceipt();
+        $this->phone();
+        $html = Livewire::actingAs($this->admin)->test(EmployeePhoneStatus::class, ['userId' => $this->employee->id, 'profilePrefix' => 'synthetic-runtime-profile'])->html();
+        $this->assertSame(3, substr_count($html, 'Letzte Statusmeldung:'));
+        $this->assertSame(3, substr_count($html, 'Letzte App-Nutzung:'));
+        $this->assertSame(3, substr_count($html, 'Automatisch gewählt: iPhone / iPad'));
+        $this->assertStringNotContainsString('Haupthandy', $html);
+        $this->assertStringNotContainsString('Hauptgerät', $html);
+        $this->assertStringNotContainsString('Handy zugewiesen', $html);
+        $this->assertStringContainsString('kein Nachweis einer laufenden Ortung', $html);
+        $this->assertStringContainsString('RailTime-Sitzungsfreigabe getrennt', $html);
     }
 
     public function test_old_runtime_report_is_explicitly_historical_and_does_not_show_current_ready_indicators(): void
@@ -354,9 +392,9 @@ class EmployeePhoneStatusTest extends TestCase
         $view = $this->read();
         $this->assertSame(['unknown', 'unknown', 'unknown'], array_column($view['rows'], 'state'));
         $this->assertSame('Zuletzt gemeldet: Als Web-App geöffnet', $view['rows']['installation']['value']);
-        $this->assertStringContainsString('Zuletzt gemeldet am 11.10.2026 11:44', $view['evidence_note']);
-        $this->assertStringContainsString('beschreibt keinen aktuellen Gerätestatus', $view['evidence_note']);
-        $this->assertStringContainsString('aktueller Zustand unbekannt', $view['rows']['location']['evidence']);
+        $this->assertStringContainsString('Letzte Statusmeldung: 11.10.2026 11:44', $view['evidence_note']);
+        $this->assertStringContainsString('aktueller Gerätestatus unbekannt', $view['evidence_note']);
+        $this->assertStringContainsString('Letzte App-Nutzung: 11.10.2026 12:00', $view['evidence_note']);
     }
 
     public function test_mobile_report_is_fresh_at_fifteen_minutes_and_becomes_neutral_immediately_afterward(): void

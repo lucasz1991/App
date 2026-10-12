@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Operations;
 
+use App\Enums\OrderStatus;
 use App\Enums\ShiftAssignmentStatus;
+use App\Enums\ShiftStatus;
 use App\Models\AbsenceRequest;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
@@ -69,6 +71,11 @@ class StaffTimeline extends Component
 
     #[Locked]
     public bool $planningEnabled = false;
+
+    /** Native customer scope for day-level staffing counts; never a staff-page filter. */
+    #[Locked]
+    #[Reactive]
+    public ?int $attentionCustomerId = null;
 
     #[Locked]
     public bool $showSuggestions = false;
@@ -389,6 +396,7 @@ class StaffTimeline extends Component
         for ($day = $from; $day->lt($until); $day = $day->addDay()) {
             $days->push($day);
         }
+        $dayAttention = $this->planningEnabled && ! $this->absencesOnly ? $this->dayAttention($days) : [];
         $workloads = $this->planningEnabled && ! $this->absencesOnly
             ? app(TimelineWorkloadService::class)->forRows($users->getCollection(), $assignments,
                 $absences->map(fn ($items) => $items->filter(fn ($absence) => $absence->starts_at->lt($selectedUntil) && $absence->ends_at->gt($selectedFrom))),
@@ -439,7 +447,67 @@ class StaffTimeline extends Component
                 'open' => max(0, $choice['shift']->required_staff - $choice['shift']->reserved_count), 'eligible' => $choice['eligible'], 'issues' => $choice['issues'],
             ]) : collect();
 
-        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'selectedDays', 'selectedFrom', 'selectedUntil', 'axisFrom', 'axisUntil', 'zone', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices', 'focus'));
+        return view('livewire.operations.staff-timeline', compact('users', 'rows', 'days', 'selectedDays', 'selectedFrom', 'selectedUntil', 'axisFrom', 'axisUntil', 'zone', 'dayAttention', 'workloads', 'planningPreview', 'proposalRows', 'planningUser', 'planningShift', 'choices', 'focus'));
+    }
+
+    /**
+     * One bounded, read-only staffing projection for all loaded dates. Requested
+     * assignments reserve places but still need a response; an unfilled shift
+     * with requests is counted only once. No eligibility/routing is inferred.
+     *
+     * @return array<string, array{shifts: int, open_shifts: int, open_places: int, awaiting_shifts: int, requested_places: int}>
+     */
+    private function dayAttention(Collection $days): array
+    {
+        if ($days->isEmpty()) {
+            return [];
+        }
+        $empty = ['shifts' => 0, 'open_shifts' => 0, 'open_places' => 0, 'awaiting_shifts' => 0, 'requested_places' => 0];
+        $dates = $days->map->toDateString()->all();
+        $indexes = array_flip($dates);
+        $deltas = array_fill(0, count($dates) + 1, $empty);
+        $from = $days->first();
+        $until = $days->last()->addDay();
+        $closedOrders = [OrderStatus::Completed->value, OrderStatus::Invoiced->value, OrderStatus::Cancelled->value];
+        $shifts = Shift::query()
+            ->select(['id', 'starts_at', 'ends_at', 'timezone', 'required_staff'])
+            ->during($from, $until)
+            ->whereNotIn('status', [ShiftStatus::Completed->value, ShiftStatus::Cancelled->value])
+            ->whereHas('order', fn (Builder $query) => $query->whereNotIn('status', $closedOrders)
+                ->when($this->attentionCustomerId !== null, fn (Builder $query) => $query->where('customer_id', $this->attentionCustomerId)))
+            ->withCount([
+                'assignments as reserved_count' => fn (Builder $query) => $query->whereIn('status', ShiftAssignmentStatus::blockingValues()),
+                'assignments as requested_count' => fn (Builder $query) => $query->where('status', ShiftAssignmentStatus::Requested->value),
+            ])->get();
+
+        foreach ($shifts as $shift) {
+            $open = max(0, (int) $shift->required_staff - (int) $shift->reserved_count);
+            $requested = (int) $shift->requested_count;
+            if (($open === 0 && $requested === 0) || ! $shift->starts_at->lt($shift->ends_at)) {
+                continue;
+            }
+            // Difference totals keep long/overnight duties O(shifts + dates),
+            // with the native half-open overlap rule and local DST boundaries.
+            $start = $shift->starts_at->max($from)->setTimezone($from->timezone)->toDateString();
+            $end = $shift->ends_at->min($until)->subMicrosecond()->setTimezone($from->timezone)->toDateString();
+            $contribution = ['shifts' => 1, 'open_shifts' => $open > 0 ? 1 : 0, 'open_places' => $open,
+                'awaiting_shifts' => $requested > 0 ? 1 : 0, 'requested_places' => $requested];
+            foreach ($contribution as $key => $value) {
+                $deltas[$indexes[$start]][$key] += $value;
+                $deltas[$indexes[$end] + 1][$key] -= $value;
+            }
+        }
+
+        $summary = [];
+        $running = $empty;
+        foreach ($dates as $index => $date) {
+            foreach ($empty as $key => $zero) {
+                $running[$key] += $deltas[$index][$key];
+            }
+            $summary[$date] = $running;
+        }
+
+        return $summary;
     }
 
     /** @return array{shift: ?Shift, date: ?string, event: ?array, candidates: Collection} */

@@ -77,12 +77,12 @@ async function fixture(run) {
         preview.className = 'rt-timeline-focus';
         Object.assign(preview.dataset, { timeStart: '90', timeWidth: '8' });
         preview.setAttribute('aria-hidden', 'true');
-        preview.innerHTML = '<span class="rt-personnel-timeline-time rt-timeline-focus-preview"><span class="rt-personnel-timeline-time-text">22:00 - 06:00</span></span><span class="rt-timeline-focus-duration"></span>';
+        preview.innerHTML = '<span class="rt-personnel-timeline-time rt-timeline-focus-preview"><span class="rt-personnel-timeline-time-text">22:00 - 06:00</span></span><span class="rt-personnel-timeline-duration-clip"><span class="rt-timeline-focus-duration"></span></span>';
         track.append(preview);
         const badge = preview.querySelector('.rt-timeline-focus-preview');
-        badge.style.setProperty('--time-label-offset', '94%');
-        badge.style.setProperty('--time-badge-width', '110px');
-        badge.style.getPropertyPriority = () => '';
+        preview.style.setProperty('--time-label-offset', '94%');
+        preview.style.setProperty('--time-badge-width', '110px');
+        preview.style.getPropertyPriority = () => '';
         const geometry = { bodyLeft: 0, overlayLeft: -1452, overlayWidth: 2100, cellLeft: 149, cellRight: 449, textWidth: 84 };
         body.getBoundingClientRect = () => ({ left: geometry.bodyLeft });
         preview.getBoundingClientRect = () => ({ left: geometry.overlayLeft, width: geometry.overlayWidth });
@@ -451,7 +451,7 @@ test('ordinary proposal remains openSuggestion and passive focus preview or nati
     assert.equal(events[0].detail.anchor, proposal);
 }));
 
-test('focus hover positions overnight text immediately without a request and refreshes only its active row on scroll', async () => fixture(({ planner, focusCell, hover, timers }) => {
+test('focus hover shares clamped overnight badge and duration-clip geometry without changing real duration or measuring inactive rows', async () => fixture(({ planner, focusCell, hover, timers }) => {
     const first = focusCell(), other = focusCell(8, 82);
     let otherReads = 0;
     other.preview.getBoundingClientRect = () => { otherReads++; throw new Error('inactive row must not be measured'); };
@@ -463,32 +463,36 @@ test('focus hover positions overnight text immediately without a request and ref
     assert.equal(otherReads, 0);
     hover(first.button);
     assert.equal(planner.focusPreviewAnchor, first.button);
-    assert.equal(first.badge.style.getPropertyValue('--time-label-offset'), '1817px');
-    assert.equal(first.badge.style.getPropertyValue('--time-badge-width'), '168px');
+    assert.equal(first.preview.style.getPropertyValue('--time-label-offset'), '1817px');
+    assert.equal(first.preview.style.getPropertyValue('--time-badge-width'), '168px');
+    assert.equal(planner.focusPreviewStyle.node, first.preview, 'paint the common parent of badge and clip');
+    assert.equal(first.badge.parentElement, duration.parentElement.parentElement);
+    assert.equal(first.badge.style.getPropertyValue('--time-label-offset'), undefined, 'badge must inherit the shared position');
+    assert.equal(first.badge.style.getPropertyValue('--time-badge-width'), undefined, 'badge must inherit the shared width');
     assert.equal(duration.getAttribute('style'), originalDuration);
     assert.equal(timers.size, 0);
     first.geometry.overlayLeft -= 100;
     first.geometry.cellLeft -= 100;
     first.geometry.cellRight -= 100;
     planner.refreshFocusPreview();
-    assert.equal(first.badge.style.getPropertyValue('--time-label-offset'), '1817px');
-    assert.equal(first.badge.style.getPropertyValue('--time-badge-width'), '168px');
+    assert.equal(first.preview.style.getPropertyValue('--time-label-offset'), '1817px');
+    assert.equal(first.preview.style.getPropertyValue('--time-badge-width'), '168px');
     assert.equal(otherReads, 0);
     assert.equal(duration.getAttribute('style'), originalDuration);
 }));
 
-test('focus keyboard preview restores only its own label variables on leave, invalidate and destroy', async () => fixture(({ planner, focusCell }) => {
-    const { button, badge } = focusCell();
+test('focus keyboard preview restores shared geometry on leave, invalidate and destroy without touching badge styles', async () => fixture(({ planner, focusCell }) => {
+    const { button, preview, badge } = focusCell();
     badge.style.setProperty('color', 'green');
     for (const clear of [() => planner.leaveCell({ relatedTarget: null }), () => planner.invalidate(), () => planner.destroy()]) {
         planner.hoverCell({ type: 'focusin', target: button });
         assert.equal(planner.focusPreviewAnchor, button);
-        assert.equal(badge.style.getPropertyValue('--time-label-offset'), '1817px');
+        assert.equal(preview.style.getPropertyValue('--time-label-offset'), '1817px');
         clear();
         assert.equal(planner.focusPreviewAnchor, null);
         assert.equal(planner.focusPreviewStyle, null);
-        assert.equal(badge.style.getPropertyValue('--time-label-offset'), '94%');
-        assert.equal(badge.style.getPropertyValue('--time-badge-width'), '110px');
+        assert.equal(preview.style.getPropertyValue('--time-label-offset'), '94%');
+        assert.equal(preview.style.getPropertyValue('--time-badge-width'), '110px');
         assert.equal(badge.style.getPropertyValue('color'), 'green');
     }
     planner.hoverCell({ type: 'focusin', target: button });
@@ -502,7 +506,7 @@ test('focus preview clears invalid, disabled, loading and disconnected anchors w
     root.dataset.contentLoading = 'true';
     planner.refreshFocusPreview();
     assert.equal(planner.focusPreviewAnchor, null);
-    assert.equal(badge.style.getPropertyValue('--time-label-offset'), '94%');
+    assert.equal(preview.style.getPropertyValue('--time-label-offset'), '94%');
     hover(button);
     assert.equal(planner.focusPreviewAnchor, null);
     delete root.dataset.contentLoading;
@@ -522,38 +526,38 @@ test('focus preview clears invalid, disabled, loading and disconnected anchors w
     button.remove();
     planner.refreshFocusPreview();
     assert.equal(planner.focusPreviewAnchor, null);
-    assert.equal(badge.style.getPropertyValue('--time-label-offset'), '94%');
+    assert.equal(preview.style.getPropertyValue('--time-label-offset'), '94%');
 }));
 
-test('moving between focus cells restores the earlier badge and leaving inside the same anchor retains positioning', async () => fixture(({ planner, focusCell, hover }) => {
+test('moving between focus cells restores earlier shared geometry and leaving inside the same anchor retains positioning', async () => fixture(({ planner, focusCell, hover }) => {
     const first = focusCell(), second = focusCell(8, 82);
     hover(first.button);
     planner.leaveCell({ relatedTarget: first.button });
     assert.equal(planner.focusPreviewAnchor, first.button);
     hover(second.button);
-    assert.equal(first.badge.style.getPropertyValue('--time-label-offset'), '94%');
-    assert.equal(second.badge.style.getPropertyValue('--time-label-offset'), '1817px');
+    assert.equal(first.preview.style.getPropertyValue('--time-label-offset'), '94%');
+    assert.equal(second.preview.style.getPropertyValue('--time-label-offset'), '1817px');
     assert.equal(planner.focusPreviewAnchor, second.button);
     planner.leaveCell({ relatedTarget: null });
-    assert.equal(second.badge.style.getPropertyValue('--time-label-offset'), '94%');
+    assert.equal(second.preview.style.getPropertyValue('--time-label-offset'), '94%');
 }));
 
-test('focus cleanup does not overwrite newer server label styles and refresh adopts their baseline', async () => fixture(({ planner, focusCell, hover }) => {
-    const { button, badge } = focusCell();
+test('focus cleanup does not overwrite newer server shared-geometry styles and refresh adopts their baseline', async () => fixture(({ planner, focusCell, hover }) => {
+    const { button, preview } = focusCell();
     hover(button);
-    badge.style.setProperty('--time-label-offset', '70%');
-    badge.style.setProperty('--time-badge-width', '120px');
+    preview.style.setProperty('--time-label-offset', '70%');
+    preview.style.setProperty('--time-badge-width', '120px');
     planner.clearHover();
-    assert.equal(badge.style.getPropertyValue('--time-label-offset'), '70%');
-    assert.equal(badge.style.getPropertyValue('--time-badge-width'), '120px');
+    assert.equal(preview.style.getPropertyValue('--time-label-offset'), '70%');
+    assert.equal(preview.style.getPropertyValue('--time-badge-width'), '120px');
     hover(button);
-    badge.style.setProperty('--time-label-offset', '60%');
-    badge.style.setProperty('--time-badge-width', '130px');
+    preview.style.setProperty('--time-label-offset', '60%');
+    preview.style.setProperty('--time-badge-width', '130px');
     planner.refreshFocusPreview();
-    assert.equal(badge.style.getPropertyValue('--time-label-offset'), '1817px');
+    assert.equal(preview.style.getPropertyValue('--time-label-offset'), '1817px');
     planner.clearHover();
-    assert.equal(badge.style.getPropertyValue('--time-label-offset'), '60%');
-    assert.equal(badge.style.getPropertyValue('--time-badge-width'), '130px');
+    assert.equal(preview.style.getPropertyValue('--time-label-offset'), '60%');
+    assert.equal(preview.style.getPropertyValue('--time-badge-width'), '130px');
 }));
 
 test('pointer leaving a keyboard-focused cell and focus leaving a hovered cell retain the current preview', async () => fixture(({ planner, focusCell, hover }) => {

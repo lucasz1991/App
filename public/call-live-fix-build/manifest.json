@@ -1,0 +1,138 @@
+{
+  "_installSVGRenderer-BPfOPR9k.js": {
+    "file": "assets/installSVGRenderer-BPfOPR9k.js",
+    "name": "installSVGRenderer"
+  },
+  "_leaflet-src-Dhogw0kZ.js": {
+    "file": "assets/leaflet-src-Dhogw0kZ.js",
+    "name": "leaflet-src",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ]
+  },
+  "_modal-body-BWkHbPQD.js": {
+    "file": "assets/modal-body-BWkHbPQD.js",
+    "name": "modal-body"
+  },
+  "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-cyrillic-ext-wght-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-cyrillic-ext-wght-normal-lLTsRRxN.woff2",
+    "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-cyrillic-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-ext-wght-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-latin-ext-wght-normal-DmpS2jIq.woff2",
+    "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-latin-wght-normal-eXO_dkmS.woff2",
+    "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-vietnamese-wght-normal-qRpaaN48.woff2",
+    "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2"
+  },
+  "node_modules/leaflet/dist/images/layers-2x.png": {
+    "file": "assets/layers-2x-Bpkbi35X.png",
+    "src": "node_modules/leaflet/dist/images/layers-2x.png"
+  },
+  "node_modules/leaflet/dist/images/layers.png": {
+    "file": "assets/layers-BWBAp2CZ.png",
+    "src": "node_modules/leaflet/dist/images/layers.png"
+  },
+  "node_modules/leaflet/dist/images/marker-icon.png": {
+    "file": "assets/marker-icon-hN30_KVU.png",
+    "src": "node_modules/leaflet/dist/images/marker-icon.png"
+  },
+  "node_modules/leaflet/dist/leaflet.css": {
+    "file": "assets/leaflet-CG6DamIu.css",
+    "src": "node_modules/leaflet/dist/leaflet.css"
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-CEtpMfc1.css",
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/css/chat-redesign.css": {
+    "file": "assets/chat-redesign-BbdXjK9H.css",
+    "src": "resources/css/chat-redesign.css",
+    "isEntry": true
+  },
+  "resources/css/chatbot.css": {
+    "file": "assets/chatbot-D_hZ5AQV.css",
+    "src": "resources/css/chatbot.css"
+  },
+  "resources/css/shell-redesign.css": {
+    "file": "assets/shell-redesign-C1bM8s1G.css",
+    "src": "resources/css/shell-redesign.css",
+    "isEntry": true
+  },
+  "resources/css/tabs-redesign.css": {
+    "file": "assets/tabs-redesign-BG1VHHsi.css",
+    "src": "resources/css/tabs-redesign.css",
+    "isEntry": true
+  },
+  "resources/js/admin-dashboard-echarts.js": {
+    "file": "assets/admin-dashboard-echarts-C_YCPG6R.js",
+    "name": "admin-dashboard-echarts",
+    "src": "resources/js/admin-dashboard-echarts.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_installSVGRenderer-BPfOPR9k.js"
+    ]
+  },
+  "resources/js/admin-dashboard-motion.js": {
+    "file": "assets/admin-dashboard-motion-Cq6gz6L_.js",
+    "name": "admin-dashboard-motion",
+    "src": "resources/js/admin-dashboard-motion.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_modal-body-BWkHbPQD.js"
+    ]
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-DRx9F8Bx.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "imports": [
+      "_modal-body-BWkHbPQD.js"
+    ],
+    "dynamicImports": [
+      "_leaflet-src-Dhogw0kZ.js",
+      "resources/js/admin-dashboard-echarts.js",
+      "resources/js/admin-dashboard-motion.js",
+      "resources/js/operations-charts.js"
+    ],
+    "css": [
+      "assets/app-CZUL1IjZ.css"
+    ]
+  },
+  "resources/js/calls.js": {
+    "file": "assets/calls-BGA7wUTF.js",
+    "name": "calls",
+    "src": "resources/js/calls.js",
+    "isEntry": true,
+    "css": [
+      "assets/calls-BmwyFaOR.css"
+    ]
+  },
+  "resources/js/customer-portal.js": {
+    "file": "assets/customer-portal-Bw6sEzmZ.js",
+    "name": "customer-portal",
+    "src": "resources/js/customer-portal.js",
+    "isEntry": true,
+    "imports": [
+      "_modal-body-BWkHbPQD.js"
+    ]
+  },
+  "resources/js/operations-charts.js": {
+    "file": "assets/operations-charts-kffo02qO.js",
+    "name": "operations-charts",
+    "src": "resources/js/operations-charts.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_installSVGRenderer-BPfOPR9k.js"
+    ]
+  }
+}

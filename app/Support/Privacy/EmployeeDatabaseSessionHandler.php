@@ -42,17 +42,16 @@ class EmployeeDatabaseSessionHandler extends DatabaseSessionHandler
         }
 
         $user = isset($session->user_id) ? User::find($session->user_id) : null;
-        $minutes = $user?->role === 'staff' && $user->isActive()
-            ? (int) config('session.employee_lifetime', 4320)
-            : $this->minutes;
+        $minutes = SessionLifetimePolicy::minutes($user);
 
         return $session->last_activity <= Carbon::now()->subMinutes($minutes)->getTimestamp();
     }
 
     public function gc($lifetime): int
     {
-        // Read enforces the shorter management timeout. Garbage collection must
-        // not remove still-active employee logins just because an admin navigates.
-        return parent::gc(max((int) $lifetime, (int) config('session.employee_lifetime', 4320) * 60));
+        // Reads enforce the current account's timeout. Collection must retain
+        // all still-valid employee and administrator logins.
+        return parent::gc(max((int) $lifetime, (int) config('session.employee_lifetime', 4320) * 60,
+            (int) config('session.administrator_lifetime', 4320) * 60));
     }
 }

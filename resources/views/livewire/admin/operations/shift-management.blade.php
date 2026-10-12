@@ -55,6 +55,18 @@
                     </x-slot:content>
                 </x-ui.dropdown.anchor-dropdown>
             </div>
+            @if($timelineDatePicker)
+                <div class="rt-shift-plan-timeline-zoom" role="group" aria-label="Zeitleiste vergrößern oder verkleinern" data-timeline-zoom-controls data-timeline-zoom-owner="{{ $this->getId() }}" wire:ignore wire:key="timeline-zoom-{{ $this->getId() }}"
+                    x-data="{ mode: new URL(window.location.href).searchParams.get('zoom') === 'day' ? 'day' : 'week' }"
+                    x-on:operations-timeline-zoom-updated.window="if ($event.detail?.owner === $el.dataset.timelineZoomOwner) mode = $event.detail.mode">
+                    @foreach(['day' => 'Tag', 'week' => 'Woche'] as $zoom => $zoomLabel)
+                        <x-ui.buttons.button-basic type="button" size="sm" mode="secondary" class="rt-shift-plan-timeline-zoom__button"
+                            data-timeline-zoom-mode="{{ $zoom }}" aria-label="{{ $zoom === 'day' ? 'Tageszoom: einen Tag anzeigen' : 'Wochenzoom: bis zu sieben Tage anzeigen' }}" title="{{ $zoom === 'day' ? 'Ein Tag im Detail' : 'Sieben Tage im Überblick' }}"
+                            aria-pressed="{{ (request()->query('zoom') === 'day' ? 'day' : 'week') === $zoom ? 'true' : 'false' }}" x-bind:aria-pressed="mode === '{{ $zoom }}' ? 'true' : 'false'"
+                            x-on:click="$dispatch('operations-timeline-zoom-request', { owner: $el.closest('[data-timeline-zoom-owner]').dataset.timelineZoomOwner, mode: '{{ $zoom }}' })">{{ $zoomLabel }}</x-ui.buttons.button-basic>
+                    @endforeach
+                </div>
+            @endif
             <x-ui.dropdown.anchor-dropdown class="rt-shift-plan-view-dropdown" align="left" width="72" offset="6" dropdown-id="shift-plan-view-{{ $this->getId() }}" layer-group="operations-shift-plan" content-label="Schichtplanansicht auswählen" content-classes="rt-shift-plan-view-menu p-1.5 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">
                 <x-slot:trigger>
                     <x-ui.buttons.button-basic type="button" size="sm" class="rt-shift-plan-control rt-shift-plan-view-trigger" aria-label="Ansicht ändern: {{ $currentViewLabel }}" title="Ansicht: {{ $currentViewLabel }}">
@@ -157,7 +169,7 @@
     <div @class(['space-y-6', 'rt-disposition-board' => $viewMode === 'staffing']) data-shift-view="{{ $viewMode }}" wire:loading.class="opacity-60" wire:target="tableSort,sortServices,servicePerPage,gotoPage,nextPage,previousPage,setView,search,rangeFrom,rangeTo,orderFilter,statusFilter,attentionFilter,movePeriod,currentWeek">
         @if($viewMode === 'timeline')
             @if($nativeOperations)
-                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :period-navigation-owner="$this->getId()" :search-in-header="true" :planning-enabled="true" :show-suggestions="$distributionOpen" :focus-shift-id="$distributionOpen ? $distributionShiftId : null" :key="'shift-plan-staff-timeline'" />
+                <livewire:operations.staff-timeline :from="$rangeFrom" :until="$rangeTo" :period-navigation-owner="$this->getId()" :attention-customer-id="$customerFilter === 'all' ? null : (int) $customerFilter" :search-in-header="true" :planning-enabled="true" :show-suggestions="$distributionOpen" :focus-shift-id="$distributionOpen ? $distributionShiftId : null" :key="'shift-plan-staff-timeline'" />
             @else
                 <div class="rt-shift-plan-unavailable" role="status"><i class="far fa-clock" aria-hidden="true"></i><span>Die Zeitleiste ist verfügbar, sobald der Mitarbeiter- und Abwesenheitsbereich eingerichtet ist.</span></div>
             @endif

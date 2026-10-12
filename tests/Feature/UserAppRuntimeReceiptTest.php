@@ -136,7 +136,7 @@ class UserAppRuntimeReceiptTest extends TestCase
         $this->assertNull($this->service->latestMobileForUser($this->employee->id));
     }
 
-    public function test_reader_isolated_by_employee_prefers_mobile_and_retains_stale_timestamp(): void
+    public function test_reader_isolated_by_employee_follows_latest_use_across_platforms_and_retains_stale_timestamp(): void
     {
         $mobile = $this->service->record($this->employee, $this->payload());
         $this->travel(16)->minutes();
@@ -144,7 +144,7 @@ class UserAppRuntimeReceiptTest extends TestCase
         $other = User::factory()->create(['role' => 'staff', 'status' => true]);
         $this->syntheticReceipt($other);
         $this->assertSame($mobile->id, $this->service->latestMobileForUser($this->employee->id)->id);
-        $this->assertSame($mobile->id, $this->service->latestForUser($this->employee->id)->id);
+        $this->assertSame($desktop->id, $this->service->latestForUser($this->employee->id)->id);
         $this->assertFalse($this->service->isFresh($mobile));
         $mobile->delete();
         $this->assertNull($this->service->latestMobileForUser($this->employee->id));
@@ -163,6 +163,76 @@ class UserAppRuntimeReceiptTest extends TestCase
         $this->assertNull($this->service->latestMobileForUser($this->employee->id));
         $receipt->forceFill(['received_at' => now()->utc()->subDays(7)])->save();
         $this->assertNull($this->service->latestMobileForUser($this->employee->id));
+    }
+
+    public function test_automatic_selection_follows_actual_use_and_periodic_reports_never_switch_devices(): void
+    {
+        $desktop = $this->service->record($this->employee, $this->payload(['platform' => 'desktop', 'display_mode' => 'browser']));
+        $this->travel(1)->minutes();
+        $mobile = $this->syntheticReceipt($this->employee, ['platform' => 'ios']);
+        $this->assertSame($mobile->id, $this->service->latestForUser($this->employee->id)->id);
+
+        $this->travel(1)->minutes();
+        $this->service->record($this->employee, $this->payload(['platform' => 'desktop', 'display_mode' => 'browser']));
+        $this->assertSame($mobile->id, $this->service->latestForUser($this->employee->id)->id);
+
+        app(SessionPermissionService::class)->touch($this->employee);
+        $this->assertSame($desktop->id, $this->service->latestForUser($this->employee->id)->id);
+
+        $this->travel(16)->minutes();
+        $mobile->forceFill(['received_at' => now()->utc()])->save();
+        $selected = $this->service->latestForUser($this->employee->id);
+        $this->assertSame($desktop->id, $selected->id);
+        $this->assertFalse($this->service->isFresh($selected));
+
+        $mobile->sessionPermissionGrant->forceFill(['last_activity_at' => now()->utc()])->save();
+        $this->assertSame($mobile->id, $this->service->latestForUser($this->employee->id)->id);
+    }
+
+    public function test_equal_interaction_times_have_a_stable_choice_independent_of_report_arrival(): void
+    {
+        $first = $this->service->record($this->employee, $this->payload());
+        $second = $this->syntheticReceipt($this->employee, ['platform' => 'desktop']);
+        $this->assertSame($second->id, $this->service->latestForUser($this->employee->id)->id);
+        $this->travel(1)->minutes();
+        $this->service->record($this->employee, $this->payload());
+        $this->assertSame($second->id, $this->service->latestForUser($this->employee->id)->id);
+        $second->sessionPermissionGrant->forceFill(['ended_at' => now()->utc()])->save();
+        $this->assertSame($first->id, $this->service->latestForUser($this->employee->id)->id);
+    }
+
+    public function test_latest_actual_use_cannot_override_deleted_physical_login_or_future_activity(): void
+    {
+        (require database_path('migrations/2023_07_04_121951_create_sessions_table.php'))->up();
+        $older = $this->service->record($this->employee, $this->payload(['platform' => 'desktop']));
+        DB::table('sessions')->insert(['id' => $this->grant->session_identifier, 'user_id' => $this->employee->id,
+            'payload' => '', 'last_activity' => now()->getTimestamp()]);
+        $this->travel(1)->minutes();
+        $newer = $this->syntheticReceipt($this->employee, ['platform' => 'ios']);
+        config(['session.driver' => 'database']);
+        $this->app->instance('request', Request::create('/profile-read', 'GET'));
+        $this->assertSame($older->id, $this->service->latestForUser($this->employee->id)->id);
+        DB::table('sessions')->insert(['id' => $newer->sessionPermissionGrant->session_identifier, 'user_id' => $this->employee->id,
+            'payload' => '', 'last_activity' => now()->getTimestamp()]);
+        $this->assertSame($newer->id, $this->service->latestForUser($this->employee->id)->id);
+        $newer->sessionPermissionGrant->forceFill(['last_activity_at' => now()->utc()->addSecond()])->save();
+        $this->assertSame($older->id, $this->service->latestForUser($this->employee->id)->id);
+    }
+
+    public function test_logout_between_report_selection_and_grant_loading_does_not_revive_a_device(): void
+    {
+        $older = $this->service->record($this->employee, $this->payload(['platform' => 'desktop']));
+        $this->travel(1)->minutes();
+        $newer = $this->syntheticReceipt($this->employee, ['platform' => 'ios']);
+        $logoutPending = true;
+        DB::listen(function ($event) use (&$logoutPending, $newer): void {
+            if ($logoutPending && str_contains($event->sql, 'join "session_permission_grants" as "runtime_grant"')) {
+                $logoutPending = false;
+                SessionPermissionGrant::whereKey($newer->session_permission_grant_id)->update(['ended_at' => now()->utc()]);
+            }
+        });
+        $this->assertSame($older->id, $this->service->latestForUser($this->employee->id)->id);
+        $this->assertFalse($logoutPending);
     }
 
     public function test_reader_immediately_excludes_ended_and_expired_grants(): void

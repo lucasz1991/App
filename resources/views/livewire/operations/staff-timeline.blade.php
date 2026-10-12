@@ -29,6 +29,7 @@
     data-timeline-id="{{ $this->getId() }}" data-timeline-focus-date="{{ $focus['date'] }}" data-timeline-focus-shift-id="{{ $focus['shift']?->id }}"
     data-timeline-axis-from="{{ $axisFrom->toDateString() }}" data-timeline-axis-until="{{ $axisUntil->subDay()->toDateString() }}"
     data-timeline-selected-days="{{ $selectedDays->count() }}"
+    data-timeline-day-attention="{{ json_encode($dayAttention, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) }}"
     data-timeline-buffer-before="{{ (int) $axisFrom->diffInDays($selectedFrom) }}" data-timeline-buffer-after="{{ (int) $selectedUntil->diffInDays($axisUntil) }}"
     x-bind:style="{ '--timeline-display-days': windowDisplayDayCount, '--timeline-selected-days': windowDisplaySelectedDayCount, '--timeline-content-offset': windowContentOffset }"
     x-bind:data-content-loading="windowContentLoading ? 'true' : 'false'"
@@ -60,7 +61,12 @@
             <div class="rt-personnel-timeline-header-days" wire:ignore data-timeline-scaffold-header>
                 <template x-for="day in windowScaffoldDays" :key="day.date">
                     <div class="rt-personnel-timeline-head" x-bind:class="{ 'rt-personnel-timeline-head--weekend': day.weekend }" x-bind:data-timeline-date="day.date" x-bind:data-focus="day.focus ? 'true' : 'false'" x-bind:data-pending="day.pending ? 'true' : 'false'" x-bind:role="day.pending ? 'status' : null" aria-live="polite">
-                        <span class="rt-personnel-timeline-date"><span x-text="day.label"></span><i class="far fa-spinner-third fa-spin rt-timeline-day-spinner" x-show="day.pending && !windowError" aria-hidden="true"></i></span>
+                        <span class="rt-personnel-timeline-date-row">
+                            <span class="rt-personnel-timeline-date"><span x-text="day.label"></span><i class="far fa-spinner-third fa-spin rt-timeline-day-spinner" x-show="day.pending && !windowError" aria-hidden="true"></i></span>
+                            <span class="rt-timeline-day-attention" x-cloak x-show="!day.pending && day.attention?.shifts > 0" x-bind:title="day.attentionLabel" x-bind:aria-label="day.attentionLabel">
+                                <span class="rt-timeline-day-attention__dot" aria-hidden="true"></span><span x-text="day.attention?.shifts" aria-hidden="true"></span><span class="rt-timeline-day-attention__caption" aria-hidden="true">offen</span>
+                            </span>
+                        </span>
                         <span class="sr-only" x-show="day.pending" x-text="'Daten für ' + day.label + (windowError ? ' konnten nicht geladen werden.' : ' werden geladen.')"></span>
                         <span class="rt-personnel-timeline-hours" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></span>
                     </div>
@@ -70,7 +76,15 @@
             <div class="rt-personnel-timeline-header-days">
                 @foreach($days as $day)
                     <div @class(['rt-personnel-timeline-head', 'rt-personnel-timeline-head--weekend' => $day->isWeekend()]) data-timeline-date="{{ $day->toDateString() }}" wire:key="staff-head-{{ $day->toDateString() }}" data-focus="{{ $focus['date'] === $day->toDateString() ? 'true' : 'false' }}">
-                        <span class="rt-personnel-timeline-date">{{ $day->locale('de')->translatedFormat('D, d.m.') }}</span>
+                        <span class="rt-personnel-timeline-date-row">
+                            <span class="rt-personnel-timeline-date">{{ $day->locale('de')->translatedFormat('D, d.m.') }}</span>
+                            @if(($dayAttention[$day->toDateString()]['shifts'] ?? 0) > 0)
+                                @php
+                                    $attention = $dayAttention[$day->toDateString()];
+                                @endphp
+                                <span class="rt-timeline-day-attention" title="{{ $attention['shifts'] }} Schichten mit Bearbeitungsbedarf · {{ $attention['open_places'] }} offene Plätze · {{ $attention['requested_places'] }} ausstehende Zusagen" aria-label="{{ $attention['shifts'] }} Schichten mit Bearbeitungsbedarf · {{ $attention['open_places'] }} offene Plätze · {{ $attention['requested_places'] }} ausstehende Zusagen"><span class="rt-timeline-day-attention__dot" aria-hidden="true"></span>{{ $attention['shifts'] }}<span class="rt-timeline-day-attention__caption">offen</span></span>
+                            @endif
+                        </span>
                         <span class="rt-personnel-timeline-hours" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></span>
                     </div>
                 @endforeach
@@ -147,34 +161,38 @@
                                 data-timeline-detail="{{ json_encode($detailFacts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) }}"
                                 x-on:click="$dispatch('rt-timeline-event-preview', { anchor: $el })" data-table-row-ignore>
                                 <span class="rt-personnel-timeline-time"><span class="rt-personnel-timeline-time-text">{{ $event['timeline_label'] }}</span></span>
-                                @foreach($event['time_segments'] as $segment)
-                                    <span class="rt-personnel-timeline-mark" style="left:{{ ($segment['left_percent'] - $event['left_percent']) / $event['width_percent'] * 100 }}%;width:{{ $segment['width_percent'] / $event['width_percent'] * 100 }}%" aria-hidden="true"></span>
-                                @endforeach
+                                <span class="rt-personnel-timeline-duration-clip" aria-hidden="true">
+                                    @foreach($event['time_segments'] as $segment)
+                                        <span class="rt-personnel-timeline-mark" style="left:{{ ($segment['left_percent'] - $event['left_percent']) / $event['width_percent'] * 100 }}%;width:{{ $segment['width_percent'] / $event['width_percent'] * 100 }}%" aria-hidden="true"></span>
+                                    @endforeach
+                                </span>
                             </button>
                 </div>
             @endforeach
         </div>
         @if($focus['event'] && $focus['candidates']->has($row['user']->id))
             {{-- Eine rein visuelle Vorschau über der Zeitachse, ohne zweite Klickfläche oder eigene Lane. --}}
-            <div class="rt-timeline-focus" aria-hidden="true" data-time-start="{{ $focus['event']['left_percent'] }}" data-time-width="{{ $focus['event']['width_percent'] }}" wire:key="staff-focus-{{ $row['user']->id }}-{{ $focus['shift']->id }}">
-                <span class="rt-personnel-timeline-time rt-timeline-focus-preview" style="--time-label-offset:clamp(55px, {{ $focus['event']['left_percent'] + $focus['event']['width_percent'] / 2 }}%, calc(100% - 55px));--time-badge-width:max(110px, {{ $focus['event']['width_percent'] }}%)">
+            <div class="rt-timeline-focus" aria-hidden="true" data-time-start="{{ $focus['event']['left_percent'] }}" data-time-width="{{ $focus['event']['width_percent'] }}" wire:key="staff-focus-{{ $row['user']->id }}-{{ $focus['shift']->id }}" style="--time-label-offset:clamp(55px, {{ $focus['event']['left_percent'] + $focus['event']['width_percent'] / 2 }}%, calc(100% - 55px));--time-badge-width:max(110px, {{ $focus['event']['width_percent'] }}%)">
+                <span class="rt-personnel-timeline-time rt-timeline-focus-preview">
                     <span class="rt-personnel-timeline-time-text">{{ $focus['event']['timeline_label'] }}</span>
                 </span>
-                @foreach($focus['event']['time_segments'] as $segment)
-                    <span class="rt-timeline-focus-duration" style="left:{{ $segment['left_percent'] }}%;width:{{ $segment['width_percent'] }}%"></span>
-                @endforeach
+                <span class="rt-personnel-timeline-duration-clip">
+                    @foreach($focus['event']['time_segments'] as $segment)
+                        <span class="rt-timeline-focus-duration" style="left:{{ $segment['left_percent'] }}%;width:{{ $segment['width_percent'] }}%"></span>
+                    @endforeach
+                </span>
             </div>
         @endif
         @if($planningEnabled && !$absencesOnly && $showSuggestions)
             <div class="rt-timeline-proposals" aria-label="Unverbindliche Besetzungsvorschläge" wire:key="staff-proposals-{{ $row['user']->id }}">
                 @foreach($proposalRows->get($row['user']->id,collect()) as $proposal)
                     @continue($focus['shift'] && $proposal['shift_id'] === $focus['shift']->id)
-                    <span class="rt-timeline-proposal-duration" aria-hidden="true" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-width:{{ $proposal['width_percent'] }}%"></span>
-                    <div class="rt-timeline-proposal-shell" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-center:{{ $proposal['left_percent'] + ($proposal['width_percent'] / 2) }}%;--proposal-width:{{ $proposal['width_percent'] }}%" data-fit="{{ $proposal['fit'] }}" wire:key="{{ $proposal['id'] }}">
+                    <div class="rt-timeline-proposal-shell" style="--proposal-left:{{ $proposal['left_percent'] }}%;--proposal-center:{{ $proposal['left_percent'] + ($proposal['width_percent'] / 2) }}%;--proposal-width:{{ $proposal['width_percent'] }}%;--proposal-duration-width:calc(var(--timeline-days) * var(--timeline-day-width) * {{ $proposal['width_percent'] / 100 }})" data-fit="{{ $proposal['fit'] }}" wire:key="{{ $proposal['id'] }}">
                         <button type="button" class="rt-timeline-proposal" data-user="{{ $proposal['user_id'] }}" data-shift="{{ $proposal['shift_id'] }}" data-revision="{{ $proposal['revision'] }}" x-bind:disabled="windowContentLoading" data-fit="{{ $proposal['fit'] }}" data-urgency="{{ $proposal['urgency'] }}" aria-haspopup="dialog" aria-label="Vorschlag prüfen: {{ $row['user']->name }} · {{ $proposal['title'] }} · {{ $proposal['local_label'] }} · {{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }}" title="{{ $proposal['fit_label'] }} · {{ $proposal['urgency_label'] }} · {{ $proposal['title'] }} · {{ implode(' · ',$proposal['reasons']) }}" data-timeline-proposal>
                             <i class="far {{ $proposal['fit'] === 'review' ? 'fa-exclamation-circle' : ($proposal['fit'] === 'preferred' ? 'fa-check-circle' : 'fa-lightbulb') }}" aria-hidden="true"></i>
                             <span>{{ $proposal['timeline_label'] }}</span>
                             @if($proposal['urgency'] !== 'normal')<i class="far fa-clock rt-timeline-proposal__urgency" aria-hidden="true"></i>@endif
+                            <span class="rt-timeline-proposal-duration" aria-hidden="true"></span>
                         </button>
                         <div class="rt-timeline-proposal-ping animate-ping motion-reduce:animate-none" aria-hidden="true"></div>
                     </div>

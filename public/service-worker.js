@@ -164,6 +164,67 @@ function requestForegroundContext(client, message) {
     });
 }
 
+async function presentInForeground(message) {
+    try {
+        const windows = await self.clients.matchAll({
+            type: 'window',
+            includeUncontrolled: true,
+        });
+        const visibleClients = windows.filter((client) => {
+            if (client.visibilityState !== 'visible') {
+                return false;
+            }
+
+            try {
+                return isInsideRegistrationScope(new URL(client.url));
+            } catch (_) {
+                return false;
+            }
+        });
+        const foregroundContexts = (await Promise.all(
+            visibleClients.map(async (client) => ({
+                client,
+                context: await requestForegroundContext(client, {
+                    ...message,
+                    type: 'railtime:push-context-request',
+                }),
+            }))
+        )).filter(({ context }) => context !== null);
+        const activeChatId = message.category === 'chat'
+            ? Number(new URL(message.url).searchParams.get('chat') || 0)
+            : 0;
+
+        if (
+            activeChatId > 0
+            && foregroundContexts.some(
+                ({ context }) => context.activeChatId === activeChatId
+            )
+        ) {
+            return true;
+        }
+
+        foregroundContexts.sort(
+            (left, right) => Number(right.context.focused) - Number(left.context.focused)
+        );
+
+        for (const { client } of foregroundContexts) {
+            const acknowledged = await requestForegroundAck(client, {
+                ...message,
+                type: 'railtime:push-received',
+            });
+
+            if (acknowledged) {
+                return true;
+            }
+        }
+    } catch (_) {
+        // Ein geschlossenes Fenster oder ein fehlgeschlagenes ACK darf die
+        // sichtbare Betriebssystem-Benachrichtigung niemals verhindern.
+    }
+
+    return false;
+}
+
 /**
  * Dem Anrufer melden, dass hier gerade tatsächlich geklingelt wird.
  *
@@ -252,75 +313,25 @@ self.addEventListener('push', (event) => {
     event.waitUntil((async () => {
         await updateAppBadge(data.badge_count);
 
-        const windows = await self.clients.matchAll({
-            type: 'window',
-            includeUncontrolled: true,
-        });
-        const visibleClients = windows.filter((client) => {
-            if (client.visibilityState !== 'visible') {
-                return false;
-            }
-
-            try {
-                return isInsideRegistrationScope(new URL(client.url));
-            } catch (_) {
-                return false;
-            }
-        });
-
-        if (visibleClients.length > 0) {
-            const foregroundContexts = (await Promise.all(
-                visibleClients.map(async (client) => ({
-                    client,
-                    context: await requestForegroundContext(client, {
-                        type: 'railtime:push-context-request',
-                        notification_id: notificationId || options.tag,
-                        category,
-                        title,
-                        body: options.body,
-                        url: target.href,
-                    }),
-                }))
-            )).filter(({ context }) => context !== null);
-            const activeChatId = category === 'chat'
-                ? Number(target.searchParams.get('chat') || 0)
-                : 0;
-
-            if (
-                activeChatId > 0
-                && foregroundContexts.some(
-                    ({ context }) => context.activeChatId === activeChatId
-                )
-            ) {
-                return;
-            }
-
-            foregroundContexts.sort(
-                (left, right) => Number(right.context.focused) - Number(left.context.focused)
-            );
-
-            for (const { client } of foregroundContexts) {
-                const acknowledged = await requestForegroundAck(client, {
-                    type: 'railtime:push-received',
-                    notification_id: notificationId || options.tag,
-                    category,
-                    title,
-                    body: options.body,
-                    url: target.href,
-                });
-
-                if (acknowledged) {
-                    return;
-                }
-            }
+        // Web Push verspricht fuer JEDES Ereignis eine sichtbare Notification.
+        // Ein In-App-Hinweis allein erfuellt diese Zusage gegenueber WebKit
+        // nicht. Nach einer bestaetigten Vordergrundanzeige nur den zweiten
+        // Ton vermeiden; die OS-Benachrichtigung bleibt sichtbar erhalten.
+        if (category !== 'calls' && await presentInForeground({
+            notification_id: notificationId || options.tag,
+            category,
+            title,
+            body: options.body,
+            url: target.href,
+        })) {
+            options.silent = true;
         }
 
         await self.registration.showNotification(title, options);
 
         // Erst NACH dem Anzeigen melden: gemeldet wird, dass es hier klingelt,
-        // nicht dass eine Nachricht ankam. Übernimmt stattdessen ein sichtbares
-        // Fenster den Anruf (return oben), meldet dessen Klingel-Overlay den
-        // Zustand selbst über Livewire.
+        // nicht dass eine Nachricht ankam. Anrufe warten nicht auf einen
+        // moeglicherweise bereits suspendierten Vordergrund-Client.
         if (category === 'calls') {
             await reportRinging(data.ring_ack_url);
         }

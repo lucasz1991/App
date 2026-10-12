@@ -210,6 +210,13 @@ export function createRuntimeStatusReporter({
         }
     }
 
+    /** Called only after the lifecycle probe confirms the same authenticated account. */
+    function resumeAfterSessionCheck() {
+        authenticationExpired = false;
+        retryAfter = Number.NEGATIVE_INFINITY;
+        return report();
+    }
+
     function destroy() {
         destroyed = true;
         listeners.forEach((remove) => remove());
@@ -220,5 +227,5 @@ export function createRuntimeStatusReporter({
         controller?.abort();
     }
 
-    return { start, report, noteGeolocationPermission, destroy };
+    return { start, report, noteGeolocationPermission, resumeAfterSessionCheck, destroy };
 }

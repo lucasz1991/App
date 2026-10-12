@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Read-only profile projection. No browser, push or location collection is
- * activated, and an assigned phone is never promoted to a primary phone.
+ * activated. The last used app session is selected without assigning hardware.
  */
 final class EmployeePhoneStatusService
 {
@@ -38,30 +38,33 @@ final class EmployeePhoneStatusService
             return null;
         }
 
-        // Runtime reports describe their own mobile session. They never prove
-        // an inventory assignment, a main handset or native background tracking.
+        // Runtime reports describe their own session. They never prove
+        // an inventory assignment or native background tracking.
         $result = [
-            'primary_state' => 'unset',
-            'device_label' => 'Haupthandy nicht festgelegt',
+            'selection' => 'automatic',
+            'device_label' => 'Automatische Geräteauswahl',
             'assigned_phone_count' => $this->assignedPhoneCount($userId),
             'rows' => [
                 'installation' => $this->unknown('Web-App', 'far fa-mobile-screen-button'),
                 'push' => $this->unknown('Push-Freigabe', 'far fa-bell'),
                 'location' => $this->unknown('Standortberechtigung', 'far fa-location-dot'),
             ],
-            'evidence_note' => 'Haupthandy und gerätebezogene App-/Berechtigungsnachweise sind noch nicht hinterlegt. Aus einer mobilen App-Sitzung wurde noch kein Status empfangen. Bitte RailTime auf dem Handy neu öffnen, damit die Web-App ihren Einrichtungsstatus melden kann.',
+            'evidence_note' => 'Aus einer aktiven App-Sitzung wurde noch kein Status empfangen. Beim Öffnen von RailTime meldet das benutzte Gerät seinen Einrichtungsstatus automatisch.',
         ];
         $receipts = app(UserAppRuntimeReceiptService::class);
-        if (! $receipts->ready() || ! ($receipt = $receipts->latestMobileForUser($userId))) {
+        if (! $receipts->ready() || ! ($receipt = $receipts->latestForUser($userId))) {
             return $result;
         }
 
         $fresh = $receipts->isFresh($receipt);
         $reportedAt = $receipt->received_at->setTimezone('Europe/Berlin')->format('d.m.Y H:i');
-        $result['device_label'] = 'Gemeldete '.($receipt->platform === 'ios' ? 'iOS' : 'Android').'-Sitzung · Haupthandy nicht festgelegt';
-        $result['evidence_note'] = ($fresh ? 'Meldung vom ' : 'Zuletzt gemeldet am ').$reportedAt.' Uhr. '
-            .($fresh ? 'Der Browser hat diese Zustände gemeldet; die Meldung ist höchstens 15 Minuten alt.' : 'Die Meldung ist älter als 15 Minuten und beschreibt keinen aktuellen Gerätestatus.')
-            .' Ein App-Bericht legt kein Haupthandy und keine Inventarzuordnung fest.';
+        $usedAt = $receipt->sessionPermissionGrant->last_activity_at->setTimezone('Europe/Berlin')->format('d.m.Y H:i');
+        $result['device_label'] = 'Automatisch gewählt: '.match ($receipt->platform) {
+            'ios' => 'iPhone / iPad', 'android' => 'Android-Gerät', 'desktop' => 'Computer', default => 'Gerät',
+        };
+        $result['evidence_note'] = 'Letzte App-Nutzung: '.$usedAt.' Uhr. Letzte Statusmeldung: '.$reportedAt.' Uhr. '
+            .($fresh ? 'Die gemeldeten Zustände sind höchstens 15 Minuten alt.' : 'Die Meldung ist älter als 15 Minuten; aktueller Gerätestatus unbekannt.')
+            .' Die Geräteauswahl folgt automatisch der letzten App-Nutzung.';
         $result['rows'] = [
             'installation' => $this->runtimeRow('Web-App', 'far fa-mobile-screen-button', $receipt, $fresh, 'display_mode', [
                 'standalone' => ['active', 'Als Web-App geöffnet'], 'browser' => ['info', 'Im Browser geöffnet'],
@@ -108,10 +111,9 @@ final class EmployeePhoneStatusService
     private function runtimeRow(string $label, string $icon, UserAppRuntimeReceipt $receipt, bool $fresh, string $field, array $labels, string $explanation): array
     {
         [$state, $value] = $labels[$receipt->{$field}] ?? ['unknown', 'Nicht gemeldet'];
-        $reportedAt = $receipt->received_at->setTimezone('Europe/Berlin')->format('d.m.Y H:i');
 
         return ['label' => $label, 'icon' => $icon, 'state' => $fresh ? $state : 'unknown',
             'value' => $fresh ? $value : 'Zuletzt gemeldet: '.$value,
-            'evidence' => 'Meldung vom '.$reportedAt.' Uhr. '.($fresh ? '' : 'Älter als 15 Minuten; aktueller Zustand unbekannt. ').$explanation];
+            'evidence' => $explanation];
     }
 }

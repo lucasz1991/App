@@ -35,9 +35,12 @@ return [
 
     'ordinary_lifetime' => env('SESSION_LIFETIME', 120),
 
-    // Employee business phones retain a login over a weekend. Management and
-    // customer portal sessions continue to use the ordinary idle timeout.
+    // Internal accounts retain their login over a weekend. Actual use extends
+    // this idle timeout; background polling does not. Customer portals retain
+    // the ordinary timeout.
     'employee_lifetime' => 4320,
+
+    'administrator_lifetime' => 4320,
 
     'expire_on_close' => false,
 
